@@ -72,8 +72,9 @@ def test_advanced_design_preserves_the_same_routing_contract() -> None:
     _assert_router_contract(router, public_entry="spx-design")
     _assert_consumer_contract(consumers)
     lowered_skill = skill.lower()
-    assert "every project-wide `refine`" in lowered_skill
-    assert "new immutable review round" in lowered_skill
+    compact_skill = " ".join(lowered_skill.split())
+    assert "every `refine` that changes approved design truth" in lowered_skill
+    assert "create a new `ud-*` workspace" in compact_skill
 
     surface_map = json.loads(
         _read(ADVANCED_DESIGN.parent / "_shared" / "surface-map.json")
@@ -102,12 +103,13 @@ def test_quick_pins_an_exact_registered_design_change_for_direct_delivery() -> N
     )
 
     for content in (classic_quick, advanced_quick):
+        normalized = " ".join(content.lower().split())
         assert ".specify/design/index.json" in content
         assert "design_change_id" in content
         assert "design_change_ref" in content
         assert "design_change_sha256" in content
         assert "design_contract_ref" in content
-        assert "never resolve" in content.lower() and "latest" in content.lower()
+        assert "never resolve" in normalized and "latest" in normalized
         assert "preview/manifest/handoff SHA-256" in content
         assert "DS-*" in content
         assert "DH-*" in content

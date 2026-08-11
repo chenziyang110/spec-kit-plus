@@ -50,10 +50,10 @@ If scope >10 files or crosses a module boundary → upgrade to `/sp-quick`.
   to an approved existing pattern, introduces no new visual/product decision,
   affects a bounded state, and can be run and visually checked at the real
   entry point.
-- `DESIGN.md` with `design_system.status: bootstrap`, a new surface, supplied
-  fidelity target, responsive multi-state work, or a shared component/token
-  change leaves fast: route a new direction to `/sp-design` and tracked UI of
-  any implementation size or acceptance depth to `/sp-quick`.
+- No applicable registered design change, a new surface, supplied fidelity
+  target, responsive multi-state work, or a shared component/token change
+  leaves fast: route a new direction to `/sp-design` and tracked UI of any
+  implementation size or acceptance depth to `/sp-quick`.
 - Eligible UI fast work still requires a representative visual capture and
   runtime diagnostics plus visual inspection against the governing design/live
   pattern; add a structure snapshot whenever semantics, hierarchy, focus, or

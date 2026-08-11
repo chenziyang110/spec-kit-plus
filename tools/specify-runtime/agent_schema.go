@@ -83,7 +83,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["input_schema"] = "artifact-patch-input"
 		capability["side_effect"] = "patches-artifact"
 		capability["usage"] = "specify-runtime artifact patch --lease <id> (--json-pointer <pointer> --value-json <json> | --section <heading> --content <text> | --frontmatter-json <object> | --heading <current> --new-heading <replacement> | --preamble <text> | --append-json <json>)"
-		capability["input_contract"] = "--section accepts bare heading text or markdown markers (\"Source Design System\" or \"## Source Design System\"); for Windows path content prefer forward slashes or raw strings so \\a is not treated as a bell escape"
+		capability["input_contract"] = "--section accepts bare heading text or markdown markers (\"Source Design Change\" or \"## Source Design Change\"); for Windows path content prefer forward slashes or raw strings so \\a is not treated as a bell escape"
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "artifact-patch-input", "--format", "json"}
 	case "artifact.submit":
 		capability["side_effect"] = "writes-artifact"
@@ -137,6 +137,14 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "writes-derived-visual-comparison-report"
 		capability["usage"] = "specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json <observed-comparison> --format json"
 		capability["input_contract"] = "agent supplies entrypoint, implementation revision, typed evidence refs, matrix observations, explicit passing verdict, and reviewer; runtime derives approved design and handoff bindings, exact decision coverage, tolerance, deviations, canonical path, and byte digest from task-index.json"
+	case "design.change":
+		capability["side_effect"] = "creates-design-change-workspace-and-index-record"
+		capability["usage"] = "specify-runtime design change <UD-ID> --title <title> [--type greenfield|preserve|overhaul|extension] --scope <surface>... [--profiles <csv>] [--baseline-ref <ref>]... [--supersedes <UD-ID>]... --format json"
+		capability["input_contract"] = "creates .specify/design/changes/<UD-ID>/DESIGN.md plus local working surfaces and a draft metadata-only index record; scopes are stable path-like identifiers"
+	case "design.register":
+		capability["side_effect"] = "registers-immutable-design-change"
+		capability["usage"] = "specify-runtime design register .specify/design/changes/<UD-ID>/DESIGN.md --format json"
+		capability["input_contract"] = "requires an approved change-local contract whose ID, path, scope, and supersedes relationships match index.json; overlapping approved scopes must be explicitly superseded; registration binds the exact SHA-256"
 	case "implement.result-merge":
 		capability["side_effect"] = "writes-task-lifecycle-and-worker-result"
 		capability["usage"] = "specify-runtime implement result-merge --feature-dir <feature-dir> --task-id <Txxx> --result-json <object|@path|-> --format json"

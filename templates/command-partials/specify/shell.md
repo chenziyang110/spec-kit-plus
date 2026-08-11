@@ -40,19 +40,22 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
   navigation, interaction flows, responsive behavior, visual states, TUI
   layouts, or CLI presentation are UI-bearing work.
 - For substantive UI-bearing work, require `ui-brief.md` even when there is no
-  external reference. Query approved `DESIGN.md` through `specify-runtime artifact show`; the leader may compile that brief from the returned contract,
+  external reference. Query metadata-only `.specify/design/index.json` through
+  `specify-runtime artifact show`, select one applicable registered change,
+  and show its exact `design_ref`; the leader
+  may compile that brief from the returned contract,
   existing product surfaces, and confirmed experience requirements.
   A narrow copy-only or existing-pattern state fix may record why a separate
   brief adds no decision value and use a precise `spec.md#...` design-contract
   reference as `design_contract.ui_brief_ref`; the UI contract is never omitted.
-- Treat `DESIGN.md` with `design_system.status: bootstrap` as not ready for a
-  new direction. Route product-wide or high-visibility design decisions to
-  `sp-design`; do not inherit its generic starter tokens as product intent.
+- Treat a pre-existing root `DESIGN.md` as read-only legacy baseline input, not
+  a candidate for implicit adoption. Route new or high-visibility design
+  decisions with no applicable registered change to `sp-design`.
 - When approved design provenance names
-  `.specify/design/previews/round-NN.html#<direction-id>`, query the preview and
+  `.specify/design/changes/<UD-ID>/previews/round-NN.html#<direction-id>`, query the preview and
   its approval/manifest/handoff sidecars only through targeted
-  `specify-runtime artifact show` calls, then preserve that exact project-level
-  visual reference, approval sidecar,
+  `specify-runtime artifact show` calls, then preserve that exact change-level
+  visual reference, registered design ref/hash, approval sidecar,
   preview/manifest/handoff SHA-256 values, immutable handoff reference,
   applicable `DS-*` decisions, and applicable `DH-*` implementation contracts,
   including component/state, density, responsive, motion-token,

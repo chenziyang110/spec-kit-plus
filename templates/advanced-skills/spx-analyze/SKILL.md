@@ -36,7 +36,7 @@ and stop if the repaired state remains invalid.
 Compare confirmed requirements, design decisions, task coverage, dependencies,
 write boundaries, consequence obligations, and real-entrypoint verification
 against the live repository paths selected by cognition.
-For UI work, verify continuity from approved `DESIGN.md` and `ui-brief.md`
+For UI work, verify continuity from the exact registered design change and `ui-brief.md`
 through the plan `ui_design_contract`, every UI task contract, and required
 real-entrypoint evidence. Missing continuity is an upstream-owned finding.
 

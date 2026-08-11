@@ -240,10 +240,18 @@ def test_specify_design_change_readiness_has_alignment_and_context_slots() -> No
     assert "design readiness" in command
     assert "design_system_status" in alignment
     assert "design_risk_level" in alignment
-    assert "Design System Readiness" in alignment
+    assert "UI Design-Change Readiness" in alignment
+    for field in (
+        "design_change_id",
+        "design_change_ref",
+        "design_change_sha256",
+        "design_contract_ref",
+    ):
+        assert field in alignment
     assert "Design References and Gaps" in context
     assert "design_system_requirements" in context
-    assert "design references" in context.lower()
+    assert "registered_design_change" in context
+    assert "design_change_references" in context
 
 
 def test_specify_ui_reference_input_uses_writable_subagent_lane() -> None:
@@ -367,7 +375,7 @@ def test_classic_fast_and_quick_cannot_bypass_ui_quality_gate() -> None:
     combined = f"{fast}\n{quick}"
 
     assert "UI Fast Gate" in fast
-    assert "design_system.status: bootstrap" in fast
+    assert "No applicable registered design change" in fast
     assert "representative screenshot or platform" in fast
     assert "UI handling applies even without an image" in quick
     assert "capture" in quick

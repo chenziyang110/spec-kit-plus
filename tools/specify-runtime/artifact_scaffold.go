@@ -58,7 +58,10 @@ var artifactScaffoldKinds = map[string]artifactScaffoldKind{
 	"design-brief": {
 		Kind:         "design-brief",
 		TemplatePath: "design-brief-template.md",
-		AllowedPaths: [][]string{{".specify", "design", "design-brief.md"}},
+		AllowedPaths: [][]string{
+			{".specify", "design", "design-brief.md"},
+			{".specify", "design", "changes", "*", "brief.md"},
+		},
 		// redesign_mode is conditional (live UI / refine|audit) and is not
 		// unconditionally required by scaffold contracts.
 		AgentFillRequired: []string{
@@ -76,9 +79,12 @@ var artifactScaffoldKinds = map[string]artifactScaffoldKind{
 		EstimatedTokenSavings: 700,
 	},
 	"design-review": {
-		Kind:                  "design-review",
-		TemplatePath:          "artifacts/design-review.md",
-		AllowedPaths:          [][]string{{".specify", "design", "review.md"}},
+		Kind:         "design-review",
+		TemplatePath: "artifacts/design-review.md",
+		AllowedPaths: [][]string{
+			{".specify", "design", "review.md"},
+			{".specify", "design", "changes", "*", "review.md"},
+		},
 		AgentFillRequired:     []string{"mode", "inputs", "approved_direction", "immutable_references", "contract_ids", "platforms", "risks", "validation", "next_workflow"},
 		EstimatedTokenSavings: 500,
 	},
@@ -607,7 +613,7 @@ func renderStaticArtifactScaffold(kind artifactScaffoldKind, template []byte, va
 		"research":                  {"# Research:", "## Summary", "## Decisions", "## Sources"},
 		"specify-context":           {"# Planning Context:", "## Planning Context", "## Relevant Repository Context"},
 		"specify-draft":             {"# Specification Draft Ledger:", "## Intent Analysis Record", "## Domain Progress Ledger"},
-		"ui-brief":                  {"# UI Brief", "## Source Design System", "## Approved Direction"},
+		"ui-brief":                  {"# UI Brief", "## Source Design Change", "## Feature Adoption", "## Worker Contract"},
 		"ui-reference-notes":        {"# UI Reference Notes", "## Reference Inputs", "## Fidelity Mode", "## Risks And Gaps"},
 		"workflow-state":            {"# Workflow State:", "## Current Command", "## Next Command"},
 	}

@@ -298,7 +298,11 @@ func TestDesignPreviewApproveFreezesDirectionAndBindsSidecar(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mutated := strings.Replace(readFile(t, preview), "Compare all", "Compare directions", 1)
+	beforeMutation := readFile(t, preview)
+	mutated := strings.Replace(beforeMutation, "Direction A freeform canvas", "Direction A changed canvas", 1)
+	if mutated == beforeMutation {
+		t.Fatal("stale sidecar fixture did not mutate the preview")
+	}
 	if err := os.WriteFile(preview, []byte(mutated), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -654,13 +658,7 @@ func writeReadyDesignChangeRuntime(t *testing.T, designPath, changeID string, sc
 	if err != nil {
 		t.Fatal(err)
 	}
-	sectionMarkers := `<div hidden data-preview-section="foundations"></div>
-<div hidden data-preview-section="components"></div>
-<div hidden data-preview-section="states"></div>
-<div hidden data-preview-section="motion"></div>
-<div hidden data-preview-section="responsive"></div>
-<div hidden data-preview-section="handoff"></div>`
-	content := strings.Replace(string(template), "</body>", sectionMarkers+"\n</body>", 1)
+	content := string(template)
 	if err := os.MkdirAll(filepath.Dir(preview), 0o755); err != nil {
 		t.Fatal(err)
 	}

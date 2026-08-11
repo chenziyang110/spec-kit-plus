@@ -251,4 +251,4 @@ When functional discussion is stable, no explicit handoff request is active, and
 - Optional ASCII sketches show rough layout or flow. Markdown is the primary carrier; JSON stores only `ui_sketches_present`, `ui_sketch_summary`, and `ui_sketch_reference`.
 - Preserve `experience_commitments`, `design_system_requirements`, `design_system_status`, `design_risk_level`, and `design_context` in Design Carry-Forward and the canonical handoff `discussion_decision_digest`.
 - Route new product UI, redesign/rebrand, core workflow experience, multi-platform design, or high-visibility surfaces to `sp-design`; small UI gaps may continue only as an explicit soft risk.
-- Apply shared Design Intelligence rules (taste DNA, dials, surface-aware anti-slop) subordinate to approved `DESIGN.md`; bootstrap seed is never product direction.
+- Apply shared Design Intelligence rules (taste DNA, dials, surface-aware anti-slop) subordinate to the exact applicable registered design change; a legacy root contract is never current product direction.

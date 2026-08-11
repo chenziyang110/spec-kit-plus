@@ -115,7 +115,7 @@ into the immutable handoff; never manually rewrite that artifact or replace it
 with a prose summary.
 
 Complete `<change-dir>/DESIGN.md` from the approved round. Use
-`assets/design-system.md` as content guidance while the installed
+`assets/design-change.md` as content guidance while the installed
 `design-change-template.md` owns the schema. Record only
 decisions that constrain downstream UI work: principles, foundations, tokens,
 component and interaction rules, responsive/accessibility behavior, reference

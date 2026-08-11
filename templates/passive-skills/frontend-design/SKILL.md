@@ -8,34 +8,37 @@ This skill guides creation of distinctive, production-grade frontend interfaces 
 
 The user provides frontend requirements: a component, page, application, or interface to build. They may include context about the purpose, audience, or technical constraints.
 
-## Spec Kit Plus Design-System Priority
+## Spec Kit Plus Design-Change Priority
 
-In a Spec Kit Plus project, frontend-design is subordinate to DESIGN.md. Before
-choosing a bold aesthetic direction, query registered `DESIGN.md` through
-`specify-runtime artifact show --path DESIGN.md --view summary`; if the runtime
-reports it missing, use an equivalent committed design-system source when one
-governs the UI. Follow that source for tokens, components, layout density,
-interaction states, accessibility, motion, and evidence expectations.
+In a Spec Kit Plus project, frontend-design is subordinate to the exact design
+change bound by the current feature or task. Before choosing an aesthetic
+direction, query metadata-only `.specify/design/index.json`, then inspect the
+selected `.specify/design/changes/<UD-ID>/DESIGN.md` through targeted
+`specify-runtime artifact show` calls and verify its registered
+SHA-256. Never resolve "latest". Follow that scoped contract for tokens,
+components, layout density, interaction states, accessibility, motion, and
+evidence expectations. A root `DESIGN.md`, when present, is read-only legacy
+baseline input and cannot authorize adoption.
 
-`design_system.status: bootstrap` is not a governing product direction. Do not
-let its generic starter palette or typography suppress a project-specific
-solution. For substantive new UI, route through `sp-design`/`spx-design`; for a
-narrow existing-pattern change, ground the implementation in the live product
-surface and record the bounded design assumption.
+For substantive new UI with no applicable registered change, route through
+`sp-design`/`spx-design`; for a narrow existing-pattern change, ground the
+implementation in the live product surface and record the bounded design
+assumption.
 
-When `specify-runtime artifact show --path DESIGN.md --view summary` reports an
-approved `.specify/design/previews/round-NN.html#<direction-id>`, inspect that
-exact board through the design/artifact CLI
-project-level design board before implementation. Carry its component states,
-density, motion tokens, and reduced-motion equivalent into the feature brief
-and real UI. A feature-level `ui-target.html` can refine composition, but cannot
-silently replace the approved reusable design language.
+When the bound contract reports an approved
+`.specify/design/changes/<UD-ID>/previews/round-NN.html#<direction-id>`, inspect
+that exact change-level board through the design/artifact CLI before
+implementation. Carry its component states, density, motion tokens, and
+reduced-motion equivalent into the feature brief and real UI. A feature-level
+`ui-target.html` can refine composition, but cannot silently replace the bound
+preview or registered design change.
 
-Do not invent unrelated bold aesthetics when the project already has a design
-system or when the request is to implement an existing product surface. If no
-design system exists and the work is high-visibility, new product UI, a redesign
-or rebrand, or a core workflow experience, recommend `sp-design` before
-implementation rather than treating visual style as an implementation detail.
+Do not invent unrelated bold aesthetics when a registered change governs the
+affected scope or when the request is to implement an existing product surface.
+If no applicable change exists and the work is high-visibility, new product UI,
+a redesign or rebrand, or a core workflow experience, recommend `sp-design`
+before implementation rather than treating visual style as an implementation
+detail.
 
 ## Design Thinking
 
@@ -68,10 +71,10 @@ Focus on:
 
 Avoid generic AI-generated aesthetics: unexplained gradients, interchangeable card grids, placeholder copy, arbitrary font changes, and visual effects unrelated to product purpose. The problem is unsupported defaulting, not any single font, radius, layout, or color.
 
-## Surface-aware anti-slop (subordinate to DESIGN.md)
+## Surface-aware anti-slop (subordinate to the bound design change)
 
-When Spec Kit Plus has an approved `DESIGN.md`, obey it first. When implementing
-without a governing approved system, or when recording a bounded existing-pattern
+When Spec Kit Plus has an applicable registered design change, obey that exact
+ref/hash for its declared scope. When implementing without a governing approved change, or when recording a bounded existing-pattern
 exception, apply surface-aware locks from
 `templates/design-library/anti-slop-policy.md` (also installed under
 `.specify/templates/design-library/anti-slop-policy.md`):
@@ -84,8 +87,8 @@ exception, apply surface-aware locks from
 | `existing-pattern-maintenance` | inherit live language | inventing a parallel aesthetic family |
 
 Do not promote landing-only bans into global constitution. Design workflows own
-taste intake and approval; this skill does not authorize rewriting `DESIGN.md`
-or implementing production UI inside `sp-design`.
+taste intake and approval; this skill does not authorize mutating a registered
+design change or implementing production UI inside `sp-design`.
 
 Interpret creatively and make unexpected choices that feel genuinely designed for the context. No design should be the same. Vary between light and dark themes, different fonts, different aesthetics. NEVER converge on common choices (Space Grotesk, for example) across generations.
 

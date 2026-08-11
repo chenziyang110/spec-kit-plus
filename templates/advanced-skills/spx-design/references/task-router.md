@@ -17,7 +17,8 @@ route_reason: <one evidence-based sentence>
 ```
 
 Use `specify-runtime design change` to create a missing `UD-*` workspace, then
-store the canonical route in `.specify/design/changes/<UD-ID>/brief.md`. Treat
+use `specify-runtime artifact patch` to store the canonical route in
+`.specify/design/changes/<UD-ID>/brief.md`. Treat
 any selected-mode field exposed by
 derived state only as a compatibility projection of `task_type`; use the same
 owner CLI to repeat the route in review when it explains closeout.
@@ -43,7 +44,8 @@ owner CLI to repeat the route in review when it explains closeout.
 
 ## Resume Before Reclassification
 
-Query `.specify/design/index.json` and the matching change brief/contract first.
+Query `.specify/design/index.json` and the matching change brief/contract first
+through targeted `specify-runtime artifact show` calls.
 Treat a root `DESIGN.md` only as a read-only legacy baseline. Resume before reclassification when
 the same objective is nonterminal, using the brief's task type and input
 strategy plus the derived state's current stage. Approval, feedback, and

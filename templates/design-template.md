@@ -68,11 +68,14 @@ design_system:
 
 # Project Design System
 
-This file is a structurally valid bootstrap seed, not an approved product design.
-Before substantive new UI, run `sp-design`/`spx-design`, select a project-specific
-direction, and let `specify-runtime design export` replace the generic starter
-choices and bind the approval metadata above.
-Downstream agents must not treat `status: bootstrap` as locked visual truth.
+This packaged template exists only for legacy root-contract compatibility. Init
+does not copy it into new projects, and a pre-existing root `DESIGN.md` is
+read-only baseline input rather than current approval truth. Before substantive
+new UI, use `specify-runtime design change` to create a bounded `UD-*`
+workspace, and register its change-local `DESIGN.md`. Never replace this root
+file in place.
+Downstream agents must not treat `status: bootstrap` as locked visual truth or
+resolve it as an implicit latest design.
 
 ## Product Feel
 

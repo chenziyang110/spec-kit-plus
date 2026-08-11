@@ -11,8 +11,8 @@ design-before-code loop before dispatching implementation:
 
 1. **UI Audit** — issue list only: hierarchy, spacing consistency, missing
    states (loading/empty/error/focus), generic equal-card layouts, DNA drift.
-2. Analyze current UI (live surface, approved `DESIGN.md`, UI System Model,
-   brief/context).
+2. Analyze current UI (live surface, exact registered `UD-*` design change,
+   UI System Model, brief/context).
 3. Identify the design issue (hierarchy, density, feedback, generic look, etc.).
 4. Propose the improvement (before → after) against design DNA, dials,
    anti-slop locks, and system model—not ad-hoc CSS taste.
@@ -103,17 +103,23 @@ The following flags are available and composable:
 ## Image and UI Reference Handoff
 
 - UI handling applies even without an image. For every bounded user-visible UI
-change, reference the approved `DESIGN.md`/live pattern, affected entry point,
+change, query `.specify/design/index.json` through `specify-runtime artifact
+show` for discovery and pin the exact
+registered change selected for the task: `design_change_id`,
+`design_change_ref`, `design_change_sha256`, and `design_contract_ref`. Never
+resolve “latest” and never substitute a root `DESIGN.md`; a root file is
+read-only legacy baseline evidence. Also reference the approved change/live pattern, affected entry point,
   work/surface/platform type, subject/audience/job, approved direction/signature,
   states and viewports, must-preserve decisions, and real-entrypoint
-  structure/visual/runtime evidence. Route a missing/bootstrap design or new visual direction to
+  structure/visual/runtime evidence. Route a missing applicable registered
+  change, an unregistered draft, or a new visual direction to
   `sp-design`. Keep multi-surface or acceptance-heavy implementation in quick;
   expand its task-local plan, viewport/state matrix, batches, and evidence.
-- When an approved design system is the basis, patch its approved visual ref,
+- When a registered design change is the basis, patch its approved visual ref,
   preview/manifest/handoff SHA-256 values, immutable handoff ref, and selected
   `DS-*`/`DH-*` rows into the quick-status artifact via leased
   `specify-runtime artifact patch` and into every UI worker packet. An active
-  Quick task must not silently adopt a later design approval; adoption requires a confirmed UI checkpoint amendment with the replacement binding.
+  Quick task must not silently adopt a later design approval; adoption requires a confirmed UI checkpoint amendment with the complete replacement binding.
 - Carry the confirmed UI Confirmation unchanged into every UI worker packet and
   keep the matching fields current on the quick-status artifact only through
   leased `specify-runtime artifact patch`. A worker may implement within its

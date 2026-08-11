@@ -71,8 +71,8 @@ an unrelated feature are competing candidates, not priority-ranked stages.
 
 Choose the first applicable trustworthy route:
 
-- new/high-visibility UI direction, redesign, or UI work blocked by missing or
-  bootstrap `DESIGN.md`: `spx-design`;
+- new/high-visibility UI direction, redesign, or UI work with no applicable
+  registered `UD-*` change: `spx-design`;
 - active durable team batch: `spx-implement-teams`;
 - trusted completed system Review whose fresh `human-acceptance.json` is not
   `accepted`: `spx-accept`;

@@ -906,11 +906,6 @@ func lintDesignPreviewFile(path, level string) []designDiagnostic {
 	if !reflect.DeepEqual(parsed.DirectionIDs, parsed.DirectionAnchorIDs) {
 		addDesignDiagnostic(&diagnostics, "preview-direction-anchor-mismatch", "every direction control must expose an id equal to its data-direction-id", "data-direction-id.id")
 	}
-	for _, section := range []string{"foundations", "components", "states", "motion", "responsive", "handoff"} {
-		if !parsed.Sections[section] {
-			addDesignDiagnostic(&diagnostics, "preview-missing-section", "design preview is missing required section: "+section, "data-preview-section."+section)
-		}
-	}
 	manifest, err := parseJSONObject(parsed.PreviewManifestText)
 	if err != nil {
 		addDesignDiagnostic(&diagnostics, "preview-invalid-manifest", err.Error(), "script#"+designPreviewManifestID)

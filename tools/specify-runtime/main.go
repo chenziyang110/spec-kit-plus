@@ -1053,6 +1053,7 @@ func defaultCapabilities() []string {
 		"cognition.validate-build",
 		"cognition.validate-scan",
 		"design.approve",
+		"design.change",
 		"design.export",
 		"design.import",
 		"design.lint",
@@ -1060,6 +1061,7 @@ func defaultCapabilities() []string {
 		"design.preview-manifest",
 		"design.preview-lint",
 		"design.profiles",
+		"design.register",
 		"design.ui-target",
 		"design.ui-target-lint",
 		"test-design.audit-prepare",
@@ -1253,6 +1255,10 @@ func capabilitySummary(id string) string {
 		return "Build a semantic routing audit and optionally persist its canonical input/output pair atomically."
 	case "evidence.visual-compare":
 		return "Materialize a task-bound visual comparison report from compact observed differences and captures."
+	case "design.change":
+		return "Create a scoped UI design-change workspace and draft index record."
+	case "design.register":
+		return "Register an approved change-local UI contract as immutable consumption truth."
 	case "prd-scan.record-upsert":
 		return "Create or replace one PRD scan contract record without rewriting its JSON document."
 	case "prd-scan.record-remove":

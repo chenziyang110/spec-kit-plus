@@ -34,7 +34,7 @@ Preserved Contract: Specify owns formal binding, Quick owns direct binding and c
 
 ## Immutable Adoption
 
-A new approval must never silently retarget an existing formal feature or Quick
+A new approval must not silently retarget an existing formal feature or Quick
 workspace. Keep old preview/manifest/handoff refs, SHA-256 values, and selected
 `DS-*`/`DH-*` rows pinned. Formal adoption re-enters Specify and regenerates the
 highest invalid downstream contract. Quick adoption requires a confirmed

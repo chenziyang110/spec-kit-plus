@@ -20,9 +20,11 @@ Model → Implementation), and Visual Validation. When UI is involved: read tast
 DNA / personality, dials (variance · motion · density), evidence levels
 (`measured` / `evidence-backed-inference` / `assumption`), UI System Model
 (tokens, components, states, responsive, behavior), surface-aware anti-slop, and
-design readiness. Subordinate all of these to approved `DESIGN.md` + immutable
-preview/approval/handoff under `.specify/design/**`—never a parallel root
-`.design/` tree. Bootstrap seed is never product direction. Discussion captures
+design readiness. Subordinate all of these to the exact registered
+`.specify/design/changes/<UD-ID>/DESIGN.md` plus its immutable
+preview/approval/handoff—not a global root contract or parallel `.design/`
+tree. A pre-existing root `DESIGN.md` is read-only legacy baseline input.
+Discussion captures
 durable `design_context`; design reverse-engineers system rules; specify carries
 UI Requirements + Acceptance Criteria; quick runs UI Audit then
 design-before-code; debug uses UI Debug Mode (layout / interaction / taste);
@@ -30,21 +32,24 @@ implement/review require system model + anti-slop + visual validation loop.
 
 ## Design System Gate
 
-- Before substantive UI work, look for `DESIGN.md` or an equivalent committed
-  design-system source. Treat `DESIGN.md` as the expected design contract name
-  when documenting or testing this gate.
-- If `DESIGN.md` is present, implementation must follow it for layout,
-  component usage, color, typography, motion, density, interaction states,
-  accessibility expectations, and evidence requirements.
+- Before substantive UI work, query metadata-only
+  `.specify/design/index.json` through `specify-runtime artifact show`, select
+  the applicable registered `UD-*` change,
+  and verify its exact `design_ref` and `approval_sha256`. Never resolve
+  "latest" or silently substitute a root file.
+- Implementation must follow that exact change-local `DESIGN.md` for its
+  declared scope: layout, component usage, color, typography, motion, density,
+  interaction states, accessibility expectations, and evidence requirements.
 - When approval points to
-  `.specify/design/previews/round-NN.html#<direction-id>`, treat that exact
-  project-level design board as inspectable handoff evidence. Preserve its
+  `.specify/design/changes/<UD-ID>/previews/round-NN.html#<direction-id>`, treat
+  that exact change-level design board as inspectable handoff evidence. Preserve its
   component/state, density, meaningful-motion, and reduced-motion decisions;
   do not replace it with prose or a later feature target.
-- A `DESIGN.md` with `design_system.status: bootstrap` is only an initialized
-  seed. Do not let its generic tokens suppress project-specific design work or
-  treat it as an approved product direction.
-- If `DESIGN.md` is missing, contradictory, or too thin for high-risk UI work,
+- A root `DESIGN.md`, if present, is read-only legacy baseline input. It cannot
+  authorize adoption, be selected as an implicit latest contract, or suppress
+  a new bounded UI change.
+- If no applicable registered change exists, its scope is contradictory, or it
+  is too thin for high-risk UI work,
   recommend `sp-design` and the projected invocation `{{invoke:design}}` before
   implementation. Do not let implementation invent a substitute visual system.
 - Small UI work may proceed without `sp-design` only when the existing design
@@ -67,9 +72,9 @@ implement/review require system model + anti-slop + visual validation loop.
 - The UI reference lane scaffolds `ui-reference-notes.md` and `ui-brief.md`
   through `specify-runtime artifact`, patches their semantic fields, and creates
   optional `ui-target.html` through `specify-runtime design ui-target`.
-- Keep the artifacts distinct: the project-level design preview approves the
-  reusable design language, while feature-level `ui-target.html` describes one
-  concrete feature composition.
+- Keep the artifacts distinct: the change-level design preview approves the
+  decisions declared for one `UD-*` scope, while feature-level `ui-target.html`
+  describes one concrete feature composition.
 - `approximate` is the default fidelity mode. `high` requires visual
   comparison; `inspiration` extracts principles only.
 - If the environment cannot prove visual similarity, the workflow must record

@@ -77,8 +77,8 @@ projection.
    `remaining_gate_slots` count only unopened logical gates; zero never blocks
    a progress-bound attempt inside an existing gate.
 7. For UI work, apply Design Intelligence **UI Implementation Rules** before
-   generating UI: query approved `DESIGN.md`, UI System Model (tokens,
-   components, states), surface-aware anti-slop policy, and the task
+   generating UI: query the task's exact registered design change, UI System
+   Model (tokens, components, states), surface-aware anti-slop policy, and the task
    `ui_contract` through `specify-runtime artifact show`. Prefer visual hierarchy
    and the component system over generic equal-weight card grids. Preserve states and changed surfaces
    through `specify-runtime implement`, and capture requirements, but do not run

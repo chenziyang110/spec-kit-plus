@@ -158,29 +158,36 @@ present in a test project.
   while Quick requires a confirmed checkpoint amendment.
 - The product goal is better implemented UI, not merely more UI documentation.
   Both profiles must preserve this executable chain for substantive UI work:
-  `approved immutable preview + original references -> approved DESIGN.md ->
-  feature ui-brief.md -> plan ui_design_contract -> per-task ui_contract ->
+  `approved immutable change-local preview + original references -> registered
+  .specify/design/changes/<UD-ID>/DESIGN.md + approval_sha256 -> feature
+  ui-brief.md -> plan ui_design_contract -> per-task ui_contract ->
   real-entrypoint captures + visual comparison report`.
 - UI applicability is broader than reference-image intake. New or changed
   screens, components, layouts, navigation/interaction flows, responsive
   behavior, visual states, desktop/mobile surfaces, TUI layouts, and CLI
   presentation can all trigger the UI contract.
-- The `DESIGN.md` copied by init is a structurally valid bootstrap seed. It is
-  not an approved product direction and must not anchor an advanced model to its
-  generic starter palette, typography, density, or component choices. New or
-  high-visibility UI requires a project-specific approved design contract;
-  narrow existing-pattern fixes may record a bounded exception.
+- Init does not create a root `DESIGN.md`. `specify-runtime design change`
+  creates one bounded `.specify/design/changes/<UD-ID>/` workspace; an existing
+  root `DESIGN.md` is read-only legacy baseline input and is never an implicit
+  latest contract. New or high-visibility UI requires an approved, registered
+  change-local contract; narrow existing-pattern fixes may record a bounded
+  exception. Durable invariants for future unrelated work are promoted
+  explicitly to `.specify/memory/project-rules.md`, not accumulated by mutating
+  a global design document.
 - Every substantive design round presents exactly three comparable,
   self-contained HTML directions with stable deep links, component/state
   specimens, independent color and motion systems, responsive targets, and an
   embedded machine-readable manifest. Combining or revising directions creates
   a new inspected round; never mutate an approved round in place.
-- `specify-runtime design approve` is the approval truth boundary. It freezes one exact
-  direction with a byte-bound approval sidecar, preview/manifest SHA-256
-  digests, a separate immutable handoff sidecar and digest, review round, stable
-  `DS-*` decision IDs, and stable `DH-*` implementation contract IDs. Ready lint
-  and export must reject a `DESIGN.md` whose approval fields do not match those
-  immutable artifacts.
+- `specify-runtime design approve` freezes one exact change-local direction
+  with a byte-bound approval sidecar, preview/manifest SHA-256 digests, a
+  separate immutable handoff sidecar and digest, review round, stable `DS-*`
+  decision IDs, and stable `DH-*` implementation contract IDs. Ready lint and
+  export must reject a change-local `DESIGN.md` whose approval fields do not
+  match those immutable artifacts. `specify-runtime design register` is the
+  downstream consumption boundary: it pins that document's exact SHA-256 in
+  metadata-only `.specify/design/index.json`, rejects later mutation, and
+  rejects overlapping active scope without an explicit relationship.
 - Classic keeps the explicit UI lane, full command references, passive
   `spec-kit-ui-design`/`frontend-design` guidance, worker prompts, and verbose
   evidence mapping. Advanced must not install that passive bundle; its essential
@@ -189,7 +196,9 @@ present in a test project.
 - Do not treat a top-level UI coverage table as sufficient. Every UI-bearing
   task must carry structured task-local design sources, fidelity, states,
   must-preserve/may-adapt/must-not rules, and required visual evidence so the
-  worker packet cannot silently downgrade UI work to `not_applicable`.
+  worker packet cannot silently downgrade UI work to `not_applicable`. It also
+  carries `design_change_id`, `design_change_ref`, `design_change_sha256`, and
+  `design_contract_ref`; no stage may resolve an unbound "latest" change.
 - The single current UI contract separates work type, surface type, and platform. It preserves
   subject, audience, single job, visual/content/interaction theses, a signature
   element, an inspectable approved visual reference, per-reference use intent,
@@ -200,11 +209,11 @@ present in a test project.
   immutable `DS-*`/`DH-*` rows by ID; they do not reauthor them as prose. Do not
   collapse those dimensions into one enum or prose.
 - A feature `ui-target.html` is a self-contained composition/state target bound
-  to the approved project design and handoff digests, task decisions, and
+  to the exact registered design-change and handoff digests, task decisions, and
   handoff contracts. It may contain
   bounded review-only interaction JavaScript, but no network calls, persistence,
   production data access, external runtime dependency, or replacement approval
-  authority for the project-level preview.
+  authority for the change-level preview.
 - UI implementation system review requires a real-entrypoint convergence loop
   before human acceptance:
   run, capture representative viewport/state evidence, visually inspect against
@@ -218,20 +227,23 @@ present in a test project.
   `evidence_scope: integrated`; isolated task evidence cannot close the lane.
 - A passing visual comparison requires a hashed
   `spec-kit-visual-comparison-v1` report bound to the approved visual reference,
-  approval digests, exact task decision set, implementation captures,
-  viewport/state matrix, comparison tolerance, and approved deviations.
+  exact design-change ref/hash, approval digests, exact task decision set,
+  implementation captures, viewport/state matrix, comparison tolerance, and
+  approved deviations.
   Unavailable or incomplete comparison remains `pending-human-review`; automated
   tests or unbound screenshots cannot substitute for this report.
 - UI contract versions are not a compatibility surface. Do not emit or accept
   `ui_contract_version`, `contract_version`, `ui_fidelity_requirements`,
   `ui_fidelity_evidence`, lifecycle `evidence_refs`, or legacy evidence-kind
   aliases. Regenerate stale UI artifacts into the single current contract.
-- A UI workflow change must evaluate `templates/design-template.md`, design CLI
-  readiness, Classic command/partial/passive/worker surfaces, Advanced shared
-  and owning skill references/assets, spec/plan/task machine contracts,
-  `execution/packet_compiler.py`, lifecycle closeout, integration rendering,
-  and cross-profile tests. Keyword-presence tests alone do not prove UI contract
-  continuity; include at least one structured task-index-to-worker-packet test.
+- A UI workflow change must evaluate `templates/design-change-template.md`, the
+  legacy-only `templates/design-template.md`, design CLI change/register and
+  readiness behavior, Classic command/partial/passive/worker surfaces,
+  Advanced shared and owning skill references/assets, spec/plan/task machine
+  contracts, `execution/packet_compiler.py`, lifecycle closeout, integration
+  rendering, and cross-profile tests. Keyword-presence tests alone do not prove
+  UI contract continuity; include at least one structured
+  task-index-to-worker-packet test.
 
 ### Required Regression Shape
 

@@ -67,6 +67,7 @@ func TestArtifactTypeRegistryCoversCrossWorkflowControlPlaneArtifacts(t *testing
 		".specify/design/design-brief.md":                                                  "design-brief",
 		".specify/design/index.json":                                                       "ui-design-change-index",
 		".specify/design/changes/UD-0042/DESIGN.md":                                        "ui-design-change-contract",
+		".specify/design/changes/UD-0042/design-contract.json":                             "ui-design-change-export",
 		".specify/design/changes/UD-0042/brief.md":                                         "ui-design-change-brief",
 		".specify/design/changes/UD-0042/review.md":                                        "ui-design-change-review",
 		".specify/discussions/index.json":                                                  "discussion-index",
@@ -87,6 +88,15 @@ func TestArtifactTypeRegistryCoversCrossWorkflowControlPlaneArtifacts(t *testing
 	manifest, ok := LookupArtifactType(".specify/design/previews/round-01.manifest.json")
 	if !ok || manifest.Role != "canonical" || !artifactTypeAllows(manifest, "patch") {
 		t.Fatalf("design preview manifest must support leased patches: %#v, %v", manifest, ok)
+	}
+
+	changeContract, ok := LookupArtifactType(".specify/design/changes/UD-0042/DESIGN.md")
+	if !ok || changeContract.Role != "canonical" || !artifactTypeAllows(changeContract, "patch") {
+		t.Fatalf("draft design change contract must support leased patches: %#v, %v", changeContract, ok)
+	}
+	legacyRoot, ok := LookupArtifactType("DESIGN.md")
+	if !ok || legacyRoot.Role != "legacy" || artifactTypeAllows(legacyRoot, "patch") {
+		t.Fatalf("root DESIGN.md must remain read-only legacy input: %#v, %v", legacyRoot, ok)
 	}
 
 	prdState, ok := LookupArtifactType(".specify/prd-runs/260729-demo/workflow-state.md")

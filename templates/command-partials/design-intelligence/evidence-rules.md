@@ -71,7 +71,8 @@ Model product UI as a system with four layers:
 3. **Behavior layer** — states, keyboard, focus, motion, feedback
 4. **Engineering layer** — token owners, implementation bindings, platforms
 
-Structured inventory (bind into DESIGN.md / design-system.json / ui-brief):
+Structured inventory (bind into the change-local `DESIGN.md` /
+`design-contract.json` / feature `ui-brief.md`):
 
 - **Tokens**: color, typography, spacing, radius, shadow/elevation, motion
 - **Components**: Button, Input, Card, Table, navigation, domain-specific

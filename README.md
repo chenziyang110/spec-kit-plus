@@ -642,7 +642,7 @@ when the `classic` profile is selected.
   input when present and is never created or silently rewritten by init.
   Use the design workflow for new product UI, redesigns,
   rebrands, core workflow experience, multi-platform interface decisions, and
-  high-visibility customer-facing surfaces. Visual create and project-wide
+  high-visibility customer-facing surfaces. Visual create and scope-changing
   refine require durable taste intake in the design brief (one-line design
   read, variance/motion/density dials, aesthetic family, foundation strategy,
   redesign mode, surface-aware anti-slop locks, and optional synthesize
@@ -1305,7 +1305,7 @@ Maintainer note:
   focused partial, or add `--check` to verify synchronization. Generated
   projects receive only the self-contained compatibility HTML and compact
   editable manifest, not the Jinja source tree.
-- `specify-runtime design change UD-0001 --title "..." --change-type redesign
+- `specify-runtime design change UD-0001 --title "..." --type overhaul
   --scope web:orders --profiles web` creates one bounded workspace and ensures
   `.specify/design/index.json` exists without creating a root `DESIGN.md`.
 - `specify-runtime design preview-manifest --out
@@ -1316,8 +1316,8 @@ Maintainer note:
   profiles project surface-native capabilities, specimens, states, targets, and
   production units into every direction; `no-ui` instead requires current
   not-applicable evidence and creates no preview artifact.
-- `specify-runtime design lint --level structural` checks schema and reference shape;
-  `specify-runtime design lint --level ready` additionally requires an approved,
+- `specify-runtime design lint .specify/design/changes/UD-0001/DESIGN.md --level structural` checks schema and reference shape;
+  `specify-runtime design lint .specify/design/changes/UD-0001/DESIGN.md --level ready` additionally requires an approved,
   project-specific direction whose HTML preview, approval sidecar, immutable
   handoff, hashes, design decisions, handoff contracts, modes,
   responsive/content rules, and verification contract agree.
@@ -1333,7 +1333,7 @@ Maintainer note:
   the approved direction without treating the HTML carrier as a universal Web
   implementation target.
 - `specify-runtime design export .specify/design/changes/UD-0001/DESIGN.md --format json` exports normalized design tokens and component token references after ready validation.
-- `specify-runtime design export --format tailwind` exports supported token categories into Tailwind theme fields after ready validation.
+- `specify-runtime design export .specify/design/changes/UD-0001/DESIGN.md --format tailwind` exports supported token categories into Tailwind theme fields after ready validation.
 - `specify-runtime design register .specify/design/changes/UD-0001/DESIGN.md` makes the ready, approved change consumable and pins its document digest in `.specify/design/index.json`; overlapping approved scope requires explicit `supersedes` metadata.
 - Existing projects can use `--allow-unapproved` as a temporary structural-compatibility export while `sp-design`/`spx-design` records change-specific approval and provenance.
 - `specify-runtime design import SOURCE_REFERENCE --out .specify/design/changes/UD-0001/references.md` records synthesis input for one design change; it does not overwrite either the change-local `DESIGN.md` or a legacy root file.

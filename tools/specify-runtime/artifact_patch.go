@@ -56,6 +56,19 @@ func (service *ArtifactService) Patch(request ArtifactPatchRequest) Envelope {
 		return service.finishLease(lease, claimPath, artifactPatchError("error", err))
 	}
 	defer release()
+	if metadata.TypeID == "ui-design-change-contract" {
+		immutable, err := service.registeredDesignChangeImmutable(lease.CanonicalPath)
+		if err != nil {
+			return service.finishLease(lease, claimPath, artifactPatchError("blocked", err))
+		}
+		if immutable {
+			return service.finishLease(
+				lease,
+				claimPath,
+				artifactPatchError("blocked", fmt.Errorf("registered design change is immutable; create a new UD-* change and declare supersedes")),
+			)
+		}
+	}
 	currentExists, currentSHA256, err := snapshotArtifactTarget(target)
 	if err != nil || currentExists != lease.TargetExists || currentSHA256 != lease.TargetSHA256 {
 		if err == nil {

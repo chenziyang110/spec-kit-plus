@@ -39,7 +39,7 @@ Preserved Contract: formal delivery binds design through `sp-specify`, direct de
   `sp-specify` first.
 - An audit pass that changes no design bytes, index state, or approval metadata may resume the
   originally blocked workflow when its existing binding is still exact. An
-  audit failure routes project-wide design truth to `create`/`refine`,
+  audit failure routes change-scoped design truth to `create`/`refine`,
   feature-local truth to `sp-specify`/`sp-quick`, and implementation drift to
   `sp-review` or the active implementation workflow.
 

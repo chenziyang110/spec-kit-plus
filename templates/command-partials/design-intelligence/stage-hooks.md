@@ -11,9 +11,10 @@ Before generating or materially changing UI, record or inherit:
 - **Anti-slop locks**: surface-aware subset; never promote landing-only bans into
   project constitution.
 
-When approved `DESIGN.md` exists, follow its tokens, components, motion, and
-signature even if they conflict with default anti-slop locks. When only bootstrap
-exists, route new or high-visibility direction through `sp-design`/`spx-design`.
+When an applicable registered change is pinned, follow its tokens, components,
+motion, and signature for that declared scope even if they conflict with
+default anti-slop locks. When no applicable registered direction exists, route
+new or high-visibility work through `sp-design`/`spx-design`.
 
 ## Anti-slop engine
 
@@ -26,7 +27,7 @@ unless the brief or approved design requires them:
 - every control rounded the same with no hierarchy
 - random or decorative motion
 - empty decorative dashboard cards / placeholder metrics
-- inventing a second design system beside approved `DESIGN.md`
+- inventing a second design system beside the exact bound design change
 
 ## Stage contracts
 
@@ -55,8 +56,9 @@ machine-readable DesignContext under `.specify/design/context/` when durable.
 `sp-design` / `spx-design` owns create/refine/audit. On `synthesize` or live UI
 refine: run Evidence → System before three-direction boards. Extract tokens,
 components, states, and responsive rules as Design Evidence objects. Export
-approved truth only through design approve/export into `DESIGN.md` and
-`.specify/design/**`. Never implement production UI inside design.
+approved truth only through design approve/export into
+`.specify/design/changes/<UD-ID>/DESIGN.md`, then make it consumable through
+design register. Never implement production UI inside design.
 
 ### Specify — UI Requirements + acceptance / design DNA
 
@@ -65,14 +67,15 @@ For substantive UI work, specification must carry **UI Requirements** and
 `ui-brief.md`):
 
 - layout pattern and hierarchy; responsive targets
-- tokens/components: use approved design-system (not ad-hoc)
+- tokens/components: use the exact registered design change selected for this
+  feature (not ad-hoc or implicit latest)
 - required states: loading, empty, error, success, disabled, focus (and hover
   when interactive)
 - quality: no generic dashboard/template pattern; maintain design DNA and dials
 - evidence: structure_snapshot, visual_capture, runtime_diagnostics, comparison
   or pending-human-review
 
-Never treat bootstrap tokens as approved direction.
+Never treat a legacy root contract as current approval direction.
 
 ### Quick — UI Audit then design-before-code
 
@@ -81,7 +84,7 @@ When the change is UI-bearing, do not jump to code. Run **UI Audit** then the
 
 1. **UI Audit** of current UI: hierarchy, spacing consistency, missing states,
    generic/card patterns, DNA drift (issue list, not code yet)
-2. Analyze current UI against DESIGN.md / brief / live surface
+2. Analyze current UI against the exact registered design change / brief / live surface
 3. Identify the design issue
 4. Propose improvement (before → after) against DNA/dials/anti-slop/system model
 5. Implement the smallest coherent change
@@ -105,12 +108,13 @@ names issue, reason, and design-aware fix direction before coding.
 
 ### Implement / Review — system contract + visual validation loop
 
-Before UI generation: query approved design + UI System Model (tokens,
-components, states) + anti-slop + task `ui_contract`. Prefer visual hierarchy
-from the contract over generic equal-weight card grids. Close only with
-real-entrypoint evidence triad and visual comparison or explicit
-`pending-human-review`. Review revalidates design-system, anti-slop, and state
-coverage fidelity; it never invents a second approval authority.
+Before UI generation: query the task's exact registered design change + UI
+System Model (tokens, components, states) + anti-slop + task `ui_contract`.
+Prefer visual hierarchy from the contract over generic equal-weight card grids.
+Close only with real-entrypoint evidence triad and visual comparison or
+explicit `pending-human-review`. Review revalidates the bound design change,
+anti-slop, and state coverage fidelity; it never invents a second approval
+authority.
 
 **Visual validation loop**: implement → capture → critic/compare → difference
 report → fix → recapture. Unavailable automated comparison remains

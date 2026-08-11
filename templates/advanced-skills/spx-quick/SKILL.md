@@ -150,11 +150,17 @@ visual review. Do not jump straight to code or CSS. Patch design sources,
 affected states/viewports, visual acceptance, direction source/signature,
 reference intents, real content/image sources, and the structure/visual/runtime
 evidence triad into the quick-status artifact via leased
-`specify-runtime artifact patch`. When an approved design system is the basis,
-patch its approved visual ref, preview/manifest/handoff SHA-256 values,
-immutable handoff ref, and selected `DS-*`/`DH-*` rows into that same artifact
-and every UI worker contract. An active Quick task must not silently adopt a later design approval; adoption requires a confirmed UI checkpoint amendment
-with the replacement binding. Preserve original visual references and run the
+`specify-runtime artifact patch`. Query `.specify/design/index.json` through
+`specify-runtime artifact show` only for discovery, select the registered
+change whose scope matches the Quick task, and
+pin its `design_change_id`, exact `design_change_ref`,
+`design_change_sha256`, and sibling `design_contract_ref` into Quick state and
+every UI worker contract. Never resolve “latest” and never substitute a root
+`DESIGN.md`; a root file is read-only legacy baseline evidence. Also pin the
+change's approved visual ref, preview/manifest/handoff SHA-256 values,
+immutable handoff ref, and selected `DS-*`/`DH-*` rows. An active Quick task
+must not silently adopt a later design approval; adoption requires a confirmed UI checkpoint amendment
+with the complete replacement binding. Preserve original visual references and run the
 UI gate's real-entrypoint capture/inspect/refine loop. Escalate a new visual
 direction to `$spx-design`. Keep multi-surface or acceptance-heavy UI in Quick
 and expand its task-local plan, batches, viewport/state matrix, and evidence;

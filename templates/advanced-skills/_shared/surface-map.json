@@ -98,8 +98,8 @@
         "spx-design/references/design-contract.md",
         "spx-design/references/consumer-contract.md"
       ],
-      "assets": ["spx-design/assets/design-system.md"],
-      "optimization": "one prompt-routed approved root design-system contract with explicit formal/direct consumers and no generic starter anchoring"
+      "assets": ["spx-design/assets/design-change.md"],
+      "optimization": "one prompt-routed change-scoped UI contract with metadata-only discovery, immutable registration, and exact formal/direct consumer bindings"
     },
     "spx-discussion": {
       "absorbs": ["discussion"],

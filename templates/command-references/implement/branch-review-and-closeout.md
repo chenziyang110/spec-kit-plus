@@ -58,7 +58,9 @@ Before completion:
   in the next Leader-owned attempt rather than once per Txx;
 - confirm real-entrypoint evidence and no unresolved blocker/open gap;
 - perform a broad diff review only when a review trigger fired or the changed surface is high risk; otherwise reuse accepted task validation and lifecycle evidence;
-- for UI work, query `DESIGN.md` and `ui-brief.md` through targeted `specify-runtime artifact show` calls, then run a visual convergence loop in a coordinated integrated attempt
+- for UI work, query the task's exact `design_change_ref`/`design_change_sha256`,
+  `design_contract_ref`, and `ui-brief.md` through targeted
+  `specify-runtime artifact show` calls, then run a visual convergence loop in a coordinated integrated attempt
   rather than per microtask: open the real entry point once per applicable
   surface/fingerprint, capture the required viewport/state matrix,
   inspect it against the returned contracts and original fidelity refs,

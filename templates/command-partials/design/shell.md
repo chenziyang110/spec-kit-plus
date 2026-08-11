@@ -67,8 +67,9 @@ and never require a colon subskill or explicit mode argument.
 ## Intake
 
 1. Query `.specify/design/index.json` and resume a nonterminal change for the
-   same objective. Query only its exact `DESIGN.md`, brief, references, options,
-   and review. If a root `DESIGN.md` exists, treat it as a read-only legacy
+   same objective through targeted `specify-runtime artifact show` calls. Query
+   only its exact `DESIGN.md`, brief, references, options, and review through
+   the same owner. If a root `DESIGN.md` exists, treat it as a read-only legacy
    baseline and never mutate or select it as “latest.”
 2. If no matching draft exists, allocate a stable `UD-*` ID and run
    `specify-runtime design change`; declare bounded scopes and explicit
@@ -126,7 +127,7 @@ and never require a colon subskill or explicit mode argument.
      (`greenfield` | `preserve` | `overhaul`)
    - `anti_slop_locks` selected from
      `.specify/templates/design-library/anti-slop-policy.md` (surface-aware;
-     subordinate to an already approved `DESIGN.md`)
+     subordinate to the exact applicable registered design change)
    - `reference_board_intents` when `input_strategy: synthesize`
      (`mood` | `layout` | `type` | `color-only`); references are evidence, not
      a license to copy protected brand or artwork. The approved baseline is
@@ -268,8 +269,9 @@ stays machine-checkable via the embedded manifest and ready lint.
   Define duration/easing/distance tokens and an equivalent
   `prefers-reduced-motion` experience. Do not scatter decorative animation.
 - Preserve the feature-level `ui-target.html` boundary: that later artifact
-  owns one feature's concrete composition. The project-level design preview
-  owns reusable visual, component, state, density, and motion decisions.
+  owns one feature's concrete composition. The change-level design preview
+  owns visual, component, state, density, and motion decisions only for its
+  declared `UD-*` scope.
 
 ## Synthesis Rules
 

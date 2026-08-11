@@ -66,7 +66,7 @@ def test_classic_ui_card_is_independent_conditional_and_shares_one_confirmation(
     assert "quick uses this card for an implementation proposal" in lowered
     assert "debug uses this card for a target baseline" in lowered
     assert "must not pre-approve a speculative fix" in lowered
-    assert "design_system.status: bootstrap" in lowered
+    assert "unregistered draft or legacy bootstrap seed" in lowered
     assert "do not render an incomplete ui confirmation" in lowered
     assert "inspectable visual artifact" in lowered
     assert "original references" in lowered

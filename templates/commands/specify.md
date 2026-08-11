@@ -42,7 +42,8 @@ scripts:
 5. Decompose semantic terms into explicit decisions and capability operations in `spec-contract.json`. Build `acceptance_coverage` as one stable `requirement_ref`/`acceptance_ref` pair per row: cover every `scope.in` and `capability_operations` JSON Pointer, map every acceptance criterion exactly once, and never use one criterion as the closure proof for multiple independent requirements. Present two or three approaches only when behavior, boundary, compatibility, or acceptance proof changes.
 6. Preserve the discussion contract by reference. Query supporting discussion artifacts through their artifact/evidence CLI owner only when a named evidence reference is stale, missing, or contradictory; carry its existing decision digest instead of rebuilding it.
 7. For UI-facing work—with or without supplied screenshots—query
-   `.specify/design/index.json`, select only the registered change whose scope
+   `.specify/design/index.json` through `specify-runtime artifact show`, select
+   only the registered change whose scope
    matches the feature, then query its exact
    `.specify/design/changes/<UD-ID>/DESIGN.md`, sibling
    `design-contract.json`, and live UI evidence through their owners. Never

@@ -38,15 +38,33 @@ var artifactTypePatterns = []artifactTypePattern{
 		match:    func(path string) bool { return path == ".specify/design/index.json" },
 	},
 	{
-		metadata: ArtifactTypeMetadata{TypeID: "ui-design-change-contract", Owner: "specify-runtime design", Role: "canonical", Schema: "markdown/ui-design-change", Operations: []string{"show", "list"}, SummaryAdapter: "markdown-headings"},
+		metadata: ArtifactTypeMetadata{TypeID: "ui-design-change-contract", Owner: "specify-runtime artifact patch before specify-runtime design register", Role: "canonical", Schema: "markdown/ui-design-change", Operations: []string{"prepare", "patch", "show", "list"}, SummaryAdapter: "markdown-headings"},
 		match: func(path string) bool {
-			const prefix = ".specify/design/changes/"
-			const suffix = "/DESIGN.md"
-			if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
-				return false
-			}
-			changeID := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
-			return changeID != "" && !strings.Contains(changeID, "/")
+			return isDesignChangeWorkspaceFile(path, "DESIGN.md")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "ui-design-change-export", Owner: "specify-runtime design export", Role: "derived", Schema: "json/ui-design-change-export", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match: func(path string) bool {
+			return isDesignChangeWorkspaceFile(path, "design-contract.json")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "ui-design-change-brief", Owner: "specify-runtime artifact scaffold / artifact patch", Role: "canonical", Schema: "markdown/design-brief", Operations: []string{"prepare", "patch", "show", "list"}, SummaryAdapter: "markdown-headings"},
+		match: func(path string) bool {
+			return isDesignChangeWorkspaceFile(path, "brief.md")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "ui-design-change-review", Owner: "specify-runtime artifact scaffold / artifact patch", Role: "canonical", Schema: "markdown/design-review", Operations: []string{"prepare", "patch", "show", "list"}, SummaryAdapter: "markdown-headings"},
+		match: func(path string) bool {
+			return isDesignChangeWorkspaceFile(path, "review.md")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "ui-design-change-working-document", Owner: "specify-runtime artifact", Role: "canonical", Schema: "markdown/design-working-document", Operations: []string{"prepare", "submit", "patch", "show", "list"}, SummaryAdapter: "markdown-headings"},
+		match: func(path string) bool {
+			return isDesignChangeWorkspaceFile(path, "options.md") || isDesignChangeWorkspaceFile(path, "references.md")
 		},
 	},
 	{
@@ -556,6 +574,15 @@ var artifactTypePatterns = []artifactTypePattern{
 			return strings.HasPrefix(path, "specs/") && strings.HasSuffix(path, "/spec-contract.json")
 		},
 	},
+}
+
+func isDesignChangeWorkspaceFile(path, name string) bool {
+	const prefix = ".specify/design/changes/"
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, "/"+name) {
+		return false
+	}
+	changeID := strings.TrimSuffix(strings.TrimPrefix(path, prefix), "/"+name)
+	return changeID != "" && !strings.Contains(changeID, "/")
 }
 
 func newFeatureArtifactPattern(suffix string, metadata ArtifactTypeMetadata) artifactTypePattern {

@@ -113,9 +113,9 @@ surface, accessibility presentation, TUI layout, or CLI presentation. An
 external image is not required. Quick uses it for an implementation proposal;
 Debug uses it for a target baseline and must not pre-approve a speculative fix.
 
-Do not present the card when its basis is only
-`design_system.status: bootstrap` or when a new/high-visibility direction lacks
-an inspectable visual artifact. Route those cases to `$spx-design`. For Quick,
+Do not present the card when its basis is only an unregistered draft or legacy
+bootstrap seed, or when a new/high-visibility direction lacks an inspectable
+visual artifact. Route those cases to `$spx-design`. For Quick,
 keep multi-surface or acceptance-heavy UI in `$spx-quick` and expand its
 task-local plan, viewport/state matrix, batches, and acceptance evidence rather
 than routing to `$spx-specify`. Preserve original references with each reference

@@ -268,7 +268,9 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "create no separate auto state" in skills["spx-auto"]
 
     assert "design.md" in skills["spx-design"]
-    assert "artifact scaffold --kind design-brief" in skills["spx-design"]
+    assert "specify-runtime design change <ud-id>" in skills["spx-design"]
+    assert "<change-dir>/brief.md" in skills["spx-design"]
+    assert "artifact scaffold --kind design-brief" not in skills["spx-design"]
     assert "artifact scaffold --kind design-review" in skills["spx-design"]
     assert "design-brief-template.md` in memory" not in skills["spx-design"]
     assert "do not edit application source" in skills["spx-design"]
@@ -605,7 +607,10 @@ def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
         encoding="utf-8"
     )
     assert "does not\nrequire an external screenshot" in ui_gate
-    assert "status:\nbootstrap" in ui_gate
+    assert ".specify/design/index.json" in ui_gate
+    assert "exact registered design change" in ui_gate
+    assert 'Never resolve "latest"' in ui_gate
+    assert "read-only legacy baseline" in ui_gate
     assert "real entry point" in ui_gate
     assert "pending-human-review" in ui_gate
 
