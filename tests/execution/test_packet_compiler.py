@@ -131,6 +131,10 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                         "verification": ["npm test -- settings-ui"],
                         "acceptance": ["Desktop and mobile states match the UI brief"],
                         "ui_contract": {
+                            "design_change_id": "UD-0042",
+                            "design_change_ref": ".specify/design/changes/UD-0042/DESIGN.md",
+                            "design_change_sha256": "a" * 64,
+                            "design_contract_ref": ".specify/design/changes/UD-0042/design-contract.json",
                             "ui_work_type": "feature-extension",
                             "surface_type": "product-workspace",
                             "platforms": ["web"],
@@ -141,7 +145,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                             "content_thesis": "render real preference labels and saved values",
                             "interaction_thesis": "changes provide immediate local feedback",
                             "signature_element": "persistent section progress rail",
-                            "approved_visual_ref": "DESIGN.md#settings-direction",
+                            "approved_visual_ref": ".specify/design/changes/UD-0042/previews/round-01.html#settings-direction",
                             "approved_preview_sha256": "",
                             "approved_manifest_sha256": "",
                             "approved_handoff_ref": "",
@@ -152,7 +156,8 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                             ],
                             "handoff_contract_ids": [],
                             "design_sources": [
-                                "DESIGN.md",
+                                ".specify/design/changes/UD-0042/DESIGN.md",
+                                ".specify/design/changes/UD-0042/design-contract.json",
                                 "specs/001-ui-feature/ui-brief.md",
                             ],
                             "reference_notes": "specs/001-ui-feature/ui-reference-notes.md",
@@ -228,7 +233,20 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
 
     assert packet.ui_contract.fidelity_level == "high"
     assert packet.ui_contract.surface_type == "product-workspace"
-    assert packet.ui_contract.approved_visual_ref == "DESIGN.md#settings-direction"
+    assert packet.ui_contract.design_change_id == "UD-0042"
+    assert (
+        packet.ui_contract.design_change_ref
+        == ".specify/design/changes/UD-0042/DESIGN.md"
+    )
+    assert packet.ui_contract.design_change_sha256 == "a" * 64
+    assert (
+        packet.ui_contract.design_contract_ref
+        == ".specify/design/changes/UD-0042/design-contract.json"
+    )
+    assert (
+        packet.ui_contract.approved_visual_ref
+        == ".specify/design/changes/UD-0042/previews/round-01.html#settings-direction"
+    )
     assert packet.ui_contract.reference_intents[0]["intent"] == "preserve-structure"
     assert (
         packet.ui_contract.real_content_plan[0]["source_ref"]
@@ -251,7 +269,10 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
     assert "src/ui/theme.ts" in {item.path for item in packet.context_bundle}
     assert all("#" not in item.path for item in packet.context_bundle)
     reference_paths = [item.path for item in packet.required_references]
-    assert "DESIGN.md" in reference_paths
+    assert ".specify/design/changes/UD-0042/DESIGN.md" in reference_paths
+    assert (
+        ".specify/design/changes/UD-0042/design-contract.json" in reference_paths
+    )
     assert "specs/001-ui-feature/ui-brief.md" in reference_paths
 
     documented_result = WorkerTaskResult(
