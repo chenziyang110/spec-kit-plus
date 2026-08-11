@@ -105,6 +105,7 @@ from specify_cli.design import (
     lint_design_file,
     lint_ui_target_file,
     parse_design_capability_profile_ids,
+    register_design_change,
     render_design_preview,
     scaffold_design_change,
     scaffold_design_preview,
@@ -886,6 +887,37 @@ def design_change(
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1)
     console.print(f"Wrote {_display_path(design_path)}")
+
+
+@design_app.command("register")
+def design_register(
+    path: Path = typer.Argument(
+        ...,
+        help="Path to an approved change-local DESIGN.md",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+) -> None:
+    """Pin an approved UI design change and enforce scope relationships."""
+
+    try:
+        record = register_design_change(Path.cwd(), path)
+    except DesignLintError as exc:
+        if output_format.lower() == "json":
+            print_json({"ok": False, "error": str(exc)})
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    if output_format.lower() == "json":
+        print_json({"ok": True, "change": record})
+        return
+    console.print(
+        f"Registered {record['id']} at {record['design_ref']} "
+        f"({record['approval_sha256']})"
+    )
 
 
 @design_app.command("preview-manifest")

@@ -495,6 +495,139 @@ def scaffold_design_change(
     return design_path
 
 
+def _design_scopes_overlap(left: str, right: str) -> bool:
+    if left == right:
+        return True
+    return left.startswith(f"{right}/") or right.startswith(f"{left}/")
+
+
+def register_design_change(project_root: Path, design_path: Path) -> dict[str, Any]:
+    """Register one ready immutable design change and resolve explicit supersedes."""
+
+    project_root = project_root.resolve()
+    target = design_path.resolve() if design_path.is_absolute() else (
+        project_root / design_path
+    ).resolve()
+    changes_root = project_root / ".specify" / "design" / "changes"
+    try:
+        relative_workspace_path = target.relative_to(changes_root)
+    except ValueError as exc:
+        raise DesignLintError(
+            "design change must be inside .specify/design/changes/<UD-ID>/DESIGN.md"
+        ) from exc
+    if (
+        len(relative_workspace_path.parts) != 2
+        or relative_workspace_path.name != "DESIGN.md"
+    ):
+        raise DesignLintError(
+            "design change must be inside .specify/design/changes/<UD-ID>/DESIGN.md"
+        )
+
+    diagnostics = lint_design_file(target, level="ready")
+    if diagnostics:
+        raise DesignLintError(
+            "; ".join(
+                f"{diagnostic.code}: {diagnostic.message}"
+                for diagnostic in diagnostics
+            )
+        )
+    try:
+        content = target.read_bytes()
+        document = parse_design_markdown(content.decode("utf-8"), source=str(target))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise DesignLintError(f"cannot read design change: {exc}") from exc
+    design_change = document.design_system
+    if design_change.get("schema") != DESIGN_CHANGE_SCHEMA:
+        raise DesignLintError("only change-scoped design contracts can be registered")
+    change_id = str(design_change.get("id") or "").strip()
+    if relative_workspace_path.parts[0] != change_id:
+        raise DesignLintError("design_change.id must match its workspace directory")
+
+    index_path = project_root / ".specify" / "design" / "index.json"
+    try:
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DesignLintError(f"cannot read design change index: {exc}") from exc
+    if not isinstance(index, dict) or index.get("schema") != DESIGN_CHANGE_INDEX_SCHEMA:
+        raise DesignLintError("design change index has an invalid schema")
+    changes = index.get("changes")
+    if not isinstance(changes, list):
+        raise DesignLintError("design change index changes must be a list")
+    records = {
+        str(record.get("id") or "").strip(): record
+        for record in changes
+        if isinstance(record, dict)
+    }
+    record = records.get(change_id)
+    if record is None:
+        raise DesignLintError(f"design change {change_id} is not registered in index.json")
+
+    digest = hashlib.sha256(content).hexdigest()
+    if record.get("status") == "approved":
+        if record.get("approval_sha256") == digest:
+            return deepcopy(record)
+        raise DesignLintError(
+            f"approved design change {change_id} is immutable; create a new UD-* change"
+        )
+
+    scope = design_change.get("scope")
+    assert isinstance(scope, dict)
+    scopes = [str(value) for value in scope["surfaces"]]
+    relationships = design_change.get("relationships")
+    assert isinstance(relationships, dict)
+    supersedes = [str(value) for value in relationships["supersedes"]]
+    unknown_supersedes = [value for value in supersedes if value not in records]
+    if unknown_supersedes:
+        raise DesignLintError(
+            "design change supersedes unknown IDs: " + ", ".join(unknown_supersedes)
+        )
+
+    superseded_records: list[dict[str, Any]] = []
+    for other in changes:
+        if not isinstance(other, dict) or other.get("id") == change_id:
+            continue
+        if other.get("status") != "approved":
+            continue
+        other_scopes = other.get("scope")
+        if not isinstance(other_scopes, list):
+            continue
+        overlaps = any(
+            _design_scopes_overlap(scope_value, str(other_scope))
+            for scope_value in scopes
+            for other_scope in other_scopes
+        )
+        if not overlaps:
+            continue
+        other_id = str(other.get("id") or "")
+        if other_id not in supersedes:
+            raise DesignLintError(
+                f"design change {change_id} overlaps approved design change "
+                f"{other_id}; declare supersedes or narrow the scope"
+            )
+        superseded_records.append(other)
+
+    relative_design_path = target.relative_to(project_root).as_posix()
+    if record.get("design_ref") != relative_design_path:
+        raise DesignLintError("design change path does not match index design_ref")
+    if record.get("scope") != scopes:
+        raise DesignLintError("design change scope does not match its index record")
+    if record.get("supersedes") != supersedes:
+        raise DesignLintError(
+            "design change supersedes relationships do not match its index record"
+        )
+
+    for prior in superseded_records:
+        prior["status"] = "superseded"
+        prior["superseded_by"] = change_id
+    record["status"] = "approved"
+    record["approval_sha256"] = digest
+    atomic_write_text(
+        index_path,
+        json.dumps(index, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+    )
+    return deepcopy(record)
+
+
 def design_preview_approval_path(path: Path) -> Path:
     """Return the deterministic sidecar path for one preview round."""
 

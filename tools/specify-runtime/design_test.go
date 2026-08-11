@@ -642,6 +642,9 @@ func TestDesignRegisterPinsDigestBlocksOverlapAndAppliesSupersedes(t *testing.T)
 
 func writeReadyDesignChangeRuntime(t *testing.T, designPath, changeID string, scopes, supersedes []string) {
 	t.Helper()
+	if supersedes == nil {
+		supersedes = []string{}
+	}
 	preview := filepath.Join(filepath.Dir(designPath), "previews", "round-01.html")
 	templatePath, err := locateTemplate("design-preview-template.html")
 	if err != nil {

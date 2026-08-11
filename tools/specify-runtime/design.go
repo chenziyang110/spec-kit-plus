@@ -91,6 +91,8 @@ func runDesign(args []string, stdout io.Writer) int {
 	switch args[0] {
 	case "change":
 		return runDesignChange(args[1:], stdout)
+	case "register":
+		return runDesignRegister(args[1:], stdout)
 	case "lint":
 		return runDesignLint(args[1:], stdout)
 	case "preview":
@@ -152,6 +154,23 @@ func runDesignChange(args []string, stdout io.Writer) int {
 		"--profiles", strings.Join(profileIDs, ","),
 		"--out", filepath.ToSlash(filepath.Join(workspace, "previews", "round-01.manifest.json")),
 	}
+	return writeEnvelope(stdout, env)
+}
+
+func runDesignRegister(args []string, stdout io.Writer) int {
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
+		return writeDesignError(stdout, "usage-error", "design register requires a change-local DESIGN.md path")
+	}
+	target, env, ok := designContainedPath(args[0], false)
+	if !ok {
+		return writeEnvelope(stdout, env)
+	}
+	record, err := registerDesignChange(target)
+	if err != nil {
+		return writeDesignError(stdout, "blocked", err.Error())
+	}
+	env = NewEnvelope("ok", "UI design change registered")
+	env.Data["change"] = record
 	return writeEnvelope(stdout, env)
 }
 
@@ -539,6 +558,143 @@ func scaffoldDesignChange(changeID, title, changeType string, scopes, profileIDs
 		return "", err
 	}
 	return designPath, nil
+}
+
+func designScopesOverlap(left, right string) bool {
+	if left == right {
+		return true
+	}
+	return strings.HasPrefix(left, right+"/") || strings.HasPrefix(right, left+"/")
+}
+
+func registerDesignChange(path string) (map[string]any, error) {
+	if diagnostics := lintDesignFile(path, "ready"); len(diagnostics) > 0 {
+		return nil, errors.New(joinDiagnostics(diagnostics))
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	doc, err := parseDesignMarkdown(string(raw), path)
+	if err != nil {
+		return nil, err
+	}
+	if doc.DesignSystem["schema"] != designChangeSchema {
+		return nil, fmt.Errorf("only change-scoped design contracts can be registered")
+	}
+	changeID := strings.TrimSpace(fmt.Sprint(doc.DesignSystem["id"]))
+	root, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	relative, err := filepath.Rel(root, path)
+	if err != nil {
+		return nil, err
+	}
+	relative = filepath.ToSlash(relative)
+	parts := strings.Split(relative, "/")
+	if len(parts) != 5 || parts[0] != ".specify" || parts[1] != "design" || parts[2] != "changes" || parts[3] != changeID || parts[4] != "DESIGN.md" {
+		return nil, fmt.Errorf("design change must be inside .specify/design/changes/<UD-ID>/DESIGN.md and match design_change.id")
+	}
+
+	indexPath := filepath.Join(root, ".specify", "design", "index.json")
+	indexRaw, err := os.ReadFile(indexPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read design change index: %v", err)
+	}
+	index := map[string]any{}
+	if err := json.Unmarshal(indexRaw, &index); err != nil {
+		return nil, fmt.Errorf("cannot read design change index: %v", err)
+	}
+	if index["schema"] != designChangeIndexSchema {
+		return nil, fmt.Errorf("design change index has an invalid schema")
+	}
+	changes, ok := index["changes"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("design change index changes must be a list")
+	}
+	records := map[string]map[string]any{}
+	for _, rawRecord := range changes {
+		record, ok := rawRecord.(map[string]any)
+		if !ok {
+			continue
+		}
+		recordID := strings.TrimSpace(fmt.Sprint(record["id"]))
+		records[recordID] = record
+	}
+	record := records[changeID]
+	if record == nil {
+		return nil, fmt.Errorf("design change %s is not registered in index.json", changeID)
+	}
+	digestBytes := sha256.Sum256(raw)
+	digest := hex.EncodeToString(digestBytes[:])
+	if record["status"] == "approved" {
+		if record["approval_sha256"] == digest {
+			return record, nil
+		}
+		return nil, fmt.Errorf("approved design change %s is immutable; create a new UD-* change", changeID)
+	}
+
+	scope, _ := doc.DesignSystem["scope"].(map[string]any)
+	scopes := stringList(scope["surfaces"])
+	relationships, _ := doc.DesignSystem["relationships"].(map[string]any)
+	supersedes := stringList(relationships["supersedes"])
+	supersedesSet := map[string]bool{}
+	for _, supersededID := range supersedes {
+		if records[supersededID] == nil {
+			return nil, fmt.Errorf("design change supersedes unknown ID: %s", supersededID)
+		}
+		supersedesSet[supersededID] = true
+	}
+
+	var supersededRecords []map[string]any
+	for _, rawOther := range changes {
+		other, ok := rawOther.(map[string]any)
+		if !ok || other["id"] == changeID || other["status"] != "approved" {
+			continue
+		}
+		otherScopes := stringList(other["scope"])
+		overlaps := false
+		for _, scopeValue := range scopes {
+			for _, otherScope := range otherScopes {
+				if designScopesOverlap(scopeValue, otherScope) {
+					overlaps = true
+					break
+				}
+			}
+			if overlaps {
+				break
+			}
+		}
+		if !overlaps {
+			continue
+		}
+		otherID := strings.TrimSpace(fmt.Sprint(other["id"]))
+		if !supersedesSet[otherID] {
+			return nil, fmt.Errorf("design change %s overlaps approved design change %s; declare supersedes or narrow the scope", changeID, otherID)
+		}
+		supersededRecords = append(supersededRecords, other)
+	}
+
+	if strings.TrimSpace(fmt.Sprint(record["design_ref"])) != relative {
+		return nil, fmt.Errorf("design change path does not match index design_ref")
+	}
+	if !reflect.DeepEqual(stringList(record["scope"]), scopes) {
+		return nil, fmt.Errorf("design change scope does not match its index record")
+	}
+	if !reflect.DeepEqual(stringList(record["supersedes"]), supersedes) {
+		return nil, fmt.Errorf("design change supersedes relationships do not match its index record")
+	}
+	for _, prior := range supersededRecords {
+		prior["status"] = "superseded"
+		prior["superseded_by"] = changeID
+	}
+	record["status"] = "approved"
+	record["approval_sha256"] = digest
+	if err := writeJSONAtomic(indexPath, index); err != nil {
+		return nil, err
+	}
+	return record, nil
 }
 
 func lintDesignFile(path, level string) []designDiagnostic {
