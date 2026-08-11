@@ -15,6 +15,7 @@ from specify_cli.design import (
     import_design_reference,
     lint_design_file,
     parse_design_markdown,
+    scaffold_design_change,
 )
 
 
@@ -355,6 +356,99 @@ def test_parse_design_markdown_reads_yaml_front_matter() -> None:
     assert document.design_system["schema"] == "spec-kit-design-v1"
     assert document.design_system["name"] == "test-system"
     assert document.body.startswith("# Design")
+
+
+def test_scaffold_design_change_creates_change_local_contract_and_index(
+    tmp_path: Path,
+) -> None:
+    design_path = scaffold_design_change(
+        tmp_path,
+        change_id="UD-0042",
+        title="Orders workspace redesign",
+        change_type="overhaul",
+        scopes=["web:orders/list", "web:orders/detail"],
+        profile_ids=["web"],
+    )
+
+    assert design_path == (
+        tmp_path / ".specify" / "design" / "changes" / "UD-0042" / "DESIGN.md"
+    )
+    assert design_path.is_file()
+    assert not (tmp_path / "DESIGN.md").exists()
+
+    document = parse_design_markdown(
+        design_path.read_text(encoding="utf-8"),
+        source=str(design_path),
+    )
+    assert document.front_matter["design_change"]["schema"] == (
+        "spec-kit-ui-design-change-v1"
+    )
+    assert document.design_system["id"] == "UD-0042"
+    assert document.design_system["change_type"] == "overhaul"
+    assert document.design_system["scope"]["surfaces"] == [
+        "web:orders/list",
+        "web:orders/detail",
+    ]
+    assert lint_design_file(design_path) == []
+
+    index = json.loads(
+        (tmp_path / ".specify" / "design" / "index.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert index["schema"] == "spec-kit-ui-design-index-v1"
+    assert index["changes"] == [
+        {
+            "approval_sha256": None,
+            "change_type": "overhaul",
+            "consumers": [],
+            "design_ref": ".specify/design/changes/UD-0042/DESIGN.md",
+            "id": "UD-0042",
+            "scope": ["web:orders/list", "web:orders/detail"],
+            "status": "draft",
+            "supersedes": [],
+            "title": "Orders workspace redesign",
+        }
+    ]
+
+
+def test_scaffold_design_change_preserves_independent_change_workspaces(
+    tmp_path: Path,
+) -> None:
+    scaffold_design_change(
+        tmp_path,
+        change_id="UD-0042",
+        title="Orders workspace redesign",
+        change_type="overhaul",
+        scopes=["web:orders"],
+        profile_ids=["web"],
+    )
+    second = scaffold_design_change(
+        tmp_path,
+        change_id="UD-0043",
+        title="Account settings refresh",
+        change_type="preserve",
+        scopes=["web:settings"],
+        profile_ids=["web"],
+    )
+
+    assert second.is_file()
+    index = json.loads(
+        (tmp_path / ".specify" / "design" / "index.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert [change["id"] for change in index["changes"]] == ["UD-0042", "UD-0043"]
+
+    with pytest.raises(DesignLintError, match="already exists"):
+        scaffold_design_change(
+            tmp_path,
+            change_id="UD-0042",
+            title="Duplicate",
+            change_type="overhaul",
+            scopes=["web:orders"],
+            profile_ids=["web"],
+        )
 
 
 def test_lint_design_file_accepts_valid_design(tmp_path: Path) -> None:

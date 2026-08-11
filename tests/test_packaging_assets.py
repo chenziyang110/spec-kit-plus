@@ -494,8 +494,7 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
         / "design-library"
         / "workbench-precision.md"
     ).exists()
-    assert (project_root / "DESIGN.md").exists()
-    assert (project_root / "DESIGN.md").read_text(encoding="utf-8") == "# Design\n"
+    assert not (project_root / "DESIGN.md").exists()
     assert (project_root / ".specify" / "templates" / "command-partials" / "test" / "shell.md").exists()
     assert (project_root / ".specify" / "templates" / "command-references" / "plan" / "INDEX.md").exists()
     assert (project_root / ".specify" / "templates" / "passive-skills" / "python-testing" / "SKILL.md").exists()

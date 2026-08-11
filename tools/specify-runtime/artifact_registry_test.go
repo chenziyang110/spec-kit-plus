@@ -65,6 +65,8 @@ func TestArtifactTypeRegistryCoversCrossWorkflowControlPlaneArtifacts(t *testing
 		".specify/design/previews/round-01.manifest.json":                                  "design-preview-manifest",
 		".specify/design/previews/round-01.html":                                           "design-html",
 		".specify/design/design-brief.md":                                                  "design-brief",
+		".specify/design/index.json":                                                       "ui-design-change-index",
+		".specify/design/changes/UD-0042/DESIGN.md":                                        "ui-design-change-contract",
 		".specify/discussions/index.json":                                                  "discussion-index",
 		".specify/teams/state/results/request-001.json":                                    "teams-runtime-state",
 		"specs/001-runtime/brainstorming/stage-manifest.json":                              "brainstorming-compatibility-json",

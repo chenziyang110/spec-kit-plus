@@ -543,6 +543,46 @@ func TestDesignImportWritesReferenceWithoutRootDesign(t *testing.T) {
 	}
 }
 
+func TestDesignChangeScaffoldCreatesChangeLocalContractAndIndex(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	var stdout bytes.Buffer
+	exit := runDesign([]string{
+		"change",
+		"UD-0042",
+		"--title", "Orders workspace redesign",
+		"--type", "overhaul",
+		"--scope", "web:orders/list",
+		"--scope", "web:orders/detail",
+		"--profiles", "web",
+	}, &stdout)
+	if exit != 0 {
+		t.Fatalf("design change exit=%d output=%s", exit, stdout.String())
+	}
+	designPath := filepath.Join(".specify", "design", "changes", "UD-0042", "DESIGN.md")
+	content := readFile(t, designPath)
+	if !strings.Contains(content, "design_change:") || !strings.Contains(content, "schema: spec-kit-ui-design-change-v1") {
+		t.Fatalf("change-local contract is missing the new schema:\n%s", content)
+	}
+	if diagnostics := lintDesignFile(designPath, "structural"); len(diagnostics) != 0 {
+		t.Fatalf("change-local contract must pass structural lint: %#v", diagnostics)
+	}
+	if _, err := os.Stat("DESIGN.md"); !os.IsNotExist(err) {
+		t.Fatalf("design change must not create a root DESIGN.md")
+	}
+	var index map[string]any
+	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(".specify", "design", "index.json"))), &index); err != nil {
+		t.Fatal(err)
+	}
+	if index["schema"] != "spec-kit-ui-design-index-v1" {
+		t.Fatalf("unexpected design index schema: %#v", index)
+	}
+	changes, ok := index["changes"].([]any)
+	if !ok || len(changes) != 1 || changes[0].(map[string]any)["id"] != "UD-0042" {
+		t.Fatalf("unexpected design index changes: %#v", index["changes"])
+	}
+}
+
 func configurePreviewCandidate(t *testing.T, path string) {
 	t.Helper()
 	content := readFile(t, path)
