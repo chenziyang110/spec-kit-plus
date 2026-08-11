@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -581,6 +582,151 @@ func TestDesignChangeScaffoldCreatesChangeLocalContractAndIndex(t *testing.T) {
 	if !ok || len(changes) != 1 || changes[0].(map[string]any)["id"] != "UD-0042" {
 		t.Fatalf("unexpected design index changes: %#v", index["changes"])
 	}
+}
+
+func TestDesignRegisterPinsDigestBlocksOverlapAndAppliesSupersedes(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	create := func(id, scope string, supersedes ...string) string {
+		t.Helper()
+		args := []string{"change", id, "--title", id + " design", "--type", "extension", "--scope", scope, "--profiles", "web"}
+		for _, prior := range supersedes {
+			args = append(args, "--supersedes", prior)
+		}
+		var stdout bytes.Buffer
+		if exit := runDesign(args, &stdout); exit != 0 {
+			t.Fatalf("create %s failed: %d %s", id, exit, stdout.String())
+		}
+		path := filepath.Join(".specify", "design", "changes", id, "DESIGN.md")
+		writeReadyDesignChangeRuntime(t, path, id, []string{scope}, supersedes)
+		return path
+	}
+
+	first := create("UD-0042", "web:orders")
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"register", first}, &stdout); exit != 0 {
+		t.Fatalf("register first failed: %d %s", exit, stdout.String())
+	}
+	firstBytes, err := os.ReadFile(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantDigest := fmt.Sprintf("%x", sha256.Sum256(firstBytes))
+	index := readDesignChangeIndexRuntime(t)
+	firstRecord := designChangeRecordRuntime(t, index, "UD-0042")
+	if firstRecord["status"] != "approved" || firstRecord["approval_sha256"] != wantDigest {
+		t.Fatalf("first record was not pinned: %#v", firstRecord)
+	}
+
+	overlapping := create("UD-0043", "web:orders/list")
+	stdout.Reset()
+	if exit := runDesign([]string{"register", overlapping}, &stdout); exit == 0 || !strings.Contains(stdout.String(), "overlaps approved design change UD-0042") {
+		t.Fatalf("ambiguous overlap must block: exit=%d output=%s", exit, stdout.String())
+	}
+
+	replacement := create("UD-0044", "web:orders", "UD-0042")
+	stdout.Reset()
+	if exit := runDesign([]string{"register", replacement}, &stdout); exit != 0 {
+		t.Fatalf("register replacement failed: %d %s", exit, stdout.String())
+	}
+	index = readDesignChangeIndexRuntime(t)
+	firstRecord = designChangeRecordRuntime(t, index, "UD-0042")
+	replacementRecord := designChangeRecordRuntime(t, index, "UD-0044")
+	if firstRecord["status"] != "superseded" || firstRecord["superseded_by"] != "UD-0044" {
+		t.Fatalf("prior change was not superseded: %#v", firstRecord)
+	}
+	if replacementRecord["status"] != "approved" {
+		t.Fatalf("replacement was not approved: %#v", replacementRecord)
+	}
+}
+
+func writeReadyDesignChangeRuntime(t *testing.T, designPath, changeID string, scopes, supersedes []string) {
+	t.Helper()
+	preview := filepath.Join(filepath.Dir(designPath), "previews", "round-01.html")
+	templatePath, err := locateTemplate("design-preview-template.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	template, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sectionMarkers := `<div hidden data-preview-section="foundations"></div>
+<div hidden data-preview-section="components"></div>
+<div hidden data-preview-section="states"></div>
+<div hidden data-preview-section="motion"></div>
+<div hidden data-preview-section="responsive"></div>
+<div hidden data-preview-section="handoff"></div>`
+	content := strings.Replace(string(template), "</body>", sectionMarkers+"\n</body>", 1)
+	if err := os.MkdirAll(filepath.Dir(preview), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(preview, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	configurePreviewCandidate(t, preview)
+	var stdout bytes.Buffer
+	stdout.Reset()
+	if exit := runDesign([]string{"approve", preview, "--direction", "direction-a"}, &stdout); exit != 0 {
+		t.Fatalf("approve failed: %d %s", exit, stdout.String())
+	}
+	approval := decodeEnvelope(t, stdout.Bytes()).Data["approval"].(map[string]any)
+	scopeJSON, _ := json.Marshal(scopes)
+	supersedesJSON, _ := json.Marshal(supersedes)
+	header := "design_change:\n" +
+		"  schema: spec-kit-ui-design-change-v1\n" +
+		"  id: " + changeID + "\n" +
+		"  title: " + changeID + " approved design\n" +
+		"  change_type: extension\n" +
+		"  scope:\n" +
+		"    surfaces: " + string(scopeJSON) + "\n" +
+		"    entrypoints: []\n" +
+		"    states: []\n" +
+		"    platforms: [\"web\"]\n" +
+		"  baseline_refs: []\n" +
+		"  relationships:\n" +
+		"    supersedes: " + string(supersedesJSON) + "\n" +
+		"    depends_on: []\n" +
+		"    conflicts_with: []\n" +
+		"  constraints:\n" +
+		"    must_preserve: []\n" +
+		"    may_adapt: []\n" +
+		"    must_not: []\n"
+	design := strings.Replace(validDesignForRuntime, "design_system:\n  schema: spec-kit-design-v1\n", header, 1)
+	design = strings.ReplaceAll(design, ".specify/design/previews/round-01.html", "previews/round-01.html")
+	design = strings.ReplaceAll(design, ".specify/design/previews/round-01.handoff.json", "previews/round-01.handoff.json")
+	design = strings.ReplaceAll(design, "PREVIEW_SHA256", approval["html_sha256"].(string))
+	design = strings.ReplaceAll(design, "MANIFEST_SHA256", approval["manifest_sha256"].(string))
+	design = strings.ReplaceAll(design, "HANDOFF_SHA256", approval["handoff_sha256"].(string))
+	var handoffYAML []string
+	for _, id := range stringList(approval["handoff_contract_ids"]) {
+		handoffYAML = append(handoffYAML, "      - "+id)
+	}
+	design = strings.ReplaceAll(design, "HANDOFF_CONTRACT_IDS", strings.Join(handoffYAML, "\n"))
+	if err := os.WriteFile(designPath, []byte(design), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readDesignChangeIndexRuntime(t *testing.T) map[string]any {
+	t.Helper()
+	var index map[string]any
+	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(".specify", "design", "index.json"))), &index); err != nil {
+		t.Fatal(err)
+	}
+	return index
+}
+
+func designChangeRecordRuntime(t *testing.T, index map[string]any, changeID string) map[string]any {
+	t.Helper()
+	for _, raw := range index["changes"].([]any) {
+		record := raw.(map[string]any)
+		if record["id"] == changeID {
+			return record
+		}
+	}
+	t.Fatalf("design change %s was not found", changeID)
+	return nil
 }
 
 func configurePreviewCandidate(t *testing.T, path string) {

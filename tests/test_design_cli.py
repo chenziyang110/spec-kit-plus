@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -15,6 +16,7 @@ from specify_cli.design import (
     import_design_reference,
     lint_design_file,
     parse_design_markdown,
+    register_design_change,
     scaffold_design_change,
 )
 
@@ -350,6 +352,61 @@ def _ready_design_text(tmp_path: Path, content: str = VALID_DESIGN) -> str:
     )
 
 
+def _ready_change_design_text(
+    design_path: Path,
+    *,
+    change_id: str,
+    scopes: list[str],
+    supersedes: list[str] | None = None,
+) -> str:
+    preview = design_path.parent / "previews" / "round-01.html"
+    preview.parent.mkdir(parents=True, exist_ok=True)
+    preview.write_text(_configured_preview(), encoding="utf-8")
+    approval = approve_design_preview(preview, direction_id="direction-a")
+    header = (
+        "design_change:\n"
+        "  schema: spec-kit-ui-design-change-v1\n"
+        f"  id: {change_id}\n"
+        f"  title: {change_id} approved design\n"
+        f"  change_type: {'overhaul' if supersedes else 'extension'}\n"
+        "  scope:\n"
+        f"    surfaces: {json.dumps(scopes)}\n"
+        "    entrypoints: []\n"
+        "    states: []\n"
+        "    platforms: [web]\n"
+        "  baseline_refs: []\n"
+        "  relationships:\n"
+        f"    supersedes: {json.dumps(supersedes or [])}\n"
+        "    depends_on: []\n"
+        "    conflicts_with: []\n"
+        "  constraints:\n"
+        "    must_preserve: []\n"
+        "    may_adapt: []\n"
+        "    must_not: []\n"
+    )
+    content = VALID_DESIGN.replace(
+        "design_system:\n  schema: spec-kit-design-v1\n",
+        header,
+        1,
+    )
+    content = content.replace(
+        ".specify/design/previews/round-01.html",
+        "previews/round-01.html",
+    ).replace(
+        ".specify/design/previews/round-01.handoff.json",
+        "previews/round-01.handoff.json",
+    )
+    return (
+        content.replace("PREVIEW_SHA256", approval["html_sha256"])
+        .replace("MANIFEST_SHA256", approval["manifest_sha256"])
+        .replace("HANDOFF_SHA256", approval["handoff_sha256"])
+        .replace(
+            "HANDOFF_CONTRACT_IDS",
+            json.dumps(approval["handoff_contract_ids"]),
+        )
+    )
+
+
 def test_parse_design_markdown_reads_yaml_front_matter() -> None:
     document = parse_design_markdown(VALID_DESIGN, source="DESIGN.md")
 
@@ -449,6 +506,82 @@ def test_scaffold_design_change_preserves_independent_change_workspaces(
             scopes=["web:orders"],
             profile_ids=["web"],
         )
+
+
+def test_register_design_change_pins_digest_and_blocks_ambiguous_overlap(
+    tmp_path: Path,
+) -> None:
+    first = scaffold_design_change(
+        tmp_path,
+        change_id="UD-0042",
+        title="Orders workspace redesign",
+        change_type="extension",
+        scopes=["web:orders"],
+        profile_ids=["web"],
+    )
+    first.write_text(
+        _ready_change_design_text(
+            first,
+            change_id="UD-0042",
+            scopes=["web:orders"],
+        ),
+        encoding="utf-8",
+    )
+    registered = register_design_change(tmp_path, first)
+
+    assert registered["status"] == "approved"
+    assert registered["approval_sha256"] == hashlib.sha256(
+        first.read_bytes()
+    ).hexdigest()
+
+    overlapping = scaffold_design_change(
+        tmp_path,
+        change_id="UD-0043",
+        title="Orders list refinement",
+        change_type="extension",
+        scopes=["web:orders/list"],
+        profile_ids=["web"],
+    )
+    overlapping.write_text(
+        _ready_change_design_text(
+            overlapping,
+            change_id="UD-0043",
+            scopes=["web:orders/list"],
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(DesignLintError, match="overlaps approved design change UD-0042"):
+        register_design_change(tmp_path, overlapping)
+
+    replacement = scaffold_design_change(
+        tmp_path,
+        change_id="UD-0044",
+        title="Orders workspace overhaul",
+        change_type="overhaul",
+        scopes=["web:orders"],
+        profile_ids=["web"],
+        supersedes=["UD-0042"],
+    )
+    replacement.write_text(
+        _ready_change_design_text(
+            replacement,
+            change_id="UD-0044",
+            scopes=["web:orders"],
+            supersedes=["UD-0042"],
+        ),
+        encoding="utf-8",
+    )
+    register_design_change(tmp_path, replacement)
+
+    index = json.loads(
+        (tmp_path / ".specify" / "design" / "index.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    records = {record["id"]: record for record in index["changes"]}
+    assert records["UD-0042"]["status"] == "superseded"
+    assert records["UD-0042"]["superseded_by"] == "UD-0044"
+    assert records["UD-0044"]["status"] == "approved"
 
 
 def test_lint_design_file_accepts_valid_design(tmp_path: Path) -> None:
