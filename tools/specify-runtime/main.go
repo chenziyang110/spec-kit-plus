@@ -1053,15 +1053,19 @@ func defaultCapabilities() []string {
 		"cognition.validate-build",
 		"cognition.validate-scan",
 		"design.approve",
+		"design.adopt",
 		"design.change",
+		"design.diff",
 		"design.export",
 		"design.import",
+		"design.iterate",
 		"design.lint",
 		"design.preview",
 		"design.preview-manifest",
 		"design.preview-lint",
 		"design.profiles",
 		"design.register",
+		"design.resolve",
 		"design.ui-target",
 		"design.ui-target-lint",
 		"test-design.audit-prepare",
@@ -1257,8 +1261,16 @@ func capabilitySummary(id string) string {
 		return "Materialize a task-bound visual comparison report from compact observed differences and captures."
 	case "design.change":
 		return "Create a scoped UI design-change workspace and draft index record."
+	case "design.iterate":
+		return "Create a digest-pinned successor of one immutable UI design change."
+	case "design.resolve":
+		return "Discover active UI design candidates for one scope without adopting them."
+	case "design.diff":
+		return "Compare immutable UI design changes by lineage, scope, decisions, and handoff contracts."
 	case "design.register":
 		return "Register an approved change-local UI contract as immutable consumption truth."
+	case "design.adopt":
+		return "Record a compare-and-swap consumer adoption of one exact UI design binding."
 	case "prd-scan.record-upsert":
 		return "Create or replace one PRD scan contract record without rewriting its JSON document."
 	case "prd-scan.record-remove":

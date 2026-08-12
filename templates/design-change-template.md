@@ -14,6 +14,7 @@ design_change:
     platforms: __DESIGN_CHANGE_PROFILES__
   baseline_refs: __DESIGN_CHANGE_BASELINE_REFS__
   relationships:
+    iteration_of: __DESIGN_CHANGE_ITERATION_OF__
     supersedes: __DESIGN_CHANGE_SUPERSEDES__
     depends_on: []
     conflicts_with: []

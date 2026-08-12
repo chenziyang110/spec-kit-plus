@@ -141,10 +141,26 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "creates-design-change-workspace-and-index-record"
 		capability["usage"] = "specify-runtime design change <UD-ID> --title <title> [--type greenfield|preserve|overhaul|extension] --scope <surface>... [--profiles <csv>] [--baseline-ref <ref>]... [--supersedes <UD-ID>]... --format json"
 		capability["input_contract"] = "creates .specify/design/changes/<UD-ID>/DESIGN.md plus local working surfaces and a draft metadata-only index record; scopes are stable path-like identifiers"
+	case "design.iterate":
+		capability["side_effect"] = "creates-digest-pinned-successor-workspace"
+		capability["usage"] = "specify-runtime design iterate <SOURCE-UD-ID> <SUCCESSOR-UD-ID> --title <title> [--type preserve|overhaul|extension] [--scope <surface>]... [--profiles <csv>] --format json"
+		capability["input_contract"] = "source must be registered and byte-intact; successor scopes must be within the source; omitted scope inherits only a fully active source; the runtime pins iteration_of, basis_sha256, baseline ref, and supersedes without mutating the source"
+	case "design.resolve":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime design resolve --scope <surface> --format json"
+		capability["input_contract"] = "returns active immutable candidates after scope-specific supersession; multiple candidates are a composite discovery result that must be split and explicitly adopted, never an implicit latest binding"
+	case "design.diff":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime design diff <FROM-UD-ID> <TO-UD-ID> --format json"
+		capability["input_contract"] = "both changes must be registered and byte-intact; returns lineage plus semantic scope, stable DS decision, DH handoff-contract, and section deltas"
 	case "design.register":
 		capability["side_effect"] = "registers-immutable-design-change"
 		capability["usage"] = "specify-runtime design register .specify/design/changes/<UD-ID>/DESIGN.md --format json"
-		capability["input_contract"] = "requires an approved change-local contract whose ID, path, scope, and supersedes relationships match index.json; overlapping approved scopes must be explicitly superseded; registration binds the exact SHA-256"
+		capability["input_contract"] = "requires an approved change-local contract whose ID, path, scope, and supersedes relationships match index.json; overlapping approved scopes must be explicitly superseded; registration binds the exact SHA-256 and subtracts only intersecting scopes from prior changes"
+	case "design.adopt":
+		capability["side_effect"] = "appends-cas-guarded-consumer-adoption"
+		capability["usage"] = "specify-runtime design adopt <consumer-ref> --change <UD-ID> --scope <surface> --mode formal|quick --binding-ref <path> --binding-sha256 <sha256> --expected-change <UD-ID|none> --format json"
+		capability["input_contract"] = "consumer artifact must already contain the exact design_change_id, design_change_ref, design_change_sha256, and design_contract_ref; expected-change is a compare-and-swap guard; adoption appends history and never rewrites the consumer"
 	case "implement.result-merge":
 		capability["side_effect"] = "writes-task-lifecycle-and-worker-result"
 		capability["usage"] = "specify-runtime implement result-merge --feature-dir <feature-dir> --task-id <Txxx> --result-json <object|@path|-> --format json"
@@ -330,9 +346,9 @@ func artifactPatchInputSchema() map[string]any {
 		"additionalProperties": false,
 		"required":             []string{"lease"},
 		"properties": map[string]any{
-			"lease":             nonEmptyString,
-			"json_pointer":      nonEmptyString,
-			"value":             map[string]any{},
+			"lease":        nonEmptyString,
+			"json_pointer": nonEmptyString,
+			"value":        map[string]any{},
 			"section": map[string]any{
 				"type":        "string",
 				"minLength":   1,
@@ -411,9 +427,9 @@ func implementResultMergeInputSchema() map[string]any {
 		},
 		"examples": []any{
 			map[string]any{
-				"task_id":        "T001",
-				"status":         "success",
-				"changed_files":  []any{"backend/cmd/api/main.go"},
+				"task_id":       "T001",
+				"status":        "success",
+				"changed_files": []any{"backend/cmd/api/main.go"},
 				"validation_results": []any{
 					map[string]any{"command": "go test ./...", "status": "passed", "summary": "ok"},
 				},
@@ -572,14 +588,14 @@ func discussionWriteHandoffInputSchema() map[string]any {
 			"downstream_instructions": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"settled_decisions":         map[string]any{"type": "array"},
-					"preserved_assumptions":     map[string]any{"type": "array"},
+					"settled_decisions":          map[string]any{"type": "array"},
+					"preserved_assumptions":      map[string]any{"type": "array"},
 					"conflicts_requiring_return": map[string]any{"type": "array"},
-					"capability_map":            map[string]any{"type": "array"},
-					"dependencies":              map[string]any{"type": "array"},
-					"planning_constraints":      map[string]any{"type": "array"},
-					"deferred_scope":            map[string]any{"type": "array"},
-					"reopen_conditions":         map[string]any{"type": "array"},
+					"capability_map":             map[string]any{"type": "array"},
+					"dependencies":               map[string]any{"type": "array"},
+					"planning_constraints":       map[string]any{"type": "array"},
+					"deferred_scope":             map[string]any{"type": "array"},
+					"reopen_conditions":          map[string]any{"type": "array"},
 				},
 			},
 			"discussion_decision_digest": map[string]any{"type": "object"},

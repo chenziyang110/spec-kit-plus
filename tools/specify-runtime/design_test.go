@@ -588,6 +588,41 @@ func TestDesignChangeScaffoldCreatesChangeLocalContractAndIndex(t *testing.T) {
 	}
 }
 
+func TestDesignChangeLintRejectsInvalidIterationSource(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	path, err := scaffoldDesignChange(
+		"UD-0042",
+		"Orders workspace redesign",
+		"preserve",
+		[]string{"web:orders"},
+		[]string{"web"},
+		nil,
+		nil,
+		"",
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := strings.Replace(
+		readFile(t, path),
+		"iteration_of: null",
+		"iteration_of: not-a-change",
+		1,
+	)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	diagnostics := lintDesignFile(path, "structural")
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Code == "invalid-design-change-iteration" {
+			return
+		}
+	}
+	t.Fatalf("missing invalid-design-change-iteration diagnostic: %#v", diagnostics)
+}
+
 func TestDesignRegisterPinsDigestBlocksOverlapAndAppliesSupersedes(t *testing.T) {
 	tmp := t.TempDir()
 	withCwd(t, tmp)
@@ -761,9 +796,22 @@ func TestDesignAdoptUsesExpectedChangeCASAndPreservesRebindHistory(t *testing.T)
 	parentContract := writeDesignContractRuntime(t, parent)
 	bindingRef := ".specify/features/001-orders/spec-contract.json"
 	parentBindingDigest := writeDesignBindingRuntime(t, bindingRef, "UD-0042", parentDigest, parentContract)
+	approvedContract := readFile(t, parentContract)
+	var tamperedContract map[string]any
+	if err := json.Unmarshal([]byte(approvedContract), &tamperedContract); err != nil {
+		t.Fatal(err)
+	}
+	tamperedContract["title"] = "tampered export"
+	tamperedRaw, err := json.MarshalIndent(tamperedContract, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(parentContract, append(tamperedRaw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	var stdout bytes.Buffer
-	if exit := runDesign([]string{
+	initialAdoption := []string{
 		"adopt", "feature:001-orders",
 		"--change", "UD-0042",
 		"--scope", "web:orders/detail",
@@ -771,7 +819,15 @@ func TestDesignAdoptUsesExpectedChangeCASAndPreservesRebindHistory(t *testing.T)
 		"--binding-ref", bindingRef,
 		"--binding-sha256", parentBindingDigest,
 		"--expected-change", "none",
-	}, &stdout); exit != 0 {
+	}
+	if exit := runDesign(initialAdoption, &stdout); exit == 0 || !strings.Contains(stdout.String(), "does not match the registered design") {
+		t.Fatalf("tampered design export must block adoption: exit=%d output=%s", exit, stdout.String())
+	}
+	if err := os.WriteFile(parentContract, []byte(approvedContract), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	if exit := runDesign(initialAdoption, &stdout); exit != 0 {
 		t.Fatalf("initial design adoption failed: %d %s", exit, stdout.String())
 	}
 
@@ -816,6 +872,9 @@ func TestDesignAdoptUsesExpectedChangeCASAndPreservesRebindHistory(t *testing.T)
 	}
 	if second["status"] != "current" || second["revision"] != float64(2) || second["previous_change_id"] != "UD-0042" {
 		t.Fatalf("second adoption receipt is incomplete: %#v", second)
+	}
+	if second["design_change_id"] != "UD-0043" || second["design_change_sha256"] != successorDigest {
+		t.Fatalf("second adoption receipt does not retain the exact design binding: %#v", second)
 	}
 }
 

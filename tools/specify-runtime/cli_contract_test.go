@@ -227,7 +227,14 @@ func TestAPIListEnumeratesConcreteGeneratedRuntimeVerbs(t *testing.T) {
 }
 
 func TestAPIDesignChangeCapabilitiesPublishMutationContracts(t *testing.T) {
-	for _, capabilityID := range []string{"design.change", "design.register"} {
+	for _, capabilityID := range []string{
+		"design.adopt",
+		"design.change",
+		"design.diff",
+		"design.iterate",
+		"design.register",
+		"design.resolve",
+	} {
 		var stdout, stderr bytes.Buffer
 		code := Run([]string{"api", "show", capabilityID, "--format", "json"}, &stdout, &stderr, "v9.9.9")
 		if code != 0 {
@@ -446,15 +453,19 @@ func generatedRuntimeVerbCapabilities() []string {
 		"cognition.validate-build",
 		"cognition.validate-scan",
 		"design.approve",
+		"design.adopt",
 		"design.change",
+		"design.diff",
 		"design.export",
 		"design.import",
+		"design.iterate",
 		"design.lint",
 		"design.preview",
 		"design.preview-manifest",
 		"design.preview-lint",
 		"design.profiles",
 		"design.register",
+		"design.resolve",
 		"design.ui-target",
 		"design.ui-target-lint",
 		"discussion.archive",

@@ -16,6 +16,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/filelock"
 )
 
 const (
@@ -32,6 +34,18 @@ const (
 	uiTargetManifestSchema         = "spec-kit-ui-target-manifest-v1"
 	uiTargetManifestID             = "ui-target-manifest"
 )
+
+func acquireDesignIndexLock(root string) (func(), error) {
+	designRoot := filepath.Join(root, ".specify", "design")
+	if err := os.MkdirAll(designRoot, 0o755); err != nil {
+		return nil, fmt.Errorf("create UI design transaction directory: %w", err)
+	}
+	release, err := filelock.Acquire(filepath.Join(designRoot, ".index.lock"))
+	if err != nil {
+		return nil, fmt.Errorf("acquire UI design index transaction: %w", err)
+	}
+	return release, nil
+}
 
 var (
 	frontMatterRE           = regexp.MustCompile(`(?s)\A---\s*\r?\n(.*?)\r?\n---\s*\r?\n?(.*)\z`)
@@ -91,8 +105,16 @@ func runDesign(args []string, stdout io.Writer) int {
 	switch args[0] {
 	case "change":
 		return runDesignChange(args[1:], stdout)
+	case "iterate":
+		return runDesignIterate(args[1:], stdout)
 	case "register":
 		return runDesignRegister(args[1:], stdout)
+	case "resolve":
+		return runDesignResolve(args[1:], stdout)
+	case "diff":
+		return runDesignDiff(args[1:], stdout)
+	case "adopt":
+		return runDesignAdopt(args[1:], stdout)
 	case "lint":
 		return runDesignLint(args[1:], stdout)
 	case "preview":
@@ -140,6 +162,8 @@ func runDesignChange(args []string, stdout io.Writer) int {
 		profileIDs,
 		optionValues(args, "--baseline-ref"),
 		optionValues(args, "--supersedes"),
+		"",
+		"",
 	)
 	if err != nil {
 		return writeDesignError(stdout, "blocked", err.Error())
@@ -410,7 +434,7 @@ func designTemplateJSON(value any) (string, error) {
 	return string(raw), nil
 }
 
-func scaffoldDesignChange(changeID, title, changeType string, scopes, profileIDs, baselineRefs, supersedes []string) (string, error) {
+func scaffoldDesignChange(changeID, title, changeType string, scopes, profileIDs, baselineRefs, supersedes []string, iterationOf, basisSHA256 string) (string, error) {
 	changeID = strings.ToUpper(strings.TrimSpace(changeID))
 	if !designChangeIDRE.MatchString(changeID) {
 		return "", fmt.Errorf("change ID must use UD- followed by at least four digits")
@@ -457,6 +481,15 @@ func scaffoldDesignChange(changeID, title, changeType string, scopes, profileIDs
 			return "", fmt.Errorf("a design change cannot supersede itself")
 		}
 	}
+	root, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	release, err := acquireDesignIndexLock(root)
+	if err != nil {
+		return "", err
+	}
+	defer release()
 
 	workspace := filepath.Join(".specify", "design", "changes", changeID)
 	designPath := filepath.Join(workspace, "DESIGN.md")
@@ -508,6 +541,10 @@ func scaffoldDesignChange(changeID, title, changeType string, scopes, profileIDs
 		"__DESIGN_CHANGE_PROFILES__":      normalizedProfiles,
 		"__DESIGN_CHANGE_BASELINE_REFS__": normalizedBaselines,
 		"__DESIGN_CHANGE_SUPERSEDES__":    normalizedSupersedes,
+		"__DESIGN_CHANGE_ITERATION_OF__":  nil,
+	}
+	if iterationOf != "" {
+		replacements["__DESIGN_CHANGE_ITERATION_OF__"] = iterationOf
 	}
 	rendered := string(template)
 	for placeholder, value := range replacements {
@@ -542,7 +579,7 @@ func scaffoldDesignChange(changeID, title, changeType string, scopes, profileIDs
 	if err := os.MkdirAll(filepath.Join(workspace, "previews"), 0o755); err != nil {
 		return "", err
 	}
-	changes = append(changes, map[string]any{
+	record := map[string]any{
 		"id":              changeID,
 		"title":           title,
 		"design_ref":      filepath.ToSlash(designPath),
@@ -552,7 +589,12 @@ func scaffoldDesignChange(changeID, title, changeType string, scopes, profileIDs
 		"supersedes":      normalizedSupersedes,
 		"approval_sha256": nil,
 		"consumers":       []any{},
-	})
+	}
+	if iterationOf != "" {
+		record["iteration_of"] = iterationOf
+		record["basis_sha256"] = basisSHA256
+	}
+	changes = append(changes, record)
 	indexPayload["changes"] = changes
 	if err := writeJSONAtomic(indexPath, indexPayload); err != nil {
 		return "", err
@@ -560,14 +602,16 @@ func scaffoldDesignChange(changeID, title, changeType string, scopes, profileIDs
 	return designPath, nil
 }
 
-func designScopesOverlap(left, right string) bool {
-	if left == right {
-		return true
-	}
-	return strings.HasPrefix(left, right+"/") || strings.HasPrefix(right, left+"/")
-}
-
 func registerDesignChange(path string) (map[string]any, error) {
+	root, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	release, err := acquireDesignIndexLock(root)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	if diagnostics := lintDesignFile(path, "ready"); len(diagnostics) > 0 {
 		return nil, errors.New(joinDiagnostics(diagnostics))
 	}
@@ -583,10 +627,6 @@ func registerDesignChange(path string) (map[string]any, error) {
 		return nil, fmt.Errorf("only change-scoped design contracts can be registered")
 	}
 	changeID := strings.TrimSpace(fmt.Sprint(doc.DesignSystem["id"]))
-	root, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
 	relative, err := filepath.Rel(root, path)
 	if err != nil {
 		return nil, err
@@ -628,17 +668,19 @@ func registerDesignChange(path string) (map[string]any, error) {
 	}
 	digestBytes := sha256.Sum256(raw)
 	digest := hex.EncodeToString(digestBytes[:])
-	if record["status"] == "approved" {
+	if record["status"] == "approved" || record["status"] == "superseded" {
 		if record["approval_sha256"] == digest {
 			return record, nil
 		}
-		return nil, fmt.Errorf("approved design change %s is immutable; create a new UD-* change", changeID)
+		return nil, fmt.Errorf("registered design change %s is immutable; create a new UD-* change", changeID)
 	}
 
 	scope, _ := doc.DesignSystem["scope"].(map[string]any)
 	scopes := stringList(scope["surfaces"])
 	relationships, _ := doc.DesignSystem["relationships"].(map[string]any)
 	supersedes := stringList(relationships["supersedes"])
+	iterationOf, _ := relationships["iteration_of"].(string)
+	iterationOf = strings.TrimSpace(iterationOf)
 	supersedesSet := map[string]bool{}
 	for _, supersededID := range supersedes {
 		if records[supersededID] == nil {
@@ -647,33 +689,40 @@ func registerDesignChange(path string) (map[string]any, error) {
 		supersedesSet[supersededID] = true
 	}
 
-	var supersededRecords []map[string]any
+	if iterationOf != "" {
+		source := records[iterationOf]
+		if source == nil || !designRecordIsRegistered(source) {
+			return nil, fmt.Errorf("design iteration source %s must be registered", iterationOf)
+		}
+		basisSHA := strings.TrimSpace(fmt.Sprint(record["basis_sha256"]))
+		if record["iteration_of"] != iterationOf || basisSHA != strings.TrimSpace(fmt.Sprint(source["approval_sha256"])) {
+			return nil, fmt.Errorf("design iteration source binding does not match its index record")
+		}
+		wantBaseline := strings.TrimSpace(fmt.Sprint(source["design_ref"])) + "#sha256=" + basisSHA
+		if !designStringContains(stringList(doc.DesignSystem["baseline_refs"]), wantBaseline) || !supersedesSet[iterationOf] {
+			return nil, fmt.Errorf("design iteration must preserve its exact source baseline and supersedes relationship")
+		}
+	}
+
+	type supersession struct {
+		record map[string]any
+		scopes []string
+	}
+	var supersededRecords []supersession
 	for _, rawOther := range changes {
 		other, ok := rawOther.(map[string]any)
 		if !ok || other["id"] == changeID || other["status"] != "approved" {
 			continue
 		}
-		otherScopes := stringList(other["scope"])
-		overlaps := false
-		for _, scopeValue := range scopes {
-			for _, otherScope := range otherScopes {
-				if designScopesOverlap(scopeValue, otherScope) {
-					overlaps = true
-					break
-				}
-			}
-			if overlaps {
-				break
-			}
-		}
-		if !overlaps {
+		intersections := designRecordActiveIntersections(other, scopes)
+		if len(intersections) == 0 {
 			continue
 		}
 		otherID := strings.TrimSpace(fmt.Sprint(other["id"]))
 		if !supersedesSet[otherID] {
 			return nil, fmt.Errorf("design change %s overlaps approved design change %s; declare supersedes or narrow the scope", changeID, otherID)
 		}
-		supersededRecords = append(supersededRecords, other)
+		supersededRecords = append(supersededRecords, supersession{record: other, scopes: intersections})
 	}
 
 	if strings.TrimSpace(fmt.Sprint(record["design_ref"])) != relative {
@@ -686,8 +735,7 @@ func registerDesignChange(path string) (map[string]any, error) {
 		return nil, fmt.Errorf("design change supersedes relationships do not match its index record")
 	}
 	for _, prior := range supersededRecords {
-		prior["status"] = "superseded"
-		prior["superseded_by"] = changeID
+		addDesignSupersededScopes(prior.record, prior.scopes, changeID)
 	}
 	record["status"] = "approved"
 	record["approval_sha256"] = digest
@@ -1726,6 +1774,16 @@ func validateDesignChangeMetadata(change map[string]any, diagnostics *[]designDi
 		for _, field := range []string{"supersedes", "depends_on", "conflicts_with"} {
 			if _, ok := relationships[field].([]any); !ok {
 				addDesignDiagnostic(diagnostics, "invalid-design-change-relationships", "design_change.relationships."+field+" must be a list", "design_change.relationships."+field)
+			}
+		}
+		iterationRaw := relationships["iteration_of"]
+		if iterationRaw != nil {
+			iterationOf, valid := iterationRaw.(string)
+			iterationOf = strings.TrimSpace(iterationOf)
+			if !valid || !designChangeIDRE.MatchString(iterationOf) || iterationOf == strings.TrimSpace(fmt.Sprint(change["id"])) {
+				addDesignDiagnostic(diagnostics, "invalid-design-change-iteration", "design_change.relationships.iteration_of must be null or a different canonical UD-* ID", "design_change.relationships.iteration_of")
+			} else if !designStringContains(stringList(relationships["supersedes"]), iterationOf) {
+				addDesignDiagnostic(diagnostics, "invalid-design-change-iteration", "an iteration source must also appear in relationships.supersedes", "design_change.relationships.iteration_of")
 			}
 		}
 	}

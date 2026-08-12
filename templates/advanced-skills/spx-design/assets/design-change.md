@@ -14,6 +14,7 @@ design_change:
     platforms: [web]
   baseline_refs: []
   relationships:
+    iteration_of: null
     supersedes: []
     depends_on: []
     conflicts_with: []

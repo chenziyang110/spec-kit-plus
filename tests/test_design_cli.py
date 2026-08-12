@@ -476,6 +476,30 @@ def test_scaffold_design_change_creates_change_local_contract_and_index(
     ]
 
 
+def test_design_change_lint_rejects_invalid_iteration_source(tmp_path: Path) -> None:
+    design_path = scaffold_design_change(
+        tmp_path,
+        change_id="UD-0042",
+        title="Orders workspace redesign",
+        change_type="preserve",
+        scopes=["web:orders"],
+        profile_ids=["web"],
+    )
+    design_path.write_text(
+        design_path.read_text(encoding="utf-8").replace(
+            "iteration_of: null", "iteration_of: not-a-change"
+        ),
+        encoding="utf-8",
+    )
+
+    diagnostics = lint_design_file(design_path)
+
+    assert any(
+        diagnostic.code == "invalid-design-change-iteration"
+        for diagnostic in diagnostics
+    )
+
+
 def test_scaffold_design_change_preserves_independent_change_workspaces(
     tmp_path: Path,
 ) -> None:
@@ -786,6 +810,25 @@ def test_design_adoption_requires_expected_change_and_retains_history(
         return hashlib.sha256(target.read_bytes()).hexdigest()
 
     parent_binding_digest = write_binding("UD-0042", parent_digest, parent_contract)
+    approved_contract = parent_contract.read_text(encoding="utf-8")
+    tampered_contract = json.loads(approved_contract)
+    tampered_contract["title"] = "tampered export"
+    parent_contract.write_text(
+        json.dumps(tampered_contract, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(DesignLintError, match="does not match the registered design"):
+        adopt_design_change(
+            tmp_path,
+            consumer_ref="feature:001-orders",
+            change_id="UD-0042",
+            scope="web:orders/detail",
+            mode="formal",
+            binding_ref=binding_ref,
+            binding_sha256=parent_binding_digest,
+            expected_change="none",
+        )
+    parent_contract.write_text(approved_contract, encoding="utf-8")
     adopt_design_change(
         tmp_path,
         consumer_ref="feature:001-orders",
@@ -844,6 +887,8 @@ def test_design_adoption_requires_expected_change_and_retains_history(
     )
     assert receipt["revision"] == 2
     assert receipt["previous_change_id"] == "UD-0042"
+    assert receipt["design_change_id"] == "UD-0043"
+    assert receipt["design_change_sha256"] == successor_record["approval_sha256"]
     index = json.loads(
         (tmp_path / ".specify/design/index.json").read_text(encoding="utf-8")
     )
@@ -1096,6 +1141,14 @@ def test_design_lint_cli_reports_success_by_default_against_cwd_design(
 
     assert result.exit_code == 0
     assert "DESIGN.md is valid at structural level" in result.output
+
+
+def test_design_cli_exposes_explicit_iteration_commands() -> None:
+    result = runner.invoke(app, ["design", "--help"])
+
+    assert result.exit_code == 0
+    for command in ("iterate", "resolve", "diff", "adopt"):
+        assert command in result.output
 
 
 def test_design_lint_cli_ready_accepts_approved_project_design(

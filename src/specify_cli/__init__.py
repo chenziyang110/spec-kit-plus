@@ -97,8 +97,10 @@ from specify_cli.command_catalog import list_command_catalog, show_catalog_comma
 from specify_cli.design import (
     DesignDiagnostic,
     DesignLintError,
+    adopt_design_change,
     approve_design_preview,
     design_capability_profiles,
+    diff_design_changes,
     export_design_system,
     import_design_reference,
     lint_design_preview_file,
@@ -108,9 +110,11 @@ from specify_cli.design import (
     register_design_change,
     render_design_preview,
     scaffold_design_change,
+    scaffold_design_iteration,
     scaffold_design_preview,
     scaffold_design_preview_manifest,
     scaffold_ui_target,
+    resolve_design_changes,
 )
 from specify_cli.specify_runtime import (
     SpecifyRuntimeError,
@@ -887,6 +891,199 @@ def design_change(
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1)
     console.print(f"Wrote {_display_path(design_path)}")
+
+
+@design_app.command("iterate")
+def design_iterate(
+    source_id: str = typer.Argument(
+        ...,
+        help="Registered source UI design change ID",
+    ),
+    change_id: str = typer.Argument(
+        ...,
+        help="New successor UI design change ID",
+    ),
+    title: str = typer.Option(..., "--title", help="Human-readable change title"),
+    change_type: str = typer.Option(
+        "preserve",
+        "--type",
+        help="Change type: preserve, overhaul, or extension",
+    ),
+    scope: list[str] = typer.Option(
+        [],
+        "--scope",
+        help="Repeatable successor scope; omit only for a fully active source",
+    ),
+    profiles: Optional[str] = typer.Option(
+        None,
+        "--profiles",
+        help="Optional comma-separated profiles; defaults to the source change",
+    ),
+) -> None:
+    """Create a digest-pinned successor without mutating its source contract."""
+
+    try:
+        profile_ids = (
+            parse_design_capability_profile_ids(profiles)
+            if profiles is not None
+            else None
+        )
+        design_path = scaffold_design_iteration(
+            Path.cwd(),
+            source_id=source_id,
+            change_id=change_id,
+            title=title,
+            change_type=change_type,
+            scopes=scope,
+            profile_ids=profile_ids,
+        )
+    except DesignLintError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    console.print(
+        f"Wrote {_display_path(design_path)} as an iteration of "
+        f"{source_id.strip().upper()}"
+    )
+
+
+@design_app.command("resolve")
+def design_resolve(
+    scope: str = typer.Option(
+        ...,
+        "--scope",
+        help="Exact consumer surface to resolve",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+) -> None:
+    """Discover active design candidates without changing consumer bindings."""
+
+    try:
+        candidates = resolve_design_changes(Path.cwd(), scope)
+    except DesignLintError as exc:
+        if output_format.lower() == "json":
+            print_json({"ok": False, "error": str(exc)})
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    payload = {
+        "ok": True,
+        "scope": scope,
+        "candidate_count": len(candidates),
+        "composite": len(candidates) > 1,
+        "requires_explicit_adoption": True,
+        "candidates": candidates,
+    }
+    if output_format.lower() == "json":
+        print_json(payload)
+        return
+    if not candidates:
+        console.print(f"No active UI design change covers {scope}")
+        return
+    for candidate in candidates:
+        console.print(
+            f"{candidate['id']}  {candidate['matched_scope']}  "
+            f"{candidate['design_ref']}"
+        )
+    if len(candidates) > 1:
+        console.print("Composite result: split the consumer scope before adoption")
+
+
+@design_app.command("diff")
+def design_diff(
+    from_id: str = typer.Argument(..., help="Registered source change ID"),
+    to_id: str = typer.Argument(..., help="Registered target change ID"),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+) -> None:
+    """Compare two immutable UI design changes semantically."""
+
+    try:
+        diff = diff_design_changes(Path.cwd(), from_id, to_id)
+    except DesignLintError as exc:
+        if output_format.lower() == "json":
+            print_json({"ok": False, "error": str(exc)})
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    if output_format.lower() == "json":
+        print_json({"ok": True, "diff": diff})
+        return
+    console.print(
+        f"Compared {diff['from']['id']} -> {diff['to']['id']}; "
+        f"changed sections: {', '.join(diff['changed_sections']) or 'none'}"
+    )
+    decisions = diff["decisions"]
+    console.print(
+        "Decisions: "
+        f"+{len(decisions['added'])} "
+        f"~{len(decisions['changed'])} "
+        f"-{len(decisions['removed'])}"
+    )
+
+
+@design_app.command("adopt")
+def design_adopt(
+    consumer_ref: str = typer.Argument(
+        ...,
+        help="Stable feature or checkpoint consumer reference",
+    ),
+    change_id: str = typer.Option(..., "--change", help="Registered UD-* change"),
+    scope: str = typer.Option(..., "--scope", help="Exact adopted surface"),
+    mode: str = typer.Option(..., "--mode", help="Adoption mode: formal or quick"),
+    binding_ref: Path = typer.Option(
+        ...,
+        "--binding-ref",
+        help="Consumer artifact already bound to the requested change",
+    ),
+    binding_sha256: str = typer.Option(
+        ...,
+        "--binding-sha256",
+        help="Exact SHA-256 of the consumer binding artifact",
+    ),
+    expected_change: str = typer.Option(
+        ...,
+        "--expected-change",
+        help="Current adopted UD-* ID, or none for first adoption",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+) -> None:
+    """Record an explicit compare-and-swap consumer adoption receipt."""
+
+    try:
+        receipt = adopt_design_change(
+            Path.cwd(),
+            consumer_ref=consumer_ref,
+            change_id=change_id,
+            scope=scope,
+            mode=mode,
+            binding_ref=binding_ref,
+            binding_sha256=binding_sha256,
+            expected_change=expected_change,
+        )
+    except DesignLintError as exc:
+        if output_format.lower() == "json":
+            print_json({"ok": False, "error": str(exc)})
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    if output_format.lower() == "json":
+        print_json({"ok": True, "adoption": receipt})
+        return
+    console.print(
+        f"Adopted {receipt['change_id']} for {receipt['consumer_ref']} "
+        f"at {receipt['scope']} (revision {receipt['revision']})"
+    )
 
 
 @design_app.command("register")
