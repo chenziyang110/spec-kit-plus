@@ -740,6 +740,47 @@ def test_partial_design_iteration_preserves_parent_and_resolves_active_scopes(
     ]
 
 
+def test_design_iteration_rejects_scope_already_superseded_on_source(
+    tmp_path: Path,
+) -> None:
+    _, source_digest = _create_registered_change(
+        tmp_path, "UD-0042", "web:orders"
+    )
+    successor = scaffold_design_iteration(
+        tmp_path,
+        source_id="UD-0042",
+        change_id="UD-0043",
+        title="Orders list refinement",
+        scopes=["web:orders/list"],
+    )
+    _ready_iteration(
+        successor,
+        change_id="UD-0043",
+        scope="web:orders/list",
+        source_id="UD-0042",
+        source_digest=source_digest,
+    )
+    register_design_change(tmp_path, successor)
+
+    with pytest.raises(DesignLintError, match="no longer active"):
+        scaffold_design_iteration(
+            tmp_path,
+            source_id="UD-0042",
+            change_id="UD-0044",
+            title="Invalid list iteration",
+            scopes=["web:orders/list/table"],
+        )
+
+    remaining = scaffold_design_iteration(
+        tmp_path,
+        source_id="UD-0042",
+        change_id="UD-0044",
+        title="Orders detail refinement",
+        scopes=["web:orders/detail"],
+    )
+    assert remaining.is_file()
+
+
 def test_design_diff_reports_lineage_scope_and_decision_delta(tmp_path: Path) -> None:
     _, source_digest = _create_registered_change(
         tmp_path, "UD-0042", "web:orders"
@@ -896,6 +937,91 @@ def test_design_adoption_requires_expected_change_and_retains_history(
         "superseded",
         "current",
     ]
+
+
+def test_quick_design_adoption_requires_confirmed_exact_status_binding(
+    tmp_path: Path,
+) -> None:
+    design_path, design_digest = _create_registered_change(
+        tmp_path, "UD-0042", "web:orders"
+    )
+    contract_path = design_path.parent / "design-contract.json"
+    contract_path.write_text(
+        export_design_system(design_path, export_format="json"), encoding="utf-8"
+    )
+    workspace = tmp_path / ".planning/quick/001-orders"
+    workspace.mkdir(parents=True)
+    binding_ref = Path(".planning/quick/001-orders/STATUS.md")
+
+    def write_status(*, confirmed: bool, bound_change: str) -> str:
+        status = workspace / "STATUS.md"
+        status.write_text(
+            "---\n"
+            f"understanding_confirmed: {'true' if confirmed else 'false'}\n"
+            "---\n\n"
+            "## UI Design Binding\n\n"
+            f"design_change_id: {bound_change}\n"
+            "design_change_ref: .specify/design/changes/UD-0042/DESIGN.md\n"
+            f"design_change_sha256: {design_digest}\n"
+            "design_contract_ref: .specify/design/changes/UD-0042/design-contract.json\n"
+            "note: exact source UD-0042\n",
+            encoding="utf-8",
+        )
+        return hashlib.sha256(status.read_bytes()).hexdigest()
+
+    def write_confirmation(state: str) -> None:
+        (workspace / "confirmation.json").write_text(
+            json.dumps(
+                {
+                    "schema": "quick-confirmation-v1",
+                    "confirmation_state": state,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    staged_digest = write_status(confirmed=False, bound_change="UD-0042")
+    write_confirmation("staged")
+    with pytest.raises(DesignLintError, match="checkpoint must be confirmed"):
+        adopt_design_change(
+            tmp_path,
+            consumer_ref="quick:001-orders",
+            change_id="UD-0042",
+            scope="web:orders/detail",
+            mode="quick",
+            binding_ref=binding_ref,
+            binding_sha256=staged_digest,
+            expected_change="none",
+        )
+
+    write_confirmation("confirmed")
+    mismatched_digest = write_status(confirmed=True, bound_change="UD-9999")
+    with pytest.raises(DesignLintError, match="exact registered change fields"):
+        adopt_design_change(
+            tmp_path,
+            consumer_ref="quick:001-orders",
+            change_id="UD-0042",
+            scope="web:orders/detail",
+            mode="quick",
+            binding_ref=binding_ref,
+            binding_sha256=mismatched_digest,
+            expected_change="none",
+        )
+
+    binding_digest = write_status(confirmed=True, bound_change="UD-0042")
+    receipt = adopt_design_change(
+        tmp_path,
+        consumer_ref="quick:001-orders",
+        change_id="UD-0042",
+        scope="web:orders/detail",
+        mode="quick",
+        binding_ref=binding_ref,
+        binding_sha256=binding_digest,
+        expected_change="none",
+    )
+    assert receipt["mode"] == "quick"
+    assert receipt["binding_ref"] == binding_ref.as_posix()
 
 
 def test_lint_design_file_accepts_valid_design(tmp_path: Path) -> None:

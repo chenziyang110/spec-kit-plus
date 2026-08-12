@@ -753,6 +753,35 @@ func TestDesignRegisterPartiallySupersedesOnlyIntersectingScope(t *testing.T) {
 	}
 }
 
+func TestDesignIterateRejectsScopeAlreadySupersededOnSource(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	_, sourceDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	successor := createDesignIterationRuntime(t, "UD-0042", "UD-0043", "web:orders/list")
+	writeReadyDesignIterationRuntime(t, successor, "UD-0043", []string{"web:orders/list"}, "UD-0042", sourceDigest)
+
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"register", successor}, &stdout); exit != 0 {
+		t.Fatalf("register partial successor failed: %d %s", exit, stdout.String())
+	}
+	stdout.Reset()
+	if exit := runDesign([]string{
+		"iterate", "UD-0042", "UD-0044",
+		"--title", "Invalid list iteration",
+		"--scope", "web:orders/list/table",
+	}, &stdout); exit == 0 || !strings.Contains(stdout.String(), "no longer active") {
+		t.Fatalf("superseded source scope must block: exit=%d output=%s", exit, stdout.String())
+	}
+	stdout.Reset()
+	if exit := runDesign([]string{
+		"iterate", "UD-0042", "UD-0044",
+		"--title", "Orders detail refinement",
+		"--scope", "web:orders/detail",
+	}, &stdout); exit != 0 {
+		t.Fatalf("remaining active source scope should iterate: exit=%d output=%s", exit, stdout.String())
+	}
+}
+
 func TestDesignDiffReportsScopeLineageAndStableDecisionChanges(t *testing.T) {
 	tmp := t.TempDir()
 	withCwd(t, tmp)
@@ -875,6 +904,73 @@ func TestDesignAdoptUsesExpectedChangeCASAndPreservesRebindHistory(t *testing.T)
 	}
 	if second["design_change_id"] != "UD-0043" || second["design_change_sha256"] != successorDigest {
 		t.Fatalf("second adoption receipt does not retain the exact design binding: %#v", second)
+	}
+}
+
+func TestDesignQuickAdoptRequiresConfirmedExactStatusBinding(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	designPath, designDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	contractPath := writeDesignContractRuntime(t, designPath)
+	workspace := filepath.Join(".planning", "quick", "001-orders")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bindingRef := filepath.ToSlash(filepath.Join(workspace, "STATUS.md"))
+
+	writeStatus := func(confirmed bool, boundChange string) string {
+		t.Helper()
+		body := fmt.Sprintf(`---
+understanding_confirmed: %t
+---
+
+## UI Design Binding
+
+design_change_id: %s
+design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+design_change_sha256: %s
+design_contract_ref: %s
+note: exact source UD-0042
+`, confirmed, boundChange, designDigest, filepath.ToSlash(contractPath))
+		if err := os.WriteFile(filepath.FromSlash(bindingRef), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		digest := sha256.Sum256([]byte(body))
+		return fmt.Sprintf("%x", digest)
+	}
+	writeConfirmation := func(state string) {
+		t.Helper()
+		body := fmt.Sprintf(`{"schema":"quick-confirmation-v1","confirmation_state":%q}
+`, state)
+		if err := os.WriteFile(filepath.Join(workspace, "confirmation.json"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	adopt := func(digest string) (int, string) {
+		t.Helper()
+		var stdout bytes.Buffer
+		exit := runDesign([]string{
+			"adopt", "quick:001-orders",
+			"--change", "UD-0042",
+			"--scope", "web:orders/detail",
+			"--mode", "quick",
+			"--binding-ref", bindingRef,
+			"--binding-sha256", digest,
+			"--expected-change", "none",
+		}, &stdout)
+		return exit, stdout.String()
+	}
+
+	writeConfirmation("staged")
+	if exit, output := adopt(writeStatus(false, "UD-0042")); exit == 0 || !strings.Contains(output, "checkpoint must be confirmed") {
+		t.Fatalf("unconfirmed quick adoption must block: exit=%d output=%s", exit, output)
+	}
+	writeConfirmation("confirmed")
+	if exit, output := adopt(writeStatus(true, "UD-9999")); exit == 0 || !strings.Contains(output, "exact registered change fields") {
+		t.Fatalf("mismatched markdown binding must block: exit=%d output=%s", exit, output)
+	}
+	if exit, output := adopt(writeStatus(true, "UD-0042")); exit != 0 {
+		t.Fatalf("confirmed exact quick adoption failed: exit=%d output=%s", exit, output)
 	}
 }
 

@@ -190,6 +190,11 @@ def test_quick_template_uses_fixed_status_scaffold() -> None:
     assert "resume_decision:" in scaffold
     assert "handoff_delivery_contract:" in scaffold
     assert "delivery_scope:" in scaffold
+    assert "## ui design binding" in scaffold
+    assert "design_change_id:" in scaffold
+    assert "design_change_ref:" in scaffold
+    assert "design_change_sha256:" in scaffold
+    assert "design_contract_ref:" in scaffold
     assert "quick_task_candidate" not in scaffold
     assert "bounded_scope" not in scaffold
     assert "`pending`, `ready`, `in_progress`, `blocked`, or `accepted`" in content
