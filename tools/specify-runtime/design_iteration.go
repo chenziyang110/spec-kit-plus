@@ -635,6 +635,9 @@ func adoptDesignChange(root string, request designAdoptionRequest) (map[string]a
 		"design_change_sha256": designDigest,
 		"design_contract_ref":  designContractRef,
 	}
+	if request.Mode == "quick" {
+		wantBinding["scope"] = request.Scope
+	}
 	if err := validateDesignAdoptionSurface(root, request, bindingPath, bindingRaw, wantBinding); err != nil {
 		return nil, err
 	}

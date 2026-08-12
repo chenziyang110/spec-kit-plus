@@ -1281,6 +1281,8 @@ def adopt_design_change(
         "design_change_sha256": design_digest,
         "design_contract_ref": design_contract_ref,
     }
+    if normalized_mode == "quick":
+        expected_fields["scope"] = normalized_scope
     if not _binding_contains_design_fields(binding_content, expected_fields):
         raise DesignLintError(
             "design adoption binding does not contain the exact registered "
