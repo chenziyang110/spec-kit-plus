@@ -953,13 +953,19 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
     workspace.mkdir(parents=True)
     binding_ref = Path(".planning/quick/001-orders/STATUS.md")
 
-    def write_status(*, confirmed: bool, bound_change: str) -> str:
+    def write_status(
+        *,
+        confirmed: bool,
+        bound_change: str,
+        bound_scope: str = "web:orders/detail",
+    ) -> str:
         status = workspace / "STATUS.md"
         status.write_text(
             "---\n"
             f"understanding_confirmed: {'true' if confirmed else 'false'}\n"
             "---\n\n"
             "## UI Design Binding\n\n"
+            f"scope: {bound_scope}\n"
             f"design_change_id: {bound_change}\n"
             "design_change_ref: .specify/design/changes/UD-0042/DESIGN.md\n"
             f"design_change_sha256: {design_digest}\n"
@@ -1033,6 +1039,23 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
             mode="quick",
             binding_ref=binding_ref,
             binding_sha256=mismatched_digest,
+            expected_change="none",
+        )
+
+    mismatched_scope_digest = write_status(
+        confirmed=True,
+        bound_change="UD-0042",
+        bound_scope="web:orders/summary",
+    )
+    with pytest.raises(DesignLintError, match="exact registered change fields"):
+        adopt_design_change(
+            tmp_path,
+            consumer_ref="quick:001-orders",
+            change_id="UD-0042",
+            scope="web:orders/detail",
+            mode="quick",
+            binding_ref=binding_ref,
+            binding_sha256=mismatched_scope_digest,
             expected_change="none",
         )
 

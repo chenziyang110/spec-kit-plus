@@ -918,7 +918,7 @@ func TestDesignQuickAdoptRequiresConfirmedExactStatusBinding(t *testing.T) {
 	}
 	bindingRef := filepath.ToSlash(filepath.Join(workspace, "STATUS.md"))
 
-	writeStatus := func(confirmed bool, boundChange string) string {
+	writeStatus := func(confirmed bool, boundChange, boundScope string) string {
 		t.Helper()
 		body := fmt.Sprintf(`---
 understanding_confirmed: %t
@@ -926,12 +926,13 @@ understanding_confirmed: %t
 
 ## UI Design Binding
 
+scope: %s
 design_change_id: %s
 design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
 design_change_sha256: %s
 design_contract_ref: %s
 note: exact source UD-0042
-`, confirmed, boundChange, designDigest, filepath.ToSlash(contractPath))
+`, confirmed, boundScope, boundChange, designDigest, filepath.ToSlash(contractPath))
 		if err := os.WriteFile(filepath.FromSlash(bindingRef), []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -962,18 +963,21 @@ note: exact source UD-0042
 	}
 
 	writeConfirmation("staged", "UD-0042")
-	if exit, output := adopt(writeStatus(false, "UD-0042")); exit == 0 || !strings.Contains(output, "checkpoint must be confirmed") {
+	if exit, output := adopt(writeStatus(false, "UD-0042", "web:orders/detail")); exit == 0 || !strings.Contains(output, "checkpoint must be confirmed") {
 		t.Fatalf("unconfirmed quick adoption must block: exit=%d output=%s", exit, output)
 	}
 	writeConfirmation("confirmed", "UD-9999")
-	if exit, output := adopt(writeStatus(true, "UD-0042")); exit == 0 || !strings.Contains(output, "confirmed UI design binding") {
+	if exit, output := adopt(writeStatus(true, "UD-0042", "web:orders/detail")); exit == 0 || !strings.Contains(output, "confirmed UI design binding") {
 		t.Fatalf("unconfirmed replacement binding must block: exit=%d output=%s", exit, output)
 	}
 	writeConfirmation("confirmed", "UD-0042")
-	if exit, output := adopt(writeStatus(true, "UD-9999")); exit == 0 || !strings.Contains(output, "exact registered change fields") {
+	if exit, output := adopt(writeStatus(true, "UD-9999", "web:orders/detail")); exit == 0 || !strings.Contains(output, "exact registered change fields") {
 		t.Fatalf("mismatched markdown binding must block: exit=%d output=%s", exit, output)
 	}
-	if exit, output := adopt(writeStatus(true, "UD-0042")); exit != 0 {
+	if exit, output := adopt(writeStatus(true, "UD-0042", "web:orders/summary")); exit == 0 || !strings.Contains(output, "exact registered change fields") {
+		t.Fatalf("mismatched markdown binding scope must block: exit=%d output=%s", exit, output)
+	}
+	if exit, output := adopt(writeStatus(true, "UD-0042", "web:orders/detail")); exit != 0 {
 		t.Fatalf("confirmed exact quick adoption failed: exit=%d output=%s", exit, output)
 	}
 }
