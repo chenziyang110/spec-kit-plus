@@ -11,13 +11,17 @@ from typer.testing import CliRunner
 from specify_cli import app
 from specify_cli.design import (
     DesignLintError,
+    adopt_design_change,
     approve_design_preview,
+    diff_design_changes,
     export_design_system,
     import_design_reference,
     lint_design_file,
     parse_design_markdown,
     register_design_change,
+    resolve_design_changes,
     scaffold_design_change,
+    scaffold_design_iteration,
 )
 
 
@@ -358,6 +362,8 @@ def _ready_change_design_text(
     change_id: str,
     scopes: list[str],
     supersedes: list[str] | None = None,
+    iteration_of: str | None = None,
+    baseline_refs: list[str] | None = None,
 ) -> str:
     preview = design_path.parent / "previews" / "round-01.html"
     preview.parent.mkdir(parents=True, exist_ok=True)
@@ -374,8 +380,9 @@ def _ready_change_design_text(
         "    entrypoints: []\n"
         "    states: []\n"
         "    platforms: [web]\n"
-        "  baseline_refs: []\n"
+        f"  baseline_refs: {json.dumps(baseline_refs or [])}\n"
         "  relationships:\n"
+        f"    iteration_of: {json.dumps(iteration_of)}\n"
         f"    supersedes: {json.dumps(supersedes or [])}\n"
         "    depends_on: []\n"
         "    conflicts_with: []\n"
@@ -582,6 +589,268 @@ def test_register_design_change_pins_digest_and_blocks_ambiguous_overlap(
     assert records["UD-0042"]["status"] == "superseded"
     assert records["UD-0042"]["superseded_by"] == "UD-0044"
     assert records["UD-0044"]["status"] == "approved"
+
+
+def _create_registered_change(
+    tmp_path: Path,
+    change_id: str,
+    scope: str,
+) -> tuple[Path, str]:
+    design_path = scaffold_design_change(
+        tmp_path,
+        change_id=change_id,
+        title=f"{change_id} design",
+        change_type="extension",
+        scopes=[scope],
+        profile_ids=["web"],
+    )
+    design_path.write_text(
+        _ready_change_design_text(
+            design_path,
+            change_id=change_id,
+            scopes=[scope],
+        ),
+        encoding="utf-8",
+    )
+    record = register_design_change(tmp_path, design_path)
+    return design_path, str(record["approval_sha256"])
+
+
+def _ready_iteration(
+    design_path: Path,
+    *,
+    change_id: str,
+    scope: str,
+    source_id: str,
+    source_digest: str,
+) -> None:
+    baseline = (
+        f".specify/design/changes/{source_id}/DESIGN.md#sha256={source_digest}"
+    )
+    design_path.write_text(
+        _ready_change_design_text(
+            design_path,
+            change_id=change_id,
+            scopes=[scope],
+            supersedes=[source_id],
+            iteration_of=source_id,
+            baseline_refs=[baseline],
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_scaffold_design_iteration_pins_registered_source_without_mutating_it(
+    tmp_path: Path,
+) -> None:
+    source, source_digest = _create_registered_change(
+        tmp_path, "UD-0042", "web:orders"
+    )
+    source_before = source.read_bytes()
+
+    successor = scaffold_design_iteration(
+        tmp_path,
+        source_id="UD-0042",
+        change_id="UD-0043",
+        title="Orders list refinement",
+        scopes=["web:orders/list"],
+    )
+
+    assert source.read_bytes() == source_before
+    document = parse_design_markdown(
+        successor.read_text(encoding="utf-8"), source=str(successor)
+    )
+    expected_baseline = (
+        ".specify/design/changes/UD-0042/DESIGN.md#sha256=" + source_digest
+    )
+    assert document.design_system["baseline_refs"] == [expected_baseline]
+    assert document.design_system["relationships"]["iteration_of"] == "UD-0042"
+    assert document.design_system["relationships"]["supersedes"] == ["UD-0042"]
+    index = json.loads(
+        (tmp_path / ".specify/design/index.json").read_text(encoding="utf-8")
+    )
+    record = next(row for row in index["changes"] if row["id"] == "UD-0043")
+    assert record["iteration_of"] == "UD-0042"
+    assert record["basis_sha256"] == source_digest
+
+
+def test_partial_design_iteration_preserves_parent_and_resolves_active_scopes(
+    tmp_path: Path,
+) -> None:
+    _, source_digest = _create_registered_change(
+        tmp_path, "UD-0042", "web:orders"
+    )
+    successor = scaffold_design_iteration(
+        tmp_path,
+        source_id="UD-0042",
+        change_id="UD-0043",
+        title="Orders list refinement",
+        scopes=["web:orders/list"],
+    )
+    _ready_iteration(
+        successor,
+        change_id="UD-0043",
+        scope="web:orders/list",
+        source_id="UD-0042",
+        source_digest=source_digest,
+    )
+    register_design_change(tmp_path, successor)
+
+    index = json.loads(
+        (tmp_path / ".specify/design/index.json").read_text(encoding="utf-8")
+    )
+    parent = next(row for row in index["changes"] if row["id"] == "UD-0042")
+    assert parent["status"] == "approved"
+    assert parent["superseded_scopes"] == [
+        {"scope": "web:orders/list", "by": "UD-0043"}
+    ]
+    assert [row["id"] for row in resolve_design_changes(tmp_path, "web:orders/list")] == [
+        "UD-0043"
+    ]
+    assert [row["id"] for row in resolve_design_changes(tmp_path, "web:orders/detail")] == [
+        "UD-0042"
+    ]
+    assert [row["id"] for row in resolve_design_changes(tmp_path, "web:orders")] == [
+        "UD-0043",
+        "UD-0042",
+    ]
+
+
+def test_design_diff_reports_lineage_scope_and_decision_delta(tmp_path: Path) -> None:
+    _, source_digest = _create_registered_change(
+        tmp_path, "UD-0042", "web:orders"
+    )
+    successor = scaffold_design_iteration(
+        tmp_path,
+        source_id="UD-0042",
+        change_id="UD-0043",
+        title="Orders list refinement",
+        scopes=["web:orders/list"],
+    )
+    _ready_iteration(
+        successor,
+        change_id="UD-0043",
+        scope="web:orders/list",
+        source_id="UD-0042",
+        source_digest=source_digest,
+    )
+    successor.write_text(
+        successor.read_text(encoding="utf-8").replace(
+            "use accessible semantic color pairs",
+            "use stronger accessible semantic color pairs",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    register_design_change(tmp_path, successor)
+
+    diff = diff_design_changes(tmp_path, "UD-0042", "UD-0043")
+
+    assert diff["schema"] == "spec-kit-ui-design-diff-v1"
+    assert diff["lineage"] == {
+        "direct_iteration": True,
+        "supersedes_source": True,
+    }
+    assert diff["decisions"]["changed"] == ["DS-COLOR-001"]
+    assert "decisions" in diff["changed_sections"]
+
+
+def test_design_adoption_requires_expected_change_and_retains_history(
+    tmp_path: Path,
+) -> None:
+    parent, parent_digest = _create_registered_change(
+        tmp_path, "UD-0042", "web:orders"
+    )
+    parent_contract = parent.parent / "design-contract.json"
+    parent_contract.write_text(
+        export_design_system(parent, export_format="json"), encoding="utf-8"
+    )
+    binding_ref = Path(".specify/features/001-orders/spec-contract.json")
+
+    def write_binding(change_id: str, digest: str, contract: Path) -> str:
+        target = tmp_path / binding_ref
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps(
+                {
+                    "design_change_id": change_id,
+                    "design_change_ref": f".specify/design/changes/{change_id}/DESIGN.md",
+                    "design_change_sha256": digest,
+                    "design_contract_ref": contract.relative_to(tmp_path).as_posix(),
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return hashlib.sha256(target.read_bytes()).hexdigest()
+
+    parent_binding_digest = write_binding("UD-0042", parent_digest, parent_contract)
+    adopt_design_change(
+        tmp_path,
+        consumer_ref="feature:001-orders",
+        change_id="UD-0042",
+        scope="web:orders/detail",
+        mode="formal",
+        binding_ref=binding_ref,
+        binding_sha256=parent_binding_digest,
+        expected_change="none",
+    )
+
+    successor = scaffold_design_iteration(
+        tmp_path,
+        source_id="UD-0042",
+        change_id="UD-0043",
+        title="Orders detail refinement",
+        scopes=["web:orders/detail"],
+    )
+    _ready_iteration(
+        successor,
+        change_id="UD-0043",
+        scope="web:orders/detail",
+        source_id="UD-0042",
+        source_digest=parent_digest,
+    )
+    successor_record = register_design_change(tmp_path, successor)
+    successor_contract = successor.parent / "design-contract.json"
+    successor_contract.write_text(
+        export_design_system(successor, export_format="json"), encoding="utf-8"
+    )
+    successor_binding_digest = write_binding(
+        "UD-0043", str(successor_record["approval_sha256"]), successor_contract
+    )
+
+    with pytest.raises(DesignLintError, match="expected current change"):
+        adopt_design_change(
+            tmp_path,
+            consumer_ref="feature:001-orders",
+            change_id="UD-0043",
+            scope="web:orders/detail",
+            mode="formal",
+            binding_ref=binding_ref,
+            binding_sha256=successor_binding_digest,
+            expected_change="none",
+        )
+
+    receipt = adopt_design_change(
+        tmp_path,
+        consumer_ref="feature:001-orders",
+        change_id="UD-0043",
+        scope="web:orders/detail",
+        mode="formal",
+        binding_ref=binding_ref,
+        binding_sha256=successor_binding_digest,
+        expected_change="UD-0042",
+    )
+    assert receipt["revision"] == 2
+    assert receipt["previous_change_id"] == "UD-0042"
+    index = json.loads(
+        (tmp_path / ".specify/design/index.json").read_text(encoding="utf-8")
+    )
+    assert [row["status"] for row in index["adoptions"]] == [
+        "superseded",
+        "current",
+    ]
 
 
 def test_lint_design_file_accepts_valid_design(tmp_path: Path) -> None:

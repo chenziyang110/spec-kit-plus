@@ -644,6 +644,266 @@ func TestDesignRegisterPinsDigestBlocksOverlapAndAppliesSupersedes(t *testing.T)
 	}
 }
 
+func TestDesignIterateCreatesDigestPinnedSuccessorWithoutMutatingSource(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	source, sourceDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	sourceBefore := readFile(t, source)
+
+	var stdout bytes.Buffer
+	exit := runDesign([]string{
+		"iterate", "UD-0042", "UD-0043",
+		"--title", "Orders list refinement",
+		"--scope", "web:orders/list",
+	}, &stdout)
+	if exit != 0 {
+		t.Fatalf("design iterate exit=%d output=%s", exit, stdout.String())
+	}
+	if got := readFile(t, source); got != sourceBefore {
+		t.Fatalf("design iterate mutated its registered source")
+	}
+
+	env := decodeEnvelope(t, stdout.Bytes())
+	successor := filepath.FromSlash(env.Data["path"].(string))
+	doc, err := parseDesignMarkdown(readFile(t, successor), successor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	relationships := doc.DesignSystem["relationships"].(map[string]any)
+	if relationships["iteration_of"] != "UD-0042" {
+		t.Fatalf("iteration_of = %#v, want UD-0042", relationships["iteration_of"])
+	}
+	wantBaseline := ".specify/design/changes/UD-0042/DESIGN.md#sha256=" + sourceDigest
+	if got := stringList(doc.DesignSystem["baseline_refs"]); !reflect.DeepEqual(got, []string{wantBaseline}) {
+		t.Fatalf("baseline_refs = %#v, want exact registered source", got)
+	}
+	if got := stringList(relationships["supersedes"]); !reflect.DeepEqual(got, []string{"UD-0042"}) {
+		t.Fatalf("supersedes = %#v, want source change", got)
+	}
+	record := designChangeRecordRuntime(t, readDesignChangeIndexRuntime(t), "UD-0043")
+	if record["iteration_of"] != "UD-0042" || record["basis_sha256"] != sourceDigest {
+		t.Fatalf("successor index record did not pin its source: %#v", record)
+	}
+}
+
+func TestDesignRegisterPartiallySupersedesOnlyIntersectingScope(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	_, sourceDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	successor := createDesignIterationRuntime(t, "UD-0042", "UD-0043", "web:orders/list")
+	writeReadyDesignIterationRuntime(t, successor, "UD-0043", []string{"web:orders/list"}, "UD-0042", sourceDigest)
+
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"register", successor}, &stdout); exit != 0 {
+		t.Fatalf("register partial successor failed: %d %s", exit, stdout.String())
+	}
+	index := readDesignChangeIndexRuntime(t)
+	parent := designChangeRecordRuntime(t, index, "UD-0042")
+	if parent["status"] != "approved" {
+		t.Fatalf("partial iteration retired the whole parent: %#v", parent)
+	}
+	wantCovered := []any{map[string]any{"scope": "web:orders/list", "by": "UD-0043"}}
+	if !reflect.DeepEqual(parent["superseded_scopes"], wantCovered) {
+		t.Fatalf("superseded_scopes = %#v, want %#v", parent["superseded_scopes"], wantCovered)
+	}
+
+	if got := resolveDesignIDsRuntime(t, "web:orders/list"); !reflect.DeepEqual(got, []string{"UD-0043"}) {
+		t.Fatalf("list resolution = %#v, want only successor", got)
+	}
+	if got := resolveDesignIDsRuntime(t, "web:orders/detail"); !reflect.DeepEqual(got, []string{"UD-0042"}) {
+		t.Fatalf("detail resolution = %#v, want parent", got)
+	}
+	if got := resolveDesignIDsRuntime(t, "web:orders"); !reflect.DeepEqual(got, []string{"UD-0043", "UD-0042"}) {
+		t.Fatalf("broad resolution = %#v, want explicit composite candidates", got)
+	}
+}
+
+func TestDesignDiffReportsScopeLineageAndStableDecisionChanges(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	_, sourceDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	successor := createDesignIterationRuntime(t, "UD-0042", "UD-0043", "web:orders/list")
+	writeReadyDesignIterationRuntime(t, successor, "UD-0043", []string{"web:orders/list"}, "UD-0042", sourceDigest)
+	updated := strings.Replace(readFile(t, successor), "use accessible semantic color pairs", "use stronger accessible semantic color pairs", 1)
+	if err := os.WriteFile(successor, []byte(updated), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"register", successor}, &stdout); exit != 0 {
+		t.Fatalf("register successor failed: %d %s", exit, stdout.String())
+	}
+
+	stdout.Reset()
+	if exit := runDesign([]string{"diff", "UD-0042", "UD-0043"}, &stdout); exit != 0 {
+		t.Fatalf("design diff failed: %d %s", exit, stdout.String())
+	}
+	diff := decodeEnvelope(t, stdout.Bytes()).Data["diff"].(map[string]any)
+	if diff["schema"] != "spec-kit-ui-design-diff-v1" {
+		t.Fatalf("unexpected diff schema: %#v", diff)
+	}
+	lineage := diff["lineage"].(map[string]any)
+	if lineage["direct_iteration"] != true || lineage["supersedes_source"] != true {
+		t.Fatalf("diff lineage = %#v, want direct explicit iteration", lineage)
+	}
+	decisions := diff["decisions"].(map[string]any)
+	if !reflect.DeepEqual(stringList(decisions["changed"]), []string{"DS-COLOR-001"}) {
+		t.Fatalf("changed decisions = %#v", decisions["changed"])
+	}
+	if !containsString(stringList(diff["changed_sections"]), "decisions") {
+		t.Fatalf("changed sections = %#v, want decisions", diff["changed_sections"])
+	}
+}
+
+func TestDesignAdoptUsesExpectedChangeCASAndPreservesRebindHistory(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	parent, parentDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	parentContract := writeDesignContractRuntime(t, parent)
+	bindingRef := ".specify/features/001-orders/spec-contract.json"
+	parentBindingDigest := writeDesignBindingRuntime(t, bindingRef, "UD-0042", parentDigest, parentContract)
+
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{
+		"adopt", "feature:001-orders",
+		"--change", "UD-0042",
+		"--scope", "web:orders/detail",
+		"--mode", "formal",
+		"--binding-ref", bindingRef,
+		"--binding-sha256", parentBindingDigest,
+		"--expected-change", "none",
+	}, &stdout); exit != 0 {
+		t.Fatalf("initial design adoption failed: %d %s", exit, stdout.String())
+	}
+
+	successor := createDesignIterationRuntime(t, "UD-0042", "UD-0043", "web:orders/detail")
+	writeReadyDesignIterationRuntime(t, successor, "UD-0043", []string{"web:orders/detail"}, "UD-0042", parentDigest)
+	stdout.Reset()
+	if exit := runDesign([]string{"register", successor}, &stdout); exit != 0 {
+		t.Fatalf("register successor failed: %d %s", exit, stdout.String())
+	}
+	successorDigest := designChangeRecordRuntime(t, readDesignChangeIndexRuntime(t), "UD-0043")["approval_sha256"].(string)
+	successorContract := writeDesignContractRuntime(t, successor)
+	successorBindingDigest := writeDesignBindingRuntime(t, bindingRef, "UD-0043", successorDigest, successorContract)
+
+	wrongExpected := []string{
+		"adopt", "feature:001-orders",
+		"--change", "UD-0043",
+		"--scope", "web:orders/detail",
+		"--mode", "formal",
+		"--binding-ref", bindingRef,
+		"--binding-sha256", successorBindingDigest,
+		"--expected-change", "none",
+	}
+	stdout.Reset()
+	if exit := runDesign(wrongExpected, &stdout); exit == 0 || !strings.Contains(stdout.String(), "expected current change") {
+		t.Fatalf("stale adoption CAS must block: exit=%d output=%s", exit, stdout.String())
+	}
+	wrongExpected[len(wrongExpected)-1] = "UD-0042"
+	stdout.Reset()
+	if exit := runDesign(wrongExpected, &stdout); exit != 0 {
+		t.Fatalf("explicit design rebind failed: %d %s", exit, stdout.String())
+	}
+
+	index := readDesignChangeIndexRuntime(t)
+	adoptions := index["adoptions"].([]any)
+	if len(adoptions) != 2 {
+		t.Fatalf("adoption history = %#v, want two receipts", adoptions)
+	}
+	first := adoptions[0].(map[string]any)
+	second := adoptions[1].(map[string]any)
+	if first["status"] != "superseded" || first["superseded_by_revision"] != float64(2) {
+		t.Fatalf("first adoption receipt was not retained: %#v", first)
+	}
+	if second["status"] != "current" || second["revision"] != float64(2) || second["previous_change_id"] != "UD-0042" {
+		t.Fatalf("second adoption receipt is incomplete: %#v", second)
+	}
+}
+
+func createRegisteredDesignChangeRuntime(t *testing.T, changeID, scope string) (string, string) {
+	t.Helper()
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"change", changeID, "--title", changeID + " design", "--type", "extension", "--scope", scope, "--profiles", "web"}, &stdout); exit != 0 {
+		t.Fatalf("create %s failed: %d %s", changeID, exit, stdout.String())
+	}
+	path := filepath.Join(".specify", "design", "changes", changeID, "DESIGN.md")
+	writeReadyDesignChangeRuntime(t, path, changeID, []string{scope}, nil)
+	stdout.Reset()
+	if exit := runDesign([]string{"register", path}, &stdout); exit != 0 {
+		t.Fatalf("register %s failed: %d %s", changeID, exit, stdout.String())
+	}
+	record := designChangeRecordRuntime(t, readDesignChangeIndexRuntime(t), changeID)
+	return path, record["approval_sha256"].(string)
+}
+
+func createDesignIterationRuntime(t *testing.T, sourceID, changeID, scope string) string {
+	t.Helper()
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"iterate", sourceID, changeID, "--title", changeID + " iteration", "--scope", scope}, &stdout); exit != 0 {
+		t.Fatalf("iterate %s failed: %d %s", changeID, exit, stdout.String())
+	}
+	return filepath.Join(".specify", "design", "changes", changeID, "DESIGN.md")
+}
+
+func writeReadyDesignIterationRuntime(t *testing.T, designPath, changeID string, scopes []string, sourceID, sourceDigest string) {
+	t.Helper()
+	writeReadyDesignChangeRuntime(t, designPath, changeID, scopes, []string{sourceID})
+	content := readFile(t, designPath)
+	baseline := ".specify/design/changes/" + sourceID + "/DESIGN.md#sha256=" + sourceDigest
+	content = strings.Replace(content, "  baseline_refs: []", "  baseline_refs: [\""+baseline+"\"]", 1)
+	content = strings.Replace(content, "  relationships:\n", "  relationships:\n    iteration_of: "+sourceID+"\n", 1)
+	if err := os.WriteFile(designPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func resolveDesignIDsRuntime(t *testing.T, scope string) []string {
+	t.Helper()
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"resolve", "--scope", scope}, &stdout); exit != 0 {
+		t.Fatalf("resolve %s failed: %d %s", scope, exit, stdout.String())
+	}
+	env := decodeEnvelope(t, stdout.Bytes())
+	ids := make([]string, 0, len(env.Items))
+	for _, raw := range env.Items {
+		ids = append(ids, raw.(map[string]any)["id"].(string))
+	}
+	return ids
+}
+
+func writeDesignContractRuntime(t *testing.T, designPath string) string {
+	t.Helper()
+	rendered, err := exportDesignSystem(designPath, "json", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contract := filepath.Join(filepath.Dir(designPath), "design-contract.json")
+	if err := os.WriteFile(contract, []byte(rendered), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return filepath.ToSlash(contract)
+}
+
+func writeDesignBindingRuntime(t *testing.T, bindingRef, changeID, digest, contractRef string) string {
+	t.Helper()
+	payload := map[string]any{
+		"design_change_id":     changeID,
+		"design_change_ref":    ".specify/design/changes/" + changeID + "/DESIGN.md",
+		"design_change_sha256": digest,
+		"design_contract_ref":  contractRef,
+	}
+	raw, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(bindingRef), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bindingRef, append(raw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(append(raw, '\n')))
+}
+
 func writeReadyDesignChangeRuntime(t *testing.T, designPath, changeID string, scopes, supersedes []string) {
 	t.Helper()
 	if supersedes == nil {
