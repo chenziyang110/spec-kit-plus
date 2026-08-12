@@ -62,12 +62,19 @@ scripts:
    content/image plans, and the structure/visual/runtime evidence triad. Before
    replacing an existing binding, run
    `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`
-   and record the semantic delta. Use fresh leased
+   and record the semantic delta, then run
+   `specify-runtime design impact feature:<feature-id> --change <CANDIDATE-UD-ID> --scope <exact-surface> --mode formal --expected-change <CURRENT-UD-ID|none> --format json`
+   before changing either binding. Present its affected `DS-*`/`DH-*` IDs,
+   `preserved_bindings`, `invalidated_bindings`, and `reconcile_from`. Use fresh leased
    `specify-runtime artifact patch` calls to set the complete replacement
    binding in `spec-contract.json` and `ui-brief.md` first. Compute SHA-256 over
    the exact spec-contract bytes, then execute
    `specify-runtime design adopt feature:<feature-id> --change <UD-ID> --scope <exact-surface> --mode formal --binding-ref <feature-dir>/spec-contract.json --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
-   A failed compare-and-swap blocks downstream regeneration. Treat
+   A failed compare-and-swap blocks downstream regeneration. After success,
+   follow the receipt's `reconcile_from`: reconcile Specify-owned UI binding
+   fields when listed, mark only invalidated Plan/Tasks/affected Review surfaces
+   pending for their owners, preserve completed implementation and unaffected
+   Review evidence, and never directly rewrite another stage's artifact. Treat
    a missing or unregistered applicable change as a strong blocker and a
    narrow existing-pattern adoption gap as a soft risk. When raw UI references
    exist, additionally use `choose_ui_reference_lane_dispatch`,

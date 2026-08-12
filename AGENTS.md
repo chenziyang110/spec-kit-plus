@@ -187,17 +187,30 @@ present in a test project.
   and may return a composite. Current consumer binding artifacts are singular,
   so split that result into independently bound consumer units, each with one
   exact scope and one binding artifact. Before rebinding, run
-  `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID>`; after the
-  owning workflow updates and hashes its binding artifact, record the exact
+  `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID>`, then preview
+  the exact scope-bounded consumer effect with `specify-runtime design impact
+  <consumer-ref> --change <CANDIDATE-UD-ID> --scope <exact-surface> --mode
+  <formal|quick> --expected-change <CURRENT-UD-ID|none>`. Impact is read-only
+  and reports impact classes, affected `DS-*`/`DH-*` IDs,
+  `preserved_bindings`, `invalidated_bindings`, and `reconcile_from`. After the
+  owning workflow confirms the preview, updates and hashes its binding artifact, record the exact
   compare-and-swap with `specify-runtime design adopt ... --expected-change
-  <CURRENT-UD-ID|none>`. Formal mode binds `spec-contract.json` through Specify.
+  <CURRENT-UD-ID|none>`. The receipt repeats the impact contract. Formal mode
+  binds `spec-contract.json` through Specify, reconciles from the named stage,
+  marks only affected downstream bindings and Review evidence pending, and
+  preserves completed implementation plus unaffected evidence; the design
+  runtime never rewrites those consumer artifacts.
   Quick mode first stages exact `scope` plus the four registered binding fields
   as confirmation-protected `decision.ui_confirmation.design_binding`, then
   requires `confirmation.json` state `confirmed|inherited` and
   `understanding_confirmed: true`. Only afterward does it bind the independent
   top-level `ui_design_binding` adoption copy in `STATUS.md`; the two copies
   must exact-match, and the decision copy remains in `confirmation.json` rather
-  than being manually written into the runtime-managed STATUS projection.
+  than being manually written into the runtime-managed STATUS projection. A
+  successful Quick replacement retires unstarted affected packets, stops
+  in-progress affected packets at a safe boundary, preserves completed work,
+  creates a corrective work item for completed-work drift, and recaptures only
+  affected Review evidence.
 - Every substantive design round presents exactly three comparable,
   self-contained HTML directions with stable deep links, component/state
   specimens, independent color and motion systems, responsive targets, and an

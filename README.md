@@ -648,9 +648,18 @@ when the `classic` profile is selected.
   composite coverage is split into independently bound consumer units, each
   with one exact scope and one binding file.
   `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID>`
-  exposes the semantic delta before the consumer updates its binding artifact,
+  exposes the semantic delta; read-only `specify-runtime design impact
+  <consumer-ref> ... --expected-change <CURRENT-UD-ID|none>` then classifies the
+  exact scope's visual/interaction/component/responsive/content and stable
+  `DS-*`/`DH-*` impact, returning `preserved_bindings`,
+  `invalidated_bindings`, and `reconcile_from` before the consumer updates its binding artifact,
   and `specify-runtime design adopt ... --expected-change <CURRENT-UD-ID|none>`
   records the formal or Quick compare-and-swap after those bytes are updated.
+  Its receipt repeats the impact contract so the owning workflow reconciles
+  only affected stages and Review evidence, preserves completed work, and never
+  lets the design runtime rewrite consumer artifacts. Quick additionally
+  retires unstarted affected packets and creates a corrective work item for
+  completed-work drift.
   Use the design workflow for new product UI, redesigns,
   rebrands, core workflow experience, multi-platform interface decisions, and
   high-visibility customer-facing surfaces. Visual create and scope-changing
@@ -1331,6 +1340,12 @@ Maintainer note:
   consumer units because the current binding artifacts are singular.
 - `specify-runtime design diff UD-0001 UD-0002` compares lineage, scope,
   stable decisions, handoff contracts, and changed sections before adoption.
+- `specify-runtime design impact feature:001-orders --change UD-0002 --scope
+  web:orders/detail --mode formal --expected-change UD-0001` is a read-only,
+  scope-bounded adoption preview. It CAS-checks the current receipt and returns
+  impact classes, affected `DS-*`/`DH-*` IDs, `preserved_bindings`,
+  `invalidated_bindings`, `reconcile_from`, reconciliation actions, and a
+  canonical `impact_sha256`.
 - `specify-runtime design preview-manifest --out
   .specify/design/changes/UD-0001/previews/round-NN.manifest.json --profiles web,mobile` writes
   the compact editable source for a review round from the canonical capability
@@ -1362,6 +1377,9 @@ Maintainer note:
   --change UD-0002 --scope web:orders/detail --mode formal --binding-ref
   <feature-dir>/spec-contract.json --binding-sha256 <sha256>
   --expected-change UD-0001|none` after Specify writes the exact four fields.
+  The receipt drives reconciliation from Specify, Plan, Review, or none; only
+  listed downstream bindings and affected-scope Review evidence become pending,
+  while completed implementation and unaffected evidence remain preserved.
 - Quick adoption uses `specify-runtime design adopt quick:<quick-id> --change
   UD-0002 --scope web:orders/detail --mode quick --binding-ref
   .planning/quick/<id>-<slug>/STATUS.md --binding-sha256 <sha256>
@@ -1371,7 +1389,10 @@ Maintainer note:
   frontmatter says `understanding_confirmed: true`. Patch the independent
   top-level `## UI Design Binding` / `ui_design_binding` adoption copy only
   afterward; it must match the confirmation-protected decision copy. Hash those
-  exact STATUS bytes before adoption.
+  exact STATUS bytes before adoption. A replacement receipt retires unstarted
+  affected packets, stops in-progress affected packets at a safe boundary,
+  preserves completed work, creates a corrective work item for drift, and
+  recaptures only affected Review evidence.
   Partial registration records parent `superseded_scopes` rather than retiring
   unaffected scope.
 - Existing projects can use `--allow-unapproved` as a temporary structural-compatibility export while `sp-design`/`spx-design` records change-specific approval and provenance.

@@ -46,6 +46,13 @@ confirmation. Only afterward, use a fresh leased
 `specify-runtime artifact patch` call to set the independent top-level
 `STATUS.md` `ui_design_binding` adoption copy; both copies must exact-match
 before `specify-runtime design adopt` may succeed.
+For a replacement, first run `specify-runtime design diff`, then the read-only
+`specify-runtime design impact <consumer-ref> ... --expected-change
+<CURRENT-UD-ID|none>` preview. Present `preserved_bindings`,
+`invalidated_bindings`, and `reconcile_from`; only a matching adoption receipt
+may trigger scope-bounded reconciliation. Preserve completed work and
+unaffected Review evidence. Quick retires unstarted affected packets and
+creates a corrective work item for completed-work drift.
 When `sp-design` produced a change-level HTML preview, preserve its exact
 change-local `round-NN.html#direction-id` reference, registered design-change
 ref/hash, motion/reduced-motion contract, preview/manifest/handoff SHA-256

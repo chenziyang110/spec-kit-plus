@@ -102,6 +102,7 @@ from specify_cli.design import (
     design_capability_profiles,
     diff_design_changes,
     export_design_system,
+    impact_design_adoption,
     import_design_reference,
     lint_design_preview_file,
     lint_design_file,
@@ -1025,6 +1026,57 @@ def design_diff(
         f"+{len(decisions['added'])} "
         f"~{len(decisions['changed'])} "
         f"-{len(decisions['removed'])}"
+    )
+
+
+@design_app.command("impact")
+def design_impact(
+    consumer_ref: str = typer.Argument(
+        ...,
+        help="Stable feature or checkpoint consumer reference",
+    ),
+    change_id: str = typer.Option(..., "--change", help="Registered UD-* change"),
+    scope: str = typer.Option(..., "--scope", help="Exact consumer surface"),
+    mode: str = typer.Option(..., "--mode", help="Adoption mode: formal or quick"),
+    expected_change: str = typer.Option(
+        ...,
+        "--expected-change",
+        help="Current adopted UD-* ID, or none for first adoption",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+) -> None:
+    """Preview scope-bounded reconciliation before changing a binding."""
+
+    try:
+        impact = impact_design_adoption(
+            Path.cwd(),
+            consumer_ref=consumer_ref,
+            change_id=change_id,
+            scope=scope,
+            mode=mode,
+            expected_change=expected_change,
+        )
+    except DesignLintError as exc:
+        if output_format.lower() == "json":
+            print_json({"ok": False, "error": str(exc)})
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    if output_format.lower() == "json":
+        print_json({"ok": True, "impact": impact})
+        return
+    console.print(
+        f"Impact {impact['current_change_id'] or 'none'} -> "
+        f"{impact['candidate_change_id']} for {impact['scope']}; "
+        f"reconcile from {impact['reconcile_from']}"
+    )
+    console.print(
+        "Invalidated bindings: "
+        + (", ".join(impact["invalidated_bindings"]) or "none")
     )
 
 

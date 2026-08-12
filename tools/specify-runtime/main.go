@@ -1056,6 +1056,7 @@ func defaultCapabilities() []string {
 		"design.adopt",
 		"design.change",
 		"design.diff",
+		"design.impact",
 		"design.export",
 		"design.import",
 		"design.iterate",
@@ -1267,6 +1268,8 @@ func capabilitySummary(id string) string {
 		return "Discover active UI design candidates for one scope without adopting them."
 	case "design.diff":
 		return "Compare immutable UI design changes by lineage, scope, decisions, and handoff contracts."
+	case "design.impact":
+		return "Preview scope-bounded consumer reconciliation without changing workflow artifacts."
 	case "design.register":
 		return "Register an approved change-local UI contract as immutable consumption truth."
 	case "design.adopt":

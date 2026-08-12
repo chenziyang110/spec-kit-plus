@@ -125,7 +125,11 @@ The following flags are available and composable:
   `specify-runtime artifact patch` and into every UI worker packet. Before a
   replacement, run
   `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`
-  and present its semantic delta in the UI checkpoint amendment. An active
+  followed by
+  `specify-runtime design impact quick:<quick-id> --change <CANDIDATE-UD-ID> --scope <exact-surface> --mode quick --expected-change <CURRENT-UD-ID|none> --format json`.
+  Present the impact classes, affected `DS-*`/`DH-*` IDs,
+  `preserved_bindings`, `invalidated_bindings`, and `reconcile_from` in the UI
+  checkpoint amendment before changing Quick state. An active
   Quick task must not silently adopt a later design approval; adoption requires
   a checkpoint amendment that stages the complete replacement as
   `decision.ui_confirmation.design_binding`: exact `scope` plus
@@ -141,7 +145,10 @@ The following flags are available and composable:
   must match exactly. Hash the exact `STATUS.md` bytes and run
   `specify-runtime design adopt quick:<quick-id> --change <UD-ID> --scope <exact-surface> --mode quick --binding-ref <quick-dir>/STATUS.md --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
   Do not dispatch or resume UI implementation until the compare-and-swap
-  receipt succeeds.
+  receipt succeeds. Then retire unstarted affected worker packets, stop
+  in-progress affected packets at a safe boundary, preserve completed work,
+  create a corrective work item for any completed-work drift, and recapture
+  only affected Review evidence. Keep unaffected scope and evidence valid.
 - Carry the confirmed UI Confirmation unchanged into every UI worker packet and
   keep the matching fields current on the quick-status artifact only through
   leased `specify-runtime artifact patch`. A worker may implement within its

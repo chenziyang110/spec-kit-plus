@@ -43,13 +43,19 @@ the relevant design/fidelity refs. Record:
 
 Before replacing a formal feature binding, run
 `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`
-and retain its scope, `DS-*`, `DH-*`, and changed-section delta. Use fresh
+and retain its scope, `DS-*`, `DH-*`, and changed-section delta. Then run
+`specify-runtime design impact feature:<feature-id> --change <CANDIDATE-UD-ID> --scope <exact-surface> --mode formal --expected-change <CURRENT-UD-ID|none> --format json`
+before patching. Present `preserved_bindings`, `invalidated_bindings`, and
+`reconcile_from`. Use fresh
 leased `specify-runtime artifact patch` calls to set the full four-field
 replacement in `spec-contract.json` and `ui-brief.md` first; hash the exact
 spec-contract bytes, then run
 `specify-runtime design adopt feature:<feature-id> --change <UD-ID> --scope <exact-surface> --mode formal --binding-ref <feature-dir>/spec-contract.json --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
 Only a successful compare-and-swap receipt authorizes downstream invalidation
-and regeneration; failure leaves the earlier binding authoritative.
+and regeneration; failure leaves the earlier binding authoritative. On
+success, reconcile from the receipt's named stage, mark only listed downstream
+bindings and affected Review evidence pending, preserve completed implementation
+and unaffected evidence, and never directly rewrite another stage's artifact.
 
 When original UI references exist, preserve inspectable source paths or URLs and
 record fidelity as `approximate` by default, `high`, or `inspiration`.

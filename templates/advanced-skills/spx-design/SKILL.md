@@ -148,7 +148,11 @@ Registration subtracts only intersecting successor scopes, records them as
 run
 `{{specify-subcmd:specify-runtime design diff <SOURCE-UD-ID> <UD-ID> --format json}}`
 and record the lineage, scope, stable `DS-*`, `DH-*`, and changed-section delta
-in review before adoption.
+in review before adoption. For an already bound consumer, its owning workflow
+must also run read-only `specify-runtime design impact ... --expected-change
+<CURRENT-UD-ID|none>` before patching, present `preserved_bindings`,
+`invalidated_bindings`, and `reconcile_from`, then reconcile only after the
+compare-and-swap adoption receipt succeeds.
 Do not hand off a structurally valid but generic or unapproved seed.
 
 If `<change-dir>/review.md` is absent, create its fixed shape with

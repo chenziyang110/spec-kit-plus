@@ -55,13 +55,17 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
   reference as `design_contract.ui_brief_ref`; the UI contract is never omitted.
 - Before replacing a feature's current registered change, run
   `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`
-  and patch the resulting scope, `DS-*`, `DH-*`, and changed-section delta into
-  the owning spec views. Use fresh leased `specify-runtime artifact patch`
+  and then `specify-runtime design impact feature:<feature-id> --change <CANDIDATE-UD-ID> --scope <exact-surface> --mode formal --expected-change <CURRENT-UD-ID|none> --format json`.
+  Present its scope-bounded classes, `DS-*`/`DH-*` IDs,
+  `preserved_bindings`, `invalidated_bindings`, and `reconcile_from`; patch the
+  resulting semantic delta into the owning spec views. Use fresh leased `specify-runtime artifact patch`
   calls to set the full four-field binding in `spec-contract.json` and
   `ui-brief.md` before adoption. Hash the exact `spec-contract.json`, then call
   `specify-runtime design adopt feature:<feature-id> --change <UD-ID> --scope <exact-surface> --mode formal --binding-ref <feature-dir>/spec-contract.json --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
   The receipt is the formal compare-and-swap boundary; on failure, keep the old
-  binding and do not regenerate Plan or Tasks.
+  binding and do not regenerate Plan or Tasks. On success, reconcile from the
+  receipt's named stage, mark only listed Plan/Tasks/affected Review surfaces
+  pending, and preserve completed implementation plus unaffected evidence.
 - Treat a pre-existing root `DESIGN.md` as read-only legacy baseline input, not
   a candidate for implicit adoption. Route new or high-visibility design
   decisions with no applicable registered change to `sp-design`.

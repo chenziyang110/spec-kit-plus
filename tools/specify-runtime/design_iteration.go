@@ -14,7 +14,10 @@ import (
 	"strings"
 )
 
-const designDiffSchema = "spec-kit-ui-design-diff-v1"
+const (
+	designDiffSchema   = "spec-kit-ui-design-diff-v1"
+	designImpactSchema = "spec-kit-ui-design-impact-v1"
+)
 
 func runDesignIterate(args []string, stdout io.Writer) int {
 	if len(args) < 2 || strings.HasPrefix(args[0], "-") || strings.HasPrefix(args[1], "-") {
@@ -86,6 +89,30 @@ func runDesignDiff(args []string, stdout io.Writer) int {
 	}
 	env := NewEnvelope("ok", "UI design changes compared semantically")
 	env.Data["diff"] = diff
+	return writeEnvelope(stdout, env)
+}
+
+func runDesignImpact(args []string, stdout io.Writer) int {
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
+		return writeDesignError(stdout, "usage-error", "design impact requires a consumer reference")
+	}
+	request := designAdoptionRequest{
+		ConsumerRef:    args[0],
+		ChangeID:       optionValue(args, "--change", ""),
+		Scope:          optionValue(args, "--scope", ""),
+		Mode:           optionValue(args, "--mode", ""),
+		ExpectedChange: optionValue(args, "--expected-change", ""),
+	}
+	root, err := os.Getwd()
+	if err != nil {
+		return writeDesignError(stdout, "error", "resolve project root: "+err.Error())
+	}
+	impact, err := impactDesignAdoption(root, request)
+	if err != nil {
+		return writeDesignError(stdout, "blocked", err.Error())
+	}
+	env := NewEnvelope("ok", "UI design adoption impact previewed without changing state")
+	env.Data["impact"] = impact
 	return writeEnvelope(stdout, env)
 }
 
@@ -530,6 +557,332 @@ func diffStringSets(from, to []string) map[string]any {
 	return map[string]any{"added": added, "removed": removed, "retained": retained}
 }
 
+func designDeltaIDs(value any, includeChanged bool) []string {
+	delta, ok := value.(map[string]any)
+	if !ok {
+		return []string{}
+	}
+	fields := []string{"added", "removed"}
+	if includeChanged {
+		fields = append(fields, "changed")
+	}
+	set := map[string]bool{}
+	for _, field := range fields {
+		for _, value := range stringList(delta[field]) {
+			set[value] = true
+		}
+	}
+	result := make([]string, 0, len(set))
+	for value := range set {
+		result = append(result, value)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func designImpactClasses(diff map[string]any) []string {
+	sections := stringSliceSet(stringList(diff["changed_sections"]))
+	decisions := designDeltaIDs(diff["decisions"], true)
+	handoffs := designDeltaIDs(diff["handoff_contracts"], false)
+	hasAny := func(values ...string) bool {
+		for _, value := range values {
+			if sections[value] {
+				return true
+			}
+		}
+		return false
+	}
+	predicates := map[string]bool{
+		"scope":            sections["scope"],
+		"visual":           hasAny("direction_contract", "specimens", "tokens", "color_modes", "components", "decisions") || len(decisions) > 0,
+		"interaction":      hasAny("direction_contract", "constraints", "components", "verification", "decisions") || len(decisions) > 0 || len(handoffs) > 0,
+		"component":        hasAny("capability_profiles", "components"),
+		"responsive":       hasAny("platforms", "responsive"),
+		"content":          hasAny("product_context", "content"),
+		"accessibility":    sections["accessibility"],
+		"verification":     sections["verification"],
+		"design-decision":  len(decisions) > 0,
+		"handoff-contract": len(handoffs) > 0,
+	}
+	order := []string{
+		"scope", "visual", "interaction", "component", "responsive", "content",
+		"accessibility", "verification", "design-decision", "handoff-contract",
+	}
+	result := []string{}
+	for _, impactClass := range order {
+		if predicates[impactClass] {
+			result = append(result, impactClass)
+		}
+	}
+	return result
+}
+
+func designReconciliationContract(mode, currentChangeID string, changedSections, affectedDecisions, affectedHandoffs []string) map[string]any {
+	if currentChangeID == "" {
+		if mode == "formal" {
+			return map[string]any{
+				"preserved_bindings":   []string{},
+				"invalidated_bindings": []string{},
+				"reconcile_from":       "specify",
+				"reconciliation_actions": []string{
+					"bind_feature_ui_brief", "compile_plan_ui_design_contract", "compile_task_ui_contracts",
+				},
+			}
+		}
+		return map[string]any{
+			"preserved_bindings":   []string{},
+			"invalidated_bindings": []string{},
+			"reconcile_from":       "quick-checkpoint",
+			"reconciliation_actions": []string{
+				"confirm_quick_design_binding", "compile_quick_ui_work_items",
+			},
+		}
+	}
+	materialChange := len(changedSections) > 0 || len(affectedDecisions) > 0 || len(affectedHandoffs) > 0
+	if !materialChange {
+		preserved := []string{
+			"feature.ui_brief", "plan.ui_design_contract", "tasks.ui_contracts",
+			"implementation.completed_work", "review.scope_evidence",
+		}
+		if mode == "quick" {
+			preserved = []string{"quick.completed_work_items", "quick.pending_worker_packets", "review.scope_evidence"}
+		}
+		return map[string]any{
+			"preserved_bindings": preserved, "invalidated_bindings": []string{},
+			"reconcile_from": "none", "reconciliation_actions": []string{},
+		}
+	}
+	if mode == "quick" {
+		return map[string]any{
+			"preserved_bindings": []string{
+				"quick.completed_work_items", "review.unaffected_scope_evidence",
+			},
+			"invalidated_bindings": []string{
+				"quick.pending_worker_packets", "quick.in_progress_worker_packets", "review.affected_scope_evidence",
+			},
+			"reconcile_from": "quick-work-items",
+			"reconciliation_actions": []string{
+				"retire_unstarted_worker_packets", "stop_in_progress_worker_packets_at_safe_boundary",
+				"create_corrective_work_item_for_completed_work", "recapture_affected_review_evidence",
+			},
+		}
+	}
+	sections := stringSliceSet(changedSections)
+	specifyChange := false
+	for _, section := range []string{"product_context", "direction_contract", "scope", "constraints", "platforms", "content", "accessibility"} {
+		if sections[section] {
+			specifyChange = true
+			break
+		}
+	}
+	if specifyChange {
+		return map[string]any{
+			"preserved_bindings": []string{
+				"implementation.completed_work", "review.unaffected_scope_evidence",
+			},
+			"invalidated_bindings": []string{
+				"feature.ui_brief", "plan.ui_design_contract", "tasks.ui_contracts", "review.affected_scope_evidence",
+			},
+			"reconcile_from": "specify",
+			"reconciliation_actions": []string{
+				"rebind_feature_ui_brief", "recompile_plan_ui_design_contract",
+				"recompile_task_ui_contracts", "recapture_affected_review_evidence",
+			},
+		}
+	}
+	verificationOnly := len(changedSections) > 0
+	for _, section := range changedSections {
+		if section != "verification" {
+			verificationOnly = false
+		}
+	}
+	if verificationOnly && len(affectedDecisions) == 0 && len(affectedHandoffs) == 0 {
+		return map[string]any{
+			"preserved_bindings": []string{
+				"feature.ui_brief", "plan.ui_design_contract", "tasks.ui_contracts",
+				"implementation.completed_work", "review.unaffected_scope_evidence",
+			},
+			"invalidated_bindings": []string{"review.affected_scope_evidence"},
+			"reconcile_from":       "review",
+			"reconciliation_actions": []string{
+				"recapture_affected_review_evidence",
+			},
+		}
+	}
+	return map[string]any{
+		"preserved_bindings": []string{
+			"feature.ui_brief", "implementation.completed_work", "review.unaffected_scope_evidence",
+		},
+		"invalidated_bindings": []string{
+			"plan.ui_design_contract", "tasks.ui_contracts", "review.affected_scope_evidence",
+		},
+		"reconcile_from": "plan",
+		"reconciliation_actions": []string{
+			"recompile_plan_ui_design_contract", "recompile_task_ui_contracts", "recapture_affected_review_evidence",
+		},
+	}
+}
+
+func normalizeDesignImpactRequest(request designAdoptionRequest) (designAdoptionRequest, error) {
+	request.ConsumerRef = strings.TrimSpace(request.ConsumerRef)
+	request.ChangeID = strings.ToUpper(strings.TrimSpace(request.ChangeID))
+	request.Scope = strings.TrimSpace(request.Scope)
+	request.Mode = strings.ToLower(strings.TrimSpace(request.Mode))
+	request.ExpectedChange = strings.ToUpper(strings.TrimSpace(request.ExpectedChange))
+	if !designChangeScopeRE.MatchString(request.ConsumerRef) {
+		return request, fmt.Errorf("design adoption consumer reference must be a stable identifier")
+	}
+	if !designChangeIDRE.MatchString(request.ChangeID) {
+		return request, fmt.Errorf("design adoption requires --change UD-*")
+	}
+	if !designChangeScopeRE.MatchString(request.Scope) {
+		return request, fmt.Errorf("design adoption scope must be a stable path-like identifier")
+	}
+	if request.Mode != "formal" && request.Mode != "quick" {
+		return request, fmt.Errorf("design adoption mode must be formal or quick")
+	}
+	if request.ExpectedChange == "" {
+		return request, fmt.Errorf("design adoption requires --expected-change <UD-ID|none>")
+	}
+	if request.ExpectedChange != "NONE" && !designChangeIDRE.MatchString(request.ExpectedChange) {
+		return request, fmt.Errorf("expected current change must be a UD-* ID or none")
+	}
+	if request.Mode == "formal" && !strings.HasPrefix(request.ConsumerRef, "feature:") {
+		return request, fmt.Errorf("formal design adoption consumer must use feature:<id>")
+	}
+	if request.Mode == "quick" && !strings.HasPrefix(request.ConsumerRef, "quick:") {
+		return request, fmt.Errorf("quick design adoption consumer must use quick:<id>")
+	}
+	return request, nil
+}
+
+func activeDesignAdoptionRecord(records map[string]map[string]any, changeID, scope string) (map[string]any, error) {
+	record := records[changeID]
+	if record == nil || !designRecordIsRegistered(record) || len(designRecordActiveIntersections(record, []string{scope})) == 0 {
+		return nil, fmt.Errorf("design change %s is not active for scope %s", changeID, scope)
+	}
+	coveredByRoot := false
+	for _, rootScope := range stringList(record["scope"]) {
+		if designScopeWithin(scope, rootScope) {
+			coveredByRoot = true
+			break
+		}
+	}
+	if !coveredByRoot || designScopeExcluded(record, scope) {
+		return nil, fmt.Errorf("design change %s cannot be the singular binding for scope %s", changeID, scope)
+	}
+	return record, nil
+}
+
+func currentDesignAdoption(index map[string]any, consumerRef, scope string) (map[string]any, error) {
+	raw, exists := index["adoptions"]
+	if exists {
+		if _, ok := raw.([]any); !ok {
+			return nil, fmt.Errorf("design change index adoptions must be a list")
+		}
+	}
+	var current map[string]any
+	for _, value := range designAnyList(raw) {
+		row, ok := value.(map[string]any)
+		if !ok || row["consumer_ref"] != consumerRef || row["scope"] != scope || row["status"] != "current" {
+			continue
+		}
+		if current != nil {
+			return nil, fmt.Errorf("design change index has multiple current adoptions for one scope")
+		}
+		current = row
+	}
+	return current, nil
+}
+
+func buildDesignAdoptionImpact(root string, index map[string]any, records map[string]map[string]any, request designAdoptionRequest) (map[string]any, error) {
+	if _, err := activeDesignAdoptionRecord(records, request.ChangeID, request.Scope); err != nil {
+		return nil, err
+	}
+	current, err := currentDesignAdoption(index, request.ConsumerRef, request.Scope)
+	if err != nil {
+		return nil, err
+	}
+	currentID := "NONE"
+	if current != nil {
+		currentID = strings.ToUpper(strings.TrimSpace(fmt.Sprint(current["change_id"])))
+	}
+	if currentID != request.ExpectedChange {
+		return nil, fmt.Errorf("expected current change %s but found %s", request.ExpectedChange, currentID)
+	}
+	_, candidateDigest, _, err := loadRegisteredDesignChange(root, request.ChangeID)
+	if err != nil {
+		return nil, err
+	}
+	var currentDigest any
+	changedSections := []string{}
+	affectedDecisions := []string{}
+	affectedHandoffs := []string{}
+	semanticDiff := map[string]any{
+		"changed_sections": []string{}, "decisions": map[string]any{}, "handoff_contracts": map[string]any{},
+	}
+	if current != nil {
+		diff, diffErr := diffDesignChanges(root, currentID, request.ChangeID)
+		if diffErr != nil {
+			return nil, diffErr
+		}
+		if from, ok := diff["from"].(map[string]any); ok {
+			currentDigest = strings.TrimSpace(fmt.Sprint(from["sha256"]))
+		}
+		for _, section := range stringList(diff["changed_sections"]) {
+			// Both immutable contracts cover this exact consumer scope. A
+			// change-level root narrowing elsewhere is not consumer impact.
+			if section != "scope" {
+				changedSections = append(changedSections, section)
+			}
+		}
+		affectedDecisions = designDeltaIDs(diff["decisions"], true)
+		affectedHandoffs = designDeltaIDs(diff["handoff_contracts"], false)
+		diff["changed_sections"] = changedSections
+		semanticDiff = diff
+	}
+	reconciliation := designReconciliationContract(request.Mode, func() string {
+		if current == nil {
+			return ""
+		}
+		return currentID
+	}(), changedSections, affectedDecisions, affectedHandoffs)
+	impact := map[string]any{
+		"schema":                        designImpactSchema,
+		"consumer_ref":                  request.ConsumerRef,
+		"scope":                         request.Scope,
+		"mode":                          request.Mode,
+		"current_change_id":             any(nil),
+		"candidate_change_id":           request.ChangeID,
+		"current_design_sha256":         currentDigest,
+		"candidate_design_sha256":       candidateDigest,
+		"impact_classes":                designImpactClasses(semanticDiff),
+		"changed_sections":              changedSections,
+		"affected_decision_ids":         affectedDecisions,
+		"affected_handoff_contract_ids": affectedHandoffs,
+	}
+	if current != nil {
+		impact["current_change_id"] = currentID
+	}
+	for key, value := range reconciliation {
+		impact[key] = value
+	}
+	impact["impact_sha256"] = canonicalJSONSHA256(impact)
+	return impact, nil
+}
+
+func impactDesignAdoption(root string, request designAdoptionRequest) (map[string]any, error) {
+	normalized, err := normalizeDesignImpactRequest(request)
+	if err != nil {
+		return nil, err
+	}
+	index, _, records, err := loadDesignChangeIndex(root)
+	if err != nil {
+		return nil, err
+	}
+	return buildDesignAdoptionImpact(root, index, records, normalized)
+}
+
 type designAdoptionRequest struct {
 	ConsumerRef    string
 	ChangeID       string
@@ -676,6 +1029,10 @@ func adoptDesignChange(root string, request designAdoptionRequest) (map[string]a
 	if current != nil && currentID == request.ChangeID && current["binding_sha256"] == bindingDigest {
 		return current, nil
 	}
+	impact, err := buildDesignAdoptionImpact(root, index, records, request)
+	if err != nil {
+		return nil, err
+	}
 	revision := maxRevision + 1
 	if current != nil {
 		current["status"] = "superseded"
@@ -701,6 +1058,13 @@ func adoptDesignChange(root string, request designAdoptionRequest) (map[string]a
 		"binding_ref":          request.BindingRef,
 		"binding_sha256":       bindingDigest,
 		"previous_change_id":   previous,
+	}
+	for _, field := range []string{
+		"impact_sha256", "impact_classes", "preserved_bindings", "invalidated_bindings",
+		"reconcile_from", "reconciliation_actions", "changed_sections",
+		"affected_decision_ids", "affected_handoff_contract_ids",
+	} {
+		receipt[field] = impact[field]
 	}
 	adoptions = append(adoptions, receipt)
 	index["adoptions"] = adoptions

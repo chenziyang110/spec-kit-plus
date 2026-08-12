@@ -113,6 +113,8 @@ func runDesign(args []string, stdout io.Writer) int {
 		return runDesignResolve(args[1:], stdout)
 	case "diff":
 		return runDesignDiff(args[1:], stdout)
+	case "impact":
+		return runDesignImpact(args[1:], stdout)
 	case "adopt":
 		return runDesignAdopt(args[1:], stdout)
 	case "lint":

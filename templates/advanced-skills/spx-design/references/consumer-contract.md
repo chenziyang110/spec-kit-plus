@@ -41,7 +41,12 @@ workspace. Keep old preview/manifest/handoff refs, SHA-256 values, and selected
 discovery only. Current binding artifacts are singular, so composite results
 require independently bound consumer units, each with one exact scope and one
 binding artifact. Before replacement
-run `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`.
+run `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`,
+then preview the exact consumer transaction with
+`specify-runtime design impact <consumer-ref> --change <CANDIDATE-UD-ID> --scope <exact-surface> --mode <formal|quick> --expected-change <CURRENT-UD-ID|none> --format json`.
+Impact is read-only; present its affected `DS-*`/`DH-*` IDs,
+`preserved_bindings`, `invalidated_bindings`, and `reconcile_from` before any
+binding patch.
 
 Formal adoption re-enters Specify and uses fresh leased
 `specify-runtime artifact patch` calls to update `spec-contract.json` and
@@ -58,5 +63,11 @@ into the runtime-managed STATUS projection. Both copies must match; hash the
 exact status bytes, then run
 `specify-runtime design adopt quick:<quick-id> --change <UD-ID> --scope <exact-surface> --mode quick --binding-ref <quick-dir>/STATUS.md --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
 Only a successful compare-and-swap receipt authorizes downstream regeneration
-or Quick resume. “Latest” is never an adoption rule; metadata-only index state
-cannot authorize adoption by itself.
+or Quick resume. Formal owners reconcile from the receipt's earliest stage,
+mark only listed bindings pending, preserve completed implementation, and
+recapture affected Review evidence only; the design runtime never rewrites
+those artifacts. Quick owners retire unstarted packets, stop affected
+in-progress work at a safe boundary, preserve completed work, create a
+corrective work item for drift, and recapture only affected Review evidence.
+“Latest” is never an adoption rule; metadata-only index state cannot authorize
+adoption by itself.

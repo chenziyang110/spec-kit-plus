@@ -1029,6 +1029,445 @@ def diff_design_changes(
     }
 
 
+def _design_delta_ids(
+    delta: Any,
+    *,
+    include_changed: bool,
+) -> list[str]:
+    if not isinstance(delta, dict):
+        return []
+    fields = ("added", "removed", "changed") if include_changed else (
+        "added",
+        "removed",
+    )
+    return sorted(
+        {
+            str(value).strip()
+            for field in fields
+            for value in delta.get(field, [])
+            if isinstance(value, str) and value.strip()
+        }
+    )
+
+
+def _design_impact_classes(diff: dict[str, Any]) -> list[str]:
+    """Classify one semantic design delta into stable UI impact dimensions."""
+
+    sections = {
+        str(value).strip()
+        for value in diff.get("changed_sections", [])
+        if isinstance(value, str) and value.strip()
+    }
+    decisions = _design_delta_ids(
+        diff.get("decisions"), include_changed=True
+    )
+    handoffs = _design_delta_ids(
+        diff.get("handoff_contracts"), include_changed=False
+    )
+    predicates = {
+        "scope": "scope" in sections,
+        "visual": bool(
+            sections
+            & {
+                "direction_contract",
+                "specimens",
+                "tokens",
+                "color_modes",
+                "components",
+                "decisions",
+            }
+        )
+        or bool(decisions),
+        "interaction": bool(
+            sections
+            & {
+                "direction_contract",
+                "constraints",
+                "components",
+                "verification",
+                "decisions",
+            }
+        )
+        or bool(decisions)
+        or bool(handoffs),
+        "component": bool(
+            sections & {"capability_profiles", "components"}
+        ),
+        "responsive": bool(sections & {"platforms", "responsive"}),
+        "content": bool(sections & {"product_context", "content"}),
+        "accessibility": "accessibility" in sections,
+        "verification": "verification" in sections,
+        "design-decision": bool(decisions),
+        "handoff-contract": bool(handoffs),
+    }
+    order = (
+        "scope",
+        "visual",
+        "interaction",
+        "component",
+        "responsive",
+        "content",
+        "accessibility",
+        "verification",
+        "design-decision",
+        "handoff-contract",
+    )
+    return [impact_class for impact_class in order if predicates[impact_class]]
+
+
+def _design_reconciliation_contract(
+    *,
+    mode: str,
+    current_change_id: str | None,
+    changed_sections: list[str],
+    affected_decision_ids: list[str],
+    affected_handoff_contract_ids: list[str],
+) -> dict[str, Any]:
+    if current_change_id is None:
+        if mode == "formal":
+            return {
+                "preserved_bindings": [],
+                "invalidated_bindings": [],
+                "reconcile_from": "specify",
+                "reconciliation_actions": [
+                    "bind_feature_ui_brief",
+                    "compile_plan_ui_design_contract",
+                    "compile_task_ui_contracts",
+                ],
+            }
+        return {
+            "preserved_bindings": [],
+            "invalidated_bindings": [],
+            "reconcile_from": "quick-checkpoint",
+            "reconciliation_actions": [
+                "confirm_quick_design_binding",
+                "compile_quick_ui_work_items",
+            ],
+        }
+
+    material_change = bool(
+        changed_sections
+        or affected_decision_ids
+        or affected_handoff_contract_ids
+    )
+    if not material_change:
+        if mode == "formal":
+            preserved = [
+                "feature.ui_brief",
+                "plan.ui_design_contract",
+                "tasks.ui_contracts",
+                "implementation.completed_work",
+                "review.scope_evidence",
+            ]
+        else:
+            preserved = [
+                "quick.completed_work_items",
+                "quick.pending_worker_packets",
+                "review.scope_evidence",
+            ]
+        return {
+            "preserved_bindings": preserved,
+            "invalidated_bindings": [],
+            "reconcile_from": "none",
+            "reconciliation_actions": [],
+        }
+
+    if mode == "quick":
+        return {
+            "preserved_bindings": [
+                "quick.completed_work_items",
+                "review.unaffected_scope_evidence",
+            ],
+            "invalidated_bindings": [
+                "quick.pending_worker_packets",
+                "quick.in_progress_worker_packets",
+                "review.affected_scope_evidence",
+            ],
+            "reconcile_from": "quick-work-items",
+            "reconciliation_actions": [
+                "retire_unstarted_worker_packets",
+                "stop_in_progress_worker_packets_at_safe_boundary",
+                "create_corrective_work_item_for_completed_work",
+                "recapture_affected_review_evidence",
+            ],
+        }
+
+    specify_sections = {
+        "product_context",
+        "direction_contract",
+        "scope",
+        "constraints",
+        "platforms",
+        "content",
+        "accessibility",
+    }
+    if specify_sections.intersection(changed_sections):
+        return {
+            "preserved_bindings": [
+                "implementation.completed_work",
+                "review.unaffected_scope_evidence",
+            ],
+            "invalidated_bindings": [
+                "feature.ui_brief",
+                "plan.ui_design_contract",
+                "tasks.ui_contracts",
+                "review.affected_scope_evidence",
+            ],
+            "reconcile_from": "specify",
+            "reconciliation_actions": [
+                "rebind_feature_ui_brief",
+                "recompile_plan_ui_design_contract",
+                "recompile_task_ui_contracts",
+                "recapture_affected_review_evidence",
+            ],
+        }
+    if set(changed_sections).issubset({"verification"}) and not (
+        affected_decision_ids or affected_handoff_contract_ids
+    ):
+        return {
+            "preserved_bindings": [
+                "feature.ui_brief",
+                "plan.ui_design_contract",
+                "tasks.ui_contracts",
+                "implementation.completed_work",
+                "review.unaffected_scope_evidence",
+            ],
+            "invalidated_bindings": ["review.affected_scope_evidence"],
+            "reconcile_from": "review",
+            "reconciliation_actions": [
+                "recapture_affected_review_evidence"
+            ],
+        }
+    return {
+        "preserved_bindings": [
+            "feature.ui_brief",
+            "implementation.completed_work",
+            "review.unaffected_scope_evidence",
+        ],
+        "invalidated_bindings": [
+            "plan.ui_design_contract",
+            "tasks.ui_contracts",
+            "review.affected_scope_evidence",
+        ],
+        "reconcile_from": "plan",
+        "reconciliation_actions": [
+            "recompile_plan_ui_design_contract",
+            "recompile_task_ui_contracts",
+            "recapture_affected_review_evidence",
+        ],
+    }
+
+
+def _normalize_design_adoption_identity(
+    *,
+    consumer_ref: str,
+    change_id: str,
+    scope: str,
+    mode: str,
+    expected_change: str,
+) -> tuple[str, str, str, str, str]:
+    consumer = consumer_ref.strip()
+    change = change_id.strip().upper()
+    exact_scope = scope.strip()
+    adoption_mode = mode.strip().lower()
+    expected = expected_change.strip().upper()
+    if not DESIGN_CHANGE_SCOPE_RE.fullmatch(consumer):
+        raise DesignLintError(
+            "design adoption consumer reference must be a stable identifier"
+        )
+    if not DESIGN_CHANGE_ID_RE.fullmatch(change):
+        raise DesignLintError("design adoption requires a UD-* change")
+    if not DESIGN_CHANGE_SCOPE_RE.fullmatch(exact_scope):
+        raise DesignLintError(
+            "design adoption scope must be a stable path-like identifier"
+        )
+    if adoption_mode not in {"formal", "quick"}:
+        raise DesignLintError("design adoption mode must be formal or quick")
+    if expected != "NONE" and not DESIGN_CHANGE_ID_RE.fullmatch(expected):
+        raise DesignLintError("expected current change must be a UD-* ID or none")
+    if adoption_mode == "formal" and not consumer.startswith("feature:"):
+        raise DesignLintError(
+            "formal design adoption consumer must use feature:<id>"
+        )
+    if adoption_mode == "quick" and not consumer.startswith("quick:"):
+        raise DesignLintError(
+            "quick design adoption consumer must use quick:<id>"
+        )
+    return consumer, change, exact_scope, adoption_mode, expected
+
+
+def _active_design_adoption_record(
+    records: dict[str, dict[str, Any]],
+    *,
+    change_id: str,
+    scope: str,
+) -> dict[str, Any]:
+    record = records.get(change_id)
+    if (
+        record is None
+        or not _design_record_is_registered(record)
+        or not _active_design_intersections(record, [scope])
+    ):
+        raise DesignLintError(
+            f"design change {change_id} is not active for scope {scope}"
+        )
+    roots = [str(value) for value in record.get("scope", [])]
+    if not any(_design_scope_within(scope, root) for root in roots):
+        raise DesignLintError(
+            f"design change {change_id} cannot be the singular binding "
+            f"for scope {scope}"
+        )
+    return record
+
+
+def _current_design_adoption(
+    index: dict[str, Any],
+    *,
+    consumer_ref: str,
+    scope: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    raw_adoptions = index.get("adoptions", [])
+    if not isinstance(raw_adoptions, list):
+        raise DesignLintError("design change index adoptions must be a list")
+    matching = [
+        row
+        for row in raw_adoptions
+        if isinstance(row, dict)
+        and row.get("consumer_ref") == consumer_ref
+        and row.get("scope") == scope
+    ]
+    current_rows = [
+        row for row in matching if row.get("status") == "current"
+    ]
+    if len(current_rows) > 1:
+        raise DesignLintError(
+            "design change index has multiple current adoptions for one scope"
+        )
+    return matching, current_rows[0] if current_rows else None
+
+
+def _build_design_adoption_impact(
+    project_root: Path,
+    *,
+    index: dict[str, Any],
+    records: dict[str, dict[str, Any]],
+    consumer_ref: str,
+    change_id: str,
+    scope: str,
+    mode: str,
+    expected_change: str,
+) -> dict[str, Any]:
+    _active_design_adoption_record(records, change_id=change_id, scope=scope)
+    _, current = _current_design_adoption(
+        index, consumer_ref=consumer_ref, scope=scope
+    )
+    current_id = str(current.get("change_id") or "").upper() if current else "NONE"
+    if current_id != expected_change:
+        raise DesignLintError(
+            f"expected current change {expected_change} but found {current_id}"
+        )
+
+    _, candidate_digest, _, _ = _load_registered_design_change(
+        project_root, change_id
+    )
+    current_digest: str | None = None
+    changed_sections: list[str] = []
+    affected_decisions: list[str] = []
+    affected_handoffs: list[str] = []
+    semantic_diff: dict[str, Any] = {
+        "changed_sections": [],
+        "decisions": {},
+        "handoff_contracts": {},
+    }
+    if current is not None:
+        raw_diff = diff_design_changes(project_root, current_id, change_id)
+        from_binding = raw_diff.get("from")
+        current_digest = (
+            str(from_binding.get("sha256") or "")
+            if isinstance(from_binding, dict)
+            else None
+        )
+        # Both immutable changes are validated to cover this exact consumer
+        # scope. Contract-root narrowing elsewhere must not invalidate this
+        # consumer merely because the change-level scope arrays differ.
+        changed_sections = [
+            section
+            for section in raw_diff.get("changed_sections", [])
+            if isinstance(section, str) and section != "scope"
+        ]
+        affected_decisions = _design_delta_ids(
+            raw_diff.get("decisions"), include_changed=True
+        )
+        affected_handoffs = _design_delta_ids(
+            raw_diff.get("handoff_contracts"), include_changed=False
+        )
+        semantic_diff = deepcopy(raw_diff)
+        semantic_diff["changed_sections"] = changed_sections
+
+    reconciliation = _design_reconciliation_contract(
+        mode=mode,
+        current_change_id=current_id if current is not None else None,
+        changed_sections=changed_sections,
+        affected_decision_ids=affected_decisions,
+        affected_handoff_contract_ids=affected_handoffs,
+    )
+    impact: dict[str, Any] = {
+        "schema": "spec-kit-ui-design-impact-v1",
+        "consumer_ref": consumer_ref,
+        "scope": scope,
+        "mode": mode,
+        "current_change_id": current_id if current is not None else None,
+        "candidate_change_id": change_id,
+        "current_design_sha256": current_digest,
+        "candidate_design_sha256": candidate_digest,
+        "impact_classes": _design_impact_classes(semantic_diff),
+        "changed_sections": changed_sections,
+        "affected_decision_ids": affected_decisions,
+        "affected_handoff_contract_ids": affected_handoffs,
+        **reconciliation,
+    }
+    impact["impact_sha256"] = _canonical_json_sha256(impact)
+    return impact
+
+
+def impact_design_adoption(
+    project_root: Path,
+    *,
+    consumer_ref: str,
+    change_id: str,
+    scope: str,
+    mode: str,
+    expected_change: str,
+) -> dict[str, Any]:
+    """Preview scope-bounded consumer reconciliation without changing state."""
+
+    project_root = project_root.resolve()
+    (
+        normalized_consumer,
+        normalized_change,
+        normalized_scope,
+        normalized_mode,
+        normalized_expected,
+    ) = _normalize_design_adoption_identity(
+        consumer_ref=consumer_ref,
+        change_id=change_id,
+        scope=scope,
+        mode=mode,
+        expected_change=expected_change,
+    )
+    index, _, records = _load_design_change_index(project_root)
+    return _build_design_adoption_impact(
+        project_root,
+        index=index,
+        records=records,
+        consumer_ref=normalized_consumer,
+        change_id=normalized_change,
+        scope=normalized_scope,
+        mode=normalized_mode,
+        expected_change=normalized_expected,
+    )
+
+
 def _json_contains_design_field(value: Any, key: str, expected: str) -> bool:
     if isinstance(value, dict):
         if key in value and str(value[key]).strip() == expected:
@@ -1085,48 +1524,27 @@ def adopt_design_change(
     """Append a CAS-guarded consumer adoption receipt for an exact binding."""
 
     project_root = project_root.resolve()
-    normalized_consumer = consumer_ref.strip()
-    normalized_change = change_id.strip().upper()
-    normalized_scope = scope.strip()
-    normalized_mode = mode.strip().lower()
+    (
+        normalized_consumer,
+        normalized_change,
+        normalized_scope,
+        normalized_mode,
+        normalized_expected,
+    ) = _normalize_design_adoption_identity(
+        consumer_ref=consumer_ref,
+        change_id=change_id,
+        scope=scope,
+        mode=mode,
+        expected_change=expected_change,
+    )
     normalized_binding_digest = binding_sha256.strip().lower()
-    normalized_expected = expected_change.strip().upper()
-    if not DESIGN_CHANGE_SCOPE_RE.fullmatch(normalized_consumer):
-        raise DesignLintError(
-            "design adoption consumer reference must be a stable identifier"
-        )
-    if not DESIGN_CHANGE_ID_RE.fullmatch(normalized_change):
-        raise DesignLintError("design adoption requires a UD-* change")
-    if not DESIGN_CHANGE_SCOPE_RE.fullmatch(normalized_scope):
-        raise DesignLintError(
-            "design adoption scope must be a stable path-like identifier"
-        )
-    if normalized_mode not in {"formal", "quick"}:
-        raise DesignLintError("design adoption mode must be formal or quick")
     if not re.fullmatch(r"[0-9a-f]{64}", normalized_binding_digest):
         raise DesignLintError("design adoption requires a binding SHA-256")
-    if normalized_expected != "NONE" and not DESIGN_CHANGE_ID_RE.fullmatch(
-        normalized_expected
-    ):
-        raise DesignLintError("expected current change must be a UD-* ID or none")
 
     index, index_path, records = _load_design_change_index(project_root)
-    record = records.get(normalized_change)
-    if (
-        record is None
-        or not _design_record_is_registered(record)
-        or not _active_design_intersections(record, [normalized_scope])
-    ):
-        raise DesignLintError(
-            f"design change {normalized_change} is not active for scope "
-            f"{normalized_scope}"
-        )
-    roots = [str(value) for value in record.get("scope", [])]
-    if not any(_design_scope_within(normalized_scope, root) for root in roots):
-        raise DesignLintError(
-            f"design change {normalized_change} cannot be the singular binding "
-            f"for scope {normalized_scope}"
-        )
+    record = _active_design_adoption_record(
+        records, change_id=normalized_change, scope=normalized_scope
+    )
 
     design_path, design_digest, _, _ = _load_registered_design_change(
         project_root, normalized_change
@@ -1292,15 +1710,10 @@ def adopt_design_change(
     adoptions = index.setdefault("adoptions", [])
     if not isinstance(adoptions, list):
         raise DesignLintError("design change index adoptions must be a list")
-    matching = [
-        row
-        for row in adoptions
-        if isinstance(row, dict)
-        and row.get("consumer_ref") == normalized_consumer
-        and row.get("scope") == normalized_scope
-    ]
-    current = next(
-        (row for row in matching if row.get("status") == "current"), None
+    matching, current = _current_design_adoption(
+        index,
+        consumer_ref=normalized_consumer,
+        scope=normalized_scope,
     )
     current_id = str(current.get("change_id")) if current else "NONE"
     if current_id != normalized_expected:
@@ -1313,6 +1726,17 @@ def adopt_design_change(
         and current.get("binding_sha256") == actual_binding_digest
     ):
         return deepcopy(current)
+
+    impact = _build_design_adoption_impact(
+        project_root,
+        index=index,
+        records=records,
+        consumer_ref=normalized_consumer,
+        change_id=normalized_change,
+        scope=normalized_scope,
+        mode=normalized_mode,
+        expected_change=normalized_expected,
+    )
 
     revision = max(
         [int(row.get("revision") or 0) for row in matching] or [0]
@@ -1337,6 +1761,18 @@ def adopt_design_change(
         "binding_sha256": actual_binding_digest,
         "previous_change_id": current_id if current else None,
     }
+    for field in (
+        "impact_sha256",
+        "impact_classes",
+        "preserved_bindings",
+        "invalidated_bindings",
+        "reconcile_from",
+        "reconciliation_actions",
+        "changed_sections",
+        "affected_decision_ids",
+        "affected_handoff_contract_ids",
+    ):
+        receipt[field] = deepcopy(impact[field])
     adoptions.append(receipt)
     for change_record in records.values():
         consumers = change_record.get("consumers")

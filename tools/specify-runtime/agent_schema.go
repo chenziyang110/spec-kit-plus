@@ -153,6 +153,10 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime design diff <FROM-UD-ID> <TO-UD-ID> --format json"
 		capability["input_contract"] = "both changes must be registered and byte-intact; returns lineage plus semantic scope, stable DS decision, DH handoff-contract, and section deltas"
+	case "design.impact":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime design impact <consumer-ref> --change <UD-ID> --scope <surface> --mode formal|quick --expected-change <UD-ID|none> --format json"
+		capability["input_contract"] = "candidate must be active for the exact scope and expected-change must match the current receipt; returns impact classes, affected DS/DH IDs, preserved_bindings, invalidated_bindings, reconcile_from, and reconciliation actions without rewriting consumer artifacts"
 	case "design.register":
 		capability["side_effect"] = "registers-immutable-design-change"
 		capability["usage"] = "specify-runtime design register .specify/design/changes/<UD-ID>/DESIGN.md --format json"

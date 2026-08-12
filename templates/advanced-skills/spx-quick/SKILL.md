@@ -168,7 +168,11 @@ change's approved visual ref, preview/manifest/handoff SHA-256 values,
 immutable handoff ref, and selected `DS-*`/`DH-*` rows. An active Quick task
 must not silently adopt a later design approval. Before replacement, run
 `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`
-and present the delta. Adoption requires a confirmed UI checkpoint amendment with
+and then
+`specify-runtime design impact quick:<quick-id> --change <CANDIDATE-UD-ID> --scope <exact-surface> --mode quick --expected-change <CURRENT-UD-ID|none> --format json`.
+Present the impact classes, affected `DS-*`/`DH-*` IDs,
+`preserved_bindings`, `invalidated_bindings`, and `reconcile_from`. Adoption
+requires a confirmed UI checkpoint amendment with
 the complete replacement binding staged as
 `decision.ui_confirmation.design_binding`: exact `scope` plus the four
 registered binding fields. `quick checkpoint-confirm` must leave
@@ -180,6 +184,10 @@ projection; it remains in `confirmation.json`. Both copies must match exactly;
 hash the exact status bytes, then run
 `specify-runtime design adopt quick:<quick-id> --change <UD-ID> --scope <exact-surface> --mode quick --binding-ref <quick-dir>/STATUS.md --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
 Do not dispatch or resume UI work until that compare-and-swap receipt succeeds.
+Then retire unstarted affected packets, stop in-progress affected packets at a
+safe boundary, preserve completed work, create a corrective work item for
+completed-work drift, and recapture only affected Review evidence; unaffected
+scope and evidence remain valid.
 Preserve original visual references and run the
 UI gate's real-entrypoint capture/inspect/refine loop. Escalate a new visual
 direction to `$spx-design`. Keep multi-surface or acceptance-heavy UI in Quick

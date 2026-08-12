@@ -386,7 +386,11 @@ Before closeout:
    YAML prose. For a successor, immediately run
    `{{specify-subcmd:specify-runtime design diff <SOURCE-UD-ID> <UD-ID> --format json}}`
    and record the scope, stable `DS-*` decision, `DH-*` handoff-contract, and
-   changed-section delta in review before recommending adoption.
+   changed-section delta in review before recommending adoption. For every
+   already bound consumer, instruct its owning workflow to run read-only
+   `specify-runtime design impact ... --expected-change <CURRENT-UD-ID|none>`
+   before patching and to present `preserved_bindings`,
+   `invalidated_bindings`, and `reconcile_from`.
 2. If `<change-dir>/review.md` is absent, create its fixed shape with
    `specify-runtime artifact scaffold --kind design-review --path <change-dir>/review.md`.
    Otherwise query it through `artifact show`. Patch only these named semantic
