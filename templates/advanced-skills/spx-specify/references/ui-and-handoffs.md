@@ -4,9 +4,13 @@ Read this for any substantive user-visible UI change, not only when a screenshot
 was supplied. Confirmed discussion state is governed by
 `discussion-handoff.md`.
 
-Query `.specify/design/index.json`, select the registered change whose declared
-scope matches the feature, and query its exact change-local `DESIGN.md` and
-`design-contract.json`; never select “latest.” Create `ui-brief.md` through
+Run `specify-runtime design resolve --scope <exact-surface> --format json`, then
+query `.specify/design/index.json` and the exact change-local `DESIGN.md` /
+`design-contract.json` for every returned registered candidate. Resolve is
+discovery only and never selects “latest” or adopts. The current formal binding
+is singular, so split `composite: true` coverage into independently bound
+feature units, each with one exact scope, `spec-contract.json`, and
+`ui-brief.md`. Create `ui-brief.md` through
 `specify-runtime artifact scaffold --kind ui-brief --path <feature-dir>/ui-brief.md`, then fill only its adoption and feature-delta sections through leased `artifact patch` calls; use `assets/ui-brief.md` only as compact field guidance, never as a block to reproduce. When original references exist, create `ui-reference-notes.md` through `artifact scaffold --kind ui-reference-notes` and patch its observed facts. Patch the related `spec-contract.json` fields through leased JSON-pointer `artifact patch`. Set
 `design_contract.ui_applicable: true`, `ui_work_type`,
 `surface_type`, `platforms`, `ui_brief_ref`, and the
@@ -36,6 +40,16 @@ the relevant design/fidelity refs. Record:
   UI System Model refs (tokens/components/states/responsive), required state
   matrix, and quality rules that forbid generic dashboard/template patterns.
   Inherit discussion `design_context` when the handoff carries it.
+
+Before replacing a formal feature binding, run
+`specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`
+and retain its scope, `DS-*`, `DH-*`, and changed-section delta. Use fresh
+leased `specify-runtime artifact patch` calls to set the full four-field
+replacement in `spec-contract.json` and `ui-brief.md` first; hash the exact
+spec-contract bytes, then run
+`specify-runtime design adopt feature:<feature-id> --change <UD-ID> --scope <exact-surface> --mode formal --binding-ref <feature-dir>/spec-contract.json --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
+Only a successful compare-and-swap receipt authorizes downstream invalidation
+and regeneration; failure leaves the earlier binding authoritative.
 
 When original UI references exist, preserve inspectable source paths or URLs and
 record fidelity as `approximate` by default, `high`, or `inspiration`.

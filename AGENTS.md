@@ -155,7 +155,9 @@ present in a test project.
   active design work before reclassification. `sp-specify` is the first formal
   consumer and `sp-quick` is the direct-delivery consumer. A new approval must
   not silently retarget pinned work: formal adoption rebinds through Specify,
-  while Quick requires a confirmed checkpoint amendment.
+  while Quick requires a confirmed checkpoint amendment whose
+  `decision.ui_confirmation.design_binding` names the exact scope and
+  registered change.
 - The product goal is better implemented UI, not merely more UI documentation.
   Both profiles must preserve this executable chain for substantive UI work:
   `approved immutable change-local preview + original references -> registered
@@ -174,6 +176,28 @@ present in a test project.
   exception. Durable invariants for future unrelated work are promoted
   explicitly to `.specify/memory/project-rules.md`, not accumulated by mutating
   a global design document.
+- Refining approved truth uses
+  `specify-runtime design iterate <SOURCE-UD-ID> <SUCCESSOR-UD-ID>` so
+  `iteration_of`, `basis_sha256`, the baseline digest, and `supersedes` are
+  runtime-pinned. A requested successor scope must still be active on that
+  source; once a subtree is excluded, iterate from its active successor or from
+  a remaining active parent scope. `specify-runtime design register` subtracts
+  only intersecting scope into parent `superseded_scopes`; the parent remains active elsewhere.
+  `specify-runtime design resolve --scope <exact-surface>` is discovery only
+  and may return a composite. Current consumer binding artifacts are singular,
+  so split that result into independently bound consumer units, each with one
+  exact scope and one binding artifact. Before rebinding, run
+  `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID>`; after the
+  owning workflow updates and hashes its binding artifact, record the exact
+  compare-and-swap with `specify-runtime design adopt ... --expected-change
+  <CURRENT-UD-ID|none>`. Formal mode binds `spec-contract.json` through Specify.
+  Quick mode first stages exact `scope` plus the four registered binding fields
+  as confirmation-protected `decision.ui_confirmation.design_binding`, then
+  requires `confirmation.json` state `confirmed|inherited` and
+  `understanding_confirmed: true`. Only afterward does it bind the independent
+  top-level `ui_design_binding` adoption copy in `STATUS.md`; the two copies
+  must exact-match, and the decision copy remains in `confirmation.json` rather
+  than being manually written into the runtime-managed STATUS projection.
 - Every substantive design round presents exactly three comparable,
   self-contained HTML directions with stable deep links, component/state
   specimens, independent color and motion systems, responsive targets, and an

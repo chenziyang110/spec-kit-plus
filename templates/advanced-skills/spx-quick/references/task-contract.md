@@ -43,10 +43,16 @@ ordered work items, dependencies, and work-item acceptance—and
 `ui_confirmation` separately from Delivery Map / `agent_execution_plan`. One
 reply confirms both cards when UI applies. The confirmed order is
 deliverable-level. Internal implementation sequencing, lanes, and batches remain
-agent-owned and never enter `confirmation_digest`.
+agent-owned and never enter `confirmation_digest`. For registered design
+adoption, `decision.ui_confirmation.design_binding` contains exact `scope`,
+`design_change_id`, `design_change_ref`, `design_change_sha256`, and
+`design_contract_ref` before confirmation. The digest therefore protects the
+binding the user reviewed; the independent top-level `STATUS.md`
+`ui_design_binding` adoption copy is patched only afterward and must exact-match
+that confirmed decision.
 
-`understanding_confirmed: false` blocks broad investigation, delegation,
-implementation, and validation until the checkpoint is confirmed or inherited.
+An unconfirmed checkpoint blocks broad investigation, delegation,
+implementation, and validation until runtime marks it confirmed or inherited.
 A confirmed discussion handoff with no semantic delta stages as `inherited` and
 skips re-confirmation; show the binding summary plus Delivery Map/Pulse instead.
 
@@ -65,7 +71,7 @@ Reopen only for a material change to outcome, boundaries, a confirmed work item,
 deliverable-level order or dependency, work-item acceptance, confirmed UI
 direction, user-visible behavior, risk, authority, migration or compatibility
 obligations, an independent capability, or an explicit stop condition; first set
-`understanding_confirmed: false` and pause substantive work.
+the checkpoint back to an unconfirmed staged decision and pause substantive work.
 
 Before presenting the amendment, explain in user-facing prose the new evidence,
 why the previous confirmation no longer covers the work, the consequence of

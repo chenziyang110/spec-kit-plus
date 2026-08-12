@@ -40,14 +40,28 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
   navigation, interaction flows, responsive behavior, visual states, TUI
   layouts, or CLI presentation are UI-bearing work.
 - For substantive UI-bearing work, require `ui-brief.md` even when there is no
-  external reference. Query metadata-only `.specify/design/index.json` through
-  `specify-runtime artifact show`, select one applicable registered change,
-  and show its exact `design_ref`; the leader
-  may compile that brief from the returned contract,
+  external reference. Run
+  `specify-runtime design resolve --scope <exact-surface> --format json`, then
+  query metadata-only `.specify/design/index.json` through
+  `specify-runtime artifact show` and show each returned exact `design_ref`.
+  Resolution is discovery only. If the result is composite, split the work into
+  independently bound feature units; each current formal binding is singular
+  and owns one exact scope, `spec-contract.json`, and `ui-brief.md`. Do not
+  select or synthesize one broad contract. The leader may compile each brief
+  from its returned contract,
   existing product surfaces, and confirmed experience requirements.
   A narrow copy-only or existing-pattern state fix may record why a separate
   brief adds no decision value and use a precise `spec.md#...` design-contract
   reference as `design_contract.ui_brief_ref`; the UI contract is never omitted.
+- Before replacing a feature's current registered change, run
+  `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`
+  and patch the resulting scope, `DS-*`, `DH-*`, and changed-section delta into
+  the owning spec views. Use fresh leased `specify-runtime artifact patch`
+  calls to set the full four-field binding in `spec-contract.json` and
+  `ui-brief.md` before adoption. Hash the exact `spec-contract.json`, then call
+  `specify-runtime design adopt feature:<feature-id> --change <UD-ID> --scope <exact-surface> --mode formal --binding-ref <feature-dir>/spec-contract.json --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
+  The receipt is the formal compare-and-swap boundary; on failure, keep the old
+  binding and do not regenerate Plan or Tasks.
 - Treat a pre-existing root `DESIGN.md` as read-only legacy baseline input, not
   a candidate for implicit adoption. Route new or high-visibility design
   decisions with no applicable registered change to `sp-design`.

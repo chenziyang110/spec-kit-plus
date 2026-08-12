@@ -1063,6 +1063,11 @@ func TestArtifactScaffoldCreatesRegisteredQuickStatusFromInstalledTemplate(t *te
 			t.Fatalf("quick scaffold missing deterministic UI design binding field %q: %q", field, content)
 		}
 	}
+	for _, field := range []string{"decision.ui_confirmation.design_binding", "confirmation_digest protects these exact fields", "  design_binding:"} {
+		if !bytes.Contains(stored, []byte(field)) {
+			t.Fatalf("quick scaffold missing confirmation-protected UI design binding field %q: %q", field, content)
+		}
+	}
 	if !bytes.Contains(stored, []byte(`title: "Demo \"quoted\""`)) {
 		t.Fatalf("quick scaffold did not escape YAML scalar: %q", content)
 	}

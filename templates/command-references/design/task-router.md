@@ -21,7 +21,8 @@ input_strategy: context | synthesize
 route_reason: <one evidence-based sentence>
 ```
 
-After `specify-runtime design change` scaffolds the workspace, use
+After `specify-runtime design change` or `specify-runtime design iterate`
+scaffolds the workspace, use
 `specify-runtime artifact patch` to store the canonical route in
 `.specify/design/changes/<UD-ID>/brief.md`. If the derived design
 state exposes a selected-mode field, treat it only as a compatibility
@@ -32,8 +33,9 @@ Use the same owner CLI to repeat the route in review when it explains closeout.
 
 - `create`: allocate a new `UD-*` workspace for a bounded greenfield or
   extension change that has no matching nonterminal workspace.
-- `refine`: continue an unapproved change or create a new `UD-*` change that
-  explicitly supersedes an approved result. Never mutate an approved change.
+- `refine`: continue an unapproved draft. When approved truth changes, create
+  its digest-pinned successor with `specify-runtime design iterate`; never
+  mutate the approved change or manually reconstruct its lineage.
 - `audit`: inspect one declared scope, change contract, provenance, live
   adoption, or drift without changing approved design truth.
 - `context`: derive direction from confirmed product context and verified live
@@ -56,14 +58,24 @@ Use the same owner CLI to repeat the route in review when it explains closeout.
    evidence proves that the stored route cannot complete safely. Record the
    material route delta before continuing.
 
+## Scope Resolution
+
+Run `specify-runtime design resolve --scope <exact-surface> --format json` when
+registered design coverage shapes routing. This is discovery only; it neither
+selects “latest” nor adopts a result. If it returns `composite: true`, split the
+broad scope into independently bound consumer units before downstream
+adoption. The current binding artifacts are singular: each unit owns one exact
+scope and one binding artifact. Do not collapse parent and successor candidates
+into one invented contract.
+
 ## Decision Table
 
 | Current truth and prompt | Route |
 | --- | --- |
 | No matching nonterminal change; establish a bounded design | `create/context` |
 | No matching change; references shape the bounded design | `create/synthesize` |
-| Approved change/live scope must intentionally change | new `refine/context` change with relationships |
-| References shape an intentional replacement | new `refine/synthesize` change with relationships |
+| Approved change/live scope must intentionally change | new `refine/context` successor via `design iterate` |
+| References shape an intentional replacement | new `refine/synthesize` successor via `design iterate` |
 | Check readiness, coverage, provenance, consistency, or drift only | `audit/context` |
 | Current evidence proves `no-ui` | record `not-applicable` and exit the visual lane |
 

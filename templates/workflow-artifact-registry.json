@@ -292,9 +292,9 @@
     {
       "id": "ui_design_change_index",
       "path_patterns": [".specify/design/index.json"],
-      "owner_cli": ["specify-runtime design change", "specify-runtime design register"],
+      "owner_cli": ["specify-runtime design change", "specify-runtime design iterate", "specify-runtime design register", "specify-runtime design adopt"],
       "path_hints": [".specify/design/index.json", "design change index"],
-      "safe_instruction_patterns": ["specify-runtime design change", "specify-runtime design register", "artifact show", "artifact list", "metadata-only", "registered", "cli-owned"]
+      "safe_instruction_patterns": ["specify-runtime design change", "specify-runtime design iterate", "specify-runtime design resolve", "specify-runtime design diff", "specify-runtime design register", "specify-runtime design adopt", "artifact show", "artifact list", "metadata-only", "registered", "cli-owned"]
     },
     {
       "id": "ui_design_change_contract",

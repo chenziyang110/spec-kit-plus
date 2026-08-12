@@ -22,9 +22,16 @@ Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep
 
 ## Workflow Phase Lock
 
-- Resolve or create the active workspace through
-  `specify-runtime design change <UD-ID> --title <title> --type <greenfield|preserve|overhaul|extension> --scope <surface> --profiles <profiles>`.
-  Resume drafts from `.specify/design/index.json` before creating another ID.
+- Resolve or create the active workspace by lifecycle state. Resume a matching
+  draft from `.specify/design/index.json`; use
+  `specify-runtime design change <UD-ID> --title <title> --type <greenfield|preserve|overhaul|extension> --scope <surface> --profiles <profiles>`
+  only for a new bounded change; use
+  `specify-runtime design iterate <SOURCE-UD-ID> <SUCCESSOR-UD-ID> --title <title> --type <preserve|overhaul|extension> [--scope <surface>]... --format json`
+  when approved truth is being refined. `design iterate` pins `iteration_of`,
+  `basis_sha256`, the exact baseline ref, and `supersedes` without mutating its
+  registered source. Every requested scope must still be active on that source;
+  if partial supersession already covers it, iterate from the active successor
+  or choose a remaining active source scope.
 - Set durable state with:
   - `active_command: sp-design`
   - `phase_mode: design-only`
@@ -37,7 +44,7 @@ Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep
 
 ## Allowed Writes
 
-- `.specify/design/index.json` through `specify-runtime design change/register`
+- `.specify/design/index.json` through `specify-runtime design change/iterate/register`
 - `.specify/design/changes/<UD-ID>/DESIGN.md`
 - `.specify/design/changes/<UD-ID>/brief.md`
 - `.specify/design/changes/<UD-ID>/design-contract.json`
@@ -71,35 +78,45 @@ and never require a colon subskill or explicit mode argument.
    only its exact `DESIGN.md`, brief, references, options, and review through
    the same owner. If a root `DESIGN.md` exists, treat it as a read-only legacy
    baseline and never mutate or select it as “latest.”
-2. If no matching draft exists, allocate a stable `UD-*` ID and run
-   `specify-runtime design change`; declare bounded scopes and explicit
-   `baseline_refs` / `supersedes` instead of rewriting unrelated truth.
-3. Read `README.md`, project handbook files, existing UI surfaces, and existing design files. Use the command's shared Learning intake for project rules and reusable lessons.
-4. **UI Evidence Analysis (when references or live UI exist):** collect sources
+2. For each exact affected surface, run
+   `specify-runtime design resolve --scope <surface> --format json` to discover
+   active registered candidates. Resolution is discovery only: it never binds
+   a consumer or chooses “latest.” A `composite: true` result means the broad
+   surface crosses multiple active contracts. Current consumer bindings are
+   singular, so split it into independently bound consumer units, each with one
+   exact scope and one binding artifact, instead of choosing or merging a
+   candidate for the whole surface.
+3. If no matching draft exists, allocate a stable `UD-*` ID. Run
+   `specify-runtime design change` for a new bounded direction. For an approved
+   source being refined, run `specify-runtime design iterate` so lineage and
+   source bytes are exact; do not manually reconstruct its baseline digest or
+   mutate the approved source.
+4. Read `README.md`, project handbook files, existing UI surfaces, and existing design files. Use the command's shared Learning intake for project rules and reusable lessons.
+5. **UI Evidence Analysis (when references or live UI exist):** collect sources
    into a surface/page map; extract candidate tokens, components, states, and
    responsive rules; tag each claim with evidence level
    Design Evidence v1 (`measured` | `inferred` | `assumption`; alias
    `evidence-backed-inference`) with rationale when not measured and source or
    source_gap when inferred. Do not treat screenshot similarity as measured
    truth.
-5. Use project cognition to locate likely UI entry points, token/theme owners,
+6. Use project cognition to locate likely UI entry points, token/theme owners,
    reusable component owners, responsive/state patterns, visual or accessibility
    tests, and design assets; verify every selected route in live files before it
    becomes design evidence.
-6. Classify the experience separately by work type, surface type (`landing`,
+7. Classify the experience separately by work type, surface type (`landing`,
    `product-workspace`, `hybrid`, or `existing-pattern-maintenance`), and one or
    more capability profiles. Read the deterministic catalog with
    `{{specify-subcmd:specify-runtime design profiles}}`; supported profiles are
    `web`, `mobile`, `desktop`, `cli`, `tui`, `content`, and `no-ui`. A hybrid
    product selects multiple visual profiles rather than collapsing them into a
    single project-type enum.
-7. If and only if `no-ui` is supported by current repository evidence, record
+8. If and only if `no-ui` is supported by current repository evidence, record
    `design_system_status: not-applicable` with that evidence and exit this
    visual workflow. Do not generate three directions, HTML, approval, handoff,
    `ui-target`, or visual comparison, and never combine `no-ui` with a visual
    profile.
-8. If references are supplied as URLs, screenshots, text notes, existing design files, or imported summaries, assign each an explicit intent: `exact`, `preserve-structure`, `inspiration`, `extract-tokens`, or `do-not-copy`.
-9. When built-in presets help, read shipped files under
+9. If references are supplied as URLs, screenshots, text notes, existing design files, or imported summaries, assign each an explicit intent: `exact`, `preserve-structure`, `inspiration`, `extract-tokens`, or `do-not-copy`.
+10. When built-in presets help, read shipped files under
    `.specify/templates/design-library/` or `templates/design-library/`
    (including aesthetic seeds and `anti-slop-policy.md`) and treat them as
    inspiration only—never as approved product direction or a substitute for
@@ -164,7 +181,9 @@ When live UI or an approved system already exists:
    or analytics ID risks when applicable.
 3. `audit` reports readiness and drift without changing approved truth.
    Promote to `refine` only when design truth must change, then open a new
-   immutable review round.
+   immutable change with `specify-runtime design iterate`; a new preview round
+   inside the source workspace is only for an unapproved draft, never for
+   changing a registered contract.
 
 ## Three-Direction Preview Loop (freeform board)
 
@@ -293,6 +312,12 @@ stays machine-checkable via the embedded manifest and ready lint.
 - Do not copy external brand names, protected visual identity, proprietary token names, or third-party file text into the final design system.
 - Normalize the approved direction into `spec-kit-ui-design-change-v1` YAML
   front matter plus readable Markdown guidance.
+- A successor records `relationships.iteration_of`, the matching source in
+  `relationships.supersedes`, and the exact source digest in index
+  `basis_sha256`. Registration subtracts only intersecting scopes from the
+  source and records them as `superseded_scopes`; the parent remains active for
+  every uncovered scope and is fully `superseded` only when all of its roots
+  are covered.
 - Set `design_change.status: approved` and record
   `design_change.approval.status`, the selected direction, and concrete product
   or repository `source_refs`, plus `approval.visual_refs`, review round,
@@ -319,6 +344,8 @@ The change-local `DESIGN.md` must contain:
 - YAML front matter with `design_change.schema: spec-kit-ui-design-change-v1`
 - stable ID, title, change type, scopes, baseline refs, relationships, and
   Must Preserve / May Adapt / Must Not boundaries
+- `relationships.iteration_of` for a successor (null otherwise), with the same
+  source in `supersedes` and its exact digest-pinned baseline
 - `design_change.status: approved` plus approval direction, source refs,
   immutable visual and handoff references, review round,
   preview/manifest/handoff SHA-256 values, approved decision IDs, and approved
@@ -356,7 +383,10 @@ Before closeout:
    then pin it with
    `{{specify-subcmd:specify-runtime design register <change-dir>/DESIGN.md --format json}}`
    so implementation consumes deterministic data rather than reconstructing
-   YAML prose.
+   YAML prose. For a successor, immediately run
+   `{{specify-subcmd:specify-runtime design diff <SOURCE-UD-ID> <UD-ID> --format json}}`
+   and record the scope, stable `DS-*` decision, `DH-*` handoff-contract, and
+   changed-section delta in review before recommending adoption.
 2. If `<change-dir>/review.md` is absent, create its fixed shape with
    `specify-runtime artifact scaffold --kind design-review --path <change-dir>/review.md`.
    Otherwise query it through `artifact show`. Patch only these named semantic

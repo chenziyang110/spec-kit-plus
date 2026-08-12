@@ -83,7 +83,58 @@
         "assumptions_and_risks": { "type": "array", "items": { "type": "string" } },
         "completion_evidence": { "type": "array", "items": { "type": "string" } },
         "reconfirmation_trigger": { "type": "string", "minLength": 1 },
-        "ui_confirmation": { "type": ["object", "null"] },
+        "ui_confirmation": {
+          "type": ["object", "null"],
+          "required": ["applicable"],
+          "properties": {
+            "applicable": { "type": "boolean" },
+            "design_binding": {
+              "type": ["object", "null"],
+              "required": [
+                "scope",
+                "design_change_id",
+                "design_change_ref",
+                "design_change_sha256",
+                "design_contract_ref"
+              ],
+              "properties": {
+                "scope": { "type": "string", "minLength": 1 },
+                "design_change_id": { "type": "string", "pattern": "^UD-[0-9]{4,}$" },
+                "design_change_ref": { "type": "string", "minLength": 1 },
+                "design_change_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+                "design_contract_ref": { "type": "string", "minLength": 1 }
+              },
+              "additionalProperties": false
+            },
+            "confirmation_purpose": { "type": "string" },
+            "user_and_primary_job": { "type": "string" },
+            "design_basis_and_source_material": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "target_experience": { "type": "string" },
+            "structure_and_visible_change": { "type": "string" },
+            "interaction_states_and_adaptation": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "design_boundaries": {
+              "type": "object",
+              "properties": {
+                "must_preserve": { "type": "array", "items": { "type": "string" } },
+                "may_adapt": { "type": "array", "items": { "type": "string" } },
+                "must_not": { "type": "array", "items": { "type": "string" } }
+              },
+              "additionalProperties": false
+            },
+            "acceptance_evidence": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "confirmation_digest": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
         "user_corrections": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false

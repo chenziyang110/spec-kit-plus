@@ -96,7 +96,12 @@ reopening approval.
 When the task affects a user-visible UI surface, append the UI Confirmation
 card and include `decision.ui_confirmation` in the staged contract. Ask once for
 staged non-inherited checkpoints; the user may confirm both or revise only
-scope, UI, dependency, acceptance, or another named decision.
+scope, UI, dependency, acceptance, or another named decision. When the Quick
+workspace will adopt a registered design change, stage its exact `scope`,
+`design_change_id`, `design_change_ref`, `design_change_sha256`, and
+`design_contract_ref` as `decision.ui_confirmation.design_binding` before
+`checkpoint-confirm`. Because it is a decision field, the confirmation digest
+protects the exact design binding the user reviewed.
 
 {{spec-kit-include: ../../command-partials/quick/checkpoint-card.md}}
 
@@ -156,7 +161,10 @@ that digest instead of requesting a duplicate confirmation.
 When the material delta is UI-only, keep the
 `## Quick Checkpoint Amendment` heading. Include only the changed UI Confirmation rows.
 State that the main checkpoint is unchanged. The reason-first explanation still
-comes before this delta; do not replay either complete initial table.
+comes before this delta; do not replay either complete initial table. A design
+replacement must include the complete five-field
+`decision.ui_confirmation.design_binding`; never confirm prose that leaves the
+registered change identity or scope implicit.
 
 ## Workflow Quality Requirements
 

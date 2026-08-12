@@ -34,7 +34,7 @@ type artifactTypePattern struct {
 
 var artifactTypePatterns = []artifactTypePattern{
 	{
-		metadata: ArtifactTypeMetadata{TypeID: "ui-design-change-index", Owner: "specify-runtime design change", Role: "canonical", Schema: "json/ui-design-change-index", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		metadata: ArtifactTypeMetadata{TypeID: "ui-design-change-index", Owner: "specify-runtime design change/iterate/register/adopt", Role: "canonical", Schema: "json/ui-design-change-index", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
 		match:    func(path string) bool { return path == ".specify/design/index.json" },
 	},
 	{

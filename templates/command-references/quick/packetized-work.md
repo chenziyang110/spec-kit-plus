@@ -103,12 +103,16 @@ The following flags are available and composable:
 ## Image and UI Reference Handoff
 
 - UI handling applies even without an image. For every bounded user-visible UI
-change, query `.specify/design/index.json` through `specify-runtime artifact
-show` for discovery and pin the exact
-registered change selected for the task: `design_change_id`,
-`design_change_ref`, `design_change_sha256`, and `design_contract_ref`. Never
-resolve “latest” and never substitute a root `DESIGN.md`; a root file is
-read-only legacy baseline evidence. Also reference the approved change/live pattern, affected entry point,
+  change, run `specify-runtime design resolve --scope <exact-surface> --format json`
+  and query `.specify/design/index.json` through `specify-runtime artifact
+  show` for detail. Resolution is discovery only. Because each Quick
+  `STATUS.md` has one singular `ui_design_binding`, split composite coverage
+  into independently bound Quick workspaces; do not spread conflicting parent
+  and successor bindings across worker packets in one workspace. Pin the exact
+  registered change selected for the task: `design_change_id`,
+  `design_change_ref`, `design_change_sha256`, and `design_contract_ref`. Never
+  resolve “latest” and never substitute a root `DESIGN.md`; a root file is
+  read-only legacy baseline evidence. Also reference the approved change/live pattern, affected entry point,
   work/surface/platform type, subject/audience/job, approved direction/signature,
   states and viewports, must-preserve decisions, and real-entrypoint
   structure/visual/runtime evidence. Route a missing applicable registered
@@ -118,8 +122,26 @@ read-only legacy baseline evidence. Also reference the approved change/live patt
 - When a registered design change is the basis, patch its approved visual ref,
   preview/manifest/handoff SHA-256 values, immutable handoff ref, and selected
   `DS-*`/`DH-*` rows into the quick-status artifact via leased
-  `specify-runtime artifact patch` and into every UI worker packet. An active
-  Quick task must not silently adopt a later design approval; adoption requires a confirmed UI checkpoint amendment with the complete replacement binding.
+  `specify-runtime artifact patch` and into every UI worker packet. Before a
+  replacement, run
+  `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`
+  and present its semantic delta in the UI checkpoint amendment. An active
+  Quick task must not silently adopt a later design approval; adoption requires
+  a checkpoint amendment that stages the complete replacement as
+  `decision.ui_confirmation.design_binding`: exact `scope` plus
+  `design_change_id`, `design_change_ref`, `design_change_sha256`, and
+  `design_contract_ref`. Because this is a decision field,
+  `confirmation_digest` protects the exact binding the user sees. Confirm that
+  decision before changing the adoption copy. `quick checkpoint-confirm` must leave `confirmation.json` in
+  `confirmed` or `inherited` state and `STATUS.md` with
+  `understanding_confirmed: true`. After confirmation, patch the independent
+  top-level `## UI Design Binding` / `ui_design_binding` block. Do not manually
+  duplicate the decision copy into the runtime-managed STATUS projection; it
+  remains in `confirmation.json`. The confirmed decision copy and adoption copy
+  must match exactly. Hash the exact `STATUS.md` bytes and run
+  `specify-runtime design adopt quick:<quick-id> --change <UD-ID> --scope <exact-surface> --mode quick --binding-ref <quick-dir>/STATUS.md --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
+  Do not dispatch or resume UI implementation until the compare-and-swap
+  receipt succeeds.
 - Carry the confirmed UI Confirmation unchanged into every UI worker packet and
   keep the matching fields current on the quick-status artifact only through
   leased `specify-runtime artifact patch`. A worker may implement within its

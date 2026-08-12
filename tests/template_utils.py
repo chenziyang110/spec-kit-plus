@@ -36,6 +36,7 @@ DEBUG_CHECKPOINT_CARD_ROWS = (
 UI_CONFIRMATION_CARD_ROWS = (
     "| confirmation purpose |",
     "| user and primary job |",
+    "| registered design binding (quick adoption) |",
     "| design basis and source material |",
     "| target experience |",
     "| structure and visible change |",

@@ -467,6 +467,97 @@ def test_classic_and_advanced_design_contracts_pin_exact_change_identity() -> No
         assert "never silently retarget" in content
 
 
+def test_classic_and_advanced_design_workflows_publish_scope_aware_iteration() -> None:
+    classic = "\n".join(
+        [
+            read_template("templates/commands/design.md"),
+            read_template("templates/command-references/design/task-router.md"),
+            read_template("templates/command-references/design/consumer-contract.md"),
+        ]
+    ).lower()
+    advanced = "\n".join(
+        [
+            read_template("templates/advanced-skills/spx-design/SKILL.md"),
+            read_template(
+                "templates/advanced-skills/spx-design/references/task-router.md"
+            ),
+            read_template(
+                "templates/advanced-skills/spx-design/references/design-contract.md"
+            ),
+            read_template(
+                "templates/advanced-skills/spx-design/references/consumer-contract.md"
+            ),
+        ]
+    ).lower()
+
+    for content in (classic, advanced):
+        for command in (
+            "specify-runtime design iterate",
+            "specify-runtime design resolve",
+            "specify-runtime design diff",
+            "specify-runtime design adopt",
+        ):
+            assert command in content
+        assert "iteration_of" in content
+        assert "basis_sha256" in content
+        assert "superseded_scopes" in content
+        assert "discovery only" in content
+        assert "composite" in content
+        assert "split" in content
+        assert "singular" in content
+        assert "independently bound" in content
+
+
+def test_formal_and_quick_consumers_use_explicit_design_adoption_transactions() -> None:
+    formal_surfaces = (
+        read_template("templates/commands/specify.md"),
+        read_template(
+            "templates/advanced-skills/spx-specify/references/ui-and-handoffs.md"
+        ),
+    )
+    quick_surfaces = (
+        read_template("templates/command-references/quick/packetized-work.md"),
+        read_template("templates/advanced-skills/spx-quick/SKILL.md"),
+    )
+
+    for content in formal_surfaces:
+        lowered = content.lower()
+        assert "specify-runtime design resolve" in lowered
+        assert "specify-runtime design diff" in lowered
+        assert "specify-runtime design adopt" in lowered
+        assert "--mode formal" in lowered
+        assert "--expected-change" in lowered
+        assert "--binding-sha256" in lowered
+        assert "spec-contract.json" in lowered
+        assert "before" in lowered and "adopt" in lowered
+        assert "singular" in lowered
+        assert "independently bound" in lowered
+
+    for content in quick_surfaces:
+        lowered = content.lower()
+        assert "specify-runtime design resolve" in lowered
+        assert "specify-runtime design diff" in lowered
+        assert "specify-runtime design adopt" in lowered
+        assert "--mode quick" in lowered
+        assert "--expected-change" in lowered
+        assert "--binding-sha256" in lowered
+        assert "checkpoint amendment" in lowered
+        assert "ui design binding" in lowered
+        assert "ui_design_binding" in lowered
+        assert "confirmation.json" in lowered
+        assert "decision.ui_confirmation.design_binding" in lowered
+        assert "confirmation-protected" in lowered or "confirmation_digest" in lowered
+        assert "must match" in lowered or "match exactly" in lowered
+        assert "confirmed" in lowered and "inherited" in lowered
+        assert "runtime-managed" in lowered
+        assert "status" in lowered and "projection" in lowered
+
+    classic_quick = quick_surfaces[0].lower()
+    advanced_quick = quick_surfaces[1].lower()
+    assert "understanding_confirmed: true" in classic_quick
+    assert "understanding_confirmed" not in advanced_quick
+
+
 def test_templates_include_design_quality_sections() -> None:
     assert "## Experience Requirements" in read_template("templates/spec-template.md")
     assert "UI Reference Processing" in read_template("templates/spec-template.md")

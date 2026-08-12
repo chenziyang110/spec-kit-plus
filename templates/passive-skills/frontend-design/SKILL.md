@@ -12,13 +12,17 @@ The user provides frontend requirements: a component, page, application, or inte
 
 In a Spec Kit Plus project, frontend-design is subordinate to the exact design
 change bound by the current feature or task. Before choosing an aesthetic
-direction, query metadata-only `.specify/design/index.json`, then inspect the
+direction, run `specify-runtime design resolve --scope <exact-surface> --format json`
+for discovery, query metadata-only `.specify/design/index.json`, then inspect the
 selected `.specify/design/changes/<UD-ID>/DESIGN.md` through targeted
 `specify-runtime artifact show` calls and verify its registered
 SHA-256. Never resolve "latest". Follow that scoped contract for tokens,
 components, layout density, interaction states, accessibility, motion, and
 evidence expectations. A root `DESIGN.md`, when present, is read-only legacy
 baseline input and cannot authorize adoption.
+If resolution is composite, stop and require independently bound consumer
+units, each with one exact scope and singular binding artifact; do not blend
+parent and successor contracts in an implementation worker.
 
 For substantive new UI with no applicable registered change, route through
 `sp-design`/`spx-design`; for a narrow existing-pattern change, ground the

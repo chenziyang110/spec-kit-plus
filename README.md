@@ -633,13 +633,24 @@ when the `classic` profile is selected.
   A later approval must not silently retarget an active formal feature or Quick
   workspace; adoption is explicit through Specify rebinding or a confirmed
   Quick checkpoint amendment.
-  Each design round starts with `specify-runtime design change UD-####` and owns
+  A new bounded direction starts with `specify-runtime design change UD-####`;
+  refinement of registered truth starts with
+  `specify-runtime design iterate <SOURCE-UD-ID> <SUCCESSOR-UD-ID>`, which pins
+  exact lineage and source bytes. Each change owns
   `.specify/design/changes/<UD-ID>/DESIGN.md`, its brief, previews, approval,
   handoff, and exported `design-contract.json`. Approved changes become
   consumable only after `specify-runtime design register`; the metadata-only
   `.specify/design/index.json` records scope, relationships, status, exact path,
   and the registered document digest. A root `DESIGN.md` is read-only legacy
   input when present and is never created or silently rewritten by init.
+  `specify-runtime design resolve --scope <exact-surface>` discovers active
+  candidates without adopting them. Current binding artifacts are singular, so
+  composite coverage is split into independently bound consumer units, each
+  with one exact scope and one binding file.
+  `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID>`
+  exposes the semantic delta before the consumer updates its binding artifact,
+  and `specify-runtime design adopt ... --expected-change <CURRENT-UD-ID|none>`
+  records the formal or Quick compare-and-swap after those bytes are updated.
   Use the design workflow for new product UI, redesigns,
   rebrands, core workflow experience, multi-platform interface decisions, and
   high-visibility customer-facing surfaces. Visual create and scope-changing
@@ -674,7 +685,9 @@ approved direction is an immutable, bounded UI change (`UD-*`), overlapping
 active scopes require an explicit `supersedes` relationship, consumers pin the
 registered path and SHA-256 instead of resolving “latest”, and only durable
 cross-change invariants graduate to project rules. See
-`docs/adr/0001-change-scoped-ui-design-contracts.md`.
+`docs/adr/0001-change-scoped-ui-design-contracts.md`. Scope-aware successors,
+partial `superseded_scopes`, semantic diff, and explicit adoption are governed
+by `docs/adr/0002-scope-aware-ui-design-iteration.md`.
 
 Substantive feature UI is handled during `sp-specify`/`$spx-specify` even when
 no screenshot is supplied: it produces a feature `ui-brief.md` that carries
@@ -945,7 +958,7 @@ Routing guide for direct delivery work:
 - `sp-quick` / `spx-quick` is a resumable direct-delivery workflow, not a small-task-only lane. Use it when the desired outcome is clear enough to implement directly, even if the work spans multiple capabilities, architecture or migration choices, compatibility constraints, rollout coordination, or acceptance-heavy validation.
 - Quick may use task-local planning, multiple lanes or batches, consequence and acceptance tracking, and validation to preserve control over larger work. Task size, multi-capability scope, or consequence breadth alone must not force a handoff to `sp-specify` / `spx-specify`.
 - `sp-specify` / `spx-specify` remains a separate formal specification path chosen explicitly for requirements-first work, not an automatic upgrade from Quick.
-- `sp-quick` performs one runtime-owned Decision Checkpoint before substantive execution. Stage it with `specify-runtime quick checkpoint-stage`, bind approval with `checkpoint-confirm`, and render `decision` / `delivery` / `pulse` views with `checkpoint-show`. The Decision Checkpoint asks the user to confirm goal, visible result, scope, stable `Q1`/`Q2` deliverables and product-level dependencies, independent acceptance for every work item, recommended approach, assumptions/risks, overall completion evidence, and reconfirmation trigger. Delivery Map waves, subagents, file splits, and test order remain agent-owned and never enter `confirmation_digest`. Discussion handoffs with no semantic delta inherit confirmation and skip re-approval. For applicable UI work, an independent UI Confirmation proposal is staged with the decision and one reply confirms both. Freeform prose or bullet-only confirmations do not satisfy this gate.
+- `sp-quick` performs one runtime-owned Decision Checkpoint before substantive execution. Stage it with `specify-runtime quick checkpoint-stage`, bind approval with `checkpoint-confirm`, and render `decision` / `delivery` / `pulse` views with `checkpoint-show`. The Decision Checkpoint asks the user to confirm goal, visible result, scope, stable `Q1`/`Q2` deliverables and product-level dependencies, independent acceptance for every work item, recommended approach, assumptions/risks, overall completion evidence, and reconfirmation trigger. Delivery Map waves, subagents, file splits, and test order remain agent-owned and never enter `confirmation_digest`. Discussion handoffs with no semantic delta inherit confirmation and skip re-approval. For applicable UI work, an independent UI Confirmation proposal is staged with the decision and one reply confirms both. When Quick adopts a registered design, exact `decision.ui_confirmation.design_binding` is part of that confirmation digest; the later top-level STATUS adoption copy must match it. Freeform prose or bullet-only confirmations do not satisfy this gate.
 - Both `sp-fast` and `sp-quick` still pass the project cognition gate first: run `specify-runtime cognition compass --intent implement --query "$ARGUMENTS" --format json` as the default brownfield navigation intake. Continue from the returned readiness, `compass_state`, top-level `minimal_live_reads`, lane-level `first_pass_paths` with reasons, `coverage_diagnostics`, and `expansion_ref`; read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons and `before_fix_claim` checks to prove or reject the route from live repository evidence. These paths are first evidence, not final edit scope. When the compass packet is draft-like, localized, missing coverage, or needs explicit concept decisions, use the advanced `specify-runtime cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `specify-runtime cognition query --query-plan` path (`lexicon -> semantic_intake -> query`). Generated agent commands always use the relative project runtime entrypoint; user-scoped environment variables and PATH participate only in human bootstrap or repair.
 - Pass the planned object as one structured argv value to `specify-runtime cognition query --intent <intent> --query-plan '<inline-json>' --format json`; use the integration's native argument API when shell quoting is brittle, and never create a query-plan file. `path_hints`/`reason` are accepted aliases for `paths`/`selection_reason`.
 - If the work is a bug fix or regression and the root cause is still unknown, use `sp-debug` instead of treating `sp-quick` as a symptom-fix lane.
@@ -1308,6 +1321,16 @@ Maintainer note:
 - `specify-runtime design change UD-0001 --title "..." --type overhaul
   --scope web:orders --profiles web` creates one bounded workspace and ensures
   `.specify/design/index.json` exists without creating a root `DESIGN.md`.
+- `specify-runtime design iterate UD-0001 UD-0002 --title "..." --scope
+  web:orders/detail` creates a successor pinned to the registered source's
+  exact SHA-256 and lineage without mutating it. The requested scope must still
+  be active on that source; an excluded subtree iterates from its active
+  successor instead.
+- `specify-runtime design resolve --scope web:orders/detail` discovers active
+  candidates only. A composite result must be split into independently bound
+  consumer units because the current binding artifacts are singular.
+- `specify-runtime design diff UD-0001 UD-0002` compares lineage, scope,
+  stable decisions, handoff contracts, and changed sections before adoption.
 - `specify-runtime design preview-manifest --out
   .specify/design/changes/UD-0001/previews/round-NN.manifest.json --profiles web,mobile` writes
   the compact editable source for a review round from the canonical capability
@@ -1335,6 +1358,22 @@ Maintainer note:
 - `specify-runtime design export .specify/design/changes/UD-0001/DESIGN.md --format json` exports normalized design tokens and component token references after ready validation.
 - `specify-runtime design export .specify/design/changes/UD-0001/DESIGN.md --format tailwind` exports supported token categories into Tailwind theme fields after ready validation.
 - `specify-runtime design register .specify/design/changes/UD-0001/DESIGN.md` makes the ready, approved change consumable and pins its document digest in `.specify/design/index.json`; overlapping approved scope requires explicit `supersedes` metadata.
+- Formal adoption uses `specify-runtime design adopt feature:<feature-id>
+  --change UD-0002 --scope web:orders/detail --mode formal --binding-ref
+  <feature-dir>/spec-contract.json --binding-sha256 <sha256>
+  --expected-change UD-0001|none` after Specify writes the exact four fields.
+- Quick adoption uses `specify-runtime design adopt quick:<quick-id> --change
+  UD-0002 --scope web:orders/detail --mode quick --binding-ref
+  .planning/quick/<id>-<slug>/STATUS.md --binding-sha256 <sha256>
+  --expected-change UD-0001|none`. First stage the exact scope and four
+  registered fields as `decision.ui_confirmation.design_binding`, then confirm
+  the checkpoint so sibling `confirmation.json` is `confirmed|inherited` and
+  frontmatter says `understanding_confirmed: true`. Patch the independent
+  top-level `## UI Design Binding` / `ui_design_binding` adoption copy only
+  afterward; it must match the confirmation-protected decision copy. Hash those
+  exact STATUS bytes before adoption.
+  Partial registration records parent `superseded_scopes` rather than retiring
+  unaffected scope.
 - Existing projects can use `--allow-unapproved` as a temporary structural-compatibility export while `sp-design`/`spx-design` records change-specific approval and provenance.
 - `specify-runtime design import SOURCE_REFERENCE --out .specify/design/changes/UD-0001/references.md` records synthesis input for one design change; it does not overwrite either the change-local `DESIGN.md` or a legacy root file.
 - `specify-runtime design ui-target --out FEATURE_DIR/ui-target.html` scaffolds a

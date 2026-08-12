@@ -134,6 +134,14 @@ def test_workflow_registry_models_change_scoped_design_artifacts_and_legacy_root
     assert ".specify/design/changes/*/brief.md" in workspace["path_patterns"]
     assert ".specify/design/changes/*/review.md" in workspace["path_patterns"]
     assert entries["legacy_project_design_contract"]["path_patterns"] == ["DESIGN.md"]
+    index_patterns = entries["ui_design_change_index"]["safe_instruction_patterns"]
+    for command in (
+        "specify-runtime design iterate",
+        "specify-runtime design resolve",
+        "specify-runtime design diff",
+        "specify-runtime design adopt",
+    ):
+        assert command in index_patterns
 
 
 def test_design_routing_is_documented_as_a_cross_profile_product_contract() -> None:
@@ -149,6 +157,16 @@ def test_design_routing_is_documented_as_a_cross_profile_product_contract() -> N
         assert "sp-specify" in content, path
         assert "sp-quick" in content, path
         assert "silently" in content and "retarget" in content, path
+        assert "specify-runtime design iterate" in content, path
+        assert "specify-runtime design resolve" in content, path
+        assert "specify-runtime design diff" in content, path
+        assert "specify-runtime design adopt" in content, path
+        assert "superseded_scopes" in content, path
+        assert "singular" in content, path
+        assert "independently bound" in content, path
+        assert "confirmation.json" in content, path
+        assert "decision.ui_confirmation.design_binding" in content, path
+        assert "ui_design_binding" in content, path
 
 
 def test_classic_passive_router_preserves_design_types_and_consumers() -> None:

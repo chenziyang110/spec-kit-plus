@@ -20,7 +20,11 @@ the prior change, and a prior record becomes fully superseded only when every
 declared scope root is covered. `design resolve` discovers active candidates,
 `design diff` compares their semantic contracts, and `design adopt` records an
 append-only, CAS-guarded consumer binding; none of these commands silently
-retarget existing work.
+retarget existing work. Quick adoption has a two-copy trust boundary: the exact
+scope and registered change fields are first protected inside
+`confirmation.json` as `decision.ui_confirmation.design_binding`, then copied
+to the independent top-level STATUS adoption binding. Adoption rejects any
+drift between the confirmed decision and current delivery state.
 
 ## Alternatives Considered
 
@@ -55,8 +59,10 @@ retarget existing work.
 ### Negative
 
 - The index must retain scope exclusions and adoption history.
-- Broad consumers may need multiple bounded task-level bindings instead of one
-  synthesized global contract.
+- Broad consumers must split composite coverage into independently bound
+  feature/Quick units or bounded task-level bindings. Current
+  `spec-contract.json` and Quick `STATUS.md` design bindings are singular; they
+  do not encode a synthesized effective global contract.
 - Go and Python design command surfaces must remain behaviorally aligned.
 
 ### Risks
@@ -64,6 +70,10 @@ retarget existing work.
 - **Unrepresentable complements**: store excluded subtrees rather than inventing
   a synthetic `parent minus child` scope string.
 - **Ambiguous broad work**: return all intersecting active candidates and require
-  the consumer to split scope or explicitly bind each bounded unit.
+  independently bound consumer units, each with one exact scope and one
+  binding artifact.
 - **Stale adoption**: require the expected current change ID and exact binding
   artifact digest before appending a new adoption receipt.
+- **Confirmation/adoption drift in Quick**: require an exact-match between the
+  confirmation-protected `decision.ui_confirmation.design_binding` and the
+  independently hashed STATUS adoption copy.

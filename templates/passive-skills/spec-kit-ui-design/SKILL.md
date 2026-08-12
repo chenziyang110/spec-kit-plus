@@ -32,11 +32,16 @@ implement/review require system model + anti-slop + visual validation loop.
 
 ## Design System Gate
 
-- Before substantive UI work, query metadata-only
-  `.specify/design/index.json` through `specify-runtime artifact show`, select
-  the applicable registered `UD-*` change,
+- Before substantive UI work, run
+  `specify-runtime design resolve --scope <exact-surface> --format json`, then
+  query metadata-only `.specify/design/index.json` through
+  `specify-runtime artifact show` and select the applicable registered `UD-*` change,
   and verify its exact `design_ref` and `approval_sha256`. Never resolve
   "latest" or silently substitute a root file.
+- `design resolve` is discovery only. If it reports composite coverage, require
+  the leader to split the work into independently bound consumer units, each
+  with one exact scope and singular binding artifact; do not merge parent and
+  successor rules or choose one for a broader surface.
 - Implementation must follow that exact change-local `DESIGN.md` for its
   declared scope: layout, component usage, color, typography, motion, density,
   interaction states, accessibility expectations, and evidence requirements.

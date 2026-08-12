@@ -86,8 +86,11 @@ Initialize or preserve the unconfirmed intake state, then stage a
 `{{specify-subcmd:specify-runtime quick checkpoint-stage <id> --input-json '<decision+delivery>' --format json}}`
 and render the runtime Decision Checkpoint plus Delivery Map from
 `references/human-confirmation.md`. For applicable UI work, include
-`decision.ui_confirmation` and append its UI proposal. For staged non-inherited
-checkpoints, ask once for both decisions and bind with
+`decision.ui_confirmation` and append its UI proposal. When Quick will adopt a
+registered `UD-*` change, stage the exact five-field
+`decision.ui_confirmation.design_binding` before confirmation; its `scope` and
+four registered binding fields enter `confirmation_digest`. For staged
+non-inherited checkpoints, ask once for both decisions and bind with
 `{{specify-subcmd:specify-runtime quick checkpoint-confirm <id> --digest <confirmation_digest> --format json}}`.
 For staged non-inherited checkpoints, wait for user confirmation before
 substantive execution. During execution, prefer
@@ -150,17 +153,34 @@ visual review. Do not jump straight to code or CSS. Patch design sources,
 affected states/viewports, visual acceptance, direction source/signature,
 reference intents, real content/image sources, and the structure/visual/runtime
 evidence triad into the quick-status artifact via leased
-`specify-runtime artifact patch`. Query `.specify/design/index.json` through
-`specify-runtime artifact show` only for discovery, select the registered
-change whose scope matches the Quick task, and
+`specify-runtime artifact patch`. Run
+`specify-runtime design resolve --scope <exact-surface> --format json` and query
+`.specify/design/index.json` through `specify-runtime artifact show` only for
+detail. Resolution is discovery only. Each Quick `STATUS.md` has one singular
+`ui_design_binding`, so split composite coverage into independently bound Quick
+workspaces; do not distribute conflicting parent/successor bindings across
+workers in one workspace. Select the registered change whose scope matches the Quick task, and
 pin its `design_change_id`, exact `design_change_ref`,
 `design_change_sha256`, and sibling `design_contract_ref` into Quick state and
 every UI worker contract. Never resolve “latest” and never substitute a root
 `DESIGN.md`; a root file is read-only legacy baseline evidence. Also pin the
 change's approved visual ref, preview/manifest/handoff SHA-256 values,
 immutable handoff ref, and selected `DS-*`/`DH-*` rows. An active Quick task
-must not silently adopt a later design approval; adoption requires a confirmed UI checkpoint amendment
-with the complete replacement binding. Preserve original visual references and run the
+must not silently adopt a later design approval. Before replacement, run
+`specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`
+and present the delta. Adoption requires a confirmed UI checkpoint amendment with
+the complete replacement binding staged as
+`decision.ui_confirmation.design_binding`: exact `scope` plus the four
+registered binding fields. `quick checkpoint-confirm` must leave
+`confirmation.json` in `confirmed` or `inherited` state; runtime owns the STATUS
+readiness projection. Only then patch the independent top-level
+`## UI Design Binding` / `ui_design_binding` adoption copy. Do not manually
+duplicate the confirmed decision copy into the runtime-managed STATUS
+projection; it remains in `confirmation.json`. Both copies must match exactly;
+hash the exact status bytes, then run
+`specify-runtime design adopt quick:<quick-id> --change <UD-ID> --scope <exact-surface> --mode quick --binding-ref <quick-dir>/STATUS.md --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
+Do not dispatch or resume UI work until that compare-and-swap receipt succeeds.
+Preserve original visual references and run the
 UI gate's real-entrypoint capture/inspect/refine loop. Escalate a new visual
 direction to `$spx-design`. Keep multi-surface or acceptance-heavy UI in Quick
 and expand its task-local plan, batches, viewport/state matrix, and evidence;

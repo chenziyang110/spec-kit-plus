@@ -21,8 +21,20 @@ baseline, never an implicit latest contract. Distinguish
 observed product language from new design decisions; do not invent a parallel
 system when an established one can be extended.
 
-When no matching draft exists, initialize one through
+For every exact affected surface, use
+`specify-runtime design resolve --scope <surface> --format json` to discover
+active registered candidates. Resolution is discovery only and never binds a
+consumer. Current binding artifacts are singular, so split `composite: true`
+results into independently bound consumer units, each with one exact scope and
+one binding artifact, rather than selecting or merging one broad contract. When no matching draft
+exists, initialize a new bounded direction through
 `specify-runtime design change <UD-ID> --title <title> --type <greenfield|preserve|overhaul|extension> --scope <surface> --profiles <profiles>`.
+When approved truth is refined, create its exact successor through
+`specify-runtime design iterate <SOURCE-UD-ID> <SUCCESSOR-UD-ID> --title <title> --type <preserve|overhaul|extension> [--scope <surface>]... --format json`;
+this pins `iteration_of`, `basis_sha256`, the source baseline digest, and
+`supersedes` without mutating registered bytes. Every requested successor scope
+must still be active on the source; iterate from the active successor or a
+remaining source scope after partial supersession.
 Set `<change-dir>` to `.specify/design/changes/<UD-ID>`. Resume it through
 `artifact show` after interruption or compaction. Persist `active_command: sp-design`,
 `phase_mode: design-only`, current stage, selected mode/direction, approval
@@ -32,7 +44,7 @@ state, lint result, next action, and next command. Use
 and route reason in the design brief; treat any selected mode in derived state
 only as a compatibility projection.
 Resume the stored route before reclassification. The `allowed_writes` are only
-`.specify/design/index.json` through `design change/register`,
+`.specify/design/index.json` through `design change/iterate/register`,
 `.specify/design/changes/<UD-ID>/DESIGN.md`, `<change-dir>/brief.md`,
 `<change-dir>/previews/*`, `<change-dir>/references.md`,
 `<change-dir>/options.md`,
@@ -67,9 +79,9 @@ evidence proves `no-ui`, record `design_system_status: not-applicable` with that
 evidence and exit without preview, approval, handoff, `ui-target`, or visual
 comparison; never combine `no-ui` with a visual profile.
 
-Every `refine` that changes approved design truth must create a new `UD-*`
-workspace with explicit `baseline_refs` and `supersedes`; an export or in-place
-mutation of an approved change is not a substitute. For `create` and those
+Every `refine` that changes approved design truth must use `design iterate` to
+create a new `UD-*` workspace as a digest-pinned successor; an export, hand-authored lineage, or
+in-place mutation of an approved change is not a substitute. For `create` and those
 `refine` routes, author `<change-dir>/previews/round-NN.manifest.json` from
 `{{specify-subcmd:specify-runtime design preview-manifest --profiles <comma-separated-profile-ids> --out <change-dir>/previews/round-NN.manifest.json}}`,
 then render the freeform board shell with
@@ -131,6 +143,12 @@ deterministic implementation contract with
 `{{specify-subcmd:specify-runtime design export <change-dir>/DESIGN.md --format json --out .specify/design/changes/<UD-ID>/design-contract.json}}`.
 Finally pin the exact contract and enforce overlap/supersedes with
 `{{specify-subcmd:specify-runtime design register <change-dir>/DESIGN.md --format json}}`.
+Registration subtracts only intersecting successor scopes, records them as
+`superseded_scopes`, and leaves the parent active elsewhere. For a successor,
+run
+`{{specify-subcmd:specify-runtime design diff <SOURCE-UD-ID> <UD-ID> --format json}}`
+and record the lineage, scope, stable `DS-*`, `DH-*`, and changed-section delta
+in review before adoption.
 Do not hand off a structurally valid but generic or unapproved seed.
 
 If `<change-dir>/review.md` is absent, create its fixed shape with

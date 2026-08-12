@@ -105,7 +105,14 @@ and motion decisions for the declared scope. The target later describes one feat
 composition and cannot silently replace or weaken the approved preview
 reference.
 
-Each contract declares `scope`, `baseline_refs`, relationships (`supersedes`,
-`depends_on`, `conflicts_with`), and Must Preserve / May Adapt / Must Not
-boundaries. Approved contracts are immutable. Overlapping approvals are blocked
-unless an explicit `supersedes` transition resolves order.
+Each contract declares `scope`, `baseline_refs`, relationships (`iteration_of`,
+`supersedes`, `depends_on`, `conflicts_with`), and Must Preserve / May Adapt /
+Must Not boundaries. `design iterate` writes the successor's exact
+`iteration_of`, index `basis_sha256`, digest-pinned baseline, and `supersedes`.
+Every requested successor scope must still be active on that source; a scope
+already covered by `superseded_scopes` must iterate from its active successor,
+not from the stale parent.
+Approved contracts are immutable. Registration subtracts only overlapping
+successor scope into the parent's `superseded_scopes`; the parent remains
+active outside those exclusions and becomes fully superseded only when every
+declared scope root is covered.

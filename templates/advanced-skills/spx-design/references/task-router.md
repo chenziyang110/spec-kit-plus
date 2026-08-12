@@ -16,7 +16,8 @@ input_strategy: context | synthesize
 route_reason: <one evidence-based sentence>
 ```
 
-Use `specify-runtime design change` to create a missing `UD-*` workspace, then
+Use `specify-runtime design change` for a new missing `UD-*` workspace or
+`specify-runtime design iterate` for a successor of approved truth, then
 use `specify-runtime artifact patch` to store the canonical route in
 `.specify/design/changes/<UD-ID>/brief.md`. Treat
 any selected-mode field exposed by
@@ -27,8 +28,9 @@ owner CLI to repeat the route in review when it explains closeout.
 
 - `create`: allocate a bounded greenfield or extension change when no matching
   nonterminal workspace exists.
-- `refine`: continue an unapproved change or allocate a new `UD-*` contract
-  with explicit `baseline_refs` and `supersedes`; never mutate approved truth.
+- `refine`: continue an unapproved change or allocate a digest-pinned successor
+  with `specify-runtime design iterate`; never mutate approved truth or
+  hand-author `iteration_of` / `basis_sha256` lineage.
 - `audit`: inspect a declared scope, provenance, adoption, or drift without
   mutating approved truth.
 - `context`: use confirmed product context and verified live evidence.
@@ -53,14 +55,20 @@ continuation are lifecycle events for the active task. Reclassify only for an
 explicit objective change or evidence that the stored route cannot safely
 finish, and record that delta.
 
+Run `specify-runtime design resolve --scope <exact-surface> --format json` for
+registered coverage. It is discovery only, never adoption. Split a composite
+result into independently bound consumer units. Current binding artifacts are
+singular, so each unit owns one exact scope and one binding artifact; do not
+invent one merged or “latest” contract.
+
 ## Route Matrix
 
 | Truth and intent | Route |
 | --- | --- |
 | No matching draft; establish a bounded design | `create/context` |
 | No matching draft plus shaping references | `create/synthesize` |
-| Approved scoped truth must intentionally change | new `refine/context` change |
-| References shape an intentional replacement | new `refine/synthesize` change |
+| Approved scoped truth must intentionally change | new `refine/context` successor via `design iterate` |
+| References shape an intentional replacement | new `refine/synthesize` successor via `design iterate` |
 | Readiness, consistency, provenance, or drift check only | `audit/context` |
 
 Use approval status to break create/refine ambiguity. Start audit/mutation

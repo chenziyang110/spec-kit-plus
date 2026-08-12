@@ -128,6 +128,7 @@ intent and name real content/image sources.
 | --- | --- |
 | Confirmation purpose | [Quick implementation proposal or Debug target baseline, plus affected surface] |
 | User and primary job | [user, context, and single job] |
+| Registered design binding (Quick adoption) | [exact scope, `design_change_id`, `design_change_ref`, `design_change_sha256`, and `design_contract_ref`; stage as `decision.ui_confirmation.design_binding` so `confirmation_digest` protects it; use not applicable for a Debug-only baseline] |
 | Design basis and source material | [approved direction/current entry point/original references with intent/real content and images] |
 | Target experience | [visual, content, and interaction thesis plus signature element] |
 | Structure and visible change | [hierarchy, layout, components, copy, and visible before-to-after] |
@@ -139,4 +140,7 @@ intent and name real content/image sources.
 Do not render an incomplete UI Confirmation. Do not add another reply prompt:
 when this UI card is present, a single confirmation covers both the main card
 and the UI decision. Persist the main confirmation and `ui_confirmation`
-separately so a later amendment can change only the affected decision.
+separately so a later amendment can change only the affected decision. For
+Quick adoption, stage the exact five-field
+`decision.ui_confirmation.design_binding` before `checkpoint-confirm`; because
+it is a decision field, `confirmation_digest` protects the binding the user saw.

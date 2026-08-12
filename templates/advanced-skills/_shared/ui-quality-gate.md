@@ -13,9 +13,13 @@ desktop, or Web presentation surface.
 
 ## Design readiness
 
-Query metadata-only `.specify/design/index.json`, select an applicable
+Run `specify-runtime design resolve --scope <exact-surface> --format json`, then
+query metadata-only `.specify/design/index.json`, select an applicable
 registered `UD-*` change, and inspect that exact change-local `DESIGN.md`
 through `specify-runtime artifact show` together with relevant live surfaces.
+Resolution is discovery only. Split composite coverage into explicit bindings.
+Because current consumer binding artifacts are singular, the split must produce
+independently bound consumer units rather than one worker blending contracts.
 Never resolve "latest". Inspect a root `DESIGN.md` only when it is explicitly
 cited as a read-only legacy baseline. Route a new product surface, redesign,
 rebrand, shared component-language change, or unresolved visual direction to
@@ -35,6 +39,13 @@ This gate never authorizes production implementation inside design workflows.
 New or high-visibility direction requires an
 inspectable approved visual reference; a narrow existing-pattern exception must
 name its live governing surface. Reuse approved tokens and components.
+For Quick adoption, stage exact `scope`, `design_change_id`,
+`design_change_ref`, `design_change_sha256`, and `design_contract_ref` as
+confirmation-protected `decision.ui_confirmation.design_binding` before
+confirmation. Only afterward, use a fresh leased
+`specify-runtime artifact patch` call to set the independent top-level
+`STATUS.md` `ui_design_binding` adoption copy; both copies must exact-match
+before `specify-runtime design adopt` may succeed.
 When `sp-design` produced a change-level HTML preview, preserve its exact
 change-local `round-NN.html#direction-id` reference, registered design-change
 ref/hash, motion/reduced-motion contract, preview/manifest/handoff SHA-256

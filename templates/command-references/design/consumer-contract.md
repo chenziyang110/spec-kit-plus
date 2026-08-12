@@ -48,14 +48,37 @@ Preserved Contract: formal delivery binds design through `sp-specify`, direct de
 - A newly approved design round must not silently retarget an existing feature
   or Quick workspace. Existing delivery remains pinned to its recorded preview,
   manifest, handoff refs, SHA-256 values, and selected `DS-*`/`DH-*` rows.
-- Future features may explicitly select the applicable registered change through
-  `sp-specify`; “latest” is never an adoption rule.
+- Discover candidates only with
+  `specify-runtime design resolve --scope <exact-surface> --format json`;
+  “latest” is never an adoption rule. A composite result must be split into
+  independently bound consumer units. Current binding artifacts are singular;
+  each unit owns one exact scope and one `spec-contract.json` or Quick
+  `STATUS.md`.
+- Before replacing a binding, run
+  `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`
+  and preserve its scope, decision, handoff-contract, and changed-section delta
+  in the owning consumer workflow.
 - To adopt the new approval in an existing formal feature, re-enter
-  `sp-specify`, record the design adoption delta, then regenerate the highest
-  invalid downstream plan/task surfaces.
+  `sp-specify` and use fresh leased `specify-runtime artifact patch` calls to
+  set the complete new four-field binding in `spec-contract.json` and
+  `ui-brief.md`. Hash the exact `spec-contract.json` bytes, then run
+  `specify-runtime design adopt feature:<feature-id> --change <UD-ID> --scope <exact-surface> --mode formal --binding-ref <feature-dir>/spec-contract.json --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
+  Only a successful compare-and-swap receipt authorizes regeneration of the
+  highest invalid downstream plan/task surfaces.
 - To adopt it in an active Quick task, present and persist a Quick checkpoint
-  amendment containing the new exact design binding before implementation
-  resumes. Without that confirmation, Quick remains pinned to its earlier
+  amendment containing the new exact design binding as
+  `decision.ui_confirmation.design_binding` before implementation resumes.
+  This confirmation-protected decision copy contains exact `scope` plus
+  `design_change_id`, `design_change_ref`, `design_change_sha256`, and
+  `design_contract_ref`. `quick checkpoint-confirm` must leave `confirmation.json` in
+  `confirmed` or `inherited` state and `STATUS.md` with
+  `understanding_confirmed: true`. After confirmation, use a fresh leased
+  `specify-runtime artifact patch` call to set the independent
+  top-level `## UI Design Binding` / `ui_design_binding` adoption copy in
+  `STATUS.md`; do not manually duplicate the decision copy into the
+  runtime-managed STATUS projection. The confirmation and adoption copies must
+  match exactly. Hash those exact bytes, then run `specify-runtime design adopt quick:<quick-id> --change <UD-ID> --scope <exact-surface> --mode quick --binding-ref <quick-dir>/STATUS.md --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
+  Without that confirmation and receipt, Quick remains pinned to its earlier
   snapshot.
 
 Every consumer records `.specify/design/changes/<UD-ID>/DESIGN.md`, its
