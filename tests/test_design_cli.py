@@ -11,11 +11,13 @@ from typer.testing import CliRunner
 from specify_cli import app
 from specify_cli.design import (
     DesignLintError,
+    _design_impact_classes,
     adopt_design_change,
     approve_design_preview,
     diff_design_changes,
     export_design_system,
     import_design_reference,
+    impact_design_adoption,
     lint_design_file,
     parse_design_markdown,
     register_design_change,
@@ -820,6 +822,39 @@ def test_design_diff_reports_lineage_scope_and_decision_delta(tmp_path: Path) ->
     assert "decisions" in diff["changed_sections"]
 
 
+def test_design_impact_classes_cover_ui_dimensions_and_stable_contract_ids() -> None:
+    diff = {
+        "changed_sections": [
+            "components",
+            "content",
+            "responsive",
+            "verification",
+        ],
+        "decisions": {
+            "added": ["DS-COMP-002"],
+            "removed": [],
+            "changed": ["DS-COMP-001"],
+            "retained": [],
+        },
+        "handoff_contracts": {
+            "added": ["DH-COMP-002"],
+            "removed": ["DH-COMP-001"],
+            "retained": [],
+        },
+    }
+
+    assert _design_impact_classes(diff) == [
+        "visual",
+        "interaction",
+        "component",
+        "responsive",
+        "content",
+        "verification",
+        "design-decision",
+        "handoff-contract",
+    ]
+
+
 def test_design_adoption_requires_expected_change_and_retains_history(
     tmp_path: Path,
 ) -> None:
@@ -895,6 +930,14 @@ def test_design_adoption_requires_expected_change_and_retains_history(
         source_id="UD-0042",
         source_digest=parent_digest,
     )
+    successor.write_text(
+        successor.read_text(encoding="utf-8").replace(
+            "use accessible semantic color pairs",
+            "use stronger accessible semantic color pairs",
+            1,
+        ),
+        encoding="utf-8",
+    )
     successor_record = register_design_change(tmp_path, successor)
     successor_contract = successor.parent / "design-contract.json"
     successor_contract.write_text(
@@ -916,6 +959,56 @@ def test_design_adoption_requires_expected_change_and_retains_history(
             expected_change="none",
         )
 
+    index_path = tmp_path / ".specify/design/index.json"
+    index_before_impact = index_path.read_bytes()
+    with pytest.raises(DesignLintError, match="expected current change"):
+        impact_design_adoption(
+            tmp_path,
+            consumer_ref="feature:001-orders",
+            change_id="UD-0043",
+            scope="web:orders/detail",
+            mode="formal",
+            expected_change="none",
+        )
+    impact = impact_design_adoption(
+        tmp_path,
+        consumer_ref="feature:001-orders",
+        change_id="UD-0043",
+        scope="web:orders/detail",
+        mode="formal",
+        expected_change="UD-0042",
+    )
+    assert index_path.read_bytes() == index_before_impact
+    assert impact["schema"] == "spec-kit-ui-design-impact-v1"
+    assert impact["current_change_id"] == "UD-0042"
+    assert impact["candidate_change_id"] == "UD-0043"
+    assert impact["scope"] == "web:orders/detail"
+    assert impact["impact_classes"] == [
+        "visual",
+        "interaction",
+        "design-decision",
+    ]
+    assert impact["affected_decision_ids"] == ["DS-COLOR-001"]
+    assert impact["affected_handoff_contract_ids"] == []
+    assert impact["changed_sections"] == ["decisions"]
+    assert impact["preserved_bindings"] == [
+        "feature.ui_brief",
+        "implementation.completed_work",
+        "review.unaffected_scope_evidence",
+    ]
+    assert impact["invalidated_bindings"] == [
+        "plan.ui_design_contract",
+        "tasks.ui_contracts",
+        "review.affected_scope_evidence",
+    ]
+    assert impact["reconcile_from"] == "plan"
+    assert impact["reconciliation_actions"] == [
+        "recompile_plan_ui_design_contract",
+        "recompile_task_ui_contracts",
+        "recapture_affected_review_evidence",
+    ]
+    assert re.fullmatch(r"[0-9a-f]{64}", impact["impact_sha256"])
+
     receipt = adopt_design_change(
         tmp_path,
         consumer_ref="feature:001-orders",
@@ -930,6 +1023,18 @@ def test_design_adoption_requires_expected_change_and_retains_history(
     assert receipt["previous_change_id"] == "UD-0042"
     assert receipt["design_change_id"] == "UD-0043"
     assert receipt["design_change_sha256"] == successor_record["approval_sha256"]
+    for field in (
+        "impact_sha256",
+        "impact_classes",
+        "preserved_bindings",
+        "invalidated_bindings",
+        "reconcile_from",
+        "reconciliation_actions",
+        "changed_sections",
+        "affected_decision_ids",
+        "affected_handoff_contract_ids",
+    ):
+        assert receipt[field] == impact[field]
     index = json.loads(
         (tmp_path / ".specify/design/index.json").read_text(encoding="utf-8")
     )
@@ -1072,6 +1177,13 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
     )
     assert receipt["mode"] == "quick"
     assert receipt["binding_ref"] == binding_ref.as_posix()
+    assert receipt["preserved_bindings"] == []
+    assert receipt["invalidated_bindings"] == []
+    assert receipt["reconcile_from"] == "quick-checkpoint"
+    assert receipt["reconciliation_actions"] == [
+        "confirm_quick_design_binding",
+        "compile_quick_ui_work_items",
+    ]
 
 
 def test_lint_design_file_accepts_valid_design(tmp_path: Path) -> None:

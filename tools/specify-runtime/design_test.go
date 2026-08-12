@@ -818,6 +818,26 @@ func TestDesignDiffReportsScopeLineageAndStableDecisionChanges(t *testing.T) {
 	}
 }
 
+func TestDesignImpactClassesCoverUIDimensionsAndStableContractIDs(t *testing.T) {
+	diff := map[string]any{
+		"changed_sections": []string{"components", "content", "responsive", "verification"},
+		"decisions": map[string]any{
+			"added": []string{"DS-COMP-002"}, "removed": []string{},
+			"changed": []string{"DS-COMP-001"}, "retained": []string{},
+		},
+		"handoff_contracts": map[string]any{
+			"added": []string{"DH-COMP-002"}, "removed": []string{"DH-COMP-001"}, "retained": []string{},
+		},
+	}
+	want := []string{
+		"visual", "interaction", "component", "responsive", "content",
+		"verification", "design-decision", "handoff-contract",
+	}
+	if got := designImpactClasses(diff); !reflect.DeepEqual(got, want) {
+		t.Fatalf("impact classes = %#v, want %#v", got, want)
+	}
+}
+
 func TestDesignAdoptUsesExpectedChangeCASAndPreservesRebindHistory(t *testing.T) {
 	tmp := t.TempDir()
 	withCwd(t, tmp)
@@ -862,6 +882,10 @@ func TestDesignAdoptUsesExpectedChangeCASAndPreservesRebindHistory(t *testing.T)
 
 	successor := createDesignIterationRuntime(t, "UD-0042", "UD-0043", "web:orders/detail")
 	writeReadyDesignIterationRuntime(t, successor, "UD-0043", []string{"web:orders/detail"}, "UD-0042", parentDigest)
+	updated := strings.Replace(readFile(t, successor), "use accessible semantic color pairs", "use stronger accessible semantic color pairs", 1)
+	if err := os.WriteFile(successor, []byte(updated), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	stdout.Reset()
 	if exit := runDesign([]string{"register", successor}, &stdout); exit != 0 {
 		t.Fatalf("register successor failed: %d %s", exit, stdout.String())
@@ -882,6 +906,52 @@ func TestDesignAdoptUsesExpectedChangeCASAndPreservesRebindHistory(t *testing.T)
 	stdout.Reset()
 	if exit := runDesign(wrongExpected, &stdout); exit == 0 || !strings.Contains(stdout.String(), "expected current change") {
 		t.Fatalf("stale adoption CAS must block: exit=%d output=%s", exit, stdout.String())
+	}
+	indexBeforeImpact := readFile(t, filepath.Join(".specify", "design", "index.json"))
+	stdout.Reset()
+	if exit := runDesign([]string{
+		"impact", "feature:001-orders",
+		"--change", "UD-0043",
+		"--scope", "web:orders/detail",
+		"--mode", "formal",
+		"--expected-change", "none",
+	}, &stdout); exit == 0 || !strings.Contains(stdout.String(), "expected current change") {
+		t.Fatalf("stale impact CAS must block: exit=%d output=%s", exit, stdout.String())
+	}
+	stdout.Reset()
+	if exit := runDesign([]string{
+		"impact", "feature:001-orders",
+		"--change", "UD-0043",
+		"--scope", "web:orders/detail",
+		"--mode", "formal",
+		"--expected-change", "UD-0042",
+	}, &stdout); exit != 0 {
+		t.Fatalf("design impact failed: %d %s", exit, stdout.String())
+	}
+	if got := readFile(t, filepath.Join(".specify", "design", "index.json")); got != indexBeforeImpact {
+		t.Fatal("design impact mutated the design index")
+	}
+	impact := decodeEnvelope(t, stdout.Bytes()).Data["impact"].(map[string]any)
+	if impact["schema"] != "spec-kit-ui-design-impact-v1" || impact["current_change_id"] != "UD-0042" || impact["candidate_change_id"] != "UD-0043" {
+		t.Fatalf("impact identity = %#v", impact)
+	}
+	if !reflect.DeepEqual(stringList(impact["impact_classes"]), []string{"visual", "interaction", "design-decision"}) {
+		t.Fatalf("impact classes = %#v", impact["impact_classes"])
+	}
+	if !reflect.DeepEqual(stringList(impact["affected_decision_ids"]), []string{"DS-COLOR-001"}) || len(stringList(impact["affected_handoff_contract_ids"])) != 0 {
+		t.Fatalf("stable contract impact = DS %#v DH %#v", impact["affected_decision_ids"], impact["affected_handoff_contract_ids"])
+	}
+	if !reflect.DeepEqual(stringList(impact["changed_sections"]), []string{"decisions"}) || impact["reconcile_from"] != "plan" {
+		t.Fatalf("impact reconciliation boundary = %#v", impact)
+	}
+	if !reflect.DeepEqual(stringList(impact["preserved_bindings"]), []string{"feature.ui_brief", "implementation.completed_work", "review.unaffected_scope_evidence"}) {
+		t.Fatalf("preserved bindings = %#v", impact["preserved_bindings"])
+	}
+	if !reflect.DeepEqual(stringList(impact["invalidated_bindings"]), []string{"plan.ui_design_contract", "tasks.ui_contracts", "review.affected_scope_evidence"}) {
+		t.Fatalf("invalidated bindings = %#v", impact["invalidated_bindings"])
+	}
+	if !reflect.DeepEqual(stringList(impact["reconciliation_actions"]), []string{"recompile_plan_ui_design_contract", "recompile_task_ui_contracts", "recapture_affected_review_evidence"}) || !hexDigestRE.MatchString(fmt.Sprint(impact["impact_sha256"])) {
+		t.Fatalf("impact actions/digest = %#v", impact)
 	}
 	wrongExpected[len(wrongExpected)-1] = "UD-0042"
 	stdout.Reset()
@@ -904,6 +974,15 @@ func TestDesignAdoptUsesExpectedChangeCASAndPreservesRebindHistory(t *testing.T)
 	}
 	if second["design_change_id"] != "UD-0043" || second["design_change_sha256"] != successorDigest {
 		t.Fatalf("second adoption receipt does not retain the exact design binding: %#v", second)
+	}
+	for _, field := range []string{
+		"impact_sha256", "impact_classes", "preserved_bindings", "invalidated_bindings",
+		"reconcile_from", "reconciliation_actions", "changed_sections",
+		"affected_decision_ids", "affected_handoff_contract_ids",
+	} {
+		if !reflect.DeepEqual(second[field], impact[field]) {
+			t.Fatalf("adoption receipt %s = %#v, want impact %#v", field, second[field], impact[field])
+		}
 	}
 }
 
@@ -979,6 +1058,14 @@ note: exact source UD-0042
 	}
 	if exit, output := adopt(writeStatus(true, "UD-0042", "web:orders/detail")); exit != 0 {
 		t.Fatalf("confirmed exact quick adoption failed: exit=%d output=%s", exit, output)
+	}
+	index := readDesignChangeIndexRuntime(t)
+	receipt := index["adoptions"].([]any)[0].(map[string]any)
+	if len(stringList(receipt["preserved_bindings"])) != 0 || len(stringList(receipt["invalidated_bindings"])) != 0 {
+		t.Fatalf("initial quick adoption must not invalidate existing work: %#v", receipt)
+	}
+	if receipt["reconcile_from"] != "quick-checkpoint" || !reflect.DeepEqual(stringList(receipt["reconciliation_actions"]), []string{"confirm_quick_design_binding", "compile_quick_ui_work_items"}) {
+		t.Fatalf("initial quick reconciliation = %#v", receipt)
 	}
 }
 

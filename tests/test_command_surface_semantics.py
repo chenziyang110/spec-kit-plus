@@ -495,6 +495,7 @@ def test_classic_and_advanced_design_workflows_publish_scope_aware_iteration() -
             "specify-runtime design iterate",
             "specify-runtime design resolve",
             "specify-runtime design diff",
+            "specify-runtime design impact",
             "specify-runtime design adopt",
         ):
             assert command in content
@@ -524,6 +525,7 @@ def test_formal_and_quick_consumers_use_explicit_design_adoption_transactions() 
         lowered = content.lower()
         assert "specify-runtime design resolve" in lowered
         assert "specify-runtime design diff" in lowered
+        assert "specify-runtime design impact" in lowered
         assert "specify-runtime design adopt" in lowered
         assert "--mode formal" in lowered
         assert "--expected-change" in lowered
@@ -532,11 +534,15 @@ def test_formal_and_quick_consumers_use_explicit_design_adoption_transactions() 
         assert "before" in lowered and "adopt" in lowered
         assert "singular" in lowered
         assert "independently bound" in lowered
+        assert "preserved_bindings" in lowered
+        assert "invalidated_bindings" in lowered
+        assert "reconcile_from" in lowered
 
     for content in quick_surfaces:
         lowered = content.lower()
         assert "specify-runtime design resolve" in lowered
         assert "specify-runtime design diff" in lowered
+        assert "specify-runtime design impact" in lowered
         assert "specify-runtime design adopt" in lowered
         assert "--mode quick" in lowered
         assert "--expected-change" in lowered
@@ -551,6 +557,9 @@ def test_formal_and_quick_consumers_use_explicit_design_adoption_transactions() 
         assert "confirmed" in lowered and "inherited" in lowered
         assert "runtime-managed" in lowered
         assert "status" in lowered and "projection" in lowered
+        assert "retire unstarted" in lowered
+        assert "completed work" in lowered and "corrective work item" in lowered
+        assert "affected review" in lowered
 
     classic_quick = quick_surfaces[0].lower()
     advanced_quick = quick_surfaces[1].lower()
