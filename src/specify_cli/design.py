@@ -1235,6 +1235,41 @@ def adopt_design_change(
             raise DesignLintError(
                 "quick design adoption checkpoint must be confirmed or inherited"
             )
+        confirmation_digest = str(
+            confirmation.get("confirmation_digest") or ""
+        ).strip()
+        decision = confirmation.get("decision")
+        ui_confirmation = (
+            decision.get("ui_confirmation")
+            if isinstance(decision, dict)
+            else None
+        )
+        confirmed_binding = (
+            ui_confirmation.get("design_binding")
+            if isinstance(ui_confirmation, dict)
+            else None
+        )
+        expected_confirmation_binding = {
+            "scope": normalized_scope,
+            "design_change_id": normalized_change,
+            "design_change_ref": design_ref,
+            "design_change_sha256": design_digest,
+            "design_contract_ref": design_contract_ref,
+        }
+        if (
+            not re.fullmatch(r"[0-9a-f]{64}", confirmation_digest)
+            or not isinstance(ui_confirmation, dict)
+            or ui_confirmation.get("applicable") is not True
+            or not isinstance(confirmed_binding, dict)
+            or any(
+                str(confirmed_binding.get(key) or "").strip() != value
+                for key, value in expected_confirmation_binding.items()
+            )
+        ):
+            raise DesignLintError(
+                "quick design adoption requires the confirmed UI design binding "
+                "to match the exact scope and registered change"
+            )
     actual_binding_digest = hashlib.sha256(binding_content).hexdigest()
     if actual_binding_digest != normalized_binding_digest:
         raise DesignLintError(

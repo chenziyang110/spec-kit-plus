@@ -629,19 +629,19 @@ func adoptDesignChange(root string, request designAdoptionRequest) (map[string]a
 	if err != nil {
 		return nil, fmt.Errorf("cannot read design adoption binding: %v", err)
 	}
-	if err := validateDesignAdoptionSurface(root, request, bindingPath, bindingRaw); err != nil {
+	wantBinding := map[string]string{
+		"design_change_id":     request.ChangeID,
+		"design_change_ref":    designRef,
+		"design_change_sha256": designDigest,
+		"design_contract_ref":  designContractRef,
+	}
+	if err := validateDesignAdoptionSurface(root, request, bindingPath, bindingRaw, wantBinding); err != nil {
 		return nil, err
 	}
 	bindingDigestBytes := sha256.Sum256(bindingRaw)
 	bindingDigest := hex.EncodeToString(bindingDigestBytes[:])
 	if bindingDigest != request.BindingSHA256 {
 		return nil, fmt.Errorf("design adoption binding SHA-256 does not match %s", request.BindingRef)
-	}
-	wantBinding := map[string]string{
-		"design_change_id":     request.ChangeID,
-		"design_change_ref":    designRef,
-		"design_change_sha256": designDigest,
-		"design_contract_ref":  designContractRef,
 	}
 	if !designBindingContains(bindingRaw, wantBinding) {
 		return nil, fmt.Errorf("design adoption binding does not contain the exact registered change fields")
@@ -751,7 +751,7 @@ func designBindingContains(raw []byte, fields map[string]string) bool {
 	return true
 }
 
-func validateDesignAdoptionSurface(root string, request designAdoptionRequest, bindingPath string, bindingRaw []byte) error {
+func validateDesignAdoptionSurface(root string, request designAdoptionRequest, bindingPath string, bindingRaw []byte, wantBinding map[string]string) error {
 	if request.Mode == "formal" {
 		if !strings.HasPrefix(request.ConsumerRef, "feature:") {
 			return fmt.Errorf("formal design adoption consumer must use feature:<id>")
@@ -778,6 +778,17 @@ func validateDesignAdoptionSurface(root string, request designAdoptionRequest, b
 	}
 	if doc.ConfirmationState != "confirmed" && doc.ConfirmationState != "inherited" {
 		return fmt.Errorf("quick design adoption checkpoint must be confirmed or inherited")
+	}
+	confirmedBinding, _ := doc.Decision.UIConfirmation["design_binding"].(map[string]any)
+	if !hexDigestRE.MatchString(strings.ToLower(strings.TrimSpace(doc.ConfirmationDigest))) ||
+		!quickBool(doc.Decision.UIConfirmation["applicable"]) ||
+		strings.TrimSpace(fmt.Sprint(confirmedBinding["scope"])) != request.Scope {
+		return fmt.Errorf("quick design adoption requires the confirmed UI design binding to match the exact scope and registered change")
+	}
+	for key, value := range wantBinding {
+		if strings.TrimSpace(fmt.Sprint(confirmedBinding[key])) != value {
+			return fmt.Errorf("quick design adoption requires the confirmed UI design binding to match the exact scope and registered change")
+		}
 	}
 	return nil
 }
