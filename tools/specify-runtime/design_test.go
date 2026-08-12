@@ -938,10 +938,10 @@ note: exact source UD-0042
 		digest := sha256.Sum256([]byte(body))
 		return fmt.Sprintf("%x", digest)
 	}
-	writeConfirmation := func(state string) {
+	writeConfirmation := func(state, boundChange string) {
 		t.Helper()
-		body := fmt.Sprintf(`{"schema":"quick-confirmation-v1","confirmation_state":%q}
-`, state)
+		body := fmt.Sprintf(`{"schema":"quick-confirmation-v1","confirmation_state":%q,"confirmation_digest":"%s","decision":{"ui_confirmation":{"applicable":true,"design_binding":{"scope":"web:orders/detail","design_change_id":%q,"design_change_ref":".specify/design/changes/UD-0042/DESIGN.md","design_change_sha256":%q,"design_contract_ref":%q}}}}
+`, state, strings.Repeat("c", 64), boundChange, designDigest, filepath.ToSlash(contractPath))
 		if err := os.WriteFile(filepath.Join(workspace, "confirmation.json"), []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -961,11 +961,15 @@ note: exact source UD-0042
 		return exit, stdout.String()
 	}
 
-	writeConfirmation("staged")
+	writeConfirmation("staged", "UD-0042")
 	if exit, output := adopt(writeStatus(false, "UD-0042")); exit == 0 || !strings.Contains(output, "checkpoint must be confirmed") {
 		t.Fatalf("unconfirmed quick adoption must block: exit=%d output=%s", exit, output)
 	}
-	writeConfirmation("confirmed")
+	writeConfirmation("confirmed", "UD-9999")
+	if exit, output := adopt(writeStatus(true, "UD-0042")); exit == 0 || !strings.Contains(output, "confirmed UI design binding") {
+		t.Fatalf("unconfirmed replacement binding must block: exit=%d output=%s", exit, output)
+	}
+	writeConfirmation("confirmed", "UD-0042")
 	if exit, output := adopt(writeStatus(true, "UD-9999")); exit == 0 || !strings.Contains(output, "exact registered change fields") {
 		t.Fatalf("mismatched markdown binding must block: exit=%d output=%s", exit, output)
 	}

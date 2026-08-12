@@ -969,12 +969,25 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
         )
         return hashlib.sha256(status.read_bytes()).hexdigest()
 
-    def write_confirmation(state: str) -> None:
+    def write_confirmation(state: str, *, bound_change: str = "UD-0042") -> None:
         (workspace / "confirmation.json").write_text(
             json.dumps(
                 {
                     "schema": "quick-confirmation-v1",
                     "confirmation_state": state,
+                    "confirmation_digest": "c" * 64,
+                    "decision": {
+                        "ui_confirmation": {
+                            "applicable": True,
+                            "design_binding": {
+                                "scope": "web:orders/detail",
+                                "design_change_id": bound_change,
+                                "design_change_ref": ".specify/design/changes/UD-0042/DESIGN.md",
+                                "design_change_sha256": design_digest,
+                                "design_contract_ref": ".specify/design/changes/UD-0042/design-contract.json",
+                            },
+                        }
+                    },
                 }
             )
             + "\n",
@@ -992,6 +1005,20 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
             mode="quick",
             binding_ref=binding_ref,
             binding_sha256=staged_digest,
+            expected_change="none",
+        )
+
+    write_confirmation("confirmed", bound_change="UD-9999")
+    confirmed_digest = write_status(confirmed=True, bound_change="UD-0042")
+    with pytest.raises(DesignLintError, match="confirmed UI design binding"):
+        adopt_design_change(
+            tmp_path,
+            consumer_ref="quick:001-orders",
+            change_id="UD-0042",
+            scope="web:orders/detail",
+            mode="quick",
+            binding_ref=binding_ref,
+            binding_sha256=confirmed_digest,
             expected_change="none",
         )
 
