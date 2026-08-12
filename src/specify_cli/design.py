@@ -692,6 +692,20 @@ def scaffold_design_iteration(
                 f"iteration scope {scope} must stay within source change "
                 f"{normalized_source}"
             )
+        superseded_overlap = next(
+            (
+                row
+                for row in _superseded_scope_rows(source_record)
+                if _design_scope_intersection(scope, row["scope"]) is not None
+            ),
+            None,
+        )
+        if superseded_overlap is not None:
+            raise DesignLintError(
+                f"iteration scope {scope} is no longer active on source "
+                f"{normalized_source}; it was superseded by "
+                f"{superseded_overlap['by']} for {superseded_overlap['scope']}"
+            )
     selected_profiles = list(
         profile_ids or source_document.design_system.get("capability_profiles") or ["web"]
     )
@@ -1037,8 +1051,19 @@ def _binding_contains_design_fields(
     try:
         payload = json.loads(content)
     except (UnicodeDecodeError, json.JSONDecodeError):
-        text = content.decode("utf-8", errors="replace")
-        return all(key in text and value in text for key, value in fields.items())
+        text = content.decode("utf-8", errors="replace").replace("\r\n", "\n").replace(
+            "\r", "\n"
+        )
+        return all(
+            re.search(
+                rf"(?m)^[ \t]*(?:[-*][ \t]+)?{re.escape(key)}[ \t]*:[ \t]*"
+                rf"(?:{re.escape(value)}|\"{re.escape(value)}\"|'{re.escape(value)}')"
+                r"[ \t]*$",
+                text,
+            )
+            is not None
+            for key, value in fields.items()
+        )
     return all(
         _json_contains_design_field(payload, key, value)
         for key, value in fields.items()
@@ -1146,6 +1171,70 @@ def adopt_design_change(
         binding_content = binding_path.read_bytes()
     except (ValueError, OSError) as exc:
         raise DesignLintError(f"cannot read design adoption binding: {exc}") from exc
+    if normalized_mode == "formal":
+        if not normalized_consumer.startswith("feature:"):
+            raise DesignLintError(
+                "formal design adoption consumer must use feature:<id>"
+            )
+        if not (
+            relative_binding.endswith("/spec-contract.json")
+            and (
+                relative_binding.startswith("specs/")
+                or relative_binding.startswith(".specify/features/")
+            )
+        ):
+            raise DesignLintError(
+                "formal design adoption binding must be a feature spec-contract.json"
+            )
+    else:
+        if not normalized_consumer.startswith("quick:"):
+            raise DesignLintError(
+                "quick design adoption consumer must use quick:<id>"
+            )
+        if not (
+            relative_binding.startswith(".planning/quick/")
+            and relative_binding.endswith("/STATUS.md")
+        ):
+            raise DesignLintError(
+                "quick design adoption binding must be .planning/quick/<id>/STATUS.md"
+            )
+        text = binding_content.decode("utf-8", errors="replace")
+        frontmatter_match = FRONT_MATTER_RE.match(text)
+        try:
+            frontmatter = (
+                yaml.safe_load(frontmatter_match.group(1))
+                if frontmatter_match is not None
+                else None
+            )
+        except yaml.YAMLError as exc:
+            raise DesignLintError(
+                f"quick design adoption STATUS.md frontmatter is invalid: {exc}"
+            ) from exc
+        if not isinstance(frontmatter, dict) or frontmatter.get(
+            "understanding_confirmed"
+        ) is not True:
+            raise DesignLintError(
+                "quick design adoption checkpoint must be confirmed in STATUS.md"
+            )
+        confirmation_path = binding_path.parent / "confirmation.json"
+        try:
+            confirmation = json.loads(
+                confirmation_path.read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise DesignLintError(
+                "quick design adoption checkpoint must be confirmed through "
+                f"confirmation.json: {exc}"
+            ) from exc
+        if (
+            not isinstance(confirmation, dict)
+            or confirmation.get("schema") != "quick-confirmation-v1"
+            or confirmation.get("confirmation_state")
+            not in {"confirmed", "inherited"}
+        ):
+            raise DesignLintError(
+                "quick design adoption checkpoint must be confirmed or inherited"
+            )
     actual_binding_digest = hashlib.sha256(binding_content).hexdigest()
     if actual_binding_digest != normalized_binding_digest:
         raise DesignLintError(

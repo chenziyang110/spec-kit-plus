@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -149,6 +150,17 @@ func scaffoldDesignIteration(sourceID, changeID, title, changeType string, scope
 		}
 		if !within {
 			return "", fmt.Errorf("iteration scope %s must stay within source change %s", scope, sourceID)
+		}
+		for _, row := range designSupersededScopeRows(source) {
+			if _, overlaps := designScopeIntersection(scope, row["scope"].(string)); overlaps {
+				return "", fmt.Errorf(
+					"iteration scope %s is no longer active on source %s; it was superseded by %s for %s",
+					scope,
+					sourceID,
+					row["by"],
+					row["scope"],
+				)
+			}
 		}
 	}
 	profileIDs := []string{}
@@ -617,6 +629,9 @@ func adoptDesignChange(root string, request designAdoptionRequest) (map[string]a
 	if err != nil {
 		return nil, fmt.Errorf("cannot read design adoption binding: %v", err)
 	}
+	if err := validateDesignAdoptionSurface(root, request, bindingPath, bindingRaw); err != nil {
+		return nil, err
+	}
 	bindingDigestBytes := sha256.Sum256(bindingRaw)
 	bindingDigest := hex.EncodeToString(bindingDigestBytes[:])
 	if bindingDigest != request.BindingSHA256 {
@@ -724,13 +739,47 @@ func designBindingContains(raw []byte, fields map[string]string) bool {
 		}
 		return true
 	}
-	content := string(raw)
+	content := strings.ReplaceAll(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\r", "\n")
 	for key, value := range fields {
-		if !strings.Contains(content, key) || !strings.Contains(content, value) {
+		pattern := `(?m)^[\t ]*(?:[-*][\t ]+)?` + regexp.QuoteMeta(key) +
+			`[\t ]*:[\t ]*(?:` + regexp.QuoteMeta(value) + `|"` + regexp.QuoteMeta(value) +
+			`"|'` + regexp.QuoteMeta(value) + `')[\t ]*$`
+		if !regexp.MustCompile(pattern).MatchString(content) {
 			return false
 		}
 	}
 	return true
+}
+
+func validateDesignAdoptionSurface(root string, request designAdoptionRequest, bindingPath string, bindingRaw []byte) error {
+	if request.Mode == "formal" {
+		if !strings.HasPrefix(request.ConsumerRef, "feature:") {
+			return fmt.Errorf("formal design adoption consumer must use feature:<id>")
+		}
+		validRoot := strings.HasPrefix(request.BindingRef, "specs/") || strings.HasPrefix(request.BindingRef, ".specify/features/")
+		if !validRoot || !strings.HasSuffix(request.BindingRef, "/spec-contract.json") {
+			return fmt.Errorf("formal design adoption binding must be a feature spec-contract.json")
+		}
+		return nil
+	}
+	if !strings.HasPrefix(request.ConsumerRef, "quick:") {
+		return fmt.Errorf("quick design adoption consumer must use quick:<id>")
+	}
+	if !strings.HasPrefix(request.BindingRef, ".planning/quick/") || !strings.HasSuffix(request.BindingRef, "/STATUS.md") {
+		return fmt.Errorf("quick design adoption binding must be .planning/quick/<id>/STATUS.md")
+	}
+	frontmatter, _ := parseFrontmatter(string(bindingRaw))
+	if !strings.EqualFold(strings.TrimSpace(frontmatter["understanding_confirmed"]), "true") {
+		return fmt.Errorf("quick design adoption checkpoint must be confirmed in STATUS.md")
+	}
+	doc, err := (quickService{projectRoot: root}).loadConfirmation(filepath.Dir(bindingPath))
+	if err != nil {
+		return fmt.Errorf("quick design adoption checkpoint must be confirmed through confirmation.json: %v", err)
+	}
+	if doc.ConfirmationState != "confirmed" && doc.ConfirmationState != "inherited" {
+		return fmt.Errorf("quick design adoption checkpoint must be confirmed or inherited")
+	}
+	return nil
 }
 
 func designJSONContainsField(value any, key, want string) bool {

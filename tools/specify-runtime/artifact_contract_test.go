@@ -1058,6 +1058,11 @@ func TestArtifactScaffoldCreatesRegisteredQuickStatusFromInstalledTemplate(t *te
 	if !bytes.Contains(stored, []byte("status: gathering")) || !bytes.Contains(stored, []byte("understanding_confirmed: false")) {
 		t.Fatalf("quick scaffold changed safe defaults: %q", content)
 	}
+	for _, field := range []string{"## UI Design Binding", "design_change_id:", "design_change_ref:", "design_change_sha256:", "design_contract_ref:"} {
+		if !bytes.Contains(stored, []byte(field)) {
+			t.Fatalf("quick scaffold missing deterministic UI design binding field %q: %q", field, content)
+		}
+	}
 	if !bytes.Contains(stored, []byte(`title: "Demo \"quoted\""`)) {
 		t.Fatalf("quick scaffold did not escape YAML scalar: %q", content)
 	}

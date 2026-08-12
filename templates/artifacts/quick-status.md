@@ -42,6 +42,16 @@ test_design_gate:
     source_fingerprint:
     state_revision:
 
+## UI Design Binding
+<!-- agent-fill:ui_design_binding; required when ui_confirmation.applicable is true -->
+
+ui_design_binding:
+  scope: ""
+  design_change_id: ""
+  design_change_ref: ""
+  design_change_sha256: ""
+  design_contract_ref: ""
+
 ## Current Focus
 <!-- agent-fill:current_focus -->
 
