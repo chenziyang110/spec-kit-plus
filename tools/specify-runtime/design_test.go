@@ -997,21 +997,34 @@ func TestDesignQuickAdoptRequiresConfirmedExactStatusBinding(t *testing.T) {
 	}
 	bindingRef := filepath.ToSlash(filepath.Join(workspace, "STATUS.md"))
 
-	writeStatus := func(confirmed bool, boundChange, boundScope string) string {
+	writeStatus := func(confirmed bool, boundChange, boundScope, bindingShape string) string {
 		t.Helper()
+		bindingBody := fmt.Sprintf(`ui_design_binding:
+  scope: %s
+  design_change_id: %s
+  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+  design_change_sha256: %s
+  design_contract_ref: %s
+`, boundScope, boundChange, designDigest, filepath.ToSlash(contractPath))
+		if bindingShape == "flat" {
+			bindingBody = fmt.Sprintf(`scope: %s
+design_change_id: %s
+design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+design_change_sha256: %s
+design_contract_ref: %s
+`, boundScope, boundChange, designDigest, filepath.ToSlash(contractPath))
+		} else if bindingShape == "masked-mismatch" {
+			bindingBody += "\n## Notes\n\ndesign_change_id: UD-0042\n"
+		}
 		body := fmt.Sprintf(`---
 understanding_confirmed: %t
 ---
 
 ## UI Design Binding
 
-scope: %s
-design_change_id: %s
-design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
-design_change_sha256: %s
-design_contract_ref: %s
+%s
 note: exact source UD-0042
-`, confirmed, boundScope, boundChange, designDigest, filepath.ToSlash(contractPath))
+`, confirmed, bindingBody)
 		if err := os.WriteFile(filepath.FromSlash(bindingRef), []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -1042,21 +1055,24 @@ note: exact source UD-0042
 	}
 
 	writeConfirmation("staged", "UD-0042")
-	if exit, output := adopt(writeStatus(false, "UD-0042", "web:orders/detail")); exit == 0 || !strings.Contains(output, "checkpoint must be confirmed") {
+	if exit, output := adopt(writeStatus(false, "UD-0042", "web:orders/detail", "nested")); exit == 0 || !strings.Contains(output, "checkpoint must be confirmed") {
 		t.Fatalf("unconfirmed quick adoption must block: exit=%d output=%s", exit, output)
 	}
 	writeConfirmation("confirmed", "UD-9999")
-	if exit, output := adopt(writeStatus(true, "UD-0042", "web:orders/detail")); exit == 0 || !strings.Contains(output, "confirmed UI design binding") {
+	if exit, output := adopt(writeStatus(true, "UD-0042", "web:orders/detail", "nested")); exit == 0 || !strings.Contains(output, "confirmed UI design binding") {
 		t.Fatalf("unconfirmed replacement binding must block: exit=%d output=%s", exit, output)
 	}
 	writeConfirmation("confirmed", "UD-0042")
-	if exit, output := adopt(writeStatus(true, "UD-9999", "web:orders/detail")); exit == 0 || !strings.Contains(output, "exact registered change fields") {
+	if exit, output := adopt(writeStatus(true, "UD-0042", "web:orders/detail", "flat")); exit == 0 || !strings.Contains(output, "ui_design_binding mapping") {
+		t.Fatalf("quick adoption without ui_design_binding container must block: exit=%d output=%s", exit, output)
+	}
+	if exit, output := adopt(writeStatus(true, "UD-9999", "web:orders/detail", "nested")); exit == 0 || !strings.Contains(output, "exact registered change fields") {
 		t.Fatalf("mismatched markdown binding must block: exit=%d output=%s", exit, output)
 	}
-	if exit, output := adopt(writeStatus(true, "UD-0042", "web:orders/summary")); exit == 0 || !strings.Contains(output, "exact registered change fields") {
+	if exit, output := adopt(writeStatus(true, "UD-0042", "web:orders/summary", "nested")); exit == 0 || !strings.Contains(output, "exact registered change fields") {
 		t.Fatalf("mismatched markdown binding scope must block: exit=%d output=%s", exit, output)
 	}
-	if exit, output := adopt(writeStatus(true, "UD-0042", "web:orders/detail")); exit != 0 {
+	if exit, output := adopt(writeStatus(true, "UD-0042", "web:orders/detail", "nested")); exit != 0 {
 		t.Fatalf("confirmed exact quick adoption failed: exit=%d output=%s", exit, output)
 	}
 	index := readDesignChangeIndexRuntime(t)
@@ -1066,6 +1082,57 @@ note: exact source UD-0042
 	}
 	if receipt["reconcile_from"] != "quick-checkpoint" || !reflect.DeepEqual(stringList(receipt["reconciliation_actions"]), []string{"confirm_quick_design_binding", "compile_quick_ui_work_items"}) {
 		t.Fatalf("initial quick reconciliation = %#v", receipt)
+	}
+}
+
+func TestDesignQuickAdoptRejectsStatusBindingThatDiffersFromConfirmation(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	designPath, designDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	contractPath := filepath.ToSlash(writeDesignContractRuntime(t, designPath))
+	workspace := filepath.Join(".planning", "quick", "001-orders")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bindingRef := filepath.ToSlash(filepath.Join(workspace, "STATUS.md"))
+	statusBody := fmt.Sprintf(`---
+understanding_confirmed: true
+---
+
+## UI Design Binding
+
+ui_design_binding:
+  scope: web:orders/detail
+  design_change_id: UD-9999
+  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+  design_change_sha256: %s
+  design_contract_ref: %s
+
+## Notes
+
+design_change_id: UD-0042
+`, designDigest, contractPath)
+	if err := os.WriteFile(filepath.FromSlash(bindingRef), []byte(statusBody), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	confirmationBody := fmt.Sprintf(`{"schema":"quick-confirmation-v1","confirmation_state":"confirmed","confirmation_digest":"%s","decision":{"ui_confirmation":{"applicable":true,"design_binding":{"scope":"web:orders/detail","design_change_id":"UD-0042","design_change_ref":".specify/design/changes/UD-0042/DESIGN.md","design_change_sha256":%q,"design_contract_ref":%q}}}}
+`, strings.Repeat("c", 64), designDigest, contractPath)
+	if err := os.WriteFile(filepath.Join(workspace, "confirmation.json"), []byte(confirmationBody), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256([]byte(statusBody))
+	var stdout bytes.Buffer
+	exit := runDesign([]string{
+		"adopt", "quick:001-orders",
+		"--change", "UD-0042",
+		"--scope", "web:orders/detail",
+		"--mode", "quick",
+		"--binding-ref", bindingRef,
+		"--binding-sha256", fmt.Sprintf("%x", digest),
+		"--expected-change", "none",
+	}, &stdout)
+	if output := stdout.String(); exit == 0 || !strings.Contains(output, "exact-match confirmation.json") {
+		t.Fatalf("quick adoption with mismatched binding copies must block: exit=%d output=%s", exit, output)
 	}
 }
 

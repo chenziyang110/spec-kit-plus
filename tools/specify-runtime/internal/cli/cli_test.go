@@ -616,8 +616,13 @@ func TestRootHelpListsCloseoutPlan(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "changes, closeout-plan, update") {
-		t.Fatalf("help does not list closeout-plan after changes:\n%s", stdout.String())
+	help := stdout.String()
+	changesIndex := strings.Index(help, "changes")
+	closeoutPlanIndex := strings.Index(help, "closeout-plan")
+	updateIndex := strings.Index(help, "update")
+	if changesIndex < 0 || closeoutPlanIndex < 0 || updateIndex < 0 ||
+		changesIndex >= closeoutPlanIndex || closeoutPlanIndex >= updateIndex {
+		t.Fatalf("help does not list closeout-plan between changes and update:\n%s", help)
 	}
 }
 

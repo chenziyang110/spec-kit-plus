@@ -65,7 +65,10 @@ def test_quick_uses_scaffold_checkpoint_handoff_and_full_propagation_sweep() -> 
     content = _surface("quick")
 
     assert "artifact scaffold --kind quick-status" in content
-    assert "understanding_confirmed: false" in content
+    assert "quick-confirmation-v1" in content
+    assert "confirmation.json" in content
+    assert "confirmed or inherited state" in content
+    assert "understanding_confirmed: false" not in content
     assert "wait for user confirmation" in content
     assert "handoff-to-specify.json" in content
     assert "consumer_eligibility.sp-quick.status" in content

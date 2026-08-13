@@ -118,9 +118,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
         ),
         encoding="utf-8",
     )
-    (feature_dir / "task-index.json").write_text(
-        json.dumps(
-            {
+    task_index = {
                 "version": 2,
                 "status": "ready",
                 "tasks": [
@@ -217,13 +215,35 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                     }
                 ],
             }
-        ),
+    task_index_path = feature_dir / "task-index.json"
+    task_index_path.write_text(
+        json.dumps(task_index),
         encoding="utf-8",
     )
     (feature_dir / "tasks.md").write_text(
         "# Tasks\n\n- [ ] T021 Implement UI without duplicated markdown contract\n",
         encoding="utf-8",
     )
+
+    with pytest.raises(PacketValidationError, match="change-local HTML preview"):
+        compile_worker_task_packet(
+            project_root=project_root,
+            feature_dir=feature_dir,
+            task_id="T021",
+        )
+
+    ui_contract = task_index["tasks"][0]["ui_contract"]
+    ui_contract.update(
+        {
+            "approved_visual_ref": ".specify/design/changes/UD-0042/previews/round-01.html#direction-settings",
+            "approved_preview_sha256": "b" * 64,
+            "approved_manifest_sha256": "c" * 64,
+            "approved_handoff_ref": ".specify/design/changes/UD-0042/previews/round-01.handoff.json",
+            "approved_handoff_sha256": "d" * 64,
+            "handoff_contract_ids": ["DH-COMP-001"],
+        }
+    )
+    task_index_path.write_text(json.dumps(task_index), encoding="utf-8")
 
     packet = compile_worker_task_packet(
         project_root=project_root,
@@ -245,7 +265,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
     )
     assert (
         packet.ui_contract.approved_visual_ref
-        == ".specify/design/changes/UD-0042/previews/round-01.html#settings-direction"
+        == ".specify/design/changes/UD-0042/previews/round-01.html#direction-settings"
     )
     assert packet.ui_contract.reference_intents[0]["intent"] == "preserve-structure"
     assert (
@@ -305,7 +325,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
             runtime_evidence="pass",
             visual_comparison="passed",
             fidelity_status="passed",
-            approved_visual_ref=".specify/design/changes/UD-0042/previews/round-01.html#settings-direction",
+            approved_visual_ref=".specify/design/changes/UD-0042/previews/round-01.html#direction-settings",
             comparison_report_ref="artifacts/ui/settings-comparison.json",
             comparison_report_sha256="c" * 64,
             implementation_capture_refs=["artifacts/ui/settings.png"],

@@ -376,6 +376,29 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
     with pytest.raises(PacketValidationError, match="approved_visual_ref"):
         validate_worker_task_packet(sample_packet)
 
+    sample_packet.ui_contract.ui_work_type = "existing-pattern"
+    sample_packet.ui_contract.approved_visual_ref = "src/ui/settings.tsx#existing-pattern"
+    assert validate_worker_task_packet(sample_packet) is sample_packet
+
+    sample_packet.ui_contract.ui_work_type = "feature-extension"
+    sample_packet.ui_contract.design_change_id = "UD-0042"
+    sample_packet.ui_contract.design_change_ref = (
+        ".specify/design/changes/UD-0042/DESIGN.md"
+    )
+    sample_packet.ui_contract.design_change_sha256 = "a" * 64
+    sample_packet.ui_contract.design_contract_ref = (
+        ".specify/design/changes/UD-0042/design-contract.json"
+    )
+    sample_packet.ui_contract.design_sources = [
+        ".specify/design/changes/UD-0042/DESIGN.md",
+        ".specify/design/changes/UD-0042/design-contract.json",
+    ]
+    sample_packet.ui_contract.approved_visual_ref = (
+        ".specify/design/changes/UD-0042/previews/round-01.html#settings-direction"
+    )
+    with pytest.raises(PacketValidationError, match="change-local HTML preview"):
+        validate_worker_task_packet(sample_packet)
+
 
 def test_compile_worker_task_packet_collects_must_preserve_obligations(
     tmp_path: Path,

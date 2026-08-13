@@ -1044,8 +1044,18 @@ def test_design_adoption_requires_expected_change_and_retains_history(
     ]
 
 
+@pytest.mark.parametrize(
+    ("strict_binding_shape", "strict_bound_change", "strict_error"),
+    [
+        ("flat", "UD-0042", "ui_design_binding mapping"),
+        ("masked-mismatch", "UD-9999", "exact-match confirmation.json"),
+    ],
+)
 def test_quick_design_adoption_requires_confirmed_exact_status_binding(
     tmp_path: Path,
+    strict_binding_shape: str,
+    strict_bound_change: str,
+    strict_error: str,
 ) -> None:
     design_path, design_digest = _create_registered_change(
         tmp_path, "UD-0042", "web:orders"
@@ -1063,18 +1073,36 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
         confirmed: bool,
         bound_change: str,
         bound_scope: str = "web:orders/detail",
+        binding_shape: str = "nested",
     ) -> str:
         status = workspace / "STATUS.md"
+        binding_lines = (
+            "ui_design_binding:\n"
+            f"  scope: {bound_scope}\n"
+            f"  design_change_id: {bound_change}\n"
+            "  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md\n"
+            f"  design_change_sha256: {design_digest}\n"
+            "  design_contract_ref: .specify/design/changes/UD-0042/design-contract.json\n"
+        )
+        if binding_shape == "flat":
+            binding_lines = (
+                f"scope: {bound_scope}\n"
+                f"design_change_id: {bound_change}\n"
+                "design_change_ref: .specify/design/changes/UD-0042/DESIGN.md\n"
+                f"design_change_sha256: {design_digest}\n"
+                "design_contract_ref: .specify/design/changes/UD-0042/design-contract.json\n"
+            )
+        elif binding_shape == "masked-mismatch":
+            binding_lines += (
+                "\n## Notes\n\n"
+                "design_change_id: UD-0042\n"
+            )
         status.write_text(
             "---\n"
             f"understanding_confirmed: {'true' if confirmed else 'false'}\n"
             "---\n\n"
             "## UI Design Binding\n\n"
-            f"scope: {bound_scope}\n"
-            f"design_change_id: {bound_change}\n"
-            "design_change_ref: .specify/design/changes/UD-0042/DESIGN.md\n"
-            f"design_change_sha256: {design_digest}\n"
-            "design_contract_ref: .specify/design/changes/UD-0042/design-contract.json\n"
+            f"{binding_lines}"
             "note: exact source UD-0042\n",
             encoding="utf-8",
         )
@@ -1134,6 +1162,23 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
         )
 
     write_confirmation("confirmed")
+    strict_binding_digest = write_status(
+        confirmed=True,
+        bound_change=strict_bound_change,
+        binding_shape=strict_binding_shape,
+    )
+    with pytest.raises(DesignLintError, match=strict_error):
+        adopt_design_change(
+            tmp_path,
+            consumer_ref="quick:001-orders",
+            change_id="UD-0042",
+            scope="web:orders/detail",
+            mode="quick",
+            binding_ref=binding_ref,
+            binding_sha256=strict_binding_digest,
+            expected_change="none",
+        )
+
     mismatched_digest = write_status(confirmed=True, bound_change="UD-9999")
     with pytest.raises(DesignLintError, match="exact registered change fields"):
         adopt_design_change(
