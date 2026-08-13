@@ -1045,16 +1045,37 @@ def test_design_adoption_requires_expected_change_and_retains_history(
 
 
 @pytest.mark.parametrize(
-    ("strict_binding_shape", "strict_bound_change", "strict_error"),
+    (
+        "strict_binding_shape",
+        "strict_bound_change",
+        "strict_confirmation_shape",
+        "strict_error",
+    ),
     [
-        ("flat", "UD-0042", "ui_design_binding mapping"),
-        ("masked-mismatch", "UD-9999", "exact-match confirmation.json"),
+        ("flat", "UD-0042", "valid", "ui_design_binding mapping"),
+        (
+            "masked-mismatch",
+            "UD-9999",
+            "valid",
+            "exact-match confirmation.json",
+        ),
+        ("case-duplicate", "UD-0042", "valid", "exactly one"),
+        ("duplicate-key", "UD-0042", "valid", "duplicate"),
+        ("nested", "UD-0042", "minimal-forged", "confirmation digest"),
+        (
+            "nested",
+            "UD-0042",
+            "minimal-self-consistent",
+            "decision.goal",
+        ),
+        ("nested", "UD-0042", "tampered-decision", "confirmation digest"),
     ],
 )
 def test_quick_design_adoption_requires_confirmed_exact_status_binding(
     tmp_path: Path,
     strict_binding_shape: str,
     strict_bound_change: str,
+    strict_confirmation_shape: str,
     strict_error: str,
 ) -> None:
     design_path, design_digest = _create_registered_change(
@@ -1097,6 +1118,23 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
                 "\n## Notes\n\n"
                 "design_change_id: UD-0042\n"
             )
+        elif binding_shape == "case-duplicate":
+            binding_lines += (
+                "\n## UI design binding\n\n"
+                "ui_design_binding:\n"
+                f"  scope: {bound_scope}\n"
+                f"  design_change_id: {bound_change}\n"
+                "  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md\n"
+                f"  design_change_sha256: {design_digest}\n"
+                "  design_contract_ref: .specify/design/changes/UD-0042/design-contract.json\n"
+            )
+        elif binding_shape == "duplicate-key":
+            binding_lines = binding_lines.replace(
+                f"  scope: {bound_scope}\n",
+                "  scope: web:orders/summary\n"
+                f"  scope: {bound_scope}\n",
+                1,
+            )
         status.write_text(
             "---\n"
             f"understanding_confirmed: {'true' if confirmed else 'false'}\n"
@@ -1108,28 +1146,138 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
         )
         return hashlib.sha256(status.read_bytes()).hexdigest()
 
-    def write_confirmation(state: str, *, bound_change: str = "UD-0042") -> None:
-        (workspace / "confirmation.json").write_text(
-            json.dumps(
+    def decision_payload(bound_change: str = "UD-0042") -> dict[str, object]:
+        return {
+            "goal": "Adopt the approved orders UI",
+            "user_visible_result": "The orders detail uses the approved design",
+            "scope": {
+                "include": ["web:orders/detail"],
+                "exclude": [],
+                "defer": [],
+            },
+            "items": [
                 {
-                    "schema": "quick-confirmation-v1",
-                    "confirmation_state": state,
-                    "confirmation_digest": "c" * 64,
-                    "decision": {
-                        "ui_confirmation": {
-                            "applicable": True,
-                            "design_binding": {
-                                "scope": "web:orders/detail",
-                                "design_change_id": bound_change,
-                                "design_change_ref": ".specify/design/changes/UD-0042/DESIGN.md",
-                                "design_change_sha256": design_digest,
-                                "design_contract_ref": ".specify/design/changes/UD-0042/design-contract.json",
-                            },
-                        }
-                    },
+                    "id": "Q1",
+                    "deliverable": "Apply the approved orders UI",
+                    "depends_on": [],
+                    "acceptance": "The exact design binding is used",
+                    "write_scope": ["src/orders"],
+                }
+            ],
+            "recommended_approach": "",
+            "assumptions_and_risks": [],
+            "completion_evidence": [],
+            "reconfirmation_trigger": "The approved design binding changes",
+            "ui_confirmation": {
+                "applicable": True,
+                "design_binding": {
+                    "scope": "web:orders/detail",
+                    "design_change_id": bound_change,
+                    "design_change_ref": ".specify/design/changes/UD-0042/DESIGN.md",
+                    "design_change_sha256": design_digest,
+                    "design_contract_ref": ".specify/design/changes/UD-0042/design-contract.json",
+                },
+            },
+        }
+
+    def decision_digest(decision: dict[str, object]) -> str:
+        raw_scope = decision.get("scope")
+        scope = raw_scope if isinstance(raw_scope, dict) else {}
+        raw_items = decision.get("items")
+        items = raw_items if isinstance(raw_items, list) else []
+        normalized_items = []
+        for raw_item in sorted(
+            (item for item in items if isinstance(item, dict)),
+            key=lambda item: str(item.get("id") or ""),
+        ):
+            raw_dependencies = raw_item.get("depends_on")
+            dependencies = (
+                raw_dependencies if isinstance(raw_dependencies, list) else []
+            )
+            normalized_items.append(
+                {
+                    "id": str(raw_item.get("id") or ""),
+                    "deliverable": str(raw_item.get("deliverable") or ""),
+                    "depends_on": sorted(str(value) for value in dependencies),
+                    "acceptance": str(raw_item.get("acceptance") or ""),
                 }
             )
-            + "\n",
+        protected = {
+            "schema": "quick-confirmation-v1",
+            "goal": str(decision.get("goal") or ""),
+            "user_visible_result": str(
+                decision.get("user_visible_result") or ""
+            ),
+            "scope": {
+                "include": list(scope.get("include") or []),
+                "exclude": list(scope.get("exclude") or []),
+                "defer": list(scope.get("defer") or []),
+            },
+            "items": normalized_items,
+            "recommended_approach": str(
+                decision.get("recommended_approach") or ""
+            ),
+            "assumptions_and_risks": list(
+                decision.get("assumptions_and_risks") or []
+            ),
+            "completion_evidence": list(
+                decision.get("completion_evidence") or []
+            ),
+            "reconfirmation_trigger": str(
+                decision.get("reconfirmation_trigger") or ""
+            ),
+            "ui_confirmation": decision.get("ui_confirmation"),
+        }
+        canonical = json.dumps(
+            protected,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
+
+    def write_confirmation(
+        state: str,
+        *,
+        bound_change: str = "UD-0042",
+        confirmation_shape: str = "valid",
+    ) -> None:
+        if confirmation_shape == "minimal-forged":
+            confirmation = {
+                "schema": "quick-confirmation-v1",
+                "confirmation_state": state,
+                "confirmation_digest": "c" * 64,
+                "decision": {
+                    "ui_confirmation": decision_payload(bound_change)[
+                        "ui_confirmation"
+                    ]
+                },
+            }
+        elif confirmation_shape == "minimal-self-consistent":
+            minimal_decision = {
+                "ui_confirmation": decision_payload(bound_change)[
+                    "ui_confirmation"
+                ]
+            }
+            confirmation = {
+                "schema": "quick-confirmation-v1",
+                "confirmation_state": state,
+                "confirmation_digest": decision_digest(minimal_decision),
+                "decision": minimal_decision,
+            }
+        else:
+            decision = decision_payload(bound_change)
+            digest = decision_digest(decision)
+            if confirmation_shape == "tampered-decision":
+                decision["goal"] = "Tampered after confirmation"
+            confirmation = {
+                "schema": "quick-confirmation-v1",
+                "confirmation_state": state,
+                "confirmation_digest": digest,
+                "decision": decision,
+            }
+        (workspace / "confirmation.json").write_text(
+            json.dumps(confirmation) + "\n",
             encoding="utf-8",
         )
 
@@ -1161,7 +1309,7 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
             expected_change="none",
         )
 
-    write_confirmation("confirmed")
+    write_confirmation("confirmed", confirmation_shape=strict_confirmation_shape)
     strict_binding_digest = write_status(
         confirmed=True,
         bound_change=strict_bound_change,
@@ -1179,6 +1327,7 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
             expected_change="none",
         )
 
+    write_confirmation("confirmed")
     mismatched_digest = write_status(confirmed=True, bound_change="UD-9999")
     with pytest.raises(DesignLintError, match="exact registered change fields"):
         adopt_design_change(

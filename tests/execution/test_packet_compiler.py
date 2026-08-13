@@ -89,8 +89,27 @@ def test_compile_worker_task_packet_prefers_canonical_task_index_for_jit_packet(
     assert [item.obligation_id for item in packet.consequence_obligations] == ["CA-001"]
 
 
+@pytest.mark.parametrize(
+    ("bypass_visual_ref", "bypass_handoff_ref"),
+    [
+        (
+            ".specify/design/changes/UD-0042/previews/custom.html#direction-x",
+            ".specify/design/changes/UD-0042/previews/custom.handoff.json",
+        ),
+        (
+            ".specify/design/changes/UD-0042/previews/round-01.html?view=1#direction-x",
+            ".specify/design/changes/UD-0042/previews/round-01.handoff.json",
+        ),
+        (
+            ".specify/design/changes/UD-0042/previews/round-01.html#direction-x",
+            ".specify/design/changes/UD-0042/previews/round-99.handoff.json",
+        ),
+    ],
+)
 def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
     tmp_path: Path,
+    bypass_visual_ref: str,
+    bypass_handoff_ref: str,
 ) -> None:
     project_root = tmp_path / "project"
     feature_dir = project_root / "specs" / "001-ui-feature"
@@ -233,6 +252,24 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
         )
 
     ui_contract = task_index["tasks"][0]["ui_contract"]
+    ui_contract.update(
+        {
+            "approved_visual_ref": bypass_visual_ref,
+            "approved_preview_sha256": "b" * 64,
+            "approved_manifest_sha256": "c" * 64,
+            "approved_handoff_ref": bypass_handoff_ref,
+            "approved_handoff_sha256": "d" * 64,
+            "handoff_contract_ids": ["DH-COMP-001"],
+        }
+    )
+    task_index_path.write_text(json.dumps(task_index), encoding="utf-8")
+    with pytest.raises(PacketValidationError, match="change-local HTML preview"):
+        compile_worker_task_packet(
+            project_root=project_root,
+            feature_dir=feature_dir,
+            task_id="T021",
+        )
+
     ui_contract.update(
         {
             "approved_visual_ref": ".specify/design/changes/UD-0042/previews/round-01.html#direction-settings",

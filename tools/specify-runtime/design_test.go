@@ -1015,6 +1015,15 @@ design_contract_ref: %s
 `, boundScope, boundChange, designDigest, filepath.ToSlash(contractPath))
 		} else if bindingShape == "masked-mismatch" {
 			bindingBody += "\n## Notes\n\ndesign_change_id: UD-0042\n"
+		} else if bindingShape == "case-duplicate" {
+			bindingBody += "\n## UI design binding\n\n" + bindingBody
+		} else if bindingShape == "duplicate-key" {
+			bindingBody = strings.Replace(
+				bindingBody,
+				"  scope: "+boundScope+"\n",
+				"  scope: web:orders/summary\n  scope: "+boundScope+"\n",
+				1,
+			)
 		}
 		body := fmt.Sprintf(`---
 understanding_confirmed: %t
@@ -1033,9 +1042,23 @@ note: exact source UD-0042
 	}
 	writeConfirmation := func(state, boundChange string) {
 		t.Helper()
-		body := fmt.Sprintf(`{"schema":"quick-confirmation-v1","confirmation_state":%q,"confirmation_digest":"%s","decision":{"ui_confirmation":{"applicable":true,"design_binding":{"scope":"web:orders/detail","design_change_id":%q,"design_change_ref":".specify/design/changes/UD-0042/DESIGN.md","design_change_sha256":%q,"design_contract_ref":%q}}}}
-`, state, strings.Repeat("c", 64), boundChange, designDigest, filepath.ToSlash(contractPath))
-		if err := os.WriteFile(filepath.Join(workspace, "confirmation.json"), []byte(body), 0o644); err != nil {
+		decision := quickAdoptionTestDecision(designDigest, filepath.ToSlash(contractPath), boundChange)
+		digest, err := computeQuickConfirmationDigest(decision)
+		if err != nil {
+			t.Fatal(err)
+		}
+		doc := quickConfirmationDoc{
+			Schema:             quickConfirmationSchema,
+			ConfirmationState:  state,
+			ConfirmationDigest: digest,
+			Decision:           decision,
+		}
+		body, err := json.Marshal(doc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body = append(body, '\n')
+		if err := os.WriteFile(filepath.Join(workspace, "confirmation.json"), body, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1115,9 +1138,22 @@ design_change_id: UD-0042
 	if err := os.WriteFile(filepath.FromSlash(bindingRef), []byte(statusBody), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	confirmationBody := fmt.Sprintf(`{"schema":"quick-confirmation-v1","confirmation_state":"confirmed","confirmation_digest":"%s","decision":{"ui_confirmation":{"applicable":true,"design_binding":{"scope":"web:orders/detail","design_change_id":"UD-0042","design_change_ref":".specify/design/changes/UD-0042/DESIGN.md","design_change_sha256":%q,"design_contract_ref":%q}}}}
-`, strings.Repeat("c", 64), designDigest, contractPath)
-	if err := os.WriteFile(filepath.Join(workspace, "confirmation.json"), []byte(confirmationBody), 0o644); err != nil {
+	decision := quickAdoptionTestDecision(designDigest, contractPath, "UD-0042")
+	confirmationDigest, err := computeQuickConfirmationDigest(decision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirmationBody, err := json.Marshal(quickConfirmationDoc{
+		Schema:             quickConfirmationSchema,
+		ConfirmationState:  "confirmed",
+		ConfirmationDigest: confirmationDigest,
+		Decision:           decision,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirmationBody = append(confirmationBody, '\n')
+	if err := os.WriteFile(filepath.Join(workspace, "confirmation.json"), confirmationBody, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	digest := sha256.Sum256([]byte(statusBody))
@@ -1133,6 +1169,162 @@ design_change_id: UD-0042
 	}, &stdout)
 	if output := stdout.String(); exit == 0 || !strings.Contains(output, "exact-match confirmation.json") {
 		t.Fatalf("quick adoption with mismatched binding copies must block: exit=%d output=%s", exit, output)
+	}
+}
+
+func TestDesignQuickAdoptRejectsAmbiguousStatusAndInvalidConfirmationDigest(t *testing.T) {
+	tests := []struct {
+		name              string
+		statusShape       string
+		confirmationShape string
+		wantError         string
+	}{
+		{name: "case-insensitive duplicate heading", statusShape: "case-duplicate", confirmationShape: "valid", wantError: "exactly one"},
+		{name: "duplicate binding key", statusShape: "duplicate-key", confirmationShape: "valid", wantError: "scope"},
+		{name: "minimal forged digest", statusShape: "nested", confirmationShape: "minimal-forged", wantError: "confirmation digest"},
+		{name: "minimal self-consistent digest", statusShape: "nested", confirmationShape: "minimal-self-consistent", wantError: "decision.goal"},
+		{name: "decision changed after digest", statusShape: "nested", confirmationShape: "tampered-decision", wantError: "confirmation digest"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmp := t.TempDir()
+			withCwd(t, tmp)
+			designPath, designDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+			contractPath := filepath.ToSlash(writeDesignContractRuntime(t, designPath))
+			workspace := filepath.Join(".planning", "quick", "001-orders")
+			if err := os.MkdirAll(workspace, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			bindingRef := filepath.ToSlash(filepath.Join(workspace, "STATUS.md"))
+			bindingBody := fmt.Sprintf(`ui_design_binding:
+  scope: web:orders/detail
+  design_change_id: UD-0042
+  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+  design_change_sha256: %s
+  design_contract_ref: %s
+`, designDigest, contractPath)
+			switch tt.statusShape {
+			case "case-duplicate":
+				bindingBody += "\n## UI design binding\n\n" + bindingBody
+			case "duplicate-key":
+				bindingBody = strings.Replace(
+					bindingBody,
+					"  scope: web:orders/detail\n",
+					"  scope: web:orders/summary\n  scope: web:orders/detail\n",
+					1,
+				)
+			}
+			statusBody := fmt.Sprintf(`---
+understanding_confirmed: true
+---
+
+## UI Design Binding
+
+%s`, bindingBody)
+			if err := os.WriteFile(filepath.FromSlash(bindingRef), []byte(statusBody), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			decision := quickAdoptionTestDecision(designDigest, contractPath, "UD-0042")
+			digest, err := computeQuickConfirmationDigest(decision)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var confirmation any
+			switch tt.confirmationShape {
+			case "minimal-forged":
+				confirmation = map[string]any{
+					"schema":              quickConfirmationSchema,
+					"confirmation_state":  "confirmed",
+					"confirmation_digest": strings.Repeat("c", 64),
+					"decision": map[string]any{
+						"ui_confirmation": decision.UIConfirmation,
+					},
+				}
+			case "minimal-self-consistent":
+				minimalDecision := quickConfirmationDecision{UIConfirmation: decision.UIConfirmation}
+				minimalDigest, err := computeQuickConfirmationDigest(minimalDecision)
+				if err != nil {
+					t.Fatal(err)
+				}
+				confirmation = quickConfirmationDoc{
+					Schema:             quickConfirmationSchema,
+					ConfirmationState:  "confirmed",
+					ConfirmationDigest: minimalDigest,
+					Decision:           minimalDecision,
+				}
+			case "tampered-decision":
+				decision.Goal = "Tampered after confirmation"
+				confirmation = quickConfirmationDoc{
+					Schema:             quickConfirmationSchema,
+					ConfirmationState:  "confirmed",
+					ConfirmationDigest: digest,
+					Decision:           decision,
+				}
+			default:
+				confirmation = quickConfirmationDoc{
+					Schema:             quickConfirmationSchema,
+					ConfirmationState:  "confirmed",
+					ConfirmationDigest: digest,
+					Decision:           decision,
+				}
+			}
+			confirmationBody, err := json.Marshal(confirmation)
+			if err != nil {
+				t.Fatal(err)
+			}
+			confirmationBody = append(confirmationBody, '\n')
+			if err := os.WriteFile(filepath.Join(workspace, "confirmation.json"), confirmationBody, 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			digestBytes := sha256.Sum256([]byte(statusBody))
+			var stdout bytes.Buffer
+			exit := runDesign([]string{
+				"adopt", "quick:001-orders",
+				"--change", "UD-0042",
+				"--scope", "web:orders/detail",
+				"--mode", "quick",
+				"--binding-ref", bindingRef,
+				"--binding-sha256", fmt.Sprintf("%x", digestBytes),
+				"--expected-change", "none",
+			}, &stdout)
+			if output := stdout.String(); exit == 0 || !strings.Contains(output, tt.wantError) {
+				t.Fatalf("quick adoption bypass must block: exit=%d want=%q output=%s", exit, tt.wantError, output)
+			}
+		})
+	}
+}
+
+func quickAdoptionTestDecision(designDigest, contractPath, boundChange string) quickConfirmationDecision {
+	return quickConfirmationDecision{
+		Goal:              "Adopt the approved orders UI",
+		UserVisibleResult: "The orders detail uses the approved design",
+		Scope: quickConfirmationScope{
+			Include: []string{"web:orders/detail"},
+			Exclude: []string{},
+			Defer:   []string{},
+		},
+		Items: []quickConfirmationItem{
+			{
+				ID:          "Q1",
+				Deliverable: "Apply the approved orders UI",
+				DependsOn:   []string{},
+				Acceptance:  "The exact design binding is used",
+				WriteScope:  []string{"src/orders"},
+			},
+		},
+		ReconfirmationTrigger: "The approved design binding changes",
+		UIConfirmation: map[string]any{
+			"applicable": true,
+			"design_binding": map[string]any{
+				"scope":                "web:orders/detail",
+				"design_change_id":     boundChange,
+				"design_change_ref":    ".specify/design/changes/UD-0042/DESIGN.md",
+				"design_change_sha256": designDigest,
+				"design_contract_ref":  contractPath,
+			},
+		},
 	}
 }
 
