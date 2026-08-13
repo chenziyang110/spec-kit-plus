@@ -13,6 +13,8 @@ from specify_cli.design import (
     DesignLintError,
     _design_impact_classes,
     _quick_confirmation_digest,
+    _stable_go_json,
+    _validate_quick_confirmation_document,
     adopt_design_change,
     approve_design_preview,
     diff_design_changes,
@@ -31,6 +33,47 @@ from specify_cli.design import (
 runner = CliRunner()
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PREVIEW_TEMPLATE = REPO_ROOT / "templates" / "design-preview-template.html"
+
+
+def _valid_quick_confirmation_document() -> dict[str, object]:
+    return {
+        "schema": "quick-confirmation-v1",
+        "confirmation_state": "confirmed",
+        "confirmation_digest": "0" * 64,
+        "decision": {
+            "goal": "Adopt the approved UI",
+            "user_visible_result": "Users see the approved UI",
+            "scope": {
+                "include": ["web:orders/detail"],
+                "exclude": [],
+                "defer": [],
+            },
+            "items": [
+                {
+                    "id": "Q1",
+                    "deliverable": "Implement the approved UI",
+                    "depends_on": [],
+                    "acceptance": "The approved binding is preserved",
+                    "write_scope": ["src/orders"],
+                }
+            ],
+            "recommended_approach": "",
+            "assumptions_and_risks": [],
+            "completion_evidence": [],
+            "user_corrections": [],
+            "reconfirmation_trigger": "The approved design binding changes",
+            "ui_confirmation": {
+                "applicable": True,
+                "confirmation_purpose": "Approve the UI direction",
+                "user_and_primary_job": "An operator reviews an order",
+                "target_experience": "A clear order detail",
+                "acceptance_evidence": ["Bound visual capture"],
+            },
+        },
+        "delivery": {
+            "waves": [{"id": "W1", "item_ids": ["Q1"], "parallel": False}]
+        },
+    }
 
 
 VALID_DESIGN = """---
@@ -1456,6 +1499,140 @@ def test_quick_confirmation_digest_matches_go_cross_language_vector() -> None:
         "src/changed-but-excluded"
     ]
     assert _quick_confirmation_digest(changed_write_scope) == expected
+
+
+def test_validate_quick_confirmation_accepts_complete_document() -> None:
+    confirmation = _valid_quick_confirmation_document()
+
+    assert _validate_quick_confirmation_document(confirmation) is confirmation[
+        "decision"
+    ]
+
+
+@pytest.mark.parametrize("applicable", [False, "off", 0, {}])
+def test_validate_quick_confirmation_allows_explicit_non_applicable_ui(
+    applicable: object,
+) -> None:
+    confirmation = _valid_quick_confirmation_document()
+    decision = confirmation["decision"]
+    assert isinstance(decision, dict)
+    decision["ui_confirmation"] = {"applicable": applicable}
+
+    _validate_quick_confirmation_document(confirmation)
+
+
+@pytest.mark.parametrize(
+    ("invalid_case", "error"),
+    [
+        ("non-string-scope", "scope.exclude must be an array of strings"),
+        ("invalid-recommended-approach", "recommended_approach must be a string"),
+        ("non-object-item", "work item id must match"),
+        ("duplicate-item", "duplicate work item id Q1"),
+        ("missing-deliverable", "Q1 deliverable is required"),
+        ("missing-dependency", "Q1 depends on missing item Q9"),
+        ("self-dependency", "Q1 cannot depend on itself"),
+        ("dependency-cycle", "dependency cycle detected"),
+        ("empty-waves", "delivery.waves must not be empty"),
+        ("non-object-wave", "delivery wave id is required"),
+        ("empty-wave", "delivery wave W1 has no items"),
+        ("invalid-parallel", "delivery wave W1.parallel must be a boolean"),
+        ("unknown-wave-item", "references unknown item Q9"),
+        ("duplicate-wave-item", "item Q1 appears in multiple waves"),
+        ("parallel-write-conflict", "write-scope conflict"),
+        ("unassigned-item", "Q2 is not assigned to any delivery wave"),
+        ("invalid-ui-confirmation", "ui_confirmation must be an object"),
+        ("missing-ui-evidence", "acceptance_evidence is required"),
+    ],
+)
+def test_validate_quick_confirmation_rejects_invalid_runtime_contracts(
+    invalid_case: str,
+    error: str,
+) -> None:
+    confirmation = _valid_quick_confirmation_document()
+    decision = confirmation["decision"]
+    delivery = confirmation["delivery"]
+    assert isinstance(decision, dict)
+    assert isinstance(delivery, dict)
+    items = decision["items"]
+    waves = delivery["waves"]
+    assert isinstance(items, list)
+    assert isinstance(waves, list)
+    first_item = items[0]
+    first_wave = waves[0]
+    assert isinstance(first_item, dict)
+    assert isinstance(first_wave, dict)
+    second_item = {
+        "id": "Q2",
+        "deliverable": "Wire the approved UI",
+        "depends_on": [],
+        "acceptance": "The integrated binding is preserved",
+        "write_scope": ["src/orders-two"],
+    }
+
+    if invalid_case == "non-string-scope":
+        scope = decision["scope"]
+        assert isinstance(scope, dict)
+        scope["exclude"] = [123]
+    elif invalid_case == "invalid-recommended-approach":
+        decision["recommended_approach"] = 123
+    elif invalid_case == "non-object-item":
+        items[0] = "Q1"
+    elif invalid_case == "duplicate-item":
+        items.append(dict(first_item))
+    elif invalid_case == "missing-deliverable":
+        first_item["deliverable"] = ""
+    elif invalid_case == "missing-dependency":
+        first_item["depends_on"] = ["Q9"]
+    elif invalid_case == "self-dependency":
+        first_item["depends_on"] = ["Q1"]
+    elif invalid_case == "dependency-cycle":
+        first_item["depends_on"] = ["Q2"]
+        second_item["depends_on"] = ["Q1"]
+        items.append(second_item)
+        first_wave["item_ids"] = ["Q1", "Q2"]
+    elif invalid_case == "empty-waves":
+        delivery["waves"] = []
+    elif invalid_case == "non-object-wave":
+        waves[0] = "W1"
+    elif invalid_case == "empty-wave":
+        first_wave["item_ids"] = []
+    elif invalid_case == "invalid-parallel":
+        first_wave["parallel"] = "yes"
+    elif invalid_case == "unknown-wave-item":
+        first_wave["item_ids"] = ["Q9"]
+    elif invalid_case == "duplicate-wave-item":
+        waves.append({"id": "W2", "item_ids": ["Q1"], "parallel": False})
+    elif invalid_case == "parallel-write-conflict":
+        second_item["write_scope"] = ["src/orders"]
+        items.append(second_item)
+        first_wave["item_ids"] = ["Q1", "Q2"]
+        first_wave["parallel"] = True
+    elif invalid_case == "unassigned-item":
+        items.append(second_item)
+    elif invalid_case == "invalid-ui-confirmation":
+        decision["ui_confirmation"] = "required"
+    elif invalid_case == "missing-ui-evidence":
+        ui_confirmation = decision["ui_confirmation"]
+        assert isinstance(ui_confirmation, dict)
+        ui_confirmation["acceptance_evidence"] = []
+
+    with pytest.raises(DesignLintError, match=error):
+        _validate_quick_confirmation_document(confirmation)
+
+
+@pytest.mark.parametrize(
+    ("value", "error"),
+    [
+        ({1: "bad"}, "non-string object key"),
+        (float("nan"), "cannot canonicalize confirmation digest"),
+    ],
+)
+def test_stable_go_json_rejects_noncanonical_values(
+    value: object,
+    error: str,
+) -> None:
+    with pytest.raises(DesignLintError, match=error):
+        _stable_go_json(value)
 
 
 def test_lint_design_file_accepts_valid_design(tmp_path: Path) -> None:

@@ -1123,7 +1123,7 @@ func designBindingContains(raw []byte, fields map[string]string) bool {
 func quickStatusDesignBinding(raw []byte) (map[string]string, error) {
 	structuralError := "quick design adoption STATUS.md must contain exactly one ## UI Design Binding section with one ui_design_binding mapping"
 	content := strings.ReplaceAll(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\r", "\n")
-	headingRE := regexp.MustCompile(`(?m)^##[\t ]+UI Design Binding[\t ]*$`)
+	headingRE := regexp.MustCompile(`(?mi)^##[\t ]+UI Design Binding[\t ]*$`)
 	headings := headingRE.FindAllStringIndex(content, -1)
 	if len(headings) != 1 {
 		return nil, fmt.Errorf("%s", structuralError)
@@ -1194,6 +1194,16 @@ func validateDesignAdoptionSurface(root string, request designAdoptionRequest, b
 	}
 	if doc.ConfirmationState != "confirmed" && doc.ConfirmationState != "inherited" {
 		return fmt.Errorf("quick design adoption checkpoint must be confirmed or inherited")
+	}
+	if err := validateQuickConfirmation(doc); err != nil {
+		return fmt.Errorf("quick design adoption confirmation is invalid: %v", err)
+	}
+	expectedConfirmationDigest, err := computeQuickConfirmationDigest(doc.Decision)
+	if err != nil {
+		return fmt.Errorf("quick design adoption cannot compute confirmation digest: %v", err)
+	}
+	if strings.TrimSpace(doc.ConfirmationDigest) != expectedConfirmationDigest {
+		return fmt.Errorf("quick design adoption confirmation digest does not match the protected decision")
 	}
 	confirmedBinding, _ := doc.Decision.UIConfirmation["design_binding"].(map[string]any)
 	if !hexDigestRE.MatchString(strings.ToLower(strings.TrimSpace(doc.ConfirmationDigest))) ||

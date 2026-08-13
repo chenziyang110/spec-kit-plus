@@ -1509,10 +1509,388 @@ def _binding_contains_design_fields(
     )
 
 
+class _UniqueKeySafeLoader(yaml.SafeLoader):
+    pass
+
+
+def _construct_unique_yaml_mapping(
+    loader: _UniqueKeySafeLoader,
+    node: yaml.MappingNode,
+    deep: bool = False,
+) -> dict[Any, Any]:
+    loader.flatten_mapping(node)
+    mapping: dict[Any, Any] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in mapping
+        except TypeError as exc:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                "found an unhashable mapping key",
+                key_node.start_mark,
+            ) from exc
+        if duplicate:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                f"found duplicate mapping key {key!r}",
+                key_node.start_mark,
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+_UniqueKeySafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_yaml_mapping,
+)
+
+
+def _quick_confirmation_string_list(value: Any, field: str) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or any(
+        not isinstance(item, str) for item in value
+    ):
+        raise DesignLintError(
+            f"quick design adoption confirmation is invalid: "
+            f"{field} must be an array of strings"
+        )
+    return list(value)
+
+
+def _quick_confirmation_required_text(
+    value: Any,
+    field: str,
+) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise DesignLintError(
+            f"quick design adoption confirmation is invalid: {field} is required"
+        )
+    return value
+
+
+def _quick_confirmation_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    if isinstance(value, (int, float)):
+        return value != 0
+    return False
+
+
+def _validate_quick_confirmation_document(
+    confirmation: dict[str, Any],
+) -> dict[str, Any]:
+    decision = confirmation.get("decision")
+    if not isinstance(decision, dict):
+        decision = {}
+    _quick_confirmation_required_text(decision.get("goal"), "decision.goal")
+    _quick_confirmation_required_text(
+        decision.get("user_visible_result"),
+        "decision.user_visible_result",
+    )
+    scope = decision.get("scope")
+    if not isinstance(scope, dict):
+        scope = {}
+    included = _quick_confirmation_string_list(
+        scope.get("include"), "decision.scope.include"
+    )
+    _quick_confirmation_string_list(
+        scope.get("exclude"), "decision.scope.exclude"
+    )
+    _quick_confirmation_string_list(scope.get("defer"), "decision.scope.defer")
+    if not included:
+        raise DesignLintError(
+            "quick design adoption confirmation is invalid: "
+            "decision.scope.include must not be empty"
+        )
+    _quick_confirmation_required_text(
+        decision.get("reconfirmation_trigger"),
+        "decision.reconfirmation_trigger",
+    )
+    recommended_approach = decision.get("recommended_approach")
+    if recommended_approach is not None and not isinstance(
+        recommended_approach, str
+    ):
+        raise DesignLintError(
+            "quick design adoption confirmation is invalid: "
+            "decision.recommended_approach must be a string"
+        )
+    _quick_confirmation_string_list(
+        decision.get("assumptions_and_risks"),
+        "decision.assumptions_and_risks",
+    )
+    _quick_confirmation_string_list(
+        decision.get("completion_evidence"),
+        "decision.completion_evidence",
+    )
+    _quick_confirmation_string_list(
+        decision.get("user_corrections"),
+        "decision.user_corrections",
+    )
+
+    items = decision.get("items")
+    if not isinstance(items, list) or not items:
+        raise DesignLintError(
+            "quick design adoption confirmation is invalid: "
+            "decision.items must not be empty"
+        )
+    seen: set[str] = set()
+    item_by_id: dict[str, dict[str, Any]] = {}
+    dependencies: dict[str, list[str]] = {}
+    for raw_item in items:
+        if not isinstance(raw_item, dict):
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                "work item id must match Q1, Q2, ..."
+            )
+        raw_id = raw_item.get("id")
+        item_id = raw_id.strip() if isinstance(raw_id, str) else ""
+        if re.fullmatch(r"Q[1-9][0-9]*", item_id) is None:
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                f"work item id {raw_id!r} must match Q1, Q2, ..."
+            )
+        if item_id in seen:
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                f"duplicate work item id {item_id}"
+            )
+        seen.add(item_id)
+        _quick_confirmation_required_text(
+            raw_item.get("deliverable"), f"{item_id} deliverable"
+        )
+        _quick_confirmation_required_text(
+            raw_item.get("acceptance"), f"{item_id} acceptance"
+        )
+        dependencies[item_id] = _quick_confirmation_string_list(
+            raw_item.get("depends_on"), f"{item_id}.depends_on"
+        )
+        _quick_confirmation_string_list(
+            raw_item.get("write_scope"), f"{item_id}.write_scope"
+        )
+        item_by_id[item_id] = raw_item
+    for item_id, item_dependencies in dependencies.items():
+        for dependency in item_dependencies:
+            if dependency not in seen:
+                raise DesignLintError(
+                    "quick design adoption confirmation is invalid: "
+                    f"{item_id} depends on missing item {dependency}"
+                )
+            if dependency == item_id:
+                raise DesignLintError(
+                    "quick design adoption confirmation is invalid: "
+                    f"{item_id} cannot depend on itself"
+                )
+
+    visit_state: dict[str, int] = {}
+
+    def visit(item_id: str) -> None:
+        if visit_state.get(item_id) == 1:
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                f"dependency cycle detected at {item_id}"
+            )
+        if visit_state.get(item_id) == 2:
+            return
+        visit_state[item_id] = 1
+        for dependency in dependencies[item_id]:
+            visit(dependency)
+        visit_state[item_id] = 2
+
+    for item_id in sorted(seen):
+        visit(item_id)
+
+    delivery = confirmation.get("delivery")
+    if not isinstance(delivery, dict):
+        delivery = {}
+    waves = delivery.get("waves")
+    if not isinstance(waves, list) or not waves:
+        raise DesignLintError(
+            "quick design adoption confirmation is invalid: "
+            "delivery.waves must not be empty"
+        )
+    covered: dict[str, str] = {}
+    for raw_wave in waves:
+        if not isinstance(raw_wave, dict):
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                "delivery wave id is required"
+            )
+        wave_id = _quick_confirmation_required_text(
+            raw_wave.get("id"), "delivery wave id"
+        ).strip()
+        item_ids = _quick_confirmation_string_list(
+            raw_wave.get("item_ids"), f"delivery wave {wave_id}.item_ids"
+        )
+        if not item_ids:
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                f"delivery wave {wave_id} has no items"
+            )
+        parallel = raw_wave.get("parallel", False)
+        if not isinstance(parallel, bool):
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                f"delivery wave {wave_id}.parallel must be a boolean"
+            )
+        for item_id in item_ids:
+            if item_id not in seen:
+                raise DesignLintError(
+                    "quick design adoption confirmation is invalid: "
+                    f"delivery wave {wave_id} references unknown item {item_id}"
+                )
+            if item_id in covered:
+                raise DesignLintError(
+                    "quick design adoption confirmation is invalid: "
+                    f"item {item_id} appears in multiple waves "
+                    f"({covered[item_id]} and {wave_id})"
+                )
+            covered[item_id] = wave_id
+        if parallel or len(item_ids) > 1:
+            seen_paths: dict[str, str] = {}
+            for item_id in item_ids:
+                for path in _quick_confirmation_string_list(
+                    item_by_id[item_id].get("write_scope"),
+                    f"{item_id}.write_scope",
+                ):
+                    normalized_path = path.strip().replace("\\", "/")
+                    if not normalized_path:
+                        continue
+                    owner = seen_paths.get(normalized_path)
+                    if owner is not None and owner != item_id:
+                        raise DesignLintError(
+                            "quick design adoption confirmation is invalid: "
+                            f"parallel wave {wave_id} has write-scope conflict "
+                            f"on {normalized_path} between {owner} and {item_id}"
+                        )
+                    seen_paths[normalized_path] = item_id
+    for item_id in seen:
+        if item_id not in covered:
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                f"item {item_id} is not assigned to any delivery wave"
+            )
+
+    ui_confirmation = decision.get("ui_confirmation")
+    if ui_confirmation is not None:
+        if not isinstance(ui_confirmation, dict):
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                "decision.ui_confirmation must be an object"
+            )
+        if not (
+            "applicable" in ui_confirmation
+            and not _quick_confirmation_bool(ui_confirmation.get("applicable"))
+        ):
+            for field in (
+                "confirmation_purpose",
+                "user_and_primary_job",
+                "target_experience",
+            ):
+                _quick_confirmation_required_text(
+                    ui_confirmation.get(field), f"ui_confirmation.{field}"
+                )
+            evidence = ui_confirmation.get("acceptance_evidence")
+            evidence_values = (
+                evidence if isinstance(evidence, list) else [evidence]
+            )
+            if not any(
+                value is not None and str(value).strip()
+                for value in evidence_values
+            ):
+                raise DesignLintError(
+                    "quick design adoption confirmation is invalid: "
+                    "ui_confirmation.acceptance_evidence is required when "
+                    "UI confirmation is present"
+                )
+    return decision
+
+
+def _stable_go_json(value: Any) -> str:
+    if isinstance(value, dict):
+        if any(not isinstance(key, str) for key in value):
+            raise DesignLintError(
+                "quick design adoption confirmation digest contains a "
+                "non-string object key"
+            )
+        return "{" + ",".join(
+            f"{_stable_go_json(key)}:{_stable_go_json(value[key])}"
+            for key in sorted(value)
+        ) + "}"
+    if isinstance(value, list):
+        return "[" + ",".join(_stable_go_json(item) for item in value) + "]"
+    if isinstance(value, str):
+        return (
+            json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+            .replace("<", r"\u003c")
+            .replace(">", r"\u003e")
+            .replace("&", r"\u0026")
+            .replace("\u2028", r"\u2028")
+            .replace("\u2029", r"\u2029")
+        )
+    try:
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        )
+    except (TypeError, ValueError) as exc:
+        raise DesignLintError(
+            f"quick design adoption cannot canonicalize confirmation digest: {exc}"
+        ) from exc
+
+
+def _quick_confirmation_digest(decision: dict[str, Any]) -> str:
+    scope = decision.get("scope")
+    if not isinstance(scope, dict):
+        scope = {}
+    items = decision.get("items")
+    if not isinstance(items, list):
+        items = []
+    normalized_items: list[dict[str, Any]] = []
+    for item in sorted(items, key=lambda row: str(row.get("id") or "")):
+        dependencies = item.get("depends_on")
+        if not isinstance(dependencies, list):
+            dependencies = []
+        normalized_items.append(
+            {
+                "id": item.get("id") or "",
+                "deliverable": item.get("deliverable") or "",
+                "depends_on": sorted(dependencies),
+                "acceptance": item.get("acceptance") or "",
+            }
+        )
+    protected = {
+        "schema": "quick-confirmation-v1",
+        "goal": decision.get("goal") or "",
+        "user_visible_result": decision.get("user_visible_result") or "",
+        "scope": {
+            "include": list(scope.get("include") or []),
+            "exclude": list(scope.get("exclude") or []),
+            "defer": list(scope.get("defer") or []),
+        },
+        "items": normalized_items,
+        "recommended_approach": decision.get("recommended_approach") or "",
+        "assumptions_and_risks": list(
+            decision.get("assumptions_and_risks") or []
+        ),
+        "completion_evidence": list(decision.get("completion_evidence") or []),
+        "reconfirmation_trigger": decision.get("reconfirmation_trigger") or "",
+        "ui_confirmation": decision.get("ui_confirmation"),
+    }
+    return hashlib.sha256(_stable_go_json(protected).encode("utf-8")).hexdigest()
+
+
 def _quick_status_design_binding(text: str) -> dict[str, str]:
     normalized = text.replace("\r\n", "\n").replace("\r", "\n")
     headings = list(
-        re.finditer(r"(?m)^##[ \t]+UI Design Binding[ \t]*$", normalized)
+        re.finditer(r"(?mi)^##[ \t]+UI Design Binding[ \t]*$", normalized)
     )
     structural_error = (
         "quick design adoption STATUS.md must contain exactly one "
@@ -1528,7 +1906,7 @@ def _quick_status_design_binding(text: str) -> dict[str, str]:
     if len(re.findall(r"(?m)^ui_design_binding[ \t]*:", section)) != 1:
         raise DesignLintError(structural_error)
     try:
-        payload = yaml.safe_load(section)
+        payload = yaml.load(section, Loader=_UniqueKeySafeLoader)
     except yaml.YAMLError as exc:
         raise DesignLintError(f"{structural_error}: {exc}") from exc
     binding = payload.get("ui_design_binding") if isinstance(payload, dict) else None
@@ -1685,10 +2063,16 @@ def adopt_design_change(
             raise DesignLintError(
                 "quick design adoption checkpoint must be confirmed or inherited"
             )
+        decision = _validate_quick_confirmation_document(confirmation)
         confirmation_digest = str(
             confirmation.get("confirmation_digest") or ""
         ).strip()
-        decision = confirmation.get("decision")
+        expected_confirmation_digest = _quick_confirmation_digest(decision)
+        if confirmation_digest != expected_confirmation_digest:
+            raise DesignLintError(
+                "quick design adoption confirmation digest does not match "
+                "the protected decision"
+            )
         ui_confirmation = (
             decision.get("ui_confirmation")
             if isinstance(decision, dict)

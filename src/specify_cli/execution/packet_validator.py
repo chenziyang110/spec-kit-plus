@@ -16,13 +16,11 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 APPROVED_PREVIEW_REF_RE = re.compile(
     r"round-\d+\.html#direction-[a-z0-9-]+$", re.IGNORECASE
 )
-CHANGE_LOCAL_HTML_PREVIEW_REF_RE = re.compile(
-    r"^\.specify/design/changes/(?P<change_id>UD-\d{4})/previews/"
-    r"[^/#]+\.html(?:#(?P<direction_id>.*))?$",
-    re.IGNORECASE,
+CHANGE_LOCAL_PREVIEW_PREFIX_RE = re.compile(
+    r"^\.specify/design/changes/UD-\d{4}/previews/"
 )
-DESIGN_DIRECTION_ID_RE = re.compile(
-    r"^direction-[a-z0-9][a-z0-9-]*$", re.IGNORECASE
+CHANGE_LOCAL_PREVIEW_SUFFIX_RE = re.compile(
+    r"^(?P<stem>round-\d+)\.html#direction-[a-z0-9][a-z0-9-]*$"
 )
 UI_WORK_TYPES = {"existing-pattern", "feature-extension", "reference-implementation"}
 UI_SURFACE_TYPES = {
@@ -298,29 +296,51 @@ def validate_ui_contract(contract: UIContract) -> None:
         raise PacketValidationError(
             "DP1", "UI contract approved_handoff_ref must identify a .handoff.json file"
         )
-    change_local_preview = CHANGE_LOCAL_HTML_PREVIEW_REF_RE.fullmatch(
-        contract.approved_visual_ref.strip()
+    approved_visual_ref = contract.approved_visual_ref.strip()
+    has_change_local_prefix = bool(
+        CHANGE_LOCAL_PREVIEW_PREFIX_RE.match(approved_visual_ref)
     )
-    if change_local_preview:
-        direction_id = change_local_preview.group("direction_id") or ""
-        if not DESIGN_DIRECTION_ID_RE.fullmatch(direction_id):
-            raise PacketValidationError(
-                "DP1",
-                "UI contract change-local HTML preview must use a canonical #direction-<slug> anchor",
-            )
-        if not has_design_change_binding:
-            raise PacketValidationError(
-                "DP1",
-                "UI contract change-local HTML preview requires an exact design change binding",
-            )
-        expected_handoff_prefix = (
-            f".specify/design/changes/{contract.design_change_id}/previews/"
+    if has_change_local_prefix and not has_design_change_binding:
+        raise PacketValidationError(
+            "DP1",
+            "UI contract change-local HTML preview requires an exact design change binding",
         )
-        if not contract.approved_handoff_ref.startswith(expected_handoff_prefix):
-            raise PacketValidationError(
-                "DP1",
-                "UI contract change-local HTML preview requires its immutable handoff in the same design change preview workspace",
+    change_local_preview = False
+    if has_design_change_binding:
+        expected_workspace_prefix = (
+            f".specify/design/changes/{contract.design_change_id}/"
+        )
+        expected_preview_prefix = f"{expected_workspace_prefix}previews/"
+        approved_handoff_ref = contract.approved_handoff_ref.strip()
+        uses_change_workspace = approved_visual_ref.startswith(
+            expected_workspace_prefix
+        ) or approved_handoff_ref.startswith(expected_workspace_prefix)
+        if uses_change_workspace:
+            if not approved_visual_ref.startswith(
+                expected_preview_prefix
+            ) or not approved_handoff_ref.startswith(expected_preview_prefix):
+                raise PacketValidationError(
+                    "DP1",
+                    "UI contract change-local HTML preview and immutable handoff must stay in the design change previews workspace",
+                )
+            preview_suffix = approved_visual_ref.removeprefix(
+                expected_preview_prefix
             )
+            preview_match = CHANGE_LOCAL_PREVIEW_SUFFIX_RE.fullmatch(preview_suffix)
+            if not preview_match:
+                raise PacketValidationError(
+                    "DP1",
+                    "UI contract change-local HTML preview must match round-<number>.html#direction-<slug>",
+                )
+            change_local_preview = True
+            expected_handoff_ref = (
+                f"{expected_preview_prefix}{preview_match.group('stem')}.handoff.json"
+            )
+            if approved_handoff_ref != expected_handoff_ref:
+                raise PacketValidationError(
+                    "DP1",
+                    "UI contract change-local HTML preview requires the same-stem immutable handoff sidecar",
+                )
     if (
         change_local_preview
         or APPROVED_PREVIEW_REF_RE.search(contract.approved_visual_ref)
