@@ -32,6 +32,24 @@ unknowns, and zero open conflicts. Fail closed to the owning upstream workflow
 when any gate fails. Verify architecture claims against cognition-selected live
 repository paths.
 
+Treat `plan-contract.json#/test_design_gate/decision` as exactly
+`not_selected`, `selected`, or `required`. A selected/required binding may be
+all-null while production is pending; partial binding is invalid. When Plan
+actually consumes a projection, require the complete binding produced by the
+independent `$spx-test-design` producer and verify it before use with
+`{{specify-subcmd:specify-runtime test-design projection-verify --feature-dir <feature-dir> --projection-ref <project-relative-ref> --expected-sha256 <sha256> --format json}}`.
+Omit `--feature-dir` only for explicit project scope. Consume the canonical,
+typed pointer-only projection read-only. Never create, patch, replace, weaken,
+or copy its publication, projection, cases, data, coverage, gaps, or audit. A
+projection needed for a Plan decision routes to `$spx-test-design`; otherwise
+Plan may finish with the all-null pending selection and route it next. Test
+Design does not require Plan completion. The Plan binding proves only Plan
+consumption, never Tasks authorization, and must not use the Plan contract as a
+self-hashing basis. Build the Plan projection against the current immutable
+upstream `spec-contract.json`; then record only the returned binding in
+`plan-contract.json`. Tasks requires its own projection, a fresh feature handoff,
+and runtime task-index binding. Plan choices do not rewrite Test Design.
+
 Treat `plan-contract.json#/acceptance_refs` as the exact complete fail-closed
 Spec-to-Plan denominator. For a ready version-2 plan it is the unique ordered
 list `spec-contract.json#/acceptance_criteria/0..N-1`, covering every live
@@ -56,10 +74,12 @@ leased `artifact patch --section`; never emit or resubmit the full stable templa
 interfaces and data, compatibility or migration, security, verification,
 rollout or rollback, and material risks only when relevant.
 
-For UI-bearing work, query `.specify/design/design-system.json`, `DESIGN.md`,
-and `ui-brief.md` through targeted `specify-runtime artifact show` calls.
-Treat `.specify/design/design-system.json` as the machine-readable source of
-truth and `DESIGN.md` as its human-readable projection. Consume the returned
+For UI-bearing work, query `ui-brief.md`, then its exact registered
+`.specify/design/changes/<UD-ID>/design-contract.json` and matching
+change-local `DESIGN.md` through targeted `specify-runtime artifact show`
+calls. Treat the change-local JSON as the machine-readable source of truth and
+its `DESIGN.md` as the human-readable projection. Never select an unbound newer
+change from `.specify/design/index.json`. Consume the returned
 contract sections, original fidelity sources, and the spec design contract. Set
 `ui_design_contract.ui_applicable: true`, preserve `ui_brief_ref`, and record
 `design_readiness`. Populate it with the current direction contract,
@@ -107,6 +127,11 @@ tests, migrations, or runtime configuration in this workflow. Preserve canonical
 `/sp.*` state identifiers. This invocation authorizes only this workflow stage.
 Run `{{specify-subcmd:specify-runtime hook validate-artifacts --command plan --feature-dir <feature-dir> --format json}}`
 and repair or block on a non-OK result.
-Stop after reporting the validated plan and recommend `$spx-tasks` when ready.
-Do not invoke `$spx-tasks` in this run; a handoff is not authorization to execute
-it.
+Stop after reporting the validated plan. When the user requested a dedicated
+test design or the plan's risk and coverage obligations warrant one, record the
+gate as `selected` or `required` and recommend the independent
+`$spx-test-design` workflow; otherwise record `not_selected` and recommend
+`$spx-tasks`. The default formal path remains Plan -> optional Test Design ->
+Tasks, without making completed Plan an entry prerequisite for Test Design.
+Do not invoke `$spx-test-design`. Do not invoke `$spx-tasks` in this run; a
+handoff is not authorization to execute either workflow.

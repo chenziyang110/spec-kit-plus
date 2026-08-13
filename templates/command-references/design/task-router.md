@@ -7,7 +7,8 @@ Preserved Contract: `sp-design` remains the single public entry point; routing s
 ## Single Public Entry Point
 
 - Keep one public skill or command named `sp-design`. Infer the route from the
-  user's prompt, `DESIGN.md`, design state, supplied references, and the
+  user's prompt, `.specify/design/index.json`, matching change workspaces,
+  live UI, supplied references, and the
   originally blocked workflow.
 - Do not register or expose `sp-design:create`, `sp-design:refine`,
   `sp-design:audit`, or equivalent colon-namespaced mode skills. Do not require
@@ -20,23 +21,23 @@ input_strategy: context | synthesize
 route_reason: <one evidence-based sentence>
 ```
 
-After scaffolding the brief, use `specify-runtime artifact patch` to store the
-canonical route in `.specify/design/design-brief.md`. If the derived design
+After `specify-runtime design change` or `specify-runtime design iterate`
+scaffolds the workspace, use
+`specify-runtime artifact patch` to store the canonical route in
+`.specify/design/changes/<UD-ID>/brief.md`. If the derived design
 state exposes a selected-mode field, treat it only as a compatibility
 projection of `task_type`; do not invent a second writable workflow-state file.
 Use the same owner CLI to repeat the route in review when it explains closeout.
 
 ## Routing Dimensions
 
-- `create`: route here when `specify-runtime design` must establish the first
-  approved project-level design system because
-  `DESIGN.md` is missing, bootstrap-only, or otherwise has no approved visual
-  truth.
-- `refine`: create a new immutable approval round for a project-wide change to
-  an approved direction, tokens, density, component/state rules, responsive or
-  motion behavior, brand language, or platform expectations.
-- `audit`: inspect readiness, consistency, provenance, live adoption, or drift
-  without changing approved design truth.
+- `create`: allocate a new `UD-*` workspace for a bounded greenfield or
+  extension change that has no matching nonterminal workspace.
+- `refine`: continue an unapproved draft. When approved truth changes, create
+  its digest-pinned successor with `specify-runtime design iterate`; never
+  mutate the approved change or manually reconstruct its lineage.
+- `audit`: inspect one declared scope, change contract, provenance, live
+  adoption, or drift without changing approved design truth.
 - `context`: derive direction from confirmed product context and verified live
   project evidence.
 - `synthesize`: use supplied screenshots, URLs, design exports, notes, or other
@@ -45,9 +46,9 @@ Use the same owner CLI to repeat the route in review when it explains closeout.
 
 ## Resume Before Reclassification
 
-1. Query `.specify/design/design-state.md` and
-   `.specify/design/design-brief.md` through `artifact show` first when they
-   exist.
+1. Query `.specify/design/index.json` and matching
+   `.specify/design/changes/<UD-ID>/brief.md` / `DESIGN.md` through
+   `artifact show` first when they exist.
 2. If they record nonterminal work for the same objective, resume before
    reclassification at the brief's exact `task_type` and `input_strategy` plus
    the derived state's current stage.
@@ -57,18 +58,29 @@ Use the same owner CLI to repeat the route in review when it explains closeout.
    evidence proves that the stored route cannot complete safely. Record the
    material route delta before continuing.
 
+## Scope Resolution
+
+Run `specify-runtime design resolve --scope <exact-surface> --format json` when
+registered design coverage shapes routing. This is discovery only; it neither
+selects “latest” nor adopts a result. If it returns `composite: true`, split the
+broad scope into independently bound consumer units before downstream
+adoption. The current binding artifacts are singular: each unit owns one exact
+scope and one binding artifact. Do not collapse parent and successor candidates
+into one invented contract.
+
 ## Decision Table
 
 | Current truth and prompt | Route |
 | --- | --- |
-| Missing or bootstrap `DESIGN.md`; establish a baseline | `create/context` |
-| Missing or bootstrap `DESIGN.md`; references shape the baseline | `create/synthesize` |
-| Approved `DESIGN.md`; change project-wide visual or interaction truth | `refine/context` |
-| Approved `DESIGN.md`; new references shape a project-wide revision | `refine/synthesize` |
+| No matching nonterminal change; establish a bounded design | `create/context` |
+| No matching change; references shape the bounded design | `create/synthesize` |
+| Approved change/live scope must intentionally change | new `refine/context` successor via `design iterate` |
+| References shape an intentional replacement | new `refine/synthesize` successor via `design iterate` |
 | Check readiness, coverage, provenance, consistency, or drift only | `audit/context` |
 | Current evidence proves `no-ui` | record `not-applicable` and exit the visual lane |
 
-For ambiguity between `create` and `refine`, approval status decides. For
+For ambiguity between `create` and `refine`, the matching scope and approval
+status decide. Approved truth always means a new change ID. For
 ambiguity between `audit` and mutation, start with `audit`; promote to
 `create`/`refine` only when the evidence proves design truth must change.
 
@@ -86,7 +98,7 @@ ambiguity between `audit` and mutation, start with `audit`; promote to
 
 ## Taste Intake And Synthesize Intents
 
-- Visual `create` and project-wide `refine` require durable taste intake in the
+- Visual `create` and substantive `refine` require durable taste intake in the
   design-brief artifact (scaffold/patch via `specify-runtime artifact` only)
   before three-direction preview work: `design_read`, dials with inference
   reason, `aesthetic_family`, `foundation_strategy`, `redesign_mode` when live

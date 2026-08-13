@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from .template_utils import (
@@ -190,6 +191,14 @@ def test_quick_template_uses_fixed_status_scaffold() -> None:
     assert "resume_decision:" in scaffold
     assert "handoff_delivery_contract:" in scaffold
     assert "delivery_scope:" in scaffold
+    assert "## ui design binding" in scaffold
+    assert "decision.ui_confirmation.design_binding" in scaffold
+    assert "confirmation_digest protects these exact fields" in scaffold
+    assert "  design_binding:" in scaffold
+    assert "design_change_id:" in scaffold
+    assert "design_change_ref:" in scaffold
+    assert "design_change_sha256:" in scaffold
+    assert "design_contract_ref:" in scaffold
     assert "quick_task_candidate" not in scaffold
     assert "bounded_scope" not in scaffold
     assert "`pending`, `ready`, `in_progress`, `blocked`, or `accepted`" in content
@@ -435,7 +444,7 @@ def test_quick_template_requires_tdd_gate_for_behavior_changes() -> None:
     assert "if no reliable automated test surface exists for the touched behavior" in content
     assert "bootstrap the smallest viable test surface as its own quick lane or batch" in content
     assert "do not substitute a `{{invoke:specify}}` handoff for executable evidence" in content
-    assert "sp-test" not in content
+    assert re.search(r"\bsp-test(?!-design)\b", content) is None
 
 
 def test_quick_template_routes_uncertain_bugfixes_into_debug() -> None:

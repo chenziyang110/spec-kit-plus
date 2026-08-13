@@ -50,13 +50,13 @@ guide are the stable names used by Spec Kit Plus.
 
 Invocation syntax depends on the integration:
 
-| Integration surface | Constitution | Specify | PRD | Plan | Tasks |
-| --- | --- | --- | --- | --- | --- |
-| Codex skills | `$sp-constitution` | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | `$sp-tasks` |
-| Kimi Code skills | `/skill:sp-constitution` | `/skill:sp-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` | `/skill:sp-plan` | `/skill:sp-tasks` |
-| Claude skills | `/sp-constitution` | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | `/sp-tasks` |
-| MiMo Code commands | `/sp.constitution` | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.tasks` |
-| Slash-dot command integrations | `/sp.constitution` | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.tasks` |
+| Integration surface | Constitution | Specify | PRD | Plan | Test Design (optional) | Tasks |
+| --- | --- | --- | --- | --- | --- | --- |
+| Codex skills | `$sp-constitution` | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | `$sp-test-design` | `$sp-tasks` |
+| Kimi Code skills | `/skill:sp-constitution` | `/skill:sp-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` | `/skill:sp-plan` | `/skill:sp-test-design` | `/skill:sp-tasks` |
+| Claude skills | `/sp-constitution` | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | `/sp-test-design` | `/sp-tasks` |
+| MiMo Code commands | `/sp.constitution` | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.test-design` | `/sp.tasks` |
+| Slash-dot command integrations | `/sp.constitution` | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.test-design` | `/sp.tasks` |
 
 `/sp-*` is not universal for skills-backed integrations. Use the syntax
 generated for the integration selected during `specify init`; for example, run
@@ -195,6 +195,12 @@ Use `deep-research` only when the requirements are clear but feasibility still n
 Use `research` only as a compatibility alias for `deep-research`; it should route into the same gate and must not create separate workflow artifacts.
 When `specify` records an unproven implementation chain after artifact review, the recommended pre-planning branch is `specify` -> `deep-research` -> `plan`.
 
+After `plan`, optionally run `test-design` when the feature needs a frozen,
+evidence-backed test universe, professional case catalog, test-data/material
+decisions, explicit gaps, and bounded leader/subagent discovery before task
+generation. It is planning-only and claims `complete_against_frozen_scope`, not
+absolute completeness; `tasks` and `implement` still own executable tests and fixtures.
+
 Generated workflows preserve the user's complete user-confirmed scope. Scope reduction requires user confirmation: agents should not steer a requirement toward an MVP, pilot, prototype, first-story release, future-work delivery slice, agent-invented `v1/v2`, agent-invented `P0/P1`, or smaller validation build unless the user asked for that shape, the request already defines that boundary, or a named constraint makes reduced scope a decision the user confirms. Complexity alone is not a valid reason to shrink, defer, or block ordinary work; `sp-plan` and `sp-tasks` should use sequencing, dependencies, batches, join points, refinement checkpoints, and validation paths. Runtime capability limits are blockers only under the adaptive execution policy for heavy, safety-critical, or unpacketizable work, and they do not reduce scope.
 
 ### Step 5: Break Down and Implement
@@ -258,7 +264,7 @@ When the feature touches an established boundary pattern in the target project, 
 After initialization, treat the generated commands as three groups:
 
 - **Core workflow skills**: `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept`
-- **Support skills**: `map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
+- **Support skills**: `map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `test-design`, `checklist`, `analyze`, `debug`, `explain`
 - **Codex-only runtime**: terminal `specify sp-teams` commands and the `$sp-teams` skill when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:
@@ -317,7 +323,7 @@ Use support skills when they solve a specific gap:
 - The main feature pipeline passes `handoff-to-specify.json` -> `spec-contract.json` -> `plan-contract.json` -> `task-index.json` -> per-task lifecycle records -> `implementation-handoff.json` -> `review-state.json` -> `human-acceptance.json`. WorkerTaskPackets remain just-in-time and task review remains event-triggered inside Implement. Mandatory system Review freezes a complete Review Universe, uses independent Audit, Fix, and Revalidation subagents under one Leader, and requires zero uncovered scope plus fresh real-entrypoint evidence before human acceptance.
 - `prd-scan` followed by `prd-build` as the existing-project reverse PRD lane when you need repository-first current-state product documentation; it is the heavy reconstruction workflow, substantive scans are subagent-mandatory, critical claims target `L4 Reconstruction-Ready`, `config-contracts.json` is part of the scan contract surface, `prd-build` must not perform a second repository scan, it writes `.specify/prd-runs/<run-id>/`, and it does not automatically hand off to `plan`. `prd` remains a deprecated compatibility entrypoint that should route into the same pair
 - Treat the project cognition runtime as an advisory brownfield navigation index that gives agents dependency, claim, conflict, ownership, and change-impact context before deeper brownfield work starts.
-- `specify`, `clarify`, `deep-research`, `plan`, and `tasks` should not directly rewrite cognition content for artifact-only work. When they actually change source/runtime/template/config/test/generated-asset surfaces, they run planner-first project cognition update during closeout; recommend `map-update` only for external/manual changed-path map maintenance, ordinary existing-baseline gaps, and separate map-maintenance passes. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`
+- `specify`, `clarify`, `deep-research`, `plan`, `test-design`, and `tasks` should not directly rewrite cognition content for artifact-only work. When they actually change source/runtime/template/config/test/generated-asset surfaces, they run planner-first project cognition update during closeout; recommend `map-update` only for external/manual changed-path map maintenance, ordinary existing-baseline gaps, and separate map-maintenance passes. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`
 - `clarify` when an existing spec still needs deeper analysis before planning
 - `deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `plan`; `research` is only its compatibility alias
 - `checklist` when you want to audit requirement quality after planning
@@ -536,7 +542,7 @@ Validate the specification checklist using the `checklist` workflow:
 After planning, continue with:
 
 ```text
-specify -> plan -> tasks -> implement -> review -> accept
+specify -> plan -> [test-design] -> tasks -> implement -> review -> accept
 ```
 
 Generate an actionable task list using the `tasks` workflow:

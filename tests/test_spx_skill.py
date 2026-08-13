@@ -56,6 +56,7 @@ SPX_SKILLS = {
     "spx-tasks",
     "spx-taskstoissues",
     "spx-team",
+    "spx-test-design",
 }
 CLASSIC_MAP_COMPANION_SKILLS = {
     "sp-map-build",
@@ -98,7 +99,7 @@ def _frontmatter(path: Path) -> dict:
 
 def test_spx_design_asset_passes_the_real_design_linter() -> None:
     diagnostics = lint_design_file(
-        ADVANCED_SKILLS / "spx-design" / "assets" / "design-system.md"
+        ADVANCED_SKILLS / "spx-design" / "assets" / "design-change.md"
     )
 
     assert diagnostics == []
@@ -267,7 +268,9 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "create no separate auto state" in skills["spx-auto"]
 
     assert "design.md" in skills["spx-design"]
-    assert "artifact scaffold --kind design-brief" in skills["spx-design"]
+    assert "specify-runtime design change <ud-id>" in skills["spx-design"]
+    assert "<change-dir>/brief.md" in skills["spx-design"]
+    assert "artifact scaffold --kind design-brief" not in skills["spx-design"]
     assert "artifact scaffold --kind design-review" in skills["spx-design"]
     assert "design-brief-template.md` in memory" not in skills["spx-design"]
     assert "do not edit application source" in skills["spx-design"]
@@ -604,7 +607,10 @@ def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
         encoding="utf-8"
     )
     assert "does not\nrequire an external screenshot" in ui_gate
-    assert "status:\nbootstrap" in ui_gate
+    assert ".specify/design/index.json" in ui_gate
+    assert "exact registered design change" in ui_gate
+    assert 'Never resolve "latest"' in ui_gate
+    assert "read-only legacy baseline" in ui_gate
     assert "real entry point" in ui_gate
     assert "pending-human-review" in ui_gate
 
@@ -691,7 +697,7 @@ def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
         ADVANCED_SKILLS / "spx-implement" / "references" / "execution-contract.md"
     ).read_text(encoding="utf-8")
     design_asset = (
-        ADVANCED_SKILLS / "spx-design" / "assets" / "design-system.md"
+        ADVANCED_SKILLS / "spx-design" / "assets" / "design-change.md"
     ).read_text(encoding="utf-8")
     for generic_anchor in ('value: "8px"', 'value: "16px"', 'value: "14px"'):
         assert generic_anchor not in design_asset
@@ -1857,6 +1863,16 @@ def test_advanced_source_commands_use_launcher_placeholders() -> None:
     assert "{{specify-subcmd:specify-runtime sp-teams auto-dispatch" in (
         ADVANCED_SKILLS / "spx-implement-teams" / "references" / "codex-teams.md"
     ).read_text(encoding="utf-8")
+
+
+def test_spx_test_design_gap_reconcile_uses_renderer_safe_json_placeholder() -> None:
+    content = (ADVANCED_SKILLS / "spx-test-design" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "test-design gap-reconcile" in content
+    assert "--input-json <gap-json>" in content
+    assert "--input-json '{\"gaps\"" not in content
 
 
 def test_classic_profile_keeps_existing_skills_and_does_not_install_spx(

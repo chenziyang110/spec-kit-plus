@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/test-design-gaps-schema.json",
+  "title": "Spec Kit Plus Test Design Gaps",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "gaps"],
+  "properties": {
+    "schema_version": { "const": "spec-kit-test-design-gaps-v1" },
+    "status": { "enum": ["open", "qualified", "blocked", "clear"] },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gap_id",
+          "category",
+          "severity",
+          "disposition",
+          "source_refs",
+          "affected_obligation_refs",
+          "coverage_refs",
+          "affected_test_case_refs",
+          "affected_test_data_refs",
+          "owner",
+          "residual_risk",
+          "next_action",
+          "unblock_criteria"
+        ],
+        "properties": {
+          "gap_id": { "type": "string", "pattern": "^GAP-[0-9]{3,}$" },
+          "category": { "enum": ["coverage", "oracle", "harness", "data", "evidence", "scope", "audit"] },
+          "severity": { "enum": ["blocking", "high", "medium", "low"] },
+          "disposition": { "enum": ["open", "deferred", "waived", "excluded", "resolved", "blocked"] },
+          "source_refs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "affected_obligation_refs": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^TO-[0-9]{3,}$" }
+          },
+          "coverage_refs": { "type": "array", "items": { "type": "string", "pattern": "^COV-[0-9]{3,}$" } },
+          "affected_test_case_refs": { "type": "array", "items": { "type": "string", "pattern": "^TC-[0-9]{3,}$" } },
+          "affected_test_data_refs": { "type": "array", "items": { "type": "string", "pattern": "^TD-[0-9]{3,}$" } },
+          "owner": { "type": "string", "minLength": 1 },
+          "residual_risk": { "type": "string", "minLength": 1 },
+          "next_action": { "type": "string", "minLength": 1 },
+          "unblock_criteria": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

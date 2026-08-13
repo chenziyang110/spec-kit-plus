@@ -13,11 +13,18 @@ desktop, or Web presentation surface.
 
 ## Design readiness
 
-Query the root `DESIGN.md` through `specify-runtime artifact show` and inspect relevant live surfaces. `design_system.status:
-bootstrap` is an initialized seed, not product direction. Route a new product
-surface, redesign, rebrand, shared component language, or unresolved visual
-direction to `$spx-design`. A narrow existing-pattern fix may continue only
-when the governing tokens/components and affected states are clear.
+Run `specify-runtime design resolve --scope <exact-surface> --format json`, then
+query metadata-only `.specify/design/index.json`, select an applicable
+registered `UD-*` change, and inspect that exact change-local `DESIGN.md`
+through `specify-runtime artifact show` together with relevant live surfaces.
+Resolution is discovery only. Split composite coverage into explicit bindings.
+Because current consumer binding artifacts are singular, the split must produce
+independently bound consumer units rather than one worker blending contracts.
+Never resolve "latest". Inspect a root `DESIGN.md` only when it is explicitly
+cited as a read-only legacy baseline. Route a new product surface, redesign,
+rebrand, shared component-language change, or unresolved visual direction to
+`$spx-design`. A narrow existing-pattern fix may continue only when the live
+governing tokens/components and affected states are clear.
 
 Avoid generic defaults that are not grounded in product purpose or current
 language. Separate work type from surface type (`landing`,
@@ -25,24 +32,39 @@ language. Separate work type from surface type (`landing`,
 Name subject, audience, single job, visual/content/interaction theses, and one
 recognizable signature. Apply the surface-aware anti-slop policy from
 `design-library/anti-slop-policy.md` only as a bias correction subordinate to
-approved `DESIGN.md`: landing/marketing favors higher variance and bans common
-AI-hero fingerprints; product-workspace favors density and bans marketing
+the exact registered design change: landing/marketing favors higher variance
+and bans common AI-hero fingerprints; product-workspace favors density and bans marketing
 theatrics; trust-public favors restraint and real design-system foundations.
 This gate never authorizes production implementation inside design workflows.
 New or high-visibility direction requires an
 inspectable approved visual reference; a narrow existing-pattern exception must
 name its live governing surface. Reuse approved tokens and components.
-When `sp-design` produced a project-level HTML preview, preserve the exact
-immutable `round-NN.html#direction-id` reference and its motion/reduced-motion
-contract, preview/manifest/handoff SHA-256 values, immutable handoff ref,
-approved `DS-*` decision IDs, and applicable `DH-*` handoff contract IDs.
+For Quick adoption, stage exact `scope`, `design_change_id`,
+`design_change_ref`, `design_change_sha256`, and `design_contract_ref` as
+confirmation-protected `decision.ui_confirmation.design_binding` before
+confirmation. Only afterward, use a fresh leased
+`specify-runtime artifact patch` call to set the independent top-level
+`STATUS.md` `ui_design_binding` adoption copy; both copies must exact-match
+before `specify-runtime design adopt` may succeed.
+For a replacement, first run `specify-runtime design diff`, then the read-only
+`specify-runtime design impact <consumer-ref> ... --expected-change
+<CURRENT-UD-ID|none>` preview. Present `preserved_bindings`,
+`invalidated_bindings`, and `reconcile_from`; only a matching adoption receipt
+may trigger scope-bounded reconciliation. Preserve completed work and
+unaffected Review evidence. Quick retires unstarted affected packets and
+creates a corrective work item for completed-work drift.
+When `sp-design` produced a change-level HTML preview, preserve its exact
+change-local `round-NN.html#direction-id` reference, registered design-change
+ref/hash, motion/reduced-motion contract, preview/manifest/handoff SHA-256
+values, immutable handoff ref, approved `DS-*` decision IDs, and applicable
+`DH-*` handoff contract IDs.
 Do not replace them with a prose summary or the later feature target.
 
 ## Delivery chain
 
 For substantive UI work preserve one contract through the workflow:
 
-`DESIGN.md + approved preview/approval/handoff sidecars + original references -> ui-brief.md -> plan ui_design_contract -> task ui_contract -> comparison report + real-entrypoint evidence`
+`registered change-local DESIGN.md + approved preview/approval/handoff sidecars + original references -> ui-brief.md -> plan ui_design_contract -> task ui_contract -> comparison report + real-entrypoint evidence`
 
 The UI brief is required for substantive UI work even without external
 references. It identifies entry points, required states and viewports,
@@ -60,8 +82,12 @@ artwork, trade dress, or proprietary implementation.
 
 ## Implementation acceptance
 
-Do not stop at code correctness. Query `DESIGN.md` and the feature UI brief through targeted `specify-runtime artifact show` calls, run the real entry point, capture the required
-representative viewport/state matrix, and inspect it against those returned sections, the
+Do not stop at code correctness. Query the task's exact
+`design_change_ref`/`design_change_sha256`, its exported
+`design_contract_ref`, and the feature UI brief through targeted
+`specify-runtime artifact show` calls; verify those values against the
+metadata-only index, then run the real entry point and capture the required
+representative viewport/state matrix. Inspect it against those returned sections, the
 brief, prior surfaces, and original references, fix concrete drift, then
 recapture. Submit the observed entrypoint/revision, typed evidence refs, matrix
 rows, structural/visual differences, covered decision/handoff IDs, explicit
@@ -94,8 +120,8 @@ tests, or source inspection alone.
 Horizontal Design Intelligence Engine for every UI-bearing stage: **Taste
 Intelligence** + **Design System Reverse Engineering** + **Visual Validation**.
 Not a new mainline command. Reuse design-brief dials (`variance` / `motion` /
-`density`), `design_read`, anti-slop locks, and approved `DESIGN.md`—do not
-invent a second parameter system or approval authority. UI is a design-system
+`density`), `design_read`, anti-slop locks, and the exact registered design
+change—do not invent a second parameter system or approval authority. UI is a design-system
 modeling problem: Evidence → System → Implementation. Prefer tokens, components,
 states, and responsive rules over one-shot page clones.
 
@@ -123,8 +149,10 @@ requires rationale; inferred requires source or explicit source_gap. Validate
 with `validate_design_evidence` / `validate_design_context`. Model UI as pixel /
 system / behavior / engineering layers: tokens, components, state matrix
 (including hover/focus/loading/empty/error), responsive rules, and
-keyboard/behavior. Bind into approved `DESIGN.md` and
-`.specify/design/design-system.json`—not a parallel root `.design/` tree.
+keyboard/behavior. Bind into
+`.specify/design/changes/<UD-ID>/DESIGN.md` and its change-local exported
+`design-contract.json`—not a global design document or parallel root
+`.design/` tree.
 Optional executable reports use
 `ui-quality-gate-report.schema.json` and
 `run_ui_quality_gate_rules` without replacing design approve.
@@ -139,11 +167,16 @@ Optional executable reports use
   `discussion_decision_digest.design_context`.
 - **Design — reverse engineering**: on synthesize or live refine, extract
   tokens/components/states/responsive with evidence levels before boards;
-  approve only through design approve/export.
+  approve only through design approve/export, then freeze consumer truth through
+  design register.
 - **Specify — UI Requirements + acceptance**: layout pattern; design-system
   token/component use; required states (loading/empty/error/success/disabled/
   focus); responsive targets; quality (no generic dashboard/template; maintain
   DNA/dials); visual evidence kinds.
+- **Test Design — UI coverage obligations**: enumerate accessibility,
+  responsive, viewport/state, interaction, motion, and visual-comparison cases
+  plus their data and evidence needs. Do not implement tests, run captures, or
+  substitute a test-design audit for real-entrypoint review evidence.
 - **Quick — UI Audit then design-before-code**: UI Audit issue list first →
   analyze → identify issue → propose before/after → implement → visual check.
   Do not jump straight to code edits.
@@ -151,7 +184,7 @@ Optional executable reports use
   overflow, responsive), UX/interaction (unclear action, hover/focus/keyboard,
   loading/empty/error), or taste/generic-look. Name issue, reason, and
   design-aware fix before coding.
-- **Implement / Review**: query approved design + UI System Model + anti-slop +
+- **Implement / Review**: query the task's exact registered design change + UI System Model + anti-slop +
   task `ui_contract` before UI generation; prefer visual hierarchy over
   equal-weight card grids; visual validation loop
   (capture → compare → fix → recapture) or `pending-human-review`.

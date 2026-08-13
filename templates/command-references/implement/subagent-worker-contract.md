@@ -29,6 +29,15 @@ Route in this order: `leader-direct` when it independently qualifies, then `one-
 
 When delegation is selected, the leader compiles the current packet with `specify-runtime implement packet-compile`, dispatches, waits for the structured result, integrates it, validates the join, and merges it through `specify-runtime implement result-merge` into the same lifecycle.
 
+When Test Design applies, dispatch only the verified task packet subset:
+task-local `test_case_refs`, `test_data_refs`, and the runtime-owned Test Design
+binding. These are canonical read-only oracle/material inputs. Neither Leader
+nor worker may load a global Test Design projection, add refs from a
+noncanonical Markdown task projection, or edit cases, data, coverage, gaps,
+audit, publication, projection,
+or handoff. A missing or conflicting ref returns a blocked result and routes to
+Tasks/Test Design ownership.
+
 - Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format
 - If the lane is shaped by a PNG, screenshot, mockup, design export, reference image, or UI reference page, the packet must carry the original visual input through stable fidelity refs or a runtime image item/local_image. A leader-authored prose summary is not a substitute.
 - If the original visual input exists only in the current conversation, attach it directly to the worker when runtime image payloads are supported; otherwise import the runtime-provided local attachment through `specify-runtime evidence import --file <local-path> --scope ui-reference --source chat-attachment --provenance user-provided` and pass the returned content-addressed `object_ref` plus evidence record. Never copy or materialize a project file directly.

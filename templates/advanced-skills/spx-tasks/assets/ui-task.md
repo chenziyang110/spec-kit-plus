@@ -5,12 +5,16 @@
 | Field | Value |
 | --- | --- |
 | write_scope | [{{write_paths}}] |
-| read_scope | [DESIGN.md, {{feature_dir}}/ui-brief.md] |
+| read_scope | [.specify/design/changes/{{design_change_id}}/DESIGN.md, .specify/design/changes/{{design_change_id}}/design-contract.json, {{feature_dir}}/ui-brief.md] |
 
 ### UI Implementation Contract
 
 | Field | Value |
 | --- | --- |
+| design_change_id | {{design_change_id}} |
+| design_change_ref | .specify/design/changes/{{design_change_id}}/DESIGN.md |
+| design_change_sha256 | {{registered_design_change_sha256}} |
+| design_contract_ref | .specify/design/changes/{{design_change_id}}/design-contract.json |
 | ui_work_type | {{ui_work_type}} |
 | surface_type | {{surface_type}} |
 | platforms | [{{platforms}}] |
@@ -28,7 +32,7 @@
 | approved_handoff_sha256 | {{approved_handoff_sha256_or_empty_for_live_pattern}} |
 | design_decision_ids | [{{task_applicable_design_decision_ids}}] |
 | handoff_contract_ids | [{{task_applicable_handoff_contract_ids_or_empty_for_live_pattern}}] |
-| design_sources | [DESIGN.md, {{approved_visual_ref}}, {{feature_dir}}/ui-brief.md] |
+| design_sources | [.specify/design/changes/{{design_change_id}}/DESIGN.md, .specify/design/changes/{{design_change_id}}/design-contract.json, {{approved_visual_ref}}, {{feature_dir}}/ui-brief.md] |
 | reference_notes | {{reference_notes_or_none}} |
 | visual_target | {{visual_target_or_none}} |
 | reference_intents | [{{task_reference_ref_and_intent}}] |

@@ -28,6 +28,31 @@ handoff_delivery_contract:
   excluded_scope: []
   validation_route: []
 
+## Test Design Input
+<!-- agent-fill:test_design_input; verify bindings with specify-runtime test-design projection-verify -->
+
+test_design_gate:
+  decision: not_selected
+  reason_refs: []
+  projection_binding:
+    publication_ref:
+    publication_sha256:
+    projection_ref:
+    projection_sha256:
+    source_fingerprint:
+    state_revision:
+
+## UI Design Binding
+<!-- agent-fill:ui_design_binding; required when ui_confirmation.applicable is true -->
+<!-- adoption copy: must exactly match confirmation-protected decision.ui_confirmation.design_binding -->
+
+ui_design_binding:
+  scope: ""
+  design_change_id: ""
+  design_change_ref: ""
+  design_change_sha256: ""
+  design_contract_ref: ""
+
 ## Current Focus
 <!-- agent-fill:current_focus -->
 
@@ -83,6 +108,13 @@ checkpoint:
 
 ui_confirmation:
   applicable: false
+  # Decision copy: stage before checkpoint-confirm; confirmation_digest protects these exact fields.
+  design_binding:
+    scope: ""
+    design_change_id: ""
+    design_change_ref: ""
+    design_change_sha256: ""
+    design_contract_ref: ""
   confirmation_purpose: ""
   user_and_primary_job: ""
   design_basis_and_source_material: []

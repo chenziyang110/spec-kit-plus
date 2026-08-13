@@ -85,6 +85,19 @@ func (service *ArtifactService) Prepare(request ArtifactPrepareRequest) Envelope
 		env.Data["allowed_operations"] = metadata.Operations
 		return env
 	}
+	if metadata.TypeID == "ui-design-change-contract" {
+		immutable, err := service.registeredDesignChangeImmutable(canonicalPath)
+		if err != nil {
+			env := NewEnvelope("blocked", "design change registration cannot be verified")
+			env.Blockers = append(env.Blockers, err.Error())
+			return env
+		}
+		if immutable {
+			env := NewEnvelope("blocked", "registered design change is immutable")
+			env.Blockers = append(env.Blockers, "create a new UD-* design change and declare supersedes instead of patching this registered contract")
+			return env
+		}
+	}
 	target, err := secureProjectPath(service.projectRoot, canonicalPath)
 	if err != nil {
 		env := NewEnvelope("blocked", "artifact path safety check failed")
@@ -548,6 +561,58 @@ func validateArtifactContent(canonicalPath string, content []byte) error {
 		}
 	}
 	return nil
+}
+
+func (service *ArtifactService) registeredDesignChangeImmutable(canonicalPath string) (bool, error) {
+	if !isDesignChangeWorkspaceFile(canonicalPath, "DESIGN.md") {
+		return false, nil
+	}
+	indexPath, err := secureProjectPath(service.projectRoot, ".specify/design/index.json")
+	if err != nil {
+		return false, err
+	}
+	raw, err := os.ReadFile(indexPath)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read design change index: %w", err)
+	}
+	var index struct {
+		Schema  string           `json:"schema"`
+		Changes []map[string]any `json:"changes"`
+	}
+	if err := json.Unmarshal(raw, &index); err != nil {
+		return false, fmt.Errorf("decode design change index: %w", err)
+	}
+	if index.Schema != designChangeIndexSchema {
+		return false, fmt.Errorf("design change index schema is invalid")
+	}
+	changeID := strings.TrimSuffix(
+		strings.TrimPrefix(canonicalPath, ".specify/design/changes/"),
+		"/DESIGN.md",
+	)
+	for _, record := range index.Changes {
+		if strings.TrimSpace(fmt.Sprint(record["id"])) != changeID {
+			continue
+		}
+		status := strings.TrimSpace(fmt.Sprint(record["status"]))
+		if status != "approved" && status != "superseded" {
+			return false, nil
+		}
+		if strings.TrimSpace(fmt.Sprint(record["design_ref"])) != canonicalPath {
+			return false, fmt.Errorf("registered design change path does not match %s", canonicalPath)
+		}
+		digest := strings.TrimSpace(fmt.Sprint(record["approval_sha256"]))
+		if len(digest) != 64 {
+			return false, fmt.Errorf("registered design change approval digest is invalid")
+		}
+		if _, err := hex.DecodeString(digest); err != nil {
+			return false, fmt.Errorf("registered design change approval digest is invalid")
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 func addArtifactSummary(data map[string]any, canonicalPath string, raw []byte) {

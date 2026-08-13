@@ -20,9 +20,30 @@ workflow runtime before creating task artifacts.
 Read `references/ui-quality-gate.md` when the plan carries a UI design contract.
 
 Query `plan-contract.json` first through `specify-runtime artifact show` and verify named owners, paths, and verification
-entry points against cognition-selected live evidence. If planning truth is
-missing or stale, stop and route to `$spx-plan`, `$spx-clarify`, or
-`$spx-deep-research`; do not hide design work inside a task.
+entry points against cognition-selected live evidence. Read
+`test_design_gate.decision` as exactly `not_selected`, `selected`, or
+`required`. For selected/required input, require the producer-built Tasks
+projection and verify it first with
+`{{specify-subcmd:specify-runtime test-design projection-verify --feature-dir <feature-dir> --projection-ref <project-relative-ref> --expected-sha256 <sha256> --format json}}`.
+Consume the canonical typed pointer-only projection read-only; never create,
+patch, replace, weaken, or copy its publication, projection, cases, data,
+coverage, gaps, or audit. If the independent `$spx-test-design` producer also
+emitted the compatibility `handoff-to-tasks.json`, query it through the artifact
+runtime, require its source fingerprint and claim status to be current, and
+treat its refs as authoritative input for task shaping rather than
+reconstructing test intent from prose. Route no-root, active, blocked,
+unpublished, stale, tampered, foreign, or requested missing selected/required
+input to `$spx-test-design`; `not_selected` with no root is the legal optional
+skip. If planning truth is missing or stale,
+stop and route to `$spx-plan`, `$spx-clarify`, or `$spx-deep-research`; do not
+hide design work inside a task.
+
+The pointer-only **test-design handoff** remains the Tasks CLI compatibility
+contract alongside the verified Tasks projection; neither is model-authored.
+The Plan binding may be all-null pending or Plan-only and never authorizes
+Tasks. Tasks verifies its separate feature projection for read-only
+decomposition; the fresh feature handoff plus runtime-owned task-index binding
+provides final authorization and all-and-only ref enforcement.
 
 Run
 `{{specify-subcmd:specify-runtime hook validate-state --command tasks --feature-dir <feature-dir> --autofix --format json}}`
@@ -46,6 +67,17 @@ overlap; name the join and combined check. Write-overlapping task-generation
 lanes use serial `one-subagent` (or leader-inline only under adaptive light /
 recorded standard degradation)—never unrecorded leader synthesis after a
 parallel conflict.
+When present, `test_case_refs` and `test_data_refs` are task-local authoritative
+inputs copied from that test-design handoff and preserved into the canonical
+task graph for later JIT packet compilation. `$spx-test-design` is the public
+Advanced producer; its handoff remains pointer-only and the canonical runtime
+next stage remains `/sp.tasks`.
+`tasks build` binds the handoff ref/SHA-256, source fingerprint, state revision,
+and artifact digests into runtime-owned task-index fields. Never author or
+patch those fields. Every task ref must be a handoff member; before finalize,
+the task-wide unions must consume all and only the handoff case/data arrays.
+Finalize and handoff recompute all bindings and reject stale, tampered, forged,
+foreign, missing, or partial consumption.
 
 Set root `validation_policy` to `mode: feature_epochs`, `max_epochs: 3`,
 `budget_scope: implement-review`,
@@ -112,12 +144,16 @@ described by `assets/ui-task.md` and `assets/ui-task-index-entry.json` to the ta
 CLI. The CLI expands the stable current `ui_contract` shape; the agent does not
 re-emit empty defaults or boilerplate. Use that expanded object as the only UI packet contract. Do not rely on a
 global UI coverage table: the just-in-time packet compiler must receive design
-sources, approved reference/digests, an applicable `DS-*` decision subset,
+sources, the exact `design_change_id`, `design_change_ref`,
+`design_change_sha256`, sibling `design_contract_ref`, approved
+reference/digests, an applicable `DS-*` decision subset,
 component/color-mode/responsive/motion contracts, viewport/state acceptance
 rows, comparison tolerance, the unchanged accepted-deviation ledger,
 task-specific visual constraints, states, and evidence without re-inferring
 them. Across UI tasks, require exact coverage of the plan's design decision and
 acceptance rows.
+Never resolve “latest” from `.specify/design/index.json` and never substitute a
+root `DESIGN.md` for a registered task binding.
 
 Before handoff, run
 `{{specify-subcmd:specify-runtime hook validate-artifacts --command tasks --feature-dir <feature-dir> --format json}}`

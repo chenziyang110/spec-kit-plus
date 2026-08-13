@@ -4,6 +4,22 @@ Tasks express independently verifiable outcomes, not a narrated coding recipe.
 Trace every confirmed requirement, plan decision, must-preserve behavior, and
 triggered consequence obligation to at least one task or explicit deferral.
 
+Before decomposition, query `test_design_gate.decision` through
+`specify-runtime artifact show` and interpret it as
+`not_selected|selected|required`. A selected/required Tasks projection must pass
+`specify-runtime test-design projection-verify --feature-dir <feature-dir>
+--projection-ref <project-relative-ref> --expected-sha256 <sha256>`. It is a
+canonical typed pointer-only, read-only input. Tasks must not mutate or copy the
+Test Design publication, projection, catalog, data, coverage, gaps, or audit.
+Missing or non-current selected input routes to the independent
+`$spx-test-design` producer. `not_selected` with no root is the only optional
+skip. The Tasks CLI still owns the compatibility handoff binding and rejects
+user-authored `test_design_*` fields or foreign task refs.
+The Plan binding may be all-null pending or Plan-only and is never Tasks
+authorization. The Tasks projection is a read-only decomposition input. Only
+the fresh feature handoff plus runtime task-index binding authorizes and
+enforces the exact member set.
+
 For a ready version-2 task index, `acceptance_refs` is the complete unique
 ordered **copy of `plan-contract.acceptance_refs` values** (typically
 `spec-contract.json#/acceptance_criteria/0..N-1`). The pointer spelling
@@ -61,7 +77,8 @@ UI tasks additionally query the plan `ui_design_contract` and feature
 `ui-brief.md` through targeted `specify-runtime artifact show` calls. Each task owns a bounded surface/state outcome and carries
 task-specific `ui_contract`, fidelity level, design inputs, required states,
 real entry points, current direction fields, task-relevant reference/content/image
-records, immutable handoff ref/digest, task-relevant `DH-*` contract IDs,
+records, exact `design_change_id`/`design_change_ref`/`design_change_sha256`/
+`design_contract_ref`, immutable handoff ref/digest, task-relevant `DH-*` contract IDs,
 structure/visual/runtime evidence, and comparison or human review. Use
 `assets/ui-task.md` for the project-facing detail and
 `assets/ui-task-index-entry.json` as the semantic field catalog. Submit only
@@ -71,5 +88,7 @@ without an external fidelity target still sets `ui_contract.fidelity_level` to
 `approximate` against the approved design/brief; use `inspiration` only when it
 is the approved reference relationship. Missing UI fields are a graph defect, not
 `not_applicable`.
+Never resolve “latest” from `.specify/design/index.json`; copy the exact
+registered binding selected by the feature `ui-brief.md`.
 Task contracts may select a plan subset of `DH-*` IDs, and all UI tasks together
 must cover the plan set. They do not rewrite the selected handoff rows.

@@ -89,8 +89,31 @@ def test_compile_worker_task_packet_prefers_canonical_task_index_for_jit_packet(
     assert [item.obligation_id for item in packet.consequence_obligations] == ["CA-001"]
 
 
+@pytest.mark.parametrize(
+    ("bypass_visual_ref", "bypass_handoff_ref"),
+    [
+        (
+            ".specify/design/changes/UD-0042/previews/custom.html#direction-x",
+            ".specify/design/changes/UD-0042/previews/custom.handoff.json",
+        ),
+        (
+            ".specify/design/changes/UD-0042/previews/round-01.html?view=1#direction-x",
+            ".specify/design/changes/UD-0042/previews/round-01.handoff.json",
+        ),
+        (
+            ".specify/design/changes/UD-0042/previews/round-01.html#direction-x",
+            ".specify/design/changes/UD-0042/previews/round-99.handoff.json",
+        ),
+        (
+            ".specify/design/changes/UD-0042/archive/round-01.html#direction-x",
+            ".specify/design/changes/UD-0042/archive/round-99.handoff.json",
+        ),
+    ],
+)
 def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
     tmp_path: Path,
+    bypass_visual_ref: str,
+    bypass_handoff_ref: str,
 ) -> None:
     project_root = tmp_path / "project"
     feature_dir = project_root / "specs" / "001-ui-feature"
@@ -118,9 +141,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
         ),
         encoding="utf-8",
     )
-    (feature_dir / "task-index.json").write_text(
-        json.dumps(
-            {
+    task_index = {
                 "version": 2,
                 "status": "ready",
                 "tasks": [
@@ -131,6 +152,10 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                         "verification": ["npm test -- settings-ui"],
                         "acceptance": ["Desktop and mobile states match the UI brief"],
                         "ui_contract": {
+                            "design_change_id": "UD-0042",
+                            "design_change_ref": ".specify/design/changes/UD-0042/DESIGN.md",
+                            "design_change_sha256": "a" * 64,
+                            "design_contract_ref": ".specify/design/changes/UD-0042/design-contract.json",
                             "ui_work_type": "feature-extension",
                             "surface_type": "product-workspace",
                             "platforms": ["web"],
@@ -141,7 +166,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                             "content_thesis": "render real preference labels and saved values",
                             "interaction_thesis": "changes provide immediate local feedback",
                             "signature_element": "persistent section progress rail",
-                            "approved_visual_ref": "DESIGN.md#settings-direction",
+                            "approved_visual_ref": ".specify/design/changes/UD-0042/previews/round-01.html#settings-direction",
                             "approved_preview_sha256": "",
                             "approved_manifest_sha256": "",
                             "approved_handoff_ref": "",
@@ -152,7 +177,8 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                             ],
                             "handoff_contract_ids": [],
                             "design_sources": [
-                                "DESIGN.md",
+                                ".specify/design/changes/UD-0042/DESIGN.md",
+                                ".specify/design/changes/UD-0042/design-contract.json",
                                 "specs/001-ui-feature/ui-brief.md",
                             ],
                             "reference_notes": "specs/001-ui-feature/ui-reference-notes.md",
@@ -212,13 +238,53 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                     }
                 ],
             }
-        ),
+    task_index_path = feature_dir / "task-index.json"
+    task_index_path.write_text(
+        json.dumps(task_index),
         encoding="utf-8",
     )
     (feature_dir / "tasks.md").write_text(
         "# Tasks\n\n- [ ] T021 Implement UI without duplicated markdown contract\n",
         encoding="utf-8",
     )
+
+    with pytest.raises(PacketValidationError, match="change-local HTML preview"):
+        compile_worker_task_packet(
+            project_root=project_root,
+            feature_dir=feature_dir,
+            task_id="T021",
+        )
+
+    ui_contract = task_index["tasks"][0]["ui_contract"]
+    ui_contract.update(
+        {
+            "approved_visual_ref": bypass_visual_ref,
+            "approved_preview_sha256": "b" * 64,
+            "approved_manifest_sha256": "c" * 64,
+            "approved_handoff_ref": bypass_handoff_ref,
+            "approved_handoff_sha256": "d" * 64,
+            "handoff_contract_ids": ["DH-COMP-001"],
+        }
+    )
+    task_index_path.write_text(json.dumps(task_index), encoding="utf-8")
+    with pytest.raises(PacketValidationError, match="change-local HTML preview"):
+        compile_worker_task_packet(
+            project_root=project_root,
+            feature_dir=feature_dir,
+            task_id="T021",
+        )
+
+    ui_contract.update(
+        {
+            "approved_visual_ref": ".specify/design/changes/UD-0042/previews/round-01.html#direction-settings",
+            "approved_preview_sha256": "b" * 64,
+            "approved_manifest_sha256": "c" * 64,
+            "approved_handoff_ref": ".specify/design/changes/UD-0042/previews/round-01.handoff.json",
+            "approved_handoff_sha256": "d" * 64,
+            "handoff_contract_ids": ["DH-COMP-001"],
+        }
+    )
+    task_index_path.write_text(json.dumps(task_index), encoding="utf-8")
 
     packet = compile_worker_task_packet(
         project_root=project_root,
@@ -228,7 +294,20 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
 
     assert packet.ui_contract.fidelity_level == "high"
     assert packet.ui_contract.surface_type == "product-workspace"
-    assert packet.ui_contract.approved_visual_ref == "DESIGN.md#settings-direction"
+    assert packet.ui_contract.design_change_id == "UD-0042"
+    assert (
+        packet.ui_contract.design_change_ref
+        == ".specify/design/changes/UD-0042/DESIGN.md"
+    )
+    assert packet.ui_contract.design_change_sha256 == "a" * 64
+    assert (
+        packet.ui_contract.design_contract_ref
+        == ".specify/design/changes/UD-0042/design-contract.json"
+    )
+    assert (
+        packet.ui_contract.approved_visual_ref
+        == ".specify/design/changes/UD-0042/previews/round-01.html#direction-settings"
+    )
     assert packet.ui_contract.reference_intents[0]["intent"] == "preserve-structure"
     assert (
         packet.ui_contract.real_content_plan[0]["source_ref"]
@@ -251,7 +330,10 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
     assert "src/ui/theme.ts" in {item.path for item in packet.context_bundle}
     assert all("#" not in item.path for item in packet.context_bundle)
     reference_paths = [item.path for item in packet.required_references]
-    assert "DESIGN.md" in reference_paths
+    assert ".specify/design/changes/UD-0042/DESIGN.md" in reference_paths
+    assert (
+        ".specify/design/changes/UD-0042/design-contract.json" in reference_paths
+    )
     assert "specs/001-ui-feature/ui-brief.md" in reference_paths
 
     documented_result = WorkerTaskResult(
@@ -284,11 +366,16 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
             runtime_evidence="pass",
             visual_comparison="passed",
             fidelity_status="passed",
-            approved_visual_ref="DESIGN.md#settings-direction",
+            approved_visual_ref=".specify/design/changes/UD-0042/previews/round-01.html#direction-settings",
+            approved_preview_sha256="b" * 64,
+            approved_manifest_sha256="c" * 64,
+            approved_handoff_ref=".specify/design/changes/UD-0042/previews/round-01.handoff.json",
+            approved_handoff_sha256="d" * 64,
             comparison_report_ref="artifacts/ui/settings-comparison.json",
             comparison_report_sha256="c" * 64,
             implementation_capture_refs=["artifacts/ui/settings.png"],
             covered_decision_ids=["DS-COMP-001", "DS-RESP-001"],
+            covered_handoff_contract_ids=["DH-COMP-001"],
             comparison_tolerance=COMPARISON_TOLERANCE,
         ),
         summary="Implemented and visually verified the settings surface.",

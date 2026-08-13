@@ -72,8 +72,9 @@ def test_advanced_design_preserves_the_same_routing_contract() -> None:
     _assert_router_contract(router, public_entry="spx-design")
     _assert_consumer_contract(consumers)
     lowered_skill = skill.lower()
-    assert "every project-wide `refine`" in lowered_skill
-    assert "new immutable review round" in lowered_skill
+    compact_skill = " ".join(lowered_skill.split())
+    assert "every `refine` that changes approved design truth" in lowered_skill
+    assert "create a new `ud-*` workspace" in compact_skill
 
     surface_map = json.loads(
         _read(ADVANCED_DESIGN.parent / "_shared" / "surface-map.json")
@@ -81,9 +82,15 @@ def test_advanced_design_preserves_the_same_routing_contract() -> None:
     references = surface_map["skills"]["spx-design"]["references"]
     assert "spx-design/references/task-router.md" in references
     assert "spx-design/references/consumer-contract.md" in references
+    assert surface_map["skills"]["spx-design"]["assets"] == [
+        "spx-design/assets/design-change.md"
+    ]
+    optimization = surface_map["skills"]["spx-design"]["optimization"].lower()
+    assert "change-scoped" in optimization
+    assert "root design-system" not in optimization
 
 
-def test_quick_pins_the_approved_design_snapshot_for_direct_delivery() -> None:
+def test_quick_pins_an_exact_registered_design_change_for_direct_delivery() -> None:
     classic_quick = _read(
         PROJECT_ROOT
         / "templates"
@@ -96,10 +103,46 @@ def test_quick_pins_the_approved_design_snapshot_for_direct_delivery() -> None:
     )
 
     for content in (classic_quick, advanced_quick):
+        normalized = " ".join(content.lower().split())
+        assert ".specify/design/index.json" in content
+        assert "design_change_id" in content
+        assert "design_change_ref" in content
+        assert "design_change_sha256" in content
+        assert "design_contract_ref" in content
+        assert "never resolve" in normalized and "latest" in normalized
         assert "preview/manifest/handoff SHA-256" in content
         assert "DS-*" in content
         assert "DH-*" in content
         assert "must not silently adopt a later design approval" in content.lower()
+
+
+def test_workflow_registry_models_change_scoped_design_artifacts_and_legacy_root() -> None:
+    registry = json.loads(
+        _read(PROJECT_ROOT / "templates" / "workflow-artifact-registry.json")
+    )
+    entries = {entry["id"]: entry for entry in registry["artifacts"]}
+
+    assert ".specify/design/index.json" in entries["ui_design_change_index"][
+        "path_patterns"
+    ]
+    change = entries["ui_design_change_contract"]
+    assert ".specify/design/changes/*/DESIGN.md" in change["path_patterns"]
+    assert ".specify/design/changes/*/design-contract.json" in change[
+        "path_patterns"
+    ]
+    workspace = entries["ui_design_change_workspace"]
+    assert ".specify/design/changes/*/brief.md" in workspace["path_patterns"]
+    assert ".specify/design/changes/*/review.md" in workspace["path_patterns"]
+    assert entries["legacy_project_design_contract"]["path_patterns"] == ["DESIGN.md"]
+    index_patterns = entries["ui_design_change_index"]["safe_instruction_patterns"]
+    for command in (
+        "specify-runtime design iterate",
+        "specify-runtime design resolve",
+        "specify-runtime design diff",
+        "specify-runtime design impact",
+        "specify-runtime design adopt",
+    ):
+        assert command in index_patterns
 
 
 def test_design_routing_is_documented_as_a_cross_profile_product_contract() -> None:
@@ -115,6 +158,20 @@ def test_design_routing_is_documented_as_a_cross_profile_product_contract() -> N
         assert "sp-specify" in content, path
         assert "sp-quick" in content, path
         assert "silently" in content and "retarget" in content, path
+        assert "specify-runtime design iterate" in content, path
+        assert "specify-runtime design resolve" in content, path
+        assert "specify-runtime design diff" in content, path
+        assert "specify-runtime design impact" in content, path
+        assert "specify-runtime design adopt" in content, path
+        assert "superseded_scopes" in content, path
+        assert "singular" in content, path
+        assert "independently bound" in content, path
+        assert "confirmation.json" in content, path
+        assert "decision.ui_confirmation.design_binding" in content, path
+        assert "ui_design_binding" in content, path
+        assert "preserved_bindings" in content, path
+        assert "invalidated_bindings" in content, path
+        assert "reconcile_from" in content, path
 
 
 def test_classic_passive_router_preserves_design_types_and_consumers() -> None:

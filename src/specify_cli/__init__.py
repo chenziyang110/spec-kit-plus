@@ -97,18 +97,25 @@ from specify_cli.command_catalog import list_command_catalog, show_catalog_comma
 from specify_cli.design import (
     DesignDiagnostic,
     DesignLintError,
+    adopt_design_change,
     approve_design_preview,
     design_capability_profiles,
+    diff_design_changes,
     export_design_system,
+    impact_design_adoption,
     import_design_reference,
     lint_design_preview_file,
     lint_design_file,
     lint_ui_target_file,
     parse_design_capability_profile_ids,
+    register_design_change,
     render_design_preview,
+    scaffold_design_change,
+    scaffold_design_iteration,
     scaffold_design_preview,
     scaffold_design_preview_manifest,
     scaffold_ui_target,
+    resolve_design_changes,
 )
 from specify_cli.specify_runtime import (
     SpecifyRuntimeError,
@@ -832,6 +839,334 @@ def design_lint(
     for diagnostic in diagnostics:
         console.print(f"{diagnostic.code}: {diagnostic.message}")
     raise typer.Exit(1)
+
+
+@design_app.command("change")
+def design_change(
+    change_id: str = typer.Argument(
+        ...,
+        help="Stable UI design change ID in UD-0001 form",
+    ),
+    title: str = typer.Option(..., "--title", help="Human-readable change title"),
+    change_type: str = typer.Option(
+        "extension",
+        "--type",
+        help="Change type: greenfield, preserve, overhaul, or extension",
+    ),
+    scope: list[str] = typer.Option(
+        ...,
+        "--scope",
+        help="Repeatable affected surface identifier, for example web:orders/list",
+    ),
+    profiles: str = typer.Option(
+        "web",
+        "--profiles",
+        help="Comma-separated design capability profiles",
+    ),
+    baseline_ref: list[str] = typer.Option(
+        [],
+        "--baseline-ref",
+        help="Repeatable live or accepted design baseline reference",
+    ),
+    supersedes: list[str] = typer.Option(
+        [],
+        "--supersedes",
+        help="Repeatable prior UD-* change replaced by this change",
+    ),
+) -> None:
+    """Create one change-scoped UI design workspace without a root DESIGN.md."""
+
+    try:
+        profile_ids = parse_design_capability_profile_ids(profiles)
+        design_path = scaffold_design_change(
+            Path.cwd(),
+            change_id=change_id,
+            title=title,
+            change_type=change_type,
+            scopes=scope,
+            profile_ids=profile_ids,
+            baseline_refs=baseline_ref,
+            supersedes=supersedes,
+        )
+    except DesignLintError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    console.print(f"Wrote {_display_path(design_path)}")
+
+
+@design_app.command("iterate")
+def design_iterate(
+    source_id: str = typer.Argument(
+        ...,
+        help="Registered source UI design change ID",
+    ),
+    change_id: str = typer.Argument(
+        ...,
+        help="New successor UI design change ID",
+    ),
+    title: str = typer.Option(..., "--title", help="Human-readable change title"),
+    change_type: str = typer.Option(
+        "preserve",
+        "--type",
+        help="Change type: preserve, overhaul, or extension",
+    ),
+    scope: list[str] = typer.Option(
+        [],
+        "--scope",
+        help="Repeatable successor scope; omit only for a fully active source",
+    ),
+    profiles: Optional[str] = typer.Option(
+        None,
+        "--profiles",
+        help="Optional comma-separated profiles; defaults to the source change",
+    ),
+) -> None:
+    """Create a digest-pinned successor without mutating its source contract."""
+
+    try:
+        profile_ids = (
+            parse_design_capability_profile_ids(profiles)
+            if profiles is not None
+            else None
+        )
+        design_path = scaffold_design_iteration(
+            Path.cwd(),
+            source_id=source_id,
+            change_id=change_id,
+            title=title,
+            change_type=change_type,
+            scopes=scope,
+            profile_ids=profile_ids,
+        )
+    except DesignLintError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    console.print(
+        f"Wrote {_display_path(design_path)} as an iteration of "
+        f"{source_id.strip().upper()}"
+    )
+
+
+@design_app.command("resolve")
+def design_resolve(
+    scope: str = typer.Option(
+        ...,
+        "--scope",
+        help="Exact consumer surface to resolve",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+) -> None:
+    """Discover active design candidates without changing consumer bindings."""
+
+    try:
+        candidates = resolve_design_changes(Path.cwd(), scope)
+    except DesignLintError as exc:
+        if output_format.lower() == "json":
+            print_json({"ok": False, "error": str(exc)})
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    payload = {
+        "ok": True,
+        "scope": scope,
+        "candidate_count": len(candidates),
+        "composite": len(candidates) > 1,
+        "requires_explicit_adoption": True,
+        "candidates": candidates,
+    }
+    if output_format.lower() == "json":
+        print_json(payload)
+        return
+    if not candidates:
+        console.print(f"No active UI design change covers {scope}")
+        return
+    for candidate in candidates:
+        console.print(
+            f"{candidate['id']}  {candidate['matched_scope']}  "
+            f"{candidate['design_ref']}"
+        )
+    if len(candidates) > 1:
+        console.print("Composite result: split the consumer scope before adoption")
+
+
+@design_app.command("diff")
+def design_diff(
+    from_id: str = typer.Argument(..., help="Registered source change ID"),
+    to_id: str = typer.Argument(..., help="Registered target change ID"),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+) -> None:
+    """Compare two immutable UI design changes semantically."""
+
+    try:
+        diff = diff_design_changes(Path.cwd(), from_id, to_id)
+    except DesignLintError as exc:
+        if output_format.lower() == "json":
+            print_json({"ok": False, "error": str(exc)})
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    if output_format.lower() == "json":
+        print_json({"ok": True, "diff": diff})
+        return
+    console.print(
+        f"Compared {diff['from']['id']} -> {diff['to']['id']}; "
+        f"changed sections: {', '.join(diff['changed_sections']) or 'none'}"
+    )
+    decisions = diff["decisions"]
+    console.print(
+        "Decisions: "
+        f"+{len(decisions['added'])} "
+        f"~{len(decisions['changed'])} "
+        f"-{len(decisions['removed'])}"
+    )
+
+
+@design_app.command("impact")
+def design_impact(
+    consumer_ref: str = typer.Argument(
+        ...,
+        help="Stable feature or checkpoint consumer reference",
+    ),
+    change_id: str = typer.Option(..., "--change", help="Registered UD-* change"),
+    scope: str = typer.Option(..., "--scope", help="Exact consumer surface"),
+    mode: str = typer.Option(..., "--mode", help="Adoption mode: formal or quick"),
+    expected_change: str = typer.Option(
+        ...,
+        "--expected-change",
+        help="Current adopted UD-* ID, or none for first adoption",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+) -> None:
+    """Preview scope-bounded reconciliation before changing a binding."""
+
+    try:
+        impact = impact_design_adoption(
+            Path.cwd(),
+            consumer_ref=consumer_ref,
+            change_id=change_id,
+            scope=scope,
+            mode=mode,
+            expected_change=expected_change,
+        )
+    except DesignLintError as exc:
+        if output_format.lower() == "json":
+            print_json({"ok": False, "error": str(exc)})
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    if output_format.lower() == "json":
+        print_json({"ok": True, "impact": impact})
+        return
+    console.print(
+        f"Impact {impact['current_change_id'] or 'none'} -> "
+        f"{impact['candidate_change_id']} for {impact['scope']}; "
+        f"reconcile from {impact['reconcile_from']}"
+    )
+    console.print(
+        "Invalidated bindings: "
+        + (", ".join(impact["invalidated_bindings"]) or "none")
+    )
+
+
+@design_app.command("adopt")
+def design_adopt(
+    consumer_ref: str = typer.Argument(
+        ...,
+        help="Stable feature or checkpoint consumer reference",
+    ),
+    change_id: str = typer.Option(..., "--change", help="Registered UD-* change"),
+    scope: str = typer.Option(..., "--scope", help="Exact adopted surface"),
+    mode: str = typer.Option(..., "--mode", help="Adoption mode: formal or quick"),
+    binding_ref: Path = typer.Option(
+        ...,
+        "--binding-ref",
+        help="Consumer artifact already bound to the requested change",
+    ),
+    binding_sha256: str = typer.Option(
+        ...,
+        "--binding-sha256",
+        help="Exact SHA-256 of the consumer binding artifact",
+    ),
+    expected_change: str = typer.Option(
+        ...,
+        "--expected-change",
+        help="Current adopted UD-* ID, or none for first adoption",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+) -> None:
+    """Record an explicit compare-and-swap consumer adoption receipt."""
+
+    try:
+        receipt = adopt_design_change(
+            Path.cwd(),
+            consumer_ref=consumer_ref,
+            change_id=change_id,
+            scope=scope,
+            mode=mode,
+            binding_ref=binding_ref,
+            binding_sha256=binding_sha256,
+            expected_change=expected_change,
+        )
+    except DesignLintError as exc:
+        if output_format.lower() == "json":
+            print_json({"ok": False, "error": str(exc)})
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    if output_format.lower() == "json":
+        print_json({"ok": True, "adoption": receipt})
+        return
+    console.print(
+        f"Adopted {receipt['change_id']} for {receipt['consumer_ref']} "
+        f"at {receipt['scope']} (revision {receipt['revision']})"
+    )
+
+
+@design_app.command("register")
+def design_register(
+    path: Path = typer.Argument(
+        ...,
+        help="Path to an approved change-local DESIGN.md",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+) -> None:
+    """Pin an approved UI design change and enforce scope relationships."""
+
+    try:
+        record = register_design_change(Path.cwd(), path)
+    except DesignLintError as exc:
+        if output_format.lower() == "json":
+            print_json({"ok": False, "error": str(exc)})
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    if output_format.lower() == "json":
+        print_json({"ok": True, "change": record})
+        return
+    console.print(
+        f"Registered {record['id']} at {record['design_ref']} "
+        f"({record['approval_sha256']})"
+    )
 
 
 @design_app.command("preview-manifest")
@@ -5468,17 +5803,6 @@ def _install_shared_infra(
         dest_templates = project_path / ".specify" / "templates"
         dest_templates.mkdir(parents=True, exist_ok=True)
 
-        design_template_src = templates_src / "design-template.md"
-        design_file_dst = project_path / "DESIGN.md"
-        if design_template_src.exists():
-            # DESIGN.md is project-owned once created. Runtime repair may refresh
-            # generated scripts/templates, but must never replace approved design truth.
-            if design_file_dst.exists():
-                skipped_files.append(str(design_file_dst.relative_to(project_path)))
-            else:
-                shutil.copy2(design_template_src, design_file_dst)
-                manifest.record_existing("DESIGN.md")
-
         for src_path in templates_src.rglob("*"):
             if src_path.is_dir():
                 continue
@@ -5957,7 +6281,7 @@ def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
 DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
-    "design": "Use when product or UI visual direction needs a prompt-routed design-system create, refine, or audit of the root DESIGN.md contract; reference synthesis is an input strategy, formal adoption flows through Specify, and direct delivery flows through Quick.",
+    "design": "Use when product or UI visual direction needs a prompt-routed create, refine, or audit of one bounded UI design change; reference synthesis is an input strategy, registered adoption flows through Specify, and direct delivery flows through Quick.",
     "discussion": "Use when a rough idea or requirement needs a resumable senior product-engineering discussion before direct Quick delivery or formal specification.",
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
     "prd-scan": "Use when an existing repository needs read-only heavy reconstruction scan outputs before final PRD synthesis; execution is subagent-mandatory and critical claims target L4 Reconstruction-Ready.",
@@ -5970,6 +6294,7 @@ SKILL_DESCRIPTIONS = {
     "fast": "Use when the requested change is truly trivial, local, low risk, and can be completed without entering the full specify-plan workflow.",
     "quick": "Use when a non-trivial task needs tracked direct delivery, scalable task-local planning, validation, or resumable execution without first creating a formal feature specification.",
     "plan": "Use when the current specification package is ready for implementation planning and you need design artifacts before task breakdown or coding.",
+    "test-design": "Use when a project or planned feature needs an evidence-backed test universe, professional test-case catalog, test-data/material pack, explicit gaps, and a pointer-only handoff before task generation.",
     "tasks": "Use when plan artifacts exist and execution needs dependency-aware tasks, guardrails, and parallelization guidance before implementation; clean task packages hand off directly to implement.",
     "implement": "Use when tasks.md exists and workflow state records /sp.implement for the tracked implementation workflow.",
     "review": "Use when implementation is complete and the real product must be started, exercised, repaired, and proven usable before human acceptance.",
@@ -6010,6 +6335,12 @@ def map_build_command() -> None:
 def map_update_command() -> None:
     """Workflow entrypoint surface for incremental cognition runtime refresh."""
     _workflow_entrypoint_surface_only("map-update")
+
+
+@app.command("test-design", help=SKILL_DESCRIPTIONS["test-design"])
+def test_design_command() -> None:
+    """Workflow entrypoint surface for planning-only test design."""
+    _workflow_entrypoint_surface_only("test-design")
 
 
 @discussion_app.callback(invoke_without_command=True)
@@ -6994,6 +7325,7 @@ def init(
             ("quick", "resumable direct delivery at any size"),
             ("research", "deep-research compatibility route"),
             ("specify", "requirements and acceptance"),
+            ("test-design", "optional test universe and data pack before tasks"),
             ("tasks", "dependency-aware execution task graph"),
             ("taskstoissues", "explicit GitHub issue export"),
         ):
@@ -7078,6 +7410,9 @@ def init(
         f"   - [cyan]{_display_cmd('deep-research')}[/] - Coordinate research, evidence packets, and disposable demos into a traceable Planning Handoff before planning"
     )
     steps_lines.append(
+        f"   - [cyan]{_display_cmd('test-design')}[/] - Optionally compile a complete-against-scope test universe, professional cases, and test-data/material pack after [cyan]{_display_cmd('plan')}[/] and before [cyan]{_display_cmd('tasks')}[/]"
+    )
+    steps_lines.append(
         f"   - [cyan]{_display_cmd('checklist')}[/] - Optional requirements-quality checklist aid after [cyan]{_display_cmd('plan')}[/]"
     )
     steps_lines.append(
@@ -7130,6 +7465,7 @@ def init(
             f"○ [cyan]{_display_cmd('prd')}[/] [bright_black](deprecated compatibility)[/bright_black] - Compatibility entrypoint only; prefer the canonical [cyan]{_display_cmd('prd-scan')}[/] -> [cyan]{_display_cmd('prd-build')}[/] flow",
             f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
             f"○ [cyan]{_display_cmd('deep-research')}[/] [bright_black](optional feasibility and research gate)[/bright_black] - Prove whether a clear requirement can be implemented and hand [cyan]{_display_cmd('plan')}[/] the research findings, demo evidence, constraints, and recommended approach",
+            f"○ [cyan]{_display_cmd('test-design')}[/] [bright_black](optional after plan)[/bright_black] - Compile an evidence-backed test universe, professional case catalog, data/material decisions, gaps, and a pointer-only handoff before [cyan]{_display_cmd('tasks')}[/]",
             f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional diagnostic / legacy revalidation)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift when explicitly requested or recorded in existing state",
             f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, task, implement, or project cognition/runtime artifact in plain language before moving forward",
             f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])",

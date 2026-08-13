@@ -58,7 +58,6 @@ class TestGenericIntegration:
     @classmethod
     def _expected_inventory(cls, script_variant: str) -> list[str]:
         expected = [
-            "DESIGN.md",
             *(f".myagent/commands/sp.{stem}.md" for stem in cls._command_stems()),
             *cls._command_reference_files(),
             ".specify/bin/.gitignore",

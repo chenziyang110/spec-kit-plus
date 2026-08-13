@@ -1,0 +1,322 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/test-catalog-schema.json",
+  "title": "Spec Kit Plus Test Catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "artifact",
+    "cases"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "artifact": {
+      "const": "test-catalog"
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/test_case"
+      }
+    }
+  },
+  "$defs": {
+    "test_case_id": {
+      "type": "string",
+      "pattern": "^TC-[0-9]{3,}$"
+    },
+    "requirement_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "obligation_ref": {
+      "type": "string",
+      "pattern": "^TO-[0-9]{3,}$"
+    },
+    "capability_ref": {
+      "type": "string",
+      "pattern": "^CAP-[0-9]{3,}$"
+    },
+    "scenario_ref": {
+      "type": "string",
+      "pattern": "^SCN-[0-9]{3,}$"
+    },
+    "test_data_ref": {
+      "type": "string",
+      "pattern": "^TD-[0-9]{3,}$"
+    },
+    "test_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "test_case_id",
+        "title",
+        "objective",
+        "status",
+        "stage",
+        "priority",
+        "risk_tags",
+        "requirement_refs",
+        "obligation_refs",
+        "capability_refs",
+        "scenario_refs",
+        "test_data_refs",
+        "automation_target",
+        "owner_stage",
+        "environment",
+        "entrypoint_refs",
+        "preconditions",
+        "roles_permissions",
+        "configuration",
+        "steps",
+        "expected_results",
+        "variants",
+        "cleanup_reset",
+        "idempotency",
+        "side_effect_boundary",
+        "verification_method",
+        "pass_criteria",
+        "evidence_requirements",
+        "freshness_rule",
+        "invalidation_triggers",
+        "flake_risks",
+        "residual_risk"
+      ],
+      "properties": {
+        "test_case_id": {
+          "$ref": "#/$defs/test_case_id"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": ["proposed", "approved", "implemented", "retired"]
+        },
+        "stage": {
+          "enum": [
+            "unit",
+            "integration",
+            "workflow",
+            "review",
+            "acceptance",
+            "research-proof"
+          ]
+        },
+        "priority": {
+          "enum": [
+            "p0",
+            "p1",
+            "p2"
+          ]
+        },
+        "risk_tags": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "requirement_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/requirement_ref"
+          }
+        },
+        "obligation_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/obligation_ref"
+          }
+        },
+        "capability_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/capability_ref"
+          }
+        },
+        "scenario_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/scenario_ref"
+          }
+        },
+        "test_data_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/test_data_ref"
+          }
+        },
+        "automation_target": {
+          "enum": ["automated", "manual", "hybrid", "research"]
+        },
+        "owner_stage": {
+          "enum": ["tasks", "implement", "review", "accept", "deep-research"]
+        },
+        "environment": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "entrypoint_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "verification_method": {
+          "enum": [
+            "command-check",
+            "rule-check",
+            "manual-observation",
+            "visual-compare",
+            "runtime-diagnostics"
+          ]
+        },
+        "preconditions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "roles_permissions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "configuration": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "expected_results": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "variants": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "positive",
+            "negative",
+            "boundary",
+            "state",
+            "permission",
+            "concurrency",
+            "timing",
+            "recovery",
+            "compatibility"
+          ],
+          "properties": {
+            "positive": {"enum": ["covered", "not_applicable", "deferred"]},
+            "negative": {"enum": ["covered", "not_applicable", "deferred"]},
+            "boundary": {"enum": ["covered", "not_applicable", "deferred"]},
+            "state": {"enum": ["covered", "not_applicable", "deferred"]},
+            "permission": {"enum": ["covered", "not_applicable", "deferred"]},
+            "concurrency": {"enum": ["covered", "not_applicable", "deferred"]},
+            "timing": {"enum": ["covered", "not_applicable", "deferred"]},
+            "recovery": {"enum": ["covered", "not_applicable", "deferred"]},
+            "compatibility": {"enum": ["covered", "not_applicable", "deferred"]}
+          }
+        },
+        "cleanup_reset": {
+          "type": "string",
+          "minLength": 1
+        },
+        "idempotency": {
+          "type": "string",
+          "minLength": 1
+        },
+        "side_effect_boundary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pass_criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidence_requirements": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "freshness_rule": {
+          "type": "string",
+          "minLength": 1
+        },
+        "invalidation_triggers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "flake_risks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "residual_risk": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

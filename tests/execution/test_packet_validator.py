@@ -248,8 +248,31 @@ def test_validate_worker_task_packet_rejects_blank_controller_check_entries(
     assert "controller checks" in exc.value.message.lower()
 
 
+@pytest.mark.parametrize(
+    ("bypass_visual_ref", "bypass_handoff_ref"),
+    [
+        (
+            ".specify/design/changes/UD-0042/previews/custom.html#direction-x",
+            ".specify/design/changes/UD-0042/previews/custom.handoff.json",
+        ),
+        (
+            ".specify/design/changes/UD-0042/previews/round-01.html?view=1#direction-x",
+            ".specify/design/changes/UD-0042/previews/round-01.handoff.json",
+        ),
+        (
+            ".specify/design/changes/UD-0042/previews/round-01.html#direction-x",
+            ".specify/design/changes/UD-0042/previews/round-99.handoff.json",
+        ),
+        (
+            ".specify/design/changes/UD-0042/archive/round-01.html#direction-x",
+            ".specify/design/changes/UD-0042/archive/round-99.handoff.json",
+        ),
+    ],
+)
 def test_validate_worker_task_packet_requires_complete_current_ui_contract(
     sample_packet: WorkerTaskPacket,
+    bypass_visual_ref: str,
+    bypass_handoff_ref: str,
 ) -> None:
     sample_packet.context_nav = [
         {"kind": "ui_entrypoint", "value": "/settings", "source": "plan-contract.json"},
@@ -374,6 +397,34 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
     sample_packet.ui_contract.fidelity_level = "approximate"
     sample_packet.ui_contract.approved_visual_ref = ""
     with pytest.raises(PacketValidationError, match="approved_visual_ref"):
+        validate_worker_task_packet(sample_packet)
+
+    sample_packet.ui_contract.ui_work_type = "existing-pattern"
+    sample_packet.ui_contract.approved_visual_ref = "src/ui/settings.tsx#existing-pattern"
+    assert validate_worker_task_packet(sample_packet) is sample_packet
+
+    sample_packet.ui_contract.ui_work_type = "feature-extension"
+    sample_packet.ui_contract.design_change_id = "UD-0042"
+    sample_packet.ui_contract.design_change_ref = (
+        ".specify/design/changes/UD-0042/DESIGN.md"
+    )
+    sample_packet.ui_contract.design_change_sha256 = "a" * 64
+    sample_packet.ui_contract.design_contract_ref = (
+        ".specify/design/changes/UD-0042/design-contract.json"
+    )
+    sample_packet.ui_contract.design_sources = [
+        ".specify/design/changes/UD-0042/DESIGN.md",
+        ".specify/design/changes/UD-0042/design-contract.json",
+    ]
+    sample_packet.ui_contract.approved_visual_ref = (
+        ".specify/design/changes/UD-0042/previews/round-01.html#settings-direction"
+    )
+    with pytest.raises(PacketValidationError, match="change-local HTML preview"):
+        validate_worker_task_packet(sample_packet)
+
+    sample_packet.ui_contract.approved_visual_ref = bypass_visual_ref
+    sample_packet.ui_contract.approved_handoff_ref = bypass_handoff_ref
+    with pytest.raises(PacketValidationError, match="change-local HTML preview"):
         validate_worker_task_packet(sample_packet)
 
 

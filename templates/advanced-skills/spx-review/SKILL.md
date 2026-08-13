@@ -17,6 +17,19 @@ delegating. Read `references/ui-quality-gate.md` for UI-bearing scenarios and
 
 `$spx-review` starts from the exact immutable Candidate built from eligible implementation Results. Inspect it with `specify-runtime candidate show` and run integrated proof with `specify-runtime candidate review`. Bind frozen product targets through `specify-runtime review target-bind`. Any accepted code repair runs through `specify-runtime run supervise` as a new repair Run, seals a new Result, and requires a newly built and reviewed Candidate; never mutate or directly integrate the old Candidate.
 
+When the upstream gate is `selected` or `required`, or the canonical task index
+has a Test Design binding, require a producer-built Review projection and
+verify it first with
+`{{specify-subcmd:specify-runtime test-design projection-verify --feature-dir <feature-dir> --projection-ref <project-relative-ref> --expected-sha256 <sha256> --format json}}`.
+Consume that canonical typed pointer-only projection read-only as an oracle and
+coverage input. Never create, patch, replace, weaken, or copy the Test Design
+publication, projection, cases, data, coverage, gaps, or audit. Missing, stale,
+tampered, foreign, active, blocked, or unpublished selected/required input
+routes to the independent `$spx-test-design` producer and stops. **Test Design
+is not PASS evidence** and does not prove the implementation passes. Review
+still performs independent coverage discovery and captures fresh integrated
+evidence at every applicable real entrypoint against the final snapshot.
+
 Resolve exactly one implementation-complete feature. Require a trusted
 `implementation-handoff.json`, current implementation evidence, and the
 official real entrypoint. Initial Review transitions from validated `implement`;

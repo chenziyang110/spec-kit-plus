@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -38,6 +39,14 @@ var taskControlRuntimeFields = map[string]bool{
 	"result_ref":    true,
 }
 
+var taskControlTestDesignRootFields = map[string]bool{
+	"test_design_handoff_ref":        true,
+	"test_design_handoff_sha256":     true,
+	"test_design_source_fingerprint": true,
+	"test_design_state_revision":     true,
+	"test_design_artifact_digests":   true,
+}
+
 var taskControlAuthoredFields = map[string]bool{
 	"id": true, "task_id": true, "story_id": true, "phase": true,
 	"objective": true, "title": true, "description": true, "dependencies": true, "depends_on": true,
@@ -47,6 +56,7 @@ var taskControlAuthoredFields = map[string]bool{
 	"required_refs": true, "authoritative_refs": true, "policy_refs": true,
 	"forbidden_drift": true, "hard_rules": true, "acceptance": true, "done_condition": true, "acceptance_refs": true,
 	"verification": true, "required_validation": true, "task_checks": true,
+	"test_case_refs": true, "test_data_refs": true,
 	"consumer_surfaces": true, "required_consumer_evidence": true, "required_evidence": true,
 	"must_preserve_ids": true, "must_preserve_refs": true,
 	"consequence_obligation_ids": true, "consequence_obligation_refs": true,
@@ -127,6 +137,9 @@ func runTasksBuild(args []string) (map[string]any, error) {
 		if key == "version" || key == "status" || key == "transition" {
 			return nil, fmt.Errorf("%s is CLI-owned and cannot be authored", key)
 		}
+		if taskControlTestDesignRootFields[key] {
+			return nil, fmt.Errorf("%s is CLI-owned and bound from test-design handoff", key)
+		}
 		payload[key] = cloneJSONValue(value)
 	}
 	tasks, err := normalizeTaskControlTasks(payload["tasks"], false)
@@ -141,6 +154,9 @@ func runTasksBuild(args []string) (map[string]any, error) {
 	payload["status"] = "draft"
 	payload["tasks"] = tasks
 	if err := normalizeTaskControlRootObjectLists(payload); err != nil {
+		return nil, err
+	}
+	if err := taskControlValidateTestDesignBinding(root, feature, payload, true, false); err != nil {
 		return nil, err
 	}
 	payload["transition"] = map[string]any{
@@ -194,6 +210,9 @@ func runTasksUpsert(args []string) (map[string]any, error) {
 		tasks = append(tasks, task)
 	}
 	payload["tasks"] = tasks
+	if err := taskControlValidateTestDesignBinding(root, feature, payload, false, false); err != nil {
+		return nil, err
+	}
 	markTaskControlDraft(payload, "task package changed after its last finalize")
 	return commitTaskControlPackage(root, feature, payload, title, "tasks.upsert")
 }
@@ -226,9 +245,15 @@ func runTasksSetRoot(args []string) (map[string]any, error) {
 			}
 			return nil, fmt.Errorf("root patch contains CLI-owned field %q", key)
 		}
+		if taskControlTestDesignRootFields[key] {
+			return nil, fmt.Errorf("root patch contains CLI-owned test-design binding field %q", key)
+		}
 		payload[key] = cloneJSONValue(value)
 	}
 	if err := normalizeTaskControlRootObjectLists(payload); err != nil {
+		return nil, err
+	}
+	if err := taskControlValidateTestDesignBinding(root, feature, payload, false, false); err != nil {
 		return nil, err
 	}
 	// Shape-only repairs (for example official_entrypoints string→object) on an
@@ -294,6 +319,9 @@ func runTasksRemove(args []string) (map[string]any, error) {
 		}
 	}
 	payload["tasks"] = kept
+	if err := taskControlValidateTestDesignBinding(root, feature, payload, false, false); err != nil {
+		return nil, err
+	}
 	markTaskControlDraft(payload, "task package changed after its last finalize")
 	return commitTaskControlPackage(root, feature, payload, title, "tasks.remove")
 }
@@ -318,6 +346,9 @@ func runTasksFinalize(args []string) (map[string]any, error) {
 		return nil, err
 	}
 	if err := validateTaskControlAcceptance(feature, payload); err != nil {
+		return nil, err
+	}
+	if err := taskControlValidateTestDesignBinding(root, feature, payload, false, true); err != nil {
 		return nil, err
 	}
 	payload["status"] = "ready"
@@ -346,6 +377,9 @@ func runTasksHandoff(args []string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := taskControlValidateTestDesignBinding(root, feature, payload, false, true); err != nil {
+		return nil, err
+	}
 	transition, _ := payload["transition"].(map[string]any)
 	if taskControlStatus(payload) != "ready" || strings.ToLower(strings.TrimSpace(anyString(transition["status"]))) != "ready" {
 		return nil, fmt.Errorf("task package must be finalized before creating a handoff")
@@ -356,14 +390,19 @@ func runTasksHandoff(args []string) (map[string]any, error) {
 		return nil, fmt.Errorf("read canonical task index: %w", err)
 	}
 	handoff := map[string]any{
-		"version":           1,
-		"status":            "ready",
-		"target":            target,
-		"task_index_ref":    "task-index.json",
-		"tasks_ref":         "tasks.md",
-		"task_index_sha256": taskControlSHA256(indexRaw),
-		"source_revision":   cloneJSONValue(payload["source_revision"]),
-		"task_count":        len(payload["tasks"].([]any)),
+		"version":                        1,
+		"status":                         "ready",
+		"target":                         target,
+		"task_index_ref":                 "task-index.json",
+		"tasks_ref":                      "tasks.md",
+		"task_index_sha256":              taskControlSHA256(indexRaw),
+		"source_revision":                cloneJSONValue(payload["source_revision"]),
+		"task_count":                     len(payload["tasks"].([]any)),
+		"test_design_handoff_ref":        cloneJSONValue(payload["test_design_handoff_ref"]),
+		"test_design_handoff_sha256":     cloneJSONValue(payload["test_design_handoff_sha256"]),
+		"test_design_source_fingerprint": cloneJSONValue(payload["test_design_source_fingerprint"]),
+		"test_design_state_revision":     cloneJSONValue(payload["test_design_state_revision"]),
+		"test_design_artifact_digests":   cloneJSONValue(payload["test_design_artifact_digests"]),
 	}
 	raw, err := marshalTaskControlJSON(handoff)
 	if err != nil {
@@ -437,6 +476,479 @@ func loadTaskControlTemplate(root string) (map[string]any, error) {
 		return nil, fmt.Errorf("task-index template is invalid or missing: %w", err)
 	}
 	return payload, nil
+}
+
+var taskControlTestDesignProjectionBindingFields = []string{
+	"publication_ref",
+	"publication_sha256",
+	"projection_ref",
+	"projection_sha256",
+	"source_fingerprint",
+	"state_revision",
+}
+
+type taskControlPlanTestDesignProjectionBinding struct {
+	PublicationRef    string
+	PublicationSHA256 string
+	ProjectionRef     string
+	ProjectionSHA256  string
+	SourceFingerprint string
+	StateRevision     int
+}
+
+type taskControlPlanTestDesignGate struct {
+	Decision          string
+	ProjectionBinding *taskControlPlanTestDesignProjectionBinding
+}
+
+func taskControlPositiveInteger(value any) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, typed > 0
+	case int64:
+		converted := int(typed)
+		return converted, typed > 0 && int64(converted) == typed
+	case float64:
+		if typed < 1 || typed != math.Trunc(typed) {
+			return 0, false
+		}
+		converted := int(typed)
+		return converted, converted > 0 && float64(converted) == typed
+	case json.Number:
+		parsed, err := typed.Int64()
+		if err != nil {
+			return 0, false
+		}
+		converted := int(parsed)
+		return converted, parsed > 0 && int64(converted) == parsed
+	default:
+		return 0, false
+	}
+}
+
+func taskControlParsePlanTestDesignGate(plan map[string]any, label string) (taskControlPlanTestDesignGate, error) {
+	gateState := taskControlPlanTestDesignGate{Decision: "not_selected"}
+	rawGate, exists := plan["test_design_gate"]
+	if !exists || rawGate == nil {
+		return gateState, nil
+	}
+	gate, ok := rawGate.(map[string]any)
+	if !ok {
+		return gateState, fmt.Errorf("%s test_design_gate must contain an object", label)
+	}
+	for _, field := range taskControlTestDesignProjectionBindingFields {
+		if _, flattened := gate[field]; flattened {
+			return gateState, fmt.Errorf("%s test_design_gate projection fields must be nested under projection_binding", label)
+		}
+	}
+	decisionValue, ok := gate["decision"].(string)
+	if !ok {
+		return gateState, fmt.Errorf("%s test_design_gate.decision must be not_selected, selected, or required", label)
+	}
+	decision := strings.ToLower(strings.TrimSpace(decisionValue))
+	if decision != "not_selected" && decision != "selected" && decision != "required" {
+		return gateState, fmt.Errorf("%s test_design_gate.decision must be not_selected, selected, or required", label)
+	}
+	gateState.Decision = decision
+	if rawReasons, exists := gate["reason_refs"]; exists {
+		reasons, ok := rawReasons.([]any)
+		if !ok {
+			return gateState, fmt.Errorf("%s test_design_gate.reason_refs must be an array of non-empty strings", label)
+		}
+		seen := map[string]bool{}
+		for _, rawReason := range reasons {
+			reason, ok := rawReason.(string)
+			reason = strings.TrimSpace(reason)
+			if !ok || reason == "" {
+				return gateState, fmt.Errorf("%s test_design_gate.reason_refs must be an array of non-empty strings", label)
+			}
+			if seen[reason] {
+				return gateState, fmt.Errorf("%s test_design_gate.reason_refs must not contain duplicates", label)
+			}
+			seen[reason] = true
+		}
+	}
+	rawBinding, hasBinding := gate["projection_binding"]
+	if !hasBinding || rawBinding == nil {
+		return gateState, nil
+	}
+	binding, ok := rawBinding.(map[string]any)
+	if !ok {
+		return gateState, fmt.Errorf("%s test_design_gate.projection_binding must contain an object", label)
+	}
+	if len(binding) != len(taskControlTestDesignProjectionBindingFields) {
+		return gateState, fmt.Errorf("%s test_design_gate.projection_binding must contain exactly %s", label, strings.Join(taskControlTestDesignProjectionBindingFields, ", "))
+	}
+	nullCount := 0
+	for _, field := range taskControlTestDesignProjectionBindingFields {
+		value, exists := binding[field]
+		if !exists {
+			return gateState, fmt.Errorf("%s test_design_gate.projection_binding must contain exactly %s", label, strings.Join(taskControlTestDesignProjectionBindingFields, ", "))
+		}
+		if value == nil {
+			nullCount++
+		}
+	}
+	if nullCount != 0 && nullCount != len(taskControlTestDesignProjectionBindingFields) {
+		return gateState, fmt.Errorf("%s test_design_gate.projection_binding must be entirely null or entirely populated", label)
+	}
+	if nullCount == len(taskControlTestDesignProjectionBindingFields) {
+		return gateState, nil
+	}
+	parsedBinding := &taskControlPlanTestDesignProjectionBinding{}
+	for _, field := range []string{"publication_ref", "projection_ref"} {
+		ref, ok := binding[field].(string)
+		ref = strings.TrimSpace(ref)
+		clean := filepath.ToSlash(filepath.Clean(filepath.FromSlash(ref)))
+		if !ok || ref == "" || filepath.IsAbs(ref) || clean == ".." || strings.HasPrefix(clean, "../") {
+			return gateState, fmt.Errorf("%s test_design_gate.projection_binding.%s must be a non-empty project-relative reference", label, field)
+		}
+		switch field {
+		case "publication_ref":
+			parsedBinding.PublicationRef = clean
+		case "projection_ref":
+			parsedBinding.ProjectionRef = clean
+		}
+	}
+	for _, field := range []string{"publication_sha256", "projection_sha256", "source_fingerprint"} {
+		digest, ok := binding[field].(string)
+		digest = strings.TrimSpace(digest)
+		if !ok || !testDesignSHA256Pattern.MatchString(digest) {
+			return gateState, fmt.Errorf("%s test_design_gate.projection_binding.%s must be a lowercase SHA-256 digest", label, field)
+		}
+		switch field {
+		case "publication_sha256":
+			parsedBinding.PublicationSHA256 = digest
+		case "projection_sha256":
+			parsedBinding.ProjectionSHA256 = digest
+		case "source_fingerprint":
+			parsedBinding.SourceFingerprint = digest
+		}
+	}
+	var validRevision bool
+	parsedBinding.StateRevision, validRevision = taskControlPositiveInteger(binding["state_revision"])
+	if !validRevision {
+		return gateState, fmt.Errorf("%s test_design_gate.projection_binding.state_revision must be a positive integer", label)
+	}
+	if decision == "not_selected" {
+		return gateState, fmt.Errorf("%s not_selected test_design_gate must not retain a projection binding", label)
+	}
+	gateState.ProjectionBinding = parsedBinding
+	return gateState, nil
+}
+
+func taskControlPlanProjectionBindingEqual(left, right *taskControlPlanTestDesignProjectionBinding) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return left.PublicationRef == right.PublicationRef &&
+		left.PublicationSHA256 == right.PublicationSHA256 &&
+		left.ProjectionRef == right.ProjectionRef &&
+		left.ProjectionSHA256 == right.ProjectionSHA256 &&
+		left.SourceFingerprint == right.SourceFingerprint &&
+		left.StateRevision == right.StateRevision
+}
+
+func taskControlDescribePlanProjectionBinding(binding *taskControlPlanTestDesignProjectionBinding) string {
+	if binding == nil {
+		return "pending"
+	}
+	return fmt.Sprintf(
+		"publication_ref=%s projection_ref=%s state_revision=%d",
+		binding.PublicationRef,
+		binding.ProjectionRef,
+		binding.StateRevision,
+	)
+}
+
+func taskControlPlanTestDesignGateDecision(projectRoot, featureRel string) (taskControlPlanTestDesignGate, error) {
+	type gateDecision struct {
+		label string
+		gate  taskControlPlanTestDesignGate
+	}
+	decisions := []gateDecision{}
+	for _, candidate := range []string{
+		filepath.ToSlash(filepath.Join(featureRel, "plan-contract.json")),
+		filepath.ToSlash(filepath.Join(featureRel, "plan", "plan-contract.json")),
+	} {
+		path, err := testDesignSecureProjectPath(projectRoot, candidate)
+		if err != nil {
+			return taskControlPlanTestDesignGate{}, fmt.Errorf("inspect plan-contract.json test_design_gate: %w", err)
+		}
+		info, err := os.Lstat(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return taskControlPlanTestDesignGate{}, fmt.Errorf("inspect plan-contract.json test_design_gate: %w", err)
+		}
+		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+			return taskControlPlanTestDesignGate{}, fmt.Errorf("plan-contract.json must be a regular non-symlink file")
+		}
+		plan, err := readImplementJSONMap(path)
+		if err != nil {
+			return taskControlPlanTestDesignGate{}, fmt.Errorf("plan-contract.json is invalid: %w", err)
+		}
+		label := filepath.ToSlash(strings.TrimPrefix(candidate, strings.TrimSuffix(featureRel, "/")+"/"))
+		gate, err := taskControlParsePlanTestDesignGate(plan, label)
+		if err != nil {
+			return taskControlPlanTestDesignGate{}, err
+		}
+		decisions = append(decisions, gateDecision{label: label, gate: gate})
+	}
+	if len(decisions) == 0 {
+		return taskControlPlanTestDesignGate{Decision: "not_selected"}, nil
+	}
+	for _, decision := range decisions[1:] {
+		if decision.gate.Decision != decisions[0].gate.Decision {
+			return taskControlPlanTestDesignGate{}, fmt.Errorf("conflicting plan-contract test_design_gate decisions: %s=%s, %s=%s", decisions[0].label, decisions[0].gate.Decision, decision.label, decision.gate.Decision)
+		}
+		if !taskControlPlanProjectionBindingEqual(decisions[0].gate.ProjectionBinding, decision.gate.ProjectionBinding) {
+			return taskControlPlanTestDesignGate{}, fmt.Errorf(
+				"conflicting plan-contract test_design_gate projection_binding: %s=%s, %s=%s",
+				decisions[0].label,
+				taskControlDescribePlanProjectionBinding(decisions[0].gate.ProjectionBinding),
+				decision.label,
+				taskControlDescribePlanProjectionBinding(decision.gate.ProjectionBinding),
+			)
+		}
+	}
+	return decisions[0].gate, nil
+}
+
+func taskControlVerifyPlanTestDesignProjectionBinding(projectRoot, featureRel string, gate taskControlPlanTestDesignGate) error {
+	if gate.ProjectionBinding == nil {
+		return nil
+	}
+	service := testDesignService{projectRoot: projectRoot}
+	verifyArgs := []string{
+		"--feature-dir", featureRel,
+		"--projection-ref", gate.ProjectionBinding.ProjectionRef,
+		"--expected-sha256", gate.ProjectionBinding.ProjectionSHA256,
+	}
+	env := service.projectionVerify(verifyArgs)
+	if env.Status != "ok" {
+		detail := strings.TrimSpace(fmt.Sprint(env.Blockers...))
+		if detail == "" {
+			detail = env.Summary
+		}
+		return fmt.Errorf("plan-contract test_design_gate projection_binding is stale or invalid: %s", detail)
+	}
+	if strings.TrimSpace(asString(env.Data["consumer"])) != "plan" {
+		return fmt.Errorf("plan-contract test_design_gate projection_binding must target consumer=plan")
+	}
+	if strings.TrimSpace(asString(env.Data["projection_ref"])) != gate.ProjectionBinding.ProjectionRef ||
+		strings.TrimSpace(asString(env.Data["projection_sha256"])) != gate.ProjectionBinding.ProjectionSHA256 ||
+		strings.TrimSpace(asString(env.Data["publication_ref"])) != gate.ProjectionBinding.PublicationRef ||
+		strings.TrimSpace(asString(env.Data["publication_sha256"])) != gate.ProjectionBinding.PublicationSHA256 ||
+		strings.TrimSpace(asString(env.Data["source_fingerprint"])) != gate.ProjectionBinding.SourceFingerprint ||
+		intFromAny(env.Data["state_revision"]) != gate.ProjectionBinding.StateRevision {
+		return fmt.Errorf("plan-contract test_design_gate projection_binding does not match the current canonical plan projection")
+	}
+	return nil
+}
+
+func taskControlValidateTestDesignBinding(root, feature string, payload map[string]any, bind, requireAll bool) error {
+	return taskControlValidateTestDesignBindingWithSourcePolicy(root, feature, payload, bind, requireAll, true)
+}
+
+func taskControlValidateTestDesignBindingIntegrity(root, feature string, payload map[string]any, bind, requireAll bool) error {
+	return taskControlValidateTestDesignBindingWithSourcePolicy(root, feature, payload, bind, requireAll, false)
+}
+
+func taskControlValidateTestDesignBindingWithSourcePolicy(root, feature string, payload map[string]any, bind, requireAll, requireLiveSourceFreshness bool) error {
+	tasks, ok := payload["tasks"].([]any)
+	if !ok {
+		return fmt.Errorf("task-index tasks must be an array")
+	}
+	usedCases := map[string]bool{}
+	usedData := map[string]bool{}
+	for _, raw := range tasks {
+		task, ok := raw.(map[string]any)
+		if !ok {
+			return fmt.Errorf("task-index tasks must contain objects")
+		}
+		for _, ref := range anyStringSlice(task["test_case_refs"]) {
+			usedCases[ref] = true
+		}
+		for _, ref := range anyStringSlice(task["test_data_refs"]) {
+			usedData[ref] = true
+		}
+	}
+	hasTaskRefs := len(usedCases) > 0 || len(usedData) > 0
+	projectRoot, err := filepath.Abs(root)
+	if err != nil {
+		return fmt.Errorf("resolve project root: %w", err)
+	}
+	projectRoot, err = filepath.EvalSymlinks(projectRoot)
+	if err != nil {
+		return fmt.Errorf("resolve project root: %w", err)
+	}
+	featureAbs, err := filepath.Abs(feature)
+	if err != nil {
+		return fmt.Errorf("resolve feature directory: %w", err)
+	}
+	featureRel, err := filepath.Rel(projectRoot, featureAbs)
+	if err != nil || featureRel == ".." || strings.HasPrefix(featureRel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("feature directory must stay inside the project root")
+	}
+	if _, err := testDesignSecureProjectPath(projectRoot, filepath.ToSlash(featureRel)); err != nil {
+		return fmt.Errorf("feature directory is unsafe: %w", err)
+	}
+	planGate, err := taskControlPlanTestDesignGateDecision(projectRoot, filepath.ToSlash(featureRel))
+	if err != nil {
+		return err
+	}
+	if err := taskControlVerifyPlanTestDesignProjectionBinding(projectRoot, filepath.ToSlash(featureRel), planGate); err != nil {
+		return err
+	}
+	service := testDesignService{projectRoot: projectRoot}
+	artifactRoot, _, _, err := service.resolveRoot(filepath.ToSlash(featureRel))
+	if err != nil {
+		return fmt.Errorf("resolve test-design root: %w", err)
+	}
+	handoffPath, err := service.containedArtifactPath(artifactRoot, "handoff-to-tasks.json")
+	if err != nil {
+		return fmt.Errorf("resolve test-design handoff: %w", err)
+	}
+	_, rootStatErr := os.Lstat(artifactRoot)
+	statePath, statePathErr := service.containedArtifactPath(artifactRoot, "test-state.json")
+	if statePathErr != nil {
+		return fmt.Errorf("resolve test-design state: %w", statePathErr)
+	}
+	_, stateStatErr := os.Lstat(statePath)
+	_, statErr := os.Lstat(handoffPath)
+	if os.IsNotExist(statErr) {
+		if planGate.Decision == "selected" || planGate.Decision == "required" {
+			return fmt.Errorf("plan-contract test-design gate decision %s requires a current feature test-design/handoff-to-tasks.json before Tasks can continue", planGate.Decision)
+		}
+		if rootStatErr == nil || stateStatErr == nil {
+			return fmt.Errorf("test-design workspace exists but has no fresh handed-off bundle")
+		}
+		if rootStatErr != nil && !os.IsNotExist(rootStatErr) {
+			return fmt.Errorf("inspect test-design root: %w", rootStatErr)
+		}
+		if stateStatErr != nil && !os.IsNotExist(stateStatErr) {
+			return fmt.Errorf("inspect test-design state: %w", stateStatErr)
+		}
+		if hasTaskRefs {
+			return fmt.Errorf("task test_case_refs/test_data_refs require a current test-design/handoff-to-tasks.json")
+		}
+		if !bind && !taskControlTestDesignBindingEmpty(payload) {
+			return fmt.Errorf("task-index test-design binding is stale because its handoff is missing")
+		}
+		if bind {
+			taskControlClearTestDesignBinding(payload)
+		}
+		return nil
+	}
+	if statErr != nil {
+		return fmt.Errorf("inspect test-design handoff: %w", statErr)
+	}
+	var binding testDesignPublishedHandoff
+	if requireLiveSourceFreshness {
+		binding, err = service.verifyPublishedHandoff(artifactRoot)
+	} else {
+		binding, err = service.verifyPublishedHandoffIntegrity(artifactRoot)
+	}
+	if err != nil {
+		return fmt.Errorf("test-design handoff is stale or invalid: %w", err)
+	}
+	allowedCases := map[string]bool{}
+	for _, ref := range binding.TestCaseRefs {
+		allowedCases[ref] = true
+	}
+	allowedData := map[string]bool{}
+	for _, ref := range binding.TestDataRefs {
+		allowedData[ref] = true
+	}
+	for ref := range usedCases {
+		if !allowedCases[ref] {
+			return fmt.Errorf("task test_case_ref %s is not a member of the test-design handoff", ref)
+		}
+	}
+	for ref := range usedData {
+		if !allowedData[ref] {
+			return fmt.Errorf("task test_data_ref %s is not a member of the test-design handoff", ref)
+		}
+	}
+	if requireAll {
+		for _, ref := range binding.TestCaseRefs {
+			if !usedCases[ref] {
+				return fmt.Errorf("test-design case %s is not consumed by any task", ref)
+			}
+		}
+		for _, ref := range binding.TestDataRefs {
+			if !usedData[ref] {
+				return fmt.Errorf("test-design data %s is not consumed by any task", ref)
+			}
+		}
+	}
+	if bind {
+		taskControlSetTestDesignBinding(payload, binding)
+		return nil
+	}
+	if err := taskControlCompareTestDesignBinding(payload, binding); err != nil {
+		return err
+	}
+	return nil
+}
+
+func taskControlTestDesignBindingEmpty(payload map[string]any) bool {
+	for _, key := range []string{"test_design_handoff_ref", "test_design_handoff_sha256", "test_design_source_fingerprint"} {
+		if strings.TrimSpace(anyString(payload[key])) != "" {
+			return false
+		}
+	}
+	if intFromAny(payload["test_design_state_revision"]) != 0 {
+		return false
+	}
+	if raw, exists := payload["test_design_artifact_digests"]; exists && raw != nil {
+		values, ok := raw.(map[string]any)
+		if !ok || len(values) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func taskControlClearTestDesignBinding(payload map[string]any) {
+	payload["test_design_handoff_ref"] = nil
+	payload["test_design_handoff_sha256"] = nil
+	payload["test_design_source_fingerprint"] = nil
+	payload["test_design_state_revision"] = nil
+	payload["test_design_artifact_digests"] = map[string]any{}
+}
+
+func taskControlSetTestDesignBinding(payload map[string]any, binding testDesignPublishedHandoff) {
+	payload["test_design_handoff_ref"] = binding.Ref
+	payload["test_design_handoff_sha256"] = binding.SHA256
+	payload["test_design_source_fingerprint"] = binding.SourceFingerprint
+	payload["test_design_state_revision"] = binding.StateRevision
+	digests := map[string]any{}
+	for key, value := range binding.ArtifactDigests {
+		digests[key] = value
+	}
+	payload["test_design_artifact_digests"] = digests
+}
+
+func taskControlCompareTestDesignBinding(payload map[string]any, binding testDesignPublishedHandoff) error {
+	if strings.TrimSpace(anyString(payload["test_design_handoff_ref"])) != binding.Ref ||
+		strings.TrimSpace(anyString(payload["test_design_handoff_sha256"])) != binding.SHA256 ||
+		strings.TrimSpace(anyString(payload["test_design_source_fingerprint"])) != binding.SourceFingerprint ||
+		intFromAny(payload["test_design_state_revision"]) != binding.StateRevision {
+		return fmt.Errorf("task-index test-design binding is stale; rebuild tasks against the current handoff")
+	}
+	actual, ok := payload["test_design_artifact_digests"].(map[string]any)
+	if !ok || len(actual) != len(binding.ArtifactDigests) {
+		return fmt.Errorf("task-index test-design artifact digests are missing or stale")
+	}
+	for key, expected := range binding.ArtifactDigests {
+		if strings.TrimSpace(anyString(actual[key])) != expected {
+			return fmt.Errorf("task-index test-design artifact digest %s is stale", key)
+		}
+	}
+	return nil
 }
 
 func expandTaskControlUIContracts(root string, tasks []any) ([]any, error) {
@@ -555,7 +1067,7 @@ func normalizeTaskControlTask(value any, allowRuntimeFields bool) (map[string]an
 			return nil, fmt.Errorf("task field %s is CLI-owned and cannot be authored", key)
 		}
 		if !allowRuntimeFields && !taskControlAuthoredFields[key] {
-			return nil, fmt.Errorf("task contains unsupported field %q; accepted fields include objective (alias: title), acceptance (alias: done_condition), dependencies, expected_write_scope, required_refs, verification, ui_contract", key)
+			return nil, fmt.Errorf("task contains unsupported field %q; accepted fields include objective (alias: title), acceptance (alias: done_condition), dependencies, expected_write_scope, required_refs, verification, test_case_refs, test_data_refs, ui_contract", key)
 		}
 	}
 	idValue := task["id"]
@@ -605,6 +1117,7 @@ func normalizeTaskControlTask(value any, allowRuntimeFields bool) (map[string]an
 	for _, key := range []string{
 		"read_scope", "required_refs", "authoritative_refs", "policy_refs", "forbidden_drift", "hard_rules",
 		"acceptance", "verification", "required_validation", "task_checks", "consumer_surfaces", "required_consumer_evidence",
+		"test_case_refs", "test_data_refs",
 		"required_evidence", "must_preserve_ids", "must_preserve_refs",
 		"consequence_obligation_ids", "consequence_obligation_refs",
 		"capability_operations", "capability_operation_refs", "fidelity_refs",
@@ -1194,6 +1707,8 @@ func renderTaskControlMarkdown(payload map[string]any, title string) (string, er
 			"| read_scope | "+taskControlRenderList(task["read_scope"])+" |",
 			"| write_scope | "+taskControlRenderList(task["expected_write_scope"])+" |",
 			"| required_refs | "+taskControlRenderList(task["required_refs"])+" |",
+			"| test_case_refs | "+taskControlRenderList(task["test_case_refs"])+" |",
+			"| test_data_refs | "+taskControlRenderList(task["test_data_refs"])+" |",
 			"| dependencies | "+taskControlRenderList(task["dependencies"])+" |",
 			"", "### Acceptance and Verification", "",
 			"- Acceptance: "+taskControlRenderList(task["acceptance"]),

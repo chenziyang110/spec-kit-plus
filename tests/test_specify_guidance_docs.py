@@ -35,8 +35,8 @@ def test_agents_declares_classic_and_advanced_profile_contract() -> None:
     assert "install the other profile additively" in normalized
     assert "`templates/commands/**`" in section
     assert "`templates/advanced-skills/**`" in section
-    assert "30 SPX skills" in normalized
-    assert "29 one-to-one Classic command counterparts" in normalized
+    assert "31 SPX skills" in normalized
+    assert "30 one-to-one Classic command counterparts" in normalized
     assert "does **not** install the Classic passive-skill prompt bundle" in normalized
     for skill_name in (
         "sp-map-scan",
@@ -72,7 +72,7 @@ def test_readme_advanced_profile_names_classic_map_companion_exception() -> None
     assert "does not install" in normalized or "absent" in normalized
 
 
-def test_docs_describe_design_workflow_and_design_md() -> None:
+def test_docs_describe_change_scoped_design_workflow() -> None:
     readme = _read("README.md")
     handbook = _read("PROJECT-HANDBOOK.md")
     template = _read("templates/project-handbook-template.md")
@@ -80,8 +80,11 @@ def test_docs_describe_design_workflow_and_design_md() -> None:
     for content in (readme, handbook, template):
         assert "sp-design" in content
         assert "DESIGN.md" in content
-        assert "design-system" in content.lower()
+        assert "design change" in content.lower() or "design-change" in content.lower()
         assert "specify-runtime design lint" in content
+        assert ".specify/design/changes/<UD-ID>/DESIGN.md" in content
+        assert ".specify/design/index.json" in content
+        assert "specify-runtime design register" in content
         assert "ui-brief.md" in content
         assert "ui-reference-notes.md" in content
         assert "ui-reference-artifact" in content
@@ -334,7 +337,7 @@ def test_guidance_docs_explain_skill_groups():
     assert "`discussion`" in quickstart
     skill_map = _section(quickstart, "## Skill Map", "For Codex team-mode execution")
     assert "`constitution`, `specify`, `plan`, `tasks`, `implement`" in skill_map
-    assert "`map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`" in skill_map
+    assert "`map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `test-design`, `checklist`, `analyze`, `debug`, `explain`" in skill_map
     assert "/sp-" not in skill_map
 
 

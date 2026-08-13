@@ -242,6 +242,33 @@
       "safe_instruction_patterns": ["artifact show", "artifact list", "artifact prepare", "artifact scaffold", "artifact patch", "quickstart", "data-model", "registered owner", "cli-owned", "never submit", "never reconstruct"]
     },
     {
+      "id": "feature_test_design_artifacts",
+      "path_patterns": ["**/test-design/test-state.json", "**/test-design/test-universe.json", "**/test-design/test-catalog.json", "**/test-design/test-data-manifest.json", "**/test-design/coverage-matrix.json", "**/test-design/test-gaps.json", "**/test-design/lane-manifest.json", "**/test-design/handoff-to-tasks.json"],
+      "owner_cli": ["specify-runtime test-design", "specify-runtime artifact scaffold --kind test-universe", "specify-runtime artifact scaffold --kind test-catalog", "specify-runtime artifact scaffold --kind test-data-manifest", "specify-runtime artifact scaffold --kind coverage-matrix", "specify-runtime artifact patch"],
+      "path_hints": ["test-design/test-state.json", "test-design/test-universe.json", "test-design/test-catalog.json", "test-design/test-data-manifest.json", "test-design/coverage-matrix.json", "test-design/test-gaps.json", "test-design/lane-manifest.json", "test-design/handoff-to-tasks.json"],
+      "forbidden_cli_patterns": ["artifact\\s+(?:prepare\\s*(?:/|\\||plus)\\s*)?submit"],
+      "instruction_sources": ["templates/artifacts/test-state.json", "templates/artifacts/test-universe.json", "templates/artifacts/test-catalog.json", "templates/artifacts/test-data-manifest.json", "templates/artifacts/coverage-matrix.json", "templates/artifacts/test-gaps.json", "templates/artifacts/test-design-handoff.json"],
+      "safe_instruction_patterns": ["test-design", "artifact show", "artifact list", "artifact prepare", "artifact scaffold", "artifact patch", "test-state", "test-universe", "test-catalog", "test-data-manifest", "coverage-matrix", "test-gaps", "lane-manifest", "lane-results", "handoff-to-tasks", "registered owner", "cli-owned", "runtime-owned", "never submit", "never reconstruct"]
+    },
+    {
+      "id": "test_design_publication_and_projections",
+      "path_patterns": ["**/test-design/test-design-publication.json", "**/test-design/projections/*.json"],
+      "owner_cli": ["specify-runtime test-design publish", "specify-runtime test-design projection-build", "specify-runtime artifact show", "specify-runtime artifact list"],
+      "path_hints": ["test-design/test-design-publication.json", "test-design/projections/"],
+      "forbidden_cli_patterns": ["artifact\\s+(?:prepare\\s*(?:/|\\||plus)\\s*)?submit", "artifact\\s+patch", "artifact\\s+delete", "artifact\\s+scaffold"],
+      "instruction_sources": ["templates/artifacts/test-design-publication.json", "templates/artifacts/test-design-projection.json"],
+      "safe_instruction_patterns": ["test-design publish", "test-design projection-build", "test-design projection-verify", "artifact show", "artifact list", "publication", "projection", "runtime-owned", "show/list only", "never edit", "never patch", "never submit", "never delete"]
+    },
+    {
+      "id": "test_design_runtime_history",
+      "path_patterns": ["**/test-design/lane-results/*.json", "**/test-design/lane-results/checkpoints/*.json", "**/test-design/handoff-history/*.json"],
+      "owner_cli": ["specify-runtime test-design", "specify-runtime artifact show", "specify-runtime artifact list"],
+      "path_hints": ["test-design/lane-results/", "test-design/lane-results/checkpoints/", "test-design/handoff-history/"],
+      "forbidden_cli_patterns": ["artifact\\s+(?:prepare\\s*(?:/|\\||plus)\\s*)?submit", "artifact\\s+patch", "artifact\\s+delete"],
+      "instruction_sources": ["templates/artifacts/test-design-lane-result.json"],
+      "safe_instruction_patterns": ["test-design", "artifact show", "artifact list", "lane-results", "checkpoint", "handoff-history", "immutable", "runtime-owned", "show/list only", "never edit", "never patch", "never submit", "never delete"]
+    },
+    {
       "id": "feature_flexible_research_artifacts",
       "path_patterns": ["**/research-spikes/**", "**/contracts/**"],
       "owner_cli": ["specify-runtime artifact"],
@@ -263,11 +290,41 @@
       "safe_instruction_patterns": ["semantic-audit --input-json", "semantic-audit --persist-dir", "artifact show", "artifact list", "cognition cli", "cli-owned", "runtime-owned"]
     },
     {
-      "id": "design_contract",
-      "path_patterns": ["DESIGN.md", ".specify/design/design-state.md", ".specify/design/design-system.json", ".specify/design/previews/**"],
+      "id": "ui_design_change_index",
+      "path_patterns": [".specify/design/index.json"],
+      "owner_cli": ["specify-runtime design change", "specify-runtime design iterate", "specify-runtime design register", "specify-runtime design adopt"],
+      "path_hints": [".specify/design/index.json", "design change index"],
+      "safe_instruction_patterns": ["specify-runtime design change", "specify-runtime design iterate", "specify-runtime design resolve", "specify-runtime design diff", "specify-runtime design impact", "specify-runtime design register", "specify-runtime design adopt", "artifact show", "artifact list", "metadata-only", "registered", "cli-owned"]
+    },
+    {
+      "id": "ui_design_change_contract",
+      "path_patterns": [".specify/design/changes/*/DESIGN.md", ".specify/design/changes/*/design-contract.json", ".specify/design/changes/*/previews/**"],
+      "owner_cli": ["specify-runtime design", "specify-runtime artifact patch before design register"],
+      "path_hints": [".specify/design/changes/<UD-ID>/DESIGN.md", ".specify/design/changes/UD-", "<change-dir>/DESIGN.md", "<change-dir>/design-contract.json", "<change-dir>/previews/"],
+      "instruction_sources": ["templates/design-change-template.md"],
+      "safe_instruction_patterns": ["specify-runtime design", "design change", "design register", "artifact show", "artifact patch", "before registration", "immutable", "cli-owned", "human-readable projection", "review and explanation"]
+    },
+    {
+      "id": "ui_design_change_workspace",
+      "path_patterns": [".specify/design/changes/*/brief.md", ".specify/design/changes/*/review.md", ".specify/design/changes/*/options.md", ".specify/design/changes/*/references.md"],
+      "owner_cli": ["specify-runtime artifact scaffold --kind design-brief", "specify-runtime artifact scaffold --kind design-review", "specify-runtime artifact patch", "specify-runtime artifact submit"],
+      "path_hints": [".specify/design/changes/<UD-ID>/brief.md", ".specify/design/changes/<UD-ID>/review.md", "<change-dir>/brief.md", "<change-dir>/review.md", "<change-dir>/options.md", "<change-dir>/references.md"],
+      "forbidden_cli_patterns": ["artifact\\s+(?:prepare\\s*(?:/|\\||plus)\\s*)?submit.*(?:brief\\.md|review\\.md)"],
+      "safe_instruction_patterns": ["specify-runtime artifact", "artifact show", "artifact prepare", "artifact scaffold", "artifact patch", "artifact submit", "registered artifact owner", "cli-owned", "never submit the brief", "never submit the review", "never reconstruct"]
+    },
+    {
+      "id": "legacy_project_design_contract",
+      "path_patterns": ["DESIGN.md"],
       "owner_cli": ["specify-runtime design"],
-      "path_hints": ["DESIGN.md", "design-state.md", "design-system.json", "round-NN.html", "round-NN.manifest.json", "round-NN.handoff.json", ".approval.json"],
+      "path_hints": ["legacy root DESIGN.md"],
       "instruction_sources": ["templates/design-template.md"],
+      "safe_instruction_patterns": ["read-only legacy", "legacy baseline", "specify-runtime design", "artifact show", "artifact list", "cli-owned"]
+    },
+    {
+      "id": "legacy_design_runtime_artifacts",
+      "path_patterns": [".specify/design/design-state.md", ".specify/design/design-system.json", ".specify/design/previews/**"],
+      "owner_cli": ["specify-runtime design"],
+      "path_hints": ["design-state.md", "design-system.json", "round-NN.html", "round-NN.manifest.json", "round-NN.handoff.json", ".approval.json"],
       "safe_instruction_patterns": ["specify-runtime design", "design cli", "artifact show", "artifact patch", "cli-owned", "human-readable projection", "review and explanation"]
     },
     {

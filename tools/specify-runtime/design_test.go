@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -297,7 +298,11 @@ func TestDesignPreviewApproveFreezesDirectionAndBindsSidecar(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mutated := strings.Replace(readFile(t, preview), "Compare all", "Compare directions", 1)
+	beforeMutation := readFile(t, preview)
+	mutated := strings.Replace(beforeMutation, "Direction A freeform canvas", "Direction A changed canvas", 1)
+	if mutated == beforeMutation {
+		t.Fatal("stale sidecar fixture did not mutate the preview")
+	}
 	if err := os.WriteFile(preview, []byte(mutated), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -541,6 +546,1112 @@ func TestDesignImportWritesReferenceWithoutRootDesign(t *testing.T) {
 	if _, err := os.Stat("DESIGN.md"); !os.IsNotExist(err) {
 		t.Fatalf("import should not create DESIGN.md")
 	}
+}
+
+func TestDesignChangeScaffoldCreatesChangeLocalContractAndIndex(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	var stdout bytes.Buffer
+	exit := runDesign([]string{
+		"change",
+		"UD-0042",
+		"--title", "Orders workspace redesign",
+		"--type", "overhaul",
+		"--scope", "web:orders/list",
+		"--scope", "web:orders/detail",
+		"--profiles", "web",
+	}, &stdout)
+	if exit != 0 {
+		t.Fatalf("design change exit=%d output=%s", exit, stdout.String())
+	}
+	designPath := filepath.Join(".specify", "design", "changes", "UD-0042", "DESIGN.md")
+	content := readFile(t, designPath)
+	if !strings.Contains(content, "design_change:") || !strings.Contains(content, "schema: spec-kit-ui-design-change-v1") {
+		t.Fatalf("change-local contract is missing the new schema:\n%s", content)
+	}
+	if diagnostics := lintDesignFile(designPath, "structural"); len(diagnostics) != 0 {
+		t.Fatalf("change-local contract must pass structural lint: %#v", diagnostics)
+	}
+	if _, err := os.Stat("DESIGN.md"); !os.IsNotExist(err) {
+		t.Fatalf("design change must not create a root DESIGN.md")
+	}
+	var index map[string]any
+	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(".specify", "design", "index.json"))), &index); err != nil {
+		t.Fatal(err)
+	}
+	if index["schema"] != "spec-kit-ui-design-index-v1" {
+		t.Fatalf("unexpected design index schema: %#v", index)
+	}
+	changes, ok := index["changes"].([]any)
+	if !ok || len(changes) != 1 || changes[0].(map[string]any)["id"] != "UD-0042" {
+		t.Fatalf("unexpected design index changes: %#v", index["changes"])
+	}
+}
+
+func TestDesignChangeLintRejectsInvalidIterationSource(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	path, err := scaffoldDesignChange(
+		"UD-0042",
+		"Orders workspace redesign",
+		"preserve",
+		[]string{"web:orders"},
+		[]string{"web"},
+		nil,
+		nil,
+		"",
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := strings.Replace(
+		readFile(t, path),
+		"iteration_of: null",
+		"iteration_of: not-a-change",
+		1,
+	)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	diagnostics := lintDesignFile(path, "structural")
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Code == "invalid-design-change-iteration" {
+			return
+		}
+	}
+	t.Fatalf("missing invalid-design-change-iteration diagnostic: %#v", diagnostics)
+}
+
+func TestDesignRegisterPinsDigestBlocksOverlapAndAppliesSupersedes(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	create := func(id, scope string, supersedes ...string) string {
+		t.Helper()
+		args := []string{"change", id, "--title", id + " design", "--type", "extension", "--scope", scope, "--profiles", "web"}
+		for _, prior := range supersedes {
+			args = append(args, "--supersedes", prior)
+		}
+		var stdout bytes.Buffer
+		if exit := runDesign(args, &stdout); exit != 0 {
+			t.Fatalf("create %s failed: %d %s", id, exit, stdout.String())
+		}
+		path := filepath.Join(".specify", "design", "changes", id, "DESIGN.md")
+		writeReadyDesignChangeRuntime(t, path, id, []string{scope}, supersedes)
+		return path
+	}
+
+	first := create("UD-0042", "web:orders")
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"register", first}, &stdout); exit != 0 {
+		t.Fatalf("register first failed: %d %s", exit, stdout.String())
+	}
+	firstBytes, err := os.ReadFile(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantDigest := fmt.Sprintf("%x", sha256.Sum256(firstBytes))
+	index := readDesignChangeIndexRuntime(t)
+	firstRecord := designChangeRecordRuntime(t, index, "UD-0042")
+	if firstRecord["status"] != "approved" || firstRecord["approval_sha256"] != wantDigest {
+		t.Fatalf("first record was not pinned: %#v", firstRecord)
+	}
+
+	overlapping := create("UD-0043", "web:orders/list")
+	stdout.Reset()
+	if exit := runDesign([]string{"register", overlapping}, &stdout); exit == 0 || !strings.Contains(stdout.String(), "overlaps approved design change UD-0042") {
+		t.Fatalf("ambiguous overlap must block: exit=%d output=%s", exit, stdout.String())
+	}
+
+	replacement := create("UD-0044", "web:orders", "UD-0042")
+	stdout.Reset()
+	if exit := runDesign([]string{"register", replacement}, &stdout); exit != 0 {
+		t.Fatalf("register replacement failed: %d %s", exit, stdout.String())
+	}
+	index = readDesignChangeIndexRuntime(t)
+	firstRecord = designChangeRecordRuntime(t, index, "UD-0042")
+	replacementRecord := designChangeRecordRuntime(t, index, "UD-0044")
+	if firstRecord["status"] != "superseded" || firstRecord["superseded_by"] != "UD-0044" {
+		t.Fatalf("prior change was not superseded: %#v", firstRecord)
+	}
+	if replacementRecord["status"] != "approved" {
+		t.Fatalf("replacement was not approved: %#v", replacementRecord)
+	}
+}
+
+func TestDesignIterateCreatesDigestPinnedSuccessorWithoutMutatingSource(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	source, sourceDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	sourceBefore := readFile(t, source)
+
+	var stdout bytes.Buffer
+	exit := runDesign([]string{
+		"iterate", "UD-0042", "UD-0043",
+		"--title", "Orders list refinement",
+		"--scope", "web:orders/list",
+	}, &stdout)
+	if exit != 0 {
+		t.Fatalf("design iterate exit=%d output=%s", exit, stdout.String())
+	}
+	if got := readFile(t, source); got != sourceBefore {
+		t.Fatalf("design iterate mutated its registered source")
+	}
+
+	env := decodeEnvelope(t, stdout.Bytes())
+	successor := filepath.FromSlash(env.Data["path"].(string))
+	doc, err := parseDesignMarkdown(readFile(t, successor), successor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	relationships := doc.DesignSystem["relationships"].(map[string]any)
+	if relationships["iteration_of"] != "UD-0042" {
+		t.Fatalf("iteration_of = %#v, want UD-0042", relationships["iteration_of"])
+	}
+	wantBaseline := ".specify/design/changes/UD-0042/DESIGN.md#sha256=" + sourceDigest
+	if got := stringList(doc.DesignSystem["baseline_refs"]); !reflect.DeepEqual(got, []string{wantBaseline}) {
+		t.Fatalf("baseline_refs = %#v, want exact registered source", got)
+	}
+	if got := stringList(relationships["supersedes"]); !reflect.DeepEqual(got, []string{"UD-0042"}) {
+		t.Fatalf("supersedes = %#v, want source change", got)
+	}
+	record := designChangeRecordRuntime(t, readDesignChangeIndexRuntime(t), "UD-0043")
+	if record["iteration_of"] != "UD-0042" || record["basis_sha256"] != sourceDigest {
+		t.Fatalf("successor index record did not pin its source: %#v", record)
+	}
+}
+
+func TestDesignRegisterPartiallySupersedesOnlyIntersectingScope(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	_, sourceDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	successor := createDesignIterationRuntime(t, "UD-0042", "UD-0043", "web:orders/list")
+	writeReadyDesignIterationRuntime(t, successor, "UD-0043", []string{"web:orders/list"}, "UD-0042", sourceDigest)
+
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"register", successor}, &stdout); exit != 0 {
+		t.Fatalf("register partial successor failed: %d %s", exit, stdout.String())
+	}
+	index := readDesignChangeIndexRuntime(t)
+	parent := designChangeRecordRuntime(t, index, "UD-0042")
+	if parent["status"] != "approved" {
+		t.Fatalf("partial iteration retired the whole parent: %#v", parent)
+	}
+	wantCovered := []any{map[string]any{"scope": "web:orders/list", "by": "UD-0043"}}
+	if !reflect.DeepEqual(parent["superseded_scopes"], wantCovered) {
+		t.Fatalf("superseded_scopes = %#v, want %#v", parent["superseded_scopes"], wantCovered)
+	}
+
+	if got := resolveDesignIDsRuntime(t, "web:orders/list"); !reflect.DeepEqual(got, []string{"UD-0043"}) {
+		t.Fatalf("list resolution = %#v, want only successor", got)
+	}
+	if got := resolveDesignIDsRuntime(t, "web:orders/detail"); !reflect.DeepEqual(got, []string{"UD-0042"}) {
+		t.Fatalf("detail resolution = %#v, want parent", got)
+	}
+	if got := resolveDesignIDsRuntime(t, "web:orders"); !reflect.DeepEqual(got, []string{"UD-0043", "UD-0042"}) {
+		t.Fatalf("broad resolution = %#v, want explicit composite candidates", got)
+	}
+}
+
+func TestDesignIterateRejectsScopeAlreadySupersededOnSource(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	_, sourceDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	successor := createDesignIterationRuntime(t, "UD-0042", "UD-0043", "web:orders/list")
+	writeReadyDesignIterationRuntime(t, successor, "UD-0043", []string{"web:orders/list"}, "UD-0042", sourceDigest)
+
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"register", successor}, &stdout); exit != 0 {
+		t.Fatalf("register partial successor failed: %d %s", exit, stdout.String())
+	}
+	stdout.Reset()
+	if exit := runDesign([]string{
+		"iterate", "UD-0042", "UD-0044",
+		"--title", "Invalid list iteration",
+		"--scope", "web:orders/list/table",
+	}, &stdout); exit == 0 || !strings.Contains(stdout.String(), "no longer active") {
+		t.Fatalf("superseded source scope must block: exit=%d output=%s", exit, stdout.String())
+	}
+	stdout.Reset()
+	if exit := runDesign([]string{
+		"iterate", "UD-0042", "UD-0044",
+		"--title", "Orders detail refinement",
+		"--scope", "web:orders/detail",
+	}, &stdout); exit != 0 {
+		t.Fatalf("remaining active source scope should iterate: exit=%d output=%s", exit, stdout.String())
+	}
+}
+
+func TestDesignDiffReportsScopeLineageAndStableDecisionChanges(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	_, sourceDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	successor := createDesignIterationRuntime(t, "UD-0042", "UD-0043", "web:orders/list")
+	writeReadyDesignIterationRuntime(t, successor, "UD-0043", []string{"web:orders/list"}, "UD-0042", sourceDigest)
+	updated := strings.Replace(readFile(t, successor), "use accessible semantic color pairs", "use stronger accessible semantic color pairs", 1)
+	if err := os.WriteFile(successor, []byte(updated), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"register", successor}, &stdout); exit != 0 {
+		t.Fatalf("register successor failed: %d %s", exit, stdout.String())
+	}
+
+	stdout.Reset()
+	if exit := runDesign([]string{"diff", "UD-0042", "UD-0043"}, &stdout); exit != 0 {
+		t.Fatalf("design diff failed: %d %s", exit, stdout.String())
+	}
+	diff := decodeEnvelope(t, stdout.Bytes()).Data["diff"].(map[string]any)
+	if diff["schema"] != "spec-kit-ui-design-diff-v1" {
+		t.Fatalf("unexpected diff schema: %#v", diff)
+	}
+	lineage := diff["lineage"].(map[string]any)
+	if lineage["direct_iteration"] != true || lineage["supersedes_source"] != true {
+		t.Fatalf("diff lineage = %#v, want direct explicit iteration", lineage)
+	}
+	decisions := diff["decisions"].(map[string]any)
+	if !reflect.DeepEqual(stringList(decisions["changed"]), []string{"DS-COLOR-001"}) {
+		t.Fatalf("changed decisions = %#v", decisions["changed"])
+	}
+	if !containsString(stringList(diff["changed_sections"]), "decisions") {
+		t.Fatalf("changed sections = %#v, want decisions", diff["changed_sections"])
+	}
+}
+
+func TestDesignImpactClassesCoverUIDimensionsAndStableContractIDs(t *testing.T) {
+	diff := map[string]any{
+		"changed_sections": []string{"components", "content", "responsive", "verification"},
+		"decisions": map[string]any{
+			"added": []string{"DS-COMP-002"}, "removed": []string{},
+			"changed": []string{"DS-COMP-001"}, "retained": []string{},
+		},
+		"handoff_contracts": map[string]any{
+			"added": []string{"DH-COMP-002"}, "removed": []string{"DH-COMP-001"}, "retained": []string{},
+		},
+	}
+	want := []string{
+		"visual", "interaction", "component", "responsive", "content",
+		"verification", "design-decision", "handoff-contract",
+	}
+	if got := designImpactClasses(diff); !reflect.DeepEqual(got, want) {
+		t.Fatalf("impact classes = %#v, want %#v", got, want)
+	}
+}
+
+func TestDesignAdoptUsesExpectedChangeCASAndPreservesRebindHistory(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	parent, parentDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	parentContract := writeDesignContractRuntime(t, parent)
+	bindingRef := ".specify/features/001-orders/spec-contract.json"
+	parentBindingDigest := writeDesignBindingRuntime(t, bindingRef, "UD-0042", parentDigest, parentContract)
+	approvedContract := readFile(t, parentContract)
+	var tamperedContract map[string]any
+	if err := json.Unmarshal([]byte(approvedContract), &tamperedContract); err != nil {
+		t.Fatal(err)
+	}
+	tamperedContract["title"] = "tampered export"
+	tamperedRaw, err := json.MarshalIndent(tamperedContract, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(parentContract, append(tamperedRaw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout bytes.Buffer
+	initialAdoption := []string{
+		"adopt", "feature:001-orders",
+		"--change", "UD-0042",
+		"--scope", "web:orders/detail",
+		"--mode", "formal",
+		"--binding-ref", bindingRef,
+		"--binding-sha256", parentBindingDigest,
+		"--expected-change", "none",
+	}
+	if exit := runDesign(initialAdoption, &stdout); exit == 0 || !strings.Contains(stdout.String(), "does not match the registered design") {
+		t.Fatalf("tampered design export must block adoption: exit=%d output=%s", exit, stdout.String())
+	}
+	if err := os.WriteFile(parentContract, []byte(approvedContract), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	if exit := runDesign(initialAdoption, &stdout); exit != 0 {
+		t.Fatalf("initial design adoption failed: %d %s", exit, stdout.String())
+	}
+
+	successor := createDesignIterationRuntime(t, "UD-0042", "UD-0043", "web:orders/detail")
+	writeReadyDesignIterationRuntime(t, successor, "UD-0043", []string{"web:orders/detail"}, "UD-0042", parentDigest)
+	updated := strings.Replace(readFile(t, successor), "use accessible semantic color pairs", "use stronger accessible semantic color pairs", 1)
+	if err := os.WriteFile(successor, []byte(updated), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	if exit := runDesign([]string{"register", successor}, &stdout); exit != 0 {
+		t.Fatalf("register successor failed: %d %s", exit, stdout.String())
+	}
+	successorDigest := designChangeRecordRuntime(t, readDesignChangeIndexRuntime(t), "UD-0043")["approval_sha256"].(string)
+	successorContract := writeDesignContractRuntime(t, successor)
+	successorBindingDigest := writeDesignBindingRuntime(t, bindingRef, "UD-0043", successorDigest, successorContract)
+
+	wrongExpected := []string{
+		"adopt", "feature:001-orders",
+		"--change", "UD-0043",
+		"--scope", "web:orders/detail",
+		"--mode", "formal",
+		"--binding-ref", bindingRef,
+		"--binding-sha256", successorBindingDigest,
+		"--expected-change", "none",
+	}
+	stdout.Reset()
+	if exit := runDesign(wrongExpected, &stdout); exit == 0 || !strings.Contains(stdout.String(), "expected current change") {
+		t.Fatalf("stale adoption CAS must block: exit=%d output=%s", exit, stdout.String())
+	}
+	indexBeforeImpact := readFile(t, filepath.Join(".specify", "design", "index.json"))
+	stdout.Reset()
+	if exit := runDesign([]string{
+		"impact", "feature:001-orders",
+		"--change", "UD-0043",
+		"--scope", "web:orders/detail",
+		"--mode", "formal",
+		"--expected-change", "none",
+	}, &stdout); exit == 0 || !strings.Contains(stdout.String(), "expected current change") {
+		t.Fatalf("stale impact CAS must block: exit=%d output=%s", exit, stdout.String())
+	}
+	stdout.Reset()
+	if exit := runDesign([]string{
+		"impact", "feature:001-orders",
+		"--change", "UD-0043",
+		"--scope", "web:orders/detail",
+		"--mode", "formal",
+		"--expected-change", "UD-0042",
+	}, &stdout); exit != 0 {
+		t.Fatalf("design impact failed: %d %s", exit, stdout.String())
+	}
+	if got := readFile(t, filepath.Join(".specify", "design", "index.json")); got != indexBeforeImpact {
+		t.Fatal("design impact mutated the design index")
+	}
+	impact := decodeEnvelope(t, stdout.Bytes()).Data["impact"].(map[string]any)
+	if impact["schema"] != "spec-kit-ui-design-impact-v1" || impact["current_change_id"] != "UD-0042" || impact["candidate_change_id"] != "UD-0043" {
+		t.Fatalf("impact identity = %#v", impact)
+	}
+	if !reflect.DeepEqual(stringList(impact["impact_classes"]), []string{"visual", "interaction", "design-decision"}) {
+		t.Fatalf("impact classes = %#v", impact["impact_classes"])
+	}
+	if !reflect.DeepEqual(stringList(impact["affected_decision_ids"]), []string{"DS-COLOR-001"}) || len(stringList(impact["affected_handoff_contract_ids"])) != 0 {
+		t.Fatalf("stable contract impact = DS %#v DH %#v", impact["affected_decision_ids"], impact["affected_handoff_contract_ids"])
+	}
+	if !reflect.DeepEqual(stringList(impact["changed_sections"]), []string{"decisions"}) || impact["reconcile_from"] != "plan" {
+		t.Fatalf("impact reconciliation boundary = %#v", impact)
+	}
+	if !reflect.DeepEqual(stringList(impact["preserved_bindings"]), []string{"feature.ui_brief", "implementation.completed_work", "review.unaffected_scope_evidence"}) {
+		t.Fatalf("preserved bindings = %#v", impact["preserved_bindings"])
+	}
+	if !reflect.DeepEqual(stringList(impact["invalidated_bindings"]), []string{"plan.ui_design_contract", "tasks.ui_contracts", "review.affected_scope_evidence"}) {
+		t.Fatalf("invalidated bindings = %#v", impact["invalidated_bindings"])
+	}
+	if !reflect.DeepEqual(stringList(impact["reconciliation_actions"]), []string{"recompile_plan_ui_design_contract", "recompile_task_ui_contracts", "recapture_affected_review_evidence"}) || !hexDigestRE.MatchString(fmt.Sprint(impact["impact_sha256"])) {
+		t.Fatalf("impact actions/digest = %#v", impact)
+	}
+	wrongExpected[len(wrongExpected)-1] = "UD-0042"
+	stdout.Reset()
+	if exit := runDesign(wrongExpected, &stdout); exit != 0 {
+		t.Fatalf("explicit design rebind failed: %d %s", exit, stdout.String())
+	}
+
+	index := readDesignChangeIndexRuntime(t)
+	adoptions := index["adoptions"].([]any)
+	if len(adoptions) != 2 {
+		t.Fatalf("adoption history = %#v, want two receipts", adoptions)
+	}
+	first := adoptions[0].(map[string]any)
+	second := adoptions[1].(map[string]any)
+	if first["status"] != "superseded" || first["superseded_by_revision"] != float64(2) {
+		t.Fatalf("first adoption receipt was not retained: %#v", first)
+	}
+	if second["status"] != "current" || second["revision"] != float64(2) || second["previous_change_id"] != "UD-0042" {
+		t.Fatalf("second adoption receipt is incomplete: %#v", second)
+	}
+	if second["design_change_id"] != "UD-0043" || second["design_change_sha256"] != successorDigest {
+		t.Fatalf("second adoption receipt does not retain the exact design binding: %#v", second)
+	}
+	for _, field := range []string{
+		"impact_sha256", "impact_classes", "preserved_bindings", "invalidated_bindings",
+		"reconcile_from", "reconciliation_actions", "changed_sections",
+		"affected_decision_ids", "affected_handoff_contract_ids",
+	} {
+		if !reflect.DeepEqual(second[field], impact[field]) {
+			t.Fatalf("adoption receipt %s = %#v, want impact %#v", field, second[field], impact[field])
+		}
+	}
+}
+
+func TestDesignFormalAdoptRejectsBindingFromAnotherFeatureWorkspace(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	designPath, designDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	contractPath := writeDesignContractRuntime(t, designPath)
+	wrongBindingRef := ".specify/features/999-orders/spec-contract.json"
+	wrongDigest := writeDesignBindingRuntime(t, wrongBindingRef, "UD-0042", designDigest, contractPath)
+
+	var stdout bytes.Buffer
+	exit := runDesign([]string{
+		"adopt", "feature:001-orders",
+		"--change", "UD-0042",
+		"--scope", "web:orders/detail",
+		"--mode", "formal",
+		"--binding-ref", wrongBindingRef,
+		"--binding-sha256", wrongDigest,
+		"--expected-change", "none",
+	}, &stdout)
+	if output := stdout.String(); exit == 0 || !strings.Contains(output, "feature spec-contract.json") {
+		t.Fatalf("formal adoption with another feature binding must block: exit=%d output=%s", exit, output)
+	}
+}
+
+func TestDesignQuickAdoptRequiresConfirmedExactStatusBinding(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	designPath, designDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	contractPath := writeDesignContractRuntime(t, designPath)
+	workspace := filepath.Join(".planning", "quick", "001-orders")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bindingRef := filepath.ToSlash(filepath.Join(workspace, "STATUS.md"))
+
+	writeStatus := func(confirmed bool, boundChange, boundScope, bindingShape string) string {
+		t.Helper()
+		bindingBody := fmt.Sprintf(`ui_design_binding:
+  scope: %s
+  design_change_id: %s
+  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+  design_change_sha256: %s
+  design_contract_ref: %s
+`, boundScope, boundChange, designDigest, filepath.ToSlash(contractPath))
+		if bindingShape == "flat" {
+			bindingBody = fmt.Sprintf(`scope: %s
+design_change_id: %s
+design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+design_change_sha256: %s
+design_contract_ref: %s
+`, boundScope, boundChange, designDigest, filepath.ToSlash(contractPath))
+		} else if bindingShape == "masked-mismatch" {
+			bindingBody += "\n## Notes\n\ndesign_change_id: UD-0042\n"
+		} else if bindingShape == "case-duplicate" {
+			bindingBody += "\n## UI design binding\n\n" + bindingBody
+		} else if bindingShape == "duplicate-key" {
+			bindingBody = strings.Replace(
+				bindingBody,
+				"  scope: "+boundScope+"\n",
+				"  scope: web:orders/summary\n  scope: "+boundScope+"\n",
+				1,
+			)
+		}
+		body := fmt.Sprintf(`---
+understanding_confirmed: %t
+---
+
+## UI Design Binding
+
+%s
+note: exact source UD-0042
+`, confirmed, bindingBody)
+		if err := os.WriteFile(filepath.FromSlash(bindingRef), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		digest := sha256.Sum256([]byte(body))
+		return fmt.Sprintf("%x", digest)
+	}
+	writeConfirmation := func(state, boundChange string) {
+		t.Helper()
+		decision := quickAdoptionTestDecision(designDigest, filepath.ToSlash(contractPath), boundChange)
+		digest, err := computeQuickConfirmationDigest(decision)
+		if err != nil {
+			t.Fatal(err)
+		}
+		doc := quickAdoptionTestDoc(decision, digest, state)
+		body, err := json.Marshal(doc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body = append(body, '\n')
+		if err := os.WriteFile(filepath.Join(workspace, "confirmation.json"), body, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	adopt := func(digest string) (int, string) {
+		t.Helper()
+		var stdout bytes.Buffer
+		exit := runDesign([]string{
+			"adopt", "quick:001-orders",
+			"--change", "UD-0042",
+			"--scope", "web:orders/detail",
+			"--mode", "quick",
+			"--binding-ref", bindingRef,
+			"--binding-sha256", digest,
+			"--expected-change", "none",
+		}, &stdout)
+		return exit, stdout.String()
+	}
+
+	writeConfirmation("staged", "UD-0042")
+	if exit, output := adopt(writeStatus(false, "UD-0042", "web:orders/detail", "nested")); exit == 0 || !strings.Contains(output, "checkpoint must be confirmed") {
+		t.Fatalf("unconfirmed quick adoption must block: exit=%d output=%s", exit, output)
+	}
+	writeConfirmation("confirmed", "UD-9999")
+	if exit, output := adopt(writeStatus(true, "UD-0042", "web:orders/detail", "nested")); exit == 0 || !strings.Contains(output, "confirmed UI design binding") {
+		t.Fatalf("unconfirmed replacement binding must block: exit=%d output=%s", exit, output)
+	}
+	writeConfirmation("confirmed", "UD-0042")
+	if exit, output := adopt(writeStatus(true, "UD-0042", "web:orders/detail", "flat")); exit == 0 || !strings.Contains(output, "ui_design_binding mapping") {
+		t.Fatalf("quick adoption without ui_design_binding container must block: exit=%d output=%s", exit, output)
+	}
+	if exit, output := adopt(writeStatus(true, "UD-9999", "web:orders/detail", "nested")); exit == 0 || !strings.Contains(output, "exact registered change fields") {
+		t.Fatalf("mismatched markdown binding must block: exit=%d output=%s", exit, output)
+	}
+	if exit, output := adopt(writeStatus(true, "UD-0042", "web:orders/summary", "nested")); exit == 0 || !strings.Contains(output, "exact registered change fields") {
+		t.Fatalf("mismatched markdown binding scope must block: exit=%d output=%s", exit, output)
+	}
+	if exit, output := adopt(writeStatus(true, "UD-0042", "web:orders/detail", "nested")); exit != 0 {
+		t.Fatalf("confirmed exact quick adoption failed: exit=%d output=%s", exit, output)
+	}
+	index := readDesignChangeIndexRuntime(t)
+	receipt := index["adoptions"].([]any)[0].(map[string]any)
+	if len(stringList(receipt["preserved_bindings"])) != 0 || len(stringList(receipt["invalidated_bindings"])) != 0 {
+		t.Fatalf("initial quick adoption must not invalidate existing work: %#v", receipt)
+	}
+	if receipt["reconcile_from"] != "quick-checkpoint" || !reflect.DeepEqual(stringList(receipt["reconciliation_actions"]), []string{"confirm_quick_design_binding", "compile_quick_ui_work_items"}) {
+		t.Fatalf("initial quick reconciliation = %#v", receipt)
+	}
+}
+
+func TestDesignQuickAdoptRejectsBindingFromAnotherQuickWorkspace(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	designPath, designDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	contractPath := writeDesignContractRuntime(t, designPath)
+	workspace := filepath.Join(".planning", "quick", "999-orders")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bindingRef := filepath.ToSlash(filepath.Join(workspace, "STATUS.md"))
+	statusBody := fmt.Sprintf(`---
+understanding_confirmed: true
+---
+
+## UI Design Binding
+
+ui_design_binding:
+  scope: web:orders/detail
+  design_change_id: UD-0042
+  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+  design_change_sha256: %s
+  design_contract_ref: %s
+`, designDigest, filepath.ToSlash(contractPath))
+	if err := os.WriteFile(filepath.FromSlash(bindingRef), []byte(statusBody), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	decision := quickAdoptionTestDecision(designDigest, filepath.ToSlash(contractPath), "UD-0042")
+	confirmationDigest, err := computeQuickConfirmationDigest(decision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirmationBody, err := json.Marshal(quickAdoptionTestDoc(decision, confirmationDigest, "confirmed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirmationBody = append(confirmationBody, '\n')
+	if err := os.WriteFile(filepath.Join(workspace, "confirmation.json"), confirmationBody, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256([]byte(statusBody))
+
+	var stdout bytes.Buffer
+	exit := runDesign([]string{
+		"adopt", "quick:001-orders",
+		"--change", "UD-0042",
+		"--scope", "web:orders/detail",
+		"--mode", "quick",
+		"--binding-ref", bindingRef,
+		"--binding-sha256", fmt.Sprintf("%x", digest),
+		"--expected-change", "none",
+	}, &stdout)
+	if output := stdout.String(); exit == 0 || !strings.Contains(output, ".planning/quick/<id>/STATUS.md") {
+		t.Fatalf("quick adoption with another workspace binding must block: exit=%d output=%s", exit, output)
+	}
+}
+
+func TestDesignQuickAdoptRejectsStatusBindingThatDiffersFromConfirmation(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	designPath, designDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	contractPath := filepath.ToSlash(writeDesignContractRuntime(t, designPath))
+	workspace := filepath.Join(".planning", "quick", "001-orders")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bindingRef := filepath.ToSlash(filepath.Join(workspace, "STATUS.md"))
+	statusBody := fmt.Sprintf(`---
+understanding_confirmed: true
+---
+
+## UI Design Binding
+
+ui_design_binding:
+  scope: web:orders/detail
+  design_change_id: UD-9999
+  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+  design_change_sha256: %s
+  design_contract_ref: %s
+
+## Notes
+
+design_change_id: UD-0042
+`, designDigest, contractPath)
+	if err := os.WriteFile(filepath.FromSlash(bindingRef), []byte(statusBody), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	decision := quickAdoptionTestDecision(designDigest, contractPath, "UD-0042")
+	confirmationDigest, err := computeQuickConfirmationDigest(decision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirmationBody, err := json.Marshal(
+		quickAdoptionTestDoc(decision, confirmationDigest, "confirmed"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirmationBody = append(confirmationBody, '\n')
+	if err := os.WriteFile(filepath.Join(workspace, "confirmation.json"), confirmationBody, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256([]byte(statusBody))
+	var stdout bytes.Buffer
+	exit := runDesign([]string{
+		"adopt", "quick:001-orders",
+		"--change", "UD-0042",
+		"--scope", "web:orders/detail",
+		"--mode", "quick",
+		"--binding-ref", bindingRef,
+		"--binding-sha256", fmt.Sprintf("%x", digest),
+		"--expected-change", "none",
+	}, &stdout)
+	if output := stdout.String(); exit == 0 || !strings.Contains(output, "exact-match confirmation.json") {
+		t.Fatalf("quick adoption with mismatched binding copies must block: exit=%d output=%s", exit, output)
+	}
+}
+
+func TestDesignQuickAdoptRejectsAmbiguousStatusAndInvalidConfirmationDigest(t *testing.T) {
+	tests := []struct {
+		name              string
+		statusShape       string
+		confirmationShape string
+		wantError         string
+	}{
+		{name: "case-insensitive duplicate heading", statusShape: "case-duplicate", confirmationShape: "valid", wantError: "exactly one"},
+		{name: "duplicate binding key", statusShape: "duplicate-key", confirmationShape: "valid", wantError: "scope"},
+		{name: "minimal forged digest", statusShape: "nested", confirmationShape: "minimal-forged", wantError: "confirmation digest"},
+		{name: "minimal self-consistent digest", statusShape: "nested", confirmationShape: "minimal-self-consistent", wantError: "decision.goal"},
+		{name: "decision changed after digest", statusShape: "nested", confirmationShape: "tampered-decision", wantError: "confirmation digest"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmp := t.TempDir()
+			withCwd(t, tmp)
+			designPath, designDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+			contractPath := filepath.ToSlash(writeDesignContractRuntime(t, designPath))
+			workspace := filepath.Join(".planning", "quick", "001-orders")
+			if err := os.MkdirAll(workspace, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			bindingRef := filepath.ToSlash(filepath.Join(workspace, "STATUS.md"))
+			bindingBody := fmt.Sprintf(`ui_design_binding:
+  scope: web:orders/detail
+  design_change_id: UD-0042
+  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+  design_change_sha256: %s
+  design_contract_ref: %s
+`, designDigest, contractPath)
+			switch tt.statusShape {
+			case "case-duplicate":
+				bindingBody += "\n## UI design binding\n\n" + bindingBody
+			case "duplicate-key":
+				bindingBody = strings.Replace(
+					bindingBody,
+					"  scope: web:orders/detail\n",
+					"  scope: web:orders/summary\n  scope: web:orders/detail\n",
+					1,
+				)
+			}
+			statusBody := fmt.Sprintf(`---
+understanding_confirmed: true
+---
+
+## UI Design Binding
+
+%s`, bindingBody)
+			if err := os.WriteFile(filepath.FromSlash(bindingRef), []byte(statusBody), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			decision := quickAdoptionTestDecision(designDigest, contractPath, "UD-0042")
+			digest, err := computeQuickConfirmationDigest(decision)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var confirmation any
+			switch tt.confirmationShape {
+			case "minimal-forged":
+				confirmation = quickAdoptionTestDoc(
+					decision, strings.Repeat("c", 64), "confirmed",
+				)
+			case "minimal-self-consistent":
+				minimalDecision := quickConfirmationDecision{UIConfirmation: decision.UIConfirmation}
+				minimalDigest, err := computeQuickConfirmationDigest(minimalDecision)
+				if err != nil {
+					t.Fatal(err)
+				}
+				confirmation = quickAdoptionTestDoc(
+					minimalDecision, minimalDigest, "confirmed",
+				)
+			case "tampered-decision":
+				decision.Goal = "Tampered after confirmation"
+				confirmation = quickAdoptionTestDoc(
+					decision, digest, "confirmed",
+				)
+			default:
+				confirmation = quickAdoptionTestDoc(
+					decision, digest, "confirmed",
+				)
+			}
+			confirmationBody, err := json.Marshal(confirmation)
+			if err != nil {
+				t.Fatal(err)
+			}
+			confirmationBody = append(confirmationBody, '\n')
+			if err := os.WriteFile(filepath.Join(workspace, "confirmation.json"), confirmationBody, 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			digestBytes := sha256.Sum256([]byte(statusBody))
+			var stdout bytes.Buffer
+			exit := runDesign([]string{
+				"adopt", "quick:001-orders",
+				"--change", "UD-0042",
+				"--scope", "web:orders/detail",
+				"--mode", "quick",
+				"--binding-ref", bindingRef,
+				"--binding-sha256", fmt.Sprintf("%x", digestBytes),
+				"--expected-change", "none",
+			}, &stdout)
+			if output := stdout.String(); exit == 0 || !strings.Contains(output, tt.wantError) {
+				t.Fatalf("quick adoption bypass must block: exit=%d want=%q output=%s", exit, tt.wantError, output)
+			}
+		})
+	}
+}
+
+func quickAdoptionTestDecision(designDigest, contractPath, boundChange string) quickConfirmationDecision {
+	return quickConfirmationDecision{
+		Goal:              "Adopt the approved orders UI",
+		UserVisibleResult: "The orders detail uses the approved design",
+		Scope: quickConfirmationScope{
+			Include: []string{"web:orders/detail"},
+			Exclude: []string{},
+			Defer:   []string{},
+		},
+		Items: []quickConfirmationItem{
+			{
+				ID:          "Q1",
+				Deliverable: "Apply the approved orders UI",
+				DependsOn:   []string{},
+				Acceptance:  "The exact design binding is used",
+				WriteScope:  []string{"src/orders"},
+			},
+		},
+		ReconfirmationTrigger: "The approved design binding changes",
+		UIConfirmation: map[string]any{
+			"applicable":           true,
+			"confirmation_purpose": "Approve the orders UI direction",
+			"user_and_primary_job": "Operators inspect an order",
+			"target_experience":    "A clear, efficient order detail",
+			"acceptance_evidence":  []any{"Bound UI capture"},
+			"design_binding": map[string]any{
+				"scope":                "web:orders/detail",
+				"design_change_id":     boundChange,
+				"design_change_ref":    ".specify/design/changes/UD-0042/DESIGN.md",
+				"design_change_sha256": designDigest,
+				"design_contract_ref":  contractPath,
+			},
+		},
+	}
+}
+
+func quickAdoptionTestDoc(
+	decision quickConfirmationDecision,
+	digest string,
+	state string,
+) quickConfirmationDoc {
+	return quickConfirmationDoc{
+		Schema:             quickConfirmationSchema,
+		Workspace:          "001-orders",
+		ConfirmationMode:   "full",
+		ConfirmationState:  state,
+		ConfirmationDigest: digest,
+		Source: quickConfirmationSource{
+			Kind:          "prompt",
+			SemanticDelta: false,
+		},
+		Decision: decision,
+		Delivery: quickConfirmationDelivery{
+			Waves: []quickConfirmationWave{
+				{ID: "W1", ItemIDs: []string{"Q1"}, Parallel: false},
+			},
+		},
+	}
+}
+
+func TestQuickAdoptionDigestCrossLanguageVector(t *testing.T) {
+	decision := quickAdoptionDigestVectorDecision()
+	digest, err := computeQuickConfirmationDigest(decision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const expected = "44ba801bb2f538980b81e6096c9e5ff622df159a7e4d7e3564b7636dfad6388e"
+	if digest != expected {
+		t.Fatalf("cross-language quick confirmation digest = %s, want %s", digest, expected)
+	}
+
+	changedWriteScope := decision
+	changedWriteScope.Items = append([]quickConfirmationItem{}, decision.Items...)
+	changedWriteScope.Items[0].WriteScope = []string{"src/changed-but-excluded"}
+	changedDigest, err := computeQuickConfirmationDigest(changedWriteScope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changedDigest != expected {
+		t.Fatalf("write_scope changed protected digest: got %s want %s", changedDigest, expected)
+	}
+}
+
+func quickAdoptionDigestVectorDecision() quickConfirmationDecision {
+	return quickConfirmationDecision{
+		Goal:              "采用订单 UI <>&\u2028next",
+		UserVisibleResult: "顾客看到 résumé",
+		Scope: quickConfirmationScope{
+			Include: []string{"web:订单/detail"},
+			Exclude: []string{"legacy:<&>"},
+			Defer:   []string{},
+		},
+		Items: []quickConfirmationItem{
+			{
+				ID:          "Q2",
+				Deliverable: "完成 >",
+				DependsOn:   []string{"Q1"},
+				Acceptance:  "通过 &",
+				WriteScope:  []string{"src/ignored-two"},
+			},
+			{
+				ID:          "Q1",
+				Deliverable: "实现 <",
+				DependsOn:   []string{},
+				Acceptance:  "截图\u2028ok",
+				WriteScope:  []string{"src/ignored-one"},
+			},
+		},
+		RecommendedApproach:   "保持简洁",
+		AssumptionsAndRisks:   []string{"风险 <>&"},
+		CompletionEvidence:    []string{"证据 ✓"},
+		ReconfirmationTrigger: "设计变化",
+		UIConfirmation: map[string]any{
+			"applicable":           true,
+			"confirmation_purpose": "确认 <方向>",
+			"user_and_primary_job": "运营 & 检查",
+			"target_experience":    "快速 > 清晰",
+			"acceptance_evidence":  []any{"截图\u2028完成"},
+			"design_binding": map[string]any{
+				"scope":                "web:订单/detail",
+				"design_change_id":     "UD-0042",
+				"design_change_ref":    ".specify/design/changes/UD-0042/DESIGN.md",
+				"design_change_sha256": strings.Repeat("a", 64),
+				"design_contract_ref":  ".specify/design/changes/UD-0042/design-contract.json",
+			},
+		},
+		UserCorrections: []string{"excluded from digest"},
+	}
+}
+
+func createRegisteredDesignChangeRuntime(t *testing.T, changeID, scope string) (string, string) {
+	t.Helper()
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"change", changeID, "--title", changeID + " design", "--type", "extension", "--scope", scope, "--profiles", "web"}, &stdout); exit != 0 {
+		t.Fatalf("create %s failed: %d %s", changeID, exit, stdout.String())
+	}
+	path := filepath.Join(".specify", "design", "changes", changeID, "DESIGN.md")
+	writeReadyDesignChangeRuntime(t, path, changeID, []string{scope}, nil)
+	stdout.Reset()
+	if exit := runDesign([]string{"register", path}, &stdout); exit != 0 {
+		t.Fatalf("register %s failed: %d %s", changeID, exit, stdout.String())
+	}
+	record := designChangeRecordRuntime(t, readDesignChangeIndexRuntime(t), changeID)
+	return path, record["approval_sha256"].(string)
+}
+
+func createDesignIterationRuntime(t *testing.T, sourceID, changeID, scope string) string {
+	t.Helper()
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"iterate", sourceID, changeID, "--title", changeID + " iteration", "--scope", scope}, &stdout); exit != 0 {
+		t.Fatalf("iterate %s failed: %d %s", changeID, exit, stdout.String())
+	}
+	return filepath.Join(".specify", "design", "changes", changeID, "DESIGN.md")
+}
+
+func writeReadyDesignIterationRuntime(t *testing.T, designPath, changeID string, scopes []string, sourceID, sourceDigest string) {
+	t.Helper()
+	writeReadyDesignChangeRuntime(t, designPath, changeID, scopes, []string{sourceID})
+	content := readFile(t, designPath)
+	baseline := ".specify/design/changes/" + sourceID + "/DESIGN.md#sha256=" + sourceDigest
+	content = strings.Replace(content, "  baseline_refs: []", "  baseline_refs: [\""+baseline+"\"]", 1)
+	content = strings.Replace(content, "  relationships:\n", "  relationships:\n    iteration_of: "+sourceID+"\n", 1)
+	if err := os.WriteFile(designPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func resolveDesignIDsRuntime(t *testing.T, scope string) []string {
+	t.Helper()
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"resolve", "--scope", scope}, &stdout); exit != 0 {
+		t.Fatalf("resolve %s failed: %d %s", scope, exit, stdout.String())
+	}
+	env := decodeEnvelope(t, stdout.Bytes())
+	ids := make([]string, 0, len(env.Items))
+	for _, raw := range env.Items {
+		ids = append(ids, raw.(map[string]any)["id"].(string))
+	}
+	return ids
+}
+
+func writeDesignContractRuntime(t *testing.T, designPath string) string {
+	t.Helper()
+	rendered, err := exportDesignSystem(designPath, "json", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contract := filepath.Join(filepath.Dir(designPath), "design-contract.json")
+	if err := os.WriteFile(contract, []byte(rendered), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return filepath.ToSlash(contract)
+}
+
+func writeDesignBindingRuntime(t *testing.T, bindingRef, changeID, digest, contractRef string) string {
+	t.Helper()
+	payload := map[string]any{
+		"design_change_id":     changeID,
+		"design_change_ref":    ".specify/design/changes/" + changeID + "/DESIGN.md",
+		"design_change_sha256": digest,
+		"design_contract_ref":  contractRef,
+	}
+	raw, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(bindingRef), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bindingRef, append(raw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(append(raw, '\n')))
+}
+
+func writeReadyDesignChangeRuntime(t *testing.T, designPath, changeID string, scopes, supersedes []string) {
+	t.Helper()
+	if supersedes == nil {
+		supersedes = []string{}
+	}
+	preview := filepath.Join(filepath.Dir(designPath), "previews", "round-01.html")
+	templatePath, err := locateTemplate("design-preview-template.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	template, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(template)
+	if err := os.MkdirAll(filepath.Dir(preview), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(preview, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	configurePreviewCandidate(t, preview)
+	var stdout bytes.Buffer
+	stdout.Reset()
+	if exit := runDesign([]string{"approve", preview, "--direction", "direction-a"}, &stdout); exit != 0 {
+		t.Fatalf("approve failed: %d %s", exit, stdout.String())
+	}
+	approval := decodeEnvelope(t, stdout.Bytes()).Data["approval"].(map[string]any)
+	scopeJSON, _ := json.Marshal(scopes)
+	supersedesJSON, _ := json.Marshal(supersedes)
+	header := "design_change:\n" +
+		"  schema: spec-kit-ui-design-change-v1\n" +
+		"  id: " + changeID + "\n" +
+		"  title: " + changeID + " approved design\n" +
+		"  change_type: extension\n" +
+		"  scope:\n" +
+		"    surfaces: " + string(scopeJSON) + "\n" +
+		"    entrypoints: []\n" +
+		"    states: []\n" +
+		"    platforms: [\"web\"]\n" +
+		"  baseline_refs: []\n" +
+		"  relationships:\n" +
+		"    supersedes: " + string(supersedesJSON) + "\n" +
+		"    depends_on: []\n" +
+		"    conflicts_with: []\n" +
+		"  constraints:\n" +
+		"    must_preserve: []\n" +
+		"    may_adapt: []\n" +
+		"    must_not: []\n"
+	design := strings.Replace(validDesignForRuntime, "design_system:\n  schema: spec-kit-design-v1\n", header, 1)
+	design = strings.ReplaceAll(design, ".specify/design/previews/round-01.html", "previews/round-01.html")
+	design = strings.ReplaceAll(design, ".specify/design/previews/round-01.handoff.json", "previews/round-01.handoff.json")
+	design = strings.ReplaceAll(design, "PREVIEW_SHA256", approval["html_sha256"].(string))
+	design = strings.ReplaceAll(design, "MANIFEST_SHA256", approval["manifest_sha256"].(string))
+	design = strings.ReplaceAll(design, "HANDOFF_SHA256", approval["handoff_sha256"].(string))
+	var handoffYAML []string
+	for _, id := range stringList(approval["handoff_contract_ids"]) {
+		handoffYAML = append(handoffYAML, "      - "+id)
+	}
+	design = strings.ReplaceAll(design, "HANDOFF_CONTRACT_IDS", strings.Join(handoffYAML, "\n"))
+	if err := os.WriteFile(designPath, []byte(design), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readDesignChangeIndexRuntime(t *testing.T) map[string]any {
+	t.Helper()
+	var index map[string]any
+	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(".specify", "design", "index.json"))), &index); err != nil {
+		t.Fatal(err)
+	}
+	return index
+}
+
+func designChangeRecordRuntime(t *testing.T, index map[string]any, changeID string) map[string]any {
+	t.Helper()
+	for _, raw := range index["changes"].([]any) {
+		record := raw.(map[string]any)
+		if record["id"] == changeID {
+			return record
+		}
+	}
+	t.Fatalf("design change %s was not found", changeID)
+	return nil
 }
 
 func configurePreviewCandidate(t *testing.T, path string) {

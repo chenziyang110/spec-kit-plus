@@ -7,10 +7,10 @@ Preserved Contract: UI reference work must preserve lane dispatch, static target
 ## UI Reference Lane
 
 **UI reference input handling**:
-- Preserve an approved project-level
-  `.specify/design/previews/round-NN.html#<direction-id>` as
+- Preserve an approved change-level
+  `.specify/design/changes/<UD-ID>/previews/round-NN.html#<direction-id>` as
   `approved_visual_ref` together with its immutable handoff reference and
-  preview/manifest/handoff digests; do not collapse either artifact into prose
+  registered design ref/hash and preview/manifest/handoff digests; do not collapse either artifact into prose
   or replace them with the feature-level `ui-target.html`. Carry applicable
   `DS-*` decision IDs and `DH-*` contract IDs into the UI brief, selecting and
   copying their structured rows instead of rewriting their meaning.

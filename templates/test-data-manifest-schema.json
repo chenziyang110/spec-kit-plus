@@ -1,0 +1,547 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/test-data-manifest-schema.json",
+  "title": "Spec Kit Plus Test Data Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "artifact",
+    "datasets"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "artifact": {
+      "const": "test-data-manifest"
+    },
+    "datasets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/dataset"
+      }
+    }
+  },
+  "$defs": {
+    "test_case_ref": {
+      "type": "string",
+      "pattern": "^TC-[0-9]{3,}$"
+    },
+    "scenario_ref": {
+      "type": "string",
+      "pattern": "^SCN-[0-9]{3,}$"
+    },
+    "dataset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "test_data_id",
+        "name",
+        "kind",
+        "sensitivity",
+        "contains_pii",
+        "source",
+        "disposition",
+        "readiness",
+        "provenance_refs",
+        "applicable_test_case_ids",
+        "applicable_scenario_ids",
+        "hygiene"
+      ],
+      "properties": {
+        "test_data_id": {
+          "type": "string",
+          "pattern": "^TD-[0-9]{3,}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "fixture",
+            "seed",
+            "synthetic",
+            "golden",
+            "replay",
+            "reference"
+          ]
+        },
+        "sensitivity": {
+          "enum": [
+            "public",
+            "internal",
+            "sanitized",
+            "restricted"
+          ]
+        },
+        "contains_pii": {
+          "type": "boolean"
+        },
+        "source": {
+          "enum": [
+            "generated",
+            "curated",
+            "captured",
+            "imported",
+            "reused",
+            "human-provided"
+          ]
+        },
+        "disposition": {
+          "enum": [
+            "reuse",
+            "generate",
+            "search",
+            "request",
+            "block",
+            "defer"
+          ]
+        },
+        "readiness": {
+          "enum": [
+            "ready",
+            "recipe-ready",
+            "evidence-needed",
+            "human-input-required",
+            "blocked",
+            "deferred"
+          ]
+        },
+        "provenance_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "format": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schema_ref": {
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "volume": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relationships": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "license": {
+          "type": "string",
+          "minLength": 1
+        },
+        "usage_limits": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fixed_seed": {
+          "type": "string",
+          "minLength": 1
+        },
+        "distribution": {
+          "type": "string",
+          "minLength": 1
+        },
+        "edge_partitions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "checksum": {
+          "type": "string",
+          "minLength": 1
+        },
+        "allowed_usage": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "environment_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "snapshot_binding": {
+          "type": "string",
+          "minLength": 1
+        },
+        "refresh_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cleanup_reset": {
+          "type": "string",
+          "minLength": 1
+        },
+        "oracle_binding": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "residual_risk": {
+          "type": "string",
+          "minLength": 1
+        },
+        "generation_recipe": {
+          "type": "string",
+          "minLength": 1
+        },
+        "request_instructions": {
+          "type": "string",
+          "minLength": 1
+        },
+        "blocker_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unblock_criteria": {
+          "type": "string",
+          "minLength": 1
+        },
+        "applicable_test_case_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/test_case_ref"
+          }
+        },
+        "applicable_scenario_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/scenario_ref"
+          }
+        },
+        "hygiene": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification_reason",
+            "sanitization_status",
+            "retention_policy"
+          ],
+          "properties": {
+            "classification_reason": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sanitization_status": {
+              "enum": [
+                "not_required",
+                "sanitized",
+                "restricted-access",
+                "pending",
+                "blocked"
+              ]
+            },
+            "retention_policy": {
+              "enum": [
+                "ephemeral",
+                "release-bound",
+                "long-lived",
+                "manual-review"
+              ]
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "const": "generate"
+              }
+            },
+            "required": [
+              "disposition"
+            ]
+          },
+          "then": {
+            "required": [
+              "format",
+              "volume",
+              "constraints",
+              "license",
+              "usage_limits",
+              "fixed_seed",
+              "distribution",
+              "edge_partitions",
+              "checksum",
+              "allowed_usage",
+              "snapshot_binding",
+              "refresh_policy",
+              "cleanup_reset",
+              "oracle_binding",
+              "limitations",
+              "residual_risk",
+              "generation_recipe"
+            ],
+            "properties": {
+              "readiness": {
+                "enum": [
+                  "ready",
+                  "recipe-ready"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              { "properties": { "disposition": { "const": "search" } }, "required": ["disposition"] },
+              { "properties": { "readiness": { "const": "ready" } }, "required": ["readiness"] }
+            ]
+          },
+          "then": {
+            "required": ["checksum", "provenance_refs"],
+            "properties": {
+              "checksum": { "pattern": "^sha256:[0-9a-f]{64}$" },
+              "provenance_refs": {
+                "minItems": 1,
+                "contains": { "pattern": "^\\.specify/evidence/records/evd-[0-9a-f]{24}\\.json$" }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "readiness": { "enum": ["ready", "recipe-ready"] } },
+            "required": ["readiness"]
+          },
+          "then": {
+            "properties": {
+              "hygiene": {
+                "properties": {
+                  "sanitization_status": {
+                    "enum": ["not_required", "sanitized", "restricted-access"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "const": "reuse"
+              }
+            },
+            "required": [
+              "disposition"
+            ]
+          },
+          "then": {
+            "required": [
+              "format",
+              "volume",
+              "constraints",
+              "license",
+              "usage_limits",
+              "checksum",
+              "allowed_usage",
+              "snapshot_binding",
+              "refresh_policy",
+              "cleanup_reset",
+              "oracle_binding",
+              "limitations",
+              "residual_risk"
+            ],
+            "properties": {
+              "provenance_refs": {
+                "minItems": 1
+              },
+              "readiness": {
+                "const": "ready"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "const": "search"
+              }
+            },
+            "required": [
+              "disposition"
+            ]
+          },
+          "then": {
+            "required": [
+              "format",
+              "volume",
+              "constraints",
+              "license",
+              "usage_limits",
+              "allowed_usage",
+              "snapshot_binding",
+              "refresh_policy",
+              "cleanup_reset",
+              "oracle_binding",
+              "limitations",
+              "residual_risk"
+            ],
+            "properties": {
+              "readiness": {
+                "enum": [
+                  "ready",
+                  "evidence-needed"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "const": "request"
+              }
+            },
+            "required": [
+              "disposition"
+            ]
+          },
+          "then": {
+            "required": [
+              "request_instructions",
+              "unblock_criteria",
+              "limitations",
+              "residual_risk"
+            ],
+            "properties": {
+              "readiness": {
+                "const": "human-input-required"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "const": "block"
+              }
+            },
+            "required": [
+              "disposition"
+            ]
+          },
+          "then": {
+            "required": [
+              "blocker_reason",
+              "unblock_criteria",
+              "limitations",
+              "residual_risk"
+            ],
+            "properties": {
+              "readiness": {
+                "const": "blocked"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "const": "defer"
+              }
+            },
+            "required": [
+              "disposition"
+            ]
+          },
+          "then": {
+            "required": [
+              "blocker_reason",
+              "unblock_criteria",
+              "limitations",
+              "residual_risk"
+            ],
+            "properties": {
+              "readiness": {
+                "const": "deferred"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "contains_pii": {
+                "const": true
+              }
+            },
+            "required": [
+              "contains_pii"
+            ]
+          },
+          "then": {
+            "properties": {
+              "sensitivity": {
+                "enum": [
+                  "restricted"
+                ]
+              },
+              "hygiene": {
+                "properties": {
+                  "sanitization_status": {
+                    "enum": [
+                      "sanitized",
+                      "restricted-access",
+                      "pending",
+                      "blocked"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

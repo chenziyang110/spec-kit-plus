@@ -24,6 +24,12 @@ Do not claim Review completion from partial coverage, unjoined worker narration,
 the repair author's own assertion, or evidence captured before the final
 integrated fingerprint.
 
+A verified Test Design projection is read-only oracle/input, never PASS
+evidence. It cannot satisfy a scenario, substitute for fresh real-entrypoint
+evidence, or authorize Review to change canonical Test Design. Any stale or
+invalid selected/required projection blocks the final claim and routes to its
+independent producer.
+
 Any production or relevant configuration change after evidence capture makes the affected result stale. Reopen its scenario and recapture evidence; never reuse a prior pass merely because the intended behavior did not change.
 
 If that change leaves no passing final delivery attempt, preserve the finding

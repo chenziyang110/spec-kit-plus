@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/test-design-state-schema.json",
+  "title": "Spec Kit Plus Test Design State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "revision",
+    "scope",
+    "mode",
+    "artifact_root",
+    "status",
+    "phase",
+    "claim_status",
+    "source",
+    "lanes",
+    "audit",
+    "blockers"
+  ],
+  "properties": {
+    "schema_version": { "const": "spec-kit-test-design-state-v1" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "scope": { "enum": ["project", "feature"] },
+    "mode": { "enum": ["project-baseline", "feature", "incremental-update", "audit"] },
+    "feature_dir": { "type": ["string", "null"], "minLength": 1 },
+    "artifact_root": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["active", "blocked", "ready", "complete"] },
+    "phase": {
+      "enum": [
+        "scoped",
+        "universe-ready",
+        "discovery",
+        "synthesis",
+        "audit",
+        "validated",
+        "handed-off"
+      ]
+    },
+    "claim_status": {
+      "enum": [
+        "pending",
+        "complete_against_frozen_scope",
+        "qualified_with_declared_gaps",
+        "blocked",
+        "stale"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "query",
+        "source_refs",
+        "included_paths",
+        "excluded_paths",
+        "risk_dimensions",
+        "fingerprint"
+      ],
+      "properties": {
+        "query": { "type": "string", "minLength": 1 },
+        "source_refs": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "included_paths": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "excluded_paths": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "risk_dimensions": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "lanes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest_ref", "accepted_result_refs"],
+      "properties": {
+        "manifest_ref": { "type": "string", "minLength": 1 },
+        "accepted_result_refs": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "lane_id", "result_ref"],
+      "properties": {
+        "status": { "enum": ["pending", "prepared", "accepted", "blocked"] },
+        "lane_id": { "type": ["string", "null"], "pattern": "^AUDIT-[0-9]{3,}$" },
+        "result_ref": { "type": ["string", "null"], "minLength": 1 }
+      }
+    },
+    "blockers": { "type": "array", "items": { "type": "object" } },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "scope": { "const": "feature" } }, "required": ["scope"] },
+      "then": { "required": ["feature_dir"], "properties": { "feature_dir": { "type": "string" } } }
+    },
+    {
+      "if": { "properties": { "scope": { "const": "project" } }, "required": ["scope"] },
+      "then": { "properties": { "feature_dir": { "type": "null" } } }
+    }
+  ]
+}

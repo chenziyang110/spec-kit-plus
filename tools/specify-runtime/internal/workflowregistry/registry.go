@@ -50,6 +50,7 @@ var policies = map[string]Policy{
 	"review":          {Mode: ModeMutationCloseout, CanonicalWorkflow: "sp-review", Reason: "Review may repair integrated repository behavior."},
 	"specify":         {Mode: ModeNoCloseout, Reason: "Specification artifacts are planning-only."},
 	"tasks":           {Mode: ModeNoCloseout, Reason: "Task artifacts are planning-only."},
+	"test-design":     {Mode: ModeNoCloseout, Reason: "Test-design artifacts and material plans are planning-only."},
 	"taskstoissues":   {Mode: ModeNoCloseout, Reason: "Issue export does not own repository source mutation."},
 	"team":            {Mode: ModeNoCloseout, Reason: "Team runtime operations defer mutation closeout to the owning workflow."},
 }

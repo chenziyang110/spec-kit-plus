@@ -51,6 +51,8 @@ type CompassInput struct {
 type CompassPayload struct {
 	EpistemicContract             EpistemicContract             `json:"epistemic_contract"`
 	ClaimRetrievalContractVersion int                           `json:"claim_retrieval_contract_version"`
+	IntentProfile                 string                        `json:"intent_profile,omitempty"`
+	RequiredLiveReadSurfaces      []string                      `json:"required_live_read_surfaces,omitempty"`
 	Readiness                     string                        `json:"readiness"`
 	CompassState                  string                        `json:"compass_state"`
 	Mode                          string                        `json:"mode"`
@@ -240,6 +242,8 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 	payload := CompassPayload{
 		EpistemicContract:             NewEpistemicContract(),
 		ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
+		IntentProfile:                 compassIntentProfile(input.Intent),
+		RequiredLiveReadSurfaces:      compassRequiredLiveReadSurfaces(input.Intent),
 		Readiness:                     status.Readiness,
 		CompassState:                  compassStateBlocked,
 		Mode:                          compassMode,
@@ -367,6 +371,8 @@ func blockedAgreementCompassPayload(paths rt.Paths, input CompassInput, agreemen
 	return CompassPayload{
 		EpistemicContract:             NewEpistemicContract(),
 		ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
+		IntentProfile:                 compassIntentProfile(input.Intent),
+		RequiredLiveReadSurfaces:      compassRequiredLiveReadSurfaces(input.Intent),
 		Readiness:                     readiness,
 		CompassState:                  compassStateBlocked,
 		Mode:                          compassMode,
@@ -618,7 +624,7 @@ func firstNonEmpty(values ...string) string {
 func compassFingerprint(input CompassInput) string {
 	mode := normalizedCompassInputMode(input.InputMode)
 	components := []string{
-		strings.ToLower(strings.TrimSpace(input.Intent)),
+		canonicalCompassIntent(input.Intent),
 		mode,
 		strings.ToLower(strings.TrimSpace(input.Query)),
 	}
@@ -647,6 +653,35 @@ func compassFingerprint(input CompassInput) string {
 	normalized := strings.Join(normalizeStrings(components), "\x00")
 	sum := sha256.Sum256([]byte(normalized))
 	return hex.EncodeToString(sum[:12])
+}
+
+func canonicalCompassIntent(value string) string {
+	intent := strings.ToLower(strings.TrimSpace(value))
+	if intent == "test-design" {
+		return "test_design"
+	}
+	return intent
+}
+
+func compassIntentProfile(value string) string {
+	if canonicalCompassIntent(value) == "test_design" {
+		return "test_design"
+	}
+	return ""
+}
+
+func compassRequiredLiveReadSurfaces(value string) []string {
+	if canonicalCompassIntent(value) != "test_design" {
+		return nil
+	}
+	return []string{
+		"requirements",
+		"entrypoints",
+		"test-infrastructure",
+		"fixtures",
+		"verification-routes",
+		"risk-history",
+	}
 }
 
 func compassFacets(input CompassInput, terms []string) ([]string, string) {
@@ -906,6 +941,12 @@ func coverageForFacets(facets []string, lanes []EvidenceLane, diagnostics []Cove
 func compassCandidateTerms(input CompassInput, terms, facets []string) []string {
 	values := append([]string{}, terms...)
 	values = append(values, facets...)
+	if canonicalCompassIntent(input.Intent) == "test_design" {
+		values = append(values, normalizeStrings([]string{
+			"test", "testing", "verification", "acceptance", "fixture", "factory", "seed", "golden",
+			"harness", "ci", "entrypoint", "regression", "risk", "security", "performance", "history",
+		})...)
+	}
 	if !compassUsesPrecisionInput(input) {
 		return uniqueStrings(values)
 	}

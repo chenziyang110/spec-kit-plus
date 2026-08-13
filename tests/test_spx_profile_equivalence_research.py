@@ -47,19 +47,21 @@ def test_spx_research_keeps_generic_web_research_out_of_feature_artifacts() -> N
     assert "do not create feature artifacts" in content
 
 
-def test_spx_design_preserves_design_state_support_artifacts_and_final_review() -> None:
+def test_spx_design_preserves_change_local_support_artifacts_and_final_review() -> None:
     content = _skill("spx-design")
 
     for required in (
-        ".specify/design/design-state.md",
-        ".specify/design/references.md",
-        ".specify/design/options.md",
-        ".specify/design/review.md",
+        ".specify/design/changes/<UD-ID>/DESIGN.md",
+        "<change-dir>/brief.md",
+        "<change-dir>/references.md",
+        "<change-dir>/options.md",
+        "<change-dir>/review.md",
         "active_command: sp-design",
         "phase_mode: design-only",
         "allowed_writes",
     ):
         assert required in content
+    assert ".specify/design/design-state.md" not in content
     assert "Ask the user to review the CLI-exported `DESIGN.md`" in content
 
 

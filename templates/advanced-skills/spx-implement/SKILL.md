@@ -33,6 +33,24 @@ authority: resume its Discussion contract, and after handoff readiness let only
 its selected `spx-quick` or `spx-specify` consumer create and bind downstream
 state. Discussion never hands off directly to `spx-implement`.
 
+For Test Design, consume **only the task packet subset** of canonical
+test-design input compiled from the
+validated canonical task-index task entry: task-local `test_case_refs`,
+`test_data_refs`, and `test_design_handoff_ref`,
+`test_design_handoff_sha256`, `test_design_source_fingerprint`,
+`test_design_state_revision`, and `test_design_artifact_digests`. These are
+read-only expected-behavior, oracle, and material inputs. Implement must not
+independently consume a global Test Design publication or projection and must
+never mutate canonical Test Design cases, data, coverage, gaps, audit,
+publication, projection, or handoff. JIT packet compilation revalidates the
+binding; missing, partial, stale, tampered, or foreign refs block before edits
+and route through Tasks/Test Design. Before the first `task-start`, this includes
+the live Test Design source fingerprint. Once execution starts, expected
+product-source edits may advance while the exact handoff, state, canonical Test
+Design artifacts, audit, refs, and digests remain mandatory and tamper-checked.
+Never merge refs from a noncanonical Markdown task projection
+or a separately discovered projection.
+
 Recover durable execution truth before work: CLI-owned `workflow.json`
 is the required phase gate; rich `workflow-state.md` is resume, evidence, and
 optional Analyze Gate context. Obtain compact execution state and the next task
@@ -115,8 +133,8 @@ When durable Codex team state is explicitly needed,
 hand off to `$spx-implement-teams` and stop; do not switch workflows inline.
 
 For UI-bearing work, apply Design Intelligence **UI Implementation Rules** before
-generating UI: query the approved design system and UI System Model (tokens,
-components, states) through `specify-runtime artifact show`, plus surface-aware
+generating UI: query the task's exact registered design change and UI System
+Model (tokens, components, states) through `specify-runtime artifact show`, plus surface-aware
 anti-slop and the task `ui_contract`; prefer visual hierarchy and the component
 system over generic equal-weight card grids. Consume the compiled task `ui_contract`; do not
 reconstruct design intent from task prose. Workers preserve design inputs and

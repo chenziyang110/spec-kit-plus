@@ -66,7 +66,7 @@ def test_classic_ui_card_is_independent_conditional_and_shares_one_confirmation(
     assert "quick uses this card for an implementation proposal" in lowered
     assert "debug uses this card for a target baseline" in lowered
     assert "must not pre-approve a speculative fix" in lowered
-    assert "design_system.status: bootstrap" in lowered
+    assert "unregistered draft or legacy bootstrap seed" in lowered
     assert "do not render an incomplete ui confirmation" in lowered
     assert "inspectable visual artifact" in lowered
     assert "original references" in lowered
@@ -132,6 +132,9 @@ def test_confirmation_and_ui_decisions_persist_and_reach_workers() -> None:
 
     quick_state = _read("templates/artifacts/quick-status.md").lower()
     assert "agent_execution_plan" in quick_state
+    assert "decision.ui_confirmation.design_binding" in quick_state
+    assert "confirmation_digest protects these exact fields" in quick_state
+    assert "  design_binding:" in quick_state
     for field in (
         "ordered_work_items",
         "work_item_acceptance",
@@ -165,6 +168,22 @@ def test_confirmation_and_ui_decisions_persist_and_reach_workers() -> None:
     )
     assert "confirmed ui target baseline" in debug_workers
     assert "must not propose a redesign" in debug_workers
+
+
+def test_quick_confirmation_schema_protects_exact_registered_design_binding() -> None:
+    schema = json.loads(_read("templates/quick-confirmation-schema.json"))
+    ui_schema = schema["properties"]["decision"]["properties"]["ui_confirmation"]
+    binding = ui_schema["properties"]["design_binding"]
+
+    assert set(binding["required"]) == {
+        "scope",
+        "design_change_id",
+        "design_change_ref",
+        "design_change_sha256",
+        "design_contract_ref",
+    }
+    assert binding["additionalProperties"] is False
+    assert binding["properties"]["design_change_sha256"]["pattern"] == "^[0-9a-f]{64}$"
 
 
 def test_ui_only_reconfirmation_is_reason_first_and_delta_only() -> None:

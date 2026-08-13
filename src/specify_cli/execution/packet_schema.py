@@ -97,6 +97,10 @@ UIFidelityLevel = Literal["none", "approximate", "high", "inspiration"]
 
 @dataclass(slots=True)
 class UIContract:
+    design_change_id: str = ""
+    design_change_ref: str = ""
+    design_change_sha256: str = ""
+    design_contract_ref: str = ""
     ui_work_type: str = ""
     surface_type: str = ""
     platforms: list[str] = field(default_factory=list)
@@ -182,6 +186,13 @@ class WorkerTaskPacket:
     acceptance_criteria: list[str] = field(default_factory=list)
     consumer_surfaces: list[str] = field(default_factory=list)
     required_evidence: list[str] = field(default_factory=list)
+    test_case_refs: list[str] = field(default_factory=list)
+    test_data_refs: list[str] = field(default_factory=list)
+    test_design_handoff_ref: str | None = None
+    test_design_handoff_sha256: str | None = None
+    test_design_source_fingerprint: str | None = None
+    test_design_state_revision: int | None = None
+    test_design_artifact_digests: dict[str, str] = field(default_factory=dict)
     global_constraints: list[str] = field(default_factory=list)
     interfaces: PacketInterfaces = field(default_factory=PacketInterfaces)
     review_inputs: list[str] = field(default_factory=list)

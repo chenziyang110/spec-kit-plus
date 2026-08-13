@@ -101,6 +101,7 @@ _INSPECT_BEFORE_EXECUTION_OPERATIONS = frozenset(
     {
         "design.export",
         "eval.run",
+        "test-design",
         "sp-teams.live-probe",
         "sp-teams.result-template",
     }

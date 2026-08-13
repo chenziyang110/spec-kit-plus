@@ -163,6 +163,7 @@ class IntegrationBase(ABC):
             "review",
             "specify",
             "tasks",
+            "test-design",
         }
     )
     UNRESOLVED_RENDERER_TOKEN_RE = re.compile(
@@ -607,6 +608,11 @@ class IntegrationBase(ABC):
                 "minimum research tracks needed before planning",
                 "manual confirmation before force-proceeding with unresolved feasibility risk",
             ],
+            "test-design": [
+                "project versus feature scope and mode confirmation when active state is ambiguous",
+                "included paths, exclusions, or risk dimensions that materially change the frozen Test Universe",
+                "human-owned or sensitive test-material input needed to resolve a blocking data requirement",
+            ],
             "checklist": [
                 "initial contextual clarifying questions (`Q1`-`Q3`)",
                 "optional targeted follow-ups (`Q4`-`Q5`) when high-value gaps remain",
@@ -628,6 +634,7 @@ class IntegrationBase(ABC):
             "discussion": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text product or technical question and continue with the discussion state update.",
             "clarify": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text confirmation question and continue with the existing enhancement flow.",
             "deep-research": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text question about the missing feasibility or research-track decision, then continue with the existing research workflow.",
+            "test-design": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text question about the unresolved scope, risk, or test-material decision, then continue with the existing test-design workflow.",
             "checklist": "If the native tool is unavailable in the current runtime or the tool call fails, keep the template's existing `Q1`/`Q2`/`Q3` (and optional `Q4`/`Q5`) textual question format.",
             "quick": "If the native tool is unavailable in the current runtime or the tool call fails, use the template's existing concise plain-text clarification or quick-task selection wording.",
             "debug": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise missing-information question in plain text during observer framing before entering reproduction work.",
@@ -649,6 +656,7 @@ class IntegrationBase(ABC):
             "discussion",
             "clarify",
             "deep-research",
+            "test-design",
             "checklist",
             "quick",
             "debug",

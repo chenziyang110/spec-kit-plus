@@ -12,9 +12,9 @@ The card must not pre-approve a speculative fix or root-cause theory.
 
 Render this card only when every row can be grounded in an approved project
 design direction, an inspectable current product surface, or supplied source
-material. `design_system.status: bootstrap` is structurally valid but is not an
-approved visual direction. For a new or high-visibility direction, first route
-to `sp-design`/`spx-design` and obtain an inspectable visual artifact. For
+material. An unregistered draft or legacy bootstrap seed is not an approved
+visual direction. For a new or high-visibility direction, first route to
+`sp-design`/`spx-design` and obtain an inspectable visual artifact. For
 multi-surface or acceptance-heavy Quick UI, expand the task-local plan,
 viewport/state matrix, execution batches, and acceptance evidence inside Quick;
 do not route to `sp-specify`/`spx-specify` because of scope size.
@@ -32,7 +32,8 @@ content is not an adequate acceptance basis.
 | --- | --- |
 | Confirmation purpose | [Quick implementation proposal, or Debug target baseline; name the affected UI surface] |
 | User and primary job | [who uses this surface, the situation they are in, and the single job the experience must help them complete] |
-| Design basis and source material | [approved DESIGN.md direction, inspectable current entry point, original references with reference intent, and real content or image sources] |
+| Registered design binding (Quick adoption) | [exact scope, `design_change_id`, `design_change_ref`, `design_change_sha256`, and `design_contract_ref`; stage as `decision.ui_confirmation.design_binding` so `confirmation_digest` protects it; use not applicable for a Debug-only baseline] |
+| Design basis and source material | [exact registered design-change ID/ref/hash, approved direction, inspectable current entry point, original references with reference intent, and real content or image sources] |
 | Target experience | [visual, content, and interaction thesis plus the signature element or recognizable behavior to preserve or introduce] |
 | Structure and visible change | [information hierarchy, layout, component placement, copy, and visible before-to-after change] |
 | Interaction, states, and adaptation | [primary interaction, loading/empty/error/success/disabled/focus states, responsive or window adaptation, keyboard and accessibility behavior] |
@@ -42,4 +43,7 @@ content is not an adequate acceptance basis.
 
 Do not add a second reply prompt here. When this card follows a Quick or Debug
 checkpoint, a single confirmation covers both the main checkpoint and this UI
-decision; a correction may target only the UI rows.
+decision; a correction may target only the UI rows. For Quick adoption, the
+registered design-binding row is a five-field decision value, not prose: stage
+it before `checkpoint-confirm`, and never infer or replace it after the user
+confirms.

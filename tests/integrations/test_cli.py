@@ -1138,6 +1138,7 @@ def test_init_installs_shared_worker_prompt_templates(tmp_path):
     assert (prompt_dir / "task-reviewer.md").exists()
     assert (prompt_dir / "spec-reviewer.md").exists()
     assert (prompt_dir / "code-quality-reviewer.md").exists()
+    assert (prompt_dir / "test-design-worker.md").exists()
 
 def test_install_psmux_for_codex_teams_uses_exact_winget_id(monkeypatch):
     from specify_cli import _install_psmux_for_codex_teams

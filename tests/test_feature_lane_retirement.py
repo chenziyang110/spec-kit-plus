@@ -22,7 +22,13 @@ def test_feature_lane_runtime_and_workflow_surfaces_are_retired() -> None:
     for path in retired_paths:
         target = REPO_ROOT / path
         if target.is_file() or (
-            target.is_dir() and any(item.is_file() for item in target.rglob("*"))
+            target.is_dir()
+            and any(
+                item.is_file()
+                and item.suffix != ".pyc"
+                and "__pycache__" not in item.parts
+                for item in target.rglob("*")
+            )
         ):
             remaining.append(path)
     assert remaining == []

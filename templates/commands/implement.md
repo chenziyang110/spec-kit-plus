@@ -32,10 +32,33 @@ authority: resume its Discussion contract, and after handoff readiness let only
 its selected `sp-quick` or `sp-specify` consumer create and bind downstream
 state. Discussion never hands off directly to `sp-implement`.
 
+## Test Design Task-Packet Boundary
+
+Implement consumes **only the task packet subset** of canonical test-design
+input compiled just in time from
+the validated canonical task-index entry: task-local `test_case_refs`,
+`test_data_refs`, and the Test Design binding fields
+`test_design_handoff_ref`, `test_design_handoff_sha256`,
+`test_design_source_fingerprint`, `test_design_state_revision`, and
+`test_design_artifact_digests`. Treat those refs as read-only expected-behavior,
+oracle, and material inputs for this task. Implement must not independently
+discover or consume a global Test Design publication or projection, and must
+never edit canonical Test Design cases, data, coverage, gaps, audit, publication,
+projection, or compatibility handoff. The packet compiler revalidates the
+binding immediately before dispatch; missing, partial, stale, tampered, or
+foreign refs block before edits and route through Tasks/Test Design ownership.
+Before the first `task-start`, that gate includes the live Test Design source
+fingerprint. After execution has started, expected product-source edits do not
+invalidate the pinned design input; every Implement command still verifies the
+exact handoff, state, canonical Test Design artifacts, audit, refs, and digests,
+and any change to those protected inputs blocks immediately.
+Do not enrich the packet from a noncanonical Markdown task projection or from a separately located
+projection.
+
 ## Main Flow
 
 1. Run `{SCRIPT}` to resolve the task-bearing feature context, then call `{{specify-subcmd:specify-runtime implement task-next --feature-dir <feature-dir> --format json}}`. Treat CLI-owned `task-index.json` as the structured execution contract from Tasks, while letting the CLI return only the next ready task and compact execution state; use `specify-runtime artifact show --json-pointer ...` for any additional canonical field. Never parse or rewrite the full task index with ad-hoc scripts. Required refs, protected requirements, user decisions, and task-local `MP-*` must-preserve obligations remain locked; a conflict must stop and route to the owning upstream phase rather than redefine the goal during implementation.
-2. Validate the returned task and current ready batch. For delegated work, call `{{specify-subcmd:specify-runtime implement packet-compile --feature-dir <feature-dir> --task-id <Txx> --format json}}`; do not author a packet file. Group behavior-changing Txx items into one coherent change-set, establish its RED/baseline through the Leader-owned logical validation-gate contract, and do not claim completion from chat narration.
+2. Validate the returned task and current ready batch. For delegated work, call `{{specify-subcmd:specify-runtime implement packet-compile --feature-dir <feature-dir> --task-id <Txx> --format json}}`; do not author a packet file. When its task packet includes Test Design refs, enforce the task-packet boundary above and stop on any binding failure. Group behavior-changing Txx items into one coherent change-set, establish its RED/baseline through the Leader-owned logical validation-gate contract, and do not claim completion from chat narration.
 3. Use `choose_subagent_dispatch(command_name="implement", snapshot, workload_shape)` for safe worker lanes, use the current integration's native subagent lifecycle where available, and keep leader ownership of tracker state.
 4. Start with `specify-runtime implement task-start`, execute the current task or ready batch, merge a structured result with `specify-runtime implement result-merge --result-json '<inline-json>'`, and accept it only with `specify-runtime implement task-accept`. These commands atomically own task status, lifecycle, execution state, and compatibility tracker projections. Never edit those workflow files directly and never create a temporary result JSON file under `worker-results/` (runtime owns that path). Expand the authoritative WorkerTaskResult shape with `specify-runtime api schema implement-result-merge-input --format json` or `api show implement.result-merge`. Acceptance-ready `status: success` requires `validation_results: [{command, status: "passed", summary?}, ...]` (field name is `validation_results`, not `validation`); `blockers` must be empty; worker status is `success|blocked|failed` (not `DONE`). Prefer `--result-json @path` or a clean argv JSON dump over shell `ConvertTo-Json`. `evidence register` is optional attachment and does not substitute for `validation_results`. Resolve blockers through bounded repair and route unknown root cause to `{{invoke:debug}}`.
 5. Run event-triggered review for repository drift, parallel joins, write-scope drift, validation failure, worker concerns, obligation conflicts, or sequential change-window limits. Let `specify-runtime implement task-start|result-merge|task-accept` maintain the single task lifecycle record; submit a blocked result through `result-merge` rather than inventing a task-block file operation. Report completion only when its changed paths, validation evidence, review status, and mutation closeout are complete.
@@ -54,8 +77,8 @@ state. Discussion never hands off directly to `sp-implement`.
    `remaining_gate_slots` count only unopened logical gates; zero never blocks
    a progress-bound attempt inside an existing gate.
 7. For UI work, apply Design Intelligence **UI Implementation Rules** before
-   generating UI: query approved `DESIGN.md`, UI System Model (tokens,
-   components, states), surface-aware anti-slop policy, and the task
+   generating UI: query the task's exact registered design change, UI System
+   Model (tokens, components, states), surface-aware anti-slop policy, and the task
    `ui_contract` through `specify-runtime artifact show`. Prefer visual hierarchy
    and the component system over generic equal-weight card grids. Preserve states and changed surfaces
    through `specify-runtime implement`, and capture requirements, but do not run

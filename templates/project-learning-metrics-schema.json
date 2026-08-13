@@ -40,7 +40,8 @@
           "sp-specify",
           "sp-tasks",
           "sp-taskstoissues",
-          "sp-team"
+          "sp-team",
+          "sp-test-design"
         ]
       },
       "additionalProperties": { "$ref": "#/$defs/metricBucket" }

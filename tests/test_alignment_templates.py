@@ -203,12 +203,14 @@ def test_discussion_carries_ui_design_intent_to_handoff() -> None:
     assert "sp-design" in content
 
 
-def test_specify_reads_design_md_for_ui_features() -> None:
+def test_specify_reads_registered_design_change_for_ui_features() -> None:
     content = _read("templates/commands/specify.md")
 
     assert "DESIGN.md" in content
     assert "Experience Requirements" in content
-    assert "design-system readiness" in content
+    assert ".specify/design/index.json" in content
+    assert ".specify/design/changes/<UD-ID>/DESIGN.md" in content
+    assert "Never" in content and "latest" in content
     assert "design_system_status" in content
     assert "strong blocker" in content.lower()
     assert "soft risk" in content.lower()
@@ -230,18 +232,26 @@ def test_discussion_design_carry_forward_artifacts_are_modeled() -> None:
         assert field in handoff
 
 
-def test_specify_design_readiness_has_alignment_and_context_slots() -> None:
+def test_specify_design_change_readiness_has_alignment_and_context_slots() -> None:
     command = _read("templates/commands/specify.md")
     alignment = _read("templates/alignment-template.md")
     context = _read("templates/context-template.md")
 
-    assert "design-system readiness" in command
+    assert "design readiness" in command
     assert "design_system_status" in alignment
     assert "design_risk_level" in alignment
-    assert "Design System Readiness" in alignment
+    assert "UI Design-Change Readiness" in alignment
+    for field in (
+        "design_change_id",
+        "design_change_ref",
+        "design_change_sha256",
+        "design_contract_ref",
+    ):
+        assert field in alignment
     assert "Design References and Gaps" in context
     assert "design_system_requirements" in context
-    assert "design references" in context.lower()
+    assert "registered_design_change" in context
+    assert "design_change_references" in context
 
 
 def test_specify_ui_reference_input_uses_writable_subagent_lane() -> None:
@@ -316,7 +326,7 @@ def test_plan_tasks_implement_preserve_design_quality_chain() -> None:
     tasks = _read("templates/commands/tasks.md")
     implement = _read("templates/commands/implement.md")
 
-    assert "Design System Adoption" in plan
+    assert "Design Change Adoption" in plan
     assert "token strategy" in plan.lower()
     assert "Design Quality Coverage" in tasks
     assert "required states" in tasks.lower()
@@ -365,7 +375,7 @@ def test_classic_fast_and_quick_cannot_bypass_ui_quality_gate() -> None:
     combined = f"{fast}\n{quick}"
 
     assert "UI Fast Gate" in fast
-    assert "design_system.status: bootstrap" in fast
+    assert "No applicable registered design change" in fast
     assert "representative screenshot or platform" in fast
     assert "UI handling applies even without an image" in quick
     assert "capture" in quick
@@ -556,8 +566,8 @@ def test_design_workflow_is_not_an_implementation_workflow() -> None:
     assert "css or theme implementation files" in lowered
     assert "ask the user to approve a direction" in lowered
     assert "{{specify-subcmd:specify-runtime design lint" in lowered
-    assert "specify-runtime design export design.md" in lowered
-    assert "never write `design.md` directly" in lowered
+    assert "specify-runtime design export <change-dir>/design.md" in lowered
+    assert "never write `<change-dir>/design.md` directly" in lowered
 
 
 def test_discussion_and_specify_share_read_only_evidence_lane_contract() -> None:
@@ -3868,6 +3878,39 @@ def test_auto_template_routes_from_existing_state_surfaces():
     assert "/sp.fast" in content
 
 
+def test_auto_routes_feature_test_design_before_tasks_and_rejects_stale_handoffs() -> None:
+    content = _read("templates/commands/auto.md")
+    lowered = " ".join(content.lower().split())
+
+    assert "artifact list --path-prefix <feature-dir>/test-design/" in lowered
+    assert "artifact show --path <feature-dir>/test-design/test-state.json" in lowered
+    assert "specify-runtime test-design status --feature-dir <feature-dir>" in lowered
+    for state in ("active", "blocked", "validated-unhanded", "stale"):
+        assert state in lowered
+    assert "route to canonical `/sp.test-design`" in lowered
+    assert "handoff_freshness=current" in lowered
+    assert "only" in lowered and "allow `/sp.tasks`" in lowered
+    assert "state_revision" in lowered
+    assert "source_fingerprint" in lowered
+    assert "artifact_digests" in lowered
+
+
+def test_shared_routing_keeps_test_design_optional_and_project_scope_isolated() -> None:
+    content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+    lowered = " ".join(content.lower().split())
+
+    assert "sp-plan -> [sp-test-design] -> sp-tasks" in lowered
+    assert "artifact list --path-prefix <feature-dir>/test-design/" in lowered
+    assert "specify-runtime test-design status --feature-dir <feature-dir>" in lowered
+    for state in ("active", "blocked", "validated-unhanded", "stale"):
+        assert state in lowered
+    assert "fresh handed-off" in lowered
+    assert "project-baseline" in lowered
+    assert "explicitly selected project scope" in lowered
+    assert "must not compete with or override a selected feature lineage" in lowered
+    assert "{{invoke:test-design}}" in content
+
+
 def test_discussion_convergence_never_becomes_implementation_authority() -> None:
     surfaces = {
         "classic": " ".join(
@@ -5978,22 +6021,10 @@ def test_ui_reference_artifact_templates_define_strict_formats() -> None:
     ]
 
     assert _h2_headings(brief) == [
-        "## Source Design System",
-        "## Experience Core",
-        "## Approved Direction",
-        "## Reference Inputs",
-        "## Fidelity Contract",
-        "## Screen Structure",
-        "## Information Hierarchy",
-        "## Real Content And Imagery",
-        "## Components And States",
-        "## Interactions",
-        "## Responsive Behavior",
-        "## Color Modes And Content Stress",
-        "## Accessibility And Keyboard Requirements",
-        "## Must Preserve",
-        "## May Adapt",
-        "## Must Not",
+        "## Source Design Change",
+        "## Feature Adoption",
+        "## Feature Delta",
+        "## Reference And Fidelity",
         "## Required Evidence",
         "## Worker Contract",
     ]

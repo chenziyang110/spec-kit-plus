@@ -41,18 +41,44 @@ scripts:
 4. Select discovery mode for a raw request or compile mode for a confirmed discussion contract. In compile mode, compute `semantic_delta`, ask only about a planning-critical delta, and do not repeat user review when `semantic_delta` is empty.
 5. Decompose semantic terms into explicit decisions and capability operations in `spec-contract.json`. Build `acceptance_coverage` as one stable `requirement_ref`/`acceptance_ref` pair per row: cover every `scope.in` and `capability_operations` JSON Pointer, map every acceptance criterion exactly once, and never use one criterion as the closure proof for multiple independent requirements. Present two or three approaches only when behavior, boundary, compatibility, or acceptance proof changes.
 6. Preserve the discussion contract by reference. Query supporting discussion artifacts through their artifact/evidence CLI owner only when a named evidence reference is stale, missing, or contradictory; carry its existing decision digest instead of rebuilding it.
-7. For UI-facing work—with or without supplied screenshots—query selected
-   `DESIGN.md` through `specify-runtime artifact show` and live UI evidence through its evidence owner; compile `Experience Requirements`,
-   design-system readiness (`design_system_status`, `design_risk_level`), and a
-   feature `ui-brief.md` via `specify-runtime artifact scaffold --kind ui-brief` plus leased `artifact patch` calls, and the complete current `design_contract` for
-   substantive UI changes. Separately patch work type, surface type, platform,
-   subject, audience, single job, visual/content/interaction theses, signature,
-   approved visual ref, reference intents, real content/image plans, and the
-   structure/visual/runtime evidence triad through the artifact/evidence CLIs. Treat a bootstrap or
-   missing required system as a strong blocker and a non-blocking adoption gap
-   as a soft risk. When raw UI references exist, additionally use
-   `choose_ui_reference_lane_dispatch`, `ui-reference-artifact`, and
-   `Reference-Implementation` fidelity evidence.
+7. For UI-facing work—with or without supplied screenshots—run
+   `specify-runtime design resolve --scope <exact-surface> --format json` for
+   discovery, then query `.specify/design/index.json` through
+   `specify-runtime artifact show` and inspect only the returned registered
+   change(s). Resolution never adopts or selects “latest.” Because the current
+   formal binding is singular, split a composite result into independently
+   bound feature units, each with one exact scope, `spec-contract.json`, and
+   `ui-brief.md`. Query each exact
+   `.specify/design/changes/<UD-ID>/DESIGN.md`, sibling
+   `design-contract.json`, and live UI evidence through targeted
+   `specify-runtime artifact show` calls. Compile
+   `Experience Requirements`, design readiness
+   (`design_system_status`, `design_risk_level`), a compact adoption
+   `ui-brief.md` via `specify-runtime artifact scaffold --kind ui-brief` plus
+   leased `artifact patch` calls, and the exact `design_contract` for
+   substantive UI changes. Pin the `UD-*` ID/ref, registered contract SHA-256,
+   approved visual/handoff digests, selected `DS-*`/`DH-*` rows, work type,
+   surface/platform, feature entry points/states, reference intents, real
+   content/image plans, and the structure/visual/runtime evidence triad. Before
+   replacing an existing binding, run
+   `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`
+   and record the semantic delta, then run
+   `specify-runtime design impact feature:<feature-id> --change <CANDIDATE-UD-ID> --scope <exact-surface> --mode formal --expected-change <CURRENT-UD-ID|none> --format json`
+   before changing either binding. Present its affected `DS-*`/`DH-*` IDs,
+   `preserved_bindings`, `invalidated_bindings`, and `reconcile_from`. Use fresh leased
+   `specify-runtime artifact patch` calls to set the complete replacement
+   binding in `spec-contract.json` and `ui-brief.md` first. Compute SHA-256 over
+   the exact spec-contract bytes, then execute
+   `specify-runtime design adopt feature:<feature-id> --change <UD-ID> --scope <exact-surface> --mode formal --binding-ref <feature-dir>/spec-contract.json --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
+   A failed compare-and-swap blocks downstream regeneration. After success,
+   follow the receipt's `reconcile_from`: reconcile Specify-owned UI binding
+   fields when listed, mark only invalidated Plan/Tasks/affected Review surfaces
+   pending for their owners, preserve completed implementation and unaffected
+   Review evidence, and never directly rewrite another stage's artifact. Treat
+   a missing or unregistered applicable change as a strong blocker and a
+   narrow existing-pattern adoption gap as a soft risk. When raw UI references
+   exist, additionally use `choose_ui_reference_lane_dispatch`,
+   `ui-reference-artifact`, and `Reference-Implementation` fidelity evidence.
 8. Create `spec-contract.json` with `artifact scaffold --kind spec-contract`, then fill only targeted JSON pointers through leased `artifact patch`. Query the prerequisite-script-created `spec.md` skeleton through `artifact show` and fill named sections through leased `artifact patch --section`; never emit or resubmit the stable template. Route every conditional project-facing artifact through its registered CLI owner. Never write canonical files directly or stage temporary payload files. Run deterministic validation and fail closed if incomplete.
 
 Create only specification-stage outputs. Do not create `plan-contract.json`, `plan.md`, research/design-plan artifacts, `tasks.md`, or `task-index.json`; the separately invoked planning and task workflows own them. Do not edit production source, tests, migrations, or runtime configuration.

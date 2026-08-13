@@ -14,6 +14,21 @@ skip or reverse the runtime stage. Legacy `next_command`/`active_command`
 heuristics are fallback only for noncanonical auxiliary state when no runtime
 file exists.
 
+Test Design is an independent producer and intentionally does not mutate
+`workflow.json` or require a completed Plan. Before accepting a Plan-to-Tasks
+transition, query the runtime-owned gate decision (`not_selected`, `selected`,
+or `required`) and use targeted `artifact list`/`artifact show` discovery for
+the feature Test Design root. When it exists, run `specify-runtime test-design
+status --feature-dir <feature-dir> --format json`. Route `selected` or
+`required` with no root, and active, blocked, stale,
+validated-but-unpublished/unprojected, or digest-mismatched state to
+`spx-test-design`. Route to `spx-tasks` only for `not_selected` with no root, or
+when the current compatibility test-design handoff exists and the Tasks
+projection passes `specify-runtime test-design projection-verify --feature-dir
+<feature-dir> --projection-ref <project-relative-ref> --expected-sha256
+<sha256>`. Auto treats the publication and projection as canonical read-only
+artifacts. Never infer freshness by reading storage files.
+
 A blocked runtime intentionally has no `next_argv`. Preserve its tutorial and
 wait for the declared evidence; when available, fill only the required evidence
 input in `data.resolution_action` and execute its runtime-owned base argv.
@@ -56,8 +71,8 @@ an unrelated feature are competing candidates, not priority-ranked stages.
 
 Choose the first applicable trustworthy route:
 
-- new/high-visibility UI direction, redesign, or UI work blocked by missing or
-  bootstrap `DESIGN.md`: `spx-design`;
+- new/high-visibility UI direction, redesign, or UI work with no applicable
+  registered `UD-*` change: `spx-design`;
 - active durable team batch: `spx-implement-teams`;
 - trusted completed system Review whose fresh `human-acceptance.json` is not
   `accepted`: `spx-accept`;
@@ -83,7 +98,8 @@ Choose the first applicable trustworthy route:
 - planning-ready spec has unresolved implementation-chain feasibility:
   `spx-deep-research`;
 - planning-ready spec lacks a coherent technical design: `spx-plan`;
-- ready plan lacks an executable task graph: `spx-tasks`;
+- selected/required Test Design has no root, or a root is active, blocked, stale, unpublished, unprojected, or unconsumed: `spx-test-design`;
+- ready plan lacks an executable task graph and Test Design is `not_selected` with no root, or has its fresh verified Tasks projection and compatibility handoff: `spx-tasks`;
 - persisted consistency gate is required or stale: `spx-analyze`;
 - ready tasks remain and prerequisites agree: `spx-implement`;
 - new request is truly trivial and passes the fast gate: `spx-fast`;

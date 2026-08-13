@@ -22,7 +22,7 @@ Spec Kit Plus is an independently developed Spec-Driven Development toolkit for 
 | Work in the agent you already use | One integration registry renders the same workflow concepts into skills, commands, prompts, hooks, and context files native to each supported tool. |
 | Match prompts to the model | **Classic** keeps the full, explicit `sp-*` workflow; **Advanced** provides independent, prompt-optimized `spx-*` skills for skills-based integrations. |
 | Navigate an existing codebase | Project Cognition narrows brownfield evidence reads and change-impact routes while requiring live repository verification before technical claims or edits. |
-| Treat UI and acceptance as executable work | `DESIGN.md`, feature `ui-brief.md`, task-local UI contracts, real-entrypoint evidence, and resumable human acceptance remain part of delivery rather than optional prose. |
+| Treat UI and acceptance as executable work | Change-scoped `.specify/design/changes/<UD-ID>/DESIGN.md`, feature `ui-brief.md`, task-local UI contracts, real-entrypoint evidence, and resumable human acceptance remain part of delivery rather than optional prose. |
 | Extend without forking the runtime | Presets, extensions, a generic integration, project Learning, and optional team execution add capabilities around the shared CLI and artifact contracts. |
 
 ## Quick start
@@ -102,6 +102,7 @@ flowchart LR
 - Use `quick` / `spx-quick` for resumable direct delivery when the requested outcome is already clear enough to implement without first creating a formal specification. Quick is not limited to small tasks: it may handle larger, multi-capability, architecture, migration, compatibility, rollout, or acceptance-heavy work through task-local planning, lanes or batches, consequence tracking, and validation.
 - Use `clarify` only when an existing specification needs deeper analysis before planning.
 - Use `deep-research` when requirements are clear but feasibility, external evidence, or an implementation chain still needs proof before planning.
+- Use `sp-test-design` (Classic; rendered invocation `test-design`) / `spx-test-design` (Advanced) as an independent producer when a project, feature, formal Plan, Quick task, Tasks graph, or Review needs a frozen test universe, professional case catalog, test-data/material pack, explicit gaps, and bounded leader/subagent discovery. It does not require a completed Plan. It publishes a content-addressed package and typed pointer-only projections for selected read-only consumers. The default formal path still keeps `plan -> [optional test-design] -> tasks`, and completeness remains only `complete_against_frozen_scope`, never absolute.
 - Review the seeded constitution and run `constitution` when the project needs explicit governance changes.
 - Use `auto` to resume the safest next step from recorded workflow state.
 
@@ -110,7 +111,7 @@ flowchart LR
 | Layer | Canonical workflows |
 | --- | --- |
 | Core workflow skills | `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept` |
-| Support skills | `auto`, `ask`, `discussion`, `clarify`, `deep-research` (`research` compatibility alias), `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues` |
+| Support skills | `auto`, `ask`, `discussion`, `clarify`, `deep-research` (`research` compatibility alias), `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues` |
 | Codex-only runtime | `sp-teams` for durable managed-team state and `team` for runtime operations inside the generated agent catalog |
 
 The generated `ask` workflow is read-only, evidence-backed project Q&A. `prd-scan -> prd-build` reconstructs current product documentation from an existing repository and is a peer workflow, not an automatic handoff to `plan`.
@@ -520,7 +521,7 @@ $spx-map-build            $spx-map-rebuild          $spx-map-scan
 $spx-map-update           $spx-plan                 $spx-prd
 $spx-prd-build            $spx-prd-scan             $spx-quick
 $spx-research             $spx-specify              $spx-tasks
-$spx-taskstoissues        $spx-team
+$spx-taskstoissues        $spx-team                 $spx-test-design
 ```
 
 Advanced installs also include the unchanged Classic map companions:
@@ -544,7 +545,7 @@ final-claim gate. The advanced profile is command-equivalent and
 prompt-optimized: every Classic command keeps an independent SPX entrypoint,
 state owner, write boundary, resumable stop point, and explicit side-effect
 gate. The normal feature path is
-`spx-specify -> spx-plan -> spx-tasks -> spx-implement -> spx-review -> spx-accept`; clarification,
+`spx-specify -> spx-plan -> [spx-test-design] -> spx-tasks -> spx-implement -> spx-review -> spx-accept`; test design is optional on that default formal path, while its independent producer can publish typed Plan, Quick, Tasks, or Review projections without waiting for Plan completion. Clarification,
 discussion (including an optional confirmed handoff into `spx-quick` or
 `spx-specify`),
 research, analysis, checklists, issue export, team execution,
@@ -625,17 +626,43 @@ runtime operations entrypoint. Classic assets and behavior remain unchanged
 when the `classic` profile is selected.
 
 - `design` / `sp-design` and Advanced `$spx-design` use `specify-runtime design`
-  as one natural-language design-system entrypoint that routes `create/refine/audit`;
+  as one natural-language UI-change entrypoint that routes `create/refine/audit`;
   reference synthesis is an input strategy for create/refine rather than another
   public command or terminal task type. The first formal consumer is `sp-specify`,
-  while `sp-quick` may pin the same approved snapshot for direct delivery.
+  while `sp-quick` may pin the same registered change for direct delivery.
   A later approval must not silently retarget an active formal feature or Quick
   workspace; adoption is explicit through Specify rebinding or a confirmed
   Quick checkpoint amendment.
-  Init's generic `status: bootstrap` file is a structural seed, not approved
-  product direction. Use the design workflow for new product UI, redesigns,
+  A new bounded direction starts with `specify-runtime design change UD-####`;
+  refinement of registered truth starts with
+  `specify-runtime design iterate <SOURCE-UD-ID> <SUCCESSOR-UD-ID>`, which pins
+  exact lineage and source bytes. Each change owns
+  `.specify/design/changes/<UD-ID>/DESIGN.md`, its brief, previews, approval,
+  handoff, and exported `design-contract.json`. Approved changes become
+  consumable only after `specify-runtime design register`; the metadata-only
+  `.specify/design/index.json` records scope, relationships, status, exact path,
+  and the registered document digest. A root `DESIGN.md` is read-only legacy
+  input when present and is never created or silently rewritten by init.
+  `specify-runtime design resolve --scope <exact-surface>` discovers active
+  candidates without adopting them. Current binding artifacts are singular, so
+  composite coverage is split into independently bound consumer units, each
+  with one exact scope and one binding file.
+  `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID>`
+  exposes the semantic delta; read-only `specify-runtime design impact
+  <consumer-ref> ... --expected-change <CURRENT-UD-ID|none>` then classifies the
+  exact scope's visual/interaction/component/responsive/content and stable
+  `DS-*`/`DH-*` impact, returning `preserved_bindings`,
+  `invalidated_bindings`, and `reconcile_from` before the consumer updates its binding artifact,
+  and `specify-runtime design adopt ... --expected-change <CURRENT-UD-ID|none>`
+  records the formal or Quick compare-and-swap after those bytes are updated.
+  Its receipt repeats the impact contract so the owning workflow reconciles
+  only affected stages and Review evidence, preserves completed work, and never
+  lets the design runtime rewrite consumer artifacts. Quick additionally
+  retires unstarted affected packets and creates a corrective work item for
+  completed-work drift.
+  Use the design workflow for new product UI, redesigns,
   rebrands, core workflow experience, multi-platform interface decisions, and
-  high-visibility customer-facing surfaces. Visual create and project-wide
+  high-visibility customer-facing surfaces. Visual create and scope-changing
   refine require durable taste intake in the design brief (one-line design
   read, variance/motion/density dials, aesthetic family, foundation strategy,
   redesign mode, surface-aware anti-slop locks, and optional synthesize
@@ -652,7 +679,8 @@ when the `classic` profile is selected.
   `anti-slop-policy.md` are inspiration only and never substitute for
   `design approve`.
 
-**Design Governance Foundation v1.0** (frozen architecture contract): AI design
+**Design Governance Foundation v1.0** remains the frozen preview-quality
+contract: AI design
 artifacts are validated for deliverable quality, not only renderability—taste
 intake, structural/semantic/quality layers, diagnostic recovery, and a Golden
 Artifact Set as regression truth. Preview boards are freeform three-direction canvases (not a fixed product specimen template); agents author creative HTML inside each direction while the embedded manifest and ready lint enforce governance. Do not stack new ready-gate conditions
@@ -660,6 +688,15 @@ without a layer, recovery path, diagnostic contract, and golden fixture. Full
 constraint text lives in `PROJECT-HANDBOOK.md` under
 `Design Governance Foundation v1.0`. Baseline fixtures:
 `tests/fixtures/design-preview/`.
+
+**Design Governance Foundation v2.0** governs ownership and consumption: every
+approved direction is an immutable, bounded UI change (`UD-*`), overlapping
+active scopes require an explicit `supersedes` relationship, consumers pin the
+registered path and SHA-256 instead of resolving “latest”, and only durable
+cross-change invariants graduate to project rules. See
+`docs/adr/0001-change-scoped-ui-design-contracts.md`. Scope-aware successors,
+partial `superseded_scopes`, semantic diff, and explicit adoption are governed
+by `docs/adr/0002-scope-aware-ui-design-iteration.md`.
 
 Substantive feature UI is handled during `sp-specify`/`$spx-specify` even when
 no screenshot is supplied: it produces a feature `ui-brief.md` that carries
@@ -841,7 +878,7 @@ Kimi.
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept`
-- Support skills: `auto`, `ask`, `discussion`, `clarify`, `deep-research` (`research` alias), `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues`
+- Support skills: `auto`, `ask`, `discussion`, `clarify`, `deep-research` (`research` alias), `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues`
 - Codex-only runtime: terminal `specify sp-teams` operations plus the generated `sp-teams` and `team` catalog entries
 
 Conditional gates and follow-up commands:
@@ -885,7 +922,7 @@ Conditional gates and follow-up commands:
   Schema v5 is current-only. The current runtime does not migrate schema v4 or older databases. Never move, remove, archive, or replace `project-cognition.db` directly. Run `specify-runtime cognition archive-incompatible-store --inspect --format json`, execute its hash-guarded `archive_argv`, then run `sp-map-scan -> sp-map-build` with the current binary to publish schema v5 with revisioned typed graph-claim lifecycle and reconciliation tables.
 - Support drift is not runtime-truth staleness. When `freshness` is `support_drift`, resolve or ignore the support-surface change instead of reflexively routing to `map-update`.
 - Map points, code proves: technical claims must be backed by live code, tests, scripts, configuration, or authoritative docs.
-- Planning-only workflows do not acquire source mutation authority: `specify`, `clarify`, `deep-research`, `plan`, and `tasks` write their owned planning artifacts only. If a request requires source/runtime/template/config/test/generated-asset changes, they must hand off to a registry-owned mutation workflow and stop; they do not conditionally run mutation closeout themselves. The receiving mutation owner applies its rendered planner-first project cognition closeout, while `sp-map-update` remains the external/manual maintenance workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair.
+- Planning-only workflows do not acquire source mutation authority: `specify`, `clarify`, `deep-research`, `plan`, `test-design`, and `tasks` write their owned planning artifacts only. If a request requires source/runtime/template/config/test/generated-asset changes, they must hand off to a registry-owned mutation workflow and stop; they do not conditionally run mutation closeout themselves. The receiving mutation owner applies its rendered planner-first project cognition closeout, while `sp-map-update` remains the external/manual maintenance workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair.
 - `auto` to resume the recommended next workflow step from current repository state; for feature stages it reads `workflow.json` through `specify-runtime workflow show` then `specify-runtime workflow next` and consumes structured `next_argv` before consulting rich `workflow-state.md`, `implement-tracker.md`, quick-task `STATUS.md`, or debug session files. It continues under the routed workflow's contract without rewriting downstream state to `sp-auto`. When the routed workflow would only ask a bounded question or confirmation with one safe recommended/default answer, `auto` accepts that recommendation and continues; when it cannot do so safely, it reports the blocker plus a self-unblock recommendation instead of waiting silently.
 - inside a managed Run, `auto` routes only the current Run subject and verifies `SPECIFY_RUN_WORKSPACE`; an unbound read-only invocation stops when more than one safe candidate remains instead of guessing from branch recency
 - `ask` for read-only evidence-backed project Q&A. Use it when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. `sp-ask` is independent from `sp-discussion`; it creates no ask state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. Do not teach a `specify ask` helper in v1.
@@ -930,7 +967,7 @@ Routing guide for direct delivery work:
 - `sp-quick` / `spx-quick` is a resumable direct-delivery workflow, not a small-task-only lane. Use it when the desired outcome is clear enough to implement directly, even if the work spans multiple capabilities, architecture or migration choices, compatibility constraints, rollout coordination, or acceptance-heavy validation.
 - Quick may use task-local planning, multiple lanes or batches, consequence and acceptance tracking, and validation to preserve control over larger work. Task size, multi-capability scope, or consequence breadth alone must not force a handoff to `sp-specify` / `spx-specify`.
 - `sp-specify` / `spx-specify` remains a separate formal specification path chosen explicitly for requirements-first work, not an automatic upgrade from Quick.
-- `sp-quick` performs one runtime-owned Decision Checkpoint before substantive execution. Stage it with `specify-runtime quick checkpoint-stage`, bind approval with `checkpoint-confirm`, and render `decision` / `delivery` / `pulse` views with `checkpoint-show`. The Decision Checkpoint asks the user to confirm goal, visible result, scope, stable `Q1`/`Q2` deliverables and product-level dependencies, independent acceptance for every work item, recommended approach, assumptions/risks, overall completion evidence, and reconfirmation trigger. Delivery Map waves, subagents, file splits, and test order remain agent-owned and never enter `confirmation_digest`. Discussion handoffs with no semantic delta inherit confirmation and skip re-approval. For applicable UI work, an independent UI Confirmation proposal is staged with the decision and one reply confirms both. Freeform prose or bullet-only confirmations do not satisfy this gate.
+- `sp-quick` performs one runtime-owned Decision Checkpoint before substantive execution. Stage it with `specify-runtime quick checkpoint-stage`, bind approval with `checkpoint-confirm`, and render `decision` / `delivery` / `pulse` views with `checkpoint-show`. The Decision Checkpoint asks the user to confirm goal, visible result, scope, stable `Q1`/`Q2` deliverables and product-level dependencies, independent acceptance for every work item, recommended approach, assumptions/risks, overall completion evidence, and reconfirmation trigger. Delivery Map waves, subagents, file splits, and test order remain agent-owned and never enter `confirmation_digest`. Discussion handoffs with no semantic delta inherit confirmation and skip re-approval. For applicable UI work, an independent UI Confirmation proposal is staged with the decision and one reply confirms both. When Quick adopts a registered design, exact `decision.ui_confirmation.design_binding` is part of that confirmation digest; the later top-level STATUS adoption copy must match it. Freeform prose or bullet-only confirmations do not satisfy this gate.
 - Both `sp-fast` and `sp-quick` still pass the project cognition gate first: run `specify-runtime cognition compass --intent implement --query "$ARGUMENTS" --format json` as the default brownfield navigation intake. Continue from the returned readiness, `compass_state`, top-level `minimal_live_reads`, lane-level `first_pass_paths` with reasons, `coverage_diagnostics`, and `expansion_ref`; read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons and `before_fix_claim` checks to prove or reject the route from live repository evidence. These paths are first evidence, not final edit scope. When the compass packet is draft-like, localized, missing coverage, or needs explicit concept decisions, use the advanced `specify-runtime cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `specify-runtime cognition query --query-plan` path (`lexicon -> semantic_intake -> query`). Generated agent commands always use the relative project runtime entrypoint; user-scoped environment variables and PATH participate only in human bootstrap or repair.
 - Pass the planned object as one structured argv value to `specify-runtime cognition query --intent <intent> --query-plan '<inline-json>' --format json`; use the integration's native argument API when shell quoting is brittle, and never create a query-plan file. `path_hints`/`reason` are accepted aliases for `paths`/`selection_reason`.
 - If the work is a bug fix or regression and the root cause is still unknown, use `sp-debug` instead of treating `sp-quick` as a symptom-fix lane.
@@ -1087,8 +1124,20 @@ Native hook coverage matrix:
 After planning, continue with:
 
 ```text
-specify -> plan -> tasks -> implement -> review -> accept
+specify -> plan -> [test-design] -> tasks -> implement -> review -> accept
 ```
+
+`test-design` is an independent producer and planning-only quality lane; it
+does not require a completed Plan. Its leader freezes the scope, uses Project
+Cognition only for navigation, verifies facts against current code, tests,
+configuration, official contracts, and live evidence, coordinates bounded
+read-only subagents, and joins an independent audit. The runtime publishes the
+content-addressed package and builds typed pointer-only projections for Plan,
+Quick, Tasks, and Review. Those consumers verify and read them without changing
+canonical Test Design. Implement consumes only the verified task-packet
+TC/TD subset, and Review treats Test Design as an oracle rather than PASS
+evidence. The default formal path remains `plan -> [optional test-design] ->
+tasks`; executable tests and fixtures remain owned by `tasks -> implement`.
 
 `plan` and `tasks` use adaptive execution: `execution_model: adaptive`, `execution_mode: light | standard | heavy`, and `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`. Light, low-risk single-lane planning or task generation runs leader-inline. Standard work uses native subagents when available; if native subagents are unavailable and no high-risk trigger is present, it may continue leader-inline with `capability_degraded: true`. Standard work that has no safe subagent lane or cannot be packetized safely records `dispatch_shape: subagent-blocked` and stops. Heavy or safety-critical work also blocks when native subagents are unavailable or the work is unpacketizable. Managed-team fallback is not part of adaptive plan/tasks dispatch.
 
@@ -1270,7 +1319,7 @@ Maintainer note:
 - `specify extension list`
 - `specify preset list`
 
-### Design System Runtime Helpers
+### UI Design Change Runtime Helpers
 
 - The checked-in `templates/design-preview-template.html` is generated from the
   upstream-only Jinja source in `src/specify_cli/design_preview_source/`. Run
@@ -1278,22 +1327,41 @@ Maintainer note:
   focused partial, or add `--check` to verify synchronization. Generated
   projects receive only the self-contained compatibility HTML and compact
   editable manifest, not the Jinja source tree.
+- `specify-runtime design change UD-0001 --title "..." --type overhaul
+  --scope web:orders --profiles web` creates one bounded workspace and ensures
+  `.specify/design/index.json` exists without creating a root `DESIGN.md`.
+- `specify-runtime design iterate UD-0001 UD-0002 --title "..." --scope
+  web:orders/detail` creates a successor pinned to the registered source's
+  exact SHA-256 and lineage without mutating it. The requested scope must still
+  be active on that source; an excluded subtree iterates from its active
+  successor instead.
+- `specify-runtime design resolve --scope web:orders/detail` discovers active
+  candidates only. A composite result must be split into independently bound
+  consumer units because the current binding artifacts are singular.
+- `specify-runtime design diff UD-0001 UD-0002` compares lineage, scope,
+  stable decisions, handoff contracts, and changed sections before adoption.
+- `specify-runtime design impact feature:001-orders --change UD-0002 --scope
+  web:orders/detail --mode formal --expected-change UD-0001` is a read-only,
+  scope-bounded adoption preview. It CAS-checks the current receipt and returns
+  impact classes, affected `DS-*`/`DH-*` IDs, `preserved_bindings`,
+  `invalidated_bindings`, `reconcile_from`, reconciliation actions, and a
+  canonical `impact_sha256`.
 - `specify-runtime design preview-manifest --out
-  .specify/design/previews/round-NN.manifest.json --profiles web,mobile` writes
+  .specify/design/changes/UD-0001/previews/round-NN.manifest.json --profiles web,mobile` writes
   the compact editable source for a review round from the canonical capability
   registry. `specify-runtime design profiles` lists the supported `web`,
   `mobile`, `desktop`, `cli`, `tui`, `content`, and `no-ui` routes. Visual
   profiles project surface-native capabilities, specimens, states, targets, and
   production units into every direction; `no-ui` instead requires current
   not-applicable evidence and creates no preview artifact.
-- `specify-runtime design lint --level structural` checks schema and reference shape;
-  `specify-runtime design lint --level ready` additionally requires an approved,
+- `specify-runtime design lint .specify/design/changes/UD-0001/DESIGN.md --level structural` checks schema and reference shape;
+  `specify-runtime design lint .specify/design/changes/UD-0001/DESIGN.md --level ready` additionally requires an approved,
   project-specific direction whose HTML preview, approval sidecar, immutable
   handoff, hashes, design decisions, handoff contracts, modes,
   responsive/content rules, and verification contract agree.
-- `specify-runtime design preview --out .specify/design/previews/round-NN.html`
+- `specify-runtime design preview --out .specify/design/changes/UD-0001/previews/round-NN.html`
   scaffolds the three-direction review board; add
-  `specify-runtime design preview --manifest .specify/design/previews/round-NN.manifest.json` to
+  `specify-runtime design preview --manifest .specify/design/changes/UD-0001/previews/round-NN.manifest.json` to
   deterministically render a ready candidate without hand-editing generated HTML;
   `specify-runtime design preview-lint PATH --level ready` validates a configured
   candidate; `specify-runtime design approve PATH --direction direction-X`
@@ -1302,10 +1370,33 @@ Maintainer note:
   exact ordered capability profiles and `SP-*` specimen set needed to reproduce
   the approved direction without treating the HTML carrier as a universal Web
   implementation target.
-- `specify-runtime design export --format json` exports normalized design tokens and component token references after ready validation.
-- `specify-runtime design export --format tailwind` exports supported token categories into Tailwind theme fields after ready validation.
-- Existing projects can use `--allow-unapproved` as a temporary structural-compatibility export while `sp-design`/`spx-design` records project-specific approval and provenance.
-- `specify-runtime design import SOURCE_REFERENCE` writes `.specify/design/references.md` as input for `sp-design`; it does not overwrite `DESIGN.md`.
+- `specify-runtime design export .specify/design/changes/UD-0001/DESIGN.md --format json` exports normalized design tokens and component token references after ready validation.
+- `specify-runtime design export .specify/design/changes/UD-0001/DESIGN.md --format tailwind` exports supported token categories into Tailwind theme fields after ready validation.
+- `specify-runtime design register .specify/design/changes/UD-0001/DESIGN.md` makes the ready, approved change consumable and pins its document digest in `.specify/design/index.json`; overlapping approved scope requires explicit `supersedes` metadata.
+- Formal adoption uses `specify-runtime design adopt feature:<feature-id>
+  --change UD-0002 --scope web:orders/detail --mode formal --binding-ref
+  <feature-dir>/spec-contract.json --binding-sha256 <sha256>
+  --expected-change UD-0001|none` after Specify writes the exact four fields.
+  The receipt drives reconciliation from Specify, Plan, Review, or none; only
+  listed downstream bindings and affected-scope Review evidence become pending,
+  while completed implementation and unaffected evidence remain preserved.
+- Quick adoption uses `specify-runtime design adopt quick:<quick-id> --change
+  UD-0002 --scope web:orders/detail --mode quick --binding-ref
+  .planning/quick/<id>-<slug>/STATUS.md --binding-sha256 <sha256>
+  --expected-change UD-0001|none`. First stage the exact scope and four
+  registered fields as `decision.ui_confirmation.design_binding`, then confirm
+  the checkpoint so sibling `confirmation.json` is `confirmed|inherited` and
+  frontmatter says `understanding_confirmed: true`. Patch the independent
+  top-level `## UI Design Binding` / `ui_design_binding` adoption copy only
+  afterward; it must match the confirmation-protected decision copy. Hash those
+  exact STATUS bytes before adoption. A replacement receipt retires unstarted
+  affected packets, stops in-progress affected packets at a safe boundary,
+  preserves completed work, creates a corrective work item for drift, and
+  recaptures only affected Review evidence.
+  Partial registration records parent `superseded_scopes` rather than retiring
+  unaffected scope.
+- Existing projects can use `--allow-unapproved` as a temporary structural-compatibility export while `sp-design`/`spx-design` records change-specific approval and provenance.
+- `specify-runtime design import SOURCE_REFERENCE --out .specify/design/changes/UD-0001/references.md` records synthesis input for one design change; it does not overwrite either the change-local `DESIGN.md` or a legacy root file.
 - `specify-runtime design ui-target --out FEATURE_DIR/ui-target.html` scaffolds a
   feature-level composition/state target, and `specify-runtime design ui-target-lint
   PATH --level ready` validates its manifest, review controls, approved design

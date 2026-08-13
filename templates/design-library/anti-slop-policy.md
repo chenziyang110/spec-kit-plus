@@ -1,9 +1,11 @@
 # Surface-aware anti-slop policy
 
 This policy corrects default LLM UI fingerprints. It is **subordinate** to an
-approved project `DESIGN.md` and its immutable preview/approval/handoff
-artifacts. It never authorizes production implementation inside `sp-design` /
-`spx-design`, and it never replaces `design approve`.
+approved registered design-change contract at
+`.specify/design/changes/<UD-ID>/DESIGN.md` and its immutable
+preview/approval/handoff artifacts. It never authorizes production
+implementation inside `sp-design` / `spx-design`, and it never replaces
+`design approve` or `design register`.
 
 Use the surface type from the design brief (`landing`, `product-workspace`,
 `hybrid`, `existing-pattern-maintenance`) plus audience constraints
@@ -17,7 +19,7 @@ Avoid unless the brief or approved design explicitly requires them:
 - neon outer glows, pure `#000000` canvases, and oversaturated multi-accent palettes
 - interchangeable three equal feature-card rows as the default marketing layout
 - placeholder copy, startup-slop verbs ("Elevate", "Seamless", "Unleash"), and fake-perfect metrics
-- inventing a second design system when an approved `DESIGN.md` already governs tokens
+- inventing a second design system when an exact registered design change already governs the affected scope
 
 ## Surface splits
 
@@ -51,10 +53,12 @@ Avoid unless the brief or approved design explicitly requires them:
 
 ## Subordination rules
 
-1. If `DESIGN.md` is approved, follow its tokens, components, motion, and
-   signature even when they conflict with a lock above.
-2. If `DESIGN.md` is bootstrap-only, do not treat seed presets or this policy as
-   approved product direction—route create through design.
+1. If an exact registered design change governs the affected scope, follow its
+   tokens, components, motion, and signature even when they conflict with a
+   lock above.
+2. If the available basis is only an unregistered draft or legacy bootstrap
+   seed, do not treat presets or this policy as approved product direction—route
+   create through design.
 3. Narrow existing-pattern fixes may proceed with a recorded soft risk when the
    governing live surface is clear; they still must not invent a parallel system.
 
@@ -62,4 +66,5 @@ Avoid unless the brief or approved design explicitly requires them:
 
 Do not promote landing-only bans (for example absolute em-dash bans or font
 blacklists) into project-wide engineering constitution. Keep locks in the
-design brief and design-system artifacts where product context can override them.
+design brief and change-local design artifacts where product context can
+override them.

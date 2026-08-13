@@ -103,7 +103,7 @@ func TestUnifiedTaskControlPlaneOwnsAuthoringAndLifecycle(t *testing.T) {
 	}
 	failedFollowup := `{"task_id":"T001","status":"success","changed_files":["src/runtime.go"],"validation_results":[{"command":"gofmt check","status":"passed","output":"PASS"},{"kind":"known-followup","status":"failed","summary":"refresh a downstream baseline"}],"blockers":[],"suggested_recovery_actions":[]}`
 	exit, rejected = runTaskRuntimeCommand(t, []string{"implement", "result-merge", "--feature-dir", featureRef, "--task-id", "T001", "--result-json", failedFollowup, "--format", "json"})
-	if exit == 0 || rejected.Status != "blocked" || !strings.Contains(rejected.Summary, "passed validation") {
+	if exit == 0 || rejected.Status != "blocked" || !strings.Contains(rejected.Summary, "known-followup has status \"failed\"") {
 		t.Fatalf("failed follow-up should not become current-task success: exit=%d env=%#v", exit, rejected)
 	}
 	lifecycle = readImplementJSONFile(t, filepath.Join(feature, "implementation-review", "tasks", "T001.json"))

@@ -13,6 +13,14 @@ Preserved Contract: implementation remains resumable, task-driven, evidence-back
 5. Load constitution/rules/learning details only when the task graph lacks a current ref or the selected area has a known relevant lesson.
 6. Do not reread the full spec/plan/discussion package unless revision drift, evidence conflict, or a stop/reopen condition requires it.
 
+For Test Design, consume only the task packet subset returned from the current
+canonical task-index task entry: `test_case_refs`, `test_data_refs`, and the
+runtime-owned binding fields. The packet is read-only. Do not read a global
+publication or projection directly, merge refs from a noncanonical Markdown
+task projection, or modify canonical Test Design artifacts. Missing, stale, partial, tampered, or
+foreign binding data is a compile/intake blocker owned by Tasks/Test Design,
+not permission to reconstruct the refs.
+
 If the current task's required refs are stale, missing, or contradicted by live code, run at most one task-local navigation intake before expanding reads:
 
 Run or emulate:

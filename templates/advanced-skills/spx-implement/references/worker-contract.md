@@ -17,6 +17,14 @@ Provide the worker:
   required real-entrypoint coverage;
 - exact structured result destination or return shape.
 
+If Test Design applies, provide only the verified task packet subset:
+`test_case_refs`, `test_data_refs`, and its runtime-owned binding. The worker
+uses those canonical refs read-only as task-local oracle and material inputs.
+It must not read a global Test Design projection, merge refs from a
+noncanonical Markdown task projection, or edit canonical Test Design cases,
+data, coverage, gaps, audit, publication,
+projection, or handoff. A missing or conflicting ref returns a blocked result.
+
 For a UI-bearing task, the packet carries `ui_contract`, original visual
 references with use intent, approved visual ref, real content/image plans,
 required states, and the integrated evidence triad. Return changed surfaces,

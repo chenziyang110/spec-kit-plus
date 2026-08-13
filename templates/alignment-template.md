@@ -98,11 +98,14 @@ Use this section when `entry_source: sp-discussion`. Every row should name the s
   blocked simplification: [what cannot be substituted]
   reopen condition: [what requires returning upstream]
 
-## Design System Readiness
+## UI Design-Change Readiness
 
 - design_system_status:
 - design_risk_level:
-- DESIGN.md source:
+- design_change_id:
+- design_change_ref:
+- design_change_sha256:
+- design_contract_ref:
 - blocker_or_soft_risk:
 
 ## UI Brief Carry-Forward

@@ -36,6 +36,10 @@ def test_design_assets_are_packaged() -> None:
     pyproject = _read("pyproject.toml")
 
     assert '"templates/design-template.md" = "specify_cli/core_pack/templates/design-template.md"' in pyproject
+    assert (
+        '"templates/design-change-template.md" = '
+        '"specify_cli/core_pack/templates/design-change-template.md"'
+    ) in pyproject
     assert '"templates/design-library" = "specify_cli/core_pack/templates/design-library"' in pyproject
     assert (
         '"templates/design-diagnostic-contract.json" = '
@@ -302,6 +306,22 @@ def test_wheel_force_include_bundles_structured_workflow_contract_templates() ->
         ) in pyproject
 
 
+def test_wheel_force_include_bundles_test_intelligence_schemas() -> None:
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    for schema in (
+        "test-universe-schema.json",
+        "test-catalog-schema.json",
+        "test-data-manifest-schema.json",
+        "coverage-matrix-schema.json",
+    ):
+        assert (
+            f'"templates/{schema}" = '
+            f'"specify_cli/core_pack/templates/{schema}"'
+        ) in pyproject
+        assert (REPO_ROOT / "templates" / schema).is_file()
+
+
 def test_wheel_force_include_bundles_artifact_scaffold_templates() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
@@ -478,8 +498,7 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
         / "design-library"
         / "workbench-precision.md"
     ).exists()
-    assert (project_root / "DESIGN.md").exists()
-    assert (project_root / "DESIGN.md").read_text(encoding="utf-8") == "# Design\n"
+    assert not (project_root / "DESIGN.md").exists()
     assert (project_root / ".specify" / "templates" / "command-partials" / "test" / "shell.md").exists()
     assert (project_root / ".specify" / "templates" / "command-references" / "plan" / "INDEX.md").exists()
     assert (project_root / ".specify" / "templates" / "passive-skills" / "python-testing" / "SKILL.md").exists()

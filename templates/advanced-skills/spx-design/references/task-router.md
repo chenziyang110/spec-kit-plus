@@ -16,24 +16,29 @@ input_strategy: context | synthesize
 route_reason: <one evidence-based sentence>
 ```
 
-Use `specify-runtime artifact patch` to store the canonical route in
-`.specify/design/design-brief.md`. Treat any selected-mode field exposed by
+Use `specify-runtime design change` for a new missing `UD-*` workspace or
+`specify-runtime design iterate` for a successor of approved truth, then
+use `specify-runtime artifact patch` to store the canonical route in
+`.specify/design/changes/<UD-ID>/brief.md`. Treat
+any selected-mode field exposed by
 derived state only as a compatibility projection of `task_type`; use the same
 owner CLI to repeat the route in review when it explains closeout.
 
 ## Classification
 
-- `create`: replace missing/bootstrap truth with the first approved baseline.
-- `refine`: create a new immutable approval for project-wide changes to an
-  approved system.
-- `audit`: inspect readiness, provenance, adoption, or drift without mutating
-  approved truth.
+- `create`: allocate a bounded greenfield or extension change when no matching
+  nonterminal workspace exists.
+- `refine`: continue an unapproved change or allocate a digest-pinned successor
+  with `specify-runtime design iterate`; never mutate approved truth or
+  hand-author `iteration_of` / `basis_sha256` lineage.
+- `audit`: inspect a declared scope, provenance, adoption, or drift without
+  mutating approved truth.
 - `context`: use confirmed product context and verified live evidence.
 - `synthesize`: use references with explicit intents
   (`mood` | `layout` | `type` | `color-only` on reference boards). Synthesize is
   an input strategy, not a terminal task type; attach it to create or refine.
   References are evidence, not a license to copy protected brand or artwork.
-- Taste intake is required for visual create and project-wide refine before
+- Taste intake is required for visual create and substantive refine before
   three-direction preview work: `design_read`, dials with inference reason,
   `aesthetic_family`, `foundation_strategy`, `redesign_mode` when live UI
   exists, and surface-aware `anti_slop_locks`. Do not expose colon-namespaced
@@ -41,21 +46,29 @@ owner CLI to repeat the route in review when it explains closeout.
 
 ## Resume Before Reclassification
 
-Query design state and design brief first. Resume before reclassification when
+Query `.specify/design/index.json` and the matching change brief/contract first
+through targeted `specify-runtime artifact show` calls.
+Treat a root `DESIGN.md` only as a read-only legacy baseline. Resume before reclassification when
 the same objective is nonterminal, using the brief's task type and input
 strategy plus the derived state's current stage. Approval, feedback, and
 continuation are lifecycle events for the active task. Reclassify only for an
 explicit objective change or evidence that the stored route cannot safely
 finish, and record that delta.
 
+Run `specify-runtime design resolve --scope <exact-surface> --format json` for
+registered coverage. It is discovery only, never adoption. Split a composite
+result into independently bound consumer units. Current binding artifacts are
+singular, so each unit owns one exact scope and one binding artifact; do not
+invent one merged or “latest” contract.
+
 ## Route Matrix
 
 | Truth and intent | Route |
 | --- | --- |
-| Missing/bootstrap design; establish baseline | `create/context` |
-| Missing/bootstrap design plus shaping references | `create/synthesize` |
-| Approved design; change project-wide truth | `refine/context` |
-| Approved design; references shape that change | `refine/synthesize` |
+| No matching draft; establish a bounded design | `create/context` |
+| No matching draft plus shaping references | `create/synthesize` |
+| Approved scoped truth must intentionally change | new `refine/context` successor via `design iterate` |
+| References shape an intentional replacement | new `refine/synthesize` successor via `design iterate` |
 | Readiness, consistency, provenance, or drift check only | `audit/context` |
 
 Use approval status to break create/refine ambiguity. Start audit/mutation

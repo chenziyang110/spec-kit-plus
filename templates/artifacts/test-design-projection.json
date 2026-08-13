@@ -1,0 +1,41 @@
+{
+  "schema_version": "spec-kit-test-design-projection-v1",
+  "projection_id": "tdproj-plan-0123456789abcdef",
+  "publication_ref": ".specify/test-design/test-design-publication.json",
+  "publication_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "consumer": "plan",
+  "basis_ref": ".planning/projection-plan-basis.json",
+  "basis_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "scope": "project",
+  "artifact_root": ".specify/test-design",
+  "source_fingerprint": "2222222222222222222222222222222222222222222222222222222222222222",
+  "state_revision": 1,
+  "claim_status": "qualified_with_declared_gaps",
+  "selection": {
+    "obligation_refs": [
+      "test-universe.json#/obligations/TO-001"
+    ],
+    "test_case_refs": [
+      "test-catalog.json#/cases/TC-001"
+    ],
+    "test_data_refs": [
+      "test-data-manifest.json#/datasets/TD-001"
+    ],
+    "coverage_refs": [
+      "coverage-matrix.json#/rows/COV-001"
+    ],
+    "gap_refs": [
+      "test-gaps.json#/gaps/GAP-001"
+    ]
+  },
+  "selection_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+  "forbidden_claims": [
+    "tests_executed",
+    "tests_passed",
+    "behavior_fixed",
+    "implementation_complete",
+    "release_safe",
+    "absolute_complete"
+  ],
+  "test_execution_status": "not_executed_by_test_design"
+}

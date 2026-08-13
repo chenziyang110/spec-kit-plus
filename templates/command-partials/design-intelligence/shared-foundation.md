@@ -6,18 +6,20 @@
 - **Visual Validation**: real-entrypoint capture, comparison,
   pending-human-review
 
-`sp-design` / `spx-design` is the studio that materializes approved system truth;
-other stages **consume** that truth through Design Intelligence hooks.
+`sp-design` / `spx-design` is the studio that materializes one approved,
+registered change-scoped truth; other stages **consume an exact pinned change**
+through Design Intelligence hooks.
 
 ## Owners (do not invent parallel systems)
 
-- Design DNA / theses / signature → approved `DESIGN.md` + design brief
-- Global dials → `design_brief.dials` variance · motion · density (1-10)
+- Design DNA / theses / signature → exact registered change-local `DESIGN.md` + design brief
+- Change dials → `design_brief.dials` variance · motion · density (1-10)
 - Taste intake → `design_read`, aesthetic family, foundation strategy, redesign
   mode
 - Anti-slop locks → `design_brief.anti_slop_locks` +
   `design-library/anti-slop-policy.md`
-- UI System Model → approved `DESIGN.md` + `.specify/design/design-system.json`
+- UI System Model → `.specify/design/changes/<UD-ID>/DESIGN.md` + its
+  change-local `design-contract.json`
 - Evidence confidence →
   `templates/design-intelligence/schema/design-evidence.schema.json` +
   `validate_design_evidence`
@@ -29,8 +31,9 @@ other stages **consume** that truth through Design Intelligence hooks.
   `ui_contract`
 - Durable discussion carry → Design Carry-Forward + handoff `design_context`
 
-Do **not** create a parallel root `.design/` tree. Use `.specify/design/**` and
-root `DESIGN.md` only.
+Do **not** create a parallel root `.design/` tree or mutable global design
+authority. Use `.specify/design/changes/<UD-ID>/**`; a pre-existing root
+`DESIGN.md` is read-only legacy baseline input only.
 
 ## DesignContext v1 (schema contract)
 

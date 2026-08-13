@@ -6,6 +6,10 @@ import json
 import re
 from pathlib import Path
 
+from ..task_authoring import (
+    TaskAuthoringError,
+    validate_task_test_design_binding,
+)
 from .packet_schema import (
     ConsequenceObligation,
     ContextBundleItem,
@@ -37,6 +41,9 @@ STORY_RE = re.compile(r"\[(US\d+)\]")
 MP_LINE_RE = re.compile(r"\b(MP-\d{3})\b\s*:?\s*(?P<claim>.+)")
 MP_ID_ONLY_RE = re.compile(r"\bMP-\d{3}\b")
 CONSEQUENCE_ID_RE = re.compile(r"\bCA-\d{3}\b")
+EXECUTION_STARTED_TASK_STATUSES = frozenset(
+    {"in_progress", "implemented", "accepted", "blocked", "failed"}
+)
 
 
 def _read(path: Path) -> str:
@@ -91,6 +98,18 @@ def _task_index_entry(payload: dict[str, object], task_id: str) -> dict[str, obj
         if isinstance(candidate, str) and candidate.upper() == normalized:
             return item
     return {}
+
+
+def _task_execution_has_started(payload: dict[str, object]) -> bool:
+    tasks = payload.get("tasks")
+    if not isinstance(tasks, list):
+        return False
+    return any(
+        isinstance(task, dict)
+        and str(task.get("status") or "").strip().lower()
+        in EXECUTION_STARTED_TASK_STATUSES
+        for task in tasks
+    )
 
 
 def _task_contract_mapping_body(tasks_text: str) -> str:
@@ -316,6 +335,10 @@ def _ui_contract_from_task_entry(
             + ", ".join(sorted(missing_fields)),
         )
     return UIContract(
+        design_change_id=_mapping_string(payload, "design_change_id"),
+        design_change_ref=_mapping_string(payload, "design_change_ref"),
+        design_change_sha256=_mapping_string(payload, "design_change_sha256"),
+        design_contract_ref=_mapping_string(payload, "design_contract_ref"),
         ui_work_type=_mapping_string(payload, "ui_work_type"),
         surface_type=_mapping_string(payload, "surface_type"),
         platforms=_unique(_string_list(payload.get("platforms"))),
@@ -719,6 +742,41 @@ def compile_worker_task_packet(
     plan_text = _read(feature_dir / "plan.md")
     tasks_text = _read(feature_dir / "tasks.md")
     task_index = _read_json_object(feature_dir / "task-index.json")
+    task_index_version = task_index.get("version")
+    canonical_task_index = (
+        isinstance(task_index_version, int)
+        and not isinstance(task_index_version, bool)
+        and task_index_version >= 2
+    )
+    test_design_binding: dict[str, object] = {
+        "test_design_handoff_ref": None,
+        "test_design_handoff_sha256": None,
+        "test_design_source_fingerprint": None,
+        "test_design_state_revision": None,
+        "test_design_artifact_digests": {},
+    }
+    has_test_design_binding = any(
+        task_index.get(field) not in (None, "", 0, {})
+        for field in test_design_binding
+    )
+    if canonical_task_index or has_test_design_binding:
+        source_freshness_policy = (
+            "bound_snapshot"
+            if _task_execution_has_started(task_index)
+            else "strict"
+        )
+        try:
+            test_design_binding = validate_task_test_design_binding(
+                project_root,
+                feature_dir,
+                task_index,
+                require_all=True,
+                source_freshness_policy=source_freshness_policy,
+            )
+        except TaskAuthoringError as exc:
+            raise PacketValidationError(
+                "DP0", f"task-index test-design binding is invalid: {exc}"
+            ) from exc
     plan_contract = _plan_contract(feature_dir)
     task_entry = _task_index_entry(task_index, task_id)
     raw_validation_policy = task_index.get("validation_policy", {})
@@ -732,12 +790,6 @@ def compile_worker_task_packet(
         budget_scope=str(raw_validation_policy.get("budget_scope") or "task"),
         budget_ref=str(raw_validation_policy.get("budget_ref") or ""),
         heavy_gate_owner=str(raw_validation_policy.get("heavy_gate_owner") or "worker"),
-    )
-    task_index_version = task_index.get("version")
-    canonical_task_index = (
-        isinstance(task_index_version, int)
-        and not isinstance(task_index_version, bool)
-        and task_index_version >= 2
     )
     if canonical_task_index and not task_entry:
         raise PacketValidationError(
@@ -761,6 +813,45 @@ def compile_worker_task_packet(
             f"{task_id} has a UI projection but no canonical task-index ui_contract",
         )
     ui_contract = _ui_contract_from_task_entry(task_entry)
+    indexed_test_case_refs = _string_list(task_entry.get("test_case_refs"))
+    indexed_test_data_refs = _string_list(task_entry.get("test_data_refs"))
+    projected_test_case_refs = _task_detail_table_field_values(
+        task_detail, "Scope Boundaries", "test_case_refs"
+    )
+    projected_test_data_refs = _task_detail_table_field_values(
+        task_detail, "Scope Boundaries", "test_data_refs"
+    )
+    empty_projection_markers = {"", "-", "none", "n/a", "not_applicable"}
+    projected_test_case_refs = [
+        ref
+        for ref in projected_test_case_refs
+        if ref.strip().lower() not in empty_projection_markers
+    ]
+    projected_test_data_refs = [
+        ref
+        for ref in projected_test_data_refs
+        if ref.strip().lower() not in empty_projection_markers
+    ]
+    if canonical_task_index:
+        for field, projected, indexed in (
+            (
+                "test_case_refs",
+                projected_test_case_refs,
+                indexed_test_case_refs,
+            ),
+            (
+                "test_data_refs",
+                projected_test_data_refs,
+                indexed_test_data_refs,
+            ),
+        ):
+            foreign = sorted(set(projected) - set(indexed))
+            if foreign:
+                raise PacketValidationError(
+                    "DP0",
+                    f"tasks.md {field} contains foreign canonical refs: "
+                    + ", ".join(foreign),
+                )
     review_inputs = _task_detail_table_field_values(
         task_detail,
         "Scope Boundaries",
@@ -1059,6 +1150,31 @@ def compile_worker_task_packet(
             + _string_list(task_entry.get("required_consumer_evidence"))
             + _string_list(task_entry.get("required_evidence"))
         ),
+        test_case_refs=(
+            indexed_test_case_refs
+            if canonical_task_index
+            else _unique(projected_test_case_refs + indexed_test_case_refs)
+        ),
+        test_data_refs=(
+            indexed_test_data_refs
+            if canonical_task_index
+            else _unique(projected_test_data_refs + indexed_test_data_refs)
+        ),
+        test_design_handoff_ref=test_design_binding[
+            "test_design_handoff_ref"
+        ],
+        test_design_handoff_sha256=test_design_binding[
+            "test_design_handoff_sha256"
+        ],
+        test_design_source_fingerprint=test_design_binding[
+            "test_design_source_fingerprint"
+        ],
+        test_design_state_revision=test_design_binding[
+            "test_design_state_revision"
+        ],
+        test_design_artifact_digests=test_design_binding[
+            "test_design_artifact_digests"
+        ],
         global_constraints=_unique(
             _section_or_subsection_values(
                 plan_text,

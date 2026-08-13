@@ -1582,7 +1582,6 @@ class SkillsIntegrationTests:
         skills_prefix = i.config["folder"].rstrip("/") + "/" + i.config.get("commands_subdir", "skills")
 
         files = []
-        files.append("DESIGN.md")
         # Skill files
         for cmd in self._skill_commands():
             files.append(f"{skills_prefix}/sp-{cmd}/SKILL.md")

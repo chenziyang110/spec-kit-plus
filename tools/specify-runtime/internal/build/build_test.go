@@ -546,7 +546,7 @@ func TestRunIndexesNodePathWithoutEvidence(t *testing.T) {
 			"id":         "N-docs",
 			"type":       "doc",
 			"title":      "Docs",
-			"confidence": "",
+			"confidence": "provisional",
 			"paths":      []string{"docs/guide.md"},
 			"attrs":      map[string]any{"owner": "test"},
 		}},

@@ -1,9 +1,10 @@
-# Design-system contract
+# UI design-change contract
 
-Use the root `DESIGN.md` as the shared visual and interaction constraint for
-feature work. Ground it in current product surfaces and confirmed references.
-An initialized `status: bootstrap` file is input to replace, not a locked
-direction.
+Use `.specify/design/changes/<UD-ID>/DESIGN.md` as the immutable visual and
+interaction delta for its declared scope. Ground it in live product surfaces,
+accepted baseline refs, and confirmed references. The metadata-only
+`.specify/design/index.json` resolves candidates and relationships; it is not
+design truth. A root `DESIGN.md` is a read-only legacy baseline.
 
 Include only applicable decisions:
 
@@ -57,7 +58,8 @@ exact round path and direction ID. Freeze it with
 the resulting approval sidecar, selected-direction handoff sidecar, preview
 SHA-256, manifest SHA-256, handoff SHA-256, review round, approved decision IDs,
 and handoff contract IDs are the approval truth. Carry those values unchanged
-with capability profile and specimen IDs through `DESIGN.md`, the feature UI
+with capability profile and specimen IDs through the exact change-local
+`DESIGN.md`, the feature UI
 brief, plan/task UI contracts, and final
 visual comparison. A verbal hybrid is not approvable; render it as a new
 direction in a new immutable round.
@@ -78,8 +80,10 @@ The embedded preview manifest and visible specimen must agree. Canonical
 motion/reduced motion, responsive adaptation, and representative content as
 applicable. Each decision names its source, affected surfaces, implementation
 token or owner, and verification method. Export the approved `DESIGN.md` to
-`.specify/design/design-system.json`; downstream work consumes that stable
-shape instead of re-authoring the design from prose.
+`.specify/design/changes/<UD-ID>/design-contract.json`, then run
+`specify-runtime design register <change-dir>/DESIGN.md`. Downstream work
+consumes that stable shape and registered digest instead of re-authoring the
+design from prose.
 
 The visible handoff section is part of approval, not explanatory footer text.
 It preserves the complete capability model and assigns stable `DH-*` IDs to
@@ -95,8 +99,20 @@ evidence and `design_system_status: not-applicable`; it cannot be combined with
 a visual profile and must not enter preview, approval, handoff, `ui-target`, or
 visual-comparison work.
 
-The project-level design preview and feature-level `ui-target.html` are
-different artifacts. The preview approves reusable visual, component, state,
-density, and motion language. The target later describes one feature
+The change-level design preview and feature-level `ui-target.html` are
+different artifacts. The preview approves visual, component, state, density,
+and motion decisions for the declared scope. The target later describes one feature
 composition and cannot silently replace or weaken the approved preview
 reference.
+
+Each contract declares `scope`, `baseline_refs`, relationships (`iteration_of`,
+`supersedes`, `depends_on`, `conflicts_with`), and Must Preserve / May Adapt /
+Must Not boundaries. `design iterate` writes the successor's exact
+`iteration_of`, index `basis_sha256`, digest-pinned baseline, and `supersedes`.
+Every requested successor scope must still be active on that source; a scope
+already covered by `superseded_scopes` must iterate from its active successor,
+not from the stale parent.
+Approved contracts are immutable. Registration subtracts only overlapping
+successor scope into the parent's `superseded_scopes`; the parent remains
+active outside those exclusions and becomes fully superseded only when every
+declared scope root is covered.

@@ -98,8 +98,8 @@
         "spx-design/references/design-contract.md",
         "spx-design/references/consumer-contract.md"
       ],
-      "assets": ["spx-design/assets/design-system.md"],
-      "optimization": "one prompt-routed approved root design-system contract with explicit formal/direct consumers and no generic starter anchoring"
+      "assets": ["spx-design/assets/design-change.md"],
+      "optimization": "one prompt-routed change-scoped UI contract with metadata-only discovery, immutable registration, and exact formal/direct consumer bindings"
     },
     "spx-discussion": {
       "absorbs": ["discussion"],
@@ -245,6 +245,15 @@
       "references": ["spx-team/references/runtime-boundary.md"],
       "assets": [],
       "optimization": "thin supported Codex runtime entrypoint separated from feature execution"
+    },
+    "spx-test-design": {
+      "absorbs": ["test-design"],
+      "references": [
+        "spx-test-design/references/test-design-contract.md",
+        "spx-test-design/references/worker-contract.md"
+      ],
+      "assets": [],
+      "optimization": "scope-frozen test intelligence with bounded discovery, explicit material dispositions, and independent audit"
     }
   }
 }

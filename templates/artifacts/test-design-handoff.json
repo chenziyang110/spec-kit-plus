@@ -1,0 +1,27 @@
+{
+  "schema_version": "spec-kit-test-design-handoff-v1",
+  "source_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+  "state_revision": 1,
+  "claim_status": "complete_against_frozen_scope",
+  "artifact_refs": {
+    "state": "test-state.json",
+    "universe": "test-universe.json",
+    "catalog": "test-catalog.json",
+    "data_manifest": "test-data-manifest.json",
+    "coverage_matrix": "coverage-matrix.json"
+  },
+  "artifact_digests": {
+    "state": "0000000000000000000000000000000000000000000000000000000000000000",
+    "universe": "0000000000000000000000000000000000000000000000000000000000000000",
+    "catalog": "0000000000000000000000000000000000000000000000000000000000000000",
+    "data_manifest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "coverage_matrix": "0000000000000000000000000000000000000000000000000000000000000000",
+    "gaps": "0000000000000000000000000000000000000000000000000000000000000000",
+    "audit_result": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "test_case_refs": ["test-catalog.json#/cases/TC-001"],
+  "test_data_refs": [],
+  "gap_ref": "test-gaps.json",
+  "audit_result_ref": "lane-results/AUDIT-001.json",
+  "next_command": "/sp.tasks"
+}

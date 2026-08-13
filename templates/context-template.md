@@ -77,7 +77,8 @@ Use this section when `entry_source: sp-discussion`.
 ## Design References and Gaps
 
 - design_system_requirements:
-- DESIGN.md references:
+- registered_design_change:
+- design_change_references:
 - reference gaps:
 - platform notes:
 

@@ -8,8 +8,8 @@ Preserved Contract: Specify owns formal binding, Quick owns direct binding and c
 
 - Discussion may shape intent and route choice, but it is not a formal
   design-contract consumer and never binds `DS-*`/`DH-*` rows.
-- `$spx-specify` is the first formal consumer. It pins the relevant immutable
-  approval, decisions, and handoff rows in `spec-contract.json` and
+- `$spx-specify` is the first formal consumer. It pins the relevant registered
+  `UD-*` contract, approval digest, decisions, and handoff rows in `spec-contract.json` and
   `ui-brief.md`.
 - `$spx-plan` maps only that bound contract into technical design;
   `$spx-tasks` projects it into task-local UI contracts; `$spx-implement`
@@ -36,8 +36,38 @@ Preserved Contract: Specify owns formal binding, Quick owns direct binding and c
 
 A new approval must not silently retarget an existing formal feature or Quick
 workspace. Keep old preview/manifest/handoff refs, SHA-256 values, and selected
-`DS-*`/`DH-*` rows pinned. Formal adoption re-enters Specify and regenerates the
-highest invalid downstream contract. Quick adoption requires a confirmed
-checkpoint amendment with the new exact binding. Future work may bind the new
-root baseline normally.
+`DS-*`/`DH-*` rows pinned. Discover candidates with
+`specify-runtime design resolve --scope <exact-surface> --format json`; this is
+discovery only. Current binding artifacts are singular, so composite results
+require independently bound consumer units, each with one exact scope and one
+binding artifact. Before replacement
+run `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`,
+then preview the exact consumer transaction with
+`specify-runtime design impact <consumer-ref> --change <CANDIDATE-UD-ID> --scope <exact-surface> --mode <formal|quick> --expected-change <CURRENT-UD-ID|none> --format json`.
+Impact is read-only; present its affected `DS-*`/`DH-*` IDs,
+`preserved_bindings`, `invalidated_bindings`, and `reconcile_from` before any
+binding patch.
 
+Formal adoption re-enters Specify and uses fresh leased
+`specify-runtime artifact patch` calls to update `spec-contract.json` and
+`ui-brief.md` first, hashes the exact spec contract, then runs
+`specify-runtime design adopt feature:<feature-id> --change <UD-ID> --scope <exact-surface> --mode formal --binding-ref <feature-dir>/spec-contract.json --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
+Quick adoption requires a confirmed checkpoint amendment, updates `STATUS.md`
+only after exact `scope` plus the four registered fields have been staged as
+the confirmation-protected `decision.ui_confirmation.design_binding` and
+`confirmation.json` is `confirmed` or `inherited`; runtime owns the STATUS
+readiness projection. Use a fresh leased `specify-runtime artifact patch` call
+to update the independent top-level `## UI Design Binding` /
+`ui_design_binding` adoption copy. Do not manually duplicate the decision copy
+into the runtime-managed STATUS projection. Both copies must match; hash the
+exact status bytes, then run
+`specify-runtime design adopt quick:<quick-id> --change <UD-ID> --scope <exact-surface> --mode quick --binding-ref <quick-dir>/STATUS.md --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
+Only a successful compare-and-swap receipt authorizes downstream regeneration
+or Quick resume. Formal owners reconcile from the receipt's earliest stage,
+mark only listed bindings pending, preserve completed implementation, and
+recapture affected Review evidence only; the design runtime never rewrites
+those artifacts. Quick owners retire unstarted packets, stop affected
+in-progress work at a safe boundary, preserve completed work, create a
+corrective work item for drift, and recapture only affected Review evidence.
+“Latest” is never an adoption rule; metadata-only index state cannot authorize
+adoption by itself.

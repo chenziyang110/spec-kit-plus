@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
+from functools import wraps
 from itertools import combinations
 import hashlib
 from html.parser import HTMLParser
@@ -16,7 +17,7 @@ import yaml
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, TemplateError
 from jsonschema import Draft202012Validator
 
-from .atomic_io import atomic_write_text
+from .atomic_io import atomic_write_text, interprocess_lock
 
 
 FRONT_MATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n?(.*)\Z", re.DOTALL)
@@ -53,6 +54,8 @@ DESIGN_PREVIEW_SCHEMA = "spec-kit-design-preview-v1"
 DESIGN_PREVIEW_MANIFEST_SCHEMA = "spec-kit-design-preview-manifest-v1"
 DESIGN_PREVIEW_APPROVAL_SCHEMA = "spec-kit-design-preview-approval-v1"
 DESIGN_HANDOFF_SCHEMA = "spec-kit-design-handoff-v1"
+DESIGN_CHANGE_SCHEMA = "spec-kit-ui-design-change-v1"
+DESIGN_CHANGE_INDEX_SCHEMA = "spec-kit-ui-design-index-v1"
 DESIGN_CAPABILITY_PROFILES_SCHEMA = "spec-kit-design-capability-profiles-v1"
 DESIGN_CAPABILITY_MODEL_SCHEMA = "spec-kit-design-capability-model-v1"
 DESIGN_PREVIEW_MANIFEST_ID = "design-preview-manifest"
@@ -83,6 +86,9 @@ UI_TARGET_NETWORK_OR_PERSISTENCE_RE = re.compile(
 UI_TARGET_APPROVED_PREVIEW_REF_RE = re.compile(
     r"round-\d+\.html#direction-[a-z0-9-]+$", re.IGNORECASE
 )
+DESIGN_CHANGE_ID_RE = re.compile(r"^UD-[0-9]{4,}$")
+DESIGN_CHANGE_SCOPE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
+SUPPORTED_DESIGN_CHANGE_TYPES = {"greenfield", "preserve", "overhaul", "extension"}
 
 
 @dataclass(frozen=True)
@@ -109,6 +115,28 @@ class DesignDiagnostic:
 
 class DesignLintError(ValueError):
     pass
+
+
+def _design_index_transaction(function: Any) -> Any:
+    """Serialize design-index mutations across Python and runtime processes."""
+
+    @wraps(function)
+    def locked(project_root: Path, *args: Any, **kwargs: Any) -> Any:
+        root = project_root.resolve()
+        lock_path = root / ".specify" / "design" / ".index.lock"
+        transaction = interprocess_lock(lock_path)
+        try:
+            transaction.__enter__()
+        except (OSError, TimeoutError, ValueError) as exc:
+            raise DesignLintError(
+                f"cannot acquire UI design index transaction: {exc}"
+            ) from exc
+        try:
+            return function(root, *args, **kwargs)
+        finally:
+            transaction.__exit__(None, None, None)
+
+    return locked
 
 
 class _DesignPreviewHTMLParser(HTMLParser):
@@ -277,9 +305,19 @@ def parse_design_markdown(text: str, *, source: str = "DESIGN.md") -> DesignDocu
     if not isinstance(front_matter, dict):
         raise DesignLintError(f"{source}: YAML front matter must be a mapping")
 
-    design_system = front_matter.get("design_system")
+    legacy_design_system = front_matter.get("design_system")
+    design_change = front_matter.get("design_change")
+    if isinstance(legacy_design_system, dict) and isinstance(design_change, dict):
+        raise DesignLintError(
+            f"{source}: define exactly one of design_change or design_system"
+        )
+    design_system = (
+        design_change if isinstance(design_change, dict) else legacy_design_system
+    )
     if not isinstance(design_system, dict):
-        raise DesignLintError(f"{source}: missing design_system mapping")
+        raise DesignLintError(
+            f"{source}: missing design_change or legacy design_system mapping"
+        )
 
     return DesignDocument(
         source=source,
@@ -287,6 +325,1911 @@ def parse_design_markdown(text: str, *, source: str = "DESIGN.md") -> DesignDocu
         design_system=design_system,
         body=match.group(2),
     )
+
+
+def _normalize_design_change_values(
+    values: list[str] | None,
+    *,
+    field: str,
+    required: bool = False,
+) -> list[str]:
+    normalized: list[str] = []
+    for raw in values or []:
+        value = str(raw).strip()
+        if not value:
+            continue
+        if value in normalized:
+            raise DesignLintError(f"{field} values must be unique")
+        normalized.append(value)
+    if required and not normalized:
+        raise DesignLintError(f"at least one {field} value is required")
+    return normalized
+
+
+def _render_design_change_template(
+    template: str,
+    *,
+    change_id: str,
+    title: str,
+    change_type: str,
+    scopes: list[str],
+    profile_ids: list[str],
+    baseline_refs: list[str],
+    supersedes: list[str],
+    iteration_of: str | None,
+) -> str:
+    replacements = {
+        "__DESIGN_CHANGE_ID__": json.dumps(change_id, ensure_ascii=False),
+        "__DESIGN_CHANGE_TITLE__": json.dumps(title, ensure_ascii=False),
+        "__DESIGN_CHANGE_TYPE__": json.dumps(change_type, ensure_ascii=False),
+        "__DESIGN_CHANGE_SCOPES__": json.dumps(scopes, ensure_ascii=False),
+        "__DESIGN_CHANGE_PROFILES__": json.dumps(profile_ids, ensure_ascii=False),
+        "__DESIGN_CHANGE_BASELINE_REFS__": json.dumps(
+            baseline_refs, ensure_ascii=False
+        ),
+        "__DESIGN_CHANGE_SUPERSEDES__": json.dumps(
+            supersedes, ensure_ascii=False
+        ),
+        "__DESIGN_CHANGE_ITERATION_OF__": json.dumps(
+            iteration_of, ensure_ascii=False
+        ),
+    }
+    rendered = template
+    for placeholder, value in replacements.items():
+        rendered = rendered.replace(placeholder, value)
+    return rendered
+
+
+@_design_index_transaction
+def scaffold_design_change(
+    project_root: Path,
+    *,
+    change_id: str,
+    title: str,
+    change_type: str,
+    scopes: list[str],
+    profile_ids: list[str],
+    baseline_refs: list[str] | None = None,
+    supersedes: list[str] | None = None,
+    iteration_of: str | None = None,
+    basis_sha256: str | None = None,
+) -> Path:
+    """Create one bounded UI design-change workspace and register its metadata."""
+
+    normalized_id = change_id.strip().upper()
+    if not DESIGN_CHANGE_ID_RE.fullmatch(normalized_id):
+        raise DesignLintError("change_id must use UD- followed by at least four digits")
+    normalized_title = title.strip()
+    if not normalized_title:
+        raise DesignLintError("design change title is required")
+    normalized_type = change_type.strip().lower()
+    if normalized_type not in SUPPORTED_DESIGN_CHANGE_TYPES:
+        raise DesignLintError(
+            "design change type must be one of "
+            + ", ".join(sorted(SUPPORTED_DESIGN_CHANGE_TYPES))
+        )
+    normalized_scopes = _normalize_design_change_values(
+        scopes,
+        field="scope",
+        required=True,
+    )
+    invalid_scopes = [
+        scope
+        for scope in normalized_scopes
+        if not DESIGN_CHANGE_SCOPE_RE.fullmatch(scope)
+    ]
+    if invalid_scopes:
+        raise DesignLintError(
+            "design change scopes must be stable path-like identifiers: "
+            + ", ".join(invalid_scopes)
+        )
+    normalized_profiles = _normalize_design_change_values(
+        profile_ids,
+        field="profile",
+        required=True,
+    )
+    _selected_design_capability_profiles(normalized_profiles)
+    normalized_baselines = _normalize_design_change_values(
+        baseline_refs,
+        field="baseline_ref",
+    )
+    normalized_supersedes = _normalize_design_change_values(
+        supersedes,
+        field="supersedes",
+    )
+    for superseded_id in normalized_supersedes:
+        if not DESIGN_CHANGE_ID_RE.fullmatch(superseded_id):
+            raise DesignLintError(
+                "supersedes values must use UD- followed by at least four digits"
+            )
+        if superseded_id == normalized_id:
+            raise DesignLintError("a design change cannot supersede itself")
+
+    project_root = project_root.resolve()
+    design_root = project_root / ".specify" / "design"
+    workspace = design_root / "changes" / normalized_id
+    design_path = workspace / "DESIGN.md"
+    if design_path.exists():
+        raise DesignLintError(f"design change already exists: {normalized_id}")
+
+    index_path = design_root / "index.json"
+    if index_path.exists():
+        try:
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise DesignLintError(f"cannot read design change index: {exc}") from exc
+        if not isinstance(index, dict) or index.get("schema") != DESIGN_CHANGE_INDEX_SCHEMA:
+            raise DesignLintError("design change index has an invalid schema")
+        changes = index.get("changes")
+        if not isinstance(changes, list):
+            raise DesignLintError("design change index changes must be a list")
+    else:
+        index = {"schema": DESIGN_CHANGE_INDEX_SCHEMA, "changes": []}
+        changes = index["changes"]
+
+    if any(
+        isinstance(change, dict) and change.get("id") == normalized_id
+        for change in changes
+    ):
+        raise DesignLintError(f"design change already exists: {normalized_id}")
+
+    template_path = _locate_design_schema("design-change-template.md")
+    try:
+        template = template_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise DesignLintError(f"cannot read design change template: {exc}") from exc
+    rendered = _render_design_change_template(
+        template,
+        change_id=normalized_id,
+        title=normalized_title,
+        change_type=normalized_type,
+        scopes=normalized_scopes,
+        profile_ids=normalized_profiles,
+        baseline_refs=normalized_baselines,
+        supersedes=normalized_supersedes,
+        iteration_of=iteration_of,
+    )
+    try:
+        parsed = parse_design_markdown(rendered, source=str(template_path))
+    except (DesignLintError, yaml.YAMLError) as exc:
+        raise DesignLintError(f"rendered design change template is invalid: {exc}") from exc
+    if parsed.design_system.get("schema") != DESIGN_CHANGE_SCHEMA:
+        raise DesignLintError("rendered design change template has an invalid schema")
+
+    relative_design_path = design_path.relative_to(project_root).as_posix()
+    record: dict[str, Any] = {
+        "id": normalized_id,
+        "title": normalized_title,
+        "design_ref": relative_design_path,
+        "status": "draft",
+        "change_type": normalized_type,
+        "scope": normalized_scopes,
+        "supersedes": normalized_supersedes,
+        "approval_sha256": None,
+        "consumers": [],
+    }
+    if iteration_of is not None:
+        record["iteration_of"] = iteration_of
+        record["basis_sha256"] = basis_sha256
+    changes.append(record)
+    brief_template = _locate_design_schema("design-brief-template.md")
+    try:
+        brief = brief_template.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise DesignLintError(f"cannot read design brief template: {exc}") from exc
+
+    atomic_write_text(design_path, rendered)
+    atomic_write_text(workspace / "brief.md", brief)
+    (workspace / "previews").mkdir(parents=True, exist_ok=True)
+    atomic_write_text(
+        index_path,
+        json.dumps(index, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+    )
+    return design_path
+
+
+def _load_design_change_index(
+    project_root: Path,
+) -> tuple[dict[str, Any], Path, dict[str, dict[str, Any]]]:
+    index_path = project_root / ".specify" / "design" / "index.json"
+    try:
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DesignLintError(f"cannot read design change index: {exc}") from exc
+    if not isinstance(index, dict) or index.get("schema") != DESIGN_CHANGE_INDEX_SCHEMA:
+        raise DesignLintError("design change index has an invalid schema")
+    changes = index.get("changes")
+    if not isinstance(changes, list):
+        raise DesignLintError("design change index changes must be a list")
+    records = {
+        str(record.get("id") or "").strip(): record
+        for record in changes
+        if isinstance(record, dict)
+    }
+    return index, index_path, records
+
+
+def _design_record_is_registered(record: dict[str, Any]) -> bool:
+    return record.get("status") in {"approved", "superseded"} and bool(
+        re.fullmatch(r"[0-9a-f]{64}", str(record.get("approval_sha256") or ""))
+    )
+
+
+def _load_registered_design_change(
+    project_root: Path,
+    change_id: str,
+) -> tuple[Path, str, DesignDocument, dict[str, Any]]:
+    project_root = project_root.resolve()
+    _, _, records = _load_design_change_index(project_root)
+    normalized_id = change_id.strip().upper()
+    record = records.get(normalized_id)
+    if record is None or not _design_record_is_registered(record):
+        raise DesignLintError(f"design change {normalized_id} is not registered")
+    design_ref = str(record.get("design_ref") or "")
+    path = (project_root / design_ref).resolve()
+    try:
+        path.relative_to(project_root)
+        content = path.read_bytes()
+    except (ValueError, OSError) as exc:
+        raise DesignLintError(f"cannot read registered design change: {exc}") from exc
+    digest = hashlib.sha256(content).hexdigest()
+    if digest != record.get("approval_sha256"):
+        raise DesignLintError(
+            f"registered design change {normalized_id} digest does not match its contract"
+        )
+    document = parse_design_markdown(content.decode("utf-8"), source=str(path))
+    return path, digest, document, record
+
+
+def _design_scope_within(scope: str, root: str) -> bool:
+    return scope == root or scope.startswith(f"{root}/")
+
+
+def _design_scope_intersection(left: str, right: str) -> str | None:
+    if _design_scope_within(left, right):
+        return left
+    if _design_scope_within(right, left):
+        return right
+    return None
+
+
+def _superseded_scope_rows(record: dict[str, Any]) -> list[dict[str, str]]:
+    raw_rows = record.get("superseded_scopes")
+    if not isinstance(raw_rows, list):
+        return []
+    rows: list[dict[str, str]] = []
+    for raw in raw_rows:
+        if not isinstance(raw, dict):
+            continue
+        scope = str(raw.get("scope") or "").strip()
+        by = str(raw.get("by") or "").strip()
+        if scope and by:
+            rows.append({"scope": scope, "by": by})
+    return rows
+
+
+def _design_scope_excluded(record: dict[str, Any], scope: str) -> bool:
+    return any(
+        _design_scope_within(scope, row["scope"])
+        for row in _superseded_scope_rows(record)
+    )
+
+
+def _active_design_intersections(
+    record: dict[str, Any],
+    scopes: list[str],
+) -> list[str]:
+    if record.get("status") != "approved":
+        return []
+    intersections = {
+        intersection
+        for own_scope in record.get("scope", [])
+        if isinstance(own_scope, str)
+        for scope in scopes
+        if (
+            intersection := _design_scope_intersection(own_scope, scope)
+        ) is not None
+        and not _design_scope_excluded(record, intersection)
+    }
+    return sorted(intersections)
+
+
+def _add_superseded_scopes(
+    record: dict[str, Any],
+    scopes: list[str],
+    *,
+    by: str,
+) -> None:
+    rows = _superseded_scope_rows(record)
+    for scope in scopes:
+        if any(_design_scope_within(scope, row["scope"]) for row in rows):
+            continue
+        rows = [
+            row
+            for row in rows
+            if not _design_scope_within(row["scope"], scope)
+        ]
+        rows.append({"scope": scope, "by": by})
+    rows.sort(key=lambda row: row["scope"])
+    record["superseded_scopes"] = rows
+    if all(
+        _design_scope_excluded(record, str(scope))
+        for scope in record.get("scope", [])
+    ):
+        record["status"] = "superseded"
+        record["superseded_by"] = by
+
+
+def scaffold_design_iteration(
+    project_root: Path,
+    *,
+    source_id: str,
+    change_id: str,
+    title: str,
+    scopes: list[str] | None = None,
+    change_type: str = "preserve",
+    profile_ids: list[str] | None = None,
+) -> Path:
+    """Create a successor draft pinned to one exact registered design change."""
+
+    project_root = project_root.resolve()
+    normalized_source = source_id.strip().upper()
+    _, source_digest, source_document, source_record = (
+        _load_registered_design_change(project_root, normalized_source)
+    )
+    selected_scopes = list(scopes or [])
+    if not selected_scopes:
+        if _superseded_scope_rows(source_record):
+            raise DesignLintError(
+                f"design iteration source {normalized_source} is partially superseded; "
+                "pass explicit scopes"
+            )
+        selected_scopes = [str(value) for value in source_record.get("scope", [])]
+    source_scopes = [str(value) for value in source_record.get("scope", [])]
+    for scope in selected_scopes:
+        if not any(_design_scope_within(scope, root) for root in source_scopes):
+            raise DesignLintError(
+                f"iteration scope {scope} must stay within source change "
+                f"{normalized_source}"
+            )
+        superseded_overlap = next(
+            (
+                row
+                for row in _superseded_scope_rows(source_record)
+                if _design_scope_intersection(scope, row["scope"]) is not None
+            ),
+            None,
+        )
+        if superseded_overlap is not None:
+            raise DesignLintError(
+                f"iteration scope {scope} is no longer active on source "
+                f"{normalized_source}; it was superseded by "
+                f"{superseded_overlap['by']} for {superseded_overlap['scope']}"
+            )
+    selected_profiles = list(
+        profile_ids or source_document.design_system.get("capability_profiles") or ["web"]
+    )
+    baseline = (
+        f"{source_record['design_ref']}#sha256={source_digest}"
+    )
+    return scaffold_design_change(
+        project_root,
+        change_id=change_id,
+        title=title,
+        change_type=change_type,
+        scopes=selected_scopes,
+        profile_ids=[str(value) for value in selected_profiles],
+        baseline_refs=[baseline],
+        supersedes=[normalized_source],
+        iteration_of=normalized_source,
+        basis_sha256=source_digest,
+    )
+
+
+@_design_index_transaction
+def register_design_change(project_root: Path, design_path: Path) -> dict[str, Any]:
+    """Register one ready immutable design change and resolve explicit supersedes."""
+
+    project_root = project_root.resolve()
+    target = design_path.resolve() if design_path.is_absolute() else (
+        project_root / design_path
+    ).resolve()
+    changes_root = project_root / ".specify" / "design" / "changes"
+    try:
+        relative_workspace_path = target.relative_to(changes_root)
+    except ValueError as exc:
+        raise DesignLintError(
+            "design change must be inside .specify/design/changes/<UD-ID>/DESIGN.md"
+        ) from exc
+    if (
+        len(relative_workspace_path.parts) != 2
+        or relative_workspace_path.name != "DESIGN.md"
+    ):
+        raise DesignLintError(
+            "design change must be inside .specify/design/changes/<UD-ID>/DESIGN.md"
+        )
+
+    diagnostics = lint_design_file(target, level="ready")
+    if diagnostics:
+        raise DesignLintError(
+            "; ".join(
+                f"{diagnostic.code}: {diagnostic.message}"
+                for diagnostic in diagnostics
+            )
+        )
+    try:
+        content = target.read_bytes()
+        document = parse_design_markdown(content.decode("utf-8"), source=str(target))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise DesignLintError(f"cannot read design change: {exc}") from exc
+    design_change = document.design_system
+    if design_change.get("schema") != DESIGN_CHANGE_SCHEMA:
+        raise DesignLintError("only change-scoped design contracts can be registered")
+    change_id = str(design_change.get("id") or "").strip()
+    if relative_workspace_path.parts[0] != change_id:
+        raise DesignLintError("design_change.id must match its workspace directory")
+
+    index, index_path, records = _load_design_change_index(project_root)
+    changes = index["changes"]
+    record = records.get(change_id)
+    if record is None:
+        raise DesignLintError(f"design change {change_id} is not registered in index.json")
+
+    digest = hashlib.sha256(content).hexdigest()
+    if record.get("status") in {"approved", "superseded"}:
+        if record.get("approval_sha256") == digest:
+            return deepcopy(record)
+        raise DesignLintError(
+            f"registered design change {change_id} is immutable; create a new UD-* change"
+        )
+
+    scope = design_change.get("scope")
+    assert isinstance(scope, dict)
+    scopes = [str(value) for value in scope["surfaces"]]
+    relationships = design_change.get("relationships")
+    assert isinstance(relationships, dict)
+    supersedes = [str(value) for value in relationships["supersedes"]]
+    iteration_of = str(relationships.get("iteration_of") or "").strip()
+    unknown_supersedes = [value for value in supersedes if value not in records]
+    if unknown_supersedes:
+        raise DesignLintError(
+            "design change supersedes unknown IDs: " + ", ".join(unknown_supersedes)
+        )
+
+    if iteration_of:
+        source = records.get(iteration_of)
+        if source is None or not _design_record_is_registered(source):
+            raise DesignLintError(
+                f"design iteration source {iteration_of} must be registered"
+            )
+        basis_sha256 = str(record.get("basis_sha256") or "")
+        expected_baseline = (
+            f"{source['design_ref']}#sha256={basis_sha256}"
+        )
+        if (
+            record.get("iteration_of") != iteration_of
+            or basis_sha256 != source.get("approval_sha256")
+            or expected_baseline not in design_change.get("baseline_refs", [])
+            or iteration_of not in supersedes
+        ):
+            raise DesignLintError(
+                "design iteration must preserve its exact source baseline and "
+                "supersedes relationship"
+            )
+
+    superseded_records: list[tuple[dict[str, Any], list[str]]] = []
+    for other in changes:
+        if not isinstance(other, dict) or other.get("id") == change_id:
+            continue
+        if other.get("status") != "approved":
+            continue
+        intersections = _active_design_intersections(other, scopes)
+        if not intersections:
+            continue
+        other_id = str(other.get("id") or "")
+        if other_id not in supersedes:
+            raise DesignLintError(
+                f"design change {change_id} overlaps approved design change "
+                f"{other_id}; declare supersedes or narrow the scope"
+            )
+        superseded_records.append((other, intersections))
+
+    relative_design_path = target.relative_to(project_root).as_posix()
+    if record.get("design_ref") != relative_design_path:
+        raise DesignLintError("design change path does not match index design_ref")
+    if record.get("scope") != scopes:
+        raise DesignLintError("design change scope does not match its index record")
+    if record.get("supersedes") != supersedes:
+        raise DesignLintError(
+            "design change supersedes relationships do not match its index record"
+        )
+
+    for prior, intersections in superseded_records:
+        _add_superseded_scopes(prior, intersections, by=change_id)
+    record["status"] = "approved"
+    record["approval_sha256"] = digest
+    atomic_write_text(
+        index_path,
+        json.dumps(index, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+    )
+    return deepcopy(record)
+
+
+def _scope_specificity(scope: str) -> int:
+    return scope.count("/") * 10_000 + len(scope)
+
+
+def resolve_design_changes(
+    project_root: Path,
+    scope: str,
+) -> list[dict[str, Any]]:
+    """Return active registered candidates for a scope without adopting one."""
+
+    normalized_scope = scope.strip()
+    if not DESIGN_CHANGE_SCOPE_RE.fullmatch(normalized_scope):
+        raise DesignLintError(
+            "design resolve scope must be a stable path-like identifier"
+        )
+    _, _, records = _load_design_change_index(project_root.resolve())
+    candidates: list[tuple[int, dict[str, Any]]] = []
+    for record in records.values():
+        intersections = _active_design_intersections(record, [normalized_scope])
+        if not intersections:
+            continue
+        matched = max(intersections, key=_scope_specificity)
+        candidates.append(
+            (
+                _scope_specificity(matched),
+                {
+                    "id": record.get("id"),
+                    "design_ref": record.get("design_ref"),
+                    "approval_sha256": record.get("approval_sha256"),
+                    "matched_scope": matched,
+                    "scope": deepcopy(record.get("scope", [])),
+                },
+            )
+        )
+    candidates.sort(key=lambda item: (-item[0], str(item[1]["id"])))
+    return [item for _, item in candidates]
+
+
+def _diff_string_sets(before: list[str], after: list[str]) -> dict[str, list[str]]:
+    before_set = set(before)
+    after_set = set(after)
+    return {
+        "added": sorted(after_set - before_set),
+        "removed": sorted(before_set - after_set),
+        "retained": sorted(before_set & after_set),
+    }
+
+
+def _design_rows_by_id(rows: Any) -> dict[str, dict[str, Any]]:
+    if not isinstance(rows, list):
+        return {}
+    return {
+        str(row["id"]): row
+        for row in rows
+        if isinstance(row, dict) and str(row.get("id") or "").strip()
+    }
+
+
+def _diff_design_rows(before: Any, after: Any) -> dict[str, list[str]]:
+    before_rows = _design_rows_by_id(before)
+    after_rows = _design_rows_by_id(after)
+    shared = set(before_rows) & set(after_rows)
+    return {
+        "added": sorted(set(after_rows) - set(before_rows)),
+        "removed": sorted(set(before_rows) - set(after_rows)),
+        "changed": sorted(
+            row_id
+            for row_id in shared
+            if before_rows[row_id] != after_rows[row_id]
+        ),
+        "retained": sorted(
+            row_id
+            for row_id in shared
+            if before_rows[row_id] == after_rows[row_id]
+        ),
+    }
+
+
+def diff_design_changes(
+    project_root: Path,
+    from_id: str,
+    to_id: str,
+) -> dict[str, Any]:
+    """Compare two exact registered design contracts semantically."""
+
+    project_root = project_root.resolve()
+    from_path, from_digest, before, _ = _load_registered_design_change(
+        project_root, from_id
+    )
+    to_path, to_digest, after, _ = _load_registered_design_change(
+        project_root, to_id
+    )
+    normalized_from = from_id.strip().upper()
+    normalized_to = to_id.strip().upper()
+    before_design = before.design_system
+    after_design = after.design_system
+    relationships = after_design.get("relationships")
+    if not isinstance(relationships, dict):
+        relationships = {}
+    sections = (
+        "product_context",
+        "direction_contract",
+        "scope",
+        "constraints",
+        "platforms",
+        "capability_profiles",
+        "specimens",
+        "tokens",
+        "color_modes",
+        "components",
+        "responsive",
+        "content",
+        "decisions",
+        "verification",
+        "accessibility",
+    )
+    changed_sections = sorted(
+        section
+        for section in sections
+        if before_design.get(section) != after_design.get(section)
+    )
+    before_scope = before_design.get("scope")
+    after_scope = after_design.get("scope")
+    before_surfaces = (
+        [str(value) for value in before_scope.get("surfaces", [])]
+        if isinstance(before_scope, dict)
+        else []
+    )
+    after_surfaces = (
+        [str(value) for value in after_scope.get("surfaces", [])]
+        if isinstance(after_scope, dict)
+        else []
+    )
+    before_approval = before_design.get("approval")
+    after_approval = after_design.get("approval")
+    before_handoffs = (
+        [str(value) for value in before_approval.get("handoff_contract_ids", [])]
+        if isinstance(before_approval, dict)
+        else []
+    )
+    after_handoffs = (
+        [str(value) for value in after_approval.get("handoff_contract_ids", [])]
+        if isinstance(after_approval, dict)
+        else []
+    )
+    return {
+        "schema": "spec-kit-ui-design-diff-v1",
+        "from": {
+            "id": normalized_from,
+            "design_ref": from_path.relative_to(project_root).as_posix(),
+            "sha256": from_digest,
+        },
+        "to": {
+            "id": normalized_to,
+            "design_ref": to_path.relative_to(project_root).as_posix(),
+            "sha256": to_digest,
+        },
+        "lineage": {
+            "direct_iteration": relationships.get("iteration_of")
+            == normalized_from,
+            "supersedes_source": normalized_from
+            in relationships.get("supersedes", []),
+        },
+        "scope": _diff_string_sets(before_surfaces, after_surfaces),
+        "decisions": _diff_design_rows(
+            before_design.get("decisions"), after_design.get("decisions")
+        ),
+        "handoff_contracts": _diff_string_sets(
+            before_handoffs, after_handoffs
+        ),
+        "changed_sections": changed_sections,
+    }
+
+
+def _design_delta_ids(
+    delta: Any,
+    *,
+    include_changed: bool,
+) -> list[str]:
+    if not isinstance(delta, dict):
+        return []
+    fields = ("added", "removed", "changed") if include_changed else (
+        "added",
+        "removed",
+    )
+    return sorted(
+        {
+            str(value).strip()
+            for field in fields
+            for value in delta.get(field, [])
+            if isinstance(value, str) and value.strip()
+        }
+    )
+
+
+def _design_impact_classes(diff: dict[str, Any]) -> list[str]:
+    """Classify one semantic design delta into stable UI impact dimensions."""
+
+    sections = {
+        str(value).strip()
+        for value in diff.get("changed_sections", [])
+        if isinstance(value, str) and value.strip()
+    }
+    decisions = _design_delta_ids(
+        diff.get("decisions"), include_changed=True
+    )
+    handoffs = _design_delta_ids(
+        diff.get("handoff_contracts"), include_changed=False
+    )
+    predicates = {
+        "scope": "scope" in sections,
+        "visual": bool(
+            sections
+            & {
+                "direction_contract",
+                "specimens",
+                "tokens",
+                "color_modes",
+                "components",
+                "decisions",
+            }
+        )
+        or bool(decisions),
+        "interaction": bool(
+            sections
+            & {
+                "direction_contract",
+                "constraints",
+                "components",
+                "verification",
+                "decisions",
+            }
+        )
+        or bool(decisions)
+        or bool(handoffs),
+        "component": bool(
+            sections & {"capability_profiles", "components"}
+        ),
+        "responsive": bool(sections & {"platforms", "responsive"}),
+        "content": bool(sections & {"product_context", "content"}),
+        "accessibility": "accessibility" in sections,
+        "verification": "verification" in sections,
+        "design-decision": bool(decisions),
+        "handoff-contract": bool(handoffs),
+    }
+    order = (
+        "scope",
+        "visual",
+        "interaction",
+        "component",
+        "responsive",
+        "content",
+        "accessibility",
+        "verification",
+        "design-decision",
+        "handoff-contract",
+    )
+    return [impact_class for impact_class in order if predicates[impact_class]]
+
+
+def _design_reconciliation_contract(
+    *,
+    mode: str,
+    current_change_id: str | None,
+    changed_sections: list[str],
+    affected_decision_ids: list[str],
+    affected_handoff_contract_ids: list[str],
+) -> dict[str, Any]:
+    if current_change_id is None:
+        if mode == "formal":
+            return {
+                "preserved_bindings": [],
+                "invalidated_bindings": [],
+                "reconcile_from": "specify",
+                "reconciliation_actions": [
+                    "bind_feature_ui_brief",
+                    "compile_plan_ui_design_contract",
+                    "compile_task_ui_contracts",
+                ],
+            }
+        return {
+            "preserved_bindings": [],
+            "invalidated_bindings": [],
+            "reconcile_from": "quick-checkpoint",
+            "reconciliation_actions": [
+                "confirm_quick_design_binding",
+                "compile_quick_ui_work_items",
+            ],
+        }
+
+    material_change = bool(
+        changed_sections
+        or affected_decision_ids
+        or affected_handoff_contract_ids
+    )
+    if not material_change:
+        if mode == "formal":
+            preserved = [
+                "feature.ui_brief",
+                "plan.ui_design_contract",
+                "tasks.ui_contracts",
+                "implementation.completed_work",
+                "review.scope_evidence",
+            ]
+        else:
+            preserved = [
+                "quick.completed_work_items",
+                "quick.pending_worker_packets",
+                "review.scope_evidence",
+            ]
+        return {
+            "preserved_bindings": preserved,
+            "invalidated_bindings": [],
+            "reconcile_from": "none",
+            "reconciliation_actions": [],
+        }
+
+    if mode == "quick":
+        return {
+            "preserved_bindings": [
+                "quick.completed_work_items",
+                "review.unaffected_scope_evidence",
+            ],
+            "invalidated_bindings": [
+                "quick.pending_worker_packets",
+                "quick.in_progress_worker_packets",
+                "review.affected_scope_evidence",
+            ],
+            "reconcile_from": "quick-work-items",
+            "reconciliation_actions": [
+                "retire_unstarted_worker_packets",
+                "stop_in_progress_worker_packets_at_safe_boundary",
+                "create_corrective_work_item_for_completed_work",
+                "recapture_affected_review_evidence",
+            ],
+        }
+
+    specify_sections = {
+        "product_context",
+        "direction_contract",
+        "scope",
+        "constraints",
+        "platforms",
+        "content",
+        "accessibility",
+    }
+    if specify_sections.intersection(changed_sections):
+        return {
+            "preserved_bindings": [
+                "implementation.completed_work",
+                "review.unaffected_scope_evidence",
+            ],
+            "invalidated_bindings": [
+                "feature.ui_brief",
+                "plan.ui_design_contract",
+                "tasks.ui_contracts",
+                "review.affected_scope_evidence",
+            ],
+            "reconcile_from": "specify",
+            "reconciliation_actions": [
+                "rebind_feature_ui_brief",
+                "recompile_plan_ui_design_contract",
+                "recompile_task_ui_contracts",
+                "recapture_affected_review_evidence",
+            ],
+        }
+    if set(changed_sections).issubset({"verification"}) and not (
+        affected_decision_ids or affected_handoff_contract_ids
+    ):
+        return {
+            "preserved_bindings": [
+                "feature.ui_brief",
+                "plan.ui_design_contract",
+                "tasks.ui_contracts",
+                "implementation.completed_work",
+                "review.unaffected_scope_evidence",
+            ],
+            "invalidated_bindings": ["review.affected_scope_evidence"],
+            "reconcile_from": "review",
+            "reconciliation_actions": [
+                "recapture_affected_review_evidence"
+            ],
+        }
+    return {
+        "preserved_bindings": [
+            "feature.ui_brief",
+            "implementation.completed_work",
+            "review.unaffected_scope_evidence",
+        ],
+        "invalidated_bindings": [
+            "plan.ui_design_contract",
+            "tasks.ui_contracts",
+            "review.affected_scope_evidence",
+        ],
+        "reconcile_from": "plan",
+        "reconciliation_actions": [
+            "recompile_plan_ui_design_contract",
+            "recompile_task_ui_contracts",
+            "recapture_affected_review_evidence",
+        ],
+    }
+
+
+def _normalize_design_adoption_identity(
+    *,
+    consumer_ref: str,
+    change_id: str,
+    scope: str,
+    mode: str,
+    expected_change: str,
+) -> tuple[str, str, str, str, str]:
+    consumer = consumer_ref.strip()
+    change = change_id.strip().upper()
+    exact_scope = scope.strip()
+    adoption_mode = mode.strip().lower()
+    expected = expected_change.strip().upper()
+    if not DESIGN_CHANGE_SCOPE_RE.fullmatch(consumer):
+        raise DesignLintError(
+            "design adoption consumer reference must be a stable identifier"
+        )
+    if not DESIGN_CHANGE_ID_RE.fullmatch(change):
+        raise DesignLintError("design adoption requires a UD-* change")
+    if not DESIGN_CHANGE_SCOPE_RE.fullmatch(exact_scope):
+        raise DesignLintError(
+            "design adoption scope must be a stable path-like identifier"
+        )
+    if adoption_mode not in {"formal", "quick"}:
+        raise DesignLintError("design adoption mode must be formal or quick")
+    if expected != "NONE" and not DESIGN_CHANGE_ID_RE.fullmatch(expected):
+        raise DesignLintError("expected current change must be a UD-* ID or none")
+    if adoption_mode == "formal" and not consumer.startswith("feature:"):
+        raise DesignLintError(
+            "formal design adoption consumer must use feature:<id>"
+        )
+    if adoption_mode == "quick" and not consumer.startswith("quick:"):
+        raise DesignLintError(
+            "quick design adoption consumer must use quick:<id>"
+        )
+    return consumer, change, exact_scope, adoption_mode, expected
+
+
+def _active_design_adoption_record(
+    records: dict[str, dict[str, Any]],
+    *,
+    change_id: str,
+    scope: str,
+) -> dict[str, Any]:
+    record = records.get(change_id)
+    if (
+        record is None
+        or not _design_record_is_registered(record)
+        or not _active_design_intersections(record, [scope])
+    ):
+        raise DesignLintError(
+            f"design change {change_id} is not active for scope {scope}"
+        )
+    roots = [str(value) for value in record.get("scope", [])]
+    if not any(_design_scope_within(scope, root) for root in roots):
+        raise DesignLintError(
+            f"design change {change_id} cannot be the singular binding "
+            f"for scope {scope}"
+        )
+    return record
+
+
+def _current_design_adoption(
+    index: dict[str, Any],
+    *,
+    consumer_ref: str,
+    scope: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    raw_adoptions = index.get("adoptions", [])
+    if not isinstance(raw_adoptions, list):
+        raise DesignLintError("design change index adoptions must be a list")
+    matching = [
+        row
+        for row in raw_adoptions
+        if isinstance(row, dict)
+        and row.get("consumer_ref") == consumer_ref
+        and row.get("scope") == scope
+    ]
+    current_rows = [
+        row for row in matching if row.get("status") == "current"
+    ]
+    if len(current_rows) > 1:
+        raise DesignLintError(
+            "design change index has multiple current adoptions for one scope"
+        )
+    return matching, current_rows[0] if current_rows else None
+
+
+def _build_design_adoption_impact(
+    project_root: Path,
+    *,
+    index: dict[str, Any],
+    records: dict[str, dict[str, Any]],
+    consumer_ref: str,
+    change_id: str,
+    scope: str,
+    mode: str,
+    expected_change: str,
+) -> dict[str, Any]:
+    _active_design_adoption_record(records, change_id=change_id, scope=scope)
+    _, current = _current_design_adoption(
+        index, consumer_ref=consumer_ref, scope=scope
+    )
+    current_id = str(current.get("change_id") or "").upper() if current else "NONE"
+    if current_id != expected_change:
+        raise DesignLintError(
+            f"expected current change {expected_change} but found {current_id}"
+        )
+
+    _, candidate_digest, _, _ = _load_registered_design_change(
+        project_root, change_id
+    )
+    current_digest: str | None = None
+    changed_sections: list[str] = []
+    affected_decisions: list[str] = []
+    affected_handoffs: list[str] = []
+    semantic_diff: dict[str, Any] = {
+        "changed_sections": [],
+        "decisions": {},
+        "handoff_contracts": {},
+    }
+    if current is not None:
+        raw_diff = diff_design_changes(project_root, current_id, change_id)
+        from_binding = raw_diff.get("from")
+        current_digest = (
+            str(from_binding.get("sha256") or "")
+            if isinstance(from_binding, dict)
+            else None
+        )
+        # Both immutable changes are validated to cover this exact consumer
+        # scope. Contract-root narrowing elsewhere must not invalidate this
+        # consumer merely because the change-level scope arrays differ.
+        changed_sections = [
+            section
+            for section in raw_diff.get("changed_sections", [])
+            if isinstance(section, str) and section != "scope"
+        ]
+        affected_decisions = _design_delta_ids(
+            raw_diff.get("decisions"), include_changed=True
+        )
+        affected_handoffs = _design_delta_ids(
+            raw_diff.get("handoff_contracts"), include_changed=False
+        )
+        semantic_diff = deepcopy(raw_diff)
+        semantic_diff["changed_sections"] = changed_sections
+
+    reconciliation = _design_reconciliation_contract(
+        mode=mode,
+        current_change_id=current_id if current is not None else None,
+        changed_sections=changed_sections,
+        affected_decision_ids=affected_decisions,
+        affected_handoff_contract_ids=affected_handoffs,
+    )
+    impact: dict[str, Any] = {
+        "schema": "spec-kit-ui-design-impact-v1",
+        "consumer_ref": consumer_ref,
+        "scope": scope,
+        "mode": mode,
+        "current_change_id": current_id if current is not None else None,
+        "candidate_change_id": change_id,
+        "current_design_sha256": current_digest,
+        "candidate_design_sha256": candidate_digest,
+        "impact_classes": _design_impact_classes(semantic_diff),
+        "changed_sections": changed_sections,
+        "affected_decision_ids": affected_decisions,
+        "affected_handoff_contract_ids": affected_handoffs,
+        **reconciliation,
+    }
+    impact["impact_sha256"] = _canonical_json_sha256(impact)
+    return impact
+
+
+def impact_design_adoption(
+    project_root: Path,
+    *,
+    consumer_ref: str,
+    change_id: str,
+    scope: str,
+    mode: str,
+    expected_change: str,
+) -> dict[str, Any]:
+    """Preview scope-bounded consumer reconciliation without changing state."""
+
+    project_root = project_root.resolve()
+    (
+        normalized_consumer,
+        normalized_change,
+        normalized_scope,
+        normalized_mode,
+        normalized_expected,
+    ) = _normalize_design_adoption_identity(
+        consumer_ref=consumer_ref,
+        change_id=change_id,
+        scope=scope,
+        mode=mode,
+        expected_change=expected_change,
+    )
+    index, _, records = _load_design_change_index(project_root)
+    return _build_design_adoption_impact(
+        project_root,
+        index=index,
+        records=records,
+        consumer_ref=normalized_consumer,
+        change_id=normalized_change,
+        scope=normalized_scope,
+        mode=normalized_mode,
+        expected_change=normalized_expected,
+    )
+
+
+def _json_contains_design_field(value: Any, key: str, expected: str) -> bool:
+    if isinstance(value, dict):
+        if key in value and str(value[key]).strip() == expected:
+            return True
+        return any(
+            _json_contains_design_field(child, key, expected)
+            for child in value.values()
+        )
+    if isinstance(value, list):
+        return any(
+            _json_contains_design_field(child, key, expected) for child in value
+        )
+    return False
+
+
+def _binding_contains_design_fields(
+    content: bytes,
+    fields: dict[str, str],
+) -> bool:
+    try:
+        payload = json.loads(content)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        text = content.decode("utf-8", errors="replace").replace("\r\n", "\n").replace(
+            "\r", "\n"
+        )
+        return all(
+            re.search(
+                rf"(?m)^[ \t]*(?:[-*][ \t]+)?{re.escape(key)}[ \t]*:[ \t]*"
+                rf"(?:{re.escape(value)}|\"{re.escape(value)}\"|'{re.escape(value)}')"
+                r"[ \t]*$",
+                text,
+            )
+            is not None
+            for key, value in fields.items()
+        )
+    return all(
+        _json_contains_design_field(payload, key, value)
+        for key, value in fields.items()
+    )
+
+
+class _UniqueKeySafeLoader(yaml.SafeLoader):
+    pass
+
+
+def _construct_unique_yaml_mapping(
+    loader: _UniqueKeySafeLoader,
+    node: yaml.MappingNode,
+    deep: bool = False,
+) -> dict[Any, Any]:
+    loader.flatten_mapping(node)
+    mapping: dict[Any, Any] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in mapping
+        except TypeError as exc:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                "found an unhashable mapping key",
+                key_node.start_mark,
+            ) from exc
+        if duplicate:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                f"found duplicate mapping key {key!r}",
+                key_node.start_mark,
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+_UniqueKeySafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_yaml_mapping,
+)
+
+
+def _quick_confirmation_string_list(value: Any, field: str) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or any(
+        not isinstance(item, str) for item in value
+    ):
+        raise DesignLintError(
+            f"quick design adoption confirmation is invalid: "
+            f"{field} must be an array of strings"
+        )
+    return list(value)
+
+
+def _quick_confirmation_required_text(
+    value: Any,
+    field: str,
+) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise DesignLintError(
+            f"quick design adoption confirmation is invalid: {field} is required"
+        )
+    return value
+
+
+def _quick_confirmation_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    if isinstance(value, (int, float)):
+        return value != 0
+    return False
+
+
+def _validate_quick_confirmation_document(
+    confirmation: dict[str, Any],
+) -> dict[str, Any]:
+    decision = confirmation.get("decision")
+    if not isinstance(decision, dict):
+        decision = {}
+    _quick_confirmation_required_text(decision.get("goal"), "decision.goal")
+    _quick_confirmation_required_text(
+        decision.get("user_visible_result"),
+        "decision.user_visible_result",
+    )
+    scope = decision.get("scope")
+    if not isinstance(scope, dict):
+        scope = {}
+    included = _quick_confirmation_string_list(
+        scope.get("include"), "decision.scope.include"
+    )
+    _quick_confirmation_string_list(
+        scope.get("exclude"), "decision.scope.exclude"
+    )
+    _quick_confirmation_string_list(scope.get("defer"), "decision.scope.defer")
+    if not included:
+        raise DesignLintError(
+            "quick design adoption confirmation is invalid: "
+            "decision.scope.include must not be empty"
+        )
+    _quick_confirmation_required_text(
+        decision.get("reconfirmation_trigger"),
+        "decision.reconfirmation_trigger",
+    )
+    recommended_approach = decision.get("recommended_approach")
+    if recommended_approach is not None and not isinstance(
+        recommended_approach, str
+    ):
+        raise DesignLintError(
+            "quick design adoption confirmation is invalid: "
+            "decision.recommended_approach must be a string"
+        )
+    _quick_confirmation_string_list(
+        decision.get("assumptions_and_risks"),
+        "decision.assumptions_and_risks",
+    )
+    _quick_confirmation_string_list(
+        decision.get("completion_evidence"),
+        "decision.completion_evidence",
+    )
+    _quick_confirmation_string_list(
+        decision.get("user_corrections"),
+        "decision.user_corrections",
+    )
+
+    items = decision.get("items")
+    if not isinstance(items, list) or not items:
+        raise DesignLintError(
+            "quick design adoption confirmation is invalid: "
+            "decision.items must not be empty"
+        )
+    seen: set[str] = set()
+    item_by_id: dict[str, dict[str, Any]] = {}
+    dependencies: dict[str, list[str]] = {}
+    for raw_item in items:
+        if not isinstance(raw_item, dict):
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                "work item id must match Q1, Q2, ..."
+            )
+        raw_id = raw_item.get("id")
+        item_id = raw_id.strip() if isinstance(raw_id, str) else ""
+        if re.fullmatch(r"Q[1-9][0-9]*", item_id) is None:
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                f"work item id {raw_id!r} must match Q1, Q2, ..."
+            )
+        if item_id in seen:
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                f"duplicate work item id {item_id}"
+            )
+        seen.add(item_id)
+        _quick_confirmation_required_text(
+            raw_item.get("deliverable"), f"{item_id} deliverable"
+        )
+        _quick_confirmation_required_text(
+            raw_item.get("acceptance"), f"{item_id} acceptance"
+        )
+        dependencies[item_id] = _quick_confirmation_string_list(
+            raw_item.get("depends_on"), f"{item_id}.depends_on"
+        )
+        _quick_confirmation_string_list(
+            raw_item.get("write_scope"), f"{item_id}.write_scope"
+        )
+        item_by_id[item_id] = raw_item
+    for item_id, item_dependencies in dependencies.items():
+        for dependency in item_dependencies:
+            if dependency not in seen:
+                raise DesignLintError(
+                    "quick design adoption confirmation is invalid: "
+                    f"{item_id} depends on missing item {dependency}"
+                )
+            if dependency == item_id:
+                raise DesignLintError(
+                    "quick design adoption confirmation is invalid: "
+                    f"{item_id} cannot depend on itself"
+                )
+
+    visit_state: dict[str, int] = {}
+
+    def visit(item_id: str) -> None:
+        if visit_state.get(item_id) == 1:
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                f"dependency cycle detected at {item_id}"
+            )
+        if visit_state.get(item_id) == 2:
+            return
+        visit_state[item_id] = 1
+        for dependency in dependencies[item_id]:
+            visit(dependency)
+        visit_state[item_id] = 2
+
+    for item_id in sorted(seen):
+        visit(item_id)
+
+    delivery = confirmation.get("delivery")
+    if not isinstance(delivery, dict):
+        delivery = {}
+    waves = delivery.get("waves")
+    if not isinstance(waves, list) or not waves:
+        raise DesignLintError(
+            "quick design adoption confirmation is invalid: "
+            "delivery.waves must not be empty"
+        )
+    covered: dict[str, str] = {}
+    for raw_wave in waves:
+        if not isinstance(raw_wave, dict):
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                "delivery wave id is required"
+            )
+        wave_id = _quick_confirmation_required_text(
+            raw_wave.get("id"), "delivery wave id"
+        ).strip()
+        item_ids = _quick_confirmation_string_list(
+            raw_wave.get("item_ids"), f"delivery wave {wave_id}.item_ids"
+        )
+        if not item_ids:
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                f"delivery wave {wave_id} has no items"
+            )
+        parallel = raw_wave.get("parallel", False)
+        if not isinstance(parallel, bool):
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                f"delivery wave {wave_id}.parallel must be a boolean"
+            )
+        for item_id in item_ids:
+            if item_id not in seen:
+                raise DesignLintError(
+                    "quick design adoption confirmation is invalid: "
+                    f"delivery wave {wave_id} references unknown item {item_id}"
+                )
+            if item_id in covered:
+                raise DesignLintError(
+                    "quick design adoption confirmation is invalid: "
+                    f"item {item_id} appears in multiple waves "
+                    f"({covered[item_id]} and {wave_id})"
+                )
+            covered[item_id] = wave_id
+        if parallel or len(item_ids) > 1:
+            seen_paths: dict[str, str] = {}
+            for item_id in item_ids:
+                for path in _quick_confirmation_string_list(
+                    item_by_id[item_id].get("write_scope"),
+                    f"{item_id}.write_scope",
+                ):
+                    normalized_path = path.strip().replace("\\", "/")
+                    if not normalized_path:
+                        continue
+                    owner = seen_paths.get(normalized_path)
+                    if owner is not None and owner != item_id:
+                        raise DesignLintError(
+                            "quick design adoption confirmation is invalid: "
+                            f"parallel wave {wave_id} has write-scope conflict "
+                            f"on {normalized_path} between {owner} and {item_id}"
+                        )
+                    seen_paths[normalized_path] = item_id
+    for item_id in seen:
+        if item_id not in covered:
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                f"item {item_id} is not assigned to any delivery wave"
+            )
+
+    ui_confirmation = decision.get("ui_confirmation")
+    if ui_confirmation is not None:
+        if not isinstance(ui_confirmation, dict):
+            raise DesignLintError(
+                "quick design adoption confirmation is invalid: "
+                "decision.ui_confirmation must be an object"
+            )
+        if not (
+            "applicable" in ui_confirmation
+            and not _quick_confirmation_bool(ui_confirmation.get("applicable"))
+        ):
+            for field in (
+                "confirmation_purpose",
+                "user_and_primary_job",
+                "target_experience",
+            ):
+                _quick_confirmation_required_text(
+                    ui_confirmation.get(field), f"ui_confirmation.{field}"
+                )
+            evidence = ui_confirmation.get("acceptance_evidence")
+            evidence_values = (
+                evidence if isinstance(evidence, list) else [evidence]
+            )
+            if not any(
+                value is not None and str(value).strip()
+                for value in evidence_values
+            ):
+                raise DesignLintError(
+                    "quick design adoption confirmation is invalid: "
+                    "ui_confirmation.acceptance_evidence is required when "
+                    "UI confirmation is present"
+                )
+    return decision
+
+
+def _stable_go_json(value: Any) -> str:
+    if isinstance(value, dict):
+        if any(not isinstance(key, str) for key in value):
+            raise DesignLintError(
+                "quick design adoption confirmation digest contains a "
+                "non-string object key"
+            )
+        return "{" + ",".join(
+            f"{_stable_go_json(key)}:{_stable_go_json(value[key])}"
+            for key in sorted(value)
+        ) + "}"
+    if isinstance(value, list):
+        return "[" + ",".join(_stable_go_json(item) for item in value) + "]"
+    if isinstance(value, str):
+        return (
+            json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+            .replace("<", r"\u003c")
+            .replace(">", r"\u003e")
+            .replace("&", r"\u0026")
+            .replace("\u2028", r"\u2028")
+            .replace("\u2029", r"\u2029")
+        )
+    try:
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        )
+    except (TypeError, ValueError) as exc:
+        raise DesignLintError(
+            f"quick design adoption cannot canonicalize confirmation digest: {exc}"
+        ) from exc
+
+
+def _quick_confirmation_digest(decision: dict[str, Any]) -> str:
+    scope = decision.get("scope")
+    if not isinstance(scope, dict):
+        scope = {}
+    items = decision.get("items")
+    if not isinstance(items, list):
+        items = []
+    normalized_items: list[dict[str, Any]] = []
+    for item in sorted(items, key=lambda row: str(row.get("id") or "")):
+        dependencies = item.get("depends_on")
+        if not isinstance(dependencies, list):
+            dependencies = []
+        normalized_items.append(
+            {
+                "id": item.get("id") or "",
+                "deliverable": item.get("deliverable") or "",
+                "depends_on": sorted(dependencies),
+                "acceptance": item.get("acceptance") or "",
+            }
+        )
+    protected = {
+        "schema": "quick-confirmation-v1",
+        "goal": decision.get("goal") or "",
+        "user_visible_result": decision.get("user_visible_result") or "",
+        "scope": {
+            "include": list(scope.get("include") or []),
+            "exclude": list(scope.get("exclude") or []),
+            "defer": list(scope.get("defer") or []),
+        },
+        "items": normalized_items,
+        "recommended_approach": decision.get("recommended_approach") or "",
+        "assumptions_and_risks": list(
+            decision.get("assumptions_and_risks") or []
+        ),
+        "completion_evidence": list(decision.get("completion_evidence") or []),
+        "reconfirmation_trigger": decision.get("reconfirmation_trigger") or "",
+        "ui_confirmation": decision.get("ui_confirmation"),
+    }
+    return hashlib.sha256(_stable_go_json(protected).encode("utf-8")).hexdigest()
+
+
+def _quick_status_design_binding(text: str) -> dict[str, str]:
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    headings = list(
+        re.finditer(r"(?mi)^##[ \t]+UI Design Binding[ \t]*$", normalized)
+    )
+    structural_error = (
+        "quick design adoption STATUS.md must contain exactly one "
+        "## UI Design Binding section with one ui_design_binding mapping"
+    )
+    if len(headings) != 1:
+        raise DesignLintError(structural_error)
+    section = normalized[headings[0].end() :]
+    next_heading = re.search(r"(?m)^##(?:[ \t]+|$)", section)
+    if next_heading is not None:
+        section = section[: next_heading.start()]
+    section = re.sub(r"(?s)<!--.*?-->", "", section)
+    if len(re.findall(r"(?m)^ui_design_binding[ \t]*:", section)) != 1:
+        raise DesignLintError(structural_error)
+    try:
+        payload = yaml.load(section, Loader=_UniqueKeySafeLoader)
+    except yaml.YAMLError as exc:
+        raise DesignLintError(f"{structural_error}: {exc}") from exc
+    binding = payload.get("ui_design_binding") if isinstance(payload, dict) else None
+    if not isinstance(binding, dict):
+        raise DesignLintError(structural_error)
+    return {
+        str(key).strip(): str(value or "").strip()
+        for key, value in binding.items()
+    }
+
+
+@_design_index_transaction
+def adopt_design_change(
+    project_root: Path,
+    *,
+    consumer_ref: str,
+    change_id: str,
+    scope: str,
+    mode: str,
+    binding_ref: Path,
+    binding_sha256: str,
+    expected_change: str,
+) -> dict[str, Any]:
+    """Append a CAS-guarded consumer adoption receipt for an exact binding."""
+
+    project_root = project_root.resolve()
+    (
+        normalized_consumer,
+        normalized_change,
+        normalized_scope,
+        normalized_mode,
+        normalized_expected,
+    ) = _normalize_design_adoption_identity(
+        consumer_ref=consumer_ref,
+        change_id=change_id,
+        scope=scope,
+        mode=mode,
+        expected_change=expected_change,
+    )
+    normalized_binding_digest = binding_sha256.strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", normalized_binding_digest):
+        raise DesignLintError("design adoption requires a binding SHA-256")
+
+    index, index_path, records = _load_design_change_index(project_root)
+    record = _active_design_adoption_record(
+        records, change_id=normalized_change, scope=normalized_scope
+    )
+
+    design_path, design_digest, _, _ = _load_registered_design_change(
+        project_root, normalized_change
+    )
+    design_ref = str(record["design_ref"])
+    design_contract_ref = (
+        Path(design_ref).parent / "design-contract.json"
+    ).as_posix()
+    contract_path = (project_root / design_contract_ref).resolve()
+    try:
+        contract_path.relative_to(project_root)
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    except (ValueError, OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DesignLintError(
+            f"cannot read design contract export {design_contract_ref}: {exc}"
+        ) from exc
+    if not isinstance(contract, dict) or contract.get("id") != normalized_change:
+        raise DesignLintError(
+            f"design contract export does not match {normalized_change}"
+        )
+    try:
+        expected_contract = json.loads(
+            export_design_system(design_path, export_format="json")
+        )
+    except (DesignLintError, json.JSONDecodeError) as exc:
+        raise DesignLintError(
+            f"cannot verify design contract export for {normalized_change}: {exc}"
+        ) from exc
+    if contract != expected_contract:
+        raise DesignLintError(
+            f"design contract export does not match the registered design "
+            f"{normalized_change}"
+        )
+
+    binding_path = (
+        binding_ref.resolve()
+        if binding_ref.is_absolute()
+        else (project_root / binding_ref).resolve()
+    )
+    try:
+        relative_binding = binding_path.relative_to(project_root).as_posix()
+        binding_content = binding_path.read_bytes()
+    except (ValueError, OSError) as exc:
+        raise DesignLintError(f"cannot read design adoption binding: {exc}") from exc
+    if normalized_mode == "formal":
+        if not normalized_consumer.startswith("feature:"):
+            raise DesignLintError(
+                "formal design adoption consumer must use feature:<id>"
+            )
+        if not (
+            relative_binding.endswith("/spec-contract.json")
+            and (
+                relative_binding.startswith("specs/")
+                or relative_binding.startswith(".specify/features/")
+            )
+        ):
+            raise DesignLintError(
+                "formal design adoption binding must be a feature spec-contract.json"
+            )
+    else:
+        if not normalized_consumer.startswith("quick:"):
+            raise DesignLintError(
+                "quick design adoption consumer must use quick:<id>"
+            )
+        if not (
+            relative_binding.startswith(".planning/quick/")
+            and relative_binding.endswith("/STATUS.md")
+        ):
+            raise DesignLintError(
+                "quick design adoption binding must be .planning/quick/<id>/STATUS.md"
+            )
+        text = binding_content.decode("utf-8", errors="replace")
+        frontmatter_match = FRONT_MATTER_RE.match(text)
+        try:
+            frontmatter = (
+                yaml.safe_load(frontmatter_match.group(1))
+                if frontmatter_match is not None
+                else None
+            )
+        except yaml.YAMLError as exc:
+            raise DesignLintError(
+                f"quick design adoption STATUS.md frontmatter is invalid: {exc}"
+            ) from exc
+        if not isinstance(frontmatter, dict) or frontmatter.get(
+            "understanding_confirmed"
+        ) is not True:
+            raise DesignLintError(
+                "quick design adoption checkpoint must be confirmed in STATUS.md"
+            )
+        status_binding = _quick_status_design_binding(text)
+        confirmation_path = binding_path.parent / "confirmation.json"
+        try:
+            confirmation = json.loads(
+                confirmation_path.read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise DesignLintError(
+                "quick design adoption checkpoint must be confirmed through "
+                f"confirmation.json: {exc}"
+            ) from exc
+        if (
+            not isinstance(confirmation, dict)
+            or confirmation.get("schema") != "quick-confirmation-v1"
+            or confirmation.get("confirmation_state")
+            not in {"confirmed", "inherited"}
+        ):
+            raise DesignLintError(
+                "quick design adoption checkpoint must be confirmed or inherited"
+            )
+        decision = _validate_quick_confirmation_document(confirmation)
+        confirmation_digest = str(
+            confirmation.get("confirmation_digest") or ""
+        ).strip()
+        expected_confirmation_digest = _quick_confirmation_digest(decision)
+        if confirmation_digest != expected_confirmation_digest:
+            raise DesignLintError(
+                "quick design adoption confirmation digest does not match "
+                "the protected decision"
+            )
+        ui_confirmation = (
+            decision.get("ui_confirmation")
+            if isinstance(decision, dict)
+            else None
+        )
+        confirmed_binding = (
+            ui_confirmation.get("design_binding")
+            if isinstance(ui_confirmation, dict)
+            else None
+        )
+        expected_confirmation_binding = {
+            "scope": normalized_scope,
+            "design_change_id": normalized_change,
+            "design_change_ref": design_ref,
+            "design_change_sha256": design_digest,
+            "design_contract_ref": design_contract_ref,
+        }
+        if (
+            not re.fullmatch(r"[0-9a-f]{64}", confirmation_digest)
+            or not isinstance(ui_confirmation, dict)
+            or ui_confirmation.get("applicable") is not True
+            or not isinstance(confirmed_binding, dict)
+            or set(confirmed_binding) != set(expected_confirmation_binding)
+            or any(
+                str(confirmed_binding.get(key) or "").strip() != value
+                for key, value in expected_confirmation_binding.items()
+            )
+        ):
+            raise DesignLintError(
+                "quick design adoption requires the confirmed UI design binding "
+                "to match the exact scope and registered change"
+            )
+    actual_binding_digest = hashlib.sha256(binding_content).hexdigest()
+    if actual_binding_digest != normalized_binding_digest:
+        raise DesignLintError(
+            f"design adoption binding SHA-256 does not match {relative_binding}"
+        )
+    expected_fields = {
+        "design_change_id": normalized_change,
+        "design_change_ref": design_ref,
+        "design_change_sha256": design_digest,
+        "design_contract_ref": design_contract_ref,
+    }
+    if normalized_mode == "quick":
+        expected_fields["scope"] = normalized_scope
+    if not _binding_contains_design_fields(binding_content, expected_fields):
+        raise DesignLintError(
+            "design adoption binding does not contain the exact registered "
+            "change fields"
+        )
+    if normalized_mode == "quick":
+        normalized_confirmed_binding = {
+            str(key).strip(): str(value or "").strip()
+            for key, value in confirmed_binding.items()
+        }
+        if (
+            status_binding != expected_confirmation_binding
+            or status_binding != normalized_confirmed_binding
+        ):
+            raise DesignLintError(
+                "quick design adoption STATUS.md ui_design_binding must "
+                "exact-match confirmation.json design binding"
+            )
+
+    adoptions = index.setdefault("adoptions", [])
+    if not isinstance(adoptions, list):
+        raise DesignLintError("design change index adoptions must be a list")
+    matching, current = _current_design_adoption(
+        index,
+        consumer_ref=normalized_consumer,
+        scope=normalized_scope,
+    )
+    current_id = str(current.get("change_id")) if current else "NONE"
+    if current_id != normalized_expected:
+        raise DesignLintError(
+            f"expected current change {normalized_expected} but found {current_id}"
+        )
+    if (
+        current is not None
+        and current_id == normalized_change
+        and current.get("binding_sha256") == actual_binding_digest
+    ):
+        return deepcopy(current)
+
+    impact = _build_design_adoption_impact(
+        project_root,
+        index=index,
+        records=records,
+        consumer_ref=normalized_consumer,
+        change_id=normalized_change,
+        scope=normalized_scope,
+        mode=normalized_mode,
+        expected_change=normalized_expected,
+    )
+
+    revision = max(
+        [int(row.get("revision") or 0) for row in matching] or [0]
+    ) + 1
+    if current is not None:
+        current["status"] = "superseded"
+        current["superseded_by_revision"] = revision
+    receipt: dict[str, Any] = {
+        "consumer_ref": normalized_consumer,
+        "scope": normalized_scope,
+        "mode": normalized_mode,
+        "revision": revision,
+        "status": "current",
+        "change_id": normalized_change,
+        "design_change_id": normalized_change,
+        "design_ref": design_ref,
+        "design_sha256": design_digest,
+        "design_change_ref": design_ref,
+        "design_change_sha256": design_digest,
+        "design_contract_ref": design_contract_ref,
+        "binding_ref": relative_binding,
+        "binding_sha256": actual_binding_digest,
+        "previous_change_id": current_id if current else None,
+    }
+    for field in (
+        "impact_sha256",
+        "impact_classes",
+        "preserved_bindings",
+        "invalidated_bindings",
+        "reconcile_from",
+        "reconciliation_actions",
+        "changed_sections",
+        "affected_decision_ids",
+        "affected_handoff_contract_ids",
+    ):
+        receipt[field] = deepcopy(impact[field])
+    adoptions.append(receipt)
+    for change_record in records.values():
+        consumers = change_record.get("consumers")
+        if not isinstance(consumers, list):
+            consumers = []
+        change_record["consumers"] = [
+            row
+            for row in consumers
+            if not (
+                isinstance(row, dict)
+                and row.get("consumer_ref") == normalized_consumer
+                and row.get("scope") == normalized_scope
+            )
+        ]
+    record["consumers"].append(
+        {
+            "consumer_ref": normalized_consumer,
+            "scope": normalized_scope,
+            "mode": normalized_mode,
+            "revision": revision,
+        }
+    )
+    atomic_write_text(
+        index_path,
+        json.dumps(index, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+    )
+    return deepcopy(receipt)
 
 
 def design_preview_approval_path(path: Path) -> Path:
@@ -3421,6 +5364,17 @@ def export_design_system(
             "verification": document.design_system.get("verification", {}),
             "accessibility": document.design_system.get("accessibility", {}),
         }
+        if "design_change" in document.front_matter:
+            for key in (
+                "id",
+                "title",
+                "change_type",
+                "scope",
+                "baseline_refs",
+                "relationships",
+                "constraints",
+            ):
+                payload[key] = document.design_system.get(key)
         return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
     return json.dumps(_to_tailwind_theme(document.design_system), indent=2, sort_keys=True) + "\n"
@@ -3433,14 +5387,14 @@ def import_design_reference(source: str, *, out_dir: Path, notes: str = "") -> P
     notes_line = notes.strip() or "No notes supplied."
     content = (
         "# Design References\n\n"
-        "This file is input for `sp-design`. It is not the project design system.\n\n"
+        "This file is input for `sp-design`. It is not an approved UI design change.\n\n"
         "## Imported Reference\n\n"
         f"- Source: {source_line}\n"
         f"- Notes: {notes_line}\n\n"
         "## Synthesis Instructions\n\n"
         "- Extract reusable design principles.\n"
         "- Remove brand-specific expression.\n"
-        "- Write original project guidance into `DESIGN.md` only after user approval in `sp-design`.\n"
+        "- Write original scoped guidance into a change-local `DESIGN.md` only after user approval in `sp-design`.\n"
     )
     out_path.write_text(content, encoding="utf-8")
     return out_path
@@ -3448,8 +5402,16 @@ def import_design_reference(source: str, *, out_dir: Path, notes: str = "") -> P
 
 def _validate_design_system(document: DesignDocument, diagnostics: list[DesignDiagnostic]) -> None:
     design_system = document.design_system
-    if design_system.get("schema") != "spec-kit-design-v1":
-        _add_diagnostic(diagnostics, "invalid-schema", "schema must equal spec-kit-design-v1", "design_system.schema")
+    schema = design_system.get("schema")
+    if schema not in {"spec-kit-design-v1", DESIGN_CHANGE_SCHEMA}:
+        _add_diagnostic(
+            diagnostics,
+            "invalid-schema",
+            "schema must equal spec-kit-ui-design-change-v1 or legacy spec-kit-design-v1",
+            "design_change.schema",
+        )
+    if schema == DESIGN_CHANGE_SCHEMA:
+        _validate_design_change_metadata(design_system, diagnostics)
 
     platforms = design_system.get("platforms")
     if not isinstance(platforms, list) or not platforms:
@@ -3598,6 +5560,136 @@ def _validate_design_system(document: DesignDocument, diagnostics: list[DesignDi
                 f"accessibility must include {key}",
                 f"design_system.accessibility.{key}",
             )
+
+
+def _validate_design_change_metadata(
+    design_change: dict[str, Any],
+    diagnostics: list[DesignDiagnostic],
+) -> None:
+    change_id = str(design_change.get("id") or "").strip()
+    if not DESIGN_CHANGE_ID_RE.fullmatch(change_id):
+        _add_diagnostic(
+            diagnostics,
+            "invalid-design-change-id",
+            "design_change.id must use UD- followed by at least four digits",
+            "design_change.id",
+        )
+    if not str(design_change.get("title") or "").strip():
+        _add_diagnostic(
+            diagnostics,
+            "missing-design-change-title",
+            "design_change.title must be non-empty",
+            "design_change.title",
+        )
+    change_type = str(design_change.get("change_type") or "").strip().lower()
+    if change_type not in SUPPORTED_DESIGN_CHANGE_TYPES:
+        _add_diagnostic(
+            diagnostics,
+            "invalid-design-change-type",
+            "design_change.change_type must be greenfield, preserve, overhaul, or extension",
+            "design_change.change_type",
+        )
+
+    scope = design_change.get("scope")
+    if not isinstance(scope, dict):
+        _add_diagnostic(
+            diagnostics,
+            "invalid-design-change-scope",
+            "design_change.scope must be a mapping",
+            "design_change.scope",
+        )
+    else:
+        surfaces = scope.get("surfaces")
+        if (
+            not isinstance(surfaces, list)
+            or not surfaces
+            or any(
+                not isinstance(surface, str)
+                or not DESIGN_CHANGE_SCOPE_RE.fullmatch(surface)
+                for surface in surfaces
+            )
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "invalid-design-change-surfaces",
+                "design_change.scope.surfaces must contain stable path-like identifiers",
+                "design_change.scope.surfaces",
+            )
+        for field in ("entrypoints", "states", "platforms"):
+            if not isinstance(scope.get(field), list):
+                _add_diagnostic(
+                    diagnostics,
+                    "invalid-design-change-scope",
+                    f"design_change.scope.{field} must be a list",
+                    f"design_change.scope.{field}",
+                )
+
+    if not isinstance(design_change.get("baseline_refs"), list):
+        _add_diagnostic(
+            diagnostics,
+            "invalid-design-change-baselines",
+            "design_change.baseline_refs must be a list",
+            "design_change.baseline_refs",
+        )
+    relationships = design_change.get("relationships")
+    if not isinstance(relationships, dict):
+        _add_diagnostic(
+            diagnostics,
+            "invalid-design-change-relationships",
+            "design_change.relationships must be a mapping",
+            "design_change.relationships",
+        )
+    else:
+        for field in ("supersedes", "depends_on", "conflicts_with"):
+            values = relationships.get(field)
+            if not isinstance(values, list):
+                _add_diagnostic(
+                    diagnostics,
+                    "invalid-design-change-relationships",
+                    f"design_change.relationships.{field} must be a list",
+                    f"design_change.relationships.{field}",
+                )
+        iteration_of = relationships.get("iteration_of")
+        if iteration_of is not None and (
+            not isinstance(iteration_of, str)
+            or not DESIGN_CHANGE_ID_RE.fullmatch(iteration_of)
+            or iteration_of == design_change.get("id")
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "invalid-design-change-iteration",
+                (
+                    "design_change.relationships.iteration_of must be null or "
+                    "a different canonical UD-* ID"
+                ),
+                "design_change.relationships.iteration_of",
+            )
+        elif isinstance(iteration_of, str) and iteration_of not in (
+            relationships.get("supersedes") or []
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "invalid-design-change-iteration",
+                "an iteration source must also appear in relationships.supersedes",
+                "design_change.relationships.iteration_of",
+            )
+    constraints = design_change.get("constraints")
+    if not isinstance(constraints, dict):
+        _add_diagnostic(
+            diagnostics,
+            "invalid-design-change-constraints",
+            "design_change.constraints must be a mapping",
+            "design_change.constraints",
+        )
+    else:
+        for field in ("must_preserve", "may_adapt", "must_not"):
+            if not isinstance(constraints.get(field), list):
+                _add_diagnostic(
+                    diagnostics,
+                    "invalid-design-change-constraints",
+                    f"design_change.constraints.{field} must be a list",
+                    f"design_change.constraints.{field}",
+                )
 
 
 def _validate_markdown_sections(document: DesignDocument, diagnostics: list[DesignDiagnostic]) -> None:

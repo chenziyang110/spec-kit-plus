@@ -40,19 +40,40 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
   navigation, interaction flows, responsive behavior, visual states, TUI
   layouts, or CLI presentation are UI-bearing work.
 - For substantive UI-bearing work, require `ui-brief.md` even when there is no
-  external reference. Query approved `DESIGN.md` through `specify-runtime artifact show`; the leader may compile that brief from the returned contract,
+  external reference. Run
+  `specify-runtime design resolve --scope <exact-surface> --format json`, then
+  query metadata-only `.specify/design/index.json` through
+  `specify-runtime artifact show` and show each returned exact `design_ref`.
+  Resolution is discovery only. If the result is composite, split the work into
+  independently bound feature units; each current formal binding is singular
+  and owns one exact scope, `spec-contract.json`, and `ui-brief.md`. Do not
+  select or synthesize one broad contract. The leader may compile each brief
+  from its returned contract,
   existing product surfaces, and confirmed experience requirements.
   A narrow copy-only or existing-pattern state fix may record why a separate
   brief adds no decision value and use a precise `spec.md#...` design-contract
   reference as `design_contract.ui_brief_ref`; the UI contract is never omitted.
-- Treat `DESIGN.md` with `design_system.status: bootstrap` as not ready for a
-  new direction. Route product-wide or high-visibility design decisions to
-  `sp-design`; do not inherit its generic starter tokens as product intent.
+- Before replacing a feature's current registered change, run
+  `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`
+  and then `specify-runtime design impact feature:<feature-id> --change <CANDIDATE-UD-ID> --scope <exact-surface> --mode formal --expected-change <CURRENT-UD-ID|none> --format json`.
+  Present its scope-bounded classes, `DS-*`/`DH-*` IDs,
+  `preserved_bindings`, `invalidated_bindings`, and `reconcile_from`; patch the
+  resulting semantic delta into the owning spec views. Use fresh leased `specify-runtime artifact patch`
+  calls to set the full four-field binding in `spec-contract.json` and
+  `ui-brief.md` before adoption. Hash the exact `spec-contract.json`, then call
+  `specify-runtime design adopt feature:<feature-id> --change <UD-ID> --scope <exact-surface> --mode formal --binding-ref <feature-dir>/spec-contract.json --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
+  The receipt is the formal compare-and-swap boundary; on failure, keep the old
+  binding and do not regenerate Plan or Tasks. On success, reconcile from the
+  receipt's named stage, mark only listed Plan/Tasks/affected Review surfaces
+  pending, and preserve completed implementation plus unaffected evidence.
+- Treat a pre-existing root `DESIGN.md` as read-only legacy baseline input, not
+  a candidate for implicit adoption. Route new or high-visibility design
+  decisions with no applicable registered change to `sp-design`.
 - When approved design provenance names
-  `.specify/design/previews/round-NN.html#<direction-id>`, query the preview and
+  `.specify/design/changes/<UD-ID>/previews/round-NN.html#<direction-id>`, query the preview and
   its approval/manifest/handoff sidecars only through targeted
-  `specify-runtime artifact show` calls, then preserve that exact project-level
-  visual reference, approval sidecar,
+  `specify-runtime artifact show` calls, then preserve that exact change-level
+  visual reference, registered design ref/hash, approval sidecar,
   preview/manifest/handoff SHA-256 values, immutable handoff reference,
   applicable `DS-*` decisions, and applicable `DH-*` implementation contracts,
   including component/state, density, responsive, motion-token,

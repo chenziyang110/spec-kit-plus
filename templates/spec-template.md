@@ -49,8 +49,8 @@
 Required for substantive UI-bearing work (also refine in `ui-brief.md`):
 
 - **layout pattern**: e.g. dashboard, workbench, form, marketing surface
-- **tokens / components**: use approved design-system (DESIGN.md /
-  design-system.json); no ad-hoc parallel system
+- **tokens / components**: use the exact registered design change and its
+  change-local `design-contract.json`; no ad-hoc parallel system
 - **states required**: loading, empty, error, success, disabled, focus; hover
   when interactive
 - **responsive**: desktop / tablet / mobile (or project breakpoints)
@@ -63,7 +63,8 @@ Required for substantive UI-bearing work (also refine in `ui-brief.md`):
 - **layout**: responsive behavior; clear visual hierarchy; scanability
 - **interaction**: loading, empty, error, success, disabled, and focus states
 - **quality**: no generic dashboard/template pattern; maintain design DNA and
-  dials; apply surface-aware anti-slop subordinate to approved `DESIGN.md`
+  dials; apply surface-aware anti-slop subordinate to the exact registered
+  design change
 - **evidence**: structure_snapshot, visual_capture, runtime_diagnostics, plus
   visual comparison or explicit pending-human-review
 

@@ -123,7 +123,13 @@ Join point：Q1 验收证据通过后启动 W2
 
 When the task affects a user-visible UI surface, append the independent UI
 Confirmation card and include `decision.ui_confirmation` in the staged contract.
-One user reply confirms both the main Decision Checkpoint and the UI card.
+When Quick will bind or replace a registered `UD-*` change, stage the exact
+five-field `decision.ui_confirmation.design_binding` (`scope` plus the four
+registered binding fields) before confirmation. It is part of the decision and
+therefore protected by `confirmation_digest`. One user reply confirms both the
+main Decision Checkpoint and the UI card. After confirmation, the separate
+top-level `STATUS.md` adoption copy may be patched, but it must exactly match
+the confirmed decision copy.
 
 {{spec-kit-include: ../common/ui-confirmation-card.md}}
 

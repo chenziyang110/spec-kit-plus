@@ -104,6 +104,13 @@ projections. Do not edit them directly or stage packet/result JSON files.
 For `result-merge`, use `validation_results` objects and
 `api schema implement-result-merge-input`; prefer `@path`/clean argv JSON over
 shell `ConvertTo-Json`.
+
+When Test Design is bound, JIT compilation supplies only the current task
+packet subset: canonical task-local `test_case_refs`, `test_data_refs`, and the
+runtime-owned binding. Consume it read-only. Do not independently read a global
+publication or projection, merge refs from a noncanonical Markdown task
+projection, or change canonical Test Design artifacts. Any missing, partial, stale, tampered, or foreign
+binding is a pre-edit blocker routed to Tasks/Test Design.
 If `task-next` or `resume-audit` returns
 `reason_code: task-reopen-required`, run its supplied `implement task-reopen`
 action with the observed task/workflow revisions, reason, and evidence. It
@@ -160,7 +167,9 @@ commits retain the terminal-state gate.
 For UI tasks, apply the packet `ui_contract` as binding scope. Workers inspect
 the original references and return changed surfaces, required states/viewports,
 and visual risks. Do not run the full viewport/state capture loop per Txx.
-Instead, query `DESIGN.md` and `ui-brief.md` through targeted `specify-runtime artifact show` calls, then run the visual convergence loop once for the integrated surface/source
+Instead, query the task's exact `design_change_ref`/`design_change_sha256`,
+`design_contract_ref`, and `ui-brief.md` through targeted
+`specify-runtime artifact show` calls, then run the visual convergence loop once for the integrated surface/source
 fingerprint in a Leader-owned gate attempt: render the matrix at the official real
 entry point, capture stable screenshots or platform output, inspect against
 the returned contract sections, prior surfaces, and original references, repair

@@ -1,18 +1,16 @@
 # UI Brief: {{feature_name}}
 
+- design_change_id: UD-____
+- design_change_ref: .specify/design/changes/<UD-ID>/DESIGN.md
+- design_contract_ref: .specify/design/changes/<UD-ID>/design-contract.json
+- design_change_sha256:
+- design_readiness: approved | narrow-existing-pattern-exception | blocked
 - ui_work_type: existing-pattern | feature-extension | reference-implementation
 - surface_type: landing | product-workspace | hybrid | existing-pattern-maintenance
-- platforms: [web | mobile | desktop | tui | cli]
-- design_readiness: approved | narrow-existing-pattern-exception | blocked
-- design_sources: [DESIGN.md]
-- subject:
-- audience:
-- single_job:
-- visual_thesis:
-- content_thesis:
-- interaction_thesis:
-- signature_element:
-- approved_visual_ref: .specify/design/previews/round-NN.html#direction-id | live governing surface
+- platforms: [web | mobile | desktop | tui | cli | content]
+- capability_profile_ids: []
+- specimen_ids: []
+- approved_visual_ref: .specify/design/changes/<UD-ID>/previews/round-NN.html#direction-id
 - approved_direction_id:
 - design_review_round:
 - approved_preview_sha256:
@@ -20,30 +18,26 @@
 - approved_handoff_ref:
 - approved_handoff_sha256:
 - design_decision_ids: []
-- handoff_contract_ids: []
-- entry_points:
-- user_job_and_experience_intent:
-- visual_or_interaction_signature:
+- handoff_contract_rows: [{exact selected immutable DH-* row including id}]
+- entry_points: []
+- required_states: []
+- required_viewports: []
+- subject:
+- audience:
+- single_job:
+- design_dna_or_personality:
+- dials: {variance:, motion:, density:, inference_reason:}
+- anti_slop_locks: []
+- feature_delta: {layout_and_hierarchy:, tokens_and_components:, interactions:, responsive:, motion:, accessibility:, real_content_and_imagery:}
+- must_preserve: []
+- may_adapt: []
+- must_not: []
 - source_refs: []
 - reference_intents: [{ref:, intent: exact | preserve-structure | inspiration | extract-tokens | do-not-copy}]
-- real_content_plan: [{source_ref:, applies_to_states: []}]
-- image_plan: [{ref:, role:, responsive_behavior:}]
-- color_modes: []
-- component_contracts: [{exact selected immutable DH-* row including id}]
-- responsive_matrix: [{exact selected immutable DH-* row including id}]
-- motion_contract: {entrance:, feedback:, loading:, state_transition:, duration_tokens:, easing_tokens:, spatial_behavior:, reduced_motion_equivalent:}
+- fidelity_mode: approximate | high | inspiration
+- fidelity_criteria:
 - visual_acceptance_matrix: [{exact selected immutable DH-* row including id and target_id}]
 - comparison_tolerance: {exact immutable structured object; never summarize as prose}
-- accepted_deviations: [{exact selected immutable DH-* row including id, decision_id, reason, approval_ref}]
-- fidelity_mode: approximate | high | inspiration
-- layout_and_information_hierarchy:
-- tokens_and_components:
-- must_preserve:
-- may_adapt:
-- must_not:
-- required_states:
-- responsive_and_accessibility_constraints:
+- accepted_deviations: [{id:, decision_id:, reason:, approval_ref:}]
 - required_evidence: [structure_snapshot, visual_capture, runtime_diagnostics, visual_comparison_or_human_review]
-- difference_inventory:
-- motion_and_reduced_motion_runtime_check:
 - pending_human_review:

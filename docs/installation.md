@@ -168,13 +168,18 @@ selected integration.
 
 Invocation syntax depends on the integration:
 
-| Integration surface | Specify | PRD | Plan | Tasks |
-| --- | --- | --- | --- | --- |
-| Codex skills | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | `$sp-tasks` |
-| Kimi Code skills | `/skill:sp-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` | `/skill:sp-plan` | `/skill:sp-tasks` |
-| Claude skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | `/sp-tasks` |
-| MiMo Code commands | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.tasks` |
-| Slash-dot command integrations | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.tasks` |
+| Integration surface | Specify | PRD | Plan | Test Design (optional) | Tasks |
+| --- | --- | --- | --- | --- | --- |
+| Codex skills | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | `$sp-test-design` | `$sp-tasks` |
+| Kimi Code skills | `/skill:sp-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` | `/skill:sp-plan` | `/skill:sp-test-design` | `/skill:sp-tasks` |
+| Claude skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | `/sp-test-design` | `/sp-tasks` |
+| MiMo Code commands | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.test-design` | `/sp.tasks` |
+| Slash-dot command integrations | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.test-design` | `/sp.tasks` |
+
+`test-design` / `spx-test-design` is an optional planning-only lane after Plan.
+It produces a complete-against-frozen-scope test universe, professional case
+catalog, data/material pack, gaps, and a pointer-only Tasks handoff; Tasks and
+Implement remain responsible for executable tests and fixtures.
 
 `/sp-*` is not universal for skills-backed integrations. Use the invocation
 syntax generated for your selected integration rather than copying Claude-style

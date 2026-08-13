@@ -1,0 +1,29 @@
+{
+  "schema_version": "spec-kit-test-design-state-v1",
+  "revision": 1,
+  "scope": "project",
+  "mode": "project-baseline",
+  "feature_dir": null,
+  "artifact_root": ".specify/test-design",
+  "status": "active",
+  "phase": "scoped",
+  "claim_status": "pending",
+  "source": {
+    "query": "pending",
+    "source_refs": ["pending"],
+    "included_paths": ["pending"],
+    "excluded_paths": [],
+    "risk_dimensions": ["functional"],
+    "fingerprint": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "lanes": {
+    "manifest_ref": "lane-manifest.json",
+    "accepted_result_refs": []
+  },
+  "audit": {
+    "status": "pending",
+    "lane_id": null,
+    "result_ref": null
+  },
+  "blockers": []
+}

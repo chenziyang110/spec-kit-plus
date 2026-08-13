@@ -420,6 +420,50 @@ func TestArtifactPatchRejectsSpecializedArtifacts(t *testing.T) {
 	}
 }
 
+func TestDesignChangeContractPatchStopsAfterRegistration(t *testing.T) {
+	projectRoot := t.TempDir()
+	path := ".specify/design/changes/UD-0042/DESIGN.md"
+	original := "---\ndesign_change:\n  schema: spec-kit-ui-design-change-v1\n  id: UD-0042\n---\n\n# UI Design Change\n\n## Product Feel\n\nDraft\n"
+	writeArtifactTestFile(t, projectRoot, path, original)
+	writeArtifactTestFile(t, projectRoot, ".specify/design/index.json", `{"schema":"spec-kit-ui-design-index-v1","changes":[{"id":"UD-0042","status":"draft","design_ref":".specify/design/changes/UD-0042/DESIGN.md","approval_sha256":null}]}`)
+
+	service := NewArtifactService(projectRoot)
+	draftLease := service.Prepare(ArtifactPrepareRequest{Path: path})
+	if draftLease.Status != "ok" {
+		t.Fatalf("draft design change prepare = %#v, want ok", draftLease)
+	}
+	draftPatch := service.Patch(ArtifactPatchRequest{
+		LeaseID: draftLease.Data["lease_id"].(string),
+		Section: "Product Feel",
+		Content: "Approved candidate",
+	})
+	if draftPatch.Status != "ok" {
+		t.Fatalf("draft design change patch = %#v, want ok", draftPatch)
+	}
+
+	registeredLease := service.Prepare(ArtifactPrepareRequest{Path: path})
+	if registeredLease.Status != "ok" {
+		t.Fatalf("pre-registration lease = %#v, want ok", registeredLease)
+	}
+	writeArtifactTestFile(t, projectRoot, ".specify/design/index.json", `{"schema":"spec-kit-ui-design-index-v1","changes":[{"id":"UD-0042","status":"approved","design_ref":".specify/design/changes/UD-0042/DESIGN.md","approval_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}`)
+
+	blocked := service.Patch(ArtifactPatchRequest{
+		LeaseID: registeredLease.Data["lease_id"].(string),
+		Section: "Product Feel",
+		Content: "Mutated after registration",
+	})
+	if blocked.Status != "blocked" || !strings.Contains(fmt.Sprint(blocked.Blockers), "immutable") {
+		t.Fatalf("registered design change patch = %#v, want immutable blocker", blocked)
+	}
+	stored, err := os.ReadFile(filepath.Join(projectRoot, filepath.FromSlash(path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(stored), "Mutated after registration") {
+		t.Fatalf("registered design change was mutated: %q", string(stored))
+	}
+}
+
 func TestArtifactPatchRejectsJSONLineAppendForNonJSONLineArtifacts(t *testing.T) {
 	projectRoot := t.TempDir()
 	service := NewArtifactService(projectRoot)
@@ -1014,6 +1058,16 @@ func TestArtifactScaffoldCreatesRegisteredQuickStatusFromInstalledTemplate(t *te
 	if !bytes.Contains(stored, []byte("status: gathering")) || !bytes.Contains(stored, []byte("understanding_confirmed: false")) {
 		t.Fatalf("quick scaffold changed safe defaults: %q", content)
 	}
+	for _, field := range []string{"## UI Design Binding", "design_change_id:", "design_change_ref:", "design_change_sha256:", "design_contract_ref:"} {
+		if !bytes.Contains(stored, []byte(field)) {
+			t.Fatalf("quick scaffold missing deterministic UI design binding field %q: %q", field, content)
+		}
+	}
+	for _, field := range []string{"decision.ui_confirmation.design_binding", "confirmation_digest protects these exact fields", "  design_binding:"} {
+		if !bytes.Contains(stored, []byte(field)) {
+			t.Fatalf("quick scaffold missing confirmation-protected UI design binding field %q: %q", field, content)
+		}
+	}
 	if !bytes.Contains(stored, []byte(`title: "Demo \"quoted\""`)) {
 		t.Fatalf("quick scaffold did not escape YAML scalar: %q", content)
 	}
@@ -1076,10 +1130,12 @@ func TestArtifactScaffoldCreatesRegisteredStableWorkflowArtifacts(t *testing.T) 
 		{kind: "constitution", template: "constitution-template.md", path: ".specify/memory/constitution.md", contains: "# [PROJECT_NAME] Constitution"},
 		{kind: "data-model", template: "artifacts/data-model.md", path: "specs/001-demo/data-model.md", contains: "## Data Structures and Ownership"},
 		{kind: "design-brief", template: "design-brief-template.md", path: ".specify/design/design-brief.md", contains: "status: draft"},
+		{kind: "design-brief", template: "design-brief-template.md", path: ".specify/design/changes/UD-0042/brief.md", contains: "status: draft"},
 		{kind: "debug-session", template: "artifacts/debug-session.md", path: ".planning/debug/session-a.md", contains: "understanding_confirmed: false"},
 		{kind: "deep-research", template: "artifacts/deep-research.md", path: "specs/001-demo/deep-research.md", contains: "## Implementation Chain Evidence"},
 		{kind: "deep-research-not-needed", template: "artifacts/deep-research-not-needed.md", path: ".specify/features/001-demo/deep-research.md", contains: "**Status**: Pending"},
 		{kind: "design-review", template: "artifacts/design-review.md", path: ".specify/design/review.md", contains: "## Immutable References"},
+		{kind: "design-review", template: "artifacts/design-review.md", path: ".specify/design/changes/UD-0042/review.md", contains: "## Immutable References"},
 		{kind: "planning-lane-manifest", template: "artifacts/lane-manifest.json", path: "specs/001-demo/planning/lane-manifest.json", contains: `"command": "plan"`},
 		{kind: "quick-plan", template: "artifacts/quick-plan.md", path: ".planning/quick/001-demo/PLAN.md", contains: "## Work Items, Dependencies, and Batches"},
 		{kind: "quick-summary", template: "artifacts/quick-summary.md", path: ".planning/quick/001-demo/SUMMARY.md", contains: "## Recovery State"},
@@ -1239,8 +1295,8 @@ func TestArtifactScaffoldHelpDescribesCanonicalInvocation(t *testing.T) {
 
 func TestArtifactScaffoldCatalogPublishesOnlyImplementedKinds(t *testing.T) {
 	result := ArtifactScaffoldCatalog()
-	if result.Status != "ok" || len(result.Items) != 25 {
-		t.Fatalf("artifact scaffold catalog = %#v, want twenty-five kinds", result)
+	if result.Status != "ok" || len(result.Items) != 29 {
+		t.Fatalf("artifact scaffold catalog = %#v, want twenty-nine kinds", result)
 	}
 	kinds := map[string]bool{}
 	for _, item := range result.Items {
@@ -1282,6 +1338,10 @@ func TestArtifactScaffoldCatalogPublishesOnlyImplementedKinds(t *testing.T) {
 		"specify-context",
 		"specify-draft",
 		"task-generation-lane-manifest",
+		"test-catalog",
+		"test-data-manifest",
+		"test-universe",
+		"coverage-matrix",
 		"ui-brief",
 		"ui-reference-notes",
 		"workflow-state",
@@ -1290,7 +1350,7 @@ func TestArtifactScaffoldCatalogPublishesOnlyImplementedKinds(t *testing.T) {
 			t.Fatalf("catalog kinds = %#v, missing %q", kinds, kind)
 		}
 	}
-	if len(kinds) != 25 {
+	if len(kinds) != 29 {
 		t.Fatalf("catalog kinds = %#v", kinds)
 	}
 }

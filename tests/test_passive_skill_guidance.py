@@ -22,7 +22,8 @@ def test_workflow_routing_references_cognition_gate_and_project_learning_roles()
     assert "sp-prd-build" in content
     assert "peer\n  workflow path to `sp-specify`" in content or "peer workflow path to `sp-specify`" in content
     assert "do not automatically hand off to planning" in content
-    assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-review -> sp-accept`" in content
+    assert "default generated formal path is `sp-specify -> sp-plan -> [sp-test-design] -> sp-tasks -> sp-implement -> sp-review -> sp-accept`" in content
+    assert "the bracketed gate is optional" in content
     assert "sp-deep-research" in content
     assert "implementation chain" in content or "implementation-chain" in content
     assert "planning handoff" in content
@@ -41,7 +42,7 @@ def test_workflow_routing_distinguishes_embedded_task_review_from_system_review(
     content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
     lowered = content.lower()
 
-    assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-review -> sp-accept`" in lowered
+    assert "default generated formal path is `sp-specify -> sp-plan -> [sp-test-design] -> sp-tasks -> sp-implement -> sp-review -> sp-accept`" in lowered
     assert "event-triggered task review remains embedded" in lowered
     assert "mandatory public `sp-review`" in lowered
     assert "parallel joins" in lowered

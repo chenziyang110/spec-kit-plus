@@ -1,20 +1,20 @@
-# sp-design: Design Intelligence Engine
+# sp-design: UI Design Change Engine
 
-You are running `sp-design`. This is a design-system workflow, not an implementation workflow.
+You are running `sp-design`. This is a bounded UI design-change workflow, not an implementation workflow.
 
 {{spec-kit-include: ../common/design-intelligence.md}}
 
 ## Objective
 
-Prompt-route one public `sp-design` entry as the project **Design Intelligence
-Engine** (Taste Intelligence + Design System Reverse Engineering + Visual
-Validation setup). Create, refine, or audit the project's root `DESIGN.md` only
-through `specify-runtime design`; use synthesis only as the input strategy for
-create/refine. Prefer Evidence → UI System Model → three-direction preview over
-screenshot-to-page cloning. For a new or unresolved direction, first create a
-project-neutral HTML design preview board with three comparable directions so
-the user can inspect the actual component, state, responsive, and motion
-language before downstream UI work starts.
+Prompt-route one public `sp-design` entry as the **UI Design Change Engine**
+(Taste Intelligence + Design System Reverse Engineering + Visual Validation
+setup). Create, refine, or audit one bounded `UD-*` change through
+`specify-runtime design`; use synthesis only as the input strategy for
+create/refine. Set `<change-dir>` to
+`.specify/design/changes/<UD-ID>`. Prefer Evidence → UI System Model →
+three-direction preview over screenshot-to-page cloning. The global
+`.specify/design/index.json` is metadata only. An existing root `DESIGN.md` is
+a read-only legacy baseline, never an implicit latest contract.
 
 ## Process
 
@@ -22,27 +22,36 @@ Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep
 
 ## Workflow Phase Lock
 
-- Initialize design state through `specify-runtime design preview` and resume it through `artifact show`; never create or edit `.specify/design/design-state.md` directly.
+- Resolve or create the active workspace by lifecycle state. Resume a matching
+  draft from `.specify/design/index.json`; use
+  `specify-runtime design change <UD-ID> --title <title> --type <greenfield|preserve|overhaul|extension> --scope <surface> --profiles <profiles>`
+  only for a new bounded change; use
+  `specify-runtime design iterate <SOURCE-UD-ID> <SUCCESSOR-UD-ID> --title <title> --type <preserve|overhaul|extension> [--scope <surface>]... --format json`
+  when approved truth is being refined. `design iterate` pins `iteration_of`,
+  `basis_sha256`, the exact baseline ref, and `supersedes` without mutating its
+  registered source. Every requested scope must still be active on that source;
+  if partial supersession already covers it, iterate from the active successor
+  or choose a remaining active source scope.
 - Set durable state with:
   - `active_command: sp-design`
   - `phase_mode: design-only`
   - `current_stage: context-intake`
-  - `allowed_writes: DESIGN.md, .specify/design/design-state.md, .specify/design/design-brief.md, .specify/design/design-system.json, .specify/design/references.md, .specify/design/options.md, .specify/design/previews/*.html, .specify/design/previews/*.approval.json, .specify/design/previews/*.handoff.json, .specify/design/review.md, .specify/memory/project-rules.md`
+  - `allowed_writes: .specify/design/index.json, <change-dir>/DESIGN.md, <change-dir>/brief.md, <change-dir>/design-contract.json, <change-dir>/references.md, <change-dir>/options.md, <change-dir>/previews/*, <change-dir>/review.md, .specify/memory/project-rules.md`
   - `forbidden_actions: edit source code, edit tests, write CSS/theme implementation files, create UI components, create feature specs, create plan artifacts, create task artifacts`
-- When resuming after compaction, query `.specify/design/design-state.md` through `specify-runtime artifact show` before continuing.
+- When resuming after compaction, query `.specify/design/index.json`, then the
+  active `<change-dir>/brief.md` and `<change-dir>/DESIGN.md` through
+  `specify-runtime artifact show` before continuing.
 
 ## Allowed Writes
 
-- `DESIGN.md`
-- `.specify/design/design-state.md`
-- `.specify/design/design-brief.md`
-- `.specify/design/design-system.json`
-- `.specify/design/references.md`
-- `.specify/design/options.md`
-- `.specify/design/previews/*.html`
-- `.specify/design/previews/*.approval.json`
-- `.specify/design/previews/*.handoff.json`
-- `.specify/design/review.md`
+- `.specify/design/index.json` through `specify-runtime design change/iterate/register`
+- `.specify/design/changes/<UD-ID>/DESIGN.md`
+- `.specify/design/changes/<UD-ID>/brief.md`
+- `.specify/design/changes/<UD-ID>/design-contract.json`
+- `.specify/design/changes/<UD-ID>/references.md`
+- `.specify/design/changes/<UD-ID>/options.md`
+- `.specify/design/changes/<UD-ID>/previews/*`
+- `.specify/design/changes/<UD-ID>/review.md`
 - stable design rules in `.specify/memory/project-rules.md` when they should become shared project defaults
 
 ## Forbidden Writes
@@ -64,36 +73,50 @@ and never require a colon subskill or explicit mode argument.
 
 ## Intake
 
-1. Query `DESIGN.md` through `specify-runtime artifact show` if it exists.
-   If it declares `design_system.status: bootstrap`, treat it as a starter to
-   replace, not an approved constraint or evidence that design work is done.
-2. Query design references/options/review through targeted `specify-runtime artifact show` calls if they exist.
-3. Read `README.md`, project handbook files, existing UI surfaces, and existing design files. Use the command's shared Learning intake for project rules and reusable lessons.
-4. **UI Evidence Analysis (when references or live UI exist):** collect sources
+1. Query `.specify/design/index.json` and resume a nonterminal change for the
+   same objective through targeted `specify-runtime artifact show` calls. Query
+   only its exact `DESIGN.md`, brief, references, options, and review through
+   the same owner. If a root `DESIGN.md` exists, treat it as a read-only legacy
+   baseline and never mutate or select it as “latest.”
+2. For each exact affected surface, run
+   `specify-runtime design resolve --scope <surface> --format json` to discover
+   active registered candidates. Resolution is discovery only: it never binds
+   a consumer or chooses “latest.” A `composite: true` result means the broad
+   surface crosses multiple active contracts. Current consumer bindings are
+   singular, so split it into independently bound consumer units, each with one
+   exact scope and one binding artifact, instead of choosing or merging a
+   candidate for the whole surface.
+3. If no matching draft exists, allocate a stable `UD-*` ID. Run
+   `specify-runtime design change` for a new bounded direction. For an approved
+   source being refined, run `specify-runtime design iterate` so lineage and
+   source bytes are exact; do not manually reconstruct its baseline digest or
+   mutate the approved source.
+4. Read `README.md`, project handbook files, existing UI surfaces, and existing design files. Use the command's shared Learning intake for project rules and reusable lessons.
+5. **UI Evidence Analysis (when references or live UI exist):** collect sources
    into a surface/page map; extract candidate tokens, components, states, and
    responsive rules; tag each claim with evidence level
    Design Evidence v1 (`measured` | `inferred` | `assumption`; alias
    `evidence-backed-inference`) with rationale when not measured and source or
    source_gap when inferred. Do not treat screenshot similarity as measured
    truth.
-5. Use project cognition to locate likely UI entry points, token/theme owners,
+6. Use project cognition to locate likely UI entry points, token/theme owners,
    reusable component owners, responsive/state patterns, visual or accessibility
    tests, and design assets; verify every selected route in live files before it
    becomes design evidence.
-6. Classify the experience separately by work type, surface type (`landing`,
+7. Classify the experience separately by work type, surface type (`landing`,
    `product-workspace`, `hybrid`, or `existing-pattern-maintenance`), and one or
    more capability profiles. Read the deterministic catalog with
    `{{specify-subcmd:specify-runtime design profiles}}`; supported profiles are
    `web`, `mobile`, `desktop`, `cli`, `tui`, `content`, and `no-ui`. A hybrid
    product selects multiple visual profiles rather than collapsing them into a
    single project-type enum.
-7. If and only if `no-ui` is supported by current repository evidence, record
+8. If and only if `no-ui` is supported by current repository evidence, record
    `design_system_status: not-applicable` with that evidence and exit this
    visual workflow. Do not generate three directions, HTML, approval, handoff,
    `ui-target`, or visual comparison, and never combine `no-ui` with a visual
    profile.
-8. If references are supplied as URLs, screenshots, text notes, existing design files, or imported summaries, assign each an explicit intent: `exact`, `preserve-structure`, `inspiration`, `extract-tokens`, or `do-not-copy`.
-9. When built-in presets help, read shipped files under
+9. If references are supplied as URLs, screenshots, text notes, existing design files, or imported summaries, assign each an explicit intent: `exact`, `preserve-structure`, `inspiration`, `extract-tokens`, or `do-not-copy`.
+10. When built-in presets help, read shipped files under
    `.specify/templates/design-library/` or `templates/design-library/`
    (including aesthetic seeds and `anti-slop-policy.md`) and treat them as
    inspiration only—never as approved product direction or a substitute for
@@ -101,16 +124,15 @@ and never require a colon subskill or explicit mode argument.
 
 ## Design Question Loop
 
-1. Create `.specify/design/design-brief.md` with
-   `specify-runtime artifact scaffold --kind design-brief --path .specify/design/design-brief.md`,
-   then fill only its affected frontmatter fields and named sections through
+1. Use the scaffolded `<change-dir>/brief.md`, then fill only its affected
+   frontmatter fields and named sections through
    leased `artifact patch` calls. The runtime expands the installed stable
    template; never read and reproduce that boilerplate in memory. Store
    confirmed decisions and unresolved design questions, not a conversation
    transcript.
 2. Infer everything supported by the repository, supplied references, and
    prior confirmed answers before asking the user.
-3. **Taste intake gate (create / project-wide refine):** before three-direction
+3. **Taste intake gate (create / substantive refine):** before three-direction
    preview work, patch durable taste fields into the brief:
    - `design_read`: one-line "Reading this as: <kind> for <audience>, with a
      <vibe> language, leaning toward <foundation or aesthetic family>"
@@ -122,10 +144,11 @@ and never require a colon subskill or explicit mode argument.
      (`greenfield` | `preserve` | `overhaul`)
    - `anti_slop_locks` selected from
      `.specify/templates/design-library/anti-slop-policy.md` (surface-aware;
-     subordinate to an already approved `DESIGN.md`)
+     subordinate to the exact applicable registered design change)
    - `reference_board_intents` when `input_strategy: synthesize`
      (`mood` | `layout` | `type` | `color-only`); references are evidence, not
-     a license to copy protected brand or artwork
+     a license to copy protected brand or artwork. The approved baseline is
+     evidence to preserve or supersede, not a global style veto.
 4. Ask one high-impact design question at a time when the answer can change
    visual hierarchy, density, component anatomy, motion, responsive
    adaptation, accessibility, reference fidelity, dial vectors, or the approval
@@ -158,7 +181,9 @@ When live UI or an approved system already exists:
    or analytics ID risks when applicable.
 3. `audit` reports readiness and drift without changing approved truth.
    Promote to `refine` only when design truth must change, then open a new
-   immutable review round.
+   immutable change with `specify-runtime design iterate`; a new preview round
+   inside the source workspace is only for an unapproved draft, never for
+   changing a registered contract.
 
 ## Three-Direction Preview Loop (freeform board)
 
@@ -169,10 +194,10 @@ stays machine-checkable via the embedded manifest and ready lint.
 
 - For `create`, or any unresolved high-visibility `refine`, with either input
   strategy, scaffold the compact source with
-  `{{specify-subcmd:specify-runtime design preview-manifest --profiles <comma-separated-profile-ids> --out .specify/design/previews/round-NN.manifest.json}}`,
+  `{{specify-subcmd:specify-runtime design preview-manifest --profiles <comma-separated-profile-ids> --out <change-dir>/previews/round-NN.manifest.json}}`,
   fill project-specific manifest fields through leased `specify-runtime artifact patch`
   calls, then render the freeform board shell with
-  `{{specify-subcmd:specify-runtime design preview --manifest .specify/design/previews/round-NN.manifest.json --out .specify/design/previews/round-NN.html}}`.
+  `{{specify-subcmd:specify-runtime design preview --manifest <change-dir>/previews/round-NN.manifest.json --out <change-dir>/previews/round-NN.html}}`.
 - **Author creative HTML/CSS inside each `#direction-*` canvas** after render.
   Hand-editing direction canvases is expected. Preserve stable direction IDs
   (`direction-a|b|c`), board chrome, hash routing, and `#design-preview-manifest`.
@@ -196,7 +221,7 @@ stays machine-checkable via the embedded manifest and ready lint.
   states, owner, and acceptance coverage are explicit. The renderer
   must produce the matching embedded `spec-kit-design-preview-manifest-v1`;
   then run
-  `{{specify-subcmd:specify-runtime design preview-lint .specify/design/previews/round-NN.html --level ready}}`.
+  `{{specify-subcmd:specify-runtime design preview-lint <change-dir>/previews/round-NN.html --level ready}}`.
 - Inspect the board in a real browser at representative desktop and mobile
   widths. Verify direction switching, keyboard operation, overflow, component
   states, meaningful animation, and `prefers-reduced-motion`.
@@ -211,11 +236,11 @@ stays machine-checkable via the embedded manifest and ready lint.
   `specify-runtime design preview`. Continue until the user approves. Do not overwrite a prior
   review round, and never reinterpret criticism as approval.
 - Once the user explicitly approves, freeze it with
-  `{{specify-subcmd:specify-runtime design approve .specify/design/previews/round-NN.html --direction <direction-id> --format json}}`.
+  `{{specify-subcmd:specify-runtime design approve <change-dir>/previews/round-NN.html --direction <direction-id> --format json}}`.
   This command changes the candidate to approved, embeds the selected
   direction and writes immutable `.approval.json` plus selected-direction
   `.handoff.json` sidecars. Record
-  `approved_visual_ref: .specify/design/previews/round-NN.html#<direction-id>`
+  `approved_visual_ref: previews/round-NN.html#<direction-id>`
   plus the returned preview, manifest, and handoff SHA-256 values, handoff ref,
   review round, exact `DS-*` decision IDs, and exact `DH-*` handoff contract IDs
   plus the approved capability profile and specimen IDs in the brief and
@@ -263,12 +288,14 @@ stays machine-checkable via the embedded manifest and ready lint.
   Define duration/easing/distance tokens and an equivalent
   `prefers-reduced-motion` experience. Do not scatter decorative animation.
 - Preserve the feature-level `ui-target.html` boundary: that later artifact
-  owns one feature's concrete composition. The project-level design preview
-  owns reusable visual, component, state, density, and motion decisions.
+  owns one feature's concrete composition. The change-level design preview
+  owns visual, component, state, density, and motion decisions only for its
+  declared `UD-*` scope.
 
 ## Synthesis Rules
 
-- Export the project's `DESIGN.md` only through `specify-runtime design export` from the approved round. Never write `DESIGN.md` directly.
+- Complete the change-local `DESIGN.md` from the approved round, then lint,
+  export, and register that exact file. Never rewrite another approved change.
 - Present exactly the three HTML-backed directions from the active preview
   round when creating a design system or when synthesis shapes a material
   refinement.
@@ -283,9 +310,16 @@ stays machine-checkable via the embedded manifest and ready lint.
   artifact and recorded tradeoffs, not only its name.
 - Preserve existing project rules unless the user approves a design-system change that supersedes them.
 - Do not copy external brand names, protected visual identity, proprietary token names, or third-party file text into the final design system.
-- Normalize approved direction into `spec-kit-design-v1` YAML front matter plus readable Markdown guidance.
-- Set `design_system.status: approved` and record
-  `design_system.approval.status`, the selected direction, and concrete product
+- Normalize the approved direction into `spec-kit-ui-design-change-v1` YAML
+  front matter plus readable Markdown guidance.
+- A successor records `relationships.iteration_of`, the matching source in
+  `relationships.supersedes`, and the exact source digest in index
+  `basis_sha256`. Registration subtracts only intersecting scopes from the
+  source and records them as `superseded_scopes`; the parent remains active for
+  every uncovered scope and is fully `superseded` only when all of its roots
+  are covered.
+- Set `design_change.status: approved` and record
+  `design_change.approval.status`, the selected direction, and concrete product
   or repository `source_refs`, plus `approval.visual_refs`, review round,
   preview/manifest/handoff SHA-256 values, immutable handoff ref, approved
   decision IDs, and approved handoff contract IDs. Record
@@ -296,26 +330,32 @@ stays machine-checkable via the embedded manifest and ready lint.
 
 ## Output Contract
 
-The workflow output is a root `DESIGN.md` contract plus the confirmed design
-brief, immutable HTML preview rounds, and supporting `.specify/design/*` state,
-  references, options, review artifacts, and the immutable selected-direction
-  handoff sidecar.
+The workflow output is `.specify/design/changes/<UD-ID>/DESIGN.md` plus its
+confirmed brief, immutable HTML preview rounds, review artifacts,
+`design-contract.json`, and selected-direction handoff sidecar. The index stores
+metadata and exact consumer bindings; it never contains design prose.
+Never write `<change-dir>/DESIGN.md` directly; patch only its named frontmatter
+fields and sections through fresh leased `specify-runtime artifact patch` calls.
 
 ## Required DESIGN.md Shape
 
-`DESIGN.md` must contain:
+The change-local `DESIGN.md` must contain:
 
-- YAML front matter with `design_system.schema: spec-kit-design-v1`
-- `design_system.status: approved` plus approval direction, source refs,
+- YAML front matter with `design_change.schema: spec-kit-ui-design-change-v1`
+- stable ID, title, change type, scopes, baseline refs, relationships, and
+  Must Preserve / May Adapt / Must Not boundaries
+- `relationships.iteration_of` for a successor (null otherwise), with the same
+  source in `supersedes` and its exact digest-pinned baseline
+- `design_change.status: approved` plus approval direction, source refs,
   immutable visual and handoff references, review round,
   preview/manifest/handoff SHA-256 values, approved decision IDs, and approved
   handoff contract IDs
 - product subject, audience, single job, and approved visual reference
 - visual, content, and interaction theses; one signature element; safe system
   choices; and deliberate creative risks
-- `design_system.name`
-- `design_system.version`
-- `design_system.platforms`
+- `design_change.name`
+- `design_change.version`
+- `design_change.platforms`
 - non-empty token categories for `color`, `spacing`, `radius`, `typography`, and
   `motion`, plus applicable elevation, sizing, and layout tokens
 - color-mode contracts, including required accessibility modes
@@ -336,14 +376,23 @@ brief, immutable HTML preview rounds, and supporting `.specify/design/*` state,
 Before closeout:
 
 1. Run the active round's
-   `{{specify-subcmd:specify-runtime design preview-lint .specify/design/previews/round-NN.html --level ready}}`,
-   then run `{{specify-subcmd:specify-runtime design lint --level ready}}` when the CLI helpers
+   `{{specify-subcmd:specify-runtime design preview-lint <change-dir>/previews/round-NN.html --level ready}}`,
+   then run `{{specify-subcmd:specify-runtime design lint <change-dir>/DESIGN.md --level ready}}` when the CLI helpers
    are available. Export the same approved contract with
-   `{{specify-subcmd:specify-runtime design export DESIGN.md --format json --out .specify/design/design-system.json}}`
+   `{{specify-subcmd:specify-runtime design export <change-dir>/DESIGN.md --format json --out <change-dir>/design-contract.json}}`,
+   then pin it with
+   `{{specify-subcmd:specify-runtime design register <change-dir>/DESIGN.md --format json}}`
    so implementation consumes deterministic data rather than reconstructing
-   YAML prose.
-2. If `.specify/design/review.md` is absent, create its fixed shape with
-   `specify-runtime artifact scaffold --kind design-review --path .specify/design/review.md`.
+   YAML prose. For a successor, immediately run
+   `{{specify-subcmd:specify-runtime design diff <SOURCE-UD-ID> <UD-ID> --format json}}`
+   and record the scope, stable `DS-*` decision, `DH-*` handoff-contract, and
+   changed-section delta in review before recommending adoption. For every
+   already bound consumer, instruct its owning workflow to run read-only
+   `specify-runtime design impact ... --expected-change <CURRENT-UD-ID|none>`
+   before patching and to present `preserved_bindings`,
+   `invalidated_bindings`, and `reconcile_from`.
+2. If `<change-dir>/review.md` is absent, create its fixed shape with
+   `specify-runtime artifact scaffold --kind design-review --path <change-dir>/review.md`.
    Otherwise query it through `artifact show`. Patch only these named semantic
    sections through a fresh lease per section; never submit or reconstruct the
    whole review document:
@@ -365,8 +414,8 @@ Before closeout:
 
 ## Closeout
 
-Read `references/consumer-contract.md`, then close with the design-system
-status, changed files, lint result, pinned approval identity, and exactly one
+Read `references/consumer-contract.md`, then close with the design-change
+status, changed files, lint/register result, pinned approval identity, and exactly one
 recommended next command. Do not bypass explicit feature or Quick adoption of a
 new approval.
 
@@ -374,9 +423,11 @@ new approval.
 
 - Do not edit source code, tests, CSS/theme implementation files, UI components, feature specs, plan artifacts, or task artifacts from this command.
 - Inline HTML/CSS and bounded review-only JavaScript inside
-  `.specify/design/previews/*.html` are design artifacts allowed by this
+  `.specify/design/changes/<UD-ID>/previews/*.html` are design artifacts allowed by this
   workflow; they are not application implementation.
 - Never hand-edit an approved preview or its sidecar. Generate a new numbered
   candidate round, obtain approval, and let `design approve` freeze it.
 - Do not clone protected brands or copy third-party design files into `DESIGN.md`; synthesize project-owned design principles and tokens.
-- Do not let downstream workflows treat an unaudited or contradictory `DESIGN.md` as locked input.
+- Do not let downstream workflows treat an unaudited, unregistered, or
+  contradictory change as locked input. A new approval must never silently
+  retarget an existing Feature or Quick workspace.
