@@ -104,6 +104,10 @@ def test_compile_worker_task_packet_prefers_canonical_task_index_for_jit_packet(
             ".specify/design/changes/UD-0042/previews/round-01.html#direction-x",
             ".specify/design/changes/UD-0042/previews/round-99.handoff.json",
         ),
+        (
+            ".specify/design/changes/UD-0042/archive/round-01.html#direction-x",
+            ".specify/design/changes/UD-0042/archive/round-99.handoff.json",
+        ),
     ],
 )
 def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(

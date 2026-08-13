@@ -263,6 +263,10 @@ def test_validate_worker_task_packet_rejects_blank_controller_check_entries(
             ".specify/design/changes/UD-0042/previews/round-01.html#direction-x",
             ".specify/design/changes/UD-0042/previews/round-99.handoff.json",
         ),
+        (
+            ".specify/design/changes/UD-0042/archive/round-01.html#direction-x",
+            ".specify/design/changes/UD-0042/archive/round-99.handoff.json",
+        ),
     ],
 )
 def test_validate_worker_task_packet_requires_complete_current_ui_contract(

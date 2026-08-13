@@ -12,6 +12,7 @@ from specify_cli import app
 from specify_cli.design import (
     DesignLintError,
     _design_impact_classes,
+    _quick_confirmation_digest,
     adopt_design_change,
     approve_design_preview,
     diff_design_changes,
@@ -1170,6 +1171,10 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
             "reconfirmation_trigger": "The approved design binding changes",
             "ui_confirmation": {
                 "applicable": True,
+                "confirmation_purpose": "Approve the orders UI direction",
+                "user_and_primary_job": "Operators inspect an order",
+                "target_experience": "A clear, efficient order detail",
+                "acceptance_evidence": ["Bound UI capture"],
                 "design_binding": {
                     "scope": "web:orders/detail",
                     "design_change_id": bound_change,
@@ -1243,13 +1248,17 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
         confirmation_shape: str = "valid",
     ) -> None:
         if confirmation_shape == "minimal-forged":
+            decision = decision_payload(bound_change)
             confirmation = {
                 "schema": "quick-confirmation-v1",
+                "confirmation_mode": "full",
                 "confirmation_state": state,
                 "confirmation_digest": "c" * 64,
-                "decision": {
-                    "ui_confirmation": decision_payload(bound_change)[
-                        "ui_confirmation"
+                "source": {"kind": "prompt", "semantic_delta": False},
+                "decision": decision,
+                "delivery": {
+                    "waves": [
+                        {"id": "W1", "item_ids": ["Q1"], "parallel": False}
                     ]
                 },
             }
@@ -1261,9 +1270,16 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
             }
             confirmation = {
                 "schema": "quick-confirmation-v1",
+                "confirmation_mode": "full",
                 "confirmation_state": state,
                 "confirmation_digest": decision_digest(minimal_decision),
+                "source": {"kind": "prompt", "semantic_delta": False},
                 "decision": minimal_decision,
+                "delivery": {
+                    "waves": [
+                        {"id": "W1", "item_ids": ["Q1"], "parallel": False}
+                    ]
+                },
             }
         else:
             decision = decision_payload(bound_change)
@@ -1272,9 +1288,16 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
                 decision["goal"] = "Tampered after confirmation"
             confirmation = {
                 "schema": "quick-confirmation-v1",
+                "confirmation_mode": "full",
                 "confirmation_state": state,
                 "confirmation_digest": digest,
+                "source": {"kind": "prompt", "semantic_delta": False},
                 "decision": decision,
+                "delivery": {
+                    "waves": [
+                        {"id": "W1", "item_ids": ["Q1"], "parallel": False}
+                    ]
+                },
             }
         (workspace / "confirmation.json").write_text(
             json.dumps(confirmation) + "\n",
@@ -1378,6 +1401,61 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
         "confirm_quick_design_binding",
         "compile_quick_ui_work_items",
     ]
+
+
+def test_quick_confirmation_digest_matches_go_cross_language_vector() -> None:
+    decision = {
+        "goal": "采用订单 UI <>&\u2028next",
+        "user_visible_result": "顾客看到 résumé",
+        "scope": {
+            "include": ["web:订单/detail"],
+            "exclude": ["legacy:<&>"],
+            "defer": [],
+        },
+        "items": [
+            {
+                "id": "Q2",
+                "deliverable": "完成 >",
+                "depends_on": ["Q1"],
+                "acceptance": "通过 &",
+                "write_scope": ["src/ignored-two"],
+            },
+            {
+                "id": "Q1",
+                "deliverable": "实现 <",
+                "depends_on": [],
+                "acceptance": "截图\u2028ok",
+                "write_scope": ["src/ignored-one"],
+            },
+        ],
+        "recommended_approach": "保持简洁",
+        "assumptions_and_risks": ["风险 <>&"],
+        "completion_evidence": ["证据 ✓"],
+        "reconfirmation_trigger": "设计变化",
+        "ui_confirmation": {
+            "applicable": True,
+            "confirmation_purpose": "确认 <方向>",
+            "user_and_primary_job": "运营 & 检查",
+            "target_experience": "快速 > 清晰",
+            "acceptance_evidence": ["截图\u2028完成"],
+            "design_binding": {
+                "scope": "web:订单/detail",
+                "design_change_id": "UD-0042",
+                "design_change_ref": ".specify/design/changes/UD-0042/DESIGN.md",
+                "design_change_sha256": "a" * 64,
+                "design_contract_ref": ".specify/design/changes/UD-0042/design-contract.json",
+            },
+        },
+        "user_corrections": ["excluded from digest"],
+    }
+    expected = "44ba801bb2f538980b81e6096c9e5ff622df159a7e4d7e3564b7636dfad6388e"
+    assert _quick_confirmation_digest(decision) == expected
+
+    changed_write_scope = json.loads(json.dumps(decision, ensure_ascii=False))
+    changed_write_scope["items"][0]["write_scope"] = [
+        "src/changed-but-excluded"
+    ]
+    assert _quick_confirmation_digest(changed_write_scope) == expected
 
 
 def test_lint_design_file_accepts_valid_design(tmp_path: Path) -> None:

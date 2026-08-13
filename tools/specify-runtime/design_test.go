@@ -1047,12 +1047,7 @@ note: exact source UD-0042
 		if err != nil {
 			t.Fatal(err)
 		}
-		doc := quickConfirmationDoc{
-			Schema:             quickConfirmationSchema,
-			ConfirmationState:  state,
-			ConfirmationDigest: digest,
-			Decision:           decision,
-		}
+		doc := quickAdoptionTestDoc(decision, digest, state)
 		body, err := json.Marshal(doc)
 		if err != nil {
 			t.Fatal(err)
@@ -1143,12 +1138,9 @@ design_change_id: UD-0042
 	if err != nil {
 		t.Fatal(err)
 	}
-	confirmationBody, err := json.Marshal(quickConfirmationDoc{
-		Schema:             quickConfirmationSchema,
-		ConfirmationState:  "confirmed",
-		ConfirmationDigest: confirmationDigest,
-		Decision:           decision,
-	})
+	confirmationBody, err := json.Marshal(
+		quickAdoptionTestDoc(decision, confirmationDigest, "confirmed"),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1233,41 +1225,27 @@ understanding_confirmed: true
 			var confirmation any
 			switch tt.confirmationShape {
 			case "minimal-forged":
-				confirmation = map[string]any{
-					"schema":              quickConfirmationSchema,
-					"confirmation_state":  "confirmed",
-					"confirmation_digest": strings.Repeat("c", 64),
-					"decision": map[string]any{
-						"ui_confirmation": decision.UIConfirmation,
-					},
-				}
+				confirmation = quickAdoptionTestDoc(
+					decision, strings.Repeat("c", 64), "confirmed",
+				)
 			case "minimal-self-consistent":
 				minimalDecision := quickConfirmationDecision{UIConfirmation: decision.UIConfirmation}
 				minimalDigest, err := computeQuickConfirmationDigest(minimalDecision)
 				if err != nil {
 					t.Fatal(err)
 				}
-				confirmation = quickConfirmationDoc{
-					Schema:             quickConfirmationSchema,
-					ConfirmationState:  "confirmed",
-					ConfirmationDigest: minimalDigest,
-					Decision:           minimalDecision,
-				}
+				confirmation = quickAdoptionTestDoc(
+					minimalDecision, minimalDigest, "confirmed",
+				)
 			case "tampered-decision":
 				decision.Goal = "Tampered after confirmation"
-				confirmation = quickConfirmationDoc{
-					Schema:             quickConfirmationSchema,
-					ConfirmationState:  "confirmed",
-					ConfirmationDigest: digest,
-					Decision:           decision,
-				}
+				confirmation = quickAdoptionTestDoc(
+					decision, digest, "confirmed",
+				)
 			default:
-				confirmation = quickConfirmationDoc{
-					Schema:             quickConfirmationSchema,
-					ConfirmationState:  "confirmed",
-					ConfirmationDigest: digest,
-					Decision:           decision,
-				}
+				confirmation = quickAdoptionTestDoc(
+					decision, digest, "confirmed",
+				)
 			}
 			confirmationBody, err := json.Marshal(confirmation)
 			if err != nil {
@@ -1316,7 +1294,11 @@ func quickAdoptionTestDecision(designDigest, contractPath, boundChange string) q
 		},
 		ReconfirmationTrigger: "The approved design binding changes",
 		UIConfirmation: map[string]any{
-			"applicable": true,
+			"applicable":           true,
+			"confirmation_purpose": "Approve the orders UI direction",
+			"user_and_primary_job": "Operators inspect an order",
+			"target_experience":    "A clear, efficient order detail",
+			"acceptance_evidence":  []any{"Bound UI capture"},
 			"design_binding": map[string]any{
 				"scope":                "web:orders/detail",
 				"design_change_id":     boundChange,
@@ -1325,6 +1307,100 @@ func quickAdoptionTestDecision(designDigest, contractPath, boundChange string) q
 				"design_contract_ref":  contractPath,
 			},
 		},
+	}
+}
+
+func quickAdoptionTestDoc(
+	decision quickConfirmationDecision,
+	digest string,
+	state string,
+) quickConfirmationDoc {
+	return quickConfirmationDoc{
+		Schema:             quickConfirmationSchema,
+		Workspace:          "001-orders",
+		ConfirmationMode:   "full",
+		ConfirmationState:  state,
+		ConfirmationDigest: digest,
+		Source: quickConfirmationSource{
+			Kind:          "prompt",
+			SemanticDelta: false,
+		},
+		Decision: decision,
+		Delivery: quickConfirmationDelivery{
+			Waves: []quickConfirmationWave{
+				{ID: "W1", ItemIDs: []string{"Q1"}, Parallel: false},
+			},
+		},
+	}
+}
+
+func TestQuickAdoptionDigestCrossLanguageVector(t *testing.T) {
+	decision := quickAdoptionDigestVectorDecision()
+	digest, err := computeQuickConfirmationDigest(decision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const expected = "44ba801bb2f538980b81e6096c9e5ff622df159a7e4d7e3564b7636dfad6388e"
+	if digest != expected {
+		t.Fatalf("cross-language quick confirmation digest = %s, want %s", digest, expected)
+	}
+
+	changedWriteScope := decision
+	changedWriteScope.Items = append([]quickConfirmationItem{}, decision.Items...)
+	changedWriteScope.Items[0].WriteScope = []string{"src/changed-but-excluded"}
+	changedDigest, err := computeQuickConfirmationDigest(changedWriteScope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changedDigest != expected {
+		t.Fatalf("write_scope changed protected digest: got %s want %s", changedDigest, expected)
+	}
+}
+
+func quickAdoptionDigestVectorDecision() quickConfirmationDecision {
+	return quickConfirmationDecision{
+		Goal:              "采用订单 UI <>&\u2028next",
+		UserVisibleResult: "顾客看到 résumé",
+		Scope: quickConfirmationScope{
+			Include: []string{"web:订单/detail"},
+			Exclude: []string{"legacy:<&>"},
+			Defer:   []string{},
+		},
+		Items: []quickConfirmationItem{
+			{
+				ID:          "Q2",
+				Deliverable: "完成 >",
+				DependsOn:   []string{"Q1"},
+				Acceptance:  "通过 &",
+				WriteScope:  []string{"src/ignored-two"},
+			},
+			{
+				ID:          "Q1",
+				Deliverable: "实现 <",
+				DependsOn:   []string{},
+				Acceptance:  "截图\u2028ok",
+				WriteScope:  []string{"src/ignored-one"},
+			},
+		},
+		RecommendedApproach:   "保持简洁",
+		AssumptionsAndRisks:   []string{"风险 <>&"},
+		CompletionEvidence:    []string{"证据 ✓"},
+		ReconfirmationTrigger: "设计变化",
+		UIConfirmation: map[string]any{
+			"applicable":           true,
+			"confirmation_purpose": "确认 <方向>",
+			"user_and_primary_job": "运营 & 检查",
+			"target_experience":    "快速 > 清晰",
+			"acceptance_evidence":  []any{"截图\u2028完成"},
+			"design_binding": map[string]any{
+				"scope":                "web:订单/detail",
+				"design_change_id":     "UD-0042",
+				"design_change_ref":    ".specify/design/changes/UD-0042/DESIGN.md",
+				"design_change_sha256": strings.Repeat("a", 64),
+				"design_contract_ref":  ".specify/design/changes/UD-0042/design-contract.json",
+			},
+		},
+		UserCorrections: []string{"excluded from digest"},
 	}
 }
 
