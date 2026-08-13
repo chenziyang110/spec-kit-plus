@@ -7,6 +7,15 @@ test-data/material manifest, coverage matrix, and explicit gap register for the
 current project or planned feature. The defensible completion target is complete
 against a frozen declared scope, not mathematically exhaustive testing.
 
+## Process
+
+Use the runtime-owned lifecycle below as the only write authority: freeze one
+project or feature scope, initialize or resume the matching Test Design root,
+prepare bounded read-only discovery lanes, accept only verified lane results,
+synthesize canonical artifacts, run an independent audit lane, validate the
+bounded claim, then publish typed consumer projections. Do not bypass the
+runtime by editing canonical test-design files directly.
+
 ## Intent and Mode Routing
 
 Run or emulate the project-cognition intake before broad live reads:
@@ -65,3 +74,22 @@ register` and accepted external/binary material with `specify-runtime evidence
 import`, both under scope `test-design` with source and provenance metadata.
 External feasibility, normative-oracle, or disposable-proof gaps route to
 `sp-deep-research`; its evidence and Planning Handoff become resume inputs.
+
+## Output Contract
+
+Return the selected scope, mode, runtime root, current revision, validation
+claim, publication/projection refs and hashes, declared gaps or blockers, and
+the exact recommended next command. For Tasks consumers, include only the
+runtime-owned pointer handoff and verified Tasks projection; never duplicate
+catalog rows, data bodies, or coverage matrices in chat.
+
+## Guardrails
+
+- Treat current source, tests, configs, official contracts, and registered
+  runtime artifacts as authority; Project Cognition is navigation only.
+- Keep all product source, executable tests, fixtures, migrations, and runtime
+  configuration read-only.
+- Do not claim test execution, implementation readiness, release safety, or
+  absolute completeness.
+- Preserve every exclusion, blocker, qualified gap, material readiness decision,
+  audit finding, and source-freshness rule in runtime-owned artifacts.
