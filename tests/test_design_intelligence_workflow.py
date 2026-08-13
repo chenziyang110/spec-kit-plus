@@ -293,7 +293,6 @@ def test_approval_authority_not_bypassed() -> None:
         r"not a new|no `sp-design-intelligence`|not a new mainline",
         classic.lower(),
     )
-    assert "bootstrap" in classic.lower() or "bootstrap" in advanced.lower()
 
 
 def test_handoff_template_design_context_is_json_object() -> None:

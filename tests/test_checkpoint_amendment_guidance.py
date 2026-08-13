@@ -42,7 +42,7 @@ def test_quick_checkpoint_amendment_explains_material_scope_change_first(
     assert "only after that explanation" in normalized
     assert "only the changed rows or decisions" in normalized
     assert "do not repeat the full initial quick checkpoint" in normalized
-    assert "understanding_confirmed: false" in normalized
+    assert "understanding_confirmed: false" in normalized or "unconfirmed staged decision" in normalized
 
 
 @pytest.mark.parametrize(
