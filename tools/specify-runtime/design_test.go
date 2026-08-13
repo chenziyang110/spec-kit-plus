@@ -986,6 +986,29 @@ func TestDesignAdoptUsesExpectedChangeCASAndPreservesRebindHistory(t *testing.T)
 	}
 }
 
+func TestDesignFormalAdoptRejectsBindingFromAnotherFeatureWorkspace(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	designPath, designDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	contractPath := writeDesignContractRuntime(t, designPath)
+	wrongBindingRef := ".specify/features/999-orders/spec-contract.json"
+	wrongDigest := writeDesignBindingRuntime(t, wrongBindingRef, "UD-0042", designDigest, contractPath)
+
+	var stdout bytes.Buffer
+	exit := runDesign([]string{
+		"adopt", "feature:001-orders",
+		"--change", "UD-0042",
+		"--scope", "web:orders/detail",
+		"--mode", "formal",
+		"--binding-ref", wrongBindingRef,
+		"--binding-sha256", wrongDigest,
+		"--expected-change", "none",
+	}, &stdout)
+	if output := stdout.String(); exit == 0 || !strings.Contains(output, "feature spec-contract.json") {
+		t.Fatalf("formal adoption with another feature binding must block: exit=%d output=%s", exit, output)
+	}
+}
+
 func TestDesignQuickAdoptRequiresConfirmedExactStatusBinding(t *testing.T) {
 	tmp := t.TempDir()
 	withCwd(t, tmp)
@@ -1100,6 +1123,62 @@ note: exact source UD-0042
 	}
 	if receipt["reconcile_from"] != "quick-checkpoint" || !reflect.DeepEqual(stringList(receipt["reconciliation_actions"]), []string{"confirm_quick_design_binding", "compile_quick_ui_work_items"}) {
 		t.Fatalf("initial quick reconciliation = %#v", receipt)
+	}
+}
+
+func TestDesignQuickAdoptRejectsBindingFromAnotherQuickWorkspace(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	designPath, designDigest := createRegisteredDesignChangeRuntime(t, "UD-0042", "web:orders")
+	contractPath := writeDesignContractRuntime(t, designPath)
+	workspace := filepath.Join(".planning", "quick", "999-orders")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bindingRef := filepath.ToSlash(filepath.Join(workspace, "STATUS.md"))
+	statusBody := fmt.Sprintf(`---
+understanding_confirmed: true
+---
+
+## UI Design Binding
+
+ui_design_binding:
+  scope: web:orders/detail
+  design_change_id: UD-0042
+  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+  design_change_sha256: %s
+  design_contract_ref: %s
+`, designDigest, filepath.ToSlash(contractPath))
+	if err := os.WriteFile(filepath.FromSlash(bindingRef), []byte(statusBody), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	decision := quickAdoptionTestDecision(designDigest, filepath.ToSlash(contractPath), "UD-0042")
+	confirmationDigest, err := computeQuickConfirmationDigest(decision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirmationBody, err := json.Marshal(quickAdoptionTestDoc(decision, confirmationDigest, "confirmed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirmationBody = append(confirmationBody, '\n')
+	if err := os.WriteFile(filepath.Join(workspace, "confirmation.json"), confirmationBody, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256([]byte(statusBody))
+
+	var stdout bytes.Buffer
+	exit := runDesign([]string{
+		"adopt", "quick:001-orders",
+		"--change", "UD-0042",
+		"--scope", "web:orders/detail",
+		"--mode", "quick",
+		"--binding-ref", bindingRef,
+		"--binding-sha256", fmt.Sprintf("%x", digest),
+		"--expected-change", "none",
+	}, &stdout)
+	if output := stdout.String(); exit == 0 || !strings.Contains(output, ".planning/quick/<id>/STATUS.md") {
+		t.Fatalf("quick adoption with another workspace binding must block: exit=%d output=%s", exit, output)
 	}
 }
 

@@ -54,6 +54,16 @@ def _project(tmp_path: Path) -> tuple[Path, Path]:
         encoding="utf-8",
     )
 
+    (feature / "spec-contract.json").write_text(
+        json.dumps(
+            {
+                "status": "planning-ready",
+                "acceptance": [{"id": "AC-001"}],
+                "source_revision": 6,
+            }
+        ),
+        encoding="utf-8",
+    )
     (feature / "plan-contract.json").write_text(
         json.dumps(
             {
@@ -588,12 +598,77 @@ def _publish_test_design_handoff(
         "next_command": "/sp.tasks",
     }
     handoff_raw = _write_json(test_design / "handoff-to-tasks.json", handoff)
+    assert handoff_raw
+    return task_authoring._verify_published_test_design_handoff(project, feature)
+
+
+def _publish_plan_test_design_projection_binding(
+    project: Path,
+    feature: Path,
+    handoff: dict[str, object],
+) -> dict[str, object]:
+    feature_ref = feature.relative_to(project).as_posix()
+    artifact_root = str(handoff["artifact_root"])
+    publication_ref = f"{artifact_root}/test-design-publication.json"
+    publication = handoff["publication_payload"]
+    publication_raw = task_authoring._go_json_bytes(publication, pretty=True)
+    (project / publication_ref).write_bytes(publication_raw)
+    publication_sha256 = _sha256(publication_raw)
+
+    basis_ref = f"{feature_ref}/spec-contract.json"
+    basis_sha256 = _sha256((feature / "spec-contract.json").read_bytes())
+    selection = {
+        "obligation_refs": ["test-universe.json#/obligations/TO-001"],
+        "test_case_refs": handoff["test_case_refs"],
+        "test_data_refs": handoff["test_data_refs"],
+        "coverage_refs": [
+            "coverage-matrix.json#/rows/COV-001",
+            "coverage-matrix.json#/rows/COV-002",
+        ],
+        "gap_refs": (
+            ["test-gaps.json#/gaps/GAP-001"]
+            if handoff["claim_status"] == "qualified_with_declared_gaps"
+            else []
+        ),
+    }
+    selection_sha256 = task_authoring._canonical_json_sha256(selection)
+    projection_id = "tdproj-" + task_authoring._canonical_json_sha256(
+        {
+            "consumer": "plan",
+            "basis_ref": basis_ref,
+            "selection_sha256": selection_sha256,
+        }
+    )[:24]
+    projection_ref = f"{artifact_root}/projections/{projection_id}.json"
+    projection = {
+        "schema_version": "spec-kit-test-design-projection-v1",
+        "projection_id": projection_id,
+        "publication_ref": publication_ref,
+        "publication_sha256": publication_sha256,
+        "consumer": "plan",
+        "basis_ref": basis_ref,
+        "basis_sha256": basis_sha256,
+        "scope": "feature",
+        "artifact_root": artifact_root,
+        "source_fingerprint": handoff["source_fingerprint"],
+        "state_revision": handoff["state_revision"],
+        "claim_status": handoff["claim_status"],
+        "selection": selection,
+        "selection_sha256": selection_sha256,
+        "forbidden_claims": publication["forbidden_claims"],
+        "test_execution_status": "not_executed_by_test_design",
+    }
+    projection_raw = task_authoring._go_json_bytes(projection, pretty=True)
+    projection_path = project / projection_ref
+    projection_path.parent.mkdir(parents=True, exist_ok=True)
+    projection_path.write_bytes(projection_raw)
     return {
-        "ref": "test-design/handoff-to-tasks.json",
-        "sha256": _sha256(handoff_raw),
-        "source_fingerprint": fingerprint,
-        "state_revision": 9,
-        "artifact_digests": artifact_digests,
+        "publication_ref": publication_ref,
+        "publication_sha256": publication_sha256,
+        "projection_ref": projection_ref,
+        "projection_sha256": _sha256(projection_raw),
+        "source_fingerprint": handoff["source_fingerprint"],
+        "state_revision": handoff["state_revision"],
     }
 
 
@@ -986,6 +1061,252 @@ def test_tasks_build_rejects_a_partial_plan_projection_binding(
 
     assert result.exit_code == 10
     assert "entirely null or entirely populated" in result.output
+
+
+def test_tasks_build_allows_a_current_populated_plan_projection_binding(
+    tmp_path: Path,
+) -> None:
+    project, feature = _project(tmp_path)
+    handoff = _publish_test_design_handoff(project, feature)
+    projection_binding = _publish_plan_test_design_projection_binding(
+        project, feature, handoff
+    )
+    plan_contract = json.loads(
+        (feature / "plan-contract.json").read_text(encoding="utf-8")
+    )
+    plan_contract["test_design_gate"] = {
+        "decision": "selected",
+        "reason_refs": ["spec-contract.json#/acceptance/AC-001"],
+        "projection_binding": projection_binding,
+    }
+    _write_json(feature / "plan-contract.json", plan_contract)
+
+    result = _build(project, feature, _all_test_design_refs_task())
+
+    assert result.exit_code == 0, result.output
+
+
+@pytest.mark.parametrize(
+    ("mutator", "expected"),
+    [
+        (
+            lambda binding: binding.__setitem__(
+                "publication_ref", ".specify/test-design/test-design-publication.json"
+            ),
+            "publication_ref is foreign or stale",
+        ),
+        (
+            lambda binding: binding.__setitem__("publication_sha256", "0" * 64),
+            "publication_sha256 is stale",
+        ),
+        (
+            lambda binding: binding.__setitem__(
+                "projection_ref",
+                ".specify/features/foreign/test-design/projections/tdproj-foreign.json",
+            ),
+            "projection_ref is foreign or stale",
+        ),
+        (
+            lambda binding: binding.__setitem__("projection_sha256", "0" * 64),
+            "projection_sha256 is stale",
+        ),
+        (
+            lambda binding: binding.__setitem__("source_fingerprint", "0" * 64),
+            "projection_binding.source_fingerprint is stale",
+        ),
+        (
+            lambda binding: binding.__setitem__("state_revision", 404),
+            "state_revision is stale",
+        ),
+    ],
+)
+def test_tasks_build_rejects_stale_or_foreign_populated_plan_projection_binding(
+    tmp_path: Path,
+    mutator,
+    expected: str,
+) -> None:
+    project, feature = _project(tmp_path)
+    handoff = _publish_test_design_handoff(project, feature)
+    projection_binding = _publish_plan_test_design_projection_binding(
+        project, feature, handoff
+    )
+    mutator(projection_binding)
+    plan_contract = json.loads(
+        (feature / "plan-contract.json").read_text(encoding="utf-8")
+    )
+    plan_contract["test_design_gate"] = {
+        "decision": "selected",
+        "reason_refs": ["spec-contract.json#/acceptance/AC-001"],
+        "projection_binding": projection_binding,
+    }
+    _write_json(feature / "plan-contract.json", plan_contract)
+
+    result = _build(project, feature, _all_test_design_refs_task())
+
+    assert result.exit_code == 10
+    assert expected in result.output
+
+
+def test_tasks_build_rejects_projection_binding_with_stale_projection_consumer_or_basis(
+    tmp_path: Path,
+) -> None:
+    project, feature = _project(tmp_path)
+    handoff = _publish_test_design_handoff(project, feature)
+    projection_binding = _publish_plan_test_design_projection_binding(
+        project, feature, handoff
+    )
+    projection_path = project / projection_binding["projection_ref"]
+    projection = json.loads(projection_path.read_text(encoding="utf-8"))
+    projection["consumer"] = "quick"
+    _write_json(projection_path, projection)
+    projection_binding["projection_sha256"] = _sha256(projection_path.read_bytes())
+    plan_contract = json.loads(
+        (feature / "plan-contract.json").read_text(encoding="utf-8")
+    )
+    plan_contract["test_design_gate"] = {
+        "decision": "selected",
+        "reason_refs": ["spec-contract.json#/acceptance/AC-001"],
+        "projection_binding": projection_binding,
+    }
+    _write_json(feature / "plan-contract.json", plan_contract)
+
+    wrong_consumer = _build(project, feature, _all_test_design_refs_task())
+
+    assert wrong_consumer.exit_code == 10
+    assert "must target the plan consumer" in wrong_consumer.output
+
+    projection_binding = _publish_plan_test_design_projection_binding(
+        project, feature, handoff
+    )
+    projection_path = project / projection_binding["projection_ref"]
+    projection = json.loads(projection_path.read_text(encoding="utf-8"))
+    projection["basis_ref"] = "specs/foreign/spec-contract.json"
+    _write_json(projection_path, projection)
+    projection_binding["projection_sha256"] = _sha256(projection_path.read_bytes())
+    plan_contract["test_design_gate"]["projection_binding"] = projection_binding
+    _write_json(feature / "plan-contract.json", plan_contract)
+
+    wrong_basis = _build(project, feature, _all_test_design_refs_task())
+
+    assert wrong_basis.exit_code == 10
+    assert "basis_ref must target the current feature spec-contract.json" in wrong_basis.output
+
+
+@pytest.mark.parametrize(
+    "mutator",
+    [
+        lambda projection: projection.__setitem__(
+            "projection_id", "tdproj-" + "f" * 24
+        ),
+        lambda projection: projection["selection"].__setitem__(
+            "test_case_refs", []
+        ),
+        lambda projection: projection.__setitem__(
+            "selection_sha256", "0" * 64
+        ),
+        lambda projection: projection.__setitem__(
+            "forbidden_claims", ["tests_executed"]
+        ),
+    ],
+)
+def test_tasks_build_rejects_resealed_noncanonical_plan_projection(
+    tmp_path: Path,
+    mutator,
+) -> None:
+    project, feature = _project(tmp_path)
+    handoff = _publish_test_design_handoff(project, feature)
+    projection_binding = _publish_plan_test_design_projection_binding(
+        project, feature, handoff
+    )
+    projection_path = project / projection_binding["projection_ref"]
+    projection = json.loads(projection_path.read_text(encoding="utf-8"))
+    mutator(projection)
+    projection_raw = task_authoring._go_json_bytes(projection, pretty=True)
+    projection_path.write_bytes(projection_raw)
+    projection_binding["projection_sha256"] = _sha256(projection_raw)
+    plan_contract = json.loads(
+        (feature / "plan-contract.json").read_text(encoding="utf-8")
+    )
+    plan_contract["test_design_gate"] = {
+        "decision": "selected",
+        "reason_refs": ["spec-contract.json#/acceptance/AC-001"],
+        "projection_binding": projection_binding,
+    }
+    _write_json(feature / "plan-contract.json", plan_contract)
+
+    result = _build(project, feature, _all_test_design_refs_task())
+
+    assert result.exit_code == 10
+    assert "non-canonical" in result.output
+
+
+def test_tasks_build_rejects_resealed_noncanonical_test_design_publication(
+    tmp_path: Path,
+) -> None:
+    project, feature = _project(tmp_path)
+    handoff = _publish_test_design_handoff(project, feature)
+    projection_binding = _publish_plan_test_design_projection_binding(
+        project, feature, handoff
+    )
+    publication_path = project / projection_binding["publication_ref"]
+    publication = json.loads(publication_path.read_text(encoding="utf-8"))
+    publication["forbidden_claims"] = ["tests_executed"]
+    publication_raw = task_authoring._go_json_bytes(publication, pretty=True)
+    publication_path.write_bytes(publication_raw)
+    projection_binding["publication_sha256"] = _sha256(publication_raw)
+
+    projection_path = project / projection_binding["projection_ref"]
+    projection = json.loads(projection_path.read_text(encoding="utf-8"))
+    projection["publication_sha256"] = projection_binding["publication_sha256"]
+    projection_raw = task_authoring._go_json_bytes(projection, pretty=True)
+    projection_path.write_bytes(projection_raw)
+    projection_binding["projection_sha256"] = _sha256(projection_raw)
+    plan_contract = json.loads(
+        (feature / "plan-contract.json").read_text(encoding="utf-8")
+    )
+    plan_contract["test_design_gate"] = {
+        "decision": "selected",
+        "reason_refs": ["spec-contract.json#/acceptance/AC-001"],
+        "projection_binding": projection_binding,
+    }
+    _write_json(feature / "plan-contract.json", plan_contract)
+
+    result = _build(project, feature, _all_test_design_refs_task())
+
+    assert result.exit_code == 10
+    assert "publication is stale, non-canonical" in result.output
+
+
+def test_tasks_build_rejects_conflicting_plan_test_design_gate_bindings(
+    tmp_path: Path,
+) -> None:
+    project, feature = _project(tmp_path)
+    handoff = _publish_test_design_handoff(project, feature)
+    root_binding = _publish_plan_test_design_projection_binding(
+        project, feature, handoff
+    )
+    nested_binding = dict(root_binding)
+    nested_binding["projection_sha256"] = "d" * 64
+    root_plan = json.loads(
+        (feature / "plan-contract.json").read_text(encoding="utf-8")
+    )
+    root_plan["test_design_gate"] = {
+        "decision": "selected",
+        "reason_refs": ["spec-contract.json#/acceptance/AC-001"],
+        "projection_binding": root_binding,
+    }
+    _write_json(feature / "plan-contract.json", root_plan)
+    nested_plan = dict(root_plan)
+    nested_plan["test_design_gate"] = {
+        **root_plan["test_design_gate"],
+        "projection_binding": nested_binding,
+    }
+    _write_json(feature / "plan" / "plan-contract.json", nested_plan)
+
+    result = _build(project, feature, _all_test_design_refs_task())
+
+    assert result.exit_code == 10
+    assert "conflicting plan-contract test_design_gate bindings" in result.output
 
 
 def test_test_design_evidence_record_identity_and_rfc3339_are_verified(

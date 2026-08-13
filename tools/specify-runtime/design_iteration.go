@@ -1163,13 +1163,80 @@ func designBindingsExact(left, right map[string]string) bool {
 	return true
 }
 
+func canonicalProjectRelativePath(root, target string) (string, error) {
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return "", err
+	}
+	rootAbs, err = filepath.EvalSymlinks(rootAbs)
+	if err != nil {
+		return "", err
+	}
+	targetAbs, err := filepath.Abs(target)
+	if err != nil {
+		return "", err
+	}
+	targetAbs, err = filepath.EvalSymlinks(targetAbs)
+	if err != nil {
+		return "", err
+	}
+	relative, err := filepath.Rel(rootAbs, targetAbs)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path must stay inside the project root")
+	}
+	return filepath.ToSlash(relative), nil
+}
+
+func normalizedDesignBindingRef(root, value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" || filepath.IsAbs(value) {
+		return "", fmt.Errorf("design adoption binding must use a canonical project-relative path")
+	}
+	target, err := resolveProjectContainedPath(root, value)
+	if err != nil {
+		return "", err
+	}
+	canonical, err := canonicalProjectRelativePath(root, target)
+	if err != nil {
+		return "", err
+	}
+	if filepath.ToSlash(value) != canonical {
+		return "", fmt.Errorf("design adoption binding must use the canonical project-relative path %s", canonical)
+	}
+	return canonical, nil
+}
+
+func formalDesignBindingRefs(consumerRef string) []string {
+	featureID := strings.TrimSpace(strings.TrimPrefix(consumerRef, "feature:"))
+	return []string{
+		filepath.ToSlash(filepath.Join("specs", featureID, "spec-contract.json")),
+		filepath.ToSlash(filepath.Join(".specify", "features", featureID, "spec-contract.json")),
+	}
+}
+
+func quickDesignBindingRef(consumerRef string) string {
+	quickID := strings.TrimSpace(strings.TrimPrefix(consumerRef, "quick:"))
+	return filepath.ToSlash(filepath.Join(".planning", "quick", quickID, "STATUS.md"))
+}
+
 func validateDesignAdoptionSurface(root string, request designAdoptionRequest, bindingPath string, bindingRaw []byte, wantBinding map[string]string) error {
+	canonicalBindingRef, err := canonicalProjectRelativePath(root, bindingPath)
+	if err != nil {
+		return err
+	}
+	requestBindingRef, err := normalizedDesignBindingRef(root, request.BindingRef)
+	if err != nil {
+		return err
+	}
+	if requestBindingRef != canonicalBindingRef {
+		return fmt.Errorf("design adoption binding must use the canonical project-relative path %s", canonicalBindingRef)
+	}
 	if request.Mode == "formal" {
 		if !strings.HasPrefix(request.ConsumerRef, "feature:") {
 			return fmt.Errorf("formal design adoption consumer must use feature:<id>")
 		}
-		validRoot := strings.HasPrefix(request.BindingRef, "specs/") || strings.HasPrefix(request.BindingRef, ".specify/features/")
-		if !validRoot || !strings.HasSuffix(request.BindingRef, "/spec-contract.json") {
+		allowed := formalDesignBindingRefs(request.ConsumerRef)
+		if canonicalBindingRef != allowed[0] && canonicalBindingRef != allowed[1] {
 			return fmt.Errorf("formal design adoption binding must be a feature spec-contract.json")
 		}
 		return nil
@@ -1177,7 +1244,7 @@ func validateDesignAdoptionSurface(root string, request designAdoptionRequest, b
 	if !strings.HasPrefix(request.ConsumerRef, "quick:") {
 		return fmt.Errorf("quick design adoption consumer must use quick:<id>")
 	}
-	if !strings.HasPrefix(request.BindingRef, ".planning/quick/") || !strings.HasSuffix(request.BindingRef, "/STATUS.md") {
+	if canonicalBindingRef != quickDesignBindingRef(request.ConsumerRef) {
 		return fmt.Errorf("quick design adoption binding must be .planning/quick/<id>/STATUS.md")
 	}
 	frontmatter, _ := parseFrontmatter(string(bindingRaw))

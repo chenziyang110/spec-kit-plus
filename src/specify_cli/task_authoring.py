@@ -162,6 +162,14 @@ _TEST_DESIGN_BUNDLE_FILES = {
     "coverage_matrix": "coverage-matrix.json",
     "gaps": "test-gaps.json",
 }
+_TEST_DESIGN_FORBIDDEN_CLAIMS = [
+    "tests_executed",
+    "tests_passed",
+    "behavior_fixed",
+    "implementation_complete",
+    "release_safe",
+    "absolute_complete",
+]
 _TEST_DESIGN_AUDIT_CORE_CHECK_IDS = {
     "obligation_accounting",
     "traceability",
@@ -176,6 +184,28 @@ _TEST_DESIGN_AUDIT_CORE_CHECK_IDS = {
 
 def _json_bytes(payload: Mapping[str, Any]) -> bytes:
     return (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+
+def _go_json_bytes(payload: object, *, pretty: bool) -> bytes:
+    rendered = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        indent=2 if pretty else None,
+        separators=(",", ": ") if pretty else (",", ":"),
+    )
+    rendered = (
+        rendered.replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )
+    return (rendered + ("\n" if pretty else "")).encode("utf-8")
+
+
+def _canonical_json_sha256(payload: object) -> str:
+    return _sha256(_go_json_bytes(payload, pretty=False))
 
 
 def _sha256(raw: bytes) -> str:
@@ -1572,6 +1602,11 @@ def _verify_published_test_design_handoff(
     artifact_root = _required_text(
         state, "artifact_root", label="test-design state"
     )
+    feature_ref = feature.relative_to(root).as_posix()
+    if state.get("scope") != "feature" or state.get("feature_dir") != feature_ref:
+        raise TaskAuthoringError(
+            "test-design state must identify the selected feature workspace"
+        )
     actual_artifact_root = test_design_root.relative_to(root).as_posix()
     if artifact_root != actual_artifact_root:
         raise TaskAuthoringError("test-design artifact root does not match state")
@@ -1732,14 +1767,63 @@ def _verify_published_test_design_handoff(
         raise TaskAuthoringError(
             "test-design handoff test_data_refs do not match the data manifest"
         )
+    obligation_refs = sorted(
+        "test-universe.json#/obligations/" + str(row["obligation_id"]).strip()
+        for row in bundle["universe"]["obligations"]
+    )
+    coverage_refs = sorted(
+        "coverage-matrix.json#/rows/" + str(row["coverage_id"]).strip()
+        for row in bundle["coverage_matrix"]["rows"]
+    )
+    gap_refs = sorted(
+        "test-gaps.json#/gaps/" + str(row["gap_id"]).strip()
+        for row in bundle["gaps"]["gaps"]
+    )
+    publication_identity = {
+        "scope": "feature",
+        "artifact_root": actual_artifact_root,
+        "source_fingerprint": source_fingerprint,
+        "state_revision": state_revision,
+        "claim_status": state_claim,
+        "artifact_digests": expected_digests,
+    }
+    publication_payload = {
+        "schema_version": "spec-kit-test-design-publication-v1",
+        "publication_id": "tdpub-"
+        + _canonical_json_sha256(publication_identity)[:24],
+        "scope": "feature",
+        "artifact_root": actual_artifact_root,
+        "source_fingerprint": source_fingerprint,
+        "state_revision": state_revision,
+        "claim_status": state_claim,
+        "artifact_refs": {
+            **_TEST_DESIGN_ARTIFACT_REFS,
+            "gaps": "test-gaps.json",
+            "audit_result": audit_result_ref,
+        },
+        "artifact_digests": expected_digests,
+        "obligation_refs": obligation_refs,
+        "test_case_refs": expected_case_refs,
+        "test_data_refs": expected_data_refs,
+        "coverage_refs": coverage_refs,
+        "gap_ref": "test-gaps.json",
+        "gap_refs": gap_refs,
+        "audit_result_ref": audit_result_ref,
+        "forbidden_claims": _TEST_DESIGN_FORBIDDEN_CLAIMS,
+        "test_execution_status": "not_executed_by_test_design",
+    }
     return {
-        "ref": "test-design/handoff-to-tasks.json",
+        "ref": f"{actual_artifact_root}/handoff-to-tasks.json",
         "sha256": _sha256(handoff_raw),
         "source_fingerprint": source_fingerprint,
         "state_revision": state_revision,
+        "claim_status": state_claim,
+        "artifact_root": actual_artifact_root,
         "artifact_digests": expected_digests,
         "test_case_refs": case_refs,
         "test_data_refs": data_refs,
+        "publication_payload": publication_payload,
+        "bundle": bundle,
     }
 
 
@@ -1759,10 +1843,12 @@ def _test_design_binding_empty(payload: Mapping[str, Any]) -> bool:
     return digests is None or (isinstance(digests, Mapping) and not digests)
 
 
-def _parse_plan_test_design_gate(plan: Mapping[str, Any], *, label: str) -> str:
+def _parse_plan_test_design_gate(
+    plan: Mapping[str, Any], *, label: str
+) -> tuple[str, dict[str, Any] | None]:
     raw_gate = plan.get("test_design_gate")
     if raw_gate is None:
-        return "not_selected"
+        return "not_selected", None
     if not isinstance(raw_gate, Mapping):
         raise TaskAuthoringError(
             f"{label} test_design_gate must contain an object"
@@ -1799,7 +1885,7 @@ def _parse_plan_test_design_gate(plan: Mapping[str, Any], *, label: str) -> str:
         )
     projection_binding = raw_gate.get("projection_binding")
     if projection_binding is None:
-        return decision
+        return decision, None
     if not isinstance(projection_binding, Mapping):
         raise TaskAuthoringError(
             f"{label} test_design_gate.projection_binding must contain an object"
@@ -1818,7 +1904,8 @@ def _parse_plan_test_design_gate(plan: Mapping[str, Any], *, label: str) -> str:
             "or entirely populated"
         )
     if all(value is None for value in values):
-        return decision
+        return decision, None
+    normalized_binding: dict[str, Any] = {}
     for field in ("publication_ref", "projection_ref"):
         value = projection_binding[field]
         if not isinstance(value, str) or not value.strip():
@@ -1826,6 +1913,7 @@ def _parse_plan_test_design_gate(plan: Mapping[str, Any], *, label: str) -> str:
                 f"{label} test_design_gate.projection_binding.{field} must be a "
                 "non-empty project-relative reference"
             )
+        normalized_binding[field] = _normalized_ref(value)
     for field in (
         "publication_sha256",
         "projection_sha256",
@@ -1837,6 +1925,7 @@ def _parse_plan_test_design_gate(plan: Mapping[str, Any], *, label: str) -> str:
                 f"{label} test_design_gate.projection_binding.{field} must be a "
                 "lowercase SHA-256 digest"
             )
+        normalized_binding[field] = value
     revision = projection_binding["state_revision"]
     if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
         raise TaskAuthoringError(
@@ -1847,11 +1936,14 @@ def _parse_plan_test_design_gate(plan: Mapping[str, Any], *, label: str) -> str:
         raise TaskAuthoringError(
             f"{label} not_selected test_design_gate must not retain a projection binding"
         )
-    return decision
+    normalized_binding["state_revision"] = revision
+    return decision, normalized_binding
 
 
-def _plan_test_design_gate_decision(root: Path, feature: Path) -> str:
-    decisions: list[tuple[str, str]] = []
+def _plan_test_design_gate(
+    root: Path, feature: Path
+) -> tuple[str, dict[str, Any] | None]:
+    decisions: list[tuple[str, str, dict[str, Any] | None]] = []
     for candidate in (
         feature / "plan-contract.json",
         feature / "plan" / "plan-contract.json",
@@ -1872,16 +1964,332 @@ def _plan_test_design_gate_decision(root: Path, feature: Path) -> str:
         label = candidate.relative_to(feature).as_posix()
         plan = _read_object(candidate, root=root, label=label)
         decisions.append(
-            (label, _parse_plan_test_design_gate(plan, label=label))
+            (label, *_parse_plan_test_design_gate(plan, label=label))
         )
     if not decisions:
-        return "not_selected"
-    if len({decision for _, decision in decisions}) != 1:
-        rendered = ", ".join(f"{label}={decision}" for label, decision in decisions)
+        return "not_selected", None
+    if len({decision for _, decision, _ in decisions}) != 1:
+        rendered = ", ".join(
+            f"{label}={decision}" for label, decision, _ in decisions
+        )
         raise TaskAuthoringError(
             "conflicting plan-contract test_design_gate decisions: " + rendered
         )
-    return decisions[0][1]
+    first_binding = decisions[0][2]
+    if any(binding != first_binding for _, _, binding in decisions[1:]):
+        rendered = ", ".join(
+            f"{label}={binding!r}" for label, _, binding in decisions
+        )
+        raise TaskAuthoringError(
+            "conflicting plan-contract test_design_gate bindings: " + rendered
+        )
+    return decisions[0][1], first_binding
+
+
+def _test_design_row_index(
+    payload: Mapping[str, Any], collection: str, id_field: str
+) -> dict[str, Mapping[str, Any]]:
+    rows = payload.get(collection)
+    if not isinstance(rows, list):
+        raise TaskAuthoringError(
+            f"test-design {collection} must be an array for projection verification"
+        )
+    indexed: dict[str, Mapping[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise TaskAuthoringError(
+                f"test-design {collection} rows must contain objects"
+            )
+        row_id = str(row.get(id_field) or "").strip()
+        if not row_id or row_id in indexed:
+            raise TaskAuthoringError(
+                f"test-design {collection} contains an invalid or duplicate {id_field}"
+            )
+        indexed[row_id] = row
+    return indexed
+
+
+def _test_design_string_values(row: Mapping[str, Any], field: str) -> list[str]:
+    raw = row.get(field)
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or any(
+        not isinstance(value, str) or not value.strip() for value in raw
+    ):
+        raise TaskAuthoringError(
+            f"test-design projection source {field} must contain strings"
+        )
+    return [value.strip() for value in raw]
+
+
+def _canonical_plan_projection_selection(
+    bundle: Mapping[str, Mapping[str, Any]], selection: Any
+) -> dict[str, list[str]]:
+    prefixes = {
+        "obligation_refs": "test-universe.json#/obligations/",
+        "test_case_refs": "test-catalog.json#/cases/",
+        "test_data_refs": "test-data-manifest.json#/datasets/",
+        "coverage_refs": "coverage-matrix.json#/rows/",
+        "gap_refs": "test-gaps.json#/gaps/",
+    }
+    if not isinstance(selection, Mapping) or set(selection) != set(prefixes):
+        raise TaskAuthoringError(
+            "test-design projection selection must contain exactly the five pointer arrays"
+        )
+    selected_ids: list[str] = []
+    for field, prefix in prefixes.items():
+        refs = selection.get(field)
+        if not isinstance(refs, list) or (field == "obligation_refs" and not refs):
+            raise TaskAuthoringError(
+                f"test-design projection selection {field} is invalid"
+            )
+        if any(
+            not isinstance(ref, str)
+            or not ref.startswith(prefix)
+            or not ref.removeprefix(prefix)
+            for ref in refs
+        ) or len(set(refs)) != len(refs):
+            raise TaskAuthoringError(
+                f"test-design projection selection {field} has non-canonical pointers"
+            )
+        if field == "obligation_refs":
+            selected_ids = sorted(ref.removeprefix(prefix) for ref in refs)
+
+    obligations = _test_design_row_index(
+        bundle["universe"], "obligations", "obligation_id"
+    )
+    cases = _test_design_row_index(bundle["catalog"], "cases", "test_case_id")
+    datasets = _test_design_row_index(
+        bundle["data_manifest"], "datasets", "test_data_id"
+    )
+    coverage = _test_design_row_index(
+        bundle["coverage_matrix"], "rows", "coverage_id"
+    )
+    gaps = _test_design_row_index(bundle["gaps"], "gaps", "gap_id")
+    case_ids: set[str] = set()
+    data_ids: set[str] = set()
+    coverage_ids: set[str] = set()
+    gap_ids: set[str] = set()
+    selected = set(selected_ids)
+    for obligation_id in selected_ids:
+        obligation = obligations.get(obligation_id)
+        if obligation is None:
+            raise TaskAuthoringError(
+                f"test-design projection selects missing obligation {obligation_id}"
+            )
+        case_ids.update(_test_design_string_values(obligation, "test_case_ids"))
+        gap_ids.update(_test_design_string_values(obligation, "gap_refs"))
+    for coverage_id, row in coverage.items():
+        if str(row.get("obligation_ref") or "").strip() not in selected:
+            continue
+        coverage_ids.add(coverage_id)
+        case_id = str(row.get("test_case_ref") or "").strip()
+        if case_id:
+            case_ids.add(case_id)
+        data_ids.update(_test_design_string_values(row, "test_data_refs"))
+        gap_ids.update(_test_design_string_values(row, "gap_refs"))
+    for case_id in case_ids:
+        case = cases.get(case_id)
+        if case is None:
+            raise TaskAuthoringError(
+                f"test-design projection selects missing test case {case_id}"
+            )
+        data_ids.update(_test_design_string_values(case, "test_data_refs"))
+    missing_data = data_ids - set(datasets)
+    missing_gaps = gap_ids - set(gaps)
+    if missing_data or missing_gaps:
+        raise TaskAuthoringError(
+            "test-design projection selection closure references missing data or gaps"
+        )
+    expected = {
+        "obligation_refs": [prefixes["obligation_refs"] + value for value in selected_ids],
+        "test_case_refs": [prefixes["test_case_refs"] + value for value in sorted(case_ids)],
+        "test_data_refs": [prefixes["test_data_refs"] + value for value in sorted(data_ids)],
+        "coverage_refs": [prefixes["coverage_refs"] + value for value in sorted(coverage_ids)],
+        "gap_refs": [prefixes["gap_refs"] + value for value in sorted(gap_ids)],
+    }
+    if dict(selection) != expected:
+        raise TaskAuthoringError(
+            "test-design projection selection is stale or non-canonical"
+        )
+    return expected
+
+
+def _verify_plan_test_design_projection_binding(
+    root: Path,
+    feature: Path,
+    projection_binding: Mapping[str, Any],
+    handoff_binding: Mapping[str, Any],
+) -> None:
+    feature_ref = feature.relative_to(root).as_posix()
+    artifact_root = str(handoff_binding["artifact_root"]).strip()
+    expected_publication_ref = f"{artifact_root}/test-design-publication.json"
+    publication_ref = str(projection_binding["publication_ref"]).strip()
+    if publication_ref != expected_publication_ref:
+        raise TaskAuthoringError(
+            "plan-contract test-design projection_binding.publication_ref is "
+            "foreign or stale"
+        )
+    if str(projection_binding["source_fingerprint"]).strip() != str(
+        handoff_binding["source_fingerprint"]
+    ):
+        raise TaskAuthoringError(
+            "plan-contract test-design projection_binding.source_fingerprint is stale"
+        )
+    if int(projection_binding["state_revision"]) != int(
+        handoff_binding["state_revision"]
+    ):
+        raise TaskAuthoringError(
+            "plan-contract test-design projection_binding.state_revision is stale"
+        )
+    publication, publication_raw = _read_object_with_raw(
+        _project_ref_path(root, publication_ref),
+        root=root,
+        label="test-design publication",
+    )
+    publication_sha256 = str(projection_binding["publication_sha256"]).strip()
+    if _sha256(publication_raw) != publication_sha256:
+        raise TaskAuthoringError(
+            "plan-contract test-design projection_binding.publication_sha256 is stale"
+        )
+    expected_publication = handoff_binding["publication_payload"]
+    if (
+        publication != expected_publication
+        or publication_raw != _go_json_bytes(expected_publication, pretty=True)
+    ):
+        raise TaskAuthoringError(
+            "test-design publication is stale, non-canonical, or contains copied truth"
+        )
+
+    projection_ref = str(projection_binding["projection_ref"]).strip()
+    expected_projection_prefix = f"{artifact_root}/projections/"
+    if not projection_ref.startswith(expected_projection_prefix) or not projection_ref.endswith(
+        ".json"
+    ):
+        raise TaskAuthoringError(
+            "plan-contract test-design projection_binding.projection_ref is "
+            "foreign or stale"
+        )
+    projection, projection_raw = _read_object_with_raw(
+        _project_ref_path(root, projection_ref),
+        root=root,
+        label="test-design projection",
+    )
+    projection_sha256 = str(projection_binding["projection_sha256"]).strip()
+    if _sha256(projection_raw) != projection_sha256:
+        raise TaskAuthoringError(
+            "plan-contract test-design projection_binding.projection_sha256 is stale"
+        )
+    if projection.get("schema_version") != "spec-kit-test-design-projection-v1":
+        raise TaskAuthoringError("test-design projection has an unsupported contract")
+    if _required_text(projection, "consumer", label="test-design projection") != "plan":
+        raise TaskAuthoringError(
+            "test-design projection must target the plan consumer before Tasks"
+        )
+    if _required_text(projection, "scope", label="test-design projection") != "feature":
+        raise TaskAuthoringError(
+            "test-design projection must stay on feature scope for Tasks"
+        )
+    if (
+        _required_text(projection, "artifact_root", label="test-design projection")
+        != artifact_root
+    ):
+        raise TaskAuthoringError("test-design projection artifact_root is stale")
+    if (
+        _required_text(projection, "publication_ref", label="test-design projection")
+        != publication_ref
+    ):
+        raise TaskAuthoringError("test-design projection publication_ref is stale")
+    if (
+        _required_text(
+            projection, "publication_sha256", label="test-design projection"
+        )
+        != publication_sha256
+    ):
+        raise TaskAuthoringError("test-design projection publication_sha256 is stale")
+    if (
+        _required_text(
+            projection, "source_fingerprint", label="test-design projection"
+        )
+        != handoff_binding["source_fingerprint"]
+    ):
+        raise TaskAuthoringError(
+            "test-design projection source_fingerprint is stale"
+        )
+    if (
+        _required_positive_int(
+            projection, "state_revision", label="test-design projection"
+        )
+        != handoff_binding["state_revision"]
+    ):
+        raise TaskAuthoringError("test-design projection state_revision is stale")
+    if (
+        _required_text(projection, "claim_status", label="test-design projection")
+        != handoff_binding["claim_status"]
+    ):
+        raise TaskAuthoringError("test-design projection claim_status is stale")
+    basis_ref = _normalized_ref(
+        _required_text(projection, "basis_ref", label="test-design projection")
+    )
+    expected_basis_ref = f"{feature_ref}/spec-contract.json"
+    if basis_ref != expected_basis_ref:
+        raise TaskAuthoringError(
+            "test-design projection basis_ref must target the current feature "
+            "spec-contract.json"
+        )
+    _, basis_raw = _read_object_with_raw(
+        _project_ref_path(root, basis_ref),
+        root=root,
+        label="test-design projection basis",
+    )
+    basis_sha256 = _required_text(
+        projection, "basis_sha256", label="test-design projection"
+    )
+    if _sha256(basis_raw) != basis_sha256:
+        raise TaskAuthoringError("test-design projection basis_sha256 is stale")
+    selection = _canonical_plan_projection_selection(
+        handoff_binding["bundle"], projection.get("selection")
+    )
+    selection_sha256 = _canonical_json_sha256(selection)
+    projection_identity = {
+        "consumer": "plan",
+        "basis_ref": basis_ref,
+        "selection_sha256": selection_sha256,
+    }
+    projection_id = "tdproj-" + _canonical_json_sha256(projection_identity)[:24]
+    expected_projection_ref = (
+        f"{artifact_root}/projections/{projection_id}.json"
+    )
+    if projection_ref != expected_projection_ref:
+        raise TaskAuthoringError(
+            "plan-contract test-design projection_binding.projection_ref does not "
+            "match the canonical plan projection slot"
+        )
+    expected_projection = {
+        "schema_version": "spec-kit-test-design-projection-v1",
+        "projection_id": projection_id,
+        "publication_ref": publication_ref,
+        "publication_sha256": publication_sha256,
+        "consumer": "plan",
+        "basis_ref": basis_ref,
+        "basis_sha256": basis_sha256,
+        "scope": "feature",
+        "artifact_root": artifact_root,
+        "source_fingerprint": handoff_binding["source_fingerprint"],
+        "state_revision": handoff_binding["state_revision"],
+        "claim_status": handoff_binding["claim_status"],
+        "selection": selection,
+        "selection_sha256": selection_sha256,
+        "forbidden_claims": _TEST_DESIGN_FORBIDDEN_CLAIMS,
+        "test_execution_status": "not_executed_by_test_design",
+    }
+    if (
+        projection != expected_projection
+        or projection_raw != _go_json_bytes(expected_projection, pretty=True)
+    ):
+        raise TaskAuthoringError(
+            "test-design projection is stale, non-canonical, or contains copied truth"
+        )
 
 
 def _clear_test_design_binding(payload: dict[str, Any]) -> None:
@@ -1947,7 +2355,9 @@ def _validate_test_design_binding(
             "test-design source freshness policy must be strict or "
             "bound_snapshot"
         )
-    plan_gate_decision = _plan_test_design_gate_decision(root, feature)
+    plan_gate_decision, plan_projection_binding = _plan_test_design_gate(
+        root, feature
+    )
     tasks = payload.get("tasks")
     if not isinstance(tasks, list):
         raise TaskAuthoringError("task-index tasks must be an array")
@@ -2017,6 +2427,13 @@ def _validate_test_design_binding(
         raise TaskAuthoringError(
             f"test-design handoff is stale or invalid: {exc}"
         ) from exc
+    if plan_projection_binding is not None:
+        _verify_plan_test_design_projection_binding(
+            root,
+            feature,
+            plan_projection_binding,
+            binding,
+        )
 
     allowed_cases = set(binding["test_case_refs"])
     allowed_data = set(binding["test_data_refs"])

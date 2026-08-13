@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -138,6 +139,30 @@ func TestTestDesignPublishedHandoffRequiresExactAcceptedAuditBinding(t *testing.
 	}
 	if err := os.WriteFile(manifestPath, originalManifest, 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestTestDesignPublishedHandoffUsesFeatureQualifiedCanonicalRef(t *testing.T) {
+	projectRoot := t.TempDir()
+	featureRel := filepath.ToSlash(filepath.Join("specs", "001-test-design"))
+	featureDir := filepath.Join(projectRoot, filepath.FromSlash(featureRel))
+	if err := os.MkdirAll(featureDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := seedTestDesignScaffoldTemplates(projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	withTestDesignCWD(t, projectRoot)
+	publishValidTestDesignHandoff(t, projectRoot, featureRel)
+
+	artifactRoot := filepath.Join(featureDir, "test-design")
+	binding, err := (testDesignService{projectRoot: projectRoot}).verifyPublishedHandoff(artifactRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRef := filepath.ToSlash(filepath.Join(featureRel, "test-design", "handoff-to-tasks.json"))
+	if binding.Ref != wantRef {
+		t.Fatalf("handoff ref=%q, want %q", binding.Ref, wantRef)
 	}
 }
 
@@ -593,6 +618,47 @@ func TestTestDesignTasksRejectConflictingPlanGatePaths(t *testing.T) {
 	}
 }
 
+func TestTestDesignTasksRejectConflictingPlanProjectionBindingsAcrossPlanPaths(t *testing.T) {
+	projectRoot := t.TempDir()
+	featureRel := filepath.ToSlash(filepath.Join("specs", "001-test-design"))
+	featureDir := filepath.Join(projectRoot, filepath.FromSlash(featureRel))
+	if err := os.MkdirAll(filepath.Join(featureDir, "plan"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gate := func(projectionRef, projectionSHA string) map[string]any {
+		return map[string]any{
+			"test_design_gate": map[string]any{
+				"decision":    "selected",
+				"reason_refs": []any{},
+				"projection_binding": map[string]any{
+					"publication_ref":    filepath.ToSlash(filepath.Join(featureRel, "test-design", "test-design-publication.json")),
+					"publication_sha256": strings.Repeat("a", 64),
+					"projection_ref":     projectionRef,
+					"projection_sha256":  projectionSHA,
+					"source_fingerprint": strings.Repeat("b", 64),
+					"state_revision":     7,
+				},
+			},
+		}
+	}
+	if err := writeTestDesignJSONFixture(filepath.Join(featureDir, "plan-contract.json"), gate(
+		filepath.ToSlash(filepath.Join(featureRel, "test-design", "projections", "tdproj-a.json")),
+		strings.Repeat("c", 64),
+	)); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeTestDesignJSONFixture(filepath.Join(featureDir, "plan", "plan-contract.json"), gate(
+		filepath.ToSlash(filepath.Join(featureRel, "test-design", "projections", "tdproj-b.json")),
+		strings.Repeat("d", 64),
+	)); err != nil {
+		t.Fatal(err)
+	}
+	_, err := taskControlPlanTestDesignGateDecision(projectRoot, featureRel)
+	if err == nil || !strings.Contains(err.Error(), "conflicting plan-contract test_design_gate projection_binding") {
+		t.Fatalf("conflicting projection bindings were accepted: %v", err)
+	}
+}
+
 func TestTestDesignTasksRejectPartialPlanProjectionBinding(t *testing.T) {
 	plan := map[string]any{
 		"test_design_gate": map[string]any{
@@ -611,6 +677,105 @@ func TestTestDesignTasksRejectPartialPlanProjectionBinding(t *testing.T) {
 	_, err := taskControlParsePlanTestDesignGate(plan, "plan-contract.json")
 	if err == nil || !strings.Contains(err.Error(), "entirely null or entirely populated") {
 		t.Fatalf("partial projection binding was accepted: %v", err)
+	}
+}
+
+func TestTestDesignTasksRejectNonIntegerPlanProjectionRevision(t *testing.T) {
+	for _, revision := range []any{1.5, "1", true} {
+		plan := map[string]any{
+			"test_design_gate": map[string]any{
+				"decision":    "selected",
+				"reason_refs": []any{},
+				"projection_binding": map[string]any{
+					"publication_ref":    "specs/001-test-design/test-design/test-design-publication.json",
+					"publication_sha256": strings.Repeat("a", 64),
+					"projection_ref":     "specs/001-test-design/test-design/projections/tdproj-plan.json",
+					"projection_sha256":  strings.Repeat("b", 64),
+					"source_fingerprint": strings.Repeat("c", 64),
+					"state_revision":     revision,
+				},
+			},
+		}
+		_, err := taskControlParsePlanTestDesignGate(plan, "plan-contract.json")
+		if err == nil || !strings.Contains(err.Error(), "state_revision must be a positive integer") {
+			t.Fatalf("non-integer revision %#v was accepted: %v", revision, err)
+		}
+	}
+}
+
+func TestTestDesignTasksRequireFreshCanonicalPlanProjectionBinding(t *testing.T) {
+	fixture := setupValidatedTestDesignProjectionFixture(t, "feature", 1)
+	publishTestDesignProjectionFixture(t, fixture)
+	requireTestDesignOK(t, fixture.command("handoff", "--format", "json"))
+
+	state, err := testDesignReadState(fixture.artifactRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireTestDesignOK(t, fixture.command(
+		"publish", "--expected-revision", fmt.Sprint(state.Revision), "--format", "json",
+	))
+	specBasis := writeTestDesignProjectionBasis(
+		t,
+		fixture.projectRoot,
+		filepath.ToSlash(filepath.Join(fixture.featureRel, "spec-contract.json")),
+		map[string]any{"version": 1, "status": "planning-ready"},
+	)
+	_, projectionRef, projectionSHA := buildTestDesignProjection(t, fixture, "plan", specBasis, "")
+	publicationRef := filepath.ToSlash(filepath.Join(fixture.featureRel, "test-design", testDesignPublicationFilename))
+	publicationPath := filepath.Join(fixture.projectRoot, filepath.FromSlash(publicationRef))
+	publicationRaw, err := os.ReadFile(publicationPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentState, err := testDesignReadState(fixture.artifactRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeTestDesignJSONFixture(filepath.Join(fixture.projectRoot, filepath.FromSlash(filepath.Join(fixture.featureRel, "plan-contract.json"))), map[string]any{
+		"status":          "ready",
+		"source_revision": 7,
+		"acceptance_refs": []any{},
+		"test_design_gate": map[string]any{
+			"decision":    "selected",
+			"reason_refs": []any{"spec-contract.json#/acceptance/AC-001"},
+			"projection_binding": map[string]any{
+				"publication_ref":    publicationRef,
+				"publication_sha256": projectionDigest(publicationRaw),
+				"projection_ref":     projectionRef,
+				"projection_sha256":  projectionSHA,
+				"source_fingerprint": currentState.Source.Fingerprint,
+				"state_revision":     currentState.Revision,
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := map[string]any{
+		"tasks":                   []any{},
+		"test_design_handoff_ref": nil, "test_design_handoff_sha256": nil,
+		"test_design_source_fingerprint": nil, "test_design_state_revision": nil,
+		"test_design_artifact_digests": map[string]any{},
+	}
+	if err := taskControlValidateTestDesignBinding(fixture.projectRoot, filepath.Join(fixture.projectRoot, filepath.FromSlash(fixture.featureRel)), payload, true, false); err != nil {
+		t.Fatalf("fresh plan projection binding rejected: %v", err)
+	}
+
+	projectionPath := filepath.Join(fixture.projectRoot, filepath.FromSlash(projectionRef))
+	originalProjection, err := os.ReadFile(projectionPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(projectionPath, append(originalProjection, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err = taskControlValidateTestDesignBinding(fixture.projectRoot, filepath.Join(fixture.projectRoot, filepath.FromSlash(fixture.featureRel)), payload, true, false)
+	if err == nil || !strings.Contains(err.Error(), "plan-contract test_design_gate projection_binding is stale or invalid") {
+		t.Fatalf("stale plan projection binding was accepted: %v", err)
+	}
+	if err := os.WriteFile(projectionPath, originalProjection, 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 

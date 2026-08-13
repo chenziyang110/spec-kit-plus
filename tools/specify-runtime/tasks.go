@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -486,100 +487,184 @@ var taskControlTestDesignProjectionBindingFields = []string{
 	"state_revision",
 }
 
-func taskControlParsePlanTestDesignGate(plan map[string]any, label string) (string, error) {
+type taskControlPlanTestDesignProjectionBinding struct {
+	PublicationRef    string
+	PublicationSHA256 string
+	ProjectionRef     string
+	ProjectionSHA256  string
+	SourceFingerprint string
+	StateRevision     int
+}
+
+type taskControlPlanTestDesignGate struct {
+	Decision          string
+	ProjectionBinding *taskControlPlanTestDesignProjectionBinding
+}
+
+func taskControlPositiveInteger(value any) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, typed > 0
+	case int64:
+		converted := int(typed)
+		return converted, typed > 0 && int64(converted) == typed
+	case float64:
+		if typed < 1 || typed != math.Trunc(typed) {
+			return 0, false
+		}
+		converted := int(typed)
+		return converted, converted > 0 && float64(converted) == typed
+	case json.Number:
+		parsed, err := typed.Int64()
+		if err != nil {
+			return 0, false
+		}
+		converted := int(parsed)
+		return converted, parsed > 0 && int64(converted) == parsed
+	default:
+		return 0, false
+	}
+}
+
+func taskControlParsePlanTestDesignGate(plan map[string]any, label string) (taskControlPlanTestDesignGate, error) {
+	gateState := taskControlPlanTestDesignGate{Decision: "not_selected"}
 	rawGate, exists := plan["test_design_gate"]
 	if !exists || rawGate == nil {
-		return "not_selected", nil
+		return gateState, nil
 	}
 	gate, ok := rawGate.(map[string]any)
 	if !ok {
-		return "", fmt.Errorf("%s test_design_gate must contain an object", label)
+		return gateState, fmt.Errorf("%s test_design_gate must contain an object", label)
 	}
 	for _, field := range taskControlTestDesignProjectionBindingFields {
 		if _, flattened := gate[field]; flattened {
-			return "", fmt.Errorf("%s test_design_gate projection fields must be nested under projection_binding", label)
+			return gateState, fmt.Errorf("%s test_design_gate projection fields must be nested under projection_binding", label)
 		}
 	}
 	decisionValue, ok := gate["decision"].(string)
 	if !ok {
-		return "", fmt.Errorf("%s test_design_gate.decision must be not_selected, selected, or required", label)
+		return gateState, fmt.Errorf("%s test_design_gate.decision must be not_selected, selected, or required", label)
 	}
 	decision := strings.ToLower(strings.TrimSpace(decisionValue))
 	if decision != "not_selected" && decision != "selected" && decision != "required" {
-		return "", fmt.Errorf("%s test_design_gate.decision must be not_selected, selected, or required", label)
+		return gateState, fmt.Errorf("%s test_design_gate.decision must be not_selected, selected, or required", label)
 	}
+	gateState.Decision = decision
 	if rawReasons, exists := gate["reason_refs"]; exists {
 		reasons, ok := rawReasons.([]any)
 		if !ok {
-			return "", fmt.Errorf("%s test_design_gate.reason_refs must be an array of non-empty strings", label)
+			return gateState, fmt.Errorf("%s test_design_gate.reason_refs must be an array of non-empty strings", label)
 		}
 		seen := map[string]bool{}
 		for _, rawReason := range reasons {
 			reason, ok := rawReason.(string)
 			reason = strings.TrimSpace(reason)
 			if !ok || reason == "" {
-				return "", fmt.Errorf("%s test_design_gate.reason_refs must be an array of non-empty strings", label)
+				return gateState, fmt.Errorf("%s test_design_gate.reason_refs must be an array of non-empty strings", label)
 			}
 			if seen[reason] {
-				return "", fmt.Errorf("%s test_design_gate.reason_refs must not contain duplicates", label)
+				return gateState, fmt.Errorf("%s test_design_gate.reason_refs must not contain duplicates", label)
 			}
 			seen[reason] = true
 		}
 	}
 	rawBinding, hasBinding := gate["projection_binding"]
 	if !hasBinding || rawBinding == nil {
-		return decision, nil
+		return gateState, nil
 	}
 	binding, ok := rawBinding.(map[string]any)
 	if !ok {
-		return "", fmt.Errorf("%s test_design_gate.projection_binding must contain an object", label)
+		return gateState, fmt.Errorf("%s test_design_gate.projection_binding must contain an object", label)
 	}
 	if len(binding) != len(taskControlTestDesignProjectionBindingFields) {
-		return "", fmt.Errorf("%s test_design_gate.projection_binding must contain exactly %s", label, strings.Join(taskControlTestDesignProjectionBindingFields, ", "))
+		return gateState, fmt.Errorf("%s test_design_gate.projection_binding must contain exactly %s", label, strings.Join(taskControlTestDesignProjectionBindingFields, ", "))
 	}
 	nullCount := 0
 	for _, field := range taskControlTestDesignProjectionBindingFields {
 		value, exists := binding[field]
 		if !exists {
-			return "", fmt.Errorf("%s test_design_gate.projection_binding must contain exactly %s", label, strings.Join(taskControlTestDesignProjectionBindingFields, ", "))
+			return gateState, fmt.Errorf("%s test_design_gate.projection_binding must contain exactly %s", label, strings.Join(taskControlTestDesignProjectionBindingFields, ", "))
 		}
 		if value == nil {
 			nullCount++
 		}
 	}
 	if nullCount != 0 && nullCount != len(taskControlTestDesignProjectionBindingFields) {
-		return "", fmt.Errorf("%s test_design_gate.projection_binding must be entirely null or entirely populated", label)
+		return gateState, fmt.Errorf("%s test_design_gate.projection_binding must be entirely null or entirely populated", label)
 	}
 	if nullCount == len(taskControlTestDesignProjectionBindingFields) {
-		return decision, nil
+		return gateState, nil
 	}
+	parsedBinding := &taskControlPlanTestDesignProjectionBinding{}
 	for _, field := range []string{"publication_ref", "projection_ref"} {
 		ref, ok := binding[field].(string)
 		ref = strings.TrimSpace(ref)
 		clean := filepath.ToSlash(filepath.Clean(filepath.FromSlash(ref)))
 		if !ok || ref == "" || filepath.IsAbs(ref) || clean == ".." || strings.HasPrefix(clean, "../") {
-			return "", fmt.Errorf("%s test_design_gate.projection_binding.%s must be a non-empty project-relative reference", label, field)
+			return gateState, fmt.Errorf("%s test_design_gate.projection_binding.%s must be a non-empty project-relative reference", label, field)
+		}
+		switch field {
+		case "publication_ref":
+			parsedBinding.PublicationRef = clean
+		case "projection_ref":
+			parsedBinding.ProjectionRef = clean
 		}
 	}
 	for _, field := range []string{"publication_sha256", "projection_sha256", "source_fingerprint"} {
 		digest, ok := binding[field].(string)
+		digest = strings.TrimSpace(digest)
 		if !ok || !testDesignSHA256Pattern.MatchString(digest) {
-			return "", fmt.Errorf("%s test_design_gate.projection_binding.%s must be a lowercase SHA-256 digest", label, field)
+			return gateState, fmt.Errorf("%s test_design_gate.projection_binding.%s must be a lowercase SHA-256 digest", label, field)
+		}
+		switch field {
+		case "publication_sha256":
+			parsedBinding.PublicationSHA256 = digest
+		case "projection_sha256":
+			parsedBinding.ProjectionSHA256 = digest
+		case "source_fingerprint":
+			parsedBinding.SourceFingerprint = digest
 		}
 	}
-	if intFromAny(binding["state_revision"]) < 1 {
-		return "", fmt.Errorf("%s test_design_gate.projection_binding.state_revision must be a positive integer", label)
+	var validRevision bool
+	parsedBinding.StateRevision, validRevision = taskControlPositiveInteger(binding["state_revision"])
+	if !validRevision {
+		return gateState, fmt.Errorf("%s test_design_gate.projection_binding.state_revision must be a positive integer", label)
 	}
 	if decision == "not_selected" {
-		return "", fmt.Errorf("%s not_selected test_design_gate must not retain a projection binding", label)
+		return gateState, fmt.Errorf("%s not_selected test_design_gate must not retain a projection binding", label)
 	}
-	return decision, nil
+	gateState.ProjectionBinding = parsedBinding
+	return gateState, nil
 }
 
-func taskControlPlanTestDesignGateDecision(projectRoot, featureRel string) (string, error) {
+func taskControlPlanProjectionBindingEqual(left, right *taskControlPlanTestDesignProjectionBinding) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return left.PublicationRef == right.PublicationRef &&
+		left.PublicationSHA256 == right.PublicationSHA256 &&
+		left.ProjectionRef == right.ProjectionRef &&
+		left.ProjectionSHA256 == right.ProjectionSHA256 &&
+		left.SourceFingerprint == right.SourceFingerprint &&
+		left.StateRevision == right.StateRevision
+}
+
+func taskControlDescribePlanProjectionBinding(binding *taskControlPlanTestDesignProjectionBinding) string {
+	if binding == nil {
+		return "pending"
+	}
+	return fmt.Sprintf(
+		"publication_ref=%s projection_ref=%s state_revision=%d",
+		binding.PublicationRef,
+		binding.ProjectionRef,
+		binding.StateRevision,
+	)
+}
+
+func taskControlPlanTestDesignGateDecision(projectRoot, featureRel string) (taskControlPlanTestDesignGate, error) {
 	type gateDecision struct {
-		label    string
-		decision string
+		label string
+		gate  taskControlPlanTestDesignGate
 	}
 	decisions := []gateDecision{}
 	for _, candidate := range []string{
@@ -588,38 +673,79 @@ func taskControlPlanTestDesignGateDecision(projectRoot, featureRel string) (stri
 	} {
 		path, err := testDesignSecureProjectPath(projectRoot, candidate)
 		if err != nil {
-			return "", fmt.Errorf("inspect plan-contract.json test_design_gate: %w", err)
+			return taskControlPlanTestDesignGate{}, fmt.Errorf("inspect plan-contract.json test_design_gate: %w", err)
 		}
 		info, err := os.Lstat(path)
 		if os.IsNotExist(err) {
 			continue
 		}
 		if err != nil {
-			return "", fmt.Errorf("inspect plan-contract.json test_design_gate: %w", err)
+			return taskControlPlanTestDesignGate{}, fmt.Errorf("inspect plan-contract.json test_design_gate: %w", err)
 		}
 		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-			return "", fmt.Errorf("plan-contract.json must be a regular non-symlink file")
+			return taskControlPlanTestDesignGate{}, fmt.Errorf("plan-contract.json must be a regular non-symlink file")
 		}
 		plan, err := readImplementJSONMap(path)
 		if err != nil {
-			return "", fmt.Errorf("plan-contract.json is invalid: %w", err)
+			return taskControlPlanTestDesignGate{}, fmt.Errorf("plan-contract.json is invalid: %w", err)
 		}
 		label := filepath.ToSlash(strings.TrimPrefix(candidate, strings.TrimSuffix(featureRel, "/")+"/"))
-		decision, err := taskControlParsePlanTestDesignGate(plan, label)
+		gate, err := taskControlParsePlanTestDesignGate(plan, label)
 		if err != nil {
-			return "", err
+			return taskControlPlanTestDesignGate{}, err
 		}
-		decisions = append(decisions, gateDecision{label: label, decision: decision})
+		decisions = append(decisions, gateDecision{label: label, gate: gate})
 	}
 	if len(decisions) == 0 {
-		return "not_selected", nil
+		return taskControlPlanTestDesignGate{Decision: "not_selected"}, nil
 	}
 	for _, decision := range decisions[1:] {
-		if decision.decision != decisions[0].decision {
-			return "", fmt.Errorf("conflicting plan-contract test_design_gate decisions: %s=%s, %s=%s", decisions[0].label, decisions[0].decision, decision.label, decision.decision)
+		if decision.gate.Decision != decisions[0].gate.Decision {
+			return taskControlPlanTestDesignGate{}, fmt.Errorf("conflicting plan-contract test_design_gate decisions: %s=%s, %s=%s", decisions[0].label, decisions[0].gate.Decision, decision.label, decision.gate.Decision)
+		}
+		if !taskControlPlanProjectionBindingEqual(decisions[0].gate.ProjectionBinding, decision.gate.ProjectionBinding) {
+			return taskControlPlanTestDesignGate{}, fmt.Errorf(
+				"conflicting plan-contract test_design_gate projection_binding: %s=%s, %s=%s",
+				decisions[0].label,
+				taskControlDescribePlanProjectionBinding(decisions[0].gate.ProjectionBinding),
+				decision.label,
+				taskControlDescribePlanProjectionBinding(decision.gate.ProjectionBinding),
+			)
 		}
 	}
-	return decisions[0].decision, nil
+	return decisions[0].gate, nil
+}
+
+func taskControlVerifyPlanTestDesignProjectionBinding(projectRoot, featureRel string, gate taskControlPlanTestDesignGate) error {
+	if gate.ProjectionBinding == nil {
+		return nil
+	}
+	service := testDesignService{projectRoot: projectRoot}
+	verifyArgs := []string{
+		"--feature-dir", featureRel,
+		"--projection-ref", gate.ProjectionBinding.ProjectionRef,
+		"--expected-sha256", gate.ProjectionBinding.ProjectionSHA256,
+	}
+	env := service.projectionVerify(verifyArgs)
+	if env.Status != "ok" {
+		detail := strings.TrimSpace(fmt.Sprint(env.Blockers...))
+		if detail == "" {
+			detail = env.Summary
+		}
+		return fmt.Errorf("plan-contract test_design_gate projection_binding is stale or invalid: %s", detail)
+	}
+	if strings.TrimSpace(asString(env.Data["consumer"])) != "plan" {
+		return fmt.Errorf("plan-contract test_design_gate projection_binding must target consumer=plan")
+	}
+	if strings.TrimSpace(asString(env.Data["projection_ref"])) != gate.ProjectionBinding.ProjectionRef ||
+		strings.TrimSpace(asString(env.Data["projection_sha256"])) != gate.ProjectionBinding.ProjectionSHA256 ||
+		strings.TrimSpace(asString(env.Data["publication_ref"])) != gate.ProjectionBinding.PublicationRef ||
+		strings.TrimSpace(asString(env.Data["publication_sha256"])) != gate.ProjectionBinding.PublicationSHA256 ||
+		strings.TrimSpace(asString(env.Data["source_fingerprint"])) != gate.ProjectionBinding.SourceFingerprint ||
+		intFromAny(env.Data["state_revision"]) != gate.ProjectionBinding.StateRevision {
+		return fmt.Errorf("plan-contract test_design_gate projection_binding does not match the current canonical plan projection")
+	}
+	return nil
 }
 
 func taskControlValidateTestDesignBinding(root, feature string, payload map[string]any, bind, requireAll bool) error {
@@ -669,8 +795,11 @@ func taskControlValidateTestDesignBindingWithSourcePolicy(root, feature string, 
 	if _, err := testDesignSecureProjectPath(projectRoot, filepath.ToSlash(featureRel)); err != nil {
 		return fmt.Errorf("feature directory is unsafe: %w", err)
 	}
-	planGateDecision, err := taskControlPlanTestDesignGateDecision(projectRoot, filepath.ToSlash(featureRel))
+	planGate, err := taskControlPlanTestDesignGateDecision(projectRoot, filepath.ToSlash(featureRel))
 	if err != nil {
+		return err
+	}
+	if err := taskControlVerifyPlanTestDesignProjectionBinding(projectRoot, filepath.ToSlash(featureRel), planGate); err != nil {
 		return err
 	}
 	service := testDesignService{projectRoot: projectRoot}
@@ -690,8 +819,8 @@ func taskControlValidateTestDesignBindingWithSourcePolicy(root, feature string, 
 	_, stateStatErr := os.Lstat(statePath)
 	_, statErr := os.Lstat(handoffPath)
 	if os.IsNotExist(statErr) {
-		if planGateDecision == "selected" || planGateDecision == "required" {
-			return fmt.Errorf("plan-contract test-design gate decision %s requires a current feature test-design/handoff-to-tasks.json before Tasks can continue", planGateDecision)
+		if planGate.Decision == "selected" || planGate.Decision == "required" {
+			return fmt.Errorf("plan-contract test-design gate decision %s requires a current feature test-design/handoff-to-tasks.json before Tasks can continue", planGate.Decision)
 		}
 		if rootStatErr == nil || stateStatErr == nil {
 			return fmt.Errorf("test-design workspace exists but has no fresh handed-off bundle")

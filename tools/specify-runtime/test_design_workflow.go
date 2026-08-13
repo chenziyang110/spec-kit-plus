@@ -1916,6 +1916,7 @@ func (service testDesignService) projectionVerify(args []string) Envelope {
 		"valid": true, "fresh": true, "consumer": consumer,
 		"projection_ref": normalizedRef, "projection_sha256": actualSHA,
 		"publication_ref": binding.Ref, "publication_sha256": binding.SHA256,
+		"source_fingerprint": binding.SourceFingerprint, "state_revision": binding.StateRevision,
 		"basis_ref": normalizedBasisRef, "basis_sha256": testDesignDigest(basisRaw),
 	}
 	return env
@@ -2333,7 +2334,7 @@ func (service testDesignService) verifyPublishedHandoffWithSourcePolicy(root str
 		return binding, firstTestDesignError(err, fmt.Errorf("test-design handoff test_data_refs do not match the data manifest"))
 	}
 	binding = testDesignPublishedHandoff{
-		Ref:               filepath.ToSlash(filepath.Join(filepath.Base(root), "handoff-to-tasks.json")),
+		Ref:               filepath.ToSlash(filepath.Join(state.ArtifactRoot, "handoff-to-tasks.json")),
 		SHA256:            testDesignDigest(handoffRaw),
 		SourceFingerprint: state.Source.Fingerprint,
 		StateRevision:     state.Revision,
