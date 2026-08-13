@@ -16,6 +16,14 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 APPROVED_PREVIEW_REF_RE = re.compile(
     r"round-\d+\.html#direction-[a-z0-9-]+$", re.IGNORECASE
 )
+CHANGE_LOCAL_HTML_PREVIEW_REF_RE = re.compile(
+    r"^\.specify/design/changes/(?P<change_id>UD-\d{4})/previews/"
+    r"[^/#]+\.html(?:#(?P<direction_id>.*))?$",
+    re.IGNORECASE,
+)
+DESIGN_DIRECTION_ID_RE = re.compile(
+    r"^direction-[a-z0-9][a-z0-9-]*$", re.IGNORECASE
+)
 UI_WORK_TYPES = {"existing-pattern", "feature-extension", "reference-implementation"}
 UI_SURFACE_TYPES = {
     "landing",
@@ -290,7 +298,33 @@ def validate_ui_contract(contract: UIContract) -> None:
         raise PacketValidationError(
             "DP1", "UI contract approved_handoff_ref must identify a .handoff.json file"
         )
-    if APPROVED_PREVIEW_REF_RE.search(contract.approved_visual_ref) and (
+    change_local_preview = CHANGE_LOCAL_HTML_PREVIEW_REF_RE.fullmatch(
+        contract.approved_visual_ref.strip()
+    )
+    if change_local_preview:
+        direction_id = change_local_preview.group("direction_id") or ""
+        if not DESIGN_DIRECTION_ID_RE.fullmatch(direction_id):
+            raise PacketValidationError(
+                "DP1",
+                "UI contract change-local HTML preview must use a canonical #direction-<slug> anchor",
+            )
+        if not has_design_change_binding:
+            raise PacketValidationError(
+                "DP1",
+                "UI contract change-local HTML preview requires an exact design change binding",
+            )
+        expected_handoff_prefix = (
+            f".specify/design/changes/{contract.design_change_id}/previews/"
+        )
+        if not contract.approved_handoff_ref.startswith(expected_handoff_prefix):
+            raise PacketValidationError(
+                "DP1",
+                "UI contract change-local HTML preview requires its immutable handoff in the same design change preview workspace",
+            )
+    if (
+        change_local_preview
+        or APPROVED_PREVIEW_REF_RE.search(contract.approved_visual_ref)
+    ) and (
         not SHA256_RE.fullmatch(contract.approved_preview_sha256)
         or not SHA256_RE.fullmatch(contract.approved_manifest_sha256)
         or not contract.approved_handoff_ref.strip().lower().endswith(".handoff.json")

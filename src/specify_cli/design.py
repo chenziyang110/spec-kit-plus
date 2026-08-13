@@ -1509,6 +1509,37 @@ def _binding_contains_design_fields(
     )
 
 
+def _quick_status_design_binding(text: str) -> dict[str, str]:
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    headings = list(
+        re.finditer(r"(?m)^##[ \t]+UI Design Binding[ \t]*$", normalized)
+    )
+    structural_error = (
+        "quick design adoption STATUS.md must contain exactly one "
+        "## UI Design Binding section with one ui_design_binding mapping"
+    )
+    if len(headings) != 1:
+        raise DesignLintError(structural_error)
+    section = normalized[headings[0].end() :]
+    next_heading = re.search(r"(?m)^##(?:[ \t]+|$)", section)
+    if next_heading is not None:
+        section = section[: next_heading.start()]
+    section = re.sub(r"(?s)<!--.*?-->", "", section)
+    if len(re.findall(r"(?m)^ui_design_binding[ \t]*:", section)) != 1:
+        raise DesignLintError(structural_error)
+    try:
+        payload = yaml.safe_load(section)
+    except yaml.YAMLError as exc:
+        raise DesignLintError(f"{structural_error}: {exc}") from exc
+    binding = payload.get("ui_design_binding") if isinstance(payload, dict) else None
+    if not isinstance(binding, dict):
+        raise DesignLintError(structural_error)
+    return {
+        str(key).strip(): str(value or "").strip()
+        for key, value in binding.items()
+    }
+
+
 @_design_index_transaction
 def adopt_design_change(
     project_root: Path,
@@ -1634,6 +1665,7 @@ def adopt_design_change(
             raise DesignLintError(
                 "quick design adoption checkpoint must be confirmed in STATUS.md"
             )
+        status_binding = _quick_status_design_binding(text)
         confirmation_path = binding_path.parent / "confirmation.json"
         try:
             confirmation = json.loads(
@@ -1679,6 +1711,7 @@ def adopt_design_change(
             or not isinstance(ui_confirmation, dict)
             or ui_confirmation.get("applicable") is not True
             or not isinstance(confirmed_binding, dict)
+            or set(confirmed_binding) != set(expected_confirmation_binding)
             or any(
                 str(confirmed_binding.get(key) or "").strip() != value
                 for key, value in expected_confirmation_binding.items()
@@ -1706,6 +1739,19 @@ def adopt_design_change(
             "design adoption binding does not contain the exact registered "
             "change fields"
         )
+    if normalized_mode == "quick":
+        normalized_confirmed_binding = {
+            str(key).strip(): str(value or "").strip()
+            for key, value in confirmed_binding.items()
+        }
+        if (
+            status_binding != expected_confirmation_binding
+            or status_binding != normalized_confirmed_binding
+        ):
+            raise DesignLintError(
+                "quick design adoption STATUS.md ui_design_binding must "
+                "exact-match confirmation.json design binding"
+            )
 
     adoptions = index.setdefault("adoptions", [])
     if not isinstance(adoptions, list):

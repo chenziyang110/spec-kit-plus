@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -1118,6 +1120,49 @@ func designBindingContains(raw []byte, fields map[string]string) bool {
 	return true
 }
 
+func quickStatusDesignBinding(raw []byte) (map[string]string, error) {
+	structuralError := "quick design adoption STATUS.md must contain exactly one ## UI Design Binding section with one ui_design_binding mapping"
+	content := strings.ReplaceAll(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\r", "\n")
+	headingRE := regexp.MustCompile(`(?m)^##[\t ]+UI Design Binding[\t ]*$`)
+	headings := headingRE.FindAllStringIndex(content, -1)
+	if len(headings) != 1 {
+		return nil, fmt.Errorf("%s", structuralError)
+	}
+	section := content[headings[0][1]:]
+	if next := regexp.MustCompile(`(?m)^##(?:[\t ]+|$)`).FindStringIndex(section); next != nil {
+		section = section[:next[0]]
+	}
+	section = regexp.MustCompile(`(?s)<!--.*?-->`).ReplaceAllString(section, "")
+	if len(regexp.MustCompile(`(?m)^ui_design_binding[\t ]*:`).FindAllStringIndex(section, -1)) != 1 {
+		return nil, fmt.Errorf("%s", structuralError)
+	}
+	var payload map[string]any
+	if err := yaml.Unmarshal([]byte(section), &payload); err != nil {
+		return nil, fmt.Errorf("%s: %v", structuralError, err)
+	}
+	binding, ok := payload["ui_design_binding"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%s", structuralError)
+	}
+	normalized := make(map[string]string, len(binding))
+	for key, value := range binding {
+		normalized[strings.TrimSpace(key)] = strings.TrimSpace(fmt.Sprint(value))
+	}
+	return normalized, nil
+}
+
+func designBindingsExact(left, right map[string]string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for key, value := range right {
+		if left[key] != value {
+			return false
+		}
+	}
+	return true
+}
+
 func validateDesignAdoptionSurface(root string, request designAdoptionRequest, bindingPath string, bindingRaw []byte, wantBinding map[string]string) error {
 	if request.Mode == "formal" {
 		if !strings.HasPrefix(request.ConsumerRef, "feature:") {
@@ -1139,6 +1184,10 @@ func validateDesignAdoptionSurface(root string, request designAdoptionRequest, b
 	if !strings.EqualFold(strings.TrimSpace(frontmatter["understanding_confirmed"]), "true") {
 		return fmt.Errorf("quick design adoption checkpoint must be confirmed in STATUS.md")
 	}
+	statusBinding, err := quickStatusDesignBinding(bindingRaw)
+	if err != nil {
+		return err
+	}
 	doc, err := (quickService{projectRoot: root}).loadConfirmation(filepath.Dir(bindingPath))
 	if err != nil {
 		return fmt.Errorf("quick design adoption checkpoint must be confirmed through confirmation.json: %v", err)
@@ -1149,6 +1198,7 @@ func validateDesignAdoptionSurface(root string, request designAdoptionRequest, b
 	confirmedBinding, _ := doc.Decision.UIConfirmation["design_binding"].(map[string]any)
 	if !hexDigestRE.MatchString(strings.ToLower(strings.TrimSpace(doc.ConfirmationDigest))) ||
 		!quickBool(doc.Decision.UIConfirmation["applicable"]) ||
+		len(confirmedBinding) != len(wantBinding) ||
 		strings.TrimSpace(fmt.Sprint(confirmedBinding["scope"])) != request.Scope {
 		return fmt.Errorf("quick design adoption requires the confirmed UI design binding to match the exact scope and registered change")
 	}
@@ -1156,6 +1206,14 @@ func validateDesignAdoptionSurface(root string, request designAdoptionRequest, b
 		if strings.TrimSpace(fmt.Sprint(confirmedBinding[key])) != value {
 			return fmt.Errorf("quick design adoption requires the confirmed UI design binding to match the exact scope and registered change")
 		}
+	}
+	confirmed := make(map[string]string, len(confirmedBinding))
+	for key, value := range confirmedBinding {
+		confirmed[strings.TrimSpace(key)] = strings.TrimSpace(fmt.Sprint(value))
+	}
+	if designBindingContains(bindingRaw, wantBinding) &&
+		(!designBindingsExact(statusBinding, wantBinding) || !designBindingsExact(statusBinding, confirmed)) {
+		return fmt.Errorf("quick design adoption STATUS.md ui_design_binding must exact-match confirmation.json design binding")
 	}
 	return nil
 }
