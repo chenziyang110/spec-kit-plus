@@ -300,26 +300,6 @@ def _write_minimal_acceptance_denominator(
     task_path.write_text(json.dumps(task_payload), encoding="utf-8")
 
 
-def _write_minimal_clarification_outputs(feature_dir: Path) -> None:
-    for filename in (
-        "spec.md",
-        "alignment.md",
-        "context.md",
-        "references.md",
-        "workflow-state.md",
-    ):
-        path = feature_dir / filename
-        if not path.exists():
-            path.write_text(f"# {path.stem.title()}\n", encoding="utf-8")
-    clarification_dir = feature_dir / "clarification"
-    clarification_dir.mkdir(exist_ok=True)
-    (clarification_dir / "evidence-index.json").write_text(
-        '{"version": 1, "lanes": []}\n', encoding="utf-8"
-    )
-    (clarification_dir / "checkpoints.ndjson").write_text("", encoding="utf-8")
-    (clarification_dir / "handoffs").mkdir(exist_ok=True)
-
-
 def _valid_deep_research_artifact() -> str:
     return """# Deep Research
 
@@ -4365,22 +4345,6 @@ def test_validate_artifacts_accepts_tasks_without_unused_lane_outputs(tmp_path: 
     assert result.errors == []
 
 
-def test_validate_artifacts_accepts_clarify_outputs_when_present(tmp_path: Path):
-    project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
-    feature_dir.mkdir(parents=True, exist_ok=True)
-    _write_minimal_clarification_outputs(feature_dir)
-
-    result = run_quality_hook(
-        project,
-        "workflow.artifacts.validate",
-        {"command_name": "clarify", "feature_dir": str(feature_dir)},
-    )
-
-    assert result.status == "ok"
-    assert result.errors == []
-
-
 def test_validate_artifacts_accepts_plan_outputs_when_present(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
@@ -4451,37 +4415,6 @@ def test_validate_artifacts_accepts_plan_with_nested_plan_contract(tmp_path: Pat
 
     assert result.status == "ok"
     assert result.errors == []
-
-
-def test_validate_artifacts_blocks_clarify_without_clarification_evidence_outputs(
-    tmp_path: Path,
-):
-    project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
-    feature_dir.mkdir(parents=True, exist_ok=True)
-    for filename in (
-        "spec.md",
-        "alignment.md",
-        "context.md",
-        "references.md",
-        "workflow-state.md",
-    ):
-        (feature_dir / filename).write_text(f"# {filename}\n", encoding="utf-8")
-
-    result = run_quality_hook(
-        project,
-        "workflow.artifacts.validate",
-        {"command_name": "clarify", "feature_dir": str(feature_dir)},
-    )
-
-    assert result.status == "blocked"
-    assert any(
-        "clarification/evidence-index.json" in message for message in result.errors
-    )
-    assert any(
-        "clarification/checkpoints.ndjson" in message for message in result.errors
-    )
-    assert any("clarification/handoffs" in message for message in result.errors)
 
 
 def test_validate_artifacts_accepts_deep_research_outputs_when_present(tmp_path: Path):

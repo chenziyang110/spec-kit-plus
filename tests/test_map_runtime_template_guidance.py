@@ -28,7 +28,6 @@ SEMANTIC_WORK_CONTRACT_PARTIAL = (
 COGNITION_INTAKE_COMMANDS = (
     "discussion.md",
     "specify.md",
-    "clarify.md",
     "deep-research.md",
     "plan.md",
     "tasks.md",
@@ -176,7 +175,6 @@ def test_workflows_use_project_cognition_compass_as_default_intake() -> None:
         "fast.md": "implement",
         "quick.md": "implement",
         "specify.md": "plan",
-        "clarify.md": "plan",
         "deep-research.md": "research",
         "plan.md": "plan",
         "tasks.md": "plan",
@@ -255,7 +253,6 @@ def test_default_runnable_cognition_blocks_only_run_compass() -> None:
         "fast.md": "implement",
         "quick.md": "implement",
         "specify.md": "plan",
-        "clarify.md": "plan",
         "deep-research.md": "research",
         "plan.md": "plan",
         "tasks.md": "plan",
@@ -1133,7 +1130,6 @@ def test_semantic_intake_contract_is_not_debug_only() -> None:
     brownfield_workflows = {
         "discussion.md",
         "specify.md",
-        "clarify.md",
         "deep-research.md",
         "plan.md",
         "tasks.md",

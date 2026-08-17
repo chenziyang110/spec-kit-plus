@@ -10,7 +10,7 @@ Record an orthogonal `gap_classification`: `implementation_gap` when approved be
 
 - Every approved-scope defect is Review-owned regardless of repair size. Missing code, a task omission, incomplete tests, broken wiring, and registration/configuration defects are not upstream truth gaps; the Leader decomposes them into one or more bounded Fix packets.
 - An unknown root cause or intermittent mechanism remains inside Review. Preserve the exact failed scenario and dispatch a read-only diagnostic packet; Review remains the stage owner, accepts or rejects the diagnosis, and then compiles the Fix wave.
-- Only a proven upstream truth gap is a handoff-and-stop boundary: missing or contradictory requirement truth routes to `sp-clarify`/`sp-specify`, missing or contradictory design truth routes to `sp-design`, and architecture truth that must change before any conforming fix is possible routes to `sp-plan`.
+- Only a proven upstream truth gap is a handoff-and-stop boundary: missing or contradictory requirement truth routes to `sp-specify`, missing or contradictory design truth routes to `sp-design`, and architecture truth that must change before any conforming fix is possible routes to `sp-plan`.
 - Human/external authority, credentials, protected service, or unavailable comparison: persist a structured blocker and full Human Action Guide with observable unblock criteria and exact Review resume point. A genuinely absent physical device may instead use the hash-bound, human-confirmed `hardware_unavailable` Review exception; it remains `waived`, never PASS, and must preserve withheld claims and residual risk.
 
 Continue the validation ledger shared across Implement and Review; do not reset

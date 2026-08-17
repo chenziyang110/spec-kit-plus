@@ -322,28 +322,6 @@ func TestHookArtifactValidationUsesPlanSemanticValidator(t *testing.T) {
 }
 
 func TestHookArtifactValidationUsesAdditionalStageSemanticValidators(t *testing.T) {
-	t.Run("clarify", func(t *testing.T) {
-		root := t.TempDir()
-		feature := filepath.Join(root, ".specify", "features", "007-clarify")
-		if err := os.MkdirAll(filepath.Join(feature, "clarification", "handoffs"), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		for _, name := range []string{"spec.md", "alignment.md", "context.md", "references.md", "workflow-state.md"} {
-			mustWriteHookText(t, filepath.Join(feature, name), "# Artifact\n")
-		}
-		mustWriteHookText(t, filepath.Join(feature, "clarification", "checkpoints.ndjson"), "{\"lane_id\":\"L1\"}\n")
-		mustWriteHookText(t, filepath.Join(feature, "clarification", "evidence-index.json"), "{\"lanes\":{\"L1\":{\"status\":\"accepted\"}}}\n")
-
-		env := validateHookArtifacts([]string{
-			"--command", "clarify",
-			"--feature-dir", ".specify/features/007-clarify",
-			"--project-root", root,
-		})
-		if env.Status != "blocked" {
-			t.Fatalf("clarify semantic validation = %#v, want blocked", env)
-		}
-	})
-
 	t.Run("deep-research", func(t *testing.T) {
 		root := t.TempDir()
 		feature := filepath.Join(root, ".specify", "features", "008-research")
@@ -614,20 +592,17 @@ func TestHookArtifactValidationBlocksProjectEscape(t *testing.T) {
 	}
 }
 
-func TestHookArtifactValidationBlocksInvalidTypesAndJSON(t *testing.T) {
+func TestHookArtifactValidationBlocksInvalidArtifactTypes(t *testing.T) {
 	root := t.TempDir()
 	feature := filepath.Join(root, ".specify", "features", "004-artifacts")
-	if err := os.MkdirAll(filepath.Join(feature, "clarification", "evidence-index.json"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(feature, "spec-contract.json"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"spec.md", "alignment.md", "context.md", "references.md", "workflow-state.md", "clarification/checkpoints.ndjson"} {
+	for _, name := range []string{"spec.md", "workflow-state.md"} {
 		mustWriteHookText(t, filepath.Join(feature, filepath.FromSlash(name)), "content\n")
 	}
-	if err := os.MkdirAll(filepath.Join(feature, "clarification", "handoffs"), 0o755); err != nil {
-		t.Fatal(err)
-	}
 	env := validateHookArtifacts([]string{
-		"--command", "clarify",
+		"--command", "specify",
 		"--feature-dir", ".specify/features/004-artifacts",
 		"--project-root", root,
 	})

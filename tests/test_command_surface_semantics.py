@@ -94,7 +94,7 @@ def test_init_generated_codex_skill_includes_invocation_note_and_projected_hando
     assert "semantic_delta" in content
     assert "spec-contract.json" in content
     assert "/sp.plan" in content
-    assert "/sp.clarify" in content
+    assert "/sp.specify" in content
     assert "/sp.deep-research" in content
     assert "Choose exactly one next command" in content
     assert "`next_action`" in content or "next_action" in content
@@ -724,7 +724,6 @@ def test_learning_contract_surfaces_do_not_ship_fake_runnable_placeholder_comman
     command_template_paths = (
         PROJECT_ROOT / "templates" / "commands" / "analyze.md",
         PROJECT_ROOT / "templates" / "commands" / "checklist.md",
-        PROJECT_ROOT / "templates" / "commands" / "clarify.md",
         PROJECT_ROOT / "templates" / "commands" / "constitution.md",
         PROJECT_ROOT / "templates" / "commands" / "debug.md",
         PROJECT_ROOT / "templates" / "commands" / "deep-research.md",
@@ -741,7 +740,6 @@ def test_learning_contract_surfaces_do_not_ship_fake_runnable_placeholder_comman
     forbidden_fragments = (
         "capture-learning --command analyze ...",
         "capture-learning --command checklist ...",
-        "capture-learning --command clarify ...",
         "capture-learning --command constitution ...",
         "capture-learning --command deep-research ...",
         "capture-learning --command debug ...",
@@ -1170,7 +1168,6 @@ def test_docs_describe_greenfield_project_cognition_bootstrap() -> None:
 
 def test_classic_auxiliary_artifact_workflows_fail_closed_through_go_gate() -> None:
     expected = {
-        "clarify": "--command clarify --feature-dir <feature-dir>",
         "deep-research": "--command deep-research --feature-dir <feature-dir>",
         "analyze": "--command analyze --feature-dir <feature-dir>",
         "constitution": "--command constitution --feature-dir .specify/memory",

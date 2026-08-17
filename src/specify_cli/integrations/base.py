@@ -146,7 +146,6 @@ class IntegrationBase(ABC):
         {
             "analyze",
             "checklist",
-            "clarify",
             "debug",
             "deep-research",
             "design",
@@ -599,10 +598,6 @@ class IntegrationBase(ABC):
                 "explicit handoff request and boundary confirmation before drafting agent-only `handoff-to-specify.json`",
                 "user confirmation before marking the handoff ready for `sp-specify`",
             ],
-            "clarify": [
-                "high-impact gap confirmation",
-                "scope or constraint confirmation when enhancement changes planning readiness",
-            ],
             "deep-research": [
                 "whether the feasibility question is actually a requirement gap",
                 "minimum research tracks needed before planning",
@@ -632,7 +627,6 @@ class IntegrationBase(ABC):
         fallback_hints = {
             "specify": "If the native tool is unavailable in the current runtime or the tool call fails, fall back to the shared open question block structure already defined in this template.",
             "discussion": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text product or technical question and continue with the discussion state update.",
-            "clarify": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text confirmation question and continue with the existing enhancement flow.",
             "deep-research": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text question about the missing feasibility or research-track decision, then continue with the existing research workflow.",
             "test-design": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text question about the unresolved scope, risk, or test-material decision, then continue with the existing test-design workflow.",
             "checklist": "If the native tool is unavailable in the current runtime or the tool call fails, keep the template's existing `Q1`/`Q2`/`Q3` (and optional `Q4`/`Q5`) textual question format.",
@@ -654,7 +648,6 @@ class IntegrationBase(ABC):
         question_driven_commands = {
             "specify",
             "discussion",
-            "clarify",
             "deep-research",
             "test-design",
             "checklist",
@@ -772,7 +765,7 @@ class IntegrationBase(ABC):
             "- Read top-level `minimal_live_reads` first and open live files only for the named gap. Do not build a second broad repository summary or infer final scope from first-pass paths.\n"
             "- After `FEATURE_DIR` is known, use `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`; when state is missing, run `{{specify-subcmd:specify-runtime workflow enter --command specify --feature-dir <feature-dir> --format json}}`. The deterministic workflow runtime owns `workflow.json` as required-stage state; do not author or advance it manually. Rich `workflow-state.md` remains specification evidence and resume state inside the fixed workflow artifact boundary: initialize it with `{{specify-subcmd:specify-runtime artifact scaffold --kind workflow-state --path <project-relative-workflow-state-path> --format json}}`, query it only through targeted `artifact show`, and mutate it only through leased `artifact patch` calls. Never create a temporary authoring file or use rich state to skip runtime stages. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
             "- Initialize canonical `spec-contract.json` first through `specify-runtime artifact scaffold --kind spec-contract` and fill it through leased `artifact patch` calls. Fill the prerequisite-created `spec.md` skeleton only through leased `specify-runtime artifact patch --section` calls; submit `alignment.md`, `context.md`, `references.md`, or diagnostics through `artifact prepare` plus inline `artifact submit` only when the triggered content has independent project-review value and cannot be represented by a stable ref.\n"
-            "- Clarify only planning-critical ambiguity. Recommend `/sp.clarify` or `/sp.deep-research` only when the unresolved item belongs there.\n"
+            "- Clarify only planning-critical ambiguity. Recommend returning to `/sp.specify` or routing to `/sp.deep-research` only when the unresolved item belongs there.\n"
             "- Preserve this as an internal understand-before-acting pass; do not replace the one-question-at-a-time requirement discovery flow with a broad analysis report.\n"
         )
         return content + addendum

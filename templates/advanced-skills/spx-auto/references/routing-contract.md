@@ -92,7 +92,7 @@ Choose the first applicable trustworthy route:
 - interrupted or externally changed existing map with no higher active owner:
   `spx-map-update`;
 - existing feature has planning-blocking ambiguity or contradictory acceptance:
-  `spx-clarify`;
+  `spx-specify`;
 - new feature request explicitly asks for a formal specification before
   implementation: `spx-specify`;
 - planning-ready spec has unresolved implementation-chain feasibility:

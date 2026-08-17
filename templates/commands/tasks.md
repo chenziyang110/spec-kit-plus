@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: Planning artifacts already exist and the remaining gap is concrete execution slicing rather than more design work.
   primary_objective: Submit task definitions to `specify-runtime tasks build|upsert|set-root|finalize|handoff`, which owns `task-index.json`, the derived `tasks.md` projection, and task transition handoffs.
   primary_outputs: '`FEATURE_DIR/task-index.json` as the canonical task graph in every execution mode plus rendered `tasks.md`; light non-UI leader-direct work keeps the same CLI-owned package compact. `handoff-to-tasks.json` and `handoff-to-implement.json` are compact pointer-only transitions created only by `specify-runtime tasks handoff` when required. Worker packets are compiled just in time by `sp-implement`; task-generation lane records exist only when lanes were actually delegated.'
-  default_handoff: '/sp.implement for a clean completed task package; /sp.analyze only when a persisted legacy or diagnostic state explicitly records that route; /sp.plan, /sp.clarify, or /sp.deep-research when escalated remediation exposes missing upstream truth.'
+  default_handoff: '/sp.implement for a clean completed task package; /sp.analyze only when a persisted legacy or diagnostic state explicitly records that route; /sp.specify, /sp.plan, or /sp.deep-research when escalated remediation exposes missing upstream truth.'
 handoffs:
   - label: Analyze For Consistency
     agent: sp.analyze

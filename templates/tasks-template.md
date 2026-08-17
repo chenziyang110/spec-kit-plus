@@ -28,7 +28,7 @@ description: "Task list template for feature implementation"
 - **User-observable paths**: For any UI, TUI, CLI, API route, installer, registry/factory/config wiring, or generated asset consumed by runtime behavior, record the real entrypoint path from producer data through transformer/state builder to the consumer surface and executor/boundary.
 - Do not silently drop a locked planning decision; if a user-confirmed deferral applies, record it in the phase or dependency notes with confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact
 - Do not allow command-surface anti-goals to delete capability. Each anti-goal that limits commands, routes, APIs, lifecycle operations, or public surfaces must include a does-not-remove guard naming the preserved operation and selected entry point.
-- Detect semantic degradation before handoff: if a create/scaffold capability is represented only by a template-only task, manual copy docs, or an authoring guide with no executable entry point, stop task generation and route back to `sp-plan` or `sp-clarify`.
+- Detect semantic degradation before handoff: if a create/scaffold capability is represented only by a template-only task, manual copy docs, or an authoring guide with no executable entry point, stop task generation and route back to `sp-specify` or `sp-plan`.
 - If a feature touches an established framework or boundary pattern, guardrail tasks MUST be added before implementation begins.
 
 ## Complete-First Delivery Scope
@@ -194,7 +194,7 @@ Use this section only when regenerating tasks after a blocked or explicitly reco
 
 Allowed dispositions: `resolved`, `user_confirmed_deferral`, `not_applicable`, `escalated`.
 Compatibility label: `deferred` maps to `user_confirmed_deferral` and must still carry confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
-If any finding is `escalated`, stop task generation and patch `next_command` to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` through a leased `specify-runtime artifact patch` call against `workflow-state.md`.
+If any finding is `escalated`, stop task generation and patch `next_command` to `/sp.specify`, `/sp.plan`, or `/sp.deep-research` through a leased `specify-runtime artifact patch` call against `workflow-state.md`.
 
 ## Task Shaping Rules
 

@@ -106,7 +106,7 @@ context capsule. Do not defer these decisions to tasks.
 
 If design-changing feasibility remains unproven, stop and route the named
 question to `$spx-deep-research`; do not hide research inside generic plan
-prose. Repair requirement contradictions through `$spx-clarify`.
+prose. Repair requirement contradictions through `$spx-specify`.
 
 When bounded implementation-shaping research is triggered, create `research.md`
 with `specify-runtime artifact scaffold --kind research --path <feature-dir>/research.md`

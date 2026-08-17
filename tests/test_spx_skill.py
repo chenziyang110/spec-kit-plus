@@ -31,7 +31,6 @@ SPX_SKILLS = {
     "spx-ask",
     "spx-auto",
     "spx-checklist",
-    "spx-clarify",
     "spx-constitution",
     "spx-debug",
     "spx-deep-research",
@@ -281,12 +280,7 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "artifact scaffold --kind ui-reference-notes" in skills["spx-specify"]
     assert "spec-contract-template.json" not in skills["spx-specify"]
     assert "do not implement" in skills["spx-specify"]
-    assert "spx-clarify" in skills["spx-specify"]
     assert "spx-prd-scan" in skills["spx-specify"]
-
-    assert "do not create a new feature" in skills["spx-clarify"]
-    assert "existing" in skills["spx-clarify"]
-    assert "do not plan or implement" in skills["spx-clarify"]
 
     assert ".specify/memory/constitution.md" in skills["spx-constitution"]
     assert "owns the constitution only" in skills["spx-constitution"]
@@ -512,7 +506,7 @@ def test_spx_preplan_routes_stop_after_the_authorized_stage() -> None:
             " ",
             (ADVANCED_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").lower(),
         )
-        for name in ("spx-auto", "spx-research", "spx-clarify", "spx-deep-research")
+        for name in ("spx-auto", "spx-research", "spx-deep-research")
     }
 
     assert "stop after that workflow returns" in skills["spx-auto"]
@@ -524,12 +518,11 @@ def test_spx_preplan_routes_stop_after_the_authorized_stage() -> None:
     )
     assert "do not continue to `$spx-plan`" in skills["spx-research"]
 
-    for name in ("spx-clarify", "spx-deep-research"):
-        assert "this invocation authorizes only this workflow stage" in skills[name]
-        assert "do not invoke `$spx-plan`" in skills[name]
-
-    assert "do not invoke `$spx-deep-research`" in skills["spx-clarify"]
-    assert "do not invoke `$spx-clarify`" in skills["spx-deep-research"]
+    assert (
+        "this invocation authorizes only this workflow stage"
+        in skills["spx-deep-research"]
+    )
+    assert "do not invoke `$spx-plan`" in skills["spx-deep-research"]
 
 
 def test_spx_read_only_and_runtime_probe_boundaries_are_explicit() -> None:

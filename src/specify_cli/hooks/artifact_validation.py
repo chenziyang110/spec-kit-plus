@@ -55,15 +55,6 @@ FILE_REQUIRED_ARTIFACTS = {
         "spec.md",
         "workflow-state.md",
     ),
-    "clarify": (
-        "spec.md",
-        "alignment.md",
-        "context.md",
-        "references.md",
-        "workflow-state.md",
-        "clarification/evidence-index.json",
-        "clarification/checkpoints.ndjson",
-    ),
     "deep-research": DEEP_RESEARCH_RUNTIME_REQUIRED_FILES,
     "plan": (
         "plan.md",
@@ -138,7 +129,6 @@ FILE_REQUIRED_ARTIFACTS = {
 
 DIRECTORY_REQUIRED_ARTIFACTS = {
     "specify": (),
-    "clarify": ("clarification/handoffs",),
     "plan": (),
     "tasks": (),
     "review": ("review-evidence",),
@@ -167,16 +157,6 @@ REQUIRED_ARTIFACTS = {
         "spec-contract.json",
         "spec.md",
         "workflow-state.md",
-    ),
-    "clarify": (
-        "spec.md",
-        "alignment.md",
-        "context.md",
-        "references.md",
-        "workflow-state.md",
-        "clarification/evidence-index.json",
-        "clarification/checkpoints.ndjson",
-        "clarification/handoffs",
     ),
     "deep-research": DEEP_RESEARCH_RUNTIME_REQUIRED_FILES,
     "plan": (

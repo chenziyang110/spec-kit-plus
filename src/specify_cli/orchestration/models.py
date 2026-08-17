@@ -91,7 +91,6 @@ _ORDINARY_SP_COMMANDS = frozenset(
         "analyze",
         "auto",
         "checklist",
-        "clarify",
         "constitution",
         "debug",
         "deep-research",

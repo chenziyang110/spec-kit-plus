@@ -11,7 +11,6 @@ HIGH_RISK_TEMPLATE_FILES = [
     Path("templates/commands/quick.md"),
     Path("templates/commands/debug.md"),
     Path("templates/commands/deep-research.md"),
-    Path("templates/commands/clarify.md"),
     Path("templates/commands/checklist.md"),
     Path("templates/commands/constitution.md"),
     Path("templates/commands/map-scan.md"),

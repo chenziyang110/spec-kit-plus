@@ -87,8 +87,6 @@ flowchart LR
     D["discussion<br/>(optional shaping)"] -.-> S["specify<br/>requirements and acceptance"]
     D -. direct delivery .-> Q["quick<br/>resumable execution at any size"]
     S --> P["plan<br/>technical design"]
-    S -. needs repair .-> C["clarify"]
-    C --> P
     S -. feasibility unproven .-> R["deep-research"]
     R --> P
     P --> T["tasks<br/>dependency-aware graph"]
@@ -100,7 +98,7 @@ flowchart LR
 
 - Use `discussion` before formal specification or direct quick delivery when an idea still needs product or technical shaping.
 - Use `quick` / `spx-quick` for resumable direct delivery when the requested outcome is already clear enough to implement without first creating a formal specification. Quick is not limited to small tasks: it may handle larger, multi-capability, architecture, migration, compatibility, rollout, or acceptance-heavy work through task-local planning, lanes or batches, consequence tracking, and validation.
-- Use `clarify` only when an existing specification needs deeper analysis before planning.
+- Use `specify` again when an existing specification needs a focused analysis or repair pass before planning.
 - Use `deep-research` when requirements are clear but feasibility, external evidence, or an implementation chain still needs proof before planning. It binds the exact spec and capability set, leases bounded research tracks, validates source provenance and disposable-spike evidence, records leader accept/reject decisions with one retry, requires an independent audit, and publishes a digest-bound handoff that `plan` must verify. It does not rewrite requirements, choose the final architecture, or implement production code.
 - Use `design` as an independent UI design input lane when a screen, component, interaction, responsive layout, TUI, or CLI presentation needs an approved visual contract. It feeds `specify` or `quick`; it is not a mandatory stage between Deep Research and planning.
 - Use `sp-test-design` (Classic; rendered invocation `test-design`) / `spx-test-design` (Advanced) as an independent producer when a project, feature, formal Plan, Quick task, Tasks graph, or Review needs a frozen test universe, professional case catalog, test-data/material pack, explicit gaps, and bounded leader/subagent discovery. It does not require a completed Plan. It publishes a content-addressed package and typed pointer-only projections for selected read-only consumers. The default formal path still keeps `plan -> [optional test-design] -> tasks`, and completeness remains only `complete_against_frozen_scope`, never absolute.
@@ -112,7 +110,7 @@ flowchart LR
 | Layer | Canonical workflows |
 | --- | --- |
 | Core workflow skills | `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept` |
-| Support skills | `auto`, `ask`, `discussion`, `clarify`, `deep-research` (`research` compatibility alias), `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues` |
+| Support skills | `auto`, `ask`, `discussion`, `deep-research` (`research` compatibility alias), `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues` |
 | Codex-only runtime | `sp-teams` for durable managed-team state and `team` for runtime operations inside the generated agent catalog |
 
 The generated `ask` workflow is read-only, evidence-backed project Q&A. `prd-scan -> prd-build` reconstructs current product documentation from an existing repository and is a peer workflow, not an automatic handoff to `plan`.
@@ -514,7 +512,7 @@ After an advanced-profile init, use independent, discoverable SPX skills:
 
 ```text
 $spx-accept               $spx-analyze              $spx-ask
-$spx-auto                 $spx-checklist            $spx-clarify
+$spx-auto                 $spx-checklist
 $spx-constitution         $spx-debug                $spx-deep-research
 $spx-design               $spx-discussion           $spx-explain
 $spx-fast                 $spx-implement            $spx-implement-teams
@@ -806,7 +804,7 @@ and TUI path receive the same treatment: command-surface minimization must not
 delete capability, and a manual copy or template-only interpretation requires
 explicit user confirmation.
 
-The normal next step remains exactly one of `/sp.plan`, `/sp.clarify`, or
+The normal next step remains exactly one of `/sp.plan`, `/sp.specify`, or
 `/sp.deep-research`. `/sp.plan` is valid only after the written artifacts pass
 self-review and user review has been requested.
 
@@ -890,7 +888,7 @@ Kimi.
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept`
-- Support skills: `auto`, `ask`, `discussion`, `clarify`, `deep-research` (`research` alias), `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues`
+- Support skills: `auto`, `ask`, `discussion`, `deep-research` (`research` alias), `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues`
 - Codex-only runtime: terminal `specify sp-teams` operations plus the generated `sp-teams` and `team` catalog entries
 
 Conditional gates and follow-up commands:
@@ -934,13 +932,13 @@ Conditional gates and follow-up commands:
   Schema v5 is current-only. The current runtime does not migrate schema v4 or older databases. Never move, remove, archive, or replace `project-cognition.db` directly. Run `specify-runtime cognition archive-incompatible-store --inspect --format json`, execute its hash-guarded `archive_argv`, then run `sp-map-scan -> sp-map-build` with the current binary to publish schema v5 with revisioned typed graph-claim lifecycle and reconciliation tables.
 - Support drift is not runtime-truth staleness. When `freshness` is `support_drift`, resolve or ignore the support-surface change instead of reflexively routing to `map-update`.
 - Map points, code proves: technical claims must be backed by live code, tests, scripts, configuration, or authoritative docs.
-- Planning-only workflows do not acquire source mutation authority: `specify`, `clarify`, `deep-research`, `plan`, `test-design`, and `tasks` write their owned planning artifacts only. If a request requires source/runtime/template/config/test/generated-asset changes, they must hand off to a registry-owned mutation workflow and stop; they do not conditionally run mutation closeout themselves. The receiving mutation owner applies its rendered planner-first project cognition closeout, while `sp-map-update` remains the external/manual maintenance workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair.
+- Planning-only workflows do not acquire source mutation authority: `specify`, `deep-research`, `plan`, `test-design`, and `tasks` write their owned planning artifacts only. If a request requires source/runtime/template/config/test/generated-asset changes, they must hand off to a registry-owned mutation workflow and stop; they do not conditionally run mutation closeout themselves. The receiving mutation owner applies its rendered planner-first project cognition closeout, while `sp-map-update` remains the external/manual maintenance workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair.
 - `auto` to resume the recommended next workflow step from current repository state; for feature stages it reads `workflow.json` through `specify-runtime workflow show` then `specify-runtime workflow next` and consumes structured `next_argv` before consulting rich `workflow-state.md`, `implement-tracker.md`, quick-task `STATUS.md`, or debug session files. It continues under the routed workflow's contract without rewriting downstream state to `sp-auto`. When the routed workflow would only ask a bounded question or confirmation with one safe recommended/default answer, `auto` accepts that recommendation and continues; when it cannot do so safely, it reports the blocker plus a self-unblock recommendation instead of waiting silently.
 - inside a managed Run, `auto` routes only the current Run subject and verifies `SPECIFY_RUN_WORKSPACE`; an unbound read-only invocation stops when more than one safe candidate remains instead of guessing from branch recency
 - `ask` for read-only evidence-backed project Q&A. Use it when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. `sp-ask` is independent from `sp-discussion`; it creates no ask state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. Do not teach a `specify ask` helper in v1.
 - `discussion` to shape a rough idea before formal specification or direct quick delivery. At handoff it presents both paths and their eligibility, explains any blocker, recommends one eligible path from delivery complexity and consequence profile, and leaves the final choice to the user. It favors Quick for bounded, well-understood work and Specify for high ambiguity/complexity, interacting systems, architecture/data migration/security/compliance/rollout concerns, broad acceptance obligations, or durable specification traceability; size alone is not a hard routing ceiling. Only after that choice does it submit the confirmed semantic contract through `specify-runtime discussion write-handoff`; the runtime materializes the single machine-oriented `handoff-to-specify.json`. When the contract introduces no quick-stage `semantic_delta`, Quick binds understanding to the confirmed `review_digest` and does not ask for the same confirmation again.
 - `prd-scan` followed by `prd-build` reverse-extracts a repository-first current-state PRD reconstruction archive from an existing project. Substantive `prd-scan` runs are subagent-mandatory; workers inspect implementation reality, docs, tests, routes, UI/API surfaces, project cognition evidence, and memory, while `specify-runtime prd-scan`, `specify-runtime prd-build`, and the artifact/evidence CLIs alone materialize `.specify/prd-runs/<run-id>/`. The ten growing scan ledger/contract JSON files use `prd-scan record-upsert|record-remove|record-show|record-list`, so agents send or inspect one semantic row while the Go runtime owns each envelope, ordering, optimistic digest, and atomic write. `prd-build scaffold` then expands all missing master/export boilerplate from installed templates in one transaction; agents patch only semantic sections and never reconstruct or replace those large documents. Critical reconstruction claims target `L4 Reconstruction-Ready`, and `config-contracts.json` is part of the scan contract surface. `prd-build` compiles from the scan package into the expanded archive, including config/protocol/state/error/verification/risk exports. The exported suite includes `exports/README.md` as the package navigation entry and `exports/prd.md` as the main reader-facing PRD, and `prd-build` must not perform a second repository scan. `prd` remains a deprecated compatibility entrypoint that should route into the same pair.
-- `clarify` to deepen an existing spec before planning when analysis, references, or gaps need more work
+- `specify` also owns focused repair of an existing spec when analysis, references, or gaps need more work before planning
 - `deep-research` is the conditional pre-Plan feasibility gate for clear requirements whose implementation chain is still unproven. The runtime binds the exact source spec/capabilities, coordinates bounded research workers, validates repository/external/spike provenance, records leader acceptance or rejection with one bounded retry, closes capability-to-handoff-to-evidence coverage, requires an independent audit, and publishes a revision/hash-bound `Planning Handoff` that `plan` verifies. It does not own requirement discovery, final architecture design, executable tests, or production implementation. Skip it for minor changes to already-proven behavior; `research` is only a compatibility alias and creates no separate artifacts
 - `checklist` to generate requirement-quality checklists after planning so the written requirements can be audited before implementation
 - `analyze` is an optional read-only diagnostic and legacy revalidation pass once `tasks.md` exists; run the cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md` only when explicitly requested or recorded by existing state
@@ -1139,8 +1137,8 @@ Formal delivery flow:
 specify -> [deep-research when feasibility is unproven] -> plan -> [test-design] -> tasks -> implement -> review -> accept
 ```
 
-`clarify` repairs an unclear existing specification. `design` is a separate UI
-contract lane that feeds `specify` or `quick`; neither is an unconditional
+`specify` also repairs an unclear existing specification. `design` is a separate UI
+contract lane that feeds `specify` or `quick`; it is not an unconditional
 stage in this sequence.
 
 `test-design` is an independent producer and planning-only quality lane; it
@@ -1159,13 +1157,13 @@ tasks`; executable tests and fixtures remain owned by `tasks -> implement`.
 
 Closed-loop remediation after `tasks`:
 
-- If the defect is in `spec.md` or `context.md`, go back to `clarify`, then rerun `plan`, `tasks`, and `implement` after the upstream artifacts are repaired.
+- If the defect is in `spec.md` or `context.md`, go back to `specify`, then rerun `plan`, `tasks`, and `implement` after the upstream artifacts are repaired.
 - If the defect is in `plan.md`, go back to `plan`, then rerun `tasks` and `implement`.
 - If the defect is only in `tasks.md`, rerun `tasks`, then resume `implement`.
 - `tasks` should run an implementation-readiness self-audit before final handoff, covering task coverage, locked decision preservation, task guardrails, DP1/DP2/DP3 readiness, reference fidelity mapping, unmapped tasks, and write-set conflicts.
 - If `analyze` is run, it should finish a complete blocker bundle before selecting the single recommended next command; do not treat one discovered blocker as permission to stop the rest of the analysis pass.
 - repeated `tasks -> analyze -> tasks` loops are abnormal. only use `analyze` again when explicitly required by legacy or diagnostic state; if revalidation finds new task-layer blockers that were detectable before remediation, diagnose a previous analyze miss or a tasks self-audit failure.
-- If `tasks` discovers missing upstream truth during remediation, route directly to `plan`, `clarify`, or `deep-research`; run `analyze` again only when explicitly required by legacy or diagnostic state after upstream artifacts are repaired and tasks are regenerated.
+- If `tasks` discovers missing upstream truth during remediation, route directly to `specify`, `plan`, or `deep-research`; run `analyze` again only when explicitly required by legacy or diagnostic state after upstream artifacts are repaired and tasks are regenerated.
 - If the defect is execution-only with no upstream artifact drift, continue in `implement` or route into `debug`.
 - If `analyze` is run after `implement` has already started or finished, treat the current implementation as provisional until the highest invalid stage has been repaired and downstream artifacts have been regenerated.
 
@@ -1437,7 +1435,7 @@ Result helper command shapes:
 
 - Native implementation result merge: `specify-runtime implement result-merge --feature-dir <feature-dir> --result-json '<inline-json>' --format json`
 - Unmanaged non-Codex implementation path: `specify-runtime result path --command implement --feature-dir <feature-dir> --task-id <task-id>`
-- Feature-stage native lane (Plan, Tasks, Clarify, or Review): `specify-runtime result submit --command <feature-stage> --feature-dir <feature-dir> --lane-id <lane-id> --result-json '<inline-json>'`
+- Feature-stage native lane (Plan, Tasks, or Review): `specify-runtime result submit --command <feature-stage> --feature-dir <feature-dir> --lane-id <lane-id> --result-json '<inline-json>'`
 - Deep Research worker result: `specify-runtime deep-research track-submit --feature-dir <feature-dir> --track-id <TRK-###> --attempt-id <ATTEMPT-###> --expected-revision <revision> --result-json '<inline-json>'`; the leader then uses `track-accept` or `track-reject`. Generic `result submit --command deep-research` is rejected.
 - Command shape: `specify-runtime result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>`
 - Command shape: `specify-runtime result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id> --result-json '<inline-json>'`

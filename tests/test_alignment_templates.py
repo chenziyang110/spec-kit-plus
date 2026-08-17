@@ -18,7 +18,6 @@ from .template_utils import read_template
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PRIMARY_TUI_TEMPLATE_PATHS = (
     "templates/commands/specify.md",
-    "templates/commands/clarify.md",
     "templates/commands/explain.md",
 )
 ASCII_CARD_HEADER_RE = re.compile(r"(?m)^\s*\+--")
@@ -27,7 +26,6 @@ ASCII_CARD_FOOTER_RE = re.compile(r"(?m)^\s*\+-{10,}\+?\s*$")
 MIGRATED_COMMAND_REFERENCE_WORKFLOWS = (
     "analyze",
     "checklist",
-    "clarify",
     "deep-research",
     "design",
     "discussion",
@@ -1183,7 +1181,6 @@ def test_core_sp_templates_use_cli_progressive_learning_without_hook_gates():
 
     command_templates = (
         "templates/commands/specify.md",
-        "templates/commands/clarify.md",
         "templates/commands/deep-research.md",
         "templates/commands/plan.md",
         "templates/commands/tasks.md",
@@ -1230,7 +1227,6 @@ def test_core_sp_templates_use_cli_progressive_learning_without_hook_gates():
 def test_owned_workflow_templates_use_cli_learning_reflex() -> None:
     owned_workflow_templates = (
         "templates/commands/specify.md",
-        "templates/commands/clarify.md",
         "templates/commands/constitution.md",
         "templates/commands/deep-research.md",
         "templates/commands/plan.md",
@@ -1255,7 +1251,7 @@ def test_owned_workflow_templates_use_cli_learning_reflex() -> None:
 def test_task3_owned_contract_handoffs_keep_canonical_tokens_without_invocation_placeholders() -> None:
     task3_owned_handoffs = {
         "templates/commands/analyze.md": [
-            "/sp.clarify",
+            "/sp.specify",
             "/sp.deep-research",
             "/sp.plan",
             "/sp.tasks",
@@ -1265,7 +1261,7 @@ def test_task3_owned_contract_handoffs_keep_canonical_tokens_without_invocation_
         "templates/commands/auto.md": ["`next_command`", "/sp-auto"],
         "templates/commands/plan.md": ["/sp.tasks", "/sp.checklist"],
         "templates/commands/quick.md": ["/sp.specify"],
-        "templates/commands/specify.md": ["/sp.plan", "/sp.clarify", "/sp.deep-research"],
+        "templates/commands/specify.md": ["/sp.plan", "/sp.specify", "/sp.deep-research"],
         "templates/commands/tasks.md": ["/sp.analyze", "/sp.implement"],
     }
 
@@ -1895,7 +1891,6 @@ def test_primary_workflows_include_senior_consequence_analysis_gate() -> None:
 
 def test_adjacent_workflows_preserve_consequence_obligations() -> None:
     for rel_path in (
-        "templates/commands/clarify.md",
         "templates/commands/deep-research.md",
         "templates/commands/analyze.md",
         "templates/commands/implement.md",
@@ -3378,7 +3373,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "Recommended Next Command" in content
     assert "### 9. Define Workflow Re-entry" in content
     assert "Recommended Re-entry" in content
-    assert "If the highest invalid stage is `clarify`" in content
+    assert "If the highest invalid stage is `specify`" in content
     assert "If the highest invalid stage is `plan`" in content
     assert "If the highest invalid stage is `tasks`" in content
     assert "If the constitution itself must change" in content
@@ -3428,7 +3423,7 @@ def test_workflow_state_template_supports_analyze_gate_without_fixed_heavy_label
     assert "## Legacy Fixed-Heavy Compatibility Labels" not in content
     assert "final-handoff-decision" not in content
     assert "/sp.plan" in content
-    assert "/sp.clarify" in content
+    assert "/sp.specify" in content
     assert "/sp.deep-research" in content
     assert "## Analyze Gate" in content
     assert "gate_status" in content
@@ -3537,7 +3532,7 @@ def test_new_analysis_workflow_command_templates_exist():
     assert "map-scan" in template_stems
     assert "map-build" in template_stems
     assert "map-codebase" not in template_stems
-    assert "clarify" in template_stems
+    assert "clarify" not in template_stems
     assert "deep-research" in template_stems
     assert "explain" in template_stems
     assert "prd" in template_stems
@@ -3582,7 +3577,7 @@ def test_deep_research_template_defines_feasibility_gate_contract():
     assert "do not edit production code" in lowered
     assert "skip deep research" in lowered
     assert "minor adjustment to existing behavior" in lowered
-    assert "next_command` as `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`" in content
+    assert "next_command` as `/sp.plan`, `/sp.specify`, or `/sp.deep-research`" in content
 
 
 def test_specify_template_keeps_canonical_state_tokens_but_not_universal_user_invocation():
@@ -3590,7 +3585,7 @@ def test_specify_template_keeps_canonical_state_tokens_but_not_universal_user_in
 
     assert "Choose exactly one next command" in content
     assert "/sp.plan" in content
-    assert "/sp.clarify" in content
+    assert "/sp.specify" in content
     assert "/sp.deep-research" in content
     assert "Default handoff: /sp-plan" not in content
     assert "Default handoff: /sp.plan" not in content
@@ -3618,10 +3613,9 @@ def test_feature_workflows_prefer_managed_run_subject_when_feature_dir_is_not_ex
     tasks = _read("templates/commands/tasks.md")
     implement = _read("templates/commands/implement.md")
     deep_research = _read("templates/commands/deep-research.md")
-    clarify = _read("templates/commands/clarify.md")
     explain = _read("templates/commands/explain.md")
 
-    for content in (plan, tasks, implement, deep_research, clarify, explain):
+    for content in (plan, tasks, implement, deep_research, explain):
         lowered = content.lower()
         assert "managed run" in lowered
         assert "private git ref" in lowered
@@ -3652,7 +3646,7 @@ def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research
 
     assert "/sp.deep-research" in specify
     assert "/sp.plan" in specify
-    assert "/sp.clarify" in specify
+    assert "/sp.specify" in specify
     assert "recommend exactly one next command" in specify_lowered
     assert "user review" in specify_lowered
     assert "planning-critical" in specify_lowered
@@ -3684,29 +3678,6 @@ def test_map_workflow_templates_define_graph_native_lifecycle() -> None:
     assert "do not dispatch model-authored graph construction lanes" in content.lower()
     assert "build or refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`" not in content
     assert "runtime handbook output contract" not in content.lower()
-
-
-def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
-    content = _read("templates/commands/clarify.md")
-    lowered = content.lower()
-
-    assert "closing planning-critical gaps" in lowered
-    assert "`FEATURE_DIR/context.md`" in content
-    assert "through `specify-runtime artifact show`" in content
-    assert "The subagent proposes replacement content" in content
-    assert "specify-runtime result submit --command clarify --result-json" in content
-    assert "never edits those files" in content
-    assert "Existing Code Insights" in content
-    assert "unresolved gray areas that still change plan structure" in lowered
-    assert "missing locked decisions, canonical references, or deferred-scope notes" in lowered
-    assert "whether the spec package is now ready for `/sp.plan`, still needs more clarification, or needs `/sp.deep-research` feasibility proof first" in content
-    assert "whether another `/sp.specify` or `/sp.clarify` pass is still justified before planning" in content
-    assert "avoid implying an automatic handoff to `/sp.plan`" in lowered
-    assert "default rescue lane" in lowered
-    assert "recommend another clarification pass instead of implying that `/sp.plan` is now safe" in content
-    assert "cognition follow-up" in lowered
-    assert "artifact-only clarification work" in lowered
-    assert "actual source/runtime changes" in lowered
 
 
 def test_spec_template_defines_scope_boundaries_without_open_clarification_examples():
@@ -3821,7 +3792,7 @@ def test_workflow_state_template_exists_and_captures_simplified_review_contract(
     assert "goal-and-users" not in content
     assert "acceptance-and-completeness-gap-closure" not in content
     assert "/sp.plan" in content
-    assert "/sp.clarify" in content
+    assert "/sp.specify" in content
     assert "/sp.deep-research" in content
 
 
@@ -3842,7 +3813,7 @@ def test_workflow_state_template_documents_recovery_sections() -> None:
         "approved | auto-approved-recommended]"
         in content
     )
-    assert "final_handoff_decision: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]" in content
+    assert "final_handoff_decision: [/sp.plan | /sp.specify | /sp.deep-research | undecided]" in content
     assert "Re-read this file first after compaction or session recovery." not in content
 
 
@@ -4314,7 +4285,6 @@ def test_generated_workflow_templates_do_not_default_to_product_minimization() -
     checked_paths = [
         "templates/commands/discussion.md",
         "templates/commands/specify.md",
-        "templates/commands/clarify.md",
         "templates/commands/deep-research.md",
         "templates/commands/plan.md",
         "templates/commands/tasks.md",
@@ -4749,7 +4719,7 @@ def _legacy_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> Non
     assert "`research_gap`" in build_template
     assert "`plan_gap`" in build_template
     assert "`spec_gap`" in build_template
-    assert "/sp.clarify" in build_template
+    assert "/sp.specify" in build_template
     assert "planned validation tasks are still ready work" in lowered
     assert "do not stop to ask whether validation should start" in lowered
     assert "manual-only check or approval step is explicitly recorded in the tracker or task plan" in lowered
@@ -4814,7 +4784,7 @@ def test_tasks_template_requires_implementation_readiness_self_audit_and_remedia
     lowered = content.lower()
 
     assert "default_handoff: '/sp.implement for a clean completed task package" in content
-    assert "/sp.plan, /sp.clarify, or /sp.deep-research when escalated remediation exposes missing upstream truth" in content
+    assert "/sp.specify, /sp.plan, or /sp.deep-research when escalated remediation exposes missing upstream truth" in content
     assert "send: false" in content
     assert "Deterministic Task-Graph Review" in content
     assert "User-Observable Path Coverage" in content
@@ -5142,22 +5112,6 @@ def test_specify_plan_and_tasks_treat_needs_update_as_planning_advisory():
         assert "minimal_live_reads" in lowered
         assert "planning advisories" in lowered
         assert "`needs_update`: route through `{{invoke:map-update}}`" not in lowered
-
-
-def test_clarify_command_requires_persisted_clarification_lane_handoffs():
-    content = _read("templates/commands/clarify.md")
-    lowered = content.lower()
-
-    assert "clarification/handoffs/<lane-id>.json" in content
-    assert "clarification/evidence-index.json" in content
-    assert "clarification/checkpoints.ndjson" in content
-    assert "append one inline checkpoint object through a leased `artifact patch --append-json`" in lowered
-    assert "submits its structured handoff inline through `specify-runtime result submit --command clarify" in lowered
-    assert "never write `clarification/handoffs/<lane-id>.json` directly" in lowered
-    assert "query `clarification/evidence-index.json` through `specify-runtime artifact show`" in lowered
-    assert "patch its `integrated`, `deferred`, or `blocked` disposition" in lowered
-    assert "without an explicit consuming artifact section, deferral, or blocker reason" in lowered
-    assert "do not update planning artifacts from chat-only lane results" in lowered
 
 
 def test_analyze_command_consumes_canonical_contracts_and_lane_manifests():

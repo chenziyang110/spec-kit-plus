@@ -262,7 +262,7 @@ class TestBuiltInSkillGeneration:
         assert result.exit_code == 0, result.output
 
         skills_dir = project_dir / ".claude" / "skills"
-        assert (skills_dir / "sp-clarify" / "SKILL.md").exists()
+        assert not (skills_dir / "sp-clarify" / "SKILL.md").exists()
         assert (skills_dir / "sp-deep-research" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
         assert (skills_dir / "sp-map-scan" / "SKILL.md").exists()
@@ -329,7 +329,7 @@ class TestBuiltInSkillGeneration:
         assert "/sp-tasks" in constitution_body
         assert "/sp-analyze" in constitution_body
         assert (project_dir / ".specify" / "templates" / "references-template.md").exists()
-        assert "clarify" in result.output.lower()
+        assert "deep-research" in result.output.lower()
 
         explain_body = _skill_body("sp-explain")
         explain_tui = _extract_section(explain_body, "TUI Requirements").lower()
@@ -398,7 +398,7 @@ class TestBuiltInSkillGeneration:
         assert "clarify only planning-critical ambiguity" in specify_body.lower()
         assert "context.md" in specify_body
         assert "independent project-review value" in specify_body.lower()
-        assert "/sp.clarify" in specify_body or "{{invoke:clarify}}" in specify_body
+        assert "/sp.specify" in specify_body or "{{invoke:specify}}" in specify_body
         assert "final-handoff-decision" in specify_body
         assert "/sp.deep-research" in specify_body or "{{invoke:deep-research}}" in specify_body
         assert "git-baseline freshness" in specify_body.lower()
@@ -448,15 +448,6 @@ class TestBuiltInSkillGeneration:
         assert "complete-refresh" in plan_body
         assert "manual override/fallback" in plan_body.lower()
         assert "run `/sp-map-scan` followed by `/sp-map-build`" in plan_body
-
-        clarify_body = _skill_body("sp-clarify")
-        assert "clarification/handoffs/<lane-id>.json" in clarify_body
-        assert "clarification/evidence-index.json" in clarify_body
-        assert "clarification/checkpoints.ndjson" in clarify_body
-        assert "query `clarification/evidence-index.json`" in clarify_body.lower()
-        assert "before final cli-owned artifact updates" in clarify_body.lower()
-        assert "query every accepted clarification handoff" in clarify_body.lower()
-        assert "only through leased `artifact patch` calls" in clarify_body.lower()
 
         tasks_body = _skill_body("sp-tasks")
         assert "plan-contract.json" in tasks_body
@@ -533,7 +524,7 @@ class TestBuiltInSkillGeneration:
         assert "artifact patch" in analyze_body.lower()
         assert "analysis-only" in analyze_body.lower()
         assert "`next_command: /sp.implement`" in analyze_body
-        assert "If the highest invalid stage is `clarify`" in analyze_body
+        assert "If the highest invalid stage is `specify`" in analyze_body
         assert "spec-contract.json" in analyze_body
         assert "plan-contract.json" in analyze_body
         assert "task-index.json" in analyze_body
@@ -676,7 +667,7 @@ class TestSkillDescriptions:
         assert "planning-ready specification package" in SKILL_DESCRIPTIONS["specify"].lower()
         assert "current-state prd extraction" in SKILL_DESCRIPTIONS["prd"].lower()
         assert "without automatically handing off to planning" in SKILL_DESCRIPTIONS["prd"].lower()
-        assert "planning-critical gaps" in SKILL_DESCRIPTIONS["clarify"].lower()
+        assert "clarify" not in SKILL_DESCRIPTIONS
         assert "feasibility risk" in SKILL_DESCRIPTIONS["deep-research"].lower()
         assert "planning handoff" in SKILL_DESCRIPTIONS["deep-research"].lower()
         assert "plain language" in SKILL_DESCRIPTIONS["explain"].lower()

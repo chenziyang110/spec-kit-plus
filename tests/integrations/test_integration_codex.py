@@ -1333,7 +1333,7 @@ def test_codex_question_driven_skills_prefer_request_user_input_with_fallback(tm
 
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-    for skill_name in ("sp-specify", "sp-clarify", "sp-checklist", "sp-quick"):
+    for skill_name in ("sp-specify", "sp-checklist", "sp-quick"):
         content = (target / ".codex" / "skills" / skill_name / "SKILL.md").read_text(encoding="utf-8")
         lower = content.lower()
         assert "request_user_input" in content
@@ -1419,15 +1419,6 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "a read-only evidence worker may satisfy a planning lane" in plan_content.lower()
     assert "heuristics" not in plan_content.lower()
 
-    clarify_content = (skills_dir / "sp-clarify" / "SKILL.md").read_text(encoding="utf-8")
-    assert "clarification/handoffs/<lane-id>.json" in clarify_content
-    assert "clarification/evidence-index.json" in clarify_content
-    assert "clarification/checkpoints.ndjson" in clarify_content
-    assert "query `clarification/evidence-index.json`" in clarify_content.lower()
-    assert "before final cli-owned artifact updates" in clarify_content.lower()
-    assert "query every accepted clarification handoff" in clarify_content.lower()
-    assert "only through leased `artifact patch` calls" in clarify_content.lower()
-
     tasks_content = _read_skill_with_references(skills_dir / "sp-tasks" / "SKILL.md")
     assert "plan-contract.json" in tasks_content
     assert "task-index.json" in tasks_content
@@ -1472,7 +1463,7 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "workflow-state.md" in analyze_content
     assert "analysis-only" in analyze_content.lower()
     assert "`next_command: /sp.implement`" in analyze_content
-    assert "If the highest invalid stage is `clarify`" in analyze_content
+    assert "If the highest invalid stage is `specify`" in analyze_content
     assert "planning/lane-manifest.json" in analyze_content
     assert "task-generation/lane-manifest.json" in analyze_content
     assert "accepted planning handoff with no downstream consumer" in analyze_content.lower()

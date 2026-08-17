@@ -403,21 +403,6 @@
       "safe_instruction_patterns": ["evidence register", "evidence import", "evidence show", "evidence verify", "content-addressed object_ref", "content-addressed storage", "runtime-owned", "cli-owned"]
     },
     {
-      "id": "clarification_state_artifacts",
-      "path_patterns": ["**/clarification/evidence-index.json", "**/clarification/checkpoints.ndjson"],
-      "owner_cli": ["specify-runtime artifact scaffold --kind clarification-evidence-index", "specify-runtime artifact scaffold --kind clarification-checkpoints", "specify-runtime artifact patch"],
-      "path_hints": ["clarification/evidence-index.json", "clarification/checkpoints.ndjson"],
-      "forbidden_cli_patterns": ["artifact\\s+(?:prepare\\s*(?:/|\\||plus)\\s*)?submit"],
-      "safe_instruction_patterns": ["artifact cli", "artifact show", "artifact list", "artifact prepare", "artifact scaffold", "artifact patch", "clarification-evidence-index", "clarification-checkpoints", "never submit"]
-    },
-    {
-      "id": "clarification_lane_results",
-      "path_patterns": ["**/clarification/handoffs/*.json"],
-      "owner_cli": ["specify-runtime result submit --command clarify"],
-      "path_hints": ["clarification/handoffs/"],
-      "safe_instruction_patterns": ["result submit", "artifact show", "artifact list", "runtime owner", "runtime-owned", "never write"]
-    },
-    {
       "id": "validation_ledger",
       "path_patterns": ["**/implementation-review/validation-runs.json"],
       "owner_cli": ["specify-runtime implement validation-start", "specify-runtime implement validation-finish"],

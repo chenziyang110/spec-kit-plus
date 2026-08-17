@@ -253,7 +253,7 @@ Shared or overlapping write/path scopes among packets force serial `one-subagent
    - Actor/timing
    - Any explicit user-specified must-have items incorporated
    - Recommended next workflow:
-     - If the checklist reveals planning-critical requirement gaps, contradictory behavior, or missing acceptance criteria, recommend `/sp-specify` (or `/sp-clarify` when the spec package already exists and only needs deeper analysis).
+     - If the checklist reveals planning-critical requirement gaps, contradictory behavior, or missing acceptance criteria, recommend `/sp-specify`, including when an existing package needs a focused repair pass.
      - If the checklist reveals a clear requirement whose implementation chain is still unproven, recommend `/sp-deep-research` before `/sp-plan`.
      - If the checklist exposes plan-shaping technical or artifact completeness gaps, recommend `/sp-plan`.
      - If the checklist is materially satisfied and execution preparation should continue, recommend `/sp-tasks` so task generation can perform its built-in implementation-readiness gate.

@@ -28,7 +28,6 @@ var policies = map[string]Policy{
 	"ask":             {Mode: ModeNoCloseout, Reason: "Ask is read-only."},
 	"auto":            {Mode: ModeNoCloseout, Reason: "The selected owning workflow performs any required closeout."},
 	"checklist":       {Mode: ModeNoCloseout, Reason: "Checklist artifacts are planning-only."},
-	"clarify":         {Mode: ModeNoCloseout, Reason: "Clarification changes specification artifacts only."},
 	"constitution":    {Mode: ModeNoCloseout, Reason: "Constitution changes are governance artifacts and do not update the code map."},
 	"debug":           {Mode: ModeMutationCloseout, CanonicalWorkflow: "sp-debug", Reason: "Debug may repair repository behavior."},
 	"deep-research":   {Mode: ModeNoCloseout, Reason: "Research findings and isolated spikes are planning inputs."},

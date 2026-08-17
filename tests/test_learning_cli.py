@@ -3340,7 +3340,6 @@ def test_learning_start_exposes_confirmed_project_constraint_for_all_workflows(
         "ask",
         "auto",
         "checklist",
-        "clarify",
         "constitution",
         "debug",
         "deep-research",

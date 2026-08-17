@@ -38,7 +38,6 @@ _FALLBACK_CORE_COMMAND_NAMES = frozenset({
     "map-scan",
     "map-build",
     "plan",
-    "clarify",
     "specify",
     "team",
     "tasks",

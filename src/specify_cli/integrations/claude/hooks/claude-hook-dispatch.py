@@ -23,7 +23,6 @@ from typing import Any, Literal, NamedTuple
 
 WORKFLOW_COMMAND_MAP = {
     "sp-specify": "specify",
-    "sp-clarify": "clarify",
     "sp-deep-research": "deep-research",
     "sp-plan": "plan",
     "sp-tasks": "tasks",

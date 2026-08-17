@@ -13,7 +13,6 @@ FIRST_RELEASE_WORKFLOW_COMMANDS = frozenset(
     {
         "specify",
         "ask",
-        "clarify",
         "explain",
         "debug",
         "deep-research",

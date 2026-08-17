@@ -6287,7 +6287,6 @@ SKILL_DESCRIPTIONS = {
     "prd-scan": "Use when an existing repository needs read-only heavy reconstruction scan outputs before final PRD synthesis; execution is subagent-mandatory and critical claims target L4 Reconstruction-Ready.",
     "prd-build": "Use when a validated PRD scan package exists and the final PRD suite must be compiled from it without a second repository scan.",
     "prd": "Use when an existing repository needs current-state PRD extraction without automatically handing off to planning; route legacy one-step habits through prd-scan followed by prd-build and the heavy reconstruction contract surface.",
-    "clarify": "Use when an existing specification package has planning-critical gaps, weak analysis, or new constraints that should be absorbed before planning.",
     "deep-research": "Use when a planning-ready spec still has feasibility risk and needs coordinated research, evidence packets, a Planning Handoff, or a disposable demo before implementation planning.",
     "research": "Use when a compatibility alias is needed for deep-research; route to the canonical feasibility research gate without creating separate sp-research artifacts.",
     "explain": "Use when the user needs the current stage artifact or project cognition/runtime artifact explained in plain language without changing the underlying files.",
@@ -7300,7 +7299,6 @@ def init(
             ("ask", "read-only project questions"),
             ("auto", "resume the safest next workflow"),
             ("checklist", "requirements-quality checklist"),
-            ("clarify", "repair an existing specification"),
             ("constitution", "project principles and governance"),
             ("debug", "evidence-driven diagnosis and repair"),
             ("deep-research", "pre-plan feasibility evidence"),
@@ -7404,9 +7402,6 @@ def init(
         f"   - [cyan]{_display_cmd('prd')}[/] - Deprecated compatibility entrypoint; routes older reverse-PRD habits to the scan/build flow"
     )
     steps_lines.append(
-        f"   - [cyan]{_display_cmd('clarify')}[/] - Deepen an existing spec before planning when analysis or references still need work"
-    )
-    steps_lines.append(
         f"   - [cyan]{_display_cmd('deep-research')}[/] - Coordinate research, evidence packets, and disposable demos into a traceable Planning Handoff before planning"
     )
     steps_lines.append(
@@ -7463,7 +7458,6 @@ def init(
             f"○ [cyan]{_display_cmd('prd-scan')}[/] [bright_black](existing-project PRD scan)[/bright_black] - Produce the heavy reconstruction scan package for reverse-PRD work before final synthesis, including subagent-mandatory evidence and config-contracts.json",
             f"○ [cyan]{_display_cmd('prd-build')}[/] [bright_black](after prd-scan)[/bright_black] - Compile the final PRD suite from a validated scan package without turning build back into an ad hoc scan",
             f"○ [cyan]{_display_cmd('prd')}[/] [bright_black](deprecated compatibility)[/bright_black] - Compatibility entrypoint only; prefer the canonical [cyan]{_display_cmd('prd-scan')}[/] -> [cyan]{_display_cmd('prd-build')}[/] flow",
-            f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
             f"○ [cyan]{_display_cmd('deep-research')}[/] [bright_black](optional feasibility gate)[/bright_black] - Bind the current spec, verify unproven capability chains through evidence or disposable spikes, independently audit them, and publish a digest-bound handoff for [cyan]{_display_cmd('plan')}[/]",
             f"○ [cyan]{_display_cmd('test-design')}[/] [bright_black](optional after plan)[/bright_black] - Compile an evidence-backed test universe, professional case catalog, data/material decisions, gaps, and a pointer-only handoff before [cyan]{_display_cmd('tasks')}[/]",
             f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional diagnostic / legacy revalidation)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift when explicitly requested or recorded in existing state",

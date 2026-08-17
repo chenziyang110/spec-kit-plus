@@ -41,7 +41,7 @@ Merge exactly one structured decision through `specify-runtime implement result-
 - `repair-and-rerun-current-window`
 - `blocked-reopen-tasks`
 - `blocked-reopen-plan`
-- `blocked-reopen-clarify`
+- `blocked-reopen-specify`
 - `blocked-deep-research`
 - `debug-required`
 

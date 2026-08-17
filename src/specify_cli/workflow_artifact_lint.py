@@ -659,13 +659,13 @@ def _detect_legacy_python_runtime_invocation(path: str, line: str) -> str | None
             [
                 re.compile(
                     r"\bspecify\s+(?:artifact|workflow|tasks|plan|review|accept|"
-                    r"discussion|quick|clarify|analyze|implement|cognition|hook|lane|"
+                    r"discussion|quick|analyze|implement|cognition|hook|lane|"
                     r"design|result|deep-research|sp-teams)\b",
                     re.IGNORECASE,
                 ),
                 re.compile(
                     r"\bpython\s+-m\s+specify(?:cli)?\s+(?:artifact|workflow|tasks|"
-                    r"plan|review|accept|discussion|quick|clarify|analyze|implement|"
+                    r"plan|review|accept|discussion|quick|analyze|implement|"
                     r"cognition|hook|learning|lane|design|result|deep-research|sp-teams)\b",
                     re.IGNORECASE,
                 ),
@@ -683,14 +683,14 @@ def _detect_legacy_python_runtime_invocation(path: str, line: str) -> str | None
             re.compile(r"\bpython\s+-m\s+specify\b", re.IGNORECASE),
             re.compile(
                 r"\b(?:run|execute|invoke|call|use|emulate)\s+`[^`\n]*\bspecify\s+"
-                r"(?:artifact|workflow|tasks|plan|review|accept|discussion|quick|clarify|"
+                r"(?:artifact|workflow|tasks|plan|review|accept|discussion|quick|"
                 r"analyze|implement|cognition|hook|doctor|lane|design|result|"
                 r"deep-research|sp-teams)\b[^`\n]*`",
                 re.IGNORECASE,
             ),
             re.compile(
                 r"\b(?:run|execute|invoke|call|use|emulate)\s+specify\s+"
-                r"(?:artifact|workflow|tasks|plan|review|accept|discussion|quick|clarify|"
+                r"(?:artifact|workflow|tasks|plan|review|accept|discussion|quick|"
                 r"analyze|implement|cognition|hook|doctor|lane|design|result|"
                 r"deep-research|sp-teams)\b",
                 re.IGNORECASE,

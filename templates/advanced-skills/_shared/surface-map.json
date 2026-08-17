@@ -64,12 +64,6 @@
       "assets": [],
       "optimization": "focused unit tests for written requirements, never implementation tests"
     },
-    "spx-clarify": {
-      "absorbs": ["clarify"],
-      "references": ["spx-clarify/references/clarification-contract.md"],
-      "assets": [],
-      "optimization": "small decision batches repair an existing spec without replaying discovery"
-    },
     "spx-constitution": {
       "absorbs": ["constitution"],
       "references": ["spx-constitution/references/constitution-contract.md"],

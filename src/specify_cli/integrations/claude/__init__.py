@@ -28,7 +28,6 @@ ARGUMENT_HINTS: dict[str, str] = {
     "specify": "Describe the feature you want to specify",
     "ask": "Ask a read-only project question to answer from live evidence",
     "discussion": "Describe the rough idea or discussion slug to create or resume before Quick delivery or specification",
-    "clarify": "Describe what in the current spec package needs deeper analysis or correction",
     "deep-research": "Describe the feasibility question, research tracks, or demo proof needed before planning handoff",
     "research": "Describe the feasibility question; routes to sp-deep-research without separate artifacts",
     "explain": "Optionally name the stage or artifact you want explained",

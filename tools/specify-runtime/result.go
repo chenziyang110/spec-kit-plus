@@ -180,7 +180,7 @@ type resultPathRequest struct {
 
 func usesStageOwnedResultChannel(commandName string) bool {
 	switch strings.ToLower(strings.TrimSpace(commandName)) {
-	case "review", "clarify", "plan", "tasks", "prd-scan", "quick", "debug":
+	case "review", "plan", "tasks", "prd-scan", "quick", "debug":
 		return true
 	default:
 		return false
@@ -205,7 +205,7 @@ func buildResultHandoffPath(projectRoot string, request resultPathRequest) (stri
 			return "", err
 		}
 		return resolveProjectContainedPath(projectRoot, filepath.Join(featureDir, "review-results", laneID+".json"))
-	case commandName == "clarify" || commandName == "plan" || commandName == "tasks":
+	case commandName == "plan" || commandName == "tasks":
 		featureDir, err := resolveProjectContainedPath(projectRoot, request.FeatureDir)
 		if err != nil || strings.TrimSpace(request.LaneID) == "" {
 			return "", fmt.Errorf("--feature-dir and --lane-id are required for %s result handoff", commandName)
@@ -215,9 +215,8 @@ func buildResultHandoffPath(projectRoot string, request resultPathRequest) (stri
 			return "", err
 		}
 		directories := map[string]string{
-			"clarify": "clarification/handoffs",
-			"plan":    "planning/handoffs",
-			"tasks":   "task-generation/handoffs",
+			"plan":  "planning/handoffs",
+			"tasks": "task-generation/handoffs",
 		}
 		return resolveProjectContainedPath(projectRoot, filepath.Join(featureDir, directories[commandName], laneID+".json"))
 	case commandName == "prd-scan":

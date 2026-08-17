@@ -11,7 +11,6 @@ from .result_schema import WorkerTaskResult, worker_task_result_payload
 
 FEATURE_LANE_RESULT_DIRECTORIES = {
     "review": "review-results",
-    "clarify": "clarification/handoffs",
     "plan": "planning/handoffs",
     "tasks": "task-generation/handoffs",
 }

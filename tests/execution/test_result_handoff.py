@@ -71,7 +71,7 @@ def test_describe_result_submit_template_uses_inline_cli_channels() -> None:
     assert "--result-file" not in codex_quick
 
 
-@pytest.mark.parametrize("command_name", ["clarify", "plan", "tasks"])
+@pytest.mark.parametrize("command_name", ["plan", "tasks"])
 def test_describe_result_submit_template_for_codex_stage_commands_uses_generic_result_submit(
     command_name: str,
 ) -> None:
@@ -106,7 +106,6 @@ def test_build_result_handoff_path_for_codex_runtime(
 @pytest.mark.parametrize(
     ("command_name", "suffix"),
     [
-        ("clarify", "clarification/handoffs/lane-a.json"),
         ("plan", "planning/handoffs/lane-a.json"),
         ("tasks", "task-generation/handoffs/lane-a.json"),
     ],

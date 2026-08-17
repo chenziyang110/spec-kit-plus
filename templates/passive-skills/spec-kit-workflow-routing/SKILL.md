@@ -148,8 +148,8 @@ explicit numeric option.
 - Treat `sp-prd` as a deprecated compatibility alias that must route into the
   canonical `sp-prd-scan -> sp-prd-build` flow instead of acting as the primary
   reverse-PRD lane.
-- Use `sp-clarify` when an existing spec package needs deeper analysis before
-  planning can safely proceed.
+- Use `sp-specify` when an existing spec package needs deeper analysis or repair
+  before planning can safely proceed.
 - Use `sp-deep-research` when the requirements are clear but feasibility, external
   evidence, optional multi-agent research, or a disposable demo is needed to prove
   the implementation chain before planning. It must write a Planning Handoff for

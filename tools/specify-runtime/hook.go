@@ -24,7 +24,6 @@ var hookExpectedWorkflowState = map[string]struct {
 }{
 	"constitution":  {"sp-constitution", "planning-only"},
 	"specify":       {"sp-specify", "planning-only"},
-	"clarify":       {"sp-clarify", "planning-only"},
 	"deep-research": {"sp-deep-research", "research-only"},
 	"plan":          {"sp-plan", "design-only"},
 	"tasks":         {"sp-tasks", "task-generation-only"},
@@ -433,7 +432,6 @@ func hookRequiredArtifacts(command string) ([]hookRequiredArtifact, bool) {
 	files := map[string][]string{
 		"constitution":  {"constitution.md"},
 		"specify":       {"spec-contract.json", "spec.md", "workflow-state.md"},
-		"clarify":       {"spec.md", "alignment.md", "context.md", "references.md", "workflow-state.md", "clarification/evidence-index.json", "clarification/checkpoints.ndjson"},
 		"deep-research": {"deep-research.md", "workflow-state.md", "research/state.json", "research/track-manifest.json", "research/synthesis.json", "research/handoff-to-plan.json"},
 		"plan":          {"plan.md", "plan-contract.json", "workflow-state.md"},
 		"tasks":         {"tasks.md", "task-index.json", "workflow-state.md"},
@@ -449,7 +447,6 @@ func hookRequiredArtifacts(command string) ([]hookRequiredArtifact, bool) {
 		"prd":           {"workflow-state.md", "prd-scan.md", "coverage-ledger.md", "coverage-ledger.json", "capability-ledger.json", "artifact-contracts.json", "reconstruction-checklist.json"},
 	}
 	dirs := map[string][]string{
-		"clarify":   {"clarification/handoffs"},
 		"review":    {"review-evidence"},
 		"map-scan":  {"evidence"},
 		"prd-scan":  {"scan-packets", "evidence", "worker-results"},
@@ -477,11 +474,6 @@ func validateHookArtifactSemantics(projectRoot, featurePath, featureRel, command
 		return hookSemanticEnvelope(command, featureRel, env)
 	case "plan":
 		if err := validatePlanContract(projectRoot, featurePath, featureRel); err != nil {
-			return hookSemanticError(command, featureRel, err)
-		}
-		return hookSemanticOK(command, featureRel)
-	case "clarify":
-		if err := validateHookClarifyArtifacts(featurePath); err != nil {
 			return hookSemanticError(command, featureRel, err)
 		}
 		return hookSemanticOK(command, featureRel)

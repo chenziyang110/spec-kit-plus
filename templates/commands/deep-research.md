@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: The current spec package exists, but one or more capabilities do not yet have a credible implementation chain.
   primary_objective: Coordinate focused research and isolated prototype evidence, synthesize implementation-chain decisions, and produce a planning handoff before /sp-plan.
   primary_outputs: 'Runtime-owned Deep Research lifecycle artifacts under `FEATURE_DIR/research/` plus `research-evidence/`, the compatible `FEATURE_DIR/deep-research.md` projection, optional `FEATURE_DIR/research-spikes/`, and updated `alignment.md`, `context.md`, `references.md`, and `workflow-state.md`.'
-  default_handoff: /sp-plan when feasibility is proven or explicitly accepted; otherwise /sp-clarify for requirement gaps or stop with blocked research risks.
+  default_handoff: /sp-plan when feasibility is proven or explicitly accepted; otherwise /sp-specify for requirement gaps or stop with blocked research risks.
 handoffs:
   - label: Build Technical Plan
     agent: sp.plan
@@ -110,7 +110,7 @@ runtime lifecycle surfaces are present.
   - `evidence_packet_acceptance`: accepted and rejected packet lists with reasons
   - `failed_readiness_checks`: list of check IDs that failed
   - `open_gaps`: gap ID, description, severity, and linked CAP/TRK IDs
-  - `entry_source`: `sp-specify` | `sp-clarify` (which command routed here)
+  - `entry_source`: `sp-specify` (the specification workflow that routed here)
   - `research_mode`: `full-research` | `supplement-research`
 - Do not edit production code, production tests, migrations, release config, or implementation artifacts from `sp-deep-research`.
 - When resuming after compaction, query `WORKFLOW_STATE_FILE` through `artifact show` before proceeding.
@@ -234,12 +234,7 @@ runtime lifecycle surfaces are present.
 2. **Create or resume the workflow state and runtime lifecycle**:
    - Create it when absent with `specify-runtime artifact scaffold --kind workflow-state --path <feature-dir>/workflow-state.md`; otherwise query it through targeted `artifact show` and preserve still-valid `next_action`, `exit_criteria`, and `next_command` details instead of relying on chat memory alone.
    - Initialize or resume the canonical Deep Research lifecycle only through `specify-runtime deep-research init`, `deep-research status`, `deep-research track-prepare`, `deep-research track-lease`, `deep-research track-submit`, `deep-research track-reject`, `deep-research track-accept`, `deep-research track-yield`, `deep-research synthesize`, `deep-research audit-prepare`, `deep-research audit-accept`, `deep-research validate`, `deep-research publish`, and `deep-research verify-handoff`.
-   - Determine entry source:
-     - If the prior `active_command` in `workflow-state.md` was `sp-specify` →
-       `entry_source: sp-specify`, `research_mode: full-research`
-     - If the prior `active_command` was `sp-clarify` →
-       `entry_source: sp-clarify`, `research_mode: supplement-research`
-     - If undetermined → default to `full-research`
+   - Record `entry_source: sp-specify`. Use `full-research` for a first feasibility pass. Use `supplement-research` only when the runtime verifies an earlier accepted research revision and a newer Specify revision selects newly added or changed capabilities; otherwise default to `full-research`.
    - In `supplement-research` mode, preserve existing evidence and only research
      newly added or changed capabilities.
    - Record entry source and research mode in the runtime-owned research state.
@@ -313,13 +308,13 @@ runtime lifecycle surfaces are present.
    - Skip deep research and recommend `/sp.plan` when all target capabilities already have a known implementation path in the repository or the work is only a minor adjustment to existing behavior.
     - When skipping, use the runtime `not-needed` publish path so the canonical lifecycle records the decision and the compatible `deep-research.md` projection carries the exact `**Status**: Not needed` marker. Do not invent `CAP/TRK/EVD/PH` IDs for work that is already proven.
    - Continue when any capability depends on an unproven API, library, algorithm, platform behavior, data volume, permission boundary, external integration, performance envelope, generated-code workflow, native/plugin bridge, or other path where planning would otherwise guess.
-- If the uncertainty is a requirement gap, recommend `/sp.clarify` and patch the route reason in `workflow-state.md` through a leased `specify-runtime artifact patch`.
+- If the uncertainty is a requirement gap, recommend `/sp.specify` and patch the route reason in `workflow-state.md` through a leased `specify-runtime artifact patch`.
 
 5. **Build a capability feasibility matrix from the spec's capability decomposition**:
    - Start from the capability list in `spec.md`. Each spec capability maps to one CAP-###.
    - Do not invent new capability names; use the spec's decomposition as the source of truth.
    - If a selected spec capability is too broad for focused research, stop and
-     route it back to Specify or Clarify for a new valid `CAP-###` decomposition;
+     route it back to Specify for a new valid `CAP-###` decomposition;
      Deep Research must not invent suffixed capability IDs outside the bound
      `feasibility_gate.capability_refs` set.
 - For each capability, query its feasibility section from `alignment.md` with `specify-runtime artifact show --section` and take action:
@@ -335,7 +330,7 @@ runtime lifecycle surfaces are present.
    - If the Senior Consequence Analysis Gate is triggered or upstream artifacts carry `CA-###` consequence obligations, create research tracks for any unproven affected object, state-behavior matrix entry, dependency impact, recovery behavior, validation route, or coverage gap that planning would otherwise guess.
    - Each consequence-sensitive `TRK-###` must name the linked `CA-###` obligation, the stop-and-reopen condition it can clear or confirm, the evidence needed, and the downstream workflow that must consume the result.
    - Research outputs must not drop `CA-###` consequence obligations; carry them into `Planning Handoff`, `Synthesis Decisions`, `Validation implications`, and residual risks until they are resolved or explicitly deferred.
-   - If evidence disproves an upstream consequence assumption, preserve the obligation as blocked, record the stop-and-reopen condition, and route back to `/sp.clarify` instead of handing ambiguous semantics to `/sp.plan`.
+   - If evidence disproves an upstream consequence assumption, preserve the obligation as blocked, record the stop-and-reopen condition, and route back to `/sp.specify` instead of handing ambiguous semantics to `/sp.plan`.
    - When a consequence obligation is proven enough for planning, record the evidence ID, affected objects, lifecycle states covered, dependency impact, recovery and validation contract, remaining coverage gaps, and whether the obligation is still open.
 
    For each capability or module slice, record:
@@ -486,7 +481,7 @@ runtime lifecycle surfaces are present.
       - current authoritative files
       - exit criteria for feasibility completion
       - next action required before handoff
-      - `next_command` as `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`
+      - `next_command` as `/sp.plan`, `/sp.specify`, or `/sp.deep-research`
 
 14. **Report completion**:
     - [AGENT] first run `{{specify-subcmd:specify-runtime hook validate-artifacts --command deep-research --feature-dir <feature-dir> --format json}}`; refuse the planning handoff until the Go gate accepts the final research sections, cited evidence objects, and workflow state
@@ -510,12 +505,12 @@ runtime lifecycle surfaces are present.
 Before `deep-research validate` and `deep-research publish` allow the workflow
 to recommend `/sp.plan`, run every check
 below. If **any** check fails, refuse handoff, produce a gap report, and
-set `next_command` to `/sp.clarify` or mark the phase as blocked.
+set `next_command` to `/sp.specify` or mark the phase as blocked.
 
 - [ ] Every CAP has at least one PH-ID assigned
 - [ ] Every PH-ID traces to at least one evidence ID (`EVD-###`, `SPK-###`, or live repository path)
 - [ ] No CAP remains `blocked` or `not viable`; requirement redesign routes
-      back through Specify or Clarify before a new Deep Research generation
+      back through Specify before a new Deep Research generation
 - [ ] No `proven` CAP still has unresolved unknown links in its implementation chain
 - [ ] Every dispatched subagent returned an accepted evidence packet; rejected packets were retried or escalated
 - [ ] `dispatch_shape: subagent-blocked` is recorded with a concrete block reason and escalation path
@@ -532,7 +527,7 @@ When refusal happens, output a gap report inline before the refusal decision:
 | All PHs trace to evidence | FAIL | PH-005 | No EVD/SPK/repo path |
 | ... | PASS | — | — |
 
-**Decision**: Handoff refused. Next command: `/sp.clarify`
+**Decision**: Handoff refused. Next command: `/sp.specify`
 ```
 
 ## Rules

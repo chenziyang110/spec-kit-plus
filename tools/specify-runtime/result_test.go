@@ -43,9 +43,8 @@ func TestResultPathUsesStageOwnedFeatureHandoffDirectories(t *testing.T) {
 	mkdirAll(t, featureDir)
 
 	cases := map[string]string{
-		"clarify": "clarification/handoffs/lane-a.json",
-		"plan":    "planning/handoffs/lane-a.json",
-		"tasks":   "task-generation/handoffs/lane-a.json",
+		"plan":  "planning/handoffs/lane-a.json",
+		"tasks": "task-generation/handoffs/lane-a.json",
 	}
 	for command, suffix := range cases {
 		t.Run(command, func(t *testing.T) {
@@ -343,9 +342,8 @@ func TestResultSubmitForCodexStageOwnedCommandsUsesGenericHandoffPaths(t *testin
 	})
 
 	cases := map[string]string{
-		"clarify": "clarification/handoffs/lane-a.json",
-		"plan":    "planning/handoffs/lane-a.json",
-		"tasks":   "task-generation/handoffs/lane-a.json",
+		"plan":  "planning/handoffs/lane-a.json",
+		"tasks": "task-generation/handoffs/lane-a.json",
 	}
 	for command, suffix := range cases {
 		t.Run(command, func(t *testing.T) {

@@ -79,7 +79,7 @@ def test_workflow_boundary_keeps_approved_scope_diagnosis_and_fix_inside_review(
 def test_workflow_boundary_allows_review_upstream_only_for_truth_gap(tmp_path: Path):
     project = _create_project(tmp_path)
 
-    for target in ("plan", "clarify", "specify", "design"):
+    for target in ("plan", "specify", "design"):
         without_truth_gap = run_quality_hook(
             project,
             "workflow.boundary.validate",
@@ -119,7 +119,7 @@ def test_workflow_boundary_sends_acceptance_failures_to_review_first(tmp_path: P
     )
     assert result.status == "ok"
 
-    for target in ("integrate", "debug", "implement", "clarify", "specify"):
+    for target in ("integrate", "debug", "implement", "specify"):
         direct = run_quality_hook(
             project,
             "workflow.boundary.validate",

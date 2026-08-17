@@ -1287,7 +1287,7 @@ class SkillsIntegrationTests:
         i.setup(tmp_path, m)
         agent_name = i.config["name"].replace(" CLI", "").lower()
 
-        for name in ("specify", "discussion", "clarify", "deep-research", "checklist", "quick", "debug"):
+        for name in ("specify", "discussion", "deep-research", "checklist", "quick", "debug"):
             content = (i.skills_dest(tmp_path) / f"sp-{name}" / "SKILL.md").read_text(encoding="utf-8").lower()
             assert f"## {agent_name} structured question preference" in content
             assert "native structured question tool" in content

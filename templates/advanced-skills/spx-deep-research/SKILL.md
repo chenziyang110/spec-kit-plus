@@ -138,7 +138,7 @@ or partial state, stop and repair the canonical structured package instead of
 rephrasing the derived Markdown.
 
 This invocation authorizes only this workflow stage. Do not implement production
-behavior. Do not invoke `$spx-clarify`. Do not invoke `$spx-plan`. When
+behavior. Do not invoke `$spx-specify`. Do not invoke `$spx-plan`. When
 feasibility is proven or the remaining risk is explicitly accepted, report
-`$spx-plan` as the next handoff. Report requirement gaps as a `$spx-clarify`
+`$spx-plan` as the next handoff. Report requirement gaps as a `$spx-specify`
 handoff; otherwise stop with the smallest unresolved blocker.

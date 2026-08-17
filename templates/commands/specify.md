@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: A new or changed feature request needs a planning-ready specification package instead of immediate implementation.
   primary_objective: 'Produce and patch the planning-ready specification contract only through `specify-runtime artifact`, followed by deterministic completeness and traceability review.'
   primary_outputs: 'CLI-owned `spec-contract.json`, `spec.md`, triggered views, and `workflow-state.md`, created or changed only through `specify-runtime artifact`.'
-  default_handoff: 'After user review, recommend exactly one next command: `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.'
+  default_handoff: 'After user review, recommend exactly one next command: `/sp.plan`, `/sp.specify`, or `/sp.deep-research`.'
 handoffs:
   - label: Build Technical Plan
     agent: sp.plan

@@ -13,7 +13,7 @@ Preserved Contract: planning remains design-only, respects the managed Run featu
 5. Load constitution, project rules, and relevant learning detail only when they are not already represented by a current contract ref.
 6. Read deep research, UI, data, API, or external evidence only when selected by required refs.
 
-Do not revalidate the original discussion contract or rebuild specification decisions. If `semantic_delta` changes a user-owned decision, return to specify/clarify. If evidence contradicts feasibility, route to deep research or the owning phase.
+Do not revalidate the original discussion contract or rebuild specification decisions. If `semantic_delta` changes a user-owned decision, return to Specify. If evidence contradicts feasibility, route to Deep Research or the owning phase.
 
 ## Phase Lock
 

@@ -35,7 +35,7 @@ reconstructing test intent from prose. Route no-root, active, blocked,
 unpublished, stale, tampered, foreign, or requested missing selected/required
 input to `$spx-test-design`; `not_selected` with no root is the legal optional
 skip. If planning truth is missing or stale,
-stop and route to `$spx-plan`, `$spx-clarify`, or `$spx-deep-research`; do not
+stop and route to `$spx-specify`, `$spx-plan`, or `$spx-deep-research`; do not
 hide design work inside a task.
 
 The pointer-only **test-design handoff** remains the Tasks CLI compatibility

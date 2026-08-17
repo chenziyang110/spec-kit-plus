@@ -65,7 +65,7 @@ Do not create `plan-contract.json`, `plan.md`, `research.md`, `data-model.md`,
 An existing PRD used as input to one feature compiles into the ordinary spec
 contract with source traceability. Route project-wide principles to
 `$spx-constitution`, exploratory ideas to `$spx-discussion`, existing-spec gaps
-to `$spx-clarify`, and repository reconstruction to `$spx-prd-scan`.
+back through this Specify workflow, and repository reconstruction to `$spx-prd-scan`.
 
 Make requirements and acceptance observable. Populate `acceptance_coverage`
 with unique canonical JSON Pointer pairs from every `scope.in` and
@@ -83,5 +83,5 @@ handoff.
 Do not implement or edit production code, tests, migrations, or runtime
 configuration. This invocation authorizes only this workflow stage. Stop after
 reporting the specification result and recommend exactly one next workflow. Do
-not invoke `$spx-plan`, `$spx-clarify`, `$spx-deep-research`, or any other next
+not invoke `$spx-plan`, `$spx-deep-research`, or any other next
 workflow in this run; a handoff is not authorization to execute it.

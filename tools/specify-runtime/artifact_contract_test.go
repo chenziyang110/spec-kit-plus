@@ -290,17 +290,6 @@ func TestArtifactPatchUpdatesOnlyTargetedJSONMarkdownAndFrontmatter(t *testing.T
 		}
 	}
 
-	ndjsonPath := "specs/001-runtime/clarification/checkpoints.ndjson"
-	writeArtifactTestFile(t, projectRoot, ndjsonPath, "{\"id\":1}\n")
-	appendLease := service.Prepare(ArtifactPrepareRequest{Path: ndjsonPath})
-	appendResult := service.Patch(ArtifactPatchRequest{LeaseID: appendLease.Data["lease_id"].(string), Append: true, AppendJSON: map[string]any{"id": 2}})
-	if appendResult.Status != "ok" {
-		t.Fatalf("append patch = %#v", appendResult)
-	}
-	ndjsonRaw, _ := os.ReadFile(filepath.Join(projectRoot, filepath.FromSlash(ndjsonPath)))
-	if string(ndjsonRaw) != "{\"id\":1}\n{\"id\":2}\n" {
-		t.Fatalf("ndjson append = %q", ndjsonRaw)
-	}
 }
 
 func TestArtifactPatchRenamesMarkdownHeadingAndReplacesPreamble(t *testing.T) {
@@ -1123,8 +1112,6 @@ func TestArtifactScaffoldCreatesRegisteredStableWorkflowArtifacts(t *testing.T) 
 		contains string
 	}{
 		{kind: "alignment", template: "alignment-template.md", path: "specs/001-demo/alignment.md", contains: "## Readiness Decision"},
-		{kind: "clarification-checkpoints", template: "artifacts/empty.ndjson", path: "specs/001-demo/clarification/checkpoints.ndjson", contains: "\n"},
-		{kind: "clarification-evidence-index", template: "artifacts/evidence-index.json", path: ".specify/features/001-demo/clarification/evidence-index.json", contains: `"lanes": []`},
 		{kind: "spec-contract", template: "spec-contract-template.json", path: "specs/001-demo/spec-contract.json", contains: `"status": "draft"`},
 		{kind: "workflow-state", template: "workflow-state-template.md", path: "specs/001-demo/workflow-state.md", contains: "# Workflow State:"},
 		{kind: "constitution", template: "constitution-template.md", path: ".specify/memory/constitution.md", contains: "# [PROJECT_NAME] Constitution"},
@@ -1293,8 +1280,8 @@ func TestArtifactScaffoldHelpDescribesCanonicalInvocation(t *testing.T) {
 
 func TestArtifactScaffoldCatalogPublishesOnlyImplementedKinds(t *testing.T) {
 	result := ArtifactScaffoldCatalog()
-	if result.Status != "ok" || len(result.Items) != 27 {
-		t.Fatalf("artifact scaffold catalog = %#v, want twenty-seven kinds", result)
+	if result.Status != "ok" || len(result.Items) != 25 {
+		t.Fatalf("artifact scaffold catalog = %#v, want twenty-five kinds", result)
 	}
 	kinds := map[string]bool{}
 	for _, item := range result.Items {
@@ -1315,8 +1302,6 @@ func TestArtifactScaffoldCatalogPublishesOnlyImplementedKinds(t *testing.T) {
 	}
 	for _, kind := range []string{
 		"alignment",
-		"clarification-checkpoints",
-		"clarification-evidence-index",
 		"constitution",
 		"data-model",
 		"debug-session",
@@ -1346,7 +1331,7 @@ func TestArtifactScaffoldCatalogPublishesOnlyImplementedKinds(t *testing.T) {
 			t.Fatalf("catalog kinds = %#v, missing %q", kinds, kind)
 		}
 	}
-	if len(kinds) != 27 {
+	if len(kinds) != 25 {
 		t.Fatalf("catalog kinds = %#v", kinds)
 	}
 }

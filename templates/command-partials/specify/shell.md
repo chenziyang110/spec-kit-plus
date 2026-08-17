@@ -95,7 +95,7 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 - Do not repeat user review for an unchanged confirmed discussion contract. Ask again only when specification compilation changes scope, behavior, risk acceptance, target boundary, or another user-owned decision.
 - When entered through `sp-auto` with `auto_default_recommendation: true`, automatically accept a single safe recommended approach or section-shape option instead of stopping only for a `1`/`2`/`3` reply; do not use this to confirm scope reduction, dropped upstream signals, out-of-scope conflicts, or unresolved planning-critical ambiguity.
 - Scaffold `spec-contract.json` first with `artifact scaffold --kind spec-contract`, refine it with targeted `artifact patch`, and patch named sections in the prerequisite-script-created `spec.md` skeleton through its registered owner; never write or resubmit those files directly.
-- Ask the user only about a non-empty `semantic_delta` or unresolved user-owned decision before recommending exactly one next command: `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
+- Ask the user only about a non-empty `semantic_delta` or unresolved user-owned decision before recommending exactly one next command: `/sp.plan`, `/sp.specify`, or `/sp.deep-research`.
 
 ## Output Contract
 
