@@ -122,6 +122,9 @@ func runResultSubmit(args []string, stdout io.Writer) int {
 		return writeResultError(stdout, "usage-error", err.Error())
 	}
 	commandName := strings.TrimSpace(optionValue(args, "--command", ""))
+	if strings.EqualFold(commandName, "deep-research") {
+		return writeResultError(stdout, "usage-error", "Deep Research track results are runtime-owned; use `specify-runtime deep-research track-submit`.")
+	}
 	if integration == "codex" && !usesStageOwnedResultChannel(commandName) {
 		return writeResultError(stdout, "usage-error", "Codex `result submit` is reserved for stage-owned native-lane results. Native implement workers return their result inline for `implement result-merge`; durable team requests use `sp-teams submit-result`.")
 	}
@@ -177,7 +180,7 @@ type resultPathRequest struct {
 
 func usesStageOwnedResultChannel(commandName string) bool {
 	switch strings.ToLower(strings.TrimSpace(commandName)) {
-	case "review", "clarify", "plan", "tasks", "deep-research", "prd-scan", "quick", "debug":
+	case "review", "clarify", "plan", "tasks", "prd-scan", "quick", "debug":
 		return true
 	default:
 		return false
@@ -187,6 +190,9 @@ func usesStageOwnedResultChannel(commandName string) bool {
 func buildResultHandoffPath(projectRoot string, request resultPathRequest) (string, error) {
 	commandName := strings.ToLower(strings.TrimSpace(request.CommandName))
 	integrationKey := strings.ToLower(strings.TrimSpace(request.IntegrationKey))
+	if commandName == "deep-research" {
+		return "", fmt.Errorf("Deep Research track results are runtime-owned; use `specify-runtime deep-research track-submit`")
+	}
 
 	switch {
 	case commandName == "review":
@@ -199,7 +205,7 @@ func buildResultHandoffPath(projectRoot string, request resultPathRequest) (stri
 			return "", err
 		}
 		return resolveProjectContainedPath(projectRoot, filepath.Join(featureDir, "review-results", laneID+".json"))
-	case commandName == "clarify" || commandName == "plan" || commandName == "tasks" || commandName == "deep-research":
+	case commandName == "clarify" || commandName == "plan" || commandName == "tasks":
 		featureDir, err := resolveProjectContainedPath(projectRoot, request.FeatureDir)
 		if err != nil || strings.TrimSpace(request.LaneID) == "" {
 			return "", fmt.Errorf("--feature-dir and --lane-id are required for %s result handoff", commandName)
@@ -209,10 +215,9 @@ func buildResultHandoffPath(projectRoot string, request resultPathRequest) (stri
 			return "", err
 		}
 		directories := map[string]string{
-			"clarify":       "clarification/handoffs",
-			"plan":          "planning/handoffs",
-			"tasks":         "task-generation/handoffs",
-			"deep-research": "research/handoffs",
+			"clarify": "clarification/handoffs",
+			"plan":    "planning/handoffs",
+			"tasks":   "task-generation/handoffs",
 		}
 		return resolveProjectContainedPath(projectRoot, filepath.Join(featureDir, directories[commandName], laneID+".json"))
 	case commandName == "prd-scan":

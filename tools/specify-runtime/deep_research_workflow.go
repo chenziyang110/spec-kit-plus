@@ -24,6 +24,7 @@ const (
 	deepResearchManifestSchema    = "spec-kit-deep-research-track-manifest-v1"
 	deepResearchTrackProtocol     = "deep_research_track_result.v1"
 	deepResearchEvidenceSchema    = "spec-kit-research-evidence-v1"
+	deepResearchRejectionSchema   = "spec-kit-deep-research-track-rejection-v1"
 	deepResearchSynthesisSchema   = "spec-kit-deep-research-synthesis-v1"
 	deepResearchAuditRequestV1    = "spec-kit-deep-research-audit-request-v1"
 	deepResearchAuditV1           = "spec-kit-deep-research-audit-v1"
@@ -110,21 +111,32 @@ type deepResearchTrackManifest struct {
 }
 
 type deepResearchTrack struct {
-	TrackID          string   `json:"track_id"`
-	Title            string   `json:"title"`
-	State            string   `json:"state"`
-	CapabilityRefs   []string `json:"capability_refs"`
-	ReadPaths        []string `json:"read_paths"`
-	Questions        []string `json:"questions"`
-	SourceClasses    []string `json:"source_classes"`
-	RequiresSpike    bool     `json:"requires_spike"`
-	CompletionSignal string   `json:"completion_signal"`
-	WorkerID         string   `json:"worker_id,omitempty"`
-	AttemptID        string   `json:"attempt_id,omitempty"`
-	AttemptNumber    int      `json:"attempt_number"`
-	ResultRef        string   `json:"result_ref,omitempty"`
-	ResultSHA256     string   `json:"result_sha256,omitempty"`
-	LastYieldReason  string   `json:"last_yield_reason,omitempty"`
+	TrackID          string                       `json:"track_id"`
+	Title            string                       `json:"title"`
+	State            string                       `json:"state"`
+	CapabilityRefs   []string                     `json:"capability_refs"`
+	ReadPaths        []string                     `json:"read_paths"`
+	Questions        []string                     `json:"questions"`
+	SourceClasses    []string                     `json:"source_classes"`
+	RequiresSpike    bool                         `json:"requires_spike"`
+	CompletionSignal string                       `json:"completion_signal"`
+	WorkerID         string                       `json:"worker_id,omitempty"`
+	AttemptID        string                       `json:"attempt_id,omitempty"`
+	AttemptNumber    int                          `json:"attempt_number"`
+	ResultRef        string                       `json:"result_ref,omitempty"`
+	ResultSHA256     string                       `json:"result_sha256,omitempty"`
+	LastYieldReason  string                       `json:"last_yield_reason,omitempty"`
+	Rejections       []deepResearchTrackRejection `json:"rejections"`
+}
+
+type deepResearchTrackRejection struct {
+	AttemptID       string `json:"attempt_id"`
+	WorkerID        string `json:"worker_id"`
+	ResultRef       string `json:"result_ref"`
+	ResultSHA256    string `json:"result_sha256"`
+	RejectionRef    string `json:"rejection_ref"`
+	RejectionSHA256 string `json:"rejection_sha256"`
+	Reason          string `json:"reason"`
 }
 
 type deepResearchFeasibilityGate struct {
@@ -167,6 +179,8 @@ func runDeepResearch(args []string, stdout io.Writer) int {
 		env = service.trackLease(args[1:])
 	case "track-submit":
 		env = service.trackSubmit(args[1:])
+	case "track-reject":
+		env = service.trackReject(args[1:])
 	case "track-accept":
 		env = service.trackAccept(args[1:])
 	case "track-yield":
@@ -193,7 +207,7 @@ func runDeepResearch(args []string, stdout io.Writer) int {
 
 func writeDeepResearchHelp(stdout io.Writer) int {
 	_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime deep-research <subcommand> [options]")
-	_, _ = fmt.Fprintln(stdout, "Subcommands: init, status, track-prepare, track-lease, track-submit, track-accept, track-yield, synthesize, audit-prepare, audit-accept, validate, publish, verify-handoff, not-needed")
+	_, _ = fmt.Fprintln(stdout, "Subcommands: init, status, track-prepare, track-lease, track-submit, track-reject, track-accept, track-yield, synthesize, audit-prepare, audit-accept, validate, publish, verify-handoff, not-needed")
 	return 0
 }
 
@@ -208,6 +222,7 @@ func deepResearchValidateOptions(args []string) error {
 		"track-prepare":  {"--feature-dir", "--input-json", "--expected-revision"},
 		"track-lease":    {"--feature-dir", "--worker-id", "--expected-revision"},
 		"track-submit":   {"--feature-dir", "--track-id", "--attempt-id", "--result-json", "--expected-revision"},
+		"track-reject":   {"--feature-dir", "--track-id", "--attempt-id", "--leader-id", "--reason", "--expected-revision"},
 		"track-accept":   {"--feature-dir", "--track-id", "--attempt-id", "--leader-id", "--expected-revision"},
 		"track-yield":    {"--feature-dir", "--track-id", "--attempt-id", "--reason", "--expected-revision"},
 		"synthesize":     {"--feature-dir", "--leader-id", "--input-json", "--expected-revision"},
@@ -634,6 +649,127 @@ func (service deepResearchService) trackSubmit(args []string) Envelope {
 	})
 }
 
+func (service deepResearchService) trackReject(args []string) Envelope {
+	featurePath, featureRef, root, _, err := service.resolveFeature(optionValue(args, "--feature-dir", ""))
+	if err != nil {
+		return deepResearchFailure("usage-error", "deep-research feature is invalid", err)
+	}
+	trackID := strings.ToUpper(strings.TrimSpace(optionValue(args, "--track-id", "")))
+	attemptID := strings.ToUpper(strings.TrimSpace(optionValue(args, "--attempt-id", "")))
+	leaderID := strings.TrimSpace(optionValue(args, "--leader-id", ""))
+	reason := strings.TrimSpace(optionValue(args, "--reason", ""))
+	if !deepResearchTrackIDPattern.MatchString(trackID) || !deepResearchAttemptIDPattern.MatchString(attemptID) || !deepResearchWorkerPattern.MatchString(leaderID) || reason == "" {
+		return deepResearchFailure("usage-error", "deep-research track-reject requires valid track, attempt, leader, and reason values", nil)
+	}
+	return service.withMutationLock(root, func() Envelope {
+		state, readErr := deepResearchReadState(root)
+		if readErr != nil {
+			return deepResearchFailure("blocked", "deep-research state is unavailable", readErr)
+		}
+		if revisionErr := deepResearchCheckExpectedRevision(args, state, true); revisionErr != nil {
+			return deepResearchFailure("blocked", "deep-research revision changed", revisionErr)
+		}
+		if state.Phase != "researching" {
+			return deepResearchFailure("blocked", "deep-research track rejection is not available at this phase", fmt.Errorf("current phase is %s", state.Phase))
+		}
+		if freshnessErr := service.requireFreshSpec(state); freshnessErr != nil {
+			return deepResearchFailure("blocked", "deep-research specification source is stale", freshnessErr)
+		}
+		manifest, manifestErr := deepResearchReadManifest(root)
+		if manifestErr != nil {
+			return deepResearchFailure("blocked", "deep-research track manifest is unavailable", manifestErr)
+		}
+		if manifest.LeaderID != leaderID {
+			return deepResearchFailure("blocked", "only the generation leader can reject a deep-research track", nil)
+		}
+		trackIndex := deepResearchFindTrack(manifest, trackID)
+		if trackIndex < 0 {
+			return deepResearchFailure("invalid", "deep-research track is unknown", fmt.Errorf("%s", trackID))
+		}
+		track := manifest.Tracks[trackIndex]
+		if !deepResearchContains([]string{"submitted", "submitted-blocked"}, track.State) || track.AttemptID != attemptID {
+			return deepResearchFailure("blocked", "deep-research submitted result no longer matches", fmt.Errorf("track %s is %s", trackID, track.State))
+		}
+		result, resultRaw, resultErr := service.readTrackResult(featurePath, track)
+		if resultErr != nil {
+			return deepResearchFailure("blocked", "deep-research track result is unavailable", resultErr)
+		}
+		if deepResearchDigest(resultRaw) != track.ResultSHA256 {
+			return deepResearchFailure("blocked", "deep-research track result was modified after submission", nil)
+		}
+		rejectionRelative := filepath.ToSlash(filepath.Join("research", "rejections", track.TrackID+"-"+track.AttemptID+".json"))
+		rejectionRef := filepath.ToSlash(filepath.Join(featureRef, rejectionRelative))
+		rejectionRecord := map[string]any{
+			"schema_version":          deepResearchRejectionSchema,
+			"generation_id":           manifest.GenerationID,
+			"track_id":                track.TrackID,
+			"attempt_id":              track.AttemptID,
+			"worker_id":               track.WorkerID,
+			"reason":                  reason,
+			"submitted_result_ref":    track.ResultRef,
+			"submitted_result_sha256": track.ResultSHA256,
+			"submitted_result":        result,
+		}
+		rejectionRaw, marshalErr := deepResearchMarshal(rejectionRecord)
+		if marshalErr != nil {
+			return deepResearchFailure("error", "cannot render deep-research track rejection", marshalErr)
+		}
+		track.Rejections = append(track.Rejections, deepResearchTrackRejection{
+			AttemptID:       track.AttemptID,
+			WorkerID:        track.WorkerID,
+			ResultRef:       track.ResultRef,
+			ResultSHA256:    track.ResultSHA256,
+			RejectionRef:    rejectionRef,
+			RejectionSHA256: deepResearchDigest(rejectionRaw),
+			Reason:          reason,
+		})
+		state.Revision++
+		retryExhausted := track.AttemptNumber >= 2
+		if retryExhausted {
+			track.State = "blocked"
+			state.Status = "blocked"
+			state.ClaimStatus = "blocked"
+			state.Blockers = []any{fmt.Sprintf("track %s was rejected after its single retry: %s", track.TrackID, reason)}
+		} else {
+			track.State = "pending"
+			track.WorkerID = ""
+			track.AttemptID = ""
+			track.ResultRef = ""
+			track.ResultSHA256 = ""
+			track.LastYieldReason = "rejected: " + reason
+			state.Status = "active"
+			state.ClaimStatus = "pending"
+			state.Blockers = []any{}
+		}
+		manifest.Tracks[trackIndex] = track
+		values := map[string]any{
+			filepath.Join(root, deepResearchStateFilename):                    state,
+			filepath.Join(root, deepResearchManifestFilename):                 manifest,
+			filepath.Join(featurePath, filepath.FromSlash(rejectionRelative)): rejectionRecord,
+		}
+		updates, updateErr := deepResearchJSONUpdates(values)
+		if updateErr != nil {
+			return deepResearchFailure("error", "cannot render deep-research rejection state", updateErr)
+		}
+		if _, transactionErr := applyFileTransaction(service.projectRoot, "deep-research.track-reject", updates); transactionErr != nil {
+			return deepResearchFailure("error", "cannot reject deep-research track", transactionErr)
+		}
+		if retryExhausted {
+			env := deepResearchFailure("blocked", "deep-research track retry was rejected", fmt.Errorf("track %s exhausted its single retry", track.TrackID))
+			env.Data = deepResearchStateData(state)
+			return env
+		}
+		env := NewEnvelope("ok", "deep-research track rejected and requeued")
+		env.Data = deepResearchStateData(state)
+		env.Data["track_id"] = track.TrackID
+		env.Data["rejected_attempt_id"] = attemptID
+		env.Data["rejection_ref"] = rejectionRef
+		env.Data["tracks"] = deepResearchTrackCounts(manifest)
+		env.NextArgv = service.commandArgv(state, "track-lease")
+		return env
+	})
+}
+
 func (service deepResearchService) trackAccept(args []string) Envelope {
 	featurePath, _, root, _, err := service.resolveFeature(optionValue(args, "--feature-dir", ""))
 	if err != nil {
@@ -884,8 +1020,8 @@ func (service deepResearchService) normalizeEvidence(featurePath, featureRef str
 	if !deepResearchContains([]string{"repository", "primary_external", "secondary_external", "experiment"}, sourceType) {
 		return nil, fmt.Errorf("source_type is invalid")
 	}
-	if state.Mode == "repo-only" && (sourceType == "primary_external" || sourceType == "secondary_external") {
-		return nil, fmt.Errorf("repo-only mode rejects external evidence")
+	if (state.Mode == "repo-only" || state.Mode == "external-blocked") && (sourceType == "primary_external" || sourceType == "secondary_external") {
+		return nil, fmt.Errorf("%s mode rejects external evidence", state.Mode)
 	}
 	if sourceRef == "" || claim == "" {
 		return nil, fmt.Errorf("source_ref and claim are required")
@@ -2115,6 +2251,15 @@ func (service deepResearchService) currentArtifactDigests(featurePath string, st
 	for ref := range corpus.SpikeDigests {
 		refs = append(refs, ref)
 	}
+	for _, track := range manifest.Tracks {
+		for _, rejection := range track.Rejections {
+			raw, readErr := deepResearchReadRegularProjectFile(service.projectRoot, rejection.RejectionRef)
+			if readErr != nil || deepResearchDigest(raw) != rejection.RejectionSHA256 {
+				return nil, firstDeepResearchError(readErr, fmt.Errorf("track rejection %s digest changed", rejection.RejectionRef))
+			}
+			refs = append(refs, rejection.RejectionRef)
+		}
+	}
 	sort.Strings(refs)
 	for _, ref := range refs {
 		raw, readErr := deepResearchReadRegularProjectFile(service.projectRoot, ref)
@@ -2452,6 +2597,7 @@ func (service deepResearchService) parseTrack(row map[string]any, state deepRese
 	track.Questions = questions
 	track.SourceClasses = sourceClasses
 	track.RequiresSpike = requiresSpike
+	track.Rejections = []deepResearchTrackRejection{}
 	return track, nil
 }
 
@@ -2487,7 +2633,7 @@ func (service deepResearchService) writeStateAndManifest(root string, state deep
 
 func (service deepResearchService) commandArgv(state deepResearchState, subcommand string) []string {
 	argv := []string{"specify-runtime", "deep-research", subcommand, "--feature-dir", state.FeatureDir}
-	if deepResearchContains([]string{"track-prepare", "track-lease", "track-submit", "track-accept", "track-yield", "synthesize", "audit-prepare", "audit-accept", "validate", "publish"}, subcommand) {
+	if deepResearchContains([]string{"track-prepare", "track-lease", "track-submit", "track-reject", "track-accept", "track-yield", "synthesize", "audit-prepare", "audit-accept", "validate", "publish"}, subcommand) {
 		argv = append(argv, "--expected-revision", strconv.Itoa(state.Revision))
 	}
 	return append(argv, "--format", "json")
@@ -2536,11 +2682,29 @@ func deepResearchReadManifest(root string) (deepResearchTrackManifest, error) {
 		manifest.Tracks = []deepResearchTrack{}
 	}
 	seen := map[string]bool{}
-	for _, track := range manifest.Tracks {
+	for index := range manifest.Tracks {
+		track := manifest.Tracks[index]
 		if !deepResearchTrackIDPattern.MatchString(track.TrackID) || seen[track.TrackID] {
 			return manifest, fmt.Errorf("track-manifest.json contains an invalid or duplicate track id")
 		}
 		seen[track.TrackID] = true
+		if track.Rejections == nil {
+			track.Rejections = []deepResearchTrackRejection{}
+		}
+		seenAttempts := map[string]bool{}
+		for _, rejection := range track.Rejections {
+			if !deepResearchAttemptIDPattern.MatchString(rejection.AttemptID) ||
+				!deepResearchWorkerPattern.MatchString(rejection.WorkerID) ||
+				!deepResearchSHA256Pattern.MatchString(rejection.ResultSHA256) ||
+				!deepResearchSHA256Pattern.MatchString(rejection.RejectionSHA256) ||
+				strings.TrimSpace(rejection.ResultRef) == "" ||
+				strings.TrimSpace(rejection.RejectionRef) == "" ||
+				strings.TrimSpace(rejection.Reason) == "" || seenAttempts[rejection.AttemptID] {
+				return manifest, fmt.Errorf("track-manifest.json contains an invalid or duplicate rejection")
+			}
+			seenAttempts[rejection.AttemptID] = true
+		}
+		manifest.Tracks[index] = track
 	}
 	return manifest, nil
 }
@@ -2642,7 +2806,22 @@ func deepResearchNextSubcommand(state deepResearchState, manifest deepResearchTr
 		if deepResearchAllTracksAccepted(manifest) {
 			return "synthesize"
 		}
-		return "track-lease"
+		for _, track := range manifest.Tracks {
+			if deepResearchContains([]string{"submitted", "submitted-blocked"}, track.State) {
+				return "track-accept"
+			}
+		}
+		for _, track := range manifest.Tracks {
+			if track.State == "leased" {
+				return "track-submit"
+			}
+		}
+		for _, track := range manifest.Tracks {
+			if track.State == "pending" {
+				return "track-lease"
+			}
+		}
+		return ""
 	case "synthesized":
 		return "audit-prepare"
 	case "audit":
