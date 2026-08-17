@@ -43,10 +43,9 @@ func TestResultPathUsesStageOwnedFeatureHandoffDirectories(t *testing.T) {
 	mkdirAll(t, featureDir)
 
 	cases := map[string]string{
-		"clarify":       "clarification/handoffs/lane-a.json",
-		"plan":          "planning/handoffs/lane-a.json",
-		"tasks":         "task-generation/handoffs/lane-a.json",
-		"deep-research": "research/handoffs/lane-a.json",
+		"clarify": "clarification/handoffs/lane-a.json",
+		"plan":    "planning/handoffs/lane-a.json",
+		"tasks":   "task-generation/handoffs/lane-a.json",
 	}
 	for command, suffix := range cases {
 		t.Run(command, func(t *testing.T) {
@@ -64,6 +63,26 @@ func TestResultPathUsesStageOwnedFeatureHandoffDirectories(t *testing.T) {
 				t.Fatalf("path = %q, want suffix %q", path, suffix)
 			}
 		})
+	}
+}
+
+func TestResultPathRejectsDeepResearchGenericChannel(t *testing.T) {
+	project := createResultProject(t, "codex")
+	featureDir := filepath.Join(project, ".specify", "features", "001-feature")
+	mkdirAll(t, featureDir)
+
+	code, payload := runResultInProject(t, project, []string{
+		"path",
+		"--command", "deep-research",
+		"--feature-dir", featureDir,
+		"--lane-id", "lane-a",
+	})
+
+	if code == 0 {
+		t.Fatalf("generic deep-research result path unexpectedly passed: %#v", payload)
+	}
+	if !strings.Contains(asString(payload["summary"]), "deep-research track-submit") {
+		t.Fatalf("summary = %q, want runtime-owned track-submit guidance", asString(payload["summary"]))
 	}
 }
 
@@ -324,10 +343,9 @@ func TestResultSubmitForCodexStageOwnedCommandsUsesGenericHandoffPaths(t *testin
 	})
 
 	cases := map[string]string{
-		"clarify":       "clarification/handoffs/lane-a.json",
-		"plan":          "planning/handoffs/lane-a.json",
-		"tasks":         "task-generation/handoffs/lane-a.json",
-		"deep-research": "research/handoffs/lane-a.json",
+		"clarify": "clarification/handoffs/lane-a.json",
+		"plan":    "planning/handoffs/lane-a.json",
+		"tasks":   "task-generation/handoffs/lane-a.json",
 	}
 	for command, suffix := range cases {
 		t.Run(command, func(t *testing.T) {
@@ -354,6 +372,30 @@ func TestResultSubmitForCodexStageOwnedCommandsUsesGenericHandoffPaths(t *testin
 				t.Fatalf("stored summary = %#v", stored["summary"])
 			}
 		})
+	}
+}
+
+func TestResultSubmitRejectsDeepResearchGenericChannel(t *testing.T) {
+	project := createResultProject(t, "codex")
+	featureDir := filepath.Join(project, ".specify", "features", "001-feature")
+	mkdirAll(t, featureDir)
+
+	code, payload := runResultInProject(t, project, []string{
+		"submit",
+		"--command", "deep-research",
+		"--feature-dir", featureDir,
+		"--lane-id", "lane-a",
+		"--result-json", `{"task_id":"lane-a","status":"success"}`,
+	})
+
+	if code == 0 {
+		t.Fatalf("generic deep-research result submit unexpectedly passed: %#v", payload)
+	}
+	if !strings.Contains(asString(payload["summary"]), "deep-research track-submit") {
+		t.Fatalf("summary = %q, want runtime-owned track-submit guidance", asString(payload["summary"]))
+	}
+	if _, err := os.Stat(filepath.Join(featureDir, "research", "handoffs", "lane-a.json")); !os.IsNotExist(err) {
+		t.Fatalf("generic channel wrote a deep-research handoff: %v", err)
 	}
 }
 

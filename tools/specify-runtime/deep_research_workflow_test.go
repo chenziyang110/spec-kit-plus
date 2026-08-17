@@ -239,6 +239,145 @@ func TestDeepResearchWorkflowRejectsStaleSpecAndStaleRevision(t *testing.T) {
 	}
 }
 
+func TestDeepResearchWorkflowRequeuesLeaderRejectedTrack(t *testing.T) {
+	fixture := newDeepResearchFixture(t, "required")
+	initialized := requireDeepResearchOK(t, fixture.projectRoot, []string{
+		"deep-research", "init", "--feature-dir", fixture.featureRel,
+		"--mode", "repo-only", "--leader-id", "leader-1",
+	})
+	prepared := requireDeepResearchOK(t, fixture.projectRoot, []string{
+		"deep-research", "track-prepare", "--feature-dir", fixture.featureRel,
+		"--expected-revision", deepResearchRevisionArg(t, initialized),
+		"--input-json", mustDeepResearchJSON(t, deepResearchTracksInput(fixture, false)),
+	})
+	firstLease := requireDeepResearchOK(t, fixture.projectRoot, []string{
+		"deep-research", "track-lease", "--feature-dir", fixture.featureRel,
+		"--expected-revision", deepResearchRevisionArg(t, prepared),
+		"--worker-id", "researcher-1",
+	})
+	firstAttempt := asString(firstLease.Data["attempt_id"])
+	submitted := requireDeepResearchOK(t, fixture.projectRoot, []string{
+		"deep-research", "track-submit", "--feature-dir", fixture.featureRel,
+		"--expected-revision", deepResearchRevisionArg(t, firstLease),
+		"--track-id", "TRK-001", "--attempt-id", firstAttempt,
+		"--result-json", mustDeepResearchJSON(t, deepResearchTrackResult(fixture, []any{}, []any{})),
+	})
+	rejected := requireDeepResearchOK(t, fixture.projectRoot, []string{
+		"deep-research", "track-reject", "--feature-dir", fixture.featureRel,
+		"--expected-revision", deepResearchRevisionArg(t, submitted),
+		"--track-id", "TRK-001", "--attempt-id", firstAttempt,
+		"--leader-id", "leader-1", "--reason", "The finding does not address the assigned rollback question.",
+	})
+	manifest, err := deepResearchReadManifest(filepath.Join(fixture.featureDir, "research"))
+	if err != nil {
+		t.Fatalf("read rejected track manifest: %v", err)
+	}
+	track := manifest.Tracks[0]
+	if track.State != "pending" || track.WorkerID != "" || track.AttemptID != "" || track.ResultRef != "" || track.ResultSHA256 != "" {
+		t.Fatalf("rejected track was not safely requeued: %#v", track)
+	}
+	if track.AttemptNumber != 1 || track.LastYieldReason == "" {
+		t.Fatalf("rejected track lost retry history: %#v", track)
+	}
+	if len(track.Rejections) != 1 || track.Rejections[0].AttemptID != firstAttempt || track.Rejections[0].Reason == "" {
+		t.Fatalf("rejected track did not preserve a structured rejection record: %#v", track.Rejections)
+	}
+	rejectionRaw, err := deepResearchReadRegularProjectFile(fixture.projectRoot, track.Rejections[0].RejectionRef)
+	if err != nil || deepResearchDigest(rejectionRaw) != track.Rejections[0].RejectionSHA256 {
+		t.Fatalf("rejection snapshot is unavailable or stale: err=%v rejection=%#v", err, track.Rejections[0])
+	}
+	secondLease := requireDeepResearchOK(t, fixture.projectRoot, []string{
+		"deep-research", "track-lease", "--feature-dir", fixture.featureRel,
+		"--expected-revision", deepResearchRevisionArg(t, rejected),
+		"--worker-id", "researcher-2",
+	})
+	if asString(secondLease.Data["attempt_id"]) == firstAttempt {
+		t.Fatalf("rejected track reused stale attempt id %s", firstAttempt)
+	}
+	secondAttempt := asString(secondLease.Data["attempt_id"])
+	secondSubmitted := requireDeepResearchOK(t, fixture.projectRoot, []string{
+		"deep-research", "track-submit", "--feature-dir", fixture.featureRel,
+		"--expected-revision", deepResearchRevisionArg(t, secondLease),
+		"--track-id", "TRK-001", "--attempt-id", secondAttempt,
+		"--result-json", mustDeepResearchJSON(t, deepResearchTrackResult(fixture, []any{}, []any{})),
+	})
+	blocked, exit := runDeepResearchWorkflowCommand(t, fixture.projectRoot, []string{
+		"deep-research", "track-reject", "--feature-dir", fixture.featureRel,
+		"--expected-revision", deepResearchRevisionArg(t, secondSubmitted),
+		"--track-id", "TRK-001", "--attempt-id", secondAttempt,
+		"--leader-id", "leader-1", "--reason", "The retry still omits the rollback proof.",
+	})
+	if exit != 10 || blocked.Status != "blocked" || blocked.Data["claim_status"] != "blocked" {
+		t.Fatalf("second rejection did not exhaust the bounded retry: exit=%d env=%#v", exit, blocked)
+	}
+}
+
+func TestDeepResearchWorkflowExternalBlockedModeRejectsExternalEvidence(t *testing.T) {
+	fixture := newDeepResearchFixture(t, "required")
+	initialized := requireDeepResearchOK(t, fixture.projectRoot, []string{
+		"deep-research", "init", "--feature-dir", fixture.featureRel,
+		"--mode", "external-blocked", "--leader-id", "leader-1",
+	})
+	tracks := deepResearchTracksInput(fixture, false)
+	track := tracks["tracks"].([]any)[0].(map[string]any)
+	track["source_classes"] = []any{"primary_external"}
+	prepared := requireDeepResearchOK(t, fixture.projectRoot, []string{
+		"deep-research", "track-prepare", "--feature-dir", fixture.featureRel,
+		"--expected-revision", deepResearchRevisionArg(t, initialized),
+		"--input-json", mustDeepResearchJSON(t, tracks),
+	})
+	lease := requireDeepResearchOK(t, fixture.projectRoot, []string{
+		"deep-research", "track-lease", "--feature-dir", fixture.featureRel,
+		"--expected-revision", deepResearchRevisionArg(t, prepared),
+		"--worker-id", "researcher-1",
+	})
+	result := deepResearchTrackResult(fixture, []any{}, []any{})
+	evidence := result["evidence"].([]any)[0].(map[string]any)
+	evidence["source_type"] = "primary_external"
+	evidence["source_ref"] = "https://example.com/primary-docs"
+	evidence["source_title"] = "Primary API documentation"
+	evidence["retrieved_on"] = "2026-08-17"
+	evidence["quality"] = map[string]any{
+		"authority":    "primary",
+		"independence": "independent",
+		"recency":      "current",
+		"limitations":  []any{},
+	}
+	env, exit := runDeepResearchWorkflowCommand(t, fixture.projectRoot, []string{
+		"deep-research", "track-submit", "--feature-dir", fixture.featureRel,
+		"--expected-revision", deepResearchRevisionArg(t, lease),
+		"--track-id", "TRK-001", "--attempt-id", asString(lease.Data["attempt_id"]),
+		"--result-json", mustDeepResearchJSON(t, result),
+	})
+	if exit == 0 || env.Status != "invalid" || !strings.Contains(strings.Join(deepResearchStringSlice(env.Blockers), " "), "external-blocked") {
+		t.Fatalf("external-blocked mode accepted external evidence: exit=%d env=%#v", exit, env)
+	}
+}
+
+func TestDeepResearchNextSubcommandResumesCurrentTrackState(t *testing.T) {
+	state := deepResearchState{Status: "active", Phase: "researching"}
+	tests := []struct {
+		name       string
+		trackState string
+		want       string
+	}{
+		{name: "pending work can be leased", trackState: "pending", want: "track-lease"},
+		{name: "leased work must be submitted", trackState: "leased", want: "track-submit"},
+		{name: "submitted work must be reviewed", trackState: "submitted", want: "track-accept"},
+		{name: "submitted blocker must be reviewed", trackState: "submitted-blocked", want: "track-accept"},
+		{name: "accepted work can be synthesized", trackState: "accepted", want: "synthesize"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			manifest := deepResearchTrackManifest{Tracks: []deepResearchTrack{{State: test.trackState}}}
+			if got := deepResearchNextSubcommand(state, manifest); got != test.want {
+				t.Fatalf("deepResearchNextSubcommand(%s) = %q, want %q", test.trackState, got, test.want)
+			}
+		})
+	}
+}
+
 func TestDeepResearchWorkflowEnforcesClosureContradictionsAndSpikes(t *testing.T) {
 	t.Run("missing capability disposition", func(t *testing.T) {
 		fixture := newDeepResearchFixture(t, "required")
