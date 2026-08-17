@@ -229,6 +229,9 @@ func TestDeepResearchWorkflowRejectsStaleSpecAndStaleRevision(t *testing.T) {
 	if statusExit == 0 || status.Status != "blocked" || status.Data["source_freshness"] != "stale" {
 		t.Fatalf("stale source status exit=%d env=%#v", statusExit, status)
 	}
+	if nextAction := asString(status.Data["next_action"]); nextAction != "" || len(status.NextArgv) != 0 {
+		t.Fatalf("stale source advertised an unusable next action: next_action=%q next_argv=%#v", nextAction, status.NextArgv)
+	}
 	blocked, blockedExit := runDeepResearchWorkflowCommand(t, fixture.projectRoot, []string{
 		"deep-research", "track-prepare", "--feature-dir", fixture.featureRel,
 		"--expected-revision", deepResearchRevisionArg(t, init),
