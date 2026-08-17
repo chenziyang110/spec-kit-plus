@@ -110,7 +110,6 @@ func TestDeterministicScaffoldArtifactsRejectWholeFileSubmit(t *testing.T) {
 		".specify/memory/constitution.md":                                  "project-constitution",
 		".planning/debug/session.md":                                       "debug-session",
 		".planning/quick/001-runtime/PLAN.md":                              "quick-plan",
-		"specs/001-runtime/deep-research.md":                               "feature-deep-research",
 		".specify/design/design-brief.md":                                  "design-brief",
 		".specify/design/review.md":                                        "design-review",
 		".specify/design/changes/UD-0042/brief.md":                         "ui-design-change-brief",
@@ -170,6 +169,30 @@ func TestSpecializedArtifactsExposeOnlyTheirRegisteredMutationCommands(t *testin
 			wantType:  "quick-plan",
 			wantOps:   []string{"patch", "delete"},
 			forbidOps: []string{"submit"},
+		},
+		{
+			path:      "specs/001-runtime/deep-research.md",
+			wantType:  "feature-deep-research",
+			wantOps:   []string{"show", "list"},
+			forbidOps: []string{"prepare", "patch", "submit"},
+		},
+		{
+			path:      "specs/001-runtime/research-evidence/EVD-001.json",
+			wantType:  "research-evidence-json",
+			wantOps:   []string{"show", "list"},
+			forbidOps: []string{"prepare", "patch", "submit"},
+		},
+		{
+			path:      "specs/001-runtime/research/handoffs/TRK-001.json",
+			wantType:  "research-lane-result",
+			wantOps:   []string{"show", "list"},
+			forbidOps: []string{"prepare", "patch", "submit"},
+		},
+		{
+			path:      "specs/001-runtime/research/rejections/TRK-001-ATTEMPT-001.json",
+			wantType:  "research-rejection-json",
+			wantOps:   []string{"show", "list"},
+			forbidOps: []string{"prepare", "patch", "submit"},
 		},
 	}
 	for _, test := range tests {

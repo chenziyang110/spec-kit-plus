@@ -38,15 +38,20 @@ def test_classic_and_advanced_prompts_use_runtime_research_lifecycle() -> None:
     for content in (classic, advanced):
         for command in (
             "deep-research init",
+            "deep-research status",
             "deep-research track-prepare",
             "deep-research track-lease",
             "deep-research track-submit",
+            "deep-research track-reject",
             "deep-research track-accept",
+            "deep-research track-yield",
             "deep-research synthesize",
             "deep-research audit-prepare",
             "deep-research audit-accept",
             "deep-research validate",
             "deep-research publish",
+            "deep-research verify-handoff",
+            "deep-research not-needed",
         ):
             assert command in content
         assert "research-evidence/" in content
@@ -70,5 +75,19 @@ def test_deep_research_allowed_writes_include_evidence_and_runtime_state() -> No
         assert "research-evidence/" in content
         assert "research/state.json" in content
         assert "research/track-manifest.json" in content
+        assert "research/rejections/" in content
         assert "research/handoff-to-plan.json" in content
 
+
+def test_deep_research_runtime_has_exclusive_registry_ownership() -> None:
+    registry = json.loads(_read("templates/workflow-artifact-registry.json"))
+    by_id = {artifact["id"]: artifact for artifact in registry["artifacts"]}
+    runtime = by_id["feature_deep_research_runtime"]
+
+    assert "**/research/rejections/*.json" in runtime["path_patterns"]
+    assert "deep-research track-reject" in runtime["safe_instruction_patterns"]
+    assert "research_evidence_artifacts" not in by_id
+    assert "**/research/handoffs/*.json" not in by_id["stage_lane_results"][
+        "path_patterns"
+    ]
+    assert "research/handoffs/" not in by_id["stage_lane_results"]["path_hints"]
