@@ -63,6 +63,8 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 		return runDesign(args[1:], stdout)
 	case "test-design":
 		return runTestDesign(args[1:], stdout)
+	case "deep-research":
+		return runDeepResearch(args[1:], stdout)
 	case "evidence":
 		return runEvidence(args[1:], stdout)
 	case "doctor":
@@ -103,6 +105,7 @@ func writeHelp(stdout io.Writer) int {
 		"cognition",
 		"discussion",
 		"design",
+		"deep-research",
 		"test-design",
 		"doctor",
 		"evidence",
@@ -1069,6 +1072,20 @@ func defaultCapabilities() []string {
 		"design.resolve",
 		"design.ui-target",
 		"design.ui-target-lint",
+		"deep-research.audit-accept",
+		"deep-research.audit-prepare",
+		"deep-research.init",
+		"deep-research.not-needed",
+		"deep-research.publish",
+		"deep-research.status",
+		"deep-research.synthesize",
+		"deep-research.track-accept",
+		"deep-research.track-lease",
+		"deep-research.track-prepare",
+		"deep-research.track-submit",
+		"deep-research.track-yield",
+		"deep-research.validate",
+		"deep-research.verify-handoff",
 		"test-design.audit-prepare",
 		"test-design.handoff",
 		"test-design.gap-reconcile",
@@ -1274,6 +1291,34 @@ func capabilitySummary(id string) string {
 		return "Register an approved change-local UI contract as immutable consumption truth."
 	case "design.adopt":
 		return "Record a compare-and-swap consumer adoption of one exact UI design binding."
+	case "deep-research.init":
+		return "Initialize a runtime-owned, source-bound Deep Research workspace."
+	case "deep-research.status":
+		return "Show resumable Deep Research state, freshness, track counts, and next action."
+	case "deep-research.track-prepare":
+		return "Freeze bounded research tracks that cover every selected capability."
+	case "deep-research.track-lease":
+		return "Lease one pending research track to an independent worker."
+	case "deep-research.track-submit":
+		return "Validate and materialize one track result plus canonical evidence objects."
+	case "deep-research.track-accept":
+		return "Accept a digest-bound track result after evidence and source verification."
+	case "deep-research.track-yield":
+		return "Release a track lease while preserving its resumable attempt history."
+	case "deep-research.synthesize":
+		return "Close capability, evidence, contradiction, spike, and planning-handoff coverage."
+	case "deep-research.audit-prepare":
+		return "Freeze an independent audit request over the exact accepted research corpus."
+	case "deep-research.audit-accept":
+		return "Record an identity-separated audit result for every required research check."
+	case "deep-research.validate":
+		return "Validate source freshness, canonical closure, evidence integrity, and audit acceptance."
+	case "deep-research.publish":
+		return "Publish a digest-bound, Plan-consumable Deep Research handoff."
+	case "deep-research.verify-handoff":
+		return "Fail closed unless the published handoff and every bound artifact remain current."
+	case "deep-research.not-needed":
+		return "Publish an evidence-backed no-research-needed disposition without inventing findings."
 	case "prd-scan.record-upsert":
 		return "Create or replace one PRD scan contract record without rewriting its JSON document."
 	case "prd-scan.record-remove":

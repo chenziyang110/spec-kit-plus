@@ -77,3 +77,22 @@ Traceability Matrix` with the runtime-required columns: `Plan Decision`,
 `Handoff ID`, `Evidence / Spike ID`, `Evidence Quality`, and `Plan Action`.
 Mandatory items must be consumed; optional deferral and user-decision items stay
 explicit.
+
+The runtime-published structured research package is canonical. Its handoff,
+accepted evidence IDs, claim status, source hash or digest, and revision-bound
+publish state are the source of truth; `deep-research.md` is the derived
+human-readable projection. Before Plan consumes deep research, verify the
+selected handoff with `specify-runtime deep-research verify-handoff` and record
+the result in `plan-contract.json#/deep_research_binding`. Preserve exactly:
+
+- `decision`;
+- `handoff_ref` and `handoff_sha256`;
+- `source_spec_sha256`;
+- `state_revision`;
+- verified `claim_status`;
+- `handoff_ids`.
+
+Bind a validated `**Status**: Not needed` result to its runtime-verified
+handoff with an empty `handoff_ids` array. Any stale,
+tampered, foreign, partial, or claim-mismatched research handoff blocks
+planning until the owning deep-research workflow republishes and verifies it.

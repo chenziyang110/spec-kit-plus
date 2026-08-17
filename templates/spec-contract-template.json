@@ -18,6 +18,11 @@
   "capability_operations": [],
   "must_preserve_refs": [],
   "consequence_obligation_refs": [],
+  "feasibility_gate": {
+    "decision": "not_selected",
+    "capability_refs": [],
+    "reason_refs": []
+  },
   "entrypoint_outcome_contract": {
     "triggered": false,
     "trigger_reasons": [],

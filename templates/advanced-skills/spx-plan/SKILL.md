@@ -65,6 +65,17 @@ Traceability Matrix` to `plan.md` with `Plan Decision`, `Handoff ID`, `Evidence
 handoffs or untraceable evidence keep planning blocked; a validated
 `**Status**: Not needed` handoff carries no invented PH IDs.
 
+When deep research is present, treat the runtime-published structured research
+artifacts as canonical and `deep-research.md` as a derived projection. Record
+Plan consumption in `plan-contract.json#/deep_research_binding` only through
+leased JSON-pointer patches after `specify-runtime deep-research verify-handoff
+--feature-dir <feature-dir> --handoff-ref <handoff-ref> --expected-sha256
+<handoff-sha256> --format json` confirms the selected handoff. Preserve exactly
+`decision`, `handoff_ref`, `handoff_sha256`, `source_spec_sha256`,
+`state_revision`, `claim_status`, and `handoff_ids`. A verified `not_needed`
+claim still binds the handoff with an empty `handoff_ids` array. Never infer
+those fields from prose or rebuild them from the Markdown projection.
+
 Create `plan-contract.json` only with `specify-runtime artifact scaffold --kind
 plan-contract`, then fill it through leased JSON-pointer patches; never read or
 reproduce the installed JSON template. Treat this Skill's compact
@@ -127,6 +138,11 @@ tests, migrations, or runtime configuration in this workflow. Preserve canonical
 `/sp.*` state identifiers. This invocation authorizes only this workflow stage.
 Run `{{specify-subcmd:specify-runtime hook validate-artifacts --command plan --feature-dir <feature-dir> --format json}}`
 and repair or block on a non-OK result.
+Do not accept a deep-research handoff on surface presence alone. Before Plan
+reports readiness, verify the selected handoff and its source binding against
+the current runtime-owned structured research package. Any stale, tampered,
+foreign, partial, or claim-mismatched handoff blocks planning and routes back
+to `$spx-deep-research` or the owning upstream workflow for regeneration.
 Stop after reporting the validated plan. When the user requested a dedicated
 test design or the plan's risk and coverage obligations warrant one, record the
 gate as `selected` or `required` and recommend the independent

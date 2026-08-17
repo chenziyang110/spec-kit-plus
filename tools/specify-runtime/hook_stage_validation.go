@@ -86,7 +86,7 @@ func hookClarifyLaneAccepted(payload map[string]any) bool {
 	return strings.EqualFold(strings.TrimSpace(hookAnyStringField(payload, "status")), "accepted")
 }
 
-func validateHookDeepResearchArtifacts(featurePath string) error {
+func validateHookDeepResearchArtifacts(projectRoot, featurePath, featureRef string) error {
 	content, err := os.ReadFile(filepath.Join(featurePath, "deep-research.md"))
 	if err != nil {
 		return fmt.Errorf("deep-research.md is unavailable: %w", err)
@@ -100,6 +100,14 @@ func validateHookDeepResearchArtifacts(featurePath string) error {
 			return fmt.Errorf("deep-research.md must include %s", heading)
 		}
 	}
+	statusMatch := regexp.MustCompile(`(?m)^\*\*Status\*\*:\s+(.+?)\s*$`).FindStringSubmatch(text)
+	status := ""
+	if len(statusMatch) > 1 {
+		status = strings.ToLower(strings.TrimSpace(statusMatch[1]))
+	}
+	if status != "complete" && status != "not needed" {
+		return fmt.Errorf("deep-research.md status must be Complete or Not needed")
+	}
 	seen := map[string]bool{}
 	for _, match := range hookResearchEvidenceRefRE.FindAllStringSubmatch(text, -1) {
 		relative := filepath.ToSlash(filepath.Join("research-evidence", match[1]+".json"))
@@ -110,6 +118,10 @@ func validateHookDeepResearchArtifacts(featurePath string) error {
 		if err := hookValidateJSONObject(filepath.Join(featurePath, filepath.FromSlash(relative)), relative); err != nil {
 			return err
 		}
+	}
+	service := deepResearchService{projectRoot: projectRoot}
+	if _, err := service.verifyPublishedHandoff(featurePath, featureRef, "", ""); err != nil {
+		return fmt.Errorf("runtime-owned Deep Research handoff is not publishable: %w", err)
 	}
 	return nil
 }

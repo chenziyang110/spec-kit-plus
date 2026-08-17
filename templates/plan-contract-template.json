@@ -54,6 +54,15 @@
   },
   "consequence_obligations": [],
   "operational_consequence_decisions": [],
+  "deep_research_binding": {
+    "decision": "not_selected",
+    "handoff_ref": null,
+    "handoff_sha256": null,
+    "source_spec_sha256": null,
+    "state_revision": null,
+    "claim_status": null,
+    "handoff_ids": []
+  },
   "test_design_gate": {
     "decision": "not_selected",
     "reason_refs": [],

@@ -9,6 +9,9 @@ Preserved Contract: task generation receives complete scope, architecture/interf
 Scaffold `plan-contract.json` through its artifact CLI owner, then fill targeted JSON pointers before patching named sections in the deterministic `plan.md` skeleton. Never submit or reconstruct the whole contract. Keep:
 
 - source spec contract and revision;
+- verified `deep_research_binding` when Deep Research exists, including the
+  handoff ref, source hash, handoff hash, revision, claim, and consumed
+  `PH-###` / `EVD-###` / `SPK-###` ids;
 - `semantic_delta` introduced by planning;
 - route, intent, complexity, and confirmed delivery scope;
 - the single versioned complete-first scope policy and valid deferrals;
@@ -42,6 +45,23 @@ feature handoff, its own verified projection, and runtime task-index binding.
 Avoid a Plan-contract basis/hash cycle.
 
 Do not copy the requirement contract, context capsule prose, evidence bodies, or full consequence analysis. Use stable refs and add only phase-owned decisions.
+
+### Deep Research Binding
+
+When Deep Research ran, verify the runtime-published handoff before planning
+consumes it. `plan-contract.json` must store one `deep_research_binding`
+describing the accepted handoff:
+
+- canonical handoff ref under `research/handoff-to-plan/`
+- source runtime state ref and source hash
+- handoff hash and revision
+- accepted claim identifier
+- ordered consumed `PH-###`, `EVD-###`, and `SPK-###` ids
+- verification result and refusal reason when blocked
+
+Do not bind directly to chat output or to `deep-research.md` alone. The
+compatibility projection may help human review, but the runtime handoff and its
+verification metadata are the canonical plan intake.
 
 `acceptance_refs` is a fail-closed denominator, not a selected subset. For a
 ready version-2 contract it must be the complete, unique, ordered list

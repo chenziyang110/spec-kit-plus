@@ -8,20 +8,31 @@ repository evidence, validate uncertain links with disposable demo spikes when
 needed, and hand `/sp.plan` the constraints and recommended implementation
 direction it must preserve.
 
+Deep Research uses a runtime-owned lifecycle. `deep-research.md` is the
+compatible human-readable projection, not the canonical mutable state surface.
+
 ## Context
 
 - Primary inputs: the current spec package, unresolved feasibility risks,
   external references, repository evidence, research-agent findings, and any
   disposable prototype evidence created in this command.
 - The active working set is `spec.md`, `alignment.md`, `context.md`,
-  `references.md`, `deep-research.md`, `research-spikes/`, and
-  `workflow-state.md` inside the current `FEATURE_DIR`.
+  `references.md`, `deep-research.md`, `research-spikes/`,
+  `research/state.json`, `research/track-manifest.json`,
+  `research/handoffs/`, `research/synthesis.json`,
+  `research/audit-request.json`, `research/audit.json`,
+  `research/handoff-to-plan.json`, `research-evidence/`, and `workflow-state.md`
+  inside the current `FEATURE_DIR`.
 - This command is research-only. It is not permission to implement production
   behavior.
 
 ## Process
 
 - Decide whether a feasibility and research handoff gate is actually needed.
+- Drive the runtime lifecycle in order: `init -> status -> track-prepare ->
+  track-lease -> track-submit -> track-accept -> track-yield -> synthesize ->
+  audit-prepare -> audit-accept -> validate -> publish -> verify-handoff`, or
+  `not-needed` for the lightweight path.
 - Decompose unknown implementation chains by capability and independent
   research track.
 - Dispatch subagents when independent research tracks can run in parallel and
@@ -38,18 +49,22 @@ direction it must preserve.
 
 ## Output Contract
 
-- If `deep-research.md` is absent, create it with `artifact scaffold --kind deep-research` or `--kind deep-research-not-needed` as appropriate. Query an existing file with `artifact show` and mutate only named semantic sections through fresh leased `artifact patch` calls; never submit or reconstruct the whole document.
+- Canonical Deep Research outputs are runtime-owned:
+  `research/state.json`, `research/track-manifest.json`,
+  `research/handoffs/*.json`, `research/synthesis.json`,
+  `research/audit-request.json`, `research/audit.json`,
+  `research/handoff-to-plan.json`, and `research-evidence/*.json`.
+- `deep-research.md` is the compatible projection for human review and legacy
+  readers. Query it with `artifact show`, but never patch it: the runtime alone
+  derives it from canonical synthesis. Never treat it as a mutable ledger.
 - Optionally submit isolated text/code scratch assets under `research-spikes/` through the artifact CLI; import binary proof through the evidence CLI.
 - Mutate `alignment.md`, `context.md`, `references.md`, and `workflow-state.md` only through their registered artifact owner; prefer leased section/JSON-pointer patches
   when feasibility evidence changes planning readiness.
-- If this gate is not needed, create the lightweight fixed shape with
-  `artifact scaffold --kind deep-research-not-needed`, then patch only
-  `Metadata`, `Feasibility Decision`, `Planning Handoff`,
-  and `Next Command`; do not invent `CAP/TRK/EVD/PH` IDs for already-proven
-  work.
-- Include a `Planning Handoff` section that `/sp.plan` can consume directly for
-  recommended approach, module boundaries, API/library choices, demo artifacts,
-  constraints, rejected options, and residual risks.
+- If this gate is not needed, let the runtime publish the lightweight
+  `not-needed` path, preserve the exact `**Status**: Not needed` compatibility
+  marker, and do not invent `CAP/TRK/EVD/PH` IDs for already-proven work.
+- Publish the canonical `research/handoff-to-plan.json`; the runtime keeps the
+  compatible `Planning Handoff` projection synchronized for human review.
 - Use stable traceability IDs (`CAP-###`, `TRK-###`, `EVD-###`, `SPK-###`,
   `PH-###`) plus an evidence quality rubric so `/sp.plan` can cite exactly which
   research finding or spike supports each design decision.
@@ -58,7 +73,10 @@ direction it must preserve.
   `spike-required.md`.
 - Report which capabilities are proven, constrained, blocked, or no longer worth
   planning.
-- Submit accepted evidence packets as `FEATURE_DIR/research-evidence/<EVD-###>.json` only through `specify-runtime artifact prepare` plus inline `artifact submit`, or refresh targeted fields through a leased `artifact patch`.
+- Submit accepted evidence objects inside the matching `deep-research track-submit`
+  payload. The runtime validates and materializes
+  `FEATURE_DIR/research-evidence/<EVD-###>.json`; never author or patch those
+  canonical packets directly.
 
 ## Guardrails
 
@@ -77,6 +95,8 @@ direction it must preserve.
 - Feasibility claims based only on documentation citations without live repository path reads are not sufficient for planning.
 - Subagent evidence packets without `paths_read` must be rejected; do not accept or synthesize them.
 - A structural-only refresh (reformatting findings without new evidence) is a failed pass.
+- External tools may collect or verify sources, but provider choice is not part
+  of the binding contract. Keep source acquisition provider-neutral.
 - Treat `context.md` Locked Decisions as immutable constraints during research.
   Do not research alternatives that contradict a locked decision unless the
   research explicitly proves the locked decision is infeasible, in which case

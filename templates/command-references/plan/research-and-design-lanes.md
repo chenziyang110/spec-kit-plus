@@ -26,6 +26,30 @@ When `research.md` is triggered, create it with `specify-runtime artifact scaffo
 
 If no such unknown exists, record `research_status: not-needed` in `plan-contract.json` and do not generate `research.md`.
 
+## Deep Research Intake
+
+When a pre-plan feasibility gate ran, consume the runtime-owned Deep Research
+surfaces as canonical:
+
+- `research/state.json`
+- `research/track-manifest.json`
+- `research/handoffs/*.json`
+- `research/synthesis/`
+- `research/audit/`
+- `research/handoff-to-plan/`
+- `research-evidence/*.json`
+
+`deep-research.md` is the compatible projection for human review and legacy
+readers. Do not derive planning truth from that projection alone when a
+verified runtime handoff exists.
+
+Before planning consumes Deep Research, verify the published handoff and bind
+it into `plan-contract.json`. The binding must record the exact handoff ref,
+source hash, handoff hash, revision, claim, and consumed `PH-###`,
+`EVD-###`, and `SPK-###` ids. If verification fails, blocks, or reports stale
+source material, stop and route back to Deep Research instead of copying its
+findings into Plan prose.
+
 ## Design And UI Inputs
 
 For UI-facing work, query `ui-brief.md`, its exact registered `.specify/design/changes/<UD-ID>/DESIGN.md`, the sibling `design-contract.json`, and the approved immutable design handoff through targeted `specify-runtime artifact show` calls; consume them only when selected by the spec contract. Never resolve “latest” from `.specify/design/index.json`. Record Feature UI Brief Adoption and Design Change Adoption, including token strategy. Preserve the exact contract/preview/manifest/handoff digests, immutable handoff ref, selected `DS-*` and `DH-*` IDs, `Reference-Implementation`, tokens, component ownership, required states, accessibility, fidelity criteria, allowed adaptation, forbidden drift, `visual_comparison_or_human_review`, Playwright screenshots or representative output when applicable, real-entrypoint evidence, and accepted deviations. Select structured handoff rows by ID; never recreate their values from prose.

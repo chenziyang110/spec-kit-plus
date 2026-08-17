@@ -476,7 +476,7 @@ func validateHookArtifactSemantics(projectRoot, featurePath, featureRel, command
 		env := ValidateSpec(SpecValidationRequest{FeatureDir: featurePath, Tier: "light"})
 		return hookSemanticEnvelope(command, featureRel, env)
 	case "plan":
-		if err := validatePlanContract(featurePath); err != nil {
+		if err := validatePlanContract(projectRoot, featurePath, featureRel); err != nil {
 			return hookSemanticError(command, featureRel, err)
 		}
 		return hookSemanticOK(command, featureRel)
@@ -486,7 +486,7 @@ func validateHookArtifactSemantics(projectRoot, featurePath, featureRel, command
 		}
 		return hookSemanticOK(command, featureRel)
 	case "deep-research":
-		if err := validateHookDeepResearchArtifacts(featurePath); err != nil {
+		if err := validateHookDeepResearchArtifacts(projectRoot, featurePath, featureRel); err != nil {
 			return hookSemanticError(command, featureRel, err)
 		}
 		return hookSemanticOK(command, featureRel)
@@ -550,7 +550,7 @@ func validateHookArtifactSemantics(projectRoot, featurePath, featureRel, command
 	}
 }
 
-func validatePlanContract(featurePath string) error {
+func validatePlanContract(projectRoot, featurePath, featureRef string) error {
 	planPath := filepath.Join(featurePath, "plan-contract.json")
 	raw, err := os.ReadFile(planPath)
 	if err != nil {
@@ -625,7 +625,7 @@ func validatePlanContract(featurePath string) error {
 		if len(acceptanceRefs) != 0 {
 			return fmt.Errorf("plan-contract.json acceptance_refs must be empty when spec-contract.json has no acceptance_criteria")
 		}
-		return nil
+		return validatePlanDeepResearchBinding(projectRoot, featurePath, featureRef, payload, specContract)
 	}
 	if len(acceptanceRefs) != len(expectedRefs) {
 		return fmt.Errorf("plan-contract.json acceptance_refs must cover every spec acceptance criterion exactly once")
@@ -634,6 +634,63 @@ func validatePlanContract(featurePath string) error {
 		if acceptanceRefs[index] != expectedRefs[index] {
 			return fmt.Errorf("plan-contract.json acceptance_refs must preserve spec-contract.json acceptance_criteria order")
 		}
+	}
+	return validatePlanDeepResearchBinding(projectRoot, featurePath, featureRef, payload, specContract)
+}
+
+func validatePlanDeepResearchBinding(projectRoot, featurePath, featureRef string, planContract, specContract map[string]any) error {
+	rawGate, gatePresent := specContract["feasibility_gate"]
+	if !gatePresent {
+		return nil
+	}
+	gateObject, ok := rawGate.(map[string]any)
+	if !ok || gateObject == nil {
+		return fmt.Errorf("spec-contract.json feasibility_gate must be an object")
+	}
+	decision := strings.ToLower(strings.TrimSpace(hookAnyStringField(gateObject, "decision")))
+	if decision != "required" && decision != "not_selected" {
+		return fmt.Errorf("spec-contract.json feasibility_gate.decision must be required or not_selected")
+	}
+	binding, ok := planContract["deep_research_binding"].(map[string]any)
+	if !ok || binding == nil {
+		return fmt.Errorf("plan-contract.json deep_research_binding must be an object")
+	}
+	if strings.ToLower(strings.TrimSpace(hookAnyStringField(binding, "decision"))) != decision {
+		return fmt.Errorf("plan-contract.json deep_research_binding.decision must match the specification feasibility gate")
+	}
+	handoffIDs, err := hookStringArray(binding["handoff_ids"], "plan-contract.json deep_research_binding.handoff_ids")
+	if err != nil {
+		return err
+	}
+	if duplicates := hookDuplicateStrings(handoffIDs); len(duplicates) > 0 {
+		return fmt.Errorf("plan-contract.json deep_research_binding.handoff_ids must be unique: %s", strings.Join(duplicates, ", "))
+	}
+	if decision == "not_selected" {
+		if len(handoffIDs) != 0 {
+			return fmt.Errorf("not_selected deep_research_binding cannot carry handoff IDs")
+		}
+		for _, field := range []string{"handoff_ref", "handoff_sha256", "source_spec_sha256", "state_revision", "claim_status"} {
+			if value, exists := binding[field]; exists && value != nil && strings.TrimSpace(asString(value)) != "" {
+				return fmt.Errorf("not_selected deep_research_binding.%s must be null", field)
+			}
+		}
+		return nil
+	}
+	handoffRef := strings.TrimSpace(hookAnyStringField(binding, "handoff_ref"))
+	handoffSHA := strings.TrimSpace(hookAnyStringField(binding, "handoff_sha256"))
+	sourceSpecSHA := strings.TrimSpace(hookAnyStringField(binding, "source_spec_sha256"))
+	claimStatus := strings.TrimSpace(hookAnyStringField(binding, "claim_status"))
+	revision, revisionOK := hookJSONInteger(binding["state_revision"])
+	if handoffRef == "" || !deepResearchSHA256Pattern.MatchString(handoffSHA) || !deepResearchSHA256Pattern.MatchString(sourceSpecSHA) || !revisionOK || revision < 1 {
+		return fmt.Errorf("required deep_research_binding must carry handoff ref/hash, source hash, and a positive state revision")
+	}
+	service := deepResearchService{projectRoot: projectRoot}
+	verified, err := service.verifyPublishedHandoff(featurePath, featureRef, handoffRef, handoffSHA)
+	if err != nil {
+		return fmt.Errorf("plan-contract.json Deep Research binding is stale: %w", err)
+	}
+	if verified.SourceSpecSHA != sourceSpecSHA || verified.StateRevision != revision || verified.ClaimStatus != claimStatus || !deepResearchSameStringSet(verified.HandoffIDs, handoffIDs) {
+		return fmt.Errorf("plan-contract.json Deep Research binding does not match the verified runtime handoff")
 	}
 	return nil
 }
@@ -924,8 +981,10 @@ func hookAutofixSnippet(command string) string {
 	switch command {
 	case "specify":
 		return hookAutofixSections([]string{"spec.md", "alignment.md", "context.md", "references.md", "specify-draft.md", "workflow-state.md", "checklists/requirements.md"}, []string{"edit source code", "edit tests", "fix build/tooling", "implement behavior", "run implementation-oriented fix loops"}, []string{"spec.md", "alignment.md", "context.md", "references.md", "specify-draft.md"}, "/sp.plan")
-	case "plan", "deep-research":
+	case "plan":
 		return hookAutofixSections([]string{"plan.md", "research.md", "data-model.md", "contracts/", "quickstart.md", "plan-contract.json", "workflow-state.md"}, []string{"edit source code", "edit tests", "implement behavior"}, []string{"spec-contract.json", "plan-contract.json"}, "/sp.tasks")
+	case "deep-research":
+		return hookAutofixSections([]string{"deep-research.md", "research/state.json", "research/track-manifest.json", "research/handoffs/", "research/synthesis.json", "research/audit-request.json", "research/audit.json", "research/handoff-to-plan.json", "research-evidence/", "research-spikes/", "workflow-state.md"}, []string{"edit production source code", "edit product tests", "invent unsupported findings", "bypass independent audit"}, []string{"spec-contract.json", "research/state.json", "research/track-manifest.json", "research/handoff-to-plan.json"}, "/sp.plan")
 	case "tasks":
 		return hookAutofixSections([]string{"tasks.md", "handoff-to-tasks.json", "task-index.json", "workflow-state.md"}, []string{"edit source code", "edit tests", "implement behavior"}, []string{"plan-contract.json", "task-index.json"}, "/sp-implement")
 	case "implement":

@@ -3,7 +3,7 @@ description: Use when a user invokes `sp-research` but the intended Spec Kit wor
 workflow_contract:
   when_to_use: Compatibility alias for /sp.deep-research.
   primary_objective: Route immediately into /sp.deep-research with the same user request.
-  primary_outputs: No separate `sp-research` artifacts; the canonical command writes `FEATURE_DIR/deep-research.md`, optional `research-spikes/`, and `workflow-state.md`.
+  primary_outputs: No separate `sp-research` artifacts; the canonical command writes the runtime-owned Deep Research lifecycle surfaces, the compatible `FEATURE_DIR/deep-research.md` projection, optional `research-spikes/`, and `workflow-state.md`.
   default_handoff: /sp-deep-research
 handoffs:
   - label: Run Deep Research
@@ -20,18 +20,10 @@ handoffs:
 
 {{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
-## Mandatory Subagent Execution
+## Runtime Routing
 
-All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
-
-The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
-
-Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
-
-Use `execution_model: subagent-mandatory`.
-Use `dispatch_shape: one-subagent | parallel-subagents`.
-Use `execution_surface: native-subagents`.
-Shared or overlapping write/path scopes among packets force serial `one-subagent` (resume or re-dispatch); a parallel conflict is not permission for unrecorded Leader implementation.
+`sp-research` does not own an independent lifecycle. It routes directly into the
+canonical Deep Research runtime lifecycle and compatible projection.
 
 
 ## Objective
@@ -43,7 +35,12 @@ Route immediately to the canonical deep-research workflow without creating a sep
 
 - `sp-research` exists only for compatibility with users who name research as a Spec Kit command.
 - The canonical workflow is `sp-deep-research`.
-- Canonical outputs belong to `sp-deep-research`: `FEATURE_DIR/deep-research.md`, optional `FEATURE_DIR/research-spikes/`, and `workflow-state.md`.
+- Canonical outputs belong to `sp-deep-research`: `research/state.json`,
+  `research/track-manifest.json`, `research/handoffs/`,
+  `research/synthesis/`, `research/audit/`, `research/handoff-to-plan/`,
+  `research-evidence/`, the compatible `FEATURE_DIR/deep-research.md`
+  projection, optional `FEATURE_DIR/research-spikes/`, and
+  `workflow-state.md`.
 
 ## Process
 
@@ -55,7 +52,9 @@ Route immediately to the canonical deep-research workflow without creating a sep
 
 - Do not write separate `sp-research` artifacts.
 - If a workflow state is written, it must use `active_command: sp-deep-research`.
-- If deep research is not needed, let the canonical `sp-deep-research` command submit its lightweight not-needed handoff through the registered artifact CLI owner.
+- If deep research is not needed, let the canonical `sp-deep-research` command
+  publish its runtime `not-needed` handoff and the compatible
+  `**Status**: Not needed` projection through the registered artifact owner.
 
 ## Guardrails
 
