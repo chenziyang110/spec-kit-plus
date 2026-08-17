@@ -36,6 +36,74 @@ def _create_project(tmp_path: Path) -> Path:
     return project
 
 
+def _publish_runtime_not_needed_deep_research(
+    project: Path, feature_dir: Path
+) -> dict[str, object]:
+    proof_path = project / "docs" / "deep-research-proof.txt"
+    proof_path.parent.mkdir(parents=True, exist_ok=True)
+    proof_path.write_text(
+        "The existing adapter already covers CAP-001.\n", encoding="utf-8"
+    )
+    published = artifact_validation.run_specify_runtime(
+        [
+            "deep-research",
+            "not-needed",
+            "--feature-dir",
+            feature_dir.relative_to(project).as_posix(),
+            "--leader-id",
+            "leader-1",
+            "--input-json",
+            json.dumps(
+                {
+                    "capability_dispositions": [
+                        {
+                            "capability_ref": "CAP-001",
+                            "reason": "The repository proof closes the feasibility question.",
+                            "evidence_refs": ["docs/deep-research-proof.txt"],
+                        }
+                    ]
+                }
+            ),
+            "--format",
+            "json",
+        ],
+        cwd=project,
+    )
+    assert published["status"] == "ok"
+    data = published.get("data")
+    assert isinstance(data, dict)
+    return data
+
+
+def _write_runtime_deep_research_spec(feature_dir: Path) -> None:
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "planning-ready",
+                "target_need": "Use the existing adapter when it is proven sufficient.",
+                "scope": {
+                    "in": ["Preserve adapter behavior"],
+                    "out": [],
+                    "deferred": [],
+                },
+                "acceptance_criteria": ["The adapter behavior remains verifiable."],
+                "feasibility_gate": {
+                    "decision": "required",
+                    "capability_refs": ["CAP-001"],
+                    "reason_refs": ["spec-contract.json#/scope/in/0"],
+                },
+                "entrypoint_outcome_contract": {
+                    "triggered": False,
+                    "stand_down_reason": "No entrypoint behavior changes.",
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def _write_minimal_task_generation_outputs(feature_dir: Path) -> None:
     handoff_path = feature_dir / "handoff-to-tasks.json"
     if not handoff_path.exists():
@@ -4458,6 +4526,54 @@ def test_validate_artifacts_accepts_deep_research_not_needed_outputs(tmp_path: P
     assert result.errors == []
 
 
+def test_validate_artifacts_accepts_runtime_owned_deep_research_package(
+    tmp_path: Path, unified_runtime_env: None
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / ".specify" / "features" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    _write_runtime_deep_research_spec(feature_dir)
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n", encoding="utf-8"
+    )
+    _publish_runtime_not_needed_deep_research(project, feature_dir)
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "deep-research", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "ok"
+    assert result.errors == []
+
+
+def test_validate_artifacts_blocks_tampered_runtime_deep_research_evidence(
+    tmp_path: Path, unified_runtime_env: None
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / ".specify" / "features" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    _write_runtime_deep_research_spec(feature_dir)
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n", encoding="utf-8"
+    )
+    _publish_runtime_not_needed_deep_research(project, feature_dir)
+    (project / "docs" / "deep-research-proof.txt").write_text(
+        "tampered proof\n", encoding="utf-8"
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "deep-research", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("runtime" in message.lower() for message in result.errors)
+    assert any("digest changed" in message.lower() for message in result.errors)
+
+
 def test_validate_artifacts_accepts_research_alias_for_deep_research_outputs(
     tmp_path: Path,
 ):
@@ -4595,6 +4711,113 @@ def test_validate_artifacts_accepts_plan_consuming_deep_research_handoff(
 
     assert result.status == "ok"
     assert result.errors == []
+
+
+def test_validate_artifacts_requires_exact_runtime_deep_research_plan_binding(
+    tmp_path: Path, unified_runtime_env: None
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / ".specify" / "features" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    _write_runtime_deep_research_spec(feature_dir)
+    (feature_dir / "plan.md").write_text("# Plan\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n", encoding="utf-8"
+    )
+    _write_minimal_planning_outputs(feature_dir)
+    _write_minimal_acceptance_denominator(feature_dir)
+    published = _publish_runtime_not_needed_deep_research(project, feature_dir)
+    plan_path = feature_dir / "plan-contract.json"
+    plan_payload = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan_payload["deep_research_binding"] = {
+        "decision": "required",
+        "handoff_ref": published["handoff_ref"],
+        "handoff_sha256": published["handoff_sha256"],
+        "source_spec_sha256": published["source_spec_sha256"],
+        "state_revision": published["state_revision"],
+        "claim_status": published["claim_status"],
+        "handoff_ids": published["handoff_ids"],
+    }
+    plan_path.write_text(json.dumps(plan_payload) + "\n", encoding="utf-8")
+
+    accepted = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "plan", "feature_dir": str(feature_dir)},
+    )
+
+    assert accepted.status == "ok"
+    assert accepted.errors == []
+
+    plan_payload["deep_research_binding"]["source_spec_sha256"] = "0" * 64
+    plan_path.write_text(json.dumps(plan_payload) + "\n", encoding="utf-8")
+    rejected = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "plan", "feature_dir": str(feature_dir)},
+    )
+
+    assert rejected.status == "blocked"
+    assert any(
+        "source_spec_sha256 does not match" in message for message in rejected.errors
+    )
+
+
+def test_validate_artifacts_requires_empty_binding_when_deep_research_is_not_selected(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / ".specify" / "features" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    _write_runtime_deep_research_spec(feature_dir)
+    spec_path = feature_dir / "spec-contract.json"
+    spec_payload = json.loads(spec_path.read_text(encoding="utf-8"))
+    spec_payload["feasibility_gate"] = {
+        "decision": "not_selected",
+        "capability_refs": [],
+        "reason_refs": [],
+    }
+    spec_path.write_text(json.dumps(spec_payload) + "\n", encoding="utf-8")
+    (feature_dir / "plan.md").write_text("# Plan\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n", encoding="utf-8"
+    )
+    _write_minimal_planning_outputs(feature_dir)
+    _write_minimal_acceptance_denominator(feature_dir)
+    plan_path = feature_dir / "plan-contract.json"
+    plan_payload = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan_payload["deep_research_binding"] = {
+        "decision": "not_selected",
+        "handoff_ref": None,
+        "handoff_sha256": None,
+        "source_spec_sha256": None,
+        "state_revision": None,
+        "claim_status": None,
+        "handoff_ids": [],
+    }
+    plan_path.write_text(json.dumps(plan_payload) + "\n", encoding="utf-8")
+
+    accepted = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "plan", "feature_dir": str(feature_dir)},
+    )
+
+    assert accepted.status == "ok"
+    assert accepted.errors == []
+
+    plan_payload["deep_research_binding"]["handoff_ref"] = (
+        ".specify/features/001-demo/research/handoff-to-plan.json"
+    )
+    plan_path.write_text(json.dumps(plan_payload) + "\n", encoding="utf-8")
+    rejected = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "plan", "feature_dir": str(feature_dir)},
+    )
+
+    assert rejected.status == "blocked"
+    assert any("handoff_ref must be null" in message for message in rejected.errors)
 
 
 def test_validate_artifacts_blocks_plan_when_handoff_id_is_outside_traceability_matrix(

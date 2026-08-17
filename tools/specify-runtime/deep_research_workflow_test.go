@@ -491,6 +491,45 @@ func TestDeepResearchWorkflowRejectsUnselectedSpecGate(t *testing.T) {
 	}
 }
 
+func TestPlanHookRequiresEmptyBindingWhenDeepResearchIsNotSelected(t *testing.T) {
+	fixture := newDeepResearchFixture(t, "not_selected")
+	for _, artifact := range []struct {
+		name    string
+		content string
+	}{
+		{"plan.md", "# Plan\n"},
+		{"workflow-state.md", "# Workflow State\n"},
+	} {
+		if err := os.WriteFile(filepath.Join(fixture.featureDir, artifact.name), []byte(artifact.content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	binding := map[string]any{
+		"decision":           "not_selected",
+		"handoff_ref":        nil,
+		"handoff_sha256":     nil,
+		"source_spec_sha256": nil,
+		"state_revision":     nil,
+		"claim_status":       nil,
+		"handoff_ids":        []any{},
+	}
+	writePlanContractWithDeepResearchBinding(t, fixture, binding)
+	args := []string{
+		"--command", "plan",
+		"--feature-dir", fixture.featureRel,
+		"--project-root", fixture.projectRoot,
+	}
+	if env := validateHookArtifacts(args); env.Status != "ok" {
+		t.Fatalf("not-selected Plan binding was rejected: %#v", env)
+	}
+
+	binding["handoff_ref"] = fixture.featureRel + "/research/handoff-to-plan.json"
+	writePlanContractWithDeepResearchBinding(t, fixture, binding)
+	if env := validateHookArtifacts(args); env.Status != "blocked" || !strings.Contains(strings.Join(deepResearchStringSlice(env.Blockers), " "), "must be null") {
+		t.Fatalf("populated not-selected Plan binding passed: %#v", env)
+	}
+}
+
 type deepResearchFixture struct {
 	projectRoot string
 	featureRel  string
@@ -683,21 +722,26 @@ func prepareAcceptedDeepResearchTrack(t *testing.T, fixture deepResearchFixture,
 
 func writeReadyPlanContract(t *testing.T, fixture deepResearchFixture, published Envelope) {
 	t.Helper()
+	writePlanContractWithDeepResearchBinding(t, fixture, map[string]any{
+		"decision":           "required",
+		"handoff_ref":        published.Data["handoff_ref"],
+		"handoff_sha256":     published.Data["handoff_sha256"],
+		"source_spec_sha256": published.Data["source_spec_sha256"],
+		"state_revision":     published.Data["state_revision"],
+		"claim_status":       published.Data["claim_status"],
+		"handoff_ids":        published.Data["handoff_ids"],
+	})
+}
+
+func writePlanContractWithDeepResearchBinding(t *testing.T, fixture deepResearchFixture, binding map[string]any) {
+	t.Helper()
 	payload := map[string]any{
-		"version":         2,
-		"status":          "ready",
-		"source_contract": "spec-contract.json",
-		"source_revision": 1,
-		"acceptance_refs": []any{"spec-contract.json#/acceptance_criteria/0"},
-		"deep_research_binding": map[string]any{
-			"decision":           "required",
-			"handoff_ref":        published.Data["handoff_ref"],
-			"handoff_sha256":     published.Data["handoff_sha256"],
-			"source_spec_sha256": published.Data["source_spec_sha256"],
-			"state_revision":     published.Data["state_revision"],
-			"claim_status":       published.Data["claim_status"],
-			"handoff_ids":        published.Data["handoff_ids"],
-		},
+		"version":               2,
+		"status":                "ready",
+		"source_contract":       "spec-contract.json",
+		"source_revision":       1,
+		"acceptance_refs":       []any{"spec-contract.json#/acceptance_criteria/0"},
+		"deep_research_binding": binding,
 		"transition": map[string]any{
 			"version":        1,
 			"status":         "ready",
