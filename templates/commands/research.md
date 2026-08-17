@@ -37,7 +37,9 @@ Route immediately to the canonical deep-research workflow without creating a sep
 - The canonical workflow is `sp-deep-research`.
 - Canonical outputs belong to `sp-deep-research`: `research/state.json`,
   `research/track-manifest.json`, `research/handoffs/`,
-  `research/synthesis/`, `research/audit/`, `research/handoff-to-plan/`,
+  `research/rejections/`,
+  `research/synthesis.json`, `research/audit-request.json`,
+  `research/audit.json`, `research/handoff-to-plan.json`,
   `research-evidence/`, the compatible `FEATURE_DIR/deep-research.md`
   projection, optional `FEATURE_DIR/research-spikes/`, and
   `workflow-state.md`.

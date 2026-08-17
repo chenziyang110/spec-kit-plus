@@ -434,7 +434,7 @@ func hookRequiredArtifacts(command string) ([]hookRequiredArtifact, bool) {
 		"constitution":  {"constitution.md"},
 		"specify":       {"spec-contract.json", "spec.md", "workflow-state.md"},
 		"clarify":       {"spec.md", "alignment.md", "context.md", "references.md", "workflow-state.md", "clarification/evidence-index.json", "clarification/checkpoints.ndjson"},
-		"deep-research": {"deep-research.md", "workflow-state.md"},
+		"deep-research": {"deep-research.md", "workflow-state.md", "research/state.json", "research/track-manifest.json", "research/synthesis.json", "research/handoff-to-plan.json"},
 		"plan":          {"plan.md", "plan-contract.json", "workflow-state.md"},
 		"tasks":         {"tasks.md", "task-index.json", "workflow-state.md"},
 		"analyze":       {"workflow-state.md"},
@@ -984,7 +984,7 @@ func hookAutofixSnippet(command string) string {
 	case "plan":
 		return hookAutofixSections([]string{"plan.md", "research.md", "data-model.md", "contracts/", "quickstart.md", "plan-contract.json", "workflow-state.md"}, []string{"edit source code", "edit tests", "implement behavior"}, []string{"spec-contract.json", "plan-contract.json"}, "/sp.tasks")
 	case "deep-research":
-		return hookAutofixSections([]string{"deep-research.md", "research/state.json", "research/track-manifest.json", "research/handoffs/", "research/synthesis.json", "research/audit-request.json", "research/audit.json", "research/handoff-to-plan.json", "research-evidence/", "research-spikes/", "workflow-state.md"}, []string{"edit production source code", "edit product tests", "invent unsupported findings", "bypass independent audit"}, []string{"spec-contract.json", "research/state.json", "research/track-manifest.json", "research/handoff-to-plan.json"}, "/sp.plan")
+		return hookAutofixSections([]string{"deep-research.md", "research/state.json", "research/track-manifest.json", "research/handoffs/", "research/rejections/", "research/synthesis.json", "research/audit-request.json", "research/audit.json", "research/handoff-to-plan.json", "research-evidence/", "research-spikes/", "workflow-state.md"}, []string{"edit production source code", "edit product tests", "invent unsupported findings", "bypass independent audit"}, []string{"spec-contract.json", "research/state.json", "research/track-manifest.json", "research/rejections/", "research/handoff-to-plan.json"}, "/sp.plan")
 	case "tasks":
 		return hookAutofixSections([]string{"tasks.md", "handoff-to-tasks.json", "task-index.json", "workflow-state.md"}, []string{"edit source code", "edit tests", "implement behavior"}, []string{"plan-contract.json", "task-index.json"}, "/sp-implement")
 	case "implement":

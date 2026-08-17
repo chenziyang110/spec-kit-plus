@@ -19,7 +19,7 @@ compatible human-readable projection, not the canonical mutable state surface.
 - The active working set is `spec.md`, `alignment.md`, `context.md`,
   `references.md`, `deep-research.md`, `research-spikes/`,
   `research/state.json`, `research/track-manifest.json`,
-  `research/handoffs/`, `research/synthesis.json`,
+  `research/handoffs/`, `research/rejections/`, `research/synthesis.json`,
   `research/audit-request.json`, `research/audit.json`,
   `research/handoff-to-plan.json`, `research-evidence/`, and `workflow-state.md`
   inside the current `FEATURE_DIR`.
@@ -30,13 +30,14 @@ compatible human-readable projection, not the canonical mutable state surface.
 
 - Decide whether a feasibility and research handoff gate is actually needed.
 - Drive the runtime lifecycle in order: `init -> status -> track-prepare ->
-  track-lease -> track-submit -> track-accept -> track-yield -> synthesize ->
+  track-lease -> (track-submit -> track-accept | track-reject; or track-yield) -> synthesize ->
   audit-prepare -> audit-accept -> validate -> publish -> verify-handoff`, or
   `not-needed` for the lightweight path.
 - Decompose unknown implementation chains by capability and independent
   research track.
-- Dispatch subagents when independent research tracks can run in parallel and
-  produce evidence packets without conflicting writes.
+- Dispatch every substantive track to a bounded subagent. Use one-subagent for
+  a single or write-overlapping lane and parallel-subagents only for independent
+  tracks with disjoint write scopes.
 - Research external APIs, libraries, algorithms, platform constraints, and
   repository patterns only where those facts change planning.
 - Build the smallest disposable demo or spike when research alone cannot prove
@@ -51,7 +52,7 @@ compatible human-readable projection, not the canonical mutable state surface.
 
 - Canonical Deep Research outputs are runtime-owned:
   `research/state.json`, `research/track-manifest.json`,
-  `research/handoffs/*.json`, `research/synthesis.json`,
+  `research/handoffs/*.json`, `research/rejections/*.json`, `research/synthesis.json`,
   `research/audit-request.json`, `research/audit.json`,
   `research/handoff-to-plan.json`, and `research-evidence/*.json`.
 - `deep-research.md` is the compatible projection for human review and legacy
@@ -77,6 +78,9 @@ compatible human-readable projection, not the canonical mutable state surface.
   payload. The runtime validates and materializes
   `FEATURE_DIR/research-evidence/<EVD-###>.json`; never author or patch those
   canonical packets directly.
+- The leader accepts submitted packets with `deep-research track-accept` or
+  rejects them with `deep-research track-reject`. Rejection snapshots and the
+  single retry transition are runtime-owned under `research/rejections/`.
 
 ## Guardrails
 

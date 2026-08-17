@@ -38,7 +38,7 @@ substantial work and read it before reconstructing intent from chat. Persist at 
 `active_command: sp-deep-research`, `phase_mode: research-only`, the current
 stage, accepted/rejected evidence, blockers, exit criteria, next action, and
 next command. Set
-`allowed_artifact_writes: deep-research.md, research-spikes/, research/state.json, research/track-manifest.json, research/handoffs/, research/synthesis.json, research/audit-request.json, research/audit.json, research/handoff-to-plan.json, research-evidence/, alignment.md, context.md, references.md, workflow-state.md`.
+`allowed_artifact_writes: deep-research.md, research-spikes/, research/state.json, research/track-manifest.json, research/handoffs/, research/rejections/, research/synthesis.json, research/audit-request.json, research/audit.json, research/handoff-to-plan.json, research-evidence/, alignment.md, context.md, references.md, workflow-state.md`.
 Those feature-local artifacts are the complete CLI-owned artifact allowlist for this stage;
 do not edit product source, tests, migrations, production configuration, or
 build tooling.
@@ -62,6 +62,7 @@ specify-runtime deep-research status
 specify-runtime deep-research track-prepare
 specify-runtime deep-research track-lease
 specify-runtime deep-research track-submit
+specify-runtime deep-research track-reject
 specify-runtime deep-research track-accept
 specify-runtime deep-research track-yield
 specify-runtime deep-research synthesize
@@ -72,6 +73,12 @@ specify-runtime deep-research publish
 specify-runtime deep-research verify-handoff
 specify-runtime deep-research not-needed
 ```
+
+Review each submitted packet as leader. Use `deep-research track-accept` only
+for evidence that closes its bounded question. Use `deep-research track-reject`
+for an invalid or incomplete result; the runtime snapshots the rejected attempt
+under `research/rejections/`, requeues it once, and blocks the generation if the
+single retry is rejected. Never overwrite or force-accept a rejected packet.
 
 Run independent evidence lanes in parallel only when their questions and CLI-owned
 artifact sets are truly separate. Build a disposable spike under the feature's

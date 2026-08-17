@@ -27,11 +27,24 @@ Read [Reference index](references/INDEX.md) before applying shared semantic cont
 
 - [semantic work contract](references/semantic-work-contract.md)
 
+## Mandatory Subagent Execution
+
+All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
+
+The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
+
+Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format.
+
+Use `execution_model: subagent-mandatory`.
+Use `dispatch_shape: one-subagent | parallel-subagents`.
+Use `execution_surface: native-subagents`.
+Shared or overlapping write/path scopes among packets force serial `one-subagent`; a parallel conflict is not permission for unrecorded leader research. If no safe validated lane exists, record `subagent-blocked` and stop before substantive research.
+
 ## Runtime Lifecycle
 
 Deep Research is runtime-lifecycle-owned. The canonical lifecycle is:
 
-`init -> status -> track-prepare -> track-lease -> track-submit -> track-accept -> track-yield -> synthesize -> audit-prepare -> audit-accept -> validate -> publish -> verify-handoff`
+`init -> status -> track-prepare -> track-lease -> (track-submit -> track-accept | track-reject; or track-yield) -> synthesize -> audit-prepare -> audit-accept -> validate -> publish -> verify-handoff`
 
 Invoke those transitions only through the runtime command surface:
 
@@ -41,6 +54,7 @@ specify-runtime deep-research status
 specify-runtime deep-research track-prepare
 specify-runtime deep-research track-lease
 specify-runtime deep-research track-submit
+specify-runtime deep-research track-reject
 specify-runtime deep-research track-accept
 specify-runtime deep-research track-yield
 specify-runtime deep-research synthesize
@@ -89,9 +103,9 @@ runtime lifecycle surfaces are present.
 - Set or update the state for this run only through leased artifact patches, with at least:
   - `active_command: sp-deep-research`
   - `phase_mode: research-only`
-  - `allowed_artifact_writes: deep-research.md, research-spikes/, research/state.json, research/track-manifest.json, research/handoffs/, research/synthesis.json, research/audit-request.json, research/audit.json, research/handoff-to-plan.json, research-evidence/, alignment.md, context.md, references.md, workflow-state.md`
+  - `allowed_artifact_writes: deep-research.md, research-spikes/, research/state.json, research/track-manifest.json, research/handoffs/, research/rejections/, research/synthesis.json, research/audit-request.json, research/audit.json, research/handoff-to-plan.json, research-evidence/, alignment.md, context.md, references.md, workflow-state.md`
   - `forbidden_actions: edit production source code, edit tests, fix build/tooling, implement behavior, commit prototype code as production`
-  - `authoritative_files: spec-contract.json, alignment.md, context.md, references.md, research/state.json, research/track-manifest.json, research/synthesis.json, research/audit.json, research/handoff-to-plan.json, research-evidence/`
+  - `authoritative_files: spec-contract.json, alignment.md, context.md, references.md, research/state.json, research/track-manifest.json, research/rejections/, research/synthesis.json, research/audit.json, research/handoff-to-plan.json, research-evidence/`
   - `track_exit_states`: per TRK-### exit state
   - `evidence_packet_acceptance`: accepted and rejected packet lists with reasons
   - `failed_readiness_checks`: list of check IDs that failed
@@ -127,8 +141,11 @@ runtime lifecycle surfaces are present.
 - [AGENT] After each subagent returns, apply the runtime-owned evidence packet acceptance protocol:
   - **ACCEPT** when: `paths_read` is non-empty, `finding` is specific and evidence-backed, core question is answered, and no production files were edited.
   - **REJECT** when: `paths_read` is empty or missing, `finding` is empty or only speculative, core question is unanswered, or the subagent edited production source files.
-  - Record every acceptance and rejection in the runtime research state and mirror only compact resume signals into `workflow-state.md`.
-  - For rejected packets: retry once with clarified instructions. If the retry also fails, mark the track as `blocked`, record `subagent-blocked` with the rejection reason, and escalate.
+  - Accept a valid submitted packet only through `deep-research track-accept`.
+    Reject an invalid packet only through `deep-research track-reject`; the
+    runtime snapshots the submitted result and reason under
+    `research/rejections/` before requeueing it.
+  - For rejected packets: use the runtime-provided single retry with clarified instructions. A second `track-reject` exhausts the retry, marks the generation blocked, and preserves the rejection history for audit; do not force-accept or overwrite the failed result.
   - Do not silently ignore or synthesize rejected evidence packets.
 
   ```markdown
@@ -205,6 +222,7 @@ runtime lifecycle surfaces are present.
    - Set `RESEARCH_STATE_FILE` to `FEATURE_DIR/research/state.json`.
    - Set `TRACK_MANIFEST_FILE` to `FEATURE_DIR/research/track-manifest.json`.
    - Set `RESEARCH_HANDOFFS_DIR` to `FEATURE_DIR/research/handoffs`.
+   - Set `RESEARCH_REJECTIONS_DIR` to `FEATURE_DIR/research/rejections`.
    - Set `RESEARCH_SYNTHESIS_FILE` to `FEATURE_DIR/research/synthesis.json`.
    - Set `RESEARCH_AUDIT_REQUEST_FILE` to `FEATURE_DIR/research/audit-request.json`.
    - Set `RESEARCH_AUDIT_FILE` to `FEATURE_DIR/research/audit.json`.
@@ -215,7 +233,7 @@ runtime lifecycle surfaces are present.
 
 2. **Create or resume the workflow state and runtime lifecycle**:
    - Create it when absent with `specify-runtime artifact scaffold --kind workflow-state --path <feature-dir>/workflow-state.md`; otherwise query it through targeted `artifact show` and preserve still-valid `next_action`, `exit_criteria`, and `next_command` details instead of relying on chat memory alone.
-   - Initialize or resume the canonical Deep Research lifecycle only through `specify-runtime deep-research init`, `deep-research status`, `deep-research track-prepare`, `deep-research track-lease`, `deep-research track-submit`, `deep-research track-accept`, `deep-research track-yield`, `deep-research synthesize`, `deep-research audit-prepare`, `deep-research audit-accept`, `deep-research validate`, `deep-research publish`, and `deep-research verify-handoff`.
+   - Initialize or resume the canonical Deep Research lifecycle only through `specify-runtime deep-research init`, `deep-research status`, `deep-research track-prepare`, `deep-research track-lease`, `deep-research track-submit`, `deep-research track-reject`, `deep-research track-accept`, `deep-research track-yield`, `deep-research synthesize`, `deep-research audit-prepare`, `deep-research audit-accept`, `deep-research validate`, `deep-research publish`, and `deep-research verify-handoff`.
    - Determine entry source:
      - If the prior `active_command` in `workflow-state.md` was `sp-specify` →
        `entry_source: sp-specify`, `research_mode: full-research`
@@ -230,9 +248,9 @@ runtime lifecycle surfaces are present.
    - Persist the following only through fresh `artifact prepare` plus targeted `artifact patch` calls:
      - `active_command: sp-deep-research`
      - `phase_mode: research-only`
-     - `allowed_artifact_writes: deep-research.md, research-spikes/, research/state.json, research/track-manifest.json, research/handoffs/, research/synthesis.json, research/audit-request.json, research/audit.json, research/handoff-to-plan.json, research-evidence/, alignment.md, context.md, references.md, workflow-state.md`
+     - `allowed_artifact_writes: deep-research.md, research-spikes/, research/state.json, research/track-manifest.json, research/handoffs/, research/rejections/, research/synthesis.json, research/audit-request.json, research/audit.json, research/handoff-to-plan.json, research-evidence/, alignment.md, context.md, references.md, workflow-state.md`
      - `forbidden_actions: edit production source code, edit tests, fix build/tooling, implement behavior, commit prototype code as production`
-     - `authoritative_files: spec-contract.json, alignment.md, context.md, references.md, research/state.json, research/track-manifest.json, research/synthesis.json, research/audit.json, research/handoff-to-plan.json, research-evidence/`
+     - `authoritative_files: spec-contract.json, alignment.md, context.md, references.md, research/state.json, research/track-manifest.json, research/rejections/, research/synthesis.json, research/audit.json, research/handoff-to-plan.json, research-evidence/`
 
 3. **Load current spec package and repository context**:
    - Query `FEATURE_SPEC`, `FEATURE_DIR/alignment.md`, `FEATURE_DIR/context.md`, `FEATURE_DIR/references.md`, runtime-owned Deep Research lifecycle artifacts, the compatible `FEATURE_DIR/deep-research.md` projection, and `.specify/memory/constitution.md` through `specify-runtime artifact show`, starting with summary and targeted sections.
@@ -256,8 +274,8 @@ runtime lifecycle surfaces are present.
      - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
      - **CARRY FORWARD**: Treat specify-runtime cognition results as repository-grounded
        starting context. Preserve cited capabilities, constraints, affected
-       surfaces, and verification routes in `deep-research.md`, and distinguish
-       repository facts from external research findings.
+       surfaces, and verification routes in runtime track results and synthesis
+       inputs, and distinguish repository facts from external research findings.
    - From `FEATURE_DIR/alignment.md`, extract:
      - `Feasibility / Deep Research Gate` status per capability
      - `Planning Gate Recommendation`
@@ -268,8 +286,11 @@ runtime lifecycle surfaces are present.
    - external docs, API references, release notes, examples, or research material when they materially affect feasibility
 
 3b. **Detect staleness and prior evidence**:
-    - If `FEATURE_DIR/deep-research.md` already exists from a prior run, compare
-      new findings against prior conclusions.
+    - If a prior runtime workspace exists, run `deep-research status` first.
+      A stale source-specification digest blocks reuse; reinitialize with the
+      returned current revision before creating replacement tracks. Use the
+      canonical state, accepted handoffs, synthesis, and evidence objects for
+      comparison; `deep-research.md` is review context only.
     - For each CAP with prior evidence, check whether dependencies (library
       versions, API endpoints, platform behavior) have changed since the last
       research pass.
@@ -297,7 +318,10 @@ runtime lifecycle surfaces are present.
 5. **Build a capability feasibility matrix from the spec's capability decomposition**:
    - Start from the capability list in `spec.md`. Each spec capability maps to one CAP-###.
    - Do not invent new capability names; use the spec's decomposition as the source of truth.
-   - If a spec capability is too broad for focused research, split it into sub-capabilities (CAP-001a, CAP-001b) and patch the relevant `alignment.md` section through a fresh `specify-runtime artifact patch` lease.
+   - If a selected spec capability is too broad for focused research, stop and
+     route it back to Specify or Clarify for a new valid `CAP-###` decomposition;
+     Deep Research must not invent suffixed capability IDs outside the bound
+     `feasibility_gate.capability_refs` set.
 - For each capability, query its feasibility section from `alignment.md` with `specify-runtime artifact show --section` and take action:
 
    | Alignment Status | Action |
@@ -340,24 +364,36 @@ runtime lifecycle surfaces are present.
 
 6. **Select the research dispatch shape**:
    - [AGENT] Before research fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="deep-research", snapshot, workload_shape)`.
-   - Persist the decision fields in the runtime-owned research state and compact workflow resume state exactly: `execution_model`, `dispatch_shape`, `execution_surface`, join points, and blocked reason when applicable.
+   - Persist `execution_model`, `dispatch_shape`, `execution_surface`, join
+     points, and any blocked reason in the compact workflow resume state. The
+     runtime-owned manifest separately records the concrete track, worker,
+     attempt, and acceptance identities; do not claim unsupported state fields.
    - Decision order is fixed:
      - One safe validated track -> `one-subagent` on `native-subagents` when available.
       - Two or more safe isolated tracks -> `parallel-subagents` on `native-subagents` when available.
       - No safe lane, overlapping write scopes, missing contract, or unavailable delegation -> `subagent-blocked` with a recorded reason and the lifecycle paused before `track-submit`.
-   - For `deep-research`, safe fan-out means at least two independent research tracks with disjoint CLI-owned artifact scopes. Research-only tracks return evidence packets inline; demo tracks submit only under their assigned `FEATURE_DIR/research-spikes/<track-slug>/` through `specify-runtime artifact`.
+   - For `deep-research`, one safe track uses one subagent; two or more safe,
+     independent tracks with disjoint CLI-owned artifact scopes may run in
+     parallel. Research-only tracks return evidence packets inline; demo tracks
+     submit only under their assigned `FEATURE_DIR/research-spikes/<track-slug>/`
+     through `specify-runtime artifact`.
    - Required join points:
      - before final conflict resolution
      - before writing `Synthesis Decisions`
      - before writing `Planning Handoff`
-   - Carry the chosen strategy, reason, any `subagent-blocked` condition, selected research tracks, CLI-owned artifact scopes, and join points in the runtime-owned track manifest and state; refresh the `deep-research.md` compatibility projection from those canonical surfaces.
+   - Carry strategy, rationale, any `subagent-blocked` condition, artifact scopes,
+     and join points in `workflow-state.md`; let the runtime manifest own only
+     its validated tracks and lease/attempt state. Refresh `deep-research.md`
+     only through runtime synthesis/publication.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
 
 7. **Plan and run coordinated research**:
    - Create research tracks from the capability matrix before searching broadly.
    - For each track, assign a stable track ID (`TRK-###`) and define the exact question, evidence target, likely sources, whether a spike is needed, and how the result will affect `/sp.plan`.
-   - Use runtime lifecycle ownership for each track: `track-prepare` creates the bounded track contract, `track-lease` reserves mutable scope, `track-submit` records the result channel payload, `track-accept` resolves acceptance, and `track-yield` preserves resumable joins.
-   - If two or more tracks are independent and subagent dispatch is available, dispatch bounded subagents according to the Multi-Agent Research Orchestration contract.
+   - Use runtime lifecycle ownership for each track: `track-prepare` creates the bounded track contract, `track-lease` reserves mutable scope, `track-submit` records the result channel payload, `track-accept` resolves acceptance, `track-reject` snapshots the rejected attempt and performs the bounded retry transition, and `track-yield` preserves resumable joins.
+   - Dispatch every substantive track to a bounded subagent according to the
+     Multi-Agent Research Orchestration contract; use parallel dispatch only
+     for two or more independent tracks with disjoint write scopes.
    - If subagent dispatch is unavailable or low-confidence, record `subagent-blocked`, capture which tracks could not be dispatched, and stop before substantive research until the block is resolved or explicitly escalated.
    - Search and read only sources that answer a named feasibility question.
    - Prefer primary docs, official examples, standards, changelogs, release notes, library docs, code examples from the dependency itself, and current repository evidence.
@@ -404,7 +440,9 @@ runtime lifecycle surfaces are present.
 - Patch the relevant `alignment.md` section through a leased `artifact patch`:
      - add feasibility result, capability status, implementation-chain confidence, Planning Handoff readiness, and Planning Gate Recommendation
      - recommend `/sp.deep-research` only when more feasibility work remains
-     - recommend `/sp.plan` only when every planning-critical capability is proven, constrained enough, not needed, or explicitly force-accepted
+     - recommend `/sp.plan` only when every planning-critical capability is
+       `plannable`, `constrained_but_plannable`, or covered by the runtime's
+       evidence-backed `not_needed` publication
 - Patch the relevant `context.md` section through a leased `artifact patch`:
      - add implementation-chain evidence, Planning Handoff summary, spike paths, external constraints, rejected options, and residual risks that `/sp.plan` must preserve
 - Patch the relevant `references.md` section through a leased `artifact patch`:
@@ -476,7 +514,8 @@ set `next_command` to `/sp.clarify` or mark the phase as blocked.
 
 - [ ] Every CAP has at least one PH-ID assigned
 - [ ] Every PH-ID traces to at least one evidence ID (`EVD-###`, `SPK-###`, or live repository path)
-- [ ] No CAP remains `blocked` without an explicit user force-accept recorded in `alignment.md`
+- [ ] No CAP remains `blocked` or `not viable`; requirement redesign routes
+      back through Specify or Clarify before a new Deep Research generation
 - [ ] No `proven` CAP still has unresolved unknown links in its implementation chain
 - [ ] Every dispatched subagent returned an accepted evidence packet; rejected packets were retried or escalated
 - [ ] `dispatch_shape: subagent-blocked` is recorded with a concrete block reason and escalation path
@@ -502,7 +541,9 @@ When refusal happens, output a gap report inline before the refusal decision:
 - Prefer a small, runnable proof over broad speculative prose when the question is "can this work?"
 - Disposable demos, research spikes, and proof artifacts validate feasibility for the user's intended capability. They are not a replacement product scope and must not be reframed as the delivered product unless the user explicitly confirms that reduced scope.
 - Do not require this command for existing capability tweaks where the repository already shows the path.
-- Do not advance to `/sp.plan` when a required capability is still `blocked` or `not viable` unless the user explicitly accepts a redesign or force-proceed risk.
+- Do not advance to `/sp.plan` when a required capability is still `blocked` or
+  `not viable`. A user-approved redesign must first update the specification
+  and start a new digest-bound Deep Research generation.
 - Keep all prototype work isolated under `FEATURE_DIR/research-spikes/`.
 - Do not edit source code, tests, migrations, or production config from this command.
 - Do not hand off to `/sp.plan` with only raw research notes; synthesize findings into `Planning Handoff`, constraints, rejected options, and residual risks.
