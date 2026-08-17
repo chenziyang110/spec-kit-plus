@@ -368,6 +368,7 @@ func (service deepResearchService) status(args []string) Envelope {
 	env := NewEnvelope("ok", "deep-research status")
 	env.Data = deepResearchStateData(state)
 	env.Data["tracks"] = deepResearchTrackCounts(manifest)
+	next := ""
 	if freshnessErr := service.requireFreshSpec(state); freshnessErr != nil {
 		env.Status = "blocked"
 		env.Summary = "deep-research specification source is stale"
@@ -375,8 +376,8 @@ func (service deepResearchService) status(args []string) Envelope {
 		env.Data["source_freshness"] = "stale"
 	} else {
 		env.Data["source_freshness"] = "current"
+		next = deepResearchNextSubcommand(state, manifest)
 	}
-	next := deepResearchNextSubcommand(state, manifest)
 	env.Data["next_action"] = next
 	if next != "" {
 		env.NextArgv = service.commandArgv(state, next)
