@@ -38,6 +38,16 @@ from .checkpoint_serializers import (
 from .events import WORKFLOW_ARTIFACTS_VALIDATE
 from .types import HookResult, QualityHookError
 
+DEEP_RESEARCH_LEGACY_REQUIRED_FILES = ("deep-research.md", "workflow-state.md")
+DEEP_RESEARCH_RUNTIME_REQUIRED_FILES = (
+    "deep-research.md",
+    "workflow-state.md",
+    "research/state.json",
+    "research/track-manifest.json",
+    "research/synthesis.json",
+    "research/handoff-to-plan.json",
+)
+
 FILE_REQUIRED_ARTIFACTS = {
     "constitution": ("workflow-state.md",),
     "specify": (
@@ -54,7 +64,7 @@ FILE_REQUIRED_ARTIFACTS = {
         "clarification/evidence-index.json",
         "clarification/checkpoints.ndjson",
     ),
-    "deep-research": ("deep-research.md", "workflow-state.md"),
+    "deep-research": DEEP_RESEARCH_RUNTIME_REQUIRED_FILES,
     "plan": (
         "plan.md",
         "workflow-state.md",
@@ -168,7 +178,7 @@ REQUIRED_ARTIFACTS = {
         "clarification/checkpoints.ndjson",
         "clarification/handoffs",
     ),
-    "deep-research": ("deep-research.md", "workflow-state.md"),
+    "deep-research": DEEP_RESEARCH_RUNTIME_REQUIRED_FILES,
     "plan": (
         "plan.md",
         "workflow-state.md",
@@ -2868,6 +2878,162 @@ def _validate_deep_research_not_needed_artifact(content: str) -> list[str]:
     return errors
 
 
+DEEP_RESEARCH_CAPABILITY_REF_RE = re.compile(r"^CAP-[0-9]{3,}$")
+DEEP_RESEARCH_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _deep_research_gate_contract_present(feature_dir: Path) -> bool:
+    """Return whether the feature uses the runtime-owned Deep Research contract."""
+
+    spec_path = feature_dir / "spec-contract.json"
+    if not spec_path.exists():
+        return False
+    if not spec_path.is_file():
+        return True
+    try:
+        payload = _read_json(spec_path)
+    except (OSError, json.JSONDecodeError):
+        return True
+    return not isinstance(payload, dict) or "feasibility_gate" in payload
+
+
+def _deep_research_string_array(
+    value: Any, label: str, *, required: bool = False
+) -> tuple[list[str], list[str]]:
+    if not isinstance(value, list):
+        return [], [f"{label} must be an array"]
+    values: list[str] = []
+    errors: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str) or not item.strip():
+            errors.append(f"{label}[{index}] must be a non-empty string")
+            continue
+        values.append(item.strip())
+    duplicates = sorted(value for value in set(values) if values.count(value) > 1)
+    if duplicates:
+        errors.append(f"{label} must be unique: " + ", ".join(duplicates))
+    if required and not values:
+        errors.append(f"{label} must not be empty")
+    return values, errors
+
+
+def _read_deep_research_feasibility_gate(
+    feature_dir: Path,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    spec_path = feature_dir / "spec-contract.json"
+    payload, errors = _read_json_artifact(spec_path, "spec-contract.json")
+    if errors:
+        return None, errors
+    if not isinstance(payload, dict):
+        return None, ["spec-contract.json must contain a top-level JSON object"]
+    gate = payload.get("feasibility_gate")
+    if not isinstance(gate, dict):
+        return None, ["spec-contract.json feasibility_gate must be an object"]
+
+    decision = str(gate.get("decision") or "").strip().lower()
+    result: dict[str, Any] = {"decision": decision}
+    gate_errors: list[str] = []
+    if decision not in {"required", "not_selected"}:
+        gate_errors.append(
+            "spec-contract.json feasibility_gate.decision must be required or not_selected"
+        )
+
+    capability_refs, capability_errors = _deep_research_string_array(
+        gate.get("capability_refs"),
+        "spec-contract.json feasibility_gate.capability_refs",
+        required=decision == "required",
+    )
+    gate_errors.extend(capability_errors)
+    invalid_capability_refs = sorted(
+        ref
+        for ref in capability_refs
+        if DEEP_RESEARCH_CAPABILITY_REF_RE.fullmatch(ref) is None
+    )
+    if invalid_capability_refs:
+        gate_errors.append(
+            "spec-contract.json feasibility_gate.capability_refs contains invalid refs: "
+            + ", ".join(invalid_capability_refs)
+        )
+    if decision == "not_selected" and capability_refs:
+        gate_errors.append(
+            "spec-contract.json not_selected feasibility_gate cannot carry capability refs"
+        )
+
+    reason_refs, reason_errors = _deep_research_string_array(
+        gate.get("reason_refs"),
+        "spec-contract.json feasibility_gate.reason_refs",
+    )
+    gate_errors.extend(reason_errors)
+    result["capability_refs"] = capability_refs
+    result["reason_refs"] = reason_refs
+    return result, gate_errors
+
+
+def _deep_research_feature_ref(
+    project_root: Path, feature_dir: Path
+) -> tuple[str, list[str]]:
+    try:
+        feature_ref = feature_dir.resolve().relative_to(project_root.resolve())
+    except ValueError:
+        return "", ["feature_dir must stay within the project root"]
+    return feature_ref.as_posix(), []
+
+
+def _runtime_deep_research_handoff(
+    project_root: Path,
+    feature_dir: Path,
+    *,
+    handoff_ref: str = "",
+    handoff_sha256: str = "",
+) -> tuple[dict[str, Any] | None, list[str]]:
+    feature_ref, errors = _deep_research_feature_ref(project_root, feature_dir)
+    if errors:
+        return None, errors
+    args = [
+        "deep-research",
+        "verify-handoff",
+        "--feature-dir",
+        feature_ref,
+    ]
+    if handoff_ref:
+        args.extend(("--handoff-ref", handoff_ref))
+    if handoff_sha256:
+        args.extend(("--expected-sha256", handoff_sha256))
+    args.extend(("--format", "json"))
+    try:
+        envelope = run_specify_runtime(args, cwd=project_root, check=False)
+    except SpecifyRuntimeError as exc:
+        return None, [f"Deep Research runtime verification is unavailable: {exc}"]
+
+    if str(envelope.get("status") or "").strip().lower() != "ok":
+        summary = str(envelope.get("summary") or "handoff verification failed").strip()
+        messages = [f"Deep Research runtime verification failed: {summary}"]
+        blockers = envelope.get("blockers")
+        if isinstance(blockers, list):
+            messages.extend(
+                f"Deep Research runtime blocker: {blocker}"
+                for blocker in blockers
+                if str(blocker).strip()
+            )
+        return None, messages
+    data = envelope.get("data")
+    if not isinstance(data, dict):
+        return None, ["Deep Research runtime verification returned no binding data"]
+    return data, []
+
+
+def _validate_runtime_deep_research_artifact(
+    project_root: Path, feature_dir: Path
+) -> list[str]:
+    gate, errors = _read_deep_research_feasibility_gate(feature_dir)
+    if errors or gate is None:
+        return errors
+    if gate["decision"] != "required":
+        return ["deep-research validation requires feasibility_gate.decision=required"]
+    _binding, verify_errors = _runtime_deep_research_handoff(project_root, feature_dir)
+    return verify_errors
+
+
 def _validate_deep_research_artifact(feature_dir: Path) -> list[str]:
     deep_research_path = feature_dir / "deep-research.md"
     if not deep_research_path.exists():
@@ -2961,6 +3127,120 @@ def _validate_plan_consumes_deep_research(feature_dir: Path) -> list[str]:
             f"plan.md does not consume deep-research Planning Handoff IDs: {joined}"
         )
 
+    return errors
+
+
+def _validate_plan_deep_research_binding(
+    project_root: Path, feature_dir: Path
+) -> list[str]:
+    gate, errors = _read_deep_research_feasibility_gate(feature_dir)
+    if errors or gate is None:
+        return errors
+
+    plan_payload: Any | None = None
+    plan_label = "plan-contract.json"
+    for candidate, label in _consequence_contract_paths(feature_dir):
+        if not candidate.is_file():
+            continue
+        plan_payload, read_errors = _read_json_artifact(candidate, label)
+        if read_errors:
+            return read_errors
+        plan_label = label
+        break
+    if not isinstance(plan_payload, dict):
+        return [f"{plan_label} must contain a top-level JSON object"]
+
+    binding = plan_payload.get("deep_research_binding")
+    if not isinstance(binding, dict):
+        return [f"{plan_label} deep_research_binding must be an object"]
+    decision = str(binding.get("decision") or "").strip().lower()
+    if decision != gate["decision"]:
+        errors.append(
+            f"{plan_label} deep_research_binding.decision must match the specification feasibility gate"
+        )
+
+    handoff_ids, id_errors = _deep_research_string_array(
+        binding.get("handoff_ids"),
+        f"{plan_label} deep_research_binding.handoff_ids",
+    )
+    errors.extend(id_errors)
+    if gate["decision"] == "not_selected":
+        if handoff_ids:
+            errors.append(
+                f"{plan_label} not_selected deep_research_binding cannot carry handoff IDs"
+            )
+        for field in (
+            "handoff_ref",
+            "handoff_sha256",
+            "source_spec_sha256",
+            "state_revision",
+            "claim_status",
+        ):
+            value = binding.get(field)
+            if value is not None and str(value).strip():
+                errors.append(
+                    f"{plan_label} not_selected deep_research_binding.{field} must be null"
+                )
+        return errors
+
+    handoff_ref = str(binding.get("handoff_ref") or "").strip()
+    handoff_sha256 = str(binding.get("handoff_sha256") or "").strip()
+    source_spec_sha256 = str(binding.get("source_spec_sha256") or "").strip()
+    claim_status = str(binding.get("claim_status") or "").strip()
+    state_revision = binding.get("state_revision")
+    if not handoff_ref:
+        errors.append(
+            f"{plan_label} required deep_research_binding.handoff_ref must be non-empty"
+        )
+    if DEEP_RESEARCH_SHA256_RE.fullmatch(handoff_sha256) is None:
+        errors.append(
+            f"{plan_label} required deep_research_binding.handoff_sha256 must be a SHA-256 digest"
+        )
+    if DEEP_RESEARCH_SHA256_RE.fullmatch(source_spec_sha256) is None:
+        errors.append(
+            f"{plan_label} required deep_research_binding.source_spec_sha256 must be a SHA-256 digest"
+        )
+    if (
+        not isinstance(state_revision, int)
+        or isinstance(state_revision, bool)
+        or state_revision < 1
+    ):
+        errors.append(
+            f"{plan_label} required deep_research_binding.state_revision must be a positive integer"
+        )
+    if not claim_status:
+        errors.append(
+            f"{plan_label} required deep_research_binding.claim_status must be non-empty"
+        )
+    if errors:
+        return errors
+
+    verified, verify_errors = _runtime_deep_research_handoff(
+        project_root,
+        feature_dir,
+        handoff_ref=handoff_ref,
+        handoff_sha256=handoff_sha256,
+    )
+    if verify_errors or verified is None:
+        return [*errors, *verify_errors]
+
+    expected_scalars = {
+        "handoff_ref": handoff_ref,
+        "handoff_sha256": handoff_sha256,
+        "source_spec_sha256": source_spec_sha256,
+        "state_revision": state_revision,
+        "claim_status": claim_status,
+    }
+    for field, expected in expected_scalars.items():
+        if verified.get(field) != expected:
+            errors.append(
+                f"{plan_label} Deep Research binding {field} does not match the verified runtime handoff"
+            )
+    verified_ids = verified.get("handoff_ids")
+    if not isinstance(verified_ids, list) or set(verified_ids) != set(handoff_ids):
+        errors.append(
+            f"{plan_label} Deep Research binding handoff_ids do not match the verified runtime handoff"
+        )
     return errors
 
 
@@ -5930,7 +6210,12 @@ def validate_artifacts_hook(
             data={"feature_dir": str(feature_dir)},
         )
 
+    uses_runtime_deep_research = _deep_research_gate_contract_present(feature_dir)
     required_artifacts = REQUIRED_ARTIFACTS[command_name]
+    required_files = FILE_REQUIRED_ARTIFACTS.get(command_name, ())
+    if command_name == "deep-research" and not uses_runtime_deep_research:
+        required_artifacts = DEEP_RESEARCH_LEGACY_REQUIRED_FILES
+        required_files = DEEP_RESEARCH_LEGACY_REQUIRED_FILES
     if command_name == "specify" and not (feature_dir / "spec-contract.json").exists():
         legacy_specify_artifacts = (
             "spec.md",
@@ -5971,7 +6256,7 @@ def validate_artifacts_hook(
         for path, label in contract_paths:
             if path.exists() and not path.is_file():
                 type_errors.append(f"required artifact must be a file: {label}")
-    for relative_path in FILE_REQUIRED_ARTIFACTS.get(command_name, ()):
+    for relative_path in required_files:
         target = feature_dir / relative_path
         if target.exists() and not target.is_file():
             type_errors.append(f"required artifact must be a file: {relative_path}")
@@ -6016,9 +6301,19 @@ def validate_artifacts_hook(
         )
         validation_errors.extend(_validate_reference_implementation_spec(feature_dir))
     if command_name == "deep-research":
-        validation_errors.extend(_validate_deep_research_artifact(feature_dir))
+        if uses_runtime_deep_research:
+            validation_errors.extend(
+                _validate_runtime_deep_research_artifact(project_root, feature_dir)
+            )
+        else:
+            validation_errors.extend(_validate_deep_research_artifact(feature_dir))
     if command_name == "plan":
-        validation_errors.extend(_validate_plan_consumes_deep_research(feature_dir))
+        if uses_runtime_deep_research:
+            validation_errors.extend(
+                _validate_plan_deep_research_binding(project_root, feature_dir)
+            )
+        else:
+            validation_errors.extend(_validate_plan_consumes_deep_research(feature_dir))
         validation_errors.extend(_validate_plan_consequence_contract(feature_dir))
         validation_errors.extend(
             _validate_plan_entrypoint_outcome_contract(feature_dir)

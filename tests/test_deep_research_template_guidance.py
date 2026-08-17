@@ -29,8 +29,9 @@ def test_deep_research_template_defines_complete_research_contract() -> None:
     content = f"{command}\n{scaffold}"
     lowered = content.lower()
 
-    assert "artifact scaffold --kind deep-research" in command
-    assert "artifact scaffold --kind deep-research-not-needed" in command
+    assert "deep-research init" in command
+    assert "deep-research not-needed" in command
+    assert "artifact scaffold --kind deep-research" not in command
     assert "Use the full structure below" not in command
     assert "# Deep Research" in scaffold
     assert "## Planning Handoff Readiness Checklist" in scaffold

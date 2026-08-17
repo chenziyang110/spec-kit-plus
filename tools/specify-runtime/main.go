@@ -1082,6 +1082,7 @@ func defaultCapabilities() []string {
 		"deep-research.track-accept",
 		"deep-research.track-lease",
 		"deep-research.track-prepare",
+		"deep-research.track-reject",
 		"deep-research.track-submit",
 		"deep-research.track-yield",
 		"deep-research.validate",
@@ -1303,6 +1304,8 @@ func capabilitySummary(id string) string {
 		return "Validate and materialize one track result plus canonical evidence objects."
 	case "deep-research.track-accept":
 		return "Accept a digest-bound track result after evidence and source verification."
+	case "deep-research.track-reject":
+		return "Preserve a submitted result as a rejection record and requeue its one allowed retry."
 	case "deep-research.track-yield":
 		return "Release a track lease while preserving its resumable attempt history."
 	case "deep-research.synthesize":

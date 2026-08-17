@@ -56,8 +56,9 @@ list `spec-contract.json#/acceptance_criteria/0..N-1`, covering every live
 specification acceptance criterion exactly once; never select a subset,
 reconstruct prose labels, or reorder, duplicate, rename, or omit a criterion.
 
-When `deep-research.md` exists, query and validate it through
-`specify-runtime artifact show` before choosing the design.
+When `spec-contract.json#/feasibility_gate.decision` is `required`, verify the
+runtime handoff before choosing the design. Query `deep-research.md` through
+`specify-runtime artifact show` only as a derived human-readable projection.
 Consume every `PH-###` Planning Handoff item according to its mandatory,
 optional, or user-decision contract. Add a level-2 `## Deep Research
 Traceability Matrix` to `plan.md` with `Plan Decision`, `Handoff ID`, `Evidence

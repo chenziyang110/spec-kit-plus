@@ -1285,7 +1285,8 @@ def test_plan_tasks_frontmatter_outputs_are_conditional_for_adaptive_modes() -> 
         "primary_outputs: 'Canonical agent-only `plan-contract.json` plus project-facing "
         "`plan.md`; `research.md`, `quickstart.md`, `data-model.md`, and `contracts/` only "
         "when their triggers are present; planning lane records only when delegated lanes are "
-        "used. `workflow-state.md` remains resume state rather than phase handoff truth.'"
+        "used. When Deep Research exists, Plan verifies and binds the runtime-owned handoff "
+        "before synthesis. `workflow-state.md` remains resume state rather than phase handoff truth.'"
     ) in plan
     assert (
         "primary_outputs: '`FEATURE_DIR/task-index.json` as the canonical task graph in every "
@@ -3563,7 +3564,9 @@ def test_deep_research_template_defines_feasibility_gate_contract():
     assert "EVD-001" in content
     assert "SPK-001" in content
     assert "PH-001" in content
-    assert "artifact scaffold --kind deep-research" in content
+    assert "deep-research init" in content
+    assert "deep-research verify-handoff" in content
+    assert "artifact scaffold --kind deep-research" not in content
     assert "Grade each evidence item using this rubric" in content
     assert "Evidence Quality Rubric" in scaffold
     assert "Planning Traceability Index" in scaffold
@@ -3655,8 +3658,9 @@ def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research
     assert "planning-critical" in specify_lowered
     assert "release-decision" not in specify
     assert "final-handoff-decision" not in specify
-    assert "deep-research `PH-###` traceability" in plan
-    assert "Deep-research `PH-###` items remain direct evidence refs" in plan
+    assert "verified Deep Research binding traceability" in plan
+    assert "Deep Research `PH-###` items remain direct evidence refs" in plan
+    assert "deep-research verify-handoff" in plan
     assert "route to deep research" in plan.lower()
 
 

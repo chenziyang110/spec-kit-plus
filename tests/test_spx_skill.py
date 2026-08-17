@@ -321,8 +321,9 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "production source" in skills["spx-plan"]
 
     assert "deep-research.md" in skills["spx-deep-research"]
-    assert "artifact scaffold --kind deep-research" in skills["spx-deep-research"]
-    assert "artifact scaffold --kind deep-research-not-needed" in skills["spx-deep-research"]
+    assert "deep-research init" in skills["spx-deep-research"]
+    assert "deep-research not-needed" in skills["spx-deep-research"]
+    assert "artifact scaffold --kind deep-research" not in skills["spx-deep-research"]
     assert "planning handoff" in skills["spx-deep-research"]
     assert "do not implement production" in skills["spx-deep-research"]
     assert "not a separate artifact lifecycle" in skills["spx-research"]

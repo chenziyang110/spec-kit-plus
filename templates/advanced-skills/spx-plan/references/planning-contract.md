@@ -82,8 +82,9 @@ The runtime-published structured research package is canonical. Its handoff,
 accepted evidence IDs, claim status, source hash or digest, and revision-bound
 publish state are the source of truth; `deep-research.md` is the derived
 human-readable projection. Before Plan consumes deep research, verify the
-selected handoff with `specify-runtime deep-research verify-handoff` and record
-the result in `plan-contract.json#/deep_research_binding`. Preserve exactly:
+selected handoff with `specify-runtime deep-research verify-handoff`, then use
+a fresh `specify-runtime artifact patch` lease for
+`plan-contract.json#/deep_research_binding`. Preserve exactly:
 
 - `decision`;
 - `handoff_ref` and `handoff_sha256`;

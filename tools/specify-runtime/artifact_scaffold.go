@@ -88,26 +88,6 @@ var artifactScaffoldKinds = map[string]artifactScaffoldKind{
 		AgentFillRequired:     []string{"mode", "inputs", "approved_direction", "immutable_references", "contract_ids", "platforms", "risks", "validation", "next_workflow"},
 		EstimatedTokenSavings: 500,
 	},
-	"deep-research": {
-		Kind:         "deep-research",
-		TemplatePath: "artifacts/deep-research.md",
-		AllowedPaths: [][]string{
-			{"specs", "*", "deep-research.md"},
-			{".specify", "features", "*", "deep-research.md"},
-		},
-		AgentFillRequired:     []string{"metadata", "feasibility_decision", "capability_matrix", "orchestration", "agent_findings", "evidence_quality", "implementation_chain", "spike_evidence", "contradiction_resolution", "synthesis_decisions", "planning_handoff", "traceability", "capability_cards", "research_exclusions", "sources", "readiness_checklist", "next_command"},
-		EstimatedTokenSavings: 1400,
-	},
-	"deep-research-not-needed": {
-		Kind:         "deep-research-not-needed",
-		TemplatePath: "artifacts/deep-research-not-needed.md",
-		AllowedPaths: [][]string{
-			{"specs", "*", "deep-research.md"},
-			{".specify", "features", "*", "deep-research.md"},
-		},
-		AgentFillRequired:     []string{"metadata", "feasibility_decision", "planning_handoff", "next_command"},
-		EstimatedTokenSavings: 450,
-	},
 	"data-model": {
 		Kind:                  "data-model",
 		TemplatePath:          "artifacts/data-model.md",
@@ -471,7 +451,7 @@ func renderArtifactScaffold(kind artifactScaffoldKind, template []byte, variable
 		return renderEvidenceIndexScaffold(kind, template, variables)
 	case "test-universe", "test-catalog", "test-data-manifest", "coverage-matrix":
 		return renderCanonicalJSONScaffold(kind, template, variables)
-	case "alignment", "clarification-checkpoints", "constitution", "data-model", "debug-session", "deep-research", "deep-research-not-needed", "design-brief", "design-review", "quick-plan", "quick-summary", "quickstart", "references", "research", "specify-context", "specify-draft", "ui-brief", "ui-reference-notes", "workflow-state":
+	case "alignment", "clarification-checkpoints", "constitution", "data-model", "debug-session", "design-brief", "design-review", "quick-plan", "quick-summary", "quickstart", "references", "research", "specify-context", "specify-draft", "ui-brief", "ui-reference-notes", "workflow-state":
 		return renderStaticArtifactScaffold(kind, template, variables)
 	default:
 		return nil, fmt.Errorf("unsupported artifact scaffold kind %q", kind.Kind)
@@ -604,8 +584,6 @@ func renderStaticArtifactScaffold(kind artifactScaffoldKind, template []byte, va
 		"constitution":              {" Constitution", "## Core Principles", "## Governance"},
 		"data-model":                {"# Data Model", "## Data Structures and Ownership", "## Integration and Verification"},
 		"debug-session":             {"status: intake", "understanding_confirmed: false", "## Understanding Checkpoint"},
-		"deep-research":             {"# Deep Research", "**Status**: Pending", "## Feasibility Decision", "## Contradiction Resolution Log", "## Planning Handoff", "## Capability Cards", "## Research Exclusions", "## Planning Handoff Readiness Checklist", "## Next Command"},
-		"deep-research-not-needed":  {"# Deep Research", "**Status**: Pending", "## Feasibility Decision", "## Planning Handoff", "## Next Command"},
 		"design-brief":              {"design_brief:", "status: draft", "# Design Brief", "## Taste Intake", "## UI Evidence And System Model", "## Confirmed Experience", "## Approval", "design_read:", "dials:", "aesthetic_family:", "foundation_strategy:", "redesign_mode:", "anti_slop_locks:", "reference_board_intents:"},
 		"design-review":             {"# Design Review", "## Approved Direction", "## Immutable References", "## Recommended Next Workflow"},
 		"quick-plan":                {"# Quick Task Plan", "## Outcome and Boundaries", "## Acceptance and Verification"},
@@ -625,13 +603,11 @@ func renderStaticArtifactScaffold(kind artifactScaffoldKind, template []byte, va
 		}
 	}
 	if map[string]bool{
-		"deep-research":            true,
-		"deep-research-not-needed": true,
-		"data-model":               true,
-		"design-review":            true,
-		"quick-plan":               true,
-		"quick-summary":            true,
-		"quickstart":               true,
+		"data-model":    true,
+		"design-review": true,
+		"quick-plan":    true,
+		"quick-summary": true,
+		"quickstart":    true,
 	}[kind.Kind] {
 		for _, target := range kind.AgentFillRequired {
 			anchor := "<!-- agent-fill:" + target + " -->"

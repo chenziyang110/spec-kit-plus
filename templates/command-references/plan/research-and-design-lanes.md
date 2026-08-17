@@ -34,9 +34,10 @@ surfaces as canonical:
 - `research/state.json`
 - `research/track-manifest.json`
 - `research/handoffs/*.json`
-- `research/synthesis/`
-- `research/audit/`
-- `research/handoff-to-plan/`
+- `research/synthesis.json`
+- `research/audit-request.json`
+- `research/audit.json`
+- `research/handoff-to-plan.json`
 - `research-evidence/*.json`
 
 `deep-research.md` is the compatible projection for human review and legacy
@@ -45,14 +46,15 @@ verified runtime handoff exists.
 
 Before planning consumes Deep Research, verify the published handoff and bind
 it into `plan-contract.json`. The binding must record the exact handoff ref,
-source hash, handoff hash, revision, claim, and consumed `PH-###`,
-`EVD-###`, and `SPK-###` ids. If verification fails, blocks, or reports stale
+source hash, handoff hash, revision, claim, and consumed `PH-###` handoff IDs.
+The handoff's content-addressed artifact digest map retains the accepted
+`EVD-###` and `SPK-###` evidence bindings. If verification fails, blocks, or reports stale
 source material, stop and route back to Deep Research instead of copying its
 findings into Plan prose.
 
 ## Design And UI Inputs
 
-For UI-facing work, query `ui-brief.md`, its exact registered `.specify/design/changes/<UD-ID>/DESIGN.md`, the sibling `design-contract.json`, and the approved immutable design handoff through targeted `specify-runtime artifact show` calls; consume them only when selected by the spec contract. Never resolve “latest” from `.specify/design/index.json`. Record Feature UI Brief Adoption and Design Change Adoption, including token strategy. Preserve the exact contract/preview/manifest/handoff digests, immutable handoff ref, selected `DS-*` and `DH-*` IDs, `Reference-Implementation`, tokens, component ownership, required states, accessibility, fidelity criteria, allowed adaptation, forbidden drift, `visual_comparison_or_human_review`, Playwright screenshots or representative output when applicable, real-entrypoint evidence, and accepted deviations. Select structured handoff rows by ID; never recreate their values from prose.
+For UI-facing work, query `ui-brief.md`, its exact registered `.specify/design/changes/<UD-ID>/DESIGN.md`, the sibling `design-contract.json`, and the approved immutable design handoff through targeted `specify-runtime artifact show` calls; consume them only when selected by the spec contract. Never resolve “latest” from `.specify/design/index.json`. Record Feature UI Brief Adoption and Design Change Adoption, including token strategy. Preserve the exact contract/preview/manifest/handoff digests, immutable handoff ref, selected `DS-*` and `DH-*` IDs, `Reference-Implementation`, tokens, component ownership, required states, component interaction modes, interaction rows, no-data/populated/partial/error/permission/offline behavior, resize/stretch/overflow behavior, accessibility, fidelity criteria, allowed adaptation, forbidden drift, `visual_comparison_or_human_review`, Playwright screenshots or representative output when applicable, real-entrypoint evidence, and accepted deviations. Select structured handoff rows by ID; never recreate their values from prose.
 
 Do not repeat UI reference parsing already completed upstream unless the source changed or a required implementation facet is missing.
 

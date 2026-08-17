@@ -16,9 +16,10 @@ Apply this contract only after the owning workflow selects bounded delegation.
 - An accepted terminal result completes its native lane without a separate
   cleanup operation. Interrupt or cancel only unfinished work that must stop,
   and only through an operation the active runtime exposes.
-- Use the result channel owned by the active workflow. Feature lanes such as
-  Clarify, Plan, Tasks, Deep Research, and Review use their feature-scoped
-  `result submit` route; Test Design uses its `test-design lane-checkpoint`,
+- Use the result channel owned by the active workflow. Clarify, Plan, Tasks,
+  and Review use their feature-scoped `result submit` route; Deep Research uses
+  its revision-bound `deep-research track-submit` followed by Leader-owned
+  `track-accept` or `track-reject`; Test Design uses its `test-design lane-checkpoint`,
   `lane-yield`, and Leader-owned `lane-accept` lifecycle; Quick and PRD Scan use
   their workspace-scoped route; Debug uses its session-scoped route; Implement
   workers return their result inline for the Leader's `implement result-merge`.

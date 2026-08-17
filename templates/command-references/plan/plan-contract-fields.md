@@ -11,7 +11,7 @@ Scaffold `plan-contract.json` through its artifact CLI owner, then fill targeted
 - source spec contract and revision;
 - verified `deep_research_binding` when Deep Research exists, including the
   handoff ref, source hash, handoff hash, revision, claim, and consumed
-  `PH-###` / `EVD-###` / `SPK-###` ids;
+  `PH-###` ids;
 - `semantic_delta` introduced by planning;
 - route, intent, complexity, and confirmed delivery scope;
 - the single versioned complete-first scope policy and valid deferrals;
@@ -52,12 +52,11 @@ When Deep Research ran, verify the runtime-published handoff before planning
 consumes it. `plan-contract.json` must store one `deep_research_binding`
 describing the accepted handoff:
 
-- canonical handoff ref under `research/handoff-to-plan/`
-- source runtime state ref and source hash
-- handoff hash and revision
-- accepted claim identifier
-- ordered consumed `PH-###`, `EVD-###`, and `SPK-###` ids
-- verification result and refusal reason when blocked
+- canonical `research/handoff-to-plan.json` ref
+- exact source-specification SHA-256
+- handoff SHA-256 and runtime state revision
+- verified `claim_status`
+- consumed `PH-###` handoff IDs (empty only for a verified `not_needed` claim)
 
 Do not bind directly to chat output or to `deep-research.md` alone. The
 compatibility projection may help human review, but the runtime handoff and its

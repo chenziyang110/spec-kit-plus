@@ -86,8 +86,8 @@ runtime lifecycle surfaces are present.
 - Keep `workflow-state.md` current as the durable research-session truth for
   allowed artifact writes, next action, and exit criteria; it does not own
   required-stage order or runtime revision.
-- Verify the final runtime lifecycle outputs before handoff and refresh the
-  compatible `deep-research.md` projection only from runtime-backed results.
+- Verify the final runtime lifecycle outputs before handoff. The compatible
+  `deep-research.md` projection is a runtime-derived view of those results.
 - Update durable state before compaction-risk transitions, prototype-evidence synthesis handoffs, or any stop where resume will depend on more than the visible conversation.
 
 {{spec-kit-include: ../command-partials/common/learning-layer.md}}
@@ -242,9 +242,9 @@ runtime lifecycle surfaces are present.
      - If undetermined → default to `full-research`
    - In `supplement-research` mode, preserve existing evidence and only research
      newly added or changed capabilities.
-   - Record entry source and research mode in the runtime-owned research state,
-     The runtime refreshes the compatible `deep-research.md` projection from
-     canonical state; never patch that projection manually.
+   - Record entry source and research mode in the runtime-owned research state.
+     The compatible `deep-research.md` projection is derived from canonical
+     runtime state; never patch that projection manually.
    - Persist the following only through fresh `artifact prepare` plus targeted `artifact patch` calls:
      - `active_command: sp-deep-research`
      - `phase_mode: research-only`
@@ -383,8 +383,8 @@ runtime lifecycle surfaces are present.
      - before writing `Planning Handoff`
    - Carry strategy, rationale, any `subagent-blocked` condition, artifact scopes,
      and join points in `workflow-state.md`; let the runtime manifest own only
-     its validated tracks and lease/attempt state. Refresh `deep-research.md`
-     only through runtime synthesis/publication.
+     its validated tracks and lease/attempt state. Runtime
+     synthesis/publication is the sole producer of `deep-research.md`.
    - Keep the shared workflow language integration-neutral. Do not present Codex-only runtime surface wording in this shared template.
 
 7. **Plan and run coordinated research**:

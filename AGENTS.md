@@ -322,7 +322,7 @@ specify -> plan
 ```
 
 Treat `CLARIFY` as the optional enhancement path when an existing spec needs deeper analysis before planning.
-Treat `sp-deep-research` as the optional feasibility and planning handoff gate when the requirements are clear but one or more capabilities still need coordinated research, external evidence, an implementation chain proof, or a disposable demo before planning. Its findings and demo evidence must become explicit inputs to `sp-plan`; do not require it for minor adjustments to existing, already-proven capabilities.
+Treat `sp-deep-research` as the optional runtime-enforced feasibility and planning handoff gate when the requirements are clear but one or more capabilities still need coordinated research, external evidence, an implementation-chain proof, or a disposable demo before planning. It binds the exact spec digest and capability set, owns bounded track leases and result acceptance/rejection, validates provenance and coverage, requires an independent audit, and publishes a digest/revision-bound handoff that `sp-plan` verifies. `deep-research.md` is derived; generic artifact/evidence/result channels must not write the package. It does not own requirement discovery, final architecture, executable tests, or production implementation, and it is not required for minor adjustments to existing, already-proven capabilities.
 
 After task generation, teach the mandatory delivery chain as `tasks -> implement -> review -> accept`. `sp-review` / `spx-review` starts the integrated product from official entrypoints, repairs bounded implementation and wiring defects, and produces fresh system evidence before human acceptance; do not route ordinary implementation completion directly to accept.
 
@@ -839,9 +839,9 @@ managed `<!-- SPEC-KIT:BEGIN -->` block because
 
 - `sp-specify`, `sp-clarify`, `sp-deep-research`, `sp-plan`, `sp-tasks`, `sp-analyze`
   - Templates: `templates/commands/{specify,clarify,deep-research,plan,tasks,analyze}.md`, `templates/command-partials/{specify,clarify,deep-research,plan,tasks,analyze}/shell.md`, and `templates/workflow-state-template.md`
-  - Feature artifacts: `workflow-state.md`, `alignment.md`, `context.md`, `deep-research.md`, `research-spikes/`, `plan.md`, and `tasks.md`
-  - Runtime/code: `src/specify_cli/__init__.py`, `src/specify_cli/agents.py`, `src/specify_cli/learnings.py`, and `src/specify_cli/hooks/artifact_validation.py`
-  - Tests/docs: `tests/test_alignment_templates.py`, `tests/test_plan_research_contract.py`, `tests/test_specify_guidance_docs.py`, `tests/test_tasks_reporting_guidance.py`, `README.md`, and `PROJECT-HANDBOOK.md`
+  - Feature artifacts: `workflow-state.md`, `alignment.md`, `context.md`, runtime-owned `research/{state,track-manifest,handoffs,rejections,synthesis,audit-request,audit,handoff-to-plan}.json`, runtime-owned `research-evidence/`, derived `deep-research.md`, `research-spikes/`, `plan.md`, and `tasks.md`
+  - Runtime/code: `tools/specify-runtime/deep_research_workflow.go`, `tools/specify-runtime/artifact_registry.go`, `tools/specify-runtime/result.go`, `src/specify_cli/__init__.py`, `src/specify_cli/agents.py`, `src/specify_cli/learnings.py`, and `src/specify_cli/hooks/artifact_validation.py`
+  - Tests/docs: `tools/specify-runtime/deep_research_workflow_test.go`, `tests/test_deep_research_runtime_contract.py`, `tests/test_alignment_templates.py`, `tests/test_plan_research_contract.py`, `tests/test_specify_guidance_docs.py`, `tests/test_tasks_reporting_guidance.py`, `README.md`, and `PROJECT-HANDBOOK.md`
 
 - `sp-fast`, `sp-quick`, `sp-implement`, `sp-debug`
   - Templates: `templates/commands/{fast,quick,implement,debug}.md` and `templates/command-partials/{fast,quick,implement,debug}/shell.md`

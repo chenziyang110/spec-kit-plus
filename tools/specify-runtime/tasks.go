@@ -1157,7 +1157,7 @@ var taskControlWorkflowScopeOwners = map[string]string{
 	"alignment.md":                "specify-runtime artifact",
 	"context.md":                  "specify-runtime artifact",
 	"data-model.md":               "specify-runtime artifact",
-	"deep-research.md":            "specify-runtime artifact",
+	"deep-research.md":            "specify-runtime deep-research",
 	"handoff-to-implement.json":   "specify-runtime tasks handoff",
 	"handoff-to-tasks.json":       "specify-runtime tasks handoff",
 	"human-acceptance.json":       "specify-runtime accept",
