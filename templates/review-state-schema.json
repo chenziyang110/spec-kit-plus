@@ -41,6 +41,8 @@
         "workflow_revision": { "type": "integer", "minimum": 0 },
         "implementation_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "implementation_handoff_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "implementation_snapshot_manifest_ref": { "type": "string", "pattern": "^implementation-review/review-snapshots/[0-9a-f]{64}\\.json$" },
+        "implementation_snapshot_manifest_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "review_cycle": { "type": "integer", "minimum": 1 },
         "review_cycle_id": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "previous_review_state_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
@@ -565,7 +567,17 @@
       }
     },
     "repair_cycles": { "type": "array", "items": { "type": "object" } },
-    "validation": { "type": "object" },
+    "validation": {
+      "type": "object",
+      "required": ["startup", "real_entrypoint_journeys", "regression", "ui_verification"],
+      "properties": {
+        "startup": { "enum": ["pending", "pass", "fail", "blocked"] },
+        "real_entrypoint_journeys": { "enum": ["pending", "pass", "fail", "blocked"] },
+        "regression": { "enum": ["pending", "pass", "fail", "blocked"] },
+        "ui_verification": { "enum": ["pending", "pass", "fail", "blocked", "not_applicable"] }
+      },
+      "additionalProperties": false
+    },
     "cursor": { "type": "object" },
     "blocker": { "type": ["object", "null"] },
     "final": {

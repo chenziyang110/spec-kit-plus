@@ -109,3 +109,51 @@ def test_advanced_skills_profile_renders_nonterminal_spx_implement_guard(tmp_pat
         in content
     )
     assert "continue tool-driven execution in the same invocation" in content
+
+
+def test_classic_review_rendering_keeps_review_owned_drift_recovery_and_real_entrypoint_gate(
+    tmp_path,
+):
+    project = tmp_path / "codex-classic-review-contract"
+
+    integration, manifest = _install("codex", project)
+
+    review_skill = integration.skills_dest(project) / "sp-review" / "SKILL.md"
+    relative = review_skill.relative_to(project).as_posix()
+    assert review_skill.is_file()
+    assert relative in manifest.files
+
+    content = " ".join(review_skill.read_text(encoding="utf-8").lower().split())
+    assert "review-owned recovery" in content
+    assert "authorize-later-cycle" in content
+    assert "do not ask the user to choose" in content
+    assert "unit tests alone cannot substitute for official real-entrypoint delivery proof" in content
+    assert "per-path snapshot manifest" in content
+    assert "independent finding chain" in content
+    assert "current-cycle integrated evidence" in content
+
+
+def test_advanced_review_rendering_keeps_review_owned_drift_recovery_and_real_entrypoint_gate(
+    tmp_path,
+):
+    project = tmp_path / "codex-advanced-review-contract"
+
+    integration, manifest = _install(
+        "codex",
+        project,
+        workflow_profile="advanced",
+    )
+
+    review_skill = integration.skills_dest(project) / "spx-review" / "SKILL.md"
+    relative = review_skill.relative_to(project).as_posix()
+    assert review_skill.is_file()
+    assert relative in manifest.files
+
+    content = " ".join(review_skill.read_text(encoding="utf-8").lower().split())
+    assert "review-owned recovery" in content
+    assert "authorize-later-cycle" in content
+    assert "do not ask the user to choose" in content
+    assert "unit tests alone cannot substitute for official real-entrypoint delivery proof" in content
+    assert "per-path snapshot manifest" in content
+    assert "independent finding chain" in content
+    assert "current-cycle integrated evidence" in content

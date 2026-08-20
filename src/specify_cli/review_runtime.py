@@ -239,9 +239,21 @@ def implementation_snapshot_sha256(project_root: Path, feature_dir: Path | str) 
         feature_prefix = feature.relative_to(root).as_posix().rstrip("/") + "/"
     except ValueError as exc:  # pragma: no cover - guarded by _resolve_feature_dir
         raise ReviewRuntimeError("feature_dir must stay inside project_root") from exc
-    head = _git_lines(root, "rev-parse", "HEAD")
-    changed = _git_lines(root, "diff", "--name-only", "HEAD", "--")
-    untracked = _git_lines(root, "ls-files", "--others", "--exclude-standard")
+    git_root = _git_lines(root, "rev-parse", "--show-toplevel")
+    owns_git_root = bool(git_root) and Path(git_root[0]).resolve(
+        strict=False
+    ) == root
+    head = _git_lines(root, "rev-parse", "HEAD") if owns_git_root else None
+    changed = (
+        _git_lines(root, "diff", "--name-only", "HEAD", "--")
+        if owns_git_root
+        else None
+    )
+    untracked = (
+        _git_lines(root, "ls-files", "--others", "--exclude-standard")
+        if owns_git_root
+        else None
+    )
     digest = hashlib.sha256()
     if head is not None and changed is not None and untracked is not None:
         digest.update((head[0] if head else "no-head").encode("utf-8"))

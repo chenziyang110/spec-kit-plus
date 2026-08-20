@@ -12,6 +12,7 @@ Prove that the integrated implementation is an operable product from its officia
 
 - Resolve exactly one feature and inspect `specify-runtime workflow show` before mutation. Transition from completed `implement` to `review` with the runtime-returned revision; do not hand-edit `workflow.json`.
 - Run `{{specify-subcmd:specify-runtime review prepare --feature-dir <feature-dir> --expected-revision <revision> --format json}}`. Treat `implementation-handoff.json` as the implementation-to-review source contract and `review-state.json` as Review's resumable truth. If preparation reports stale or malformed Review-owned state outside an acceptance-repair cycle, rerun the same command with `--restart-stale`; the runtime archives the exact old bytes under `review-history/` and creates a fresh evidence cycle. When `accept route-repair` reopens Review, preparation creates a new cycle bound to the prior approved Review digest and routed acceptance finding; never restart, edit, or reapprove the old accepted cycle.
+- When `review prepare`, `review validate`, or `review resume-audit` returns `recovery_owner=review` for `implementation-snapshot-drift`, treat the snapshot drift as Review-owned recovery and immediately execute its structured `next_argv` (`review prepare ... --restart-stale`). The runtime returns that owner only after comparing a byte-bound per-path snapshot manifest and proving every changed path belongs to a current-cycle accepted Fix assignment whose independent finding chain and packet/result digests are intact; never synthesize or hand-edit that authorization. It preserves the immutable handoff, archives stale Review evidence, binds the current scoped implementation snapshot, and starts the next evidence cycle without consuming another logical validation gate. Current scoped snapshots exclude unrelated repository state and workflow/cognition metadata, while accepted in-scope Review repairs use this recovery. Do not ask the user to choose `stop` or `authorize-later-cycle` for internal recovery. Escalate only when the runtime identifies unattributed or concurrent owned-path drift, a true external boundary, or a proven upstream truth gap.
 - Query `/user_confirmed_deferrals` with `specify-runtime artifact show --path <feature-dir>/implementation-handoff.json --json-pointer /user_confirmed_deferrals` before allocation.
   Every DEF is unresolved scope transferred from Implement: restore its exact
   blocker/task/acceptance/validation refs, keep its listed claims withheld, and
@@ -64,7 +65,11 @@ Prove that the integrated implementation is an operable product from its officia
    failed. After timeout, isolate the last active scenario/test with
    open-handle/process-exit diagnostics; repair a hang, or split a legitimately
    long matrix into deterministic bounded shards inside the same delivery gate.
-   Never open a fourth logical gate.
+   Never open a fourth logical gate. Unit tests alone cannot substitute for
+   official real-entrypoint delivery proof, and a repeated unit-only pass does
+   not satisfy the Review delivery attempt. A `pass` status also cannot stand
+   alone: every required non-waived scenario must carry current-cycle integrated
+   evidence bound to the reviewed snapshot and the current artifact bytes.
 
 Hardware-only exception lane:
 
