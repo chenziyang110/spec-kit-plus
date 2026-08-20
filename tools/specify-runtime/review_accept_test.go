@@ -93,6 +93,101 @@ func TestReviewPrepareRejectsNonCanonicalOrStaleImplementationHandoff(t *testing
 	}
 }
 
+func TestReviewPrepareSucceedsFromCanonicalImplementationHandoff(t *testing.T) {
+	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "111-review-prepare-success")
+	writeReviewAcceptWorkflowStateFixture(t, featureDir, "111-review-prepare-success", 4, "review", "active", nil)
+	mustMkdir(t, filepath.Join(projectRoot, "src"))
+	writeTextFile(t, filepath.Join(projectRoot, "src", "product.txt"), "before review\n")
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(projectRoot, featureDir, 4))
+
+	var out bytes.Buffer
+	if code := runReview([]string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}, &out); code != 0 {
+		t.Fatalf("prepare exit = %d output = %s", code, out.String())
+	}
+	prepared := readReviewAcceptEnvelope(t, out.Bytes())
+	if prepared.Status != "ok" {
+		t.Fatalf("prepare = %#v", prepared)
+	}
+	state := readReviewAcceptJSON(t, filepath.Join(featureDir, reviewStateFilename))
+	source := state["source"].(map[string]any)
+	if source["implementation_fingerprint"] != sourceTreeFingerprint(projectRoot, featureDir) {
+		t.Fatalf("prepared source fingerprint = %#v", source)
+	}
+}
+
+func TestReviewPrepareRestartStaleReconcilesReviewOwnedProductRepairAndContinues(t *testing.T) {
+	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "112-review-reconcile-after-repair")
+	writeReviewAcceptWorkflowStateFixture(t, featureDir, "112-review-reconcile-after-repair", 4, "review", "active", nil)
+	mustMkdir(t, filepath.Join(projectRoot, "src"))
+	productPath := filepath.Join(projectRoot, "src", "product.txt")
+	writeTextFile(t, productPath, "before review repair\n")
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(projectRoot, featureDir, 4))
+
+	var out bytes.Buffer
+	prepareArgs := []string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}
+	if code := runReview(prepareArgs, &out); code != 0 {
+		t.Fatalf("initial prepare exit = %d output = %s", code, out.String())
+	}
+
+	writeTextFile(t, productPath, "after review-owned repair\n")
+	expectedFingerprint := sourceTreeFingerprint(projectRoot, featureDir)
+	if code := runReview(append(append([]string{}, prepareArgs...), "--restart-stale"), &out); code != 0 {
+		t.Fatalf("restart-stale should reconcile review-owned repair: exit=%d output=%s", code, out.String())
+	}
+	restarted := readReviewAcceptEnvelope(t, out.Bytes())
+	if restarted.Status != "ok" {
+		t.Fatalf("restart-stale prepare = %#v", restarted)
+	}
+	state := readReviewAcceptJSON(t, filepath.Join(featureDir, reviewStateFilename))
+	source := state["source"].(map[string]any)
+	if source["implementation_fingerprint"] != expectedFingerprint {
+		t.Fatalf("reconciled source fingerprint = %#v, want %s", source, expectedFingerprint)
+	}
+	if int(source["review_cycle"].(float64)) != 2 {
+		t.Fatalf("reconciled review cycle = %#v", source)
+	}
+
+	bound := bindReadyReviewTarget(t, projectRoot, featureDir, featureRel, "RS-1")
+	target := bound.Data["target"].(map[string]any)
+	if target["reviewed_snapshot_sha256"] != expectedFingerprint {
+		t.Fatalf("bound target snapshot = %#v, want %s", target, expectedFingerprint)
+	}
+
+	out.Reset()
+	if code := runReview([]string{"validate", "--project-root", projectRoot, "--feature-dir", featureRel, "--format", "json"}, &out); code != 0 {
+		t.Fatalf("validate exit = %d output = %s", code, out.String())
+	}
+	validated := readReviewAcceptEnvelope(t, out.Bytes())
+	if validated.Data["valid"] != true || validated.Data["fresh"] != true || validated.Data["current_fingerprint"] != expectedFingerprint {
+		t.Fatalf("reconciled validate = %#v", validated)
+	}
+}
+
+func TestReviewPrepareRestartStaleReconcilesStaleHandoffWithoutExistingReviewState(t *testing.T) {
+	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "113-review-reconcile-no-state")
+	writeReviewAcceptWorkflowStateFixture(t, featureDir, "113-review-reconcile-no-state", 4, "review", "active", nil)
+	mustMkdir(t, filepath.Join(projectRoot, "src"))
+	productPath := filepath.Join(projectRoot, "src", "product.txt")
+	writeTextFile(t, productPath, "before review prepare\n")
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(projectRoot, featureDir, 4))
+	writeTextFile(t, productPath, "after review-owned repair\n")
+	expectedFingerprint := sourceTreeFingerprint(projectRoot, featureDir)
+
+	var out bytes.Buffer
+	if code := runReview([]string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--restart-stale", "--format", "json"}, &out); code != 0 {
+		t.Fatalf("restart-stale should absorb stale handoff without leaking drift: exit=%d output=%s", code, out.String())
+	}
+	prepared := readReviewAcceptEnvelope(t, out.Bytes())
+	if prepared.Status != "ok" {
+		t.Fatalf("prepare = %#v", prepared)
+	}
+	state := readReviewAcceptJSON(t, filepath.Join(featureDir, reviewStateFilename))
+	source := state["source"].(map[string]any)
+	if source["implementation_fingerprint"] != expectedFingerprint {
+		t.Fatalf("prepared stale-handoff source fingerprint = %#v, want %s", source, expectedFingerprint)
+	}
+}
+
 func TestReviewPrepareRejectsMutationOfFrozenValidationLedgerPrefix(t *testing.T) {
 	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "109-review-frozen-ledger")
 	writeReviewAcceptWorkflowStateFixture(t, featureDir, "109-review-frozen-ledger", 2, "implement", "active", nil)
