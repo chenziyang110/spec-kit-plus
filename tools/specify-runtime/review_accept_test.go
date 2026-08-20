@@ -61,23 +61,23 @@ func TestReviewPrepareRestartStaleArchivesExactState(t *testing.T) {
 	}
 }
 
-func TestReviewPrepareRejectsNonCanonicalOrStaleImplementationHandoff(t *testing.T) {
+func TestReviewPrepareRejectsNonCanonicalImplementationHandoff(t *testing.T) {
 	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "108-review-handoff-contract")
 	writeReviewAcceptWorkflowStateFixture(t, featureDir, "108-review-handoff-contract", 4, "review", "active", nil)
 	handoff := reviewAcceptHandoffFixture(projectRoot, featureDir, 4)
-	handoff["implementation_fingerprint"] = strings.Repeat("0", 64)
+	handoff["implementation_fingerprint"] = "not-a-sha256"
 	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), handoff)
 
 	var out bytes.Buffer
 	args := []string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}
 	if code := runReview(args, &out); code != 10 {
-		t.Fatalf("stale handoff exit = %d output = %s", code, out.String())
+		t.Fatalf("invalid handoff exit = %d output = %s", code, out.String())
 	}
-	if !strings.Contains(out.String(), "implementation changed outside Review-owned recovery") {
-		t.Fatalf("stale handoff output = %s", out.String())
+	if !strings.Contains(out.String(), "implementation handoff contract is invalid") {
+		t.Fatalf("invalid handoff output = %s", out.String())
 	}
 	if _, err := os.Stat(filepath.Join(featureDir, reviewStateFilename)); !os.IsNotExist(err) {
-		t.Fatalf("stale handoff created review state: %v", err)
+		t.Fatalf("invalid handoff created review state: %v", err)
 	}
 
 	handoff = reviewAcceptHandoffFixture(projectRoot, featureDir, 4)
@@ -169,24 +169,52 @@ func TestReviewPrepareRestartStaleReconcilesReviewOwnedProductRepairAndContinues
 	}
 }
 
-func TestReviewPrepareRestartStaleRejectsProductDriftWithoutExistingReviewState(t *testing.T) {
+func TestReviewPrepareRebasesInitialLegacyProductDriftWithoutUserBlocker(t *testing.T) {
 	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "113-review-reconcile-no-state")
 	writeReviewAcceptWorkflowStateFixture(t, featureDir, "113-review-reconcile-no-state", 4, "review", "active", nil)
 	mustMkdir(t, filepath.Join(projectRoot, "src"))
 	productPath := filepath.Join(projectRoot, "src", "product.txt")
 	writeTextFile(t, productPath, "before review prepare\n")
-	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(projectRoot, featureDir, 4))
+	handoffPath := filepath.Join(featureDir, implementationHandoffFilename)
+	handoff := reviewAcceptHandoffFixture(projectRoot, featureDir, 4)
+	handoff["fingerprint_algorithm"] = "git-working-tree-v1"
+	mustWriteReviewAcceptJSON(t, handoffPath, handoff)
+	originalHandoff, err := os.ReadFile(handoffPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handoffFingerprint := stringField(handoff, "implementation_fingerprint")
 	writeTextFile(t, productPath, "after review-owned repair\n")
+	currentFingerprint := sourceTreeFingerprint(projectRoot, featureDir)
+	if currentFingerprint == handoffFingerprint {
+		t.Fatal("fixture did not create initial implementation drift")
+	}
 	var out bytes.Buffer
-	if code := runReview([]string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--restart-stale", "--format", "json"}, &out); code != 10 {
-		t.Fatalf("restart-stale should reject unattributed drift: exit=%d output=%s", code, out.String())
+	if code := runReview([]string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}, &out); code != 0 {
+		t.Fatalf("initial Review should rebase legacy drift: exit=%d output=%s", code, out.String())
 	}
-	blocked := readReviewAcceptEnvelope(t, out.Bytes())
-	if blocked.Status != "blocked" || blocked.Data["recovery_owner"] == "review" {
-		t.Fatalf("unattributed drift = %#v", blocked)
+	prepared := readReviewAcceptEnvelope(t, out.Bytes())
+	if prepared.Status != "ok" {
+		t.Fatalf("initial Review rebase = %#v", prepared)
 	}
-	if _, err := os.Stat(filepath.Join(featureDir, reviewStateFilename)); !os.IsNotExist(err) {
-		t.Fatalf("unattributed drift created review state: %v", err)
+	state := readReviewAcceptJSON(t, filepath.Join(featureDir, reviewStateFilename))
+	source := state["source"].(map[string]any)
+	if source["implementation_fingerprint"] != currentFingerprint || source["handoff_implementation_fingerprint"] != handoffFingerprint {
+		t.Fatalf("initial Review rebase source = %#v", source)
+	}
+	if source["snapshot_reconciliation"] != "initial-review-rebaseline" || intField(source, "review_cycle") != 1 {
+		t.Fatalf("initial Review rebase provenance = %#v", source)
+	}
+	manifestRef := stringField(source, "implementation_snapshot_manifest_ref")
+	if manifestRef == "" || optionalFileSHA256(filepath.Join(featureDir, filepath.FromSlash(manifestRef))) != source["implementation_snapshot_manifest_sha256"] {
+		t.Fatalf("initial Review rebase manifest = %#v", source)
+	}
+	currentHandoff, err := os.ReadFile(handoffPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(currentHandoff, originalHandoff) {
+		t.Fatal("initial Review rebase mutated the immutable implementation handoff")
 	}
 }
 

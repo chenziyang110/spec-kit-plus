@@ -440,6 +440,9 @@ func TestImplementCloseoutFreezesCanonicalReviewContractForPrepare(t *testing.T)
 	if strings.TrimSpace(fmt.Sprint(handoff["implementation_fingerprint"])) == "" {
 		t.Fatalf("handoff missing implementation_fingerprint: %#v", handoff)
 	}
+	if handoff["fingerprint_algorithm"] != "implement-scoped-snapshot-v2" {
+		t.Fatalf("handoff fingerprint_algorithm = %#v, want implement-scoped-snapshot-v2", handoff["fingerprint_algorithm"])
+	}
 	if handoff["entrypoints"] != nil || handoff["review_scenarios"] != nil || handoff["source_fingerprint"] != nil {
 		t.Fatalf("handoff kept legacy aliases: %#v", handoff)
 	}
