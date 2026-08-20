@@ -645,6 +645,34 @@ def test_review_state_schema_types_real_entrypoint_delivery_proof() -> None:
     assert "not_applicable" in validation["properties"]["ui_verification"]["enum"]
 
 
+def test_review_state_schema_binds_snapshot_reconciliation_provenance() -> None:
+    schema = json.loads(_read("templates/review-state-schema.json"))
+    source = schema["properties"]["source"]
+
+    assert set(source["properties"]["snapshot_reconciliation"]["enum"]) == {
+        "initial-review-rebaseline",
+        "legacy-review-rebaseline",
+    }
+    assert source["properties"]["handoff_implementation_fingerprint"][
+        "pattern"
+    ] == "^[0-9a-f]{64}$"
+    required_pairs = {
+        (
+            tuple(item["if"]["required"]),
+            tuple(item["then"]["required"]),
+        )
+        for item in source["allof"]
+    }
+    assert (
+        ("snapshot_reconciliation",),
+        ("handoff_implementation_fingerprint",),
+    ) in required_pairs
+    assert (
+        ("handoff_implementation_fingerprint",),
+        ("snapshot_reconciliation",),
+    ) in required_pairs
+
+
 def test_spx_accept_is_discoverable_as_the_post_review_stage() -> None:
     frontmatter = (
         (ROOT / "templates/advanced-skills/spx-accept/SKILL.md")
