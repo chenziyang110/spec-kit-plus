@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import shutil
+import subprocess
 from pathlib import Path
 from types import ModuleType
 
@@ -219,13 +221,15 @@ def _feature_at_review(tmp_path: Path) -> tuple[Path, Path, int]:
 
 
 def _write_implementation_handoff(feature_dir: Path, revision: int) -> Path:
+    runtime = _review_runtime()
+    project_root = feature_dir.parents[2]
     handoff_path = feature_dir / "implementation-handoff.json"
     handoff_path.write_text(
         json.dumps(
             {
                 "version": 1,
                 "source_revision": revision,
-                "implementation_fingerprint": "a" * 64,
+                "implementation_fingerprint": "",
                 "official_entrypoints": [
                     {
                         "id": "web",
@@ -317,6 +321,9 @@ def _write_implementation_handoff(feature_dir: Path, revision: int) -> Path:
         encoding="utf-8",
     )
     handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+    handoff["implementation_fingerprint"] = runtime.implementation_snapshot_sha256(
+        project_root, feature_dir
+    )
     handoff["human_acceptance_scenarios"][0]["actor"] = "human user"
     contract = {
         "human_acceptance_obligations": handoff["human_acceptance_obligations"],
@@ -344,14 +351,224 @@ def _prepare(tmp_path: Path) -> tuple[ModuleType, Path, Path, int, dict[str, obj
     return runtime, project_root, feature_dir, revision, prepared
 
 
+def test_snapshot_scopes_directory_write_scope_and_ignores_unrelated_drift(
+    tmp_path: Path,
+) -> None:
+    runtime = _review_runtime()
+    project_root, feature_dir, _revision = _feature_at_review(tmp_path)
+    task_dir = feature_dir / "implementation-review" / "tasks"
+    task_dir.mkdir(parents=True)
+    (task_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "task_id": "T001",
+                "status": "accepted",
+                "write_scope": ["src/demo"],
+                "validation": [],
+                "blockers": [],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    demo_path = project_root / "src" / "demo" / "button.ts"
+    unrelated_path = project_root / "src" / "unrelated.ts"
+    demo_path.parent.mkdir(parents=True, exist_ok=True)
+    demo_path.write_text("before demo\n", encoding="utf-8")
+    unrelated_path.write_text("before unrelated\n", encoding="utf-8")
+    _init_git_repo(project_root)
+
+    before = runtime.implementation_snapshot_sha256(project_root, feature_dir)
+    unrelated_path.write_text("after unrelated\n", encoding="utf-8")
+    assert runtime.implementation_snapshot_sha256(project_root, feature_dir) == before
+
+    demo_path.write_text("after demo\n", encoding="utf-8")
+    assert runtime.implementation_snapshot_sha256(project_root, feature_dir) != before
+
+
+def test_prepare_review_restart_stale_reconciles_review_owned_fix_drift(
+    tmp_path: Path,
+) -> None:
+    runtime = _review_runtime()
+    project_root, feature_dir, revision = _feature_at_review(tmp_path)
+    task_dir = feature_dir / "implementation-review" / "tasks"
+    task_dir.mkdir(parents=True)
+    (task_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "task_id": "T001",
+                "status": "accepted",
+                "changed_paths": ["src/demo/button.ts"],
+                "validation": [],
+                "blockers": [],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    product_path = project_root / "src" / "demo" / "button.ts"
+    product_path.parent.mkdir(parents=True, exist_ok=True)
+    product_path.write_text("before review repair\n", encoding="utf-8")
+    _init_git_repo(project_root)
+    _write_implementation_handoff(feature_dir, revision)
+    prepared = runtime.prepare_review(
+        project_root,
+        feature_dir,
+        expected_revision=revision,
+    )
+    state_path = runtime.review_state_path(feature_dir)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    _write_scenario_evidence(feature_dir, state)
+    _complete_leader_review(state, feature_dir=feature_dir)
+    _add_fix_revalidation_loop(feature_dir, state, full_matrix=False)
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    product_path.write_text("after review repair\n", encoding="utf-8")
+    restarted = runtime.prepare_review(
+        project_root,
+        feature_dir,
+        expected_revision=revision,
+        restart_stale=True,
+    )
+
+    assert prepared["status"] == "ok"
+    assert restarted["status"] == "ok"
+    assert restarted["data"]["source"]["review_cycle"] == 2
+    assert (
+        restarted["data"]["source"]["implementation_fingerprint"]
+        == runtime.implementation_snapshot_sha256(project_root, feature_dir)
+    )
+    archived_ref = restarted["data"]["archived_review_state_ref"]
+    assert (feature_dir / archived_ref).is_file()
+
+
+def test_prepare_review_rebases_initial_legacy_drift_without_user_blocker(
+    tmp_path: Path,
+) -> None:
+    runtime = _review_runtime()
+    project_root, feature_dir, revision = _feature_at_review(tmp_path)
+    task_dir = feature_dir / "implementation-review" / "tasks"
+    task_dir.mkdir(parents=True)
+    (task_dir / "T001.json").write_text(
+        json.dumps({"changed_paths": ["src/demo/button.ts"]}) + "\n",
+        encoding="utf-8",
+    )
+    product_path = project_root / "src" / "demo" / "button.ts"
+    product_path.parent.mkdir(parents=True, exist_ok=True)
+    product_path.write_text("before initial Review drift\n", encoding="utf-8")
+    _init_git_repo(project_root)
+    handoff_path = _write_implementation_handoff(feature_dir, revision)
+    handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+    handoff["fingerprint_algorithm"] = "git-working-tree-v1"
+    handoff_path.write_text(json.dumps(handoff, indent=2) + "\n", encoding="utf-8")
+    original_handoff = handoff_path.read_bytes()
+    handoff_fingerprint = handoff["implementation_fingerprint"]
+    product_path.write_text("after initial Review drift\n", encoding="utf-8")
+    current_fingerprint = runtime.implementation_snapshot_sha256(
+        project_root, feature_dir
+    )
+
+    prepared = runtime.prepare_review(
+        project_root,
+        feature_dir,
+        expected_revision=revision,
+    )
+
+    source = prepared["data"]["source"]
+    assert prepared["status"] == "ok"
+    assert source["implementation_fingerprint"] == current_fingerprint
+    assert source["handoff_implementation_fingerprint"] == handoff_fingerprint
+    assert source["snapshot_reconciliation"] == "initial-review-rebaseline"
+    assert source["review_cycle"] == 1
+    manifest_path = feature_dir / source["implementation_snapshot_manifest_ref"]
+    assert manifest_path.is_file()
+    assert hashlib.sha256(manifest_path.read_bytes()).hexdigest() == source[
+        "implementation_snapshot_manifest_sha256"
+    ]
+    assert handoff_path.read_bytes() == original_handoff
+
+
+def test_prepare_review_quarantines_legacy_state_without_manifest(
+    tmp_path: Path,
+) -> None:
+    runtime = _review_runtime()
+    project_root, feature_dir, revision = _feature_at_review(tmp_path)
+    task_dir = feature_dir / "implementation-review" / "tasks"
+    task_dir.mkdir(parents=True)
+    (task_dir / "T001.json").write_text(
+        json.dumps({"changed_paths": ["src/demo/button.ts"]}) + "\n",
+        encoding="utf-8",
+    )
+    product_path = project_root / "src" / "demo" / "button.ts"
+    product_path.parent.mkdir(parents=True, exist_ok=True)
+    product_path.write_text("before legacy Review drift\n", encoding="utf-8")
+    _init_git_repo(project_root)
+    handoff_path = _write_implementation_handoff(feature_dir, revision)
+    runtime.prepare_review(project_root, feature_dir, expected_revision=revision)
+    state_path = runtime.review_state_path(feature_dir)
+    legacy_state = json.loads(state_path.read_text(encoding="utf-8"))
+    legacy_source = legacy_state["source"]
+    manifest_path = feature_dir / legacy_source.pop(
+        "implementation_snapshot_manifest_ref"
+    )
+    legacy_source.pop("implementation_snapshot_manifest_sha256")
+    state_path.write_text(json.dumps(legacy_state, indent=2) + "\n", encoding="utf-8")
+    manifest_path.unlink()
+    product_path.write_text("after legacy Review drift\n", encoding="utf-8")
+    current_fingerprint = runtime.implementation_snapshot_sha256(
+        project_root, feature_dir
+    )
+
+    restarted = runtime.prepare_review(
+        project_root,
+        feature_dir,
+        expected_revision=revision,
+        restart_stale=True,
+    )
+
+    source = restarted["data"]["source"]
+    assert restarted["status"] == "ok"
+    assert source["implementation_fingerprint"] == current_fingerprint
+    assert source["handoff_implementation_fingerprint"] == json.loads(
+        handoff_path.read_text(encoding="utf-8")
+    )["implementation_fingerprint"]
+    assert source["snapshot_reconciliation"] == "legacy-review-rebaseline"
+    assert source["review_cycle"] == 2
+
+
+def _init_git_repo(project_root: Path) -> None:
+    if shutil.which("git") is None:
+        pytest.skip("git is required for snapshot parity tests")
+    for args in (
+        ["git", "init"],
+        ["git", "config", "user.email", "tests@example.com"],
+        ["git", "config", "user.name", "Spec Runtime Tests"],
+        ["git", "add", "."],
+        ["git", "commit", "-m", "initial"],
+    ):
+        subprocess.run(
+            args,
+            cwd=project_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+
 def _write_scenario_evidence(
     feature_dir: Path,
     state: dict[str, object],
     *,
-    snapshot_sha256: str = "a" * 64,
+    snapshot_sha256: str | None = None,
 ) -> None:
     review_cycle = state.get("source", {}).get("review_cycle", 1)
     review_cycle_id = state.get("source", {}).get("review_cycle_id")
+    if snapshot_sha256 is None:
+        snapshot_sha256 = str(
+            state.get("source", {}).get("implementation_fingerprint") or ""
+        )
     evidence_root = Path("review-evidence")
     if isinstance(review_cycle, int) and review_cycle >= 2:
         evidence_root /= f"cycle-{review_cycle}"
@@ -381,8 +598,12 @@ def _complete_leader_review(
     state: dict[str, object],
     *,
     feature_dir: Path,
-    snapshot_sha256: str = "a" * 64,
+    snapshot_sha256: str | None = None,
 ) -> None:
+    if snapshot_sha256 is None:
+        snapshot_sha256 = str(
+            state.get("source", {}).get("implementation_fingerprint") or ""
+        )
     obligation_ids = [item["id"] for item in state["obligations"]]
     scenario_ids = [item["id"] for item in state["scenarios"]]
     review_cycle = state.get("source", {}).get("review_cycle", 1)
@@ -547,8 +768,12 @@ def _add_fix_revalidation_loop(
     state: dict[str, object],
     *,
     full_matrix: bool,
-    manifest_snapshot_sha256: str = "a" * 64,
+    manifest_snapshot_sha256: str | None = None,
 ) -> Path:
+    if manifest_snapshot_sha256 is None:
+        manifest_snapshot_sha256 = str(
+            state.get("source", {}).get("implementation_fingerprint") or ""
+        )
     review_cycle = state["source"]["review_cycle"]
     review_cycle_id = state["source"]["review_cycle_id"]
     result_root = Path("review-results")
@@ -647,7 +872,7 @@ def _add_fix_revalidation_loop(
             "fix_assignment_ids": ["FX-001"],
             "fix_assignments_sha256": fix_assignments_sha256,
             "scenario_ids": scenario_ids,
-            "snapshot_sha256": "a" * 64,
+            "snapshot_sha256": manifest_snapshot_sha256,
             "result": "pass",
             "evidence_refs": [manifest_ref.as_posix()],
             "evidence_sha256": {manifest_ref.as_posix(): manifest_sha256},
@@ -674,22 +899,25 @@ def test_prepare_review_compiles_handoff_into_resumable_review_state(
     assert state["version"] == 2
     assert state["status"] == "reviewing"
     handoff_sha256 = hashlib.sha256(handoff_bytes).hexdigest()
-    assert state["source"] == {
-        "workflow_revision": revision,
-        "implementation_fingerprint": "a" * 64,
-        "implementation_handoff_sha256": handoff_sha256,
-        "review_cycle": 1,
-        "review_cycle_id": runtime._review_cycle_id(
-            workflow_revision=revision,
-            handoff_sha256=handoff_sha256,
-            review_cycle=1,
-            previous_review_state_sha256="",
-            acceptance_finding_id="",
-        ),
-        "previous_review_state_sha256": "",
-        "acceptance_finding_id": "",
-        "acceptance_finding_sha256": "",
-    }
+    assert state["source"]["workflow_revision"] == revision
+    assert state["source"]["implementation_handoff_sha256"] == handoff_sha256
+    assert state["source"]["implementation_fingerprint"] == runtime.implementation_snapshot_sha256(
+        _project_root, feature_dir
+    )
+    assert state["source"]["review_cycle"] == 1
+    assert state["source"]["review_cycle_id"] == runtime._review_cycle_id(
+        workflow_revision=revision,
+        handoff_sha256=handoff_sha256,
+        review_cycle=1,
+        previous_review_state_sha256="",
+        acceptance_finding_id="",
+    )
+    assert state["source"]["previous_review_state_sha256"] == ""
+    assert state["source"]["acceptance_finding_id"] == ""
+    assert state["source"]["acceptance_finding_sha256"] == ""
+    assert state["source"]["implementation_snapshot_manifest_ref"].startswith(
+        "implementation-review/review-snapshots/"
+    )
     assert [scenario["id"] for scenario in state["scenarios"]] == [
         "SR-START-001",
         "SR-UI-001",
@@ -1154,6 +1382,8 @@ def test_handoff_binds_acceptance_denominator_and_task_contract_digests(
     handoff = json.loads(
         (feature_dir / "implementation-handoff.json").read_text(encoding="utf-8")
     )
+
+    assert handoff["fingerprint_algorithm"] == "implement-scoped-snapshot-v2"
 
     assert handoff["acceptance_refs"] == task_index["acceptance_refs"]
     assert (
