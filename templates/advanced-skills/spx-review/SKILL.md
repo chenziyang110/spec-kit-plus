@@ -58,6 +58,15 @@ workflow/cognition metadata, while accepted in-scope Review repairs use this rec
 ask the user to choose `stop` or `authorize-later-cycle` for internal recovery.
 Escalate only for runtime-identified unattributed or concurrent owned-path drift,
 a true external boundary, or a proven upstream truth gap.
+When the runtime returns `recovery_reason=legacy-snapshot-quarantine`, immediately
+execute its structured `next_argv`; it archives the manifest-less legacy Review
+state and opens a fresh evidence cycle without claiming the old drift was an
+accepted Fix. If preparation succeeds with `source.snapshot_reconciliation` set
+to `initial-review-rebaseline` or `legacy-review-rebaseline`, continue directly
+into a full Review from official entrypoints and recapture all current-cycle
+integrated evidence. Continuity with the old scalar fingerprint is deliberately
+unproven, so these modes grant neither approval nor reusable evidence and must
+not become a user recovery menu.
 
 Continue the validation ledger shared across Implement and Review; do not reset
 it on phase entry, resume, worker dispatch, or Review-cycle creation. It has

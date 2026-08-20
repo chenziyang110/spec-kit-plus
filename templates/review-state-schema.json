@@ -43,6 +43,8 @@
         "implementation_handoff_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "implementation_snapshot_manifest_ref": { "type": "string", "pattern": "^implementation-review/review-snapshots/[0-9a-f]{64}\\.json$" },
         "implementation_snapshot_manifest_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "handoff_implementation_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "snapshot_reconciliation": { "enum": ["initial-review-rebaseline", "legacy-review-rebaseline"] },
         "review_cycle": { "type": "integer", "minimum": 1 },
         "review_cycle_id": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "previous_review_state_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
@@ -50,6 +52,16 @@
         "acceptance_finding_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
         "restart_reason": { "enum": ["stale-review-restart"] }
       },
+      "allOf": [
+        {
+          "if": { "required": ["snapshot_reconciliation"] },
+          "then": { "required": ["handoff_implementation_fingerprint"] }
+        },
+        {
+          "if": { "required": ["handoff_implementation_fingerprint"] },
+          "then": { "required": ["snapshot_reconciliation"] }
+        }
+      ],
       "additionalProperties": false
     },
     "entrypoints": {

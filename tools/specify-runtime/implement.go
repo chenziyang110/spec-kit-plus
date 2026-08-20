@@ -1478,7 +1478,7 @@ func buildImplementCloseoutArtifacts(root, feature string, audit map[string]any,
 		"source_stage":                     "implement",
 		"feature_dir":                      feature,
 		"implementation_fingerprint":       fingerprint,
-		"fingerprint_algorithm":            implementationFingerprintAlgorith,
+		"fingerprint_algorithm":            implementationFingerprintAlgorithm,
 		"official_entrypoints":             officialEntrypoints,
 		"system_review_scenarios":          systemReviewScenarios,
 		"review_obligations":               reviewObligations,
@@ -1911,7 +1911,8 @@ func implementFingerprintIncludesPath(rootAbs, featureAbs, rel string, scope imp
 	if featureRel == ".." || strings.HasPrefix(featureRel, ".."+string(filepath.Separator)) {
 		if len(scope.declaredPaths) > 0 {
 			for _, declared := range scope.declaredPaths {
-				if normalized == declared {
+				declared = strings.Trim(filepath.ToSlash(declared), "/")
+				if normalized == declared || strings.HasPrefix(normalized, declared+"/") {
 					return true
 				}
 			}

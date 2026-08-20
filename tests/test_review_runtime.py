@@ -387,6 +387,68 @@ def test_snapshot_scopes_directory_write_scope_and_ignores_unrelated_drift(
     assert runtime.implementation_snapshot_sha256(project_root, feature_dir) != before
 
 
+def test_python_and_go_scoped_snapshot_fingerprints_match(
+    tmp_path: Path,
+    built_unified_runtime: Path,
+) -> None:
+    runtime = _review_runtime()
+    project_root, feature_dir, _revision = _feature_at_review(tmp_path)
+    task_dir = feature_dir / "implementation-review" / "tasks"
+    task_dir.mkdir(parents=True)
+    (task_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "changed_paths": ["src/demo/button.ts"],
+                "write_scope": ["src/demo"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "validation_policy": {
+                    "mode": "feature_epochs",
+                    "max_epochs": 3,
+                    "budget_scope": "implement-review",
+                    "budget_ref": "implementation-review/validation-runs.json",
+                    "heavy_gate_owner": "leader",
+                }
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    product_path = project_root / "src" / "demo" / "button.ts"
+    product_path.parent.mkdir(parents=True, exist_ok=True)
+    product_path.write_text("shared fingerprint bytes\n", encoding="utf-8")
+    _init_git_repo(project_root)
+
+    result = subprocess.run(
+        [
+            str(built_unified_runtime),
+            "implement",
+            "validation-status",
+            "--project-root",
+            str(project_root),
+            "--feature-dir",
+            feature_dir.relative_to(project_root).as_posix(),
+            "--format",
+            "json",
+        ],
+        cwd=project_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    go_payload = json.loads(result.stdout)
+
+    assert go_payload["data"]["current_fingerprint"] == (
+        runtime.implementation_snapshot_sha256(project_root, feature_dir)
+    )
+
+
 def test_prepare_review_restart_stale_reconciles_review_owned_fix_drift(
     tmp_path: Path,
 ) -> None:
@@ -1618,11 +1680,18 @@ def test_build_runtime_target_binds_current_artifact_bytes(
     target["identity_evidence_sha256"] = hashlib.sha256(
         identity_path.read_bytes()
     ).hexdigest()
-
-    assert (
-        runtime.implementation_snapshot_sha256(project_root, feature_dir)
-        != reviewed_snapshot
+    state["final"]["runtime_targets_sha256"] = runtime._review_runtime_targets_sha256(
+        state["reviewed_runtime_targets"]
     )
+    _targets, errors, fresh = runtime._validate_review_runtime_targets(
+        state,
+        feature_dir=feature_dir,
+        expected_snapshot=reviewed_snapshot,
+        status="approved",
+    )
+
+    assert errors == []
+    assert fresh is True
 
 
 def test_build_runtime_target_rejects_artifact_in_review_evidence(
@@ -2058,12 +2127,18 @@ def test_review_rejects_full_matrix_revalidation_manifest_for_old_snapshot(
     _write_scenario_evidence(feature_dir, state)
     _complete_leader_review(state, feature_dir=feature_dir)
     state["status"] = "approved"
-    _add_fix_revalidation_loop(
+    manifest_path = _add_fix_revalidation_loop(
         feature_dir,
         state,
         full_matrix=True,
-        manifest_snapshot_sha256="b" * 64,
     )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["snapshot_sha256"] = "b" * 64
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    manifest_ref = state["revalidations"][0]["evidence_manifest_ref"]
+    state["revalidations"][0]["evidence_sha256"][manifest_ref] = hashlib.sha256(
+        manifest_path.read_bytes()
+    ).hexdigest()
     state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
 
     validation = runtime.validate_review(project_root, feature_dir)
@@ -2224,7 +2299,9 @@ def test_feature_epoch_review_requires_one_shared_delivery_epoch(
         feature_dir,
         stage="review",
         purpose="delivery",
-        fingerprint="a" * 64,
+        fingerprint=runtime.implementation_snapshot_sha256(
+            project_root, feature_dir
+        ),
         commands=["pytest -q", "npm run e2e"],
         covered_task_ids=["T001"],
     )

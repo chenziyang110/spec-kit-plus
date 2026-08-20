@@ -254,7 +254,7 @@ func TestReviewPrepareQuarantinesLegacyStateWithoutManifestAndAutoRestarts(t *te
 	if recovery.Data["recovery_owner"] != "review" || recovery.Data["recovery_reason"] != "legacy-snapshot-quarantine" {
 		t.Fatalf("legacy state recovery metadata = %#v", recovery.Data)
 	}
-	if !equalStringSlices(recovery.NextArgv, []string{"specify-runtime", "review", "prepare", "--feature-dir", featureRel, "--expected-revision", "4", "--restart-stale", "--format", "json"}) {
+	if len(recovery.NextArgv) < 1 || !equalStringSlices(recovery.NextArgv[1:], []string{"review", "prepare", "--feature-dir", featureRel, "--expected-revision", "4", "--restart-stale", "--format", "json"}) {
 		t.Fatalf("legacy state recovery next argv = %#v", recovery.NextArgv)
 	}
 
@@ -1079,7 +1079,7 @@ func reviewAcceptHandoffFixture(projectRoot, featureDir string, revision int) ma
 		"source_stage":                     "implement",
 		"feature_dir":                      filepath.ToSlash(featureDir),
 		"implementation_fingerprint":       sourceTreeFingerprint(projectRoot, featureDir),
-		"fingerprint_algorithm":            implementationFingerprintAlgorith,
+		"fingerprint_algorithm":            implementationFingerprintAlgorithm,
 		"official_entrypoints":             []any{map[string]any{"id": "EP-1", "command": "npm run dev", "ready_signal": "http://localhost:3000/health"}},
 		"runtime_targets":                  []any{"http://localhost:3000"},
 		"system_review_scenarios":          []any{map[string]any{"id": "RS-1", "required": true, "obligation_ids": []any{"RO-1"}, "entrypoint_id": "EP-1", "required_evidence": []any{"runtime_diagnostics"}}},
