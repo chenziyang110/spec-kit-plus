@@ -218,6 +218,60 @@ func TestReviewPrepareRebasesInitialLegacyProductDriftWithoutUserBlocker(t *test
 	}
 }
 
+func TestReviewPrepareQuarantinesLegacyStateWithoutManifestAndAutoRestarts(t *testing.T) {
+	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "120-review-legacy-state-rebase")
+	writeReviewAcceptWorkflowStateFixture(t, featureDir, "120-review-legacy-state-rebase", 4, "review", "active", nil)
+	mustMkdir(t, filepath.Join(projectRoot, "src"))
+	productPath := filepath.Join(projectRoot, "src", "product.txt")
+	writeTextFile(t, productPath, "before legacy Review drift\n")
+	declareReviewAcceptImplementationPaths(t, featureDir, "src/product.txt")
+	handoffPath := filepath.Join(featureDir, implementationHandoffFilename)
+	mustWriteReviewAcceptJSON(t, handoffPath, reviewAcceptHandoffFixture(projectRoot, featureDir, 4))
+
+	prepareArgs := []string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}
+	var out bytes.Buffer
+	if code := runReview(prepareArgs, &out); code != 0 {
+		t.Fatalf("initial prepare exit=%d output=%s", code, out.String())
+	}
+	statePath := filepath.Join(featureDir, reviewStateFilename)
+	legacyState := readReviewAcceptJSON(t, statePath)
+	legacySource := legacyState["source"].(map[string]any)
+	manifestRef := stringField(legacySource, "implementation_snapshot_manifest_ref")
+	delete(legacySource, "implementation_snapshot_manifest_ref")
+	delete(legacySource, "implementation_snapshot_manifest_sha256")
+	mustWriteReviewAcceptJSON(t, statePath, legacyState)
+	if err := os.Remove(filepath.Join(featureDir, filepath.FromSlash(manifestRef))); err != nil {
+		t.Fatal(err)
+	}
+	writeTextFile(t, productPath, "after legacy Review drift\n")
+	currentFingerprint := sourceTreeFingerprint(projectRoot, featureDir)
+
+	out.Reset()
+	if code := runReview(prepareArgs, &out); code != 10 {
+		t.Fatalf("legacy state should request automatic quarantine restart: exit=%d output=%s", code, out.String())
+	}
+	recovery := readReviewAcceptEnvelope(t, out.Bytes())
+	if recovery.Data["recovery_owner"] != "review" || recovery.Data["recovery_reason"] != "legacy-snapshot-quarantine" {
+		t.Fatalf("legacy state recovery metadata = %#v", recovery.Data)
+	}
+	if !equalStringSlices(recovery.NextArgv, []string{"specify-runtime", "review", "prepare", "--feature-dir", featureRel, "--expected-revision", "4", "--restart-stale", "--format", "json"}) {
+		t.Fatalf("legacy state recovery next argv = %#v", recovery.NextArgv)
+	}
+
+	out.Reset()
+	if code := runReview(append(append([]string{}, prepareArgs...), "--restart-stale"), &out); code != 0 {
+		t.Fatalf("legacy state quarantine restart exit=%d output=%s", code, out.String())
+	}
+	restarted := readReviewAcceptJSON(t, statePath)
+	source := restarted["source"].(map[string]any)
+	if source["implementation_fingerprint"] != currentFingerprint || source["snapshot_reconciliation"] != "legacy-review-rebaseline" {
+		t.Fatalf("legacy state quarantine source = %#v", source)
+	}
+	if source["handoff_implementation_fingerprint"] != stringField(readReviewAcceptJSON(t, handoffPath), "implementation_fingerprint") || intField(source, "review_cycle") != 2 {
+		t.Fatalf("legacy state quarantine provenance = %#v", source)
+	}
+}
+
 func TestReviewPrepareRestartStaleRejectsConcurrentChangeOutsideAcceptedRepair(t *testing.T) {
 	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "117-review-reconcile-scope")
 	writeReviewAcceptWorkflowStateFixture(t, featureDir, "117-review-reconcile-scope", 4, "review", "active", nil)
