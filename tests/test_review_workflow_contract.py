@@ -327,6 +327,10 @@ def test_review_absorbs_review_owned_snapshot_drift_without_user_recovery_menu(
     assert "per-path snapshot manifest" in flat
     assert "independent finding chain" in flat
     assert "packet/result digests" in flat
+    assert "legacy-snapshot-quarantine" in flat
+    assert "initial-review-rebaseline" in flat
+    assert "legacy-review-rebaseline" in flat
+    assert "full review" in flat and "official" in flat and "entrypoint" in flat
     assert (
         "review-owned recovery" in flat
         or "immediately execute its structured next_argv" in flat

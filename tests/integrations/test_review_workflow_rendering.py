@@ -131,6 +131,9 @@ def test_classic_review_rendering_keeps_review_owned_drift_recovery_and_real_ent
     assert "per-path snapshot manifest" in content
     assert "independent finding chain" in content
     assert "current-cycle integrated evidence" in content
+    assert "legacy-snapshot-quarantine" in content
+    assert "initial-review-rebaseline" in content
+    assert "legacy-review-rebaseline" in content
 
 
 def test_advanced_review_rendering_keeps_review_owned_drift_recovery_and_real_entrypoint_gate(
@@ -157,3 +160,6 @@ def test_advanced_review_rendering_keeps_review_owned_drift_recovery_and_real_en
     assert "per-path snapshot manifest" in content
     assert "independent finding chain" in content
     assert "current-cycle integrated evidence" in content
+    assert "legacy-snapshot-quarantine" in content
+    assert "initial-review-rebaseline" in content
+    assert "legacy-review-rebaseline" in content
