@@ -73,6 +73,7 @@ func TestImplementValidationRecordsInterruptionAndReusesGate(t *testing.T) {
 func TestImplementValidationExhaustedGateSlotsStillAllowDeliveryRetry(t *testing.T) {
 	project, feature, _ := newImplementFeatureProject(t)
 	writeTextFile(t, filepath.Join(project, "src", "demo.txt"), "before\n")
+	writeSnapshotLifecycle(t, feature, "T001", []string{"src/demo.txt"}, nil)
 	fingerprint := implementSnapshotSHA256(project, feature)
 	for _, gate := range []struct {
 		stage, purpose, status string
@@ -914,7 +915,8 @@ func newImplementFeatureProject(t *testing.T) (string, string, string) {
 	// Mutation workflows must leave a project-cognition receipt before closeout/complete-stage.
 	writeImplementJSONFile(t, filepath.Join(feature, "cognition-closeout.json"), map[string]any{
 		"version": 1, "workflow": "sp-implement", "result_state": "ready",
-		"reason": "test fixture inline update", "evidence": []any{"pytest -q"},
+		"update_id": "U-001",
+		"reason":    "test fixture inline update", "evidence": []any{"pytest -q"},
 		"recorded_at": "2026-08-06T00:00:00Z",
 	})
 	return project, feature, filepath.ToSlash(filepath.Join(".specify", "features", "001-budget"))
