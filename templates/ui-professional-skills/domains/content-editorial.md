@@ -37,4 +37,3 @@ This domain covers publishing surfaces, reading experiences, documentation-like 
 - Verify typography, line length, spacing rhythm, and anchor behavior.
 - Reject layouts that look like a marketing page pretending to be editorial.
 - Escalate to the accessibility or motion specialists if reading, contrast, or animated transitions are the main risk.
-

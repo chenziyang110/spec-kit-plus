@@ -174,4 +174,3 @@ design_system:
 ## Design Change Policy
 
 Update this preset through `sp-design` before changing blur strategy, panel opacity, or contrast fallback thresholds.
-

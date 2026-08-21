@@ -168,4 +168,3 @@ design_system:
 ## Design Change Policy
 
 Update this preset through `sp-design` before changing its density, palette logic, or required interaction states.
-

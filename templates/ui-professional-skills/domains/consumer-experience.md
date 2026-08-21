@@ -37,4 +37,3 @@ This domain covers consumer apps, lifestyle products, mobile-first flows, and ev
 - Verify mobile ergonomics, tap target size, and visual calm.
 - Reject consumer pages that feel like an enterprise dashboard with softer colors.
 - Escalate to the forms, accessibility, motion, or conversational AI specialists when the brief depends on those concerns.
-

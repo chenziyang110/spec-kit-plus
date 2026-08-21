@@ -37,4 +37,3 @@ This domain covers checkout, order flow, pricing, subscriptions, service purchas
 - Verify that totals, terms, and confirmation states are explicit.
 - Reject flows that hide critical cost or commitment details.
 - Escalate to the forms, accessibility, or product-workspace specialists for deeper treatment of inputs, validation, and state handling.
-

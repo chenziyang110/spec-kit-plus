@@ -37,4 +37,3 @@ This domain covers social feeds, community hubs, messaging-like surfaces, creato
 - Verify content hierarchy, identity cues, moderation affordances, and responsive behavior.
 - Reject noisy layouts that hide the actual social action.
 - Escalate to accessibility, forms, or motion specialists for deeper checks on input flow and animated feedback.
-

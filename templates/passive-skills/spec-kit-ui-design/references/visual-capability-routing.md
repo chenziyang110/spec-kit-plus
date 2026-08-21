@@ -60,4 +60,3 @@ Sources informing this route:
 - https://github.com/openai/role-specific-plugins/blob/main/plugins/product-design/skills/ideate/SKILL.md
 - https://github.com/openai/role-specific-plugins/blob/main/plugins/product-design/skills/design-qa/SKILL.md
 - https://platform.claude.com/docs/en/build-with-claude/vision
-

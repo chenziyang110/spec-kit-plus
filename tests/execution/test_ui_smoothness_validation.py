@@ -55,4 +55,3 @@ def test_lifecycle_requires_exact_smoothness_acceptance_coverage(
         "covered_smoothness_acceptance_ids must exactly cover" in error
         for error in errors
     )
-

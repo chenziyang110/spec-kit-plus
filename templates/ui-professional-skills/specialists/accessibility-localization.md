@@ -31,4 +31,3 @@ This specialist skill focuses on accessibility, keyboard support, readable conte
 - Pass only when the UI is readable, operable, and locale-aware.
 - Verify focus visibility, target sizes, labels, and text expansion behavior.
 - Reject interfaces that rely on color alone or break when translated.
-
