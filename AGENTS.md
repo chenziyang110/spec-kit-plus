@@ -78,8 +78,8 @@ present in a test project.
   independent `spx-*` catalog from `templates/advanced-skills/**`. It is
   command-equivalent and prompt-optimized for advanced models: every Classic
   command has an independent SPX counterpart, while `spx-map-rebuild` is an
-  additional convenience orchestrator. The current topology is 31 SPX skills:
-  30 one-to-one Classic command counterparts plus `spx-map-rebuild`. Advanced
+  additional convenience orchestrator. The current topology is 30 SPX skills:
+  29 one-to-one Classic command counterparts plus `spx-map-rebuild`. Advanced
   keeps command ownership, read/write boundaries, resumable stops, and
   external-side-effect gates; it removes repeated tutorials, fixed role chains,
   unnecessary mandatory delegation, long examples, and model-authored stable
@@ -152,10 +152,16 @@ present in a test project.
 - `sp-design` / `spx-design` is one natural-language entrypoint. Route prompt
   intent to `create/refine/audit`; reference synthesis is an input strategy for
   create/refine, not a public colon subskill or terminal task type. Resume
-  active design work before reclassification. `sp-specify` is the first formal
-  consumer and `sp-quick` is the direct-delivery consumer. A new approval must
-  not silently retarget pinned work: formal adoption rebinds through Specify,
-  while Quick requires a confirmed checkpoint amendment whose
+  active design work before reclassification. On a design-first route,
+  `sp-specify` is the first formal consumer; when Design follows an already
+  planning-ready feature spec and requirements remain unchanged, a
+  `formal-post-specify` receipt binds the late Design overlay to the unchanged
+  source-spec digest and returns directly to Plan (`specify -> design -> plan`).
+  Plan verifies that receipt with `specify-runtime design adoption`; that path
+  must not require a second Specify. Only a genuine requirements,
+  scope, or acceptance change reopens Specify. `sp-quick` is the direct-delivery
+  consumer. A new approval must not silently retarget pinned work: design-first
+  formal adoption rebinds through Specify, while Quick requires a confirmed checkpoint amendment whose
   `decision.ui_confirmation.design_binding` names the exact scope and
   registered change.
 - The product goal is better implemented UI, not merely more UI documentation.
@@ -211,13 +217,59 @@ present in a test project.
   in-progress affected packets at a safe boundary, preserves completed work,
   creates a corrective work item for completed-work drift, and recaptures only
   affected Review evidence.
-- Every substantive design round presents exactly three comparable,
-  self-contained HTML directions with stable deep links, component/state
-  specimens, independent color and motion systems, responsive targets, and an
-  embedded machine-readable manifest. Combining or revising directions creates
-  a new inspected round; never mutate an approved round in place.
+- Every substantive design round presents one professionally authored current
+  concept through a live capability-routed primary medium. Probe
+  `image_generation`, `image_inspection`, and `image_editing` independently at
+  entry/resume; never hard-code them from an Agent, model, CLI, or integration.
+  When generation is available, use one image-primary review board plus its
+  exact generate/edit prompt and machine-readable manifest. When generation is
+  unavailable, use one self-contained HTML-primary concept with a stable deep
+  link and embedded manifest. Inspection availability separately determines
+  whether the Agent may inspect actual pixels and claim visual quality or must
+  leave visual critique to the user; editing availability selects targeted edit
+  versus invariant-preserving regeneration. Image prompts and semantic
+  HTML/DOM/CSS authoring prompts are distinct professional contracts. Both
+  routes preserve component/state specimens, deliberate color and motion
+  systems, and responsive targets. The Agent discovers intent through one
+  high-impact question at a time, makes a grounded recommendation, and does not
+  advance past an unanswered question. User feedback revises the same concept
+  in a new inspected/reviewed immutable round; never mutate an approved round
+  in place. Only explicit user approval may freeze the current concept.
+- The shared **UI Professional Skill** pack uses progressive disclosure before
+  substantive create/refine authoring: read its compact catalog, select exactly
+  one domain, zero-or-one style, and zero-to-two specialists, then load only
+  those references. Persist the route and resume it for the active immutable
+  round. Material ambiguity asks one high-impact question instead of blending
+  conflicting styles. Approved references and registered design truth outrank
+  routed advice; image-primary and HTML-primary use distinct augmented prompts.
+- Web UI professional routing also persists a compact
+  `mature_web_ui_resource_ids` shortlist. Inspect installed packages, live
+  components, tokens, versions, licenses, and exact capability needs first;
+  reuse or extend live components before choosing one compatible mature primary
+  system, and add headless/specialist support only for a recorded gap. Load
+  official Agent Skills, MCP, `llms.txt`, or Markdown docs only for selected
+  candidates; they do not authorize installation, upgrade, migration, or
+  license acceptance. Smoothness still requires real-entrypoint evidence for
+  focus/selection/scroll continuity, pending/cancel behavior, large-data
+  performance, interruption, and reduced motion.
+  The deterministic helper accepts the actual project root, reads only
+  catalog-listed manifests and paths, and persists `web_ui_asset_inventory`,
+  explainable `mature_web_ui_selection` reason/confirmation codes, and
+  `smoothness_acceptance_ids`. An unscanned inventory is provisional. Carry the
+  smoothness IDs through existing interaction, motion, usability, and integrated
+  Review evidence; do not introduce another UI evidence kind.
+- Live UI is the default style authority. Feature, component, and partial
+  functional-page work inside an existing product uses structured
+  `style_authority.mode: inherit-existing`, cites exact live source refs,
+  protects `global-shell` and `shared-components`, allows no style-delta
+  surfaces, and cannot select a style skill. Only explicit user authorization
+  for one exact complete-page visual overhaul may use
+  `page-overhaul-authorized`; only that page may change style, while shell and
+  shared components stay protected. Carry `style_authority` unchanged through
+  Design, UI brief, Spec/Plan, Tasks, worker packets, and Review.
 - `specify-runtime design approve` freezes one exact change-local direction
-  with a byte-bound approval sidecar, preview/manifest SHA-256 digests, a
+  with a byte-bound approval sidecar, visual/manifest SHA-256 digests, the
+  image-generation prompt digest when image-primary, a
   separate immutable handoff sidecar and digest, review round, stable `DS-*`
   decision IDs, and stable `DH-*` implementation contract IDs. Ready lint and
   export must reject a change-local `DESIGN.md` whose approval fields do not
@@ -240,11 +292,33 @@ present in a test project.
   subject, audience, single job, visual/content/interaction theses, a signature
   element, an inspectable approved visual reference, per-reference use intent,
   task-relevant real-content/image plans, approval digests, decision and handoff
-  contract subsets, color modes, component contracts, responsive and motion
+  contract subsets, a stable `surface_catalog`, a bounded risk-based or pairwise
+  `scenario_matrix`, an exact `editing_matrix`, color modes, component contracts, responsive and motion
   rules, visual acceptance rows, comparison tolerance, and approved deviations
-  through the Classic and Advanced artifact chain. Downstream stages select
-  immutable `DS-*`/`DH-*` rows by ID; they do not reauthor them as prose. Do not
-  collapse those dimensions into one enum or prose.
+  through the Classic and Advanced artifact chain. Every scenario binds one
+  stable surface to the exact interaction, editing, data, accessibility, navigation,
+  content, responsive, and motion rows exercised together and carries an exact
+  `interaction_script` with preconditions, a selected start-state ID, ordered
+  input/action/feedback steps, and bounded state branches for applicable
+  success, failure, timeout, cancel, retry, duplicate, and out-of-order outcomes.
+  Every branch target is one of the scenario's selected data-state IDs and
+  preserves setup, feedback, focus behavior, announcement, and continuation,
+  plus scenario-level focus/announcement/completion/recovery checkpoints.
+  Interaction rows are exact input-mechanics contracts: `id`, `surface`,
+  `input`, `trigger`, `event_sequence`, `immediate_feedback`, `focus_behavior`,
+  `repeat_behavior`, `cancellation_behavior`, `pending_behavior`, and
+  `decision_ids`. They preserve platform event ordering, pre-completion
+  feedback, focus/selection/scroll continuity, repeated activation rules,
+  cancellation, and allowed or blocked pending actions; scenario scripts own
+  journey outcome branches rather than duplicating those mechanics.
+  Editing rows preserve input methods, IME composition, paste/autofill,
+  selection/caret, formatting, validation timing/feedback, dirty state,
+  persistence, undo/redo, edit conflict, read-only/disabled, and submission
+  behavior; scenarios bind them through exact `editing_ids`.
+  Scenarios cover all
+  selected rows without an unbounded Cartesian product. Downstream stages
+  select immutable `DS-*`/`DH-*` rows by ID; they do not reauthor them as prose.
+  Do not collapse those dimensions into one enum or prose.
 - A feature `ui-target.html` is a self-contained composition/state target bound
   to the exact registered design-change and handoff digests, task decisions, and
   handoff contracts. It may contain
@@ -321,8 +395,8 @@ When describing the generated user workflow, teach the current mainline as:
 specify -> plan
 ```
 
-Treat `CLARIFY` as the optional enhancement path when an existing spec needs deeper analysis before planning.
-Treat `sp-deep-research` as the optional feasibility and planning handoff gate when the requirements are clear but one or more capabilities still need coordinated research, external evidence, an implementation chain proof, or a disposable demo before planning. Its findings and demo evidence must become explicit inputs to `sp-plan`; do not require it for minor adjustments to existing, already-proven capabilities.
+Treat focused repair of an existing specification as part of `sp-specify`; do not introduce a separate Clarify stage.
+Treat `sp-deep-research` as the optional runtime-enforced feasibility and planning handoff gate when the requirements are clear but one or more capabilities still need coordinated research, external evidence, an implementation-chain proof, or a disposable demo before planning. It binds the exact spec digest and capability set, owns bounded track leases and result acceptance/rejection, validates provenance and coverage, requires an independent audit, and publishes a digest/revision-bound handoff that `sp-plan` verifies. `deep-research.md` is derived; generic artifact/evidence/result channels must not write the package. It does not own requirement discovery, final architecture, executable tests, or production implementation, and it is not required for minor adjustments to existing, already-proven capabilities.
 
 After task generation, teach the mandatory delivery chain as `tasks -> implement -> review -> accept`. `sp-review` / `spx-review` starts the integrated product from official entrypoints, repairs bounded implementation and wiring defects, and produces fresh system evidence before human acceptance; do not route ordinary implementation completion directly to accept.
 
@@ -837,11 +911,11 @@ managed `<!-- SPEC-KIT:BEGIN -->` block because
 
 ### Workflow Family Map
 
-- `sp-specify`, `sp-clarify`, `sp-deep-research`, `sp-plan`, `sp-tasks`, `sp-analyze`
-  - Templates: `templates/commands/{specify,clarify,deep-research,plan,tasks,analyze}.md`, `templates/command-partials/{specify,clarify,deep-research,plan,tasks,analyze}/shell.md`, and `templates/workflow-state-template.md`
-  - Feature artifacts: `workflow-state.md`, `alignment.md`, `context.md`, `deep-research.md`, `research-spikes/`, `plan.md`, and `tasks.md`
-  - Runtime/code: `src/specify_cli/__init__.py`, `src/specify_cli/agents.py`, `src/specify_cli/learnings.py`, and `src/specify_cli/hooks/artifact_validation.py`
-  - Tests/docs: `tests/test_alignment_templates.py`, `tests/test_plan_research_contract.py`, `tests/test_specify_guidance_docs.py`, `tests/test_tasks_reporting_guidance.py`, `README.md`, and `PROJECT-HANDBOOK.md`
+- `sp-specify`, `sp-deep-research`, `sp-plan`, `sp-tasks`, `sp-analyze`
+  - Templates: `templates/commands/{specify,deep-research,plan,tasks,analyze}.md`, `templates/command-partials/{specify,deep-research,plan,tasks,analyze}/shell.md`, and `templates/workflow-state-template.md`
+  - Feature artifacts: `workflow-state.md`, `alignment.md`, `context.md`, runtime-owned `research/{state,track-manifest,handoffs,rejections,synthesis,audit-request,audit,handoff-to-plan}.json`, runtime-owned `research-evidence/`, derived `deep-research.md`, `research-spikes/`, `plan.md`, and `tasks.md`
+  - Runtime/code: `tools/specify-runtime/deep_research_workflow.go`, `tools/specify-runtime/artifact_registry.go`, `tools/specify-runtime/result.go`, `src/specify_cli/__init__.py`, `src/specify_cli/agents.py`, `src/specify_cli/learnings.py`, and `src/specify_cli/hooks/artifact_validation.py`
+  - Tests/docs: `tools/specify-runtime/deep_research_workflow_test.go`, `tests/test_deep_research_runtime_contract.py`, `tests/test_alignment_templates.py`, `tests/test_plan_research_contract.py`, `tests/test_specify_guidance_docs.py`, `tests/test_tasks_reporting_guidance.py`, `README.md`, and `PROJECT-HANDBOOK.md`
 
 - `sp-fast`, `sp-quick`, `sp-implement`, `sp-debug`
   - Templates: `templates/commands/{fast,quick,implement,debug}.md` and `templates/command-partials/{fast,quick,implement,debug}/shell.md`
@@ -911,7 +985,9 @@ When adding new agents:
 
 ## Workflow Recommendations
 
-- Do not auto-enter an `sp-*` workflow unless the user invokes it.
+- Passive SKILL invocation is allowed only for `sp-discussion`, `sp-quick`,
+  `sp-debug`, and `sp-fast`. All other `sp-*` workflows are user-invoked only:
+  recommend the projected invocation and stop until the user invokes it.
 - Recommend `sp-discussion` for open-ended requirement exploration, `sp-specify` for formal alignment, `sp-deep-research` for feasibility proof, and `sp-debug` for root-cause diagnosis.
 - If the user invokes an `sp-*` workflow, follow that workflow's own contract.
 

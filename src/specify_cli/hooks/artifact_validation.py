@@ -38,6 +38,16 @@ from .checkpoint_serializers import (
 from .events import WORKFLOW_ARTIFACTS_VALIDATE
 from .types import HookResult, QualityHookError
 
+DEEP_RESEARCH_LEGACY_REQUIRED_FILES = ("deep-research.md", "workflow-state.md")
+DEEP_RESEARCH_RUNTIME_REQUIRED_FILES = (
+    "deep-research.md",
+    "workflow-state.md",
+    "research/state.json",
+    "research/track-manifest.json",
+    "research/synthesis.json",
+    "research/handoff-to-plan.json",
+)
+
 FILE_REQUIRED_ARTIFACTS = {
     "constitution": ("workflow-state.md",),
     "specify": (
@@ -45,16 +55,7 @@ FILE_REQUIRED_ARTIFACTS = {
         "spec.md",
         "workflow-state.md",
     ),
-    "clarify": (
-        "spec.md",
-        "alignment.md",
-        "context.md",
-        "references.md",
-        "workflow-state.md",
-        "clarification/evidence-index.json",
-        "clarification/checkpoints.ndjson",
-    ),
-    "deep-research": ("deep-research.md", "workflow-state.md"),
+    "deep-research": DEEP_RESEARCH_RUNTIME_REQUIRED_FILES,
     "plan": (
         "plan.md",
         "workflow-state.md",
@@ -128,7 +129,6 @@ FILE_REQUIRED_ARTIFACTS = {
 
 DIRECTORY_REQUIRED_ARTIFACTS = {
     "specify": (),
-    "clarify": ("clarification/handoffs",),
     "plan": (),
     "tasks": (),
     "review": ("review-evidence",),
@@ -158,17 +158,7 @@ REQUIRED_ARTIFACTS = {
         "spec.md",
         "workflow-state.md",
     ),
-    "clarify": (
-        "spec.md",
-        "alignment.md",
-        "context.md",
-        "references.md",
-        "workflow-state.md",
-        "clarification/evidence-index.json",
-        "clarification/checkpoints.ndjson",
-        "clarification/handoffs",
-    ),
-    "deep-research": ("deep-research.md", "workflow-state.md"),
+    "deep-research": DEEP_RESEARCH_RUNTIME_REQUIRED_FILES,
     "plan": (
         "plan.md",
         "workflow-state.md",
@@ -2868,6 +2858,168 @@ def _validate_deep_research_not_needed_artifact(content: str) -> list[str]:
     return errors
 
 
+DEEP_RESEARCH_CAPABILITY_REF_RE = re.compile(r"^CAP-[0-9]{3,}$")
+DEEP_RESEARCH_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _deep_research_gate_contract_present(feature_dir: Path) -> bool:
+    """Return whether the feature uses the runtime-owned Deep Research contract."""
+
+    spec_path = feature_dir / "spec-contract.json"
+    if not spec_path.exists():
+        return False
+    if not spec_path.is_file():
+        return True
+    try:
+        payload = _read_json(spec_path)
+    except (OSError, json.JSONDecodeError):
+        return True
+    return not isinstance(payload, dict) or "feasibility_gate" in payload
+
+
+def _deep_research_string_array(
+    value: Any, label: str, *, required: bool = False
+) -> tuple[list[str], list[str]]:
+    if not isinstance(value, list):
+        return [], [f"{label} must be an array"]
+    values: list[str] = []
+    errors: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str) or not item.strip():
+            errors.append(f"{label}[{index}] must be a non-empty string")
+            continue
+        values.append(item.strip())
+    duplicates = sorted(value for value in set(values) if values.count(value) > 1)
+    if duplicates:
+        errors.append(f"{label} must be unique: " + ", ".join(duplicates))
+    if required and not values:
+        errors.append(f"{label} must not be empty")
+    return values, errors
+
+
+def _read_deep_research_feasibility_gate(
+    feature_dir: Path,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    spec_path = feature_dir / "spec-contract.json"
+    payload, errors = _read_json_artifact(spec_path, "spec-contract.json")
+    if errors:
+        return None, errors
+    if not isinstance(payload, dict):
+        return None, ["spec-contract.json must contain a top-level JSON object"]
+    gate = payload.get("feasibility_gate")
+    if not isinstance(gate, dict):
+        return None, ["spec-contract.json feasibility_gate must be an object"]
+
+    decision = str(gate.get("decision") or "").strip().lower()
+    result: dict[str, Any] = {"decision": decision}
+    gate_errors: list[str] = []
+    if decision not in {"required", "not_selected"}:
+        gate_errors.append(
+            "spec-contract.json feasibility_gate.decision must be required or not_selected"
+        )
+
+    capability_refs, capability_errors = _deep_research_string_array(
+        gate.get("capability_refs"),
+        "spec-contract.json feasibility_gate.capability_refs",
+        required=decision == "required",
+    )
+    gate_errors.extend(capability_errors)
+    invalid_capability_refs = sorted(
+        ref
+        for ref in capability_refs
+        if DEEP_RESEARCH_CAPABILITY_REF_RE.fullmatch(ref) is None
+    )
+    if invalid_capability_refs:
+        gate_errors.append(
+            "spec-contract.json feasibility_gate.capability_refs contains invalid refs: "
+            + ", ".join(invalid_capability_refs)
+        )
+    if decision == "not_selected" and capability_refs:
+        gate_errors.append(
+            "spec-contract.json not_selected feasibility_gate cannot carry capability refs"
+        )
+
+    reason_refs, reason_errors = _deep_research_string_array(
+        gate.get("reason_refs"),
+        "spec-contract.json feasibility_gate.reason_refs",
+    )
+    gate_errors.extend(reason_errors)
+    result["capability_refs"] = capability_refs
+    result["reason_refs"] = reason_refs
+    return result, gate_errors
+
+
+def _deep_research_feature_ref(
+    project_root: Path, feature_dir: Path
+) -> tuple[str, list[str]]:
+    try:
+        feature_ref = feature_dir.resolve().relative_to(project_root.resolve())
+    except ValueError:
+        return "", ["feature_dir must stay within the project root"]
+    return feature_ref.as_posix(), []
+
+
+def _runtime_deep_research_handoff(
+    project_root: Path,
+    feature_dir: Path,
+    *,
+    handoff_ref: str = "",
+    handoff_sha256: str = "",
+) -> tuple[dict[str, Any] | None, list[str]]:
+    feature_ref, errors = _deep_research_feature_ref(project_root, feature_dir)
+    if errors:
+        return None, errors
+    extra_args: list[str] = []
+    if handoff_ref:
+        extra_args.extend(("--handoff-ref", handoff_ref))
+    if handoff_sha256:
+        extra_args.extend(("--expected-sha256", handoff_sha256))
+    try:
+        envelope = run_specify_runtime(
+            [
+                "deep-research",
+                "verify-handoff",
+                "--feature-dir",
+                feature_ref,
+                *extra_args,
+                "--format",
+                "json",
+            ],
+            cwd=project_root,
+            check=False,
+        )
+    except SpecifyRuntimeError as exc:
+        return None, [f"Deep Research runtime verification is unavailable: {exc}"]
+
+    if str(envelope.get("status") or "").strip().lower() != "ok":
+        summary = str(envelope.get("summary") or "handoff verification failed").strip()
+        messages = [f"Deep Research runtime verification failed: {summary}"]
+        blockers = envelope.get("blockers")
+        if isinstance(blockers, list):
+            messages.extend(
+                f"Deep Research runtime blocker: {blocker}"
+                for blocker in blockers
+                if str(blocker).strip()
+            )
+        return None, messages
+    data = envelope.get("data")
+    if not isinstance(data, dict):
+        return None, ["Deep Research runtime verification returned no binding data"]
+    return data, []
+
+
+def _validate_runtime_deep_research_artifact(
+    project_root: Path, feature_dir: Path
+) -> list[str]:
+    gate, errors = _read_deep_research_feasibility_gate(feature_dir)
+    if errors or gate is None:
+        return errors
+    if gate["decision"] != "required":
+        return ["deep-research validation requires feasibility_gate.decision=required"]
+    _binding, verify_errors = _runtime_deep_research_handoff(project_root, feature_dir)
+    return verify_errors
+
+
 def _validate_deep_research_artifact(feature_dir: Path) -> list[str]:
     deep_research_path = feature_dir / "deep-research.md"
     if not deep_research_path.exists():
@@ -2964,6 +3116,120 @@ def _validate_plan_consumes_deep_research(feature_dir: Path) -> list[str]:
     return errors
 
 
+def _validate_plan_deep_research_binding(
+    project_root: Path, feature_dir: Path
+) -> list[str]:
+    gate, errors = _read_deep_research_feasibility_gate(feature_dir)
+    if errors or gate is None:
+        return errors
+
+    plan_payload: Any | None = None
+    plan_label = "plan-contract.json"
+    for candidate, label in _consequence_contract_paths(feature_dir):
+        if not candidate.is_file():
+            continue
+        plan_payload, read_errors = _read_json_artifact(candidate, label)
+        if read_errors:
+            return read_errors
+        plan_label = label
+        break
+    if not isinstance(plan_payload, dict):
+        return [f"{plan_label} must contain a top-level JSON object"]
+
+    binding = plan_payload.get("deep_research_binding")
+    if not isinstance(binding, dict):
+        return [f"{plan_label} deep_research_binding must be an object"]
+    decision = str(binding.get("decision") or "").strip().lower()
+    if decision != gate["decision"]:
+        errors.append(
+            f"{plan_label} deep_research_binding.decision must match the specification feasibility gate"
+        )
+
+    handoff_ids, id_errors = _deep_research_string_array(
+        binding.get("handoff_ids"),
+        f"{plan_label} deep_research_binding.handoff_ids",
+    )
+    errors.extend(id_errors)
+    if gate["decision"] == "not_selected":
+        if handoff_ids:
+            errors.append(
+                f"{plan_label} not_selected deep_research_binding cannot carry handoff IDs"
+            )
+        for field in (
+            "handoff_ref",
+            "handoff_sha256",
+            "source_spec_sha256",
+            "state_revision",
+            "claim_status",
+        ):
+            value = binding.get(field)
+            if value is not None and str(value).strip():
+                errors.append(
+                    f"{plan_label} not_selected deep_research_binding.{field} must be null"
+                )
+        return errors
+
+    handoff_ref = str(binding.get("handoff_ref") or "").strip()
+    handoff_sha256 = str(binding.get("handoff_sha256") or "").strip()
+    source_spec_sha256 = str(binding.get("source_spec_sha256") or "").strip()
+    claim_status = str(binding.get("claim_status") or "").strip()
+    state_revision = binding.get("state_revision")
+    if not handoff_ref:
+        errors.append(
+            f"{plan_label} required deep_research_binding.handoff_ref must be non-empty"
+        )
+    if DEEP_RESEARCH_SHA256_RE.fullmatch(handoff_sha256) is None:
+        errors.append(
+            f"{plan_label} required deep_research_binding.handoff_sha256 must be a SHA-256 digest"
+        )
+    if DEEP_RESEARCH_SHA256_RE.fullmatch(source_spec_sha256) is None:
+        errors.append(
+            f"{plan_label} required deep_research_binding.source_spec_sha256 must be a SHA-256 digest"
+        )
+    if (
+        not isinstance(state_revision, int)
+        or isinstance(state_revision, bool)
+        or state_revision < 1
+    ):
+        errors.append(
+            f"{plan_label} required deep_research_binding.state_revision must be a positive integer"
+        )
+    if not claim_status:
+        errors.append(
+            f"{plan_label} required deep_research_binding.claim_status must be non-empty"
+        )
+    if errors:
+        return errors
+
+    verified, verify_errors = _runtime_deep_research_handoff(
+        project_root,
+        feature_dir,
+        handoff_ref=handoff_ref,
+        handoff_sha256=handoff_sha256,
+    )
+    if verify_errors or verified is None:
+        return [*errors, *verify_errors]
+
+    expected_scalars = {
+        "handoff_ref": handoff_ref,
+        "handoff_sha256": handoff_sha256,
+        "source_spec_sha256": source_spec_sha256,
+        "state_revision": state_revision,
+        "claim_status": claim_status,
+    }
+    for field, expected in expected_scalars.items():
+        if verified.get(field) != expected:
+            errors.append(
+                f"{plan_label} Deep Research binding {field} does not match the verified runtime handoff"
+            )
+    verified_ids = verified.get("handoff_ids")
+    if not isinstance(verified_ids, list) or set(verified_ids) != set(handoff_ids):
+        errors.append(
+            f"{plan_label} Deep Research binding handoff_ids do not match the verified runtime handoff"
+        )
+    return errors
+
+
 def _validate_plan_consequence_contract(feature_dir: Path) -> list[str]:
     errors: list[str] = []
     triggered_payloads: list[tuple[Any, str]] = []
@@ -3029,6 +3295,14 @@ UI_CONTRACT_LIST_FIELDS = (
     "reference_intents",
     "real_content_plan",
     "image_plan",
+    "surface_catalog",
+    "scenario_matrix",
+    "interaction_matrix",
+    "editing_matrix",
+    "data_state_matrix",
+    "accessibility_matrix",
+    "navigation_matrix",
+    "content_matrix",
     "color_modes",
     "component_contracts",
     "responsive_matrix",
@@ -3036,7 +3310,12 @@ UI_CONTRACT_LIST_FIELDS = (
     "accepted_deviations",
     "required_evidence",
 )
-UI_CONTRACT_OBJECT_FIELDS = ("motion_contract", "comparison_tolerance")
+UI_CONTRACT_OBJECT_FIELDS = (
+    "style_authority",
+    "motion_contract",
+    "usability_validation",
+    "comparison_tolerance",
+)
 UI_APPROVAL_DIGEST_FIELDS = (
     "approved_preview_sha256",
     "approved_manifest_sha256",
@@ -3081,13 +3360,439 @@ UI_CONTRACT_EVIDENCE = {
     "runtime_diagnostics",
     "visual_comparison_or_human_review",
 }
-UI_DESIGN_DECISION_ID_RE = re.compile(r"^DS-[A-Z]+-\d{3}$")
+UI_DESIGN_DECISION_ID_RE = re.compile(r"^DS-[A-Z0-9]+(?:-[A-Z0-9]+)+$")
 UI_DESIGN_HANDOFF_ID_RE = re.compile(r"^DH-[A-Z0-9]+(?:-[A-Z0-9]+)+$")
 UI_DESIGN_CHANGE_ID_RE = re.compile(r"^UD-\d{4}$")
 UI_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 UI_APPROVED_PREVIEW_REF_RE = re.compile(
-    r"round-\d+\.html#direction-[a-z0-9-]+$", re.IGNORECASE
+    r"round-\d+\.(?:html|png|jpe?g|webp)#direction-[a-z0-9-]+$", re.IGNORECASE
 )
+
+
+def _ui_contract_has_nonblank_string_list(value: Any) -> bool:
+    return isinstance(value, list) and any(
+        isinstance(item, str) and item.strip() for item in value
+    ) and not any(not isinstance(item, str) or not item.strip() for item in value)
+
+
+def _ui_contract_valid_data_scenario(item: Any) -> bool:
+    return isinstance(item, dict) and all(
+        str(item.get(field) or "").strip()
+        for field in ("state", "data_condition", "expectation")
+    )
+
+
+def _ui_contract_valid_row_refs(
+    item: Any,
+    decision_ids: set[str],
+    handoff_ids: set[str],
+) -> bool:
+    if not isinstance(item, dict):
+        return False
+    row_id = str(item.get("id") or "").strip()
+    row_decisions = item.get("decision_ids")
+    if not row_id or not _ui_contract_has_nonblank_string_list(row_decisions):
+        return False
+    assert isinstance(row_decisions, list)
+    if any(decision_id not in decision_ids for decision_id in row_decisions):
+        return False
+    if handoff_ids:
+        return row_id in handoff_ids
+    return not UI_DESIGN_HANDOFF_ID_RE.fullmatch(row_id)
+
+
+def _ui_contract_valid_surface_row(
+    item: Any,
+    decision_ids: set[str],
+    handoff_ids: set[str],
+    component_ids: set[str],
+) -> bool:
+    return (
+        isinstance(item, dict)
+        and _ui_contract_valid_row_refs(item, decision_ids, handoff_ids)
+        and bool(str(item.get("profile_id") or "").strip())
+        and bool(str(item.get("name") or "").strip())
+        and bool(str(item.get("kind") or "").strip())
+        and _ui_contract_has_nonblank_string_list(item.get("source_refs"))
+        and _ui_contract_has_nonblank_string_list(item.get("specimen_ids"))
+        and _ui_contract_has_nonblank_string_list(item.get("component_ids"))
+        and set(item.get("component_ids") or []) <= component_ids
+    )
+
+
+def _ui_contract_valid_interaction_script(
+    value: Any,
+    data_state_ids: set[str],
+) -> bool:
+    required_fields = {
+        "preconditions",
+        "start_state_id",
+        "steps",
+        "branches",
+        "focus_checkpoint",
+        "announcement_checkpoint",
+        "completion_checkpoint",
+        "recovery_checkpoint",
+    }
+    if not isinstance(value, dict) or set(value) != required_fields:
+        return False
+    steps = value.get("steps")
+    branches = value.get("branches")
+    allowed_conditions = {
+        "success",
+        "failure",
+        "timeout",
+        "cancel",
+        "retry",
+        "duplicate",
+        "out_of_order",
+    }
+    seen_conditions: set[str] = set()
+    valid_branches = isinstance(branches, list) and bool(branches)
+    for branch in branches if isinstance(branches, list) else []:
+        if (
+            not isinstance(branch, dict)
+            or set(branch)
+            != {
+                "conditions",
+                "setup",
+                "expected_state_id",
+                "expected_feedback",
+                "focus_behavior",
+                "announcement",
+                "continuation",
+            }
+            or not _ui_contract_has_nonblank_string_list(
+                branch.get("conditions")
+            )
+        ):
+            valid_branches = False
+            continue
+        conditions = set(branch.get("conditions") or [])
+        if (
+            not conditions <= allowed_conditions
+            or conditions & seen_conditions
+            or str(branch.get("expected_state_id") or "").strip()
+            not in data_state_ids
+            or any(
+                not str(branch.get(field) or "").strip()
+                for field in (
+                    "setup",
+                    "expected_feedback",
+                    "focus_behavior",
+                    "announcement",
+                    "continuation",
+                )
+            )
+        ):
+            valid_branches = False
+        seen_conditions.update(conditions)
+    valid_branches = (
+        valid_branches
+        and "success" in seen_conditions
+        and bool(seen_conditions & {"failure", "timeout", "cancel"})
+        and bool(seen_conditions & {"retry", "duplicate", "out_of_order"})
+    )
+    return (
+        _ui_contract_has_nonblank_string_list(value.get("preconditions"))
+        and str(value.get("start_state_id") or "").strip() in data_state_ids
+        and isinstance(steps, list)
+        and bool(steps)
+        and all(
+            isinstance(step, dict)
+            and set(step) == {"input", "action", "expected_feedback"}
+            and all(
+                str(step.get(field) or "").strip()
+                for field in ("input", "action", "expected_feedback")
+            )
+            for step in steps
+        )
+        and valid_branches
+        and all(
+            str(value.get(field) or "").strip()
+            for field in (
+                "focus_checkpoint",
+                "announcement_checkpoint",
+                "completion_checkpoint",
+                "recovery_checkpoint",
+            )
+        )
+    )
+
+
+def _ui_contract_valid_editing_row(
+    item: Any,
+    decision_ids: set[str],
+    handoff_ids: set[str],
+) -> bool:
+    required_fields = {
+        "id",
+        "surface",
+        "input_methods",
+        "composition_behavior",
+        "paste_autofill_behavior",
+        "selection_caret_behavior",
+        "formatting_behavior",
+        "validation_timing",
+        "validation_feedback",
+        "dirty_state_behavior",
+        "persistence_behavior",
+        "undo_redo_behavior",
+        "conflict_behavior",
+        "read_only_disabled_behavior",
+        "submission_behavior",
+        "decision_ids",
+    }
+    return (
+        isinstance(item, dict)
+        and set(item) == required_fields
+        and _ui_contract_valid_row_refs(item, decision_ids, handoff_ids)
+        and _ui_contract_has_nonblank_string_list(item.get("input_methods"))
+        and all(
+            str(item.get(field) or "").strip()
+            for field in required_fields
+            - {"input_methods", "decision_ids"}
+        )
+    )
+
+
+def _ui_contract_valid_scenario_row(
+    item: Any,
+    decision_ids: set[str],
+    handoff_ids: set[str],
+    surface_ids: set[str],
+    rows_by_field: dict[str, dict[str, dict[str, Any]]],
+) -> bool:
+    if (
+        not isinstance(item, dict)
+        or not _ui_contract_valid_row_refs(item, decision_ids, handoff_ids)
+        or str(item.get("surface_id") or "").strip() not in surface_ids
+        or not str(item.get("name") or "").strip()
+        or item.get("risk") not in {"low", "medium", "high"}
+        or item.get("required") is not True
+        or not _ui_contract_valid_interaction_script(
+            item.get("interaction_script"),
+            {
+                str(state_id).strip()
+                for state_id in item.get("data_state_ids") or []
+                if isinstance(state_id, str) and state_id.strip()
+            },
+        )
+    ):
+        return False
+    referenced_decisions: set[str] = set()
+    for field, rows_by_id in rows_by_field.items():
+        refs = item.get(field)
+        if not _ui_contract_has_nonblank_string_list(refs):
+            return False
+        assert isinstance(refs, list)
+        if any(ref not in rows_by_id for ref in refs):
+            return False
+        referenced_decisions.update(
+            decision_id
+            for row_id in refs
+            for decision_id in rows_by_id[row_id].get("decision_ids") or []
+            if isinstance(decision_id, str) and decision_id.strip()
+        )
+    return set(item.get("decision_ids") or []) == referenced_decisions
+
+
+def _ui_contract_valid_responsive_row(
+    item: Any,
+    decision_ids: set[str],
+    handoff_ids: set[str],
+) -> bool:
+    if (
+        not isinstance(item, dict)
+        or not _ui_contract_valid_row_refs(item, decision_ids, handoff_ids)
+        or not str(item.get("state") or "").strip()
+        or not str(item.get("adaptation") or "").strip()
+        or not str(item.get("stretch_behavior") or "").strip()
+        or not str(item.get("overflow_behavior") or "").strip()
+        or not _ui_contract_has_nonblank_string_list(item.get("decision_ids"))
+    ):
+        return False
+    if str(item.get("viewport") or "").strip():
+        return True
+    target = item.get("target")
+    return (
+        isinstance(target, dict)
+        and isinstance(target.get("width"), (int, float))
+        and not isinstance(target.get("width"), bool)
+        and target.get("width") > 0
+        and isinstance(target.get("height"), (int, float))
+        and not isinstance(target.get("height"), bool)
+        and target.get("height") > 0
+        and target.get("unit") in {"px", "cell", "point"}
+    )
+
+
+def _ui_contract_valid_accessibility_row(
+    item: Any,
+    decision_ids: set[str],
+    handoff_ids: set[str],
+) -> bool:
+    return (
+        isinstance(item, dict)
+        and _ui_contract_valid_row_refs(item, decision_ids, handoff_ids)
+        and bool(str(item.get("surface") or "").strip())
+        and _ui_contract_has_nonblank_string_list(item.get("semantics"))
+        and bool(str(item.get("reading_order") or "").strip())
+        and bool(str(item.get("focus_order") or "").strip())
+        and _ui_contract_has_nonblank_string_list(item.get("keyboard"))
+        and _ui_contract_has_nonblank_string_list(item.get("announcements"))
+        and bool(str(item.get("target_size") or "").strip())
+        and bool(str(item.get("contrast") or "").strip())
+        and bool(str(item.get("zoom_reflow") or "").strip())
+        and _ui_contract_has_nonblank_string_list(item.get("alternatives"))
+    )
+
+
+def _ui_contract_valid_visual_row(
+    item: Any,
+    decision_ids: set[str],
+    handoff_ids: set[str],
+) -> bool:
+    if not isinstance(item, dict) or not _ui_contract_valid_row_refs(
+        item, decision_ids, handoff_ids
+    ):
+        return False
+    if (
+        str(item.get("viewport") or "").strip()
+        and str(item.get("state") or "").strip()
+        and str(item.get("evidence") or "").strip()
+    ):
+        return True
+    target_id = str(item.get("target_id") or "").strip()
+    if not target_id or not all(
+        isinstance(item.get(field), list) and bool(item.get(field))
+        for field in (
+            "states",
+            "color_modes",
+            "motion_modes",
+            "decision_ids",
+            "must_match",
+            "evidence",
+        )
+    ):
+        return False
+    if handoff_ids:
+        return target_id in handoff_ids
+    return not UI_DESIGN_HANDOFF_ID_RE.fullmatch(target_id)
+
+
+def _ui_contract_valid_navigation_row(
+    item: Any,
+    decision_ids: set[str],
+    handoff_ids: set[str],
+) -> bool:
+    return (
+        isinstance(item, dict)
+        and _ui_contract_valid_row_refs(item, decision_ids, handoff_ids)
+        and all(
+            str(item.get(field) or "").strip()
+            for field in (
+                "surface",
+                "entry",
+                "destination",
+                "trigger",
+                "back_behavior",
+                "deep_link_behavior",
+                "interruption_recovery",
+            )
+        )
+    )
+
+
+def _ui_contract_valid_content_row(
+    item: Any,
+    decision_ids: set[str],
+    handoff_ids: set[str],
+) -> bool:
+    return (
+        isinstance(item, dict)
+        and _ui_contract_valid_row_refs(item, decision_ids, handoff_ids)
+        and all(
+            str(item.get(field) or "").strip()
+            for field in (
+                "surface",
+                "state",
+                "purpose",
+                "copy",
+                "primary_action",
+                "trust_requirement",
+                "localization",
+            )
+        )
+        and _ui_contract_has_nonblank_string_list(item.get("content_limits"))
+    )
+
+
+def _ui_contract_valid_motion(
+    value: Any,
+    decision_ids: set[str],
+    handoff_ids: set[str],
+) -> bool:
+    if (
+        not isinstance(value, dict)
+        or not str(value.get("purpose") or "").strip()
+        or not str(value.get("reduced_motion") or "").strip()
+    ):
+        return False
+    transitions = value.get("transitions")
+    if not isinstance(transitions, list) or not transitions:
+        return False
+    for item in transitions:
+        if (
+            not isinstance(item, dict)
+            or not _ui_contract_valid_row_refs(item, decision_ids, handoff_ids)
+            or not all(
+                str(item.get(field) or "").strip()
+                for field in (
+                    "surface",
+                    "trigger",
+                    "response",
+                    "easing",
+                    "interrupt_behavior",
+                )
+            )
+        ):
+            return False
+        duration = item.get("duration_ms")
+        if (
+            isinstance(duration, bool)
+            or not isinstance(duration, (int, float))
+            or duration < 0
+        ):
+            return False
+    timing = value.get("feedback_timing")
+    if not isinstance(timing, dict):
+        return False
+    values: list[float] = []
+    for field in ("immediate_ms", "progress_ms", "timeout_ms"):
+        raw = timing.get(field)
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)) or raw < 0:
+            return False
+        values.append(float(raw))
+    return values == sorted(values)
+
+
+def _ui_contract_valid_usability(value: Any) -> bool:
+    if not isinstance(value, dict) or value.get("risk_level") not in {
+        "low",
+        "medium",
+        "high",
+    }:
+        return False
+    if not all(
+        _ui_contract_has_nonblank_string_list(value.get(field))
+        for field in ("methods", "critical_tasks", "success_criteria")
+    ):
+        return False
+    human_review_required = value.get("human_review_required")
+    if not isinstance(human_review_required, bool):
+        return False
+    return value.get("risk_level") != "high" or human_review_required
 
 
 def _canonical_ui_continuity_value(field: str, value: Any) -> Any:
@@ -3131,6 +3836,81 @@ def _normalized_ui_string_values(field: str, contract: dict[str, Any]) -> set[st
     }
 
 
+def _validate_ui_style_authority(value: Any, label: str) -> list[str]:
+    expected_fields = {
+        "mode",
+        "scope_level",
+        "source_refs",
+        "protected_surfaces",
+        "allowed_style_delta_surfaces",
+        "authorization_source",
+    }
+    if not isinstance(value, dict) or set(value) != expected_fields:
+        return [f"{label}.style_authority must contain the current exact fields"]
+    mode = str(value.get("mode") or "").strip()
+    scope_level = str(value.get("scope_level") or "").strip()
+    lists: dict[str, list[str]] = {}
+    errors: list[str] = []
+    for field in (
+        "source_refs",
+        "protected_surfaces",
+        "allowed_style_delta_surfaces",
+    ):
+        raw = value.get(field)
+        if not isinstance(raw, list) or any(
+            not isinstance(item, str) or not item.strip() for item in raw
+        ) or len(raw) != len(set(raw)):
+            errors.append(f"{label}.style_authority.{field} must be a string list")
+            lists[field] = []
+        else:
+            lists[field] = [item.strip() for item in raw]
+    if errors:
+        return errors
+    if mode not in {
+        "greenfield",
+        "inherit-existing",
+        "page-overhaul-authorized",
+    }:
+        errors.append(f"{label}.style_authority.mode must be resolved")
+    if scope_level not in {"feature-partial", "page"}:
+        errors.append(f"{label}.style_authority.scope_level must be valid")
+    authorization = value.get("authorization_source")
+    authorization_claimed = authorization is not None and authorization != ""
+    protected = set(lists["protected_surfaces"])
+    allowed = set(lists["allowed_style_delta_surfaces"])
+    guards = {"global-shell", "shared-components"}
+    if mode == "greenfield":
+        if authorization_claimed:
+            errors.append(
+                f"{label}.style_authority greenfield cannot claim overhaul authorization"
+            )
+    elif mode == "inherit-existing":
+        if (
+            scope_level != "feature-partial"
+            or not lists["source_refs"]
+            or not guards <= protected
+            or allowed
+            or authorization_claimed
+        ):
+            errors.append(
+                f"{label}.style_authority inherit-existing must preserve live UI, global-shell, and shared-components without a style delta"
+            )
+    elif mode == "page-overhaul-authorized":
+        if (
+            scope_level != "page"
+            or not lists["source_refs"]
+            or not guards <= protected
+            or not allowed
+            or bool(allowed & guards)
+            or not isinstance(authorization, str)
+            or not authorization.strip()
+        ):
+            errors.append(
+                f"{label}.style_authority page overhaul requires an exact page delta and explicit authorization while protecting shared UI"
+            )
+    return errors
+
+
 def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[str]:
     errors: list[str] = []
     obsolete_fields = {"ui_contract_version", "contract_version"} & set(contract)
@@ -3153,6 +3933,7 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
         or any(str(item).strip() not in UI_CONTRACT_PLATFORMS for item in platforms)
     ):
         errors.append(f"{label}.platforms must contain supported UI platforms")
+    errors.extend(_validate_ui_style_authority(contract.get("style_authority"), label))
     for field in UI_CONTRACT_SCALAR_FIELDS:
         if not str(contract.get(field) or "").strip():
             errors.append(f"{label}.{field} must be non-empty")
@@ -3178,13 +3959,9 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
         if not UI_DESIGN_CHANGE_ID_RE.fullmatch(change_id):
             errors.append(f"{label}.design_change_id must be a canonical UD-#### ID")
         if design_ref != expected_design_ref:
-            errors.append(
-                f"{label}.design_change_ref must match its UD-* workspace"
-            )
+            errors.append(f"{label}.design_change_ref must match its UD-* workspace")
         if contract_ref != expected_contract_ref:
-            errors.append(
-                f"{label}.design_contract_ref must match its UD-* workspace"
-            )
+            errors.append(f"{label}.design_contract_ref must match its UD-* workspace")
         if not UI_SHA256_RE.fullmatch(design_sha256):
             errors.append(f"{label}.design_change_sha256 must be a SHA-256 digest")
         source_values: list[Any] | None = None
@@ -3197,9 +3974,7 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
             normalized_sources = {str(item).strip() for item in source_values}
             for required_ref in (expected_design_ref, expected_contract_ref):
                 if required_ref not in normalized_sources:
-                    errors.append(
-                        f"{label} design sources must include {required_ref}"
-                    )
+                    errors.append(f"{label} design sources must include {required_ref}")
     approved_ref = str(contract.get("approved_visual_ref") or "").strip()
     for field in UI_APPROVAL_DIGEST_FIELDS:
         digest = str(contract.get(field) or "").strip()
@@ -3210,11 +3985,14 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
         for field in UI_APPROVAL_DIGEST_FIELDS
     ):
         errors.append(
-            f"{label} approved HTML preview requires preview, manifest, and handoff SHA-256 digests"
+            f"{label} approved visual round requires preview, manifest, and handoff SHA-256 digests"
         )
     if UI_APPROVED_PREVIEW_REF_RE.search(approved_ref):
-        if not str(contract.get("approved_handoff_ref") or "").strip().lower().endswith(
-            ".handoff.json"
+        if (
+            not str(contract.get("approved_handoff_ref") or "")
+            .strip()
+            .lower()
+            .endswith(".handoff.json")
         ):
             errors.append(
                 f"{label}.approved_handoff_ref must identify the immutable design handoff"
@@ -3245,11 +4023,15 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
         errors.append(f"{label}.design_decision_ids must contain canonical DS-* IDs")
     handoff_contract_ids = contract.get("handoff_contract_ids")
     if isinstance(handoff_contract_ids, list) and any(
-        not isinstance(item, str)
-        or not UI_DESIGN_HANDOFF_ID_RE.fullmatch(item.strip())
+        not isinstance(item, str) or not UI_DESIGN_HANDOFF_ID_RE.fullmatch(item.strip())
         for item in handoff_contract_ids
     ):
         errors.append(f"{label}.handoff_contract_ids must contain canonical DH-* IDs")
+    handoff_id_set = {
+        str(item).strip()
+        for item in handoff_contract_ids or []
+        if isinstance(item, str) and item.strip()
+    }
     reference_intents = contract.get("reference_intents")
     if isinstance(reference_intents, list):
         for item in reference_intents:
@@ -3290,51 +4072,222 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
         for item in design_decision_ids or []
         if isinstance(item, str) and item.strip()
     }
+    component_ids = {
+        str(item.get("id") or "").strip()
+        for item in component_contracts or []
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    }
+    surface_catalog = contract.get("surface_catalog")
+    if not isinstance(surface_catalog, list) or not surface_catalog:
+        errors.append(f"{label}.surface_catalog must be non-empty")
+    elif any(
+        not _ui_contract_valid_surface_row(
+            item, decision_id_set, handoff_id_set, component_ids
+        )
+        for item in surface_catalog
+    ):
+        errors.append(
+            f"{label}.surface_catalog entries require stable identity, profile, source/specimen/component coverage, and known references"
+        )
+    surface_ids = {
+        str(item.get("id") or "").strip()
+        for item in surface_catalog or []
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    }
+    motion_value = contract.get("motion_contract")
+    motion_transitions = (
+        motion_value.get("transitions") or []
+        if isinstance(motion_value, dict)
+        else []
+    )
+    scenario_rows_by_field = {
+        field: {
+            str(item.get("id") or "").strip(): item
+            for item in collection
+            if isinstance(item, dict) and str(item.get("id") or "").strip()
+        }
+        for field, collection in {
+            "interaction_ids": contract.get("interaction_matrix") or [],
+            "editing_ids": contract.get("editing_matrix") or [],
+            "data_state_ids": contract.get("data_state_matrix") or [],
+            "accessibility_ids": contract.get("accessibility_matrix") or [],
+            "navigation_ids": contract.get("navigation_matrix") or [],
+            "content_ids": contract.get("content_matrix") or [],
+            "responsive_ids": contract.get("responsive_matrix") or [],
+            "motion_transition_ids": motion_transitions,
+        }.items()
+        if isinstance(collection, list)
+    }
+    scenario_matrix = contract.get("scenario_matrix")
+    if not isinstance(scenario_matrix, list) or not scenario_matrix:
+        errors.append(f"{label}.scenario_matrix must be non-empty")
+    elif any(
+        not _ui_contract_valid_scenario_row(
+            item,
+            decision_id_set,
+            handoff_id_set,
+            surface_ids,
+            scenario_rows_by_field,
+        )
+        for item in scenario_matrix
+    ):
+        errors.append(
+            f"{label}.scenario_matrix entries must bind a stable surface to known interaction/editing/data/accessibility/navigation/content/responsive/motion rows, an executable interaction_script, and exact decisions"
+        )
     if not isinstance(component_contracts, list) or not component_contracts:
         errors.append(f"{label}.component_contracts must be non-empty")
     elif any(
         not isinstance(item, dict)
-        or not str(item.get("component") or "").strip()
-        or not isinstance(item.get("decision_ids"), list)
-        or not item.get("decision_ids")
-        or any(
-            not isinstance(decision_id, str) or decision_id not in decision_id_set
-            for decision_id in item.get("decision_ids") or []
+        or not _ui_contract_valid_row_refs(
+            item, decision_id_set, handoff_id_set
         )
+        or not str(item.get("component") or "").strip()
+        or not _ui_contract_has_nonblank_string_list(item.get("anatomy"))
+        or not _ui_contract_has_nonblank_string_list(item.get("required_states"))
+        or not _ui_contract_has_nonblank_string_list(item.get("interaction_modes"))
+        or not isinstance(item.get("data_scenarios"), list)
+        or not item.get("data_scenarios")
+        or any(
+            not _ui_contract_valid_data_scenario(scenario)
+            for scenario in item.get("data_scenarios") or []
+        )
+        or not _ui_contract_has_nonblank_string_list(item.get("variants"))
+        or not _ui_contract_has_nonblank_string_list(item.get("content_constraints"))
+        or not _ui_contract_has_nonblank_string_list(item.get("semantic_token_refs"))
+        or item.get("governance") not in {"reuse", "extend", "new"}
+        or not str(item.get("iconography") or "").strip()
         for item in component_contracts
     ):
         errors.append(
-            f"{label}.component_contracts entries require component and known decision_ids"
+            f"{label}.component_contracts entries require immutable identity, anatomy, states, "
+            "interaction/data variants, content/token governance, iconography, and known references"
+        )
+    interaction_matrix = contract.get("interaction_matrix")
+    if not isinstance(interaction_matrix, list) or not interaction_matrix:
+        errors.append(f"{label}.interaction_matrix must be non-empty")
+    elif any(
+        not isinstance(item, dict)
+        or set(item)
+        != {
+            "id",
+            "surface",
+            "input",
+            "trigger",
+            "event_sequence",
+            "immediate_feedback",
+            "focus_behavior",
+            "repeat_behavior",
+            "cancellation_behavior",
+            "pending_behavior",
+            "decision_ids",
+        }
+        or not _ui_contract_valid_row_refs(item, decision_id_set, handoff_id_set)
+        or any(
+            not str(item.get(field) or "").strip()
+            for field in (
+                "surface",
+                "input",
+                "trigger",
+                "event_sequence",
+                "immediate_feedback",
+                "focus_behavior",
+                "repeat_behavior",
+                "cancellation_behavior",
+                "pending_behavior",
+            )
+        )
+        for item in interaction_matrix
+    ):
+        errors.append(
+            f"{label}.interaction_matrix entries require the complete event, feedback, focus, repeat, cancellation, pending, and known-reference lifecycle"
+        )
+    editing_matrix = contract.get("editing_matrix")
+    if not isinstance(editing_matrix, list) or not editing_matrix:
+        errors.append(f"{label}.editing_matrix must be non-empty")
+    elif any(
+        not _ui_contract_valid_editing_row(
+            item, decision_id_set, handoff_id_set
+        )
+        for item in editing_matrix
+    ):
+        errors.append(
+            f"{label}.editing_matrix entries require the complete input, composition, validation, persistence, history, conflict, state, submission, and known-reference contract"
+        )
+    data_state_matrix = contract.get("data_state_matrix")
+    if not isinstance(data_state_matrix, list) or not data_state_matrix:
+        errors.append(f"{label}.data_state_matrix must be non-empty")
+    elif any(
+        not isinstance(item, dict)
+        or not _ui_contract_valid_row_refs(item, decision_id_set, handoff_id_set)
+        or not str(item.get("surface") or "").strip()
+        or not str(item.get("state") or "").strip()
+        or not str(item.get("data_condition") or "").strip()
+        or not str(item.get("expectation") or "").strip()
+        for item in data_state_matrix
+    ):
+        errors.append(
+            f"{label}.data_state_matrix entries require id, surface, state, data_condition, expectation, and known references"
+        )
+    accessibility_matrix = contract.get("accessibility_matrix")
+    if not isinstance(accessibility_matrix, list) or not accessibility_matrix:
+        errors.append(f"{label}.accessibility_matrix must be non-empty")
+    elif any(
+        not _ui_contract_valid_accessibility_row(
+            item, decision_id_set, handoff_id_set
+        )
+        for item in accessibility_matrix
+    ):
+        errors.append(
+            f"{label}.accessibility_matrix entries require semantic, focus, keyboard, announcement, target, contrast, zoom, alternative, and known-reference fields"
+        )
+    navigation_matrix = contract.get("navigation_matrix")
+    if not isinstance(navigation_matrix, list) or not navigation_matrix:
+        errors.append(f"{label}.navigation_matrix must be non-empty")
+    elif any(
+        not _ui_contract_valid_navigation_row(item, decision_id_set, handoff_id_set)
+        for item in navigation_matrix
+    ):
+        errors.append(
+            f"{label}.navigation_matrix entries require entry/destination, trigger, back/deep-link/interruption behavior, and known references"
+        )
+    content_matrix = contract.get("content_matrix")
+    if not isinstance(content_matrix, list) or not content_matrix:
+        errors.append(f"{label}.content_matrix must be non-empty")
+    elif any(
+        not _ui_contract_valid_content_row(item, decision_id_set, handoff_id_set)
+        for item in content_matrix
+    ):
+        errors.append(
+            f"{label}.content_matrix entries require state-specific copy, action, trust, localization, limits, and known references"
         )
     responsive_matrix = contract.get("responsive_matrix")
     if not isinstance(responsive_matrix, list) or not responsive_matrix:
         errors.append(f"{label}.responsive_matrix must be non-empty")
     elif any(
-        not isinstance(item, dict)
-        or not str(item.get("viewport") or "").strip()
-        or not str(item.get("adaptation") or "").strip()
+        not _ui_contract_valid_responsive_row(
+            item, decision_id_set, handoff_id_set
+        )
         for item in responsive_matrix
     ):
         errors.append(
-            f"{label}.responsive_matrix entries require viewport and adaptation"
+            f"{label}.responsive_matrix entries require state, stretch/overflow behavior, decision_ids, and viewport or immutable target plus adaptation"
         )
     motion_contract = contract.get("motion_contract")
-    if (
-        not isinstance(motion_contract, dict)
-        or not str(motion_contract.get("purpose") or "").strip()
-        or not str(motion_contract.get("reduced_motion") or "").strip()
+    if not _ui_contract_valid_motion(
+        motion_contract, decision_id_set, handoff_id_set
     ):
         errors.append(
-            f"{label}.motion_contract requires purpose and reduced_motion"
+            f"{label}.motion_contract requires transitions, reduced motion, ordered feedback timing, and known references"
+        )
+    if not _ui_contract_valid_usability(contract.get("usability_validation")):
+        errors.append(
+            f"{label}.usability_validation requires risk, methods, critical tasks, success criteria, and human-review decision"
         )
     visual_matrix = contract.get("visual_acceptance_matrix")
     if not isinstance(visual_matrix, list) or not visual_matrix:
         errors.append(f"{label}.visual_acceptance_matrix must be non-empty")
     elif any(
-        not isinstance(item, dict)
-        or not str(item.get("viewport") or "").strip()
-        or not str(item.get("state") or "").strip()
-        or not str(item.get("evidence") or "").strip()
+        not _ui_contract_valid_visual_row(item, decision_id_set, handoff_id_set)
         for item in visual_matrix
     ):
         errors.append(
@@ -3411,7 +4364,10 @@ def _validate_ui_handoff_binding(
         errors.append(
             f"{label}.approved_handoff_sha256 must bind the immutable handoff bytes"
         )
-    if not isinstance(handoff, dict) or handoff.get("schema") != "spec-kit-design-handoff-v1":
+    if (
+        not isinstance(handoff, dict)
+        or handoff.get("schema") != "spec-kit-design-handoff-v1"
+    ):
         errors.append(
             f"{label}.approved_handoff_ref must contain spec-kit-design-handoff-v1"
         )
@@ -3425,7 +4381,10 @@ def _validate_ui_handoff_binding(
         ("preview_ref", expected_local_preview_ref),
         ("direction_id", direction_id),
         ("preview_sha256", str(contract.get("approved_preview_sha256") or "").strip()),
-        ("manifest_sha256", str(contract.get("approved_manifest_sha256") or "").strip()),
+        (
+            "manifest_sha256",
+            str(contract.get("approved_manifest_sha256") or "").strip(),
+        ),
     )
     for field, expected in expected_pairs:
         if str(approval.get(field) or "").strip() != expected:
@@ -3438,9 +4397,7 @@ def _validate_ui_handoff_binding(
         for item in approval.get("decision_ids") or []
         if isinstance(item, str) and item.strip()
     }
-    selected_decisions = _normalized_ui_string_values(
-        "design_decision_ids", contract
-    )
+    selected_decisions = _normalized_ui_string_values("design_decision_ids", contract)
     if not selected_decisions or not selected_decisions <= approved_decisions:
         errors.append(
             f"{label}.design_decision_ids must be a non-empty immutable handoff subset"
@@ -3462,6 +4419,13 @@ def _validate_ui_handoff_binding(
         )
 
     for field in (
+        "surface_catalog",
+        "scenario_matrix",
+        "interaction_matrix",
+        "data_state_matrix",
+        "accessibility_matrix",
+        "navigation_matrix",
+        "content_matrix",
         "component_contracts",
         "responsive_matrix",
         "visual_acceptance_matrix",
@@ -3502,12 +4466,15 @@ def _validate_ui_handoff_binding(
                 f"{label}.{field} must exactly materialize its selected immutable handoff rows"
             )
 
-    if contract.get("comparison_tolerance") != reproduction.get(
-        "comparison_tolerance"
-    ):
+    if contract.get("comparison_tolerance") != reproduction.get("comparison_tolerance"):
         errors.append(
             f"{label}.comparison_tolerance must exactly preserve the immutable handoff"
         )
+    for field in ("motion_contract", "usability_validation"):
+        if contract.get(field) != reproduction.get(field):
+            errors.append(
+                f"{label}.{field} must exactly preserve the immutable handoff"
+            )
     return errors
 
 
@@ -3702,6 +4669,14 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
         covered_design_decisions: set[str] = set()
         covered_handoff_contracts: set[str] = set()
         covered_color_modes: set[str] = set()
+        covered_surface_catalog: set[Any] = set()
+        covered_scenario_matrix: set[Any] = set()
+        covered_interaction_matrix: set[Any] = set()
+        covered_editing_matrix: set[Any] = set()
+        covered_data_state_matrix: set[Any] = set()
+        covered_accessibility_matrix: set[Any] = set()
+        covered_navigation_matrix: set[Any] = set()
+        covered_content_matrix: set[Any] = set()
         covered_component_contracts: set[Any] = set()
         covered_responsive_matrix: set[Any] = set()
         covered_visual_acceptance_matrix: set[Any] = set()
@@ -3789,6 +4764,14 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
                     )
 
             for field, covered in (
+                ("surface_catalog", covered_surface_catalog),
+                ("scenario_matrix", covered_scenario_matrix),
+                ("interaction_matrix", covered_interaction_matrix),
+                ("editing_matrix", covered_editing_matrix),
+                ("data_state_matrix", covered_data_state_matrix),
+                ("accessibility_matrix", covered_accessibility_matrix),
+                ("navigation_matrix", covered_navigation_matrix),
+                ("content_matrix", covered_content_matrix),
                 ("component_contracts", covered_component_contracts),
                 ("responsive_matrix", covered_responsive_matrix),
                 ("visual_acceptance_matrix", covered_visual_acceptance_matrix),
@@ -3850,19 +4833,23 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
             ("design_decision_ids", covered_design_decisions),
             ("handoff_contract_ids", covered_handoff_contracts),
             ("color_modes", covered_color_modes),
+            ("surface_catalog", covered_surface_catalog),
+            ("scenario_matrix", covered_scenario_matrix),
+            ("interaction_matrix", covered_interaction_matrix),
+            ("editing_matrix", covered_editing_matrix),
+            ("data_state_matrix", covered_data_state_matrix),
+            ("accessibility_matrix", covered_accessibility_matrix),
+            ("navigation_matrix", covered_navigation_matrix),
+            ("content_matrix", covered_content_matrix),
             ("component_contracts", covered_component_contracts),
             ("responsive_matrix", covered_responsive_matrix),
             ("visual_acceptance_matrix", covered_visual_acceptance_matrix),
         ):
-            expected = _canonical_ui_continuity_value(
-                field, plan_contract.get(field)
-            )
+            expected = _canonical_ui_continuity_value(field, plan_contract.get(field))
             expected_set = set(expected or ())
             missing = expected_set - covered
             if missing:
-                errors.append(
-                    f"task-index.json UI tasks must cover plan {field}"
-                )
+                errors.append(f"task-index.json UI tasks must cover plan {field}")
     return errors
 
 
@@ -5930,7 +6917,12 @@ def validate_artifacts_hook(
             data={"feature_dir": str(feature_dir)},
         )
 
+    uses_runtime_deep_research = _deep_research_gate_contract_present(feature_dir)
     required_artifacts = REQUIRED_ARTIFACTS[command_name]
+    required_files = FILE_REQUIRED_ARTIFACTS.get(command_name, ())
+    if command_name == "deep-research" and not uses_runtime_deep_research:
+        required_artifacts = DEEP_RESEARCH_LEGACY_REQUIRED_FILES
+        required_files = DEEP_RESEARCH_LEGACY_REQUIRED_FILES
     if command_name == "specify" and not (feature_dir / "spec-contract.json").exists():
         legacy_specify_artifacts = (
             "spec.md",
@@ -5971,7 +6963,7 @@ def validate_artifacts_hook(
         for path, label in contract_paths:
             if path.exists() and not path.is_file():
                 type_errors.append(f"required artifact must be a file: {label}")
-    for relative_path in FILE_REQUIRED_ARTIFACTS.get(command_name, ()):
+    for relative_path in required_files:
         target = feature_dir / relative_path
         if target.exists() and not target.is_file():
             type_errors.append(f"required artifact must be a file: {relative_path}")
@@ -6016,9 +7008,19 @@ def validate_artifacts_hook(
         )
         validation_errors.extend(_validate_reference_implementation_spec(feature_dir))
     if command_name == "deep-research":
-        validation_errors.extend(_validate_deep_research_artifact(feature_dir))
+        if uses_runtime_deep_research:
+            validation_errors.extend(
+                _validate_runtime_deep_research_artifact(project_root, feature_dir)
+            )
+        else:
+            validation_errors.extend(_validate_deep_research_artifact(feature_dir))
     if command_name == "plan":
-        validation_errors.extend(_validate_plan_consumes_deep_research(feature_dir))
+        if uses_runtime_deep_research:
+            validation_errors.extend(
+                _validate_plan_deep_research_binding(project_root, feature_dir)
+            )
+        else:
+            validation_errors.extend(_validate_plan_consumes_deep_research(feature_dir))
         validation_errors.extend(_validate_plan_consequence_contract(feature_dir))
         validation_errors.extend(
             _validate_plan_entrypoint_outcome_contract(feature_dir)
@@ -6053,9 +7055,7 @@ def validate_artifacts_hook(
         except (MissingWorkflowState, ValueError):
             workflow = None
         except WorkflowRuntimeError as exc:
-            validation_errors.append(
-                f"workflow state could not be validated: {exc}"
-            )
+            validation_errors.append(f"workflow state could not be validated: {exc}")
             workflow = None
         if workflow is not None:
             from specify_cli.implement_audit import audit_implement_resume
@@ -6064,9 +7064,8 @@ def validate_artifacts_hook(
             )
 
             audit = audit_implement_resume(project_root, feature_dir)
-            if (
-                audit.get("status") in {"fail", "conflict"}
-                or not audit.get("trusted_terminal_state", False)
+            if audit.get("status") in {"fail", "conflict"} or not audit.get(
+                "trusted_terminal_state", False
             ):
                 gaps = [
                     str(item)

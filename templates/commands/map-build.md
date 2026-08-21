@@ -78,6 +78,11 @@ smoke query succeeds. A blocked build gate sets `completion_allowed=false`,
   `build-from-scan`. Do not say the format issues are harmless or that they do
   not affect completeness.
 - Run `{{specify-subcmd:specify-runtime cognition build-from-scan --format json}}` after scan and package validation. It adapts the accepted canonical scan package into a versioned proposal and runs the deterministic cognition proposal compiler before any graph-store mutation, then rebuilds the graph store into schema v5 and owns DB import, metadata, status publication, and DB/status agreement.
+- `build-from-scan` is idempotent for the same validated scan receipt, compiled
+  proposal fingerprint, compiler contract, and graph schema. It returns
+  `reused=true` with the same active generation instead of importing a duplicate
+  generation. This still requires `validate-build` and Compass proof; reuse is
+  not workflow completion.
 - Treat `compilation.publication_allowed=false` as a hard pre-publication block. Report the bounded compiler conflicts and stop without creating, archiving, replacing, or publishing a graph store.
 - A successful compile means the proposal is structurally safe and deterministic enough to publish as advisory graph material. Compiled nodes, edges, paths, aliases, and graph claims remain route candidates rather than repository facts; even `verified_in_graph_generation` requires bounded live repository evidence before behavioral or workflow final claims.
 - If `build-from-scan` returns `status=blocked`, report its `errors`, identity reconciliation details from `identity_reconciliation`, `rejections`, `merge_records`, and `recovery_action` and do not proceed to build validation.

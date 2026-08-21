@@ -332,8 +332,6 @@ def test_wheel_force_include_bundles_artifact_scaffold_templates() -> None:
         "deep-research-not-needed.md",
         "deep-research.md",
         "design-review.md",
-        "empty.ndjson",
-        "evidence-index.json",
         "lane-manifest.json",
         "quick-plan.md",
         "quick-status.md",

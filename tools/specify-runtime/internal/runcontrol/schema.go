@@ -1,6 +1,6 @@
 package runcontrol
 
-const schemaVersion = 11
+const schemaVersion = 12
 
 const workspaceAllocationSchemaSQL = `
 CREATE TABLE IF NOT EXISTS workspace_allocations (
@@ -150,6 +150,8 @@ CREATE INDEX IF NOT EXISTS attempts_lease_lookup
     ON attempts(status, lease_until_ms);
 
 ` + resourceClaimSchemaSQL + `
+
+` + workBoardSchemaSQL + `
 
 ` + runResultSchemaSQL + `
 

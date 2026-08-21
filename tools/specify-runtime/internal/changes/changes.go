@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -153,7 +152,8 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 	}
 
 	merged := map[string]*mergedChange{}
-	if baseline != "" && head != "" {
+	explicitOnly := len(input.ExplicitPaths) > 0 && !input.IncludeWorkingTree && !input.IncludeUntracked
+	if baseline != "" && head != "" && !explicitOnly {
 		entries, err := rt.GitDiffNameStatus(paths.Root, baseline, head)
 		if err != nil {
 			payload.Status = "blocked"
@@ -624,7 +624,5 @@ func pathTrackedByGit(root string, path string) bool {
 	if path == "" {
 		return false
 	}
-	cmd := exec.Command("git", "ls-files", "--error-unmatch", "--", path)
-	cmd.Dir = root
-	return cmd.Run() == nil
+	return rt.CommandRun(root, nil, "git", "ls-files", "--error-unmatch", "--", path) == nil
 }

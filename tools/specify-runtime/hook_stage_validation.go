@@ -1,13 +1,10 @@
 package main
 
 import (
-	"bufio"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 )
@@ -16,77 +13,7 @@ var hookResearchEvidenceRefRE = regexp.MustCompile(`research-evidence/(EVD-\d+)\
 var hookConstitutionMetadataRE = regexp.MustCompile(`\*\*Version\*\*:\s*([0-9]+\.[0-9]+\.[0-9]+)\s*\|\s*\*\*Ratified\*\*:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})\s*\|\s*\*\*Last Amended\*\*:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})`)
 var hookISODateRE = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}$`)
 
-func validateHookClarifyArtifacts(featurePath string) error {
-	checkpointsPath := filepath.Join(featurePath, "clarification", "checkpoints.ndjson")
-	file, err := os.Open(checkpointsPath)
-	if err != nil {
-		return fmt.Errorf("clarification/checkpoints.ndjson is unavailable: %w", err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	lineNumber := 0
-	for scanner.Scan() {
-		lineNumber++
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		var payload map[string]any
-		if err := json.Unmarshal([]byte(line), &payload); err != nil || payload == nil {
-			return fmt.Errorf("clarification/checkpoints.ndjson line %d must be a JSON object", lineNumber)
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("clarification/checkpoints.ndjson is unavailable: %w", err)
-	}
-
-	indexPath := filepath.Join(featurePath, "clarification", "evidence-index.json")
-	index, err := readJSONObject(indexPath)
-	if err != nil {
-		return fmt.Errorf("clarification/evidence-index.json is unavailable: %w", err)
-	}
-	var walk func(any) error
-	walk = func(node any) error {
-		switch value := node.(type) {
-		case map[string]any:
-			if hookClarifyLaneAccepted(value) {
-				disposition := strings.ToLower(strings.TrimSpace(hookAnyStringField(value, "disposition")))
-				if disposition == "" {
-					return fmt.Errorf("clarification/evidence-index.json accepted lanes must record disposition integrated, deferred, or blocked")
-				}
-				if !slices.Contains([]string{"integrated", "deferred", "blocked"}, disposition) {
-					return fmt.Errorf("clarification/evidence-index.json accepted lane disposition must be integrated, deferred, or blocked")
-				}
-			}
-			for _, child := range value {
-				if err := walk(child); err != nil {
-					return err
-				}
-			}
-		case []any:
-			for _, child := range value {
-				if err := walk(child); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
-	if err := walk(index); err != nil {
-		return err
-	}
-	return nil
-}
-
-func hookClarifyLaneAccepted(payload map[string]any) bool {
-	if accepted, ok := payload["accepted"].(bool); ok && accepted {
-		return true
-	}
-	return strings.EqualFold(strings.TrimSpace(hookAnyStringField(payload, "status")), "accepted")
-}
-
-func validateHookDeepResearchArtifacts(featurePath string) error {
+func validateHookDeepResearchArtifacts(projectRoot, featurePath, featureRef string) error {
 	content, err := os.ReadFile(filepath.Join(featurePath, "deep-research.md"))
 	if err != nil {
 		return fmt.Errorf("deep-research.md is unavailable: %w", err)
@@ -100,6 +27,14 @@ func validateHookDeepResearchArtifacts(featurePath string) error {
 			return fmt.Errorf("deep-research.md must include %s", heading)
 		}
 	}
+	statusMatch := regexp.MustCompile(`(?m)^\*\*Status\*\*:\s+(.+?)\s*$`).FindStringSubmatch(text)
+	status := ""
+	if len(statusMatch) > 1 {
+		status = strings.ToLower(strings.TrimSpace(statusMatch[1]))
+	}
+	if status != "complete" && status != "not needed" {
+		return fmt.Errorf("deep-research.md status must be Complete or Not needed")
+	}
 	seen := map[string]bool{}
 	for _, match := range hookResearchEvidenceRefRE.FindAllStringSubmatch(text, -1) {
 		relative := filepath.ToSlash(filepath.Join("research-evidence", match[1]+".json"))
@@ -110,6 +45,10 @@ func validateHookDeepResearchArtifacts(featurePath string) error {
 		if err := hookValidateJSONObject(filepath.Join(featurePath, filepath.FromSlash(relative)), relative); err != nil {
 			return err
 		}
+	}
+	service := deepResearchService{projectRoot: projectRoot}
+	if _, err := service.verifyPublishedHandoff(featurePath, featureRef, "", ""); err != nil {
+		return fmt.Errorf("runtime-owned Deep Research handoff is not publishable: %w", err)
 	}
 	return nil
 }

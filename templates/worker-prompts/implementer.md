@@ -53,6 +53,10 @@ Use this template when the leader dispatches a concrete implementation lane for 
   `boundary_or_executor`, and `validation`. Synthetic component, reducer,
   helper, or hand-built state evidence does not satisfy integrated proof.
 - If the packet includes `ui_contract`, follow it as binding UI implementation scope. Do not reinterpret the original screenshot, HTML, or UI code reference into a different layout pattern.
+- Enforce `ui_contract.style_authority`: `inherit-existing` requires the named
+  live UI sources and forbids restyling; `page-overhaul-authorized` permits
+  style changes only on its exact allowed page surfaces. Never drift protected
+  `global-shell` or `shared-components`.
 - For the current UI contract, preserve work/surface/platform classification, direction
   theses, signature, approved visual ref, immutable handoff ref and all three
   digests, applicable `DS-*` decisions and `DH-*` contracts,
@@ -78,6 +82,11 @@ Use this template when the leader dispatches a concrete implementation lane for 
   existing reference inspection and cheap structural evidence; do not
   manufacture integrated proof.
 - If the packet requires `visual_comparison_or_human_review` and you cannot perform visual comparison, return `ui_verification.fidelity_status: pending-human-review` instead of claiming visual match.
+- When `usability_validation.smoothness_acceptance_ids` is non-empty, exercise
+  every applicable ID and return the exact set as
+  `ui_verification.covered_smoothness_acceptance_ids`; use only the current
+  structure, visual, runtime, and visual-comparison-or-human-review evidence
+  channels.
 - When the Leader performs a passing comparison, return compact observed matrix differences and typed evidence refs for `specify-runtime evidence visual-compare`; do not read the stable template or author the report. The runtime derives approved bindings, exact decision/contract coverage, tolerance, deviations, path, and digest from the task contract. A screenshot path without this CLI-owned comparison record is not a fidelity pass.
 - Report back in this exact status family: `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`.
 - Prefer `DONE_WITH_CONCERNS` over silent guessing when the work is complete but confidence is mixed.

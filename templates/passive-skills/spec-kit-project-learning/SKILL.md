@@ -142,8 +142,7 @@ facts that belong only to the current task.
 
 ## Workflow Policies
 
-- `skip`: `fast`. Do not start or capture Learning unless the task escalates.
-- `consume-only`: `accept`, `analyze`, `ask`, `auto`, `constitution`, `explain`,
+- `consume-only`: `fast`, `accept`, `analyze`, `ask`, `auto`, `constitution`, `explain`,
   `implement-teams`, `taskstoissues`, and `team`. Read relevant Learning; defer
   capture to the workflow that owns an allowed durable write surface.
 - `consume-capture`: all other non-trivial workflows. Consume before deeper

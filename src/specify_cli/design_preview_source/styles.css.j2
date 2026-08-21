@@ -1,4 +1,4 @@
-/* Freeform board chrome only. Direction canvases are intentionally unconstrained. */
+/* Studio chrome only. The current concept canvas is intentionally unconstrained. */
 :root {
   --board-ink: #12141a;
   --board-muted: #5b6472;
@@ -20,9 +20,7 @@ html, body {
   background: var(--board-canvas);
   color: var(--board-ink);
 }
-body[data-active-direction="direction-a"] { --preview-signature: freeform-a; }
-body[data-active-direction="direction-b"] { --preview-signature: freeform-b; }
-body[data-active-direction="direction-c"] { --preview-signature: freeform-c; }
+body[data-active-direction="direction-main"] { --preview-signature: iterative-concept; }
 .board-chrome {
   position: sticky;
   top: 0;
@@ -41,8 +39,7 @@ body[data-active-direction="direction-c"] { --preview-signature: freeform-c; }
   font-size: 0.82rem;
   max-width: 70ch;
 }
-.direction-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.direction-tabs a {
+.concept-link {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -54,17 +51,14 @@ body[data-active-direction="direction-c"] { --preview-signature: freeform-c; }
   text-decoration: none;
   font-size: 0.85rem;
 }
-body[data-active-direction="direction-a"] .direction-tabs a[data-direction-target="direction-a"],
-body[data-active-direction="direction-b"] .direction-tabs a[data-direction-target="direction-b"],
-body[data-active-direction="direction-c"] .direction-tabs a[data-direction-target="direction-c"] {
+.concept-link:hover,
+.concept-link:focus-visible {
   border-color: var(--board-accent);
   box-shadow: 0 0 0 1px var(--board-accent) inset;
 }
 .direction-stage { padding: 0; }
-.direction-canvas { display: none; min-height: 100dvh; }
-body[data-active-direction="direction-a"] #direction-a,
-body[data-active-direction="direction-b"] #direction-b,
-body[data-active-direction="direction-c"] #direction-c { display: block; }
+.direction-canvas { min-height: 100dvh; }
+body[data-active-direction="direction-main"] #direction-main { display: block; }
 .direction-canvas .freeform-seed {
   min-height: 100dvh;
   padding: clamp(1.5rem, 4vw, 3.5rem);

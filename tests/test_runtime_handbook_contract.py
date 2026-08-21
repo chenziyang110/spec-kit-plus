@@ -193,11 +193,10 @@ def test_upstream_workflow_templates_are_query_backed_cognition_first() -> None:
 def test_workflow_templates_carry_project_cognition_facts_forward() -> None:
     expectations = {
         "templates/commands/specify.md": ("spec-contract.json", "context capsule", "validation routes"),
-        "templates/commands/clarify.md": ("clarified spec package", "ownership", "verification"),
         "templates/commands/deep-research.md": ("deep-research.md", "repository facts", "external research"),
         "templates/commands/plan.md": ("Implementation Constitution", "architecture/module decisions", "plan-contract.json"),
         "templates/commands/tasks.md": ("plan-contract.json", "task-index.json", "just in time"),
-        "templates/commands/analyze.md": ("cognition-backed blocker evidence", "clarify", "deep-research"),
+        "templates/commands/analyze.md": ("cognition-backed blocker evidence", "specify", "deep-research"),
         "templates/commands/implement.md": ("task-index.json", "WorkerTaskPacket", "task lifecycle record"),
         "templates/commands/debug.md": ("debug session state", "competing truths", "coverage gaps"),
         "templates/commands/fast.md": ("fast-task state or report", "verification route", "minimal reads"),

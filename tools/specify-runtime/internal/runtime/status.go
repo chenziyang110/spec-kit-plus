@@ -10,20 +10,21 @@ import (
 )
 
 const (
-	RuntimeFormat               = "project-cognition-go"
-	RuntimeSchema               = 1
-	ErrLegacyCode               = "unsupported_legacy_runtime"
-	MissingFreshness            = "missing"
-	ReadyFreshness              = "fresh"
-	PartialRefreshFreshness     = "partial_refresh"
-	StaleFreshness              = "stale"
-	ReadyReadiness              = "query_ready"
-	ReviewReadiness             = "review"
-	BlockedReadiness            = "blocked"
-	NeedsRebuildReadiness       = "needs_rebuild"
-	UnsupportedReadiness        = "unsupported_runtime"
-	BaselineKindBrownfieldFull  = "brownfield_full"
-	BaselineKindGreenfieldEmpty = "greenfield_empty"
+	RuntimeFormat                          = "project-cognition-go"
+	RuntimeSchema                          = 1
+	ErrLegacyCode                          = "unsupported_legacy_runtime"
+	MissingFreshness                       = "missing"
+	ReadyFreshness                         = "fresh"
+	PartialRefreshFreshness                = "partial_refresh"
+	StaleFreshness                         = "stale"
+	ReadyReadiness                         = "query_ready"
+	ReviewReadiness                        = "review"
+	BlockedReadiness                       = "blocked"
+	NeedsRebuildReadiness                  = "needs_rebuild"
+	UnsupportedReadiness                   = "unsupported_runtime"
+	BaselineKindBrownfieldFull             = "brownfield_full"
+	BaselineKindGreenfieldEmpty            = "greenfield_empty"
+	GreenfieldBaselineHasProjectCodeReason = "greenfield_baseline_has_project_code"
 )
 
 var ErrUnsupportedLegacy = errors.New("unsupported legacy project cognition runtime")
@@ -59,6 +60,8 @@ type Status struct {
 	LastFinalizedUpdateID        string   `json:"last_finalized_update_id,omitempty"`
 	LastDeltaSessionID           string   `json:"last_delta_session_id"`
 	LastUpdateOutcome            string   `json:"last_update_outcome"`
+	LastUpdateScopeOutcome       string   `json:"last_update_scope_outcome,omitempty"`
+	LastUpdatePartialReasons     []string `json:"last_update_partial_reasons,omitempty"`
 	LastUpdateBoundary           string   `json:"last_update_boundary"`
 	UpdatedAt                    string   `json:"updated_at"`
 }
@@ -118,6 +121,7 @@ func ReadStatus(paths Paths) (Status, error) {
 	}
 	status.StatusPath = slash(paths.StatusPath)
 	normalizeStatusSlices(&status)
+	normalizeDerivedStatus(&status)
 	return status, nil
 }
 
@@ -128,6 +132,7 @@ func WriteStatus(paths Paths, status Status) error {
 	status.GraphStorePath = ".specify/project-cognition/project-cognition.db"
 	status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	normalizeStatusSlices(&status)
+	normalizeDerivedStatus(&status)
 	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
 		return fmt.Errorf("create runtime dir: %w", err)
 	}
@@ -194,4 +199,29 @@ func normalizeStatusSlices(status *Status) {
 	if status.LastRefreshChangedFilesBasis == nil {
 		status.LastRefreshChangedFilesBasis = []string{}
 	}
+	if status.LastUpdatePartialReasons == nil {
+		status.LastUpdatePartialReasons = []string{}
+	}
+}
+
+func normalizeDerivedStatus(status *Status) {
+	if status.BaselineKind != BaselineKindGreenfieldEmpty || (len(status.StalePaths) == 0 && len(status.DirtyScopePaths) == 0) {
+		return
+	}
+	status.Status = "stale"
+	status.Freshness = StaleFreshness
+	status.Readiness = NeedsRebuildReadiness
+	status.RecommendedNextAction = "run_map_scan_build"
+	status.Dirty = true
+	status.DirtyReasons = appendStatusReason(status.DirtyReasons, GreenfieldBaselineHasProjectCodeReason)
+	status.StaleReasons = appendStatusReason(status.StaleReasons, GreenfieldBaselineHasProjectCodeReason)
+}
+
+func appendStatusReason(values []string, reason string) []string {
+	for _, value := range values {
+		if value == reason {
+			return values
+		}
+	}
+	return append(values, reason)
 }

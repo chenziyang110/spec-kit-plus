@@ -1,5 +1,12 @@
 ## Project Learning
 
+`sp-quick` and `sp-debug` have one explicit exception: their Pre-Intake Context
+Sufficiency Gate runs before this layer. When that gate passes and the user
+selects context-direct, follow that branch's explicit discovery-skip policy and do not run
+Learning intake, capture, or review. If the gate is insufficient, the user
+chooses the full branch, or the direct scope expands, this exception ends and
+the normal policy below applies.
+
 The CLI is the only agent-facing Learning read surface:
 
 1. Run `{{specify-subcmd:specify-runtime learning start --command <classic-command-name> --format json}}` before deeper non-trivial work.
@@ -71,8 +78,7 @@ counts, and derived confirmation rate. Its age buckets come from review state
 in memory and are not persisted.
 They expose no evidence text or Learning refs and do not mutate age or metrics.
 
-- `fast`: skip unless the task escalates.
-- `accept`, `analyze`, `ask`, `auto`, `constitution`, `explain`,
+- `fast`, `accept`, `analyze`, `ask`, `auto`, `constitution`, `explain`,
   `implement-teams`, `taskstoissues`, and `team`: consume-only; do not violate
   their write boundaries to capture.
 - Other non-trivial workflows: consume before deeper work; capture reusable

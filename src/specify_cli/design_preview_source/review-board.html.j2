@@ -1,58 +1,32 @@
 <body
   data-design-preview-schema="spec-kit-design-preview-v1"
   data-preview-status="scaffold"
+  data-prototype-status="seed"
   data-review-round="01"
   data-approved-direction=""
-  data-active-direction="direction-a"
+  data-active-direction="direction-main"
 >
   <header class="board-chrome" data-preview-section="board-chrome">
     <div>
-      <h1>Freeform design review board</h1>
+      <h1>Iterative design studio</h1>
       <p>
-        Chrome only. Each direction canvas is unconstrained so the agent can author
-        taste-skill-style layouts, composition, type, and motion. Do not treat this
-        shell as product UI. Replace freeform seed content with project-specific
-        direction specimens before ready lint.
+        One current concept per immutable round. Replace the seed with a complete,
+        project-specific surface, inspect it at the target sizes, and revise the same
+        direction in a new round until the user explicitly approves it.
       </p>
     </div>
-    <nav class="direction-tabs" aria-label="Design directions">
-      <a href="#direction-a" id="tab-direction-a" data-direction-target="direction-a" role="tab" aria-selected="true">Direction A</a>
-      <a href="#direction-b" id="tab-direction-b" data-direction-target="direction-b" role="tab" aria-selected="false">Direction B</a>
-      <a href="#direction-c" id="tab-direction-c" data-direction-target="direction-c" role="tab" aria-selected="false">Direction C</a>
-    </nav>
+    <a class="concept-link" href="#direction-main">Current concept</a>
   </header>
 
   <main class="direction-stage">
-    <section class="direction-canvas" id="direction-a" data-direction-id="direction-a" data-preview-section="direction" aria-labelledby="tab-direction-a">
+    <section class="direction-canvas" id="direction-main" data-direction-id="direction-main" data-preview-section="direction" aria-labelledby="concept-title">
       <div class="freeform-seed">
-        <h2>Direction A freeform canvas</h2>
-        <p>Replace this seed with a complete project-specific visual direction.</p>
+        <h2 id="concept-title">Unfinished prototype seed</h2>
+        <p>Replace this seed with the complete project-specific concept before review.</p>
         <p class="seed-note">
-          Freeform canvas A. Author a complete self-contained visual direction here
-          (hero, workspace, marketing, TUI, etc.). Keep comparison content constant
-          across directions; change design language freely.
-        </p>
-      </div>
-    </section>
-
-    <section class="direction-canvas" id="direction-b" data-direction-id="direction-b" data-preview-section="direction" aria-labelledby="tab-direction-b">
-      <div class="freeform-seed">
-        <h2>Direction B freeform canvas</h2>
-        <p>Replace this seed with a second differentiated visual system.</p>
-        <p class="seed-note">
-          Freeform canvas B. A second differentiated visual system for the same job,
-          audience, and content baseline.
-        </p>
-      </div>
-    </section>
-
-    <section class="direction-canvas" id="direction-c" data-direction-id="direction-c" data-preview-section="direction" aria-labelledby="tab-direction-c">
-      <div class="freeform-seed">
-        <h2>Direction C freeform canvas</h2>
-        <p>Replace this seed with a third differentiated visual system.</p>
-        <p class="seed-note">
-          Freeform canvas C. A third differentiated visual system. Avoid metadata-only
-          differences; change real composition, type, density, motion, and palette.
+          Use the selected platform guidance, real content, representative states,
+          responsive/adaptive targets, and one memorable signature element. Set
+          <code>data-prototype-status="authored"</code> only after browser inspection.
         </p>
       </div>
     </section>

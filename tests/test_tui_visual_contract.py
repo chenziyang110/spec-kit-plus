@@ -6,7 +6,7 @@ from .template_utils import read_command_with_references
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = PROJECT_ROOT / "templates" / "commands"
-PRIMARY_TUI_SURFACES = ("specify", "clarify", "explain")
+PRIMARY_TUI_SURFACES = ("specify", "explain")
 ASCII_CARD_HEADER_RE = re.compile(r"(?m)^\s*\+--")
 ASCII_CARD_LINE_RE = re.compile(r"(?m)^\s*\| .+\|\s*$")
 ASCII_CARD_FOOTER_RE = re.compile(r"(?m)^\s*\+-{10,}\+?\s*$")

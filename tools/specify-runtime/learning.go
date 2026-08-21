@@ -41,14 +41,14 @@ var learningContextKeyMap = map[string]string{
 var learningFacetKeys = []string{"components", "operation_owners", "consumer_owners", "outcomes", "states", "entrypoints", "validation_surfaces"}
 var mapWorkflowCommands = []string{"sp-map-scan", "sp-map-build", "sp-map-update", "sp-map-rebuild"}
 var knownLearningCommands = []string{
-	"sp-accept", "sp-analyze", "sp-ask", "sp-auto", "sp-checklist", "sp-clarify", "sp-constitution",
+	"sp-accept", "sp-analyze", "sp-ask", "sp-auto", "sp-checklist", "sp-constitution",
 	"sp-debug", "sp-deep-research", "sp-design", "sp-discussion", "sp-explain", "sp-fast", "sp-implement",
 	"sp-implement-teams", "sp-map-scan", "sp-map-build", "sp-map-update", "sp-map-rebuild",
 	"sp-plan", "sp-prd", "sp-prd-build", "sp-prd-scan", "sp-quick", "sp-specify", "sp-tasks", "sp-taskstoissues", "sp-team", "sp-test-design",
 }
 
 var workflowStateAutoCaptureCommands = map[string]bool{
-	"sp-constitution": true, "sp-specify": true, "sp-clarify": true, "sp-deep-research": true,
+	"sp-constitution": true, "sp-specify": true, "sp-deep-research": true,
 	"sp-plan": true, "sp-checklist": true, "sp-tasks": true, "sp-analyze": true, "sp-accept": true,
 	"sp-prd-scan": true, "sp-prd-build": true, "sp-map-scan": true, "sp-map-build": true,
 	"sp-map-update": true, "sp-map-rebuild": true,
@@ -1908,7 +1908,7 @@ func normalizeLearningCommandsWithPolicy(values []string, policy learningPolicy)
 }
 
 func learningWorkflowPolicy(command string) string {
-	policies := map[string]string{"sp-accept": "consume-only", "sp-analyze": "consume-only", "sp-ask": "consume-only", "sp-auto": "consume-only", "sp-constitution": "consume-only", "sp-explain": "consume-only", "sp-fast": "skip", "sp-implement-teams": "consume-only", "sp-taskstoissues": "consume-only", "sp-team": "consume-only"}
+	policies := map[string]string{"sp-accept": "consume-only", "sp-analyze": "consume-only", "sp-ask": "consume-only", "sp-auto": "consume-only", "sp-constitution": "consume-only", "sp-explain": "consume-only", "sp-fast": "consume-only", "sp-implement-teams": "consume-only", "sp-taskstoissues": "consume-only", "sp-team": "consume-only"}
 	if policy := policies[command]; policy != "" {
 		return policy
 	}

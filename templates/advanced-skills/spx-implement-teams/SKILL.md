@@ -7,6 +7,7 @@ description: Durable-team implementation workflow for advanced coding models. Us
 
 Read `references/project-learning.md` and apply its consume-only policy; implementation closeout owns capture.
 Read `references/project-cognition.md`, using cognition intent `implement`.
+Read `references/run-bootstrap.md` before dispatching or resuming modifying work.
 Treat the ordinary execution contract at
 `../spx-implement/references/execution-contract.md` as binding; this workflow
 changes orchestration, not task acceptance or lifecycle truth. Read
@@ -54,9 +55,10 @@ turns a new regression or an unmet acceptance check into a pass.
 
 Finish through the ordinary implementation closeout. Cognition ownership remains
 canonical `sp-implement`: run
-`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-implement --intent implement --format json}}`
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-implement --scope-dir <feature-dir> --scope-mode explicit --intent implement --format json}}`
 with explicit workflow-owned paths, fill returned agent-owned fields, and execute
-structured `update_argv`. Apply the receipt-bound finalizer gate in
+structured `apply_argv`; it owns update, validation, eligible finalization, and
+receipt. Apply the gate in
 `references/project-cognition.md` before any clean claim.
 Idle workers, terminal-looking trackers, or a successful sync are not feature
 completion. Preserve blocked team state and report the exact recovery command.

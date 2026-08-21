@@ -27,6 +27,14 @@ REVIEW_STATE_FILENAME = "review-state.json"
 IMPLEMENTATION_HANDOFF_FILENAME = "implementation-handoff.json"
 REVIEW_SCHEMA_REF = ".specify/templates/review-state-schema.json"
 REVIEW_STATE_VERSION = 2
+IMPLEMENTATION_FINGERPRINT_ALGORITHM = "implement-scoped-snapshot-v2"
+LEGACY_IMPLEMENTATION_FINGERPRINT_ALGORITHM = "git-working-tree-v1"
+SUPPORTED_IMPLEMENTATION_FINGERPRINT_ALGORITHMS = frozenset(
+    {
+        IMPLEMENTATION_FINGERPRINT_ALGORITHM,
+        LEGACY_IMPLEMENTATION_FINGERPRINT_ALGORITHM,
+    }
+)
 REVIEW_STATUSES = frozenset(
     {
         "gathering",
@@ -99,6 +107,7 @@ SNAPSHOT_EXCLUDED_FEATURE_PREFIXES = (
     "review-results/",
     "review-history/",
     "implementation-review/deferrals/",
+    "implementation-review/review-snapshots/",
     "implementation-review/validation-evidence/",
 )
 IMPLEMENTATION_DEFERRAL_CONTRACT_FIELDS = (
@@ -229,75 +238,282 @@ def _git_lines(project_root: Path, *args: str) -> list[str] | None:
     ]
 
 
+def _git_nul_paths(project_root: Path, *args: str) -> list[str] | None:
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=project_root,
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    return [
+        chunk.decode("utf-8", errors="surrogateescape").strip().replace("\\", "/")
+        for chunk in result.stdout.split(b"\0")
+        if chunk.strip()
+    ]
+
+
+def _safe_snapshot_declared_path(project_root: Path, raw: object) -> str | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    candidate = Path(text)
+    if candidate.is_absolute() or candidate.drive or candidate.root:
+        return None
+    if any(part in {".", ".."} for part in candidate.parts):
+        return None
+    resolved = (project_root / candidate).resolve(strict=False)
+    try:
+        relative = resolved.relative_to(project_root.resolve(strict=False)).as_posix()
+    except ValueError:
+        return None
+    relative = relative.strip("/")
+    if not relative or relative == ".":
+        return None
+    return relative
+
+
+def _snapshot_review_state_candidates(feature_dir: Path) -> list[Path]:
+    candidates = [feature_dir / REVIEW_STATE_FILENAME]
+    history_dir = feature_dir / "review-history"
+    if history_dir.is_dir():
+        candidates.extend(sorted(history_dir.glob("*.json")))
+    return candidates
+
+
+def _accepted_fix_assignment_paths(payload: Mapping[str, Any]) -> list[str]:
+    raw_assignments = payload.get("fix_assignments")
+    if not isinstance(raw_assignments, list):
+        return []
+    paths: list[str] = []
+    for raw_assignment in raw_assignments:
+        if not isinstance(raw_assignment, Mapping):
+            continue
+        if (
+            str(raw_assignment.get("status") or "").strip() != "accepted"
+            or str(raw_assignment.get("leader_verdict") or "").strip()
+            != "accepted"
+        ):
+            continue
+        changed_paths = raw_assignment.get("changed_paths")
+        if isinstance(changed_paths, list):
+            paths.extend(str(path).strip() for path in changed_paths if str(path).strip())
+    return paths
+
+
+def _snapshot_declared_paths(project_root: Path, feature_dir: Path) -> list[str]:
+    task_dir = feature_dir / "implementation-review" / "tasks"
+    seen: set[str] = set()
+    paths: list[str] = []
+
+    def add_path(raw: object) -> None:
+        normalized = _safe_snapshot_declared_path(project_root, raw)
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            paths.append(normalized)
+
+    if task_dir.is_dir():
+        for task_path in sorted(task_dir.glob("*.json")):
+            try:
+                payload = _read_json_object(task_path, label=task_path.name)
+            except ReviewRuntimeError:
+                continue
+            for field in ("changed_paths", "write_scope"):
+                values = payload.get(field)
+                if isinstance(values, list):
+                    for raw in values:
+                        add_path(raw)
+            scope = payload.get("scope")
+            if isinstance(scope, Mapping):
+                values = scope.get("write_scope")
+                if isinstance(values, list):
+                    for raw in values:
+                        add_path(raw)
+            packet = payload.get("task_packet")
+            if isinstance(packet, Mapping):
+                scope = packet.get("scope")
+                if isinstance(scope, Mapping):
+                    values = scope.get("write_scope")
+                    if isinstance(values, list):
+                        for raw in values:
+                            add_path(raw)
+
+    for candidate in _snapshot_review_state_candidates(feature_dir):
+        try:
+            payload = _read_json_object(candidate, label=candidate.name)
+        except ReviewRuntimeError:
+            continue
+        for raw in _accepted_fix_assignment_paths(payload):
+            add_path(raw)
+
+    return sorted(paths)
+
+
+def _expand_snapshot_fallback_roots(candidates: list[str]) -> list[str]:
+    seen: set[str] = set()
+    roots: list[str] = []
+    for candidate in candidates:
+        normalized = candidate.strip().replace("\\", "/").strip("/")
+        if normalized.count("/") == 0:
+            continue
+        root = normalized.split("/", 1)[0]
+        if (
+            root in {"", ".", "..", ".git", ".specify", "node_modules", "dist", "build", "coverage", "generated", "vendor"}
+            or root.startswith(".")
+            or root in seen
+        ):
+            continue
+        seen.add(root)
+        roots.append(root)
+    return sorted(roots)
+
+
+def _snapshot_includes_path(
+    project_root: Path,
+    feature_dir: Path,
+    relative: str,
+    *,
+    feature_prefix: str,
+    declared_paths: list[str],
+    fallback_roots: list[str],
+) -> bool:
+    normalized = relative.replace("\\", "/").strip("/")
+    if not normalized or normalized == ".specify/runtime" or normalized.startswith(
+        ".specify/runtime/"
+    ):
+        return False
+    if any(
+        segment in {"test-results", "playwright-report"}
+        for segment in normalized.split("/")
+    ):
+        return False
+    if normalized.startswith(feature_prefix):
+        suffix = normalized[len(feature_prefix) :]
+        return not (
+            suffix in SNAPSHOT_EXCLUDED_FEATURE_NAMES
+            or suffix.endswith(".lock")
+            or suffix.startswith(SNAPSHOT_EXCLUDED_FEATURE_PREFIXES)
+        )
+    if declared_paths:
+        return any(
+            normalized == declared or normalized.startswith(declared + "/")
+            for declared in declared_paths
+        )
+    return any(
+        normalized == root or normalized.startswith(root + "/")
+        for root in fallback_roots
+    )
+
+
+def _snapshot_path_digests(
+    project_root: Path, feature_dir: Path | str
+) -> dict[str, str]:
+    root = project_root.resolve(strict=False)
+    feature = _resolve_feature_dir(root, feature_dir)
+    root = _nearest_project_root(feature, root)
+    feature_prefix = feature.relative_to(root).as_posix().rstrip("/") + "/"
+    declared_paths = _snapshot_declared_paths(root, feature)
+    raw_paths: list[str] = []
+    git_available = True
+    for args in (
+        ("diff", "-z", "--name-only", "--relative", "HEAD", "--", "."),
+        ("diff", "-z", "--name-only", "--relative", "--cached", "HEAD", "--", "."),
+        ("ls-files", "-z", "--others", "--exclude-standard", "--", "."),
+    ):
+        paths = _git_nul_paths(root, *args)
+        if paths is None:
+            git_available = False
+            break
+        raw_paths.extend(path for path in paths if path)
+    fallback_roots = (
+        _expand_snapshot_fallback_roots(sorted(set(raw_paths)))
+        if git_available and raw_paths and not declared_paths
+        else []
+    )
+    if git_available:
+        candidates = sorted(
+            {
+                *declared_paths,
+                *(
+                    relative
+                    for relative in raw_paths
+                    if _snapshot_includes_path(
+                        root,
+                        feature,
+                        relative,
+                        feature_prefix=feature_prefix,
+                        declared_paths=declared_paths,
+                        fallback_roots=fallback_roots,
+                    )
+                ),
+            }
+        )
+    else:
+        ignored_tree_names = {".git", "node_modules", ".pytest_cache", "__pycache__"}
+        try:
+            ignore_lines = (root / ".gitignore").read_text(
+                encoding="utf-8", errors="replace"
+            ).splitlines()
+        except OSError:
+            ignore_lines = []
+        ignore_spec = (
+            pathspec.GitIgnoreSpec.from_lines(ignore_lines) if ignore_lines else None
+        )
+        fallback_candidates: list[str] = []
+        for path in sorted(root.rglob("*")):
+            if not path.is_file() or ignored_tree_names.intersection(path.parts):
+                continue
+            relative = path.relative_to(root).as_posix()
+            if ignore_spec is not None and ignore_spec.match_file(relative):
+                continue
+            fallback_candidates.append(relative)
+        if not declared_paths:
+            fallback_roots = _expand_snapshot_fallback_roots(fallback_candidates)
+        candidates = []
+        for relative in fallback_candidates:
+            if _snapshot_includes_path(
+                root,
+                feature,
+                relative,
+                feature_prefix=feature_prefix,
+                declared_paths=declared_paths,
+                fallback_roots=fallback_roots,
+            ):
+                candidates.append(relative)
+    digests: dict[str, str] = {}
+    for relative in candidates:
+        path = root / Path(relative)
+        if path.is_file():
+            digests[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+        else:
+            digests[relative] = "missing"
+    return digests
+
+
 def implementation_snapshot_sha256(project_root: Path, feature_dir: Path | str) -> str:
     """Hash the live Git implementation while excluding review-owned evidence."""
 
     root = project_root.resolve(strict=False)
     feature = _resolve_feature_dir(root, feature_dir)
     root = _nearest_project_root(feature, root)
-    try:
-        feature_prefix = feature.relative_to(root).as_posix().rstrip("/") + "/"
-    except ValueError as exc:  # pragma: no cover - guarded by _resolve_feature_dir
-        raise ReviewRuntimeError("feature_dir must stay inside project_root") from exc
-    head = _git_lines(root, "rev-parse", "HEAD")
-    changed = _git_lines(root, "diff", "--name-only", "HEAD", "--")
-    untracked = _git_lines(root, "ls-files", "--others", "--exclude-standard")
     digest = hashlib.sha256()
-    if head is not None and changed is not None and untracked is not None:
-        digest.update((head[0] if head else "no-head").encode("utf-8"))
-        candidates = sorted(set([*changed, *untracked]))
-        for relative in candidates:
-            normalized = relative.replace("\\", "/")
-            if normalized.startswith(feature_prefix):
-                suffix = normalized[len(feature_prefix) :]
-                if (
-                    suffix in SNAPSHOT_EXCLUDED_FEATURE_NAMES
-                    or suffix.endswith(".lock")
-                    or suffix.startswith(SNAPSHOT_EXCLUDED_FEATURE_PREFIXES)
-                ):
-                    continue
-            digest.update(normalized.encode("utf-8"))
-            path = root / Path(normalized)
-            if path.is_file():
-                digest.update(path.read_bytes())
-            else:
-                digest.update(b"<deleted>")
-        return digest.hexdigest()
-
-    ignored_tree_names = {
-        ".git",
-        ".mypy_cache",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".venv",
-        "__pycache__",
-        "node_modules",
-    }
-    ignore_path = root / ".gitignore"
-    try:
-        ignore_lines = ignore_path.read_text(
-            encoding="utf-8", errors="replace"
-        ).splitlines()
-    except OSError:
-        ignore_lines = []
-    ignore_spec = (
-        pathspec.GitIgnoreSpec.from_lines(ignore_lines) if ignore_lines else None
-    )
-    for path in sorted(root.rglob("*")):
-        if not path.is_file() or ignored_tree_names.intersection(path.parts):
-            continue
-        relative = path.relative_to(root).as_posix()
-        if ignore_spec is not None and ignore_spec.match_file(relative):
-            continue
-        if relative.startswith(feature_prefix):
-            suffix = relative[len(feature_prefix) :]
-            if (
-                suffix in SNAPSHOT_EXCLUDED_FEATURE_NAMES
-                or suffix.endswith(".lock")
-                or suffix.startswith(SNAPSHOT_EXCLUDED_FEATURE_PREFIXES)
-            ):
-                continue
+    digest.update(b"implement-scoped-snapshot-v2")
+    digest.update(b"\nFEATURE\n")
+    digest.update(feature.relative_to(root).as_posix().strip("/").encode("utf-8"))
+    for relative, file_digest in sorted(
+        _snapshot_path_digests(root, feature).items()
+    ):
+        digest.update(b"\nPATH\n")
         digest.update(relative.encode("utf-8"))
+        path = root / Path(relative)
+        if file_digest == "missing" or not path.is_file():
+            digest.update(b"\nMISSING")
+            continue
+        digest.update(b"\nCONTENT\n")
         digest.update(path.read_bytes())
     return digest.hexdigest()
 
@@ -441,7 +657,7 @@ def build_implementation_handoff(
         "version": 1,
         "source_revision": source_revision,
         "implementation_fingerprint": implementation_fingerprint,
-        "fingerprint_algorithm": "git-working-tree-v1",
+        "fingerprint_algorithm": IMPLEMENTATION_FINGERPRINT_ALGORITHM,
         "official_entrypoints": entrypoints,
         "system_review_scenarios": scenarios,
         "review_obligations": obligations,
@@ -1385,6 +1601,18 @@ def _normalized_handoff(
         char not in "0123456789abcdef" for char in fingerprint.lower()
     ):
         raise ReviewRuntimeError("implementation_fingerprint must be a sha256 digest")
+    fingerprint_algorithm = str(
+        handoff.get("fingerprint_algorithm") or ""
+    ).strip()
+    if (
+        fingerprint_algorithm
+        and fingerprint_algorithm
+        not in SUPPORTED_IMPLEMENTATION_FINGERPRINT_ALGORITHMS
+    ):
+        raise ReviewRuntimeError(
+            "fingerprint_algorithm must be implement-scoped-snapshot-v2 or "
+            "legacy git-working-tree-v1"
+        )
 
     raw_entrypoints = handoff.get("official_entrypoints")
     if not isinstance(raw_entrypoints, list) or not raw_entrypoints:
@@ -1828,6 +2056,8 @@ def _new_review_state(
     review_cycle: int,
     previous_review_state_sha256: str = "",
     restart_reason: str = "",
+    handoff_implementation_fingerprint: str = "",
+    snapshot_reconciliation: str = "",
     acceptance_repair: Mapping[str, Any] | None = None,
     previous_rounds: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
@@ -1938,7 +2168,325 @@ def _new_review_state(
     }
     if restart_reason:
         state["source"]["restart_reason"] = restart_reason
+    if handoff_implementation_fingerprint:
+        state["source"]["handoff_implementation_fingerprint"] = (
+            handoff_implementation_fingerprint
+        )
+    if snapshot_reconciliation:
+        state["source"]["snapshot_reconciliation"] = snapshot_reconciliation
     return state
+
+
+def _attach_review_snapshot_manifest(
+    project_root: Path,
+    feature_dir: Path,
+    state: dict[str, Any],
+    fingerprint: str,
+) -> None:
+    source = state.get("source")
+    if not isinstance(source, dict):
+        raise ReviewRuntimeError("Review source is missing")
+    cycle_id = str(source.get("review_cycle_id") or "").strip()
+    if not re.fullmatch(r"[0-9a-f]{64}", cycle_id):
+        raise ReviewRuntimeError("Review cycle id is invalid")
+    ref = (
+        Path("implementation-review")
+        / "review-snapshots"
+        / f"{cycle_id}.json"
+    ).as_posix()
+    manifest_path = feature_dir / Path(ref)
+    manifest = {
+        "version": 1,
+        "fingerprint": fingerprint,
+        "path_sha256": _snapshot_path_digests(project_root, feature_dir),
+    }
+    atomic_write_text(
+        manifest_path,
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+    )
+    source["implementation_snapshot_manifest_ref"] = ref
+    source["implementation_snapshot_manifest_sha256"] = _sha256(manifest_path)
+    current = implementation_snapshot_sha256(project_root, feature_dir)
+    if current != fingerprint:
+        raise ReviewRuntimeError(
+            "Review snapshot changed while its manifest was being bound: "
+            f"expected {fingerprint}, got {current}"
+        )
+
+
+def _load_review_snapshot_manifest(
+    project_root: Path,
+    feature_dir: Path,
+    state: Mapping[str, Any],
+) -> dict[str, str]:
+    source = state.get("source")
+    if not isinstance(source, Mapping):
+        raise ReviewRuntimeError("Review source is missing")
+    cycle_id = str(source.get("review_cycle_id") or "").strip()
+    expected_ref = (
+        Path("implementation-review") / "review-snapshots" / f"{cycle_id}.json"
+    ).as_posix()
+    ref = str(source.get("implementation_snapshot_manifest_ref") or "").strip()
+    if ref != expected_ref:
+        raise ReviewRuntimeError(
+            "Review snapshot manifest is missing; drift cannot be proven as Review-owned"
+        )
+    if not _safe_feature_ref(feature_dir, ref):
+        raise ReviewRuntimeError("Review snapshot manifest is missing or unsafe")
+    manifest_path = (feature_dir / Path(ref)).resolve(strict=False)
+    expected_digest = str(
+        source.get("implementation_snapshot_manifest_sha256") or ""
+    ).strip()
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_digest):
+        raise ReviewRuntimeError("Review snapshot manifest digest is invalid")
+    if not manifest_path.is_file() or _sha256(manifest_path) != expected_digest:
+        raise ReviewRuntimeError("Review snapshot manifest digest is invalid")
+    manifest = _read_json_object(manifest_path, label="review snapshot manifest")
+    if manifest.get("version") != 1:
+        raise ReviewRuntimeError("Review snapshot manifest contract is invalid")
+    if str(manifest.get("fingerprint") or "") != str(
+        source.get("implementation_fingerprint") or ""
+    ):
+        raise ReviewRuntimeError(
+            "Review snapshot manifest is stale for its recorded source"
+        )
+    raw_digests = manifest.get("path_sha256")
+    if not isinstance(raw_digests, Mapping):
+        raise ReviewRuntimeError("Review snapshot manifest path digests are invalid")
+    digests: dict[str, str] = {}
+    for raw_path, raw_digest in raw_digests.items():
+        normalized = _safe_snapshot_declared_path(project_root, raw_path)
+        if normalized is None or normalized != str(raw_path).replace("\\", "/").strip(
+            "/"
+        ):
+            raise ReviewRuntimeError(
+                "Review snapshot manifest contains an unsafe path"
+            )
+        digest = str(raw_digest or "").strip()
+        if digest != "missing" and not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise ReviewRuntimeError(
+                "Review snapshot manifest contains an invalid file digest"
+            )
+        digests[normalized] = digest
+    return digests
+
+
+def _review_result_artifact_valid(
+    feature_dir: Path, ref: object, sha256: object, *, cycle: int
+) -> bool:
+    if not _ref_is_in_review_cycle(
+        feature_dir, ref, root="review-results", cycle=cycle
+    ):
+        return False
+    digest = str(sha256 or "").strip()
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        return False
+    path = (feature_dir / Path(str(ref))).resolve(strict=False)
+    return path.is_file() and _sha256(path) == digest
+
+
+def _review_state_owns_handoff_drift(
+    state: Mapping[str, Any],
+    handoff_digest: str,
+    expected_revision: int,
+    *,
+    allow_revision_mismatch: bool,
+) -> None:
+    source = state.get("source")
+    if (
+        not isinstance(source, Mapping)
+        or source.get("implementation_handoff_sha256") != handoff_digest
+    ):
+        raise ReviewRuntimeError(
+            "existing Review state does not own the current implementation handoff"
+        )
+    if (
+        not allow_revision_mismatch
+        and source.get("workflow_revision") != expected_revision
+    ):
+        raise ReviewRuntimeError(
+            "existing Review state does not own the current workflow revision"
+        )
+
+
+def _review_owned_snapshot_drift(
+    project_root: Path,
+    feature_dir: Path,
+    state: Mapping[str, Any],
+) -> list[str]:
+    baseline = _load_review_snapshot_manifest(project_root, feature_dir, state)
+    source = state.get("source")
+    if not isinstance(source, Mapping):
+        raise ReviewRuntimeError("Review source is missing")
+    cycle_id = str(source.get("review_cycle_id") or "")
+    cycle = source.get("review_cycle")
+    if isinstance(cycle, bool) or not isinstance(cycle, int) or cycle < 1:
+        raise ReviewRuntimeError("review source review_cycle is invalid")
+    findings = {
+        str(item.get("id") or ""): item
+        for item in (state.get("findings") or [])
+        if isinstance(item, Mapping) and str(item.get("id") or "").strip()
+    }
+    review_assignments = {
+        str(item.get("id") or ""): item
+        for item in (state.get("review_assignments") or [])
+        if isinstance(item, Mapping) and str(item.get("id") or "").strip()
+    }
+    allowed: set[str] = set()
+    authorization_errors: list[str] = []
+    for raw_assignment in state.get("fix_assignments") or []:
+        if not isinstance(raw_assignment, Mapping):
+            continue
+        if (
+            raw_assignment.get("status") != "accepted"
+            or raw_assignment.get("leader_verdict") != "accepted"
+            or raw_assignment.get("review_cycle_id") != cycle_id
+        ):
+            continue
+        assignment_id = str(raw_assignment.get("id") or "").strip()
+        fix_worker = str(raw_assignment.get("worker_id") or "").strip()
+        if not assignment_id or not fix_worker:
+            authorization_errors.append(
+                "accepted Review fix assignment is missing its id or worker"
+            )
+            continue
+        if not _review_result_artifact_valid(
+            feature_dir,
+            raw_assignment.get("packet_ref"),
+            raw_assignment.get("packet_sha256"),
+            cycle=cycle,
+        ) or not _review_result_artifact_valid(
+            feature_dir,
+            raw_assignment.get("result_ref"),
+            raw_assignment.get("result_sha256"),
+            cycle=cycle,
+        ):
+            authorization_errors.append(
+                f"Fix assignment {assignment_id} artifact is missing, stale, or outside the current Review cycle"
+            )
+            continue
+        finding_ids = raw_assignment.get("finding_ids")
+        if not isinstance(finding_ids, list) or not finding_ids:
+            authorization_errors.append(
+                f"Fix assignment {assignment_id} lacks an independent accepted finding chain"
+            )
+            continue
+        chain_valid = True
+        for raw_finding_id in finding_ids:
+            finding_id = str(raw_finding_id or "").strip()
+            finding = findings.get(finding_id)
+            if (
+                not isinstance(finding, Mapping)
+                or str(finding.get("fix_assignment_id") or "") != assignment_id
+                or str(finding.get("status") or "") not in {"fixed", "verified"}
+            ):
+                chain_valid = False
+                break
+            discovery = review_assignments.get(
+                str(finding.get("discovered_by_review_assignment_id") or "")
+            )
+            if (
+                not isinstance(discovery, Mapping)
+                or discovery.get("read_only") is not True
+                or discovery.get("status") != "accepted"
+                or discovery.get("leader_verdict") != "accepted"
+                or discovery.get("review_cycle_id") != cycle_id
+                or str(discovery.get("observed_snapshot_sha256") or "")
+                != str(source.get("implementation_fingerprint") or "")
+                or not str(discovery.get("worker_id") or "").strip()
+                or str(discovery.get("worker_id") or "").strip() == fix_worker
+                or not _review_result_artifact_valid(
+                    feature_dir,
+                    discovery.get("packet_ref"),
+                    discovery.get("packet_sha256"),
+                    cycle=cycle,
+                )
+                or not _review_result_artifact_valid(
+                    feature_dir,
+                    discovery.get("result_ref"),
+                    discovery.get("result_sha256"),
+                    cycle=cycle,
+                )
+            ):
+                chain_valid = False
+                break
+        if not chain_valid:
+            authorization_errors.append(
+                f"Fix assignment {assignment_id} lacks an independent accepted finding chain"
+            )
+            continue
+        allowed_write_paths = [
+            normalized
+            for raw_path in (raw_assignment.get("allowed_write_paths") or [])
+            if isinstance(raw_path, str)
+            for normalized in [
+                _safe_snapshot_declared_path(project_root, raw_path)
+            ]
+            if normalized
+        ]
+        for raw_path in raw_assignment.get("changed_paths") or []:
+            if not isinstance(raw_path, str):
+                continue
+            normalized = _safe_snapshot_declared_path(project_root, raw_path)
+            if normalized and any(
+                normalized == root or normalized.startswith(root + "/")
+                for root in allowed_write_paths
+            ):
+                allowed.add(normalized)
+    if not allowed:
+        raise ReviewRuntimeError(
+            authorization_errors[0]
+            if authorization_errors
+            else "implementation drift has no accepted Review fix assignment"
+        )
+    current = _snapshot_path_digests(project_root, feature_dir)
+    changed = sorted(
+        {
+            *(
+                path
+                for path, digest in baseline.items()
+                if current.get(path) != digest
+            ),
+            *(
+                path
+                for path, digest in current.items()
+                if baseline.get(path) != digest
+            ),
+        }
+    )
+    if not changed:
+        raise ReviewRuntimeError(
+            "implementation fingerprint changed without a provable file delta"
+        )
+    for path in changed:
+        if path not in allowed:
+            raise ReviewRuntimeError(
+                f"implementation changed outside accepted Review fix assignments: {path}"
+            )
+    return changed
+
+
+def _can_quarantine_legacy_review_snapshot(
+    state: Mapping[str, Any], *, is_acceptance_repair: bool
+) -> bool:
+    if is_acceptance_repair or state.get("status") == "approved":
+        return False
+    source = state.get("source")
+    return isinstance(source, Mapping) and not str(
+        source.get("implementation_snapshot_manifest_ref") or ""
+    ).strip() and not str(
+        source.get("implementation_snapshot_manifest_sha256") or ""
+    ).strip()
+
+
+def _mark_review_snapshot_reconciliation(
+    state: dict[str, Any], *, mode: str, handoff_fingerprint: str
+) -> None:
+    source = state.get("source")
+    if not isinstance(source, dict):
+        raise ReviewRuntimeError("Review source is missing")
+    source["snapshot_reconciliation"] = mode
+    source["handoff_implementation_fingerprint"] = handoff_fingerprint
 
 
 def prepare_review(
@@ -1992,19 +2540,69 @@ def prepare_review(
     ]
     handoff_digest = _sha256(handoff_file)
     state_file = review_state_path(feature)
+    current_fingerprint = implementation_snapshot_sha256(root, feature)
+    handoff_fingerprint = str(handoff.get("implementation_fingerprint") or "")
+    initial_snapshot_rebase = False
+    legacy_state_rebase = False
 
     with interprocess_lock(feature / ".review-state.lock"):
+        existing: dict[str, Any] | None = None
+        invalid_existing_error = ""
         if state_file.is_file():
-            invalid_existing_error = ""
             try:
                 existing = _read_json_object(
                     state_file, label=REVIEW_STATE_FILENAME
                 )
             except ReviewRuntimeError as exc:
-                if is_acceptance_repair or not restart_stale:
+                if (
+                    handoff.get("implementation_fingerprint") == current_fingerprint
+                    and (is_acceptance_repair or not restart_stale)
+                ):
                     raise
                 existing = {}
                 invalid_existing_error = str(exc)
+        if handoff_fingerprint != current_fingerprint:
+            if not isinstance(existing, Mapping) or not existing:
+                if state_file.is_file() or is_acceptance_repair:
+                    raise ReviewRuntimeError(
+                        "implementation changed outside Review-owned recovery: "
+                        "implementation changed after Implement closeout and "
+                        "existing Review provenance is unavailable"
+                    )
+                fingerprint = current_fingerprint
+                initial_snapshot_rebase = True
+            else:
+                _review_state_owns_handoff_drift(
+                    existing,
+                    handoff_digest,
+                    expected_revision,
+                    allow_revision_mismatch=is_acceptance_repair,
+                )
+                try:
+                    _review_owned_snapshot_drift(root, feature, existing)
+                except ReviewRuntimeError:
+                    if not _can_quarantine_legacy_review_snapshot(
+                        existing,
+                        is_acceptance_repair=is_acceptance_repair,
+                    ):
+                        raise
+                    if not restart_stale:
+                        raise ReviewRuntimeError(
+                            "legacy Review snapshot requires a quarantined "
+                            "evidence restart; rerun review prepare with "
+                            "--restart-stale"
+                        )
+                    fingerprint = current_fingerprint
+                    legacy_state_rebase = True
+                else:
+                    if not restart_stale:
+                        raise ReviewRuntimeError(
+                            "implementation handoff fingerprint requires Review "
+                            "reconciliation; rerun review prepare with "
+                            "--restart-stale"
+                        )
+                    fingerprint = current_fingerprint
+        if state_file.is_file() and isinstance(existing, Mapping):
             source = existing.get("source")
             if (
                 is_acceptance_repair
@@ -2013,7 +2611,21 @@ def prepare_review(
                 and source.get("acceptance_finding_id") == last_reopen.get("finding_id")
                 and source.get("implementation_handoff_sha256") == handoff_digest
             ):
-                if _upgrade_review_exception_contract(existing):
+                upgraded = _upgrade_review_exception_contract(existing)
+                if (
+                    existing.get("status") != "approved"
+                    and not str(
+                        source.get("implementation_snapshot_manifest_ref") or ""
+                    ).strip()
+                ):
+                    _attach_review_snapshot_manifest(
+                        root,
+                        feature,
+                        existing,
+                        str(source.get("implementation_fingerprint") or ""),
+                    )
+                    upgraded = True
+                if upgraded:
                     atomic_write_text(
                         state_file,
                         json.dumps(existing, ensure_ascii=False, indent=2) + "\n",
@@ -2076,6 +2688,7 @@ def prepare_review(
                     acceptance_repair=repair_context,
                     previous_rounds=previous_rounds,
                 )
+                _attach_review_snapshot_manifest(root, feature, state, fingerprint)
                 atomic_write_text(
                     state_file,
                     json.dumps(state, ensure_ascii=False, indent=2) + "\n",
@@ -2087,9 +2700,24 @@ def prepare_review(
                 isinstance(source, Mapping)
                 and source.get("implementation_handoff_sha256") == handoff_digest
                 and source.get("workflow_revision") == expected_revision
+                and source.get("implementation_fingerprint") == current_fingerprint
                 and not restart_stale
             ):
-                if _upgrade_review_exception_contract(existing):
+                upgraded = _upgrade_review_exception_contract(existing)
+                if (
+                    existing.get("status") != "approved"
+                    and not str(
+                        source.get("implementation_snapshot_manifest_ref") or ""
+                    ).strip()
+                ):
+                    _attach_review_snapshot_manifest(
+                        root,
+                        feature,
+                        existing,
+                        str(source.get("implementation_fingerprint") or ""),
+                    )
+                    upgraded = True
+                if upgraded:
                     atomic_write_text(
                         state_file,
                         json.dumps(existing, ensure_ascii=False, indent=2) + "\n",
@@ -2174,6 +2802,13 @@ def prepare_review(
                 restart_reason="stale-review-restart",
                 previous_rounds=previous_rounds,
             )
+            if legacy_state_rebase:
+                _mark_review_snapshot_reconciliation(
+                    state,
+                    mode="legacy-review-rebaseline",
+                    handoff_fingerprint=handoff_fingerprint,
+                )
+            _attach_review_snapshot_manifest(root, feature, state, fingerprint)
             atomic_write_text(
                 state_file,
                 json.dumps(state, ensure_ascii=False, indent=2) + "\n",
@@ -2206,10 +2841,23 @@ def prepare_review(
             implementation_deferrals=implementation_deferrals,
             review_cycle=1,
         )
+        if initial_snapshot_rebase:
+            _mark_review_snapshot_reconciliation(
+                state,
+                mode="initial-review-rebaseline",
+                handoff_fingerprint=handoff_fingerprint,
+            )
+        _attach_review_snapshot_manifest(root, feature, state, fingerprint)
         atomic_write_text(
             state_file, json.dumps(state, ensure_ascii=False, indent=2) + "\n"
         )
-    return envelope("ok", "System review state prepared.", data=state)
+    summary = (
+        "System review state prepared against the current implementation after "
+        "initial handoff drift."
+        if initial_snapshot_rebase
+        else "System review state prepared."
+    )
+    return envelope("ok", summary, data=state)
 
 
 def _review_exception_text(value: object, label: str) -> str:
@@ -2239,7 +2887,7 @@ def _review_exception_current_fingerprint(
     handoff: Mapping[str, Any],
     source: Mapping[str, Any],
 ) -> str:
-    if handoff.get("fingerprint_algorithm") == "git-working-tree-v1":
+    if handoff.get("fingerprint_algorithm") in SUPPORTED_IMPLEMENTATION_FINGERPRINT_ALGORITHMS:
         return implementation_snapshot_sha256(root, feature)
     return str(source.get("implementation_fingerprint") or "").strip()
 
@@ -4488,7 +5136,8 @@ def validate_review(project_root: Path, feature_dir: Path | str) -> dict[str, An
             workflow = None
         live_fingerprint = (
             implementation_snapshot_sha256(root, feature)
-            if handoff.get("fingerprint_algorithm") == "git-working-tree-v1"
+            if handoff.get("fingerprint_algorithm")
+            in SUPPORTED_IMPLEMENTATION_FINGERPRINT_ALGORITHMS
             else None
         )
         errors, fresh = _review_validation_errors(

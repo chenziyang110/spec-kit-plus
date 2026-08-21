@@ -18,6 +18,7 @@ import (
 	"time"
 
 	ignorepkg "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/ignore"
+	runtimecmd "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
 const (
@@ -286,6 +287,9 @@ func reserveImplementValidationEpoch(root, feature, stage, purpose, fingerprint 
 	fingerprint = strings.TrimSpace(fingerprint)
 	if fingerprint == "" {
 		return nil, errors.New("validation fingerprint is required")
+	}
+	if stage == "implement" && purpose == "convergence" && implementHandoffFrozen(feature) {
+		return nil, errors.New("passed convergence is immutable after implementation-handoff.json is frozen; continue in Review delivery")
 	}
 	commands, err = uniqueStrings(commands, "commands", true)
 	if err != nil {
@@ -1478,7 +1482,7 @@ func buildImplementCloseoutArtifacts(root, feature string, audit map[string]any,
 		"source_stage":                     "implement",
 		"feature_dir":                      feature,
 		"implementation_fingerprint":       fingerprint,
-		"fingerprint_algorithm":            implementationFingerprintAlgorith,
+		"fingerprint_algorithm":            implementationFingerprintAlgorithm,
 		"official_entrypoints":             officialEntrypoints,
 		"system_review_scenarios":          systemReviewScenarios,
 		"review_obligations":               reviewObligations,
@@ -1559,46 +1563,26 @@ func implementSnapshotSHA256(root, feature string) string {
 		rootAbs = root
 	}
 	featureAbs, _ := filepath.Abs(feature)
-	if fingerprint, ok := implementGitSnapshotSHA256(rootAbs, featureAbs); ok {
+	scope := implementSnapshotScopeForFeature(rootAbs, featureAbs)
+	if fingerprint, ok := implementGitSnapshotSHA256(rootAbs, featureAbs, scope); ok {
 		return fingerprint
 	}
-	return implementFallbackSnapshotSHA256(rootAbs, featureAbs)
+	return implementFallbackSnapshotSHA256(rootAbs, featureAbs, scope)
 }
 
-func implementGitSnapshotSHA256(rootAbs, featureAbs string) (string, bool) {
-	if _, err := exec.LookPath("git"); err != nil {
+func implementGitSnapshotSHA256(rootAbs, featureAbs string, scope implementSnapshotScope) (string, bool) {
+	paths, scope, ok := implementGitSnapshotPaths(rootAbs, featureAbs, scope)
+	if !ok {
 		return "", false
 	}
-	head, err := gitCommandOutput(rootAbs, "rev-parse", "HEAD")
-	if err != nil {
-		return "", false
-	}
-	pathSet := map[string]bool{}
-	for _, args := range [][]string{
-		{"diff", "-z", "--name-only", "--relative", "HEAD", "--", "."},
-		{"diff", "-z", "--name-only", "--relative", "--cached", "HEAD", "--", "."},
-		{"ls-files", "-z", "--others", "--exclude-standard", "--", "."},
-	} {
-		lines, err := gitCommandNULPaths(rootAbs, args...)
-		if err != nil {
-			return "", false
-		}
-		for _, rel := range lines {
-			rel = filepath.ToSlash(strings.TrimSpace(rel))
-			if rel == "" || !implementFingerprintIncludesPath(rootAbs, featureAbs, rel) {
-				continue
-			}
-			pathSet[rel] = true
-		}
-	}
-	paths := make([]string, 0, len(pathSet))
-	for rel := range pathSet {
-		paths = append(paths, rel)
-	}
-	sort.Strings(paths)
+	return implementSnapshotDigest(rootAbs, scope, paths), true
+}
+
+func implementSnapshotDigest(rootAbs string, scope implementSnapshotScope, paths []string) string {
 	digest := sha256.New()
-	digest.Write([]byte("HEAD\n"))
-	digest.Write([]byte(strings.TrimSpace(head)))
+	digest.Write([]byte("implement-scoped-snapshot-v2"))
+	digest.Write([]byte("\nFEATURE\n"))
+	digest.Write([]byte(scope.featureRel))
 	for _, rel := range paths {
 		digest.Write([]byte("\nPATH\n"))
 		digest.Write([]byte(rel))
@@ -1610,10 +1594,60 @@ func implementGitSnapshotSHA256(rootAbs, featureAbs string) (string, bool) {
 		digest.Write([]byte("\nCONTENT\n"))
 		digest.Write(raw)
 	}
-	return hex.EncodeToString(digest.Sum(nil)), true
+	return hex.EncodeToString(digest.Sum(nil))
 }
 
-func implementFallbackSnapshotSHA256(rootAbs, featureAbs string) string {
+func implementGitSnapshotPaths(rootAbs, featureAbs string, scope implementSnapshotScope) ([]string, implementSnapshotScope, bool) {
+	if _, err := exec.LookPath("git"); err != nil {
+		return nil, scope, false
+	}
+	pathSet := map[string]bool{}
+	rawPaths := []string{}
+	for _, args := range [][]string{
+		{"diff", "-z", "--name-only", "--relative", "HEAD", "--", "."},
+		{"diff", "-z", "--name-only", "--relative", "--cached", "HEAD", "--", "."},
+		{"ls-files", "-z", "--others", "--exclude-standard", "--", "."},
+	} {
+		lines, err := gitCommandNULPaths(rootAbs, args...)
+		if err != nil {
+			return nil, scope, false
+		}
+		for _, rel := range lines {
+			rel = filepath.ToSlash(strings.TrimSpace(rel))
+			if rel == "" {
+				continue
+			}
+			rawPaths = append(rawPaths, rel)
+		}
+	}
+	if len(scope.declaredPaths) == 0 {
+		scope = implementExpandFallbackRoots(scope, rawPaths)
+	}
+	for _, rel := range scope.declaredPaths {
+		if implementFingerprintIncludesPath(rootAbs, featureAbs, rel, scope) {
+			pathSet[rel] = true
+		}
+	}
+	for _, rel := range rawPaths {
+		if !implementFingerprintIncludesPath(rootAbs, featureAbs, rel, scope) {
+			continue
+		}
+		pathSet[rel] = true
+	}
+	paths := make([]string, 0, len(pathSet))
+	for rel := range pathSet {
+		paths = append(paths, rel)
+	}
+	sort.Strings(paths)
+	return paths, scope, true
+}
+
+func implementFallbackSnapshotSHA256(rootAbs, featureAbs string, scope implementSnapshotScope) string {
+	files := implementFallbackSnapshotPaths(rootAbs, featureAbs, scope)
+	return implementSnapshotDigest(rootAbs, scope, files)
+}
+
+func implementFallbackSnapshotPaths(rootAbs, featureAbs string, scope implementSnapshotScope) []string {
 	ignoreMatcher := ignorepkg.Load(rootAbs)
 	var files []string
 	_ = filepath.WalkDir(rootAbs, func(path string, d os.DirEntry, err error) error {
@@ -1641,25 +1675,226 @@ func implementFallbackSnapshotSHA256(rootAbs, featureAbs string) string {
 		if ignoreMatcher.Ignored(rel) {
 			return nil
 		}
-		if !implementFingerprintIncludesPath(rootAbs, featureAbs, rel) {
+		if !implementFingerprintIncludesPath(rootAbs, featureAbs, rel, scope) {
 			return nil
 		}
 		files = append(files, rel)
 		return nil
 	})
 	sort.Strings(files)
-	digest := sha256.New()
-	for _, rel := range files {
-		digest.Write([]byte(rel))
-		raw, err := os.ReadFile(filepath.Join(rootAbs, filepath.FromSlash(rel)))
-		if err == nil {
-			digest.Write(raw)
-		}
-	}
-	return hex.EncodeToString(digest.Sum(nil))
+	return files
 }
 
-func implementFingerprintIncludesPath(rootAbs, featureAbs, rel string) bool {
+func implementSnapshotPathDigests(root, feature string) map[string]string {
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		rootAbs = root
+	}
+	featureAbs, _ := filepath.Abs(feature)
+	scope := implementSnapshotScopeForFeature(rootAbs, featureAbs)
+	paths, _, ok := implementGitSnapshotPaths(rootAbs, featureAbs, scope)
+	if !ok {
+		paths = implementFallbackSnapshotPaths(rootAbs, featureAbs, scope)
+	}
+	digests := make(map[string]string, len(paths))
+	for _, rel := range paths {
+		raw, readErr := os.ReadFile(filepath.Join(rootAbs, filepath.FromSlash(rel)))
+		if readErr != nil {
+			digests[rel] = "missing"
+			continue
+		}
+		digest := sha256.Sum256(raw)
+		digests[rel] = hex.EncodeToString(digest[:])
+	}
+	return digests
+}
+
+type implementSnapshotScope struct {
+	featureRel    string
+	declaredPaths []string
+	fallbackRoots []string
+}
+
+func implementSnapshotScopeForFeature(rootAbs, featureAbs string) implementSnapshotScope {
+	scope := implementSnapshotScope{}
+	if rel, err := filepath.Rel(rootAbs, featureAbs); err == nil {
+		scope.featureRel = strings.Trim(filepath.ToSlash(rel), "/")
+	}
+	scope.declaredPaths = implementDeclaredSnapshotPaths(rootAbs, featureAbs)
+	return scope
+}
+
+func implementDeclaredSnapshotPaths(rootAbs, featureAbs string) []string {
+	taskDir := filepath.Join(featureAbs, "implementation-review", "tasks")
+	seen := map[string]bool{}
+	paths := []string{}
+	add := func(raw string) {
+		normalized, ok := implementSafeDeclaredSnapshotPath(rootAbs, raw)
+		if !ok {
+			return
+		}
+		if !seen[normalized] {
+			seen[normalized] = true
+			paths = append(paths, normalized)
+		}
+	}
+	if entries, err := os.ReadDir(taskDir); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".json") {
+				continue
+			}
+			payload, err := readImplementJSONMap(filepath.Join(taskDir, entry.Name()))
+			if err != nil {
+				continue
+			}
+			for _, path := range implementStringSlice(payload["changed_paths"]) {
+				add(path)
+			}
+			for _, path := range implementStringSlice(payload["write_scope"]) {
+				add(path)
+			}
+			if scopeMap, ok := payload["scope"].(map[string]any); ok {
+				for _, path := range implementStringSlice(scopeMap["write_scope"]) {
+					add(path)
+				}
+			}
+			if packet, ok := payload["task_packet"].(map[string]any); ok {
+				if scopeMap, ok := packet["scope"].(map[string]any); ok {
+					for _, path := range implementStringSlice(scopeMap["write_scope"]) {
+						add(path)
+					}
+				}
+			}
+		}
+	}
+	for _, candidate := range implementReviewStateCandidates(featureAbs) {
+		payload, err := readImplementJSONMap(candidate)
+		if err != nil {
+			continue
+		}
+		for _, path := range implementAcceptedFixAssignmentPaths(payload) {
+			add(path)
+		}
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func implementReviewStateCandidates(featureAbs string) []string {
+	candidates := []string{filepath.Join(featureAbs, "review-state.json")}
+	historyDir := filepath.Join(featureAbs, "review-history")
+	entries, err := os.ReadDir(historyDir)
+	if err != nil {
+		return candidates
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".json") {
+			continue
+		}
+		candidates = append(candidates, filepath.Join(historyDir, entry.Name()))
+	}
+	sort.Strings(candidates[1:])
+	return candidates
+}
+
+func implementAcceptedFixAssignmentPaths(payload map[string]any) []string {
+	items, ok := payload["fix_assignments"].([]any)
+	if !ok {
+		return nil
+	}
+	paths := []string{}
+	for _, item := range items {
+		assignment, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		status := strings.TrimSpace(fmt.Sprint(assignment["status"]))
+		verdict := strings.TrimSpace(fmt.Sprint(assignment["leader_verdict"]))
+		if status != "accepted" || verdict != "accepted" {
+			continue
+		}
+		paths = append(paths, implementStringSlice(assignment["changed_paths"])...)
+	}
+	return paths
+}
+
+func implementSafeDeclaredSnapshotPath(rootAbs, raw string) (string, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" || filepath.IsAbs(trimmed) || filepath.VolumeName(trimmed) != "" {
+		return "", false
+	}
+	slashed := filepath.ToSlash(trimmed)
+	for _, part := range strings.Split(slashed, "/") {
+		if part == "." || part == ".." {
+			return "", false
+		}
+	}
+	normalized := strings.Trim(slashed, "/")
+	if normalized == "" || normalized == "." || strings.HasPrefix(normalized, "../") {
+		return "", false
+	}
+	resolved := filepath.Clean(filepath.Join(rootAbs, filepath.FromSlash(normalized)))
+	relative, err := filepath.Rel(rootAbs, resolved)
+	if err != nil {
+		return "", false
+	}
+	relative = filepath.ToSlash(relative)
+	if relative == ".." || strings.HasPrefix(relative, "../") {
+		return "", false
+	}
+	return strings.Trim(relative, "/"), true
+}
+
+func implementStringSlice(value any) []string {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		text := strings.TrimSpace(fmt.Sprint(item))
+		if text != "" {
+			out = append(out, text)
+		}
+	}
+	return out
+}
+
+func implementExpandFallbackRoots(scope implementSnapshotScope, candidates []string) implementSnapshotScope {
+	seen := map[string]bool{}
+	for _, root := range scope.fallbackRoots {
+		seen[root] = true
+	}
+	addRoot := func(candidate string) {
+		candidate = strings.Trim(filepath.ToSlash(candidate), "/")
+		if candidate == "" || candidate == "." {
+			return
+		}
+		root := candidate
+		if slash := strings.Index(root, "/"); slash >= 0 {
+			root = root[:slash]
+		}
+		switch root {
+		case "", ".", "..", ".git", ".specify", "node_modules", "dist", "build", "coverage", "generated", "vendor":
+			return
+		}
+		if strings.HasPrefix(root, ".") || seen[root] {
+			return
+		}
+		seen[root] = true
+		scope.fallbackRoots = append(scope.fallbackRoots, root)
+	}
+	for _, candidate := range candidates {
+		if strings.Count(filepath.ToSlash(candidate), "/") == 0 {
+			continue
+		}
+		addRoot(candidate)
+	}
+	sort.Strings(scope.fallbackRoots)
+	return scope
+}
+
+func implementFingerprintIncludesPath(rootAbs, featureAbs, rel string, scope implementSnapshotScope) bool {
 	normalized := strings.Trim(filepath.ToSlash(rel), "/")
 	if normalized == ".specify/runtime" || strings.HasPrefix(normalized, ".specify/runtime/") {
 		return false
@@ -1674,17 +1909,31 @@ func implementFingerprintIncludesPath(rootAbs, featureAbs, rel string) bool {
 		"human-acceptance.json": true, "workflow.json": true, "workflow-state.md": true,
 		"implementation-review/validation-runs.json": true,
 	}
-	excludedPrefixes := []string{"review-evidence/", "review-results/", "review-history/", "implementation-review/deferrals/", "implementation-review/validation-evidence/"}
+	excludedPrefixes := []string{"review-evidence/", "review-results/", "review-history/", "implementation-review/deferrals/", "implementation-review/review-snapshots/", "implementation-review/validation-evidence/"}
 	path := rel
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(rootAbs, filepath.FromSlash(rel))
 	}
 	featureRel, err := filepath.Rel(featureAbs, path)
 	if err != nil {
-		return true
+		return false
 	}
 	if featureRel == ".." || strings.HasPrefix(featureRel, ".."+string(filepath.Separator)) {
-		return true
+		if len(scope.declaredPaths) > 0 {
+			for _, declared := range scope.declaredPaths {
+				declared = strings.Trim(filepath.ToSlash(declared), "/")
+				if normalized == declared || strings.HasPrefix(normalized, declared+"/") {
+					return true
+				}
+			}
+			return false
+		}
+		for _, root := range scope.fallbackRoots {
+			if normalized == root || strings.HasPrefix(normalized, root+"/") {
+				return true
+			}
+		}
+		return false
 	}
 	suffix := filepath.ToSlash(featureRel)
 	if excludedNames[suffix] || strings.HasSuffix(suffix, ".lock") {
@@ -1699,9 +1948,7 @@ func implementFingerprintIncludesPath(rootAbs, featureAbs, rel string) bool {
 }
 
 func gitCommandOutput(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	raw, err := cmd.CombinedOutput()
+	raw, err := runtimecmd.CommandOutput(dir, nil, "git", args...)
 	if err != nil {
 		return "", err
 	}
@@ -1709,9 +1956,7 @@ func gitCommandOutput(dir string, args ...string) (string, error) {
 }
 
 func gitCommandNULPaths(dir string, args ...string) ([]string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	raw, err := cmd.CombinedOutput()
+	raw, err := runtimecmd.CommandOutput(dir, nil, "git", args...)
 	if err != nil {
 		return nil, err
 	}

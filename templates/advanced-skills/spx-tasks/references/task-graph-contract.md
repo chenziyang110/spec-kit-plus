@@ -78,8 +78,12 @@ UI tasks additionally query the plan `ui_design_contract` and feature
 task-specific `ui_contract`, fidelity level, design inputs, required states,
 real entry points, current direction fields, task-relevant reference/content/image
 records, exact `design_change_id`/`design_change_ref`/`design_change_sha256`/
-`design_contract_ref`, immutable handoff ref/digest, task-relevant `DH-*` contract IDs,
-structure/visual/runtime evidence, and comparison or human review. Use
+`design_contract_ref`, exact `style_authority`, immutable handoff ref/digest, task-relevant `DH-*` contract IDs,
+exact `interaction_matrix` / `editing_matrix` / `data_state_matrix` rows, component
+`interaction_modes` / `data_scenarios`, responsive `stretch_behavior` /
+`overflow_behavior`, structure/visual/runtime evidence, and comparison or human review. Never reduce these rows to
+`required_states`; every data-bearing task includes empty and populated data,
+and applicable tasks include keyboard/focus, recovery, and active resize. Use
 `assets/ui-task.md` for the project-facing detail and
 `assets/ui-task-index-entry.json` as the semantic field catalog. Submit only
 meaningful non-default values; `specify-runtime tasks` expands the exact canonical
@@ -90,5 +94,18 @@ is the approved reference relationship. Missing UI fields are a graph defect, no
 `not_applicable`.
 Never resolve “latest” from `.specify/design/index.json`; copy the exact
 registered binding selected by the feature `ui-brief.md`.
+Never let a worker reinterpret `inherit-existing` as permission to restyle or
+expand an authorized page delta into protected shell/shared-component surfaces.
 Task contracts may select a plan subset of `DH-*` IDs, and all UI tasks together
 must cover the plan set. They do not rewrite the selected handoff rows.
+
+## Professional UI contract continuity
+
+Every UI task carries its applicable exact subset of `surface_catalog`,
+`scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
+`accessibility_matrix`, `navigation_matrix`, `content_matrix`,
+`motion_contract`, and `usability_validation`, including the exact
+`smoothness_acceptance_ids`, plus component
+variants/content constraints/semantic tokens/governance/iconography. All UI
+tasks together cover Plan. Split risk-based or pairwise scenarios, never an
+unbounded Cartesian product, and keep target-user human review visible.

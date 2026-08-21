@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,7 +11,14 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
+
+	runtimecmd "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
+
+const teamsGitProbeTimeout = 5 * time.Second
+
+type teamsGitProbe func(string, ...string) (string, error)
 
 func runTeams(args []string, stdout io.Writer) int {
 	if len(args) == 0 {
@@ -349,20 +357,27 @@ func teamsDetectExecutor(root string) map[string]any {
 }
 
 func teamsGitReadiness(root string) map[string]any {
-	inside := teamsGitOutput(root, "rev-parse", "--is-inside-work-tree") == "true"
-	head := teamsGitOutput(root, "rev-parse", "--verify", "HEAD") != ""
-	clean := teamsGitOutput(root, "status", "--short") == ""
+	return teamsGitReadinessWithProbe(root, teamsGitOutput)
+}
+
+func teamsGitReadinessWithProbe(root string, probe teamsGitProbe) map[string]any {
+	insideOutput, insideErr := probe(root, "rev-parse", "--is-inside-work-tree")
+	headOutput, headErr := probe(root, "rev-parse", "--verify", "HEAD")
+	statusOutput, statusErr := probe(root, "status", "--short")
+	inside := insideErr == nil && insideOutput == "true"
+	head := headErr == nil && headOutput != ""
+	clean := statusErr == nil && statusOutput == ""
 	return map[string]any{"git_repo_detected": inside, "git_head_available": head, "leader_workspace_clean": clean, "worktree_ready": inside && head && clean}
 }
 
-func teamsGitOutput(root string, args ...string) string {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = root
-	raw, err := cmd.Output()
+func teamsGitOutput(root string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), teamsGitProbeTimeout)
+	defer cancel()
+	raw, err := runtimecmd.CommandOutputContext(ctx, root, nil, "git", args...)
 	if err != nil {
-		return ""
+		return "", err
 	}
-	return strings.TrimSpace(string(raw))
+	return strings.TrimSpace(string(raw)), nil
 }
 
 func teamsNextSteps(backend, executor, git map[string]any) []any {
@@ -509,12 +524,18 @@ func teamsCollectSyncBackCandidates(root, sessionID string) []any {
 }
 
 func teamsWorkspaceDirty(root string) bool {
-	if teamsGitOutput(root, "rev-parse", "--is-inside-work-tree") != "true" {
+	return teamsWorkspaceDirtyWithProbe(root, teamsGitOutput)
+}
+
+func teamsWorkspaceDirtyWithProbe(root string, probe teamsGitProbe) bool {
+	inside, err := probe(root, "rev-parse", "--is-inside-work-tree")
+	if err != nil || inside != "true" {
 		// Without Git there is no trustworthy baseline against which sync-back
 		// can prove that overwriting the leader workspace is safe.
 		return true
 	}
-	return teamsGitOutput(root, "status", "--short") != ""
+	status, err := probe(root, "status", "--short")
+	return err != nil || status != ""
 }
 
 func teamsLoadRuntimeSession(root, sessionID string) any {

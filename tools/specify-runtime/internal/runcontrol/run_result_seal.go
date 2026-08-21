@@ -8,12 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	runtimecmd "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
 func SealRunResult(
@@ -345,10 +346,14 @@ func runGitWithEnvironmentBytes(
 	environment map[string]string,
 	arguments ...string,
 ) ([]byte, error) {
-	command := exec.CommandContext(ctx, "git", arguments...)
-	command.Dir = directory
-	command.Env = mergeEnvironment(os.Environ(), environment)
-	output, err := command.CombinedOutput()
+	output, err := runtimecmd.CommandCombinedOutputEnvironmentContext(
+		ctx,
+		directory,
+		nil,
+		mergeEnvironment(os.Environ(), environment),
+		"git",
+		arguments...,
+	)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()

@@ -47,7 +47,7 @@ actionable findings with stable identity, severity, evidence, owner stage, and
 the smallest repair route.
 
 If a blocker invalidates upstream truth, select the highest affected workflow:
-`$spx-clarify`, `$spx-deep-research`, `$spx-plan`, or `$spx-tasks`. Map clarify
+`$spx-specify`, `$spx-deep-research`, `$spx-plan`, or `$spx-tasks`. Map specify
 or deep-research to reopen `specify`, plan to reopen `plan`, tasks to reopen
 `tasks`, and a completed execution-only owner to reopen `implement`. When that
 mapped stage is earlier than the current non-blocked required stage, or is the

@@ -1,3 +1,3 @@
 # consumer-app
 
-Golden design-preview fixture (valid).
+Golden single-concept design-preview fixture (valid).

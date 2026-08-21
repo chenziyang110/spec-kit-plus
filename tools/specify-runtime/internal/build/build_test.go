@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/scanreceipt"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/store"
 )
 
@@ -98,6 +99,45 @@ func TestRunCreatesGoRuntimeFromScanPackage(t *testing.T) {
 	}
 	if !snapshot.CoveragePaths["src/app.go"] {
 		t.Fatalf("snapshot coverage paths = %#v, want src/app.go", snapshot.CoveragePaths)
+	}
+}
+
+func TestRunReusesActiveGenerationForSameValidatedScanReceipt(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	markBuildFixtureAsV2Workbench(t, paths)
+	if err := os.MkdirAll(filepath.Join(paths.Root, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(paths.Root, "src", "app.go"), []byte("package app\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, required, err := scanreceipt.Create(paths, "scan_ready"); err != nil || !required {
+		t.Fatalf("create scan receipt required=%v err=%v", required, err)
+	}
+
+	first, err := Run(paths)
+	if err != nil || first.Status != "ok" || first.ActiveGenerationID == "" {
+		t.Fatalf("first Run payload=%#v err=%v", first, err)
+	}
+	second, err := Run(paths)
+	if err != nil {
+		t.Fatalf("second Run error = %v", err)
+	}
+	if second.Status != "ok" || !second.Reused || second.ActiveGenerationID != first.ActiveGenerationID {
+		t.Fatalf("second Run payload = %#v, want reused generation %s", second, first.ActiveGenerationID)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var generationCount int
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT COUNT(*) FROM generations`).Scan(&generationCount); err != nil {
+		t.Fatal(err)
+	}
+	if generationCount != 1 {
+		t.Fatalf("generation count = %d, want one idempotently reused generation", generationCount)
 	}
 }
 

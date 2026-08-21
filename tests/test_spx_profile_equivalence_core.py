@@ -60,7 +60,6 @@ def test_spx_accept_preserves_classic_human_acceptance_boundary() -> None:
 
 def test_spx_optional_feature_stages_separate_runtime_and_rich_resume_state() -> None:
     expected = {
-        "spx-clarify": ("clarify", "planning-only"),
         "spx-analyze": ("analyze", "analysis-only"),
     }
 
@@ -150,30 +149,6 @@ def test_spx_plan_requires_ready_input_and_conditional_design_outputs() -> None:
         "plan action",
     ):
         assert column in content
-
-
-def test_spx_clarify_preserves_classic_evidence_surfaces_and_runtime_gate() -> None:
-    content = _text("spx-clarify", "clarification-contract.md")
-    classic = (CLASSIC_COMMANDS / "clarify.md").read_text(encoding="utf-8").lower()
-
-    for artifact in (
-        "alignment.md",
-        "context.md",
-        "references.md",
-        "clarification/handoffs/",
-        "clarification/evidence-index.json",
-        "clarification/checkpoints.ndjson",
-    ):
-        assert artifact in classic
-        assert artifact in content
-    assert "artifact patch --append-json" in content
-    assert "query `clarification/evidence-index.json` before final artifact updates" in content
-    assert "query the accepted handoffs before integration updates" in content
-    assert (
-        "hook validate-artifacts --command clarify --feature-dir <feature-dir> "
-        "--format json"
-    ) in content
-
 
 def test_spx_tasks_preserves_execution_and_recovery_contracts() -> None:
     content = _text("spx-tasks", "task-graph-contract.md")

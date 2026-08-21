@@ -32,6 +32,15 @@ unknowns, and zero open conflicts. Fail closed to the owning upstream workflow
 when any gate fails. Verify architecture claims against cognition-selected live
 repository paths.
 
+If Design ran after that planning-ready spec, require a current
+`formal-post-specify` receipt and verify it with `specify-runtime design adoption
+<feature-ref> --scope <exact-surface> --binding-ref <source-spec-ref>
+--binding-sha256 <source-spec-sha256> --expected-change <UD-ID> --format json`.
+The unchanged source spec remains requirements/acceptance truth; the receipt is
+the exact Design overlay. Do not run a second Specify or resolve “latest”. A
+receipt/spec digest mismatch blocks Plan; a real requirements change routes to
+Specify.
+
 Treat `plan-contract.json#/test_design_gate/decision` as exactly
 `not_selected`, `selected`, or `required`. A selected/required binding may be
 all-null while production is pending; partial binding is invalid. When Plan
@@ -56,14 +65,26 @@ list `spec-contract.json#/acceptance_criteria/0..N-1`, covering every live
 specification acceptance criterion exactly once; never select a subset,
 reconstruct prose labels, or reorder, duplicate, rename, or omit a criterion.
 
-When `deep-research.md` exists, query and validate it through
-`specify-runtime artifact show` before choosing the design.
+When `spec-contract.json#/feasibility_gate.decision` is `required`, verify the
+runtime handoff before choosing the design. Query `deep-research.md` through
+`specify-runtime artifact show` only as a derived human-readable projection.
 Consume every `PH-###` Planning Handoff item according to its mandatory,
 optional, or user-decision contract. Add a level-2 `## Deep Research
 Traceability Matrix` to `plan.md` with `Plan Decision`, `Handoff ID`, `Evidence
 / Spike ID`, `Evidence Quality`, and `Plan Action` columns. Missing mandatory
 handoffs or untraceable evidence keep planning blocked; a validated
 `**Status**: Not needed` handoff carries no invented PH IDs.
+
+When deep research is present, treat the runtime-published structured research
+artifacts as canonical and `deep-research.md` as a derived projection. Record
+Plan consumption in `plan-contract.json#/deep_research_binding` only through
+leased JSON-pointer patches after `specify-runtime deep-research verify-handoff
+--feature-dir <feature-dir> --handoff-ref <handoff-ref> --expected-sha256
+<handoff-sha256> --format json` confirms the selected handoff. Preserve exactly
+`decision`, `handoff_ref`, `handoff_sha256`, `source_spec_sha256`,
+`state_revision`, `claim_status`, and `handoff_ids`. A verified `not_needed`
+claim still binds the handoff with an empty `handoff_ids` array. Never infer
+those fields from prose or rebuild them from the Markdown projection.
 
 Create `plan-contract.json` only with `specify-runtime artifact scaffold --kind
 plan-contract`, then fill it through leased JSON-pointer patches; never read or
@@ -86,7 +107,7 @@ contract sections, original fidelity sources, and the spec design contract. Set
 surface/platform classification, approved visual,
 preview/manifest/handoff SHA-256 values, immutable handoff ref, selected `DS-*`
 decisions and `DH-*` contracts, component/color-mode/responsive/motion
-contracts, reference intents, real content/image plans, design-system
+contracts, exact `style_authority`, reference intents, real content/image plans, design-system
 adoption, required states, must-preserve rules, real entry points,
 viewport/state acceptance matrix, comparison tolerance, accepted deviations,
 and the evidence triad. Carry verified cognition routes into the compact
@@ -94,7 +115,7 @@ context capsule. Do not defer these decisions to tasks.
 
 If design-changing feasibility remains unproven, stop and route the named
 question to `$spx-deep-research`; do not hide research inside generic plan
-prose. Repair requirement contradictions through `$spx-clarify`.
+prose. Repair requirement contradictions through `$spx-specify`.
 
 When bounded implementation-shaping research is triggered, create `research.md`
 with `specify-runtime artifact scaffold --kind research --path <feature-dir>/research.md`
@@ -127,6 +148,11 @@ tests, migrations, or runtime configuration in this workflow. Preserve canonical
 `/sp.*` state identifiers. This invocation authorizes only this workflow stage.
 Run `{{specify-subcmd:specify-runtime hook validate-artifacts --command plan --feature-dir <feature-dir> --format json}}`
 and repair or block on a non-OK result.
+Do not accept a deep-research handoff on surface presence alone. Before Plan
+reports readiness, verify the selected handoff and its source binding against
+the current runtime-owned structured research package. Any stale, tampered,
+foreign, partial, or claim-mismatched handoff blocks planning and routes back
+to `$spx-deep-research` or the owning upstream workflow for regeneration.
 Stop after reporting the validated plan. When the user requested a dedicated
 test design or the plan's risk and coverage obligations warrant one, record the
 gate as `selected` or `required` and recommend the independent

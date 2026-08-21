@@ -75,6 +75,15 @@ Freeze before discovery:
   UI or visual-comparison evidence rather than treated as new canonical risk
   dimensions.
 
+For UI scope, preserve declared `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
+component interaction/data scenarios, and stretch/overflow rows. Use risk-based
+or pairwise input × data × size cases: pointer/mouse, keyboard/focus, applicable
+touch/shortcut/command paths; exact event sequence, immediate feedback, focus,
+repeat, cancellation, and pending behavior; empty and populated data plus applicable loading,
+partial, error, permission, offline, pending, retry, undo, and recovery;
+continuous stretch/compression/reflow/overflow; and active resize or recovery
+while focus, selection, scrolling, overlays, or unsaved input is present.
+
 Use only applicable dimensions, but every omitted dimension needs a reason.
 Changing a source ref, boundary, exclusion, risk dimension, or acceptance owner
 stales the prior validation and requires CAS reentry in `incremental-update`
@@ -193,3 +202,13 @@ verification and checks fresh evidence. Test Design does neither. A later source
 or basis change invalidates the affected handoff or projection until an
 incremental update validates a new fingerprint and the runtime republishes and
 rebuilds the consumer view.
+
+## Professional UI coverage
+
+For UI-bearing scope, derive cases from the exact `surface_catalog`,
+`scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
+`accessibility_matrix`, `navigation_matrix`, `content_matrix`,
+`motion_contract`, and `usability_validation`, including
+component governance/iconography obligations. Choose risk-based or pairwise
+combinations, never an unbounded Cartesian product. Automated tests and
+screenshots cannot prove target-user usability.

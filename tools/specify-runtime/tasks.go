@@ -1157,7 +1157,7 @@ var taskControlWorkflowScopeOwners = map[string]string{
 	"alignment.md":                "specify-runtime artifact",
 	"context.md":                  "specify-runtime artifact",
 	"data-model.md":               "specify-runtime artifact",
-	"deep-research.md":            "specify-runtime artifact",
+	"deep-research.md":            "specify-runtime deep-research",
 	"handoff-to-implement.json":   "specify-runtime tasks handoff",
 	"handoff-to-tasks.json":       "specify-runtime tasks handoff",
 	"human-acceptance.json":       "specify-runtime accept",
@@ -1719,7 +1719,20 @@ func renderTaskControlMarkdown(payload map[string]any, title string) (string, er
 				"", "### UI Implementation Contract", "", "| Field | Value |", "| --- | --- |",
 				"| ui_contract_ref | task-index.json#/tasks/"+id+"/ui_contract |",
 				"| fidelity_level | "+defaultString(anyString(ui["fidelity_level"]), "none")+" |",
+				"| surface_catalog | "+taskControlRenderValue(ui["surface_catalog"])+" |",
+				"| scenario_matrix | "+taskControlRenderValue(ui["scenario_matrix"])+" |",
+				"| interaction_matrix | "+taskControlRenderValue(ui["interaction_matrix"])+" |",
+				"| editing_matrix | "+taskControlRenderValue(ui["editing_matrix"])+" |",
 				"| required_states | "+taskControlRenderList(ui["required_states"])+" |",
+				"| data_state_matrix | "+taskControlRenderValue(ui["data_state_matrix"])+" |",
+				"| accessibility_matrix | "+taskControlRenderValue(ui["accessibility_matrix"])+" |",
+				"| navigation_matrix | "+taskControlRenderValue(ui["navigation_matrix"])+" |",
+				"| content_matrix | "+taskControlRenderValue(ui["content_matrix"])+" |",
+				"| component_contracts | "+taskControlRenderValue(ui["component_contracts"])+" |",
+				"| responsive_matrix | "+taskControlRenderValue(ui["responsive_matrix"])+" |",
+				"| motion_contract | "+taskControlRenderValue(ui["motion_contract"])+" |",
+				"| usability_validation | "+taskControlRenderValue(ui["usability_validation"])+" |",
+				"| visual_acceptance_matrix | "+taskControlRenderValue(ui["visual_acceptance_matrix"])+" |",
 				"| required_evidence | "+taskControlRenderList(ui["required_evidence"])+" |",
 			)
 		}
@@ -1734,9 +1747,34 @@ func taskControlRenderList(value any) string {
 	}
 	quoted := make([]string, len(values))
 	for index, value := range values {
-		quoted[index] = "`" + value + "`"
+		quoted[index] = "`" + taskControlEscapeTableCell(value) + "`"
 	}
 	return strings.Join(quoted, ", ")
+}
+
+func taskControlRenderValue(value any) string {
+	if value == nil {
+		return "none"
+	}
+	switch typed := value.(type) {
+	case []any:
+		if len(typed) == 0 {
+			return "none"
+		}
+	case map[string]any:
+		if len(typed) == 0 {
+			return "none"
+		}
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprint(value)
+	}
+	return taskControlEscapeTableCell(string(raw))
+}
+
+func taskControlEscapeTableCell(value string) string {
+	return strings.ReplaceAll(value, "|", `\|`)
 }
 
 func marshalTaskControlJSON(payload any) ([]byte, error) {

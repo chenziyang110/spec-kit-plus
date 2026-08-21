@@ -12,6 +12,10 @@ design_system:
     visual_refs: []
     preview_sha256: null
     manifest_sha256: null
+    visual_medium: null
+    prompt_ref: null
+    prompt_sha256: null
+    inspection_owner: null
     handoff_ref: null
     handoff_sha256: null
     decision_ids: []
@@ -22,6 +26,41 @@ design_system:
     subject: null
     audience: null
     single_job: null
+  professional_skill_route:
+    catalog_version: spec-kit-ui-professional-v1
+    status: unresolved
+    domain_skill_id: null
+    style_skill_id: null
+    specialist_skill_ids: []
+    matched_signals: {}
+    loaded_refs: []
+    unresolved_candidates: []
+    mature_web_ui_resource_ids: []
+    web_ui_asset_inventory:
+      status: not-scanned
+      manifest_refs: []
+      lockfile_refs: []
+      framework_ids: []
+      installed_resources: []
+      component_roots: []
+      token_refs: []
+      theme_refs: []
+      surface_refs: []
+    mature_web_ui_selection:
+      status: not-applicable
+      primary_resource_id: null
+      supporting_resource_ids: []
+      agent_resource_ids: []
+      candidates: []
+      confirmation_codes: []
+    smoothness_acceptance_ids: []
+  style_authority:
+    mode: unresolved
+    scope_level: null
+    source_refs: []
+    protected_surfaces: []
+    allowed_style_delta_surfaces: []
+    authorization_source: null
   direction_contract:
     visual_thesis: null
     content_thesis: null
@@ -55,6 +94,16 @@ design_system:
   verification:
     required_viewports: []
     required_states: []
+    surface_catalog: []
+    scenario_matrix: []
+    interaction_matrix: []
+    editing_matrix: []
+    data_state_matrix: []
+    accessibility_matrix: []
+    navigation_matrix: []
+    content_matrix: []
+    motion_contract: {}
+    usability_validation: {}
     visual_tolerance: null
     accepted_deviations: []
   accessibility:
@@ -129,25 +178,43 @@ claims need source or source_gap.
 
 ## Component Rules
 
+- For Web UI, prefer inspected live components, then one compatible mature
+  primary system plus only exact headless/specialist gaps from
+  `mature_web_ui_resource_ids`; custom primitives require a recorded gap.
+- Final Web selection requires a scanned `web_ui_asset_inventory`; retain the
+  selected candidate, compact reason codes, and confirmation codes from
+  `mature_web_ui_selection`.
 - Buttons must have default, hover, focus, disabled, and loading states.
 - Inputs must have default, hover, focus, disabled, and error states.
+- Record mouse/pointer, keyboard/focus, touch, and shortcut behavior for each
+  changed interactive component.
+- Record empty, representative-data, dense-data, and failure expectations when
+  a component changes meaning across data conditions.
 - Repeated cards may use `radius.panel`; controls should use `radius.control`.
 - Prefer existing component patterns before adding variants.
+- Approved `component_contracts` record `variants`, `content_constraints`,
+  `semantic_token_refs`, `governance`, and `iconography`; governance chooses
+  reuse, extension, or justified new work and assigns gaps and deprecation.
 - Do not invent styling outside the token set; approve a new design round and
   regenerate this file only through `specify-runtime design export`.
 
 ## Motion Rules
 
-- Define duration, easing, and spatial behavior as tokens before implementation.
+- Preserve the structured `motion_contract`: `purpose`, transition `id`,
+  `surface`, `trigger`, `response`, `duration_ms`, `easing`,
+  `interrupt_behavior`, `decision_ids`, `reduced_motion`, and
+  `feedback_timing` (`immediate_ms`, `progress_ms`, `timeout_ms`).
 - Use motion to reveal hierarchy, reinforce action, or explain state change.
 - Every meaningful animation needs a `prefers-reduced-motion` equivalent.
-- The approved project-level HTML preview is the visual motion reference;
+- The approved project-level image-primary or HTML-primary round is the visual motion reference;
   feature-level targets still define concrete composition and state coverage.
 
 ## Responsive Behavior
 
 - Define content-driven breakpoints and the navigation, density, hierarchy,
   overflow, and input changes at each boundary.
+- Name stretch behavior, min/max useful sizes, and overflow recovery after
+  resize or container compression.
 - Record the required viewport and state matrix under `verification`.
 - Treat mobile as an adaptation of priorities, not a uniformly shrunken desktop.
 
@@ -159,6 +226,30 @@ claims need source or source_gap.
   asset recovery.
 - Do not silently substitute lorem ipsum, generic stock art, or decorative
   placeholders that hide layout risk.
+
+## Professional Verification Contracts
+
+An approved change-local successor—not this bootstrap seed—must carry exact
+`interaction_matrix`, `editing_matrix`, `data_state_matrix`, `accessibility_matrix`,
+`navigation_matrix`, `content_matrix`, `motion_contract`, and
+`usability_validation` values under `design_change.verification`. The top-level
+accessibility summary is never a substitute for per-surface matrix rows.
+Interaction rows use exact event sequence, immediate feedback, focus, repeat,
+cancellation, and pending behavior fields; one aggregate expectation is not a
+current interaction contract.
+Accessibility targets WCAG 2.2 AA or platform equivalent, Name/Role/Value,
+reading/focus order, keyboard and drag alternatives, dynamic status
+announcements, target size, contrast, 400% reflow, forced colors, and
+image/icon alternatives. Navigation covers entry, hierarchy, back/close, deep
+links, interruption recovery, consistency, and landmarks. Content covers CTA,
+empty/loading/error/permission/destructive/confirmation/undo/privacy states,
+RTL, localization, truncation, and locale-aware date/number/time-zone output.
+`usability_validation` is risk based: low-risk work may use cognitive or
+heuristic review; medium/high-risk work names target users, critical tasks,
+success criteria, human review, and applicable `smoothness_acceptance_ids`.
+Use risk-based or pairwise coverage, never
+an unbounded Cartesian product; automated tests and screenshots do not prove
+target-user usability.
 
 ## Anti-Patterns
 

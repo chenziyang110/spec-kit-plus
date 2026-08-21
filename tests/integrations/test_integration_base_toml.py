@@ -142,7 +142,9 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "show_argv" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## Workflow Recommendations" in content
-    assert "do not auto-enter an `sp-*` workflow" in lower
+    assert "passive skill invocation is allowed only for" in lower
+    assert "`sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`" in lower
+    assert "all other `sp-*` workflows are user-invoked only" in lower
     assert "recommend `sp-discussion`" in lower
     assert "presents both `sp-quick` and `sp-specify`" in lower
     assert "complexity-informed recommendation" in lower
@@ -166,8 +168,6 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "## Brownfield Context Gate" not in content
     assert "## Project Cognition Usage" not in content
     assert "## Map Maintenance" not in content
-    assert "sp-fast" not in lower
-    assert "sp-quick" not in lower
     assert "sp-test-scan" not in lower
     assert "sp-test-build" not in lower
 
@@ -945,7 +945,7 @@ class TomlIntegrationTests:
         i.setup(tmp_path, m)
         agent_name = i.config["name"].replace(" CLI", "").lower()
 
-        for name in ("specify", "discussion", "clarify", "deep-research", "checklist", "quick", "debug"):
+        for name in ("specify", "discussion", "deep-research", "checklist", "quick", "debug"):
             content = (i.commands_dest(tmp_path) / f"sp.{name}.toml").read_text(encoding="utf-8").lower()
             assert f"## {agent_name} structured question preference" in content
             assert "native structured question tool" in content

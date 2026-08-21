@@ -8,12 +8,16 @@ Preserved Contract: UI reference work must preserve lane dispatch, static target
 
 **UI reference input handling**:
 - Preserve an approved change-level
-  `.specify/design/changes/<UD-ID>/previews/round-NN.html#<direction-id>` as
+  `.specify/design/changes/<UD-ID>/previews/round-NN.<html|png|jpg|jpeg|webp>#<direction-id>` as
   `approved_visual_ref` together with its immutable handoff reference and
   registered design ref/hash and preview/manifest/handoff digests; do not collapse either artifact into prose
   or replace them with the feature-level `ui-target.html`. Carry applicable
   `DS-*` decision IDs and `DH-*` contract IDs into the UI brief, selecting and
   copying their structured rows instead of rewriting their meaning.
+- Preserve `style_authority` exactly. Existing-product feature/partial-page work
+  inherits the live UI and cannot select a style skill; only an explicitly
+  authorized exact full-page overhaul may carry bounded style-delta surfaces,
+  while `global-shell` and `shared-components` remain protected.
 - Detect screenshots, HTML/CSS mockups, UI framework snippets, design exports, UI reference URLs or existing UI pages, and matching-language such as "make it like this" as UI reference input.
 - For a chat-only binary attachment, pass the runtime image item directly when supported or import its runtime-provided local path with `specify-runtime evidence import --file <local-path> --scope ui-reference --source chat-attachment --provenance user-provided`; reference the returned `object_ref` and evidence record. Never copy or materialize a project file directly.
 - Give every reference its own use intent: `exact`, `preserve-structure`,
@@ -24,6 +28,10 @@ Preserved Contract: UI reference work must preserve lane dispatch, static target
 - For `approximate` and `high`, native subagents are required by default; if native subagents are unavailable, follow the decision from `choose_ui_reference_lane_dispatch` and proceed inline only when it returns a gated `leader-inline` fallback with explicit user approval recorded, otherwise block with the missing capability instead of guessing.
 - For `inspiration`, inline fallback may proceed only after `choose_ui_reference_lane_dispatch` returns a gated `leader-inline` soft-risk decision with safe lane and contract-ready state satisfied.
 - Dispatch the UI reference lane with registered artifact owners for notes/brief and `specify-runtime design ui-target` for optional `ui-target.html`.
+- This lane is a Specify-owned intake path, not a reason to rerun Specify after
+  an unchanged planning-ready spec. A late design overlay uses
+  `formal-post-specify` and returns to Plan; only requirements changes reopen
+  this lane.
 - Validate that `ui-target.html`, when present, is a single-file,
   low-dependency review artifact with an embedded
   `spec-kit-ui-target-manifest-v1`. It may use bounded inline JavaScript only

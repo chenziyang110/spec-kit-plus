@@ -23,6 +23,11 @@ Txx, dispatch, join, resume, or completion handoff.
 
 Route first, choose the lightest safe execution surface, then packetize only selected delegated work.
 
+Passive SKILL invocation may enter only `sp-discussion`, `sp-quick`, `sp-debug`,
+or `sp-fast`. For every other `sp-*` workflow, routing means recommending the
+projected invocation and waiting for the user to invoke it; this passive skill
+must not load or enter that workflow itself.
+
 - Route into the smallest correct `sp-*` workflow before implementation or
   investigation begins.
 - Use leader-direct execution for a small or tightly coupled task when delegation
@@ -47,12 +52,11 @@ Route first, choose the lightest safe execution surface, then packetize only sel
 
 ## Process
 
-1. **Select the owning workflow**: Route to canonical `sp-tasks` when a plan lacks
-   an executable task graph. Route to canonical `sp-implement` for planned feature
-   execution, `sp-quick` for lightweight tracked work, `sp-debug` for root-cause
-   work, and the relevant map/test workflow for project cognition or testing-system
-   lanes. When telling the user what to type, use `{{invoke:tasks}}`,
-   `{{invoke:implement}}`, `{{invoke:quick}}`, or `{{invoke:debug}}`.
+1. **Select the owning workflow**: Passively enter `sp-quick` for tracked direct
+   delivery or `sp-debug` for root-cause work when the request matches. When a
+   plan lacks an executable task graph, recommend `{{invoke:tasks}}` and stop.
+   For planned feature execution, recommend `{{invoke:implement}}` and stop.
+   Apply the same user-invoked only boundary to map/test workflows.
 2. **Select the route**: Keep small/tightly coupled work leader-direct. For an
    independent or parallel lane, compile a validated `WorkerTaskPacket` from the
    current task, stable refs, and live code.
@@ -98,9 +102,9 @@ packet before dispatch.
 ## Routing Rules
 
 - If the user says "execute the plan", "start building", "implement tasks", or
-  equivalent, route to `sp-implement`, or to `sp-tasks` first if tasks are not
-  generated. If a manual next step is needed, tell the user to run
-  `{{invoke:implement}}`, or `{{invoke:tasks}}` when the task graph is missing.
+  equivalent, tell the user to run `{{invoke:implement}}`, or
+  `{{invoke:tasks}}` first when the task graph is missing, then stop. Do not
+  passively invoke either workflow.
 - If the user asks to "dispatch agents", "split this up", or "run subagents",
   route to the workflow that owns the state, then dispatch native subagents from
   validated packets.

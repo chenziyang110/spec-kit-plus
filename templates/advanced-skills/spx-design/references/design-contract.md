@@ -12,9 +12,20 @@ Include only applicable decisions:
 - visual, content, and interaction theses; one recognizable signature; safe
   system choices; and deliberate creative risks with gain/cost;
 - color, type, spacing, elevation, motion, iconography, and density tokens;
-- component anatomy, variants, states, composition, and reuse rules;
-- navigation, feedback, empty/loading/error, and destructive interactions;
-- responsive breakpoints or adaptation rules;
+- component anatomy, variants, states, composition, reuse rules, exact
+  `interaction_modes`, and `data_scenarios`;
+- an `interaction_matrix` for applicable pointer/mouse, keyboard/focus, touch,
+  shortcut, command, and system events, with exact event sequence, immediate
+  feedback, focus, repeat, cancellation, and pending behavior;
+- an `editing_matrix` selected by scenario `editing_ids` for input methods,
+  composition, paste/autofill, caret/selection, formatting, validation, dirty
+  state, persistence, undo/redo, conflict, read-only/disabled, and submission;
+- a `data_state_matrix` covering empty and populated representative/maximum
+  density for every data-bearing surface plus applicable loading, partial,
+  validation/error, permission/read-only, offline/unavailable, pending, and
+  success behavior;
+- responsive targets plus continuous stretch/compression/reflow,
+  `stretch_behavior`, and `overflow_behavior`, including active interaction;
 - accessibility semantics, focus, contrast, input, and reduced-motion behavior;
 - reference fidelity and later visual evidence requirements.
 
@@ -32,28 +43,47 @@ over one-shot page generation.
 Then query design profiles through the design CLI, select one or more visual
 capability profiles, generate `round-NN.manifest.json` with
 `specify-runtime design preview-manifest --profiles ...`, and render it with
-`specify-runtime design preview --manifest`; render the freeform board shell. Author creative HTML/CSS inside each direction canvas (hand-edit expected). The board is chrome plus freeform canvases, not a fixed specimen product UI. The profile registry determines required capabilities,
-input modes, units, specimens, state obligations, and presentation targets for
-Web, mobile, desktop, CLI, TUI, and content-led surfaces. All three directions
-must carry the same ordered specimen set and remain content-comparable, but
-must diverge on dial vectors and unique signature elements—undifferentiated
-boards fail ready-level `design preview-lint`. One numbered HTML round holds
-exactly three directions and one shared comparison baseline. Keep it
-self-contained and framework-neutral. Modern CSS and bounded inline review
-behavior may express direction switching and meaningful animation, but the
-artifact must not load remote code/assets, persist data, call a network,
-simulate business logic, or claim to be production implementation.
+`specify-runtime design preview --manifest` as an unfinished freeform shell.
+Author the project-specific HTML/CSS for one current concept in
+`#direction-main`; the seed is never review-ready. The profile registry
+determines required capabilities, input modes, units, specimens, state
+obligations, and presentation targets for Web, mobile, desktop, CLI, TUI, and
+content-led surfaces. One numbered HTML round holds exactly one concept and its
+comparison baseline. Keep it self-contained and framework-neutral. Modern CSS
+and bounded inline review behavior may express meaningful interaction and
+animation, but the artifact must not load remote code/assets, persist data,
+call a network, simulate business logic, or claim to be production
+implementation.
 
 For refine/audit of live UI, audit before mutate: classify `preserve` vs
 `overhaul`, extract brand tokens and signatures to keep with evidence levels,
 list AI-slop drift to retire, and never treat design-library seeds or anti-slop
 policy as approval truth.
 
-Every direction defines motion purpose plus duration, easing, distance or
-spatial behavior, and a `prefers-reduced-motion` equivalent. Compare all three
-with the same content and state matrix. If none is satisfactory, incorporate
-the user's named feedback into a new immutable round. Approval identifies the
-exact round path and direction ID. Freeze it with
+Persist the exact `style_authority` alongside the professional route. Local
+feature and partial-page contracts use `inherit-existing`, inherit the live style, and protect
+`global-shell` plus `shared-components`; a style skill cannot override them.
+Only user-authorized exact full-page overhaul scope may declare
+`page-overhaul-authorized`, allowed style-delta surfaces, and its approval
+source. Carry this structure unchanged into every downstream UI contract.
+
+For Web UI, retain the router's `mature_web_ui_resource_ids` shortlist,
+`web_ui_asset_inventory`, `mature_web_ui_selection`, and
+`smoothness_acceptance_ids`. Final selection requires a scanned live project;
+provisional scores cannot authorize dependency changes.
+Component contracts prefer inspected live components and documented
+extensions; select one compatible mature primary system and only
+capability-justified headless or specialist support. `governance: new` requires
+a recorded gap. Official Agent, MCP, or LLM material is retrieval input for a
+selected candidate, not dependency, license, upgrade, or migration authority.
+
+The current concept defines motion purpose plus duration, easing, distance or
+spatial behavior, and a `prefers-reduced-motion` equivalent. Present it in a
+real browser at the applicable target viewports and states. Ask the user what
+to preserve and what to change; if it is not satisfactory, incorporate that
+feedback into the same direction in a new immutable round. Approval identifies
+the exact round path and `direction-main`. Freeze it only after explicit user
+approval with
 `{{specify-subcmd:specify-runtime design approve <round-path> --direction <direction-id> --format json}}`;
 the resulting approval sidecar, selected-direction handoff sidecar, preview
 SHA-256, manifest SHA-256, handoff SHA-256, review round, approved decision IDs,
@@ -94,6 +124,14 @@ projects the selected direction into `round-NN.handoff.json`; downstream
 artifacts reference its digest and select `DH-*` IDs instead of rewriting its
 meaning.
 
+The current concept must demonstrate the required interaction, data, and size
+scenarios so feedback is grounded in behavior rather than one attractive
+default-state screenshot. Use risk-based or pairwise input × data × size
+combinations rather than a Cartesian explosion, but include resize during
+active focus, selection, scrolling, dragging, overlays, or unsaved input when
+those risks exist. A static populated pointer state cannot stand in for
+keyboard, empty/error recovery, or continuous resize behavior.
+
 `no-ui` is an explicit applicability result, not a specimen. It requires current
 evidence and `design_system_status: not-applicable`; it cannot be combined with
 a visual profile and must not enter preview, approval, handoff, `ui-target`, or
@@ -116,3 +154,14 @@ Approved contracts are immutable. Registration subtracts only overlapping
 successor scope into the parent's `superseded_scopes`; the parent remains
 active outside those exclusions and becomes fully superseded only when every
 declared scope root is covered.
+
+## Professional UI contract continuity
+
+For substantive UI, freeze complete `surface_catalog`, `scenario_matrix`,
+`interaction_matrix`, `editing_matrix`, `data_state_matrix`, `accessibility_matrix`,
+`navigation_matrix`, `content_matrix`, `motion_contract`, and
+`usability_validation` values under
+`design_change.verification`, plus component governance and iconography. Use
+routed smoothness IDs in the applicable interaction, motion, and usability
+rows, using only the current evidence kinds. Use risk-based or pairwise scenarios rather than an unbounded Cartesian product;
+automation/screenshots do not replace required target-user human review.

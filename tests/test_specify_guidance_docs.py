@@ -35,8 +35,8 @@ def test_agents_declares_classic_and_advanced_profile_contract() -> None:
     assert "install the other profile additively" in normalized
     assert "`templates/commands/**`" in section
     assert "`templates/advanced-skills/**`" in section
-    assert "31 SPX skills" in normalized
-    assert "30 one-to-one Classic command counterparts" in normalized
+    assert "30 SPX skills" in normalized
+    assert "29 one-to-one Classic command counterparts" in normalized
     assert "does **not** install the Classic passive-skill prompt bundle" in normalized
     for skill_name in (
         "sp-map-scan",
@@ -302,12 +302,13 @@ def test_repo_docs_explain_adaptive_plan_tasks_dispatch_contract() -> None:
         assert "scope" in lowered
 
 
-def test_quickstart_positions_clarify_correctly():
+def test_quickstart_omits_removed_clarify_stage():
     quickstart = _read("docs/quickstart.md")
     lowered = quickstart.lower()
 
-    assert "/sp-clarify" in quickstart
-    assert "repair lane" in lowered or "needs deeper analysis before planning" in lowered
+    assert "/sp-clarify" not in quickstart
+    assert "`clarify`" not in quickstart
+    assert "specify -> plan" in lowered
 
 
 def test_guidance_docs_explain_skill_groups():
@@ -320,7 +321,7 @@ def test_guidance_docs_explain_skill_groups():
     assert "`auto`" in readme
     assert "`ask`" in readme
     assert "`discussion`" in readme
-    assert "`clarify`" in readme
+    assert "`clarify`" not in readme
     assert "`deep-research`" in readme
     assert "`prd`" in readme
     assert "`checklist`" in readme
@@ -337,7 +338,7 @@ def test_guidance_docs_explain_skill_groups():
     assert "`discussion`" in quickstart
     skill_map = _section(quickstart, "## Skill Map", "For Codex team-mode execution")
     assert "`constitution`, `specify`, `plan`, `tasks`, `implement`" in skill_map
-    assert "`map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `test-design`, `checklist`, `analyze`, `debug`, `explain`" in skill_map
+    assert "`map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `deep-research` (`research` alias), `test-design`, `design`, `fast`, `quick`, `implement-teams`, `taskstoissues`, `checklist`, `analyze`, `debug`, `explain`" in skill_map
     assert "/sp-" not in skill_map
 
 
@@ -771,7 +772,7 @@ def test_guidance_docs_explain_analyze_tasks_convergence_contract() -> None:
         assert "implementation-readiness self-audit" in lowered
         assert "repeated `tasks -> analyze -> tasks` loops are abnormal" in content
         assert "only use `analyze` again when explicitly required by legacy or diagnostic state" in content
-        assert "directly to `plan`, `clarify`, or `deep-research`" in content
+        assert "directly to `specify`, `plan`, or `deep-research`" in content
 
     assert "tasks/implement default contract" in handbook_lower
     assert "implementation-readiness self-audit" in handbook_lower

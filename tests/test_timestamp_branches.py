@@ -86,6 +86,30 @@ def run_script(cwd: Path, *args: str, env: dict | None = None) -> subprocess.Com
     )
 
 
+def run_branch_policy_script(
+    cwd: Path, *args: str, env: dict | None = None
+) -> subprocess.CompletedProcess:
+    """Run branch-policy cases with Git Bash when Windows resolves bash to WSL."""
+    if os.name == "nt":
+        git_executable = shutil.which("git")
+        if git_executable:
+            git_root = Path(git_executable).resolve().parent.parent
+            git_bash = git_root / "bin" / "bash.exe"
+            if git_bash.is_file():
+                command = shlex.join(
+                    ["./scripts/bash/create-new-feature.sh", *args]
+                )
+                return subprocess.run(
+                    [str(git_bash), "-lc", command],
+                    cwd=cwd,
+                    capture_output=True,
+                    text=True,
+                    errors="replace",
+                    env={**os.environ, **(env or {})},
+                )
+    return run_script(cwd, *args, env=env)
+
+
 def run_check_prerequisites(
     cwd: Path, *args: str, env: dict | None = None
 ) -> subprocess.CompletedProcess:
@@ -695,6 +719,248 @@ class TestAllowExistingBranchPowerShell:
         assert "AllowExistingBranch" in contents.replace("-AllowExistingBranch", "")
 
 
+# ── Shared Work Board Branch Policy Tests ───────────────────────────────────
+
+
+@requires_bash
+class TestSharedWorkBoardBranchPolicy:
+    def test_default_policy_preserves_existing_branch_creation(self, git_repo: Path):
+        result = run_branch_policy_script(
+            git_repo,
+            "--json",
+            "--number",
+            "41",
+            "--short-name",
+            "default-branch",
+            "Default branch behavior",
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout)
+        assert payload["BRANCH_POLICY"] == "default"
+        current = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        assert current == "041-default-branch"
+
+    def test_keep_current_branch_flag_preserves_checkout_and_scaffolds_feature(
+        self, git_repo: Path
+    ):
+        before = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        result = run_branch_policy_script(
+            git_repo,
+            "--keep-current-branch",
+            "--json",
+            "--number",
+            "42",
+            "--short-name",
+            "shared-board",
+            "Shared board feature",
+        )
+
+        assert result.returncode == 0, result.stderr
+        after = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        assert after == before
+        assert subprocess.run(
+            ["git", "branch", "--list", "042-shared-board"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip() == ""
+        payload = json.loads(result.stdout)
+        assert payload["BRANCH_POLICY"] == "keep-current"
+        assert (
+            git_repo / ".specify" / "features" / "042-shared-board" / "spec.md"
+        ).is_file()
+
+    def test_managed_branch_policy_environment_preserves_checkout(self, git_repo: Path):
+        before = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        result = run_branch_policy_script(
+            git_repo,
+            "--json",
+            "--number",
+            "43",
+            "--short-name",
+            "managed-shared",
+            "Managed shared feature",
+            env={"SPECIFY_FEATURE_BRANCH_POLICY": "keep-current"},
+        )
+
+        assert result.returncode == 0, result.stderr
+        after = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        assert after == before
+        assert json.loads(result.stdout)["BRANCH_POLICY"] == "keep-current"
+
+    def test_managed_run_always_preserves_allocated_checkout(self, git_repo: Path):
+        before = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        result = run_branch_policy_script(
+            git_repo,
+            "--json",
+            "--number",
+            "46",
+            "--short-name",
+            "managed-private-ref",
+            "Managed private ref",
+            env={
+                "SPECIFY_RUN_MANAGED": "1",
+                "SPECIFY_FEATURE_BRANCH_POLICY": "default",
+            },
+        )
+
+        assert result.returncode == 0, result.stderr
+        after = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        assert after == before
+        assert subprocess.run(
+            ["git", "branch", "--list", "046-managed-private-ref"],
+            cwd=git_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip() == ""
+        assert json.loads(result.stdout)["BRANCH_POLICY"] == "keep-current"
+
+    def test_keep_current_rejects_existing_feature_dir_without_explicit_resume(
+        self, git_repo: Path
+    ):
+        feature_dir = git_repo / ".specify" / "features" / "047-existing-scope"
+        feature_dir.mkdir(parents=True)
+        (feature_dir / "sentinel.txt").write_text("owned by prior work\n", encoding="utf-8")
+
+        result = run_branch_policy_script(
+            git_repo,
+            "--keep-current-branch",
+            "--number",
+            "47",
+            "--short-name",
+            "existing-scope",
+            "Existing scope",
+        )
+
+        assert result.returncode != 0
+        assert "feature directory" in result.stderr.lower()
+        assert "already exists" in result.stderr.lower()
+        assert (feature_dir / "sentinel.txt").read_text(encoding="utf-8") == "owned by prior work\n"
+
+    def test_keep_current_allows_explicit_resume_of_existing_feature_dir(
+        self, git_repo: Path
+    ):
+        feature_dir = git_repo / ".specify" / "features" / "048-resume-scope"
+        feature_dir.mkdir(parents=True)
+        (feature_dir / "sentinel.txt").write_text("preserve me\n", encoding="utf-8")
+
+        result = run_branch_policy_script(
+            git_repo,
+            "--keep-current-branch",
+            "--allow-existing-branch",
+            "--number",
+            "48",
+            "--short-name",
+            "resume-scope",
+            "Resume scope",
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert (feature_dir / "sentinel.txt").read_text(encoding="utf-8") == "preserve me\n"
+        assert (feature_dir / "spec.md").is_file()
+
+    def test_resolved_timestamp_feature_id_replays_dry_run_receipt_exactly(
+        self, git_repo: Path
+    ):
+        dry_run = run_branch_policy_script(
+            git_repo,
+            "--dry-run",
+            "--json",
+            "--timestamp",
+            "--short-name",
+            "receipt-replay",
+            "Receipt replay",
+            env={"SPECIFY_FEATURE_TIMESTAMP_PREFIX": "20260820-120000"},
+        )
+        assert dry_run.returncode == 0, dry_run.stderr
+        receipt = json.loads(dry_run.stdout)
+
+        real_run = run_branch_policy_script(
+            git_repo,
+            "--keep-current-branch",
+            "--json",
+            "--timestamp",
+            "--short-name",
+            "receipt-replay",
+            "--resolved-feature-id",
+            receipt["BRANCH_NAME"],
+            "Receipt replay",
+            env={"SPECIFY_FEATURE_TIMESTAMP_PREFIX": "20260820-120001"},
+        )
+
+        assert real_run.returncode == 0, real_run.stderr
+        payload = json.loads(real_run.stdout)
+        assert payload["BRANCH_NAME"] == receipt["BRANCH_NAME"]
+        assert payload["FEATURE_DIR"] == receipt["FEATURE_DIR"]
+        assert Path(payload["FEATURE_DIR"], "spec.md").is_file()
+
+    @pytest.mark.parametrize(
+        "invalid_id",
+        ["../escape", "20260820-120000-bad..ref"],
+    )
+    def test_resolved_feature_id_rejects_paths_and_invalid_git_refs(
+        self, git_repo: Path, invalid_id: str
+    ):
+        result = run_branch_policy_script(
+            git_repo,
+            "--keep-current-branch",
+            "--resolved-feature-id",
+            invalid_id,
+            "Invalid receipt replay",
+        )
+
+        assert result.returncode != 0
+        assert "resolved feature id" in result.stderr.lower()
+
+
 # ── Dry-Run Tests ────────────────────────────────────────────────────────────
 
 
@@ -1195,6 +1461,8 @@ def run_ps_script(cwd: Path, *args: str, env: dict | None = None) -> subprocess.
         cwd=cwd,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         env={**os.environ, **(env or {})},
     )
 
@@ -1318,6 +1586,218 @@ class TestPowerShellDryRun:
         assert result.returncode == 0, result.stderr
         data = json.loads(result.stdout)
         assert "DRY_RUN" not in data, f"DRY_RUN should not be in normal JSON: {data}"
+
+    def test_ps_keep_current_branch_preserves_checkout_and_scaffolds_feature(
+        self, ps_git_repo: Path
+    ):
+        before = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=ps_git_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        result = run_ps_script(
+            ps_git_repo,
+            "-KeepCurrentBranch",
+            "-Json",
+            "-Number",
+            "44",
+            "-ShortName",
+            "ps-shared",
+            "PowerShell shared feature",
+        )
+
+        assert result.returncode == 0, result.stderr
+        after = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=ps_git_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        assert after == before
+        payload = json.loads(result.stdout)
+        assert payload["BRANCH_POLICY"] == "keep-current"
+        assert (
+            ps_git_repo
+            / ".specify"
+            / "features"
+            / "044-ps-shared"
+            / "spec.md"
+        ).is_file()
+
+    def test_ps_default_policy_preserves_existing_branch_creation(
+        self, ps_git_repo: Path
+    ):
+        result = run_ps_script(
+            ps_git_repo,
+            "-Json",
+            "-Number",
+            "45",
+            "-ShortName",
+            "ps-default",
+            "PowerShell default branch",
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout)
+        assert payload["BRANCH_POLICY"] == "default"
+        current = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=ps_git_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        assert current == "045-ps-default"
+
+    def test_ps_managed_run_always_preserves_allocated_checkout(
+        self, ps_git_repo: Path
+    ):
+        before = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=ps_git_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        result = run_ps_script(
+            ps_git_repo,
+            "-Json",
+            "-Number",
+            "49",
+            "-ShortName",
+            "ps-managed-private-ref",
+            "PowerShell managed private ref",
+            env={
+                "SPECIFY_RUN_MANAGED": "1",
+                "SPECIFY_FEATURE_BRANCH_POLICY": "default",
+            },
+        )
+
+        assert result.returncode == 0, result.stderr
+        after = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=ps_git_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        assert after == before
+        assert subprocess.run(
+            ["git", "branch", "--list", "049-ps-managed-private-ref"],
+            cwd=ps_git_repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip() == ""
+        assert json.loads(result.stdout)["BRANCH_POLICY"] == "keep-current"
+
+    def test_ps_keep_current_rejects_existing_feature_dir_without_explicit_resume(
+        self, ps_git_repo: Path
+    ):
+        feature_dir = (
+            ps_git_repo / ".specify" / "features" / "050-ps-existing-scope"
+        )
+        feature_dir.mkdir(parents=True)
+        (feature_dir / "sentinel.txt").write_text(
+            "owned by prior work\n", encoding="utf-8"
+        )
+
+        result = run_ps_script(
+            ps_git_repo,
+            "-KeepCurrentBranch",
+            "-Number",
+            "50",
+            "-ShortName",
+            "ps-existing-scope",
+            "PowerShell existing scope",
+        )
+
+        assert result.returncode != 0
+        output = f"{result.stdout}\n{result.stderr}".lower()
+        assert "feature directory" in output
+        assert "already exists" in output
+        assert (feature_dir / "sentinel.txt").read_text(encoding="utf-8") == "owned by prior work\n"
+
+    def test_ps_keep_current_allows_explicit_resume_of_existing_feature_dir(
+        self, ps_git_repo: Path
+    ):
+        feature_dir = ps_git_repo / ".specify" / "features" / "051-ps-resume-scope"
+        feature_dir.mkdir(parents=True)
+        (feature_dir / "sentinel.txt").write_text("preserve me\n", encoding="utf-8")
+
+        result = run_ps_script(
+            ps_git_repo,
+            "-KeepCurrentBranch",
+            "-AllowExistingBranch",
+            "-Number",
+            "51",
+            "-ShortName",
+            "ps-resume-scope",
+            "PowerShell resume scope",
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert (feature_dir / "sentinel.txt").read_text(encoding="utf-8") == "preserve me\n"
+        assert (feature_dir / "spec.md").is_file()
+
+    def test_ps_resolved_timestamp_feature_id_replays_dry_run_receipt_exactly(
+        self, ps_git_repo: Path
+    ):
+        dry_run = run_ps_script(
+            ps_git_repo,
+            "-DryRun",
+            "-Json",
+            "-Timestamp",
+            "-ShortName",
+            "ps-receipt-replay",
+            "PowerShell receipt replay",
+            env={"SPECIFY_FEATURE_TIMESTAMP_PREFIX": "20260820-130000"},
+        )
+        assert dry_run.returncode == 0, dry_run.stderr
+        receipt = json.loads(dry_run.stdout)
+
+        real_run = run_ps_script(
+            ps_git_repo,
+            "-KeepCurrentBranch",
+            "-Json",
+            "-Timestamp",
+            "-ShortName",
+            "ps-receipt-replay",
+            "-ResolvedFeatureId",
+            receipt["BRANCH_NAME"],
+            "PowerShell receipt replay",
+            env={"SPECIFY_FEATURE_TIMESTAMP_PREFIX": "20260820-130001"},
+        )
+
+        assert real_run.returncode == 0, real_run.stderr
+        payload = json.loads(real_run.stdout)
+        assert payload["BRANCH_NAME"] == receipt["BRANCH_NAME"]
+        assert payload["FEATURE_DIR"] == receipt["FEATURE_DIR"]
+        assert Path(payload["FEATURE_DIR"], "spec.md").is_file()
+
+    @pytest.mark.parametrize(
+        "invalid_id",
+        ["../escape", "20260820-130000-bad..ref"],
+    )
+    def test_ps_resolved_feature_id_rejects_paths_and_invalid_git_refs(
+        self, ps_git_repo: Path, invalid_id: str
+    ):
+        result = run_ps_script(
+            ps_git_repo,
+            "-KeepCurrentBranch",
+            "-ResolvedFeatureId",
+            invalid_id,
+            "Invalid PowerShell receipt replay",
+        )
+
+        assert result.returncode != 0
+        output = f"{result.stdout}\n{result.stderr}".lower()
+        assert "resolved feature id" in output
 
     def test_ps_check_prerequisites_accepts_explicit_legacy_feature_dir(self, ps_git_repo: Path):
         """PowerShell check-prerequisites should accept an explicit feature dir even off a feature branch."""

@@ -140,7 +140,7 @@ try {
     }
 
     $cognitionHelp = (& $candidate cognition --help 2>&1 | Out-String)
-    foreach ($command in @("status", "query", "scan-prepare", "update")) {
+    foreach ($command in @("status", "query", "generate-ignore", "confirm-ignore", "scan-set", "scan-formats", "scan-policy-stage", "scan-policy-confirm", "scan-prepare", "update")) {
         if ($cognitionHelp -notmatch [regex]::Escape($command)) {
             throw "Downloaded binary is missing cognition command: ${command}"
         }

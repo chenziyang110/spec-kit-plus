@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -174,6 +175,22 @@ func TestTeamsSyncBackPlansCopiesAndProtectsDirtyWorkspace(t *testing.T) {
 	raw, err := os.ReadFile(target)
 	if err != nil || string(raw) != "print('from worker')\n" {
 		t.Fatalf("sync-back target mismatch: %v %q", err, raw)
+	}
+}
+
+func TestTeamsGitProbeFailureIsFailClosed(t *testing.T) {
+	probeErr := errors.New("git probe timed out")
+	probe := func(string, ...string) (string, error) {
+		return "", probeErr
+	}
+
+	readiness := teamsGitReadinessWithProbe(".", probe)
+	if readiness["git_repo_detected"] != false || readiness["git_head_available"] != false ||
+		readiness["leader_workspace_clean"] != false || readiness["worktree_ready"] != false {
+		t.Fatalf("failed Git probe was not fail-closed: %#v", readiness)
+	}
+	if !teamsWorkspaceDirtyWithProbe(".", probe) {
+		t.Fatal("failed Git probe was treated as a clean workspace")
 	}
 }
 

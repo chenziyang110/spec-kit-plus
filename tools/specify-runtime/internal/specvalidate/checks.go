@@ -156,6 +156,34 @@ func checkHandoffJSONSchema(a artifactSet) checkResult {
 				return checkResult{status: statusFail, message: fmt.Sprintf("spec-contract %s must be an object", key)}
 			}
 		}
+		if rawGate, present := contract["feasibility_gate"]; present {
+			gate, ok := objectValue(rawGate)
+			if !ok {
+				return checkResult{status: statusFail, message: "spec-contract feasibility_gate must be an object"}
+			}
+			decision := strings.ToLower(strings.TrimSpace(valueString(gate["decision"])))
+			if decision != "required" && decision != "not_selected" {
+				return checkResult{status: statusFail, message: "spec-contract feasibility_gate.decision must be required or not_selected"}
+			}
+			capabilityRefs, capabilitiesOK := arrayValue(gate["capability_refs"])
+			if !capabilitiesOK {
+				return checkResult{status: statusFail, message: "spec-contract feasibility_gate.capability_refs must be an array"}
+			}
+			if _, ok := arrayValue(gate["reason_refs"]); !ok {
+				return checkResult{status: statusFail, message: "spec-contract feasibility_gate.reason_refs must be an array"}
+			}
+			if decision == "required" && len(capabilityRefs) == 0 {
+				return checkResult{status: statusFail, message: "required feasibility_gate must select at least one capability"}
+			}
+			if decision == "not_selected" && len(capabilityRefs) != 0 {
+				return checkResult{status: statusFail, message: "not_selected feasibility_gate cannot carry capability refs"}
+			}
+			for _, rawRef := range capabilityRefs {
+				if !regexp.MustCompile(`^CAP-[0-9]{3,}$`).MatchString(strings.TrimSpace(valueString(rawRef))) {
+					return checkResult{status: statusFail, message: "spec-contract feasibility_gate capability refs must use CAP-### identifiers"}
+				}
+			}
+		}
 		scope, _ := objectValue(contract["scope"])
 		for _, key := range []string{"in", "out", "deferred"} {
 			if _, ok := arrayValue(scope[key]); !ok {

@@ -163,6 +163,7 @@ def test_normalize_worker_task_result_payload_preserves_ui_fields() -> None:
                 "visual_comparison": "unavailable",
                 "fidelity_status": "pending-human-review",
                 "reviewer": "agent",
+                "human_review_ref": "evidence/usability-review.md",
             },
         }
     )
@@ -175,6 +176,7 @@ def test_normalize_worker_task_result_payload_preserves_ui_fields() -> None:
         }
     ]
     assert result.ui_verification.fidelity_status == "pending-human-review"
+    assert result.ui_verification.human_review_ref == "evidence/usability-review.md"
 
 
 def test_normalize_worker_task_result_payload_preserves_current_visual_contract() -> (
@@ -199,6 +201,10 @@ def test_normalize_worker_task_result_payload_preserves_current_visual_contract(
                 "comparison_report_sha256": digest,
                 "implementation_capture_refs": ["evidence/desktop.png"],
                 "covered_decision_ids": ["DS-001"],
+                "covered_smoothness_acceptance_ids": [
+                    "focus-continuity",
+                    "reduced-motion",
+                ],
                 "structural_differences": ["none"],
                 "visual_differences": ["none"],
                 "comparison_tolerance": COMPARISON_TOLERANCE,
@@ -217,6 +223,10 @@ def test_normalize_worker_task_result_payload_preserves_current_visual_contract(
     assert verification.comparison_report_sha256 == digest
     assert verification.implementation_capture_refs == ["evidence/desktop.png"]
     assert verification.covered_decision_ids == ["DS-001"]
+    assert verification.covered_smoothness_acceptance_ids == [
+        "focus-continuity",
+        "reduced-motion",
+    ]
     assert verification.structural_differences == ["none"]
     assert verification.visual_differences == ["none"]
     assert verification.comparison_tolerance == COMPARISON_TOLERANCE

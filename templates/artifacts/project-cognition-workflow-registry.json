@@ -27,11 +27,6 @@
       "canonical_workflow": null,
       "reason": "Checklist artifacts are planning-only."
     },
-    "clarify": {
-      "mode": "no_closeout",
-      "canonical_workflow": null,
-      "reason": "Clarification changes specification artifacts only."
-    },
     "constitution": {
       "mode": "no_closeout",
       "canonical_workflow": null,

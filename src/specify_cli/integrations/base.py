@@ -146,7 +146,6 @@ class IntegrationBase(ABC):
         {
             "analyze",
             "checklist",
-            "clarify",
             "debug",
             "deep-research",
             "design",
@@ -599,10 +598,6 @@ class IntegrationBase(ABC):
                 "explicit handoff request and boundary confirmation before drafting agent-only `handoff-to-specify.json`",
                 "user confirmation before marking the handoff ready for `sp-specify`",
             ],
-            "clarify": [
-                "high-impact gap confirmation",
-                "scope or constraint confirmation when enhancement changes planning readiness",
-            ],
             "deep-research": [
                 "whether the feasibility question is actually a requirement gap",
                 "minimum research tracks needed before planning",
@@ -632,7 +627,6 @@ class IntegrationBase(ABC):
         fallback_hints = {
             "specify": "If the native tool is unavailable in the current runtime or the tool call fails, fall back to the shared open question block structure already defined in this template.",
             "discussion": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text product or technical question and continue with the discussion state update.",
-            "clarify": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text confirmation question and continue with the existing enhancement flow.",
             "deep-research": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text question about the missing feasibility or research-track decision, then continue with the existing research workflow.",
             "test-design": "If the native tool is unavailable in the current runtime or the tool call fails, ask one concise plain-text question about the unresolved scope, risk, or test-material decision, then continue with the existing test-design workflow.",
             "checklist": "If the native tool is unavailable in the current runtime or the tool call fails, keep the template's existing `Q1`/`Q2`/`Q3` (and optional `Q4`/`Q5`) textual question format.",
@@ -654,7 +648,6 @@ class IntegrationBase(ABC):
         question_driven_commands = {
             "specify",
             "discussion",
-            "clarify",
             "deep-research",
             "test-design",
             "checklist",
@@ -772,7 +765,7 @@ class IntegrationBase(ABC):
             "- Read top-level `minimal_live_reads` first and open live files only for the named gap. Do not build a second broad repository summary or infer final scope from first-pass paths.\n"
             "- After `FEATURE_DIR` is known, use `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`; when state is missing, run `{{specify-subcmd:specify-runtime workflow enter --command specify --feature-dir <feature-dir> --format json}}`. The deterministic workflow runtime owns `workflow.json` as required-stage state; do not author or advance it manually. Rich `workflow-state.md` remains specification evidence and resume state inside the fixed workflow artifact boundary: initialize it with `{{specify-subcmd:specify-runtime artifact scaffold --kind workflow-state --path <project-relative-workflow-state-path> --format json}}`, query it only through targeted `artifact show`, and mutate it only through leased `artifact patch` calls. Never create a temporary authoring file or use rich state to skip runtime stages. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
             "- Initialize canonical `spec-contract.json` first through `specify-runtime artifact scaffold --kind spec-contract` and fill it through leased `artifact patch` calls. Fill the prerequisite-created `spec.md` skeleton only through leased `specify-runtime artifact patch --section` calls; submit `alignment.md`, `context.md`, `references.md`, or diagnostics through `artifact prepare` plus inline `artifact submit` only when the triggered content has independent project-review value and cannot be represented by a stable ref.\n"
-            "- Clarify only planning-critical ambiguity. Recommend `/sp.clarify` or `/sp.deep-research` only when the unresolved item belongs there.\n"
+            "- Clarify only planning-critical ambiguity. Recommend returning to `/sp.specify` or routing to `/sp.deep-research` only when the unresolved item belongs there.\n"
             "- Preserve this as an internal understand-before-acting pass; do not replace the one-question-at-a-time requirement discovery flow with a broad analysis report.\n"
         )
         return content + addendum
@@ -2841,6 +2834,19 @@ class SkillsIntegration(IntegrationBase):
                 processed_body,
             )
 
+        description = CommandRegistrar.apply_classic_skill_invocation_policy(
+            skill_name,
+            description,
+        )
+        model_invocation_control = (
+            "disable-model-invocation: true\n"
+            if CommandRegistrar.requires_native_model_invocation_disable(
+                self.key,
+                skill_name,
+            )
+            else ""
+        )
+
         compatibility = "Requires spec-kit project structure with .specify/ directory"
         return (
             f"---\n"
@@ -2850,8 +2856,38 @@ class SkillsIntegration(IntegrationBase):
             f"metadata:\n"
             f"  author: {self._quote_skill_value('github-spec-kit')}\n"
             f"  source: {self._quote_skill_value(source)}\n"
+            f"{model_invocation_control}"
             f"---\n"
             f"{processed_body}"
+        )
+
+    def _render_classic_openai_metadata(
+        self,
+        *,
+        skill_name: str,
+        description: str,
+    ) -> str:
+        from specify_cli.agents import CommandRegistrar
+
+        display_words = [
+            part.capitalize()
+            for part in skill_name.removeprefix("sp-").split("-")
+            if part
+        ]
+        display_name = f"SP {' '.join(display_words)}".strip()
+        allow_implicit = (
+            "true"
+            if CommandRegistrar.is_passively_invocable_classic_skill(skill_name)
+            else "false"
+        )
+        return (
+            "interface:\n"
+            f"  display_name: {self._quote_skill_value(display_name)}\n"
+            f"  short_description: {self._quote_skill_value(description)}\n"
+            f"  default_prompt: {self._quote_skill_value(f'Use ${skill_name} to run this workflow.')}\n"
+            "\n"
+            "policy:\n"
+            f"  allow_implicit_invocation: {allow_implicit}\n"
         )
 
     def _copy_command_reference_sidecars(
@@ -3475,6 +3511,18 @@ class SkillsIntegration(IntegrationBase):
                 skill_content, skill_file, project_root, manifest
             )
             created.append(dst)
+            openai_metadata = self._render_classic_openai_metadata(
+                skill_name=skill_name,
+                description=description,
+            )
+            created.append(
+                self.write_file_and_record(
+                    openai_metadata,
+                    skill_dir / "agents" / "openai.yaml",
+                    project_root,
+                    manifest,
+                )
+            )
             created.extend(
                 self._copy_command_reference_sidecars(
                     command_name=command_name,

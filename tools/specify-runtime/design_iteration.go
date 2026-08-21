@@ -144,6 +144,30 @@ func runDesignAdopt(args []string, stdout io.Writer) int {
 	return writeEnvelope(stdout, env)
 }
 
+func runDesignAdoption(args []string, stdout io.Writer) int {
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
+		return writeDesignError(stdout, "usage-error", "design adoption requires a feature consumer reference")
+	}
+	request := designAdoptionRequest{
+		ConsumerRef:    args[0],
+		Scope:          optionValue(args, "--scope", ""),
+		BindingRef:     optionValue(args, "--binding-ref", ""),
+		BindingSHA256:  optionValue(args, "--binding-sha256", ""),
+		ExpectedChange: optionValue(args, "--expected-change", ""),
+	}
+	root, err := os.Getwd()
+	if err != nil {
+		return writeDesignError(stdout, "error", "resolve project root: "+err.Error())
+	}
+	receipt, err := resolveDesignAdoption(root, request)
+	if err != nil {
+		return writeDesignError(stdout, "blocked", err.Error())
+	}
+	env := NewEnvelope("ok", "post-Specify UI design adoption verified without changing state")
+	env.Data["adoption"] = receipt
+	return writeEnvelope(stdout, env)
+}
+
 func scaffoldDesignIteration(sourceID, changeID, title, changeType string, scopes []string, profilesCSV string) (string, error) {
 	root, err := os.Getwd()
 	if err != nil {
@@ -631,6 +655,18 @@ func designReconciliationContract(mode, currentChangeID string, changedSections,
 				},
 			}
 		}
+		if mode == "formal-post-specify" {
+			return map[string]any{
+				"preserved_bindings": []string{
+					"feature.spec_contract", "feature.requirements", "feature.acceptance_criteria",
+				},
+				"invalidated_bindings": []string{},
+				"reconcile_from":       "plan",
+				"reconciliation_actions": []string{
+					"compile_plan_ui_design_contract", "compile_task_ui_contracts",
+				},
+			}
+		}
 		return map[string]any{
 			"preserved_bindings":   []string{},
 			"invalidated_bindings": []string{},
@@ -645,6 +681,11 @@ func designReconciliationContract(mode, currentChangeID string, changedSections,
 		preserved := []string{
 			"feature.ui_brief", "plan.ui_design_contract", "tasks.ui_contracts",
 			"implementation.completed_work", "review.scope_evidence",
+		}
+		if mode == "formal-post-specify" {
+			preserved = append([]string{
+				"feature.spec_contract", "feature.requirements", "feature.acceptance_criteria",
+			}, preserved...)
 		}
 		if mode == "quick" {
 			preserved = []string{"quick.completed_work_items", "quick.pending_worker_packets", "review.scope_evidence"}
@@ -666,6 +707,41 @@ func designReconciliationContract(mode, currentChangeID string, changedSections,
 			"reconciliation_actions": []string{
 				"retire_unstarted_worker_packets", "stop_in_progress_worker_packets_at_safe_boundary",
 				"create_corrective_work_item_for_completed_work", "recapture_affected_review_evidence",
+			},
+		}
+	}
+	if mode == "formal-post-specify" {
+		verificationOnly := len(changedSections) > 0
+		for _, section := range changedSections {
+			if section != "verification" {
+				verificationOnly = false
+			}
+		}
+		if verificationOnly && len(affectedDecisions) == 0 && len(affectedHandoffs) == 0 {
+			return map[string]any{
+				"preserved_bindings": []string{
+					"feature.spec_contract", "feature.requirements", "feature.acceptance_criteria",
+					"feature.ui_brief", "plan.ui_design_contract", "tasks.ui_contracts",
+					"implementation.completed_work", "review.unaffected_scope_evidence",
+				},
+				"invalidated_bindings": []string{"review.affected_scope_evidence"},
+				"reconcile_from":       "review",
+				"reconciliation_actions": []string{
+					"recapture_affected_review_evidence",
+				},
+			}
+		}
+		return map[string]any{
+			"preserved_bindings": []string{
+				"feature.spec_contract", "feature.requirements", "feature.acceptance_criteria",
+				"implementation.completed_work", "review.unaffected_scope_evidence",
+			},
+			"invalidated_bindings": []string{
+				"plan.ui_design_contract", "tasks.ui_contracts", "review.affected_scope_evidence",
+			},
+			"reconcile_from": "plan",
+			"reconciliation_actions": []string{
+				"recompile_plan_ui_design_contract", "recompile_task_ui_contracts", "recapture_affected_review_evidence",
 			},
 		}
 	}
@@ -740,8 +816,8 @@ func normalizeDesignImpactRequest(request designAdoptionRequest) (designAdoption
 	if !designChangeScopeRE.MatchString(request.Scope) {
 		return request, fmt.Errorf("design adoption scope must be a stable path-like identifier")
 	}
-	if request.Mode != "formal" && request.Mode != "quick" {
-		return request, fmt.Errorf("design adoption mode must be formal or quick")
+	if request.Mode != "formal" && request.Mode != "formal-post-specify" && request.Mode != "quick" {
+		return request, fmt.Errorf("design adoption mode must be formal, formal-post-specify, or quick")
 	}
 	if request.ExpectedChange == "" {
 		return request, fmt.Errorf("design adoption requires --expected-change <UD-ID|none>")
@@ -749,7 +825,7 @@ func normalizeDesignImpactRequest(request designAdoptionRequest) (designAdoption
 	if request.ExpectedChange != "NONE" && !designChangeIDRE.MatchString(request.ExpectedChange) {
 		return request, fmt.Errorf("expected current change must be a UD-* ID or none")
 	}
-	if request.Mode == "formal" && !strings.HasPrefix(request.ConsumerRef, "feature:") {
+	if (request.Mode == "formal" || request.Mode == "formal-post-specify") && !strings.HasPrefix(request.ConsumerRef, "feature:") {
 		return request, fmt.Errorf("formal design adoption consumer must use feature:<id>")
 	}
 	if request.Mode == "quick" && !strings.HasPrefix(request.ConsumerRef, "quick:") {
@@ -917,8 +993,8 @@ func adoptDesignChange(root string, request designAdoptionRequest) (map[string]a
 	if !designChangeScopeRE.MatchString(request.Scope) {
 		return nil, fmt.Errorf("design adoption scope must be a stable path-like identifier")
 	}
-	if request.Mode != "formal" && request.Mode != "quick" {
-		return nil, fmt.Errorf("design adoption mode must be formal or quick")
+	if request.Mode != "formal" && request.Mode != "formal-post-specify" && request.Mode != "quick" {
+		return nil, fmt.Errorf("design adoption mode must be formal, formal-post-specify, or quick")
 	}
 	if request.BindingRef == "" || !hexDigestRE.MatchString(request.BindingSHA256) {
 		return nil, fmt.Errorf("design adoption requires --binding-ref and a SHA-256 --binding-sha256")
@@ -1001,7 +1077,7 @@ func adoptDesignChange(root string, request designAdoptionRequest) (map[string]a
 	if bindingDigest != request.BindingSHA256 {
 		return nil, fmt.Errorf("design adoption binding SHA-256 does not match %s", request.BindingRef)
 	}
-	if !designBindingContains(bindingRaw, wantBinding) {
+	if request.Mode != "formal-post-specify" && !designBindingContains(bindingRaw, wantBinding) {
 		return nil, fmt.Errorf("design adoption binding does not contain the exact registered change fields")
 	}
 
@@ -1028,7 +1104,7 @@ func adoptDesignChange(root string, request designAdoptionRequest) (map[string]a
 	if currentID != request.ExpectedChange {
 		return nil, fmt.Errorf("expected current change %s but found %s", request.ExpectedChange, currentID)
 	}
-	if current != nil && currentID == request.ChangeID && current["binding_sha256"] == bindingDigest {
+	if current != nil && currentID == request.ChangeID && current["mode"] == request.Mode && current["binding_sha256"] == bindingDigest {
 		return current, nil
 	}
 	impact, err := buildDesignAdoptionImpact(root, index, records, request)
@@ -1077,6 +1153,90 @@ func adoptDesignChange(root string, request designAdoptionRequest) (map[string]a
 	return receipt, nil
 }
 
+func resolveDesignAdoption(root string, request designAdoptionRequest) (map[string]any, error) {
+	request.ConsumerRef = strings.TrimSpace(request.ConsumerRef)
+	request.Scope = strings.TrimSpace(request.Scope)
+	request.BindingRef = filepath.ToSlash(strings.TrimSpace(request.BindingRef))
+	request.BindingSHA256 = strings.ToLower(strings.TrimSpace(request.BindingSHA256))
+	request.ExpectedChange = strings.ToUpper(strings.TrimSpace(request.ExpectedChange))
+	if !designChangeScopeRE.MatchString(request.ConsumerRef) || !strings.HasPrefix(request.ConsumerRef, "feature:") {
+		return nil, fmt.Errorf("formal-post-specify adoption consumer must use feature:<id>")
+	}
+	if !designChangeScopeRE.MatchString(request.Scope) {
+		return nil, fmt.Errorf("design adoption scope must be a stable path-like identifier")
+	}
+	if request.BindingRef == "" || !hexDigestRE.MatchString(request.BindingSHA256) {
+		return nil, fmt.Errorf("design adoption requires --binding-ref and a SHA-256 --binding-sha256")
+	}
+	if request.ExpectedChange != "" && !designChangeIDRE.MatchString(request.ExpectedChange) {
+		return nil, fmt.Errorf("expected current change must be a UD-* ID")
+	}
+
+	index, _, records, err := loadDesignChangeIndex(root)
+	if err != nil {
+		return nil, err
+	}
+	current, err := currentDesignAdoption(index, request.ConsumerRef, request.Scope)
+	if err != nil {
+		return nil, err
+	}
+	if current == nil {
+		return nil, fmt.Errorf("no current design adoption exists for the feature and scope")
+	}
+	if strings.TrimSpace(fmt.Sprint(current["mode"])) != "formal-post-specify" {
+		return nil, fmt.Errorf("current design adoption is not a formal-post-specify overlay")
+	}
+	changeID := strings.ToUpper(strings.TrimSpace(fmt.Sprint(current["change_id"])))
+	if request.ExpectedChange != "" && changeID != request.ExpectedChange {
+		return nil, fmt.Errorf("expected current change %s but found %s", request.ExpectedChange, changeID)
+	}
+
+	bindingRef, err := normalizedDesignBindingRef(root, request.BindingRef)
+	if err != nil {
+		return nil, err
+	}
+	bindingPath, err := resolveProjectContainedPath(root, bindingRef)
+	if err != nil {
+		return nil, err
+	}
+	bindingRaw, err := os.ReadFile(bindingPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read design adoption binding: %v", err)
+	}
+	digestBytes := sha256.Sum256(bindingRaw)
+	actualDigest := hex.EncodeToString(digestBytes[:])
+	if bindingRef != strings.TrimSpace(fmt.Sprint(current["binding_ref"])) ||
+		request.BindingSHA256 != strings.TrimSpace(fmt.Sprint(current["binding_sha256"])) ||
+		actualDigest != request.BindingSHA256 {
+		return nil, fmt.Errorf("source spec binding does not match the current design adoption receipt")
+	}
+	if !planningReadySpecBinding(bindingRaw) {
+		return nil, fmt.Errorf("formal-post-specify adoption requires the unchanged planning-ready source spec")
+	}
+
+	record, err := activeDesignAdoptionRecord(records, changeID, request.Scope)
+	if err != nil {
+		return nil, err
+	}
+	_, registeredDigest, _, err := loadRegisteredDesignChange(root, changeID)
+	if err != nil {
+		return nil, err
+	}
+	if registeredDigest != strings.TrimSpace(fmt.Sprint(current["design_change_sha256"])) ||
+		strings.TrimSpace(fmt.Sprint(record["design_ref"])) != strings.TrimSpace(fmt.Sprint(current["design_change_ref"])) {
+		return nil, fmt.Errorf("current design adoption does not match the active registered design")
+	}
+
+	verified := make(map[string]any, len(current)+3)
+	for key, value := range current {
+		verified[key] = value
+	}
+	verified["verified"] = true
+	verified["source_spec_ref"] = bindingRef
+	verified["source_spec_sha256"] = actualDigest
+	return verified, nil
+}
+
 func updateDesignRecordConsumers(records map[string]map[string]any, request designAdoptionRequest, revision int) {
 	for _, record := range records {
 		filtered := []any{}
@@ -1118,6 +1278,14 @@ func designBindingContains(raw []byte, fields map[string]string) bool {
 		}
 	}
 	return true
+}
+
+func planningReadySpecBinding(raw []byte) bool {
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(fmt.Sprint(payload["status"])), "planning-ready")
 }
 
 func quickStatusDesignBinding(raw []byte) (map[string]string, error) {
@@ -1231,13 +1399,16 @@ func validateDesignAdoptionSurface(root string, request designAdoptionRequest, b
 	if requestBindingRef != canonicalBindingRef {
 		return fmt.Errorf("design adoption binding must use the canonical project-relative path %s", canonicalBindingRef)
 	}
-	if request.Mode == "formal" {
+	if request.Mode == "formal" || request.Mode == "formal-post-specify" {
 		if !strings.HasPrefix(request.ConsumerRef, "feature:") {
 			return fmt.Errorf("formal design adoption consumer must use feature:<id>")
 		}
 		allowed := formalDesignBindingRefs(request.ConsumerRef)
 		if canonicalBindingRef != allowed[0] && canonicalBindingRef != allowed[1] {
 			return fmt.Errorf("formal design adoption binding must be a feature spec-contract.json")
+		}
+		if request.Mode == "formal-post-specify" && !planningReadySpecBinding(bindingRaw) {
+			return fmt.Errorf("formal-post-specify design adoption requires an unchanged planning-ready source spec-contract.json")
 		}
 		return nil
 	}

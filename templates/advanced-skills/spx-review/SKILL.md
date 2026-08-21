@@ -43,6 +43,30 @@ the exact old bytes and starts a fresh evidence cycle. Do not
 reconstruct its stable schema from prose. An acceptance repair must
 create the next cycle bound to the previous approved Review digest and routed
 finding; never edit or reapprove the old cycle.
+When `review prepare`, `review validate`, or `review resume-audit` returns
+`recovery_owner=review` for `implementation-snapshot-drift`, treat the snapshot
+drift as Review-owned recovery and immediately execute
+its structured `next_argv` (`review prepare ... --restart-stale`). The runtime
+returns that owner only after comparing a byte-bound per-path snapshot manifest
+and proving every changed path belongs to a current-cycle accepted Fix assignment
+whose independent finding chain and packet/result digests are intact; never
+synthesize or hand-edit that authorization. It preserves the immutable handoff,
+archives stale Review evidence, binds the current scoped implementation snapshot,
+and starts the next evidence cycle without consuming another logical validation
+gate. Current scoped snapshots exclude unrelated repository state and
+workflow/cognition metadata, while accepted in-scope Review repairs use this recovery. Do not
+ask the user to choose `stop` or `authorize-later-cycle` for internal recovery.
+Escalate only for runtime-identified unattributed or concurrent owned-path drift,
+a true external boundary, or a proven upstream truth gap.
+When the runtime returns `recovery_reason=legacy-snapshot-quarantine`, immediately
+execute its structured `next_argv`; it archives the manifest-less legacy Review
+state and opens a fresh evidence cycle without claiming the old drift was an
+accepted Fix. If preparation succeeds with `source.snapshot_reconciliation` set
+to `initial-review-rebaseline` or `legacy-review-rebaseline`, continue directly
+into a full Review from official entrypoints and recapture all current-cycle
+integrated evidence. Continuity with the old scalar fingerprint is deliberately
+unproven, so these modes grant neither approval nor reusable evidence and must
+not become a user recovery menu.
 
 Continue the validation ledger shared across Implement and Review; do not reset
 it on phase entry, resume, worker dispatch, or Review-cycle creation. It has
@@ -79,7 +103,19 @@ Execute every required scenario from its official real entrypoint inside the
 current Leader-owned delivery attempt. UI-bearing scenarios
 must capture fresh integrated `structure_snapshot`, `visual_capture`, and
 `runtime_diagnostics` evidence and visually inspect the required states against
-approved design DNA, anti-slop, and hierarchy—not code correctness alone. A
+approved design DNA, anti-slop, hierarchy, and the exact `style_authority`—not
+code correctness alone. Treat any unapproved drift from cited live UI as
+blocking under `inherit-existing`, especially on protected `global-shell` and
+`shared-components`; permit a style delta only on the exact complete-page
+surface named by `page-overhaul-authorized`. A
+UI Review scenario executes the exact `interaction_matrix` and
+`data_state_matrix` rows and their risk-based combinations: pointer/mouse,
+keyboard/focus, applicable touch/shortcut/command input; exact event sequence,
+immediate feedback, focus, repeat, cancellation, and pending behavior; empty and populated
+data plus declared degraded/recovery states; and continuous stretch,
+compression, reflow, and overflow while active context is preserved. Missing
+retry, undo, recovery, permission, offline, focus, selection, scroll, overlay,
+or unsaved-input behavior remains uncovered. A
 passing comparison calls `specify-runtime evidence visual-compare` with compact observed matrix/evidence input; the runtime derives and atomically owns the task-bound `spec-kit-visual-comparison-v1` report, approved preview/manifest/handoff bindings, exact `DS-*`/`DH-*` coverage, tolerance, deviations, path, and digest. Passing unit
 tests, existing files, synthetic-only checks, or an isolated component do
 not prove the product works. Group capture by integrated surface and source
@@ -134,6 +170,11 @@ delivery attempt; an interruption never becomes a pass or assertion failure.
 Exclude from that executable matrix only scenarios covered by a current
 human-confirmed `hardware_unavailable` exception; they remain `waived`, never
 PASS, and require the qualified `pass_with_waivers` final verdict.
+Unit tests alone cannot substitute for official real-entrypoint delivery proof,
+and a repeated unit-only pass does not satisfy the Review delivery attempt. A
+`pass` status cannot stand alone: every required non-waived scenario carries
+current-cycle integrated evidence bound to the reviewed snapshot and current
+artifact bytes.
 
 Only a proven upstream truth gap permits a handoff: missing or contradictory
 requirement truth routes to `$spx-specify`, missing or contradictory design
@@ -184,9 +225,10 @@ human PASS. After an acceptance repair, every human scenario is reset and must
 be rerun; preserve no earlier PASS.
 
 After verified Review-owned changes, run
-`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-review --intent implement --format json}}`
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-review --scope-dir <feature-dir> --scope-mode explicit --intent implement --format json}}`
 with explicit Review-owned paths, fill returned agent-owned fields, and execute
-structured `update_argv`. Apply the receipt-bound finalizer gate in
+structured `apply_argv`; it owns update, validation, eligible finalization, and
+receipt. Apply the gate in
 `references/project-cognition.md` before any clean claim; then run
 `{{specify-subcmd:specify-runtime review closeout --feature-dir <feature-dir> --expected-revision <revision> --format json}}`.
 Execute only the successful response's revision-bound workflow completion argv.

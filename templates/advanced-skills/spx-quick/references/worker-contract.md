@@ -15,7 +15,12 @@ per `item-start`; do not collapse that into unrecorded leader-inline work.
 For UI work, include original visual references and their intents, real
 content/image sources, the confirmed UI Confirmation, the compact UI contract,
 `references/ui-quality-gate.md`, and required structure/visual/runtime evidence; do not
-delegate from prose-only screenshot interpretation. The worker must not redesign
+delegate from prose-only screenshot interpretation. Include exact
+`interaction_matrix`, `editing_matrix`, `data_state_matrix`, component `interaction_modes` /
+`data_scenarios`, and responsive `stretch_behavior` / `overflow_behavior` rows;
+exercise exact event sequence, immediate feedback, focus, repeat, cancellation,
+and pending behavior for pointer/mouse and keyboard/focus plus applicable touch/command,
+empty/populated and degraded/recovery data, and active resize. The worker must not redesign
 the confirmed direction; contract drift returns to the leader as a blocker.
 
 The worker returns:
@@ -34,3 +39,13 @@ the Q item) before closing the lane; idle or stopped execution is not a result,
 and runtime refuses `item-accept` without that worker result (or prior
 `quick allow-inline`). Re-run the meaningful integrated verification on the
 leader path.
+
+## Professional UI contract continuity
+
+Quick preserves the confirmed affected subset of `surface_catalog`,
+`scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
+`accessibility_matrix`, `navigation_matrix`, `content_matrix`,
+`motion_contract`, and `usability_validation`, including
+component governance/iconography. It may not downgrade approved truth. Verify
+risk-based or pairwise scenarios, never an unbounded Cartesian product, and
+leave target-user human review explicit.

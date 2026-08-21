@@ -94,7 +94,6 @@ def test_advanced_codex_spx_skills_stay_close_agent_free_and_preserve_stage_resu
     assert "explicitly selected durable-team workflow" in shared_contract
 
     delegated_skills = {
-        "spx-clarify",
         "spx-debug",
         "spx-deep-research",
         "spx-implement",

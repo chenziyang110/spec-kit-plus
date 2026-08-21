@@ -1,0 +1,848 @@
+{
+  "schema_version": 1,
+  "catalog_id": "spec-kit-ui-professional-v1",
+  "routing": {
+    "domain_limit": 1,
+    "style_limit": 1,
+    "specialist_limit": 2,
+    "fallback_domain": "domain-general-interface",
+    "ambiguity_policy": "ask-one-high-impact-question"
+  },
+  "sources": [
+    {
+      "id": "anthropic-frontend-design",
+      "url": "https://github.com/anthropics/skills/blob/main/skills/frontend-design/SKILL.md"
+    },
+    {
+      "id": "openai-skill-creator",
+      "url": "https://github.com/openai/skills/blob/main/skills/.system/skill-creator/SKILL.md"
+    },
+    {
+      "id": "openai-product-design",
+      "url": "https://github.com/openai/role-specific-plugins/tree/main/plugins/product-design/skills"
+    },
+    {
+      "id": "ui-ux-pro-max",
+      "url": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill"
+    },
+    {
+      "id": "impeccable",
+      "url": "https://github.com/pbakaus/impeccable"
+    },
+    {
+      "id": "taste-skill",
+      "url": "https://github.com/Leonxlnx/taste-skill"
+    },
+    {
+      "id": "emil-design-engineering",
+      "url": "https://github.com/emilkowalski/skills"
+    },
+    {
+      "id": "vercel-web-guidelines",
+      "url": "https://github.com/vercel-labs/web-interface-guidelines/blob/main/command.md"
+    },
+    {
+      "id": "shadcn-ui",
+      "url": "https://github.com/shadcn-ui/ui/blob/main/skills/shadcn/SKILL.md"
+    },
+    {
+      "id": "spec-kit-plus-owned",
+      "url": "https://github.com/happysleepytime/spec-kit-plus"
+    }
+  ],
+  "mature_web_ui_routing": {
+    "shortlist_limit": 18,
+    "primary_limit": 8,
+    "agent_limit": 6,
+    "activation_signals": ["web", "frontend", "html", "tailwind", "前端", "网页", "网站"],
+    "non_web_platform_signals": ["react native", "ios", "android", "swiftui", "jetpack compose", "flutter", "mobile app", "desktop app", "移动端", "原生应用", "桌面应用", "tui"],
+    "framework_signals": {
+      "react": ["react", "next.js", "nextjs"],
+      "vue": ["vue", "nuxt"],
+      "angular": ["angular"],
+      "svelte": ["svelte", "sveltekit"]
+    },
+    "capability_signals": {
+      "data-grid": ["data grid", "datagrid", "table", "表格", "网格", "虚拟列表", "virtual"],
+      "charts": ["chart", "graph", "visualization", "图表", "可视化"],
+      "editor": ["editor", "rich text", "document", "编辑器", "富文本", "文档"],
+      "motion": ["motion", "animation", "transition", "动效", "动画", "转场", "丝滑", "流畅"],
+      "drag-drop": ["drag", "drop", "sortable", "拖拽", "拖放", "排序"],
+      "floating": ["popover", "tooltip", "menu", "浮层", "气泡", "菜单"]
+    },
+    "default_resource_ids": ["bootstrap", "web-awesome", "carbon"],
+    "asset_scan": {
+      "manifest_files": ["package.json"],
+      "lockfile_files": ["pnpm-lock.yaml", "package-lock.json", "yarn.lock", "bun.lock", "bun.lockb"],
+      "component_roots": ["src/components/ui", "components/ui", "src/components", "app/components"],
+      "token_files": ["tailwind.config.ts", "tailwind.config.js", "tailwind.config.mjs", "src/styles/tokens.css", "styles/tokens.css", "src/tokens.ts", "src/tokens.js"],
+      "theme_files": ["src/theme.ts", "src/theme.js", "src/theme/index.ts", "src/theme/index.js", "src/styles/theme.css", "styles/theme.css"],
+      "surface_files": ["src/app/page.tsx", "src/app/page.jsx", "app/page.tsx", "app/page.jsx", "src/pages/index.tsx", "src/pages/index.jsx", "pages/index.tsx", "pages/index.jsx", "src/App.vue", "src/App.svelte"]
+    },
+    "framework_package_markers": {
+      "react": ["react", "next"],
+      "vue": ["vue", "nuxt"],
+      "angular": ["@angular/core"],
+      "svelte": ["svelte", "@sveltejs/kit"]
+    },
+    "resource_package_markers": {
+      "radix-primitives": ["@radix-ui/"],
+      "base-ui": ["@base-ui-components/react", "@base-ui/react"],
+      "material-ui": ["@mui/material"],
+      "ant-design": ["antd"],
+      "mantine": ["@mantine/core"],
+      "chakra-ui": ["@chakra-ui/react"],
+      "headless-ui": ["@headlessui/react", "@headlessui/vue"],
+      "bits-ui": ["bits-ui"],
+      "react-aria": ["react-aria-components"],
+      "primereact": ["primereact"],
+      "primevue": ["primevue"],
+      "vuetify": ["vuetify"],
+      "element-plus": ["element-plus"],
+      "angular-material": ["@angular/material"],
+      "bootstrap": ["bootstrap"],
+      "web-awesome": ["@awesome.me/webawesome"],
+      "carbon": ["@carbon/react"],
+      "ag-grid": ["ag-grid-community", "ag-grid-react", "ag-grid-vue3", "ag-grid-angular"],
+      "tanstack-table": ["@tanstack/react-table", "@tanstack/vue-table", "@tanstack/angular-table", "@tanstack/svelte-table"],
+      "apache-echarts": ["echarts"],
+      "tiptap": ["@tiptap/"],
+      "motion": ["motion", "framer-motion"],
+      "dnd-kit": ["@dnd-kit/"],
+      "floating-ui": ["@floating-ui/"]
+    },
+    "resource_file_markers": {
+      "shadcn-ui": ["components.json"]
+    },
+    "selection_scoring": {
+      "installed": 100,
+      "ecosystem": 40,
+      "framework_agnostic": 16,
+      "capability": 12,
+      "general": 6,
+      "official_agent_material": 5,
+      "default_resource": 3,
+      "maturity": {
+        "enterprise": 18,
+        "mature": 14,
+        "default": 10,
+        "specialized": 8
+      }
+    },
+    "smoothness_acceptance_checks": [
+      {"id": "focus-continuity", "capabilities": []},
+      {"id": "selection-scroll-continuity", "capabilities": []},
+      {"id": "pending-cancel-feedback", "capabilities": []},
+      {"id": "duplicate-activation", "capabilities": []},
+      {"id": "reduced-motion", "capabilities": []},
+      {"id": "layout-stability", "capabilities": []},
+      {"id": "large-data-performance", "capabilities": ["data-grid"]},
+      {"id": "editing-input-continuity", "capabilities": ["editor"]},
+      {"id": "interruption-safe-motion", "capabilities": ["motion"]},
+      {"id": "drag-alternative", "capabilities": ["drag-drop"]},
+      {"id": "anchored-overlay-continuity", "capabilities": ["floating"]}
+    ]
+  },
+  "mature_web_ui_resources": [
+    {
+      "id": "shadcn-ui",
+      "category": "component-library",
+      "ecosystems": ["react"],
+      "capabilities": ["general"],
+      "official_url": "https://ui.shadcn.com/docs",
+      "maturity": "default",
+      "agent_resource_ids": ["shadcn-agent-skill", "shadcn-mcp"],
+      "use_when": "Owned-source React UI with Tailwind and registry composition.",
+      "guardrails": "Preserve local tokens; vet registries and avoid blind source mixing."
+    },
+    {
+      "id": "radix-primitives",
+      "category": "headless-primitive",
+      "ecosystems": ["react"],
+      "capabilities": ["general", "floating"],
+      "official_url": "https://www.radix-ui.com/primitives/docs/overview/introduction",
+      "maturity": "mature",
+      "agent_resource_ids": [],
+      "use_when": "Custom React design systems need accessible interaction primitives.",
+      "guardrails": "Supply all visual and functional CSS; do not replace a working primitive layer casually."
+    },
+    {
+      "id": "base-ui",
+      "category": "headless-primitive",
+      "ecosystems": ["react"],
+      "capabilities": ["general", "floating"],
+      "official_url": "https://base-ui.com/react/overview/about",
+      "maturity": "default",
+      "agent_resource_ids": [],
+      "use_when": "New React systems need modern unstyled accessible primitives.",
+      "guardrails": "Verify current release and browser support; migrate existing Radix systems only deliberately."
+    },
+    {
+      "id": "material-ui",
+      "category": "component-library",
+      "ecosystems": ["react"],
+      "capabilities": ["general", "data-grid"],
+      "official_url": "https://mui.com/material-ui/getting-started/",
+      "maturity": "enterprise",
+      "agent_resource_ids": ["material-ui-mcp"],
+      "use_when": "Enterprise React products need broad themed components and MUI X options.",
+      "guardrails": "Adopt its theming model; avoid ad hoc overrides that fight the system."
+    },
+    {
+      "id": "ant-design",
+      "category": "design-system",
+      "ecosystems": ["react"],
+      "capabilities": ["general", "data-grid"],
+      "official_url": "https://ant.design/docs/react/introduce/",
+      "maturity": "enterprise",
+      "agent_resource_ids": ["ant-design-agent-docs"],
+      "use_when": "Dense internationalized React administration and operations UI.",
+      "guardrails": "Use for its enterprise language; do not disguise it through one-off overrides."
+    },
+    {
+      "id": "mantine",
+      "category": "component-library",
+      "ecosystems": ["react"],
+      "capabilities": ["general"],
+      "official_url": "https://mantine.dev/core/package/",
+      "maturity": "mature",
+      "agent_resource_ids": ["mantine-agent-resources"],
+      "use_when": "React products need flexible styled components and hooks.",
+      "guardrails": "Do not introduce a second full styling and component system."
+    },
+    {
+      "id": "chakra-ui",
+      "category": "component-library",
+      "ecosystems": ["react"],
+      "capabilities": ["general"],
+      "official_url": "https://chakra-ui.com/docs/components/concepts/overview",
+      "maturity": "mature",
+      "agent_resource_ids": ["chakra-agent-resources"],
+      "use_when": "Themeable accessible React UI with composable style props.",
+      "guardrails": "Match guidance to the installed major version and provider model."
+    },
+    {
+      "id": "headless-ui",
+      "category": "headless-primitive",
+      "ecosystems": ["react", "vue"],
+      "capabilities": ["general", "floating"],
+      "official_url": "https://headlessui.com/",
+      "maturity": "mature",
+      "agent_resource_ids": [],
+      "use_when": "Tailwind-based React or Vue UI needs common accessible behavior.",
+      "guardrails": "Provide complete state styling and verify required patterns are covered."
+    },
+    {
+      "id": "bits-ui",
+      "category": "headless-primitive",
+      "ecosystems": ["svelte"],
+      "capabilities": ["general", "floating"],
+      "official_url": "https://www.bits-ui.com/docs",
+      "maturity": "mature",
+      "agent_resource_ids": [],
+      "use_when": "Svelte products need accessible headless primitives with full visual control.",
+      "guardrails": "The product owns styling and must verify exact Svelte version compatibility."
+    },
+    {
+      "id": "react-aria",
+      "category": "headless-primitive",
+      "ecosystems": ["react"],
+      "capabilities": ["general"],
+      "official_url": "https://react-spectrum.adobe.com/react-aria/getting-started.html",
+      "maturity": "enterprise",
+      "agent_resource_ids": ["react-aria-agent-docs"],
+      "use_when": "Custom React systems need deep accessibility, input, and internationalization support.",
+      "guardrails": "Keep its semantics and state contract intact while styling."
+    },
+    {
+      "id": "primereact",
+      "category": "component-library",
+      "ecosystems": ["react"],
+      "capabilities": ["general", "data-grid"],
+      "official_url": "https://primereact.org/",
+      "maturity": "mature",
+      "agent_resource_ids": [],
+      "use_when": "React business UI needs a broad styled or unstyled component set.",
+      "guardrails": "Choose one styling mode and validate accessibility for customized templates."
+    },
+    {
+      "id": "primevue",
+      "category": "component-library",
+      "ecosystems": ["vue"],
+      "capabilities": ["general", "data-grid"],
+      "official_url": "https://primevue.org/",
+      "maturity": "mature",
+      "agent_resource_ids": ["primevue-agent-docs"],
+      "use_when": "Vue business UI needs broad components and data controls.",
+      "guardrails": "Choose one styling mode and verify customized component semantics."
+    },
+    {
+      "id": "vuetify",
+      "category": "design-system",
+      "ecosystems": ["vue"],
+      "capabilities": ["general"],
+      "official_url": "https://vuetifyjs.com/",
+      "maturity": "enterprise",
+      "agent_resource_ids": [],
+      "use_when": "Vue products want a complete Material-oriented ecosystem.",
+      "guardrails": "Use a maintained major and follow its layout and theme model."
+    },
+    {
+      "id": "element-plus",
+      "category": "component-library",
+      "ecosystems": ["vue"],
+      "capabilities": ["general", "data-grid"],
+      "official_url": "https://element-plus.org/en-US/",
+      "maturity": "mature",
+      "agent_resource_ids": [],
+      "use_when": "Vue operations UI needs familiar forms, tables, and navigation.",
+      "guardrails": "Verify keyboard, labeling, and localization for customized use."
+    },
+    {
+      "id": "angular-material",
+      "category": "design-system",
+      "ecosystems": ["angular"],
+      "capabilities": ["general", "data-grid"],
+      "official_url": "https://material.angular.dev/",
+      "maturity": "enterprise",
+      "agent_resource_ids": [],
+      "use_when": "Angular products need official Material components and CDK behavior.",
+      "guardrails": "Prefer CDK primitives for bespoke visuals; keep Angular version compatibility."
+    },
+    {
+      "id": "bootstrap",
+      "category": "component-library",
+      "ecosystems": ["framework-agnostic"],
+      "capabilities": ["general"],
+      "official_url": "https://getbootstrap.com/docs/",
+      "maturity": "enterprise",
+      "agent_resource_ids": [],
+      "use_when": "Conventional responsive Web UI needs stable CSS components and utilities.",
+      "guardrails": "Customize through variables and APIs; avoid piling overrides onto default selectors."
+    },
+    {
+      "id": "tailwind-plus",
+      "category": "design-system",
+      "ecosystems": ["framework-agnostic", "react", "vue"],
+      "capabilities": ["general"],
+      "official_url": "https://tailwindcss.com/plus",
+      "maturity": "specialized",
+      "agent_resource_ids": [],
+      "use_when": "A licensed Tailwind team needs production-ready blocks or owned-source UI kits.",
+      "guardrails": "Verify entitlement and license before using gated code or LLM documentation."
+    },
+    {
+      "id": "web-awesome",
+      "category": "component-library",
+      "ecosystems": ["framework-agnostic", "web-components"],
+      "capabilities": ["general"],
+      "official_url": "https://webawesome.com/",
+      "maturity": "mature",
+      "agent_resource_ids": [],
+      "use_when": "Framework-neutral or multi-framework products want standards-based Web Components.",
+      "guardrails": "Confirm free versus Pro coverage and SSR/framework integration."
+    },
+    {
+      "id": "carbon",
+      "category": "design-system",
+      "ecosystems": ["react", "web-components"],
+      "capabilities": ["general", "data-grid"],
+      "official_url": "https://carbondesignsystem.com/",
+      "maturity": "enterprise",
+      "agent_resource_ids": [],
+      "use_when": "Enterprise UI benefits from IBM's complete system and accessibility guidance.",
+      "guardrails": "Do not copy IBM brand expression into unrelated product identity."
+    },
+    {
+      "id": "ag-grid",
+      "category": "component-library",
+      "ecosystems": ["framework-agnostic", "react", "vue", "angular"],
+      "capabilities": ["data-grid"],
+      "official_url": "https://www.ag-grid.com/",
+      "maturity": "enterprise",
+      "agent_resource_ids": ["ag-grid-agent-docs"],
+      "use_when": "Large, editable, grouped, or server-backed operational grids are core product UI.",
+      "guardrails": "Check Community versus Enterprise licensing and test the a11y/performance tradeoff."
+    },
+    {
+      "id": "tanstack-table",
+      "category": "headless-primitive",
+      "ecosystems": ["framework-agnostic", "react", "vue", "angular", "svelte"],
+      "capabilities": ["data-grid"],
+      "official_url": "https://tanstack.com/table/latest",
+      "maturity": "specialized",
+      "agent_resource_ids": [],
+      "use_when": "Custom-rendered data tables need headless state and optional virtualization.",
+      "guardrails": "The product owns markup, a11y, styling, and the TanStack Virtual integration."
+    },
+    {
+      "id": "apache-echarts",
+      "category": "component-library",
+      "ecosystems": ["framework-agnostic"],
+      "capabilities": ["charts"],
+      "official_url": "https://echarts.apache.org/en/",
+      "maturity": "enterprise",
+      "agent_resource_ids": [],
+      "use_when": "Dense or large-scale interactive charts need broad chart types and progressive rendering.",
+      "guardrails": "Enable ARIA, preserve tabular alternatives, and test real data density."
+    },
+    {
+      "id": "tiptap",
+      "category": "headless-primitive",
+      "ecosystems": ["framework-agnostic", "react", "vue"],
+      "capabilities": ["editor"],
+      "official_url": "https://tiptap.dev/docs",
+      "maturity": "specialized",
+      "agent_resource_ids": ["tiptap-agent-docs"],
+      "use_when": "Structured rich-text, document, collaboration, or AI editing is a core capability.",
+      "guardrails": "Define schema, persistence, collaboration, and licensing before composing extensions."
+    },
+    {
+      "id": "motion",
+      "category": "component-library",
+      "ecosystems": ["react"],
+      "capabilities": ["motion"],
+      "official_url": "https://motion.dev/docs/react",
+      "maturity": "specialized",
+      "agent_resource_ids": [],
+      "use_when": "React interaction choreography needs interruptible layout or gesture animation.",
+      "guardrails": "Prefer CSS/native transitions for simple cases and always provide reduced motion."
+    },
+    {
+      "id": "dnd-kit",
+      "category": "headless-primitive",
+      "ecosystems": ["framework-agnostic", "react", "vue", "svelte"],
+      "capabilities": ["drag-drop"],
+      "official_url": "https://dndkit.com/",
+      "maturity": "specialized",
+      "agent_resource_ids": [],
+      "use_when": "Drag, drop, sorting, or reordering needs sensors and keyboard parity.",
+      "guardrails": "Customize announcements and provide a non-drag equivalent."
+    },
+    {
+      "id": "floating-ui",
+      "category": "headless-primitive",
+      "ecosystems": ["framework-agnostic", "react", "vue"],
+      "capabilities": ["floating"],
+      "official_url": "https://floating-ui.com/docs/getting-started",
+      "maturity": "specialized",
+      "agent_resource_ids": [],
+      "use_when": "Bespoke anchored overlays need robust positioning and collision handling.",
+      "guardrails": "Positioning is not a complete accessible widget contract."
+    },
+    {
+      "id": "shadcn-agent-skill",
+      "category": "agent-resource",
+      "ecosystems": ["react"],
+      "capabilities": ["general"],
+      "official_url": "https://github.com/shadcn-ui/ui/blob/main/skills/shadcn/SKILL.md",
+      "maturity": "default",
+      "use_when": "An agent is implementing from the shadcn registry.",
+      "guardrails": "Confirm live registry and project configuration before generating code."
+    },
+    {
+      "id": "shadcn-mcp",
+      "category": "agent-resource",
+      "ecosystems": ["react"],
+      "capabilities": ["general"],
+      "official_url": "https://ui.shadcn.com/docs/mcp",
+      "maturity": "default",
+      "use_when": "An agent needs live registry search and component metadata.",
+      "guardrails": "Connecting or installing remains an explicit implementation-side effect."
+    },
+    {
+      "id": "material-ui-mcp",
+      "category": "agent-resource",
+      "ecosystems": ["react"],
+      "capabilities": ["general"],
+      "official_url": "https://mui.com/material-ui/getting-started/mcp/",
+      "maturity": "default",
+      "use_when": "An agent needs current Material UI component documentation.",
+      "guardrails": "Match the MCP output to the project's installed MUI major."
+    },
+    {
+      "id": "ant-design-agent-docs",
+      "category": "agent-resource",
+      "ecosystems": ["react"],
+      "capabilities": ["general"],
+      "official_url": "https://ant.design/docs/react/llms/",
+      "maturity": "default",
+      "use_when": "An agent needs Ant Design's LLM-oriented docs or MCP entry.",
+      "guardrails": "Use the current stable component API and migration notes."
+    },
+    {
+      "id": "mantine-agent-resources",
+      "category": "agent-resource",
+      "ecosystems": ["react"],
+      "capabilities": ["general"],
+      "official_url": "https://mantine.dev/guides/llms/",
+      "maturity": "default",
+      "use_when": "An agent needs Mantine llms.txt, skills, or MCP guidance.",
+      "guardrails": "Select only the exact skill or docs section needed."
+    },
+    {
+      "id": "chakra-agent-resources",
+      "category": "agent-resource",
+      "ecosystems": ["react"],
+      "capabilities": ["general"],
+      "official_url": "https://chakra-ui.com/docs/get-started/ai/llms",
+      "maturity": "default",
+      "use_when": "An agent needs Chakra's llms.txt, component slices, skills, or MCP.",
+      "guardrails": "Use the smallest current documentation slice for the installed major."
+    },
+    {
+      "id": "react-aria-agent-docs",
+      "category": "agent-resource",
+      "ecosystems": ["react"],
+      "capabilities": ["general"],
+      "official_url": "https://react-aria.adobe.com/ai",
+      "maturity": "default",
+      "use_when": "An agent needs current React Aria composition and API guidance.",
+      "guardrails": "Do not infer visual styling from a headless accessibility contract."
+    },
+    {
+      "id": "primevue-agent-docs",
+      "category": "agent-resource",
+      "ecosystems": ["vue"],
+      "capabilities": ["general", "data-grid"],
+      "official_url": "https://primevue.org/llms",
+      "maturity": "default",
+      "use_when": "An agent needs LLM-oriented PrimeVue component documentation.",
+      "guardrails": "Use the installed PrimeVue major and framework-specific pages."
+    },
+    {
+      "id": "ag-grid-agent-docs",
+      "category": "agent-resource",
+      "ecosystems": ["framework-agnostic", "react", "vue", "angular"],
+      "capabilities": ["data-grid"],
+      "official_url": "https://www.ag-grid.com/vue-data-grid/mcp-server/",
+      "maturity": "default",
+      "use_when": "An agent needs exact AG Grid APIs, examples, or MCP search.",
+      "guardrails": "Check framework, version, module, and license before implementation."
+    },
+    {
+      "id": "tiptap-agent-docs",
+      "category": "agent-resource",
+      "ecosystems": ["framework-agnostic", "react", "vue"],
+      "capabilities": ["editor"],
+      "official_url": "https://tiptap.dev/docs/llms.txt",
+      "maturity": "default",
+      "use_when": "An agent needs current Tiptap schema, extension, or AI-toolkit docs.",
+      "guardrails": "Retrieve only the relevant extension and version surface."
+    }
+  ],
+  "skills": [
+    {
+      "id": "domain-general-interface",
+      "kind": "domain",
+      "name": "General Interface",
+      "summary": "Fallback for GUI work whose product domain is not yet specific.",
+      "triggers": {
+        "phrases": ["通用界面", "软件界面", "GUI", "interface", "application UI"],
+        "negative_phrases": []
+      },
+      "ref": "ui-professional-skills/domains/general-interface.md",
+      "source_ids": ["anthropic-frontend-design", "openai-product-design"]
+    },
+    {
+      "id": "domain-marketing-brand",
+      "kind": "domain",
+      "name": "Marketing and Brand",
+      "summary": "Brand sites, landing pages, campaigns, launches, and conversion narratives.",
+      "triggers": {
+        "phrases": ["品牌官网", "营销网站", "落地页", "宣传页", "品牌活动", "campaign", "landing page", "marketing site", "launch page"],
+        "negative_phrases": ["后台", "工作台"]
+      },
+      "ref": "ui-professional-skills/domains/marketing-brand.md",
+      "source_ids": ["anthropic-frontend-design", "taste-skill", "impeccable"]
+    },
+    {
+      "id": "domain-product-workspace",
+      "kind": "domain",
+      "name": "Product Workspace",
+      "summary": "Repeated-use SaaS, productivity, IDE, desktop, and professional workspaces.",
+      "triggers": {
+        "phrases": ["工作台", "生产力工具", "协作工具", "编辑器", "控制台", "桌面软件", "SaaS workspace", "productivity app", "IDE", "professional tool"],
+        "negative_phrases": ["营销官网", "落地页"]
+      },
+      "ref": "ui-professional-skills/domains/product-workspace.md",
+      "source_ids": ["openai-product-design", "ui-ux-pro-max", "impeccable"]
+    },
+    {
+      "id": "domain-commerce-service",
+      "kind": "domain",
+      "name": "Commerce and Service",
+      "summary": "Retail, marketplaces, booking, checkout, catalog, and transactional services.",
+      "triggers": {
+        "phrases": ["电商", "商城", "商品", "购物车", "结账", "购买", "预订", "预约服务", "ecommerce", "marketplace", "checkout", "booking"],
+        "negative_phrases": ["数据商品"]
+      },
+      "ref": "ui-professional-skills/domains/commerce-service.md",
+      "source_ids": ["ui-ux-pro-max", "vercel-web-guidelines", "shadcn-ui"]
+    },
+    {
+      "id": "domain-data-operations",
+      "kind": "domain",
+      "name": "Data and Operations",
+      "summary": "Analytics, observability, ERP, admin, monitoring, and dense operational systems.",
+      "triggers": {
+        "phrases": ["数据后台", "运营后台", "管理后台", "实时指标", "告警", "监控", "趋势图", "筛选器", "报表", "ERP", "dashboard", "analytics", "observability", "admin console"],
+        "negative_phrases": ["品牌故事"]
+      },
+      "ref": "ui-professional-skills/domains/data-operations.md",
+      "source_ids": ["openai-product-design", "ui-ux-pro-max", "vercel-web-guidelines"]
+    },
+    {
+      "id": "domain-content-editorial",
+      "kind": "domain",
+      "name": "Content and Editorial",
+      "summary": "Publishing, news, magazines, documentation, reading, and knowledge products.",
+      "triggers": {
+        "phrases": ["新闻", "杂志", "长篇内容", "专题", "作者页面", "阅读网站", "出版", "文档站", "知识库", "editorial", "magazine", "publication", "documentation"],
+        "negative_phrases": ["数据报表"]
+      },
+      "ref": "ui-professional-skills/domains/content-editorial.md",
+      "source_ids": ["anthropic-frontend-design", "taste-skill", "vercel-web-guidelines"]
+    },
+    {
+      "id": "domain-social-community",
+      "kind": "domain",
+      "name": "Social and Community",
+      "summary": "Feeds, messaging, profiles, creator tools, moderation, and community spaces.",
+      "triggers": {
+        "phrases": ["社交", "社区", "动态流", "消息", "私信", "创作者", "个人主页", "内容审核", "social app", "community", "feed", "messaging"],
+        "negative_phrases": ["客服消息"]
+      },
+      "ref": "ui-professional-skills/domains/social-community.md",
+      "source_ids": ["ui-ux-pro-max", "openai-product-design", "vercel-web-guidelines"]
+    },
+    {
+      "id": "domain-consumer-experience",
+      "kind": "domain",
+      "name": "Consumer Experience",
+      "summary": "Lifestyle, wellness, media, finance, travel, and everyday mobile experiences.",
+      "triggers": {
+        "phrases": ["消费级应用", "生活方式", "健康应用", "健身", "旅行应用", "个人财务", "音乐应用", "视频应用", "移动 App", "consumer app", "wellness", "travel app"],
+        "negative_phrases": ["企业后台"]
+      },
+      "ref": "ui-professional-skills/domains/consumer-experience.md",
+      "source_ids": ["ui-ux-pro-max", "taste-skill", "anthropic-frontend-design"]
+    },
+    {
+      "id": "style-minimal-product-linear",
+      "kind": "style",
+      "name": "Minimal Product Linear",
+      "summary": "Quiet, structured product minimalism with purposeful hierarchy.",
+      "triggers": {
+        "phrases": ["极简", "简洁克制", "线性产品感", "Linear 风格", "minimal", "quiet product", "clean SaaS"],
+        "negative_phrases": ["粗野", "高饱和"]
+      },
+      "ref": "design-library/minimal-product-linear.md",
+      "source_ids": ["taste-skill", "impeccable", "spec-kit-plus-owned"]
+    },
+    {
+      "id": "style-soft-premium-calm",
+      "kind": "style",
+      "name": "Soft Premium Calm",
+      "summary": "Refined premium warmth without ornamental excess.",
+      "triggers": {
+        "phrases": ["高端", "奢侈品", "柔和高级", "温润", "精品感", "premium", "luxury", "calm elegance"],
+        "negative_phrases": ["粗野", "工业"]
+      },
+      "ref": "design-library/soft-premium-calm.md",
+      "source_ids": ["anthropic-frontend-design", "taste-skill", "spec-kit-plus-owned"]
+    },
+    {
+      "id": "style-marketing-editorial-asymmetric",
+      "kind": "style",
+      "name": "Marketing Editorial Asymmetric",
+      "summary": "Editorial typography, asymmetric rhythm, and campaign storytelling.",
+      "triggers": {
+        "phrases": ["编辑感", "杂志感", "新闻杂志", "长篇", "专题", "不对称排版", "editorial", "magazine layout", "asymmetric"],
+        "negative_phrases": ["密集后台"]
+      },
+      "ref": "design-library/marketing-editorial-asymmetric.md",
+      "source_ids": ["anthropic-frontend-design", "impeccable", "spec-kit-plus-owned"]
+    },
+    {
+      "id": "style-industrial-brutalist",
+      "kind": "style",
+      "name": "Industrial Brutalist",
+      "summary": "Raw, structural, experimental visual language with deliberate friction.",
+      "triggers": {
+        "phrases": ["粗野", "粗野主义", "工业感", "实验感", "原始结构", "brutalist", "industrial", "experimental"],
+        "negative_phrases": ["柔和高级", "温润"]
+      },
+      "ref": "design-library/industrial-brutalist.md",
+      "source_ids": ["anthropic-frontend-design", "taste-skill", "spec-kit-plus-owned"]
+    },
+    {
+      "id": "style-data-dense-ops",
+      "kind": "style",
+      "name": "Data Dense Operations",
+      "summary": "High-signal operational density for expert monitoring and action.",
+      "triggers": {
+        "phrases": ["高密度", "数据密集", "运维大屏", "专业后台", "dense dashboard", "operations console", "monitoring UI"],
+        "negative_phrases": ["留白很多"]
+      },
+      "ref": "design-library/data-dense-ops.md",
+      "source_ids": ["ui-ux-pro-max", "vercel-web-guidelines", "spec-kit-plus-owned"]
+    },
+    {
+      "id": "style-developer-tool-sharp",
+      "kind": "style",
+      "name": "Developer Tool Sharp",
+      "summary": "Precise, keyboard-first developer surfaces with crisp state semantics.",
+      "triggers": {
+        "phrases": ["开发者工具", "代码工具", "终端感", "键盘优先", "developer tool", "code editor", "terminal UI"],
+        "negative_phrases": ["儿童"]
+      },
+      "ref": "design-library/developer-tool-sharp.md",
+      "source_ids": ["emil-design-engineering", "impeccable", "spec-kit-plus-owned"]
+    },
+    {
+      "id": "style-consumer-mobile-polished",
+      "kind": "style",
+      "name": "Consumer Mobile Polished",
+      "summary": "Polished touch-first mobile UI with concise hierarchy and feedback.",
+      "triggers": {
+        "phrases": ["精致移动端", "原生 App 感", "消费级移动", "触控优先", "polished mobile", "native app", "touch first"],
+        "negative_phrases": ["桌面密集"]
+      },
+      "ref": "design-library/consumer-mobile-polished.md",
+      "source_ids": ["ui-ux-pro-max", "emil-design-engineering", "spec-kit-plus-owned"]
+    },
+    {
+      "id": "style-workbench-precision",
+      "kind": "style",
+      "name": "Workbench Precision",
+      "summary": "Professional multi-pane workbench with strong selection and focus continuity.",
+      "triggers": {
+        "phrases": ["多面板工作台", "专业工作台", "分栏编辑", "精密工具", "workbench", "multi-pane", "pro desktop"],
+        "negative_phrases": ["单页宣传"]
+      },
+      "ref": "design-library/workbench-precision.md",
+      "source_ids": ["openai-product-design", "impeccable", "spec-kit-plus-owned"]
+    },
+    {
+      "id": "style-playful-organic",
+      "kind": "style",
+      "name": "Playful Organic",
+      "summary": "Friendly organic forms, lively rhythm, and controlled playfulness.",
+      "triggers": {
+        "phrases": ["活泼有机", "亲和", "手绘感", "圆润趣味", "playful", "organic", "friendly shapes"],
+        "negative_phrases": ["严肃政务"]
+      },
+      "ref": "design-library/playful-organic.md",
+      "source_ids": ["anthropic-frontend-design", "taste-skill", "spec-kit-plus-owned"]
+    },
+    {
+      "id": "style-spatial-translucent",
+      "kind": "style",
+      "name": "Spatial Translucent",
+      "summary": "Layered spatial depth and restrained translucency with accessible fallbacks.",
+      "triggers": {
+        "phrases": ["空间层叠", "半透明", "玻璃质感", "空间计算", "translucent", "spatial UI", "glass layers"],
+        "negative_phrases": ["低性能设备"]
+      },
+      "ref": "design-library/spatial-translucent.md",
+      "source_ids": ["emil-design-engineering", "impeccable", "spec-kit-plus-owned"]
+    },
+    {
+      "id": "style-public-service-trust",
+      "kind": "style",
+      "name": "Public Service Trust",
+      "summary": "Accessible, reassuring trust for public, health, finance, and essential services.",
+      "triggers": {
+        "phrases": ["政务", "公共服务", "医疗", "可信", "严肃可靠", "public service", "healthcare", "institutional trust"],
+        "negative_phrases": ["戏谑"]
+      },
+      "ref": "design-library/public-service-trust.md",
+      "source_ids": ["vercel-web-guidelines", "ui-ux-pro-max", "spec-kit-plus-owned"]
+    },
+    {
+      "id": "style-commerce-tactile",
+      "kind": "style",
+      "name": "Commerce Tactile",
+      "summary": "Product-first retail storytelling with tactile material and conversion clarity.",
+      "triggers": {
+        "phrases": ["商品故事", "触感电商", "商品质感", "目录式零售", "材质展示", "奢侈品电商", "tactile commerce", "product-led retail"],
+        "negative_phrases": ["数据后台"]
+      },
+      "ref": "design-library/commerce-tactile.md",
+      "source_ids": ["anthropic-frontend-design", "ui-ux-pro-max", "spec-kit-plus-owned"]
+    },
+    {
+      "id": "specialist-forms-conversion",
+      "kind": "specialist",
+      "name": "Forms and Conversion",
+      "summary": "Forms, onboarding, checkout, booking, activation, and transactional completion.",
+      "triggers": {
+        "phrases": ["表单", "注册", "登录", "结账", "购物车", "购买转化", "转化", "预约", "onboarding", "checkout", "conversion", "form flow"],
+        "negative_phrases": []
+      },
+      "ref": "ui-professional-skills/specialists/forms-conversion.md",
+      "source_ids": ["vercel-web-guidelines", "shadcn-ui", "ui-ux-pro-max"]
+    },
+    {
+      "id": "specialist-data-visualization",
+      "kind": "specialist",
+      "name": "Data Visualization",
+      "summary": "Truthful charts, metrics, comparison, filtering, and operational data display.",
+      "triggers": {
+        "phrases": ["指标", "趋势图", "图表", "可视化", "报表", "实时数据", "chart", "graph", "data visualization", "metrics"],
+        "negative_phrases": []
+      },
+      "ref": "ui-professional-skills/specialists/data-visualization.md",
+      "source_ids": ["openai-product-design", "vercel-web-guidelines", "ui-ux-pro-max"]
+    },
+    {
+      "id": "specialist-motion-interaction",
+      "kind": "specialist",
+      "name": "Motion and Interaction",
+      "summary": "Microinteraction, transition, gesture, feedback, and motion-system craft.",
+      "triggers": {
+        "phrases": ["动效", "动画", "手势", "微交互", "转场", "motion", "animation", "gesture", "microinteraction"],
+        "negative_phrases": ["完全静态"]
+      },
+      "ref": "ui-professional-skills/specialists/motion-interaction.md",
+      "source_ids": ["emil-design-engineering", "impeccable", "ui-ux-pro-max"]
+    },
+    {
+      "id": "specialist-design-system",
+      "kind": "specialist",
+      "name": "Design System",
+      "summary": "Tokens, component APIs, variants, governance, and cross-platform consistency.",
+      "triggers": {
+        "phrases": ["设计系统", "组件库", "设计令牌", "多品牌", "规范化", "design system", "component library", "design tokens"],
+        "negative_phrases": []
+      },
+      "ref": "ui-professional-skills/specialists/design-system.md",
+      "source_ids": ["shadcn-ui", "impeccable", "openai-product-design"]
+    },
+    {
+      "id": "specialist-accessibility-localization",
+      "kind": "specialist",
+      "name": "Accessibility and Localization",
+      "summary": "Inclusive input, assistive technology, localization, bidirectionality, and resilient content.",
+      "triggers": {
+        "phrases": ["无障碍", "可访问性", "读屏", "键盘导航", "多语言", "国际化", "本地化", "accessibility", "screen reader", "localization", "RTL"],
+        "negative_phrases": []
+      },
+      "ref": "ui-professional-skills/specialists/accessibility-localization.md",
+      "source_ids": ["vercel-web-guidelines", "ui-ux-pro-max", "openai-product-design"]
+    },
+    {
+      "id": "specialist-conversational-ai",
+      "kind": "specialist",
+      "name": "Conversational AI",
+      "summary": "Chat, streaming, citations, tool use, agent states, and recoverable AI interactions.",
+      "triggers": {
+        "phrases": ["AI 聊天", "聊天助手", "对话助手", "流式回复", "工具调用", "引用", "智能体", "chat assistant", "streaming response", "tool call", "AI agent"],
+        "negative_phrases": []
+      },
+      "ref": "ui-professional-skills/specialists/conversational-ai.md",
+      "source_ids": ["openai-product-design", "ui-ux-pro-max", "vercel-web-guidelines"]
+    }
+  ]
+}

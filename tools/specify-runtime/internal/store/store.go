@@ -1434,6 +1434,25 @@ func (s *Store) ActiveGenerationID(ctx context.Context) (string, error) {
 	return id, rows.Err()
 }
 
+func (s *Store) ActiveGenerationBuildFingerprint(ctx context.Context) (string, string, error) {
+	var generationID string
+	var attrsJSON string
+	err := s.db.QueryRowContext(ctx, `SELECT id, attrs_json FROM generations WHERE state = 'active' ORDER BY sequence DESC, id DESC LIMIT 1`).Scan(&generationID, &attrsJSON)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", nil
+	}
+	if err != nil {
+		return "", "", fmt.Errorf("read active generation build fingerprint: %w", err)
+	}
+	var attrs struct {
+		ScanBuildFingerprint string `json:"scan_build_fingerprint"`
+	}
+	if err := json.Unmarshal([]byte(attrsJSON), &attrs); err != nil {
+		return "", "", fmt.Errorf("decode active generation build fingerprint: %w", err)
+	}
+	return generationID, strings.TrimSpace(attrs.ScanBuildFingerprint), nil
+}
+
 func (s *Store) ActiveGenerationKind(ctx context.Context) (string, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT kind FROM generations WHERE state = 'active' ORDER BY sequence DESC, id DESC LIMIT 1`)
 	if err != nil {

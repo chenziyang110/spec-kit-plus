@@ -16,7 +16,7 @@ Preserved Contract: user-owned scope, behavior, boundary, risk, and deferral cha
 Choose exactly one next command:
 
 - `/sp.plan` when the spec contract is planning-ready;
-- `/sp.clarify` when planning-critical ambiguity remains;
+- `/sp.specify` when planning-critical ambiguity remains and the specification needs another focused pass;
 - `/sp.deep-research` when requirements are clear but feasibility or implementation-chain evidence is missing.
 
 After canonical specification output passes review, mark the source discussion consumed using the slug from `SOURCE_CONTRACT`. Do not depend on or reconstruct a Markdown handoff path.

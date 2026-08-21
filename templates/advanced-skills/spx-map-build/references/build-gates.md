@@ -29,6 +29,9 @@ a model-authored database or parallel graph.
 Even successful construction reports `stage_state=validation_required`,
 `completion_allowed=false`, and `completion_gate=validate_build`; it is not a
 completion result.
+The same receipt plus compiled-proposal/compiler/schema fingerprint is an
+idempotent build key. A ready matching generation may return `reused=true` with
+the same active generation id; it must still pass `validate-build` and Compass.
 
 A successful command is insufficient when validation or a representative
 Compass route fails. Preserve failed build artifacts for diagnosis and report

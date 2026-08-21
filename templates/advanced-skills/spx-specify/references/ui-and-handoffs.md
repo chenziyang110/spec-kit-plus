@@ -19,18 +19,26 @@ contract refs, registered contract SHA-256, brief, and original source paths in
 the relevant design/fidelity refs. Record:
 
 - subject, audience, single job, visual/content/interaction theses, signature,
-  and the approved visual ref;
+  exact `style_authority`, and the approved visual ref;
 - when supplied by design, the exact immutable change-level
-  `round-NN.html#direction-id`, approval sidecar, preview/manifest/handoff
+  `round-NN.<html|png|jpg|jpeg|webp>#direction-id`, approval sidecar, visual/manifest/handoff
   SHA-256 values, immutable handoff ref, applicable `DS-*` decisions and
   `DH-*` handoff contracts, motion tokens, and reduced-motion equivalent;
 - real entry points, surface/platform classification, experience intent, and
   information hierarchy;
 - approved change-local `DESIGN.md` rows, tokens/components, and any explicit
   feature-only delta;
-- layout, hierarchy, interaction, responsive, accessibility, and required state
-  constraints; must-preserve, may-adapt, and must-not decisions;
-- a viewport/state acceptance matrix and later visual evidence.
+- layout and hierarchy plus exact `interaction_matrix`, `editing_matrix`, and
+  `data_state_matrix` rows; component `interaction_modes` / `data_scenarios`;
+  pointer/mouse, keyboard/focus, touch/shortcut/command feedback and recovery;
+  empty and populated data plus applicable loading, partial, error, permission,
+  offline, pending, retry, undo, and success behavior;
+- responsive/accessibility constraints including continuous resize,
+  `stretch_behavior`, `overflow_behavior`, and preservation of focus,
+  selection, scroll, overlays, and unsaved input; must-preserve, may-adapt, and
+  must-not decisions;
+- a risk-based input × data × size acceptance matrix and later visual/
+  interaction evidence.
 - real content and image plans; per-reference use intent; and required
   `structure_snapshot`, `visual_capture`, `runtime_diagnostics`, and
   `visual_comparison_or_human_review` evidence.
@@ -57,6 +65,12 @@ success, reconcile from the receipt's named stage, mark only listed downstream
 bindings and affected Review evidence pending, preserve completed implementation
 and unaffected evidence, and never directly rewrite another stage's artifact.
 
+This formal replacement procedure is for design-first binding or a real
+requirements change owned by Specify. When Design follows an already
+planning-ready source spec and requirements remain unchanged, do not rerun
+Specify or patch the spec. Design adopts with `formal-post-specify`; Plan
+verifies the receipt against the unchanged source spec digest.
+
 When original UI references exist, preserve inspectable source paths or URLs and
 record fidelity as `approximate` by default, `high`, or `inspiration`.
 `approximate` and `high` activate Reference-Implementation evidence: reference
@@ -78,3 +92,14 @@ When a feature target materially reduces ambiguity, scaffold it with
 `{{specify-subcmd:specify-runtime design ui-target --out <FEATURE_DIR>/ui-target.html}}`, configure its
 embedded manifest and candidate status, and require
 `{{specify-subcmd:specify-runtime design ui-target-lint <FEATURE_DIR>/ui-target.html --level ready}}`.
+
+## Professional UI contract continuity
+
+For UI-bearing scope, bind exact applicable `surface_catalog`,
+`scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
+`accessibility_matrix`, `navigation_matrix`, `content_matrix`,
+`motion_contract`, and `usability_validation` values—including its exact
+`smoothness_acceptance_ids`—in the
+feature requirements and UI brief. Retain component governance/iconography.
+Use risk-based or pairwise acceptance scenarios, never an unbounded Cartesian
+product, and do not let screenshots stand in for required target-user review.

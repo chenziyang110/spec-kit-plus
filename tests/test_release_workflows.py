@@ -65,6 +65,15 @@ def test_release_workflow_uploads_unified_runtime_binaries():
         in content
     )
     assert 'cognition scan-prepare --help 2>&1 | grep -q -- "-force"' in content
+    assert 'cognition scan-formats --help' in content
+    assert (
+        'cognition scan-policy-stage --help 2>&1 | grep -q -- "-proposal-json"'
+        in content
+    )
+    assert (
+        'cognition scan-policy-confirm --help 2>&1 | grep -q -- "-proposal-digest"'
+        in content
+    )
     assert (
         'cognition scan-lease --help 2>&1 | grep -q -- "-worker-capacity-tokens"'
         in content
@@ -134,6 +143,15 @@ def test_runtime_fallback_release_smokes_namespaced_cognition_commands():
     )
     assert (
         'bin/specify-runtime-linux-amd64 cognition scan-prepare --help 2>&1 | grep -q -- "-force"'
+        in content
+    )
+    assert 'bin/specify-runtime-linux-amd64 cognition scan-formats --help' in content
+    assert (
+        'bin/specify-runtime-linux-amd64 cognition scan-policy-stage --help 2>&1 | grep -q -- "-proposal-json"'
+        in content
+    )
+    assert (
+        'bin/specify-runtime-linux-amd64 cognition scan-policy-confirm --help 2>&1 | grep -q -- "-proposal-digest"'
         in content
     )
     assert (

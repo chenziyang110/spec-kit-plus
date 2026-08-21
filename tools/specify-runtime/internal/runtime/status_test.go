@@ -155,6 +155,58 @@ func TestStatusRoundTripPreservesBaselineKind(t *testing.T) {
 	}
 }
 
+func TestReadStatusRepairsLegacyGreenfieldWithProjectPathsToRebuild(t *testing.T) {
+	paths := testPaths(t)
+	status := DefaultStatus(paths)
+	status.Status = "stale"
+	status.Freshness = StaleFreshness
+	status.Readiness = BlockedReadiness
+	status.RecommendedNextAction = "run_map_update"
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-greenfield-legacy"
+	status.BaselineKind = BaselineKindGreenfieldEmpty
+	status.Dirty = true
+	status.DirtyReasons = []string{"workflow-closeout-failed"}
+	status.StalePaths = []string{"src/app.go"}
+	status.StaleReasons = []string{"workflow-closeout-failed"}
+	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.StatusPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, err := ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Readiness != NeedsRebuildReadiness {
+		t.Fatalf("Readiness = %q, want %q", loaded.Readiness, NeedsRebuildReadiness)
+	}
+	if loaded.RecommendedNextAction != "run_map_scan_build" {
+		t.Fatalf("RecommendedNextAction = %q, want run_map_scan_build", loaded.RecommendedNextAction)
+	}
+	for label, reasons := range map[string][]string{
+		"dirty": loaded.DirtyReasons,
+		"stale": loaded.StaleReasons,
+	} {
+		found := false
+		for _, reason := range reasons {
+			if reason == "greenfield_baseline_has_project_code" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("%s reasons = %#v, want greenfield baseline conflict token", label, reasons)
+		}
+	}
+}
+
 func TestWriteStatusDoesNotUseFixedTempPath(t *testing.T) {
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {

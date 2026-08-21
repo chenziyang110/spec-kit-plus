@@ -1,7 +1,6 @@
 ---
 name: "spec-kit-ui-design"
 description: "Use when UI, UX, visual design, design-system, accessibility, component, platform interface, TUI, or CLI output quality matters in a Spec Kit Plus project."
-origin: spec-kit-plus
 ---
 
 # Spec Kit UI Design
@@ -10,6 +9,64 @@ This passive skill keeps UI work aligned with the product's design system before
 implementation invents generic one-off styling. Use it whenever UI, UX, visual
 design, design-system, accessibility, component coverage, platform interface,
 TUI, or CLI output quality affects the outcome.
+
+Only `sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast` may be entered
+passively. Every other `sp-*` workflow is user-invoked only: recommend its
+projected invocation and stop until the user explicitly invokes it. This passive
+skill must not load or enter `sp-design` itself.
+
+## Collaborative Design Studio
+
+For `sp-design`, treat design as a guided studio conversation, not a batch
+generator. Read the live product and supplied references first, state a compact
+design hypothesis, then ask only one unresolved, direction-changing question at
+a time. Do not advance past an unanswered question. Once the brief is coherent,
+probe the current session's image generation, image inspection, and image
+editing tools. Do not hard-code capability from the Agent or integration name.
+Use an image-primary round when generation is available and an HTML-primary
+round otherwise. Author one current concept in each immutable round, critique
+it when the session can actually inspect the artifact, show it to the user, and
+revise that same direction in a new round until the user gives explicit
+approval.
+
+Load these references progressively:
+
+- Read `.specify/templates/ui-professional-skills/router.md` before visual
+  authoring. Resolve `style_authority` first: live product UI governs feature,
+  component, and partial-page work (`inherit-existing`, exact source refs,
+  protected `global-shell`/`shared-components`, no style delta, no style skill).
+  Only explicit user authorization for one exact complete-page visual overhaul
+  permits `page-overhaul-authorized`; a functional-page refactor or feature
+  addition does not. Then resolve `professional_skill_route`, persist `domain_skill_id`,
+  `style_skill_id`, `specialist_skill_ids`, `matched_signals`, and
+  `loaded_refs`, plus `mature_web_ui_resource_ids`, `web_ui_asset_inventory`,
+  `mature_web_ui_selection`, and `smoothness_acceptance_ids` when Web UI
+  applies. Pass the actual project root for the bounded read-only scan, then
+  load only the exact selected one domain, zero-or-one style, and zero-to-two
+  specialists. For Web component work, read the router-triggered
+  `web-component-selection.md`; load official Agent/MCP/LLM material only for a
+  selected candidate. Never load the full UI professional skill catalog. If
+  material ambiguity remains, ask the router's one high-impact question before
+  selecting a medium-specific prompt augmentation.
+- Read [references/discovery-dialogue.md](references/discovery-dialogue.md) for
+  active questioning, question state, and the pre-visual checkpoint.
+- Read
+  [references/visual-capability-routing.md](references/visual-capability-routing.md)
+  before selecting a review medium.
+- For an image-primary round, read
+  [references/image-generation-studio.md](references/image-generation-studio.md).
+- For an HTML-primary round, read
+  [references/html-prototype-studio.md](references/html-prototype-studio.md) and
+  [references/prototype-craft.md](references/prototype-craft.md).
+- Read [references/critique-loop.md](references/critique-loop.md) before showing
+  a round, processing feedback, or asking for approval.
+- Load only the target-platform guidance that applies:
+  [references/platform-web.md](references/platform-web.md),
+  [references/platform-apple.md](references/platform-apple.md),
+  [references/platform-windows.md](references/platform-windows.md), or
+  [references/platform-android.md](references/platform-android.md). For a
+  multi-platform product, keep one shared intent and write distinct platform
+  adaptations instead of forcing one interaction model onto every platform.
 
 ## Design Intelligence
 
@@ -44,10 +101,12 @@ implement/review require system model + anti-slop + visual validation loop.
   successor rules or choose one for a broader surface.
 - Implementation must follow that exact change-local `DESIGN.md` for its
   declared scope: layout, component usage, color, typography, motion, density,
-  interaction states, accessibility expectations, and evidence requirements.
-- When approval points to
-  `.specify/design/changes/<UD-ID>/previews/round-NN.html#<direction-id>`, treat
-  that exact change-level design board as inspectable handoff evidence. Preserve its
+  interaction states, explicit pointer/mouse, keyboard/focus, touch, and
+  command behavior, data-state handling, accessibility expectations, and
+  evidence requirements.
+- When approval points to an immutable
+  `.specify/design/changes/<UD-ID>/previews/round-NN.<html|png|jpg|jpeg|webp>#<direction-id>`,
+  treat that exact change-level design artifact as inspectable handoff evidence. Preserve its
   component/state, density, meaningful-motion, and reduced-motion decisions;
   do not replace it with prose or a later feature target.
 - A root `DESIGN.md`, if present, is read-only legacy baseline input. It cannot
@@ -56,7 +115,8 @@ implement/review require system model + anti-slop + visual validation loop.
 - If no applicable registered change exists, its scope is contradictory, or it
   is too thin for high-risk UI work,
   recommend `sp-design` and the projected invocation `{{invoke:design}}` before
-  implementation. Do not let implementation invent a substitute visual system.
+  implementation, then wait for the user's explicit invocation. Do not let
+  implementation invent a substitute visual system.
 - Small UI work may proceed without `sp-design` only when the existing design
   intent is clear and the change is a narrow component variant, copy/state
   adjustment, internal form refinement, or low-risk TUI/CLI wording update.
@@ -108,14 +168,73 @@ implement/review require system model + anti-slop + visual validation loop.
 ## Component Coverage
 
 - Cover every user-visible component state that the task can affect: default,
-  hover, focus, active, disabled, selected, loading, empty, error, success, and
-  permission-limited states where relevant.
+  hover, focus, active, disabled, selected, loading, empty, populated, partial,
+  error, success, offline, and permission-limited states where relevant.
+- For each affected component, spell out the interaction modes and data
+  scenarios rather than assuming the worker will infer them from the screenshot
+  or happy-path copy alone.
 - Keep component decisions tied to the design system. Reuse existing tokens,
   components, spacing rules, and interaction patterns before adding new ones.
+- For Web UI, follow the mature-component preference ladder: compatible live
+  component, documented extension, one mature primary system, then only an
+  exact headless/specialist gap. Do not mix multiple full component systems on
+  one surface or hand-build complex primitives without a recorded gap.
+- Preserve every applicable `component_contracts` row, including `variants`,
+  `content_constraints`, `semantic_token_refs`, reuse/extend/new `governance`,
+  gap/deprecation ownership, and `iconography` source, style, sizing, optical
+  alignment, semantics, and fallback.
 - If a new component or design token is required, name the source design problem
   and how the new element fits the system.
 - Avoid generic one-off styling, unexplained palette shifts, and unrelated bold
   aesthetics that solve presentation but not the product interface problem.
+
+## Professional UI Contract
+
+Carry the exact `surface_catalog`, `scenario_matrix`, `interaction_matrix`,
+`editing_matrix`, `data_state_matrix`, `accessibility_matrix`, `navigation_matrix`,
+`content_matrix`, `motion_contract`, and `usability_validation` from the
+registered design change through Specify, Plan, Tasks, Test Design, Implement,
+Review, and Accept. Quick, Debug, Analyze, and Checklist may select the affected
+subset but may not omit, rename, or weaken it. A scenario references one stable
+surface and the exact rows exercised together; scenarios collectively cover all
+selected rows. Preserve its exact `interaction_script`: non-empty
+`preconditions`, a selected `start_state_id`, ordered `steps` with
+input/action/expected feedback, and bounded `branches`. Branch conditions cover
+applicable success, failure, timeout, cancel, retry, duplicate, and out-of-order
+outcomes; each `expected_state_id` belongs to the scenario's `data_state_ids`
+and names setup, feedback, focus behavior, announcement, and continuation. Keep
+`focus_checkpoint`, `announcement_checkpoint`, `completion_checkpoint`, and
+`recovery_checkpoint`. Use risk-based or pairwise combinations rather than an unbounded
+Cartesian product.
+
+- Interaction rows use exact `id`, `surface`, `input`, `trigger`,
+  `event_sequence`, `immediate_feedback`, `focus_behavior`, `repeat_behavior`,
+  `cancellation_behavior`, `pending_behavior`, and `decision_ids`. They define
+  platform input mechanics; scenario scripts define journey outcomes. Never
+  collapse press/move/release or keydown/keyup, repeated activation,
+  pointer/gesture cancellation, focus return, and pending-state blocking into
+  one generic expectation.
+- Accessibility rows cover WCAG 2.2 AA/platform equivalent, Name/Role/Value,
+  semantics, reading/focus order, keyboard and drag alternatives, dynamic
+  status announcement, applicable Web/native targets, contrast, 400% reflow,
+  forced colors/high contrast, and image/icon alternatives. A top-level summary
+  does not replace `accessibility_matrix`.
+- Navigation rows cover hierarchy, entry/destination, primary task, back/close,
+  deep-link behavior, interruption recovery, navigation consistency, and
+  orientation landmarks.
+- Content rows cover CTA, empty/loading/error/permission, destructive action,
+  confirmation, undo/recovery, privacy/trust, long text, truncation, RTL,
+  localization, and locale-aware date, number, currency, and time zone output.
+- `motion_contract` records purpose, trigger/response, duration/easing,
+  interruption/cancel, reduced-motion alternative, and perceived-performance
+  feedback thresholds.
+- `usability_validation` is risk-tiered. Low-risk existing-pattern changes may
+  use a documented cognitive walkthrough or heuristic review. Medium/high-risk
+  journeys name target users, critical tasks, success criteria, and mandatory
+  human review. Web work also preserves routed `smoothness_acceptance_ids`
+  inside this object and proves them through the existing UI evidence kinds.
+  Automated tests and screenshots cannot substitute for
+  target-user usability.
 
 ## Evidence
 

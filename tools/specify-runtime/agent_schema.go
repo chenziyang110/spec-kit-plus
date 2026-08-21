@@ -155,16 +155,28 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["input_contract"] = "both changes must be registered and byte-intact; returns lineage plus semantic scope, stable DS decision, DH handoff-contract, and section deltas"
 	case "design.impact":
 		capability["side_effect"] = "read-only"
-		capability["usage"] = "specify-runtime design impact <consumer-ref> --change <UD-ID> --scope <surface> --mode formal|quick --expected-change <UD-ID|none> --format json"
-		capability["input_contract"] = "candidate must be active for the exact scope and expected-change must match the current receipt; returns impact classes, affected DS/DH IDs, preserved_bindings, invalidated_bindings, reconcile_from, and reconciliation actions without rewriting consumer artifacts"
+		capability["usage"] = "specify-runtime design impact <consumer-ref> --change <UD-ID> --scope <surface> --mode formal|formal-post-specify|quick --expected-change <UD-ID|none> --format json"
+		capability["input_contract"] = "candidate must be active for the exact scope and expected-change must match the current receipt; formal-post-specify preserves the unchanged planning-ready source spec and reconciles from Plan; returns impact classes, affected DS/DH IDs, preserved_bindings, invalidated_bindings, reconcile_from, and reconciliation actions without rewriting consumer artifacts"
 	case "design.register":
 		capability["side_effect"] = "registers-immutable-design-change"
 		capability["usage"] = "specify-runtime design register .specify/design/changes/<UD-ID>/DESIGN.md --format json"
 		capability["input_contract"] = "requires an approved change-local contract whose ID, path, scope, and supersedes relationships match index.json; overlapping approved scopes must be explicitly superseded; registration binds the exact SHA-256 and subtracts only intersecting scopes from prior changes"
+	case "design.approve":
+		capability["side_effect"] = "freezes-immutable-visual-round-and-handoff"
+		capability["usage"] = "specify-runtime design approve <round.html|round.png|round.jpg|round.jpeg|round.webp> --direction direction-main [--manifest <round.manifest.json> --prompt <round.prompt.md> --image-inspection available|unavailable --image-editing available|unavailable] --format json"
+		capability["input_contract"] = "HTML uses its embedded ready manifest; image-primary approval requires adjacent manifest and exact generation/edit prompt plus independently probed inspection/editing capability values. Both routes byte-bind one current concept, manifest, selected-direction handoff, and explicit user approval."
+	case "design.preview-lint":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime design preview-lint <round.html|round.png|round.jpg|round.jpeg|round.webp> --level structural|ready --format json"
+		capability["input_contract"] = "HTML validates the self-contained authored review carrier; image-primary validates raster bytes plus immutable manifest, prompt, capability route, approval, and handoff sidecars."
 	case "design.adopt":
 		capability["side_effect"] = "appends-cas-guarded-consumer-adoption"
-		capability["usage"] = "specify-runtime design adopt <consumer-ref> --change <UD-ID> --scope <surface> --mode formal|quick --binding-ref <path> --binding-sha256 <sha256> --expected-change <UD-ID|none> --format json"
-		capability["input_contract"] = "consumer artifact must already contain the exact design_change_id, design_change_ref, design_change_sha256, and design_contract_ref; expected-change is a compare-and-swap guard; adoption appends history and never rewrites the consumer"
+		capability["usage"] = "specify-runtime design adopt <consumer-ref> --change <UD-ID> --scope <surface> --mode formal|formal-post-specify|quick --binding-ref <path> --binding-sha256 <sha256> --expected-change <UD-ID|none> --format json"
+		capability["input_contract"] = "formal and quick require a consumer artifact already containing the exact design binding; formal-post-specify instead byte-binds one unchanged planning-ready source spec and returns to Plan without rewriting it or rerunning Specify; expected-change is a compare-and-swap guard; adoption appends history and never rewrites the consumer"
+	case "design.adoption":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime design adoption <feature-ref> --scope <surface> --binding-ref <source-spec-contract.json> --binding-sha256 <sha256> [--expected-change <UD-ID>] --format json"
+		capability["input_contract"] = "verifies that the current formal-post-specify receipt still names an active immutable design change and the exact unchanged planning-ready source spec bytes; Plan consumes this proof directly and must not rerun Specify unless requirements changed"
 	case "implement.result-merge":
 		capability["side_effect"] = "writes-task-lifecycle-and-worker-result"
 		capability["usage"] = "specify-runtime implement result-merge --feature-dir <feature-dir> --task-id <Txxx> --result-json <object|@path|-> --format json"
@@ -195,6 +207,62 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "artifact.catalog":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime artifact catalog --format json"
+	case "board.show":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime board show [--status active|blocked|interrupted|completed|abandoned] [--project-root <path>] --format json"
+		capability["input_contract"] = "reads the repository-shared Work Board projection from the Git common directory; defaults to active, blocked, and interrupted work while explicit --status selects retained history; run board reconcile first when expired leases may exist, and never edit the SQLite database directly"
+	case "board.owner":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime board owner <project-relative-path> [--project-root <path>] --format json"
+		capability["input_contract"] = "returns active or recovery-hold confirmed write owners whose normalized scope is the same path, an ancestor, or a descendant; candidate intents remain advisory"
+	case "board.reconcile":
+		capability["side_effect"] = "writes-work-board-recovery-state"
+		capability["usage"] = "specify-runtime board reconcile [--project-root <path>] --format json"
+		capability["input_contract"] = "inspects only expired active or blocked work; clean declared scopes are released, while dirty or unavailable workspaces become interrupted recovery holds that require explicit work resume or work abandon"
+	case "board.branch-policy":
+		capability["side_effect"] = "reconciles-expired-work-and-selects-feature-branch-policy"
+		capability["usage"] = "specify-runtime board branch-policy [--current-work-id <id>] [--project-root <path>] --format json"
+		capability["input_contract"] = "returns keep-current when any other unexpired active or blocked task, or interrupted dirty recovery hold, exists in the shared Git repository; otherwise returns default so create-new-feature preserves its historical branch behavior; current-work-id defaults to SPECIFY_WORK_ID"
+	case "board.feature-bootstrap":
+		capability["side_effect"] = "registers-feature-work-and-selects-branch-policy"
+		capability["usage"] = "specify-runtime board feature-bootstrap --feature-id <id> --feature-dir <path> --summary <text> --agent-id <id> --adapter-id <id> [--work-id <id>] [--workspace-root <path>] [--lease-seconds <seconds>] [--project-root <path>] --format json"
+		capability["input_contract"] = "after a read-only create-new-feature dry run, atomically exposes one feature bootstrap to other agents before writes: feature-dir must be the exact project-local .specify/features/<feature-id> path, the confirmed create intent is conflict-checked, and the response returns both the registered Work identity/fence and feature_branch_policy; do not query branch-policy or call work begin separately"
+	case "work.begin":
+		capability["side_effect"] = "registers-work-and-write-intents"
+		capability["usage"] = "specify-runtime work begin --summary <text> --agent-id <id> --adapter-id <id> [--work-id <id>] [--workspace-root <path>] [--intents-json <array>] [--lease-seconds <seconds>] [--project-root <path>] --format json"
+		capability["input_contract"] = "register before modifying files; workspace-root must belong to the same Git common directory; confirmed path intents are conflict-checked atomically, while candidate intents advertise likely scope without blocking"
+	case "work.show":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime work show <work-id> [--project-root <path>] --format json"
+		capability["input_contract"] = "returns current revision, fence, lease, recovery state, observed paths, and retained write-intent history for one work item"
+	case "work.scope-add":
+		capability["side_effect"] = "adds-conflict-checked-write-intent"
+		capability["usage"] = "specify-runtime work scope-add <work-id> --expected-revision <revision> --fence <fence> --path <project-relative-path> [--operation create|modify|delete|rename] [--confidence candidate|confirmed] [--reason <text>] [--project-root <path>] --format json"
+		capability["input_contract"] = "declare scope before touching a newly discovered file; revision and fence are compare-and-swap guards, an existing own candidate is promoted in place after conflict checking, and a confirmed same/ancestor/descendant owner returns a blocked conflict instead of stealing scope"
+	case "work.checkpoint":
+		capability["side_effect"] = "renews-work-lease-and-checkpoint"
+		capability["usage"] = "specify-runtime work checkpoint <work-id> --expected-revision <revision> --fence <fence> [--lease-seconds <seconds>] [--next-action <text>] [--observed-paths-json <array>] [--project-root <path>] --format json"
+		capability["input_contract"] = "renews live ownership with optimistic revision and fence checks and records a compact restart point plus paths actually observed as changed"
+	case "work.block":
+		capability["side_effect"] = "blocks-work-while-retaining-scope"
+		capability["usage"] = "specify-runtime work block <work-id> --expected-revision <revision> --fence <fence> --reason <text> [--next-action <text>] [--project-root <path>] --format json"
+		capability["input_contract"] = "records a resumable blocker and retains confirmed write ownership until finish, abandon, or stale reconciliation"
+	case "work.finish":
+		capability["side_effect"] = "completes-work-and-releases-scope"
+		capability["usage"] = "specify-runtime work finish <work-id> --expected-revision <revision> --fence <fence> --reason <text> [--next-action <text>] [--project-root <path>] --format json"
+		capability["input_contract"] = "marks work completed and releases active or recovery write ownership while retaining the board record and intent history"
+	case "work.abandon":
+		capability["side_effect"] = "abandons-work-and-releases-scope"
+		capability["usage"] = "specify-runtime work abandon <work-id> --expected-revision <revision> --fence <fence> --reason <text> [--next-action <text>] [--project-root <path>] --format json"
+		capability["input_contract"] = "explicitly retires active, blocked, or interrupted work and releases all held scope; use after inspecting dirty recovery state and deciding the old task will not resume"
+	case "work.interrupt":
+		capability["side_effect"] = "fences-live-work-for-explicit-recovery"
+		capability["usage"] = "specify-runtime work interrupt <work-id> --expected-revision <revision> --fence <fence> --reason <text> [--next-action <text>] [--project-root <path>] --format json"
+		capability["input_contract"] = "use only after confirming the recorded owner session has ended, such as after a computer restart; exact revision and fence are required, the recorded workspace is inspected immediately, matching dirty paths retain a recovery hold, unavailable workspace inspection preserves every declared scope, and work resume then acquires a new fence"
+	case "work.resume":
+		capability["side_effect"] = "resumes-interrupted-work-under-new-fence"
+		capability["usage"] = "specify-runtime work resume <work-id> --expected-revision <revision> --agent-id <id> --adapter-id <id> [--workspace-root <path>] [--lease-seconds <seconds>] [--next-action <text>] [--project-root <path>] --format json"
+		capability["input_contract"] = "explicitly reclaims interrupted intents after atomic conflict checks, clears recovery holds, and advances the fence; defaults to the interrupted worktree, while an unavailable worktree blocks until an inspected same-repository replacement is passed with --workspace-root or the work is abandoned"
 	case "run.create":
 		capability["side_effect"] = "writes-run-control"
 		capability["usage"] = "specify-runtime run create --run-id <id> --kind <kind> --subject-type <type> --subject-id <id> --target-ref <ref> --intent-sha256 <sha256> [--project-root <path>] --format json"
@@ -211,12 +279,12 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["input_contract"] = "requires the exact observed Run revision; cancellation advances the fence before revoking execution authority"
 	case "run.launch":
 		capability["side_effect"] = "queues-run-routes-workspace-and-runs-tokenized-child"
-		capability["usage"] = "specify-runtime run launch --run-id <id> --kind <kind> --subject-type <type> --subject-id <id> --target-ref <ref> --intent-sha256 <sha256> --adapter-id <id> [--workspace-policy auto|primary|isolated] [--project-root <path>] --format json -- <argv...>"
-		capability["input_contract"] = "single call queues durable Run intent and requires a literal -- separator; auto routes exactly one non-overlapping modifying Run to the primary workspace only when its checkout is pristine, routes overlaps and idle-but-dirty launches to isolated worktrees, clones overlaps from the primary Run's pre-launch Snapshot, forces child cwd, binds the fenced SPECIFY_RUN_* environment, and atomically records success or failure; interrupted Runs remain recoverable through run supervise"
+		capability["usage"] = "specify-runtime run launch --run-id <id> --kind <kind> --subject-type <type> --subject-id <id> --target-ref <ref> --intent-sha256 <sha256> --adapter-id <id> [--work-agent-id <id>] ([--work-packet-file <worker-packet.json> --work-packet-sha256 <sha256>] | [--work-task-ref <ref>] [--work-summary <text>] [--work-intents-json <array>]) [--workspace-policy auto|primary|isolated] [--project-root <path>] --format json -- <argv...>"
+		capability["input_contract"] = "single call queues durable Run intent, automatically reconciles expired Work Board leases, and automatically registers one Work Board item before child launch. Compiled task packet mode requires the packet-compile receipt path plus sha256, verifies the exact compiled bytes before JSON parsing, then derives feature_id, task_id, objective, and scope.write_scope into task identity and confirmed modify intents; it cannot be mixed with manual task-ref, summary, or intents. Same/ancestor/descendant conflicts block before the child starts. Runtime auto routes exactly one non-overlapping modifying Run to the pristine primary workspace, routes overlaps and idle-but-dirty launches to isolated worktrees, clones overlaps from the primary Run's pre-launch Snapshot, forces child cwd, binds fenced SPECIFY_RUN_* and SPECIFY_WORK_* environment variables, and sets SPECIFY_FEATURE_BRANCH_POLICY=keep-current when another live task or dirty recovery hold exists. It renews both leases, completes Work on success, keeps it blocked on child failure, and interrupts it conservatively on cancellation; interrupted Runs remain recoverable through run supervise"
 	case "run.supervise":
 		capability["side_effect"] = "routes-workspace-and-runs-tokenized-child"
-		capability["usage"] = "specify-runtime run supervise <run-id> --adapter-id <id> [--workspace-policy auto|primary|isolated] [--project-root <path>] --format json -- <argv...>"
-		capability["input_contract"] = "requires a literal -- separator and --adapter-id; runtime owns auto routing between one pristine primary workspace owner and isolated overlap or idle-but-dirty worktrees, forces child cwd, binds SPECIFY_RUN_* identity/workspace/fence variables, extends WSLENV for WSL-backed helpers, maintains liveness, releases ownership on every terminal path, and atomically records success or failure. Greenfield/local interactive agents may use create-new-feature + workflow enter + artifact owners without supervise when no host adapter is configured; that path is not a run-control violation for unhosted sessions"
+		capability["usage"] = "specify-runtime run supervise <run-id> --adapter-id <id> [--work-agent-id <id>] ([--work-packet-file <worker-packet.json> --work-packet-sha256 <sha256>] | [--work-task-ref <ref>] [--work-summary <text>] [--work-intents-json <array>]) [--workspace-policy auto|primary|isolated] [--project-root <path>] --format json -- <argv...>"
+		capability["input_contract"] = "requires a literal -- separator and --adapter-id; runtime automatically reconciles expired Work Board leases, registers the managed task and optional exact write intents before child launch, and reports conflicting owner details without starting the child. Compiled task packet mode requires the packet-compile receipt path plus sha256, verifies the exact compiled bytes before JSON parsing, then derives task identity, objective, and scope.write_scope; it cannot be mixed with manual work metadata. Runtime owns auto routing between one pristine primary workspace owner and isolated overlap or idle-but-dirty worktrees, forces child cwd, binds SPECIFY_RUN_* and SPECIFY_WORK_* identity/fence variables, sets SPECIFY_FEATURE_BRANCH_POLICY=keep-current when another live task or dirty recovery hold exists, extends WSLENV, renews liveness without overwriting child-authored scope revisions, completes Work on success, retains blocked scope on nonzero exit, and conservatively interrupts cancellation. Greenfield/local interactive agents may use create-new-feature + workflow enter + artifact owners without supervise when no host adapter is configured; that path is not a run-control violation for unhosted sessions"
 	case "result.list":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime result list [<run-id> | --run-id <id>] [--project-root <path>] --format json"

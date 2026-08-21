@@ -14,6 +14,13 @@ read `references/blocker-resolution.md` before returning a blocked result.
 
 ## Intake
 
+The only entry-intake exception is an explicitly selected context-direct branch
+from `spx-quick` or `spx-debug`. Its pre-intake gate already enumerated the
+bounded owner, consumers, risks, and verification evidence from the active
+conversation, so it skips Compass navigation. It still uses this reference's
+exact-path mutation closeout contract after source changes. Insufficient
+evidence, a full-workflow choice, or scope expansion restores normal intake.
+
 Run `{{specify-subcmd:specify-runtime cognition compass --intent <intent> --query="<request>" --format json}}`,
 using the intent named by the active skill. This placeholder resolves to the
 project-pinned cognition binary during installation. If it instead resolves to
@@ -52,6 +59,12 @@ do not rewrite graph-store metadata by hand.
 
 - Read `minimal_live_reads` before broad repository search and use
   `first_pass_paths` to choose the next live evidence.
+- When `compass_state=blocked`, `degraded=true`, and
+  `coverage_diagnostics[].kind=stale_cognition_degraded_navigation`, consume the
+  returned bounded `minimal_live_reads` only as stale route hints. Verify every
+  selected path against the live repository, never treat the hints as fresh
+  truth, and preserve the returned recovery action. Without that marker, do not
+  infer routes from an empty blocked packet.
 - Follow `expansion_ref` with
   `{{specify-subcmd:specify-runtime cognition expand --ref <expansion-ref> --format json}}`
   only when coverage or contradictory live evidence requires more map detail.
@@ -75,6 +88,14 @@ token/theme/component owners, reusable patterns, required states, responsive
 rules, visual/accessibility tests, and reference assets. Carry only verified
 live routes into the plan context capsule; do not add a UI-specific cognition
 runtime or treat a graph owner label as proof.
+
+`baseline_kind=greenfield_empty` is advisory only while the repository has no
+project-code evidence. If the runtime reports
+`greenfield_baseline_has_project_code`, real workflow-owned or stale paths have
+invalidated that identity. Preserve
+`recommended_next_action.action_id=project_cognition.rebuild` and its Advanced
+workflow route; this conflict must not be routed to `$spx-map-update` or treated
+as an ordinary empty graph.
 
 If `recommended_next_action.action_id=project_cognition.rebuild` and the
 structured recovery contract names the Advanced rebuild route, recommend the matching maintenance skill,
@@ -151,8 +172,20 @@ Only an owning mutation skill may perform cognition closeout. Its `SKILL.md`
 provides the exact registry-owned `sp-*` workflow literal and
 `specify-runtime cognition closeout-plan` command;
 never derive that ID from the SPX skill name, an environment variable, or chat
-state. Pass explicit workflow-owned changed paths, fill only the returned
-agent-owned evidence fields, then execute the structured `update_argv`. Set
+state. Add `--scope-dir <feature-or-scope> --scope-mode explicit` and pass one
+`--changed-path <repo-relative-path>` flag per explicit
+workflow-owned changed path. A rename owns both its old and new path; pass and
+preserve both endpoints in `boundary.workflow_owned_paths`, and reject a rename
+when either endpoint is outside that boundary. Those paths are the mutation closeout scope, and
+unrelated dirty, untracked, or committed-since-baseline repository paths must
+not enter `changed_paths`. If no workflow-owned path can be named, do not broad
+scan to guess it; use dirty fallback with an explicit reason. Fill only the returned
+agent-owned evidence fields, then execute structured `apply_argv`; `update_argv`
+is a low-level compatibility/debug primitive, not the workflow closeout path.
+For `update_mode=inline_json`, `apply_argv` contains `--payload-json -`: serialize
+the completed payload draft and write the completed payload JSON to stdin. Never
+replace `-` with payload JSON in process argv and never create a payload file.
+Set
 every `unknown_path_dispositions[].agent_disposition`; the runtime binds it to
 the matching `path_changes[].disposition`, and missing, duplicate, conflicting,
 or unmatched decisions fail before mutation. Delta mode must supply every
@@ -170,32 +203,39 @@ planner shape `{"command":"<agent-owned verification command>","result":"passed"
 never pass freeform command-result strings or result aliases. Legacy or
 free-text verification is audit evidence with `result=recorded` only and cannot
 satisfy clean closeout; clean closeout requires structured `result=passed`.
-After `update_argv`,
-`result_state=ready` or `result_state=no_op` must run
-`{{specify-subcmd:specify-runtime cognition validate-build --format json}}`. Only
-`status=ok` with `readiness=query_ready` creates the validate-build receipt
-bound to the latest update ID, outcome, and active generation; then, and only
-then, run `{{specify-subcmd:specify-runtime cognition complete-refresh --format json}}`.
-Clean completion requires that receipt-bound finalizer to succeed. For
-the interval before it succeeds, the runtime gate withholds Compass/query as
-pending finalization. For
-`partial_refresh`, `needs_rebuild`, `blocked`, or legacy `recorded`, the skill
-must not run `complete-refresh`; preserve the truthful state and returned
-recovery action. A failed, stale, blocked, or non-`query_ready` validation also
-must not run `complete-refresh`.
+`apply_argv` owns the deterministic tail. Read `scope_result_state` separately
+from the project-wide `result_state` and `global_freshness`. When scope and
+global results are `ready|no_op`, shared apply runs
+`{{specify-subcmd:specify-runtime cognition validate-build --format json}}` then
+`{{specify-subcmd:specify-runtime cognition complete-refresh --format json}}` and
+stamps the current-update-bound receipt. Only `status=ok` with
+`readiness=query_ready` creates the validate-build receipt bound to the latest
+update ID, outcome, and active generation. Clean completion requires that
+receipt-bound finalizer to succeed; until then Compass/query remains in
+`pending finalization`. `closeout_state=scope_ready` means this explicit workflow scope
+succeeded while unrelated project-wide debt remains visible in
+`global_debt_reasons`; it is closeable without falsely finalizing global
+freshness. Missing `verification[result=passed]` returns
+`closeout_status=needs_agent_input` before update mutation. For a scope-level
+`partial_refresh`, `needs_rebuild`, `blocked`, or legacy `recorded`, runtime must
+not run `complete-refresh`; preserve the truthful state and recovery action.
+A failed, stale, blocked, or non-`query_ready` validation also must not run
+`complete-refresh`. In every non-eligible branch, runtime must not run
+`complete-refresh`.
 
-After that chain (or after `mark-dirty`), stamp the hard gate receipt before
-terminal close:
+Successful shared apply stamps the hard gate receipt itself before terminal
+close. Do not stamp a second receipt. Only `mark-dirty` fallback uses the
+standalone compatibility command:
 
 ```text
-{{specify-subcmd:specify-runtime cognition mutation-receipt --workflow <canonical-sp-*> --feature-dir <scope> --result-state ready|no_op|mark-dirty|partial --reason "<text>" --format json}}
+{{specify-subcmd:specify-runtime cognition mutation-receipt --workflow <canonical-sp-*> --feature-dir <scope> --result-state mark-dirty --reason "<text>" --format json}}
 ```
 
 Runtime blocks `implement closeout` and implement/review `workflow complete-stage`
 without an allowed receipt. Quick uses the same receipt under its workspace
-(via `quick cognition-closeout` or `mutation-receipt`). Fast/debug must record
-the same receipt before claiming completion even when they lack a formal stage
-machine.
+(via shared apply, or `quick cognition-closeout` only for dirty fallback).
+Fast/debug use the same shared apply before claiming completion even when they
+lack a formal stage machine.
 
 Specification, plan, task, checklist, test-design, research, and other
 planning-only artifact changes do not make the code map dirty and do not

@@ -43,10 +43,8 @@ func TestResultPathUsesStageOwnedFeatureHandoffDirectories(t *testing.T) {
 	mkdirAll(t, featureDir)
 
 	cases := map[string]string{
-		"clarify":       "clarification/handoffs/lane-a.json",
-		"plan":          "planning/handoffs/lane-a.json",
-		"tasks":         "task-generation/handoffs/lane-a.json",
-		"deep-research": "research/handoffs/lane-a.json",
+		"plan":  "planning/handoffs/lane-a.json",
+		"tasks": "task-generation/handoffs/lane-a.json",
 	}
 	for command, suffix := range cases {
 		t.Run(command, func(t *testing.T) {
@@ -64,6 +62,26 @@ func TestResultPathUsesStageOwnedFeatureHandoffDirectories(t *testing.T) {
 				t.Fatalf("path = %q, want suffix %q", path, suffix)
 			}
 		})
+	}
+}
+
+func TestResultPathRejectsDeepResearchGenericChannel(t *testing.T) {
+	project := createResultProject(t, "codex")
+	featureDir := filepath.Join(project, ".specify", "features", "001-feature")
+	mkdirAll(t, featureDir)
+
+	code, payload := runResultInProject(t, project, []string{
+		"path",
+		"--command", "deep-research",
+		"--feature-dir", featureDir,
+		"--lane-id", "lane-a",
+	})
+
+	if code == 0 {
+		t.Fatalf("generic deep-research result path unexpectedly passed: %#v", payload)
+	}
+	if !strings.Contains(asString(payload["summary"]), "deep-research track-submit") {
+		t.Fatalf("summary = %q, want runtime-owned track-submit guidance", asString(payload["summary"]))
 	}
 }
 
@@ -193,9 +211,13 @@ func TestResultSubmitPreservesImmutableUIHandoffBinding(t *testing.T) {
 		"task_id": "lane-ui",
 		"status":  "success",
 		"ui_verification": map[string]any{
+			"human_review_ref":             "evidence/usability-review.md",
 			"approved_handoff_ref":         ".specify/design/previews/round-01.handoff.json",
 			"approved_handoff_sha256":      strings.Repeat("a", 64),
 			"covered_handoff_contract_ids": []any{"DH-COMP-001", "DH-VA-001"},
+			"covered_smoothness_acceptance_ids": []any{
+				"focus-continuity", "pending-cancel-feedback",
+			},
 			"comparison_tolerance": map[string]any{
 				"structure":         "exact",
 				"geometry":          map[string]any{"unit": "px", "max_delta": 2},
@@ -220,7 +242,11 @@ func TestResultSubmitPreservesImmutableUIHandoffBinding(t *testing.T) {
 	if verification["approved_handoff_ref"] != ".specify/design/previews/round-01.handoff.json" {
 		t.Fatalf("handoff ref was not preserved: %#v", verification)
 	}
+	if verification["human_review_ref"] != "evidence/usability-review.md" {
+		t.Fatalf("human review ref was not preserved: %#v", verification)
+	}
 	requireStringArrayEqual(t, verification["covered_handoff_contract_ids"], []string{"DH-COMP-001", "DH-VA-001"})
+	requireStringArrayEqual(t, verification["covered_smoothness_acceptance_ids"], []string{"focus-continuity", "pending-cancel-feedback"})
 	tolerance := requireObjectValue(t, verification["comparison_tolerance"])
 	if tolerance["structure"] != "exact" || tolerance["platform_variance"] != "approved-deviation-only" {
 		t.Fatalf("structured comparison tolerance was not preserved: %#v", tolerance)
@@ -324,10 +350,8 @@ func TestResultSubmitForCodexStageOwnedCommandsUsesGenericHandoffPaths(t *testin
 	})
 
 	cases := map[string]string{
-		"clarify":       "clarification/handoffs/lane-a.json",
-		"plan":          "planning/handoffs/lane-a.json",
-		"tasks":         "task-generation/handoffs/lane-a.json",
-		"deep-research": "research/handoffs/lane-a.json",
+		"plan":  "planning/handoffs/lane-a.json",
+		"tasks": "task-generation/handoffs/lane-a.json",
 	}
 	for command, suffix := range cases {
 		t.Run(command, func(t *testing.T) {
@@ -354,6 +378,30 @@ func TestResultSubmitForCodexStageOwnedCommandsUsesGenericHandoffPaths(t *testin
 				t.Fatalf("stored summary = %#v", stored["summary"])
 			}
 		})
+	}
+}
+
+func TestResultSubmitRejectsDeepResearchGenericChannel(t *testing.T) {
+	project := createResultProject(t, "codex")
+	featureDir := filepath.Join(project, ".specify", "features", "001-feature")
+	mkdirAll(t, featureDir)
+
+	code, payload := runResultInProject(t, project, []string{
+		"submit",
+		"--command", "deep-research",
+		"--feature-dir", featureDir,
+		"--lane-id", "lane-a",
+		"--result-json", `{"task_id":"lane-a","status":"success"}`,
+	})
+
+	if code == 0 {
+		t.Fatalf("generic deep-research result submit unexpectedly passed: %#v", payload)
+	}
+	if !strings.Contains(asString(payload["summary"]), "deep-research track-submit") {
+		t.Fatalf("summary = %q, want runtime-owned track-submit guidance", asString(payload["summary"]))
+	}
+	if _, err := os.Stat(filepath.Join(featureDir, "research", "handoffs", "lane-a.json")); !os.IsNotExist(err) {
+		t.Fatalf("generic channel wrote a deep-research handoff: %v", err)
 	}
 }
 

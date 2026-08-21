@@ -342,6 +342,7 @@ def _ui_contract_from_task_entry(
         ui_work_type=_mapping_string(payload, "ui_work_type"),
         surface_type=_mapping_string(payload, "surface_type"),
         platforms=_unique(_string_list(payload.get("platforms"))),
+        style_authority=_mapping_dict(payload, "style_authority"),
         subject=_mapping_string(payload, "subject"),
         audience=_mapping_string(payload, "audience"),
         single_job=_mapping_string(payload, "single_job"),
@@ -362,12 +363,23 @@ def _ui_contract_from_task_entry(
         reference_intents=_unique_dicts(_dict_list(payload.get("reference_intents"))),
         real_content_plan=_unique_dicts(_dict_list(payload.get("real_content_plan"))),
         image_plan=_unique_dicts(_dict_list(payload.get("image_plan"))),
+        surface_catalog=_unique_dicts(_dict_list(payload.get("surface_catalog"))),
+        scenario_matrix=_unique_dicts(_dict_list(payload.get("scenario_matrix"))),
+        interaction_matrix=_unique_dicts(_dict_list(payload.get("interaction_matrix"))),
+        editing_matrix=_unique_dicts(_dict_list(payload.get("editing_matrix"))),
+        data_state_matrix=_unique_dicts(_dict_list(payload.get("data_state_matrix"))),
+        accessibility_matrix=_unique_dicts(
+            _dict_list(payload.get("accessibility_matrix"))
+        ),
+        navigation_matrix=_unique_dicts(_dict_list(payload.get("navigation_matrix"))),
+        content_matrix=_unique_dicts(_dict_list(payload.get("content_matrix"))),
         color_modes=_unique(_string_list(payload.get("color_modes"))),
         component_contracts=_unique_dicts(
             _dict_list(payload.get("component_contracts"))
         ),
         responsive_matrix=_unique_dicts(_dict_list(payload.get("responsive_matrix"))),
         motion_contract=_mapping_dict(payload, "motion_contract"),
+        usability_validation=_mapping_dict(payload, "usability_validation"),
         visual_acceptance_matrix=_unique_dicts(
             _dict_list(payload.get("visual_acceptance_matrix"))
         ),

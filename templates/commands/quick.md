@@ -14,7 +14,11 @@ workflow_contract:
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
-[AGENT] `sp-quick` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
+[AGENT] Apply the Pre-Intake Context Sufficiency Gate first. The full Quick
+branch always starts a new run: record it with `specify-runtime run create`,
+then execute only through `specify-runtime run supervise`; do not resume another
+workflow's run. The explicit user-selected context-direct branch is the sole
+exception and creates no run or Quick workspace.
 
 ## Read-Only Test Design Projection Gate
 
@@ -39,7 +43,7 @@ project-relative `.planning/quick/<id>/confirmation.json`, never the mutable
 `STATUS.md` that will receive `projection_binding`. Resume Quick and bind the
 returned refs/digests through the runtime-owned STATUS contract.
 
-## Hard Q Loop (do not skip)
+## Hard Q Loop (do not skip in the full Quick branch)
 
 After checkpoint confirmation, **every** in-progress `Qn` uses this hard order. Leader owns scope, STATUS, join, accept—not write_scope edits.
 
@@ -68,12 +72,16 @@ After checkpoint confirmation, **every** in-progress `Qn` uses this hard order. 
 
 ## Main Flow
 
+The steps below own only the full Quick branch. A user-selected context-direct
+branch follows the pre-intake gate, performs the bounded edit and verification,
+runs exact-path mutation closeout, and does not enter this flow.
+
 1. Accept non-trivial direct-delivery work of any size whose outcome can be confirmed at the Quick Checkpoint. Scale the quick workspace instead of routing to `{{invoke:specify}}` because work is large, cross-cutting, multi-capability, migration-heavy, or acceptance-heavy; route unknown failure mechanisms to `{{invoke:debug}}`.
 2. Create `.planning/quick/<id>-<slug>/STATUS.md` only with `artifact scaffold --kind quick-status`; resume via `artifact show`, and mutate frontmatter/sections only through leased `artifact patch` calls.
 3. Consume eligible discussion handoff or quick-task context without silently changing the confirmed scope; record consequence coverage, planning depth, any user-owned checkpoint amendment, and the exact `not_selected|selected|required` Test Design gate. Verify a selected/required projection before it shapes any Q item.
 4. Use `choose_subagent_dispatch(command_name="quick", snapshot, workload_shape)` and packetized contracts for every substantive Q item. Default `one-subagent` when Q items share write scope or depend serially; `parallel-subagents` only for isolated write sets. Parallel write-conflict is not leader-inline permission.
 5. Execute the **Hard Q Loop** for each Q item; patch `STATUS.md` through the artifact CLI at phase transitions; validate changed surfaces.
-6. **Before** `quick close … resolved` on source-changing work: run inline project cognition closeout (`cognition closeout-plan` → update → validate-build/complete-refresh or mark-dirty), then record `specify-runtime quick cognition-closeout <id> --result-state ready|no_op|mark-dirty|partial --reason "…"`. Greenfield/empty graph still needs `no_op` or `mark-dirty` with reason—never skip. Create the quick-summary artifact with `artifact scaffold --kind quick-summary` and patch it (including `project_cognition_refresh`) through leased `specify-runtime artifact patch` calls, confirm `quick status` shows `cognition_closeout.allowed_close=true`, and only then `specify-runtime quick close <id> resolved`. Close also requires every Q to have `execution_mode` worker or audited leader-inline.
+6. **Before** `quick close … resolved` on source-changing work: run `cognition closeout-plan` with the quick workspace plus explicit owned paths, fill agent fields, and execute its shared `apply_argv`. It owns update, validation, eligible finalization, and the quick-workspace receipt; do not stamp a second receipt. Clean closeout keys on `result_state`; not `status=ok`, `update_id`, `last_update_id`, or freshness alone. Do not present `status=ok` alone as proof of cognition freshness or mutation closeout. Only failed apply uses mark-dirty plus `quick cognition-closeout … --result-state mark-dirty`. Greenfield/empty graph still needs `no_op` or explicit dirty fallback—never skip. Create the quick-summary artifact with `artifact scaffold --kind quick-summary` and patch it (including `project_cognition_refresh`) through leased `specify-runtime artifact patch` calls, confirm `quick status` shows `cognition_closeout.allowed_close=true`, and only then `specify-runtime quick close <id> resolved`. Close also requires every Q to have `execution_mode` worker or audited leader-inline.
 
 ## Detailed References
 

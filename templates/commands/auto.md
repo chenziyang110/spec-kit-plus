@@ -84,7 +84,7 @@ project handoff never authorizes feature Tasks.
 - `sp-auto` does not replace `sp-specify`, `sp-plan`, `sp-test-design`, `sp-tasks`, `sp-analyze`, `sp-implement`, `sp-review`, `sp-accept`, `sp-debug`, `sp-quick`, or `sp-fast`.
 - `sp-auto` must never invent a new phase progression from chat memory when repository state already records the next step.
 - Always obey the recorded upstream gate.
-- Do not rewrite the underlying workflow state to `/sp.auto`; preserve the canonical downstream `next_command` such as `/sp.plan`, `/sp.test-design`, `/sp.tasks`, `/sp.implement`, `/sp.review`, `/sp.accept`, `/sp.debug`, `/sp.quick`, `/sp.fast`, `/sp.clarify`, or `/sp.deep-research`. Preserve `/sp.analyze` only when a targeted `specify-runtime artifact show` response explicitly records that legacy or diagnostic route.
+- Do not rewrite the underlying workflow state to `/sp.auto`; preserve the canonical downstream `next_command` such as `/sp.specify`, `/sp.plan`, `/sp.test-design`, `/sp.tasks`, `/sp.implement`, `/sp.review`, `/sp.accept`, `/sp.debug`, `/sp.quick`, `/sp.fast`, or `/sp.deep-research`. Preserve `/sp.analyze` only when a targeted `specify-runtime artifact show` response explicitly records that legacy or diagnostic route.
 - If state is missing, stale, conflicting, or cannot identify one safe next step, stop in read-only diagnosis and report the exact blocker instead of improvising a route.
 - Do not guess when multiple resumable candidates exist.
 - Never auto-resume an uncertain or unbound candidate.
@@ -111,7 +111,7 @@ Inspect the available state surfaces in this order and prefer the most specific 
 - Query `FEATURE_DIR/implement-tracker.md` and `workflow-state.md` through targeted `specify-runtime artifact show` calls.
    - If execution is still active and `workflow-state.md` allows `/sp.implement`, resume the canonical `/sp.implement` route.
    - If trusted execution is completed and `next_command: /sp.review`, route to canonical `/sp.review`; do not repeat implementation or skip system Review.
-   - If `workflow-state.md` still requires `/sp.analyze`, `/sp.plan`, `/sp.tasks`, `/sp.clarify`, or `/sp.deep-research`, reconcile that gate with the CLI runtime. Execute an evidence-backed `specify-runtime workflow reopen` for a backward move or same-completed-stage reactivation; do not route to an upstream command while the runtime still owns a later stage.
+   - If `workflow-state.md` still requires `/sp.analyze`, `/sp.specify`, `/sp.plan`, `/sp.tasks`, or `/sp.deep-research`, reconcile that gate with the CLI runtime. Execute an evidence-backed `specify-runtime workflow reopen` for a backward move or same-completed-stage reactivation; do not route to an upstream command while the runtime still owns a later stage.
 
 3. Post-implementation system Review state
    - List the feature's implementation handoff and Review state through `specify-runtime artifact list`, then query only the selected records through targeted `artifact show` calls.
@@ -159,7 +159,7 @@ Choose exactly one routed command.
   upstream `next_command`. An unconsumed discussion and an unrelated feature
   are competing lanes, not priority-ranked stages; do not select the feature
   from topical or lexical similarity.
-- Never bypass canonical upstream gates such as `/sp.clarify`, `/sp.deep-research`, `/sp.plan`, or `/sp.tasks` just because downstream artifacts already exist. Treat `/sp.analyze` as an upstream gate only when persisted workflow state explicitly records that legacy or diagnostic route.
+- Never bypass canonical upstream gates such as `/sp.specify`, `/sp.deep-research`, `/sp.plan`, or `/sp.tasks` just because downstream artifacts already exist. Treat `/sp.analyze` as an upstream gate only when persisted workflow state explicitly records that legacy or diagnostic route.
 - Never treat `sp-auto` itself as the next recorded workflow step. It is only the entrypoint the user uses instead of typing the canonical command manually.
 
 ## Execution Contract
@@ -200,7 +200,7 @@ If no safe route can be selected:
 
 Typical canonical targets include:
 
-- `/sp.clarify`
+- `/sp.specify`
 - `/sp.deep-research`
 - `/sp.plan`
 - `/sp.test-design`

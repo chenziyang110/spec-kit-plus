@@ -1,40 +1,25 @@
 (() => {
   const body = document.body;
-  const tabs = Array.from(
-    document.querySelectorAll(".direction-tabs [data-direction-target]"),
-  );
-  const directionIds = tabs
-    .map((tab) => tab.getAttribute("data-direction-target") || "")
+  const canvases = Array.from(document.querySelectorAll("[data-direction-id]"));
+  const directionIds = canvases
+    .map((canvas) => canvas.getAttribute("data-direction-id") || "")
     .filter(Boolean);
 
   function activate(directionId) {
     if (!directionIds.includes(directionId)) {
-      directionId = directionIds[0] || "direction-a";
+      directionId = directionIds[0] || "direction-main";
     }
     body.dataset.activeDirection = directionId;
-    tabs.forEach((tab) => {
-      const active = tab.getAttribute("data-direction-target") === directionId;
-      tab.setAttribute("aria-selected", active ? "true" : "false");
+    canvases.forEach((canvas) => {
+      const active = canvas.getAttribute("data-direction-id") === directionId;
+      canvas.setAttribute("aria-hidden", active ? "false" : "true");
     });
   }
 
   function directionFromHash() {
     const raw = (location.hash || "").replace(/^#/, "").trim();
-    return raw || directionIds[0] || "direction-a";
+    return raw || directionIds[0] || "direction-main";
   }
-
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", (event) => {
-      const directionId = tab.getAttribute("data-direction-target") || "";
-      if (!directionId) return;
-      event.preventDefault();
-      if (location.hash !== `#${directionId}`) {
-        location.hash = directionId;
-      } else {
-        activate(directionId);
-      }
-    });
-  });
 
   window.addEventListener("hashchange", () => {
     activate(directionFromHash());

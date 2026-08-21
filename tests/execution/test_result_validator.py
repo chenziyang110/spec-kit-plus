@@ -714,6 +714,14 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
         "DS-RESP-001",
     ]
     sample_packet.ui_contract.comparison_tolerance = COMPARISON_TOLERANCE
+    sample_packet.ui_contract.usability_validation = {
+        "smoothness_acceptance_ids": [
+            "focus-continuity",
+            "pending-cancel-feedback",
+            "duplicate-activation",
+            "reduced-motion",
+        ]
+    }
     sample_packet.ui_contract.required_evidence = [
         "structure_snapshot",
         "visual_capture",
@@ -751,6 +759,12 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
             comparison_report_sha256="c" * 64,
             implementation_capture_refs=["artifacts/ui/settings.png"],
             covered_decision_ids=["DS-COMP-001", "DS-RESP-001"],
+            covered_smoothness_acceptance_ids=[
+                "focus-continuity",
+                "pending-cancel-feedback",
+                "duplicate-activation",
+                "reduced-motion",
+            ],
             comparison_tolerance=COMPARISON_TOLERANCE,
         ),
         ui_evidence=[
@@ -769,6 +783,13 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
 
     result.ui_verification.covered_decision_ids = ["DS-COMP-001"]
     with pytest.raises(PacketValidationError, match="decision coverage"):
+        validate_worker_task_result(result, sample_packet)
+    result.ui_verification.covered_decision_ids = ["DS-COMP-001", "DS-RESP-001"]
+
+    result.ui_verification.covered_smoothness_acceptance_ids = [
+        "focus-continuity"
+    ]
+    with pytest.raises(PacketValidationError, match="smoothness acceptance coverage"):
         validate_worker_task_result(result, sample_packet)
 
 
@@ -1070,6 +1091,62 @@ def test_validate_worker_task_result_accepts_human_reviewer_ui_pass_without_comp
     validated = validate_worker_task_result(result, sample_packet)
 
     assert validated.ui_verification.reviewer == reviewer
+
+
+def test_validate_worker_task_result_enforces_required_human_usability_review(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    review_ref = "artifacts/ui/usability-review.md"
+    sample_packet.required_evidence = ["visual_comparison_or_human_review"]
+    sample_packet.ui_contract.usability_validation = {
+        "risk_level": "high",
+        "methods": ["moderated task-based usability test"],
+        "critical_tasks": ["Complete the irreversible action"],
+        "success_criteria": ["Complete without a critical error"],
+        "human_review_required": True,
+    }
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented the high-risk UI flow",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+        ui_verification=UIVerification(
+            visual_comparison="passed",
+            fidelity_status="passed",
+            reviewer="agent",
+        ),
+    )
+
+    with pytest.raises(PacketValidationError, match="human usability validation requires a human reviewer"):
+        validate_worker_task_result(result, sample_packet)
+
+    result.ui_verification.reviewer = "human"
+    with pytest.raises(PacketValidationError, match="human_review_ref"):
+        validate_worker_task_result(result, sample_packet)
+
+    result.ui_verification.human_review_ref = review_ref
+    result.manual_evidence = [{"kind": "human approval", "path": "wrong-review.md"}]
+    with pytest.raises(PacketValidationError, match="must bind manual evidence"):
+        validate_worker_task_result(result, sample_packet)
+
+    result.manual_evidence = [{"kind": "human approval", "path": review_ref}]
+    assert validate_worker_task_result(result, sample_packet) is result
 
 
 def test_validate_worker_task_result_rejects_human_reviewer_ui_pass_without_evidence(

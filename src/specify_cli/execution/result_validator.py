@@ -527,6 +527,54 @@ def validate_worker_task_result(
                     "DP3",
                     "visual_comparison_or_human_review pending human review requires review evidence",
                 )
+        usability_validation = packet.ui_contract.usability_validation
+        smoothness_acceptance_ids = (
+            usability_validation.get("smoothness_acceptance_ids", [])
+            if isinstance(usability_validation, dict)
+            else []
+        )
+        expected_smoothness_ids = {
+            item.strip()
+            for item in smoothness_acceptance_ids
+            if isinstance(item, str) and item.strip()
+        }
+        if expected_smoothness_ids and not defer_integrated_ui_evidence:
+            covered_smoothness_ids = {
+                item.strip()
+                for item in result.ui_verification.covered_smoothness_acceptance_ids
+                if isinstance(item, str) and item.strip()
+            }
+            if covered_smoothness_ids != expected_smoothness_ids:
+                raise PacketValidationError(
+                    "DP3",
+                    "UI smoothness acceptance coverage must exactly match the task usability_validation contract",
+                )
+        if (
+            isinstance(usability_validation, dict)
+            and usability_validation.get("human_review_required") is True
+        ):
+            if not _has_human_ui_approval(result):
+                raise PacketValidationError(
+                    "DP3",
+                    "human usability validation requires a human reviewer",
+                )
+            human_review_ref = result.ui_verification.human_review_ref.strip()
+            if not human_review_ref:
+                raise PacketValidationError(
+                    "DP3",
+                    "human usability validation requires ui_verification.human_review_ref",
+                )
+            manual_refs = {
+                str(item.get("ref") or item.get("path") or "").strip()
+                for item in result.manual_evidence
+                if isinstance(item, dict)
+                and str(item.get("ref") or item.get("path") or "").strip()
+            }
+            if human_review_ref not in manual_refs:
+                raise PacketValidationError(
+                    "DP3",
+                    "ui_verification.human_review_ref must bind manual evidence",
+                )
         if (
             packet.must_preserve_obligations
             or "must_preserve_evidence" in required_evidence

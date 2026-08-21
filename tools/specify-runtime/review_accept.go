@@ -20,17 +20,18 @@ import (
 )
 
 const (
-	reviewStateFilename               = "review-state.json"
-	implementationHandoffFilename     = "implementation-handoff.json"
-	humanAcceptanceFilename           = "human-acceptance.json"
-	humanAcceptanceSummaryFilename    = "implementation-summary.md"
-	humanAcceptanceRepairJournalName  = ".human-acceptance-repair.json"
-	humanAcceptanceRepairBackupName   = ".human-acceptance-repair-backup.json"
-	reviewSchemaRef                   = ".specify/templates/review-state-schema.json"
-	humanAcceptanceSchemaRef          = ".specify/templates/human-acceptance-state-schema.json"
-	reviewStateVersion                = 2
-	humanAcceptanceStateVersion       = 2
-	implementationFingerprintAlgorith = "git-working-tree-v1"
+	reviewStateFilename                      = "review-state.json"
+	implementationHandoffFilename            = "implementation-handoff.json"
+	humanAcceptanceFilename                  = "human-acceptance.json"
+	humanAcceptanceSummaryFilename           = "implementation-summary.md"
+	humanAcceptanceRepairJournalName         = ".human-acceptance-repair.json"
+	humanAcceptanceRepairBackupName          = ".human-acceptance-repair-backup.json"
+	reviewSchemaRef                          = ".specify/templates/review-state-schema.json"
+	humanAcceptanceSchemaRef                 = ".specify/templates/human-acceptance-state-schema.json"
+	reviewStateVersion                       = 2
+	humanAcceptanceStateVersion              = 2
+	implementationFingerprintAlgorithm       = "implement-scoped-snapshot-v2"
+	legacyImplementationFingerprintAlgorithm = "git-working-tree-v1"
 )
 
 var (
@@ -200,11 +201,63 @@ func (service reviewAcceptService) prepareReview(featureDir string, expectedRevi
 	if err := validateCanonicalImplementationHandoff(root, feature.abs, handoff); err != nil {
 		return blockedEnvelope("implementation handoff contract is invalid", err.Error())
 	}
-	fingerprint := stringField(handoff, "implementation_fingerprint")
-	if fingerprint != sourceTreeFingerprint(root, feature.abs) {
-		return blockedEnvelope("implementation handoff fingerprint is stale", "implementation-handoff.json does not describe the current Git working tree")
-	}
+	handoffFingerprint := stringField(handoff, "implementation_fingerprint")
+	currentFingerprint := sourceTreeFingerprint(root, feature.abs)
+	fingerprint := handoffFingerprint
+	initialSnapshotRebase := false
+	legacyStateRebase := false
 	statePath := filepath.Join(feature.abs, reviewStateFilename)
+	if handoffFingerprint != currentFingerprint {
+		candidate, candidateErr := readJSONObject(statePath)
+		if candidateErr != nil {
+			if os.IsNotExist(candidateErr) && !isAcceptanceRepair {
+				fingerprint = currentFingerprint
+				initialSnapshotRebase = true
+			} else {
+				return unownedReviewSnapshotDriftEnvelope(
+					handoffFingerprint,
+					currentFingerprint,
+					"implementation changed after Implement closeout and existing Review provenance is unavailable",
+				)
+			}
+		} else {
+			if ownershipErr := reviewStateOwnsHandoffDrift(candidate, handoffSHA, expectedRevision, isAcceptanceRepair); ownershipErr != nil {
+				return unownedReviewSnapshotDriftEnvelope(handoffFingerprint, currentFingerprint, ownershipErr.Error())
+			}
+			if _, reconcileErr := reviewOwnedSnapshotDrift(root, feature, candidate); reconcileErr != nil {
+				if !canQuarantineLegacyReviewSnapshot(candidate, isAcceptanceRepair) {
+					return unownedReviewSnapshotDriftEnvelope(handoffFingerprint, currentFingerprint, reconcileErr.Error())
+				}
+				if !restartStale {
+					env := blockedEnvelope(
+						"legacy Review snapshot requires a quarantined evidence restart",
+						"rerun the runtime-provided review prepare command to archive legacy evidence and review the current implementation from official entrypoints",
+					)
+					env.Data["handoff_fingerprint"] = handoffFingerprint
+					env.Data["current_fingerprint"] = currentFingerprint
+					env.Data["recovery_owner"] = "review"
+					env.Data["recovery_reason"] = "legacy-snapshot-quarantine"
+					env.NextArgv = reviewPrepareRestartArgv(feature.rel, expectedRevision)
+					return env
+				}
+				fingerprint = currentFingerprint
+				legacyStateRebase = true
+			} else {
+				if !restartStale {
+					env := blockedEnvelope(
+						"implementation handoff fingerprint requires Review reconciliation",
+						"rerun the runtime-provided review prepare command to archive stale Review evidence and bind the current implementation snapshot",
+					)
+					env.Data["handoff_fingerprint"] = handoffFingerprint
+					env.Data["current_fingerprint"] = currentFingerprint
+					env.Data["recovery_owner"] = "review"
+					env.NextArgv = reviewPrepareRestartArgv(feature.rel, expectedRevision)
+					return env
+				}
+				fingerprint = currentFingerprint
+			}
+		}
+	}
 	release, lockEnv, locked := acquireReviewAcceptLock(filepath.Join(feature.abs, ".review-state.lock"))
 	if !locked {
 		return lockEnv
@@ -218,7 +271,7 @@ func (service reviewAcceptService) prepareReview(featureDir string, expectedRevi
 			if isAcceptanceRepair || !restartStale {
 				return blockedEnvelope("existing review state is malformed", "preserve review-state.json and rerun review prepare with --restart-stale: "+decodeErrorText(decodeErr))
 			}
-			return service.restartReviewState(feature, handoff, expectedRevision, handoffSHA, fingerprint, previousRaw, nil, decodeErrorText(decodeErr))
+			return service.restartReviewState(root, feature, handoff, expectedRevision, handoffSHA, fingerprint, previousRaw, nil, decodeErrorText(decodeErr), "", "")
 		}
 		source, _ := existing["source"].(map[string]any)
 		if isAcceptanceRepair {
@@ -253,6 +306,9 @@ func (service reviewAcceptService) prepareReview(featureDir string, expectedRevi
 				"acceptance_finding_id":    context["finding_id"],
 			})
 			state := newReviewState(feature, handoff, expectedRevision, handoffSHA, fingerprint, previousCycle+1, previousDigest, "", rounds, context)
+			if err := attachReviewSnapshotManifest(root, feature, state, fingerprint); err != nil {
+				return errorEnvelope("failed to bind acceptance repair Review snapshot", err)
+			}
 			if err := writeReviewAcceptJSONAtomic(statePath, state); err != nil {
 				return errorEnvelope("failed to write acceptance repair review state", err)
 			}
@@ -260,8 +316,16 @@ func (service reviewAcceptService) prepareReview(featureDir string, expectedRevi
 		}
 		if source != nil &&
 			stringField(source, "implementation_handoff_sha256") == handoffSHA &&
-			intField(source, "workflow_revision") == expectedRevision && !restartStale {
-			if upgradeReviewExceptionContract(existing) {
+			intField(source, "workflow_revision") == expectedRevision &&
+			stringField(source, "implementation_fingerprint") == currentFingerprint && !restartStale {
+			upgraded := upgradeReviewExceptionContract(existing)
+			if existing["status"] != "approved" && stringField(source, "implementation_snapshot_manifest_ref") == "" {
+				if err := attachReviewSnapshotManifest(root, feature, existing, stringField(source, "implementation_fingerprint")); err != nil {
+					return errorEnvelope("failed to bind Review snapshot manifest", err)
+				}
+				upgraded = true
+			}
+			if upgraded {
 				if err := writeReviewAcceptJSONAtomic(statePath, existing); err != nil {
 					return errorEnvelope("failed to upgrade review state", err)
 				}
@@ -271,7 +335,19 @@ func (service reviewAcceptService) prepareReview(featureDir string, expectedRevi
 		if !restartStale {
 			return blockedEnvelope("existing review state is stale", "preserve review-state.json and rerun review prepare with --restart-stale")
 		}
-		return service.restartReviewState(feature, handoff, expectedRevision, handoffSHA, fingerprint, previousRaw, existing, "")
+		if handoffFingerprint != currentFingerprint && !legacyStateRebase {
+			if ownershipErr := reviewStateOwnsHandoffDrift(existing, handoffSHA, expectedRevision, isAcceptanceRepair); ownershipErr != nil {
+				return unownedReviewSnapshotDriftEnvelope(handoffFingerprint, currentFingerprint, ownershipErr.Error())
+			}
+			if _, reconcileErr := reviewOwnedSnapshotDrift(root, feature, existing); reconcileErr != nil {
+				return unownedReviewSnapshotDriftEnvelope(handoffFingerprint, currentFingerprint, reconcileErr.Error())
+			}
+		}
+		reconciliation := ""
+		if legacyStateRebase {
+			reconciliation = "legacy-review-rebaseline"
+		}
+		return service.restartReviewState(root, feature, handoff, expectedRevision, handoffSHA, fingerprint, previousRaw, existing, "", reconciliation, handoffFingerprint)
 	}
 	if !os.IsNotExist(readErr) {
 		return blockedEnvelope("review state cannot be inspected", readErr.Error())
@@ -280,10 +356,47 @@ func (service reviewAcceptService) prepareReview(featureDir string, expectedRevi
 		return blockedEnvelope("acceptance repair is missing the previous Review", "restore the previous approved review-state.json")
 	}
 	state := newReviewState(feature, handoff, expectedRevision, handoffSHA, fingerprint, 1, "", "", nil, nil)
+	if initialSnapshotRebase {
+		markReviewSnapshotReconciliation(state, "initial-review-rebaseline", handoffFingerprint)
+	}
+	if err := attachReviewSnapshotManifest(root, feature, state, fingerprint); err != nil {
+		return errorEnvelope("failed to bind Review snapshot manifest", err)
+	}
 	if err := writeReviewAcceptJSONAtomic(statePath, state); err != nil {
 		return errorEnvelope("failed to write review state", err)
 	}
+	if initialSnapshotRebase {
+		return preparedReviewEnvelope(feature.rel, state, "system review state prepared against the current implementation after initial handoff drift")
+	}
 	return preparedReviewEnvelope(feature.rel, state, "system review state prepared")
+}
+
+func reviewPrepareRestartArgv(featureRel string, expectedRevision int) []string {
+	return []string{
+		"specify-runtime", "review", "prepare",
+		"--feature-dir", featureRel,
+		"--expected-revision", strconv.Itoa(expectedRevision),
+		"--restart-stale", "--format", "json",
+	}
+}
+
+func canQuarantineLegacyReviewSnapshot(state map[string]any, isAcceptanceRepair bool) bool {
+	if isAcceptanceRepair || state == nil || state["status"] == "approved" {
+		return false
+	}
+	source, _ := state["source"].(map[string]any)
+	return source != nil &&
+		stringField(source, "implementation_snapshot_manifest_ref") == "" &&
+		stringField(source, "implementation_snapshot_manifest_sha256") == ""
+}
+
+func markReviewSnapshotReconciliation(state map[string]any, mode, handoffFingerprint string) {
+	source, _ := state["source"].(map[string]any)
+	if source == nil || mode == "" {
+		return
+	}
+	source["snapshot_reconciliation"] = mode
+	source["handoff_implementation_fingerprint"] = handoffFingerprint
 }
 
 func decodeErrorText(err error) string {
@@ -606,7 +719,8 @@ func reviewImplementationArtifactPath(feature reviewAcceptFeature, ref string) (
 	}
 	excludedPrefixes := []string{
 		"review-evidence/", "review-results/", "review-history/",
-		"implementation-review/deferrals/", "implementation-review/validation-evidence/",
+		"implementation-review/deferrals/", "implementation-review/review-snapshots/",
+		"implementation-review/validation-evidence/",
 	}
 	if excludedNames[normalized] || strings.HasSuffix(normalized, ".lock") {
 		return "", errors.New("artifact is excluded from the implementation snapshot")
@@ -636,6 +750,28 @@ func reviewCycleEvidencePath(feature reviewAcceptFeature, ref string, cycle int)
 		first := strings.SplitN(remainder, "/", 2)[0]
 		if regexp.MustCompile(`^cycle-[0-9]+$`).MatchString(first) {
 			return "", errors.New("Review evidence must belong to the current Review cycle")
+		}
+	}
+	return path, nil
+}
+
+func reviewCycleResultPath(feature reviewAcceptFeature, ref string, cycle int) (string, error) {
+	path, err := reviewFeatureRelativePath(feature, ref)
+	if err != nil {
+		return "", fmt.Errorf("Review result file is missing or unsafe: %s", ref)
+	}
+	prefix := "review-results/"
+	if cycle > 1 {
+		prefix = fmt.Sprintf("review-results/cycle-%d/", cycle)
+	}
+	if !strings.HasPrefix(ref, prefix) {
+		return "", errors.New("Review result must belong to the current Review cycle")
+	}
+	if cycle == 1 {
+		remainder := strings.TrimPrefix(ref, prefix)
+		first := strings.SplitN(remainder, "/", 2)[0]
+		if regexp.MustCompile(`^cycle-[0-9]+$`).MatchString(first) {
+			return "", errors.New("Review result must belong to the current Review cycle")
 		}
 	}
 	return path, nil
@@ -778,7 +914,7 @@ func reviewRuntimeTargetContract(target map[string]any) map[string]any {
 	return contract
 }
 
-func (service reviewAcceptService) restartReviewState(feature reviewAcceptFeature, handoff map[string]any, expectedRevision int, handoffSHA, fingerprint string, previousRaw []byte, existing map[string]any, restartError string) Envelope {
+func (service reviewAcceptService) restartReviewState(root string, feature reviewAcceptFeature, handoff map[string]any, expectedRevision int, handoffSHA, fingerprint string, previousRaw []byte, existing map[string]any, restartError, snapshotReconciliation, handoffFingerprint string) Envelope {
 	previousDigest := fmt.Sprintf("%x", sha256.Sum256(previousRaw))
 	historyRef := filepath.ToSlash(filepath.Join("review-history", "review-state-"+previousDigest+".json"))
 	historyPath := filepath.Join(feature.abs, filepath.FromSlash(historyRef))
@@ -811,11 +947,241 @@ func (service reviewAcceptService) restartReviewState(feature reviewAcceptFeatur
 	}
 	rounds = append(rounds, archivedRound)
 	state := newReviewState(feature, handoff, expectedRevision, handoffSHA, fingerprint, previousCycle+1, previousDigest, "stale-review-restart", rounds, nil)
+	markReviewSnapshotReconciliation(state, snapshotReconciliation, handoffFingerprint)
+	if err := attachReviewSnapshotManifest(root, feature, state, fingerprint); err != nil {
+		return errorEnvelope("failed to bind restarted Review snapshot", err)
+	}
 	if err := writeReviewAcceptJSONAtomic(filepath.Join(feature.abs, reviewStateFilename), state); err != nil {
 		return errorEnvelope("failed to write restarted review state", err)
 	}
 	env := preparedReviewEnvelope(feature.rel, state, "stale system review state was archived and restarted")
 	env.Data["archived_review_state_ref"] = historyRef
+	return env
+}
+
+func attachReviewSnapshotManifest(root string, feature reviewAcceptFeature, state map[string]any, fingerprint string) error {
+	source, _ := state["source"].(map[string]any)
+	if source == nil {
+		return errors.New("Review source is missing")
+	}
+	cycleID := stringField(source, "review_cycle_id")
+	if !reviewSHA256RE.MatchString(cycleID) {
+		return errors.New("Review cycle id is invalid")
+	}
+	ref := filepath.ToSlash(filepath.Join("implementation-review", "review-snapshots", cycleID+".json"))
+	path := filepath.Join(feature.abs, filepath.FromSlash(ref))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	payload := map[string]any{
+		"version":     1,
+		"fingerprint": fingerprint,
+		"path_sha256": implementSnapshotPathDigests(root, feature.abs),
+	}
+	if err := writeReviewAcceptJSONAtomic(path, payload); err != nil {
+		return err
+	}
+	digest, err := fileSHA256(path)
+	if err != nil {
+		return err
+	}
+	source["implementation_snapshot_manifest_ref"] = ref
+	source["implementation_snapshot_manifest_sha256"] = digest
+	if current := sourceTreeFingerprint(root, feature.abs); current != fingerprint {
+		return fmt.Errorf("Review snapshot changed while its manifest was being bound: expected %s, got %s", fingerprint, current)
+	}
+	return nil
+}
+
+func loadReviewSnapshotManifest(root string, feature reviewAcceptFeature, state map[string]any) (map[string]string, error) {
+	source, _ := state["source"].(map[string]any)
+	if source == nil {
+		return nil, errors.New("Review source is missing")
+	}
+	ref := stringField(source, "implementation_snapshot_manifest_ref")
+	expectedRef := filepath.ToSlash(filepath.Join("implementation-review", "review-snapshots", stringField(source, "review_cycle_id")+".json"))
+	if ref != expectedRef {
+		return nil, errors.New("Review snapshot manifest is missing; drift cannot be proven as Review-owned")
+	}
+	path, err := reviewFeatureRelativePath(feature, ref)
+	if err != nil {
+		return nil, errors.New("Review snapshot manifest is missing or unsafe")
+	}
+	expectedDigest := stringField(source, "implementation_snapshot_manifest_sha256")
+	if !reviewSHA256RE.MatchString(expectedDigest) || optionalFileSHA256(path) != expectedDigest {
+		return nil, errors.New("Review snapshot manifest digest is invalid")
+	}
+	payload, err := readJSONObject(path)
+	if err != nil || intField(payload, "version") != 1 {
+		return nil, errors.New("Review snapshot manifest contract is invalid")
+	}
+	if stringField(payload, "fingerprint") != stringField(source, "implementation_fingerprint") {
+		return nil, errors.New("Review snapshot manifest is stale for its recorded source")
+	}
+	rawDigests, ok := payload["path_sha256"].(map[string]any)
+	if !ok {
+		return nil, errors.New("Review snapshot manifest path digests are invalid")
+	}
+	digests := make(map[string]string, len(rawDigests))
+	for rawPath, rawDigest := range rawDigests {
+		normalized, safe := implementSafeDeclaredSnapshotPath(root, rawPath)
+		if !safe || normalized != filepath.ToSlash(rawPath) {
+			return nil, errors.New("Review snapshot manifest contains an unsafe path")
+		}
+		digest := strings.TrimSpace(fmt.Sprint(rawDigest))
+		if digest != "missing" && !reviewSHA256RE.MatchString(digest) {
+			return nil, errors.New("Review snapshot manifest contains an invalid file digest")
+		}
+		digests[normalized] = digest
+	}
+	return digests, nil
+}
+
+func reviewOwnedSnapshotDrift(root string, feature reviewAcceptFeature, state map[string]any) ([]string, error) {
+	baseline, err := loadReviewSnapshotManifest(root, feature, state)
+	if err != nil {
+		return nil, err
+	}
+	source, _ := state["source"].(map[string]any)
+	cycleID := stringField(source, "review_cycle_id")
+	cycle := intField(source, "review_cycle")
+	findingsByID := map[string]map[string]any{}
+	for _, raw := range listValue(state["findings"]) {
+		if finding, ok := raw.(map[string]any); ok && stringField(finding, "id") != "" {
+			findingsByID[stringField(finding, "id")] = finding
+		}
+	}
+	reviewAssignmentsByID := map[string]map[string]any{}
+	for _, raw := range listValue(state["review_assignments"]) {
+		if assignment, ok := raw.(map[string]any); ok && stringField(assignment, "id") != "" {
+			reviewAssignmentsByID[stringField(assignment, "id")] = assignment
+		}
+	}
+	allowed := map[string]bool{}
+	authorizationErrors := []string{}
+	for _, raw := range listValue(state["fix_assignments"]) {
+		assignment, ok := raw.(map[string]any)
+		if !ok || stringField(assignment, "status") != "accepted" || stringField(assignment, "leader_verdict") != "accepted" || stringField(assignment, "review_cycle_id") != cycleID {
+			continue
+		}
+		assignmentID := stringField(assignment, "id")
+		fixWorker := stringField(assignment, "worker_id")
+		if assignmentID == "" || fixWorker == "" {
+			authorizationErrors = append(authorizationErrors, "accepted Review fix assignment is missing its id or worker")
+			continue
+		}
+		artifactsValid := true
+		for _, label := range []string{"packet", "result"} {
+			ref := stringField(assignment, label+"_ref")
+			path, pathErr := reviewCycleResultPath(feature, ref, cycle)
+			recordedSHA := stringField(assignment, label+"_sha256")
+			if pathErr != nil || !reviewSHA256RE.MatchString(recordedSHA) || optionalFileSHA256(path) != recordedSHA {
+				authorizationErrors = append(authorizationErrors, fmt.Sprintf("Fix assignment %s %s artifact is missing, stale, or outside the current Review cycle", assignmentID, label))
+				artifactsValid = false
+				break
+			}
+		}
+		if !artifactsValid {
+			continue
+		}
+		findingIDs := listStrings(assignment["finding_ids"])
+		findingChainValid := len(findingIDs) > 0
+		for _, findingID := range findingIDs {
+			finding := findingsByID[findingID]
+			if finding == nil || stringField(finding, "fix_assignment_id") != assignmentID || !stringInSlice(stringField(finding, "status"), []string{"fixed", "verified"}) {
+				findingChainValid = false
+				break
+			}
+			discovery := reviewAssignmentsByID[stringField(finding, "discovered_by_review_assignment_id")]
+			discoveryValid := discovery != nil && discovery["read_only"] == true && stringField(discovery, "status") == "accepted" && stringField(discovery, "leader_verdict") == "accepted" && stringField(discovery, "review_cycle_id") == cycleID && stringField(discovery, "observed_snapshot_sha256") == stringField(source, "implementation_fingerprint") && stringField(discovery, "worker_id") != "" && stringField(discovery, "worker_id") != fixWorker
+			if discoveryValid {
+				for _, label := range []string{"packet", "result"} {
+					ref := stringField(discovery, label+"_ref")
+					path, pathErr := reviewCycleResultPath(feature, ref, cycle)
+					recordedSHA := stringField(discovery, label+"_sha256")
+					if pathErr != nil || !reviewSHA256RE.MatchString(recordedSHA) || optionalFileSHA256(path) != recordedSHA {
+						discoveryValid = false
+						break
+					}
+				}
+			}
+			if !discoveryValid {
+				findingChainValid = false
+				break
+			}
+		}
+		if !findingChainValid {
+			authorizationErrors = append(authorizationErrors, fmt.Sprintf("Fix assignment %s lacks an independent accepted finding chain", assignmentID))
+			continue
+		}
+		writePaths := []string{}
+		for _, path := range listStrings(assignment["allowed_write_paths"]) {
+			if normalized, safe := implementSafeDeclaredSnapshotPath(root, path); safe {
+				writePaths = append(writePaths, normalized)
+			}
+		}
+		for _, path := range listStrings(assignment["changed_paths"]) {
+			if normalized, safe := implementSafeDeclaredSnapshotPath(root, path); safe {
+				for _, writePath := range writePaths {
+					if normalized == writePath || strings.HasPrefix(normalized, strings.TrimSuffix(writePath, "/")+"/") {
+						allowed[normalized] = true
+						break
+					}
+				}
+			}
+		}
+	}
+	if len(allowed) == 0 {
+		if len(authorizationErrors) > 0 {
+			return nil, errors.New(authorizationErrors[0])
+		}
+		return nil, errors.New("implementation drift has no accepted Review fix assignment")
+	}
+	current := implementSnapshotPathDigests(root, feature.abs)
+	changedSet := map[string]bool{}
+	for path, digest := range baseline {
+		if current[path] != digest {
+			changedSet[path] = true
+		}
+	}
+	for path, digest := range current {
+		if baseline[path] != digest {
+			changedSet[path] = true
+		}
+	}
+	changed := make([]string, 0, len(changedSet))
+	for path := range changedSet {
+		changed = append(changed, path)
+	}
+	sort.Strings(changed)
+	if len(changed) == 0 {
+		return nil, errors.New("implementation fingerprint changed without a provable file delta")
+	}
+	for _, path := range changed {
+		if !allowed[path] {
+			return nil, fmt.Errorf("implementation changed outside accepted Review fix assignments: %s", path)
+		}
+	}
+	return changed, nil
+}
+
+func reviewStateOwnsHandoffDrift(state map[string]any, handoffSHA string, expectedRevision int, allowRevisionMismatch bool) error {
+	source, _ := state["source"].(map[string]any)
+	if source == nil || stringField(source, "implementation_handoff_sha256") != handoffSHA {
+		return errors.New("existing Review state does not own the current implementation handoff")
+	}
+	if !allowRevisionMismatch && intField(source, "workflow_revision") != expectedRevision {
+		return errors.New("existing Review state does not own the current workflow revision")
+	}
+	return nil
+}
+
+func unownedReviewSnapshotDriftEnvelope(handoffFingerprint, currentFingerprint, detail string) Envelope {
+	env := blockedEnvelope("implementation changed outside Review-owned recovery", detail)
+	env.Data["handoff_fingerprint"] = handoffFingerprint
+	env.Data["current_fingerprint"] = currentFingerprint
+	env.Data["recovery_owner"] = "workflow"
+	env.Data["recovery_reason"] = "unattributed-implementation-drift"
 	return env
 }
 
@@ -850,8 +1216,9 @@ func validateCanonicalImplementationHandoff(projectRoot, featureAbs string, hand
 		}
 	}
 	fingerprint := stringField(handoff, "implementation_fingerprint")
-	if !reviewSHA256RE.MatchString(fingerprint) || handoff["fingerprint_algorithm"] != implementationFingerprintAlgorith {
-		return errors.New("implementation-handoff.json requires a sha256 implementation_fingerprint using git-working-tree-v1")
+	algorithm := stringField(handoff, "fingerprint_algorithm")
+	if !reviewSHA256RE.MatchString(fingerprint) || (algorithm != implementationFingerprintAlgorithm && algorithm != legacyImplementationFingerprintAlgorithm) {
+		return errors.New("implementation-handoff.json requires a sha256 implementation_fingerprint using implement-scoped-snapshot-v2 or legacy git-working-tree-v1")
 	}
 	officialEntrypoints, err := canonicalHandoffArray(handoff, "official_entrypoints", true)
 	if err != nil {
@@ -1635,7 +2002,26 @@ func (service reviewAcceptService) resumeReviewAudit(featureDir string) Envelope
 		if findings, ok := validation.state["findings"].([]any); ok {
 			env.Data["findings"] = findings
 		}
-		env.NextArgv = []string{"specify-runtime", "review", "validate", "--feature-dir", feature.rel, "--format", "json"}
+		source, _ := validation.state["source"].(map[string]any)
+		if !validation.fresh && source != nil && intField(source, "workflow_revision") > 0 {
+			if changedPaths, reconcileErr := reviewOwnedSnapshotDrift(root, feature, validation.state); reconcileErr == nil {
+				env.Data["recovery_owner"] = "review"
+				env.Data["recovery_reason"] = "implementation-snapshot-drift"
+				env.Data["reconciled_paths"] = stringSliceToAny(changedPaths)
+				env.NextArgv = []string{
+					"specify-runtime", "review", "prepare",
+					"--feature-dir", feature.rel,
+					"--expected-revision", strconv.Itoa(intField(source, "workflow_revision")),
+					"--restart-stale", "--format", "json",
+				}
+			} else {
+				env.Data["recovery_owner"] = "workflow"
+				env.Data["recovery_reason"] = "unattributed-implementation-drift"
+				env.Data["recovery_detail"] = reconcileErr.Error()
+			}
+		} else {
+			env.NextArgv = []string{"specify-runtime", "review", "validate", "--feature-dir", feature.rel, "--format", "json"}
+		}
 	} else {
 		env.NextArgv = []string{"specify-runtime", "review", "prepare", "--feature-dir", feature.rel, "--expected-revision", "<revision>", "--format", "json"}
 	}
@@ -1644,7 +2030,7 @@ func (service reviewAcceptService) resumeReviewAudit(featureDir string) Envelope
 }
 
 func (service reviewAcceptService) validateReviewEnvelope(featureDir string) Envelope {
-	_, feature, env, ok := service.resolveFeature(featureDir)
+	root, feature, env, ok := service.resolveFeature(featureDir)
 	if !ok {
 		return env
 	}
@@ -1656,6 +2042,26 @@ func (service reviewAcceptService) validateReviewEnvelope(featureDir string) Env
 	env.Data["state"] = validation.state
 	env.Data["state_path"] = filepath.Join(feature.rel, reviewStateFilename)
 	env.Data["current_fingerprint"] = validation.currentFingerprint
+	if validation.state != nil && !validation.fresh {
+		source, _ := validation.state["source"].(map[string]any)
+		if source != nil && intField(source, "workflow_revision") > 0 {
+			if changedPaths, reconcileErr := reviewOwnedSnapshotDrift(root, feature, validation.state); reconcileErr == nil {
+				env.Data["recovery_owner"] = "review"
+				env.Data["recovery_reason"] = "implementation-snapshot-drift"
+				env.Data["reconciled_paths"] = stringSliceToAny(changedPaths)
+				env.NextArgv = []string{
+					"specify-runtime", "review", "prepare",
+					"--feature-dir", feature.rel,
+					"--expected-revision", strconv.Itoa(intField(source, "workflow_revision")),
+					"--restart-stale", "--format", "json",
+				}
+			} else {
+				env.Data["recovery_owner"] = "workflow"
+				env.Data["recovery_reason"] = "unattributed-implementation-drift"
+				env.Data["recovery_detail"] = reconcileErr.Error()
+			}
+		}
+	}
 	env.ShowArgv = reviewShowArgv(feature.rel)
 	return env
 }
@@ -2094,6 +2500,7 @@ func (service reviewAcceptService) validateReview(feature reviewAcceptFeature) r
 	errors = append(errors, targetErrors...)
 	fresh = fresh && targetsFresh
 	if state["status"] == "approved" {
+		errors = append(errors, validateReviewDeliveryProof(feature, state, currentFingerprint)...)
 		final, _ := state["final"].(map[string]any)
 		exceptionErrors, confirmedExceptionCount := validateReviewExceptions(feature, state, currentFingerprint)
 		errors = append(errors, exceptionErrors...)
@@ -2132,6 +2539,94 @@ func (service reviewAcceptService) validateReview(feature reviewAcceptFeature) r
 		state:              state,
 		currentFingerprint: currentFingerprint,
 	}
+}
+
+func validateReviewDeliveryProof(feature reviewAcceptFeature, state map[string]any, currentFingerprint string) []string {
+	errorsOut := []string{}
+	validation, _ := state["validation"].(map[string]any)
+	if validation == nil {
+		return []string{"approved Review requires runtime validation metadata"}
+	}
+	if stringField(validation, "startup") != "pass" {
+		errorsOut = append(errorsOut, "approved Review requires a passing official entrypoint startup check")
+	}
+	if stringField(validation, "real_entrypoint_journeys") != "pass" {
+		errorsOut = append(errorsOut, "approved Review requires official real-entrypoint delivery proof; unit tests alone cannot satisfy this gate")
+	}
+	if stringField(validation, "regression") != "pass" {
+		errorsOut = append(errorsOut, "approved Review requires passing integrated regression validation")
+	}
+	source, _ := state["source"].(map[string]any)
+	cycleID := stringField(source, "review_cycle_id")
+	cycle := intField(source, "review_cycle")
+	scenarios, _ := state["scenarios"].([]any)
+	uiRequired := false
+	for _, value := range scenarios {
+		scenario, _ := value.(map[string]any)
+		if stringField(scenario, "kind") == "ui" || stringInSlice("visual_capture", listStrings(scenario["required_evidence"])) {
+			uiRequired = true
+			break
+		}
+	}
+	uiStatus := stringField(validation, "ui_verification")
+	if (uiRequired && uiStatus != "pass") || (!uiRequired && uiStatus != "pass" && uiStatus != "not_applicable") {
+		errorsOut = append(errorsOut, "approved Review requires an explicit UI verification pass or a canonical non-UI not_applicable verdict")
+	}
+
+	for _, value := range scenarios {
+		scenario, ok := value.(map[string]any)
+		if !ok || !boolFieldDefault(scenario, "required", true) {
+			continue
+		}
+		scenarioID := stringField(scenario, "id")
+		result := stringField(scenario, "result")
+		if result != "pass" && result != "waived" {
+			errorsOut = append(errorsOut, "required Review scenario must pass or carry a confirmed hardware exception: "+scenarioID)
+			continue
+		}
+		if result == "waived" {
+			continue
+		}
+		requiredEvidence := listStrings(scenario["required_evidence"])
+		if len(requiredEvidence) == 0 {
+			errorsOut = append(errorsOut, fmt.Sprintf("scenario %s must declare integrated real-entrypoint evidence requirements", scenarioID))
+			continue
+		}
+		evidenceItems, _ := scenario["evidence"].([]any)
+		evidenceByKind := map[string]map[string]any{}
+		for _, raw := range evidenceItems {
+			if evidence, ok := raw.(map[string]any); ok {
+				evidenceByKind[stringField(evidence, "kind")] = evidence
+			}
+		}
+		for _, kind := range requiredEvidence {
+			evidence := evidenceByKind[kind]
+			if evidence == nil {
+				errorsOut = append(errorsOut, fmt.Sprintf("scenario %s is missing %s integrated evidence", scenarioID, kind))
+				continue
+			}
+			if stringField(evidence, "evidence_scope") != "integrated" ||
+				stringField(evidence, "snapshot_sha256") != currentFingerprint ||
+				stringField(evidence, "review_cycle_id") != cycleID {
+				errorsOut = append(errorsOut, fmt.Sprintf("scenario %s %s evidence is not bound to the current integrated Review snapshot", scenarioID, kind))
+				continue
+			}
+			ref := stringField(evidence, "path")
+			path, err := reviewCycleEvidencePath(feature, ref, cycle)
+			artifactSHA := stringField(evidence, "artifact_sha256")
+			if err != nil || !reviewSHA256RE.MatchString(artifactSHA) || optionalFileSHA256(path) != artifactSHA {
+				errorsOut = append(errorsOut, fmt.Sprintf("scenario %s %s evidence contract is invalid", scenarioID, kind))
+			}
+		}
+	}
+	return errorsOut
+}
+
+func boolFieldDefault(payload map[string]any, key string, fallback bool) bool {
+	if value, ok := payload[key].(bool); ok {
+		return value
+	}
+	return fallback
 }
 
 type acceptanceValidationResult struct {

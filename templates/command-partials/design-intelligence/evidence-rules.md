@@ -11,8 +11,9 @@ For screenshot, existing UI, reference, or greenfield-with-references work:
 3. **Implementation** — generate UI only after the system (or a bounded existing-
    pattern exception) is clear; verify with visual validation.
 
-Greenfield without references still needs taste intake + three-direction
-preview before approval; reverse engineering applies when sources exist.
+Greenfield without references still needs taste intake, one-question-at-a-time
+discovery, and a professionally authored single-concept preview before
+approval; reverse engineering applies when sources exist.
 
 ## Design Evidence v1 (required on reverse-engineered claims)
 

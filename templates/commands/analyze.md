@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: '`tasks.md` is available and you need a read-only analysis pass before, during, or after implementation revalidation.'
   primary_objective: 'Identify inconsistencies, ambiguities, drift, and boundary-guardrail gaps across `spec.md`, `context.md`, `plan.md`, and `tasks.md`.'
   primary_outputs: A structured analysis report plus workflow-state gate updates. This command does not edit `spec.md`, `context.md`, `plan.md`, or `tasks.md`.
-  default_handoff: 'Route into /sp.clarify, /sp.deep-research, /sp.plan, /sp.tasks, /sp.debug, or /sp.implement based on the findings; if analysis runs after implementation has started or finished, reopen the highest invalid stage and regenerate downstream artifacts before continuing.'
+  default_handoff: 'Route into /sp.specify, /sp.deep-research, /sp.plan, /sp.tasks, /sp.debug, or /sp.implement based on the findings; if analysis runs after implementation has started or finished, reopen the highest invalid stage and regenerate downstream artifacts before continuing.'
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
   ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
@@ -58,7 +58,7 @@ When recommending manual implementation resumption to the user, tell them to run
 
 - [AGENT] Before any report or rich-state write, run `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow.json` is CLI-owned and this auxiliary workflow must not write it manually; its only permitted runtime mutation is the evidence-backed `specify-runtime workflow reopen` operation below. The expected required-stage owner is `tasks or implement`. If the runtime is missing, corrupt, at another stage, or terminal, remain read-only and stop with its blocker or a typed owner handoff naming the observed stage, expected owner, highest invalid stage, exact next action, unblock criteria, and resume argv; never rewrite phase order to make analysis fit.
 - [AGENT] After the complete blocker bundle selects one upstream repair route,
-  reopen the highest invalid required stage before handing off. Map `clarify` or
+  reopen the highest invalid required stage before handing off. Map `specify` or
   `deep-research` to reopen `specify`; map `plan` to reopen `plan`; map `tasks`
   to reopen `tasks`; map a completed execution-only owner to reopen `implement`.
   When the target is earlier than the current non-blocked required stage, or is
@@ -158,7 +158,7 @@ Load only the minimal necessary context from each artifact:
 - Preserve `selected_concepts`, `rejected_concepts`, `selection_reason`,
   `route_pack`, and `minimal_live_reads` as blocker evidence inputs.
 - Preserve cognition-backed blocker evidence when classifying whether issues
-  belong to `plan`, `clarify`, `deep-research`, or task-layer remediation. The
+  belong to `specify`, `deep-research`, `plan`, or task-layer remediation. The
   analysis report and `workflow-state.md` blocker bundle must keep the selected
   capability, boundary fact, ambiguity, or verification evidence that justified
   the route.
@@ -337,7 +337,7 @@ The `Blocker Bundle` MUST enumerate every blocking finding. Do not hide blocking
 
 | Invalid Stage | Blocking Finding IDs | Required Re-entry | Notes |
 |---------------|----------------------|-------------------|-------|
-| clarify | [IDs or none] | `{{invoke:clarify}}` | Reopen spec/context truth, then regenerate downstream artifacts |
+| specify | [IDs or none] | `{{invoke:specify}}` | Reopen spec/context truth, then regenerate downstream artifacts |
 | deep-research | [IDs or none] | `{{invoke:deep-research}}` | Prove unresolved implementation chain before planning |
 | plan | [IDs or none] | `{{invoke:plan}}` | Repair planning truth, then regenerate tasks |
 | tasks | [IDs or none] | `{{invoke:tasks}}` | Repair task decomposition and rerun analyze |
@@ -381,7 +381,7 @@ The `Blocker Bundle` MUST enumerate every blocking finding. Do not hide blocking
 
 At the end of the report, output exactly one `Recommended Next Command` based on the highest invalid workflow stage.
 
-- If the highest-impact unresolved issue lives in `spec.md` or `context.md`, `Recommended Next Command` MUST be `{{invoke:clarify}}`.
+- If the highest-impact unresolved issue lives in `spec.md` or `context.md`, `Recommended Next Command` MUST be `{{invoke:specify}}`.
 - If the highest-impact unresolved issue is a clear requirement whose implementation chain is still unproven, `Recommended Next Command` MUST be `{{invoke:deep-research}}`.
 - If the highest-impact unresolved issue lives in `plan.md`, `Recommended Next Command` MUST be `{{invoke:plan}}`.
 - If the highest-impact unresolved issue lives only in `tasks.md`, `Recommended Next Command` MUST be `{{invoke:tasks}}`.
@@ -395,7 +395,7 @@ After `Next Actions`, output a short `Recommended Re-entry` block that names:
 - the minimum downstream regeneration path from that stage
 
 Rules:
-- If the highest invalid stage is `clarify`, the re-entry chain MUST be `{{invoke:clarify}} -> {{invoke:plan}} -> {{invoke:tasks}} -> {{invoke:analyze}} -> {{invoke:implement}}`.
+- If the highest invalid stage is `specify`, the re-entry chain MUST be `{{invoke:specify}} -> {{invoke:plan}} -> {{invoke:tasks}} -> {{invoke:analyze}} -> {{invoke:implement}}`.
 - If the highest invalid stage is `deep-research`, the re-entry chain MUST be `{{invoke:deep-research}} -> {{invoke:plan}} -> {{invoke:tasks}} -> {{invoke:analyze}} -> {{invoke:implement}}`.
 - If the highest invalid stage is `plan`, the re-entry chain MUST be `{{invoke:plan}} -> {{invoke:tasks}} -> {{invoke:analyze}} -> {{invoke:implement}}`.
 - If the highest invalid stage is `tasks`, the re-entry chain MUST be `{{invoke:tasks}} -> {{invoke:analyze}} -> {{invoke:implement}}`.
@@ -409,7 +409,7 @@ Before the final completion text, query the existing `Analyze Gate` section thro
 The CLI-patched `Analyze Gate` section in `WORKFLOW_STATE_FILE` must preserve:
 - `gate_status: cleared | blocked`
 - `gate_cycle: [integer]`
-- `highest_invalid_stage: clarify | deep-research | plan | tasks | execution-only | none`
+- `highest_invalid_stage: specify | deep-research | plan | tasks | execution-only | none`
 - `blocker_bundle: [finding ID | invalid stage | status | attribution | compact summary | remediation requirement]`
 - `artifact_fingerprint_basis: [spec.md/context.md/plan.md/tasks.md summaries or hashes when available]`
 
@@ -424,7 +424,7 @@ When revalidation finds a new blocker, record its attribution on that `blocker_b
   - `next_command: /sp.implement`
 - If the highest invalid stage is `spec.md` or `context.md`:
   - `next_action: reopen specification alignment and regenerate downstream artifacts`
-  - `next_command: /sp.clarify`
+  - `next_command: /sp.specify`
 - If the constitution itself must change:
   - `next_action: amend project principles first, then reopen the highest affected downstream stage and regenerate downstream artifacts`
   - `next_command: /sp.constitution`

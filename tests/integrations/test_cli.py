@@ -9,6 +9,7 @@ import yaml
 from typer.testing import CliRunner
 
 from specify_cli import app
+from specify_cli.agents import CommandRegistrar
 from specify_cli.launcher import render_command
 from tests.conftest import strip_ansi
 from tests.template_utils import assert_quick_checkpoint_card_shape
@@ -582,7 +583,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
             os.chdir(old_cwd)
         assert result.exit_code == 0, f"init failed: {result.output}"
         assert (project / ".github" / "agents" / "sp.plan.agent.md").exists()
-        assert (project / ".github" / "agents" / "sp.clarify.agent.md").exists()
+        assert not (project / ".github" / "agents" / "sp.clarify.agent.md").exists()
         assert (project / ".github" / "agents" / "sp.explain.agent.md").exists()
         assert (project / ".github" / "prompts" / "sp.plan.prompt.md").exists()
         assert (project / ".specify" / "scripts" / "bash" / "common.sh").exists()
@@ -795,7 +796,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert "$sp-map-scan" in result.output
         assert "$sp-map-build" in result.output
         assert "$sp-map-codebase" not in result.output
-        assert "$sp-clarify" in result.output
+        assert "$sp-clarify" not in result.output
         assert "$sp-deep-research" in result.output
         assert "$sp-teams" in result.output
         assert "seeded default constitution" in result.output.lower()
@@ -803,8 +804,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert "required for existing code" in result.output
         assert "optional diagnostic / legacy revalidation" in result.output.lower()
         assert "The Codex team skill is available as" not in result.output
-        assert "clarify" in result.output
-        assert "clarify" in result.output.lower()
+        assert "$sp-specify" in result.output
         assert "explain" in result.output
         assert "$sp-learnings" not in result.output
 
@@ -866,7 +866,7 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert "/sp-map-scan" in result.output
         assert "/sp-map-build" in result.output
         assert "/sp-map-codebase" not in result.output
-        assert "/sp-clarify" in result.output
+        assert "/sp-clarify" not in result.output
         assert "/sp-deep-research" in result.output
         assert "required for existing code" in result.output
         assert "optional diagnostic / legacy revalidation" in result.output.lower()
@@ -999,18 +999,17 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         skills_dir = project / ".codex" / "skills"
 
         assert (skills_dir / "sp-discussion" / "SKILL.md").exists()
-        assert (skills_dir / "sp-clarify" / "SKILL.md").exists()
         assert (skills_dir / "sp-deep-research" / "SKILL.md").exists()
         assert (skills_dir / "sp-explain" / "SKILL.md").exists()
         assert (skills_dir / "sp-map-scan" / "SKILL.md").exists()
         assert (skills_dir / "sp-map-build" / "SKILL.md").exists()
+        assert not (skills_dir / "sp-clarify" / "SKILL.md").exists()
         assert not (project / ".specify" / "templates" / "project-map").exists()
         assert not (project / ".specify" / "project-map").exists()
         assert not (skills_dir / "sp-map-codebase" / "SKILL.md").exists()
         assert (project / ".specify" / "templates" / "references-template.md").exists()
 
         specify_fm = self._frontmatter(skills_dir / "sp-specify" / "SKILL.md")
-        spec_extend_fm = self._frontmatter(skills_dir / "sp-clarify" / "SKILL.md")
         deep_research_fm = self._frontmatter(skills_dir / "sp-deep-research" / "SKILL.md")
         plan_fm = self._frontmatter(skills_dir / "sp-plan" / "SKILL.md")
         explain_fm = self._frontmatter(skills_dir / "sp-explain" / "SKILL.md")
@@ -1018,30 +1017,32 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         map_build_fm = self._frontmatter(skills_dir / "sp-map-build" / "SKILL.md")
 
         assert isinstance(specify_fm["description"], str) and specify_fm["description"].strip()
-        assert isinstance(spec_extend_fm["description"], str) and spec_extend_fm["description"].strip()
         assert isinstance(deep_research_fm["description"], str) and deep_research_fm["description"].strip()
         assert isinstance(plan_fm["description"], str) and plan_fm["description"].strip()
         assert isinstance(explain_fm["description"], str) and explain_fm["description"].strip()
         assert isinstance(map_scan_fm["description"], str) and map_scan_fm["description"].strip()
         assert isinstance(map_build_fm["description"], str) and map_build_fm["description"].strip()
 
-        assert specify_fm["description"].startswith("Use when")
-        assert spec_extend_fm["description"].startswith("Use when")
-        assert plan_fm["description"].startswith("Use when")
-        assert explain_fm["description"].startswith("Use when")
-        assert map_scan_fm["description"].startswith("Use when")
-        assert map_build_fm["description"].startswith("Use when")
+        for frontmatter in (
+            specify_fm,
+            deep_research_fm,
+            plan_fm,
+            explain_fm,
+            map_scan_fm,
+            map_build_fm,
+        ):
+            assert frontmatter["description"].startswith(
+                CommandRegistrar.USER_INVOKED_DESCRIPTION_PREFIX
+            )
         assert "guided requirement discovery" in specify_fm["description"].lower()
         assert "planning-ready specification package" in specify_fm["description"].lower()
-        assert "planning-critical gaps" in spec_extend_fm["description"].lower()
         assert "implementation planning" in plan_fm["description"].lower()
         assert "plain language" in explain_fm["description"].lower()
         assert "graph-native cognition baseline" in map_scan_fm["description"].lower()
         assert "compatibility/export" in map_scan_fm["description"].lower()
         assert "map-scan" in map_build_fm["description"].lower()
         assert "capability flow and lifecycle truth layer" in (project / "AGENTS.md").read_text(encoding="utf-8").lower()
-        assert "clarify" in result.output.lower()
-        assert "clarify" in result.output
+        assert "clarify" not in result.output.lower()
         assert "explain" in result.output
 
     def test_quick_help_exposes_management_commands(self):

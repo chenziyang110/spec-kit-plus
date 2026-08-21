@@ -18,7 +18,6 @@ from .template_utils import read_template
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PRIMARY_TUI_TEMPLATE_PATHS = (
     "templates/commands/specify.md",
-    "templates/commands/clarify.md",
     "templates/commands/explain.md",
 )
 ASCII_CARD_HEADER_RE = re.compile(r"(?m)^\s*\+--")
@@ -27,7 +26,6 @@ ASCII_CARD_FOOTER_RE = re.compile(r"(?m)^\s*\+-{10,}\+?\s*$")
 MIGRATED_COMMAND_REFERENCE_WORKFLOWS = (
     "analyze",
     "checklist",
-    "clarify",
     "deep-research",
     "design",
     "discussion",
@@ -414,9 +412,12 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
         "agent_disposition",
         "blocking_known_unknown",
         "update_argv",
+        "apply_argv",
         "delta_append_draft.argv_prefix",
-        "display-only `update_command`",
+        "display-only `apply_command`",
         "display-only `delta_append_command`",
+        "scope_result_state",
+        "closeout_status=needs_agent_input",
         "partial_refresh_reasons",
         "adopted_paths",
         "review_paths",
@@ -439,8 +440,8 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
     assert "verification_evidence" in shared
     assert "generated_surface_notes" in shared
     assert "`agent_disposition=adoptable` is an agent accounting decision" in shared
-    assert "do not route that to `sp-map-update`" in shared
-    assert "Never run the `complete-refresh` or `clear-dirty` helper after `result_state=partial_refresh`" in shared
+    assert "do not route that defect to `sp-map-update`" in shared
+    assert "Never run `update`, `validate-build`, `complete-refresh`, or `mutation-receipt` individually" in shared
 
     for path in (
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
@@ -564,7 +565,8 @@ def test_design_workflow_is_not_an_implementation_workflow() -> None:
     assert "forbidden writes" in lowered
     assert "source code" in lowered
     assert "css or theme implementation files" in lowered
-    assert "ask the user to approve a direction" in lowered
+    assert "explicit approval" in lowered
+    assert "same direction in a new immutable round" in lowered
     assert "{{specify-subcmd:specify-runtime design lint" in lowered
     assert "specify-runtime design export <change-dir>/design.md" in lowered
     assert "never write `<change-dir>/design.md` directly" in lowered
@@ -656,8 +658,9 @@ def test_source_changing_sp_workflows_include_inline_cognition_closeout_contract
         "agent_disposition",
         "blocking_known_unknown",
         "update_argv",
+        "apply_argv",
         "delta_append_draft.argv_prefix",
-        "display-only `update_command`",
+        "display-only `apply_command`",
         "display-only `delta_append_command`",
     ):
         assert term in shared, f"inline closeout partial missing {term}"
@@ -683,8 +686,9 @@ def test_inline_cognition_payload_schema_names_match_worker_handoffs_and_runtime
         "agent_disposition",
         "blocking_known_unknown",
         "update_argv",
+        "apply_argv",
         "delta_append_draft.argv_prefix",
-        "display-only `update_command`",
+        "display-only `apply_command`",
         "display-only `delta_append_command`",
     ):
         assert field in shared, f"inline closeout partial missing {field}"
@@ -1117,8 +1121,9 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert ".specify/memory/learnings/INDEX.md" not in block
 
     assert "## Workflow Recommendations" in block
-    assert "do not auto-enter an `sp-*` workflow" in lowered
-    assert "unless the user invokes it" in lowered
+    assert "passive skill invocation is allowed only for" in lowered
+    assert "`sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`" in lowered
+    assert "all other `sp-*` workflows are user-invoked only" in lowered
     assert "recommend `sp-discussion`" in lowered
     assert "presents both `sp-quick` and `sp-specify`" in lowered
     assert "complexity-informed recommendation" in lowered
@@ -1152,7 +1157,6 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "## Project Cognition Usage" not in block
     assert "## Map Maintenance" not in block
     assert "## Delegated Execution Defaults" not in block
-    assert "sp-fast" not in lowered
     assert "sp-test-scan" not in lowered
     assert "sp-test-build" not in lowered
 
@@ -1183,7 +1187,6 @@ def test_core_sp_templates_use_cli_progressive_learning_without_hook_gates():
 
     command_templates = (
         "templates/commands/specify.md",
-        "templates/commands/clarify.md",
         "templates/commands/deep-research.md",
         "templates/commands/plan.md",
         "templates/commands/tasks.md",
@@ -1222,7 +1225,10 @@ def test_core_sp_templates_use_cli_progressive_learning_without_hook_gates():
     assert "show_argv" in quick_content
 
     fast_content = _read("templates/commands/fast.md")
-    assert "Do not run Learning intake" in fast_content
+    assert "learning start --command fast --format json" in fast_content
+    assert "Fast uses consume-only Learning" in fast_content
+    assert "Do not parse Learning storage" in fast_content
+    assert "Do not capture or promote" in fast_content
     assert "Learning storage" in fast_content
     assert "{{specify-subcmd:learning capture --command fast ...}}" not in fast_content
 
@@ -1230,7 +1236,6 @@ def test_core_sp_templates_use_cli_progressive_learning_without_hook_gates():
 def test_owned_workflow_templates_use_cli_learning_reflex() -> None:
     owned_workflow_templates = (
         "templates/commands/specify.md",
-        "templates/commands/clarify.md",
         "templates/commands/constitution.md",
         "templates/commands/deep-research.md",
         "templates/commands/plan.md",
@@ -1255,7 +1260,7 @@ def test_owned_workflow_templates_use_cli_learning_reflex() -> None:
 def test_task3_owned_contract_handoffs_keep_canonical_tokens_without_invocation_placeholders() -> None:
     task3_owned_handoffs = {
         "templates/commands/analyze.md": [
-            "/sp.clarify",
+            "/sp.specify",
             "/sp.deep-research",
             "/sp.plan",
             "/sp.tasks",
@@ -1265,7 +1270,7 @@ def test_task3_owned_contract_handoffs_keep_canonical_tokens_without_invocation_
         "templates/commands/auto.md": ["`next_command`", "/sp-auto"],
         "templates/commands/plan.md": ["/sp.tasks", "/sp.checklist"],
         "templates/commands/quick.md": ["/sp.specify"],
-        "templates/commands/specify.md": ["/sp.plan", "/sp.clarify", "/sp.deep-research"],
+        "templates/commands/specify.md": ["/sp.plan", "/sp.specify", "/sp.deep-research"],
         "templates/commands/tasks.md": ["/sp.analyze", "/sp.implement"],
     }
 
@@ -1285,7 +1290,8 @@ def test_plan_tasks_frontmatter_outputs_are_conditional_for_adaptive_modes() -> 
         "primary_outputs: 'Canonical agent-only `plan-contract.json` plus project-facing "
         "`plan.md`; `research.md`, `quickstart.md`, `data-model.md`, and `contracts/` only "
         "when their triggers are present; planning lane records only when delegated lanes are "
-        "used. `workflow-state.md` remains resume state rather than phase handoff truth.'"
+        "used. When Deep Research exists, Plan verifies and binds the runtime-owned handoff "
+        "before synthesis. `workflow-state.md` remains resume state rather than phase handoff truth.'"
     ) in plan
     assert (
         "primary_outputs: '`FEATURE_DIR/task-index.json` as the canonical task graph in every "
@@ -1894,7 +1900,6 @@ def test_primary_workflows_include_senior_consequence_analysis_gate() -> None:
 
 def test_adjacent_workflows_preserve_consequence_obligations() -> None:
     for rel_path in (
-        "templates/commands/clarify.md",
         "templates/commands/deep-research.md",
         "templates/commands/analyze.md",
         "templates/commands/implement.md",
@@ -3377,7 +3382,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "Recommended Next Command" in content
     assert "### 9. Define Workflow Re-entry" in content
     assert "Recommended Re-entry" in content
-    assert "If the highest invalid stage is `clarify`" in content
+    assert "If the highest invalid stage is `specify`" in content
     assert "If the highest invalid stage is `plan`" in content
     assert "If the highest invalid stage is `tasks`" in content
     assert "If the constitution itself must change" in content
@@ -3427,7 +3432,7 @@ def test_workflow_state_template_supports_analyze_gate_without_fixed_heavy_label
     assert "## Legacy Fixed-Heavy Compatibility Labels" not in content
     assert "final-handoff-decision" not in content
     assert "/sp.plan" in content
-    assert "/sp.clarify" in content
+    assert "/sp.specify" in content
     assert "/sp.deep-research" in content
     assert "## Analyze Gate" in content
     assert "gate_status" in content
@@ -3536,7 +3541,7 @@ def test_new_analysis_workflow_command_templates_exist():
     assert "map-scan" in template_stems
     assert "map-build" in template_stems
     assert "map-codebase" not in template_stems
-    assert "clarify" in template_stems
+    assert "clarify" not in template_stems
     assert "deep-research" in template_stems
     assert "explain" in template_stems
     assert "prd" in template_stems
@@ -3563,7 +3568,9 @@ def test_deep_research_template_defines_feasibility_gate_contract():
     assert "EVD-001" in content
     assert "SPK-001" in content
     assert "PH-001" in content
-    assert "artifact scaffold --kind deep-research" in content
+    assert "deep-research init" in content
+    assert "deep-research verify-handoff" in content
+    assert "artifact scaffold --kind deep-research" not in content
     assert "Grade each evidence item using this rubric" in content
     assert "Evidence Quality Rubric" in scaffold
     assert "Planning Traceability Index" in scaffold
@@ -3579,7 +3586,7 @@ def test_deep_research_template_defines_feasibility_gate_contract():
     assert "do not edit production code" in lowered
     assert "skip deep research" in lowered
     assert "minor adjustment to existing behavior" in lowered
-    assert "next_command` as `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`" in content
+    assert "next_command` as `/sp.plan`, `/sp.specify`, or `/sp.deep-research`" in content
 
 
 def test_specify_template_keeps_canonical_state_tokens_but_not_universal_user_invocation():
@@ -3587,7 +3594,7 @@ def test_specify_template_keeps_canonical_state_tokens_but_not_universal_user_in
 
     assert "Choose exactly one next command" in content
     assert "/sp.plan" in content
-    assert "/sp.clarify" in content
+    assert "/sp.specify" in content
     assert "/sp.deep-research" in content
     assert "Default handoff: /sp-plan" not in content
     assert "Default handoff: /sp.plan" not in content
@@ -3615,10 +3622,9 @@ def test_feature_workflows_prefer_managed_run_subject_when_feature_dir_is_not_ex
     tasks = _read("templates/commands/tasks.md")
     implement = _read("templates/commands/implement.md")
     deep_research = _read("templates/commands/deep-research.md")
-    clarify = _read("templates/commands/clarify.md")
     explain = _read("templates/commands/explain.md")
 
-    for content in (plan, tasks, implement, deep_research, clarify, explain):
+    for content in (plan, tasks, implement, deep_research, explain):
         lowered = content.lower()
         assert "managed run" in lowered
         assert "private git ref" in lowered
@@ -3649,14 +3655,15 @@ def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research
 
     assert "/sp.deep-research" in specify
     assert "/sp.plan" in specify
-    assert "/sp.clarify" in specify
+    assert "/sp.specify" in specify
     assert "recommend exactly one next command" in specify_lowered
     assert "user review" in specify_lowered
     assert "planning-critical" in specify_lowered
     assert "release-decision" not in specify
     assert "final-handoff-decision" not in specify
-    assert "deep-research `PH-###` traceability" in plan
-    assert "Deep-research `PH-###` items remain direct evidence refs" in plan
+    assert "verified Deep Research binding traceability" in plan
+    assert "Deep Research `PH-###` items remain direct evidence refs" in plan
+    assert "deep-research verify-handoff" in plan
     assert "route to deep research" in plan.lower()
 
 
@@ -3680,29 +3687,6 @@ def test_map_workflow_templates_define_graph_native_lifecycle() -> None:
     assert "do not dispatch model-authored graph construction lanes" in content.lower()
     assert "build or refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`" not in content
     assert "runtime handbook output contract" not in content.lower()
-
-
-def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
-    content = _read("templates/commands/clarify.md")
-    lowered = content.lower()
-
-    assert "closing planning-critical gaps" in lowered
-    assert "`FEATURE_DIR/context.md`" in content
-    assert "through `specify-runtime artifact show`" in content
-    assert "The subagent proposes replacement content" in content
-    assert "specify-runtime result submit --command clarify --result-json" in content
-    assert "never edits those files" in content
-    assert "Existing Code Insights" in content
-    assert "unresolved gray areas that still change plan structure" in lowered
-    assert "missing locked decisions, canonical references, or deferred-scope notes" in lowered
-    assert "whether the spec package is now ready for `/sp.plan`, still needs more clarification, or needs `/sp.deep-research` feasibility proof first" in content
-    assert "whether another `/sp.specify` or `/sp.clarify` pass is still justified before planning" in content
-    assert "avoid implying an automatic handoff to `/sp.plan`" in lowered
-    assert "default rescue lane" in lowered
-    assert "recommend another clarification pass instead of implying that `/sp.plan` is now safe" in content
-    assert "cognition follow-up" in lowered
-    assert "artifact-only clarification work" in lowered
-    assert "actual source/runtime changes" in lowered
 
 
 def test_spec_template_defines_scope_boundaries_without_open_clarification_examples():
@@ -3817,7 +3801,7 @@ def test_workflow_state_template_exists_and_captures_simplified_review_contract(
     assert "goal-and-users" not in content
     assert "acceptance-and-completeness-gap-closure" not in content
     assert "/sp.plan" in content
-    assert "/sp.clarify" in content
+    assert "/sp.specify" in content
     assert "/sp.deep-research" in content
 
 
@@ -3838,7 +3822,7 @@ def test_workflow_state_template_documents_recovery_sections() -> None:
         "approved | auto-approved-recommended]"
         in content
     )
-    assert "final_handoff_decision: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]" in content
+    assert "final_handoff_decision: [/sp.plan | /sp.specify | /sp.deep-research | undecided]" in content
     assert "Re-read this file first after compaction or session recovery." not in content
 
 
@@ -4310,7 +4294,6 @@ def test_generated_workflow_templates_do_not_default_to_product_minimization() -
     checked_paths = [
         "templates/commands/discussion.md",
         "templates/commands/specify.md",
-        "templates/commands/clarify.md",
         "templates/commands/deep-research.md",
         "templates/commands/plan.md",
         "templates/commands/tasks.md",
@@ -4530,10 +4513,15 @@ def test_mutation_workflows_require_inline_cognition_update_before_dirty_fallbac
         assert "update_mode=delta_session" in content
         assert "update_mode=inline_json" in content
         assert "update_argv" in content
-        assert "clean closeout keys on `result_state`" in content
+        assert "shared closeout keys on the current scope separately from the project-wide state" in content
+        assert "apply_argv" in content
+        assert "closeout_state=scope_ready" in content
         assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
         assert "specify-runtime cognition mark-dirty" in content
         assert "dirty only when inline update" in content
+        assert "one `--changed-path <repo-relative-path>` flag for each workflow-owned path" in content
+        assert "rename owns both" in content
+        assert "unrelated dirty, untracked, or committed-since-baseline repository paths must not be allowed to enter `changed_paths`" in content
 
         for stale_closeout_phrase in (
             "actual `{{invoke:map-update}}` refresh",
@@ -4604,6 +4592,18 @@ def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
     passive_gate = _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md").lower()
     assert "do not silently switch into `sp-map-update`" not in passive_gate
     assert "user-invoked workflow handoff" not in passive_gate
+
+
+def test_advanced_shared_cognition_requires_explicit_closeout_paths() -> None:
+    content = _read("templates/advanced-skills/_shared/project-cognition.md").lower()
+
+    assert "`--changed-path <repo-relative-path>` flag per explicit" in content
+    assert "rename owns both" in content
+    assert "--scope-mode explicit" in content
+    assert "those paths are the mutation closeout scope" in content
+    assert "unrelated dirty, untracked, or committed-since-baseline repository paths must" in content
+    assert "do not broad" in content
+    assert "scan to guess it" in content
 
 
 def test_constitution_workflow_reports_cognition_followup_without_mutating_it() -> None:
@@ -4745,7 +4745,7 @@ def _legacy_runtime_alignment_prefers_cognition_gate_over_layered_atlas() -> Non
     assert "`research_gap`" in build_template
     assert "`plan_gap`" in build_template
     assert "`spec_gap`" in build_template
-    assert "/sp.clarify" in build_template
+    assert "/sp.specify" in build_template
     assert "planned validation tasks are still ready work" in lowered
     assert "do not stop to ask whether validation should start" in lowered
     assert "manual-only check or approval step is explicitly recorded in the tracker or task plan" in lowered
@@ -4810,7 +4810,7 @@ def test_tasks_template_requires_implementation_readiness_self_audit_and_remedia
     lowered = content.lower()
 
     assert "default_handoff: '/sp.implement for a clean completed task package" in content
-    assert "/sp.plan, /sp.clarify, or /sp.deep-research when escalated remediation exposes missing upstream truth" in content
+    assert "/sp.specify, /sp.plan, or /sp.deep-research when escalated remediation exposes missing upstream truth" in content
     assert "send: false" in content
     assert "Deterministic Task-Graph Review" in content
     assert "User-Observable Path Coverage" in content
@@ -5138,22 +5138,6 @@ def test_specify_plan_and_tasks_treat_needs_update_as_planning_advisory():
         assert "minimal_live_reads" in lowered
         assert "planning advisories" in lowered
         assert "`needs_update`: route through `{{invoke:map-update}}`" not in lowered
-
-
-def test_clarify_command_requires_persisted_clarification_lane_handoffs():
-    content = _read("templates/commands/clarify.md")
-    lowered = content.lower()
-
-    assert "clarification/handoffs/<lane-id>.json" in content
-    assert "clarification/evidence-index.json" in content
-    assert "clarification/checkpoints.ndjson" in content
-    assert "append one inline checkpoint object through a leased `artifact patch --append-json`" in lowered
-    assert "submits its structured handoff inline through `specify-runtime result submit --command clarify" in lowered
-    assert "never write `clarification/handoffs/<lane-id>.json` directly" in lowered
-    assert "query `clarification/evidence-index.json` through `specify-runtime artifact show`" in lowered
-    assert "patch its `integrated`, `deferred`, or `blocked` disposition" in lowered
-    assert "without an explicit consuming artifact section, deferral, or blocker reason" in lowered
-    assert "do not update planning artifacts from chat-only lane results" in lowered
 
 
 def test_analyze_command_consumes_canonical_contracts_and_lane_manifests():

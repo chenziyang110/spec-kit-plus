@@ -10,13 +10,14 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
 	"unicode"
+
+	runtimecmd "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
 func runDiscussion(args []string, stdout io.Writer) int {
@@ -40,8 +41,8 @@ func runDiscussion(args []string, stdout io.Writer) int {
 		}
 		env.Data["input_json"] = "inline JSON, @path, or - (stdin). On Windows PowerShell prefer @path or stdin because inline quoting often strips double quotes."
 		env.Data["checkpoint"] = map[string]any{
-			"usage": "specify-runtime discussion checkpoint <slug> --input-json <object|@path|-> [--summary <text>] [--phase <phase>] [--user-goal <text>] [--decision <text>]... [--recommendation <text>]",
-			"persists": append([]string{"summary", "lifecycle_phase"}, discussionCheckpointPacketKeys...),
+			"usage":          "specify-runtime discussion checkpoint <slug> --input-json <object|@path|-> [--summary <text>] [--phase <phase>] [--user-goal <text>] [--decision <text>]... [--recommendation <text>]",
+			"persists":       append([]string{"summary", "lifecycle_phase"}, discussionCheckpointPacketKeys...),
 			"unknown_fields": "rejected with invalid error (not silently dropped)",
 		}
 		env.Data["write_handoff"] = map[string]any{
@@ -551,9 +552,9 @@ var discussionCheckpointPacketKeys = []string{
 }
 
 var discussionCheckpointMetaKeys = map[string]bool{
-	"summary":          true,
-	"lifecycle_phase":  true,
-	"phase":            true, // alias for lifecycle_phase
+	"summary":         true,
+	"lifecycle_phase": true,
+	"phase":           true, // alias for lifecycle_phase
 }
 
 func resolveDiscussionCheckpointInput(args []string, projectRoot, positional string) (map[string]any, error) {
@@ -1067,17 +1068,17 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 	state["updated_at"] = ts
 	state["latest_checkpoint"] = map[string]any{"event_id": eventID, "timestamp": ts}
 	event := map[string]any{
-		"version":             float64(1),
-		"event_id":            eventID,
-		"timestamp":           ts,
-		"kind":                "durable-checkpoint",
-		"lifecycle_phase":     phase,
-		"summary":             summary,
-		"user_goal":           packet["user_goal"],
-		"confirmed_decisions": packet["confirmed_decisions"],
-		"open_questions":      packet["open_questions"],
+		"version":                float64(1),
+		"event_id":               eventID,
+		"timestamp":              ts,
+		"kind":                   "durable-checkpoint",
+		"lifecycle_phase":        phase,
+		"summary":                summary,
+		"user_goal":              packet["user_goal"],
+		"confirmed_decisions":    packet["confirmed_decisions"],
+		"open_questions":         packet["open_questions"],
 		"current_recommendation": packet["current_recommendation"],
-		"context_boundary":    packet["context_boundary"],
+		"context_boundary":       packet["context_boundary"],
 	}
 	raw, _ := canonicalJSON(event)
 	logPath := filepath.Join(workspace, "discussion-log.jsonl")
@@ -2708,21 +2709,18 @@ func currentPRDGitSnapshot(projectRoot string) (prdGitSnapshot, error) {
 }
 
 func isGitWorkTree(projectRoot string) bool {
-	cmd := exec.Command("git", "-C", projectRoot, "rev-parse", "--is-inside-work-tree")
-	output, err := cmd.CombinedOutput()
+	output, err := runtimecmd.CommandCombinedOutput("", nil, "git", "-C", projectRoot, "rev-parse", "--is-inside-work-tree")
 	if err != nil {
 		return false
 	}
 	if !strings.EqualFold(strings.TrimSpace(string(output)), "true") {
 		return false
 	}
-	head := exec.Command("git", "-C", projectRoot, "rev-parse", "--verify", "HEAD")
-	return head.Run() == nil
+	return runtimecmd.CommandRun("", nil, "git", "-C", projectRoot, "rev-parse", "--verify", "HEAD") == nil
 }
 
 func runGitValue(projectRoot string, args ...string) (string, error) {
-	cmd := exec.Command("git", append([]string{"-C", projectRoot}, args...)...)
-	output, err := cmd.CombinedOutput()
+	output, err := runtimecmd.CommandCombinedOutput("", nil, "git", append([]string{"-C", projectRoot}, args...)...)
 	if err != nil {
 		return "", fmt.Errorf("git %s failed: %s", strings.Join(args, " "), strings.TrimSpace(string(output)))
 	}

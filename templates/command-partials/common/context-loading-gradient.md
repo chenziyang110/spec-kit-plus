@@ -17,6 +17,13 @@ an active approved contract, or confirmed user direction.
 
 ### Required Project Cognition Compass
 
+The only entry-intake exception is the explicit context-direct branch selected
+through the `sp-quick` / `sp-debug` Pre-Intake Context Sufficiency Gate. That
+branch skips Compass navigation because its bounded owner, consumer, risk, and
+verification evidence was already enumerated from the active conversation. It
+still performs exact-path post-change mutation closeout. Insufficient evidence,
+a full-workflow choice, or scope expansion restores the required intake below.
+
 Default project cognition intake is `{{specify-subcmd:specify-runtime cognition compass --intent <intent> --query="$ARGUMENTS" --format json}}`.
 
 Consume the packet in this order:
@@ -42,7 +49,7 @@ Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `u
 - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons before expanding.
 - `review`: inspect the returned `minimal_live_reads` before expanding and carry review notes from `coverage_diagnostics`.
 - `needs_rebuild`: do not route from readiness alone; it can accompany a resumable action such as `complete_scan_packets`. Preserve non-rebuild `recommended_next_action.action_id` values. Only for `action_id=project_cognition.rebuild`, inspect every `rebuild_reasons[]` entry, consume `recommended_next_action.workflow_routes.classic.steps`, and project those steps through this integration's invocation syntax. Reserve `{{invoke:map-scan}} -> {{invoke:map-build}}` for that structured route; do not infer cause or route from readiness or a legacy action string.
-- `blocked`: report the runtime state clearly; continue with live evidence only when this workflow allows degraded advisory navigation.
+- `blocked`: report the runtime state clearly; continue with live evidence only when this workflow allows degraded advisory navigation. When `degraded=true` and `coverage_diagnostics[].kind=stale_cognition_degraded_navigation`, consume the returned bounded `minimal_live_reads` as stale route hints and verify every selected path against the live repository. Never treat those hints as fresh truth, and preserve the returned recovery action. If the degraded marker is absent, do not infer routes from an empty packet.
 - `unsupported_runtime`: continue with live evidence and record that compass intake was unavailable.
 
 If a non-workflow action includes `recommended_next_action.argv`, execute that exact argv through the project-pinned cognition launcher. `project_cognition.repair_status` owns deterministic status reconstruction after the graph store validates; never patch graph metadata by hand.
@@ -139,7 +146,7 @@ Treat runtime freshness as map-quality diagnostics:
 - `missing` -> if cognition freshness is `missing`, continue with live repository evidence and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only as brownfield external baseline maintenance
 - `stale` -> if cognition freshness is `stale`, treat map output as advisory and continue with live repository evidence; recommend `{{invoke:map-update}}` only as external/manual maintenance when the user asks for map maintenance or before a separate map-maintenance pass
 - `stale` with changed paths missing from `path_index` -> warn and continue with live repository evidence; recommend `{{invoke:map-update}}` first for ordinary existing-baseline gaps.
-  Use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside baseline-kind exceptions described below, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`
+  Use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside the empty-baseline exception described below, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - `support_drift` -> warn and continue with live repository evidence; recommend resolving or intentionally ignoring support-surface drift
 - `partial_refresh` -> warn that refresh data was recorded but readiness did not pass; continue with live repository evidence
 - `possibly_stale` -> inspect the returned affected scope when useful, then continue with live repository evidence
@@ -150,7 +157,7 @@ map-maintenance recommendation.
 
 ### Greenfield Empty Baseline
 
-If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live requirements. Do not recommend map-scan -> map-build solely because the graph has no paths.
+If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live requirements when the repository still has no project-code evidence. Do not recommend map-scan -> map-build solely because the graph has no paths. Use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside `greenfield_empty`, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`. If the runtime reports `greenfield_baseline_has_project_code`, real workflow-owned or stale paths have invalidated the empty-baseline identity: preserve `recommended_next_action.action_id=project_cognition.rebuild` and its structured workflow routes. This conflict must not be routed to map-update or treated as an ordinary empty graph.
 
 ### Mutation Closeout Rule
 
@@ -166,7 +173,7 @@ directly and recommend `sp-map-update` for ordinary existing-baseline gaps,
 localized stale cognition refresh, weak localized coverage after a usable
 baseline, or external/manual changed-path map maintenance. Use `sp-map-scan -> sp-map-build`
 only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation
-`path_index` rows outside `greenfield_empty`, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
+`path_index` rows outside `greenfield_empty`, missing or invalid `alias_index`, `explicit_rebuild_requested`, `greenfield_baseline_has_project_code`, or `baseline_identity_invalid`.
 
 The completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs. Project cognition can support route selection but cannot be the sole evidence for completion.
 

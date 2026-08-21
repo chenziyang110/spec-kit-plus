@@ -15,6 +15,10 @@ Perform a read-only analysis pass that checks whether the current spec, context,
 
 - Load the minimum artifact context needed to evaluate the current request.
 - Compare the planning artifacts for drift, ambiguity, missing constraints, and boundary-guardrail gaps.
+- When UI applies, verify that Design/Specify/Plan/Tasks preserve the same
+  `interaction_matrix`, `editing_matrix`, `data_state_matrix`, component interaction/data rows,
+  and stretch/overflow rows; flag a `required_states`-only or populated
+  pointer-happy-path contract as a blocking continuity gap.
 - Verify every accepted delegated lane result named by a compact manifest was consumed into the downstream canonical contract rather than only preserved on disk.
 - Classify findings by severity and report how they should feed back into the workflow.
 
@@ -30,3 +34,13 @@ Perform a read-only analysis pass that checks whether the current spec, context,
 - Stay read-only outside that CLI-owned gate-state patch.
 - Treat constitution conflicts as critical rather than negotiable.
 - Do not rely on stale or insufficient project cognition query coverage when the runtime should inform the analysis.
+
+## Professional UI Contract Continuity
+
+When UI is in scope, Analyze checks exact continuity, contradictions, missing
+ownership, and task coverage across `surface_catalog`, `scenario_matrix`,
+`interaction_matrix`, `editing_matrix`, `data_state_matrix`, `accessibility_matrix`,
+`navigation_matrix`, `content_matrix`, `motion_contract`, and
+`usability_validation`, including component governance.
+Prioritize risk-based gaps rather than demanding an unbounded Cartesian product;
+stay read-only and never reinterpret required target-user review.

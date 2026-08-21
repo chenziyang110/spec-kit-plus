@@ -9,12 +9,9 @@ from .types import HookResult, QualityHookError
 
 ALLOWED_WORKFLOW_TRANSITIONS = {
     ("specify", "plan"),
-    ("specify", "clarify"),
     ("specify", "deep-research"),
-    ("clarify", "plan"),
-    ("clarify", "deep-research"),
     ("deep-research", "plan"),
-    ("deep-research", "clarify"),
+    ("deep-research", "specify"),
     ("plan", "tasks"),
     ("plan", "checklist"),
     ("tasks", "implement"),
@@ -24,7 +21,6 @@ ALLOWED_WORKFLOW_TRANSITIONS = {
     ("implement", "debug"),
     ("review", "accept"),
     ("review", "plan"),
-    ("review", "clarify"),
     ("review", "specify"),
     ("review", "design"),
     ("accept", "review"),
@@ -62,7 +58,6 @@ def workflow_boundary_hook(_project_root, payload: dict[str, object]) -> HookRes
 
     if from_command == "review" and to_command in {
         "plan",
-        "clarify",
         "specify",
         "design",
     }:

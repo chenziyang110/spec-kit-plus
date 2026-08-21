@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -84,8 +83,16 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return archiveIncompatibleStoreCommand(args[1:], stdout, stderr, paths)
 	case "generate-ignore":
 		return generateIgnoreCommand(args[1:], stdout, stderr, paths)
+	case "confirm-ignore":
+		return confirmIgnoreCommand(args[1:], stdout, stderr, paths)
 	case "scan-set":
 		return scanSetCommand(args[1:], stdout, stderr, paths)
+	case "scan-formats":
+		return scanFormatsCommand(args[1:], stdout, stderr, paths)
+	case "scan-policy-stage":
+		return scanPolicyStageCommand(args[1:], stdout, stderr, paths)
+	case "scan-policy-confirm":
+		return scanPolicyConfirmCommand(args[1:], stdout, stderr, paths)
 	case "scan-prepare":
 		return scanPrepareCommand(args[1:], stdout, stderr, paths)
 	case "scan-lease":
@@ -177,7 +184,7 @@ func versionCommand(args []string, stdout io.Writer, stderr io.Writer, version s
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "specify-runtime cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: specify-runtime cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, repair-status, init-empty, archive-incompatible-store, generate-ignore, scan-set, scan-prepare, scan-lease, scan-packet, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, mutation-receipt, update, claim-reconcile prepare|apply, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, repair-status, init-empty, archive-incompatible-store, generate-ignore, confirm-ignore, scan-set, scan-formats, scan-policy-stage, scan-policy-confirm, scan-prepare, scan-lease, scan-packet, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, closeout apply, mutation-receipt, update, claim-reconcile prepare|apply, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
 }
 
 func claimReconcileCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -628,17 +635,52 @@ func generateIgnoreCommand(args []string, stdout io.Writer, stderr io.Writer, pa
 	if created {
 		status = "created"
 	}
+	suggestions := ignore.PendingStarterIgnoreSuggestions(paths.Root)
+	reviewRequired := len(suggestions) > 0
 	payload := map[string]any{
 		"status":          status,
 		"path":            rt.RelativeRuntimePath(paths, path),
-		"review_required": created,
+		"review_required": reviewRequired,
 		"errors":          []string{},
 		"warnings":        []string{},
 	}
-	if created {
-		payload["suggested_patterns"] = ignore.StarterIgnoreSuggestions(paths.Root)
+	if reviewRequired {
+		payload["suggested_patterns"] = suggestions
 	}
 	return writeJSON(stdout, payload)
+}
+
+func confirmIgnoreCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("confirm-ignore", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var patterns stringList
+	fs.Var(&patterns, "pattern", "Exact reviewed starter pattern to activate; repeat for a subset")
+	allSuggested := fs.Bool("all-suggested", false, "Activate every pattern returned by generate-ignore")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("confirm-ignore supports only --format json"))
+	}
+	if *allSuggested && len(patterns) > 0 {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("confirm-ignore cannot combine --all-suggested with --pattern"))
+	}
+	paths = initEmptyPaths(paths)
+	if *allSuggested {
+		patterns = ignore.StarterIgnoreSuggestions(paths.Root)
+	}
+	confirmed, err := ignore.ActivateStarterIgnoreSuggestions(paths.Root, patterns)
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
+	return writeCompactJSON(stdout, map[string]any{
+		"status":             "confirmed",
+		"path":               rt.RelativeRuntimePath(paths, ignore.StarterIgnorePath(paths.Root)),
+		"review_required":    false,
+		"confirmed_patterns": confirmed,
+		"next_action":        "run_scan_set",
+	})
 }
 
 func scanSetCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -665,6 +707,123 @@ func scanSetCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.
 	return writeCompactJSON(stdout, payload)
 }
 
+func scanFormatsCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("scan-formats", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	scanSetPath := fs.String("scan-set", scanset.DefaultOutputPath, "Repository-relative canonical scan-set file")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-formats supports only --format json"))
+	}
+	payload, err := scanworkbench.InventoryFormats(paths, scanworkbench.FormatInventoryInput{ScanSetPath: *scanSetPath})
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
+	return writeCompactJSON(stdout, payload)
+}
+
+func scanPolicyStageCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("scan-policy-stage", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	proposalJSON := fs.String("proposal-json", "", "Agent-authored grouped scan policy proposal JSON (inline JSON, @path, or - for stdin)")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-policy-stage supports only --format json"))
+	}
+	data, err := resolveScanPolicyProposalJSON(*proposalJSON, paths.Root)
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
+	var input scanworkbench.StageFormatPolicyInput
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("decode scan policy proposal: %w", err))
+	}
+	if err := requireJSONEOF(decoder); err != nil {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("decode scan policy proposal: %w", err))
+	}
+	payload, err := scanworkbench.StageFormatPolicy(paths, input)
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
+	return writeCompactJSON(stdout, payload)
+}
+
+func scanPolicyConfirmCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("scan-policy-confirm", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	proposalDigest := fs.String("proposal-digest", "", "Exact staged proposal digest approved by the user")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-policy-confirm supports only --format json"))
+	}
+	payload, err := scanworkbench.ConfirmFormatPolicy(paths, scanworkbench.ConfirmFormatPolicyInput{ProposalDigest: *proposalDigest})
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
+	return writeCompactJSON(stdout, payload)
+}
+
+func resolveScanPolicyProposalJSON(raw, projectRoot string) ([]byte, error) {
+	const maxScanPolicyProposalBytes = 1024 * 1024
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, fmt.Errorf("scan-policy-stage --proposal-json must not be empty")
+	}
+	if trimmed == "-" {
+		data, err := io.ReadAll(io.LimitReader(os.Stdin, maxScanPolicyProposalBytes+1))
+		if err != nil {
+			return nil, fmt.Errorf("read scan policy proposal from stdin: %w", err)
+		}
+		if len(data) > maxScanPolicyProposalBytes {
+			return nil, fmt.Errorf("scan policy proposal exceeds %d bytes", maxScanPolicyProposalBytes)
+		}
+		return data, nil
+	}
+	if strings.HasPrefix(trimmed, "@") {
+		path := strings.TrimSpace(strings.TrimPrefix(trimmed, "@"))
+		if path == "" {
+			return nil, fmt.Errorf("scan-policy-stage --proposal-json @path requires a non-empty path")
+		}
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(projectRoot, path)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read scan policy proposal %s: %w", path, err)
+		}
+		if len(data) > maxScanPolicyProposalBytes {
+			return nil, fmt.Errorf("scan policy proposal exceeds %d bytes", maxScanPolicyProposalBytes)
+		}
+		return data, nil
+	}
+	data := []byte(raw)
+	if len(data) > maxScanPolicyProposalBytes {
+		return nil, fmt.Errorf("scan policy proposal exceeds %d bytes", maxScanPolicyProposalBytes)
+	}
+	return data, nil
+}
+
+func requireJSONEOF(decoder *json.Decoder) error {
+	var extra any
+	if err := decoder.Decode(&extra); err == io.EOF {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return fmt.Errorf("multiple JSON values are not allowed")
+}
+
 func scanPrepareCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
 	fs := flag.NewFlagSet("scan-prepare", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -680,7 +839,9 @@ func scanPrepareCommand(args []string, stdout io.Writer, stderr io.Writer, paths
 	reservedToolTokens := fs.Int64("reserved-tool-tokens", 0, "Reserved tool-output budget")
 	reservedReasoningTokens := fs.Int64("reserved-reasoning-tokens", 0, "Reserved reasoning budget")
 	safetyPercent := fs.Int("safety-percent", 75, "Percent of remaining context usable for scan input")
-	force := fs.Bool("force", false, "Replace an existing scan workbench and discard its results")
+	includeGitIgnored := fs.Bool("include-gitignored", false, "Allow gitignored untracked source paths to use normal value classification")
+	force := fs.Bool("force", false, "Replace an incompatible or in-progress scan workbench; validated scan cache remains reusable")
+	fullRebuild := fs.Bool("full-rebuild", false, "Replace the workbench and bypass validated scan cache reuse")
 	format := fs.String("format", "json", "Output format: json")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -698,12 +859,15 @@ func scanPrepareCommand(args []string, stdout io.Writer, stderr io.Writer, paths
 		return writeCompactErrorJSON(stdout, err)
 	}
 	payload, err := scanworkbench.Prepare(paths, scanworkbench.PrepareInput{
-		ScanSetPath:        *scanSetPath,
-		PacketSize:         *packetSize,
-		MaxPaths:           *maxPaths,
-		MaxBytes:           *maxBytes,
-		WorkerBudgetTokens: effectiveBudget,
-		Force:              *force,
+		ScanSetPath:            *scanSetPath,
+		PacketSize:             *packetSize,
+		MaxPaths:               *maxPaths,
+		MaxBytes:               *maxBytes,
+		WorkerBudgetTokens:     effectiveBudget,
+		IncludeGitIgnored:      *includeGitIgnored,
+		RequireConfirmedPolicy: true,
+		Force:                  *force,
+		FullRebuild:            *fullRebuild,
 	})
 	if err != nil {
 		if handled := writeScanWorkbenchRecoveryJSON(stdout, err); handled {
@@ -1164,10 +1328,11 @@ func validateScanCommandWithValidator(args []string, stdout io.Writer, stderr io
 	payload := validate(paths)
 	if payload.Status == "ok" && payload.Readiness == "scan_ready" {
 		var receiptErr error
+		cacheRequired := false
 		if fingerprintErr != nil {
 			receiptErr = fingerprintErr
 		} else {
-			_, _, receiptErr = scanreceipt.CreateExpected(paths, payload.Readiness, &fingerprint)
+			_, cacheRequired, receiptErr = scanreceipt.CreateExpected(paths, payload.Readiness, &fingerprint)
 		}
 		if receiptErr != nil {
 			payload.Status = "blocked"
@@ -1175,6 +1340,16 @@ func validateScanCommandWithValidator(args []string, stdout io.Writer, stderr io
 			payload.CompletionAllowed = false
 			payload.ErrorClassification = "scan_receipt_integrity"
 			payload.Errors = append(payload.Errors, fmt.Sprintf("write scan-receipt.json: %v", receiptErr))
+		} else if cacheRequired {
+			cachePayload, cacheErr := scanworkbench.SnapshotValidatedScanCache(paths)
+			if cacheErr != nil {
+				payload.Warnings = append(payload.Warnings, fmt.Sprintf("validated scan cache was not refreshed: %v", cacheErr))
+			} else {
+				if payload.Details == nil {
+					payload.Details = map[string]any{}
+				}
+				payload.Details["scan_cache"] = cachePayload
+			}
 		}
 	}
 	if code := writeJSON(stdout, payload); code != 0 {
@@ -1419,11 +1594,18 @@ func closeoutPlanCommand(args []string, stdout io.Writer, stderr io.Writer, path
 	since := fs.String("since", "", "Baseline commit")
 	head := fs.String("head", "", "Head commit")
 	deltaSession := fs.String("delta-session", "", "Delta session id")
+	scopeDir := fs.String("scope-dir", "", "Mutation receipt scope directory")
+	featureDir := fs.String("feature-dir", "", "Mutation feature scope directory")
+	scopeMode := fs.String("scope-mode", "explicit", "Closeout scope mode: explicit or repository_diff")
 	includeWorkingTree := fs.Bool("include-working-tree", true, "Include working tree changes")
 	includeUntracked := fs.Bool("include-untracked", true, "Include untracked paths")
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+	closeoutScopeDir := strings.TrimSpace(*scopeDir)
+	if closeoutScopeDir == "" {
+		closeoutScopeDir = strings.TrimSpace(*featureDir)
 	}
 	payload, err := closeout.Run(paths, closeout.Input{
 		Workflow:           *workflow,
@@ -1435,6 +1617,8 @@ func closeoutPlanCommand(args []string, stdout io.Writer, stderr io.Writer, path
 		IncludeUntracked:   *includeUntracked,
 		ExplicitPaths:      changed,
 		DeltaSessionID:     *deltaSession,
+		ScopeDir:           closeoutScopeDir,
+		ScopeMode:          *scopeMode,
 	})
 	return writeCommandResult(stdout, stderr, paths, payload, err)
 }
@@ -1992,31 +2176,8 @@ func runGitProbe(root string, timeout time.Duration, run gitCommandRunner, args 
 }
 
 func runGitCommand(ctx context.Context, root string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = root
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Start(); err != nil {
-		return "", err
-	}
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
-	select {
-	case err := <-done:
-		if err != nil {
-			return "", err
-		}
-		return stdout.String(), nil
-	case <-ctx.Done():
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-		return "", ctx.Err()
-	}
+	stdout, err := rt.CommandOutputContext(ctx, root, nil, "git", args...)
+	return string(stdout), err
 }
 
 func parseDeltaGitStatusZ(output string) []string {

@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 
 import specify_cli
 from specify_cli import app
+from specify_cli.agents import CommandRegistrar
 from specify_cli.design import lint_design_file
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
@@ -31,7 +32,6 @@ SPX_SKILLS = {
     "spx-ask",
     "spx-auto",
     "spx-checklist",
-    "spx-clarify",
     "spx-constitution",
     "spx-debug",
     "spx-deep-research",
@@ -62,6 +62,12 @@ CLASSIC_MAP_COMPANION_SKILLS = {
     "sp-map-build",
     "sp-map-scan",
     "sp-map-update",
+}
+CLASSIC_IMPLICIT_INVOCATION_SKILLS = {
+    "sp-debug",
+    "sp-discussion",
+    "sp-fast",
+    "sp-quick",
 }
 SKILLS_INTEGRATIONS = (
     "agy",
@@ -281,12 +287,7 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "artifact scaffold --kind ui-reference-notes" in skills["spx-specify"]
     assert "spec-contract-template.json" not in skills["spx-specify"]
     assert "do not implement" in skills["spx-specify"]
-    assert "spx-clarify" in skills["spx-specify"]
     assert "spx-prd-scan" in skills["spx-specify"]
-
-    assert "do not create a new feature" in skills["spx-clarify"]
-    assert "existing" in skills["spx-clarify"]
-    assert "do not plan or implement" in skills["spx-clarify"]
 
     assert ".specify/memory/constitution.md" in skills["spx-constitution"]
     assert "owns the constitution only" in skills["spx-constitution"]
@@ -321,8 +322,9 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "production source" in skills["spx-plan"]
 
     assert "deep-research.md" in skills["spx-deep-research"]
-    assert "artifact scaffold --kind deep-research" in skills["spx-deep-research"]
-    assert "artifact scaffold --kind deep-research-not-needed" in skills["spx-deep-research"]
+    assert "deep-research init" in skills["spx-deep-research"]
+    assert "deep-research not-needed" in skills["spx-deep-research"]
+    assert "artifact scaffold --kind deep-research" not in skills["spx-deep-research"]
     assert "planning handoff" in skills["spx-deep-research"]
     assert "do not implement production" in skills["spx-deep-research"]
     assert "not a separate artifact lifecycle" in skills["spx-research"]
@@ -428,6 +430,9 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     scan_worker_compact = re.sub(r"\s+", " ", scan_worker)
     assert "runtime alone materializes pending-result" in scan_worker_compact
     for command in (
+        "scan-formats",
+        "scan-policy-stage",
+        "scan-policy-confirm",
         "scan-prepare",
         "scan-lease",
         "scan-checkpoint",
@@ -511,7 +516,7 @@ def test_spx_preplan_routes_stop_after_the_authorized_stage() -> None:
             " ",
             (ADVANCED_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").lower(),
         )
-        for name in ("spx-auto", "spx-research", "spx-clarify", "spx-deep-research")
+        for name in ("spx-auto", "spx-research", "spx-deep-research")
     }
 
     assert "stop after that workflow returns" in skills["spx-auto"]
@@ -523,12 +528,11 @@ def test_spx_preplan_routes_stop_after_the_authorized_stage() -> None:
     )
     assert "do not continue to `$spx-plan`" in skills["spx-research"]
 
-    for name in ("spx-clarify", "spx-deep-research"):
-        assert "this invocation authorizes only this workflow stage" in skills[name]
-        assert "do not invoke `$spx-plan`" in skills[name]
-
-    assert "do not invoke `$spx-deep-research`" in skills["spx-clarify"]
-    assert "do not invoke `$spx-clarify`" in skills["spx-deep-research"]
+    assert (
+        "this invocation authorizes only this workflow stage"
+        in skills["spx-deep-research"]
+    )
+    assert "do not invoke `$spx-plan`" in skills["spx-deep-research"]
 
 
 def test_spx_read_only_and_runtime_probe_boundaries_are_explicit() -> None:
@@ -907,6 +911,9 @@ def test_advanced_profile_installs_spx_with_only_classic_map_companions(
         )
     )
     for command in (
+        "scan-formats",
+        "scan-policy-stage",
+        "scan-policy-confirm",
         "scan-prepare",
         "scan-lease",
         "scan-checkpoint",
@@ -915,6 +922,12 @@ def test_advanced_profile_installs_spx_with_only_classic_map_companions(
         "scan-status",
     ):
         assert command in installed_scan_contract
+    for policy_marker in (
+        "confirm-ignore",
+        "--include-gitignored",
+        "recommended_parallel_workers",
+    ):
+        assert policy_marker in installed_scan_contract
 
     assert not (skills_dir / "sp-plan" / "SKILL.md").exists()
     assert not (skills_dir / "tdd-workflow" / "SKILL.md").exists()
@@ -927,6 +940,39 @@ def test_advanced_profile_installs_spx_with_only_classic_map_companions(
             f"templates/commands/{command_name}.md"
         )
         assert "Mandatory Subagent Execution" in skill.read_text(encoding="utf-8")
+
+
+def test_classic_codex_openai_metadata_limits_implicit_invocation_to_passive_workflows(
+    tmp_path,
+) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "classic-openai-policy"
+    manifest = IntegrationManifest("codex", project)
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "classic"},
+        script_type="sh",
+    )
+
+    skills_dir = integration.skills_dest(project)
+    installed_sp_skills = {
+        path.parent.name for path in skills_dir.glob("sp-*/SKILL.md")
+    }
+    metadata_by_skill = {
+        path.parents[1].name: yaml.safe_load(path.read_text(encoding="utf-8"))
+        for path in skills_dir.glob("sp-*/agents/openai.yaml")
+    }
+
+    assert set(metadata_by_skill) == installed_sp_skills
+    assert {
+        skill_name
+        for skill_name, metadata in metadata_by_skill.items()
+        if metadata["policy"]["allow_implicit_invocation"] is True
+    } == CLASSIC_IMPLICIT_INVOCATION_SKILLS
+    for skill_name, metadata in metadata_by_skill.items():
+        assert f"${skill_name}" in metadata["interface"]["default_prompt"]
 
 
 def test_advanced_local_references_use_the_project_pinned_launcher(tmp_path) -> None:
@@ -1017,8 +1063,12 @@ def test_codex_skill_frontmatter_is_not_rewritten_by_project_launcher(
         source_frontmatter_text, _ = integration._split_frontmatter(source_text)
         source_frontmatter = yaml.safe_load(source_frontmatter_text)
 
+        expected_description = CommandRegistrar.apply_classic_skill_invocation_policy(
+            skill_file.parent.name,
+            source_frontmatter["description"],
+        )
         assert " ".join(frontmatter["description"].split()) == " ".join(
-            source_frontmatter["description"].split()
+            expected_description.split()
         ), skill_file
         assert project_runtime_launcher_arg() not in frontmatter_text, skill_file
         generated_bodies.append(body)
@@ -1230,6 +1280,10 @@ def test_fresh_classic_codex_init_keeps_all_agent_flows_off_source_launcher(
         project / ".codex" / "skills" / "sp-map-scan" / "SKILL.md"
     ).read_text(encoding="utf-8")
     for command in (
+        "confirm-ignore",
+        "scan-formats",
+        "scan-policy-stage",
+        "scan-policy-confirm",
         "scan-prepare",
         "scan-lease",
         "scan-checkpoint",
@@ -1241,6 +1295,8 @@ def test_fresh_classic_codex_init_keeps_all_agent_flows_off_source_launcher(
             f"SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime cognition {command}"
             in map_scan
         )
+    assert "--include-gitignored" in map_scan
+    assert "recommended_parallel_workers" in map_scan
     assert "{{specify-subcmd:" not in map_scan
 
     map_scan_worker = (
@@ -1831,7 +1887,14 @@ def test_advanced_map_phases_keep_independent_write_boundaries() -> None:
         encoding="utf-8"
     )
 
-    for required in ("scan-prepare", "scan-accept", "validate-scan"):
+    for required in (
+        "scan-formats",
+        "scan-policy-stage",
+        "scan-policy-confirm",
+        "scan-prepare",
+        "scan-accept",
+        "validate-scan",
+    ):
         assert required in scan
     assert "Do not run\n`build-from-scan`" in scan
     assert "validate-build" not in scan

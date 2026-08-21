@@ -7,7 +7,8 @@ description: Focused requirements-quality checklist workflow for advanced coding
 
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md`, using cognition intent `plan`, and
-`references/checklist-contract.md`. Resolve the active feature with the
+`references/checklist-contract.md`. Read `references/ui-quality-gate.md` when
+the requirements or plan are UI-bearing. Resolve the active feature with the
 installed prerequisite script.
 
 Choose the checklist domain and audience from the request and current artifacts.

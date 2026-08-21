@@ -9,13 +9,14 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	runtimecmd "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
 var (
@@ -992,9 +993,7 @@ func readStagedIndexMode(ctx context.Context, directory, relativePath string) (i
 }
 
 func runGitShowBytes(ctx context.Context, directory, revision string) ([]byte, error) {
-	command := execCommandContext(ctx, "git", "show", "--no-textconv", revision)
-	command.Dir = directory
-	output, err := command.Output()
+	output, err := runtimecmd.CommandOutputContext(ctx, directory, nil, "git", "show", "--no-textconv", revision)
 	if err != nil {
 		if contextErr := ctx.Err(); contextErr != nil {
 			return nil, contextErr
@@ -1005,9 +1004,7 @@ func runGitShowBytes(ctx context.Context, directory, revision string) ([]byte, e
 }
 
 func runGitStdoutBytes(ctx context.Context, directory string, arguments ...string) ([]byte, error) {
-	command := execCommandContext(ctx, "git", arguments...)
-	command.Dir = directory
-	output, err := command.Output()
+	output, err := runtimecmd.CommandOutputContext(ctx, directory, nil, "git", arguments...)
 	if err != nil {
 		if contextErr := ctx.Err(); contextErr != nil {
 			return nil, contextErr
@@ -1308,8 +1305,4 @@ func boolToPolicy(value bool) SnapshotDeliveryPolicy {
 		return SnapshotContextOnly
 	}
 	return SnapshotRestorable
-}
-
-var execCommandContext = func(ctx context.Context, name string, args ...string) *exec.Cmd {
-	return exec.CommandContext(ctx, name, args...)
 }

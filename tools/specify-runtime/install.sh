@@ -126,7 +126,7 @@ if [[ ! "$source_revision" =~ ^[0-9a-fA-F]{40}([0-9a-fA-F]{24})?$ || "$release_d
   exit 1
 fi
 cognition_help="$("$candidate" cognition --help 2>&1)"
-for command in status query scan-prepare update; do
+for command in status query generate-ignore confirm-ignore scan-set scan-formats scan-policy-stage scan-policy-confirm scan-prepare update; do
   if [[ "$cognition_help" != *"$command"* ]]; then
     echo "Downloaded binary is missing cognition command: ${command}" >&2
     exit 1

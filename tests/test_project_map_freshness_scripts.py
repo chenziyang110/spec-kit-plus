@@ -545,6 +545,21 @@ def test_bash_mark_dirty_routes_scan_build_machine_tokens_to_scan_build(git_repo
     assert result["recommended_next_action"] == "run_map_scan_build"
 
 
+def test_bash_mark_dirty_routes_greenfield_source_conflict_to_scan_build(git_repo: Path):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_bash(git_repo, "record-refresh", "manual")
+
+    result = _run_bash(
+        git_repo,
+        "mark-dirty",
+        "greenfield_baseline_has_project_code",
+    )
+
+    assert result["freshness"] == "stale"
+    assert result["recommended_next_action"] == "run_map_scan_build"
+
+
 def test_bash_mark_dirty_ignores_scan_build_token_strings_inside_prose(git_repo: Path):
     _seed_canonical_map(git_repo)
     _commit_seeded_map(git_repo)
@@ -567,6 +582,7 @@ def test_bash_mark_dirty_ignores_scan_build_token_strings_inside_prose(git_repo:
         ('["baseline_identity_invalid"]', "allowed"),
         ('["active_generation_has_no_path_index_rows"]', "allowed"),
         ('["failed_update_unusable_baseline"]', "allowed"),
+        ('["greenfield_baseline_has_project_code"]', "allowed"),
         ('["path_not_safely_adoptable_by_project_cognition_index: scripts/release/package.ps1"]', "allowed"),
         (
             '["operator note: explicit_rebuild_requested is documented here, not asserted as a machine token"]',
@@ -801,6 +817,21 @@ def test_powershell_mark_dirty_routes_scan_build_machine_tokens_to_scan_build(gi
     _run_powershell(git_repo, "record-refresh", "manual")
 
     result = _run_powershell(git_repo, "mark-dirty", "explicit_rebuild_requested")
+
+    assert result["freshness"] == "stale"
+    assert result["recommended_next_action"] == "run_map_scan_build"
+
+
+def test_powershell_mark_dirty_routes_greenfield_source_conflict_to_scan_build(git_repo: Path):
+    _seed_canonical_map(git_repo)
+    _commit_seeded_map(git_repo)
+    _run_powershell(git_repo, "record-refresh", "manual")
+
+    result = _run_powershell(
+        git_repo,
+        "mark-dirty",
+        "greenfield_baseline_has_project_code",
+    )
 
     assert result["freshness"] == "stale"
     assert result["recommended_next_action"] == "run_map_scan_build"

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -21,9 +20,10 @@ import (
 )
 
 const (
-	defaultPacketSize           = 25
-	workbenchProtocolV2         = "map_scan_workbench.v2"
-	acceptanceReceiptProtocolV1 = "map_scan_acceptance.v1"
+	defaultPacketSize             = 25
+	workbenchProtocolV2           = "map_scan_workbench.v2"
+	acceptanceReceiptProtocolV1   = "map_scan_acceptance.v1"
+	formatReviewRepresentativeCap = 3
 )
 
 const (
@@ -37,22 +37,31 @@ var packetIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 var workerIDPattern = regexp.MustCompile(`^[A-Za-z0-9/][A-Za-z0-9._:/-]{0,127}$`)
 
 type PrepareInput struct {
-	ScanSetPath        string
-	PacketSize         int
-	MaxPaths           int
-	MaxBytes           int64
-	WorkerBudgetTokens int64
-	Force              bool
+	ScanSetPath            string
+	PacketSize             int
+	MaxPaths               int
+	MaxBytes               int64
+	WorkerBudgetTokens     int64
+	IncludeGitIgnored      bool
+	RequireConfirmedPolicy bool
+	Force                  bool
+	FullRebuild            bool
 }
 
 type PreparePayload struct {
-	Status        string   `json:"status"`
-	PathCount     int      `json:"path_count"`
-	PacketCount   int      `json:"packet_count"`
-	PacketIDs     []string `json:"packet_ids"`
-	ScanSetPath   string   `json:"scan_set_path"`
-	WorkbenchPath string   `json:"workbench_path"`
-	NextAction    string   `json:"next_action"`
+	Status              string         `json:"status"`
+	PathCount           int            `json:"path_count"`
+	ReusedPathCount     int            `json:"reused_path_count"`
+	PendingPathCount    int            `json:"pending_path_count"`
+	PacketCount         int            `json:"packet_count"`
+	CacheHitBundleCount int            `json:"cache_hit_bundle_count"`
+	CacheMissReasons    map[string]int `json:"cache_miss_reasons,omitempty"`
+	PacketIDs           []string       `json:"packet_ids"`
+	ScanSetPath         string         `json:"scan_set_path"`
+	WorkbenchPath       string         `json:"workbench_path"`
+	PolicyDigest        string         `json:"policy_digest,omitempty"`
+	PreparationDigest   string         `json:"preparation_digest"`
+	NextAction          string         `json:"next_action"`
 }
 
 type AcceptInput struct {
@@ -80,9 +89,17 @@ type pathClassification struct {
 	Path                 string
 	PathKind             string
 	Extension            string
+	FileFormat           string
+	FormatFamily         string
+	FormatDetection      string
+	FormatKey            string
+	CohortID             string
+	PolicyDecision       string
+	AgentAssist          string
 	SizeBytes            int64
 	DirectoryFamily      string
 	GitTracked           bool
+	GitIgnored           bool
 	ValueTier            string
 	ScanDecision         string
 	Disposition          string
@@ -91,11 +108,19 @@ type pathClassification struct {
 	DecisionSource       string
 }
 
+type detectedFileFormat struct {
+	ID        string
+	Family    string
+	Detection string
+	Key       string
+}
+
 type queueFile struct {
-	Protocol     string        `json:"protocol,omitempty"`
-	GenerationID string        `json:"generation_id,omitempty"`
-	ScanSetPath  string        `json:"scan_set_path,omitempty"`
-	Packets      []queuePacket `json:"packets"`
+	Protocol          string        `json:"protocol,omitempty"`
+	GenerationID      string        `json:"generation_id,omitempty"`
+	ScanSetPath       string        `json:"scan_set_path,omitempty"`
+	PreparationDigest string        `json:"preparation_digest,omitempty"`
+	Packets           []queuePacket `json:"packets"`
 }
 
 type queuePacket struct {
@@ -114,6 +139,7 @@ type queuePacket struct {
 	EstimatedBytes         int64    `json:"estimated_bytes"`
 	EffectiveContextBudget int64    `json:"effective_context_budget_tokens"`
 	Oversized              bool     `json:"oversized,omitempty"`
+	CacheBundleID          string   `json:"cache_bundle_id,omitempty"`
 }
 
 type handoffFile struct {
@@ -230,19 +256,53 @@ func prepareUnlocked(paths rt.Paths, input PrepareInput) (PreparePayload, error)
 	if len(files) == 0 {
 		return PreparePayload{}, fmt.Errorf("canonical scan set contains no files")
 	}
-	if err := requireWorkbenchReplacementAllowed(paths, input.Force); err != nil {
+	if err := preflightExistingWorkbench(paths, input.Force, input.FullRebuild); err != nil {
 		return PreparePayload{}, err
 	}
 
-	classifications, err := classifyRepositoryPaths(paths.Root, files)
+	classifications, err := classifyRepositoryPaths(paths.Root, files, input.IncludeGitIgnored)
 	if err != nil {
 		return PreparePayload{}, err
 	}
+	policyDigest := ""
+	var formatInventory FormatInventoryPayload
+	var confirmedPolicy confirmedFormatPolicy
+	if input.RequireConfirmedPolicy {
+		formatInventory, err = buildFormatInventory(filepath.ToSlash(relScanSet), files, classifications)
+		if err != nil {
+			return PreparePayload{}, err
+		}
+		confirmedPolicy, err = loadConfirmedFormatPolicy(paths, formatInventory)
+		if err != nil {
+			return PreparePayload{}, err
+		}
+		if err := applyConfirmedFormatPolicy(classifications, confirmedPolicy); err != nil {
+			return PreparePayload{}, err
+		}
+		policyDigest = confirmedPolicy.PolicyDigest
+	}
+	preparationDigest, err := preparationFingerprint(
+		paths.Root,
+		filepath.ToSlash(relScanSet),
+		files,
+		classifications,
+		input,
+		policyDigest,
+	)
+	if err != nil {
+		return PreparePayload{}, fmt.Errorf("compute scan preparation digest: %w", err)
+	}
+	if resumed, ok, err := resumeCompatibleWorkbench(paths, preparationDigest, policyDigest, len(files), input.Force, input.FullRebuild); err != nil {
+		return PreparePayload{}, err
+	} else if ok {
+		return resumed, nil
+	}
 	packetPaths := scanPacketPaths(classifications)
 	if len(packetPaths) == 0 {
-		return PreparePayload{}, fmt.Errorf("canonical scan set contains no scan-eligible files after value classification")
+		return PreparePayload{}, fmt.Errorf("canonical scan set contains no scan-eligible files after confirmed boundary classification")
 	}
-	plans, err := planPackets(paths.Root, packetPaths, packetPlanningBudget{
+	cacheSelection := selectReusableScanCache(paths, classifications, packetPaths, input.FullRebuild)
+	plans, err := planPackets(paths.Root, cacheSelection.PendingPaths, packetPlanningBudget{
 		MaxPaths: maxPaths, MaxBytes: maxBytes, MaxTokens: workerBudgetTokens,
 	})
 	if err != nil {
@@ -263,11 +323,39 @@ func prepareUnlocked(paths rt.Paths, input PrepareInput) (PreparePayload, error)
 	packetIDs := make([]string, 0, len(plans))
 	queue := queueFile{
 		Protocol: workbenchProtocolV2, GenerationID: generationID,
-		ScanSetPath: filepath.ToSlash(relScanSet), Packets: []queuePacket{},
+		ScanSetPath: filepath.ToSlash(relScanSet), PreparationDigest: preparationDigest,
+		Packets: []queuePacket{},
 	}
 	handoffs := handoffFile{Events: []map[string]any{}}
+	for index, bundle := range cacheSelection.Bundles {
+		packetID := cachePacketID(generationID, index+1)
+		attemptID := "cache-" + strings.ToLower(strings.TrimPrefix(generationID, "GEN-")) + fmt.Sprintf("-%03d", index+1)
+		assigned := append([]string{}, bundle.ScopePaths...)
+		resultPath := canonicalWorkerResultPath(packetID)
+		packetIDs = append(packetIDs, packetID)
+		queue.Packets = append(queue.Packets, queuePacket{
+			PacketID: packetID, State: "leased", AssignedPaths: assigned, ResultHandoffPath: resultPath,
+			WorkerID: "runtime/cache-replay", AttemptID: attemptID, AttemptNumber: 1,
+			CheckpointSequence: 1, CompletedPaths: append([]string{}, assigned...),
+			EffectiveContextBudget: workerBudgetTokens, CacheBundleID: bundle.BundleID,
+		})
+		handoffs.Events = append(handoffs.Events, map[string]any{
+			"event_id": "dispatch-" + packetID, "packet_id": packetID, "event_type": "cache_replay_prepared",
+			"attempt_id": attemptID, "worker_id": "runtime/cache-replay", "result_handoff_path": resultPath,
+		})
+		if err := writeTextAtomic(
+			filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", packetID+".md"),
+			renderCachePacket(packetID, bundle),
+		); err != nil {
+			return PreparePayload{}, err
+		}
+	}
 	for _, plan := range plans {
-		packetID := fmt.Sprintf("lane-%03d", len(packetIDs)+1)
+		packetSequence := len(packetIDs) - len(cacheSelection.Bundles) + 1
+		packetID := fmt.Sprintf("lane-%03d", packetSequence)
+		if len(cacheSelection.Bundles) > 0 {
+			packetID = deltaPacketID(generationID, packetSequence)
+		}
 		assigned := append([]string{}, plan.Paths...)
 		resultPath := canonicalWorkerResultPath(packetID)
 		packetIDs = append(packetIDs, packetID)
@@ -306,8 +394,8 @@ func prepareUnlocked(paths rt.Paths, input PrepareInput) (PreparePayload, error)
 		path  string
 		value any
 	}{
-		{filepath.Join(workbench, "repository-universe.json"), repositoryUniverse(classifications)},
-		{filepath.Join(workbench, "scan-targets.json"), scanTargets(classifications)},
+		{filepath.Join(workbench, "repository-universe.json"), repositoryUniverse(classifications, policyDigest)},
+		{filepath.Join(workbench, "scan-targets.json"), scanTargets(classifications, policyDigest)},
 		{filepath.Join(workbench, "scan-queue.json"), queue},
 		{filepath.Join(workbench, "handoff-ledger.json"), handoffs},
 		{filepath.Join(workbench, "coverage-ledger.json"), coverageLedgerFile{Rows: []map[string]any{}, OpenGaps: []map[string]any{}}},
@@ -319,6 +407,18 @@ func prepareUnlocked(paths rt.Paths, input PrepareInput) (PreparePayload, error)
 		{filepath.Join(paths.RuntimeDir, "provisional", "observations.json"), map[string]any{"observations": []map[string]any{}}},
 		{filepath.Join(paths.RuntimeDir, "provisional", "claims.json"), map[string]any{"claims": []map[string]any{}}},
 	}
+	if policyDigest != "" {
+		writes = append(writes,
+			struct {
+				path  string
+				value any
+			}{filepath.Join(workbench, formatInventoryFileName), formatInventory},
+			struct {
+				path  string
+				value any
+			}{filepath.Join(workbench, "scan-policy.json"), confirmedPolicy},
+		)
+	}
 	for _, item := range writes {
 		if err := writeJSONAtomic(item.path, item.value); err != nil {
 			return PreparePayload{}, err
@@ -327,15 +427,21 @@ func prepareUnlocked(paths rt.Paths, input PrepareInput) (PreparePayload, error)
 	if err := renderHumanState(paths, queue, coverageLedgerFile{Rows: []map[string]any{}, OpenGaps: []map[string]any{}}); err != nil {
 		return PreparePayload{}, err
 	}
+	if err := replayScanCacheBundles(paths, generationID, cacheSelection.Bundles); err != nil {
+		return PreparePayload{}, err
+	}
+	nextAction := "dispatch_scan_packets"
+	if len(cacheSelection.PendingPaths) == 0 {
+		nextAction = "validate_scan"
+	}
 
 	return PreparePayload{
-		Status:        "prepared",
-		PathCount:     len(files),
-		PacketCount:   len(packetIDs),
-		PacketIDs:     packetIDs,
-		ScanSetPath:   filepath.ToSlash(relScanSet),
-		WorkbenchPath: ".specify/project-cognition/workbench",
-		NextAction:    "dispatch_scan_packets",
+		Status: "prepared", PathCount: len(files), ReusedPathCount: cacheSelection.ReusedPaths,
+		PendingPathCount: len(cacheSelection.PendingPaths), PacketCount: len(packetIDs),
+		CacheHitBundleCount: len(cacheSelection.Bundles), CacheMissReasons: cacheSelection.MissReasons,
+		PacketIDs: packetIDs, ScanSetPath: filepath.ToSlash(relScanSet),
+		WorkbenchPath: ".specify/project-cognition/workbench", PolicyDigest: policyDigest,
+		PreparationDigest: preparationDigest, NextAction: nextAction,
 	}, nil
 }
 
@@ -1397,7 +1503,7 @@ func writePreparedStatus(paths rt.Paths) error {
 	return rt.WriteStatus(paths, status)
 }
 
-func repositoryUniverse(classifications []pathClassification) map[string]any {
+func repositoryUniverse(classifications []pathClassification, policyDigest string) map[string]any {
 	candidates := make([]map[string]any, 0, len(classifications))
 	includedPaths := make([]string, 0, len(classifications))
 	excludedPaths := []string{}
@@ -1407,6 +1513,11 @@ func repositoryUniverse(classifications []pathClassification) map[string]any {
 	valueTier := map[string]string{}
 	scanDecision := map[string]string{}
 	pathKinds := map[string]string{}
+	fileFormats := map[string]string{}
+	formatFamilies := map[string]string{}
+	cohortIDs := map[string]string{}
+	policyDecisions := map[string]string{}
+	agentAssist := map[string]string{}
 	reasons := map[string]string{}
 	decisionSource := map[string]string{}
 	for _, classification := range classifications {
@@ -1415,9 +1526,17 @@ func repositoryUniverse(classifications []pathClassification) map[string]any {
 			"path":                   path,
 			"path_kind":              classification.PathKind,
 			"extension":              classification.Extension,
+			"file_format":            classification.FileFormat,
+			"format_family":          classification.FormatFamily,
+			"format_detection":       classification.FormatDetection,
+			"format_key":             classification.FormatKey,
+			"cohort_id":              classification.CohortID,
+			"policy_decision":        classification.PolicyDecision,
+			"agent_assist":           classification.AgentAssist,
 			"size_bytes":             classification.SizeBytes,
 			"directory_family":       classification.DirectoryFamily,
 			"git_tracked":            classification.GitTracked,
+			"git_ignored":            classification.GitIgnored,
 			"ignored_by_cognition":   false,
 			"matched_ignore_rule":    nil,
 			"value_tier":             classification.ValueTier,
@@ -1440,10 +1559,15 @@ func repositoryUniverse(classifications []pathClassification) map[string]any {
 		valueTier[path] = classification.ValueTier
 		scanDecision[path] = classification.ScanDecision
 		pathKinds[path] = classification.PathKind
+		fileFormats[path] = classification.FileFormat
+		formatFamilies[path] = classification.FormatFamily
+		cohortIDs[path] = classification.CohortID
+		policyDecisions[path] = classification.PolicyDecision
+		agentAssist[path] = classification.AgentAssist
 		reasons[path] = classification.ClassificationReason
 		decisionSource[path] = classification.DecisionSource
 	}
-	return map[string]any{
+	result := map[string]any{
 		"schema_version":         2,
 		"candidate_universe":     candidates,
 		"included_paths":         includedPaths,
@@ -1454,12 +1578,22 @@ func repositoryUniverse(classifications []pathClassification) map[string]any {
 		"value_tier":             valueTier,
 		"scan_decision":          scanDecision,
 		"path_kind":              pathKinds,
+		"file_format":            fileFormats,
+		"format_family":          formatFamilies,
+		"cohort_id":              cohortIDs,
+		"policy_decision":        policyDecisions,
+		"agent_assist":           agentAssist,
+		"format_review_groups":   buildFormatReviewGroups(classifications),
 		"classification_reasons": reasons,
 		"decision_source":        decisionSource,
 	}
+	if policyDigest != "" {
+		result["policy_digest"] = policyDigest
+	}
+	return result
 }
 
-func scanTargets(classifications []pathClassification) map[string]any {
+func scanTargets(classifications []pathClassification, policyDigest string) map[string]any {
 	selectedPaths := []string{}
 	sampledPaths := []string{}
 	inventoryOnlyPaths := []string{}
@@ -1470,6 +1604,8 @@ func scanTargets(classifications []pathClassification) map[string]any {
 	dispositions := map[string]string{}
 	criticality := map[string]string{}
 	reasons := map[string]string{}
+	agentAssist := map[string]string{}
+	policyDecisions := map[string]string{}
 	for _, classification := range classifications {
 		path := classification.Path
 		switch classification.ScanDecision {
@@ -1490,10 +1626,17 @@ func scanTargets(classifications []pathClassification) map[string]any {
 		dispositions[path] = classification.Disposition
 		criticality[path] = classification.Criticality
 		reasons[path] = classification.ClassificationReason
+		agentAssist[path] = classification.AgentAssist
+		policyDecisions[path] = classification.PolicyDecision
 	}
-	return map[string]any{
+	selectionBasis := "code_format_first_agent_assisted"
+	if policyDigest != "" {
+		selectionBasis = "confirmed_format_policy_agent_assisted"
+	}
+	result := map[string]any{
 		"schema_version":         2,
 		"selection_policy":       "value_weighted",
+		"selection_basis":        selectionBasis,
 		"selected_paths":         selectedPaths,
 		"sampled_paths":          sampledPaths,
 		"inventory_only_paths":   inventoryOnlyPaths,
@@ -1503,35 +1646,95 @@ func scanTargets(classifications []pathClassification) map[string]any {
 		"scan_decision":          decision,
 		"disposition":            dispositions,
 		"criticality":            criticality,
+		"agent_assist":           agentAssist,
+		"policy_decision":        policyDecisions,
 		"classification_reasons": reasons,
 	}
+	if policyDigest != "" {
+		result["policy_digest"] = policyDigest
+	}
+	return result
 }
 
-func classifyRepositoryPaths(root string, files []string) ([]pathClassification, error) {
+func buildFormatReviewGroups(classifications []pathClassification) []map[string]any {
+	type reviewGroup struct {
+		pathCount       int
+		representatives []string
+	}
+	groups := map[string]*reviewGroup{}
+	for _, classification := range classifications {
+		if classification.AgentAssist != "format_review" {
+			continue
+		}
+		key := classification.FormatKey
+		if key == "" {
+			key = "unknown"
+		}
+		group := groups[key]
+		if group == nil {
+			group = &reviewGroup{}
+			groups[key] = group
+		}
+		group.pathCount++
+		if len(group.representatives) < formatReviewRepresentativeCap {
+			group.representatives = append(group.representatives, classification.Path)
+		}
+	}
+	keys := make([]string, 0, len(groups))
+	for key := range groups {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	result := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		group := groups[key]
+		result = append(result, map[string]any{
+			"format_key":           key,
+			"path_count":           group.pathCount,
+			"representative_paths": group.representatives,
+			"agent_task":           "review_representatives_only",
+		})
+	}
+	return result
+}
+
+func classifyRepositoryPaths(root string, files []string, includeGitIgnored bool) ([]pathClassification, error) {
 	tracked := gitTrackedPaths(root)
+	gitIgnored := gitIgnoredPaths(root, files)
 	classifications := make([]pathClassification, 0, len(files))
 	for _, path := range files {
-		info, err := os.Stat(filepath.Join(root, filepath.FromSlash(path)))
+		absPath := filepath.Join(root, filepath.FromSlash(path))
+		info, err := os.Stat(absPath)
 		if err != nil {
 			return nil, fmt.Errorf("classify scan path %s: %w", path, err)
 		}
-		kind := pathKind(path)
-		tier, reason := classifyValueTier(path, kind)
+		format := detectFileFormat(absPath, path)
+		kind := pathKind(path, format)
+		tier, reason := classifyValueTier(path, kind, tracked[path], gitIgnored[path], includeGitIgnored)
 		disposition, decision, criticality := classificationPolicy(tier)
-		classifications = append(classifications, pathClassification{
+		agentAssist := agentAssistMode(format, kind, decision, reason)
+		classification := pathClassification{
 			Path:                 path,
 			PathKind:             kind,
 			Extension:            strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), "."),
+			FileFormat:           format.ID,
+			FormatFamily:         format.Family,
+			FormatDetection:      format.Detection,
+			FormatKey:            format.Key,
+			AgentAssist:          agentAssist,
 			SizeBytes:            info.Size(),
 			DirectoryFamily:      directoryFamily(path),
 			GitTracked:           tracked[path],
+			GitIgnored:           gitIgnored[path],
 			ValueTier:            tier,
 			ScanDecision:         decision,
 			Disposition:          disposition,
 			Criticality:          criticality,
 			ClassificationReason: reason,
 			DecisionSource:       "specify-runtime cognition scan-prepare",
-		})
+		}
+		classification.CohortID = formatCohortID(classification)
+		classifications = append(classifications, classification)
 	}
 	return classifications, nil
 }
@@ -1546,12 +1749,25 @@ func scanPacketPaths(classifications []pathClassification) []string {
 	return paths
 }
 
-func classifyValueTier(path string, kind string) (string, string) {
+func classifyValueTier(path string, kind string, gitTracked bool, gitIgnored bool, includeGitIgnored bool) (string, string) {
 	lower := strings.ToLower(filepath.ToSlash(path))
 	base := strings.ToLower(filepath.Base(lower))
+	if agentOrWorkflowArtifactPath(lower) {
+		return "P3", "agent_or_workflow_artifact"
+	}
+	if localRuntimePayloadPath(lower) {
+		return "P3", "local_runtime_vendor_data_or_log"
+	}
+	if gitIgnored && !gitTracked && !includeGitIgnored {
+		return "P3", "gitignored_untracked_path"
+	}
 	switch kind {
 	case "vendor", "build_output", "generated", "asset", "lockfile":
 		return "P3", "generated_vendor_asset_or_low_signal"
+	case "data":
+		return "P3", "recognized_non_code_data_format"
+	case "unknown":
+		return "P3", "unrecognized_non_code_format"
 	case "test":
 		if highRiskValidationPath(lower) {
 			return "P1", "critical_integration_or_security_verification"
@@ -1564,11 +1780,33 @@ func classifyValueTier(path string, kind string) (string, string) {
 		return "P2", "secondary_documentation_or_usage"
 	case "config", "script", "template":
 		return "P1", "configuration_build_release_or_template"
+	case "source":
+		// Known code formats are ranked below by runtime importance.
+	default:
+		return "P3", "unrecognized_non_code_format"
 	}
 	if highValueSourcePath(lower, base) {
 		return "P0", "runtime_entrypoint_or_critical_surface"
 	}
-	return "P1", "project_source_or_runtime_support"
+	return "P1", "recognized_code_format"
+}
+
+func agentAssistMode(format detectedFileFormat, kind string, scanDecision string, reason string) string {
+	if scanDecision == "scan" || scanDecision == "sample" {
+		switch format.Family {
+		case "code", "script", "config":
+			return "semantic_scan"
+		case "doc":
+			return "context_scan"
+		}
+		if kind == "test" || kind == "template" {
+			return "semantic_scan"
+		}
+	}
+	if format.Family == "unknown" && reason == "unrecognized_non_code_format" {
+		return "format_review"
+	}
+	return "none"
 }
 
 func classificationPolicy(valueTier string) (string, string, string) {
@@ -1605,6 +1843,45 @@ func highValueSourcePath(lower string, base string) bool {
 	}
 }
 
+func agentOrWorkflowArtifactPath(path string) bool {
+	segments := strings.Split(strings.Trim(path, "/"), "/")
+	if len(segments) == 0 {
+		return false
+	}
+	switch segments[0] {
+	case ".planning", ".agents", ".codex", ".cursor", ".grok", ".claude", ".gemini", ".qwen", ".opencode", ".windsurf", ".junie", ".kilocode", ".augment", ".roo", ".codebuddy", ".qoder", ".kiro", ".shai", ".tabnine", ".kimi", ".pi", ".iflow", ".forge", ".bob", ".trae", ".vibe", ".zcode":
+		return true
+	case ".github":
+		return len(segments) > 1 && segments[1] == "agents"
+	default:
+		return false
+	}
+}
+
+func localRuntimePayloadPath(path string) bool {
+	segments := strings.Split(strings.Trim(path, "/"), "/")
+	for index, segment := range segments {
+		if segment != "runtime" && segment != "runtimes" {
+			continue
+		}
+		if index == 0 {
+			continue
+		}
+		switch segments[index-1] {
+		case "scripts", "tools", "tooling", "local", ".local":
+		default:
+			continue
+		}
+		for _, child := range segments[index+1:] {
+			switch child {
+			case "bin", ".bin", "data", ".data", "log", "logs", "cache", ".cache", "downloads":
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func matchesPathSegment(path string, values ...string) bool {
 	segments := strings.Split(strings.Trim(path, "/"), "/")
 	for _, segment := range segments {
@@ -1630,9 +1907,7 @@ func directoryFamily(path string) string {
 
 func gitTrackedPaths(root string) map[string]bool {
 	tracked := map[string]bool{}
-	cmd := exec.Command("git", "ls-files", "-z", "--")
-	cmd.Dir = root
-	data, err := cmd.Output()
+	data, err := rt.CommandOutput(root, nil, "git", "ls-files", "-z", "--")
 	if err != nil {
 		return tracked
 	}
@@ -1643,6 +1918,25 @@ func gitTrackedPaths(root string) map[string]bool {
 		}
 	}
 	return tracked
+}
+
+func gitIgnoredPaths(root string, candidates []string) map[string]bool {
+	ignored := map[string]bool{}
+	if len(candidates) == 0 {
+		return ignored
+	}
+	stdin := strings.NewReader(strings.Join(candidates, "\x00") + "\x00")
+	data, err := rt.CommandOutput(root, stdin, "git", "check-ignore", "-z", "--stdin")
+	if err != nil {
+		return ignored
+	}
+	for _, path := range strings.Split(string(data), "\x00") {
+		path = filepath.ToSlash(path)
+		if path != "" {
+			ignored[path] = true
+		}
+	}
+	return ignored
 }
 
 func renderPacket(packetID string, paths []string) string {
@@ -1690,10 +1984,236 @@ func renderHumanState(paths rt.Paths, queue queueFile, ledger coverageLedgerFile
 	return writeTextAtomic(filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.md"), coverage)
 }
 
-func pathKind(path string) string {
+func detectFileFormat(absPath string, path string) detectedFileFormat {
+	lower := strings.ToLower(filepath.ToSlash(path))
+	base := strings.ToLower(filepath.Base(lower))
+	extension := strings.ToLower(filepath.Ext(base))
+	if format, ok := specialFilenameFormat(base); ok {
+		return format
+	}
+	if format, ok := extensionFormat(extension, base, lower); ok {
+		return format
+	}
+	if format, ok := shebangFormat(absPath); ok {
+		return format
+	}
+	if extension != "" {
+		return detectedFileFormat{ID: "unknown", Family: "unknown", Detection: "extension", Key: "extension:" + extension}
+	}
+	return detectedFileFormat{ID: "unknown", Family: "unknown", Detection: "none", Key: "extensionless"}
+}
+
+func specialFilenameFormat(base string) (detectedFileFormat, bool) {
+	format := func(id string, family string) (detectedFileFormat, bool) {
+		return detectedFileFormat{ID: id, Family: family, Detection: "special_filename", Key: "filename:" + base}, true
+	}
+	if base == "dockerfile" || strings.HasPrefix(base, "dockerfile.") {
+		return format("dockerfile", "config")
+	}
+	switch base {
+	case "makefile", "gnumakefile":
+		return format("make", "script")
+	case "justfile":
+		return format("just", "script")
+	case "jenkinsfile":
+		return format("groovy", "script")
+	case "procfile":
+		return format("procfile", "config")
+	case "cmakelists.txt":
+		return format("cmake", "config")
+	case "go.mod", "go.work":
+		return format("go-module", "config")
+	case "package.json":
+		return format("node-manifest", "config")
+	case "pyproject.toml":
+		return format("python-project", "config")
+	case "cargo.toml":
+		return format("rust-project", "config")
+	case "composer.json":
+		return format("php-project", "config")
+	case "gemfile", "rakefile":
+		return format("ruby", "script")
+	case "build", "workspace", "module.bazel":
+		return format("starlark", "code")
+	case ".gitignore", ".dockerignore", ".npmrc", ".editorconfig", ".eslintrc", ".prettierrc", ".babelrc":
+		return format("tool-config", "config")
+	default:
+		return detectedFileFormat{}, false
+	}
+}
+
+func extensionFormat(extension string, base string, path string) (detectedFileFormat, bool) {
+	format := func(id string, family string) (detectedFileFormat, bool) {
+		return detectedFileFormat{ID: id, Family: family, Detection: "extension", Key: "extension:" + extension}, true
+	}
+	switch extension {
+	case ".go":
+		return format("go", "code")
+	case ".rs":
+		return format("rust", "code")
+	case ".py", ".pyi":
+		return format("python", "code")
+	case ".js", ".mjs", ".cjs", ".jsx":
+		return format("javascript", "code")
+	case ".ts", ".mts", ".cts", ".tsx":
+		return format("typescript", "code")
+	case ".java":
+		return format("java", "code")
+	case ".kt", ".kts":
+		return format("kotlin", "code")
+	case ".scala", ".sc":
+		return format("scala", "code")
+	case ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx", ".m", ".mm":
+		return format("c-family", "code")
+	case ".cs":
+		return format("csharp", "code")
+	case ".fs", ".fsx":
+		return format("fsharp", "code")
+	case ".vb":
+		return format("visual-basic", "code")
+	case ".swift":
+		return format("swift", "code")
+	case ".dart":
+		return format("dart", "code")
+	case ".rb":
+		return format("ruby", "code")
+	case ".php":
+		return format("php", "code")
+	case ".lua":
+		return format("lua", "code")
+	case ".pl", ".pm":
+		return format("perl", "code")
+	case ".r":
+		return format("r", "code")
+	case ".ex", ".exs":
+		return format("elixir", "code")
+	case ".erl", ".hrl":
+		return format("erlang", "code")
+	case ".hs", ".lhs":
+		return format("haskell", "code")
+	case ".clj", ".cljs", ".cljc":
+		return format("clojure", "code")
+	case ".ml", ".mli":
+		return format("ocaml", "code")
+	case ".zig":
+		return format("zig", "code")
+	case ".nim":
+		return format("nim", "code")
+	case ".sol":
+		return format("solidity", "code")
+	case ".move":
+		return format("move", "code")
+	case ".sql":
+		return format("sql", "code")
+	case ".proto":
+		return format("protobuf", "code")
+	case ".graphql", ".gql":
+		return format("graphql", "code")
+	case ".vue":
+		return format("vue", "code")
+	case ".svelte":
+		return format("svelte", "code")
+	case ".astro":
+		return format("astro", "code")
+	case ".html", ".htm":
+		return format("html", "code")
+	case ".css", ".scss", ".sass", ".less":
+		return format("stylesheet", "code")
+	case ".tf", ".hcl", ".bicep", ".rego", ".cue", ".nix", ".bazel":
+		return format(strings.TrimPrefix(extension, "."), "code")
+	case ".groovy", ".gradle":
+		return format("groovy", "code")
+	case ".asm", ".s":
+		return format("assembly", "code")
+	case ".sh", ".bash", ".zsh", ".fish":
+		return format("shell", "script")
+	case ".ps1", ".psm1":
+		return format("powershell", "script")
+	case ".bat", ".cmd":
+		return format("windows-shell", "script")
+	case ".yaml", ".yml":
+		return format("yaml", "config")
+	case ".toml":
+		return format("toml", "config")
+	case ".ini", ".cfg", ".conf", ".properties", ".xml", ".tfvars", ".csproj", ".fsproj", ".vbproj", ".sln":
+		return format(strings.TrimPrefix(extension, "."), "config")
+	case ".json":
+		if jsonConfigPath(base, path) {
+			return format("json", "config")
+		}
+		return format("json", "data")
+	case ".md":
+		return format("markdown", "doc")
+	case ".mdx":
+		return format("mdx", "code")
+	case ".rst", ".adoc", ".txt":
+		return format(strings.TrimPrefix(extension, "."), "doc")
+	case ".csv", ".tsv", ".parquet", ".avro", ".orc", ".ndjson", ".jsonl":
+		return format(strings.TrimPrefix(extension, "."), "data")
+	case ".svg":
+		return format("svg", "asset")
+	default:
+		return detectedFileFormat{}, false
+	}
+}
+
+func jsonConfigPath(base string, path string) bool {
+	return base == "manifest.json" || base == "config.json" ||
+		strings.HasPrefix(base, "tsconfig") || strings.HasPrefix(base, "jsconfig") ||
+		strings.HasSuffix(base, ".schema.json") || strings.HasSuffix(base, ".config.json") ||
+		strings.HasPrefix(path, ".vscode/") || strings.Contains(path, "/.vscode/") ||
+		strings.HasPrefix(path, "config/") || strings.Contains(path, "/config/") ||
+		strings.HasPrefix(path, "configs/") || strings.Contains(path, "/configs/")
+}
+
+func shebangFormat(absPath string) (detectedFileFormat, bool) {
+	file, err := os.Open(absPath)
+	if err != nil {
+		return detectedFileFormat{}, false
+	}
+	defer file.Close()
+	buf := make([]byte, 512)
+	n, _ := file.Read(buf)
+	line := strings.ToLower(string(buf[:n]))
+	if !strings.HasPrefix(line, "#!") {
+		return detectedFileFormat{}, false
+	}
+	if index := strings.IndexByte(line, '\n'); index >= 0 {
+		line = line[:index]
+	}
+	id := "script"
+	switch {
+	case strings.Contains(line, "python"):
+		id = "python"
+	case strings.Contains(line, "node"), strings.Contains(line, "deno"), strings.Contains(line, "bun"):
+		id = "javascript"
+	case strings.Contains(line, "powershell"), strings.Contains(line, "pwsh"):
+		id = "powershell"
+	case strings.Contains(line, "ruby"):
+		id = "ruby"
+	case strings.Contains(line, "perl"):
+		id = "perl"
+	case strings.Contains(line, "php"):
+		id = "php"
+	case strings.Contains(line, "lua"):
+		id = "lua"
+	case strings.Contains(line, "bash"), strings.Contains(line, "zsh"), strings.Contains(line, "fish"), strings.Contains(line, "/sh"):
+		id = "shell"
+	}
+	return detectedFileFormat{ID: id, Family: "script", Detection: "shebang", Key: "shebang:" + id}, true
+}
+
+func pathKind(path string, format detectedFileFormat) string {
 	lower := strings.ToLower(filepath.ToSlash(path))
 	base := strings.ToLower(filepath.Base(path))
 	switch {
+	case agentOrWorkflowArtifactPath(lower):
+		return "generated"
+	case localRuntimePayloadPath(lower):
+		if matchesPathSegment(lower, ".bin", "bin", "downloads") {
+			return "vendor"
+		}
+		return "build_output"
 	case matchesPathSegment(lower, "vendor", "third_party", "node_modules"):
 		return "vendor"
 	case matchesPathSegment(lower, "dist", "coverage", ".next", ".nuxt", ".output", "__pycache__"):
@@ -1702,20 +2222,24 @@ func pathKind(path string) string {
 		return "generated"
 	case isLockfile(base):
 		return "lockfile"
-	case isAssetFile(lower):
+	case format.Family == "asset" || isAssetFile(lower):
 		return "asset"
 	case matchesPathSegment(lower, "templates", "template") || strings.HasSuffix(lower, ".tmpl") || strings.HasSuffix(lower, ".tpl"):
 		return "template"
-	case strings.Contains(lower, "/test/") || strings.Contains(lower, "/tests/") || strings.Contains(base, "test"):
-		return "test"
-	case base == "readme.md" || strings.HasSuffix(lower, ".md"):
+	case format.Family == "doc":
 		return "doc"
-	case base == "go.mod" || base == "package.json" || strings.HasSuffix(lower, ".toml") || strings.HasSuffix(lower, ".yaml") || strings.HasSuffix(lower, ".yml"):
+	case format.Family == "code" && (strings.Contains(lower, "/test/") || strings.Contains(lower, "/tests/") || strings.Contains(base, "test")):
+		return "test"
+	case format.Family == "config":
 		return "config"
-	case strings.HasSuffix(lower, ".sh") || strings.HasSuffix(lower, ".ps1"):
+	case format.Family == "script":
 		return "script"
-	default:
+	case format.Family == "code":
 		return "source"
+	case format.Family == "data":
+		return "data"
+	default:
+		return "unknown"
 	}
 }
 

@@ -206,7 +206,7 @@ func TestTestDesignTasksBuildPreservesRefsAndRendersThemInTasksMarkdown(t *testi
 		"must_preserve_refs": []any{}, "consequence_obligation_refs": []any{},
 		"capability_operation_refs": []any{}, "fidelity_refs": []any{},
 		"ui_contract": map[string]any{
-			"fidelity_level": "none", "required_states": []any{}, "required_evidence": []any{}, "must_not": []any{},
+			"fidelity_level": "none", "interaction_matrix": []any{}, "editing_matrix": []any{}, "required_states": []any{}, "data_state_matrix": []any{}, "required_evidence": []any{}, "must_not": []any{},
 		},
 		"validation_policy": map[string]any{}, "task_checks": []any{}, "required_validation": []any{},
 		"required_consumer_evidence": []any{}, "test_case_refs": []any{}, "test_data_refs": []any{},
@@ -346,7 +346,7 @@ func TestTestDesignImplementContinuesAfterExecutionStartsButStillRejectsArtifact
 		"must_preserve_refs": []any{}, "consequence_obligation_refs": []any{},
 		"capability_operation_refs": []any{}, "fidelity_refs": []any{},
 		"ui_contract": map[string]any{
-			"fidelity_level": "none", "required_states": []any{}, "required_evidence": []any{}, "must_not": []any{},
+			"fidelity_level": "none", "interaction_matrix": []any{}, "editing_matrix": []any{}, "required_states": []any{}, "data_state_matrix": []any{}, "required_evidence": []any{}, "must_not": []any{},
 		},
 		"validation_policy": map[string]any{}, "task_checks": []any{}, "required_validation": []any{},
 		"required_consumer_evidence": []any{}, "test_case_refs": []any{}, "test_data_refs": []any{},

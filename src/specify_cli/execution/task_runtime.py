@@ -259,6 +259,7 @@ def _lifecycle_template(
             "visual_comparison": "not-applicable",
             "fidelity_status": "not-applicable",
             "reviewer": "agent",
+            "human_review_ref": None,
         },
         "obligation_evidence": [],
         "blockers": [],

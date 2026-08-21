@@ -265,6 +265,107 @@ def test_runtime_runner_uses_unified_namespaced_argv(
     assert "spec-lint" not in calls[0][0]
 
 
+@pytest.mark.parametrize(
+    ("args", "expected_timeout"),
+    [
+        (["quick", "status", "Q-123", "--format", "json"], 35.0),
+        (
+            ["artifact", "show", "--path", "spec.md", "--format", "json"],
+            35.0,
+        ),
+        (["validate", "spec", "--feature-dir", ".", "--format", "json"], 305.0),
+        (
+            ["run", "launch", "--adapter-id", "codex", "--", "codex", "exec"],
+            21615.0,
+        ),
+    ],
+)
+def test_runtime_runner_applies_a_bounded_timeout_to_every_command(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    args: list[str],
+    expected_timeout: float,
+) -> None:
+    runtime = _load_runtime()
+    binary = _write_executable(tmp_path / RUNTIME_BINARY_NAME)
+    calls: list[dict[str, object]] = []
+    monkeypatch.delenv("SPECIFY_RUNTIME_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.setattr(
+        runtime,
+        "resolve_specify_runtime_binary",
+        lambda project_root=None: [str(binary)],
+    )
+
+    def fake_run(_command: list[str], **kwargs: object) -> SimpleNamespace:
+        calls.append(kwargs)
+        return SimpleNamespace(returncode=0, stdout='{"status":"ok"}', stderr="")
+
+    monkeypatch.setattr(runtime.subprocess, "run", fake_run)
+
+    runtime.run_specify_runtime(args, cwd=tmp_path)
+
+    assert calls[0]["timeout"] == expected_timeout
+
+
+def test_runtime_runner_converts_timeout_into_a_diagnostic_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime = _load_runtime()
+    binary = _write_executable(tmp_path / RUNTIME_BINARY_NAME)
+    monkeypatch.delenv("SPECIFY_RUNTIME_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.setattr(
+        runtime,
+        "resolve_specify_runtime_binary",
+        lambda project_root=None: [str(binary)],
+    )
+
+    def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        raise runtime.subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(runtime.subprocess, "run", fake_run)
+
+    with pytest.raises(
+        runtime.SpecifyRuntimeError,
+        match=r"specify-runtime quick status timed out after 35 seconds",
+    ):
+        runtime.run_specify_runtime(
+            ["quick", "status", "Q-123", "--format", "json"],
+            cwd=tmp_path,
+        )
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "forever"])
+def test_runtime_runner_rejects_unbounded_or_invalid_timeout_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    value: str,
+) -> None:
+    runtime = _load_runtime()
+    binary = _write_executable(tmp_path / RUNTIME_BINARY_NAME)
+    monkeypatch.setenv("SPECIFY_RUNTIME_TIMEOUT_SECONDS", value)
+    monkeypatch.setattr(
+        runtime,
+        "resolve_specify_runtime_binary",
+        lambda project_root=None: [str(binary)],
+    )
+    monkeypatch.setattr(
+        runtime.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=0,
+            stdout='{"status":"ok"}',
+            stderr="",
+        ),
+    )
+
+    with pytest.raises(
+        runtime.SpecifyRuntimeError,
+        match="SPECIFY_RUNTIME_TIMEOUT_SECONDS must be a positive number of seconds",
+    ):
+        runtime.run_specify_runtime(["api", "list", "--format", "json"], cwd=tmp_path)
+
+
 def test_runtime_runner_unwraps_cognition_envelope_for_existing_python_consumers(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -861,12 +962,13 @@ def test_python_callers_use_only_unified_runtime_namespaces() -> None:
 
     assert unresolved == []
     assert any(prefix[0] == "cognition" for prefix in prefixes)
+    assert any(prefix[0] == "deep-research" for prefix in prefixes)
     assert any(prefix[0] == "prd-build" for prefix in prefixes)
     assert any(prefix[0] == "prd-scan" for prefix in prefixes)
     assert any(prefix[:2] == ("validate", "spec") for prefix in prefixes)
     assert any(prefix[0] == "workflow" for prefix in prefixes)
     assert all(
-        prefix[0] in {"cognition", "prd-build", "prd-scan", "workflow"}
+        prefix[0] in {"cognition", "deep-research", "prd-build", "prd-scan", "workflow"}
         or prefix[:2] == ("validate", "spec")
         for prefix in prefixes
     )

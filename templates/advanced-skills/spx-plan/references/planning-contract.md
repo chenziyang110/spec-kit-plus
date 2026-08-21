@@ -27,7 +27,11 @@ authorization; Tasks requires a fresh feature handoff, its own projection, and
 runtime task-index binding. Avoid a Plan-contract basis/hash cycle.
 
 When UI applies, preserve the feature `ui-brief.md` adoption binding rather
-than reinterpreting it. Query its exact
+than reinterpreting it. For a late design overlay, first verify the current
+`formal-post-specify` overlay with `specify-runtime design adoption` against the
+exact unchanged source spec ref and SHA-256. This is the
+specify -> design -> plan route; it does not rerun Specify. A missing/mismatched
+receipt blocks Plan, while a real requirements change returns to Specify. Query its exact
 `.specify/design/changes/<UD-ID>/design-contract.json` and matching `DESIGN.md`
 through targeted `specify-runtime artifact show` calls; use the former as the
 machine-readable source of truth and the latter only as the corresponding
@@ -35,15 +39,20 @@ human-readable projection for review and explanation. Never resolve “latest”
 from the index. Explicitly set `ui_applicable: true`,
 preserve `ui_brief_ref`, and record `design_readiness: approved` or a bounded
 `narrow-existing-pattern-exception`. Map its work/surface/platform types,
-subject/audience/job, three theses, signature, approved visual ref, reference
+subject/audience/job, three theses, signature, exact `style_authority`, approved visual ref, reference
 intents, real content/image plans, preview/manifest/handoff SHA-256 values,
 immutable handoff ref, approved `DS-*` decision IDs, selected `DH-*` handoff
 contract IDs, entry points, approved design tokens/components, color modes,
-component anatomy/state contracts, responsive/motion contracts, required
-states, responsive/accessibility rules, fidelity constraints, and
+component anatomy/state contracts, exact `interaction_matrix`, `editing_matrix`,
+and `data_state_matrix` rows, component `interaction_modes` / `data_scenarios`,
+responsive/motion contracts including `stretch_behavior` and
+`overflow_behavior`, required states, responsive/accessibility rules, fidelity constraints, and
 must-preserve/may-adapt/must-not decisions into
 `plan-contract.json#/ui_design_contract`. The verification plan names the
-representative viewport/state matrix, screenshot or platform capture routes,
+representative risk-based input × data × size matrix, including pointer/mouse,
+keyboard/focus, applicable touch/shortcut/command paths, empty and populated
+data, degraded/recovery states, and continuous resize while interaction context
+is active; screenshot or platform capture routes,
 the structure/visual/runtime evidence triad, visual comparison, comparison
 tolerance, accepted deviations, decision coverage, and accepted
 deviation or pending-human-review boundary. Carry verified cognition routes for
@@ -77,3 +86,34 @@ Traceability Matrix` with the runtime-required columns: `Plan Decision`,
 `Handoff ID`, `Evidence / Spike ID`, `Evidence Quality`, and `Plan Action`.
 Mandatory items must be consumed; optional deferral and user-decision items stay
 explicit.
+
+The runtime-published structured research package is canonical. Its handoff,
+accepted evidence IDs, claim status, source hash or digest, and revision-bound
+publish state are the source of truth; `deep-research.md` is the derived
+human-readable projection. Before Plan consumes deep research, verify the
+selected handoff with `specify-runtime deep-research verify-handoff`, then use
+a fresh `specify-runtime artifact patch` lease for
+`plan-contract.json#/deep_research_binding`. Preserve exactly:
+
+- `decision`;
+- `handoff_ref` and `handoff_sha256`;
+- `source_spec_sha256`;
+- `state_revision`;
+- verified `claim_status`;
+- `handoff_ids`.
+
+Bind a validated `**Status**: Not needed` result to its runtime-verified
+handoff with an empty `handoff_ids` array. Any stale,
+tampered, foreign, partial, or claim-mismatched research handoff blocks
+planning until the owning deep-research workflow republishes and verifies it.
+
+## Professional UI contract continuity
+
+For UI-bearing scope, `ui_design_contract` selects the exact immutable
+`surface_catalog`, `scenario_matrix`, `interaction_matrix`,
+`editing_matrix`, `data_state_matrix`, `accessibility_matrix`, `navigation_matrix`,
+`content_matrix`, `motion_contract`, and `usability_validation` values,
+including the exact `smoothness_acceptance_ids`, and
+assigns implementation/verification routes.
+Retain component governance and iconography. Plan risk-based or pairwise
+combinations without an unbounded Cartesian product.

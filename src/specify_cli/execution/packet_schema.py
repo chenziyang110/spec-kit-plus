@@ -104,6 +104,7 @@ class UIContract:
     ui_work_type: str = ""
     surface_type: str = ""
     platforms: list[str] = field(default_factory=list)
+    style_authority: dict[str, object] = field(default_factory=dict)
     subject: str = ""
     audience: str = ""
     single_job: str = ""
@@ -124,10 +125,19 @@ class UIContract:
     reference_intents: list[dict[str, str]] = field(default_factory=list)
     real_content_plan: list[dict[str, object]] = field(default_factory=list)
     image_plan: list[dict[str, str]] = field(default_factory=list)
+    surface_catalog: list[dict[str, object]] = field(default_factory=list)
+    scenario_matrix: list[dict[str, object]] = field(default_factory=list)
+    interaction_matrix: list[dict[str, object]] = field(default_factory=list)
+    editing_matrix: list[dict[str, object]] = field(default_factory=list)
+    data_state_matrix: list[dict[str, object]] = field(default_factory=list)
+    accessibility_matrix: list[dict[str, object]] = field(default_factory=list)
+    navigation_matrix: list[dict[str, object]] = field(default_factory=list)
+    content_matrix: list[dict[str, object]] = field(default_factory=list)
     color_modes: list[str] = field(default_factory=list)
     component_contracts: list[dict[str, object]] = field(default_factory=list)
     responsive_matrix: list[dict[str, object]] = field(default_factory=list)
     motion_contract: dict[str, object] = field(default_factory=dict)
+    usability_validation: dict[str, object] = field(default_factory=dict)
     visual_acceptance_matrix: list[dict[str, object]] = field(default_factory=list)
     comparison_tolerance: dict[str, object] = field(default_factory=dict)
     accepted_deviations: list[dict[str, object]] = field(default_factory=list)

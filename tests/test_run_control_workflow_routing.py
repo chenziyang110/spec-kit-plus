@@ -86,6 +86,49 @@ def _assert_shared_run_bootstrap_contract(content: str) -> None:
     assert "specify-runtime run integrate" not in content
 
 
+def _assert_shared_work_board_contract(content: str) -> None:
+    lowered = _normalized(content)
+
+    for command in (
+        "specify-runtime board reconcile",
+        "specify-runtime board show",
+        "specify-runtime board branch-policy",
+        "specify-runtime work begin",
+        "specify-runtime work scope-add",
+        "specify-runtime work checkpoint",
+        "specify-runtime work block",
+        "specify-runtime work finish",
+        "specify-runtime work abandon",
+        "specify-runtime work interrupt",
+        "specify-runtime work resume",
+    ):
+        assert command in content
+
+    assert "sqlite cli projection" in lowered
+    assert "do not edit" in lowered
+    assert "conflict" in lowered
+    assert "avoid" in lowered or "yield" in lowered
+    assert "do not delete" in lowered
+    assert "unknown edits" in lowered or "unfamiliar edits" in lowered
+    assert "reconcile stale lease" in lowered
+    assert "before writing" in lowered
+    assert "dirty recovery hold" in lowered
+    assert "explicit" in lowered
+    assert "resume" in lowered
+    assert "--work-intents-json" in content
+    assert "--work-packet-file" in content
+    assert "--work-packet-file <receipt.path>" in content
+    assert "--work-packet-sha256 <receipt.sha256>" in content
+    assert "exact bytes" in lowered
+    assert "before parsing" in lowered
+    assert "SPECIFY_WORK_ID" in content
+    assert "SPECIFY_FEATURE_BRANCH_POLICY" in content
+    assert "keep-current" in lowered
+    assert "supervisor" in lowered
+    assert "automatically" in lowered
+    assert "do not call" in lowered and "work begin" in lowered
+
+
 def _assert_stage_semantics(content: str, stage: str) -> None:
     lowered = _normalized(content)
 
@@ -163,7 +206,9 @@ def local_tmp_path() -> Path:
 
 def test_classic_modifying_workflows_include_shared_run_bootstrap_partial() -> None:
     assert CLASSIC_RUN_BOOTSTRAP.is_file(), CLASSIC_RUN_BOOTSTRAP
-    _assert_shared_run_bootstrap_contract(CLASSIC_RUN_BOOTSTRAP.read_text(encoding="utf-8"))
+    content = CLASSIC_RUN_BOOTSTRAP.read_text(encoding="utf-8")
+    _assert_shared_run_bootstrap_contract(content)
+    _assert_shared_work_board_contract(content)
 
     include = "{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}"
     for stage in CLASSIC_MODIFYING_WORKFLOWS:
@@ -172,9 +217,9 @@ def test_classic_modifying_workflows_include_shared_run_bootstrap_partial() -> N
 
 def test_advanced_modifying_workflows_read_shared_run_bootstrap_reference() -> None:
     assert ADVANCED_RUN_BOOTSTRAP.is_file(), ADVANCED_RUN_BOOTSTRAP
-    _assert_shared_run_bootstrap_contract(
-        ADVANCED_RUN_BOOTSTRAP.read_text(encoding="utf-8")
-    )
+    content = ADVANCED_RUN_BOOTSTRAP.read_text(encoding="utf-8")
+    _assert_shared_run_bootstrap_contract(content)
+    _assert_shared_work_board_contract(content)
 
     surface_map = json.loads(
         _read("templates/advanced-skills/_shared/surface-map.json")
@@ -184,6 +229,86 @@ def test_advanced_modifying_workflows_read_shared_run_bootstrap_reference() -> N
     for skill_name in ADVANCED_MODIFYING_WORKFLOWS:
         content = _read(f"templates/advanced-skills/{skill_name}/SKILL.md")
         assert "Read `references/run-bootstrap.md`" in content, skill_name
+
+
+def test_durable_team_implementation_uses_shared_work_board_contract() -> None:
+    classic = _read("templates/commands/implement-teams.md")
+    assert (
+        "{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}" in classic
+    )
+
+    advanced = _read("templates/advanced-skills/spx-implement-teams/SKILL.md")
+    assert "Read `references/run-bootstrap.md`" in advanced
+
+
+def test_specify_feature_bootstrap_keeps_current_branch_during_concurrent_work() -> None:
+    classic = _read("templates/commands/specify.md")
+    advanced = _read("templates/advanced-skills/spx-specify/SKILL.md")
+    for content in (classic, advanced):
+        lowered = _normalized(content)
+        dry_run = lowered.index("--dry-run")
+        managed = lowered.index("on the managed path")
+        managed_bootstrap = lowered.index("real create-feature script", managed)
+        unhosted = lowered.index("unhosted path")
+        reservation = lowered.index("specify-runtime board feature-bootstrap", unhosted)
+        unhosted_bootstrap = lowered.index("real create-feature script", reservation)
+
+        assert dry_run < managed < managed_bootstrap
+        assert dry_run < unhosted < reservation < unhosted_bootstrap
+        assert "--json" in lowered
+        assert "feature_id" in lowered
+        assert "feature_dir" in lowered
+        assert "branch_name" in lowered
+        assert "--resolved-feature-id <dry-run branch_name>" in lowered
+        assert "-resolvedfeatureid <dry-run branch_name>" in lowered
+        assert "unchanged" in lowered or "verbatim" in lowered
+        assert "atomic" in lowered
+        assert "confirmed write intent" in lowered
+        assert "feature_branch_policy" in lowered
+        assert "do not query `specify-runtime board branch-policy` before" in lowered
+        assert "do not call `specify-runtime work begin` separately" in lowered
+        assert "--keep-current-branch" in content or "-keepcurrentbranch" in lowered
+        assert "do not create or switch" in lowered
+        assert "subject_type=feature" in lowered
+        assert "exact feature directory" in lowered
+        assert "private/current ref" in lowered
+        assert "unhosted" in lowered
+        assert "board was idle" in lowered
+        assert "existing branch behavior" in lowered
+
+
+def test_shared_bootstrap_requires_conservative_restart_recovery() -> None:
+    for path in (CLASSIC_RUN_BOOTSTRAP, ADVANCED_RUN_BOOTSTRAP):
+        lowered = _normalized(path.read_text(encoding="utf-8"))
+
+        assert "specify-runtime board reconcile" in lowered
+        assert "specify-runtime board show" in lowered
+        assert "active same-task work" in lowered
+        assert "do not take it over" in lowered
+        interrupt = lowered.index("specify-runtime work interrupt <work-id>")
+        resume = lowered.index("specify-runtime work resume")
+        assert interrupt < resume
+        assert "--expected-revision <n>" in lowered
+        assert "--fence <n>" in lowered
+        assert "--reason <reason>" in lowered
+        assert "old owner/session has ended" in lowered
+        assert "must not interrupt another live agent" in lowered
+        assert "expired" in lowered
+        assert "interrupted" in lowered
+        assert "dirty recovery hold" in lowered
+        assert "inspect" in lowered
+
+
+def test_implement_routes_compiled_packet_into_supervised_work_board_registration() -> None:
+    classic = _read("templates/commands/implement.md")
+    advanced = _read("templates/advanced-skills/spx-implement/SKILL.md")
+    for content in (classic, advanced):
+        lowered = _normalized(content)
+        assert "packet-compile" in content
+        assert "--work-packet-file" in content
+        assert "canonical `path`" in lowered
+        assert "scope.write_scope" in content
+        assert "do not reconstruct" in lowered or "do not rebuild" in lowered
 
 
 @pytest.mark.parametrize("integration_key", SKILLS_INTEGRATION_SAMPLE_KEYS)
@@ -210,10 +335,13 @@ def test_generated_advanced_skill_surfaces_preserve_run_control_semantics(
 
     shared_reference = root / "references" / "run-bootstrap.md"
     assert shared_reference.is_file(), shared_reference
-    _assert_shared_run_bootstrap_contract(shared_reference.read_text(encoding="utf-8"))
+    content = shared_reference.read_text(encoding="utf-8")
+    _assert_shared_run_bootstrap_contract(content)
+    _assert_shared_work_board_contract(content)
 
     for stage in CLASSIC_MODIFYING_WORKFLOWS:
         skill = root / f"spx-{stage}" / "SKILL.md"
         content = skill.read_text(encoding="utf-8")
         assert "Read `references/run-bootstrap.md`" in content, stage
-        _assert_stage_semantics(content, stage)
+        combined = content + "\n" + shared_reference.read_text(encoding="utf-8")
+        _assert_stage_semantics(combined, stage)

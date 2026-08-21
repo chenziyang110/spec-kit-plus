@@ -88,7 +88,10 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "incremental freshness finalization" in content
     assert "do not run `complete-refresh` as a rebuild finalizer" in content
     assert "{{specify-subcmd:specify-runtime cognition mark-dirty --reason \"workflow-closeout-failed\" --format json}}" in content
-    assert "do not run learning intake, hooks, capture, or promotion" in content
+    assert "learning start --command fast --format json" in content
+    assert "consume-only" in content
+    assert "do not parse learning storage" in content
+    assert "do not capture or promote" in content
     assert "default compass packet" in content
     assert "returned `minimal_live_reads`" in content
     assert "fast-task state or report" in content
@@ -146,12 +149,33 @@ def test_fast_template_routes_consequence_triggers_out_of_fast_path() -> None:
     assert "do not add planning artifacts to satisfy this gate on the fast path" in content
 
 
-def test_fast_template_marks_learning_and_fail_closed_routing_gates_with_agent_marker() -> None:
+def test_fast_template_runs_read_only_learning_before_project_cognition() -> None:
     content = read_template("templates/commands/fast.md").lower()
 
-    assert "do not run learning intake, hooks, capture, or promotion" in content
-    assert "if reusable friction appears, upgrade out of fast" in content
+    learning_index = content.index("learning start --command fast --format json")
+    cognition_index = content.index("cognition compass --intent implement")
+
+    assert learning_index < cognition_index
+    assert "fast uses consume-only learning" in content
+    assert "run learning intake before project cognition" in content
+    assert "do not parse learning storage" in content
+    assert "do not capture or promote" in content
     assert "learning capture --command fast" not in content
+
+
+def test_fast_template_ends_with_inline_lightweight_review() -> None:
+    content = read_template("templates/commands/fast.md").lower()
+
+    assert "lightweight review" in content
+    assert "same leader" in content
+    assert "review the complete changed diff" in content
+    assert "declared write scope" in content
+    assert "requested acceptance" in content
+    assert "regression" in content
+    assert "rerun the affected targeted verification" in content
+    assert "does not claim the independent system review contract" in content
+    assert "no review subagent" in content
+    assert "no worker packet" in content
 
 
 def test_fast_template_requires_tdd_gate_for_behavior_changes() -> None:

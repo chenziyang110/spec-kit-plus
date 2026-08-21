@@ -16,6 +16,8 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
+{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
+
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
 ## Detailed References

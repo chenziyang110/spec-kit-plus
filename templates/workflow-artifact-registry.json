@@ -225,12 +225,20 @@
       "safe_instruction_patterns": ["artifact checklist", "artifact show", "artifact prepare", "artifact patch", "artifact delete", "artifact cli", "cli owner", "cli-owned", "never submit"]
     },
     {
-      "id": "feature_scaffolded_research",
-      "path_patterns": ["**/deep-research.md", "**/research.md"],
-      "owner_cli": ["specify-runtime artifact scaffold --kind deep-research", "specify-runtime artifact scaffold --kind deep-research-not-needed", "specify-runtime artifact scaffold --kind research", "specify-runtime artifact patch"],
-      "path_hints": ["deep-research.md", "research.md"],
+      "id": "feature_deep_research_runtime",
+      "path_patterns": ["**/deep-research.md", "**/research/state.json", "**/research/track-manifest.json", "**/research/handoffs/*.json", "**/research/rejections/*.json", "**/research/synthesis.json", "**/research/audit-request.json", "**/research/audit.json", "**/research/handoff-to-plan.json", "**/research-evidence/*.json"],
+      "owner_cli": ["specify-runtime deep-research"],
+      "path_hints": ["deep-research.md", "research/state.json", "research/track-manifest.json", "research/handoffs/", "research/rejections/", "research/synthesis.json", "research/audit-request.json", "research/audit.json", "research/handoff-to-plan.json", "research-evidence/"],
       "forbidden_cli_patterns": ["artifact\\s+(?:prepare\\s*(?:/|\\||plus)\\s*)?submit"],
-      "safe_instruction_patterns": ["artifact show", "artifact list", "artifact prepare", "artifact scaffold", "artifact patch", "deep-research-not-needed", "artifact cli", "registered owner", "cli-owned", "normal repository documentation", "never submit", "never reconstruct"]
+      "safe_instruction_patterns": ["deep-research init", "deep-research status", "deep-research track-prepare", "deep-research track-lease", "deep-research track-submit", "deep-research track-reject", "deep-research track-accept", "deep-research track-yield", "deep-research synthesize", "deep-research audit-prepare", "deep-research audit-accept", "deep-research validate", "deep-research publish", "deep-research verify-handoff", "deep-research not-needed", "artifact show", "artifact list", "runtime-owned", "derived", "never submit", "never reconstruct"]
+    },
+    {
+      "id": "feature_scaffolded_research",
+      "path_patterns": ["**/research.md"],
+      "owner_cli": ["specify-runtime artifact scaffold --kind research", "specify-runtime artifact patch"],
+      "path_hints": ["research.md"],
+      "forbidden_cli_patterns": ["artifact\\s+(?:prepare\\s*(?:/|\\||plus)\\s*)?submit"],
+      "safe_instruction_patterns": ["artifact show", "artifact list", "artifact prepare", "artifact scaffold", "artifact patch", "artifact cli", "registered owner", "cli-owned", "normal repository documentation", "never submit", "never reconstruct"]
     },
     {
       "id": "feature_scaffolded_plan_artifacts",
@@ -276,13 +284,6 @@
       "safe_instruction_patterns": ["artifact show", "artifact list", "artifact prepare", "artifact submit", "artifact patch", "artifact delete", "artifact cli", "registered owner", "cli-owned", "normal repository documentation"]
     },
     {
-      "id": "research_evidence_artifacts",
-      "path_patterns": ["**/research-evidence/*.json"],
-      "owner_cli": ["specify-runtime artifact", "specify-runtime evidence"],
-      "path_hints": ["research-evidence/", "research evidence packet"],
-      "safe_instruction_patterns": ["artifact show", "artifact list", "artifact prepare", "artifact submit", "artifact patch", "artifact delete", "evidence register", "evidence import", "artifact cli", "registered owner", "cli-owned"]
-    },
-    {
       "id": "semantic_audit_artifacts",
       "path_patterns": ["**/semantic-audit-input.json", "**/semantic-audit-output.json"],
       "owner_cli": ["specify-runtime cognition semantic-audit --persist-dir", "specify-runtime artifact show", "specify-runtime artifact list"],
@@ -294,7 +295,7 @@
       "path_patterns": [".specify/design/index.json"],
       "owner_cli": ["specify-runtime design change", "specify-runtime design iterate", "specify-runtime design register", "specify-runtime design adopt"],
       "path_hints": [".specify/design/index.json", "design change index"],
-      "safe_instruction_patterns": ["specify-runtime design change", "specify-runtime design iterate", "specify-runtime design resolve", "specify-runtime design diff", "specify-runtime design impact", "specify-runtime design register", "specify-runtime design adopt", "artifact show", "artifact list", "metadata-only", "registered", "cli-owned"]
+      "safe_instruction_patterns": ["specify-runtime design change", "specify-runtime design iterate", "specify-runtime design resolve", "specify-runtime design diff", "specify-runtime design impact", "specify-runtime design register", "specify-runtime design adopt", "specify-runtime design adoption", "artifact show", "artifact list", "metadata-only", "registered", "cli-owned"]
     },
     {
       "id": "ui_design_change_contract",
@@ -324,7 +325,7 @@
       "id": "legacy_design_runtime_artifacts",
       "path_patterns": [".specify/design/design-state.md", ".specify/design/design-system.json", ".specify/design/previews/**"],
       "owner_cli": ["specify-runtime design"],
-      "path_hints": ["design-state.md", "design-system.json", "round-NN.html", "round-NN.manifest.json", "round-NN.handoff.json", ".approval.json"],
+      "path_hints": ["design-state.md", "design-system.json", "round-NN.html", "round-NN.png", "round-NN.jpg", "round-NN.jpeg", "round-NN.webp", "round-NN.prompt.md", "round-NN.manifest.json", "round-NN.handoff.json", ".approval.json"],
       "safe_instruction_patterns": ["specify-runtime design", "design cli", "artifact show", "artifact patch", "cli-owned", "human-readable projection", "review and explanation"]
     },
     {
@@ -402,21 +403,6 @@
       "safe_instruction_patterns": ["evidence register", "evidence import", "evidence show", "evidence verify", "content-addressed object_ref", "content-addressed storage", "runtime-owned", "cli-owned"]
     },
     {
-      "id": "clarification_state_artifacts",
-      "path_patterns": ["**/clarification/evidence-index.json", "**/clarification/checkpoints.ndjson"],
-      "owner_cli": ["specify-runtime artifact scaffold --kind clarification-evidence-index", "specify-runtime artifact scaffold --kind clarification-checkpoints", "specify-runtime artifact patch"],
-      "path_hints": ["clarification/evidence-index.json", "clarification/checkpoints.ndjson"],
-      "forbidden_cli_patterns": ["artifact\\s+(?:prepare\\s*(?:/|\\||plus)\\s*)?submit"],
-      "safe_instruction_patterns": ["artifact cli", "artifact show", "artifact list", "artifact prepare", "artifact scaffold", "artifact patch", "clarification-evidence-index", "clarification-checkpoints", "never submit"]
-    },
-    {
-      "id": "clarification_lane_results",
-      "path_patterns": ["**/clarification/handoffs/*.json"],
-      "owner_cli": ["specify-runtime result submit --command clarify"],
-      "path_hints": ["clarification/handoffs/"],
-      "safe_instruction_patterns": ["result submit", "artifact show", "artifact list", "runtime owner", "runtime-owned", "never write"]
-    },
-    {
       "id": "validation_ledger",
       "path_patterns": ["**/implementation-review/validation-runs.json"],
       "owner_cli": ["specify-runtime implement validation-start", "specify-runtime implement validation-finish"],
@@ -447,9 +433,9 @@
     },
     {
       "id": "stage_lane_results",
-      "path_patterns": ["**/planning/handoffs/*.json", "**/task-generation/handoffs/*.json", "**/research/handoffs/*.json", "**/review-results/**/*.json"],
+      "path_patterns": ["**/planning/handoffs/*.json", "**/task-generation/handoffs/*.json", "**/review-results/**/*.json"],
       "owner_cli": ["specify-runtime result", "specify-runtime artifact"],
-      "path_hints": ["planning/handoffs/", "task-generation/handoffs/", "research/handoffs/", "review-results/"],
+      "path_hints": ["planning/handoffs/", "task-generation/handoffs/", "review-results/"],
       "safe_instruction_patterns": ["result submit", "--result-json", "artifact show", "artifact list", "runtime owns", "runtime-owned", "cli-owned"]
     },
     {

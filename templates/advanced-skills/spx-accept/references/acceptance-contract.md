@@ -67,6 +67,12 @@ Every step contains:
 - a tiny `response_prompt` that a contextless human can answer;
 - durable result, observed result, and sanitized evidence.
 
+For a frozen UI scenario, guide the exact declared input, data condition, and
+size/resize state—including keyboard/focus, empty or populated data,
+degraded/recovery behavior, or active resize when named. Do not silently replace
+it with the easiest populated pointer path or invent a broader matrix during
+Acceptance.
+
 Prefer real user journeys over test-by-test or file-by-file checks. Do not ask
 the human to run a broad automated test suite unless operating that tool is the
 actual product behavior being accepted.
@@ -151,3 +157,16 @@ After `accept closeout` succeeds and its exact `next_argv` commits terminal
 state through `specify-runtime workflow closeout`, the acceptance state, immutable terminal snapshot, and
 completed runtime are read-only. Changed implementation scope starts a new
 feature workflow; never rewrite the terminal verdict to draft or stale.
+
+## Professional UI contract continuity
+
+Acceptance observes the frozen scenarios derived from the exact
+`surface_catalog`, `scenario_matrix`, `interaction_matrix`,
+`editing_matrix`, `data_state_matrix`, `accessibility_matrix`, `navigation_matrix`,
+`content_matrix`, `motion_contract`, and `usability_validation`; every routed
+`smoothness_acceptance_id` must already have exact integrated coverage before
+Acceptance, and the frozen human scenario exercises it when it names a
+human-observable outcome. Acceptance does not rewrite or diagnose these
+contracts. Execute the
+risk-based frozen universe, not an unbounded Cartesian product. Medium/high-risk
+usability cannot pass without required target-user human review.

@@ -64,12 +64,6 @@
       "assets": [],
       "optimization": "focused unit tests for written requirements, never implementation tests"
     },
-    "spx-clarify": {
-      "absorbs": ["clarify"],
-      "references": ["spx-clarify/references/clarification-contract.md"],
-      "assets": [],
-      "optimization": "small decision batches repair an existing spec without replaying discovery"
-    },
     "spx-constitution": {
       "absorbs": ["constitution"],
       "references": ["spx-constitution/references/constitution-contract.md"],
@@ -96,10 +90,14 @@
       "references": [
         "spx-design/references/task-router.md",
         "spx-design/references/design-contract.md",
-        "spx-design/references/consumer-contract.md"
+        "spx-design/references/consumer-contract.md",
+        "spx-design/references/studio-loop.md",
+        "spx-design/references/platform-guidance.md",
+        "spx-design/references/image-round.md",
+        "spx-design/references/html-round.md"
       ],
       "assets": ["spx-design/assets/design-change.md"],
-      "optimization": "one prompt-routed change-scoped UI contract with metadata-only discovery, immutable registration, and exact formal/direct consumer bindings"
+      "optimization": "one prompt-routed change-scoped collaborative single-concept studio with platform guidance, immutable registration, and exact formal/direct consumer bindings"
     },
     "spx-discussion": {
       "absorbs": ["discussion"],
@@ -117,7 +115,7 @@
       "absorbs": ["fast"],
       "references": ["spx-fast/references/scope-gate.md"],
       "assets": [],
-      "optimization": "leader-direct local edit with an explicit escalation gate"
+      "optimization": "consume-only learning, leader-direct local edit, targeted verification, and lightweight self-review"
     },
     "spx-implement": {
       "absorbs": ["implement"],

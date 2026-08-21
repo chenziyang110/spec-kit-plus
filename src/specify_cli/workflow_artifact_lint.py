@@ -659,13 +659,13 @@ def _detect_legacy_python_runtime_invocation(path: str, line: str) -> str | None
             [
                 re.compile(
                     r"\bspecify\s+(?:artifact|workflow|tasks|plan|review|accept|"
-                    r"discussion|quick|clarify|analyze|implement|cognition|hook|lane|"
+                    r"discussion|quick|analyze|implement|cognition|hook|lane|"
                     r"design|result|deep-research|sp-teams)\b",
                     re.IGNORECASE,
                 ),
                 re.compile(
                     r"\bpython\s+-m\s+specify(?:cli)?\s+(?:artifact|workflow|tasks|"
-                    r"plan|review|accept|discussion|quick|clarify|analyze|implement|"
+                    r"plan|review|accept|discussion|quick|analyze|implement|"
                     r"cognition|hook|learning|lane|design|result|deep-research|sp-teams)\b",
                     re.IGNORECASE,
                 ),
@@ -683,14 +683,14 @@ def _detect_legacy_python_runtime_invocation(path: str, line: str) -> str | None
             re.compile(r"\bpython\s+-m\s+specify\b", re.IGNORECASE),
             re.compile(
                 r"\b(?:run|execute|invoke|call|use|emulate)\s+`[^`\n]*\bspecify\s+"
-                r"(?:artifact|workflow|tasks|plan|review|accept|discussion|quick|clarify|"
+                r"(?:artifact|workflow|tasks|plan|review|accept|discussion|quick|"
                 r"analyze|implement|cognition|hook|doctor|lane|design|result|"
                 r"deep-research|sp-teams)\b[^`\n]*`",
                 re.IGNORECASE,
             ),
             re.compile(
                 r"\b(?:run|execute|invoke|call|use|emulate)\s+specify\s+"
-                r"(?:artifact|workflow|tasks|plan|review|accept|discussion|quick|clarify|"
+                r"(?:artifact|workflow|tasks|plan|review|accept|discussion|quick|"
                 r"analyze|implement|cognition|hook|doctor|lane|design|result|"
                 r"deep-research|sp-teams)\b",
                 re.IGNORECASE,
@@ -1131,6 +1131,30 @@ def _detect_anaphoric_operation(clause: str) -> str | None:
 def _detect_instruction_source_operation(clause: str) -> str | None:
     """Detect mutations aimed at the artifact represented by a source template."""
 
+    clauses = re.split(r"(?<=[;.!?])\s+", clause)
+    prior_self_reference = False
+    for item in clauses:
+        operation = _detect_instruction_source_clause_operation(
+            item, prior_self_reference=prior_self_reference
+        )
+        if operation is not None:
+            return operation
+        if _contains_instruction_source_self_reference(item):
+            prior_self_reference = True
+    return None
+
+
+def _contains_instruction_source_self_reference(clause: str) -> bool:
+    return re.search(
+        r"\b(?:this|that|the)\s+(?:file|document|artifact)\b",
+        re.sub(r"[*_`]", "", clause),
+        re.IGNORECASE,
+    ) is not None
+
+
+def _detect_instruction_source_clause_operation(
+    clause: str, *, prior_self_reference: bool
+) -> str | None:
     normalized = re.sub(r"[*_`]", "", clause)
     explicit_anaphor = re.compile(
         r"\b(?:this|that|the)\s+(?:file|document|artifact)\b",
@@ -1139,6 +1163,8 @@ def _detect_instruction_source_operation(clause: str) -> str | None:
     for operation, match in _iter_detected_operations(clause):
         before = normalized[: match.start()]
         after = normalized[match.end() :]
+        if prior_self_reference and re.match(r"\W+it\b", after, re.IGNORECASE):
+            return operation
         preceding = list(explicit_anaphor.finditer(before))
         if preceding:
             tail = before[preceding[-1].end() :]

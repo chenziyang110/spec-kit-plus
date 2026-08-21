@@ -104,8 +104,13 @@ at the real entrypoint. Cover:
   dependency, and feedback wiring where applicable;
 - registration and consumption of routes, handlers, providers, factories,
   adapters, jobs, commands, generated clients, and configuration;
-- persistence/reload plus relevant empty, error, permission, and unavailable
-  states;
+- persistence/reload plus empty and populated data and relevant loading,
+  partial, error, permission, offline/unavailable, pending, retry, undo, and
+  recovery states;
+- every declared pointer/mouse, keyboard/focus, touch/shortcut/command event
+  sequence, immediate feedback, focus, repeat, cancellation, and pending rule;
+- continuous stretch/compression/reflow and overflow while focus, selection,
+  scroll, overlays, or unsaved input is active;
 - blocking browser console, network, process, application-log, and runtime
   diagnostics;
 - affected shared-surface regression and the integrated final journey.
@@ -114,7 +119,9 @@ For UI scenarios, evidence uses only canonical kinds
 `structure_snapshot`, `visual_capture`, and `runtime_diagnostics`, with
 `evidence_scope: integrated`, plus visual comparison or explicit human review.
 For each task-bound passing comparison, call `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json` with observed entrypoint/revision, typed evidence refs, matrix differences, explicit verdict, and reviewer. The runtime derives the approved preview/manifest/handoff bindings, required captures, exact `DS-*`/`DH-*` coverage, tolerance, deviations, canonical report, and byte digest; never submit an authored report inline.
-Use stable real content and the required viewport/state matrix. Isolated task
+Use stable real content and the required risk-based input × data × size matrix.
+Do not require an unbounded Cartesian product, but do not let a populated
+pointer happy path substitute for keyboard, recovery, or active resize. Isolated task
 evidence may guide Review but cannot close a system scenario. Group the matrix
 by integrated surface and fingerprint; do not run the full viewport/state
 capture loop per Txx.
@@ -259,3 +266,20 @@ prefill human PASS or duplicate the System Review matrix. After an acceptance
 repair, reset every human scenario and preserve no earlier PASS. Execute only the returned
 revision-bound completion argv. The separately invoked `$spx-accept` claims the
 next stage and owns the human verdict.
+
+## Professional UI contract continuity
+
+Review the integrated product against every exact applicable `surface_catalog`,
+`scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
+`accessibility_matrix`, `navigation_matrix`, `content_matrix`,
+`motion_contract`, and `usability_validation` value plus component governance.
+For Web UI, exercise every routed `smoothness_acceptance_id` and bind it to the
+existing integrated evidence kinds; a static screenshot does not prove focus,
+cancel, duplicate, scroll, or interruption behavior. Enforce the exact
+`style_authority`: `inherit-existing` makes drift from the
+cited live UI, protected `global-shell`, or protected `shared-components` a
+blocking finding; `page-overhaul-authorized` permits style delta only on its
+explicit complete-page surface.
+Execute risk-based or
+pairwise real-entrypoint scenarios rather than an unbounded Cartesian product.
+Automated tests/screenshots cannot close required target-user human review.

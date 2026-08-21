@@ -39,7 +39,11 @@ def _assert_router_contract(content: str, *, public_entry: str) -> None:
 def _assert_consumer_contract(content: str) -> None:
     lowered = content.lower()
     compact = " ".join(lowered.split())
-    assert "first formal consumer" in lowered
+    assert "design-first" in lowered
+    assert "post-specify" in lowered
+    assert "requirements owner" in lowered
+    assert "second specify" in lowered
+    assert "specify -> design -> plan" in lowered
     assert "direct-delivery consumer" in lowered
     assert "sp-specify" in lowered or "spx-specify" in lowered
     assert "sp-quick" in lowered or "spx-quick" in lowered
@@ -141,6 +145,7 @@ def test_workflow_registry_models_change_scoped_design_artifacts_and_legacy_root
         "specify-runtime design diff",
         "specify-runtime design impact",
         "specify-runtime design adopt",
+        "specify-runtime design adoption",
     ):
         assert command in index_patterns
 
@@ -163,6 +168,7 @@ def test_design_routing_is_documented_as_a_cross_profile_product_contract() -> N
         assert "specify-runtime design diff" in content, path
         assert "specify-runtime design impact" in content, path
         assert "specify-runtime design adopt" in content, path
+        assert "specify-runtime design adoption" in content, path
         assert "superseded_scopes" in content, path
         assert "singular" in content, path
         assert "independently bound" in content, path
@@ -206,6 +212,15 @@ def test_design_brief_persists_the_prompt_route() -> None:
     assert "redesign_mode: null" in content
     assert "anti_slop_locks: []" in content
     assert "reference_board_intents: []" in content
+    assert "style_authority:" in content
+    assert "mode: unresolved" in content
+    assert "source_refs: []" in content
+    assert "protected_surfaces: []" in content
+    assert "allowed_style_delta_surfaces: []" in content
+    assert "authorization_source: null" in content
+    assert "delivery_context:" in content
+    assert "origin: standalone" in content
+    assert "return_target: null" in content
     assert "## Taste Intake" in content
 
 
@@ -224,12 +239,14 @@ def test_design_brief_scaffold_agent_fill_required_includes_taste_fields() -> No
         "foundation_strategy",
         "anti_slop_locks",
         "reference_board_intents",
+        "style_authority",
+        "delivery_context",
     ):
         assert f'"{field}"' in block
     assert '"redesign_mode"' not in block
 
 
-def test_design_surfaces_teach_taste_intake_divergence_and_redesign() -> None:
+def test_design_surfaces_teach_taste_intake_iteration_and_redesign() -> None:
     classic_shell = _read(
         PROJECT_ROOT / "templates" / "command-partials" / "design" / "shell.md"
     )
@@ -268,7 +285,9 @@ def test_design_surfaces_teach_taste_intake_divergence_and_redesign() -> None:
         assert "do not register or expose" in lowered or "do not expose colon" in lowered
         assert "taste" in lowered
 
-    assert "undifferentiated" in classic_shell.lower() or "diverge" in classic_shell.lower()
+    assert "same direction" in classic_shell.lower()
+    assert "new immutable round" in classic_shell.lower()
+    assert "explicit approval" in classic_shell.lower()
     assert "preserve" in classic_shell.lower() and "overhaul" in classic_shell.lower()
     assert "mood" in classic_router.lower() and "color-only" in classic_router.lower()
     assert "landing" in anti_slop.lower()
@@ -277,6 +296,21 @@ def test_design_surfaces_teach_taste_intake_divergence_and_redesign() -> None:
     assert "subordinate" in anti_slop.lower()
     assert "anti-slop" in ui_gate.lower() or "anti-slop" in frontend.lower()
     assert "design-library/anti-slop-policy.md" in frontend or "anti-slop-policy" in frontend
+
+    for content in (
+        classic_shell,
+        classic_router,
+        advanced_skill,
+        advanced_contract,
+        advanced_router,
+        ui_gate,
+    ):
+        lowered = " ".join(content.lower().split())
+        assert "style_authority" in lowered
+        assert "inherit-existing" in lowered
+        assert "page-overhaul-authorized" in lowered
+        assert "global-shell" in lowered
+        assert "shared-components" in lowered
 
     seeds = list((PROJECT_ROOT / "templates" / "design-library").glob("*.md"))
     seed_names = {path.name for path in seeds}
@@ -296,12 +330,88 @@ def test_design_surfaces_teach_taste_intake_divergence_and_redesign() -> None:
         assert "seed_warning" in seed
 
 
+def test_post_specify_design_returns_to_plan_without_repeating_specify() -> None:
+    classic = " ".join(
+        _read(CLASSIC_REFERENCES / "consumer-contract.md").lower().split()
+    )
+    advanced = " ".join(
+        _read(ADVANCED_DESIGN / "references" / "consumer-contract.md")
+        .lower()
+        .split()
+    )
+    plan_surfaces = (
+        _read(PROJECT_ROOT / "templates" / "command-partials" / "plan" / "shell.md"),
+        _read(
+            PROJECT_ROOT
+            / "templates"
+            / "advanced-skills"
+            / "spx-plan"
+            / "references"
+            / "planning-contract.md"
+        ),
+    )
+
+    for content in (classic, advanced):
+        assert "formal-post-specify" in content
+        assert "specify -> design -> plan" in content
+        assert "must not require a second specify" in content
+        assert "requirements change" in content
+
+    for content in plan_surfaces:
+        lowered = " ".join(content.lower().split())
+        assert "formal-post-specify" in lowered
+        assert "specify-runtime design adoption" in lowered
+        assert "source spec" in lowered
+
+
+def test_plan_and_review_enforce_existing_ui_style_authority() -> None:
+    surfaces = (
+        _read(
+            PROJECT_ROOT
+            / "templates"
+            / "command-references"
+            / "plan"
+            / "research-and-design-lanes.md"
+        ),
+        _read(
+            PROJECT_ROOT
+            / "templates"
+            / "command-partials"
+            / "review"
+            / "shell.md"
+        ),
+        _read(
+            PROJECT_ROOT
+            / "templates"
+            / "advanced-skills"
+            / "spx-review"
+            / "SKILL.md"
+        ),
+        _read(
+            PROJECT_ROOT
+            / "templates"
+            / "advanced-skills"
+            / "spx-review"
+            / "references"
+            / "review-contract.md"
+        ),
+    )
+
+    for content in surfaces:
+        lowered = " ".join(content.lower().split())
+        assert "style_authority" in lowered
+        assert "inherit-existing" in lowered
+        assert "page-overhaul-authorized" in lowered
+        assert "global-shell" in lowered
+        assert "shared-components" in lowered
+
+
 def test_init_start_here_teaches_the_prompt_router_and_consumers() -> None:
     content = " ".join(
         _read(PROJECT_ROOT / "src" / "specify_cli" / "__init__.py").split()
     )
     assert '"design", "create, refine, or audit' in content
-    assert "one prompt-routed design entry" in content
+    assert "one prompt-routed collaborative studio" in content
     assert "formal adoption through" in content
     assert "direct delivery through" in content
 
@@ -334,7 +444,7 @@ def test_classic_init_start_here_exposes_one_prompt_routed_design_skill(
     output = " ".join(result.output.split())
     assert result.exit_code == 0, result.output
     assert "$sp-design" in output
-    assert "one prompt-routed design entry" in output
+    assert "one prompt-routed collaborative studio" in output
     assert "$sp-specify" in output
     assert "$sp-quick" in output
 

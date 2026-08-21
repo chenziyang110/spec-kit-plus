@@ -2,8 +2,8 @@
   "result": "fail",
   "diagnostics": [
     {
-      "code": "preview-insufficient-direction-divergence",
-      "layer": "quality"
+      "code": "preview-manifest-direction-count",
+      "layer": "structural"
     }
   ]
 }

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -142,6 +143,139 @@ func TestMarkDirtyDerivesScopeFromPacket(t *testing.T) {
 	}
 	if len(status.DirtyScopePaths) != 2 {
 		t.Fatalf("scope paths = %#v", status.DirtyScopePaths)
+	}
+}
+
+func TestMarkDirtyRoutesGreenfieldProjectPathsToRebuild(t *testing.T) {
+	paths := testPaths(t)
+	seedGreenfieldEmptyRuntime(t, paths)
+
+	status, err := MarkDirty(paths, DirtyInput{
+		Reason:     "workflow-closeout-failed",
+		ScopePaths: []string{"src/app.go"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Readiness != rt.NeedsRebuildReadiness {
+		t.Fatalf("Readiness = %q, want %q", status.Readiness, rt.NeedsRebuildReadiness)
+	}
+	if status.RecommendedNextAction != "run_map_scan_build" {
+		t.Fatalf("RecommendedNextAction = %q, want run_map_scan_build", status.RecommendedNextAction)
+	}
+	if !containsExact(status.DirtyReasons, "greenfield_baseline_has_project_code") {
+		t.Fatalf("DirtyReasons = %#v, want structured greenfield rebuild reason", status.DirtyReasons)
+	}
+	if !containsExact(status.StaleReasons, "greenfield_baseline_has_project_code") {
+		t.Fatalf("StaleReasons = %#v, want structured greenfield rebuild reason", status.StaleReasons)
+	}
+}
+
+func TestMarkDirtyKeepsBrownfieldProjectPathsOnMapUpdateRoute(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	baseline, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseline.BaselineKind = rt.BaselineKindBrownfieldFull
+	if err := rt.WriteStatus(paths, baseline); err != nil {
+		t.Fatal(err)
+	}
+
+	status, err := MarkDirty(paths, DirtyInput{
+		Reason:     "workflow-closeout-failed",
+		ScopePaths: []string{"src/app.go"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Readiness != rt.BlockedReadiness {
+		t.Fatalf("Readiness = %q, want %q", status.Readiness, rt.BlockedReadiness)
+	}
+	if status.RecommendedNextAction != "run_map_update" {
+		t.Fatalf("RecommendedNextAction = %q, want run_map_update", status.RecommendedNextAction)
+	}
+	if containsExact(status.DirtyReasons, "greenfield_baseline_has_project_code") {
+		t.Fatalf("DirtyReasons = %#v, brownfield must not receive greenfield rebuild reason", status.DirtyReasons)
+	}
+}
+
+func TestRunUpdateRoutesGreenfieldExistingPathModifyToRebuild(t *testing.T) {
+	paths := testPaths(t)
+	seedGreenfieldEmptyRuntime(t, paths)
+	disposition := changemodel.DispositionAdoptable
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/app.go"},
+		PathChanges: []changemodel.PathChange{{
+			Path:        "src/app.go",
+			Operation:   changemodel.OperationModify,
+			Disposition: &disposition,
+		}},
+		Reason:       "workflow-finalize",
+		Verification: []VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultNeedsRebuild {
+		t.Fatalf("ResultState = %q, want %q", payload.ResultState, ResultNeedsRebuild)
+	}
+	if payload.Readiness != rt.NeedsRebuildReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.NeedsRebuildReadiness)
+	}
+	if payload.RecommendedNextAction != "run_map_scan_build" {
+		t.Fatalf("RecommendedNextAction = %q, want run_map_scan_build", payload.RecommendedNextAction)
+	}
+	if !containsExact(payload.PartialRefreshReasons, "greenfield_baseline_has_project_code") {
+		t.Fatalf("PartialRefreshReasons = %#v, want structured greenfield rebuild reason", payload.PartialRefreshReasons)
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsExact(status.DirtyReasons, "greenfield_baseline_has_project_code") || !containsExact(status.StaleReasons, "greenfield_baseline_has_project_code") {
+		t.Fatalf("status reasons = dirty:%#v stale:%#v, want structured greenfield rebuild reason", status.DirtyReasons, status.StaleReasons)
+	}
+	agreement := runtimegate.Check(paths)
+	if agreement.Status != "ok" || agreement.Readiness != rt.NeedsRebuildReadiness || agreement.RecommendedNextAction != "run_map_scan_build" {
+		t.Fatalf("runtime agreement = %#v, want consistent rebuild-required state", agreement)
+	}
+}
+
+func TestRunUpdateRoutesGreenfieldAddToRebuildWithoutAdoptingSparsePath(t *testing.T) {
+	paths := testPaths(t)
+	seedGreenfieldEmptyRuntime(t, paths)
+	disposition := changemodel.DispositionAdoptable
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/new.go"},
+		PathChanges: []changemodel.PathChange{{
+			Path:        "src/new.go",
+			Operation:   changemodel.OperationAdd,
+			Disposition: &disposition,
+		}},
+		Reason:       "workflow-finalize",
+		Verification: []VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultNeedsRebuild || len(payload.AdoptedPaths) != 0 {
+		t.Fatalf("payload = %#v, want rebuild without sparse path adoption", payload)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	mapped, err := st.NodeIDsForExactPaths(context.Background(), []string{"src/new.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mapped["src/new.go"] != "" {
+		t.Fatalf("path mapping = %#v, greenfield update must not create a sparse brownfield graph", mapped)
 	}
 }
 
@@ -646,6 +780,128 @@ func TestRunUpdateWithDeltaSessionAcceptsStructuredVerificationJSON(t *testing.T
 	}
 }
 
+func TestRunUpdateWithDeltaSessionRejectsRenameCrossingWorkflowOwnedBoundaryBeforeMutation(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	statusBefore, err := os.ReadFile(paths.StatusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err := delta.Begin(delta.BeginInput{
+		Root:          paths.Root,
+		RuntimeDir:    paths.RuntimeDir,
+		OriginCommand: "implement",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	disposition := changemodel.DispositionAdoptable
+	if _, err := delta.Append(delta.AppendInput{
+		RuntimeDir:   paths.RuntimeDir,
+		SessionID:    session.SessionID,
+		EventType:    "workflow_closeout",
+		ChangedPaths: []string{"src/renamed-app.go"},
+		PathChanges: []changemodel.PathChange{{
+			Path:         "src/renamed-app.go",
+			OldPath:      "src/app.go",
+			Operation:    changemodel.OperationRename,
+			NodeID:       "N-app",
+			Disposition:  &disposition,
+			EvidenceRefs: []string{"test:delta-rename"},
+		}},
+		Verification: []string{`{"command":"go test ./...","result":"passed"}`},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = RunUpdate(paths, UpdateInput{
+		DeltaSessionID: session.SessionID,
+		Reason:         "workflow-finalize",
+	})
+	if err == nil || !strings.Contains(err.Error(), "crosses boundary.workflow_owned_paths") {
+		t.Fatalf("error = %v, want rename endpoint boundary rejection", err)
+	}
+	statusAfter, err := os.ReadFile(paths.StatusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(statusAfter) != string(statusBefore) {
+		t.Fatal("status mutated before rename endpoint boundary rejection")
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	mapped, err := st.NodeIDsForExactPaths(context.Background(), []string{"src/app.go", "src/renamed-app.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := mapped["src/app.go"]; got != "N-app" {
+		t.Fatalf("old path mapping = %#v, want unchanged N-app mapping", got)
+	}
+	if got := mapped["src/renamed-app.go"]; got != "" {
+		t.Fatalf("new path mapping = %#v, want no mutation", got)
+	}
+}
+
+func TestRunUpdateWithDeltaSessionAllowsRenameWhenBothEndpointsAreDeclared(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	session, err := delta.Begin(delta.BeginInput{
+		Root:          paths.Root,
+		RuntimeDir:    paths.RuntimeDir,
+		OriginCommand: "implement",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	disposition := changemodel.DispositionAdoptable
+	if _, err := delta.Append(delta.AppendInput{
+		RuntimeDir:   paths.RuntimeDir,
+		SessionID:    session.SessionID,
+		EventType:    "workflow_closeout",
+		ChangedPaths: []string{"src/app.go", "src/renamed-app.go"},
+		PathChanges: []changemodel.PathChange{{
+			Path:         "src/renamed-app.go",
+			OldPath:      "src/app.go",
+			Operation:    changemodel.OperationRename,
+			NodeID:       "N-app",
+			Disposition:  &disposition,
+			EvidenceRefs: []string{"test:delta-rename"},
+		}},
+		Verification: []string{`{"command":"go test ./...","result":"passed"}`},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		DeltaSessionID: session.SessionID,
+		Reason:         "workflow-finalize",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady || len(payload.PathChanges) != 1 {
+		t.Fatalf("payload = %#v, want one ready rename", payload)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	mapped, err := st.NodeIDsForExactPaths(context.Background(), []string{"src/app.go", "src/renamed-app.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := mapped["src/app.go"]; got != "" {
+		t.Fatalf("old path mapping = %#v, want removed mapping", got)
+	}
+	if got := mapped["src/renamed-app.go"]; got != "N-app" {
+		t.Fatalf("new path mapping = %#v, want N-app", got)
+	}
+}
+
 func TestRunUpdateWithDeltaSessionMergesEvidenceForSameTypedPathAcrossEvents(t *testing.T) {
 	paths := testPaths(t)
 	seedReadyRuntime(t, paths)
@@ -900,6 +1156,59 @@ func TestRunUpdateDoesNotLetNoOpMaskExistingDirtyState(t *testing.T) {
 	}
 	if !containsString(status.StalePaths, "src/app.go") {
 		t.Fatalf("StalePaths = %#v, want src/app.go", status.StalePaths)
+	}
+}
+
+func TestRunUpdateSeparatesReadyWorkflowScopeFromExistingProjectDebt(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	if _, err := MarkDirty(paths, DirtyInput{
+		Reason:     "older unrelated debt",
+		ScopePaths: []string{"src/other.go"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/app.go"},
+		Reason:       "workflow-finalize",
+		Workflow:     "sp-quick",
+		Verification: []VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ScopeResultState != ResultReady {
+		t.Fatalf("ScopeResultState = %q, want ready for this workflow's bounded paths", payload.ScopeResultState)
+	}
+	if payload.ResultState != ResultPartialRefresh {
+		t.Fatalf("ResultState = %q, want partial_refresh while unrelated project debt remains", payload.ResultState)
+	}
+	if payload.GlobalFreshness != rt.PartialRefreshFreshness {
+		t.Fatalf("GlobalFreshness = %q, want %q", payload.GlobalFreshness, rt.PartialRefreshFreshness)
+	}
+	if !containsString(payload.GlobalDebtReasons, "existing_project_cognition_stale_or_dirty") {
+		t.Fatalf("GlobalDebtReasons = %#v, want existing project debt", payload.GlobalDebtReasons)
+	}
+	if len(payload.ScopePartialReasons) != 0 {
+		t.Fatalf("ScopePartialReasons = %#v, ready workflow scope must not inherit global debt", payload.ScopePartialReasons)
+	}
+	if len(payload.ReviewPaths) != 0 {
+		t.Fatalf("ReviewPaths = %#v, ready workflow scope must not be relabeled for review", payload.ReviewPaths)
+	}
+
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.LastUpdateScopeOutcome != ResultReady {
+		t.Fatalf("LastUpdateScopeOutcome = %q, want ready", status.LastUpdateScopeOutcome)
+	}
+	if containsString(status.StalePaths, "src/app.go") {
+		t.Fatalf("StalePaths = %#v, current ready scope was incorrectly re-added as stale", status.StalePaths)
+	}
+	if !containsString(status.StalePaths, "src/other.go") {
+		t.Fatalf("StalePaths = %#v, unrelated project debt was lost", status.StalePaths)
 	}
 }
 
@@ -1947,6 +2256,153 @@ func TestRunUpdateRecordsAffectedClosure(t *testing.T) {
 	}
 }
 
+func TestRunUpdateUsesInlineWorkflowOwnedPathsAsMutationScope(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntimeWithImports(t, paths,
+		[]store.EvidenceImport{
+			{ID: "E-app", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"},
+			{ID: "E-worker", SourceKind: "file", SourcePath: "src/worker.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-worker"},
+		},
+		[]store.NodeImport{
+			{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"}},
+			{ID: "N-worker", Type: "capability", Title: "Worker", Confidence: "verified", EvidenceIDs: []string{"E-worker"}},
+		},
+		[]store.PathIndexImport{
+			{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app"},
+			{ID: "P-worker", Path: "src/worker.go", NodeID: "N-worker", Relation: "owns", Confidence: "verified", EvidenceID: "E-worker"},
+		},
+	)
+	payloadJSON := `{
+  "workflow": "sp-quick",
+  "reason": "workflow-finalize",
+  "changed_paths": ["src/app.go", "src/worker.go"],
+  "scope_paths": ["src/app.go", "src/worker.go"],
+  "verification": [{"command": "go test ./...", "result": "passed"}],
+  "boundary": {
+    "workflow_owned_paths": ["src/app.go"]
+  }
+}`
+
+	payload, err := RunUpdate(paths, UpdateInput{PayloadJSON: payloadJSON})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(payload.ChangedPaths, []string{"src/app.go"}) {
+		t.Fatalf("ChangedPaths = %#v, want only workflow-owned path", payload.ChangedPaths)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var changedPathsJSON string
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT changed_paths_json FROM updates WHERE id = ?`, payload.UpdateID).Scan(&changedPathsJSON); err != nil {
+		t.Fatal(err)
+	}
+	var recorded []string
+	if err := json.Unmarshal([]byte(changedPathsJSON), &recorded); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(recorded, []string{"src/app.go"}) {
+		t.Fatalf("recorded changed paths = %#v, want only workflow-owned path", recorded)
+	}
+}
+
+func TestRunUpdateRejectsRenameCrossingWorkflowOwnedBoundaryBeforeMutation(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	payloadJSON := `{
+  "workflow": "sp-implement",
+  "reason": "workflow-finalize",
+  "changed_paths": ["src/renamed-app.go"],
+  "path_changes": [{
+    "path": "src/renamed-app.go",
+    "old_path": "src/app.go",
+    "operation": "rename",
+    "node_id": "N-app",
+    "disposition": "adoptable"
+  }],
+  "verification": [{"command": "go test ./...", "result": "passed"}],
+  "boundary": {
+    "workflow_owned_paths": ["src/renamed-app.go"],
+    "scope_mode": "explicit"
+  }
+}`
+
+	if _, err := RunUpdate(paths, UpdateInput{PayloadJSON: payloadJSON}); err == nil {
+		t.Fatal("expected rename old_path outside workflow-owned boundary to block")
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.LastUpdateID != "" {
+		t.Fatalf("LastUpdateID = %q, boundary violation must not mutate status", status.LastUpdateID)
+	}
+}
+
+func TestRunUpdateAllowsRenameWhenBothEndpointsAreWorkflowOwned(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	payloadJSON := `{
+  "workflow": "sp-implement",
+  "reason": "workflow-finalize",
+  "changed_paths": ["src/app.go", "src/renamed-app.go"],
+  "path_changes": [{
+    "path": "src/renamed-app.go",
+    "old_path": "src/app.go",
+    "operation": "rename",
+    "node_id": "N-app",
+    "disposition": "adoptable"
+  }],
+  "verification": [{"command": "go test ./...", "result": "passed"}],
+  "boundary": {
+    "workflow_owned_paths": ["src/app.go", "src/renamed-app.go"],
+    "scope_mode": "explicit"
+  }
+}`
+
+	payload, err := RunUpdate(paths, UpdateInput{PayloadJSON: payloadJSON})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady || len(payload.PathChanges) != 1 || payload.PathChanges[0].Operation != changemodel.OperationRename {
+		t.Fatalf("payload = %#v, want one ready rename with both endpoints owned", payload)
+	}
+}
+
+func TestRunUpdateDoesNotFallbackToGitChangedPathsWhenWorkflowOwnedScopeIsEmpty(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	if err := os.MkdirAll(filepath.Join(paths.Root, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(paths.Root, "src", "app.go"), []byte("dirty"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	payloadJSON := `{
+  "workflow": "sp-quick",
+  "reason": "workflow-finalize",
+  "changed_paths": ["src/unowned.go"],
+  "verification": [{"command": "go test ./...", "result": "passed"}],
+  "boundary": {
+    "workflow_owned_paths": ["src/owned.go"]
+  }
+}`
+
+	payload, err := RunUpdate(paths, UpdateInput{PayloadJSON: payloadJSON})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultNoOp {
+		t.Fatalf("ResultState = %q, want no_op without git fallback", payload.ResultState)
+	}
+	if len(payload.ChangedPaths) != 0 {
+		t.Fatalf("ChangedPaths = %#v, want empty owned intersection without git fallback", payload.ChangedPaths)
+	}
+}
+
 func TestCompleteRefreshBlocksSplitBrainBaselineBeforeStatusWrite(t *testing.T) {
 	paths := testPaths(t)
 	seedSplitBrainRuntime(t, paths)
@@ -2177,6 +2633,15 @@ func containsText(values []string, want string) bool {
 	return false
 }
 
+func containsExact(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
 func seedSplitBrainRuntime(t *testing.T, paths rt.Paths) {
 	t.Helper()
 	seedRuntimeGeneration(t, paths, "GEN-db")
@@ -2199,6 +2664,34 @@ func seedReadyRuntime(t *testing.T, paths rt.Paths) {
 		[]store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"}}},
 		[]store.PathIndexImport{{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app"}},
 	)
+}
+
+func seedGreenfieldEmptyRuntime(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generationID, err := st.InitializeGreenfieldEmpty(context.Background())
+	if closeErr := st.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.ActiveGenerationID = generationID
+	status.QueryContractVersion = 1
+	status.UpdateContractVersion = 1
+	status.BaselineKind = rt.BaselineKindGreenfieldEmpty
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func seedReadyRuntimeWithImports(t *testing.T, paths rt.Paths, evidence []store.EvidenceImport, nodes []store.NodeImport, pathIndex []store.PathIndexImport) {

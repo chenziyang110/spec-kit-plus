@@ -309,6 +309,56 @@ def test_review_never_reopens_implement_for_its_own_findings(
     assert "diagnos" in flat and "fix" in flat and "revalidation" in flat
 
 
+@pytest.mark.parametrize(
+    ("profile", "combined"), _review_profile_contracts(), ids=("classic", "advanced")
+)
+def test_review_absorbs_review_owned_snapshot_drift_without_user_recovery_menu(
+    profile: str,
+    combined: str,
+) -> None:
+    del profile
+    flat = _flat(combined)
+
+    assert "implementation-handoff.json" in flat
+    assert "fingerprint drift" in flat or "snapshot drift" in flat
+    assert "workflow/cognition metadata" in flat
+    assert "scoped snapshot" in flat
+    assert "exclude unrelated repository state" in flat
+    assert "per-path snapshot manifest" in flat
+    assert "independent finding chain" in flat
+    assert "packet/result digests" in flat
+    assert "legacy-snapshot-quarantine" in flat
+    assert "initial-review-rebaseline" in flat
+    assert "legacy-review-rebaseline" in flat
+    assert "full review" in flat and "official" in flat and "entrypoint" in flat
+    assert (
+        "review-owned recovery" in flat
+        or "immediately execute its structured next_argv" in flat
+    )
+    assert "do not ask the user to choose" in flat
+    assert "stop" in flat and "authorize-later-cycle" in flat
+    assert "external boundary" in flat or "upstream truth gap" in flat
+
+
+@pytest.mark.parametrize(
+    ("profile", "combined"), _review_profile_contracts(), ids=("classic", "advanced")
+)
+def test_review_rejects_unit_tests_as_official_entrypoint_delivery_proof(
+    profile: str,
+    combined: str,
+) -> None:
+    del profile
+    flat = _flat(combined)
+
+    assert "unit test" in flat or "unit tests" in flat
+    assert "official real entrypoint" in flat or "official entrypoint" in flat
+    assert "delivery proof" in flat or "delivery attempt" in flat
+    assert "cannot substitute" in flat or "do not count as" in flat
+    assert "pass status" in flat or "`pass` status" in flat
+    assert "current-cycle integrated evidence" in flat
+    assert "current artifact bytes" in flat
+
+
 def test_implement_hands_off_to_review_instead_of_acceptance() -> None:
     classic = _read("templates/commands/implement.md")
     advanced = _read("templates/advanced-skills/spx-implement/SKILL.md")
@@ -578,6 +628,49 @@ def test_diagnostic_packets_map_to_the_review_state_scenario_kind() -> None:
         assert "review_assignments" in contract or "review-state" in contract
     assert "scenario_review" in kinds
     assert "diagnostic" not in kinds
+
+
+def test_review_state_schema_types_real_entrypoint_delivery_proof() -> None:
+    schema = json.loads(_read("templates/review-state-schema.json"))
+    validation = schema["properties"]["validation"]
+
+    assert set(validation["required"]) == {
+        "startup",
+        "real_entrypoint_journeys",
+        "regression",
+        "ui_verification",
+    }
+    assert validation["additionalproperties"] is False
+    assert "pass" in validation["properties"]["real_entrypoint_journeys"]["enum"]
+    assert "not_applicable" in validation["properties"]["ui_verification"]["enum"]
+
+
+def test_review_state_schema_binds_snapshot_reconciliation_provenance() -> None:
+    schema = json.loads(_read("templates/review-state-schema.json"))
+    source = schema["properties"]["source"]
+
+    assert set(source["properties"]["snapshot_reconciliation"]["enum"]) == {
+        "initial-review-rebaseline",
+        "legacy-review-rebaseline",
+    }
+    assert source["properties"]["handoff_implementation_fingerprint"][
+        "pattern"
+    ] == "^[0-9a-f]{64}$"
+    required_pairs = {
+        (
+            tuple(item["if"]["required"]),
+            tuple(item["then"]["required"]),
+        )
+        for item in source["allof"]
+    }
+    assert (
+        ("snapshot_reconciliation",),
+        ("handoff_implementation_fingerprint",),
+    ) in required_pairs
+    assert (
+        ("handoff_implementation_fingerprint",),
+        ("snapshot_reconciliation",),
+    ) in required_pairs
 
 
 def test_spx_accept_is_discoverable_as_the_post_review_stage() -> None:

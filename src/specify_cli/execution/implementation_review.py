@@ -18,7 +18,7 @@ ReviewDecision = Literal[
     "repair-and-rerun-current-window",
     "blocked-reopen-tasks",
     "blocked-reopen-plan",
-    "blocked-reopen-clarify",
+    "blocked-reopen-specify",
     "blocked-deep-research",
     "debug-required",
 ]
@@ -113,7 +113,7 @@ WORKFLOW_STATE_REVIEW_ALLOWED_NEXT_COMMANDS = frozenset(
         "/sp.debug",
         "/sp.tasks",
         "/sp.plan",
-        "/sp.clarify",
+        "/sp.specify",
         "/sp.deep-research",
     }
 )
@@ -162,7 +162,7 @@ UPSTREAM_TRUTH_FINDING_TYPES = frozenset(
 UPSTREAM_TRUTH_REVIEW_DECISIONS = frozenset(
     {
         "blocked-reopen-plan",
-        "blocked-reopen-clarify",
+        "blocked-reopen-specify",
         "blocked-deep-research",
     }
 )

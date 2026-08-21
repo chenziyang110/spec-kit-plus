@@ -216,6 +216,40 @@ func TestImportGenerationPublishesActiveIdentitySnapshot(t *testing.T) {
 	}
 }
 
+func TestActiveGenerationBuildFingerprintTracksImportedGeneration(t *testing.T) {
+	ctx := context.Background()
+	st := openImportTestStore(t)
+	defer st.Close()
+
+	generationID, fingerprint, err := st.ActiveGenerationBuildFingerprint(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if generationID != "" || fingerprint != "" {
+		t.Fatalf("empty store fingerprint = %q/%q", generationID, fingerprint)
+	}
+
+	input := validImportInput("GEN-fingerprint")
+	input.ScanBuildFingerprint = "sha256:scan-build"
+	if _, err := st.ImportGeneration(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+	generationID, fingerprint, err = st.ActiveGenerationBuildFingerprint(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if generationID != input.GenerationID || fingerprint != input.ScanBuildFingerprint {
+		t.Fatalf("active fingerprint = %q/%q, want %q/%q", generationID, fingerprint, input.GenerationID, input.ScanBuildFingerprint)
+	}
+
+	if _, err := st.DB().ExecContext(ctx, `UPDATE generations SET attrs_json = 'not-json' WHERE id = ?`, input.GenerationID); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.ActiveGenerationBuildFingerprint(ctx); err == nil || !strings.Contains(err.Error(), "decode active generation build fingerprint") {
+		t.Fatalf("malformed active fingerprint error = %v", err)
+	}
+}
+
 func TestInitializeGreenfieldEmptyCreatesReadyEmptyGeneration(t *testing.T) {
 	paths := testPaths(t)
 	st, err := Open(paths)

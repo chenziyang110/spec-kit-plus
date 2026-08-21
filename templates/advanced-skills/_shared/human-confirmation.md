@@ -132,9 +132,9 @@ intent and name real content/image sources.
 | Design basis and source material | [approved direction/current entry point/original references with intent/real content and images] |
 | Target experience | [visual, content, and interaction thesis plus signature element] |
 | Structure and visible change | [hierarchy, layout, components, copy, and visible before-to-after] |
-| Interaction, states, and adaptation | [interaction; loading/empty/error/success/disabled/focus; viewport/window; keyboard/accessibility] |
+| Interaction, states, and adaptation | [pointer/mouse, keyboard/focus, touch/shortcut/command; immediate feedback and cancel/retry/undo/recovery; empty and populated data plus applicable loading/partial/error/permission/offline/pending/success; continuous resize/stretch/reflow/overflow; preservation of focus, selection, scroll, overlays, and unsaved input; accessibility] |
 | Design boundaries | Must preserve: [...]. May adapt: [...]. Must not: [...]. |
-| Acceptance evidence | [real entry point, viewport/window and state matrix, structure snapshot, visual capture, runtime diagnostics, comparison or human review] |
+| Acceptance evidence | [real entry point, risk-based input × data × size matrix including active resize, structure snapshot, visual capture, runtime diagnostics, comparison or human review] |
 ```
 
 Do not render an incomplete UI Confirmation. Do not add another reply prompt:

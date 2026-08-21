@@ -4,6 +4,8 @@
 param(
     [switch]$Json,
     [switch]$AllowExistingBranch,
+    [switch]$KeepCurrentBranch,
+    [string]$ResolvedFeatureId,
     [switch]$DryRun,
     [string]$ShortName,
     [Parameter()]
@@ -17,12 +19,14 @@ $ErrorActionPreference = 'Stop'
 
 # Show help if requested
 if ($Help) {
-    Write-Host "Usage: ./create-new-feature.ps1 [-Json] [-DryRun] [-AllowExistingBranch] [-ShortName <name>] [-Number N] [-Timestamp] <feature description>"
+    Write-Host "Usage: ./create-new-feature.ps1 [-Json] [-DryRun] [-AllowExistingBranch] [-KeepCurrentBranch] [-ResolvedFeatureId <id>] [-ShortName <name>] [-Number N] [-Timestamp] <feature description>"
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  -Json               Output in JSON format"
     Write-Host "  -DryRun             Compute branch name and paths without creating branches, directories, or files"
-    Write-Host "  -AllowExistingBranch  Switch to branch if it already exists instead of failing"
+    Write-Host "  -AllowExistingBranch  Switch to an existing branch, or explicitly resume an existing keep-current feature directory"
+    Write-Host "  -KeepCurrentBranch   Scaffold the feature without creating or switching Git branches"
+    Write-Host "  -ResolvedFeatureId <id>  Replay a validated full feature ID returned by a prior -DryRun receipt"
     Write-Host "  -ShortName <name>   Provide a custom short name (2-4 words) for the branch"
     Write-Host "  -Number N           Use legacy numeric prefix N; use 0 to auto-detect next number"
     Write-Host "  -Timestamp          Use timestamp prefix (YYYYMMDD-HHMMSS) instead of the default date prefix"
@@ -37,7 +41,7 @@ if ($Help) {
 
 # Check if feature description provided
 if (-not $FeatureDescription -or $FeatureDescription.Count -eq 0) {
-    Write-Error "Usage: ./create-new-feature.ps1 [-Json] [-DryRun] [-AllowExistingBranch] [-ShortName <name>] [-Number N] [-Timestamp] <feature description>"
+    Write-Error "Usage: ./create-new-feature.ps1 [-Json] [-DryRun] [-AllowExistingBranch] [-KeepCurrentBranch] [-ResolvedFeatureId <id>] [-ShortName <name>] [-Number N] [-Timestamp] <feature description>"
     exit 1
 }
 
@@ -47,6 +51,18 @@ $featureDesc = ($FeatureDescription -join ' ').Trim()
 if ([string]::IsNullOrWhiteSpace($featureDesc)) {
     Write-Error "Error: Feature description cannot be empty or contain only whitespace"
     exit 1
+}
+
+$branchPolicy = 'default'
+if ($env:SPECIFY_RUN_MANAGED -eq '1') {
+    # Run Control owns the checked-out private ref. A managed child must never
+    # replace that workspace binding with a public feature branch.
+    $KeepCurrentBranch = $true
+} elseif ($env:SPECIFY_FEATURE_BRANCH_POLICY -eq 'keep-current') {
+    $KeepCurrentBranch = $true
+}
+if ($KeepCurrentBranch) {
+    $branchPolicy = 'keep-current'
 }
 
 function Get-HighestNumberFromSpecs {
@@ -274,65 +290,123 @@ function Get-BranchName {
     }
 }
 
-# Generate branch name
-if ($ShortName) {
-    # Use provided short name, just clean it up
-    $branchSuffix = ConvertTo-CleanBranchName -Name $ShortName
-} else {
-    # Generate from description with smart filtering
-    $branchSuffix = Get-BranchName -Description $featureDesc
-}
+function Resolve-ValidatedFeatureId {
+    param([AllowEmptyString()][string]$FeatureId)
 
-$numberWasSpecified = $PSBoundParameters.ContainsKey('Number')
+    if ([string]::IsNullOrWhiteSpace($FeatureId)) {
+        Write-Error "Error: Resolved feature ID cannot be empty."
+        exit 1
+    }
+    if ($FeatureId -match '[/\\]') {
+        Write-Error "Error: Resolved feature ID '$FeatureId' must be a single branch-safe name, not a path."
+        exit 1
+    }
 
-# Warn if -Number and -Timestamp are both specified
-if ($Timestamp -and $numberWasSpecified -and $Number -ne 0) {
-    Write-Warning "[specify] Warning: -Number is ignored when -Timestamp is used"
-    $Number = 0
-}
+    $featureIdPattern = '^(?:(?<date>\d{4}-\d{2}-\d{2})|(?<timestamp>\d{8}-\d{6})|(?<sequential>\d{3,}))-[a-z0-9]+(?:-[a-z0-9]+)*$'
+    $featureIdMatch = [regex]::Match(
+        $FeatureId,
+        $featureIdPattern,
+        [System.Text.RegularExpressions.RegexOptions]::CultureInvariant
+    )
+    if ($FeatureId.Length -gt 244 -or -not $featureIdMatch.Success) {
+        Write-Error "Error: Resolved feature ID '$FeatureId' is not a valid generated feature branch ID."
+        exit 1
+    }
 
-# Determine branch prefix
-$branchNumbering = Get-ConfiguredBranchNumbering -RepoRoot $repoRoot
-$featurePrefixKind = 'date'
-if ($Timestamp) {
-    $featurePrefixKind = 'timestamp'
-    $featureNum = Get-TimestampPrefix
-    $branchName = "$featureNum-$branchSuffix"
-} elseif ($numberWasSpecified -or $branchNumbering -eq 'sequential') {
-    $featurePrefixKind = 'sequential'
-    # Determine branch number
-    if ($Number -eq 0) {
-        if ($DryRun -and $hasGit) {
-            # Dry-run: query remotes via ls-remote (side-effect-free, no fetch)
-            $Number = Get-NextBranchNumber -SpecsDir $featuresDir -SkipFetch
-        } elseif ($DryRun) {
-            # Dry-run without git: local spec dirs only
-            $Number = (Get-HighestNumberFromSpecs -SpecsDir $featuresDir) + 1
-        } elseif ($hasGit) {
-            # Check existing branches on remotes
-            $Number = Get-NextBranchNumber -SpecsDir $featuresDir
-        } else {
-            # Fall back to local directory check
-            $Number = (Get-HighestNumberFromSpecs -SpecsDir $featuresDir) + 1
+    $gitCommand = Get-Command git -ErrorAction SilentlyContinue
+    if ($gitCommand) {
+        & $gitCommand.Source check-ref-format --branch $FeatureId 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Error: Resolved feature ID '$FeatureId' is not a valid Git branch ID."
+            exit 1
         }
     }
 
-    $featureNum = ('{0:000}' -f $Number)
-    $branchName = "$featureNum-$branchSuffix"
-} elseif ($branchNumbering -eq 'timestamp') {
-    $featurePrefixKind = 'timestamp'
-    $featureNum = Get-TimestampPrefix
-    $branchName = "$featureNum-$branchSuffix"
+    if ($featureIdMatch.Groups['timestamp'].Success) {
+        $prefixKind = 'timestamp'
+        $featureNumber = $featureIdMatch.Groups['timestamp'].Value
+    } elseif ($featureIdMatch.Groups['date'].Success) {
+        $prefixKind = 'date'
+        $featureNumber = $featureIdMatch.Groups['date'].Value
+    } else {
+        $prefixKind = 'sequential'
+        $featureNumber = $featureIdMatch.Groups['sequential'].Value
+    }
+
+    return [PSCustomObject]@{
+        FeatureId = $FeatureId
+        PrefixKind = $prefixKind
+        FeatureNumber = $featureNumber
+    }
+}
+
+$resolvedFeatureIdWasSpecified = $PSBoundParameters.ContainsKey('ResolvedFeatureId')
+if ($resolvedFeatureIdWasSpecified) {
+    $resolvedFeature = Resolve-ValidatedFeatureId -FeatureId $ResolvedFeatureId
+    $branchName = $resolvedFeature.FeatureId
+    $featurePrefixKind = $resolvedFeature.PrefixKind
+    $featureNum = $resolvedFeature.FeatureNumber
 } else {
+    # Generate branch name
+    if ($ShortName) {
+        # Use provided short name, just clean it up
+        $branchSuffix = ConvertTo-CleanBranchName -Name $ShortName
+    } else {
+        # Generate from description with smart filtering
+        $branchSuffix = Get-BranchName -Description $featureDesc
+    }
+
+    $numberWasSpecified = $PSBoundParameters.ContainsKey('Number')
+
+    # Warn if -Number and -Timestamp are both specified
+    if ($Timestamp -and $numberWasSpecified -and $Number -ne 0) {
+        Write-Warning "[specify] Warning: -Number is ignored when -Timestamp is used"
+        $Number = 0
+    }
+
+    # Determine branch prefix
+    $branchNumbering = Get-ConfiguredBranchNumbering -RepoRoot $repoRoot
     $featurePrefixKind = 'date'
-    $featureNum = Get-DatePrefix
-    $branchName = "$featureNum-$branchSuffix"
+    if ($Timestamp) {
+        $featurePrefixKind = 'timestamp'
+        $featureNum = Get-TimestampPrefix
+        $branchName = "$featureNum-$branchSuffix"
+    } elseif ($numberWasSpecified -or $branchNumbering -eq 'sequential') {
+        $featurePrefixKind = 'sequential'
+        # Determine branch number
+        if ($Number -eq 0) {
+            if ($DryRun -and $hasGit) {
+                # Dry-run: query remotes via ls-remote (side-effect-free, no fetch)
+                $Number = Get-NextBranchNumber -SpecsDir $featuresDir -SkipFetch
+            } elseif ($DryRun) {
+                # Dry-run without git: local spec dirs only
+                $Number = (Get-HighestNumberFromSpecs -SpecsDir $featuresDir) + 1
+            } elseif ($hasGit) {
+                # Check existing branches on remotes
+                $Number = Get-NextBranchNumber -SpecsDir $featuresDir
+            } else {
+                # Fall back to local directory check
+                $Number = (Get-HighestNumberFromSpecs -SpecsDir $featuresDir) + 1
+            }
+        }
+
+        $featureNum = ('{0:000}' -f $Number)
+        $branchName = "$featureNum-$branchSuffix"
+    } elseif ($branchNumbering -eq 'timestamp') {
+        $featurePrefixKind = 'timestamp'
+        $featureNum = Get-TimestampPrefix
+        $branchName = "$featureNum-$branchSuffix"
+    } else {
+        $featurePrefixKind = 'date'
+        $featureNum = Get-DatePrefix
+        $branchName = "$featureNum-$branchSuffix"
+    }
 }
 
 # GitHub enforces a 244-byte limit on branch names
 # Validate and truncate if necessary
 $maxBranchLength = 244
-if ($branchName.Length -gt $maxBranchLength) {
+if (-not $resolvedFeatureIdWasSpecified -and $branchName.Length -gt $maxBranchLength) {
     # Calculate how much we need to trim from suffix
     # Account for prefix length plus the separator hyphen.
     $prefixLength = $featureNum.Length + 1
@@ -368,53 +442,64 @@ $BRAINSTORMING_EVIDENCE_DIR = Join-Path $brainstormingDir 'evidence'
 $BRAINSTORMING_EVIDENCE_RECORD_TEMPLATE_FILE = Join-Path $BRAINSTORMING_EVIDENCE_DIR 'EVD-000-template.json'
 $handoffToSpecifyFile = Join-Path $featureDir 'brainstorming/handoff-to-specify.json'
 if (-not $DryRun) {
-    if ($hasGit) {
-        $branchCreated = $false
-        $branchCreateError = ''
-        try {
-            $branchCreateError = git checkout -q -b $branchName 2>&1 | Out-String
-            if ($LASTEXITCODE -eq 0) {
-                $branchCreated = $true
-            }
-        } catch {
-            $branchCreateError = $_.Exception.Message
-        }
+    if ($KeepCurrentBranch -and (Test-Path -LiteralPath $featureDir) -and -not $AllowExistingBranch) {
+        Write-Error "Error: Feature directory '$featureDir' already exists. Refusing to reuse it in keep-current mode; pass -AllowExistingBranch only when explicitly resuming that feature."
+        exit 1
+    }
 
-        if (-not $branchCreated) {
-            $currentBranch = ''
-            try { $currentBranch = (git rev-parse --abbrev-ref HEAD 2>$null).Trim() } catch {}
-            # Check if branch already exists
-            $existingBranch = git branch --list $branchName 2>$null
-            if ($existingBranch) {
-                if ($AllowExistingBranch) {
-                    # If we're already on the branch, continue without another checkout.
-                    if ($currentBranch -eq $branchName) {
-                        # Already on the target branch — nothing to do
-                    } else {
-                        # Otherwise switch to the existing branch instead of failing.
-                        git checkout -q $branchName 2>$null | Out-Null
-                        if ($LASTEXITCODE -ne 0) {
-                            Write-Error "Error: Branch '$branchName' exists but could not be checked out. Resolve any uncommitted changes or conflicts and try again."
-                            exit 1
+    if ($hasGit) {
+        if ($KeepCurrentBranch) {
+            if (-not $Json) {
+                Write-Host "[specify] Shared Work Board policy keeps the current Git branch; feature artifacts use $branchName."
+            }
+        } else {
+            $branchCreated = $false
+            $branchCreateError = ''
+            try {
+                $branchCreateError = git checkout -q -b $branchName 2>&1 | Out-String
+                if ($LASTEXITCODE -eq 0) {
+                    $branchCreated = $true
+                }
+            } catch {
+                $branchCreateError = $_.Exception.Message
+            }
+
+            if (-not $branchCreated) {
+                $currentBranch = ''
+                try { $currentBranch = (git rev-parse --abbrev-ref HEAD 2>$null).Trim() } catch {}
+                # Check if branch already exists
+                $existingBranch = git branch --list $branchName 2>$null
+                if ($existingBranch) {
+                    if ($AllowExistingBranch) {
+                        # If we're already on the branch, continue without another checkout.
+                        if ($currentBranch -eq $branchName) {
+                            # Already on the target branch — nothing to do
+                        } else {
+                            # Otherwise switch to the existing branch instead of failing.
+                            git checkout -q $branchName 2>$null | Out-Null
+                            if ($LASTEXITCODE -ne 0) {
+                                Write-Error "Error: Branch '$branchName' exists but could not be checked out. Resolve any uncommitted changes or conflicts and try again."
+                                exit 1
+                            }
                         }
+                    } elseif ($featurePrefixKind -eq 'timestamp') {
+                        Write-Error "Error: Branch '$branchName' already exists. Rerun to get a new timestamp or use a different -ShortName."
+                        exit 1
+                    } elseif ($featurePrefixKind -eq 'date') {
+                        Write-Error "Error: Branch '$branchName' already exists for this date and short name. Use a different -ShortName, -Timestamp, or -Number."
+                        exit 1
+                    } else {
+                        Write-Error "Error: Branch '$branchName' already exists. Please use a different feature name or specify a different number with -Number."
+                        exit 1
                     }
-                } elseif ($featurePrefixKind -eq 'timestamp') {
-                    Write-Error "Error: Branch '$branchName' already exists. Rerun to get a new timestamp or use a different -ShortName."
-                    exit 1
-                } elseif ($featurePrefixKind -eq 'date') {
-                    Write-Error "Error: Branch '$branchName' already exists for this date and short name. Use a different -ShortName, -Timestamp, or -Number."
-                    exit 1
                 } else {
-                    Write-Error "Error: Branch '$branchName' already exists. Please use a different feature name or specify a different number with -Number."
+                    if ($branchCreateError) {
+                        Write-Error "Error: Failed to create git branch '$branchName'.`n$($branchCreateError.Trim())"
+                    } else {
+                        Write-Error "Error: Failed to create git branch '$branchName'. Please check your git configuration and try again."
+                    }
                     exit 1
                 }
-            } else {
-                if ($branchCreateError) {
-                    Write-Error "Error: Failed to create git branch '$branchName'.`n$($branchCreateError.Trim())"
-                } else {
-                    Write-Error "Error: Failed to create git branch '$branchName'. Please check your git configuration and try again."
-                }
-                exit 1
             }
         }
     } else {
@@ -501,6 +586,7 @@ if ($Json) {
         SPECIFY_DRAFT_FILE = $specifyDraftFile
         FEATURE_NUM = $featureNum
         HAS_GIT = $hasGit
+        BRANCH_POLICY = $branchPolicy
     }
     if ($DryRun) {
         $obj | Add-Member -NotePropertyName 'DRY_RUN' -NotePropertyValue $true
@@ -514,6 +600,7 @@ if ($Json) {
     Write-Output "SPECIFY_DRAFT_FILE: $specifyDraftFile"
     Write-Output "FEATURE_NUM: $featureNum"
     Write-Output "HAS_GIT: $hasGit"
+    Write-Output "BRANCH_POLICY: $branchPolicy"
     if (-not $DryRun) {
         Write-Output "SPECIFY_FEATURE environment variable set to: $branchName"
     }

@@ -416,16 +416,8 @@ func resolveRepositoryPath(root string, value string) (string, error) {
 	if !pathWithinRoot(rootAbs, targetAbs) {
 		return "", fmt.Errorf("scan set path is outside the repository")
 	}
-	resolvedRoot, err := filepath.EvalSymlinks(rootAbs)
-	if err != nil {
-		return "", fmt.Errorf("resolve repository root: %w", err)
-	}
-	resolvedTarget, err := filepath.EvalSymlinks(targetAbs)
-	if err != nil {
-		return "", fmt.Errorf("resolve scan set path: %w", err)
-	}
-	if !pathWithinRoot(resolvedRoot, resolvedTarget) {
-		return "", fmt.Errorf("scan set path resolves outside the repository")
+	if err := rejectSymlinksBelow(rootAbs, targetAbs); err != nil {
+		return "", err
 	}
 	return targetAbs, nil
 }

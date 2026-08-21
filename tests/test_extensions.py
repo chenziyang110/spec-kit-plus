@@ -1062,7 +1062,8 @@ $ARGUMENTS
         assert cmd_file.exists()
 
         content = cmd_file.read_text()
-        assert "description: Test hello command" in content
+        assert "description: 'User-invoked workflow only:" in content
+        assert "Test hello command" in content
         assert "test-ext" in content
 
     def test_command_with_aliases(self, project_dir, temp_dir):
@@ -1171,7 +1172,8 @@ $ARGUMENTS
 
         content = skill_file.read_text()
         assert "name: sp-test-ext-hello" in content
-        assert "description: Test hello command" in content
+        assert "description: 'User-invoked workflow only:" in content
+        assert "Test hello command" in content
         assert "compatibility:" in content
         assert "metadata:" in content
         assert "source: test-ext:commands/hello.md" in content

@@ -1,5 +1,9 @@
 from pathlib import Path
+
+import pytest
+
 from specify_cli.hooks.engine import run_quality_hook
+from specify_cli.hooks.types import QualityHookError
 
 
 def _create_project(tmp_path: Path) -> Path:
@@ -463,7 +467,7 @@ def test_validate_state_autofix_plan_includes_planning_surfaces(tmp_path: Path):
     assert "plan-contract.json" in content
 
 
-def test_validate_state_autofix_clarify_includes_clarification_surfaces(tmp_path: Path):
+def test_validate_state_rejects_removed_clarify_command(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -491,17 +495,18 @@ def test_validate_state_autofix_clarify_includes_clarification_surfaces(tmp_path
         encoding="utf-8",
     )
 
-    result = run_quality_hook(
-        project,
-        "workflow.state.validate",
-        {"command_name": "clarify", "feature_dir": str(feature_dir), "autofix": True},
-    )
-
-    assert result.status == "repaired"
-    content = (feature_dir / "workflow-state.md").read_text(encoding="utf-8")
-    assert "clarification/handoffs/*.json" in content
-    assert "clarification/evidence-index.json" in content
-    assert "clarification/checkpoints.ndjson" in content
+    with pytest.raises(
+        QualityHookError, match="unsupported command_name 'clarify'"
+    ):
+        run_quality_hook(
+            project,
+            "workflow.state.validate",
+            {
+                "command_name": "clarify",
+                "feature_dir": str(feature_dir),
+                "autofix": True,
+            },
+        )
 
 
 def test_validate_state_profile_obligation_lists_respect_label_boundaries(

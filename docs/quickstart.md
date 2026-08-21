@@ -190,7 +190,7 @@ writes `.specify/prd-runs/<run-id>/` and does not automatically hand off to
 /sp-plan The application uses Vite with minimal number of libraries. Use vanilla HTML, CSS, and JavaScript as much as possible. Images are not uploaded anywhere and metadata is stored in a local SQLite database.
 ```
 
-Use `clarify` only when an existing spec needs deeper analysis before planning.
+Run `specify` again when an existing spec needs a focused analysis or repair pass before planning.
 Use `deep-research` only when the requirements are clear but feasibility still needs proof before planning, for example an unproven API, library, integration, algorithm, performance envelope, or platform behavior. It can coordinate parallel research tracks and disposable demo spikes, then writes a traceable `Planning Handoff` with evidence IDs that `plan` must consume. Skip it for minor changes to an existing capability that already has a clear implementation path.
 Use `research` only as a compatibility alias for `deep-research`; it should route into the same gate and must not create separate workflow artifacts.
 When `specify` records an unproven implementation chain after artifact review, the recommended pre-planning branch is `specify` -> `deep-research` -> `plan`.
@@ -264,7 +264,7 @@ When the feature touches an established boundary pattern in the target project, 
 After initialization, treat the generated commands as three groups:
 
 - **Core workflow skills**: `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept`
-- **Support skills**: `map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `test-design`, `checklist`, `analyze`, `debug`, `explain`
+- **Support skills**: `map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `deep-research` (`research` alias), `test-design`, `design`, `fast`, `quick`, `implement-teams`, `taskstoissues`, `checklist`, `analyze`, `debug`, `explain`
 - **Codex-only runtime**: terminal `specify sp-teams` commands and the `$sp-teams` skill when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:
@@ -323,8 +323,8 @@ Use support skills when they solve a specific gap:
 - The main feature pipeline passes `handoff-to-specify.json` -> `spec-contract.json` -> `plan-contract.json` -> `task-index.json` -> per-task lifecycle records -> `implementation-handoff.json` -> `review-state.json` -> `human-acceptance.json`. WorkerTaskPackets remain just-in-time and task review remains event-triggered inside Implement. Mandatory system Review freezes a complete Review Universe, uses independent Audit, Fix, and Revalidation subagents under one Leader, and requires zero uncovered scope plus fresh real-entrypoint evidence before human acceptance.
 - `prd-scan` followed by `prd-build` as the existing-project reverse PRD lane when you need repository-first current-state product documentation; it is the heavy reconstruction workflow, substantive scans are subagent-mandatory, critical claims target `L4 Reconstruction-Ready`, `config-contracts.json` is part of the scan contract surface, `prd-build` must not perform a second repository scan, it writes `.specify/prd-runs/<run-id>/`, and it does not automatically hand off to `plan`. `prd` remains a deprecated compatibility entrypoint that should route into the same pair
 - Treat the project cognition runtime as an advisory brownfield navigation index that gives agents dependency, claim, conflict, ownership, and change-impact context before deeper brownfield work starts.
-- `specify`, `clarify`, `deep-research`, `plan`, `test-design`, and `tasks` should not directly rewrite cognition content for artifact-only work. When they actually change source/runtime/template/config/test/generated-asset surfaces, they run planner-first project cognition update during closeout; recommend `map-update` only for external/manual changed-path map maintenance, ordinary existing-baseline gaps, and separate map-maintenance passes. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`
-- `clarify` when an existing spec still needs deeper analysis before planning
+- `specify`, `deep-research`, `plan`, `test-design`, and `tasks` should not directly rewrite cognition content for artifact-only work. When they actually change source/runtime/template/config/test/generated-asset surfaces, they run planner-first project cognition update during closeout; recommend `map-update` only for external/manual changed-path map maintenance, ordinary existing-baseline gaps, and separate map-maintenance passes. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`
+- run `specify` again when an existing spec still needs deeper analysis before planning
 - `deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `plan`; `research` is only its compatibility alias
 - `checklist` when you want to audit requirement quality after planning
 - `analyze` is an optional read-only diagnostic and legacy revalidation pass once `tasks.md` exists; run the cross-artifact consistency pass only when explicitly requested or recorded by existing state, while clean task packages hand off directly to `implement`
@@ -338,7 +338,7 @@ If you're starting from an existing codebase, query cognition readiness through 
 
 Use the lightweight routing rules consistently:
 
-- `fast` is only for trivial local fixes. Stay there only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
+- `fast` is only for trivial local fixes. Stay there only when the change is obvious, touches at most 3 files, and does not touch a shared surface. It still consumes relevant Learning, runs Project Cognition intake, executes leader-direct with no subagents, and ends with targeted verification plus one same-leader Lightweight Review.
 - Upgrade to `quick` when the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
 - `quick` is for non-trivial direct delivery that benefits from resumable state. One Quick workspace may hold one or many ordered work items, task-local `PLAN.md`, dependency-aware batches, consequence tracking, and acceptance evidence; there is no small-task ceiling.
 - If the work is a bug fix or regression and the root cause is still unknown, route to `debug` instead of using `quick` for a symptom-only patch.
@@ -515,10 +515,10 @@ Once `specify` reaches planning-ready alignment, move directly to `plan`.
 /sp-plan We are going to generate this using .NET Aspire, using Postgres as the database. The frontend should use Blazor server with drag-and-drop task boards, real-time updates. There should be a REST API created with a projects API, tasks API, and a notifications API.
 ```
 
-If an existing spec needs deeper analysis first, use `clarify`.
+If an existing spec needs deeper analysis first, run `specify` again with the repair scope.
 
 ```bash
-/sp-clarify Add sharper reporting requirements and cross-team notification expectations before planning.
+/sp-specify Add sharper reporting requirements and cross-team notification expectations before planning.
 ```
 
 If the spec is clear but feasibility is still uncertain, use `deep-research`
@@ -572,7 +572,7 @@ fresh evidence to human acceptance:
 - **Be explicit** about what you're building and why
 - **Don't focus on tech stack** during specification phase
 - **Use `specify -> plan` as the default path**
-- **Use `clarify` only when an existing spec needs deeper analysis before planning**
+- **Use `specify` again when an existing spec needs deeper analysis before planning**
 - **Use `deep-research` only when feasibility or the implementation chain must be proven before planning, and preserve its Planning Handoff as plan input; treat `research` as a compatibility alias, not a separate workflow**
 - **Use failing test first** for `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug`; if the touched behavior has no viable automated test surface yet, add the smallest safe bootstrap in the owning workflow. Fast or Debug may move that work into Quick; Specify is used only when the user explicitly chooses a formal spec-first path.
 - **Validate** the plan before coding begins

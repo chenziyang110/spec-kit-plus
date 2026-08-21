@@ -55,7 +55,6 @@ Goal: Read the current stage artifact, project cognition artifact, or explicitly
      - `specify` -> `FEATURE_DIR/spec.md`
    - Supporting files:
 - `specify`: also query `FEATURE_DIR/alignment.md` and `FEATURE_DIR/references.md` through `specify-runtime artifact show` if present
-- `clarify`: query `FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, and `FEATURE_DIR/references.md` through targeted `artifact show` calls, then explain the enhancement state
 - `plan`: also query `FEATURE_DIR/research.md`, `FEATURE_DIR/data-model.md`, `FEATURE_DIR/contracts/`, and `FEATURE_DIR/quickstart.md` through `specify-runtime artifact show/list` when present
 - `tasks`: also query `FEATURE_DIR/plan.md` and `FEATURE_DIR/spec.md` through `artifact show` when needed
      - `implement`: if there is no canonical implementation status artifact, explain that implementation status is unavailable from the current file set and fall back to the most recent planning artifact instead of guessing
