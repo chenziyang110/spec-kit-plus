@@ -1701,7 +1701,7 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert (
         "use `$sp-map-scan -> $sp-map-build` only for brownfield first/missing/unusable baseline, "
         "schema failure, schema v1 or old broad-schema rebuild-required readiness, "
-        "zero active-generation `path_index` rows outside baseline-kind exceptions described below, "
+        "zero active-generation `path_index` rows outside `greenfield_empty`, "
         "missing or invalid `alias_index`"
     ) in content
     assert "if cognition freshness is `stale`, treat map output as advisory" in content
