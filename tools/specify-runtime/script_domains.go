@@ -10,13 +10,14 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
 	"unicode"
+
+	runtimecmd "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
 func runDiscussion(args []string, stdout io.Writer) int {
@@ -2708,21 +2709,18 @@ func currentPRDGitSnapshot(projectRoot string) (prdGitSnapshot, error) {
 }
 
 func isGitWorkTree(projectRoot string) bool {
-	cmd := exec.Command("git", "-C", projectRoot, "rev-parse", "--is-inside-work-tree")
-	output, err := cmd.CombinedOutput()
+	output, err := runtimecmd.CommandCombinedOutput("", nil, "git", "-C", projectRoot, "rev-parse", "--is-inside-work-tree")
 	if err != nil {
 		return false
 	}
 	if !strings.EqualFold(strings.TrimSpace(string(output)), "true") {
 		return false
 	}
-	head := exec.Command("git", "-C", projectRoot, "rev-parse", "--verify", "HEAD")
-	return head.Run() == nil
+	return runtimecmd.CommandRun("", nil, "git", "-C", projectRoot, "rev-parse", "--verify", "HEAD") == nil
 }
 
 func runGitValue(projectRoot string, args ...string) (string, error) {
-	cmd := exec.Command("git", append([]string{"-C", projectRoot}, args...)...)
-	output, err := cmd.CombinedOutput()
+	output, err := runtimecmd.CommandCombinedOutput("", nil, "git", append([]string{"-C", projectRoot}, args...)...)
 	if err != nil {
 		return "", fmt.Errorf("git %s failed: %s", strings.Join(args, " "), strings.TrimSpace(string(output)))
 	}

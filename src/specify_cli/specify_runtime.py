@@ -44,6 +44,7 @@ DEFAULT_RUNTIME_QUERY_TIMEOUT_SECONDS = 30
 DEFAULT_RUNTIME_COMMAND_TIMEOUT_SECONDS = 300
 DEFAULT_RUNTIME_SUPERVISED_TIMEOUT_SECONDS = 6 * 60 * 60
 RUNTIME_TIMEOUT_GRACE_SECONDS = 5
+RUNTIME_SUPERVISED_TIMEOUT_GRACE_SECONDS = 15
 MAX_RUNTIME_TIMEOUT_SECONDS = 24 * 60 * 60
 # Cold ``go build`` on Windows/CI can exceed two minutes after module fetch.
 DEFAULT_SOURCE_BUILD_TIMEOUT_SECONDS = 300
@@ -383,7 +384,12 @@ def _runtime_command_timeout_seconds(args: Sequence[str]) -> float:
         budget = float(DEFAULT_RUNTIME_SUPERVISED_TIMEOUT_SECONDS)
     else:
         budget = float(DEFAULT_RUNTIME_COMMAND_TIMEOUT_SECONDS)
-    return budget + RUNTIME_TIMEOUT_GRACE_SECONDS
+    grace = (
+        RUNTIME_SUPERVISED_TIMEOUT_GRACE_SECONDS
+        if _is_supervised_runtime_command(args)
+        else RUNTIME_TIMEOUT_GRACE_SECONDS
+    )
+    return budget + grace
 
 
 def _runtime_operation(args: Sequence[str]) -> str:

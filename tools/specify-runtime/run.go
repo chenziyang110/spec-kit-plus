@@ -20,6 +20,10 @@ import (
 )
 
 func runRun(args []string, stdout, stderr io.Writer) int {
+	return runRunContext(context.Background(), args, stdout, stderr)
+}
+
+func runRunContext(parent context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return writeEnvelope(stdout, runUsageEnvelope("missing run subcommand"))
 	}
@@ -36,9 +40,9 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 	case "cancel":
 		return runCancel(args[1:], stdout)
 	case "launch":
-		return runLaunch(args[1:], stdout, stderr)
+		return runLaunchContext(parent, args[1:], stdout, stderr)
 	case "supervise":
-		return runSupervise(args[1:], stdout, stderr)
+		return runSuperviseContext(parent, args[1:], stdout, stderr)
 	default:
 		return writeEnvelope(stdout, runUsageEnvelope(fmt.Sprintf("unknown run subcommand %q", args[0])))
 	}
@@ -83,6 +87,10 @@ func runCreate(args []string, stdout io.Writer) int {
 }
 
 func runLaunch(args []string, stdout, stderr io.Writer) int {
+	return runLaunchContext(context.Background(), args, stdout, stderr)
+}
+
+func runLaunchContext(parent context.Context, args []string, stdout, stderr io.Writer) int {
 	parsed, childArgv, err := parseRunLaunchArgs(args)
 	if err != nil {
 		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
@@ -108,13 +116,13 @@ func runLaunch(args []string, stdout, stderr io.Writer) int {
 		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
 	}
 
-	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stopSignals := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
 	if _, operationErr := enqueueRunForCLI(ctx, projectRoot, createParams); operationErr != nil {
 		return writeEnvelope(stdout, runControlErrorEnvelope("launch run", operationErr))
 	}
 	result, operationErr := superviseRunForCLI(ctx, projectRoot, createParams.RunID, adapterID, workspacePolicy, workParams, childArgv, stderr)
-	return writeRunSupervisionEnvelope(stdout, ctx, createParams.RunID, projectRoot, result, operationErr)
+	return writeRunSupervisionEnvelope(stdout, ctx, "run.launch", createParams.RunID, projectRoot, result, operationErr)
 }
 
 func runShow(args []string, stdout io.Writer) int {
@@ -235,6 +243,10 @@ func runCancel(args []string, stdout io.Writer) int {
 }
 
 func runSupervise(args []string, stdout, stderr io.Writer) int {
+	return runSuperviseContext(context.Background(), args, stdout, stderr)
+}
+
+func runSuperviseContext(parent context.Context, args []string, stdout, stderr io.Writer) int {
 	parsed, childArgv, err := parseRunSuperviseArgs(args)
 	if err != nil {
 		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
@@ -257,10 +269,10 @@ func runSupervise(args []string, stdout, stderr io.Writer) int {
 		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
 	}
 
-	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stopSignals := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
 	result, operationErr := superviseRunForCLI(ctx, projectRoot, runID, adapterID, workspacePolicy, workParams, childArgv, stderr)
-	return writeRunSupervisionEnvelope(stdout, ctx, runID, projectRoot, result, operationErr)
+	return writeRunSupervisionEnvelope(stdout, ctx, "run.supervise", runID, projectRoot, result, operationErr)
 }
 
 func runCreateParams(parsed parsedRunCommand, commandName string) (runcontrol.CreateRunParams, error) {
@@ -318,6 +330,7 @@ func superviseRunForCLI(
 func writeRunSupervisionEnvelope(
 	stdout io.Writer,
 	ctx context.Context,
+	operation string,
 	runID string,
 	projectRoot string,
 	result runcontrol.SupervisedRun,
@@ -325,7 +338,12 @@ func writeRunSupervisionEnvelope(
 ) int {
 	if operationErr != nil {
 		env := workBoardErrorEnvelope("supervise run", operationErr)
-		if errors.Is(operationErr, context.Canceled) {
+		if errors.Is(operationErr, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			env.Status = "blocked"
+			env.Summary = "runtime command timed out"
+			env.Data["operation"] = operation
+			env.Blockers = append(env.Blockers, "supervision deadline exceeded; the child process tree was terminated and the run was fenced")
+		} else if errors.Is(operationErr, context.Canceled) {
 			env.Status = "blocked"
 			env.Summary = "run supervision interrupted and fenced"
 		}
@@ -370,6 +388,10 @@ func runResultCommand(args []string, stdout io.Writer) int {
 }
 
 func runCandidateCommand(args []string, stdout io.Writer) int {
+	return runCandidateCommandContext(context.Background(), args, stdout)
+}
+
+func runCandidateCommandContext(ctx context.Context, args []string, stdout io.Writer) int {
 	if len(args) == 0 {
 		return writeEnvelope(stdout, usageEnvelope("missing candidate subcommand"))
 	}
@@ -379,7 +401,7 @@ func runCandidateCommand(args []string, stdout io.Writer) int {
 	case "show":
 		return runCandidateShow(args[1:], stdout)
 	case "review":
-		return runCandidateReview(args[1:], stdout)
+		return runCandidateReviewContext(ctx, args[1:], stdout)
 	default:
 		return writeEnvelope(stdout, usageEnvelope(fmt.Sprintf("unknown candidate subcommand %q", args[0])))
 	}
@@ -1134,6 +1156,10 @@ func runCandidateShow(args []string, stdout io.Writer) int {
 }
 
 func runCandidateReview(args []string, stdout io.Writer) int {
+	return runCandidateReviewContext(context.Background(), args, stdout)
+}
+
+func runCandidateReviewContext(parent context.Context, args []string, stdout io.Writer) int {
 	parsed, literalArgv, err := parseRunChildArgs(args, 1, "candidate review", "--project-root", "--format", "--reviewer", "--candidate-id")
 	if err != nil {
 		return writeEnvelope(stdout, usageEnvelope(err.Error()))
@@ -1149,7 +1175,7 @@ func runCandidateReview(args []string, stdout io.Writer) int {
 	if reviewer == "" {
 		return writeEnvelope(stdout, usageEnvelope("candidate review requires --reviewer"))
 	}
-	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stopSignals := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
 	repository, err := runcontrol.ResolveRepository(ctx, parsed.option("--project-root", "."))
 	if err != nil {

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -2177,31 +2176,8 @@ func runGitProbe(root string, timeout time.Duration, run gitCommandRunner, args 
 }
 
 func runGitCommand(ctx context.Context, root string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = root
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Start(); err != nil {
-		return "", err
-	}
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
-	select {
-	case err := <-done:
-		if err != nil {
-			return "", err
-		}
-		return stdout.String(), nil
-	case <-ctx.Done():
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-		return "", ctx.Err()
-	}
+	stdout, err := rt.CommandOutputContext(ctx, root, nil, "git", args...)
+	return string(stdout), err
 }
 
 func parseDeltaGitStatusZ(output string) []string {

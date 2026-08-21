@@ -276,7 +276,7 @@ def test_runtime_runner_uses_unified_namespaced_argv(
         (["validate", "spec", "--feature-dir", ".", "--format", "json"], 305.0),
         (
             ["run", "launch", "--adapter-id", "codex", "--", "codex", "exec"],
-            21605.0,
+            21615.0,
         ),
     ],
 )

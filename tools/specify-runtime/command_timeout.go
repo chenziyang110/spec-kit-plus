@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -17,9 +18,11 @@ const (
 	defaultRuntimeCommandTimeout = 5 * time.Minute
 	defaultSupervisedRunTimeout  = 6 * time.Hour
 	maxRuntimeCommandTimeout     = 24 * time.Hour
+	runtimeCleanupGrace          = 4 * time.Second
+	supervisedCleanupGrace       = 10 * time.Second
 )
 
-type runtimeCommandRunner func([]string, io.Writer, io.Writer, string) int
+type contextualRuntimeCommandRunner func(context.Context, []string, io.Writer, io.Writer, string) int
 
 func runtimeCommandTimeout(args []string) (time.Duration, error) {
 	if raw := strings.TrimSpace(os.Getenv(runtimeTimeoutEnv)); raw != "" {
@@ -85,17 +88,19 @@ func runWithWatchdog(
 	stdout, stderr io.Writer,
 	cliVersion string,
 	timeout time.Duration,
-	runner runtimeCommandRunner,
+	runner contextualRuntimeCommandRunner,
 ) int {
 	type commandResult struct {
 		code   int
 		stdout []byte
 		stderr []byte
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 	resultChannel := make(chan commandResult, 1)
 	go func() {
 		var commandStdout, commandStderr bytes.Buffer
-		code := runner(args, &commandStdout, &commandStderr, cliVersion)
+		code := runner(ctx, args, &commandStdout, &commandStderr, cliVersion)
 		resultChannel <- commandResult{
 			code:   code,
 			stdout: append([]byte(nil), commandStdout.Bytes()...),
@@ -103,22 +108,62 @@ func runWithWatchdog(
 		}
 	}()
 
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
 	select {
 	case result := <-resultChannel:
 		_, _ = stdout.Write(result.stdout)
 		_, _ = stderr.Write(result.stderr)
 		return result.code
-	case <-timer.C:
+	case <-ctx.Done():
+	}
+
+	cleanupTimer := time.NewTimer(runtimeCleanupGrace)
+	defer cleanupTimer.Stop()
+	select {
+	case <-resultChannel:
+	case <-cleanupTimer.C:
+	}
+	env := NewEnvelope("blocked", "runtime command timed out")
+	env.Data["operation"] = runtimeOperation(args)
+	env.Data["timeout_seconds"] = timeout.Seconds()
+	env.Data["timeout_env"] = runtimeTimeoutEnv
+	env.Blockers = append(
+		env.Blockers,
+		fmt.Sprintf("operation exceeded its %s execution budget; child processes were cancelled and cleanup was bounded", timeout),
+	)
+	return writeEnvelope(stdout, env)
+}
+
+func runSupervisedWithTimeout(
+	args []string,
+	stdout, stderr io.Writer,
+	cliVersion string,
+	timeout time.Duration,
+	runner contextualRuntimeCommandRunner,
+) int {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	resultChannel := make(chan int, 1)
+	go func() {
+		resultChannel <- runner(ctx, args, stdout, stderr, cliVersion)
+	}()
+
+	select {
+	case code := <-resultChannel:
+		return code
+	case <-ctx.Done():
+	}
+
+	cleanupTimer := time.NewTimer(supervisedCleanupGrace)
+	defer cleanupTimer.Stop()
+	select {
+	case code := <-resultChannel:
+		return code
+	case <-cleanupTimer.C:
 		env := NewEnvelope("blocked", "runtime command timed out")
 		env.Data["operation"] = runtimeOperation(args)
 		env.Data["timeout_seconds"] = timeout.Seconds()
 		env.Data["timeout_env"] = runtimeTimeoutEnv
-		env.Blockers = append(
-			env.Blockers,
-			fmt.Sprintf("operation exceeded its %s execution budget; inspect runtime locks and child processes", timeout),
-		)
+		env.Blockers = append(env.Blockers, "supervised process cleanup exceeded its bounded grace period; the runtime process will exit")
 		return writeEnvelope(stdout, env)
 	}
 }

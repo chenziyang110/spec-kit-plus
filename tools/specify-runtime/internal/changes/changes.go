@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -625,7 +624,5 @@ func pathTrackedByGit(root string, path string) bool {
 	if path == "" {
 		return false
 	}
-	cmd := exec.Command("git", "ls-files", "--error-unmatch", "--", path)
-	cmd.Dir = root
-	return cmd.Run() == nil
+	return rt.CommandRun(root, nil, "git", "ls-files", "--error-unmatch", "--", path) == nil
 }

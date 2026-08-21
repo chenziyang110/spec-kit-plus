@@ -18,6 +18,7 @@ import (
 	"time"
 
 	ignorepkg "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/ignore"
+	runtimecmd "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
 const (
@@ -1947,9 +1948,7 @@ func implementFingerprintIncludesPath(rootAbs, featureAbs, rel string, scope imp
 }
 
 func gitCommandOutput(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	raw, err := cmd.Output()
+	raw, err := runtimecmd.CommandOutput(dir, nil, "git", args...)
 	if err != nil {
 		return "", err
 	}
@@ -1957,9 +1956,7 @@ func gitCommandOutput(dir string, args ...string) (string, error) {
 }
 
 func gitCommandNULPaths(dir string, args ...string) ([]string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	raw, err := cmd.Output()
+	raw, err := runtimecmd.CommandOutput(dir, nil, "git", args...)
 	if err != nil {
 		return nil, err
 	}
