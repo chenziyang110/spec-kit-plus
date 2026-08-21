@@ -56,7 +56,17 @@ design_brief:
       agent_resource_ids: []
       candidates: []
       confirmation_codes: []
+      component_adoption_plan: []
+      official_resource_refresh:
+        status: not-run
+        helper_ref: ui-professional-skills/refresh.py
+        selected_resource_ids: []
+        selected_agent_resource_ids: []
+        network_policy: blocked_by_default
+        install_or_upgrade: unauthorized
+        items: []
     smoothness_acceptance_ids: []
+    smoothness_performance_budgets: {}
   style_authority:
     mode: unresolved
     scope_level: null
@@ -140,6 +150,10 @@ gaps; retrieve official Agent material only for selected candidates. Run the
 bounded project-root scan first, preserve its `web_ui_asset_inventory`, use the
 compact `mature_web_ui_selection` reason codes, and treat an unscanned result as
 provisional.
+Retain its deterministic component adoption/permission plan. Refresh only
+selected official material through the offline helper, persist hash/drift
+results, and treat drift as a selection-review trigger rather than install or
+upgrade authority.
 
 For local work in an existing product, resolve `style_authority.mode` to
 `inherit-existing`, keep `style_skill_id: null`, and load only the domain plus
@@ -187,7 +201,7 @@ later freeze under `design_change.verification`: `surface_catalog`,
 `scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
 `accessibility_matrix`, `navigation_matrix`, `content_matrix`,
 `motion_contract`, and `usability_validation`.
-For Web UI, place the routed `smoothness_acceptance_ids` in
+For Web UI, place the routed `smoothness_acceptance_ids` and performance budgets in
 `usability_validation` and bind each ID to the existing interaction, motion,
 structure, visual, runtime, or human-review path that proves it.
 For every applicable input path, identify the platform event sequence,

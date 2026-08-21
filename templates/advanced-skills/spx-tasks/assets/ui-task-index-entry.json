@@ -40,6 +40,7 @@
       "profile_id": "{{copy_exact_surface_profile_id}}",
       "name": "{{copy_exact_surface_name}}",
       "kind": "{{copy_exact_surface_kind}}",
+      "entrypoint_id": "{{copy_exact_surface_entrypoint_id}}",
       "source_refs": ["{{copy_exact_surface_source_ref}}"],
       "specimen_ids": ["{{copy_exact_surface_specimen_id}}"],
       "component_ids": ["{{selected_handoff_component_id}}"],
@@ -191,6 +192,19 @@
       "content_constraints": ["{{copy_exact_component_content_constraints}}"],
       "semantic_token_refs": ["{{copy_exact_semantic_token_refs}}"],
       "governance": "{{reuse_extend_or_new}}",
+      "adoption": {
+        "resource_id": "{{copy_exact_resource_id}}",
+        "action": "{{reuse_extend_add_or_custom}}",
+        "package": "{{copy_exact_package_or_local_marker}}",
+        "version": "{{copy_exact_version_or_local_marker}}",
+        "license": "{{copy_exact_license_status}}",
+        "source_ref": "{{copy_exact_official_or_live_source_ref}}",
+        "component_refs": ["{{copy_exact_component_ref}}"],
+        "reason_codes": ["{{copy_exact_reason_code}}"],
+        "selection_basis_refs": ["{{copy_exact_selection_basis_ref}}"],
+        "permission_gate": "{{required_or_not_required}}",
+        "permission_status": "{{authorized_or_not_authorized}}"
+      },
       "iconography": "{{copy_exact_iconography_contract}}",
       "decision_ids": ["{{copy_exact_component_decision_ids}}"],
       "must_match": ["{{copy_exact_component_must_match_values}}"]
@@ -236,7 +250,14 @@
       "critical_tasks": ["{{critical_user_task}}"],
       "success_criteria": ["{{observable_success_criterion}}"],
       "human_review_required": "{{copy_exact_boolean_human_review_required}}",
-      "smoothness_acceptance_ids": ["{{copy_exact_applicable_smoothness_acceptance_id}}"]
+      "smoothness_acceptance_ids": ["{{copy_exact_applicable_smoothness_acceptance_id}}"],
+      "performance_budgets": {
+        "inp_ms": "{{copy_exact_numeric_inp_budget}}",
+        "long_task_ms": "{{copy_exact_numeric_long_task_budget}}",
+        "cls": "{{copy_exact_numeric_cls_budget}}",
+        "animation_dropped_frame_pct": "{{copy_exact_numeric_animation_budget}}",
+        "bundle_delta_kb": "{{copy_exact_numeric_bundle_delta_budget}}"
+      }
     },
     "visual_acceptance_matrix": [{
       "id": "{{selected_handoff_visual_acceptance_id}}",

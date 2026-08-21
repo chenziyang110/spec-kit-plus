@@ -99,7 +99,8 @@ For UI-bearing scope, bind exact applicable `surface_catalog`,
 `scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
 `accessibility_matrix`, `navigation_matrix`, `content_matrix`,
 `motion_contract`, and `usability_validation` values—including its exact
-`smoothness_acceptance_ids`—in the
-feature requirements and UI brief. Retain component governance/iconography.
+`smoothness_acceptance_ids` and performance budgets—in the
+feature requirements and UI brief. Retain component adoption permissions,
+governance, and iconography.
 Use risk-based or pairwise acceptance scenarios, never an unbounded Cartesian
 product, and do not let screenshots stand in for required target-user review.

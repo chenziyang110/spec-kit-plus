@@ -7,6 +7,8 @@ import pytest
 from specify_cli.hooks import artifact_validation
 from specify_cli.hooks.engine import run_quality_hook
 from specify_cli.hooks.artifact_validation import (
+    _ui_contract_valid_component_adoption,
+    _ui_contract_valid_usability,
     _validate_plan_human_acceptance_contract,
     _validate_plan_ui_contract,
     _validate_task_lifecycle_records,
@@ -27,6 +29,107 @@ COMPARISON_TOLERANCE = {
     "motion": {"unit": "ms", "max_delta": 16},
     "platform_variance": "approved-deviation-only",
 }
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"resource_id": ""},
+        {"action": "replace"},
+        {"package": None},
+        {"version": ""},
+        {"source_ref": " "},
+        {"component_refs": []},
+        {"permission_gate": "later"},
+        {"permission_status": "pending"},
+        {"action": "add", "permission_gate": "not-required"},
+        {"permission_gate": "not-required", "permission_status": "not-authorized"},
+    ],
+)
+def test_ui_artifact_component_adoption_rejects_incomplete_or_unauthorized_rows(
+    patch: dict[str, object],
+) -> None:
+    row = {
+        "resource_id": "material-ui",
+        "action": "reuse",
+        "package": "@mui/material",
+        "version": "^7.0.0",
+        "license": "MIT",
+        "source_ref": "package.json#/dependencies/@mui/material",
+        "component_refs": ["@mui/material/TextField"],
+        "reason_codes": ["installed"],
+        "selection_basis_refs": ["package.json"],
+        "permission_gate": "not-required",
+        "permission_status": "authorized",
+        **patch,
+    }
+    assert not _ui_contract_valid_component_adoption(row)
+
+
+def test_ui_artifact_component_adoption_accepts_complete_reuse_row() -> None:
+    assert _ui_contract_valid_component_adoption(
+        {
+            "resource_id": "material-ui",
+            "action": "reuse",
+            "package": "@mui/material",
+            "version": "^7.0.0",
+            "license": "MIT",
+            "source_ref": "package.json#/dependencies/@mui/material",
+            "component_refs": ["@mui/material/TextField"],
+            "reason_codes": ["installed"],
+            "selection_basis_refs": ["package.json"],
+            "permission_gate": "not-required",
+            "permission_status": "authorized",
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "budgets",
+    [
+        [],
+        {"inp_ms": 200},
+        {
+            "inp_ms": True,
+            "long_task_ms": 50,
+            "cls": 0.1,
+            "animation_dropped_frame_pct": 5,
+            "bundle_delta_kb": 30,
+        },
+    ],
+)
+def test_ui_artifact_usability_rejects_invalid_smoothness_budgets(
+    budgets: object,
+) -> None:
+    assert not _ui_contract_valid_usability(
+        {
+            "risk_level": "medium",
+            "methods": ["cognitive walkthrough"],
+            "critical_tasks": ["save settings"],
+            "success_criteria": ["preserve context"],
+            "human_review_required": True,
+            "performance_budgets": budgets,
+        }
+    )
+
+
+def test_ui_artifact_usability_accepts_complete_smoothness_budgets() -> None:
+    assert _ui_contract_valid_usability(
+        {
+            "risk_level": "medium",
+            "methods": ["cognitive walkthrough"],
+            "critical_tasks": ["save settings"],
+            "success_criteria": ["preserve context"],
+            "human_review_required": True,
+            "performance_budgets": {
+                "inp_ms": 200,
+                "long_task_ms": 50,
+                "cls": 0.1,
+                "animation_dropped_frame_pct": 5,
+                "bundle_delta_kb": 30,
+            },
+        }
+    )
 
 
 def _interaction_contract(
@@ -1620,6 +1723,7 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
                 "profile_id": "web",
                 "name": "Settings",
                 "kind": "web",
+                "entrypoint_id": "EP-WEB-SETTINGS",
                 "source_refs": ["src/settings/page.tsx"],
                 "specimen_ids": ["SP-WEB-SETTINGS-001"],
                 "component_ids": ["COMP-001"],
@@ -1960,7 +2064,17 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
     }
     (feature_dir / "task-index.json").write_text(
         json.dumps(
-            {"version": 2, "tasks": [{"id": "T001", "ui_contract": task_contract}]}
+            {
+                "version": 2,
+                "official_entrypoints": [
+                    {
+                        "id": "EP-WEB-SETTINGS",
+                        "command": "npm run dev",
+                        "ready_signal": "The settings route is ready.",
+                    }
+                ],
+                "tasks": [{"id": "T001", "ui_contract": task_contract}],
+            }
         ),
         encoding="utf-8",
     )
@@ -1969,7 +2083,17 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
     task_contract["contract_version"] = 2
     (feature_dir / "task-index.json").write_text(
         json.dumps(
-            {"version": 2, "tasks": [{"id": "T001", "ui_contract": task_contract}]}
+            {
+                "version": 2,
+                "official_entrypoints": [
+                    {
+                        "id": "EP-WEB-SETTINGS",
+                        "command": "npm run dev",
+                        "ready_signal": "The settings route is ready.",
+                    }
+                ],
+                "tasks": [{"id": "T001", "ui_contract": task_contract}],
+            }
         ),
         encoding="utf-8",
     )
@@ -2055,6 +2179,7 @@ def _write_ui_continuity_fixture(
                 "profile_id": "web",
                 "name": "Settings",
                 "kind": "web",
+                "entrypoint_id": "EP-WEB-SETTINGS",
                 "source_refs": ["src/settings/page.tsx"],
                 "specimen_ids": ["SP-WEB-SETTINGS-001"],
                 "component_ids": ["COMP-001"],
@@ -2360,11 +2485,38 @@ def _write_ui_continuity_fixture(
     )
     (feature_dir / "task-index.json").write_text(
         json.dumps(
-            {"version": 2, "tasks": [{"id": "T001", "ui_contract": task_contract}]}
+            {
+                "version": 2,
+                "official_entrypoints": [
+                    {
+                        "id": "EP-WEB-SETTINGS",
+                        "command": "npm run dev",
+                        "ready_signal": "The settings route is ready.",
+                    }
+                ],
+                "tasks": [{"id": "T001", "ui_contract": task_contract}],
+            }
         ),
         encoding="utf-8",
     )
     return spec_design, plan_design, task_contract
+
+
+def test_task_ui_contract_surface_entrypoint_must_bind_official_entrypoint(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "002-ui-entrypoint"
+    _write_ui_continuity_fixture(feature_dir)
+    task_index_path = feature_dir / "task-index.json"
+    task_index = json.loads(task_index_path.read_text(encoding="utf-8"))
+    task_index["tasks"][0]["ui_contract"]["surface_catalog"][0][
+        "entrypoint_id"
+    ] = "EP-UNKNOWN"
+    task_index_path.write_text(json.dumps(task_index), encoding="utf-8")
+
+    errors = _validate_tasks_ui_contract(feature_dir)
+
+    assert any("unknown official entrypoint" in error for error in errors)
 
 
 @pytest.mark.parametrize(

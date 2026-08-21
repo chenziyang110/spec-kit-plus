@@ -39,8 +39,10 @@ state. Carry the same structured rows from the approved change through
 packets, and Review evidence:
 
 - `surface_catalog`: stable `DH-SURFACE-*` rows with `profile_id`, `name`,
-  `kind`, source/specimen/component references, and exact `decision_ids`.
-  Keep one identity for each implemented surface across states and viewports.
+  `kind`, the exact `entrypoint_id` from the consumer's official entrypoint
+  inventory, source/specimen/component references, and exact `decision_ids`.
+  Keep one identity and one real-entrypoint binding for each implemented
+  surface across states and viewports.
 - `scenario_matrix`: bounded `DH-SCENARIO-*` rows that name one
   `surface_id`, risk, required status, and the exact interaction, editing, data,
   accessibility, navigation, content, responsive, and motion row IDs exercised
@@ -89,7 +91,8 @@ packets, and Review evidence:
   optimistic/pending, and success states when applicable.
 - `component_contracts`: retain exact `required_states`, `interaction_modes`,
   `data_scenarios`, `variants`, `content_constraints`, `semantic_token_refs`,
-  `governance` (`reuse` | `extend` | `new`), `iconography`, and decision
+  `governance` (`reuse` | `extend` | `new`), exact nested component adoption
+  action/package/version/license/source/permission, `iconography`, and decision
   bindings. Treat `semantic_token_refs` as semantic token references, not raw
   one-off values. Assign design-system gaps and deprecation; bind icon source,
   family, sizing, stroke/fill, optical alignment, meaning, and fallback. For
@@ -145,7 +148,9 @@ does not replace `accessibility_matrix`.
   and timeout.
 - `usability_validation` uses `risk_level`, `methods`, `critical_tasks`,
   `success_criteria`, `human_review_required`, and the exact routed
-  `smoothness_acceptance_ids`. Low-risk existing-pattern
+  `smoothness_acceptance_ids` plus performance budgets. Passing integrated
+  evidence binds the runtime-owned Smoothness Lab report ref/digest without a
+  new evidence kind. Low-risk existing-pattern
   changes may use a documented cognitive walkthrough or heuristic review.
   Medium- and high-risk journeys name representative target users, critical
   task success criteria, and human review. Automated tests and screenshots

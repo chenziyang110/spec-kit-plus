@@ -533,21 +533,40 @@ def validate_worker_task_result(
             if isinstance(usability_validation, dict)
             else []
         )
-        expected_smoothness_ids = {
+        expected_smoothness_list = [
             item.strip()
             for item in smoothness_acceptance_ids
             if isinstance(item, str) and item.strip()
-        }
+        ]
+        expected_smoothness_ids = set(expected_smoothness_list)
         if expected_smoothness_ids and not defer_integrated_ui_evidence:
-            covered_smoothness_ids = {
+            covered_smoothness_list = [
                 item.strip()
                 for item in result.ui_verification.covered_smoothness_acceptance_ids
                 if isinstance(item, str) and item.strip()
-            }
-            if covered_smoothness_ids != expected_smoothness_ids:
+            ]
+            covered_smoothness_ids = set(covered_smoothness_list)
+            if (
+                len(expected_smoothness_list) != len(expected_smoothness_ids)
+                or len(covered_smoothness_list) != len(covered_smoothness_ids)
+                or covered_smoothness_ids != expected_smoothness_ids
+            ):
                 raise PacketValidationError(
                     "DP3",
                     "UI smoothness acceptance coverage must exactly match the task usability_validation contract",
+                )
+            smoothness_report_ref = (
+                result.ui_verification.smoothness_lab_report_ref.strip()
+            )
+            smoothness_report_sha256 = (
+                result.ui_verification.smoothness_lab_report_sha256.strip()
+            )
+            if not smoothness_report_ref or not re.fullmatch(
+                r"[0-9a-f]{64}", smoothness_report_sha256
+            ):
+                raise PacketValidationError(
+                    "DP3",
+                    "UI smoothness acceptance requires a bound smoothness lab report ref and SHA-256 digest",
                 )
         if (
             isinstance(usability_validation, dict)

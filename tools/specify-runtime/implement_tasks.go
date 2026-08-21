@@ -930,6 +930,7 @@ func resetImplementTaskUIVerification(value any) map[string]any {
 		"visual_comparison": "unavailable", "fidelity_status": fidelityStatus, "reviewer": "agent",
 		"human_review_ref": "",
 		"evidence":         []any{}, "comparison_report_ref": "", "comparison_report_sha256": "",
+		"smoothness_lab_report_ref": "", "smoothness_lab_report_sha256": "",
 		"implementation_capture_refs": []any{}, "structural_differences": []any{}, "visual_differences": []any{},
 	}
 }
@@ -1276,11 +1277,45 @@ func validateImplementTaskUIAcceptance(feature string, task, lifecycle map[strin
 		return nil
 	}
 	usability, ok := uiContract["usability_validation"].(map[string]any)
-	if !ok || !boolValue(usability["human_review_required"]) {
+	if !ok {
 		return nil
 	}
-	verification, ok := lifecycle["ui_verification"].(map[string]any)
-	if !ok {
+	verification, hasVerification := lifecycle["ui_verification"].(map[string]any)
+	expectedSmoothness := anyStringSlice(usability["smoothness_acceptance_ids"])
+	if len(expectedSmoothness) > 0 {
+		coveredSmoothness := []string{}
+		if hasVerification {
+			coveredSmoothness = anyStringSlice(verification["covered_smoothness_acceptance_ids"])
+		}
+		expectedSet := stringSliceSet(expectedSmoothness)
+		coveredSet := stringSliceSet(coveredSmoothness)
+		exactCoverage := len(expectedSmoothness) == len(expectedSet) &&
+			len(coveredSmoothness) == len(coveredSet) &&
+			len(expectedSet) == len(coveredSet)
+		if exactCoverage {
+			for smoothnessID := range expectedSet {
+				if !coveredSet[smoothnessID] {
+					exactCoverage = false
+					break
+				}
+			}
+		}
+		if !exactCoverage {
+			return fmt.Errorf("ui_verification.covered_smoothness_acceptance_ids must exactly cover the task contract")
+		}
+		if !hasVerification {
+			return fmt.Errorf("smoothness lab report requires ui_verification")
+		}
+		reportRef := filepath.ToSlash(strings.TrimSpace(anyString(verification["smoothness_lab_report_ref"])))
+		reportSHA256 := strings.TrimSpace(anyString(verification["smoothness_lab_report_sha256"]))
+		if err := validatePersistedSmoothnessReport(feature, task, expectedSmoothness, reportRef, reportSHA256); err != nil {
+			return fmt.Errorf("ui_verification %w", err)
+		}
+	}
+	if !boolValue(usability["human_review_required"]) {
+		return nil
+	}
+	if !hasVerification {
 		return fmt.Errorf("human usability validation requires ui_verification")
 	}
 	reviewer := strings.NewReplacer("-", "_", " ", "_").Replace(

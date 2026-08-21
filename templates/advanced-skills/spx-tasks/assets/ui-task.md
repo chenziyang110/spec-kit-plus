@@ -48,10 +48,10 @@
 | navigation_matrix | {{exact_selected_navigation_rows}} |
 | content_matrix | {{exact_selected_content_rows}} |
 | color_modes | [{{task_applicable_color_modes}}] |
-| component_contracts | {{exact_selected_handoff_component_rows_including_ids_with_required_states_interaction_modes_data_scenarios_variants_content_constraints_semantic_token_refs_governance_iconography}} |
+| component_contracts | {{exact_selected_handoff_component_rows_including_ids_with_required_states_interaction_modes_data_scenarios_variants_content_constraints_semantic_token_refs_governance_adoption_permissions_iconography}} |
 | responsive_matrix | {{exact_selected_handoff_responsive_rows_including_state_adaptation_stretch_overflow_and_ids}} |
 | motion_contract | {{purpose_transitions_duration_easing_interrupt_reduced_motion_and_feedback_timing}} |
-| usability_validation | {{risk_methods_critical_tasks_success_criteria_human_review_required_and_smoothness_acceptance_ids}} |
+| usability_validation | {{risk_methods_critical_tasks_success_criteria_human_review_required_smoothness_acceptance_ids_and_performance_budgets}} |
 | visual_acceptance_matrix | {{exact_selected_handoff_visual_acceptance_rows_including_ids}} |
 | comparison_tolerance | {{exact_structured_comparison_tolerance_object}} |
 | accepted_deviations | {{exact_selected_handoff_deviation_rows_including_ids_or_empty}} |

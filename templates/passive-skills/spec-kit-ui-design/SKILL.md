@@ -40,7 +40,8 @@ Load these references progressively:
   addition does not. Then resolve `professional_skill_route`, persist `domain_skill_id`,
   `style_skill_id`, `specialist_skill_ids`, `matched_signals`, and
   `loaded_refs`, plus `mature_web_ui_resource_ids`, `web_ui_asset_inventory`,
-  `mature_web_ui_selection`, and `smoothness_acceptance_ids` when Web UI
+  `mature_web_ui_selection`, deterministic `component_adoption_plan`, read-only
+  official-resource refresh result, `smoothness_acceptance_ids`, and performance budgets when Web UI
   applies. Pass the actual project root for the bounded read-only scan, then
   load only the exact selected one domain, zero-or-one style, and zero-to-two
   specialists. For Web component work, read the router-triggered
@@ -181,6 +182,7 @@ implement/review require system model + anti-slop + visual validation loop.
   one surface or hand-build complex primitives without a recorded gap.
 - Preserve every applicable `component_contracts` row, including `variants`,
   `content_constraints`, `semantic_token_refs`, reuse/extend/new `governance`,
+  the exact nested adoption action/package/version/license/source/permission row,
   gap/deprecation ownership, and `iconography` source, style, sizing, optical
   alignment, semantics, and fallback.
 - If a new component or design token is required, name the source design problem
@@ -231,8 +233,9 @@ Cartesian product.
 - `usability_validation` is risk-tiered. Low-risk existing-pattern changes may
   use a documented cognitive walkthrough or heuristic review. Medium/high-risk
   journeys name target users, critical tasks, success criteria, and mandatory
-  human review. Web work also preserves routed `smoothness_acceptance_ids`
-  inside this object and proves them through the existing UI evidence kinds.
+  human review. Web work also preserves routed `smoothness_acceptance_ids` and
+  performance budgets inside this object and proves them through the CLI-owned
+  Smoothness Lab report plus the existing UI evidence kinds.
   Automated tests and screenshots cannot substitute for
   target-user usability.
 

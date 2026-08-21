@@ -141,7 +141,14 @@
       {"id": "interruption-safe-motion", "capabilities": ["motion"]},
       {"id": "drag-alternative", "capabilities": ["drag-drop"]},
       {"id": "anchored-overlay-continuity", "capabilities": ["floating"]}
-    ]
+    ],
+    "smoothness_performance_budgets": {
+      "inp_ms": 200,
+      "long_task_ms": 50,
+      "cls": 0.1,
+      "animation_dropped_frame_pct": 5,
+      "bundle_delta_kb": 30
+    }
   },
   "mature_web_ui_resources": [
     {

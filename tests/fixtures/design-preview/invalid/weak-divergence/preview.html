@@ -742,6 +742,25 @@ body[data-active-direction="direction-main"] #direction-main { display: block; }
           "motion.duration.fast"
         ],
         "governance": "extend",
+        "adoption": {
+          "resource_id": "local-components",
+          "action": "extend",
+          "package": "local-components",
+          "version": "local-source",
+          "license": "project-local",
+          "source_ref": "Configured design content",
+          "component_refs": [
+            "Configured design content"
+          ],
+          "reason_codes": [
+            "live-style-authority"
+          ],
+          "selection_basis_refs": [
+            "Configured design content"
+          ],
+          "permission_gate": "not-required",
+          "permission_status": "authorized"
+        },
         "iconography": "Use the product icon set with text labels for unfamiliar, destructive, permission, and recovery actions; never rely on shape or color alone.",
         "must_match": [
           "anatomy",
@@ -1233,7 +1252,22 @@ body[data-active-direction="direction-main"] #direction-main { display: block; }
         "No critical accessibility blocker or unrecoverable context loss remains.",
         "Users can state the consequence and recovery path before a high-consequence action."
       ],
-      "human_review_required": true
+      "human_review_required": true,
+      "smoothness_acceptance_ids": [
+        "focus-continuity",
+        "selection-scroll-continuity",
+        "pending-cancel-feedback",
+        "duplicate-activation",
+        "reduced-motion",
+        "layout-stability"
+      ],
+      "performance_budgets": {
+        "inp_ms": 200,
+        "long_task_ms": 50,
+        "cls": 0.1,
+        "animation_dropped_frame_pct": 5,
+        "bundle_delta_kb": 30
+      }
     },
     "surface_catalog": [
       {
@@ -1241,6 +1275,7 @@ body[data-active-direction="direction-main"] #direction-main { display: block; }
         "profile_id": "web",
         "name": "Web application",
         "kind": "web",
+        "entrypoint_id": "EP-WEB-001",
         "source_refs": [
           "core",
           "Configured design content"

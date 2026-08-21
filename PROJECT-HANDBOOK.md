@@ -66,9 +66,13 @@ libraries and live components first, selects at most one mature primary system,
 adds headless or specialist support only for an exact gap, and retrieves
 official Agent Skills, MCP, or LLM docs only for shortlisted candidates. Its
 bounded local scan records the live asset inventory without network or writes;
-deterministic reason codes explain the primary/supporting choice, and routed
-smoothness acceptance IDs bind to the existing usability and integrated Review
-evidence contract.
+deterministic reason codes explain the primary/supporting choice and produce an
+exact component adoption/permission plan. The selected-only refresh helper
+compares caller-provided official snapshots without network, install, or upgrade
+side effects. Routed smoothness acceptance IDs and budgets bind to the existing
+usability/evidence contract, while runtime-owned manifest/validate commands turn
+real-entrypoint Playwright/browser observations into a hashed Smoothness Lab
+report.
 
 Live product UI is the default style authority. Feature, component, and partial
 functional-page work uses `inherit-existing`, exact live source refs, protected

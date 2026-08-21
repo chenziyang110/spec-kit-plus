@@ -158,6 +158,12 @@ def _normalize_ui_verification(payload: dict[str, Any]) -> UIVerification:
         approved_handoff_sha256=str(raw.get("approved_handoff_sha256") or ""),
         comparison_report_ref=str(raw.get("comparison_report_ref") or ""),
         comparison_report_sha256=str(raw.get("comparison_report_sha256") or ""),
+        smoothness_lab_report_ref=str(
+            raw.get("smoothness_lab_report_ref") or ""
+        ),
+        smoothness_lab_report_sha256=str(
+            raw.get("smoothness_lab_report_sha256") or ""
+        ),
         implementation_capture_refs=_as_str_list(
             raw.get("implementation_capture_refs")
         ),

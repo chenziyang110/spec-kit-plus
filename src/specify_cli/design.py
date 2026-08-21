@@ -2835,6 +2835,7 @@ def _apply_design_capability_profiles(
                 "profile_id": profile_id,
                 "name": str(profile.get("label") or "").strip(),
                 "kind": profile_id,
+                "entrypoint_id": f"EP-{profile_key}-001",
                 "source_refs": deepcopy(project_source_refs),
                 "specimen_ids": profile_specimen_ids,
                 "component_ids": [
@@ -3138,6 +3139,47 @@ def _apply_design_capability_profiles(
             if isinstance(profile.get("usability_validation"), dict)
         ),
     }
+    smoothness_acceptance_ids = _ordered_union(
+        *(
+            profile.get("usability_validation", {}).get(
+                "smoothness_acceptance_ids"
+            )
+            for profile in profiles
+            if isinstance(profile.get("usability_validation"), dict)
+        )
+    )
+    if smoothness_acceptance_ids:
+        handoff["usability_validation"]["smoothness_acceptance_ids"] = (
+            smoothness_acceptance_ids
+        )
+    budget_fields = (
+        "inp_ms",
+        "long_task_ms",
+        "cls",
+        "animation_dropped_frame_pct",
+        "bundle_delta_kb",
+    )
+    budget_rows = [
+        profile["usability_validation"]["performance_budgets"]
+        for profile in profiles
+        if isinstance(profile.get("usability_validation"), dict)
+        and isinstance(
+            profile["usability_validation"].get("performance_budgets"), dict
+        )
+    ]
+    if budget_rows and all(
+        all(
+            isinstance(row.get(field), (int, float))
+            and not isinstance(row.get(field), bool)
+            and row.get(field, -1) >= 0
+            for field in budget_fields
+        )
+        for row in budget_rows
+    ):
+        handoff["usability_validation"]["performance_budgets"] = {
+            field: min(row[field] for row in budget_rows)
+            for field in budget_fields
+        }
     handoff["visual_acceptance_matrix"] = acceptance_matrix
 
 
@@ -4599,7 +4641,7 @@ def _preview_manifest_diagnostics(
         if ready and (
             any(
                 not str(surface.get(field) or "").strip()
-                for field in ("profile_id", "name", "kind")
+                for field in ("profile_id", "name", "kind", "entrypoint_id")
             )
             or not _is_nonempty_string_list(surface.get("source_refs"))
             or not _is_nonempty_string_list(surface.get("specimen_ids"))
@@ -4610,7 +4652,7 @@ def _preview_manifest_diagnostics(
             _add_diagnostic(
                 diagnostics,
                 "preview-incomplete-surface-catalog",
-                "surface_catalog rows require profile, source, specimen, component, and decision bindings",
+                "surface_catalog rows require profile, official entrypoint, source, specimen, component, and decision bindings",
                 f"manifest.handoff.surface_catalog[{index}]",
             )
 
@@ -4719,6 +4761,40 @@ def _preview_manifest_diagnostics(
             for field in ("methods", "critical_tasks", "success_criteria")
         )
         or not isinstance(usability.get("human_review_required"), bool)
+        or (
+            usability.get("smoothness_acceptance_ids") is not None
+            and (
+                not isinstance(usability.get("smoothness_acceptance_ids"), list)
+                or any(
+                    not isinstance(item, str) or not item.strip()
+                    for item in usability.get("smoothness_acceptance_ids") or []
+                )
+                or len(usability.get("smoothness_acceptance_ids") or [])
+                != len(set(usability.get("smoothness_acceptance_ids") or []))
+            )
+        )
+        or (
+            usability.get("performance_budgets") is not None
+            and (
+                not isinstance(usability.get("performance_budgets"), dict)
+                or set(usability.get("performance_budgets") or {})
+                != {
+                    "inp_ms",
+                    "long_task_ms",
+                    "cls",
+                    "animation_dropped_frame_pct",
+                    "bundle_delta_kb",
+                }
+                or any(
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or value < 0
+                    for value in (
+                        usability.get("performance_budgets") or {}
+                    ).values()
+                )
+            )
+        )
         or (
             usability.get("risk_level") == "high"
             and usability.get("human_review_required") is not True
@@ -7869,7 +7945,7 @@ def _validate_design_professional_verification(
             if field == "surface_catalog":
                 valid = valid and all(
                     str(row.get(name) or "").strip()
-                    for name in ("profile_id", "name", "kind")
+                    for name in ("profile_id", "name", "kind", "entrypoint_id")
                 ) and all(
                     _is_nonempty_string_list(row.get(name))
                     for name in ("source_refs", "specimen_ids", "component_ids")

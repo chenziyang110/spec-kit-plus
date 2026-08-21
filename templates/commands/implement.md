@@ -106,7 +106,21 @@ projection.
    coverage, comparison tolerance, and accepted deviations; use its returned
    report ref and byte digest in `ui_verification`. Never read or reconstruct
    `visual-comparison-template.json`, and never generically submit or patch the
-   report. Query the packet's must-read immutable handoff through
+   report. When `smoothness_acceptance_ids` is non-empty, first call
+   `specify-runtime evidence smoothness-manifest --feature-dir <feature-dir>
+   --task-id <Txxx> --format json`; execute its exact real-entrypoint viewport,
+   interaction, reduced-motion, interruption, and performance matrix with
+   Playwright or the available browser runner; then submit only observations to
+   `specify-runtime evidence smoothness-validate --feature-dir <feature-dir>
+   --task-id <Txxx> --manifest <manifest-ref> --input-json
+   '<observed-result-json>' --format json`. Merge the returned exact coverage,
+   `smoothness_lab_report_ref`, and `smoothness_lab_report_sha256` into the
+   lifecycle. The report augments the existing evidence triad; it is not a new
+   evidence kind. The runtime must resolve the task surface's exact
+   `entrypoint_id`; missing, unknown, or ambiguous entrypoint bindings block
+   the lab. Task acceptance revalidates the canonical manifest, current
+   task-index digest, typed evidence triad, full scenario set, and performance
+   budgets, so a handwritten or minimal report cannot pass. Query the packet's must-read immutable handoff through
    `specify-runtime artifact show` before UI work and resolve selected rows and
    implementation bindings from it; a missing file, digest mismatch, unknown ID,
    or copied-row mismatch blocks implementation rather than authorizing
@@ -157,8 +171,8 @@ Implement each task's exact `surface_catalog`, `scenario_matrix`,
 `interaction_matrix`, `editing_matrix`, `data_state_matrix`, `accessibility_matrix`,
 `navigation_matrix`, `content_matrix`, `motion_contract`, and
 `usability_validation` subset, including component
-governance and iconography. Web tasks must exercise every applicable
-`smoothness_acceptance_id` and return exact coverage through the existing UI
-evidence kinds. Exercise risk-based or pairwise combinations at
+governance, adoption permissions, and iconography. Web tasks must exercise every applicable
+`smoothness_acceptance_id` and return exact coverage plus the bound Smoothness
+Lab report through the existing UI evidence kinds. Exercise risk-based or pairwise combinations at
 real entry points, never an unbounded Cartesian product. Do not claim required
 target-user human review from automated tests or screenshots.

@@ -151,6 +151,7 @@ def _valid_surface_contract(
         and bool(str(item.get("profile_id") or "").strip())
         and bool(str(item.get("name") or "").strip())
         and bool(str(item.get("kind") or "").strip())
+        and bool(str(item.get("entrypoint_id") or "").strip())
         and _nonblank_string_list(item.get("source_refs"))
         and _nonblank_string_list(item.get("specimen_ids"))
         and _nonblank_string_list(item.get("component_ids"))
@@ -368,6 +369,37 @@ def _valid_data_scenario(item: object) -> bool:
     )
 
 
+def _valid_component_adoption(value: object) -> bool:
+    if not isinstance(value, dict):
+        return False
+    if not str(value.get("resource_id") or "").strip():
+        return False
+    if value.get("action") not in {"reuse", "extend", "add", "custom"}:
+        return False
+    if any(
+        not isinstance(value.get(field), str)
+        or not str(value.get(field) or "").strip()
+        for field in ("package", "version", "license", "source_ref")
+    ):
+        return False
+    if any(
+        not _nonblank_string_list(value.get(field))
+        for field in ("component_refs", "reason_codes", "selection_basis_refs")
+    ):
+        return False
+    permission_gate = value.get("permission_gate")
+    permission_status = value.get("permission_status")
+    if permission_gate not in {"required", "not-required"}:
+        return False
+    if permission_status not in {"authorized", "not-authorized"}:
+        return False
+    if value.get("action") == "add" and permission_gate != "required":
+        return False
+    if permission_gate == "not-required" and permission_status != "authorized":
+        return False
+    return True
+
+
 def _valid_component_contract(
     item: object,
     design_decision_ids: set[str],
@@ -386,6 +418,9 @@ def _valid_component_contract(
         or item.get("governance") not in {"reuse", "extend", "new"}
         or not str(item.get("iconography") or "").strip()
     ):
+        return False
+    adoption = item.get("adoption")
+    if adoption is not None and not _valid_component_adoption(adoption):
         return False
     required_states = item.get("required_states")
     interaction_modes = item.get("interaction_modes")
@@ -644,6 +679,26 @@ def _valid_usability_validation(value: object) -> bool:
             return False
         normalized_ids = [str(item).strip() for item in smoothness_ids]
         if len(normalized_ids) != len(set(normalized_ids)):
+            return False
+    performance_budgets = value.get("performance_budgets")
+    if performance_budgets is not None:
+        if not isinstance(performance_budgets, dict):
+            return False
+        expected_budget_fields = {
+            "inp_ms",
+            "long_task_ms",
+            "cls",
+            "animation_dropped_frame_pct",
+            "bundle_delta_kb",
+        }
+        if set(performance_budgets) != expected_budget_fields:
+            return False
+        if any(
+            isinstance(performance_budgets.get(field), bool)
+            or not isinstance(performance_budgets.get(field), (int, float))
+            or performance_budgets.get(field, -1) < 0
+            for field in expected_budget_fields
+        ):
             return False
     return value.get("risk_level") != "high" or human_review_required
 

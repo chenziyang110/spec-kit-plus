@@ -71,7 +71,17 @@ design_change:
       agent_resource_ids: []
       candidates: []
       confirmation_codes: []
+      component_adoption_plan: []
+      official_resource_refresh:
+        status: not-run
+        helper_ref: ui-professional-skills/refresh.py
+        selected_resource_ids: []
+        selected_agent_resource_ids: []
+        network_policy: blocked_by_default
+        install_or_upgrade: unauthorized
+        items: []
     smoothness_acceptance_ids: []
+    smoothness_performance_budgets: {}
   style_authority:
     mode: unresolved
     scope_level: null
@@ -185,12 +195,17 @@ capability. Official Agent material is retrieval input, not install authority.
 The final component choice must cite a scanned `web_ui_asset_inventory` and its
 explainable `mature_web_ui_selection`; provisional candidates cannot authorize
 dependency changes.
+Copy the exact `component_adoption_plan` row into each affected component
+contract. `add` stays `permission_status: not-authorized` until the user
+confirms that exact dependency action. Persist the read-only official-resource
+refresh hashes/drift codes; drift reopens selection but never authorizes change.
 Call out the concrete mouse/pointer, keyboard/focus, touch, and command
 interactions that must continue to work for each affected component.
 Include empty, representative-data, dense-data, and failure expectations when
 data shape changes the component's meaning or available actions.
 Every exported `component_contracts` row also records `variants`,
-`content_constraints`, `semantic_token_refs`, `governance`, and `iconography`.
+`content_constraints`, `semantic_token_refs`, `governance`, nested `adoption`,
+and `iconography`.
 Governance chooses reuse, extension, or a justified new component; names the
 owner of any design-system gap; and records replacement or deprecation rules.
 Iconography names its approved source, visual family, sizing, stroke/fill
@@ -314,9 +329,11 @@ the affected job.
 
 Record `verification.usability_validation` with `risk_level`, `methods`,
 `critical_tasks`, `success_criteria`, `human_review_required`, and applicable
-`smoothness_acceptance_ids`. Name target
+`smoothness_acceptance_ids` plus performance budgets. Name target
 users, reviewer/status, and evidence where the selected method requires it. A
-low-risk existing-pattern change may use a documented cognitive walkthrough or
+passing integrated implementation must bind the runtime-owned Smoothness Lab
+report ref and SHA-256 produced from the real entrypoint.
+A low-risk existing-pattern change may use a documented cognitive walkthrough or
 heuristic review. Medium- and high-risk journeys require representative target
 users, task-based success criteria, and human review before acceptance.
 Automated tests and screenshots verify implementation properties; they cannot

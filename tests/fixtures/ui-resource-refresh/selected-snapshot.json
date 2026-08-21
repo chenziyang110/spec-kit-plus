@@ -1,0 +1,23 @@
+{
+  "selection": {
+    "resource_ids": ["material-ui", "ag-grid", "tiptap"],
+    "agent_resource_ids": ["material-ui-mcp", "ag-grid-agent-docs"]
+  },
+  "items": [
+    {
+      "resource_id": "material-ui",
+      "source_kind": "mcp",
+      "source_url": "https://mui.com/material-ui/getting-started/mcp/"
+    },
+    {
+      "resource_id": "ag-grid",
+      "source_kind": "markdown",
+      "source_url": "https://www.ag-grid.com/javascript-data-grid/accessibility/"
+    },
+    {
+      "resource_id": "tiptap",
+      "source_kind": "llms-txt",
+      "source_url": "https://tiptap.dev/docs/llms.txt"
+    }
+  ]
+}

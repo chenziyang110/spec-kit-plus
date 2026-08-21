@@ -727,14 +727,20 @@ func TestImplementTaskAcceptEnforcesRequiredHumanUsabilityValidation(t *testing.
 	}
 	writeTaskRuntimeFixture(t, filepath.Join(templatesDir, "task-packet-template.json"), map[string]any{
 		"ui_contract": map[string]any{
-			"fidelity_level": "none", "usability_validation": map[string]any{},
+			"fidelity_level": "none", "surface_catalog": []any{}, "usability_validation": map[string]any{},
 		},
 	})
 	indexPath := filepath.Join(feature, "task-index.json")
 	index := readImplementJSONFile(t, indexPath)
 	tasks, _ := index["tasks"].([]any)
 	task, _ := tasks[1].(map[string]any)
+	index["official_entrypoints"] = []any{map[string]any{
+		"id": "EP-WEB-SETTINGS", "kind": "web", "route": "/settings", "url": "http://127.0.0.1:4173/settings",
+	}}
 	task["ui_contract"] = map[string]any{
+		"surface_catalog": []any{map[string]any{
+			"id": "SURF-SETTINGS", "entrypoint_id": "EP-WEB-SETTINGS", "surface": "settings",
+		}},
 		"usability_validation": map[string]any{
 			"risk_level": "high", "methods": []any{"moderated task-based usability test"},
 			"critical_tasks":        []any{"Complete the irreversible action"},
@@ -797,6 +803,156 @@ func TestImplementTaskAcceptEnforcesRequiredHumanUsabilityValidation(t *testing.
 	})
 	if accepted["task_status"] != "accepted" {
 		t.Fatalf("human usability evidence did not unblock acceptance: %#v", accepted)
+	}
+}
+
+func TestImplementTaskAcceptRequiresExactSmoothnessCoverage(t *testing.T) {
+	root, feature, featureRef := newImplementedTaskRecoveryFixture(t)
+	templatesDir := filepath.Join(root, ".specify", "templates")
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskRuntimeFixture(t, filepath.Join(templatesDir, "task-packet-template.json"), map[string]any{
+		"ui_contract": map[string]any{
+			"fidelity_level": "none", "surface_catalog": []any{}, "usability_validation": map[string]any{},
+		},
+	})
+	indexPath := filepath.Join(feature, "task-index.json")
+	index := readImplementJSONFile(t, indexPath)
+	tasks, _ := index["tasks"].([]any)
+	task, _ := tasks[1].(map[string]any)
+	index["official_entrypoints"] = []any{map[string]any{
+		"id": "EP-WEB-SETTINGS", "kind": "web", "route": "/settings", "url": "http://127.0.0.1:4173/settings",
+	}}
+	task["ui_contract"] = map[string]any{
+		"surface_catalog": []any{map[string]any{
+			"id": "SURF-SETTINGS", "entrypoint_id": "EP-WEB-SETTINGS", "surface": "settings",
+		}},
+		"usability_validation": map[string]any{
+			"risk_level": "low", "methods": []any{"interaction walkthrough"},
+			"critical_tasks":            []any{"Preserve focus while data refreshes"},
+			"success_criteria":          []any{"Focus and pending feedback remain continuous"},
+			"human_review_required":     false,
+			"smoothness_acceptance_ids": []any{"focus-continuity", "pending-cancel-feedback"},
+		},
+	}
+	writeTaskRuntimeFixture(t, indexPath, index)
+
+	lifecyclePath := filepath.Join(feature, "implementation-review", "tasks", "T002.json")
+	lifecycle := readImplementJSONFile(t, lifecyclePath)
+	lifecycle["validation"] = []any{map[string]any{"command": "required check", "status": "passed"}}
+	lifecycle["ui_verification"] = map[string]any{
+		"applicable": true, "contract_check": "passed", "runtime_evidence": "passed",
+		"visual_comparison": "passed", "fidelity_status": "passed", "reviewer": "agent",
+		"covered_smoothness_acceptance_ids": []any{"focus-continuity"},
+	}
+	writeTaskRuntimeFixture(t, lifecyclePath, lifecycle)
+
+	exit, rejected := runTaskRuntimeCommand(t, []string{
+		"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T002", "--format", "json",
+	})
+	if exit == 0 || !strings.Contains(rejected.Summary, "covered_smoothness_acceptance_ids must exactly cover") {
+		t.Fatalf("incomplete smoothness coverage unexpectedly passed: exit=%d env=%#v", exit, rejected)
+	}
+
+	lifecycle = readImplementJSONFile(t, lifecyclePath)
+	verification, _ := lifecycle["ui_verification"].(map[string]any)
+	verification["covered_smoothness_acceptance_ids"] = []any{"focus-continuity", "pending-cancel-feedback", "unexpected-check"}
+	writeTaskRuntimeFixture(t, lifecyclePath, lifecycle)
+	exit, rejected = runTaskRuntimeCommand(t, []string{
+		"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T002", "--format", "json",
+	})
+	if exit == 0 || !strings.Contains(rejected.Summary, "covered_smoothness_acceptance_ids must exactly cover") {
+		t.Fatalf("extra smoothness coverage unexpectedly passed: exit=%d env=%#v", exit, rejected)
+	}
+
+	lifecycle = readImplementJSONFile(t, lifecyclePath)
+	verification, _ = lifecycle["ui_verification"].(map[string]any)
+	verification["covered_smoothness_acceptance_ids"] = []any{"pending-cancel-feedback", "focus-continuity"}
+	writeTaskRuntimeFixture(t, lifecyclePath, lifecycle)
+	exit, rejected = runTaskRuntimeCommand(t, []string{
+		"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T002", "--format", "json",
+	})
+	if exit == 0 || !strings.Contains(rejected.Summary, "smoothness lab report") {
+		t.Fatalf("missing smoothness report unexpectedly passed: exit=%d env=%#v", exit, rejected)
+	}
+
+	reportRef := "implementation-review/smoothness/smoothness-lab-T002.json"
+	reportPath := filepath.Join(feature, filepath.FromSlash(reportRef))
+	writeTaskRuntimeFixture(t, reportPath, map[string]any{
+		"schema": "spec-kit-smoothness-lab-report-v1", "task_id": "T002", "verdict": "passed",
+		"covered_smoothness_acceptance_ids": []any{"focus-continuity", "pending-cancel-feedback"},
+	})
+	reportRaw, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verification["smoothness_lab_report_ref"] = reportRef
+	verification["smoothness_lab_report_sha256"] = taskControlSHA256(reportRaw)
+	writeTaskRuntimeFixture(t, lifecyclePath, lifecycle)
+	exit, rejected = runTaskRuntimeCommand(t, []string{
+		"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T002", "--format", "json",
+	})
+	if exit == 0 || !strings.Contains(rejected.Summary, "smoothness lab report") {
+		t.Fatalf("forged minimal smoothness report unexpectedly passed: exit=%d env=%#v", exit, rejected)
+	}
+
+	manifestRef := "implementation-review/smoothness/smoothness-manifest-T002.json"
+	manifestPath := filepath.Join(feature, filepath.FromSlash(manifestRef))
+	manifest := map[string]any{
+		"schema": smoothnessManifestSchema, "task_id": "T002",
+		"smoothness_acceptance_ids": []any{"focus-continuity", "pending-cancel-feedback"},
+		"required_evidence":         []any{"structure_snapshot", "visual_capture", "runtime_diagnostics"},
+		"entrypoint":                map[string]any{"id": "EP-WEB-SETTINGS", "kind": "web", "route": "/settings", "url": "http://127.0.0.1:4173/settings"},
+		"viewports":                 []any{"desktop", "mobile"},
+		"performance_budgets": map[string]any{
+			"inp_ms": 200, "long_task_ms": 50, "cls": 0.1,
+			"animation_dropped_frame_pct": 5, "bundle_delta_kb": 30,
+		},
+		"source": map[string]any{
+			"task_index_ref": "task-index.json", "task_index_sha256": optionalFileSHA256(indexPath),
+		},
+	}
+	writeTaskRuntimeFixture(t, manifestPath, manifest)
+	writeTaskRuntimeFixture(t, reportPath, map[string]any{
+		"schema": smoothnessReportSchema, "task_id": "T002", "verdict": "passed",
+		"manifest_ref": manifestRef, "manifest_sha256": optionalFileSHA256(manifestPath),
+		"covered_smoothness_acceptance_ids": []any{"focus-continuity", "pending-cancel-feedback"},
+		"evidence_refs": []any{
+			map[string]any{"kind": "structure_snapshot", "ref": "evidence://structure"},
+			map[string]any{"kind": "visual_capture", "ref": "evidence://visual"},
+			map[string]any{"kind": "runtime_diagnostics", "ref": "evidence://runtime"},
+		},
+		"scenario_results": []any{
+			map[string]any{"smoothness_acceptance_id": "focus-continuity", "verdict": "passed"},
+			map[string]any{"smoothness_acceptance_id": "pending-cancel-feedback", "verdict": "passed"},
+		},
+		"performance": map[string]any{
+			"inp_ms": 120, "long_task_ms": 40, "cls": 0.02,
+			"animation_dropped_frame_pct": 1, "bundle_delta_kb": 10,
+		},
+		"source": map[string]any{"result_schema": smoothnessResultSchema},
+	})
+	reportRaw, err = os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verification["smoothness_lab_report_sha256"] = taskControlSHA256(reportRaw)
+	writeTaskRuntimeFixture(t, lifecyclePath, lifecycle)
+	currentIndex := readImplementJSONFile(t, indexPath)
+	_, currentTask, currentTaskErr := findImplementTask(currentIndex, "T002")
+	if currentTaskErr != nil {
+		t.Fatal(currentTaskErr)
+	}
+	currentUI, _ := currentTask["ui_contract"].(map[string]any)
+	if surfaces, _ := currentUI["surface_catalog"].([]any); len(surfaces) != 1 {
+		t.Fatalf("current smoothness task lost its surface entrypoint binding: %#v", currentTask)
+	}
+	accepted := assertTaskRuntimeCommandOK(t, []string{
+		"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T002", "--format", "json",
+	})
+	if accepted["task_status"] != "accepted" {
+		t.Fatalf("exact smoothness coverage did not unblock acceptance: %#v", accepted)
 	}
 }
 

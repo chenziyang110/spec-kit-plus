@@ -757,6 +757,8 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
             approved_visual_ref="DESIGN.md#settings",
             comparison_report_ref="artifacts/ui/comparison.json",
             comparison_report_sha256="c" * 64,
+            smoothness_lab_report_ref="smoothness-lab-T017.json",
+            smoothness_lab_report_sha256="d" * 64,
             implementation_capture_refs=["artifacts/ui/settings.png"],
             covered_decision_ids=["DS-COMP-001", "DS-RESP-001"],
             covered_smoothness_acceptance_ids=[
@@ -781,6 +783,16 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
     )
     assert validate_worker_task_result(result, sample_packet) is result
 
+    result.ui_verification.smoothness_lab_report_ref = ""
+    with pytest.raises(PacketValidationError, match="smoothness lab report"):
+        validate_worker_task_result(result, sample_packet)
+    result.ui_verification.smoothness_lab_report_ref = "smoothness-lab-T017.json"
+
+    result.ui_verification.smoothness_lab_report_sha256 = "not-a-digest"
+    with pytest.raises(PacketValidationError, match="smoothness lab report"):
+        validate_worker_task_result(result, sample_packet)
+    result.ui_verification.smoothness_lab_report_sha256 = "d" * 64
+
     result.ui_verification.covered_decision_ids = ["DS-COMP-001"]
     with pytest.raises(PacketValidationError, match="decision coverage"):
         validate_worker_task_result(result, sample_packet)
@@ -788,6 +800,16 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
 
     result.ui_verification.covered_smoothness_acceptance_ids = [
         "focus-continuity"
+    ]
+    with pytest.raises(PacketValidationError, match="smoothness acceptance coverage"):
+        validate_worker_task_result(result, sample_packet)
+
+    result.ui_verification.covered_smoothness_acceptance_ids = [
+        "focus-continuity",
+        "pending-cancel-feedback",
+        "duplicate-activation",
+        "reduced-motion",
+        "reduced-motion",
     ]
     with pytest.raises(PacketValidationError, match="smoothness acceptance coverage"):
         validate_worker_task_result(result, sample_packet)

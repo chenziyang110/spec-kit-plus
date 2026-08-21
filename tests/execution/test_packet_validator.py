@@ -17,6 +17,8 @@ from specify_cli.execution.packet_schema import (
 from specify_cli.execution.packet_validator import (
     DESIGN_DECISION_ID_RE,
     PacketValidationError,
+    _valid_component_adoption,
+    _valid_usability_validation,
     validate_worker_task_packet,
 )
 
@@ -31,6 +33,93 @@ COMPARISON_TOLERANCE = {
     "motion": {"unit": "ms", "max_delta": 16},
     "platform_variance": "approved-deviation-only",
 }
+
+VALID_COMPONENT_ADOPTION = {
+    "resource_id": "material-ui",
+    "action": "reuse",
+    "package": "@mui/material",
+    "version": "^7.0.0",
+    "license": "MIT",
+    "source_ref": "package.json#/dependencies/@mui/material",
+    "component_refs": ["@mui/material/TextField"],
+    "reason_codes": ["installed"],
+    "selection_basis_refs": ["package.json"],
+    "permission_gate": "not-required",
+    "permission_status": "authorized",
+}
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"resource_id": ""},
+        {"action": "replace"},
+        {"package": None},
+        {"version": ""},
+        {"source_ref": " "},
+        {"component_refs": []},
+        {"permission_gate": "later"},
+        {"permission_status": "pending"},
+        {"action": "add", "permission_gate": "not-required"},
+        {"permission_gate": "not-required", "permission_status": "not-authorized"},
+    ],
+)
+def test_component_adoption_contract_rejects_incomplete_or_unauthorized_rows(
+    patch: dict[str, object],
+) -> None:
+    assert not _valid_component_adoption({**VALID_COMPONENT_ADOPTION, **patch})
+
+
+def test_component_adoption_contract_accepts_complete_reuse_row() -> None:
+    assert _valid_component_adoption(VALID_COMPONENT_ADOPTION)
+
+
+@pytest.mark.parametrize(
+    "budgets",
+    [
+        [],
+        {"inp_ms": 200},
+        {
+            "inp_ms": True,
+            "long_task_ms": 50,
+            "cls": 0.1,
+            "animation_dropped_frame_pct": 5,
+            "bundle_delta_kb": 30,
+        },
+    ],
+)
+def test_usability_contract_rejects_invalid_smoothness_budgets(
+    budgets: object,
+) -> None:
+    assert not _valid_usability_validation(
+        {
+            "risk_level": "medium",
+            "methods": ["cognitive walkthrough"],
+            "critical_tasks": ["save settings"],
+            "success_criteria": ["preserve context"],
+            "human_review_required": True,
+            "performance_budgets": budgets,
+        }
+    )
+
+
+def test_usability_contract_accepts_complete_smoothness_budgets() -> None:
+    assert _valid_usability_validation(
+        {
+            "risk_level": "medium",
+            "methods": ["cognitive walkthrough"],
+            "critical_tasks": ["save settings"],
+            "success_criteria": ["preserve context"],
+            "human_review_required": True,
+            "performance_budgets": {
+                "inp_ms": 200,
+                "long_task_ms": 50,
+                "cls": 0.1,
+                "animation_dropped_frame_pct": 5,
+                "bundle_delta_kb": 30,
+            },
+        }
+    )
 
 
 def _interaction_contract(
@@ -362,6 +451,7 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
                 "profile_id": "web",
                 "name": "Settings",
                 "kind": "web",
+                "entrypoint_id": "EP-WEB-SETTINGS",
                 "source_refs": ["src/settings/page.tsx"],
                 "specimen_ids": ["SP-WEB-SETTINGS-001"],
                 "component_ids": ["COMP-001"],
@@ -789,6 +879,13 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
     ]
     assert validate_worker_task_packet(sample_packet) is sample_packet
 
+    entrypoint_id = sample_packet.ui_contract.surface_catalog[0].pop(
+        "entrypoint_id"
+    )
+    with pytest.raises(PacketValidationError, match="surface_catalog"):
+        validate_worker_task_packet(sample_packet)
+    sample_packet.ui_contract.surface_catalog[0]["entrypoint_id"] = entrypoint_id
+
     sample_packet.ui_contract.scenario_matrix[0]["data_state_ids"] = [
         "DH-DATA-404"
     ]
@@ -847,6 +944,26 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
         "default",
         "compact",
     ]
+
+    sample_packet.ui_contract.component_contracts[0]["adoption"] = {
+        "resource_id": "material-ui",
+        "action": "replace",
+        "package": "@mui/material",
+        "version": "^7.0.0",
+        "license": "MIT",
+        "source_ref": "package.json#/dependencies/@mui/material",
+        "component_refs": ["@mui/material/TextField"],
+        "reason_codes": ["installed"],
+        "selection_basis_refs": [
+            "professional_skill_route.mature_web_ui_selection"
+        ],
+        "permission_gate": "not-required",
+        "permission_status": "authorized",
+    }
+    with pytest.raises(PacketValidationError, match="component_contracts"):
+        validate_worker_task_packet(sample_packet)
+    sample_packet.ui_contract.component_contracts[0]["adoption"]["action"] = "extend"
+    assert validate_worker_task_packet(sample_packet) is sample_packet
 
     sample_packet.ui_contract.interaction_matrix = []
     with pytest.raises(PacketValidationError, match="interaction_matrix"):

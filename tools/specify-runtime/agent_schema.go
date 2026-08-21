@@ -137,6 +137,14 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "writes-derived-visual-comparison-report"
 		capability["usage"] = "specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json <observed-comparison> --format json"
 		capability["input_contract"] = "agent supplies entrypoint, implementation revision, typed evidence refs, matrix observations, explicit passing verdict, and reviewer; runtime derives approved design and handoff bindings, exact decision coverage, tolerance, deviations, canonical path, and byte digest from task-index.json"
+	case "evidence.smoothness-manifest":
+		capability["side_effect"] = "writes-derived-smoothness-manifest"
+		capability["usage"] = "specify-runtime evidence smoothness-manifest --feature-dir <feature-dir> --task-id <Txxx> --format json"
+		capability["input_contract"] = "runtime derives the exact smoothness acceptance ids, official entrypoint, interaction scenarios, viewport matrix, and performance budgets from the current task-index.json; stale task bindings are rejected"
+	case "evidence.smoothness-validate":
+		capability["side_effect"] = "writes-derived-smoothness-report"
+		capability["usage"] = "specify-runtime evidence smoothness-validate --feature-dir <feature-dir> --task-id <Txxx> --manifest <manifest-ref> --input-json <observed-smoothness> --format json"
+		capability["input_contract"] = "agent supplies one passing observation per expected smoothness id plus measured performance metrics; runtime enforces exact coverage and task-bound budgets, then returns the canonical report ref and byte digest"
 	case "design.change":
 		capability["side_effect"] = "creates-design-change-workspace-and-index-record"
 		capability["usage"] = "specify-runtime design change <UD-ID> --title <title> [--type greenfield|preserve|overhaul|extension] --scope <surface>... [--profiles <csv>] [--baseline-ref <ref>]... [--supersedes <UD-ID>]... --format json"

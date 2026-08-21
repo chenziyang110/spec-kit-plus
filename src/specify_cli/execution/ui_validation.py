@@ -42,6 +42,18 @@ HUMAN_UI_REVIEWERS = {
     "manual_review",
     "manual_reviewer",
 }
+SMOOTHNESS_EVIDENCE_KINDS = {
+    "structure_snapshot",
+    "visual_capture",
+    "runtime_diagnostics",
+}
+SMOOTHNESS_PERFORMANCE_FIELDS = (
+    "inp_ms",
+    "long_task_ms",
+    "cls",
+    "animation_dropped_frame_pct",
+    "bundle_delta_kb",
+)
 
 
 def _canonical_records(values: object) -> tuple[str, ...]:
@@ -251,6 +263,231 @@ def resolve_feature_artifact_ref(feature_dir: Path, raw_ref: str) -> Path | None
     return None
 
 
+def _exact_smoothness_ids(value: object) -> list[str] | None:
+    if not isinstance(value, list):
+        return None
+    normalized = [
+        item.strip()
+        for item in value
+        if isinstance(item, str) and item.strip()
+    ]
+    if len(normalized) != len(value) or len(normalized) != len(set(normalized)):
+        return None
+    return normalized
+
+
+def _validate_smoothness_report(
+    feature_dir: Path,
+    relative: str,
+    task_id: str,
+    expected_ids: list[str],
+    report_ref: str,
+    report_sha256: str,
+) -> list[str]:
+    errors: list[str] = []
+    expected_id_set = set(expected_ids)
+    canonical_report_ref = (
+        f"implementation-review/smoothness/smoothness-lab-{task_id}.json"
+    )
+    if report_ref != canonical_report_ref:
+        errors.append(
+            f"{relative} smoothness lab report must use the runtime-owned canonical task path"
+        )
+    report_path = resolve_feature_artifact_ref(feature_dir, report_ref)
+    if report_path is None:
+        errors.append(
+            f"{relative} smoothness lab report must reference an existing feature artifact"
+        )
+        return errors
+    try:
+        report_bytes = report_path.read_bytes()
+        report = json.loads(report_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        errors.append(f"{relative} smoothness lab report must contain a JSON object")
+        return errors
+    if report_sha256 != hashlib.sha256(report_bytes).hexdigest():
+        errors.append(f"{relative} smoothness lab report SHA-256 must bind the report")
+    if not isinstance(report, dict):
+        errors.append(f"{relative} smoothness lab report must contain a JSON object")
+        return errors
+
+    report_ids = _exact_smoothness_ids(
+        report.get("covered_smoothness_acceptance_ids")
+    )
+    source = report.get("source")
+    if (
+        report.get("schema") != "spec-kit-smoothness-lab-report-v1"
+        or str(report.get("task_id") or "").strip().upper() != task_id
+        or str(report.get("verdict") or "").strip().lower() != "passed"
+        or report_ids is None
+        or set(report_ids) != expected_id_set
+        or not isinstance(source, dict)
+        or source.get("result_schema") != "spec-kit-smoothness-lab-result-v1"
+    ):
+        errors.append(
+            f"{relative} smoothness lab report must pass for the exact task acceptance IDs"
+        )
+
+    canonical_manifest_ref = (
+        f"implementation-review/smoothness/smoothness-manifest-{task_id}.json"
+    )
+    manifest_ref = str(report.get("manifest_ref") or "").strip()
+    if manifest_ref != canonical_manifest_ref:
+        errors.append(
+            f"{relative} smoothness lab report must bind the runtime-owned task manifest"
+        )
+    manifest_path = resolve_feature_artifact_ref(feature_dir, manifest_ref)
+    if manifest_path is None:
+        errors.append(
+            f"{relative} smoothness lab report manifest must reference an existing feature artifact"
+        )
+        return errors
+    try:
+        manifest_bytes = manifest_path.read_bytes()
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        errors.append(
+            f"{relative} smoothness lab report manifest must contain a JSON object"
+        )
+        return errors
+    if str(report.get("manifest_sha256") or "").strip() != hashlib.sha256(
+        manifest_bytes
+    ).hexdigest():
+        errors.append(
+            f"{relative} smoothness lab report manifest SHA-256 must bind the manifest"
+        )
+    if not isinstance(manifest, dict):
+        errors.append(
+            f"{relative} smoothness lab report manifest must contain a JSON object"
+        )
+        return errors
+
+    manifest_ids = _exact_smoothness_ids(
+        manifest.get("smoothness_acceptance_ids")
+    )
+    manifest_source = manifest.get("source")
+    entrypoint = manifest.get("entrypoint")
+    task_index_path = feature_dir / "task-index.json"
+    try:
+        task_index_bytes = task_index_path.read_bytes()
+        task_index_sha256 = hashlib.sha256(task_index_bytes).hexdigest()
+        task_index = json.loads(task_index_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        task_index_sha256 = ""
+        task_index = None
+    expected_entrypoint: dict[str, Any] | None = None
+    if isinstance(task_index, dict):
+        tasks = task_index.get("tasks")
+        task = next(
+            (
+                item
+                for item in tasks or []
+                if isinstance(item, dict)
+                and str(item.get("id") or "").strip().upper() == task_id
+            ),
+            None,
+        )
+        ui_contract = task.get("ui_contract") if isinstance(task, dict) else None
+        surface_entrypoint_ids = {
+            str(item.get("entrypoint_id") or "").strip()
+            for item in (
+                ui_contract.get("surface_catalog", [])
+                if isinstance(ui_contract, dict)
+                else []
+            )
+            if isinstance(item, dict) and str(item.get("entrypoint_id") or "").strip()
+        }
+        official_entrypoints = {
+            str(item.get("id") or "").strip(): item
+            for item in task_index.get("official_entrypoints", [])
+            if isinstance(item, dict) and str(item.get("id") or "").strip()
+        }
+        if len(surface_entrypoint_ids) == 1:
+            official_entrypoint = official_entrypoints.get(
+                next(iter(surface_entrypoint_ids))
+            )
+            if isinstance(official_entrypoint, dict):
+                expected_entrypoint = {
+                    field: str(official_entrypoint.get(field) or "")
+                    for field in ("id", "kind", "route", "url")
+                }
+    if (
+        manifest.get("schema") != "spec-kit-smoothness-lab-manifest-v1"
+        or str(manifest.get("task_id") or "").strip().upper() != task_id
+        or manifest_ids is None
+        or set(manifest_ids) != expected_id_set
+        or not isinstance(manifest_source, dict)
+        or manifest_source.get("task_index_ref") != "task-index.json"
+        or manifest_source.get("task_index_sha256") != task_index_sha256
+        or not isinstance(entrypoint, dict)
+        or not str(entrypoint.get("id") or "").strip()
+        or expected_entrypoint is None
+        or entrypoint != expected_entrypoint
+    ):
+        errors.append(
+            f"{relative} smoothness lab report manifest is stale or does not bind the exact task"
+        )
+
+    required_evidence = _exact_smoothness_ids(manifest.get("required_evidence"))
+    evidence_refs = report.get("evidence_refs")
+    evidence_kinds = {
+        str(item.get("kind") or "").strip()
+        for item in evidence_refs or []
+        if isinstance(item, dict) and str(item.get("ref") or "").strip()
+    }
+    if (
+        required_evidence is None
+        or not SMOOTHNESS_EVIDENCE_KINDS <= set(required_evidence)
+        or not SMOOTHNESS_EVIDENCE_KINDS <= evidence_kinds
+    ):
+        errors.append(
+            f"{relative} smoothness lab report must bind structure, visual, and runtime evidence"
+        )
+
+    scenario_results = report.get("scenario_results")
+    scenario_ids = [
+        str(item.get("smoothness_acceptance_id") or "").strip()
+        for item in scenario_results or []
+        if isinstance(item, dict)
+        and str(item.get("smoothness_acceptance_id") or "").strip()
+        and str(item.get("verdict") or "").strip().lower()
+        in PASSING_VISUAL_STATUSES
+    ]
+    if (
+        not isinstance(scenario_results, list)
+        or len(scenario_ids) != len(scenario_results)
+        or len(scenario_ids) != len(set(scenario_ids))
+        or set(scenario_ids) != expected_id_set
+    ):
+        errors.append(
+            f"{relative} smoothness lab report must contain one passing scenario result per acceptance ID"
+        )
+
+    performance = report.get("performance")
+    budgets = manifest.get("performance_budgets")
+    if not isinstance(performance, dict) or not isinstance(budgets, dict):
+        errors.append(
+            f"{relative} smoothness lab report must contain task-bound performance measurements"
+        )
+    else:
+        for field in SMOOTHNESS_PERFORMANCE_FIELDS:
+            measured = performance.get(field)
+            budget = budgets.get(field)
+            if (
+                isinstance(measured, bool)
+                or not isinstance(measured, (int, float))
+                or measured < 0
+                or isinstance(budget, bool)
+                or not isinstance(budget, (int, float))
+                or budget < 0
+                or measured > budget
+            ):
+                errors.append(
+                    f"{relative} smoothness lab report performance.{field} must satisfy the task-bound budget"
+                )
+    return errors
+
+
 def validate_lifecycle_ui_verification(
     feature_dir: Path,
     lifecycle: dict[str, Any],
@@ -382,22 +619,44 @@ def validate_lifecycle_ui_verification(
     usability_validation = (
         usability_validation if isinstance(usability_validation, dict) else {}
     )
-    expected_smoothness_ids = {
-        str(item).strip()
-        for item in usability_validation.get("smoothness_acceptance_ids", [])
-        if isinstance(item, str) and item.strip()
-    }
+    expected_smoothness_list = _exact_smoothness_ids(
+        usability_validation.get("smoothness_acceptance_ids", [])
+    )
+    expected_smoothness_list = expected_smoothness_list or []
+    expected_smoothness_ids = set(expected_smoothness_list)
     if expected_smoothness_ids:
-        covered_smoothness_ids = {
-            str(item).strip()
-            for item in verification.get(
-                "covered_smoothness_acceptance_ids", []
-            )
-            if isinstance(item, str) and item.strip()
-        }
-        if covered_smoothness_ids != expected_smoothness_ids:
+        covered_smoothness_list = _exact_smoothness_ids(
+            verification.get("covered_smoothness_acceptance_ids", [])
+        )
+        if (
+            covered_smoothness_list is None
+            or set(covered_smoothness_list) != expected_smoothness_ids
+        ):
             errors.append(
                 f"{relative} ui_verification.covered_smoothness_acceptance_ids must exactly cover the task contract"
+            )
+        smoothness_report_ref = str(
+            verification.get("smoothness_lab_report_ref") or ""
+        ).strip()
+        smoothness_report_sha256 = str(
+            verification.get("smoothness_lab_report_sha256") or ""
+        ).strip()
+        if not smoothness_report_ref or not re.fullmatch(
+            r"[0-9a-f]{64}", smoothness_report_sha256
+        ):
+            errors.append(
+                f"{relative} smoothness lab report ref and SHA-256 digest are required"
+            )
+        else:
+            errors.extend(
+                _validate_smoothness_report(
+                    feature_dir,
+                    relative,
+                    task_id,
+                    expected_smoothness_list,
+                    smoothness_report_ref,
+                    smoothness_report_sha256,
+                )
             )
     if usability_validation.get("human_review_required") is True:
         reviewer = (

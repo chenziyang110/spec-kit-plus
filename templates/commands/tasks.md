@@ -87,7 +87,10 @@ Every UI task carries its applicable exact subset of `surface_catalog`,
 `scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
 `accessibility_matrix`, `navigation_matrix`, `content_matrix`,
 `motion_contract`, and `usability_validation`, including the exact
-`smoothness_acceptance_ids`, plus component
-variants/content constraints/semantic tokens/governance/iconography. All UI
+`smoothness_acceptance_ids` and performance budgets, plus component
+adoption/permission rows, variants/content constraints/semantic tokens/governance/iconography. All UI
 tasks together cover the Plan set. Split by risk-based or pairwise scenarios,
 not an unbounded Cartesian product, and keep required human review visible.
+Every selected surface carries one exact `entrypoint_id` that exists in the
+top-level `official_entrypoints`; never let a task silently fall back to the
+first runnable entrypoint.

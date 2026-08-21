@@ -218,6 +218,8 @@ func TestResultSubmitPreservesImmutableUIHandoffBinding(t *testing.T) {
 			"covered_smoothness_acceptance_ids": []any{
 				"focus-continuity", "pending-cancel-feedback",
 			},
+			"smoothness_lab_report_ref":    "implementation-review/smoothness/smoothness-lab-lane-ui.json",
+			"smoothness_lab_report_sha256": strings.Repeat("b", 64),
 			"comparison_tolerance": map[string]any{
 				"structure":         "exact",
 				"geometry":          map[string]any{"unit": "px", "max_delta": 2},
@@ -247,6 +249,9 @@ func TestResultSubmitPreservesImmutableUIHandoffBinding(t *testing.T) {
 	}
 	requireStringArrayEqual(t, verification["covered_handoff_contract_ids"], []string{"DH-COMP-001", "DH-VA-001"})
 	requireStringArrayEqual(t, verification["covered_smoothness_acceptance_ids"], []string{"focus-continuity", "pending-cancel-feedback"})
+	if verification["smoothness_lab_report_ref"] != "implementation-review/smoothness/smoothness-lab-lane-ui.json" || verification["smoothness_lab_report_sha256"] != strings.Repeat("b", 64) {
+		t.Fatalf("smoothness report binding was not preserved: %#v", verification)
+	}
 	tolerance := requireObjectValue(t, verification["comparison_tolerance"])
 	if tolerance["structure"] != "exact" || tolerance["platform_variance"] != "approved-deviation-only" {
 		t.Fatalf("structured comparison tolerance was not preserved: %#v", tolerance)

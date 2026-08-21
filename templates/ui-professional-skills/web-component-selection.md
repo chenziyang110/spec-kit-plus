@@ -76,13 +76,25 @@ Use the routed `smoothness_acceptance_ids` as pointers into the current
 typed structure, visual, and runtime evidence plus visual comparison or human
 review; do not invent a fourth UI evidence kind.
 
+At the real entrypoint, materialize the CLI-owned lab manifest with
+`specify-runtime evidence smoothness-manifest --feature-dir <feature-dir>
+--task-id <Txxx> --format json`. Run the manifest's exact viewport, interaction,
+reduced-motion, interruption, and performance matrix through Playwright or the
+available browser runner, then submit only observed results through
+`specify-runtime evidence smoothness-validate`. The returned report ref and
+SHA-256 bind the exact acceptance IDs; screenshots or test pass counts alone do
+not close smoothness acceptance.
+
 ## Handoff
 
 Persist the compact candidate IDs, local asset inventory, explainable selection,
-and smoothness IDs in `professional_skill_route`. In each affected
+`component_adoption_plan`, official refresh result, smoothness IDs, and budgets
+in `professional_skill_route`. In each affected
 `component_contracts` row, name the selected live or upstream component in
 `component`, choose `governance: reuse|extend|new`, bind semantic tokens and
-required states, and record any gap/deprecation owner. Copy applicable
-smoothness IDs into `usability_validation`. Downstream Plan and Implement
+required states, and copy the exact nested `adoption` row with action,
+package/version/license, source/component refs, reason/basis codes, and
+permission state. Copy applicable smoothness IDs and budgets into
+`usability_validation`. Downstream Plan and Implement
 re-check the installed version and official docs before code or dependency
 changes.

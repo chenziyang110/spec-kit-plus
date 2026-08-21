@@ -734,8 +734,13 @@ when the `classic` profile is selected.
   and load official Agent/MCP/LLM material only for selected candidates. A
   bounded project-root scan records manifests, installed systems, component
   roots, tokens, themes, and entry surfaces; deterministic scores return compact
-  reason/confirmation codes, while routed `smoothness_acceptance_ids` flow into
-  the existing usability and Review evidence contract.
+  reason/confirmation codes plus an executable reuse/extend/add/custom adoption
+  plan. A separate offline helper compares caller-provided selected official
+  Agent/MCP/`llms.txt`/Markdown snapshots and reports content/version/license
+  drift without installing or upgrading anything. Routed
+  `smoothness_acceptance_ids` and budgets flow into the existing usability and
+  Review evidence contract; the runtime emits a real-entrypoint Smoothness Lab
+  manifest and validates Playwright/browser observations into a hashed report.
   Live product UI is the default style authority: feature, component, and
   partial functional-page work uses `inherit-existing`, cites exact live source
   refs, protects `global-shell` and `shared-components`, permits no style delta,

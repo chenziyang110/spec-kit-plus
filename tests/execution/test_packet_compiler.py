@@ -314,6 +314,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                                     "profile_id": "web",
                                     "name": "Settings",
                                     "kind": "web",
+                                    "entrypoint_id": "EP-WEB-SETTINGS",
                                     "source_refs": ["src/ui/settings.tsx"],
                                     "specimen_ids": ["SP-WEB-SETTINGS-001"],
                                     "component_ids": ["DH-COMP-001"],
@@ -494,6 +495,21 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                                     "semantic_token_refs": ["color.feedback.success"],
                                     "governance": "extend",
                                     "iconography": "status icons include accessible text",
+                                    "adoption": {
+                                        "resource_id": "material-ui",
+                                        "action": "extend",
+                                        "package": "@mui/material",
+                                        "version": "^7.0.0",
+                                        "license": "MIT",
+                                        "source_ref": "package.json#/dependencies/@mui/material",
+                                        "component_refs": ["@mui/material/TextField"],
+                                        "reason_codes": ["installed", "live-style-authority"],
+                                        "selection_basis_refs": [
+                                            "professional_skill_route.mature_web_ui_selection"
+                                        ],
+                                        "permission_gate": "not-required",
+                                        "permission_status": "authorized",
+                                    },
                                 }
                             ],
                             "responsive_matrix": [
@@ -695,6 +711,21 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
         "reduced-motion",
     ]
     assert packet.ui_contract.component_contracts[0]["governance"] == "extend"
+    assert packet.ui_contract.component_contracts[0]["adoption"] == {
+        "resource_id": "material-ui",
+        "action": "extend",
+        "package": "@mui/material",
+        "version": "^7.0.0",
+        "license": "MIT",
+        "source_ref": "package.json#/dependencies/@mui/material",
+        "component_refs": ["@mui/material/TextField"],
+        "reason_codes": ["installed", "live-style-authority"],
+        "selection_basis_refs": [
+            "professional_skill_route.mature_web_ui_selection"
+        ],
+        "permission_gate": "not-required",
+        "permission_status": "authorized",
+    }
     assert packet.ui_contract.required_states == ["loading", "error", "success"]
     assert packet.ui_contract.must_not == ["collapse settings into cards"]
     assert packet.ui_contract.required_evidence == [
@@ -755,6 +786,8 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
             approved_handoff_sha256="d" * 64,
             comparison_report_ref="artifacts/ui/settings-comparison.json",
             comparison_report_sha256="c" * 64,
+            smoothness_lab_report_ref="implementation-review/smoothness/smoothness-lab-T021.json",
+            smoothness_lab_report_sha256="e" * 64,
             implementation_capture_refs=["artifacts/ui/settings.png"],
             covered_decision_ids=list(packet.ui_contract.design_decision_ids),
             covered_handoff_contract_ids=list(packet.ui_contract.handoff_contract_ids),
