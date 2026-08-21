@@ -15,8 +15,7 @@ slash-style syntax.
 
 ## Workflow Recommendation Discipline
 
-Passive SKILL invocation is allowed only for `sp-discussion`, `sp-quick`,
-`sp-debug`, and `sp-fast`. All other `sp-*` workflows are user-invoked only:
+Passive SKILL invocation is allowed only for `sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`. All other `sp-*` workflows are user-invoked only:
 recommend the projected invocation and stop; do not load, enter, or hand off into
 the workflow until the user explicitly invokes it. Continuing an already-invoked
 incomplete workflow is not passive entry. When a topical
