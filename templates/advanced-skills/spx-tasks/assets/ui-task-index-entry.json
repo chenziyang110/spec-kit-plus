@@ -235,7 +235,8 @@
       "methods": ["{{heuristic_cognitive_walkthrough_or_target_user_test}}"],
       "critical_tasks": ["{{critical_user_task}}"],
       "success_criteria": ["{{observable_success_criterion}}"],
-      "human_review_required": "{{copy_exact_boolean_human_review_required}}"
+      "human_review_required": "{{copy_exact_boolean_human_review_required}}",
+      "smoothness_acceptance_ids": ["{{copy_exact_applicable_smoothness_acceptance_id}}"]
     },
     "visual_acceptance_matrix": [{
       "id": "{{selected_handoff_visual_acceptance_id}}",

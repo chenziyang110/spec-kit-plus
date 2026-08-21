@@ -528,6 +528,27 @@ def validate_worker_task_result(
                     "visual_comparison_or_human_review pending human review requires review evidence",
                 )
         usability_validation = packet.ui_contract.usability_validation
+        smoothness_acceptance_ids = (
+            usability_validation.get("smoothness_acceptance_ids", [])
+            if isinstance(usability_validation, dict)
+            else []
+        )
+        expected_smoothness_ids = {
+            item.strip()
+            for item in smoothness_acceptance_ids
+            if isinstance(item, str) and item.strip()
+        }
+        if expected_smoothness_ids and not defer_integrated_ui_evidence:
+            covered_smoothness_ids = {
+                item.strip()
+                for item in result.ui_verification.covered_smoothness_acceptance_ids
+                if isinstance(item, str) and item.strip()
+            }
+            if covered_smoothness_ids != expected_smoothness_ids:
+                raise PacketValidationError(
+                    "DP3",
+                    "UI smoothness acceptance coverage must exactly match the task usability_validation contract",
+                )
         if (
             isinstance(usability_validation, dict)
             and usability_validation.get("human_review_required") is True

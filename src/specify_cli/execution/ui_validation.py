@@ -382,6 +382,23 @@ def validate_lifecycle_ui_verification(
     usability_validation = (
         usability_validation if isinstance(usability_validation, dict) else {}
     )
+    expected_smoothness_ids = {
+        str(item).strip()
+        for item in usability_validation.get("smoothness_acceptance_ids", [])
+        if isinstance(item, str) and item.strip()
+    }
+    if expected_smoothness_ids:
+        covered_smoothness_ids = {
+            str(item).strip()
+            for item in verification.get(
+                "covered_smoothness_acceptance_ids", []
+            )
+            if isinstance(item, str) and item.strip()
+        }
+        if covered_smoothness_ids != expected_smoothness_ids:
+            errors.append(
+                f"{relative} ui_verification.covered_smoothness_acceptance_ids must exactly cover the task contract"
+            )
     if usability_validation.get("human_review_required") is True:
         reviewer = (
             str(verification.get("reviewer") or "")

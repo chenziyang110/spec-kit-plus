@@ -157,7 +157,9 @@ substitute a populated pointer happy path. In a Leader-owned gate attempt,
 run the integrated real surface once per applicable fingerprint and record
 `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` with
 `evidence_scope: integrated`; visually inspect, repair drift, and recapture in
-a new attempt inside the same gate. For a passing comparison, call
+a new attempt inside the same gate. Record exact
+`covered_smoothness_acceptance_ids` in `ui_verification`; missing or extra IDs
+block task acceptance without introducing a new evidence kind. For a passing comparison, call
 `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json` with only the observed entrypoint/revision, typed evidence refs, matrix differences, explicit verdict, and reviewer. The runtime derives the approved preview/manifest/handoff bindings, exact `DS-*`/`DH-*` coverage, tolerance, deviations, canonical report, and byte digest from the task contract. Never read the stable template or author/patch the report. Record behavior checks separately from
 visual/interaction acceptance. Missing or bootstrap design sources hand off to
 `$spx-design` and stop; unavailable comparison remains `pending-human-review`,
@@ -186,6 +188,7 @@ For UI-bearing tasks, implement the exact `surface_catalog`, `scenario_matrix`,
 `interaction_matrix`, `editing_matrix`, `data_state_matrix`, `accessibility_matrix`,
 `navigation_matrix`, `content_matrix`, `motion_contract`, and
 `usability_validation` subset,
-including component governance/iconography. Exercise risk-based or pairwise
+including component governance/iconography. Web tasks exercise every applicable
+smoothness acceptance ID and return exact coverage. Exercise risk-based or pairwise
 real-entrypoint scenarios, never an unbounded Cartesian product. Automated
 tests/screenshots cannot close required target-user human review.

@@ -582,6 +582,12 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
             "critical_tasks": ["update and save one preference"],
             "success_criteria": ["save without losing section context"],
             "human_review_required": True,
+            "smoothness_acceptance_ids": [
+                "focus-continuity",
+                "pending-cancel-feedback",
+                "duplicate-activation",
+                "reduced-motion",
+            ],
         },
         visual_acceptance_matrix=[
             {
@@ -602,6 +608,20 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
         ],
     )
     assert validate_worker_task_packet(sample_packet) is sample_packet
+
+    sample_packet.ui_contract.usability_validation[
+        "smoothness_acceptance_ids"
+    ] = ["focus-continuity", "focus-continuity"]
+    with pytest.raises(PacketValidationError, match="usability_validation"):
+        validate_worker_task_packet(sample_packet)
+    sample_packet.ui_contract.usability_validation[
+        "smoothness_acceptance_ids"
+    ] = [
+        "focus-continuity",
+        "pending-cancel-feedback",
+        "duplicate-activation",
+        "reduced-motion",
+    ]
 
     sample_packet.ui_contract.style_authority["allowed_style_delta_surfaces"] = [
         "web:settings"

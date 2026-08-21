@@ -95,7 +95,8 @@ projection.
    task's structured `ui_verification` into each task lifecycle only through
    `specify-runtime implement result-merge|task-accept`; include the required
    evidence, difference inventory, accepted deviations, and
-   objective-comparison or `pending-human-review` result. For every passing
+   exact `covered_smoothness_acceptance_ids`, plus the objective-comparison or
+   `pending-human-review` result. For every passing
    visual comparison, submit only the observed entrypoint/revision, typed
    evidence refs, matrix differences, explicit verdict, and reviewer through
    `specify-runtime evidence visual-compare --feature-dir <feature-dir>
@@ -156,6 +157,8 @@ Implement each task's exact `surface_catalog`, `scenario_matrix`,
 `interaction_matrix`, `editing_matrix`, `data_state_matrix`, `accessibility_matrix`,
 `navigation_matrix`, `content_matrix`, `motion_contract`, and
 `usability_validation` subset, including component
-governance and iconography. Exercise risk-based or pairwise combinations at
+governance and iconography. Web tasks must exercise every applicable
+`smoothness_acceptance_id` and return exact coverage through the existing UI
+evidence kinds. Exercise risk-based or pairwise combinations at
 real entry points, never an unbounded Cartesian product. Do not claim required
 target-user human review from automated tests or screenshots.

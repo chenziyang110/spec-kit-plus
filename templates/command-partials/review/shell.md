@@ -139,7 +139,11 @@ Review the integrated product against every exact applicable `surface_catalog`,
 `scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
 `accessibility_matrix`, `navigation_matrix`, `content_matrix`,
 `motion_contract`, and `usability_validation` row/object plus component
-governance. Enforce the exact `style_authority`: under `inherit-existing`, any
+governance.
+For Web UI, exercise every routed `smoothness_acceptance_id` and bind its result
+to the existing integrated structure, visual, runtime, and visual-comparison or
+human-review evidence; ordinary screenshots cannot close interaction checks.
+Enforce the exact `style_authority`: under `inherit-existing`, any
 unapproved visual-language drift from the cited live UI, especially in
 `global-shell` or `shared-components`, is a blocking finding; under
 `page-overhaul-authorized`, accept style delta only on the exact authorized

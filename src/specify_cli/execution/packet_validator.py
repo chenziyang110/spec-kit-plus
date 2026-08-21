@@ -635,6 +635,13 @@ def _valid_usability_validation(value: object) -> bool:
     human_review_required = value.get("human_review_required")
     if not isinstance(human_review_required, bool):
         return False
+    smoothness_ids = value.get("smoothness_acceptance_ids")
+    if smoothness_ids is not None:
+        if not _nonblank_string_list(smoothness_ids):
+            return False
+        normalized_ids = [str(item).strip() for item in smoothness_ids]
+        if len(normalized_ids) != len(set(normalized_ids)):
+            return False
     return value.get("risk_level") != "high" or human_review_required
 
 
