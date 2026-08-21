@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync, type RmOptions } from "node:fs";
+import { chmod, mkdir, mkdtemp, readFile, rm as fsRm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -32,19 +32,16 @@ async function writeJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, JSON.stringify(value, null, 2));
 }
 
+async function rm(path: string, options: RmOptions = {}): Promise<void> {
+  await fsRm(path, {
+    ...options,
+    maxRetries: 10,
+    retryDelay: 100,
+  });
+}
+
 async function rmWithRetries(path: string): Promise<void> {
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      await rm(path, { recursive: true, force: true });
-      return;
-    } catch (error) {
-      const code = error && typeof error === "object" && "code" in error
-        ? String((error as { code?: unknown }).code ?? "")
-        : "";
-      if (code !== "EBUSY" || attempt === 4) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
-    }
-  }
+  await rm(path, { recursive: true, force: true });
 }
 
 async function writeQuickStatus(workspace: string): Promise<void> {
