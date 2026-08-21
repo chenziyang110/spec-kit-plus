@@ -94,8 +94,15 @@ surface-aware `anti_slop_locks`, and synthesize `reference_board_intents`
 (`mood`/`layout`/`type`/`color-only`) when references shape the board.
 Read `.specify/templates/ui-professional-skills/router.md`, resolve and persist
 `professional_skill_route` with `domain_skill_id`, `style_skill_id`,
-`specialist_skill_ids`, `matched_signals`, and `loaded_refs`, then load only the
-selected one domain, zero-or-one style, and zero-to-two specialist references.
+`specialist_skill_ids`, `matched_signals`, `loaded_refs`, and
+`mature_web_ui_resource_ids`, `web_ui_asset_inventory`,
+`mature_web_ui_selection`, and `smoothness_acceptance_ids` when Web UI applies.
+Pass the actual project root to the deterministic router, then load only the selected
+one domain, zero-or-one style, and zero-to-two specialist references. Web
+component work also reads the router-triggered `web-component-selection.md`:
+reuse inspected live components first, select at most one compatible mature
+primary system, and add only exact headless or specialist gaps. Load official
+Agent/MCP/LLM material only for selected candidates.
 Pass the resolved `style_authority` to the router; `inherit-existing` suppresses
 all style refs while retaining relevant domain/specialist expertise.
 Do not load the entire UI professional skill catalog. A material routing

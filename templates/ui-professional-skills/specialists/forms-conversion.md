@@ -14,6 +14,8 @@ This specialist skill focuses on forms, sign-up, checkout, onboarding, intake, a
 - When to validate and when to wait.
 - Which errors are blocking, recoverable, or informational.
 - What the submit, save, retry, and cancel states should do.
+- Which inspected live or mature component owns field semantics, combobox and
+  date behavior, focus, validation messages, and pending submission states.
 
 ## Image-primary augmentation
 
@@ -32,4 +34,5 @@ This specialist skill focuses on forms, sign-up, checkout, onboarding, intake, a
 - Pass only when the form is clear, forgiving, and recoverable.
 - Verify labels, focus order, keyboard behavior, and error visibility.
 - Reject forms that hide critical instructions or punish small mistakes.
-
+- Reject hand-built complex controls when a compatible mature component covers
+  keyboard, screen-reader, localization, and mobile input behavior.

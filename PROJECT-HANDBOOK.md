@@ -60,7 +60,15 @@ zero-or-one visual style, and zero-to-two specialists; only those references are
 loaded. The route is persisted for the immutable round, while material
 ambiguity asks one high-impact question. Approved references and registered
 design truth take precedence, and image-primary and HTML-primary keep separate
-prompt contracts.
+prompt contracts. Web routes also persist a compact
+`mature_web_ui_resource_ids` shortlist. The component gate inspects installed
+libraries and live components first, selects at most one mature primary system,
+adds headless or specialist support only for an exact gap, and retrieves
+official Agent Skills, MCP, or LLM docs only for shortlisted candidates. Its
+bounded local scan records the live asset inventory without network or writes;
+deterministic reason codes explain the primary/supporting choice, and routed
+smoothness acceptance IDs bind to the existing usability and integrated Review
+evidence contract.
 
 Live product UI is the default style authority. Feature, component, and partial
 functional-page work uses `inherit-existing`, exact live source refs, protected

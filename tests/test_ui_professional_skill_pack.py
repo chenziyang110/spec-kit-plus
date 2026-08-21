@@ -29,10 +29,16 @@ def _route(
     query: str,
     *,
     style_authority: str | None = None,
+    project_root: Path | None = None,
+    catalog_path: Path | None = None,
 ) -> dict[str, object]:
     argv = [sys.executable, str(ROUTE_SCRIPT), "--query", query]
     if style_authority is not None:
         argv.extend(["--style-authority", style_authority])
+    if project_root is not None:
+        argv.extend(["--project-root", str(project_root)])
+    if catalog_path is not None:
+        argv.extend(["--catalog", str(catalog_path)])
     completed = subprocess.run(
         argv,
         cwd=ROOT,
@@ -119,6 +125,262 @@ def test_ui_professional_catalog_is_bounded_and_all_references_exist() -> None:
     assert routing["fallback_domain"] in ids
 
 
+def test_catalog_collects_mature_web_ui_resources_and_agent_materials() -> None:
+    catalog = _catalog()
+
+    resources = catalog["mature_web_ui_resources"]
+    assert isinstance(resources, list)
+    resource_ids = [resource["id"] for resource in resources if isinstance(resource, dict)]
+    assert len(resource_ids) == len(set(resource_ids))
+    resource_id_set = set(resource_ids)
+    for required in (
+        "shadcn-ui",
+        "radix-primitives",
+        "base-ui",
+        "material-ui",
+        "ant-design",
+        "mantine",
+        "chakra-ui",
+        "headless-ui",
+        "shadcn-agent-skill",
+    ):
+        assert required in resource_ids
+
+    for resource in resources:
+        assert resource["category"] in {
+            "component-library",
+            "headless-primitive",
+            "design-system",
+            "agent-resource",
+        }
+        assert resource["official_url"].startswith("https://")
+        assert resource["maturity"] in {"default", "mature", "enterprise", "specialized"}
+        assert resource["ecosystems"]
+        assert resource["capabilities"]
+        assert resource["use_when"]
+        assert resource["guardrails"]
+        assert set(resource.get("agent_resource_ids", [])).issubset(resource_id_set)
+
+
+def test_catalog_defines_deterministic_asset_scan_scoring_and_smoothness_checks() -> None:
+    catalog = _catalog()
+    routing = catalog["mature_web_ui_routing"]
+
+    assert routing["asset_scan"]["manifest_files"] == ["package.json"]
+    assert "src/components/ui" in routing["asset_scan"]["component_roots"]
+    assert routing["selection_scoring"]["installed"] > routing["selection_scoring"]["ecosystem"]
+    assert routing["selection_scoring"]["ecosystem"] > routing["selection_scoring"]["maturity"]["enterprise"]
+    assert routing["resource_package_markers"]["material-ui"] == ["@mui/material"]
+
+    checks = routing["smoothness_acceptance_checks"]
+    check_ids = {check["id"] for check in checks}
+    assert {
+        "focus-continuity",
+        "selection-scroll-continuity",
+        "pending-cancel-feedback",
+        "duplicate-activation",
+        "reduced-motion",
+        "layout-stability",
+        "large-data-performance",
+        "editing-input-continuity",
+        "interruption-safe-motion",
+    } <= check_ids
+
+
+def test_router_scans_live_ui_assets_and_prefers_the_installed_primary_system(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "react-app"
+    (project / "src" / "components" / "ui").mkdir(parents=True)
+    (project / "src" / "app").mkdir(parents=True)
+    (project / "package.json").write_text(
+        json.dumps(
+            {
+                "dependencies": {
+                    "react": "^19.0.0",
+                    "next": "^15.0.0",
+                    "@mui/material": "^7.0.0",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (project / "pnpm-lock.yaml").write_text("lockfileVersion: '9.0'\n", encoding="utf-8")
+    (project / "tailwind.config.ts").write_text("export default {}\n", encoding="utf-8")
+    (project / "src" / "app" / "page.tsx").write_text(
+        "export default function Page() { return null }\n",
+        encoding="utf-8",
+    )
+
+    payload = _route(
+        "React Web 管理后台，需要成熟组件和无障碍表格",
+        style_authority="inherit-existing",
+        project_root=project,
+    )
+
+    inventory = payload["web_ui_asset_inventory"]
+    assert inventory == {
+        "status": "scanned",
+        "manifest_refs": ["package.json"],
+        "lockfile_refs": ["pnpm-lock.yaml"],
+        "framework_ids": ["react"],
+        "installed_resources": [
+            {"resource_id": "material-ui", "version": "^7.0.0"}
+        ],
+        "component_roots": ["src/components/ui"],
+        "token_refs": ["tailwind.config.ts"],
+        "theme_refs": [],
+        "surface_refs": ["src/app/page.tsx"],
+    }
+    selection = payload["mature_web_ui_selection"]
+    assert selection["status"] == "resolved"
+    assert selection["primary_resource_id"] == "material-ui"
+    assert selection["candidates"][0]["resource_id"] == "material-ui"
+    assert "installed" in selection["candidates"][0]["reason_codes"]
+    assert selection["confirmation_codes"] == []
+    assert payload["professional_skill_route"]["web_ui_asset_inventory"] == inventory
+    assert payload["professional_skill_route"]["mature_web_ui_selection"] == selection
+
+
+def test_router_requires_confirmation_for_multiple_installed_primary_systems(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "react-app"
+    project.mkdir()
+    (project / "package.json").write_text(
+        json.dumps(
+            {
+                "dependencies": {
+                    "react": "^19.0.0",
+                    "@mui/material": "^7.0.0",
+                    "@chakra-ui/react": "^3.0.0",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = _route(
+        "React Web 管理后台，需要成熟组件",
+        style_authority="inherit-existing",
+        project_root=project,
+    )
+
+    selection = payload["mature_web_ui_selection"]
+    assert selection["status"] == "provisional"
+    assert "multiple-installed-primary-systems" in selection["confirmation_codes"]
+
+
+def test_router_asset_scan_rejects_catalog_paths_outside_the_project_root(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "react-app"
+    project.mkdir()
+    outside_token = tmp_path / "outside-tokens.css"
+    outside_token.write_text(":root {}\n", encoding="utf-8")
+    (project / "package.json").write_text(
+        json.dumps({"dependencies": {"react": "^19.0.0"}}),
+        encoding="utf-8",
+    )
+    catalog = _catalog()
+    routing = catalog["mature_web_ui_routing"]
+    assert isinstance(routing, dict)
+    asset_scan = routing["asset_scan"]
+    assert isinstance(asset_scan, dict)
+    asset_scan["token_files"] = ["../outside-tokens.css", str(outside_token)]
+    catalog_path = tmp_path / "catalog.json"
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+
+    payload = _route(
+        "React Web 管理后台",
+        project_root=project,
+        catalog_path=catalog_path,
+    )
+
+    assert payload["web_ui_asset_inventory"]["token_refs"] == []
+
+
+def test_router_explains_selection_and_routes_smoothness_acceptance_ids() -> None:
+    payload = _route(
+        "React 数据工作台，需要十万行虚拟表格、富文本编辑和可中断流畅动效"
+    )
+
+    selection = payload["mature_web_ui_selection"]
+    assert selection["status"] == "provisional"
+    assert selection["primary_resource_id"] == "material-ui"
+    assert len(selection["supporting_resource_ids"]) <= 3
+    assert {"ag-grid", "apache-echarts", "tiptap", "motion"}.intersection(
+        selection["supporting_resource_ids"]
+    )
+    assert all(
+        candidate["reason_codes"] and isinstance(candidate["score"], int)
+        for candidate in selection["candidates"]
+    )
+    assert "asset-inventory-not-scanned" in selection["confirmation_codes"]
+
+    acceptance_ids = payload["smoothness_acceptance_ids"]
+    assert {
+        "focus-continuity",
+        "selection-scroll-continuity",
+        "pending-cancel-feedback",
+        "duplicate-activation",
+        "reduced-motion",
+        "layout-stability",
+        "large-data-performance",
+        "editing-input-continuity",
+        "interruption-safe-motion",
+    } <= set(acceptance_ids)
+    persisted = payload["professional_skill_route"]
+    assert persisted["smoothness_acceptance_ids"] == acceptance_ids
+
+
+def test_router_surfaces_mature_web_ui_resources_for_component_library_work() -> None:
+    payload = _route("React Web 应用，优先使用成熟组件库，组件状态要丝滑流畅")
+
+    resource_ids = payload["mature_web_ui_resource_ids"]
+    assert resource_ids[:3] == ["shadcn-ui", "radix-primitives", "base-ui"]
+    assert "material-ui" in resource_ids
+    assert "ant-design" in resource_ids
+    assert "shadcn-agent-skill" in resource_ids
+    assert payload["professional_skill_route"]["mature_web_ui_resource_ids"] == resource_ids
+
+
+def test_router_narrows_component_resources_by_framework_and_capability() -> None:
+    vue = _route("Vue Web 管理后台，优先成熟组件库和无障碍交互")
+    vue_ids = vue["mature_web_ui_resource_ids"]
+    assert "primevue" in vue_ids
+    assert "vuetify" in vue_ids
+    assert "headless-ui" in vue_ids
+    assert "material-ui" not in vue_ids
+
+    svelte = _route("SvelteKit Web 应用，需要成熟组件和可访问浮层")
+    svelte_ids = svelte["mature_web_ui_resource_ids"]
+    assert "bits-ui" in svelte_ids
+    assert "web-awesome" in svelte_ids
+    assert "material-ui" not in svelte_ids
+
+    data_workspace = _route(
+        "React 数据工作台，需要十万行虚拟表格、可访问图表和流畅动效"
+    )
+    data_ids = data_workspace["mature_web_ui_resource_ids"]
+    assert "ag-grid" in data_ids
+    assert "tanstack-table" in data_ids
+    assert "apache-echarts" in data_ids
+    assert "motion" in data_ids
+
+
+def test_router_keeps_web_resources_out_of_native_platform_routes() -> None:
+    for query in (
+        "React Native mobile app component library",
+        "iOS SwiftUI 组件设计",
+        "Android Jetpack Compose design system",
+        "Flutter desktop app component toolkit",
+    ):
+        payload = _route(query)
+        assert payload["mature_web_ui_resource_ids"] == [], query
+        assert payload["professional_skill_route"]["mature_web_ui_resource_ids"] == [], query
+
+
 def test_router_uses_sparse_progressive_disclosure_and_one_question() -> None:
     content = _read(ROUTER).lower()
 
@@ -134,6 +396,8 @@ def test_router_uses_sparse_progressive_disclosure_and_one_question() -> None:
         "html-primary",
         "professional_skill_route",
         "approved references",
+        "mature_web_ui_resources",
+        "prefer mature components",
     ):
         assert phrase in content
 
@@ -241,6 +505,10 @@ def test_design_artifacts_persist_the_resolved_professional_route() -> None:
         assert "domain_skill_id:" in content
         assert "style_skill_id:" in content
         assert "specialist_skill_ids:" in content
+        assert "mature_web_ui_resource_ids:" in content
+        assert "web_ui_asset_inventory:" in content
+        assert "mature_web_ui_selection:" in content
+        assert "smoothness_acceptance_ids:" in content
         assert "matched_signals:" in content
         assert "loaded_refs:" in content
 
@@ -284,6 +552,7 @@ def test_shared_infra_install_copies_the_runnable_professional_pack(
     installed = project / ".specify" / "templates" / "ui-professional-skills"
     assert (installed / "catalog.json").is_file()
     assert (installed / "router.md").is_file()
+    assert (installed / "web-component-selection.md").is_file()
     assert (installed / "domains" / "product-workspace.md").is_file()
 
     completed = subprocess.run(

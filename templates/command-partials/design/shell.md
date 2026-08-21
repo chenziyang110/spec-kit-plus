@@ -185,9 +185,15 @@ and never require a colon subskill or explicit mode argument.
    `.specify/templates/ui-professional-skills/router.md` (source-tree fallback:
    `templates/ui-professional-skills/router.md`) and resolve
    `professional_skill_route`. Record `domain_skill_id`, `style_skill_id`,
-   `specialist_skill_ids`, `matched_signals`, and `loaded_refs`; load only the
+   `specialist_skill_ids`, `matched_signals`, `loaded_refs`, the compact
+   `mature_web_ui_resource_ids` shortlist, `web_ui_asset_inventory`, explainable
+   `mature_web_ui_selection`, and `smoothness_acceptance_ids` when Web UI
+   applies; pass the actual project root to the deterministic router and load only the
    selected one domain, zero-or-one style, and zero-to-two specialist
-   references. Pass the resolved `style_authority` to the deterministic router.
+   references. For Web component work, follow the router-triggered
+   `web-component-selection.md`: reuse inspected live components first, then
+   select one compatible mature primary system plus only justified headless or
+   specialist support. Pass the resolved `style_authority` to the deterministic router.
    For `inherit-existing`, `style_skill_id` and style references must remain
    null/absent; domain and specialists may improve the UI only inside the live
    language. Never load the whole UI professional skill pack. If the router
@@ -519,6 +525,8 @@ new approval.
 For substantive UI, approve complete `interaction_matrix`, `editing_matrix`,
 `data_state_matrix`, `accessibility_matrix`, `navigation_matrix`,
 `content_matrix`, `motion_contract`, and `usability_validation` values under
-`design_change.verification`, plus the component governance fields. Compare
-risk-based or pairwise scenarios, never an unbounded Cartesian product, and do
+`design_change.verification`, plus the component governance fields. Bind routed
+`smoothness_acceptance_ids` into the applicable interaction, motion, and
+`usability_validation.smoothness_acceptance_ids` rows without adding another
+evidence kind. Compare risk-based or pairwise scenarios, never an unbounded Cartesian product, and do
 not let automated tests or screenshots stand in for required target-user review.

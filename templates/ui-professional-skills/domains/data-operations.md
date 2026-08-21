@@ -16,6 +16,9 @@ This domain covers analytics dashboards, observability, admin ops, reporting con
 - Which states are healthy, warning, incident, stale, or empty.
 - How much density the user needs before the UI becomes hard to read.
 - Whether the surface is for monitoring, investigation, reporting, or action.
+- Whether the existing table/chart system is sufficient; if not, which catalog
+  specialist meets data volume, edit, keyboard, accessibility, and license
+  requirements.
 
 ## Image-primary augmentation
 
@@ -34,7 +37,7 @@ This domain covers analytics dashboards, observability, admin ops, reporting con
 ## Quality gate
 
 - Pass only when the data is legible, comparable, and stateful.
-- Verify chart labels, table alignment, empty states, and responsive collapse.
+- Verify chart labels, table alignment, empty states, keyboard navigation,
+  large-data behavior, and responsive collapse.
 - Reject decorative dashboards that do not help decision-making.
 - Escalate to the design-system, accessibility, or forms specialists if the problem is really about component behavior or input flow.
-

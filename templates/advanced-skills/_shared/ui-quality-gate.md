@@ -51,9 +51,15 @@ language. `greenfield` requires evidence that no live UI style applies.
 For substantive create/refine, read
 `.specify/templates/ui-professional-skills/router.md` and preserve the resolved
 `professional_skill_route`: `domain_skill_id`, `style_skill_id`,
-`specialist_skill_ids`, `matched_signals`, and `loaded_refs`. Load only the
-selected one domain, zero-or-one style, and zero-to-two specialists. Never load
-the full UI professional skill catalog or blend conflicting style skills.
+`specialist_skill_ids`, `matched_signals`, `loaded_refs`, and Web-only
+`mature_web_ui_resource_ids`, `web_ui_asset_inventory`, explainable
+`mature_web_ui_selection`, and `smoothness_acceptance_ids`. Pass the actual
+project root for the bounded read-only asset scan. Load only the selected one domain, zero-or-one
+style, and zero-to-two specialists. For Web component work, use the
+router-triggered mature-component selection reference: prefer compatible live
+components, then one mature primary system, and only exact headless/specialist
+gaps; retrieve official Agent material only for shortlisted selections. Never
+load the full UI professional skill catalog or blend conflicting style skills.
 Pass `style_authority` to the router; `inherit-existing` suppresses style refs
 without suppressing domain or specialist quality guidance.
 Approved references, registered design truth, platform rules, and accessibility
@@ -192,7 +198,10 @@ does not replace `accessibility_matrix`.
   and perceived-performance threshold values for immediate feedback, progress,
   and timeout.
 - `usability_validation` preserves risk, methods, critical tasks, success
-  criteria, and `human_review_required`. Low-risk existing-pattern changes may
+  criteria, `human_review_required`, and applicable routed
+  `smoothness_acceptance_ids`. Those IDs bind to the existing structure,
+  visual, runtime, and visual-comparison-or-human-review evidence kinds; they
+  do not create another evidence kind. Low-risk existing-pattern changes may
   use a documented cognitive walkthrough or heuristic review. Medium/high-risk
   journeys require representative target users and human review. Automated
   tests and screenshots cannot substitute for target-user usability.

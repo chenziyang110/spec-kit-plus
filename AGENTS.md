@@ -242,6 +242,22 @@ present in a test project.
   round. Material ambiguity asks one high-impact question instead of blending
   conflicting styles. Approved references and registered design truth outrank
   routed advice; image-primary and HTML-primary use distinct augmented prompts.
+- Web UI professional routing also persists a compact
+  `mature_web_ui_resource_ids` shortlist. Inspect installed packages, live
+  components, tokens, versions, licenses, and exact capability needs first;
+  reuse or extend live components before choosing one compatible mature primary
+  system, and add headless/specialist support only for a recorded gap. Load
+  official Agent Skills, MCP, `llms.txt`, or Markdown docs only for selected
+  candidates; they do not authorize installation, upgrade, migration, or
+  license acceptance. Smoothness still requires real-entrypoint evidence for
+  focus/selection/scroll continuity, pending/cancel behavior, large-data
+  performance, interruption, and reduced motion.
+  The deterministic helper accepts the actual project root, reads only
+  catalog-listed manifests and paths, and persists `web_ui_asset_inventory`,
+  explainable `mature_web_ui_selection` reason/confirmation codes, and
+  `smoothness_acceptance_ids`. An unscanned inventory is provisional. Carry the
+  smoothness IDs through existing interaction, motion, usability, and integrated
+  Review evidence; do not introduce another UI evidence kind.
 - Live UI is the default style authority. Feature, component, and partial
   functional-page work inside an existing product uses structured
   `style_authority.mode: inherit-existing`, cites exact live source refs,

@@ -38,6 +38,25 @@ design_brief:
     matched_signals: {}
     loaded_refs: []
     unresolved_candidates: []
+    mature_web_ui_resource_ids: []
+    web_ui_asset_inventory:
+      status: not-scanned
+      manifest_refs: []
+      lockfile_refs: []
+      framework_ids: []
+      installed_resources: []
+      component_roots: []
+      token_refs: []
+      theme_refs: []
+      surface_refs: []
+    mature_web_ui_selection:
+      status: not-applicable
+      primary_resource_id: null
+      supporting_resource_ids: []
+      agent_resource_ids: []
+      candidates: []
+      confirmation_codes: []
+    smoothness_acceptance_ids: []
   style_authority:
     mode: unresolved
     scope_level: null
@@ -114,6 +133,13 @@ Resolve this route from the compact catalog before visual authoring. Keep one
 domain, at most one style, and at most two specialists; `loaded_refs` lists only
 those exact progressively disclosed references. Existing approved references
 and registered design truth always take precedence over routed style guidance.
+For Web UI, `mature_web_ui_resource_ids` is a compact, stack-compatible
+shortlist. Follow `web-component-selection.md`: prefer inspected live
+components, then one mature primary system and only exact headless/specialist
+gaps; retrieve official Agent material only for selected candidates. Run the
+bounded project-root scan first, preserve its `web_ui_asset_inventory`, use the
+compact `mature_web_ui_selection` reason codes, and treat an unscanned result as
+provisional.
 
 For local work in an existing product, resolve `style_authority.mode` to
 `inherit-existing`, keep `style_skill_id: null`, and load only the domain plus
@@ -161,6 +187,9 @@ later freeze under `design_change.verification`: `surface_catalog`,
 `scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
 `accessibility_matrix`, `navigation_matrix`, `content_matrix`,
 `motion_contract`, and `usability_validation`.
+For Web UI, place the routed `smoothness_acceptance_ids` in
+`usability_validation` and bind each ID to the existing interaction, motion,
+structure, visual, runtime, or human-review path that proves it.
 For every applicable input path, identify the platform event sequence,
 pre-completion feedback, focus continuity, repeat policy, cancellation, and
 pending behavior that the eventual `interaction_matrix` must freeze.
@@ -185,7 +214,8 @@ pending behavior that the eventual `interaction_matrix` must freeze.
   time zones.
 - Components: `component_contracts` variants, `content_constraints`,
   `semantic_token_refs`, reuse/extend/new `governance`, gap/deprecation owner,
-  and iconography source/style/optical rules.
+  iconography source/style/optical rules, and the selected live or mature
+  component source. A Web `new` primitive requires a recorded uncovered gap.
 - Motion: purpose, trigger/response, duration/easing, interrupt/cancel,
   reduced-motion behavior, and perceived-performance feedback thresholds.
 - Usability: risk, target users, critical tasks, success criteria, method, and

@@ -727,7 +727,15 @@ when the `classic` profile is selected.
   references. The resolved route is pinned to the current immutable round;
   material ambiguity produces one direction-changing question. Approved
   references remain authoritative, and image-primary versus HTML-primary
-  authoring receives separate prompt augmentation.
+  authoring receives separate prompt augmentation. For Web UI, the same router
+  emits a stack-compatible `mature_web_ui_resource_ids` shortlist and opens a
+  component-selection gate: reuse live components first, prefer one mature
+  primary system, add only capability-justified headless/specialist libraries,
+  and load official Agent/MCP/LLM material only for selected candidates. A
+  bounded project-root scan records manifests, installed systems, component
+  roots, tokens, themes, and entry surfaces; deterministic scores return compact
+  reason/confirmation codes, while routed `smoothness_acceptance_ids` flow into
+  the existing usability and Review evidence contract.
   Live product UI is the default style authority: feature, component, and
   partial functional-page work uses `inherit-existing`, cites exact live source
   refs, protects `global-shell` and `shared-components`, permits no style delta,

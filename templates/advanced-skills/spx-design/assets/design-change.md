@@ -53,6 +53,25 @@ design_change:
     matched_signals: {}
     loaded_refs: []
     unresolved_candidates: []
+    mature_web_ui_resource_ids: []
+    web_ui_asset_inventory:
+      status: not-scanned
+      manifest_refs: []
+      lockfile_refs: []
+      framework_ids: []
+      installed_resources: []
+      component_roots: []
+      token_refs: []
+      theme_refs: []
+      surface_refs: []
+    mature_web_ui_selection:
+      status: not-applicable
+      primary_resource_id: null
+      supporting_resource_ids: []
+      agent_resource_ids: []
+      candidates: []
+      confirmation_codes: []
+    smoothness_acceptance_ids: []
   style_authority:
     mode: unresolved
     scope_level: null
@@ -160,6 +179,12 @@ Define affected component anatomy, variants, states, decision references, and
 the mouse/pointer, keyboard/focus, touch, or shortcut interactions that must
 remain true. Include empty and representative-data expectations when data shape
 changes behavior.
+For Web UI, use the routed mature-resource shortlist and one-primary-system
+rule. Prefer live reuse/extension; add a headless or specialist library only
+for an exact gap, and never treat Agent material as install authority.
+Final selection cites the scanned `web_ui_asset_inventory` and explainable
+`mature_web_ui_selection`; provisional candidates cannot authorize dependency
+changes.
 Every exported `component_contracts` row also records `variants`,
 `content_constraints`, `semantic_token_refs`, `governance`, and `iconography`.
 Governance distinguishes reuse, extension, and justified new work; assigns
@@ -272,7 +297,8 @@ permission-limited, offline, and recovery states whenever they matter.
 ## Usability Validation
 
 Record `verification.usability_validation`: `risk_level`, `methods`,
-`critical_tasks`, `success_criteria`, and `human_review_required`; name target
+`critical_tasks`, `success_criteria`, `human_review_required`, and applicable
+`smoothness_acceptance_ids`; name target
 users and review evidence as needed. Low-risk existing-pattern changes may use
 a documented cognitive walkthrough or
 heuristic review. Medium- and high-risk journeys require representative target

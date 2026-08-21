@@ -39,10 +39,15 @@ Load these references progressively:
   permits `page-overhaul-authorized`; a functional-page refactor or feature
   addition does not. Then resolve `professional_skill_route`, persist `domain_skill_id`,
   `style_skill_id`, `specialist_skill_ids`, `matched_signals`, and
-  `loaded_refs`, then load only the exact selected one domain, zero-or-one
-  style, and zero-to-two specialists. Never load the full UI professional skill
-  catalog. If material ambiguity remains, ask the router's one high-impact
-  question before selecting a medium-specific prompt augmentation.
+  `loaded_refs`, plus `mature_web_ui_resource_ids`, `web_ui_asset_inventory`,
+  `mature_web_ui_selection`, and `smoothness_acceptance_ids` when Web UI
+  applies. Pass the actual project root for the bounded read-only scan, then
+  load only the exact selected one domain, zero-or-one style, and zero-to-two
+  specialists. For Web component work, read the router-triggered
+  `web-component-selection.md`; load official Agent/MCP/LLM material only for a
+  selected candidate. Never load the full UI professional skill catalog. If
+  material ambiguity remains, ask the router's one high-impact question before
+  selecting a medium-specific prompt augmentation.
 - Read [references/discovery-dialogue.md](references/discovery-dialogue.md) for
   active questioning, question state, and the pre-visual checkpoint.
 - Read
@@ -170,6 +175,10 @@ implement/review require system model + anti-slop + visual validation loop.
   or happy-path copy alone.
 - Keep component decisions tied to the design system. Reuse existing tokens,
   components, spacing rules, and interaction patterns before adding new ones.
+- For Web UI, follow the mature-component preference ladder: compatible live
+  component, documented extension, one mature primary system, then only an
+  exact headless/specialist gap. Do not mix multiple full component systems on
+  one surface or hand-build complex primitives without a recorded gap.
 - Preserve every applicable `component_contracts` row, including `variants`,
   `content_constraints`, `semantic_token_refs`, reuse/extend/new `governance`,
   gap/deprecation ownership, and `iconography` source, style, sizing, optical
@@ -222,7 +231,9 @@ Cartesian product.
 - `usability_validation` is risk-tiered. Low-risk existing-pattern changes may
   use a documented cognitive walkthrough or heuristic review. Medium/high-risk
   journeys name target users, critical tasks, success criteria, and mandatory
-  human review. Automated tests and screenshots cannot substitute for
+  human review. Web work also preserves routed `smoothness_acceptance_ids`
+  inside this object and proves them through the existing UI evidence kinds.
+  Automated tests and screenshots cannot substitute for
   target-user usability.
 
 ## Evidence
