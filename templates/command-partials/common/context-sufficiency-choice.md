@@ -95,5 +95,7 @@ gate with `{{specify-subcmd:specify-runtime cognition mutation-receipt --workflo
 <sp-quick|sp-debug> --scope-dir .specify/project-cognition --result-state
 ready|no_op|mark-dirty|partial --reason "<text>" --format json}}`; do not call the
 Quick workspace wrapper or invent a workflow artifact only to hold the receipt.
-Context-direct follows the Fast Learning skip policy and does not consume or
-capture Learning unless the task expands and enters the full workflow.
+Context-direct has its own explicit discovery-skip exception and does not
+consume or capture Learning unless the task expands and enters the full
+workflow. This exception does not change `sp-fast`, whose normal entry performs
+consume-only Learning intake before Project Cognition.

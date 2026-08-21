@@ -158,6 +158,13 @@ For example, "close team" must consider running workers, queued tasks, late resu
 
 Use `CA-###` IDs for consequence obligations that must survive handoff from `discussion` to `specify`, `plan`, `tasks`, `implement`, and `quick`; `analyze` consumes the same obligations only when run as an optional diagnostic or legacy revalidation pass. `fast` upgrades when the gate triggers; `quick` tracks consequences and acceptance locally instead of handing off solely because the task is large or consequence-heavy; `debug` traces the dependency loop and rejects surface-only fixes.
 
+`fast` keeps the bounded direct-delivery skeleton without Quick's durable
+workspace or worker lanes: consume-only Learning runs before Project Cognition,
+the leader performs all edits directly, targeted verification proves the local
+change, and the same leader performs one Lightweight Review. It creates no
+worker packet or review subagent and does not claim the independent system
+Review contract.
+
 ## Shared Surfaces
 
 - [Registries, routing files, template directories, config schemas, exported

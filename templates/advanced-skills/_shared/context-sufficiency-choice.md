@@ -39,7 +39,7 @@ and report exact paths, evidence, and residual risk. A stale patch anchor,
 new consumer, ambiguity, consequence, or scope expansion ends context-direct
 and resumes the matching full workflow before further mutation.
 
-The direct branch follows the Fast Learning skip policy. It does not waive
+The direct branch has its own explicit discovery-skip exception. It does not waive
 safety, external-effect gates, TDD, diff review, verification, or post-change
 Project Cognition closeout. Run delta closeout only for exact changed paths;
 post-change Project Cognition closeout updates new truth and must not rerun
@@ -48,3 +48,5 @@ hard gate with `{{specify-subcmd:specify-runtime cognition mutation-receipt --wo
 <sp-quick|sp-debug> --scope-dir .specify/project-cognition --result-state
 ready|no_op|mark-dirty|partial --reason "<text>" --format json}}`; do not create a
 Quick/Debug artifact merely to hold the receipt.
+This exception does not change `spx-fast`, whose normal entry performs
+consume-only Learning intake before Project Cognition.

@@ -338,7 +338,7 @@ If you're starting from an existing codebase, query cognition readiness through 
 
 Use the lightweight routing rules consistently:
 
-- `fast` is only for trivial local fixes. Stay there only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
+- `fast` is only for trivial local fixes. Stay there only when the change is obvious, touches at most 3 files, and does not touch a shared surface. It still consumes relevant Learning, runs Project Cognition intake, executes leader-direct with no subagents, and ends with targeted verification plus one same-leader Lightweight Review.
 - Upgrade to `quick` when the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
 - `quick` is for non-trivial direct delivery that benefits from resumable state. One Quick workspace may hold one or many ordered work items, task-local `PLAN.md`, dependency-aware batches, consequence tracking, and acceptance evidence; there is no small-task ceiling.
 - If the work is a bug fix or regression and the root cause is still unknown, route to `debug` instead of using `quick` for a symptom-only patch.

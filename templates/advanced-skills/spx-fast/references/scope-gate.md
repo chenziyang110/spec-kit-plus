@@ -7,6 +7,8 @@ Use `spx-fast` only when all are true:
 - no public contract, shared registry, dependency, migration, security control,
   generated protocol, or product decision changes;
 - the likely edit set and meaningful verification are known;
+- the same leader can implement and perform the lightweight review without an
+  independent lane or worker packet;
 - failure can be reverted locally without coordinated recovery.
 
 Route to `spx-debug` when the cause is unknown and to `spx-quick` whenever the

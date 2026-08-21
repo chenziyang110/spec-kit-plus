@@ -32,7 +32,7 @@ ARGUMENT_HINTS: dict[str, str] = {
     "research": "Describe the feasibility question; routes to sp-deep-research without separate artifacts",
     "explain": "Optionally name the stage or artifact you want explained",
     "debug": "Describe the bug to investigate, or leave blank to resume the most recent session",
-    "fast": "Describe the trivial local fix, or leave blank to use the current fast-path context",
+    "fast": "Describe the trivial local fix for leader-direct execution and lightweight review, or leave blank to use the current fast-path context",
     "quick": "Describe the direct-delivery task, or leave blank to resume the current quick-task workspace",
     "auto": "Optional continue request or routing hint; leave blank to let repository state choose the next workflow",
     "plan": "Optional guidance for the planning phase",
