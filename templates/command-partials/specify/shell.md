@@ -141,7 +141,8 @@ reference was supplied; create `ui-target.html` only through `specify-runtime de
 For UI-bearing scope, copy the exact applicable `surface_catalog`,
 `scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
 `accessibility_matrix`, `navigation_matrix`, `content_matrix`,
-`motion_contract`, and `usability_validation` into the feature
+`motion_contract`, and `usability_validation`—including its exact
+`smoothness_acceptance_ids`—into the feature
 requirements and `ui-brief.md`; never replace them with generic accessibility,
 navigation, content, animation, or usability prose. Preserve the exact
 `style_authority`, component variants,
