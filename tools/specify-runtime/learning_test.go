@@ -915,6 +915,12 @@ func TestLearningPolicyDigestCrossRuntimeGolden(t *testing.T) {
 	}
 }
 
+func TestLearningFastPolicyConsumesWithoutCapture(t *testing.T) {
+	if got := learningWorkflowPolicy("sp-fast"); got != "consume-only" {
+		t.Fatalf("sp-fast learning policy=%q want consume-only", got)
+	}
+}
+
 func TestLearningPolicyDetectorOrderIsCanonicalAndOverlapSafe(t *testing.T) {
 	left := learningPolicyFromConfig(runtimeconfig.ProjectLearningConfig{Detectors: runtimeconfig.LearningDetectorsConfig{
 		SensitiveTerms: []string{"Project", "Project Zephyr"}, SecretPrefixes: []string{"acme_", "acme_live_"},

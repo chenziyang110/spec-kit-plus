@@ -53,12 +53,19 @@ def test_debug_preserves_durable_intake_red_human_verify_and_recovery() -> None:
 def test_fast_requires_red_or_escalates_and_guards_sensitive_paths() -> None:
     content = _surface("fast")
 
+    assert "learning start --command fast --format json" in content
+    assert "consume-only" in content
+    assert "learning intake before project cognition" in content
     assert "must run a failing automated test or executable repro" in content
     assert "no reliable automated test surface" in content
     assert "all expanding or larger direct-delivery work to $spx-quick" in content
     assert "$spx-specify remains available only when the user explicitly selected" in content
     assert "resolved path remains inside the repository" in content
     assert "credential, secret, private key" in content
+    assert "lightweight review" in content
+    assert "same leader" in content
+    assert "no review subagent" in content
+    assert "does not claim the independent system review contract" in content
 
 
 def test_quick_uses_scaffold_checkpoint_handoff_and_full_propagation_sweep() -> None:

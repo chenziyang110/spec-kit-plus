@@ -3689,6 +3689,21 @@ def test_learning_start_defaults_to_compact_read_only_intake(tmp_path: Path) -> 
     assert list(Draft202012Validator(schema).iter_errors(payload)) == []
 
 
+def test_learning_start_fast_uses_consume_only_policy(tmp_path: Path) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _invoke_in_project(project, ["learning", "ensure", "--format", "json"])
+
+    result = _start_in_project(project, "fast")
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["command"] == "sp-fast"
+    assert payload["read_only"] is True
+    assert payload["policy"] == "consume-only"
+
+
 def test_learning_list_and_show_use_progressive_agent_contract(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)

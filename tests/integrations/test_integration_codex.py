@@ -1864,7 +1864,9 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     content = _read_skill_with_references(skill_path).lower()
 
     assert "scope gate" in content
-    assert "do not run learning intake, hooks, capture, or promotion" in content
+    assert "learning start --command fast --format json" in content
+    assert "fast uses consume-only learning" in content
+    assert "do not capture or promote" in content
     assert "do not parse learning storage" in content
     assert ".specify/memory/learnings/index.md" not in content
     assert "compass --intent implement" in content
@@ -1895,6 +1897,9 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert "do not create spec.md" in content or "no spec.md" in content
     assert "no plan.md" in content or "do not create plan.md" in content
     assert "leader-direct" in content or "the leader performs the change directly" in content
+    assert "lightweight review" in content
+    assert "no review subagent" in content
+    assert "does not claim the independent system review contract" in content
 
 
 def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_path):

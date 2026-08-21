@@ -305,7 +305,11 @@ class TestBuiltInSkillGeneration:
             assert "workflow contract summary" in body
             assert "routing metadata only" in body
         fast_body = _skill_body("sp-fast").lower()
-        assert "do not run learning intake" in fast_body
+        assert "learning start --command fast --format json" in fast_body
+        assert "fast uses consume-only learning" in fast_body
+        assert "do not capture or promote" in fast_body
+        assert "lightweight review" in fast_body
+        assert "no review subagent" in fast_body
         assert ".specify/memory/learnings/index.md" not in fast_body
         assert "workflow contract summary" in fast_body
         assert "routing metadata only" in fast_body
