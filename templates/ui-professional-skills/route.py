@@ -675,9 +675,15 @@ def route(
         for ambiguity in ambiguities
         for skill_id in ambiguity["candidate_ids"]
     ]
+    route_status = "question-required" if question_required else "resolved"
+    if not question_required and mature_selection.get("status") in {
+        "provisional",
+        "unresolved",
+    }:
+        route_status = "unresolved"
     professional_skill_route = {
         "catalog_version": catalog["catalog_id"],
-        "status": "question-required" if question_required else "resolved",
+        "status": route_status,
         "domain_skill_id": domain_id,
         "style_skill_id": style_id,
         "specialist_skill_ids": specialist_ids,

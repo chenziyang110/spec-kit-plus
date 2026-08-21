@@ -800,6 +800,72 @@ func TestImplementTaskAcceptEnforcesRequiredHumanUsabilityValidation(t *testing.
 	}
 }
 
+func TestImplementTaskAcceptRequiresExactSmoothnessCoverage(t *testing.T) {
+	root, feature, featureRef := newImplementedTaskRecoveryFixture(t)
+	templatesDir := filepath.Join(root, ".specify", "templates")
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskRuntimeFixture(t, filepath.Join(templatesDir, "task-packet-template.json"), map[string]any{
+		"ui_contract": map[string]any{
+			"fidelity_level": "none", "usability_validation": map[string]any{},
+		},
+	})
+	indexPath := filepath.Join(feature, "task-index.json")
+	index := readImplementJSONFile(t, indexPath)
+	tasks, _ := index["tasks"].([]any)
+	task, _ := tasks[1].(map[string]any)
+	task["ui_contract"] = map[string]any{
+		"usability_validation": map[string]any{
+			"risk_level": "low", "methods": []any{"interaction walkthrough"},
+			"critical_tasks":            []any{"Preserve focus while data refreshes"},
+			"success_criteria":          []any{"Focus and pending feedback remain continuous"},
+			"human_review_required":     false,
+			"smoothness_acceptance_ids": []any{"focus-continuity", "pending-cancel-feedback"},
+		},
+	}
+	writeTaskRuntimeFixture(t, indexPath, index)
+
+	lifecyclePath := filepath.Join(feature, "implementation-review", "tasks", "T002.json")
+	lifecycle := readImplementJSONFile(t, lifecyclePath)
+	lifecycle["validation"] = []any{map[string]any{"command": "required check", "status": "passed"}}
+	lifecycle["ui_verification"] = map[string]any{
+		"applicable": true, "contract_check": "passed", "runtime_evidence": "passed",
+		"visual_comparison": "passed", "fidelity_status": "passed", "reviewer": "agent",
+		"covered_smoothness_acceptance_ids": []any{"focus-continuity"},
+	}
+	writeTaskRuntimeFixture(t, lifecyclePath, lifecycle)
+
+	exit, rejected := runTaskRuntimeCommand(t, []string{
+		"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T002", "--format", "json",
+	})
+	if exit == 0 || !strings.Contains(rejected.Summary, "covered_smoothness_acceptance_ids must exactly cover") {
+		t.Fatalf("incomplete smoothness coverage unexpectedly passed: exit=%d env=%#v", exit, rejected)
+	}
+
+	lifecycle = readImplementJSONFile(t, lifecyclePath)
+	verification, _ := lifecycle["ui_verification"].(map[string]any)
+	verification["covered_smoothness_acceptance_ids"] = []any{"focus-continuity", "pending-cancel-feedback", "unexpected-check"}
+	writeTaskRuntimeFixture(t, lifecyclePath, lifecycle)
+	exit, rejected = runTaskRuntimeCommand(t, []string{
+		"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T002", "--format", "json",
+	})
+	if exit == 0 || !strings.Contains(rejected.Summary, "covered_smoothness_acceptance_ids must exactly cover") {
+		t.Fatalf("extra smoothness coverage unexpectedly passed: exit=%d env=%#v", exit, rejected)
+	}
+
+	lifecycle = readImplementJSONFile(t, lifecyclePath)
+	verification, _ = lifecycle["ui_verification"].(map[string]any)
+	verification["covered_smoothness_acceptance_ids"] = []any{"pending-cancel-feedback", "focus-continuity"}
+	writeTaskRuntimeFixture(t, lifecyclePath, lifecycle)
+	accepted := assertTaskRuntimeCommandOK(t, []string{
+		"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T002", "--format", "json",
+	})
+	if accepted["task_status"] != "accepted" {
+		t.Fatalf("exact smoothness coverage did not unblock acceptance: %#v", accepted)
+	}
+}
+
 func assertTaskRuntimeCommandOK(t *testing.T, args []string) map[string]any {
 	t.Helper()
 	exit, env := runTaskRuntimeCommand(t, args)

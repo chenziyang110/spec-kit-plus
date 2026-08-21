@@ -269,6 +269,7 @@ def test_router_requires_confirmation_for_multiple_installed_primary_systems(
     selection = payload["mature_web_ui_selection"]
     assert selection["status"] == "provisional"
     assert "multiple-installed-primary-systems" in selection["confirmation_codes"]
+    assert payload["professional_skill_route"]["status"] == "unresolved"
 
 
 def test_router_asset_scan_rejects_catalog_paths_outside_the_project_root(
@@ -379,6 +380,7 @@ def test_router_keeps_web_resources_out_of_native_platform_routes() -> None:
         payload = _route(query)
         assert payload["mature_web_ui_resource_ids"] == [], query
         assert payload["professional_skill_route"]["mature_web_ui_resource_ids"] == [], query
+        assert payload["professional_skill_route"]["status"] == "resolved", query
 
 
 def test_router_uses_sparse_progressive_disclosure_and_one_question() -> None:
@@ -430,7 +432,13 @@ def test_router_matches_representative_gui_requests() -> None:
         assert payload["load_refs"]
         assert len(payload["load_refs"]) <= 4
         persisted = payload["professional_skill_route"]
-        assert persisted["status"] == "resolved"
+        mature_status = payload["mature_web_ui_selection"]["status"]
+        expected_status = (
+            "unresolved"
+            if mature_status in {"provisional", "unresolved"}
+            else "resolved"
+        )
+        assert persisted["status"] == expected_status
         assert persisted["domain_skill_id"] == selection["domain_skill_id"]
         assert persisted["style_skill_id"] == selection["style_skill_id"]
         assert persisted["specialist_skill_ids"] == selection["specialist_skill_ids"]

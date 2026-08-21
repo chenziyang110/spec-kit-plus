@@ -131,6 +131,9 @@ professional_skill_route:
 reasoning. `loaded_refs` must equal the exact selected references. Keep
 `status: question-required` and list only the conflicting IDs in
 `unresolved_candidates` while a routing question is unanswered.
+When mature Web UI selection is `provisional` or `unresolved`, persist the
+overall route `status: unresolved`; a resolved domain or style choice must not
+hide an unscanned, conflicting, or unmapped live component system.
 Candidate `reason_codes` are stable evidence labels, not prose reasoning. Carry
 the selected smoothness IDs into existing interaction, motion, and
 `usability_validation` rows; they do not introduce a new evidence kind.
