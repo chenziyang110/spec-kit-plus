@@ -144,6 +144,7 @@ Fast path does not load the full passive learning layer.
 5. **Report**
    - Summarize what changed, what was verified, and any remaining risk.
    - [AGENT] Keep the fast-path closeout truthful: report the exact verification you ran and any residual risk instead of implying broader validation.
+   - Clean closeout keys on `result_state`; not `status=ok`, `update_id`, `last_update_id`, or freshness alone. Do not present `status=ok` alone as proof of cognition freshness or mutation closeout.
    - Include `changed_code_paths` with modified, added, deleted, and renamed paths.
    - Include `changed_behavior_surfaces` for commands, APIs, templates, generated assets, state files, tests, docs, validators, packets, or runtime assumptions affected by the change.
    - Include `verification_evidence` with the exact checks run and the result.

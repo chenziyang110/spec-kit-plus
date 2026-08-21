@@ -146,7 +146,7 @@ Treat runtime freshness as map-quality diagnostics:
 - `missing` -> if cognition freshness is `missing`, continue with live repository evidence and recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only as brownfield external baseline maintenance
 - `stale` -> if cognition freshness is `stale`, treat map output as advisory and continue with live repository evidence; recommend `{{invoke:map-update}}` only as external/manual maintenance when the user asks for map maintenance or before a separate map-maintenance pass
 - `stale` with changed paths missing from `path_index` -> warn and continue with live repository evidence; recommend `{{invoke:map-update}}` first for ordinary existing-baseline gaps.
-  Use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside baseline-kind exceptions described below, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`
+  Use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside the empty-baseline exception described below, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - `support_drift` -> warn and continue with live repository evidence; recommend resolving or intentionally ignoring support-surface drift
 - `partial_refresh` -> warn that refresh data was recorded but readiness did not pass; continue with live repository evidence
 - `possibly_stale` -> inspect the returned affected scope when useful, then continue with live repository evidence
@@ -157,7 +157,7 @@ map-maintenance recommendation.
 
 ### Greenfield Empty Baseline
 
-If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live requirements when the repository still has no project-code evidence. Do not recommend map-scan -> map-build solely because the graph has no paths. If the runtime reports `greenfield_baseline_has_project_code`, real workflow-owned or stale paths have invalidated the empty-baseline identity: preserve `recommended_next_action.action_id=project_cognition.rebuild` and its structured workflow routes. This conflict must not be routed to map-update or treated as an ordinary empty graph.
+If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live requirements when the repository still has no project-code evidence. Do not recommend map-scan -> map-build solely because the graph has no paths. Use `{{invoke:map-scan}} -> {{invoke:map-build}}` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside `greenfield_empty`, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`. If the runtime reports `greenfield_baseline_has_project_code`, real workflow-owned or stale paths have invalidated the empty-baseline identity: preserve `recommended_next_action.action_id=project_cognition.rebuild` and its structured workflow routes. This conflict must not be routed to map-update or treated as an ordinary empty graph.
 
 ### Mutation Closeout Rule
 
