@@ -18,6 +18,8 @@ func TestRuntimeCommandTimeoutUsesShortBudgetForQueries(t *testing.T) {
 		{args: []string{"quick", "status", "Q-123"}, want: 30 * time.Second},
 		{args: []string{"artifact", "show", "--path", "spec.md"}, want: 30 * time.Second},
 		{args: []string{"validate", "spec"}, want: 5 * time.Minute},
+		{args: []string{"run", "launch", "--", "codex", "exec"}, want: 6 * time.Hour},
+		{args: []string{"run", "supervise", "run-123", "--", "codex", "exec"}, want: 6 * time.Hour},
 	}
 	for _, test := range tests {
 		got, err := runtimeCommandTimeout(test.args)

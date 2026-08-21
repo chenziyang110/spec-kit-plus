@@ -23,7 +23,14 @@ var version = "dev"
 const protocolVersion = "specify-runtime.v1"
 
 func main() {
-	os.Exit(Run(os.Args[1:], os.Stdout, os.Stderr, buildinfo.Current(version).Version))
+	args := os.Args[1:]
+	timeout, err := runtimeCommandTimeout(args)
+	if err != nil {
+		env := NewEnvelope("usage-error", "runtime timeout configuration is invalid")
+		env.Blockers = append(env.Blockers, err.Error())
+		os.Exit(writeEnvelope(os.Stdout, env))
+	}
+	os.Exit(runWithWatchdog(args, os.Stdout, os.Stderr, buildinfo.Current(version).Version, timeout, Run))
 }
 
 func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {

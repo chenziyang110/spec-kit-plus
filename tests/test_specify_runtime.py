@@ -274,6 +274,10 @@ def test_runtime_runner_uses_unified_namespaced_argv(
             35.0,
         ),
         (["validate", "spec", "--feature-dir", ".", "--format", "json"], 305.0),
+        (
+            ["run", "launch", "--adapter-id", "codex", "--", "codex", "exec"],
+            21605.0,
+        ),
     ],
 )
 def test_runtime_runner_applies_a_bounded_timeout_to_every_command(
