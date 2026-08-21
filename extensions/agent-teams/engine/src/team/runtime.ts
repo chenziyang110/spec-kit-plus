@@ -3462,7 +3462,11 @@ async function detectAndCleanStaleTeam(
 }
 
 async function resolveLeaderSessionId(cwd: string): Promise<string> {
-  const fromEnv = process.env.SPECIFY_SESSION_ID || process.env.CODEX_SESSION_ID || process.env.SESSION_ID;
+  const fromEnv =
+    process.env.SPECIFY_SESSION_ID
+    || process.env.OMX_SESSION_ID
+    || process.env.CODEX_SESSION_ID
+    || process.env.SESSION_ID;
   if (fromEnv && fromEnv.trim() !== '') return fromEnv.trim();
 
   const p = join(resolveCanonicalTeamStateRoot(cwd), 'session.json');

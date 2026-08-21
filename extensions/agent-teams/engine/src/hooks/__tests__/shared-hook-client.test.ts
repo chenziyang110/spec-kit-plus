@@ -201,6 +201,39 @@ describe("SharedHookClient", () => {
     assert.doesNotMatch(result.attemptedPlan, /secret prompt body/);
   });
 
+  it("falls back to the local checkout uvx plan after a stale specify executable fails", () => {
+    let calls = 0;
+    const client = new SharedHookClient({
+      cwd: "/repo",
+      runner: (plan) => {
+        calls += 1;
+        if (plan.executable === "specify") {
+          return { status: 2, stdout: "", stderr: "No such command 'hook'" };
+        }
+        if (plan.executable === "uvx") {
+          return {
+            status: 0,
+            stdout: JSON.stringify({
+              event: "workflow.learning.signal",
+              status: "ok",
+              data: { command: "sp-implement" },
+            }),
+            stderr: "",
+          };
+        }
+        return { status: null, stdout: "", stderr: "", errorCode: "ENOENT" };
+      },
+    });
+
+    const result = client.invoke(["signal-learning", "--command", "implement"], {
+      eventName: "PostToolUse",
+    });
+
+    assert.equal(result.status, "ok");
+    assert.equal(result.payload.status, "ok");
+    assert.equal(calls, 2);
+  });
+
   it("redacts prompt-text values echoed in invalid stdout previews", () => {
     const client = new SharedHookClient({
       cwd: "/repo",
