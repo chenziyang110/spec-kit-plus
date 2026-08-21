@@ -101,7 +101,7 @@ disposable spike a `SPK-###` ID. Include structured evidence in the bounded
 `deep-research track-submit` result; the runtime validates and materializes
 `research-evidence/<EVD-###>.json`. `evidence import` is reserved for external
 or binary proof in the content-addressed evidence store. Do not hand-author or
-patch runtime-owned research packets. Every
+patch runtime-owned research packets. Do not hand-author either kind. Every
 `PH-###` must cite its backing `EVD-###` and `SPK-###` refs when present so
 `$spx-plan` can consume the handoff without reconstructing traceability.
 

@@ -2969,19 +2969,25 @@ def _runtime_deep_research_handoff(
     feature_ref, errors = _deep_research_feature_ref(project_root, feature_dir)
     if errors:
         return None, errors
-    args = [
-        "deep-research",
-        "verify-handoff",
-        "--feature-dir",
-        feature_ref,
-    ]
+    extra_args: list[str] = []
     if handoff_ref:
-        args.extend(("--handoff-ref", handoff_ref))
+        extra_args.extend(("--handoff-ref", handoff_ref))
     if handoff_sha256:
-        args.extend(("--expected-sha256", handoff_sha256))
-    args.extend(("--format", "json"))
+        extra_args.extend(("--expected-sha256", handoff_sha256))
     try:
-        envelope = run_specify_runtime(args, cwd=project_root, check=False)
+        envelope = run_specify_runtime(
+            [
+                "deep-research",
+                "verify-handoff",
+                "--feature-dir",
+                feature_ref,
+                *extra_args,
+                "--format",
+                "json",
+            ],
+            cwd=project_root,
+            check=False,
+        )
     except SpecifyRuntimeError as exc:
         return None, [f"Deep Research runtime verification is unavailable: {exc}"]
 
