@@ -264,7 +264,7 @@ When the feature touches an established boundary pattern in the target project, 
 After initialization, treat the generated commands as three groups:
 
 - **Core workflow skills**: `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept`
-- **Support skills**: `map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `deep-research` (`research` alias), `test-design`, `checklist`, `analyze`, `debug`, `explain`
+- **Support skills**: `map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `deep-research` (`research` alias), `test-design`, `design`, `fast`, `quick`, `implement-teams`, `taskstoissues`, `checklist`, `analyze`, `debug`, `explain`
 - **Codex-only runtime**: terminal `specify sp-teams` commands and the `$sp-teams` skill when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:

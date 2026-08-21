@@ -80,7 +80,7 @@ Other integrations use different punctuation. The `Start Here` panel printed by 
 
 ## How it works
 
-The normal pre-planning path is `specify -> plan`. Clarification and feasibility research are conditional branches, not mandatory ceremony.
+The normal pre-planning path is `specify -> plan`. Focused specification repair stays inside `specify`; feasibility research is a conditional branch, not mandatory ceremony.
 
 ```mermaid
 flowchart LR
@@ -93,7 +93,6 @@ flowchart LR
     T --> I["implement<br/>execute task graph"]
     I --> V["review<br/>start, interact, repair"]
     V --> A["accept<br/>human product verdict"]
-    A -. independent lanes .-> G["integrate"]
 ```
 
 - Use `discussion` before formal specification or direct quick delivery when an idea still needs product or technical shaping.
@@ -110,7 +109,7 @@ flowchart LR
 | Layer | Canonical workflows |
 | --- | --- |
 | Core workflow skills | `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept` |
-| Support skills | `auto`, `ask`, `discussion`, `deep-research` (`research` compatibility alias), `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues` |
+| Support skills | `auto`, `ask`, `discussion`, `deep-research` (`research` compatibility alias), `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues` |
 | Codex-only runtime | `sp-teams` for durable managed-team state and `team` for runtime operations inside the generated agent catalog |
 
 The generated `ask` workflow is read-only, evidence-backed project Q&A. `prd-scan -> prd-build` reconstructs current product documentation from an existing repository and is a peer workflow, not an automatic handoff to `plan`.
@@ -195,9 +194,11 @@ project or run `sp-map-scan -> sp-map-build` for an existing codebase.
 | Goal | Read |
 | --- | --- |
 | Complete the first workflow | [Quick Start Guide](docs/quickstart.md) |
+| Browse all guides | [Documentation Index](docs/index.md) |
 | Install, pin, or troubleshoot the CLI | [Installation Guide](docs/installation.md) |
 | Upgrade the CLI or a generated project | [Upgrade Guide](docs/upgrade.md) |
 | Understand architecture and change propagation | [Project Handbook](PROJECT-HANDBOOK.md) |
+| Audit project cognition compatibility | [Project Cognition Compatibility Inventory](docs/project-cognition-compatibility-inventory.md) |
 | Maintain workflow/profile product contracts | [Repository agent guidance](AGENTS.md) |
 | Choose project governance defaults | [Constitution Profiles](docs/constitution-profiles.md) |
 | Develop an extension | [Extension Development Guide](extensions/EXTENSION-DEVELOPMENT-GUIDE.md) and [API Reference](extensions/EXTENSION-API-REFERENCE.md) |
@@ -581,12 +582,7 @@ final-claim gate. The advanced profile is command-equivalent and
 prompt-optimized: every Classic command keeps an independent SPX entrypoint,
 state owner, write boundary, resumable stop point, and explicit side-effect
 gate. The normal feature path is
-`spx-specify -> spx-plan -> [spx-test-design] -> spx-tasks -> spx-implement -> spx-review -> spx-accept`; test design is optional on that default formal path, while its independent producer can publish typed Plan, Quick, Tasks, or Review projections without waiting for Plan completion. Clarification,
-discussion (including an optional confirmed handoff into `spx-quick` or
-`spx-specify`),
-research, analysis, checklists, issue export, team execution,
-integration, PRD reconstruction, and map phases remain separately invocable
-instead of being hidden inside that path. `spx-fast` is for trivial direct
+`spx-specify -> spx-plan -> [spx-test-design] -> spx-tasks -> spx-implement -> spx-review -> spx-accept`; test design is optional on that default formal path, while its independent producer can publish typed Plan, Quick, Tasks, or Review projections without waiting for Plan completion. Focused specification repair stays inside `spx-specify`. Discussion (including an optional confirmed handoff into `spx-quick` or `spx-specify`), research, analysis, checklists, issue export, team execution, PRD reconstruction, and map phases remain separately invocable instead of being hidden inside that path. Integrated system verification belongs to `spx-review`, not a standalone workflow. `spx-fast` is for trivial direct
 changes; `spx-quick` is a resumable direct-delivery workflow for clear requests
 that do not need the formal specification path first, including larger work
 when task-local planning, lanes or batches, consequence tracking, and validation
@@ -960,7 +956,7 @@ Kimi.
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept`
-- Support skills: `auto`, `ask`, `discussion`, `deep-research` (`research` alias), `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues`
+- Support skills: `auto`, `ask`, `discussion`, `deep-research` (`research` alias), `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues`
 - Codex-only runtime: terminal `specify sp-teams` operations plus the generated `sp-teams` and `team` catalog entries
 
 Conditional gates and follow-up commands:

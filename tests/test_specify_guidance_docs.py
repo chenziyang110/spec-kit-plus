@@ -338,7 +338,7 @@ def test_guidance_docs_explain_skill_groups():
     assert "`discussion`" in quickstart
     skill_map = _section(quickstart, "## Skill Map", "For Codex team-mode execution")
     assert "`constitution`, `specify`, `plan`, `tasks`, `implement`" in skill_map
-    assert "`map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `deep-research` (`research` alias), `test-design`, `checklist`, `analyze`, `debug`, `explain`" in skill_map
+    assert "`map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `deep-research` (`research` alias), `test-design`, `design`, `fast`, `quick`, `implement-teams`, `taskstoissues`, `checklist`, `analyze`, `debug`, `explain`" in skill_map
     assert "/sp-" not in skill_map
 
 
