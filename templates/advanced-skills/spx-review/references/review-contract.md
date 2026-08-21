@@ -273,7 +273,10 @@ Review the integrated product against every exact applicable `surface_catalog`,
 `scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
 `accessibility_matrix`, `navigation_matrix`, `content_matrix`,
 `motion_contract`, and `usability_validation` value plus component governance.
-Enforce the exact `style_authority`: `inherit-existing` makes drift from the
+For Web UI, exercise every routed `smoothness_acceptance_id` and bind it to the
+existing integrated evidence kinds; a static screenshot does not prove focus,
+cancel, duplicate, scroll, or interruption behavior. Enforce the exact
+`style_authority`: `inherit-existing` makes drift from the
 cited live UI, protected `global-shell`, or protected `shared-components` a
 blocking finding; `page-overhaul-authorized` permits style delta only on its
 explicit complete-page surface.

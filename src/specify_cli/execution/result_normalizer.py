@@ -165,6 +165,9 @@ def _normalize_ui_verification(payload: dict[str, Any]) -> UIVerification:
         covered_handoff_contract_ids=_as_str_list(
             raw.get("covered_handoff_contract_ids")
         ),
+        covered_smoothness_acceptance_ids=_as_str_list(
+            raw.get("covered_smoothness_acceptance_ids")
+        ),
         structural_differences=_as_str_list(raw.get("structural_differences")),
         visual_differences=_as_str_list(raw.get("visual_differences")),
         comparison_tolerance=dict(raw_tolerance or {}),

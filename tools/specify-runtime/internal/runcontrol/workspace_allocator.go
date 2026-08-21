@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	runtimecmd "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
 const (
@@ -538,9 +540,7 @@ func resolveGitCommit(ctx context.Context, directory, revision string) (string, 
 }
 
 func resolveOptionalGitCommit(ctx context.Context, directory, revision string) (string, bool, error) {
-	command := exec.CommandContext(ctx, "git", "rev-parse", "--verify", "--quiet", "--end-of-options", revision+"^{commit}")
-	command.Dir = directory
-	output, err := command.CombinedOutput()
+	output, err := runtimecmd.CommandCombinedOutputContext(ctx, directory, nil, "git", "rev-parse", "--verify", "--quiet", "--end-of-options", revision+"^{commit}")
 	if err != nil {
 		if contextErr := ctx.Err(); contextErr != nil {
 			return "", false, contextErr
@@ -559,9 +559,7 @@ func resolveOptionalGitCommit(ctx context.Context, directory, revision string) (
 }
 
 func runGitOutput(ctx context.Context, directory string, arguments ...string) (string, error) {
-	command := exec.CommandContext(ctx, "git", arguments...)
-	command.Dir = directory
-	output, err := command.CombinedOutput()
+	output, err := runtimecmd.CommandCombinedOutputContext(ctx, directory, nil, "git", arguments...)
 	if err != nil {
 		if contextErr := ctx.Err(); contextErr != nil {
 			return "", contextErr
@@ -579,9 +577,7 @@ func runGitOutput(ctx context.Context, directory string, arguments ...string) (s
 // non-fatal configuration warnings on stderr; combining streams would turn
 // those warnings into false status/path data.
 func runGitStdout(ctx context.Context, directory string, arguments ...string) (string, error) {
-	command := exec.CommandContext(ctx, "git", arguments...)
-	command.Dir = directory
-	output, err := command.Output()
+	output, err := runtimecmd.CommandOutputContext(ctx, directory, nil, "git", arguments...)
 	if err != nil {
 		if contextErr := ctx.Err(); contextErr != nil {
 			return "", contextErr

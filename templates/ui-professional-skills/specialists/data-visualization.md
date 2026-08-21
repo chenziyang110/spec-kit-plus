@@ -14,6 +14,9 @@ This specialist skill focuses on charts, graphs, KPI displays, and visual explan
 - Which metrics and comparisons are primary.
 - Whether the chart is exploratory, explanatory, or operational.
 - How to show uncertainty, grouping, or scale.
+- Whether an inspected live chart system already governs the surface; otherwise
+  use the Web catalog to select a mature chart foundation for the real data
+  volume and interaction contract.
 
 ## Image-primary augmentation
 
@@ -30,6 +33,6 @@ This specialist skill focuses on charts, graphs, KPI displays, and visual explan
 ## Quality gate
 
 - Pass only when the chart is legible and truthful.
-- Verify labeling, contrast, state coverage, and responsive behavior.
+- Verify labeling, contrast, non-visual alternatives, state coverage,
+  representative-data performance, and responsive behavior.
 - Reject decorative charts that do not communicate the data clearly.
-

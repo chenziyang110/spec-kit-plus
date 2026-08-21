@@ -500,6 +500,7 @@ class TestClaudeIntegration:
         claude = get_integration("claude")
         for stem in cls._command_stems():
             expected.append(f"{skills_prefix}/sp-{stem}/SKILL.md")
+            expected.append(f"{skills_prefix}/sp-{stem}/agents/openai.yaml")
             for reference in claude.list_command_reference_templates(stem):
                 references_root = claude.shared_command_references_dir()
                 if references_root is None:

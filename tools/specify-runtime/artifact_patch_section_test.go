@@ -7,10 +7,10 @@ import (
 
 func TestNormalizeMarkdownSectionTarget(t *testing.T) {
 	cases := map[string]string{
-		"Source Design System":          "source design system",
-		"## Source Design System":       "source design system",
-		"# Source Design System":        "source design system",
-		"  ## Source Design System  ":   "source design system",
+		"Source Design System":        "source design system",
+		"## Source Design System":     "source design system",
+		"# Source Design System":      "source design system",
+		"  ## Source Design System  ": "source design system",
 	}
 	for in, want := range cases {
 		if got := normalizeMarkdownSectionTarget(in); got != want {

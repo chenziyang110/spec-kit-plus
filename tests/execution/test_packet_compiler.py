@@ -534,6 +534,12 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                                 "critical_tasks": ["update and save one preference"],
                                 "success_criteria": ["save without losing section context"],
                                 "human_review_required": False,
+                                "smoothness_acceptance_ids": [
+                                    "focus-continuity",
+                                    "pending-cancel-feedback",
+                                    "duplicate-activation",
+                                    "reduced-motion",
+                                ],
                             },
                             "visual_acceptance_matrix": [
                                 {
@@ -682,6 +688,12 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
     assert packet.ui_contract.content_matrix[0]["id"] == "DH-CONTENT-001"
     assert packet.ui_contract.motion_contract["transitions"][0]["duration_ms"] == 180
     assert packet.ui_contract.usability_validation["risk_level"] == "medium"
+    assert packet.ui_contract.usability_validation["smoothness_acceptance_ids"] == [
+        "focus-continuity",
+        "pending-cancel-feedback",
+        "duplicate-activation",
+        "reduced-motion",
+    ]
     assert packet.ui_contract.component_contracts[0]["governance"] == "extend"
     assert packet.ui_contract.required_states == ["loading", "error", "success"]
     assert packet.ui_contract.must_not == ["collapse settings into cards"]
@@ -746,6 +758,9 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
             implementation_capture_refs=["artifacts/ui/settings.png"],
             covered_decision_ids=list(packet.ui_contract.design_decision_ids),
             covered_handoff_contract_ids=list(packet.ui_contract.handoff_contract_ids),
+            covered_smoothness_acceptance_ids=list(
+                packet.ui_contract.usability_validation["smoothness_acceptance_ids"]
+            ),
             comparison_tolerance=COMPARISON_TOLERANCE,
         ),
         summary="Implemented and visually verified the settings surface.",

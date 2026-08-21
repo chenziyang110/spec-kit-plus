@@ -28,6 +28,10 @@ To build the documentation locally:
 - `toc.yml` - Table of contents configuration
 - `installation.md` - Installation guide
 - `quickstart.md` - Quick start guide
+- `upgrade.md` - CLI and generated-project upgrade guide
+- `local-development.md` - Local contributor setup and verification guide
+- `constitution-profiles.md` - Governance profile reference
+- `project-cognition-compatibility-inventory.md` - Project cognition compatibility audit
 - `_site/` - Generated documentation output (ignored by git)
 
 ## Deployment

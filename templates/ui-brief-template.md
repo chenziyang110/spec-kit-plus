@@ -101,7 +101,8 @@ adoption; it does not authorize reinterpretation.
   dates, numbers, and time zones.
 - Usability validation:
   Bind `usability_validation` risk, methods, critical tasks, success criteria,
-  and whether human review is required.
+  whether human review is required, and the exact routed
+  `smoothness_acceptance_ids` for Web UI.
 - Real content and imagery plan:
 - Data scenarios:
   Include `data_state_matrix` rows for empty, populated, partial, loading,
@@ -153,7 +154,8 @@ adoption; it does not authorize reinterpretation.
 - Usability validation:
   Copy `usability_validation`; medium/high-risk work remains pending until its
   required human review is complete. Automated tests and screenshots cannot
-  substitute for target-user validation.
+  substitute for target-user validation. Preserve smoothness IDs and prove them
+  with the existing UI evidence kinds.
 - Component contracts:
   Exact selected rows should retain `required_states`, `interaction_modes`,
   `data_scenarios`, `variants`, `content_constraints`, `semantic_token_refs`,

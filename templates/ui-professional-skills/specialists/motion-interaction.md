@@ -14,6 +14,9 @@ This specialist skill focuses on transitions, feedback, gestures, micro-interact
 - Which states need entrance, exit, and feedback motion.
 - How much reduced-motion support is required.
 - What the pacing should feel like: calm, premium, playful, or immediate.
+- For Web UI, prefer the live component's transition contract and native/CSS
+  motion; route to the catalog's motion specialist only for choreography that
+  those foundations cannot express reliably.
 
 ## Image-primary augmentation
 
@@ -30,6 +33,6 @@ This specialist skill focuses on transitions, feedback, gestures, micro-interact
 ## Quality gate
 
 - Pass only when motion clarifies the interface instead of distracting from it.
-- Verify reduced-motion behavior, timing, and state changes.
+- Verify reduced-motion behavior, timing, interruption/cancellation, focus and
+  scroll continuity, and response under representative rendering load.
 - Reject motion that feels decorative, slow, or repetitive without purpose.
-

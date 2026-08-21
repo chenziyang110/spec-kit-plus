@@ -104,7 +104,8 @@ must cover the plan set. They do not rewrite the selected handoff rows.
 Every UI task carries its applicable exact subset of `surface_catalog`,
 `scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
 `accessibility_matrix`, `navigation_matrix`, `content_matrix`,
-`motion_contract`, and `usability_validation`, plus component
+`motion_contract`, and `usability_validation`, including the exact
+`smoothness_acceptance_ids`, plus component
 variants/content constraints/semantic tokens/governance/iconography. All UI
 tasks together cover Plan. Split risk-based or pairwise scenarios, never an
 unbounded Cartesian product, and keep target-user human review visible.

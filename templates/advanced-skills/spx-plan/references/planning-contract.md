@@ -27,7 +27,7 @@ authorization; Tasks requires a fresh feature handoff, its own projection, and
 runtime task-index binding. Avoid a Plan-contract basis/hash cycle.
 
 When UI applies, preserve the feature `ui-brief.md` adoption binding rather
-than reinterpreting it. For a post-Specify Design, first verify the current
+than reinterpreting it. For a late design overlay, first verify the current
 `formal-post-specify` overlay with `specify-runtime design adoption` against the
 exact unchanged source spec ref and SHA-256. This is the
 specify -> design -> plan route; it does not rerun Specify. A missing/mismatched
@@ -112,7 +112,8 @@ planning until the owning deep-research workflow republishes and verifies it.
 For UI-bearing scope, `ui_design_contract` selects the exact immutable
 `surface_catalog`, `scenario_matrix`, `interaction_matrix`,
 `editing_matrix`, `data_state_matrix`, `accessibility_matrix`, `navigation_matrix`,
-`content_matrix`, `motion_contract`, and `usability_validation` values and
+`content_matrix`, `motion_contract`, and `usability_validation` values,
+including the exact `smoothness_acceptance_ids`, and
 assigns implementation/verification routes.
 Retain component governance and iconography. Plan risk-based or pairwise
 combinations without an unbounded Cartesian product.

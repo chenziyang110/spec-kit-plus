@@ -47,26 +47,27 @@ var currentUIEvidenceKinds = map[string]bool{
 }
 
 var currentUIVerificationFields = map[string]bool{
-	"contract_check":               true,
-	"runtime_evidence":             true,
-	"visual_comparison":            true,
-	"fidelity_status":              true,
-	"reviewer":                     true,
-	"human_review_ref":             true,
-	"approved_visual_ref":          true,
-	"approved_preview_sha256":      true,
-	"approved_manifest_sha256":     true,
-	"approved_handoff_ref":         true,
-	"approved_handoff_sha256":      true,
-	"comparison_report_ref":        true,
-	"comparison_report_sha256":     true,
-	"implementation_capture_refs":  true,
-	"covered_decision_ids":         true,
-	"covered_handoff_contract_ids": true,
-	"structural_differences":       true,
-	"visual_differences":           true,
-	"comparison_tolerance":         true,
-	"accepted_deviations":          true,
+	"contract_check":                    true,
+	"runtime_evidence":                  true,
+	"visual_comparison":                 true,
+	"fidelity_status":                   true,
+	"reviewer":                          true,
+	"human_review_ref":                  true,
+	"approved_visual_ref":               true,
+	"approved_preview_sha256":           true,
+	"approved_manifest_sha256":          true,
+	"approved_handoff_ref":              true,
+	"approved_handoff_sha256":           true,
+	"comparison_report_ref":             true,
+	"comparison_report_sha256":          true,
+	"implementation_capture_refs":       true,
+	"covered_decision_ids":              true,
+	"covered_handoff_contract_ids":      true,
+	"covered_smoothness_acceptance_ids": true,
+	"structural_differences":            true,
+	"visual_differences":                true,
+	"comparison_tolerance":              true,
+	"accepted_deviations":               true,
 }
 
 func runResult(args []string, stdout io.Writer) int {
@@ -490,7 +491,7 @@ func normalizeUIVerification(value any) (map[string]any, error) {
 			result[key] = asString(rawValue)
 		}
 	}
-	for _, key := range []string{"implementation_capture_refs", "covered_decision_ids", "covered_handoff_contract_ids", "structural_differences", "visual_differences"} {
+	for _, key := range []string{"implementation_capture_refs", "covered_decision_ids", "covered_handoff_contract_ids", "covered_smoothness_acceptance_ids", "structural_differences", "visual_differences"} {
 		if rawValue, exists := raw[key]; exists {
 			result[key] = asStringList(rawValue)
 		}
@@ -510,26 +511,27 @@ func normalizeUIVerification(value any) (map[string]any, error) {
 
 func defaultUIVerification() map[string]any {
 	return map[string]any{
-		"contract_check":               "not-run",
-		"runtime_evidence":             "not-run",
-		"visual_comparison":            "unavailable",
-		"fidelity_status":              "not-applicable",
-		"reviewer":                     "agent",
-		"human_review_ref":             "",
-		"approved_visual_ref":          "",
-		"approved_preview_sha256":      "",
-		"approved_manifest_sha256":     "",
-		"approved_handoff_ref":         "",
-		"approved_handoff_sha256":      "",
-		"comparison_report_ref":        "",
-		"comparison_report_sha256":     "",
-		"implementation_capture_refs":  []string{},
-		"covered_decision_ids":         []string{},
-		"covered_handoff_contract_ids": []string{},
-		"structural_differences":       []string{},
-		"visual_differences":           []string{},
-		"comparison_tolerance":         map[string]any{},
-		"accepted_deviations":          []map[string]string{},
+		"contract_check":                    "not-run",
+		"runtime_evidence":                  "not-run",
+		"visual_comparison":                 "unavailable",
+		"fidelity_status":                   "not-applicable",
+		"reviewer":                          "agent",
+		"human_review_ref":                  "",
+		"approved_visual_ref":               "",
+		"approved_preview_sha256":           "",
+		"approved_manifest_sha256":          "",
+		"approved_handoff_ref":              "",
+		"approved_handoff_sha256":           "",
+		"comparison_report_ref":             "",
+		"comparison_report_sha256":          "",
+		"implementation_capture_refs":       []string{},
+		"covered_decision_ids":              []string{},
+		"covered_handoff_contract_ids":      []string{},
+		"covered_smoothness_acceptance_ids": []string{},
+		"structural_differences":            []string{},
+		"visual_differences":                []string{},
+		"comparison_tolerance":              map[string]any{},
+		"accepted_deviations":               []map[string]string{},
 	}
 }
 

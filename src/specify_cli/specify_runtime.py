@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib.metadata
 import json
+import math
 import os
 import platform
 import re
@@ -37,7 +38,14 @@ FALLBACK_RELEASE_MARKER_VERSION = 1
 RUNTIME_LAUNCHER_BINDING_VERSION = 1
 RUNTIME_DOWNLOAD_MIRRORS_ENV = "SPECIFY_RUNTIME_DOWNLOAD_MIRRORS"
 RUNTIME_DOWNLOAD_TIMEOUT_ENV = "SPECIFY_RUNTIME_DOWNLOAD_TIMEOUT"
+RUNTIME_TIMEOUT_ENV = "SPECIFY_RUNTIME_TIMEOUT_SECONDS"
 DEFAULT_DOWNLOAD_TIMEOUT_SECONDS = 60
+DEFAULT_RUNTIME_QUERY_TIMEOUT_SECONDS = 30
+DEFAULT_RUNTIME_COMMAND_TIMEOUT_SECONDS = 300
+DEFAULT_RUNTIME_SUPERVISED_TIMEOUT_SECONDS = 6 * 60 * 60
+RUNTIME_TIMEOUT_GRACE_SECONDS = 5
+RUNTIME_SUPERVISED_TIMEOUT_GRACE_SECONDS = 15
+MAX_RUNTIME_TIMEOUT_SECONDS = 24 * 60 * 60
 # Cold ``go build`` on Windows/CI can exceed two minutes after module fetch.
 DEFAULT_SOURCE_BUILD_TIMEOUT_SECONDS = 300
 # Free community GitHub-release mirrors for open-source installs (esp. regions
@@ -69,6 +77,11 @@ REQUIRED_CAPABILITIES = (
     "artifact.restore",
     "artifact.scaffold",
     "artifact.show",
+    "board.owner",
+    "board.branch-policy",
+    "board.feature-bootstrap",
+    "board.reconcile",
+    "board.show",
     "artifact.submit",
     "cognition.build-from-scan",
     "cognition.archive-incompatible-store",
@@ -116,6 +129,7 @@ REQUIRED_CAPABILITIES = (
     "cognition.validate-scan",
     "design.approve",
     "design.adopt",
+    "design.adoption",
     "design.change",
     "design.diff",
     "design.impact",
@@ -257,10 +271,10 @@ REQUIRED_CAPABILITIES = (
     "quick.checkpoint-confirm",
     "quick.checkpoint-show",
     "quick.checkpoint-stage",
+    "quick.allow-inline",
     "quick.close",
     "quick.cognition-closeout",
     "quick.item-accept",
-    "quick.allow-inline",
     "quick.item-start",
     "quick.item-status",
     "quick.list",
@@ -284,6 +298,15 @@ REQUIRED_CAPABILITIES = (
     "workflow.resolve",
     "workflow.show",
     "workflow.transition",
+    "work.abandon",
+    "work.begin",
+    "work.block",
+    "work.checkpoint",
+    "work.finish",
+    "work.interrupt",
+    "work.resume",
+    "work.scope-add",
+    "work.show",
 )
 RUNTIME_COMMAND = "specify-runtime"
 RUNTIME_ENV = "SPECIFY_RUNTIME_BIN"
@@ -313,6 +336,67 @@ DEFAULT_VERSION = default_runtime_version()
 
 class SpecifyRuntimeError(RuntimeError):
     """Raised when the unified runtime cannot be resolved or invoked."""
+
+
+def _is_short_runtime_query(args: Sequence[str]) -> bool:
+    if not args or args[0] in {"version", "help", "--help", "-h", "api"}:
+        return True
+    if len(args) < 2:
+        return False
+    return args[1].strip().lower() in {
+        "catalog",
+        "checkpoint-show",
+        "handshake",
+        "item-status",
+        "list",
+        "registry",
+        "resume",
+        "schema",
+        "show",
+        "status",
+    }
+
+
+def _is_supervised_runtime_command(args: Sequence[str]) -> bool:
+    return len(args) >= 2 and tuple(args[:2]) in {
+        ("run", "launch"),
+        ("run", "supervise"),
+    }
+
+
+def _runtime_command_timeout_seconds(args: Sequence[str]) -> float:
+    raw = os.environ.get(RUNTIME_TIMEOUT_ENV, "").strip()
+    if raw:
+        try:
+            budget = float(raw)
+        except ValueError as exc:
+            raise SpecifyRuntimeError(
+                f"{RUNTIME_TIMEOUT_ENV} must be a positive number of seconds"
+            ) from exc
+        if not math.isfinite(budget) or budget <= 0 or budget > MAX_RUNTIME_TIMEOUT_SECONDS:
+            raise SpecifyRuntimeError(
+                f"{RUNTIME_TIMEOUT_ENV} must be a positive number of seconds "
+                f"no greater than {MAX_RUNTIME_TIMEOUT_SECONDS}"
+            )
+    elif _is_short_runtime_query(args):
+        budget = float(DEFAULT_RUNTIME_QUERY_TIMEOUT_SECONDS)
+    elif _is_supervised_runtime_command(args):
+        budget = float(DEFAULT_RUNTIME_SUPERVISED_TIMEOUT_SECONDS)
+    else:
+        budget = float(DEFAULT_RUNTIME_COMMAND_TIMEOUT_SECONDS)
+    grace = (
+        RUNTIME_SUPERVISED_TIMEOUT_GRACE_SECONDS
+        if _is_supervised_runtime_command(args)
+        else RUNTIME_TIMEOUT_GRACE_SECONDS
+    )
+    return budget + grace
+
+
+def _runtime_operation(args: Sequence[str]) -> str:
+    operation = list(args[:2])
+    while operation and operation[-1].startswith("-"):
+        operation.pop()
+    return " ".join(operation) or "command"
 
 
 def get_platform() -> tuple[str, str]:
@@ -649,15 +733,23 @@ def run_specify_runtime(
             raise
         runtime_argv = [str(ensure_binary())]
     command = [*runtime_argv, *args]
-    result = subprocess.run(
-        command,
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    timeout = _runtime_command_timeout_seconds(args)
+    try:
+        result = subprocess.run(
+            command,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise SpecifyRuntimeError(
+            f"{RUNTIME_COMMAND} {_runtime_operation(args)} timed out after "
+            f"{timeout:g} seconds; inspect the runtime command's locks and child processes"
+        ) from exc
     output = (result.stdout or "").strip()
     if not output:
         if result.returncode != 0:

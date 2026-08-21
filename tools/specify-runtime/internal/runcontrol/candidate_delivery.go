@@ -1,7 +1,6 @@
 package runcontrol
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -13,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	runtimecmd "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
 var (
@@ -772,33 +773,33 @@ func SyncPublishedCandidate(
 
 var errReviewCommandFailed = errors.New("Candidate Review command failed")
 
+const candidateReviewCommandTimeout = 5 * time.Minute
+
 func runCandidateReviewCommand(ctx context.Context, directory string, argv []string) (int, string, string, error) {
 	if len(argv) == 0 || strings.TrimSpace(argv[0]) == "" {
 		return -1, "", "", fmt.Errorf("%w: Review command argv is empty", ErrInvalidArgument)
 	}
-	command := exec.CommandContext(ctx, argv[0], argv[1:]...)
-	command.Dir = directory
-	var stdout, stderr bytes.Buffer
-	command.Stdout = &stdout
-	command.Stderr = &stderr
-	processes := newProcessTree()
-	if err := processes.configure(command); err != nil {
-		return -1, "", "", err
+	stdout, stderr, waitErr := runtimecmd.CommandOutputsWithTimeoutContext(
+		ctx,
+		candidateReviewCommandTimeout,
+		directory,
+		nil,
+		argv[0],
+		argv[1:]...,
+	)
+	exitCode := 0
+	var exitError *exec.ExitError
+	if errors.As(waitErr, &exitError) {
+		exitCode = exitError.ExitCode()
+	} else if waitErr != nil {
+		exitCode = -1
 	}
-	if err := processes.start(command); err != nil {
-		return -1, "", "", err
-	}
-	waitErr := command.Wait()
-	_ = processes.close()
-	exitCode := managedProcessExitCode(command, waitErr)
-	stdoutDigest := sha256String(stdout.String())
-	stderrDigest := sha256String(stderr.String())
+	stdoutDigest := sha256String(string(stdout))
+	stderrDigest := sha256String(string(stderr))
 	if waitErr != nil {
 		if ctx.Err() != nil {
-			_ = processes.terminate()
 			return exitCode, stdoutDigest, stderrDigest, ctx.Err()
 		}
-		var exitError *exec.ExitError
 		if errors.As(waitErr, &exitError) {
 			return exitCode, stdoutDigest, stderrDigest, errReviewCommandFailed
 		}

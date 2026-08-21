@@ -1225,7 +1225,10 @@ def test_core_sp_templates_use_cli_progressive_learning_without_hook_gates():
     assert "show_argv" in quick_content
 
     fast_content = _read("templates/commands/fast.md")
-    assert "Do not run Learning intake" in fast_content
+    assert "learning start --command fast --format json" in fast_content
+    assert "Fast uses consume-only Learning" in fast_content
+    assert "Do not parse Learning storage" in fast_content
+    assert "Do not capture or promote" in fast_content
     assert "Learning storage" in fast_content
     assert "{{specify-subcmd:learning capture --command fast ...}}" not in fast_content
 

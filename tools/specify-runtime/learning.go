@@ -1908,7 +1908,7 @@ func normalizeLearningCommandsWithPolicy(values []string, policy learningPolicy)
 }
 
 func learningWorkflowPolicy(command string) string {
-	policies := map[string]string{"sp-accept": "consume-only", "sp-analyze": "consume-only", "sp-ask": "consume-only", "sp-auto": "consume-only", "sp-constitution": "consume-only", "sp-explain": "consume-only", "sp-fast": "skip", "sp-implement-teams": "consume-only", "sp-taskstoissues": "consume-only", "sp-team": "consume-only"}
+	policies := map[string]string{"sp-accept": "consume-only", "sp-analyze": "consume-only", "sp-ask": "consume-only", "sp-auto": "consume-only", "sp-constitution": "consume-only", "sp-explain": "consume-only", "sp-fast": "consume-only", "sp-implement-teams": "consume-only", "sp-taskstoissues": "consume-only", "sp-team": "consume-only"}
 	if policy := policies[command]; policy != "" {
 		return policy
 	}

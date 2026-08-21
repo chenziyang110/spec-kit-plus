@@ -736,7 +736,8 @@ def test_registered_instruction_source_catches_anaphoric_write(
     prompt = tmp_path / "templates" / "design-brief-template.md"
     prompt.parent.mkdir()
     prompt.write_text(
-        "This file stores the design brief. Update it after every answer.\n",
+        "This file stores confirmed design decisions, not a conversation transcript.\n"
+        "After each answer that changes the current concept, update it directly.\n",
         encoding="utf-8",
     )
 
@@ -754,6 +755,13 @@ def test_registered_instruction_source_catches_anaphoric_write(
     assert [(item.artifact_id, item.operation) for item in report.violations] == [
         ("design_scaffold_documents", "write")
     ]
+    violation = report.violations[0]
+    assert violation.artifact_hint == "instruction source design-brief-template.md"
+    assert violation.line_number == 1
+    assert violation.line_text == (
+        "This file stores confirmed design decisions, not a conversation transcript. "
+        "After each answer that changes the current concept, update it directly."
+    )
 
 
 def test_direct_open_instruction_for_registered_artifact_is_reported(

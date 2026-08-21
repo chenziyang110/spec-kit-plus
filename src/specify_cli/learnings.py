@@ -139,7 +139,7 @@ LEARNING_WORKFLOW_POLICIES.update(
         "sp-auto": "consume-only",
         "sp-constitution": "consume-only",
         "sp-explain": "consume-only",
-        "sp-fast": "skip",
+        "sp-fast": "consume-only",
         "sp-implement-teams": "consume-only",
         "sp-taskstoissues": "consume-only",
         "sp-team": "consume-only",

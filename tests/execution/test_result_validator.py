@@ -714,6 +714,14 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
         "DS-RESP-001",
     ]
     sample_packet.ui_contract.comparison_tolerance = COMPARISON_TOLERANCE
+    sample_packet.ui_contract.usability_validation = {
+        "smoothness_acceptance_ids": [
+            "focus-continuity",
+            "pending-cancel-feedback",
+            "duplicate-activation",
+            "reduced-motion",
+        ]
+    }
     sample_packet.ui_contract.required_evidence = [
         "structure_snapshot",
         "visual_capture",
@@ -751,6 +759,12 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
             comparison_report_sha256="c" * 64,
             implementation_capture_refs=["artifacts/ui/settings.png"],
             covered_decision_ids=["DS-COMP-001", "DS-RESP-001"],
+            covered_smoothness_acceptance_ids=[
+                "focus-continuity",
+                "pending-cancel-feedback",
+                "duplicate-activation",
+                "reduced-motion",
+            ],
             comparison_tolerance=COMPARISON_TOLERANCE,
         ),
         ui_evidence=[
@@ -769,6 +783,13 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
 
     result.ui_verification.covered_decision_ids = ["DS-COMP-001"]
     with pytest.raises(PacketValidationError, match="decision coverage"):
+        validate_worker_task_result(result, sample_packet)
+    result.ui_verification.covered_decision_ids = ["DS-COMP-001", "DS-RESP-001"]
+
+    result.ui_verification.covered_smoothness_acceptance_ids = [
+        "focus-continuity"
+    ]
+    with pytest.raises(PacketValidationError, match="smoothness acceptance coverage"):
         validate_worker_task_result(result, sample_packet)
 
 

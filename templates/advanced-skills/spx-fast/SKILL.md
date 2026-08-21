@@ -1,12 +1,18 @@
 ---
 name: spx-fast
-description: Lean direct-change workflow for advanced coding models. Use for a truly trivial, local, low-risk change with a known solution and a small verification surface.
+description: Lean leader-direct workflow for advanced coding models. Use for a truly trivial, local, low-risk change that still needs consume-only Learning, Project Cognition, targeted verification, and lightweight review.
 ---
 
 # SPX Fast
 
-Read `references/project-learning.md` only for its explicit skip/escalation policy.
-Read `references/project-cognition.md`, using cognition intent `implement`.
+Read `references/project-learning.md`. Run Learning intake before Project
+Cognition:
+`{{specify-subcmd:specify-runtime learning start --command fast --format json}}`
+Fast uses consume-only Learning: expand only a
+task-relevant card through its `show_argv`; do not parse Learning storage and do
+not capture or promote from this workflow.
+Read `references/project-cognition.md`, using cognition intent `implement`,
+only after Learning intake.
 Read `references/run-bootstrap.md`.
 Use `references/scope-gate.md` when eligibility is not immediately obvious.
 Read `references/consequence-gate.md` when work can affect lifecycle operations,
@@ -53,6 +59,16 @@ plus a structure snapshot when semantics, hierarchy, focus, or interaction
 changes, and perform visual inspection;
 code or style tests alone do not close the change.
 
+The same leader then performs one Lightweight Review; use no review subagent
+and no worker packet. Review the complete changed diff against the declared
+write scope and requested acceptance, check for an obvious regression, missed
+consumer, security issue, or consequence drift, and confirm the targeted
+verification exercises the changed behavior. Repair only in-scope defects,
+then rerun the affected targeted verification and review the diff again. Scope
+growth or a need for independent lanes routes to `$spx-quick`. This Lightweight
+Review does not claim the independent system Review contract owned by
+`$spx-review`.
+
 Create no spec, plan, tasks, quick workspace, delegation packet, or lifecycle
 artifact. When repository behavior changed, run
 `{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-fast --scope-dir <project-or-workspace> --scope-mode explicit --intent implement --format json}}`
@@ -60,6 +76,7 @@ with explicit workflow-owned paths, fill returned agent-owned fields, and execut
 structured `apply_argv` before claiming the fast change complete. Shared apply
 owns update, validation, eligible finalization, and receipt; only an update
 failure uses mark-dirty plus a standalone dirty receipt. Apply the gate in
-`references/project-cognition.md` before any clean claim. Report the outcome, changed paths, exact verification, and
-residual risk. This invocation authorizes only this workflow stage; report any
+`references/project-cognition.md` before any clean claim. Report the outcome,
+changed paths, exact verification, Lightweight Review evidence, and residual
+risk. This invocation authorizes only this workflow stage; report any
 escalation as a handoff and do not invoke another workflow in this run.

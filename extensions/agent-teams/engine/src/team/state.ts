@@ -530,7 +530,7 @@ function resolvePermissionsSnapshot(env: NodeJS.ProcessEnv): PermissionsSnapshot
 }
 
 async function resolveLeaderSessionId(cwd: string, env: NodeJS.ProcessEnv): Promise<string> {
-  const fromEnv = readEnvValue(env, ['SPECIFY_SESSION_ID', 'CODEX_SESSION_ID', 'SESSION_ID']);
+  const fromEnv = readEnvValue(env, ['SPECIFY_SESSION_ID', 'OMX_SESSION_ID', 'CODEX_SESSION_ID', 'SESSION_ID']);
   if (fromEnv) return fromEnv;
   return (await readUsableSessionState(cwd))?.session_id ?? '';
 }

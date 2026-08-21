@@ -44,6 +44,7 @@ class UIVerification:
     implementation_capture_refs: list[str] = field(default_factory=list)
     covered_decision_ids: list[str] = field(default_factory=list)
     covered_handoff_contract_ids: list[str] = field(default_factory=list)
+    covered_smoothness_acceptance_ids: list[str] = field(default_factory=list)
     structural_differences: list[str] = field(default_factory=list)
     visual_differences: list[str] = field(default_factory=list)
     comparison_tolerance: dict[str, object] = field(default_factory=dict)

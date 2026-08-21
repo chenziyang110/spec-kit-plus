@@ -172,4 +172,3 @@ design_system:
 ## Design Change Policy
 
 Update this preset through `sp-design` before changing product-first hierarchy, checkout priority, dark-mode defaults, or CTA semantics.
-

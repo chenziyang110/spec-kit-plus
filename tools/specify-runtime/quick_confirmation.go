@@ -18,39 +18,39 @@ const quickConfirmationFileName = "confirmation.json"
 var quickWorkItemIDPattern = regexp.MustCompile(`^Q[1-9][0-9]*$`)
 
 type quickConfirmationDoc struct {
-	Schema              string                 `json:"schema"`
-	Workspace           string                 `json:"workspace,omitempty"`
-	ConfirmationMode    string                 `json:"confirmation_mode"`
-	ConfirmationState   string                 `json:"confirmation_state"`
-	ConfirmationDigest  string                 `json:"confirmation_digest"`
-	Source              quickConfirmationSource `json:"source"`
-	Decision            quickConfirmationDecision `json:"decision"`
-	Delivery            quickConfirmationDelivery `json:"delivery"`
-	Execution           quickConfirmationExecution `json:"execution,omitempty"`
-	StagedAt            string                 `json:"staged_at,omitempty"`
-	ConfirmedAt         string                 `json:"confirmed_at,omitempty"`
-	UpdatedAt           string                 `json:"updated_at,omitempty"`
+	Schema             string                     `json:"schema"`
+	Workspace          string                     `json:"workspace,omitempty"`
+	ConfirmationMode   string                     `json:"confirmation_mode"`
+	ConfirmationState  string                     `json:"confirmation_state"`
+	ConfirmationDigest string                     `json:"confirmation_digest"`
+	Source             quickConfirmationSource    `json:"source"`
+	Decision           quickConfirmationDecision  `json:"decision"`
+	Delivery           quickConfirmationDelivery  `json:"delivery"`
+	Execution          quickConfirmationExecution `json:"execution,omitempty"`
+	StagedAt           string                     `json:"staged_at,omitempty"`
+	ConfirmedAt        string                     `json:"confirmed_at,omitempty"`
+	UpdatedAt          string                     `json:"updated_at,omitempty"`
 }
 
 type quickConfirmationSource struct {
-	Kind            string `json:"kind"`
-	DiscussionSlug  string `json:"discussion_slug,omitempty"`
-	ReviewDigest    string `json:"review_digest,omitempty"`
-	SemanticDelta   bool   `json:"semantic_delta"`
-	DeltaSummary    string `json:"delta_summary,omitempty"`
+	Kind           string `json:"kind"`
+	DiscussionSlug string `json:"discussion_slug,omitempty"`
+	ReviewDigest   string `json:"review_digest,omitempty"`
+	SemanticDelta  bool   `json:"semantic_delta"`
+	DeltaSummary   string `json:"delta_summary,omitempty"`
 }
 
 type quickConfirmationDecision struct {
-	Goal                   string                   `json:"goal"`
-	UserVisibleResult      string                   `json:"user_visible_result"`
-	Scope                  quickConfirmationScope   `json:"scope"`
-	Items                  []quickConfirmationItem  `json:"items"`
-	RecommendedApproach    string                   `json:"recommended_approach,omitempty"`
-	AssumptionsAndRisks    []string                 `json:"assumptions_and_risks,omitempty"`
-	CompletionEvidence     []string                 `json:"completion_evidence,omitempty"`
-	ReconfirmationTrigger  string                   `json:"reconfirmation_trigger"`
-	UIConfirmation         map[string]any           `json:"ui_confirmation,omitempty"`
-	UserCorrections        []string                 `json:"user_corrections,omitempty"`
+	Goal                  string                  `json:"goal"`
+	UserVisibleResult     string                  `json:"user_visible_result"`
+	Scope                 quickConfirmationScope  `json:"scope"`
+	Items                 []quickConfirmationItem `json:"items"`
+	RecommendedApproach   string                  `json:"recommended_approach,omitempty"`
+	AssumptionsAndRisks   []string                `json:"assumptions_and_risks,omitempty"`
+	CompletionEvidence    []string                `json:"completion_evidence,omitempty"`
+	ReconfirmationTrigger string                  `json:"reconfirmation_trigger"`
+	UIConfirmation        map[string]any          `json:"ui_confirmation,omitempty"`
+	UserCorrections       []string                `json:"user_corrections,omitempty"`
 }
 
 type quickConfirmationScope struct {
@@ -68,9 +68,9 @@ type quickConfirmationItem struct {
 }
 
 type quickConfirmationDelivery struct {
-	Waves            []quickConfirmationWave `json:"waves"`
-	JoinPoints       []quickConfirmationJoin `json:"join_points,omitempty"`
-	IntegrationGate  string                  `json:"integration_gate,omitempty"`
+	Waves           []quickConfirmationWave `json:"waves"`
+	JoinPoints      []quickConfirmationJoin `json:"join_points,omitempty"`
+	IntegrationGate string                  `json:"integration_gate,omitempty"`
 }
 
 type quickConfirmationWave struct {
@@ -80,9 +80,9 @@ type quickConfirmationWave struct {
 }
 
 type quickConfirmationJoin struct {
-	After []string `json:"after"`
-	Starts string  `json:"starts"`
-	Gate  string   `json:"gate,omitempty"`
+	After  []string `json:"after"`
+	Starts string   `json:"starts"`
+	Gate   string   `json:"gate,omitempty"`
 }
 
 type quickConfirmationExecution struct {
@@ -95,7 +95,7 @@ type quickConfirmationExecution struct {
 }
 
 type quickBlockedDispatch struct {
-	Status         string `json:"status,omitempty"`          // none | recorded-fallback | subagent-blocked
+	Status         string `json:"status,omitempty"` // none | recorded-fallback | subagent-blocked
 	Reason         string `json:"reason,omitempty"`
 	AttemptedShape string `json:"attempted_shape,omitempty"` // one-subagent | parallel-subagents | none
 	ChosenShape    string `json:"chosen_shape,omitempty"`    // leader-inline | subagent-blocked | ...
@@ -149,11 +149,11 @@ func (service quickService) runCheckpoint(mode, quickID string, args []string) (
 		}
 		env := NewEnvelope("ok", "quick checkpoint staged")
 		env.Data = map[string]any{
-			"task":                 task,
-			"confirmation":         doc,
-			"confirmation_digest":  doc.ConfirmationDigest,
-			"confirmation_state":   doc.ConfirmationState,
-			"confirmation_mode":    doc.ConfirmationMode,
+			"task":                  task,
+			"confirmation":          doc,
+			"confirmation_digest":   doc.ConfirmationDigest,
+			"confirmation_state":    doc.ConfirmationState,
+			"confirmation_mode":     doc.ConfirmationMode,
 			"requires_user_confirm": doc.ConfirmationState == "staged",
 			"views": map[string]string{
 				"decision": renderQuickDecisionView(doc),
@@ -428,8 +428,8 @@ func parseQuickDecision(raw map[string]any) (quickConfirmationDecision, error) {
 		ui = nil
 	}
 	return quickConfirmationDecision{
-		Goal:                  firstNonEmpty(stringValue(raw["goal"]), stringValue(raw["request_and_outcome"])),
-		UserVisibleResult:     stringValue(raw["user_visible_result"]),
+		Goal:              firstNonEmpty(stringValue(raw["goal"]), stringValue(raw["request_and_outcome"])),
+		UserVisibleResult: stringValue(raw["user_visible_result"]),
 		Scope: quickConfirmationScope{
 			Include: quickStringSlice(scopeRaw["include"]),
 			Exclude: quickStringSlice(scopeRaw["exclude"]),

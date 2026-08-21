@@ -32,4 +32,3 @@ This specialist skill focuses on chat UIs, agent surfaces, copilot panels, promp
 - Pass only when the conversation is legible, controlled, and trustworthy.
 - Verify state transitions, latency feedback, and error recovery.
 - Reject chat UIs that hide important agent state or overwhelm the user with noise.
-

@@ -27,7 +27,7 @@ system when an established one can be extended.
 
 Determine `delivery_context` before authoring: `design-first` when no
 planning-ready feature spec exists, `post-specify` when an exact planning-ready
-`spec-contract.json` already owns requirements/scope/acceptance, or
+feature spec contract already owns requirements/scope/acceptance, or
 `standalone` for audit-only work. Persist the post-Specify feature consumer,
 source-spec ref/SHA-256, and `return_target: plan`. Unchanged post-Specify work
 returns directly to Plan; only a genuine requirements change returns to
@@ -94,8 +94,15 @@ surface-aware `anti_slop_locks`, and synthesize `reference_board_intents`
 (`mood`/`layout`/`type`/`color-only`) when references shape the board.
 Read `.specify/templates/ui-professional-skills/router.md`, resolve and persist
 `professional_skill_route` with `domain_skill_id`, `style_skill_id`,
-`specialist_skill_ids`, `matched_signals`, and `loaded_refs`, then load only the
-selected one domain, zero-or-one style, and zero-to-two specialist references.
+`specialist_skill_ids`, `matched_signals`, `loaded_refs`, and
+`mature_web_ui_resource_ids`, `web_ui_asset_inventory`,
+`mature_web_ui_selection`, and `smoothness_acceptance_ids` when Web UI applies.
+Pass the actual project root to the deterministic router, then load only the selected
+one domain, zero-or-one style, and zero-to-two specialist references. Web
+component work also reads the router-triggered `web-component-selection.md`:
+reuse inspected live components first, select at most one compatible mature
+primary system, and add only exact headless or specialist gaps. Load official
+Agent/MCP/LLM material only for selected candidates.
 Pass the resolved `style_authority` to the router; `inherit-existing` suppresses
 all style refs while retaining relevant domain/specialist expertise.
 Do not load the entire UI professional skill catalog. A material routing
@@ -136,13 +143,13 @@ then configure its one current concept, boundaries, modes, decisions, and full
 generation/inspection/editing probe; ready lint rejects missing,
 contradictory, or medium-mismatched capability truth.
 
-For `image-primary`, read `references/image-round.md`, write the exact
-generate/edit prompt to `round-NN.prompt.md`, and create one composite
-`round-NN.png`/`.jpg`/`.webp` board. Image prompts own subject, context, style,
+For `image-primary`, read `references/image-round.md`, use the design CLI to
+persist the exact generate/edit prompt for the numbered round, and generate one
+composite image board for that round. Image prompts own subject, context, style,
 composition, aspect ratio, exact text, input-image roles, and invariants; they
 are not HTML authoring prompts. Inspect actual saved pixels when possible; when
 inspection is unavailable, show the image without a visual-quality claim and
-revise from user observations. Freeze explicit approval with `design approve
+revise from user observations. Freeze explicit approval with `specify-runtime design approve
 <round-image> --direction direction-main --manifest <manifest> --prompt
 <prompt> --image-inspection <available|unavailable> --image-editing
 <available|unavailable> --format json`.

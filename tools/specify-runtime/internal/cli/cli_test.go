@@ -1207,7 +1207,7 @@ func TestCloseoutPlanCommandPayloadMode(t *testing.T) {
 		"--scope-dir",
 		".specify/features/001-cli-closeout",
 		"--payload-json",
-		"<inline-json>",
+		"-",
 		"--reason",
 		"workflow-finalize",
 		"--format",

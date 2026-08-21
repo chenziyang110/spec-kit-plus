@@ -92,7 +92,10 @@ packets, and Review evidence:
   `governance` (`reuse` | `extend` | `new`), `iconography`, and decision
   bindings. Treat `semantic_token_refs` as semantic token references, not raw
   one-off values. Assign design-system gaps and deprecation; bind icon source,
-  family, sizing, stroke/fill, optical alignment, meaning, and fallback.
+  family, sizing, stroke/fill, optical alignment, meaning, and fallback. For
+  Web UI, bind each row to the inspected live component or a shortlisted mature
+  resource; `new` requires an explicit uncovered capability rather than an
+  Agent inventing a base primitive.
 - `responsive_matrix`: retain target/state, adaptation, `stretch_behavior`,
   `overflow_behavior`, and decision bindings. Verify continuous stretch,
   compression, and reflow between named sizes, including resize while focus,
@@ -141,7 +144,8 @@ does not replace `accessibility_matrix`.
   perceived-performance threshold values for immediate feedback, progress,
   and timeout.
 - `usability_validation` uses `risk_level`, `methods`, `critical_tasks`,
-  `success_criteria`, and `human_review_required`. Low-risk existing-pattern
+  `success_criteria`, `human_review_required`, and the exact routed
+  `smoothness_acceptance_ids`. Low-risk existing-pattern
   changes may use a documented cognitive walkthrough or heuristic review.
   Medium- and high-risk journeys name representative target users, critical
   task success criteria, and human review. Automated tests and screenshots

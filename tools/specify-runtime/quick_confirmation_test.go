@@ -190,10 +190,10 @@ placeholder
 
 	payload := map[string]any{
 		"source": map[string]any{
-			"kind":             "discussion",
-			"discussion_slug":  "prompt-authoring-modes",
-			"review_digest":    strings.Repeat("a", 64),
-			"semantic_delta":   false,
+			"kind":            "discussion",
+			"discussion_slug": "prompt-authoring-modes",
+			"review_digest":   strings.Repeat("a", 64),
+			"semantic_delta":  false,
 		},
 		"decision": map[string]any{
 			"goal":                "交付已确认的 Prompt 资产能力",

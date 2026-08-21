@@ -147,6 +147,7 @@ export function buildSharedHookInvocationPlans(
 
   if (hasRepoSourceCheckout()) {
     const repoRoot = repoRootFromPackage();
+    addInvocationPlan(plans, seen, "uvx", ["--from", repoRoot, "specify", "hook", ...hookArgs], env);
     const pythonPath = join(repoRoot, "src");
     const pythonEnv = {
       ...env,

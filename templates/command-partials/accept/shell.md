@@ -70,7 +70,10 @@ Use product words and concrete labels. Do not assume they remember the feature n
 Human Acceptance observes the frozen scenarios derived from the exact
 `surface_catalog`, `scenario_matrix`, `interaction_matrix`,
 `editing_matrix`, `data_state_matrix`, `accessibility_matrix`, `navigation_matrix`,
-`content_matrix`, `motion_contract`, and `usability_validation`; it never
-rewrites or diagnoses them. Execute the
+`content_matrix`, `motion_contract`, and `usability_validation`; every routed
+`smoothness_acceptance_id` must already have exact integrated coverage before
+Acceptance, and the frozen human scenario must exercise it when it names a
+human-observable outcome. Acceptance never rewrites or diagnoses these
+contracts. Execute the
 risk-based frozen universe, not an unbounded Cartesian product. Medium/high-risk
 usability cannot pass without its required target-user human review.

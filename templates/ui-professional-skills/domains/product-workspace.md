@@ -16,6 +16,8 @@ This domain covers the core working surface of a product: dashboards, editors, i
 - How dense the layout needs to be for real work.
 - Which states are loading, empty, disabled, error, selected, or edited.
 - Whether the page should optimize for single-task focus or multi-panel comparison.
+- Which mature live or catalog component owns tables, overlays, editors,
+  command surfaces, and virtualization without introducing competing systems.
 
 ## Image-primary augmentation
 
@@ -35,6 +37,7 @@ This domain covers the core working surface of a product: dashboards, editors, i
 
 - Pass only when the workspace supports real work and still reads cleanly.
 - Verify focus handling, keyboard paths, error recovery, and persistent state.
+- Verify dense-state rendering, virtualization thresholds, interrupted async
+  work, resize, and reduced-motion behavior at the real interaction scale.
 - Reject layouts that prioritize visual novelty over operability.
 - Escalate to the data-visualization, forms, accessibility, or design-system specialists when those are the main problem.
-

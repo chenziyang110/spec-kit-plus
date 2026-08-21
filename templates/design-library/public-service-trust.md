@@ -187,4 +187,3 @@ design_system:
 ## Design Change Policy
 
 Update this preset through `sp-design` before changing service-critical states, error messaging hierarchy, or accessibility defaults.
-

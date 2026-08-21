@@ -115,7 +115,7 @@
       "absorbs": ["fast"],
       "references": ["spx-fast/references/scope-gate.md"],
       "assets": [],
-      "optimization": "leader-direct local edit with an explicit escalation gate"
+      "optimization": "consume-only learning, leader-direct local edit, targeted verification, and lightweight self-review"
     },
     "spx-implement": {
       "absorbs": ["implement"],

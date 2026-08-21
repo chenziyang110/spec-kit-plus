@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -1908,9 +1907,7 @@ func directoryFamily(path string) string {
 
 func gitTrackedPaths(root string) map[string]bool {
 	tracked := map[string]bool{}
-	cmd := exec.Command("git", "ls-files", "-z", "--")
-	cmd.Dir = root
-	data, err := cmd.Output()
+	data, err := rt.CommandOutput(root, nil, "git", "ls-files", "-z", "--")
 	if err != nil {
 		return tracked
 	}
@@ -1928,10 +1925,8 @@ func gitIgnoredPaths(root string, candidates []string) map[string]bool {
 	if len(candidates) == 0 {
 		return ignored
 	}
-	cmd := exec.Command("git", "check-ignore", "-z", "--stdin")
-	cmd.Dir = root
-	cmd.Stdin = strings.NewReader(strings.Join(candidates, "\x00") + "\x00")
-	data, err := cmd.Output()
+	stdin := strings.NewReader(strings.Join(candidates, "\x00") + "\x00")
+	data, err := rt.CommandOutput(root, stdin, "git", "check-ignore", "-z", "--stdin")
 	if err != nil {
 		return ignored
 	}

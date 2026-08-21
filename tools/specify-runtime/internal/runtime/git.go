@@ -1,8 +1,6 @@
 package runtime
 
 import (
-	"bytes"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -14,16 +12,12 @@ type GitStatusEntry struct {
 }
 
 func GitAvailable(root string) bool {
-	cmd := exec.Command("git", "rev-parse", "--is-inside-work-tree")
-	cmd.Dir = root
-	data, err := cmd.Output()
+	data, err := CommandOutput(root, nil, "git", "rev-parse", "--is-inside-work-tree")
 	return err == nil && strings.TrimSpace(string(data)) == "true"
 }
 
 func GitHead(root string) (string, error) {
-	cmd := exec.Command("git", "rev-parse", "HEAD")
-	cmd.Dir = root
-	data, err := cmd.Output()
+	data, err := CommandOutput(root, nil, "git", "rev-parse", "HEAD")
 	if err != nil {
 		return "", err
 	}
@@ -31,9 +25,7 @@ func GitHead(root string) (string, error) {
 }
 
 func GitBranch(root string) (string, error) {
-	cmd := exec.Command("git", "branch", "--show-current")
-	cmd.Dir = root
-	data, err := cmd.Output()
+	data, err := CommandOutput(root, nil, "git", "branch", "--show-current")
 	if err != nil {
 		return "", err
 	}
@@ -41,9 +33,7 @@ func GitBranch(root string) (string, error) {
 }
 
 func GitStatusEntries(root string) ([]GitStatusEntry, error) {
-	cmd := exec.Command("git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
-	cmd.Dir = root
-	data, err := cmd.Output()
+	data, err := CommandOutput(root, nil, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
 	if err != nil {
 		return []GitStatusEntry{}, err
 	}
@@ -51,9 +41,7 @@ func GitStatusEntries(root string) ([]GitStatusEntry, error) {
 }
 
 func GitDiffNameStatus(root, base, head string) ([]GitStatusEntry, error) {
-	cmd := exec.Command("git", "diff", "--name-status", "-z", base+".."+head)
-	cmd.Dir = root
-	data, err := cmd.Output()
+	data, err := CommandOutput(root, nil, "git", "diff", "--name-status", "-z", base+".."+head)
 	if err != nil {
 		return []GitStatusEntry{}, err
 	}
@@ -62,20 +50,15 @@ func GitDiffNameStatus(root, base, head string) ([]GitStatusEntry, error) {
 
 func GitChangedPaths(root string) ([]string, error) {
 	args := []string{"status", "--short", "--untracked-files=all"}
-	cmd := exec.Command("git", args...)
-	cmd.Dir = root
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
-		diff := exec.Command("git", "diff", "--name-only")
-		diff.Dir = root
-		data, diffErr := diff.Output()
+	out, err := CommandOutput(root, nil, "git", args...)
+	if err != nil {
+		data, diffErr := CommandOutput(root, nil, "git", "diff", "--name-only")
 		if diffErr != nil {
 			return []string{}, err
 		}
 		return normalizeGitLines(string(data)), nil
 	}
-	return parseGitStatusShort(out.String()), nil
+	return parseGitStatusShort(string(out)), nil
 }
 
 func parseStatusEntries(output string) []GitStatusEntry {

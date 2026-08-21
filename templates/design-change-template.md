@@ -53,6 +53,25 @@ design_change:
     matched_signals: {}
     loaded_refs: []
     unresolved_candidates: []
+    mature_web_ui_resource_ids: []
+    web_ui_asset_inventory:
+      status: not-scanned
+      manifest_refs: []
+      lockfile_refs: []
+      framework_ids: []
+      installed_resources: []
+      component_roots: []
+      token_refs: []
+      theme_refs: []
+      surface_refs: []
+    mature_web_ui_selection:
+      status: not-applicable
+      primary_resource_id: null
+      supporting_resource_ids: []
+      agent_resource_ids: []
+      candidates: []
+      confirmation_codes: []
+    smoothness_acceptance_ids: []
   style_authority:
     mode: unresolved
     scope_level: null
@@ -160,6 +179,12 @@ profiles. Do not promote surface-specific aesthetic rules into global policy.
 
 Record affected component anatomy, variants, states, and decision references.
 Prefer live components unless the approved change explicitly replaces them.
+For Web UI, use the routed mature-resource shortlist and one-primary-system
+rule; add a headless or specialist library only for an exact uncovered
+capability. Official Agent material is retrieval input, not install authority.
+The final component choice must cite a scanned `web_ui_asset_inventory` and its
+explainable `mature_web_ui_selection`; provisional candidates cannot authorize
+dependency changes.
 Call out the concrete mouse/pointer, keyboard/focus, touch, and command
 interactions that must continue to work for each affected component.
 Include empty, representative-data, dense-data, and failure expectations when
@@ -288,7 +313,8 @@ the affected job.
 ## Usability Validation
 
 Record `verification.usability_validation` with `risk_level`, `methods`,
-`critical_tasks`, `success_criteria`, and `human_review_required`. Name target
+`critical_tasks`, `success_criteria`, `human_review_required`, and applicable
+`smoothness_acceptance_ids`. Name target
 users, reviewer/status, and evidence where the selected method requires it. A
 low-risk existing-pattern change may use a documented cognitive walkthrough or
 heuristic review. Medium- and high-risk journeys require representative target

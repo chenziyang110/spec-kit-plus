@@ -37,4 +37,3 @@ This domain covers broad UI work that does not yet belong to a narrower product 
 - Verify hierarchy, state coverage, keyboard access, and responsive behavior.
 - Reject outputs that feel like a template with swapped colors.
 - Escalate to a specialist skill if the request clearly centers on forms, charts, motion, a design system, accessibility, or conversational AI.
-

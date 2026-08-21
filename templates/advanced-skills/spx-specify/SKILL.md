@@ -69,7 +69,7 @@ Preserve exact `style_authority` in the spec/brief chain. Existing-product
 feature and partial-page work inherits live UI; only explicitly authorized
 exact complete-page overhaul scope may change style, with `global-shell` and
 `shared-components` protected. Do not rerun Specify merely because Design
-happened after a planning-ready spec: unchanged post-Specify Design binds
+happened after a planning-ready spec: an unchanged late design overlay binds
 through `formal-post-specify` and returns to Plan. Only a genuine requirements,
 scope, or acceptance change re-enters this workflow.
 
@@ -101,7 +101,7 @@ Do not create `plan-contract.json`, `plan.md`, `research.md`, `data-model.md`,
 An existing PRD used as input to one feature compiles into the ordinary spec
 contract with source traceability. Route project-wide principles to
 `$spx-constitution`, exploratory ideas to `$spx-discussion`, existing-spec gaps
-back through this Specify workflow, and repository reconstruction to `$spx-prd-scan`.
+back through `$spx-specify`, and repository reconstruction to `$spx-prd-scan`.
 
 Make requirements and acceptance observable. Populate `acceptance_coverage`
 with unique canonical JSON Pointer pairs from every `scope.in` and

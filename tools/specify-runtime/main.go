@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,10 +24,24 @@ var version = "dev"
 const protocolVersion = "specify-runtime.v1"
 
 func main() {
-	os.Exit(Run(os.Args[1:], os.Stdout, os.Stderr, buildinfo.Current(version).Version))
+	args := os.Args[1:]
+	timeout, err := runtimeCommandTimeout(args)
+	if err != nil {
+		env := NewEnvelope("usage-error", "runtime timeout configuration is invalid")
+		env.Blockers = append(env.Blockers, err.Error())
+		os.Exit(writeEnvelope(os.Stdout, env))
+	}
+	if isSupervisedRuntimeCommand(args) {
+		os.Exit(runSupervisedWithTimeout(args, os.Stdout, os.Stderr, buildinfo.Current(version).Version, timeout, RunContext))
+	}
+	os.Exit(runWithWatchdog(args, os.Stdout, os.Stderr, buildinfo.Current(version).Version, timeout, RunContext))
 }
 
 func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
+	return RunContext(context.Background(), args, stdout, stderr, cliVersion)
+}
+
+func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, cliVersion string) int {
 	if len(args) == 0 {
 		return writeEnvelope(stdout, NewEnvelope("usage-error", "missing command"))
 	}
@@ -44,13 +59,13 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 	case "result":
 		return runResultCommand(args[1:], stdout)
 	case "run":
-		return runRun(args[1:], stdout, stderr)
+		return runRunContext(ctx, args[1:], stdout, stderr)
 	case "work":
 		return runWork(args[1:], stdout)
 	case "board":
 		return runBoard(args[1:], stdout)
 	case "candidate":
-		return runCandidateCommand(args[1:], stdout)
+		return runCandidateCommandContext(ctx, args[1:], stdout)
 	case "cas":
 		return runCASCommand(args[1:], stdout)
 	case "sync":
@@ -134,6 +149,16 @@ func writeHelp(stdout io.Writer) int {
 	} {
 		_, _ = fmt.Fprintf(stdout, "  %s\n", name)
 	}
+	_, _ = fmt.Fprintln(stdout, "timeout budgets:")
+	_, _ = fmt.Fprintf(stdout, "  queries: %s\n", defaultRuntimeQueryTimeout)
+	_, _ = fmt.Fprintf(stdout, "  commands: %s\n", defaultRuntimeCommandTimeout)
+	_, _ = fmt.Fprintf(stdout, "  run launch/supervise: %s\n", defaultSupervisedRunTimeout)
+	_, _ = fmt.Fprintf(
+		stdout,
+		"  override: %s accepts positive seconds up to %s and cannot disable the watchdog\n",
+		runtimeTimeoutEnv,
+		maxRuntimeCommandTimeout,
+	)
 	return 0
 }
 

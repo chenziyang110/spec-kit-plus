@@ -15,14 +15,12 @@ slash-style syntax.
 
 ## Workflow Recommendation Discipline
 
-Passive SKILL invocation is allowed only for `sp-discussion`, `sp-quick`,
-`sp-debug`, and `sp-fast`. All other `sp-*` workflows are user-invoked only:
+Passive SKILL invocation is allowed only for `sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`. All other `sp-*` workflows are user-invoked only:
 recommend the projected invocation and stop; do not load, enter, or hand off into
-the workflow until the user explicitly invokes it. Continuing an already-invoked
-incomplete workflow is not passive entry. When a topical
+the workflow until the user explicitly invokes it. Continuing an already-invoked incomplete workflow is not auto-entry and is not passive entry. When a topical
 follow-up, acknowledgement, or contextual confirmation continues an active
 discussion, resume `sp-discussion` from durable state even when the user does
-not repeat the workflow name. Before recommending `sp-specify`, inspect the
+not repeat the workflow name. Before recommending `sp-quick` or `sp-specify` from a discussion, inspect the
 matching discussion status; when it is not `handoff-ready`, resume
 `sp-discussion` assessment, draft review, or repair instead. For ordinary
 natural-language tasks, answer or work in the current mode while using always-on
@@ -36,7 +34,7 @@ the last valid in-discussion action; they do not authorize the agent to
 synthesize a downstream stage. An active discussion stays in `sp-discussion`;
 a handoff-ready discussion may continue passively through a selected `sp-quick`
 consumer. A selected `sp-specify` consumer requires the projected user invocation;
-never continue directly to `sp-implement`.
+never directly to `sp-implement`.
 
 Candidate priority applies only within one resolved workflow lineage. A name,
 slug, title, topic, or keyword similarity is not binding evidence between a
@@ -93,7 +91,9 @@ explicit numeric option.
 
 - The default generated formal path is `sp-specify -> sp-plan -> [sp-test-design] -> sp-tasks -> sp-implement -> sp-review -> sp-accept`. The bracketed gate is optional only for `test_design_gate.decision: not_selected` with no root. Test Design is also an independent producer: project, feature, and Quick consumers may select it without waiting for a completed Plan. `sp-checklist` and `sp-analyze` remain visible optional diagnostics, but they are not default quality nets for clean workflow progress. Event-triggered task review remains embedded in `sp-implement`; the mandatory public `sp-review` that follows it is a distinct system-level real-entrypoint, interaction, wiring, repair, and revalidation gate. `sp-accept` remains a separate human product-acceptance stage after approved Review.
 - Use `sp-fast` for trivial, local, low-risk fixes that touch at most 3 files and do
-  not cross a shared surface.
+  not cross a shared surface. Fast consumes relevant Learning, uses Project
+  Cognition for bounded navigation, executes leader-direct with no subagents,
+  and finishes with targeted verification plus one Lightweight Review.
 - Use `sp-quick` for non-trivial direct delivery that needs resumable state,
   task-local planning, lanes or batches, and verification. It is not limited by
   task size, capability count, architecture, migration, compatibility, rollout,
@@ -187,8 +187,10 @@ explicit numeric option.
   only for brownfield first/missing/unusable baseline, schema failure, schema v1
   or old broad-schema rebuild-required readiness, zero active-generation
   path_index rows outside `greenfield_empty`, missing or invalid `alias_index`,
-  `explicit_rebuild_requested`, `greenfield_baseline_has_project_code`, or
-  `baseline_identity_invalid`.
+  `explicit_rebuild_requested`, or `baseline_identity_invalid`. A
+  `greenfield_baseline_has_project_code` conflict is an empty-baseline identity
+  conflict that preserves the runtime's structured rebuild route; it must not be
+  routed to map-update.
   Schema v5 is current-only. The runtime does not migrate schema v4 or older
   databases. Run `specify-runtime cognition archive-incompatible-store --inspect --format json`,
   then execute its guarded `archive_argv`; only that CLI may archive the
@@ -272,6 +274,8 @@ user what to type:
 - Do not use old strategy labels as routing choices.
 - `sp-fast` is the main leader-inline route; use it only when the work is
   trivial, local, low risk, and does not benefit from delegated verification.
+  It still performs consume-only Learning intake, Project Cognition intake, and
+  an inline Lightweight Review by the same leader.
 - For `sp-quick`, complete the one-time Understanding Checkpoint before
   substantive execution; after confirmation, use delegated lanes when they are
   safe and packetized.
@@ -298,9 +302,9 @@ user what to type:
   proposal into user authorization. Use `sp-auto` only when the user explicitly
   chooses automatic state reconciliation or no unique canonical next command
   can be proven safely.
-- Clean completed `sp-tasks` state recommends the projected `sp-implement`
-  invocation directly; it does not need an `sp-auto` hop and must wait for the
-  user's explicit `sp-implement` invocation.
+- Clean completed `sp-tasks` state with `/sp.implement` routes directly to the
+  projected `sp-implement` invocation; it does not need an `sp-auto` hop and
+  must wait for the user's explicit `sp-implement` invocation.
 - Keep `sp-*` workflows as visible optional entrypoints. This passive skill may
   enter only the four-workflow allowlist; recommend every other workflow and wait.
 - If the user is already invoking the correct `sp-*` skill, do not redirect.

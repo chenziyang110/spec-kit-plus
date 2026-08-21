@@ -175,6 +175,7 @@ func TestReviewPrepareRebasesInitialLegacyProductDriftWithoutUserBlocker(t *test
 	mustMkdir(t, filepath.Join(projectRoot, "src"))
 	productPath := filepath.Join(projectRoot, "src", "product.txt")
 	writeTextFile(t, productPath, "before review prepare\n")
+	declareReviewAcceptImplementationPaths(t, featureDir, "src/product.txt")
 	handoffPath := filepath.Join(featureDir, implementationHandoffFilename)
 	handoff := reviewAcceptHandoffFixture(projectRoot, featureDir, 4)
 	handoff["fingerprint_algorithm"] = "git-working-tree-v1"
@@ -651,6 +652,7 @@ func TestReviewFingerprintTracksProductButIgnoresReviewEvidence(t *testing.T) {
 	projectRoot, featureDir, _ := newReviewAcceptWorkflowFeature(t, "105-review-fingerprint")
 	mustMkdir(t, filepath.Join(projectRoot, "src"))
 	writeTextFile(t, filepath.Join(projectRoot, "src", "product.txt"), "before\n")
+	declareReviewAcceptImplementationPaths(t, featureDir, "src/product.txt")
 	before := sourceTreeFingerprint(projectRoot, featureDir)
 
 	mustMkdir(t, filepath.Join(featureDir, "review-evidence"))

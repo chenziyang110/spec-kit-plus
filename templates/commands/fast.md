@@ -2,8 +2,8 @@
 description: Use when the requested change is truly trivial, local, low risk, and can be completed without entering the full specify-plan workflow.
 workflow_contract:
   when_to_use: The work is genuinely local and low-risk enough to stay on the fast path.
-  primary_objective: Complete the smallest safe low-risk change directly and run the smallest meaningful verification without opening the full planning workflow.
-  primary_outputs: A tightly scoped direct change plus a concise report of what changed, what was verified, and any remaining risk.
+  primary_objective: Consume relevant Learning and Project Cognition, complete the smallest safe low-risk change leader-direct, then run targeted verification and a lightweight review without opening the full planning workflow.
+  primary_outputs: A tightly scoped direct change plus a concise report of what changed, what was verified and reviewed, and any remaining risk.
   default_handoff: Upgrade immediately to /sp-quick if scope, coupling, or uncertainty expands.
 ---
 
@@ -11,6 +11,22 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 {{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
+
+## Project Learning Intake
+
+Fast uses consume-only Learning. Run Learning intake before Project Cognition:
+
+```text
+{{specify-subcmd:specify-runtime learning start --command fast --format json}}
+```
+
+Use `learning list` only to filter or page compact summaries, and execute one
+matching card's `show_argv` only when its triggers match the task. Do not parse
+Learning storage. Do not capture or promote Learning from `sp-fast`; preserve a
+reusable signal in the closeout report so a workflow with an allowed durable
+Learning write surface can handle it later.
+
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
@@ -86,19 +102,18 @@ Upgrade to `/sp-quick` immediately if:
 
 Do not bypass `/sp-quick` and require `/sp-specify` because work is large or consequential. `/sp-specify` is a separate formal specification path selected explicitly by the user.
 
-## Passive Project Learning Layer
-
-Fast path does not load the full passive learning layer.
-
-**This command tier: trivial.** Do not run Learning intake, hooks, capture, or promotion and do not parse Learning storage. If reusable friction appears, upgrade out of fast before consuming or producing Learning.
-
 ## Process
 
 1. **Scope gate**
    - Confirm the task fits the fast-path constraints above.
    - If not, stop and redirect to the right workflow instead of forcing the task through `sp-fast`.
 
-2. **Pass the project cognition gate**
+2. **Consume Project Learning**
+   - Run the consume-only Learning intake above before Project Cognition or broad repository reads.
+   - Expand only task-relevant cards through their returned `show_argv` and verify them against live repository evidence.
+   - Do not capture, review, or promote Learning from this lightweight workflow.
+
+3. **Pass the project cognition gate**
    - **Project cognition gate:** query the active project's runtime before broad
      repository reads.
 
@@ -123,7 +138,7 @@ Fast path does not load the full passive learning layer.
        and verification route into the fast-task state or report.
    - Only after the cognition gate passes may you read the source files to change.
 
-3. **Execute the fast lane**
+4. **Execute the fast lane**
    - Perform the fast-path change directly.
    - Keep the allowed write scope local and explicit.
    - Before reading any non-obvious path, confirm the resolved path stays inside the repository and is not a credential, secret, private key, or other sensitive file. If path safety is uncertain, stop and ask for a safer explicit path instead of probing broadly.
@@ -136,14 +151,22 @@ Fast path does not load the full passive learning layer.
    - If the Senior Consequence Analysis Gate stands down, record the stand-down reason before continuing in `sp-fast`.
    - Do not add planning artifacts to satisfy this gate on the fast path. If required consequence outputs are needed, upgrade instead of manufacturing durable artifacts in `sp-fast`.
 
-4. **Verify**
+5. **Verify**
    - If playbook command tiers exist, focused is the fast-lane acceptance check.
    - Otherwise run the smallest meaningful local verification for the change.
    - Prefer targeted existing tests or a direct sanity check over broad workflows.
 
-5. **Report**
+6. **Lightweight Review**
+   - The same leader performs one inline Lightweight Review; use no review subagent and no worker packet.
+   - Review the complete changed diff and confirm every edit stays inside the declared write scope, preserves unrelated work, and satisfies the requested acceptance.
+   - Check the changed behavior surfaces for an obvious regression, missed consumer, security or consequence issue, and confirm the recorded verification actually exercises the change.
+   - Repair any in-scope defect, then rerun the affected targeted verification and review the resulting diff once more. If repair expands scope or needs independent lanes, stop and route to `/sp-quick`.
+   - This Lightweight Review does not claim the independent system Review contract owned by `sp-review`; Fast produces only bounded self-review and targeted verification evidence.
+
+7. **Report**
    - Summarize what changed, what was verified, and any remaining risk.
    - [AGENT] Keep the fast-path closeout truthful: report the exact verification you ran and any residual risk instead of implying broader validation.
+   - Clean closeout keys on `result_state`; not `status=ok`, `update_id`, `last_update_id`, or freshness alone. Do not present `status=ok` alone as proof of cognition freshness or mutation closeout.
    - Include `changed_code_paths` with modified, added, deleted, and renamed paths.
    - Include `changed_behavior_surfaces` for commands, APIs, templates, generated assets, state files, tests, docs, validators, packets, or runtime assumptions affected by the change.
    - Include `verification_evidence` with the exact checks run and the result.
@@ -151,14 +174,14 @@ Fast path does not load the full passive learning layer.
 
 ## Output Contract
 
-- Keep the outcome to one tightly scoped change set plus the minimum truthful verification evidence.
-- Report what changed, which code paths were modified/added/deleted/renamed, which behavior surfaces moved, how it was verified, what residual risk remains, and the `project_cognition_refresh` outcome when the cognition runtime was affected.
+- Keep the outcome to one tightly scoped change set plus the minimum truthful verification and Lightweight Review evidence.
+- Report what changed, which code paths were modified/added/deleted/renamed, which behavior surfaces moved, how it was verified and reviewed, what residual risk remains, and the `project_cognition_refresh` outcome when the cognition runtime was affected.
 
 ## Guardrails
 
 - No spec.md creation.
 - No plan.md creation.
 - No tasks.md creation.
-- Use leader-direct execution only; if subagent lanes are needed, route to `/sp-quick`.
+- Use leader-direct execution only; create no worker packet and use no implementation or review subagent. If subagent lanes are needed, route to `/sp-quick`.
 - Do not add planning artifacts just to satisfy process formality.
 - If the task grows while working, stop and redirect to `/sp-quick`.

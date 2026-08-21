@@ -17,8 +17,38 @@ Resolve `style_authority` before choosing a style reference. The optional
 deterministic helper is:
 
 ```text
-python <pack-dir>/route.py --query "<normalized user intent and constraints>" --style-authority <greenfield|inherit-existing|page-overhaul-authorized>
+python <pack-dir>/route.py --query "<normalized user intent and constraints>" --style-authority <greenfield|inherit-existing|page-overhaul-authorized> --project-root <project-root>
 ```
+
+For Web work, pass the actual project root. The helper reads only catalog-listed
+local manifests and paths; it does not traverse arbitrary source, use the
+network, install dependencies, or mutate the project.
+
+## Mature Web UI Resources
+
+For Web UI work, read `mature_web_ui_resources` from `catalog.json` as a compact
+resource index for frameworks, component libraries, headless primitives, design
+systems, specialist libraries, and agent-specific material. Then read
+`web-component-selection.md`; prefer mature components before inventing base
+interactions. Dialogs, menus, selects, comboboxes, tabs, tables, forms, toasts,
+tooltips, sliders, drawers, command palettes, and accessible focus behavior
+should normally come from the current project library or a deliberately
+selected mature resource.
+
+Carry `mature_web_ui_resource_ids` in `professional_skill_route` when the route
+touches Web, React, Vue, Tailwind, component libraries, or reusable UI systems.
+Also persist the compact `web_ui_asset_inventory`, explainable
+`mature_web_ui_selection`, and applicable `smoothness_acceptance_ids`. An
+unscanned inventory makes the selection provisional; do not turn a provisional
+candidate into an installation or migration decision.
+Use the catalog entries as source pointers and guardrails, not as permission to
+install dependencies, switch libraries, copy protected templates, or override
+the live product style authority. In existing products, first reuse inspected
+local tokens and components; only propose a new library when the gap is real,
+scoped, and compatible with the current stack. Keep the shortlist sparse: one
+primary component system, an optional compatible headless layer, and only the
+specialist libraries justified by exact capabilities. Load Agent Skills, MCP,
+`llms.txt`, or Markdown docs only for a selected candidate.
 
 ## Style authority gate
 
@@ -76,12 +106,34 @@ professional_skill_route:
   matched_signals: {}
   loaded_refs: []
   unresolved_candidates: []
+  mature_web_ui_resource_ids: []
+  web_ui_asset_inventory:
+    status: not-scanned
+    manifest_refs: []
+    lockfile_refs: []
+    framework_ids: []
+    installed_resources: []
+    component_roots: []
+    token_refs: []
+    theme_refs: []
+    surface_refs: []
+  mature_web_ui_selection:
+    status: not-applicable
+    primary_resource_id: null
+    supporting_resource_ids: []
+    agent_resource_ids: []
+    candidates: []
+    confirmation_codes: []
+  smoothness_acceptance_ids: []
 ```
 
 `matched_signals` records concise user/reference/platform evidence, not hidden
 reasoning. `loaded_refs` must equal the exact selected references. Keep
 `status: question-required` and list only the conflicting IDs in
 `unresolved_candidates` while a routing question is unanswered.
+Candidate `reason_codes` are stable evidence labels, not prose reasoning. Carry
+the selected smoothness IDs into existing interaction, motion, and
+`usability_validation` rows; they do not introduce a new evidence kind.
 
 ## Medium-specific use
 

@@ -41,11 +41,528 @@ def _rank(
     return ranked
 
 
+def _empty_asset_inventory(status: str) -> dict[str, Any]:
+    return {
+        "status": status,
+        "manifest_refs": [],
+        "lockfile_refs": [],
+        "framework_ids": [],
+        "installed_resources": [],
+        "component_roots": [],
+        "token_refs": [],
+        "theme_refs": [],
+        "surface_refs": [],
+    }
+
+
+def _existing_refs(project_root: Path, candidates: Any) -> list[str]:
+    if not isinstance(candidates, list):
+        return []
+    refs: list[str] = []
+    for candidate in candidates:
+        if not isinstance(candidate, str) or not candidate.strip():
+            continue
+        candidate_path = Path(candidate)
+        if candidate_path.is_absolute():
+            continue
+        try:
+            resolved = (project_root / candidate_path).resolve()
+            relative = resolved.relative_to(project_root)
+        except (OSError, RuntimeError, ValueError):
+            # Catalog overrides are inputs too. Never let an asset marker
+            # escape the explicitly selected project root, including through
+            # `..` segments or symlinks.
+            continue
+        ref = relative.as_posix()
+        if resolved.exists() and ref not in refs:
+            refs.append(ref)
+    return refs
+
+
+def _most_specific_refs(refs: list[str]) -> list[str]:
+    return [
+        ref
+        for ref in refs
+        if not any(
+            other != ref and Path(other).is_relative_to(Path(ref))
+            for other in refs
+        )
+    ]
+
+
+def _dependency_version(
+    dependencies: dict[str, str], markers: Any
+) -> str | None:
+    if not isinstance(markers, list):
+        return None
+    dependency_names = sorted(dependencies)
+    for marker in markers:
+        if not isinstance(marker, str) or not marker:
+            continue
+        if marker.endswith("/"):
+            matches = [name for name in dependency_names if name.startswith(marker)]
+            if matches:
+                return dependencies[matches[0]]
+        elif marker in dependencies:
+            return dependencies[marker]
+    return None
+
+
+def scan_web_ui_assets(
+    project_root: Path | None, catalog: dict[str, Any]
+) -> dict[str, Any]:
+    if project_root is None:
+        return _empty_asset_inventory("not-scanned")
+    try:
+        root = project_root.resolve()
+    except OSError:
+        return _empty_asset_inventory("unavailable")
+    if not root.is_dir():
+        return _empty_asset_inventory("unavailable")
+
+    routing = catalog.get("mature_web_ui_routing", {})
+    scan = routing.get("asset_scan", {}) if isinstance(routing, dict) else {}
+    inventory = _empty_asset_inventory("scanned")
+    inventory["manifest_refs"] = _existing_refs(root, scan.get("manifest_files"))
+    inventory["lockfile_refs"] = _existing_refs(root, scan.get("lockfile_files"))
+    inventory["component_roots"] = _most_specific_refs(
+        _existing_refs(root, scan.get("component_roots"))
+    )
+    inventory["token_refs"] = _existing_refs(root, scan.get("token_files"))
+    inventory["theme_refs"] = _existing_refs(root, scan.get("theme_files"))
+    inventory["surface_refs"] = _existing_refs(root, scan.get("surface_files"))
+
+    dependencies: dict[str, str] = {}
+    for manifest_ref in inventory["manifest_refs"]:
+        try:
+            manifest = json.loads((root / manifest_ref).read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            inventory["status"] = "partial"
+            continue
+        if not isinstance(manifest, dict):
+            inventory["status"] = "partial"
+            continue
+        for group in (
+            "dependencies",
+            "devDependencies",
+            "peerDependencies",
+            "optionalDependencies",
+        ):
+            raw_dependencies = manifest.get(group, {})
+            if not isinstance(raw_dependencies, dict):
+                continue
+            for name, version in raw_dependencies.items():
+                if isinstance(name, str) and isinstance(version, str):
+                    dependencies.setdefault(name, version)
+
+    framework_markers = routing.get("framework_package_markers", {})
+    if isinstance(framework_markers, dict):
+        inventory["framework_ids"] = [
+            framework
+            for framework, markers in framework_markers.items()
+            if isinstance(framework, str)
+            and _dependency_version(dependencies, markers) is not None
+        ]
+
+    package_markers = routing.get("resource_package_markers", {})
+    file_markers = routing.get("resource_file_markers", {})
+    package_markers = package_markers if isinstance(package_markers, dict) else {}
+    file_markers = file_markers if isinstance(file_markers, dict) else {}
+    installed_resources: list[dict[str, str]] = []
+    for resource in catalog.get("mature_web_ui_resources", []):
+        if not isinstance(resource, dict) or resource.get("category") == "agent-resource":
+            continue
+        resource_id = resource.get("id")
+        if not isinstance(resource_id, str):
+            continue
+        version = _dependency_version(dependencies, package_markers.get(resource_id))
+        if version is None and _existing_refs(root, file_markers.get(resource_id)):
+            version = "local-source"
+        if version is not None:
+            installed_resources.append(
+                {"resource_id": resource_id, "version": version}
+            )
+    inventory["installed_resources"] = installed_resources
+    return inventory
+
+
+def _web_ui_signals(
+    catalog: dict[str, Any],
+    query: str,
+    inventory: dict[str, Any] | None = None,
+) -> tuple[bool, set[str], set[str]]:
+    routing = catalog.get("mature_web_ui_routing", {})
+    if not isinstance(routing, dict):
+        return False, set(), set()
+    framework_signals = routing.get("framework_signals", {})
+    framework_signals = framework_signals if isinstance(framework_signals, dict) else {}
+    matched_frameworks = {
+        framework
+        for framework, signals in framework_signals.items()
+        if isinstance(framework, str)
+        and isinstance(signals, list)
+        and any(
+            isinstance(signal, str) and _normalized(signal) in query
+            for signal in signals
+        )
+    }
+    if isinstance(inventory, dict):
+        matched_frameworks.update(
+            framework
+            for framework in inventory.get("framework_ids", [])
+            if isinstance(framework, str) and framework in framework_signals
+        )
+    activation_signals = routing.get("activation_signals", [])
+    has_explicit_web_signal = isinstance(activation_signals, list) and any(
+        isinstance(signal, str) and _normalized(signal) in query
+        for signal in activation_signals
+    )
+    non_web_platform_signals = routing.get("non_web_platform_signals", [])
+    has_non_web_platform_signal = isinstance(non_web_platform_signals, list) and any(
+        isinstance(signal, str) and _normalized(signal) in query
+        for signal in non_web_platform_signals
+    )
+    is_web_ui = bool(matched_frameworks) or has_explicit_web_signal
+    if has_non_web_platform_signal and not has_explicit_web_signal:
+        is_web_ui = False
+
+    capability_signals = routing.get("capability_signals", {})
+    capability_signals = capability_signals if isinstance(capability_signals, dict) else {}
+    matched_capabilities = {
+        capability
+        for capability, signals in capability_signals.items()
+        if isinstance(capability, str)
+        and isinstance(signals, list)
+        and any(
+            isinstance(signal, str) and _normalized(signal) in query
+            for signal in signals
+        )
+    }
+    return is_web_ui, matched_frameworks, matched_capabilities
+
+
+def _resource_matches_ecosystem(
+    resource: dict[str, Any],
+    matched_frameworks: set[str],
+    default_resource_ids: set[str],
+) -> bool:
+    ecosystems = set(resource.get("ecosystems", []))
+    if matched_frameworks:
+        return bool(ecosystems.intersection(matched_frameworks)) or (
+            "framework-agnostic" in ecosystems
+        )
+    if "general" not in resource.get("capabilities", []):
+        return "framework-agnostic" in ecosystems
+    return resource.get("id") in default_resource_ids
+
+
+def _mature_web_ui_resource_ids(
+    catalog: dict[str, Any],
+    query: str,
+    inventory: dict[str, Any] | None = None,
+) -> list[str]:
+    routing = catalog.get("mature_web_ui_routing", {})
+    resources = catalog.get("mature_web_ui_resources", [])
+    if not isinstance(routing, dict) or not isinstance(resources, list):
+        return []
+    is_web_ui, matched_frameworks, matched_capabilities = _web_ui_signals(
+        catalog, query, inventory
+    )
+    if not is_web_ui:
+        return []
+
+    by_id = {
+        resource["id"]: resource
+        for resource in resources
+        if isinstance(resource, dict) and isinstance(resource.get("id"), str)
+    }
+    primary_limit = int(routing.get("primary_limit", 8))
+    agent_limit = int(routing.get("agent_limit", 4))
+    shortlist_limit = int(routing.get("shortlist_limit", 16))
+    default_resource_ids = set(routing.get("default_resource_ids", []))
+
+    primary_ids: list[str] = []
+    for resource in resources:
+        if not isinstance(resource, dict) or resource.get("category") == "agent-resource":
+            continue
+        if "general" not in resource.get("capabilities", []):
+            continue
+        if _resource_matches_ecosystem(
+            resource, matched_frameworks, default_resource_ids
+        ):
+            primary_ids.append(resource["id"])
+        if len(primary_ids) >= primary_limit:
+            break
+
+    specialist_ids: list[str] = []
+    for resource in resources:
+        if not isinstance(resource, dict) or resource.get("category") == "agent-resource":
+            continue
+        capabilities = set(resource.get("capabilities", []))
+        if "general" in capabilities or not capabilities.intersection(matched_capabilities):
+            continue
+        if (
+            _resource_matches_ecosystem(
+                resource, matched_frameworks, default_resource_ids
+            )
+            and resource["id"] not in primary_ids
+        ):
+            specialist_ids.append(resource["id"])
+
+    agent_ids: list[str] = []
+    for resource_id in [*primary_ids, *specialist_ids]:
+        for agent_id in by_id.get(resource_id, {}).get("agent_resource_ids", []):
+            if agent_id in by_id and agent_id not in agent_ids:
+                agent_ids.append(agent_id)
+            if len(agent_ids) >= agent_limit:
+                break
+        if len(agent_ids) >= agent_limit:
+            break
+
+    shortlist: list[str] = []
+    for resource_id in [*primary_ids, *specialist_ids, *agent_ids]:
+        if resource_id not in shortlist:
+            shortlist.append(resource_id)
+    return shortlist[:shortlist_limit]
+
+
+def _resource_score(
+    resource: dict[str, Any],
+    *,
+    matched_frameworks: set[str],
+    matched_capabilities: set[str],
+    installed_resource_ids: set[str],
+    routing: dict[str, Any],
+) -> tuple[int, list[str]]:
+    scoring = routing.get("selection_scoring", {})
+    scoring = scoring if isinstance(scoring, dict) else {}
+    maturity_scores = scoring.get("maturity", {})
+    maturity_scores = maturity_scores if isinstance(maturity_scores, dict) else {}
+    resource_id = str(resource.get("id") or "")
+    ecosystems = set(resource.get("ecosystems", []))
+    capabilities = set(resource.get("capabilities", []))
+    score = 0
+    reason_codes: list[str] = []
+
+    if resource_id in installed_resource_ids:
+        score += int(scoring.get("installed", 0))
+        reason_codes.append("installed")
+    ecosystem_matches = sorted(ecosystems.intersection(matched_frameworks))
+    if ecosystem_matches:
+        score += int(scoring.get("ecosystem", 0))
+        reason_codes.append(f"ecosystem:{ecosystem_matches[0]}")
+    elif "framework-agnostic" in ecosystems:
+        score += int(scoring.get("framework_agnostic", 0))
+        reason_codes.append("ecosystem:framework-agnostic")
+
+    capability_matches = [
+        capability
+        for capability in routing.get("capability_signals", {})
+        if capability in capabilities and capability in matched_capabilities
+    ]
+    if capability_matches:
+        score += int(scoring.get("capability", 0)) * len(capability_matches)
+        reason_codes.extend(
+            f"capability:{capability}" for capability in capability_matches
+        )
+    if "general" in capabilities:
+        score += int(scoring.get("general", 0))
+        reason_codes.append("capability:general")
+    maturity = str(resource.get("maturity") or "")
+    score += int(maturity_scores.get(maturity, 0))
+    if maturity:
+        reason_codes.append(f"maturity:{maturity}")
+    if resource.get("agent_resource_ids"):
+        score += int(scoring.get("official_agent_material", 0))
+        reason_codes.append("official-agent-material")
+    if resource_id in set(routing.get("default_resource_ids", [])):
+        score += int(scoring.get("default_resource", 0))
+        reason_codes.append("default-resource")
+    return score, reason_codes[:6]
+
+
+def _select_mature_web_ui_resources(
+    catalog: dict[str, Any],
+    *,
+    is_web_ui: bool,
+    matched_frameworks: set[str],
+    matched_capabilities: set[str],
+    inventory: dict[str, Any],
+) -> dict[str, Any]:
+    if not is_web_ui:
+        return {
+            "status": "not-applicable",
+            "primary_resource_id": None,
+            "supporting_resource_ids": [],
+            "agent_resource_ids": [],
+            "candidates": [],
+            "confirmation_codes": [],
+        }
+    routing = catalog.get("mature_web_ui_routing", {})
+    resources = catalog.get("mature_web_ui_resources", [])
+    if not isinstance(routing, dict) or not isinstance(resources, list):
+        return {
+            "status": "unresolved",
+            "primary_resource_id": None,
+            "supporting_resource_ids": [],
+            "agent_resource_ids": [],
+            "candidates": [],
+            "confirmation_codes": ["catalog-unavailable"],
+        }
+
+    installed_resource_ids = {
+        item.get("resource_id")
+        for item in inventory.get("installed_resources", [])
+        if isinstance(item, dict) and isinstance(item.get("resource_id"), str)
+    }
+    defaults = set(routing.get("default_resource_ids", []))
+    ranked: list[tuple[int, int, dict[str, Any], list[str]]] = []
+    for index, resource in enumerate(resources):
+        if not isinstance(resource, dict) or resource.get("category") == "agent-resource":
+            continue
+        if not _resource_matches_ecosystem(resource, matched_frameworks, defaults):
+            continue
+        score, reasons = _resource_score(
+            resource,
+            matched_frameworks=matched_frameworks,
+            matched_capabilities=matched_capabilities,
+            installed_resource_ids=installed_resource_ids,
+            routing=routing,
+        )
+        ranked.append((score, -index, resource, reasons))
+    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+
+    primary_ranked = [
+        item
+        for item in ranked
+        if item[2].get("category") in {"component-library", "design-system"}
+        and "general" in item[2].get("capabilities", [])
+    ]
+    primary = primary_ranked[0] if primary_ranked else None
+    primary_id = primary[2]["id"] if primary else None
+
+    supporting: list[tuple[int, int, dict[str, Any], list[str]]] = []
+    headless_selected = False
+    capability_order = [
+        capability
+        for capability in routing.get("capability_signals", {})
+        if capability in matched_capabilities
+    ]
+    for capability in capability_order:
+        candidates = []
+        for item in ranked:
+            resource = item[2]
+            capabilities = set(resource.get("capabilities", []))
+            if resource.get("id") == primary_id or capability not in capabilities:
+                continue
+            is_headless = resource.get("category") == "headless-primitive"
+            is_specialist = "general" not in capabilities
+            if not is_headless and not is_specialist:
+                continue
+            if is_headless and headless_selected:
+                continue
+            candidates.append(item)
+        if not candidates:
+            continue
+        selected = candidates[0]
+        if selected not in supporting:
+            supporting.append(selected)
+            if selected[2].get("category") == "headless-primitive":
+                headless_selected = True
+        if len(supporting) >= 3:
+            break
+
+    selected_items = ([primary] if primary is not None else []) + supporting
+    candidates_payload = [
+        {
+            "resource_id": item[2]["id"],
+            "role": (
+                "primary"
+                if item is primary
+                else (
+                    "headless"
+                    if item[2].get("category") == "headless-primitive"
+                    else "specialist"
+                )
+            ),
+            "score": item[0],
+            "reason_codes": item[3],
+        }
+        for item in selected_items
+    ]
+    agent_resource_ids: list[str] = []
+    for item in selected_items:
+        for agent_id in item[2].get("agent_resource_ids", []):
+            if isinstance(agent_id, str) and agent_id not in agent_resource_ids:
+                agent_resource_ids.append(agent_id)
+    agent_resource_ids = agent_resource_ids[: int(routing.get("agent_limit", 4))]
+
+    confirmation_codes: list[str] = []
+    inventory_status = inventory.get("status")
+    if inventory_status == "not-scanned":
+        confirmation_codes.append("asset-inventory-not-scanned")
+    elif inventory_status != "scanned":
+        confirmation_codes.append("asset-inventory-incomplete")
+    installed_primary_ids = [
+        item[2]["id"]
+        for item in primary_ranked
+        if item[2]["id"] in installed_resource_ids
+    ]
+    if len(installed_primary_ids) > 1:
+        confirmation_codes.append("multiple-installed-primary-systems")
+    if (
+        inventory_status == "scanned"
+        and inventory.get("component_roots")
+        and not installed_resource_ids
+    ):
+        confirmation_codes.append("live-components-unmapped")
+    if primary is None:
+        confirmation_codes.append("no-compatible-primary-system")
+
+    if primary is None:
+        status = "unresolved"
+    elif inventory_status == "scanned" and not confirmation_codes:
+        status = "resolved"
+    else:
+        status = "provisional"
+    return {
+        "status": status,
+        "primary_resource_id": primary_id,
+        "supporting_resource_ids": [item[2]["id"] for item in supporting],
+        "agent_resource_ids": agent_resource_ids,
+        "candidates": candidates_payload,
+        "confirmation_codes": confirmation_codes,
+    }
+
+
+def _smoothness_acceptance_ids(
+    catalog: dict[str, Any],
+    *,
+    is_web_ui: bool,
+    matched_capabilities: set[str],
+) -> list[str]:
+    if not is_web_ui:
+        return []
+    routing = catalog.get("mature_web_ui_routing", {})
+    checks = routing.get("smoothness_acceptance_checks", []) if isinstance(routing, dict) else []
+    accepted: list[str] = []
+    for check in checks:
+        if not isinstance(check, dict) or not isinstance(check.get("id"), str):
+            continue
+        capabilities = check.get("capabilities", [])
+        if not isinstance(capabilities, list):
+            continue
+        if not capabilities or set(capabilities).intersection(matched_capabilities):
+            accepted.append(check["id"])
+    return accepted
+
+
 def route(
     catalog: dict[str, Any],
     raw_query: str,
     *,
     style_authority: str = "greenfield",
+    project_root: Path | None = None,
 ) -> dict[str, Any]:
     query = _normalized(raw_query)
     skills = catalog["skills"]
@@ -120,6 +637,25 @@ def route(
         selected_ids.append(style_id)
     selected_ids.extend(specialist_ids)
     load_refs = [by_id[skill_id]["ref"] for skill_id in selected_ids]
+    asset_inventory = scan_web_ui_assets(project_root, catalog)
+    is_web_ui, web_frameworks, web_capabilities = _web_ui_signals(
+        catalog, query, asset_inventory
+    )
+    mature_resource_ids = _mature_web_ui_resource_ids(
+        catalog, query, asset_inventory
+    )
+    mature_selection = _select_mature_web_ui_resources(
+        catalog,
+        is_web_ui=is_web_ui,
+        matched_frameworks=web_frameworks,
+        matched_capabilities=web_capabilities,
+        inventory=asset_inventory,
+    )
+    smoothness_ids = _smoothness_acceptance_ids(
+        catalog,
+        is_web_ui=is_web_ui,
+        matched_capabilities=web_capabilities,
+    )
 
     question = None
     if ambiguities:
@@ -148,6 +684,10 @@ def route(
         "matched_signals": matched_signals,
         "loaded_refs": load_refs,
         "unresolved_candidates": unresolved_candidates,
+        "mature_web_ui_resource_ids": mature_resource_ids,
+        "web_ui_asset_inventory": asset_inventory,
+        "mature_web_ui_selection": mature_selection,
+        "smoothness_acceptance_ids": smoothness_ids,
     }
 
     return {
@@ -163,6 +703,10 @@ def route(
         "question_required": question_required,
         "question": question,
         "load_refs": load_refs,
+        "mature_web_ui_resource_ids": mature_resource_ids,
+        "web_ui_asset_inventory": asset_inventory,
+        "mature_web_ui_selection": mature_selection,
+        "smoothness_acceptance_ids": smoothness_ids,
         "professional_skill_route": professional_skill_route,
     }
 
@@ -183,11 +727,21 @@ def main() -> None:
         type=Path,
         default=Path(__file__).with_name("catalog.json"),
     )
+    parser.add_argument(
+        "--project-root",
+        type=Path,
+        help="Read only known local UI manifests and paths for asset-aware selection.",
+    )
     args = parser.parse_args()
     catalog = json.loads(args.catalog.read_text(encoding="utf-8"))
     print(
         json.dumps(
-            route(catalog, args.query, style_authority=args.style_authority),
+            route(
+                catalog,
+                args.query,
+                style_authority=args.style_authority,
+                project_root=args.project_root,
+            ),
             ensure_ascii=False,
             separators=(",", ":"),
         )

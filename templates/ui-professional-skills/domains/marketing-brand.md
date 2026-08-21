@@ -37,4 +37,3 @@ This domain covers landing pages, brand pages, campaign pages, hero-led experien
 - Verify that the CTA, proof, and narrative order are easy to scan.
 - Reject layouts that look like a generic SaaS template or a card dump.
 - Escalate to the forms, motion, design-system, or accessibility specialists when those concerns dominate the brief.
-

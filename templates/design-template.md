@@ -35,6 +35,25 @@ design_system:
     matched_signals: {}
     loaded_refs: []
     unresolved_candidates: []
+    mature_web_ui_resource_ids: []
+    web_ui_asset_inventory:
+      status: not-scanned
+      manifest_refs: []
+      lockfile_refs: []
+      framework_ids: []
+      installed_resources: []
+      component_roots: []
+      token_refs: []
+      theme_refs: []
+      surface_refs: []
+    mature_web_ui_selection:
+      status: not-applicable
+      primary_resource_id: null
+      supporting_resource_ids: []
+      agent_resource_ids: []
+      candidates: []
+      confirmation_codes: []
+    smoothness_acceptance_ids: []
   style_authority:
     mode: unresolved
     scope_level: null
@@ -159,6 +178,12 @@ claims need source or source_gap.
 
 ## Component Rules
 
+- For Web UI, prefer inspected live components, then one compatible mature
+  primary system plus only exact headless/specialist gaps from
+  `mature_web_ui_resource_ids`; custom primitives require a recorded gap.
+- Final Web selection requires a scanned `web_ui_asset_inventory`; retain the
+  selected candidate, compact reason codes, and confirmation codes from
+  `mature_web_ui_selection`.
 - Buttons must have default, hover, focus, disabled, and loading states.
 - Inputs must have default, hover, focus, disabled, and error states.
 - Record mouse/pointer, keyboard/focus, touch, and shortcut behavior for each
@@ -221,7 +246,8 @@ empty/loading/error/permission/destructive/confirmation/undo/privacy states,
 RTL, localization, truncation, and locale-aware date/number/time-zone output.
 `usability_validation` is risk based: low-risk work may use cognitive or
 heuristic review; medium/high-risk work names target users, critical tasks,
-success criteria, and human review. Use risk-based or pairwise coverage, never
+success criteria, human review, and applicable `smoothness_acceptance_ids`.
+Use risk-based or pairwise coverage, never
 an unbounded Cartesian product; automated tests and screenshots do not prove
 target-user usability.
 

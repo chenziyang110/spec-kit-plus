@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
 func TestQuickItemStartBlockedByUnmetDepsAndPacketCompile(t *testing.T) {
@@ -28,6 +30,13 @@ x
 ## Execution
 
 y
+
+## Summary Pointer
+
+changed_code_paths: []
+project_cognition_refresh:
+  status: not-needed
+  evidence: []
 `)
 
 	payload := map[string]any{
@@ -202,6 +211,7 @@ y
 		"--project-root", root,
 		"cognition-closeout", "260805-010",
 		"--result-state", "ready",
+		"--update-id", "U-001",
 		"--reason", "inline update completed in test",
 		"--evidence-json", `["go test ./..."]`,
 	})
@@ -210,6 +220,25 @@ y
 	}
 	if _, err := os.Stat(filepath.Join(workspace, "cognition-closeout.json")); err != nil {
 		t.Fatalf("receipt missing: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.GraphReady = true
+	status.LastUpdateID = "U-001"
+	status.LastFinalizedUpdateID = "U-001"
+	status.LastUpdateOutcome = "ready"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
 	}
 
 	env = runScriptDomainEnvelope(t, runQuick, []string{

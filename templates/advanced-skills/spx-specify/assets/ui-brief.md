@@ -31,7 +31,7 @@
 - navigation_matrix: [{id:, surface:, entry:, destination:, trigger:, back_behavior:, deep_link_behavior:, interruption_recovery:, decision_ids:[]}]
 - content_matrix: [{id:, surface:, state:, purpose:, copy:, primary_action:, trust_requirement:, localization:, content_limits:[], decision_ids:[]}]
 - motion_contract: {purpose:, transitions:[{id:, surface:, trigger:, response:, duration_ms:, easing:, interrupt_behavior:, decision_ids:[]}], reduced_motion:, feedback_timing:{immediate_ms:, progress_ms:, timeout_ms:}}
-- usability_validation: {risk_level: low | medium | high, methods:[], critical_tasks:[], success_criteria:[], human_review_required:}
+- usability_validation: {risk_level: low | medium | high, methods:[], critical_tasks:[], success_criteria:[], human_review_required:, smoothness_acceptance_ids:[]}
 - required_viewports: []
 - subject:
 - audience:

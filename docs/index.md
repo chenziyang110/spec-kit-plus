@@ -14,6 +14,8 @@ Spec-Driven Development **flips the script** on traditional software development
 - [Quick Start Guide](quickstart.md)
 - [Upgrade Guide](upgrade.md)
 - [Local Development](local-development.md)
+- [Constitution Profiles](constitution-profiles.md)
+- [Project Cognition Compatibility Inventory](project-cognition-compatibility-inventory.md)
 
 ## Core Philosophy
 
@@ -60,8 +62,8 @@ Our research and experimentation focus on:
 
 ## Contributing
 
-Please see our [Contributing Guide](https://github.com/chenziyang110/spec-kit-plus/blob/main/CONTRIBUTING.md) for information on how to contribute to this project.
+See [Local Development](local-development.md) for contributor setup and verification guidance.
 
 ## Support
 
-For support, please check our [Support Guide](https://github.com/chenziyang110/spec-kit-plus/blob/main/SUPPORT.md) or open an issue on GitHub.
+For support, open an issue in the [Spec Kit Plus repository](https://github.com/chenziyang110/spec-kit-plus/issues).

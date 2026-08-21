@@ -463,13 +463,18 @@ def _snapshot_path_digests(
         ignore_spec = (
             pathspec.GitIgnoreSpec.from_lines(ignore_lines) if ignore_lines else None
         )
-        candidates = []
+        fallback_candidates: list[str] = []
         for path in sorted(root.rglob("*")):
             if not path.is_file() or ignored_tree_names.intersection(path.parts):
                 continue
             relative = path.relative_to(root).as_posix()
             if ignore_spec is not None and ignore_spec.match_file(relative):
                 continue
+            fallback_candidates.append(relative)
+        if not declared_paths:
+            fallback_roots = _expand_snapshot_fallback_roots(fallback_candidates)
+        candidates = []
+        for relative in fallback_candidates:
             if _snapshot_includes_path(
                 root,
                 feature,

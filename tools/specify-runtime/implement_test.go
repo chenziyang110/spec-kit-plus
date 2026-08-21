@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,6 +11,9 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
+
+	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
 func TestImplementValidationReservesFinishesAndReportsSharedBudget(t *testing.T) {
@@ -73,6 +77,7 @@ func TestImplementValidationRecordsInterruptionAndReusesGate(t *testing.T) {
 func TestImplementValidationExhaustedGateSlotsStillAllowDeliveryRetry(t *testing.T) {
 	project, feature, _ := newImplementFeatureProject(t)
 	writeTextFile(t, filepath.Join(project, "src", "demo.txt"), "before\n")
+	writeSnapshotLifecycle(t, feature, "T001", []string{"src/demo.txt"}, nil)
 	fingerprint := implementSnapshotSHA256(project, feature)
 	for _, gate := range []struct {
 		stage, purpose, status string
@@ -195,7 +200,7 @@ func TestImplementCloseoutRejectsPassedConvergenceForStaleFingerprint(t *testing
 		"summary":            "Implemented task",
 	})
 	writeImplementJSONFile(t, filepath.Join(feature, "implementation-review", "tasks", "T001.json"), map[string]any{
-		"version": 1, "task_id": "T001", "status": "accepted", "blockers": []any{},
+		"version": 1, "task_id": "T001", "status": "accepted", "blockers": []any{}, "changed_paths": []any{"src/product.txt"},
 	})
 	validatedFingerprint := implementSnapshotSHA256(project, feature)
 	started, err := reserveImplementValidationEpoch(project, feature, "implement", "convergence", validatedFingerprint, []string{"go test ./..."}, []string{"T001"})
@@ -350,7 +355,7 @@ func TestImplementCloseoutWritesSummaryAndHandoffWhenAuditIsTrusted(t *testing.T
 		"summary":            "Implemented task",
 	})
 	writeImplementJSONFile(t, filepath.Join(feature, "implementation-review", "tasks", "T001.json"), map[string]any{
-		"version": 1, "task_id": "T001", "status": "accepted", "blockers": []any{},
+		"version": 1, "task_id": "T001", "status": "accepted", "blockers": []any{}, "changed_paths": []any{"src/product.txt"},
 	})
 	var stdout bytes.Buffer
 	if exit := runImplement([]string{"validation-start", "--feature-dir", rel, "--stage", "implement", "--purpose", "convergence", "--command", "pytest -q", "--task-id", "T001"}, &stdout); exit != 0 {
@@ -404,7 +409,7 @@ func TestImplementCloseoutFreezesCanonicalReviewContractForPrepare(t *testing.T)
 		"summary":            "Implemented task",
 	})
 	writeImplementJSONFile(t, filepath.Join(feature, "implementation-review", "tasks", "T001.json"), map[string]any{
-		"version": 1, "task_id": "T001", "status": "accepted", "blockers": []any{},
+		"version": 1, "task_id": "T001", "status": "accepted", "blockers": []any{}, "changed_paths": []any{"src/product.txt"},
 	})
 	var stdout bytes.Buffer
 	if exit := runImplement([]string{"validation-start", "--feature-dir", rel, "--stage", "implement", "--purpose", "convergence", "--command", "pytest -q", "--task-id", "T001"}, &stdout); exit != 0 {
@@ -790,7 +795,7 @@ func TestImplementFrozenHandoffPreventsConvergenceRetryButAllowsDelivery(t *test
 		"summary":            "Implemented task",
 	})
 	writeImplementJSONFile(t, filepath.Join(feature, "implementation-review", "tasks", "T001.json"), map[string]any{
-		"version": 1, "task_id": "T001", "status": "accepted", "blockers": []any{},
+		"version": 1, "task_id": "T001", "status": "accepted", "blockers": []any{}, "changed_paths": []any{"src/product.txt"},
 	})
 	convergence, err := reserveImplementValidationEpoch(project, feature, "implement", "convergence", implementSnapshotSHA256(project, feature), []string{"pytest -q"}, []string{"T001"})
 	if err != nil {
@@ -843,7 +848,7 @@ func TestImplementFrozenHandoffDoesNotBlockReopenedImplementRevision(t *testing.
 		"summary":            "Implemented task",
 	})
 	writeImplementJSONFile(t, filepath.Join(feature, "implementation-review", "tasks", "T001.json"), map[string]any{
-		"version": 1, "task_id": "T001", "status": "accepted", "blockers": []any{},
+		"version": 1, "task_id": "T001", "status": "accepted", "blockers": []any{}, "changed_paths": []any{"src/product.txt"},
 	})
 	convergence, err := reserveImplementValidationEpoch(project, feature, "implement", "convergence", implementSnapshotSHA256(project, feature), []string{"pytest -q"}, []string{"T001"})
 	if err != nil {
@@ -911,13 +916,36 @@ func newImplementFeatureProject(t *testing.T) (string, string, string) {
 	writeTextFile(t, filepath.Join(feature, "tasks.md"), "# Tasks\n\n- [X] T001 [US1] Update implementation in src/demo.go\n")
 	writeTextFile(t, filepath.Join(feature, "implement-tracker.md"), "---\nstatus: resolved\nfeature: 001-budget\n---\n\n## Open Gaps\n\n")
 	mustMkdir(t, filepath.Join(feature, "worker-results"))
+	writeReadyProjectCognitionStatus(t, project, "U-001")
 	// Mutation workflows must leave a project-cognition receipt before closeout/complete-stage.
 	writeImplementJSONFile(t, filepath.Join(feature, "cognition-closeout.json"), map[string]any{
 		"version": 1, "workflow": "sp-implement", "result_state": "ready",
-		"reason": "test fixture inline update", "evidence": []any{"pytest -q"},
+		"update_id": "U-001",
+		"reason":    "test fixture inline update", "evidence": []any{"pytest -q"},
 		"recorded_at": "2026-08-06T00:00:00Z",
 	})
 	return project, feature, filepath.ToSlash(filepath.Join(".specify", "features", "001-budget"))
+}
+
+func writeReadyProjectCognitionStatus(t *testing.T, projectRoot, updateID string) {
+	t.Helper()
+	paths, err := rt.ResolvePaths(projectRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.Dirty = false
+	status.LastUpdateID = updateID
+	status.LastFinalizedUpdateID = updateID
+	status.LastUpdateOutcome = "ready"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func validImplementDeferralProposal() map[string]any {
@@ -1008,9 +1036,14 @@ func requireGit(t *testing.T) {
 
 func gitRun(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	cmd := exec.Command("git", args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		t.Fatalf("git %s timed out after 15s\n%s", strings.Join(args, " "), string(out))
+	}
 	if err != nil {
 		t.Fatalf("git %s failed: %v\n%s", strings.Join(args, " "), err, string(out))
 	}

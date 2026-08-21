@@ -215,6 +215,9 @@ func TestResultSubmitPreservesImmutableUIHandoffBinding(t *testing.T) {
 			"approved_handoff_ref":         ".specify/design/previews/round-01.handoff.json",
 			"approved_handoff_sha256":      strings.Repeat("a", 64),
 			"covered_handoff_contract_ids": []any{"DH-COMP-001", "DH-VA-001"},
+			"covered_smoothness_acceptance_ids": []any{
+				"focus-continuity", "pending-cancel-feedback",
+			},
 			"comparison_tolerance": map[string]any{
 				"structure":         "exact",
 				"geometry":          map[string]any{"unit": "px", "max_delta": 2},
@@ -243,6 +246,7 @@ func TestResultSubmitPreservesImmutableUIHandoffBinding(t *testing.T) {
 		t.Fatalf("human review ref was not preserved: %#v", verification)
 	}
 	requireStringArrayEqual(t, verification["covered_handoff_contract_ids"], []string{"DH-COMP-001", "DH-VA-001"})
+	requireStringArrayEqual(t, verification["covered_smoothness_acceptance_ids"], []string{"focus-continuity", "pending-cancel-feedback"})
 	tolerance := requireObjectValue(t, verification["comparison_tolerance"])
 	if tolerance["structure"] != "exact" || tolerance["platform_variance"] != "approved-deviation-only" {
 		t.Fatalf("structured comparison tolerance was not preserved: %#v", tolerance)
