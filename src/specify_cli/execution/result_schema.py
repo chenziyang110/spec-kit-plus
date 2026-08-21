@@ -33,6 +33,7 @@ class UIVerification:
     visual_comparison: str = "unavailable"
     fidelity_status: str = "not-applicable"
     reviewer: str = "agent"
+    human_review_ref: str = ""
     approved_visual_ref: str = ""
     approved_preview_sha256: str = ""
     approved_manifest_sha256: str = ""

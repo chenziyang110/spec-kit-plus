@@ -30,6 +30,10 @@ design_change:
     visual_refs: []
     preview_sha256: null
     manifest_sha256: null
+    visual_medium: null
+    prompt_ref: null
+    prompt_sha256: null
+    inspection_owner: null
     handoff_ref: null
     handoff_sha256: null
     decision_ids: []
@@ -40,6 +44,22 @@ design_change:
     subject: null
     audience: null
     single_job: null
+  professional_skill_route:
+    catalog_version: spec-kit-ui-professional-v1
+    status: unresolved
+    domain_skill_id: null
+    style_skill_id: null
+    specialist_skill_ids: []
+    matched_signals: {}
+    loaded_refs: []
+    unresolved_candidates: []
+  style_authority:
+    mode: unresolved
+    scope_level: null
+    source_refs: []
+    protected_surfaces: []
+    allowed_style_delta_surfaces: []
+    authorization_source: null
   direction_contract:
     visual_thesis: null
     content_thesis: null
@@ -72,6 +92,16 @@ design_change:
   verification:
     required_viewports: []
     required_states: []
+    surface_catalog: []
+    scenario_matrix: []
+    interaction_matrix: []
+    editing_matrix: []
+    data_state_matrix: []
+    accessibility_matrix: []
+    navigation_matrix: []
+    content_matrix: []
+    motion_contract: {}
+    usability_validation: {}
     visual_tolerance: null
     accepted_deviations: []
   accessibility:
@@ -87,13 +117,23 @@ design_change:
 
 This document is the draft contract for one bounded UI change. It does not
 replace the project globally. Audit the live product and the baseline refs,
-compare three directions, then approve one immutable direction before setting
-`status: approved`.
+discuss one consequential decision at a time, iterate one professionally
+authored concept in immutable review rounds, then explicitly approve that
+direction before setting `status: approved`.
 
 ## Product Feel
 
 Describe the intended feeling for this change and why it fits the affected
 audience, job, surfaces, and existing product.
+
+## Style Authority
+
+Existing-product feature/page work defaults to `inherit-existing`: cite the
+live UI/token/component sources, keep `global-shell` and `shared-components`
+protected, and do not load a professional style skill. Only an explicitly
+authorized full-page overhaul may use `page-overhaul-authorized`; its allowed
+style delta must name the exact page surface and may not silently restyle the
+product shell or shared components.
 
 ## Design Direction
 
@@ -120,21 +160,143 @@ profiles. Do not promote surface-specific aesthetic rules into global policy.
 
 Record affected component anatomy, variants, states, and decision references.
 Prefer live components unless the approved change explicitly replaces them.
+Call out the concrete mouse/pointer, keyboard/focus, touch, and command
+interactions that must continue to work for each affected component.
+Include empty, representative-data, dense-data, and failure expectations when
+data shape changes the component's meaning or available actions.
+Every exported `component_contracts` row also records `variants`,
+`content_constraints`, `semantic_token_refs`, `governance`, and `iconography`.
+Governance chooses reuse, extension, or a justified new component; names the
+owner of any design-system gap; and records replacement or deprecation rules.
+Iconography names its approved source, visual family, sizing, stroke/fill
+rules, optical alignment, semantic meaning, and text or non-visual fallback.
+
+## Interaction And State Scenarios
+
+Keep these in `verification.interaction_matrix`, `verification.editing_matrix`,
+and `verification.data_state_matrix`, not only in prose.
+
+- Each `interaction_matrix` row names exactly `id`, `surface`, `input`,
+  `trigger`, `event_sequence`, `immediate_feedback`, `focus_behavior`,
+  `repeat_behavior`, `cancellation_behavior`, `pending_behavior`, and
+  `decision_ids`. Cover pointer/mouse, keyboard/focus, touch, shortcuts, and
+  command or system events when applicable. Define platform event ordering,
+  feedback before completion, focus/selection/scroll continuity, single versus
+  double/held/repeated activation, cancellation, and allowed or blocked actions
+  while pending. Scenario scripts own journey outcomes; interaction rows own
+  input mechanics and must not collapse back into one aggregate expectation.
+- Add explicit rows for rapid/repeated activation, duplicate submission, drag
+  cancellation, async completion order, timeouts, navigation/reload/close,
+  session expiry, and external updates whenever they can lose work, duplicate
+  effects, or leave feedback attached to stale state.
+- Each `editing_matrix` row names `id`, `surface`, `input_methods`,
+  `composition_behavior`, `paste_autofill_behavior`,
+  `selection_caret_behavior`, `formatting_behavior`, `validation_timing`,
+  `validation_feedback`, `dirty_state_behavior`, `persistence_behavior`,
+  `undo_redo_behavior`, `conflict_behavior`, `read_only_disabled_behavior`,
+  `submission_behavior`, and `decision_ids`; selected scenarios bind it with
+  exact `editing_ids`. Cover IME composition without premature validation,
+  paste/autofill, caret and selection preservation, formatting, inline and
+  announced validation, visible dirty state, draft/autosave/reload, undo/redo,
+  edit conflict resolution, read-only and disabled behavior, and duplicate
+  submission while pending, retrying, or recovering.
+- Each `data_state_matrix` row names `id`, `surface`, `state`,
+  `data_condition`, `expectation`, and `decision_ids`. Every data-bearing
+  surface covers empty/first-use and
+  populated representative/maximum-density data; add loading, partial/stale,
+  validation/error, permission/read-only, offline/unavailable, optimistic,
+  pending, and success scenarios when applicable.
+- Select risk-based combinations across input, data state, and size. Do not
+  create a Cartesian-product checklist, but do cover interactions during
+  loading/error recovery and resizing during active focus, selection, drag,
+  scrolling, or unsaved input.
+- Every selected `scenario_matrix` row carries an executable
+  `interaction_script`: non-empty preconditions, a selected start state,
+  ordered input/action/expected-feedback steps, and bounded branches. Cover
+  applicable success, failure, timeout, cancel, retry, duplicate, and
+  out-of-order outcomes; bind every expected state to the scenario's selected
+  data states and preserve setup, feedback, focus, announcement, continuation,
+  completion, and recovery. These are immutable scenario truth, not downstream test prose.
+
+## Accessibility Contract
+
+Keep normative, surface-specific requirements in
+`verification.accessibility_matrix`. Rows carry `id`, `surface`, `semantics`,
+`reading_order`, `focus_order`, `keyboard`, `announcements`, `target_size`,
+`contrast`, `zoom_reflow`, `alternatives`, and `decision_ids`. The top-level
+`accessibility` block is a summary and cannot replace the matrix. Target WCAG 2.2 AA or the platform
+equivalent and cover Name/Role/Value, semantics, reading order, focus order,
+visible focus, keyboard and drag alternatives, dynamic status announcement,
+and image/icon alternatives. Record applicable 24x24 (24×24 CSS px) Web and
+44pt native
+target expectations, 4.5:1 ordinary-text and 3:1 large-text/UI contrast,
+400% zoom/reflow, forced colors/high contrast, text scaling, and non-color
+cues. Each row names the affected surface or component, requirement, expected
+behavior, and verification route.
+
+## Navigation Contract
+
+Use `verification.navigation_matrix` rows with `id`, `surface`, `entry`,
+`destination`, `trigger`, `back_behavior`, `deep_link_behavior`,
+`interruption_recovery`, and `decision_ids` to record pages/surfaces,
+hierarchy, entry points, the primary task, back/close behavior, deep links,
+interruption recovery, cross-surface consistency, and orientation landmarks.
+Preserve focus, task state, and unsaved work through refresh, relaunch,
+authentication, permission changes, and external navigation when applicable.
+
+## Content Contract
+
+Use `verification.content_matrix` rows with `id`, `surface`, `state`, `purpose`,
+`copy`, `primary_action`, `trust_requirement`, `localization`,
+`content_limits`, and `decision_ids` for CTA, empty, loading, error, permission,
+destructive action, confirmation, undo/recovery, privacy, and trust copy.
+Specify long-text capacity, wrapping and truncation, right-to-left
+(RTL)/bidirectional behavior,
+localization expansion, terminology, and locale-aware date, number, currency,
+and time zone presentation. Content must explain the next safe action without
+depending on color, iconography, or an unspecified toast.
 
 ## Motion Rules
 
-Define purposeful motion and reduced-motion behavior that belongs to this
-change. Unaffected motion remains inherited from the live baseline.
+Define `verification.motion_contract` with `purpose`, `transitions`,
+`reduced_motion`, and `feedback_timing`. Each transition carries `id`,
+`surface`, `trigger`, `response`, `duration_ms`, `easing`,
+`interrupt_behavior`, and `decision_ids`. Record spatial continuity,
+interruption/cancel behavior, reduced-motion alternative, and
+perceived-performance threshold for immediate feedback, waiting indicators,
+and determinate progress. Unaffected motion remains inherited from the live
+baseline; motion never blocks input or hides completion and error states.
 
 ## Responsive Behavior
 
 Define the viewport, density, hierarchy, overflow, and input adaptations that
-must be verified for this change.
+must be verified for this change, including what happens when the surface is
+stretched, compressed, or reflowed around long content and dense data. Every
+responsive contract records `stretch_behavior` and `overflow_behavior` and
+states what happens to focus, selection, scroll position, open overlays, and
+unsaved input while resizing—not only at named breakpoint screenshots.
+Stress long/localized content, text zoom or scaling, software keyboards, safe
+areas, high contrast, and reduced motion when the platform supports them.
 
 ## Content And Imagery
 
 Name representative content, localization stress cases, data volume, and image
-sources needed to judge this change honestly.
+sources needed to judge this change honestly. Include empty, populated, partial,
+error, permission-limited, offline, and recovery states whenever they matter to
+the affected job.
+
+## Usability Validation
+
+Record `verification.usability_validation` with `risk_level`, `methods`,
+`critical_tasks`, `success_criteria`, and `human_review_required`. Name target
+users, reviewer/status, and evidence where the selected method requires it. A
+low-risk existing-pattern change may use a documented cognitive walkthrough or
+heuristic review. Medium- and high-risk journeys require representative target
+users, task-based success criteria, and human review before acceptance.
+Automated tests and screenshots verify implementation properties; they cannot
+stand in for target-user usability or authorize an unreviewed high-risk flow.
+Select risk-based or pairwise scenarios and avoid an unbounded Cartesian
+product while preserving every high-severity failure and recovery path.
 
 ## Anti-Patterns
 

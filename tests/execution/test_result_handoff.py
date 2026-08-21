@@ -7,6 +7,7 @@ from specify_cli.execution.result_handoff import (
     build_result_handoff_path,
     describe_result_handoff_template,
     describe_result_submit_template,
+    uses_stage_owned_result_channel,
     write_normalized_result_handoff,
 )
 
@@ -70,7 +71,7 @@ def test_describe_result_submit_template_uses_inline_cli_channels() -> None:
     assert "--result-file" not in codex_quick
 
 
-@pytest.mark.parametrize("command_name", ["clarify", "plan", "tasks", "deep-research"])
+@pytest.mark.parametrize("command_name", ["plan", "tasks"])
 def test_describe_result_submit_template_for_codex_stage_commands_uses_generic_result_submit(
     command_name: str,
 ) -> None:
@@ -105,10 +106,8 @@ def test_build_result_handoff_path_for_codex_runtime(
 @pytest.mark.parametrize(
     ("command_name", "suffix"),
     [
-        ("clarify", "clarification/handoffs/lane-a.json"),
         ("plan", "planning/handoffs/lane-a.json"),
         ("tasks", "task-generation/handoffs/lane-a.json"),
-        ("deep-research", "research/handoffs/lane-a.json"),
     ],
 )
 def test_build_result_handoff_path_for_codex_stage_commands_uses_stage_owned_paths(
@@ -129,6 +128,29 @@ def test_build_result_handoff_path_for_codex_stage_commands_uses_stage_owned_pat
     assert (
         str(path).replace("\\", "/").endswith(f".specify/features/001-feature/{suffix}")
     )
+
+
+def test_deep_research_uses_runtime_owned_track_submit_channel(
+    project_root: Path = Path("F:/tmp/project"),
+) -> None:
+    feature_dir = project_root / ".specify" / "features" / "001-feature"
+
+    assert not uses_stage_owned_result_channel("deep-research")
+    submit_template = describe_result_submit_template(
+        command_name="deep-research",
+        integration_key="codex",
+    )
+    assert "deep-research track-submit" in submit_template
+    assert "result submit --command deep-research" not in submit_template
+
+    with pytest.raises(ValueError, match="deep-research track-submit"):
+        build_result_handoff_path(
+            project_root,
+            command_name="deep-research",
+            integration_key="codex",
+            feature_dir=feature_dir,
+            lane_id="lane-a",
+        )
 
 
 def test_build_result_handoff_path_for_feature_worker_result(

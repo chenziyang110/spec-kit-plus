@@ -128,6 +128,22 @@ func TestOpenForRepositorySharesRunDataAcrossWorktrees(t *testing.T) {
 	}
 }
 
+func TestInspectWorkspaceChangesIncludesBothSidesOfRename(t *testing.T) {
+	mainRoot, _ := createLinkedRepository(t)
+	if err := os.Rename(filepath.Join(mainRoot, "README.md"), filepath.Join(mainRoot, "RENAMED.md")); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, ensureGitAvailable(t), mainRoot, "add", "-A")
+
+	paths, err := InspectWorkspaceChanges(context.Background(), mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != 2 || paths[0] != "README.md" || paths[1] != "RENAMED.md" {
+		t.Fatalf("renamed workspace paths = %#v, want both original and destination", paths)
+	}
+}
+
 func createLinkedRepository(t *testing.T) (string, string) {
 	t.Helper()
 	gitPath := ensureGitAvailable(t)

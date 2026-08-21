@@ -40,7 +40,7 @@ Preserved Contract: one-question cadence, semantic term decisions, approach comp
 - Use this open question block structure in the user's current language when rendering the textual fallback block: stage header, question header, prompt, example, recommendation, options, and reply instruction.
 - Keep recommendation and example scaffolding short and specific.
 - Low-risk defaults may be adopted without interrupting the user, but record them as assumptions in `alignment.md`.
-- If the user explicitly accepts unresolved risk, record the risk and use `Force proceed with known risks`; otherwise unresolved planning-critical ambiguity routes to `/sp.clarify`.
+- If the user explicitly accepts unresolved risk, record the risk and use `Force proceed with known risks`; otherwise unresolved planning-critical ambiguity routes to `/sp.specify`.
 
 ## Semantic Term Decomposition
 

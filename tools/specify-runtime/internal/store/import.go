@@ -13,18 +13,19 @@ import (
 )
 
 type ImportInput struct {
-	GenerationID string
-	Kind         string
-	SourceCommit string
-	Evidence     []EvidenceImport
-	Nodes        []NodeImport
-	Edges        []EdgeImport
-	Observations []ObservationImport
-	Claims       []ClaimImport
-	PathIndex    []PathIndexImport
-	Aliases      []AliasImport
-	Rejections   []RowDecision
-	MergeRecords []MergeRecord
+	GenerationID         string
+	Kind                 string
+	SourceCommit         string
+	ScanBuildFingerprint string
+	Evidence             []EvidenceImport
+	Nodes                []NodeImport
+	Edges                []EdgeImport
+	Observations         []ObservationImport
+	Claims               []ClaimImport
+	PathIndex            []PathIndexImport
+	Aliases              []AliasImport
+	Rejections           []RowDecision
+	MergeRecords         []MergeRecord
 }
 
 type EvidenceImport struct {
@@ -165,7 +166,7 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 	if err != nil {
 		return "", err
 	}
-	attrsJSON, err := generationAttrsJSON(input.Rejections, input.MergeRecords)
+	attrsJSON, err := generationAttrsJSON(input.Rejections, input.MergeRecords, input.ScanBuildFingerprint)
 	if err != nil {
 		return "", err
 	}
@@ -385,7 +386,7 @@ func nextGenerationSequence(ctx context.Context, tx *sql.Tx) (int, error) {
 	return int(current.Int64) + 1, nil
 }
 
-func generationAttrsJSON(rejections []RowDecision, mergeRecords []MergeRecord) (string, error) {
+func generationAttrsJSON(rejections []RowDecision, mergeRecords []MergeRecord, scanBuildFingerprint string) (string, error) {
 	if rejections == nil {
 		rejections = []RowDecision{}
 	}
@@ -393,8 +394,9 @@ func generationAttrsJSON(rejections []RowDecision, mergeRecords []MergeRecord) (
 		mergeRecords = []MergeRecord{}
 	}
 	encoded, err := json.Marshal(map[string]any{
-		"rejections":    rejections,
-		"merge_records": mergeRecords,
+		"rejections":             rejections,
+		"merge_records":          mergeRecords,
+		"scan_build_fingerprint": strings.TrimSpace(scanBuildFingerprint),
 	})
 	if err != nil {
 		return "", fmt.Errorf("encode generation attrs: %w", err)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -16,6 +17,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/filelock"
 )
@@ -24,9 +26,11 @@ const (
 	designPreviewSchema            = "spec-kit-design-preview-v1"
 	designPreviewManifestSchema    = "spec-kit-design-preview-manifest-v1"
 	designPreviewApprovalSchema    = "spec-kit-design-preview-approval-v1"
+	designImageApprovalSchema      = "spec-kit-design-image-approval-v1"
 	designHandoffSchema            = "spec-kit-design-handoff-v1"
 	designChangeSchema             = "spec-kit-ui-design-change-v1"
 	designChangeIndexSchema        = "spec-kit-ui-design-index-v1"
+	uiProfessionalSkillCatalog     = "spec-kit-ui-professional-v1"
 	designCapabilityProfilesSchema = "spec-kit-design-capability-profiles-v1"
 	designCapabilityModelSchema    = "spec-kit-design-capability-model-v1"
 	designPreviewManifestID        = "design-preview-manifest"
@@ -34,6 +38,10 @@ const (
 	uiTargetManifestSchema         = "spec-kit-ui-target-manifest-v1"
 	uiTargetManifestID             = "ui-target-manifest"
 )
+
+var designImageSuffixes = map[string]bool{
+	".png": true, ".jpg": true, ".jpeg": true, ".webp": true,
+}
 
 func acquireDesignIndexLock(root string) (func(), error) {
 	designRoot := filepath.Join(root, ".specify", "design")
@@ -55,13 +63,14 @@ var (
 	previewDirectionIDRE    = regexp.MustCompile(`^direction-[a-z0-9][a-z0-9-]*$`)
 	designSpecimenIDRE      = regexp.MustCompile(`^SP-[A-Z0-9]+(?:-[A-Z0-9]+)+$`)
 	previewPlaceholderRE    = regexp.MustCompile(`__[A-Z0-9_]+__`)
+	previewSeedRE           = regexp.MustCompile(`(?i)(?:freeform-seed|unfinished prototype seed|replace this seed)`)
 	remoteReferenceRE       = regexp.MustCompile(`(?i)(?:https?:)?//|@import\b`)
 	cssURLReferenceRE       = regexp.MustCompile(`(?is)url\s*\(\s*["']?([^"')\s]+)`)
 	networkRuntimeRE        = regexp.MustCompile(`(?i)\b(?:fetch|XMLHttpRequest|WebSocket|EventSource)\s*\(`)
 	uiPersistenceRuntimeRE  = regexp.MustCompile(`(?i)\b(?:fetch|XMLHttpRequest|WebSocket|EventSource)\s*\(|\b(?:localStorage|sessionStorage|indexedDB|document\.cookie)\b`)
 	hexDigestRE             = regexp.MustCompile(`^[0-9a-f]{64}$`)
 	canonicalDecisionIDRE   = regexp.MustCompile(`^DS-[A-Z0-9]+(?:-[A-Z0-9]+)+$`)
-	uiCanonicalDecisionIDRE = regexp.MustCompile(`^DS-[A-Z]+-\d{3}$`)
+	uiCanonicalDecisionIDRE = regexp.MustCompile(`^DS-[A-Z0-9]+(?:-[A-Z0-9]+)+$`)
 	canonicalHandoffIDRE    = regexp.MustCompile(`^DH-[A-Z0-9]+(?:-[A-Z0-9]+)+$`)
 	designChangeIDRE        = regexp.MustCompile(`^UD-[0-9]{4,}$`)
 	designChangeScopeRE     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]*$`)
@@ -117,6 +126,8 @@ func runDesign(args []string, stdout io.Writer) int {
 		return runDesignImpact(args[1:], stdout)
 	case "adopt":
 		return runDesignAdopt(args[1:], stdout)
+	case "adoption":
+		return runDesignAdoption(args[1:], stdout)
 	case "lint":
 		return runDesignLint(args[1:], stdout)
 	case "preview":
@@ -284,7 +295,12 @@ func runDesignPreviewLint(args []string, stdout io.Writer) int {
 	if !ok {
 		return writeEnvelope(stdout, env)
 	}
-	diagnostics := lintDesignPreviewFile(target, level)
+	var diagnostics []designDiagnostic
+	if strings.EqualFold(filepath.Ext(target), ".html") {
+		diagnostics = lintDesignPreviewFile(target, level)
+	} else {
+		diagnostics = lintDesignImageBundle(target, level)
+	}
 	return writeDesignDiagnostics(stdout, diagnostics, fmt.Sprintf("%s is valid at %s level", filepath.ToSlash(args[0]), level))
 }
 
@@ -332,7 +348,36 @@ func runDesignApprove(args []string, stdout io.Writer) int {
 	if !ok {
 		return writeEnvelope(stdout, env)
 	}
-	payload, err := approveDesignPreview(target, direction)
+	var payload map[string]any
+	var err error
+	if strings.EqualFold(filepath.Ext(target), ".html") {
+		for _, option := range []string{"--manifest", "--prompt", "--image-inspection", "--image-editing"} {
+			if strings.TrimSpace(optionValue(args, option, "")) != "" {
+				return writeDesignError(stdout, "usage-error", "HTML approval does not accept image manifest, prompt, or capability flags")
+			}
+		}
+		payload, err = approveDesignPreview(target, direction)
+	} else {
+		manifestArg := strings.TrimSpace(optionValue(args, "--manifest", ""))
+		promptArg := strings.TrimSpace(optionValue(args, "--prompt", ""))
+		inspection := strings.TrimSpace(optionValue(args, "--image-inspection", ""))
+		editing := strings.TrimSpace(optionValue(args, "--image-editing", ""))
+		if manifestArg == "" || promptArg == "" {
+			return writeDesignError(stdout, "usage-error", "image approval requires --manifest and --prompt")
+		}
+		if inspection == "" || editing == "" {
+			return writeDesignError(stdout, "usage-error", "image approval requires --image-inspection and --image-editing")
+		}
+		manifestPath, manifestEnv, manifestOK := designContainedPath(manifestArg, false)
+		if !manifestOK {
+			return writeEnvelope(stdout, manifestEnv)
+		}
+		promptPath, promptEnv, promptOK := designContainedPath(promptArg, false)
+		if !promptOK {
+			return writeEnvelope(stdout, promptEnv)
+		}
+		payload, err = approveDesignImage(target, manifestPath, promptPath, direction, inspection, editing)
+	}
 	if err != nil {
 		env := NewEnvelope("blocked", "design preview approval blocked")
 		env.Blockers = append(env.Blockers, err.Error())
@@ -792,7 +837,7 @@ func exportDesignSystem(path, format string, requireReady bool) (string, error) 
 	if format == "tailwind" {
 		return marshalPretty(toTailwindTheme(doc.DesignSystem))
 	}
-	keys := []string{"schema", "name", "version", "status", "approval", "product_context", "direction_contract", "platforms", "capability_profiles", "specimens", "tokens", "color_modes", "components", "responsive", "content", "decisions", "verification", "accessibility"}
+	keys := []string{"schema", "name", "version", "status", "approval", "product_context", "professional_skill_route", "style_authority", "direction_contract", "platforms", "capability_profiles", "specimens", "tokens", "color_modes", "components", "responsive", "content", "decisions", "verification", "accessibility"}
 	if _, ok := doc.FrontMatter["design_change"]; ok {
 		keys = append(keys, "id", "title", "change_type", "scope", "baseline_refs", "relationships", "constraints")
 	}
@@ -840,6 +885,10 @@ func approveDesignPreview(path, directionID string) (map[string]any, error) {
 	}
 	review["status"] = "approved"
 	review["approved_direction"] = directionID
+	collaboration, ok := manifest["visual_collaboration"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("design preview manifest must freeze the live visual capability route")
+	}
 	updated, err := replaceEmbeddedJSON(content, designPreviewManifestID, manifest)
 	if err != nil {
 		return nil, err
@@ -866,6 +915,7 @@ func approveDesignPreview(path, directionID string) (map[string]any, error) {
 	handoffIDs := manifestHandoffContractIDs(manifest)
 	payload := map[string]any{
 		"schema":                 designPreviewApprovalSchema,
+		"visual_medium":          "html",
 		"preview_file":           filepath.Base(path),
 		"direction_id":           directionID,
 		"preview_ref":            filepath.Base(path) + "#" + directionID,
@@ -879,6 +929,9 @@ func approveDesignPreview(path, directionID string) (map[string]any, error) {
 		"handoff_contract_ids":   handoffIDs,
 		"capability_profile_ids": manifestCapabilityProfileIDs(manifest),
 		"specimen_ids":           manifestSpecimenIDs(manifest),
+	}
+	for _, field := range []string{"image_generation", "image_inspection", "image_editing", "inspection_owner", "prompt_strategy"} {
+		payload[field] = strings.TrimSpace(fmt.Sprint(collaboration[field]))
 	}
 	approvalText, err := marshalPretty(payload)
 	if err != nil {
@@ -900,6 +953,358 @@ func approveDesignPreview(path, directionID string) (map[string]any, error) {
 		return nil, fmt.Errorf("cannot commit design approval: %w", err)
 	}
 	return payload, nil
+}
+
+func designImageArtifactDiagnostics(path string) ([]byte, []designDiagnostic) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, []designDiagnostic{{Code: "image-missing-file", Message: "cannot read design image: " + err.Error(), Path: path, Level: "error"}}
+	}
+	var diagnostics []designDiagnostic
+	suffix := strings.ToLower(filepath.Ext(path))
+	if !designImageSuffixes[suffix] {
+		addDesignDiagnostic(&diagnostics, "image-unsupported-format", "design image must be PNG, JPEG, or WEBP", path)
+		return raw, diagnostics
+	}
+	matches := false
+	switch suffix {
+	case ".png":
+		matches = len(raw) >= 8 && bytes.Equal(raw[:8], []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'})
+	case ".jpg", ".jpeg":
+		matches = len(raw) >= 3 && raw[0] == 0xff && raw[1] == 0xd8 && raw[2] == 0xff
+	case ".webp":
+		matches = len(raw) >= 12 && string(raw[:4]) == "RIFF" && string(raw[8:12]) == "WEBP"
+	}
+	if !matches {
+		addDesignDiagnostic(&diagnostics, "image-format-mismatch", "design image bytes do not match the PNG, JPEG, or WEBP extension", path)
+	}
+	return raw, diagnostics
+}
+
+func adjacentDesignImageBundlePath(imagePath, candidate, expectedName, label string) (string, error) {
+	imageDir, err := filepath.Abs(filepath.Dir(imagePath))
+	if err != nil {
+		return "", err
+	}
+	candidateDir, err := filepath.Abs(filepath.Dir(candidate))
+	if err != nil {
+		return "", err
+	}
+	if filepath.Base(candidate) != expectedName || filepath.Clean(candidateDir) != filepath.Clean(imageDir) {
+		return "", fmt.Errorf("design image %s must be the adjacent %s", label, expectedName)
+	}
+	return candidate, nil
+}
+
+func approveDesignImage(path, manifestPath, promptPath, directionID, imageInspection, imageEditing string) (map[string]any, error) {
+	imageBytes, imageDiagnostics := designImageArtifactDiagnostics(path)
+	if len(imageDiagnostics) > 0 {
+		return nil, errors.New(joinDiagnostics(imageDiagnostics))
+	}
+	imageInspection = strings.ToLower(strings.TrimSpace(imageInspection))
+	imageEditing = strings.ToLower(strings.TrimSpace(imageEditing))
+	for label, value := range map[string]string{"image inspection": imageInspection, "image editing": imageEditing} {
+		if value != "available" && value != "unavailable" {
+			return nil, fmt.Errorf("%s must be available or unavailable", label)
+		}
+	}
+	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	var err error
+	manifestPath, err = adjacentDesignImageBundlePath(path, manifestPath, base+".manifest.json", "manifest")
+	if err != nil {
+		return nil, err
+	}
+	promptPath, err = adjacentDesignImageBundlePath(path, promptPath, base+".prompt.md", "prompt")
+	if err != nil {
+		return nil, err
+	}
+	manifestRaw, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read design image manifest: %w", err)
+	}
+	var manifest map[string]any
+	if err := json.Unmarshal(manifestRaw, &manifest); err != nil {
+		return nil, fmt.Errorf("cannot read design image manifest: %w", err)
+	}
+	review, ok := manifest["review"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("design image manifest review must be an object")
+	}
+	status := strings.ToLower(strings.TrimSpace(fmt.Sprint(review["status"])))
+	approvalPath := strings.TrimSuffix(path, filepath.Ext(path)) + ".approval.json"
+	if status == "approved" {
+		return nil, fmt.Errorf("design image round is already approved and immutable: %s", path)
+	}
+	if _, statErr := os.Stat(approvalPath); statErr == nil {
+		return nil, fmt.Errorf("design image round is already approved and immutable: %s", path)
+	}
+	if status != "candidate" {
+		return nil, fmt.Errorf("design image manifest must be a configured candidate before approval")
+	}
+	var directionIDs []string
+	if directions, ok := manifest["directions"].([]any); ok {
+		for _, raw := range directions {
+			if direction, ok := raw.(map[string]any); ok {
+				if id := strings.TrimSpace(fmt.Sprint(direction["id"])); id != "" && id != "<nil>" {
+					directionIDs = append(directionIDs, id)
+				}
+			}
+		}
+	}
+	if !stringInSlice(directionID, directionIDs) {
+		return nil, fmt.Errorf("unknown design direction %s; choose one of %s", directionID, strings.Join(directionIDs, ", "))
+	}
+	promptBytes, err := os.ReadFile(promptPath)
+	if err != nil || !utf8.Valid(promptBytes) {
+		if err == nil {
+			err = fmt.Errorf("prompt is not valid UTF-8")
+		}
+		return nil, fmt.Errorf("cannot read image generation prompt: %w", err)
+	}
+	promptText := string(promptBytes)
+	if len(strings.TrimSpace(promptText)) < 40 || previewPlaceholderRE.MatchString(promptText) {
+		return nil, fmt.Errorf("image generation prompt must be project-specific, non-placeholder Markdown")
+	}
+	inspectionOwner := "user"
+	if imageInspection == "available" {
+		inspectionOwner = "agent-and-user"
+	}
+	manifest["visual_collaboration"] = map[string]any{
+		"primary_medium":   "image-primary",
+		"image_generation": "available",
+		"image_inspection": imageInspection,
+		"image_editing":    imageEditing,
+		"inspection_owner": inspectionOwner,
+		"prompt_strategy":  "image-generation",
+	}
+	review["status"] = "approved"
+	review["approved_direction"] = directionID
+	if diagnostics := previewManifestDiagnostics(manifest, directionIDs, true, "image-primary"); len(diagnostics) > 0 {
+		return nil, fmt.Errorf("design image manifest is not ready for approval: %s", joinDiagnostics(diagnostics))
+	}
+	decisionIDs := manifestDecisionIDs(manifest)
+	if len(decisionIDs) == 0 {
+		return nil, fmt.Errorf("design image manifest must define stable decisions before approval")
+	}
+	promptSHA256 := sha256Bytes(promptBytes)
+	imageSHA256 := sha256Bytes(imageBytes)
+	handoffPath := strings.TrimSuffix(path, filepath.Ext(path)) + ".handoff.json"
+	handoffPayload, err := buildDesignHandoffPayloadForMedium(path, imageBytes, directionID, manifest, "image", promptSHA256, inspectionOwner)
+	if err != nil {
+		return nil, err
+	}
+	handoffText, err := marshalPretty(handoffPayload)
+	if err != nil {
+		return nil, fmt.Errorf("cannot render design image handoff: %w", err)
+	}
+	payload := map[string]any{
+		"schema":                 designImageApprovalSchema,
+		"visual_medium":          "image",
+		"preview_file":           filepath.Base(path),
+		"direction_id":           directionID,
+		"preview_ref":            filepath.Base(path) + "#" + directionID,
+		"review_round":           strings.TrimSpace(fmt.Sprint(review["round"])),
+		"image_sha256":           imageSHA256,
+		"preview_sha256":         imageSHA256,
+		"manifest_file":          filepath.Base(manifestPath),
+		"manifest_ref":           filepath.Base(manifestPath),
+		"manifest_sha256":        canonicalJSONSHA256(manifest),
+		"prompt_file":            filepath.Base(promptPath),
+		"prompt_ref":             filepath.Base(promptPath),
+		"prompt_sha256":          promptSHA256,
+		"image_generation":       "available",
+		"image_inspection":       imageInspection,
+		"image_editing":          imageEditing,
+		"inspection_owner":       inspectionOwner,
+		"prompt_strategy":        "image-generation",
+		"decision_ids":           decisionIDs,
+		"handoff_file":           filepath.Base(handoffPath),
+		"handoff_ref":            filepath.Base(handoffPath),
+		"handoff_sha256":         sha256String(handoffText),
+		"handoff_contract_ids":   manifestHandoffContractIDs(manifest),
+		"capability_profile_ids": manifestCapabilityProfileIDs(manifest),
+		"specimen_ids":           manifestSpecimenIDs(manifest),
+	}
+	manifestText, err := marshalPretty(manifest)
+	if err != nil {
+		return nil, fmt.Errorf("cannot render approved design image manifest: %w", err)
+	}
+	approvalText, err := marshalPretty(payload)
+	if err != nil {
+		return nil, fmt.Errorf("cannot render design image approval: %w", err)
+	}
+	if err := validateDesignImageApprovalBundle(path, imageBytes, manifestText, promptBytes, handoffText, approvalText); err != nil {
+		return nil, err
+	}
+	projectRoot, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := applyFileTransaction(projectRoot, "design.approve-image", []fileTransactionUpdate{
+		{Path: manifestPath, Content: []byte(manifestText), Perm: 0o644},
+		{Path: handoffPath, Content: []byte(handoffText), Perm: 0o644},
+		{Path: approvalPath, Content: []byte(approvalText), Perm: 0o644},
+	}); err != nil {
+		return nil, fmt.Errorf("cannot commit design image approval: %w", err)
+	}
+	return payload, nil
+}
+
+func validateDesignImageApprovalBundle(path string, imageBytes []byte, manifestText string, promptBytes []byte, handoffText, approvalText string) error {
+	validationRoot, err := os.MkdirTemp(filepath.Dir(path), ".design-image-approval-validation-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(validationRoot)
+	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	imagePath := filepath.Join(validationRoot, filepath.Base(path))
+	files := []struct {
+		path    string
+		content []byte
+	}{
+		{imagePath, imageBytes},
+		{filepath.Join(validationRoot, base+".manifest.json"), []byte(manifestText)},
+		{filepath.Join(validationRoot, base+".prompt.md"), promptBytes},
+		{filepath.Join(validationRoot, base+".handoff.json"), []byte(handoffText)},
+		{filepath.Join(validationRoot, base+".approval.json"), []byte(approvalText)},
+	}
+	for _, file := range files {
+		if err := os.WriteFile(file.path, file.content, 0o644); err != nil {
+			return err
+		}
+	}
+	if diagnostics := lintDesignImageBundle(imagePath, "ready"); len(diagnostics) > 0 {
+		return fmt.Errorf("approved design image failed deterministic validation: %s", joinDiagnostics(diagnostics))
+	}
+	return nil
+}
+
+func lintDesignImageBundle(path, level string) []designDiagnostic {
+	imageBytes, diagnostics := designImageArtifactDiagnostics(path)
+	if len(diagnostics) > 0 || strings.EqualFold(level, "structural") {
+		return diagnostics
+	}
+	basePath := strings.TrimSuffix(path, filepath.Ext(path))
+	approvalPath := basePath + ".approval.json"
+	approvalRaw, err := os.ReadFile(approvalPath)
+	if err != nil {
+		addDesignDiagnostic(&diagnostics, "image-missing-approval-sidecar", "cannot read approved image sidecar: "+err.Error(), approvalPath)
+		return diagnostics
+	}
+	var approval map[string]any
+	if err := json.Unmarshal(approvalRaw, &approval); err != nil {
+		addDesignDiagnostic(&diagnostics, "image-invalid-approval-sidecar", "cannot read approved image sidecar: "+err.Error(), approvalPath)
+		return diagnostics
+	}
+	directionID := strings.TrimSpace(fmt.Sprint(approval["direction_id"]))
+	imageSHA256 := sha256Bytes(imageBytes)
+	expected := map[string]any{
+		"schema":           designImageApprovalSchema,
+		"visual_medium":    "image",
+		"preview_file":     filepath.Base(path),
+		"preview_ref":      filepath.Base(path) + "#" + directionID,
+		"image_sha256":     imageSHA256,
+		"preview_sha256":   imageSHA256,
+		"manifest_file":    filepath.Base(basePath + ".manifest.json"),
+		"manifest_ref":     filepath.Base(basePath + ".manifest.json"),
+		"prompt_file":      filepath.Base(basePath + ".prompt.md"),
+		"prompt_ref":       filepath.Base(basePath + ".prompt.md"),
+		"handoff_file":     filepath.Base(basePath + ".handoff.json"),
+		"handoff_ref":      filepath.Base(basePath + ".handoff.json"),
+		"image_generation": "available",
+		"prompt_strategy":  "image-generation",
+	}
+	for key, value := range expected {
+		if strings.TrimSpace(fmt.Sprint(approval[key])) != strings.TrimSpace(fmt.Sprint(value)) {
+			addDesignDiagnostic(&diagnostics, "image-stale-approval-sidecar", "image approval sidecar "+key+" does not bind the immutable round", filepath.Base(approvalPath)+"."+key)
+		}
+	}
+	imageInspection := strings.TrimSpace(fmt.Sprint(approval["image_inspection"]))
+	imageEditing := strings.TrimSpace(fmt.Sprint(approval["image_editing"]))
+	inspectionOwner := strings.TrimSpace(fmt.Sprint(approval["inspection_owner"]))
+	expectedOwner := "user"
+	if imageInspection == "available" {
+		expectedOwner = "agent-and-user"
+	}
+	if (imageInspection != "available" && imageInspection != "unavailable") || (imageEditing != "available" && imageEditing != "unavailable") || inspectionOwner != expectedOwner {
+		addDesignDiagnostic(&diagnostics, "image-invalid-capability-binding", "image approval must bind inspection/editing availability and the truthful inspection owner", approvalPath)
+	}
+
+	manifestPath := basePath + ".manifest.json"
+	manifestRaw, err := os.ReadFile(manifestPath)
+	if err != nil {
+		addDesignDiagnostic(&diagnostics, "image-invalid-manifest", "cannot read design image manifest: "+err.Error(), manifestPath)
+		return diagnostics
+	}
+	var manifest map[string]any
+	if err := json.Unmarshal(manifestRaw, &manifest); err != nil {
+		addDesignDiagnostic(&diagnostics, "image-invalid-manifest", "cannot read design image manifest: "+err.Error(), manifestPath)
+		return diagnostics
+	}
+	if strings.TrimSpace(fmt.Sprint(approval["manifest_sha256"])) != canonicalJSONSHA256(manifest) {
+		addDesignDiagnostic(&diagnostics, "image-stale-manifest-binding", "image approval sidecar does not bind the immutable manifest", manifestPath)
+	}
+	var directionIDs []string
+	if directions, ok := manifest["directions"].([]any); ok {
+		for _, raw := range directions {
+			if direction, ok := raw.(map[string]any); ok {
+				directionIDs = append(directionIDs, strings.TrimSpace(fmt.Sprint(direction["id"])))
+			}
+		}
+	}
+	diagnostics = append(diagnostics, previewManifestDiagnostics(manifest, directionIDs, true, "image-primary")...)
+	review, _ := manifest["review"].(map[string]any)
+	if strings.TrimSpace(fmt.Sprint(review["status"])) != "approved" || strings.TrimSpace(fmt.Sprint(review["approved_direction"])) != directionID {
+		addDesignDiagnostic(&diagnostics, "image-unapproved-manifest", "design image manifest must freeze the approved direction", "manifest.review")
+	}
+	expectedCollaboration := map[string]any{
+		"primary_medium":   "image-primary",
+		"image_generation": "available",
+		"image_inspection": imageInspection,
+		"image_editing":    imageEditing,
+		"inspection_owner": inspectionOwner,
+		"prompt_strategy":  "image-generation",
+	}
+	if !reflect.DeepEqual(manifest["visual_collaboration"], expectedCollaboration) {
+		addDesignDiagnostic(&diagnostics, "image-capability-manifest-drift", "manifest visual_collaboration must match the approved live capability route", "manifest.visual_collaboration")
+	}
+
+	promptPath := basePath + ".prompt.md"
+	promptBytes, err := os.ReadFile(promptPath)
+	if err != nil || !utf8.Valid(promptBytes) {
+		if err == nil {
+			err = fmt.Errorf("prompt is not valid UTF-8")
+		}
+		addDesignDiagnostic(&diagnostics, "image-invalid-generation-prompt", "cannot read image generation prompt: "+err.Error(), promptPath)
+		return diagnostics
+	}
+	if len(strings.TrimSpace(string(promptBytes))) < 40 || previewPlaceholderRE.Match(promptBytes) || strings.TrimSpace(fmt.Sprint(approval["prompt_sha256"])) != sha256Bytes(promptBytes) {
+		addDesignDiagnostic(&diagnostics, "image-stale-prompt-binding", "approved image must bind its project-specific generation/edit prompt", promptPath)
+	}
+
+	handoffPath := basePath + ".handoff.json"
+	handoffRaw, err := os.ReadFile(handoffPath)
+	if err != nil {
+		addDesignDiagnostic(&diagnostics, "image-invalid-handoff-sidecar", "cannot read design image handoff: "+err.Error(), handoffPath)
+		return diagnostics
+	}
+	var handoff map[string]any
+	if err := json.Unmarshal(handoffRaw, &handoff); err != nil {
+		addDesignDiagnostic(&diagnostics, "image-invalid-handoff-sidecar", "cannot read design image handoff: "+err.Error(), handoffPath)
+		return diagnostics
+	}
+	if strings.TrimSpace(fmt.Sprint(approval["handoff_sha256"])) != sha256Bytes(handoffRaw) {
+		addDesignDiagnostic(&diagnostics, "image-stale-handoff-binding", "image approval sidecar does not bind the immutable handoff", handoffPath)
+	}
+	expectedHandoff, buildErr := buildDesignHandoffPayloadForMedium(path, imageBytes, directionID, manifest, "image", sha256Bytes(promptBytes), inspectionOwner)
+	if buildErr != nil {
+		addDesignDiagnostic(&diagnostics, "image-invalid-handoff-sidecar", buildErr.Error(), handoffPath)
+		return diagnostics
+	}
+	if canonicalJSONSHA256(handoff) != canonicalJSONSHA256(expectedHandoff) {
+		addDesignDiagnostic(&diagnostics, "image-stale-handoff-sidecar", "image handoff must be the exact deterministic projection of the approved concept", handoffPath)
+	}
+	return diagnostics
 }
 
 func validateDesignApprovalBundle(path, previewText, handoffText, approvalText string) error {
@@ -947,8 +1352,8 @@ func lintDesignPreviewFile(path, level string) []designDiagnostic {
 	if parsed.PreviewAttrs["data-design-preview-schema"] != designPreviewSchema {
 		addDesignDiagnostic(&diagnostics, "preview-invalid-schema", "data-design-preview-schema must equal "+designPreviewSchema, "data-design-preview-schema")
 	}
-	if len(parsed.DirectionIDs) != 3 {
-		addDesignDiagnostic(&diagnostics, "preview-direction-count", "design preview must contain exactly three comparable directions", "data-direction-id")
+	if len(parsed.DirectionIDs) != 1 {
+		addDesignDiagnostic(&diagnostics, "preview-direction-count", "design preview must contain exactly one current concept", "data-direction-id")
 	}
 	if hasDuplicates(parsed.DirectionIDs) {
 		addDesignDiagnostic(&diagnostics, "preview-duplicate-direction", "design direction IDs must be unique", "data-direction-id")
@@ -960,7 +1365,7 @@ func lintDesignPreviewFile(path, level string) []designDiagnostic {
 	if err != nil {
 		addDesignDiagnostic(&diagnostics, "preview-invalid-manifest", err.Error(), "script#"+designPreviewManifestID)
 	} else {
-		diagnostics = append(diagnostics, previewManifestDiagnostics(manifest, parsed.DirectionIDs, level == "ready")...)
+		diagnostics = append(diagnostics, previewManifestDiagnostics(manifest, parsed.DirectionIDs, level == "ready", "html-primary")...)
 	}
 	for _, token := range []string{"--motion-duration-fast", "--motion-duration-base", "--motion-easing-standard", "--motion-easing-emphasized"} {
 		if !strings.Contains(parsed.StyleText, token) {
@@ -979,6 +1384,9 @@ func lintDesignPreviewFile(path, level string) []designDiagnostic {
 		addDesignDiagnostic(&diagnostics, "preview-remote-dependency", "design preview must be a self-contained HTML file without external or network runtime dependencies", "html.dependencies")
 	}
 	if level == "ready" {
+		if strings.ToLower(strings.TrimSpace(parsed.PreviewAttrs["data-prototype-status"])) != "authored" || previewSeedRE.MatchString(content) {
+			addDesignDiagnostic(&diagnostics, "preview-unfinished-prototype", "ready preview must replace the prototype seed and set data-prototype-status=authored after visual inspection", "data-prototype-status")
+		}
 		status := strings.ToLower(strings.TrimSpace(parsed.PreviewAttrs["data-preview-status"]))
 		if status != "candidate" && status != "approved" {
 			addDesignDiagnostic(&diagnostics, "preview-not-candidate", "ready preview status must be candidate or approved", "data-preview-status")
@@ -1223,7 +1631,38 @@ func applyDesignCapabilityProfiles(manifest map[string]any, profileIDs []string)
 			direction["specimen_ids"] = designAnyStringList(specimenIDs)
 		}
 	}
+	decisionKindsByContract := map[string][]string{
+		"component_contracts":  {"color", "typography", "spacing", "component", "motion"},
+		"interaction_matrix":   {"component", "motion", "responsive"},
+		"editing_matrix":       {"typography", "spacing", "component", "motion", "responsive", "content"},
+		"data_state_matrix":    {"color", "component", "content"},
+		"accessibility_matrix": {"color", "typography", "spacing", "component", "motion", "responsive", "content"},
+		"navigation_matrix":    {"component", "responsive", "content"},
+		"content_matrix":       {"color", "typography", "spacing", "content"},
+		"responsive_matrix":    {"typography", "spacing", "component", "responsive"},
+		"motion_contract":      {"component", "motion"},
+	}
 	decisionIDs := manifestDecisionIDs(manifest)
+	decisionIDsFor := func(contractKind string, source map[string]any) []string {
+		requested := stringList(source["decision_kinds"])
+		if len(requested) == 0 {
+			requested = decisionKindsByContract[contractKind]
+		}
+		requestedSet := stringSliceSet(requested)
+		var ids []string
+		decisions, _ := manifest["decisions"].([]any)
+		for _, raw := range decisions {
+			decision, ok := raw.(map[string]any)
+			if !ok || !requestedSet[strings.TrimSpace(fmt.Sprint(decision["kind"]))] {
+				continue
+			}
+			id := strings.TrimSpace(fmt.Sprint(decision["id"]))
+			if id != "" && id != "<nil>" {
+				ids = append(ids, id)
+			}
+		}
+		return ids
+	}
 	handoff, ok := manifest["handoff"].(map[string]any)
 	if !ok {
 		handoff = map[string]any{}
@@ -1234,10 +1673,40 @@ func applyDesignCapabilityProfiles(manifest map[string]any, profileIDs []string)
 	} else {
 		handoff["reproduction_mode"] = "platform-adapted"
 	}
-	var components, responsive, acceptance []any
+	var components, responsive, acceptance, surfaceCatalog, scenarioMatrix []any
+	var projectSourceRefs []string
+	if project, ok := manifest["project"].(map[string]any); ok {
+		projectSourceRefs = stringList(project["modules"])
+	}
+	professionalMatrices := map[string][]any{
+		"interaction_matrix":   {},
+		"editing_matrix":       {},
+		"data_state_matrix":    {},
+		"accessibility_matrix": {},
+		"navigation_matrix":    {},
+		"content_matrix":       {},
+	}
+	var motionPurposes, reducedMotionRules []string
+	var motionTransitions []any
+	feedbackTiming := map[string]int{}
+	feedbackTimingSet := false
+	riskRank := map[string]int{"low": 0, "medium": 1, "high": 2}
+	riskLevel := ""
+	var usabilityMethods, usabilityTasks, usabilityCriteria []string
+	methodSeen, taskSeen, criteriaSeen := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	humanReviewRequired := false
 	for _, profile := range profiles {
 		profileID := strings.TrimSpace(fmt.Sprint(profile["id"]))
 		var profileSpecimenIDs, requiredStates []string
+		var profileComponents, profileMotion, profileResponsive []any
+		profileMatrices := map[string][]any{
+			"interaction_matrix":   {},
+			"editing_matrix":       {},
+			"data_state_matrix":    {},
+			"accessibility_matrix": {},
+			"navigation_matrix":    {},
+			"content_matrix":       {},
+		}
 		stateSeen := map[string]bool{}
 		for _, raw := range specimens {
 			specimen, ok := raw.(map[string]any)
@@ -1250,8 +1719,73 @@ func applyDesignCapabilityProfiles(manifest map[string]any, profileIDs []string)
 		if rawContract, ok := profile["component_contract"].(map[string]any); ok {
 			contract := cloneJSONMap(rawContract)
 			contract["required_states"] = designAnyStringList(requiredStates)
-			contract["decision_ids"] = designAnyStringList(decisionIDs)
+			contract["interaction_modes"] = cloneJSONValue(profile["input_modes"])
+			contract["decision_ids"] = designAnyStringList(decisionIDsFor("component_contracts", rawContract))
+			delete(contract, "decision_kinds")
 			components = append(components, contract)
+			profileComponents = append(profileComponents, contract)
+		}
+		for field := range professionalMatrices {
+			rows, _ := profile[field].([]any)
+			for _, raw := range rows {
+				row, ok := raw.(map[string]any)
+				if !ok {
+					continue
+				}
+				projected := cloneJSONMap(row)
+				projected["decision_ids"] = designAnyStringList(decisionIDsFor(field, row))
+				delete(projected, "decision_kinds")
+				professionalMatrices[field] = append(professionalMatrices[field], projected)
+				profileMatrices[field] = append(profileMatrices[field], projected)
+			}
+		}
+		if motion, ok := profile["motion_contract"].(map[string]any); ok {
+			if purpose := strings.TrimSpace(fmt.Sprint(motion["purpose"])); purpose != "" && purpose != "<nil>" {
+				motionPurposes = append(motionPurposes, profileID+": "+purpose)
+			}
+			if reduced := strings.TrimSpace(fmt.Sprint(motion["reduced_motion"])); reduced != "" && reduced != "<nil>" {
+				reducedMotionRules = append(reducedMotionRules, profileID+": "+reduced)
+			}
+			if transitions, ok := motion["transitions"].([]any); ok {
+				for _, raw := range transitions {
+					transition, ok := raw.(map[string]any)
+					if !ok {
+						continue
+					}
+					projected := cloneJSONMap(transition)
+					projected["decision_ids"] = designAnyStringList(decisionIDsFor("motion_contract", transition))
+					delete(projected, "decision_kinds")
+					motionTransitions = append(motionTransitions, projected)
+					profileMotion = append(profileMotion, projected)
+				}
+			}
+			if timing, ok := motion["feedback_timing"].(map[string]any); ok {
+				immediate, immediateOK := designJSONInt(timing["immediate_ms"])
+				progress, progressOK := designJSONInt(timing["progress_ms"])
+				timeout, timeoutOK := designJSONInt(timing["timeout_ms"])
+				if immediateOK && progressOK && timeoutOK {
+					if !feedbackTimingSet {
+						feedbackTiming = map[string]int{"immediate_ms": immediate, "progress_ms": progress, "timeout_ms": timeout}
+						feedbackTimingSet = true
+					} else {
+						feedbackTiming["immediate_ms"] = min(feedbackTiming["immediate_ms"], immediate)
+						feedbackTiming["progress_ms"] = min(feedbackTiming["progress_ms"], progress)
+						feedbackTiming["timeout_ms"] = max(feedbackTiming["timeout_ms"], timeout)
+					}
+				}
+			}
+		}
+		if usability, ok := profile["usability_validation"].(map[string]any); ok {
+			candidateRisk := strings.TrimSpace(fmt.Sprint(usability["risk_level"]))
+			if riskRank[candidateRisk] > riskRank[riskLevel] || riskLevel == "" {
+				riskLevel = candidateRisk
+			}
+			usabilityMethods = appendUniqueStrings(usabilityMethods, methodSeen, usability["methods"])
+			usabilityTasks = appendUniqueStrings(usabilityTasks, taskSeen, usability["critical_tasks"])
+			usabilityCriteria = appendUniqueStrings(usabilityCriteria, criteriaSeen, usability["success_criteria"])
+			if required, ok := usability["human_review_required"].(bool); ok && required {
+				humanReviewRequired = true
+			}
 		}
 		for _, raw := range profile["targets"].([]any) {
 			target, ok := raw.(map[string]any)
@@ -1259,16 +1793,20 @@ func applyDesignCapabilityProfiles(manifest map[string]any, profileIDs []string)
 				continue
 			}
 			targetID := strings.TrimSpace(fmt.Sprint(target["id"]))
-			responsive = append(responsive, map[string]any{
-				"id":              targetID,
-				"profile_id":      profileID,
-				"label":           target["label"],
-				"target":          cloneJSONValue(target["target"]),
-				"review_width_px": target["review_width_px"],
-				"state":           "default",
-				"adaptation":      target["adaptation"],
-				"decision_ids":    designAnyStringList(decisionIDs),
-			})
+			responsiveRow := map[string]any{
+				"id":                targetID,
+				"profile_id":        profileID,
+				"label":             target["label"],
+				"target":            cloneJSONValue(target["target"]),
+				"review_width_px":   target["review_width_px"],
+				"state":             "default",
+				"adaptation":        target["adaptation"],
+				"stretch_behavior":  target["stretch_behavior"],
+				"overflow_behavior": target["overflow_behavior"],
+				"decision_ids":      designAnyStringList(decisionIDsFor("responsive_matrix", target)),
+			}
+			responsive = append(responsive, responsiveRow)
+			profileResponsive = append(profileResponsive, responsiveRow)
 			acceptance = append(acceptance, map[string]any{
 				"id":           target["acceptance_id"],
 				"target_id":    targetID,
@@ -1285,9 +1823,219 @@ func applyDesignCapabilityProfiles(manifest map[string]any, profileIDs []string)
 				}),
 			})
 		}
+
+		profileKey := strings.ToUpper(profileID)
+		surfaceID := "DH-SURFACE-" + profileKey + "-001"
+		componentIDs := []string{}
+		surfaceDecisionIDs := []string{}
+		surfaceDecisionSeen := map[string]bool{}
+		appendRowDecisions := func(rows []any) {
+			for _, raw := range rows {
+				row, ok := raw.(map[string]any)
+				if !ok {
+					continue
+				}
+				surfaceDecisionIDs = appendUniqueStrings(surfaceDecisionIDs, surfaceDecisionSeen, row["decision_ids"])
+			}
+		}
+		for _, raw := range profileComponents {
+			row := raw.(map[string]any)
+			componentIDs = append(componentIDs, strings.TrimSpace(fmt.Sprint(row["id"])))
+		}
+		appendRowDecisions(profileComponents)
+		for _, field := range []string{"interaction_matrix", "editing_matrix", "data_state_matrix", "accessibility_matrix", "navigation_matrix", "content_matrix"} {
+			appendRowDecisions(profileMatrices[field])
+		}
+		appendRowDecisions(profileResponsive)
+		appendRowDecisions(profileMotion)
+		surfaceCatalog = append(surfaceCatalog, map[string]any{
+			"id":            surfaceID,
+			"profile_id":    profileID,
+			"name":          strings.TrimSpace(fmt.Sprint(profile["label"])),
+			"kind":          profileID,
+			"source_refs":   designAnyStringList(projectSourceRefs),
+			"specimen_ids":  designAnyStringList(profileSpecimenIDs),
+			"component_ids": designAnyStringList(componentIDs),
+			"decision_ids":  designAnyStringList(surfaceDecisionIDs),
+		})
+
+		type scenarioSource struct {
+			field string
+			rows  []any
+		}
+		sources := []scenarioSource{
+			{"interaction_ids", profileMatrices["interaction_matrix"]},
+			{"editing_ids", profileMatrices["editing_matrix"]},
+			{"data_state_ids", profileMatrices["data_state_matrix"]},
+			{"accessibility_ids", profileMatrices["accessibility_matrix"]},
+			{"navigation_ids", profileMatrices["navigation_matrix"]},
+			{"content_ids", profileMatrices["content_matrix"]},
+			{"responsive_ids", profileResponsive},
+			{"motion_transition_ids", profileMotion},
+		}
+		scenarioCount := 0
+		for _, source := range sources {
+			if len(source.rows) > scenarioCount {
+				scenarioCount = len(source.rows)
+			}
+		}
+		for index := 0; index < scenarioCount; index++ {
+			scenario := map[string]any{
+				"id":         fmt.Sprintf("DH-SCENARIO-%s-%03d", profileKey, index+1),
+				"surface_id": surfaceID,
+				"required":   true,
+			}
+			selectedRows := make([]map[string]any, 0, len(sources))
+			scenarioDecisionIDs := []string{}
+			scenarioDecisionSeen := map[string]bool{}
+			for _, source := range sources {
+				row := source.rows[index%len(source.rows)].(map[string]any)
+				selectedRows = append(selectedRows, row)
+				scenario[source.field] = designAnyStringList([]string{strings.TrimSpace(fmt.Sprint(row["id"]))})
+				scenarioDecisionIDs = appendUniqueStrings(scenarioDecisionIDs, scenarioDecisionSeen, row["decision_ids"])
+			}
+			interaction := selectedRows[0]
+			dataState := selectedRows[2]
+			stateRow := func(name string) map[string]any {
+				for _, raw := range profileMatrices["data_state_matrix"] {
+					row := raw.(map[string]any)
+					if strings.EqualFold(strings.TrimSpace(fmt.Sprint(row["state"])), name) {
+						return row
+					}
+				}
+				return dataState
+			}
+			successState := stateRow("populated")
+			transientState := stateRow("partial")
+			unavailableState := stateRow("unavailable")
+			branchStateIDs := []string{}
+			branchStateSeen := map[string]bool{}
+			for _, row := range []map[string]any{dataState, successState, transientState, unavailableState} {
+				rowID := strings.TrimSpace(fmt.Sprint(row["id"]))
+				if rowID == "" || branchStateSeen[rowID] {
+					continue
+				}
+				branchStateSeen[rowID] = true
+				branchStateIDs = append(branchStateIDs, rowID)
+				scenarioDecisionIDs = appendUniqueStrings(scenarioDecisionIDs, scenarioDecisionSeen, row["decision_ids"])
+			}
+			scenario["data_state_ids"] = designAnyStringList(branchStateIDs)
+			accessibility := selectedRows[3]
+			navigation := selectedRows[4]
+			responsiveRow := selectedRows[6]
+			focusCheckpoint := strings.TrimSpace(fmt.Sprint(accessibility["focus_order"]))
+			announcementCheckpoint := strings.Join(stringList(accessibility["announcements"]), " ")
+			recoveryCheckpoint := strings.TrimSpace(fmt.Sprint(navigation["interruption_recovery"]))
+			scenario["name"] = fmt.Sprintf(
+				"%s: %s via %s at %s",
+				strings.TrimSpace(fmt.Sprint(profile["label"])),
+				strings.TrimSpace(fmt.Sprint(dataState["state"])),
+				strings.TrimSpace(fmt.Sprint(interaction["input"])),
+				strings.TrimSpace(fmt.Sprint(responsiveRow["label"])),
+			)
+			scenario["interaction_script"] = map[string]any{
+				"preconditions": designAnyStringList([]string{
+					fmt.Sprintf(
+						"Render %s at %s with %s.",
+						surfaceID,
+						strings.TrimSpace(fmt.Sprint(responsiveRow["label"])),
+						strings.TrimRight(strings.TrimSpace(fmt.Sprint(dataState["data_condition"])), " .!?"),
+					),
+					fmt.Sprintf(
+						"Begin in the %s state before %s.",
+						strings.TrimSpace(fmt.Sprint(dataState["state"])),
+						strings.TrimRight(strings.TrimSpace(fmt.Sprint(interaction["trigger"])), " .!?"),
+					),
+				}),
+				"start_state_id": strings.TrimSpace(fmt.Sprint(dataState["id"])),
+				"steps": []any{map[string]any{
+					"input":             strings.TrimSpace(fmt.Sprint(interaction["input"])),
+					"action":            strings.TrimSpace(fmt.Sprint(interaction["trigger"])),
+					"expected_feedback": strings.TrimSpace(fmt.Sprint(interaction["immediate_feedback"])),
+				}},
+				"branches": []any{
+					map[string]any{
+						"conditions":        designAnyStringList([]string{"success"}),
+						"setup":             "Complete the action once without interruption: " + strings.TrimSpace(fmt.Sprint(interaction["trigger"])),
+						"expected_state_id": strings.TrimSpace(fmt.Sprint(successState["id"])),
+						"expected_feedback": strings.TrimSpace(fmt.Sprint(successState["expectation"])),
+						"focus_behavior":    focusCheckpoint,
+						"announcement":      "Success: " + announcementCheckpoint,
+						"continuation":      strings.TrimSpace(fmt.Sprint(navigation["destination"])),
+					},
+					map[string]any{
+						"conditions":        designAnyStringList([]string{"failure", "timeout"}),
+						"setup":             "Force the action to fail or exceed its timeout: " + strings.TrimSpace(fmt.Sprint(interaction["trigger"])),
+						"expected_state_id": strings.TrimSpace(fmt.Sprint(unavailableState["id"])),
+						"expected_feedback": strings.TrimSpace(fmt.Sprint(unavailableState["expectation"])),
+						"focus_behavior":    focusCheckpoint,
+						"announcement":      "Failure or timeout: " + announcementCheckpoint,
+						"continuation":      recoveryCheckpoint,
+					},
+					map[string]any{
+						"conditions":        designAnyStringList([]string{"cancel"}),
+						"setup":             "Cancel the action before completion: " + strings.TrimSpace(fmt.Sprint(interaction["trigger"])),
+						"expected_state_id": strings.TrimSpace(fmt.Sprint(dataState["id"])),
+						"expected_feedback": strings.TrimSpace(fmt.Sprint(dataState["expectation"])),
+						"focus_behavior":    focusCheckpoint,
+						"announcement":      "Cancellation: " + announcementCheckpoint,
+						"continuation":      strings.TrimSpace(fmt.Sprint(navigation["back_behavior"])),
+					},
+					map[string]any{
+						"conditions":        designAnyStringList([]string{"retry", "duplicate", "out_of_order"}),
+						"setup":             "Retry or repeat the action and resolve completions out of order: " + strings.TrimSpace(fmt.Sprint(interaction["trigger"])),
+						"expected_state_id": strings.TrimSpace(fmt.Sprint(transientState["id"])),
+						"expected_feedback": strings.TrimSpace(fmt.Sprint(transientState["expectation"])),
+						"focus_behavior":    focusCheckpoint,
+						"announcement":      "Retry, duplicate, or out-of-order completion: " + announcementCheckpoint,
+						"continuation":      recoveryCheckpoint,
+					},
+				},
+				"focus_checkpoint":        focusCheckpoint,
+				"announcement_checkpoint": announcementCheckpoint,
+				"completion_checkpoint":   strings.TrimSpace(fmt.Sprint(successState["expectation"])),
+				"recovery_checkpoint":     recoveryCheckpoint,
+			}
+			rawScenario, _ := json.Marshal(selectedRows)
+			scenarioText := strings.ToLower(string(rawScenario))
+			risk := "low"
+			for _, marker := range []string{"keyboard", "focus", "loading", "empty", "partial", "reduced", "overflow", "touch"} {
+				if strings.Contains(scenarioText, marker) {
+					risk = "medium"
+					break
+				}
+			}
+			for _, marker := range []string{"error", "offline", "permission", "destructive", "timeout", "failure", "recovery"} {
+				if strings.Contains(scenarioText, marker) {
+					risk = "high"
+					break
+				}
+			}
+			scenario["risk"] = risk
+			scenario["decision_ids"] = designAnyStringList(scenarioDecisionIDs)
+			scenarioMatrix = append(scenarioMatrix, scenario)
+		}
 	}
 	handoff["component_contracts"] = components
+	handoff["surface_catalog"] = surfaceCatalog
+	handoff["scenario_matrix"] = scenarioMatrix
+	for field, rows := range professionalMatrices {
+		handoff[field] = rows
+	}
 	handoff["responsive_matrix"] = responsive
+	handoff["motion_contract"] = map[string]any{
+		"purpose":         strings.Join(motionPurposes, " "),
+		"transitions":     motionTransitions,
+		"reduced_motion":  strings.Join(reducedMotionRules, " "),
+		"feedback_timing": feedbackTiming,
+	}
+	handoff["usability_validation"] = map[string]any{
+		"risk_level":            riskLevel,
+		"methods":               designAnyStringList(usabilityMethods),
+		"critical_tasks":        designAnyStringList(usabilityTasks),
+		"success_criteria":      designAnyStringList(usabilityCriteria),
+		"human_review_required": humanReviewRequired,
+	}
 	handoff["visual_acceptance_matrix"] = acceptance
 	return nil
 }
@@ -1372,7 +2120,7 @@ func renderDesignPreview(manifestPath, outPath string, force bool) (string, erro
 	review["status"] = "candidate"
 	review["approved_direction"] = nil
 	directionIDs := manifestDirectionIDs(manifest)
-	if diagnostics := previewManifestDiagnostics(manifest, directionIDs, true); len(diagnostics) > 0 {
+	if diagnostics := previewManifestDiagnostics(manifest, directionIDs, true, "html-primary"); len(diagnostics) > 0 {
 		return "", fmt.Errorf("design preview manifest is not ready: %s", joinDiagnostics(diagnostics))
 	}
 	source, err := locateTemplate("design-preview-template.html")
@@ -1415,15 +2163,15 @@ func renderDesignPreview(manifestPath, outPath string, force bool) (string, erro
 	if err := temp.Close(); err != nil {
 		return "", err
 	}
-	if diagnostics := lintDesignPreviewFile(tempPath, "ready"); len(diagnostics) > 0 {
+	if diagnostics := lintDesignPreviewFile(tempPath, "structural"); len(diagnostics) > 0 {
 		return "", fmt.Errorf("rendered design preview is not ready: %s", joinDiagnostics(diagnostics))
 	}
 	return outPath, writeTextAtomic(outPath, content)
 }
 
 func renderPreviewDirectionIDs(content string, directionIDs []string) string {
-	sourceIDs := []string{"direction-a", "direction-b", "direction-c"}
-	sentinels := []string{"__SPECIFY_DIRECTION_SLOT_A__", "__SPECIFY_DIRECTION_SLOT_B__", "__SPECIFY_DIRECTION_SLOT_C__"}
+	sourceIDs := []string{"direction-main"}
+	sentinels := []string{"__SPECIFY_DIRECTION_SLOT_MAIN__"}
 	for index, sourceID := range sourceIDs {
 		content = strings.ReplaceAll(content, sourceID, sentinels[index])
 	}
@@ -1630,6 +2378,359 @@ func parseDesignYAMLScalar(value string) any {
 	return value
 }
 
+func uniquePrefixedStringList(value any, prefix string, limit int) ([]string, bool) {
+	if !isNonEmptyStringList(value, false) {
+		return nil, false
+	}
+	values := stringList(value)
+	if limit >= 0 && len(values) > limit {
+		return nil, false
+	}
+	seen := map[string]bool{}
+	for _, value := range values {
+		if (prefix != "" && !strings.HasPrefix(value, prefix)) || seen[value] {
+			return nil, false
+		}
+		seen[value] = true
+	}
+	return values, true
+}
+
+func loadProfessionalSkillCatalogRefs() (map[string]string, error) {
+	path, err := locateTemplate(filepath.Join("ui-professional-skills", "catalog.json"))
+	if err != nil {
+		return nil, err
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(fmt.Sprint(payload["catalog_id"])) != uiProfessionalSkillCatalog {
+		return nil, fmt.Errorf("unexpected UI professional skill catalog ID")
+	}
+	skills, ok := payload["skills"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("UI professional skill catalog skills must be a list")
+	}
+	refs := map[string]string{}
+	for _, rawSkill := range skills {
+		skill, ok := rawSkill.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("UI professional skill catalog entries must be objects")
+		}
+		skillID := strings.TrimSpace(fmt.Sprint(skill["id"]))
+		reference := strings.TrimSpace(fmt.Sprint(skill["ref"]))
+		if skillID == "" || skillID == "<nil>" || reference == "" || reference == "<nil>" || refs[skillID] != "" {
+			return nil, fmt.Errorf("UI professional skill catalog entries require unique IDs and references")
+		}
+		refs[skillID] = reference
+	}
+	return refs, nil
+}
+
+func validateProfessionalSkillRoute(ds map[string]any, diagnostics *[]designDiagnostic, ready bool) {
+	raw, exists := ds["professional_skill_route"]
+	if !exists || raw == nil {
+		// Preserve compatibility with contracts approved before this shared
+		// progressive-disclosure router existed. New scaffolds always include it.
+		return
+	}
+	path := "design_system.professional_skill_route"
+	route, ok := raw.(map[string]any)
+	if !ok {
+		addDesignDiagnostic(diagnostics, "invalid-professional-skill-route", "professional_skill_route must be a mapping", path)
+		return
+	}
+	var problems []string
+	if strings.TrimSpace(fmt.Sprint(route["catalog_version"])) != uiProfessionalSkillCatalog {
+		problems = append(problems, "catalog_version must equal "+uiProfessionalSkillCatalog)
+	}
+	status := strings.TrimSpace(fmt.Sprint(route["status"]))
+	if status != "unresolved" && status != "question-required" && status != "resolved" {
+		problems = append(problems, "status must be unresolved, question-required, or resolved")
+	}
+	domainID := ""
+	if route["domain_skill_id"] != nil {
+		domainID = strings.TrimSpace(fmt.Sprint(route["domain_skill_id"]))
+		if !strings.HasPrefix(domainID, "domain-") {
+			problems = append(problems, "domain_skill_id must be null or a domain-* ID")
+		}
+	}
+	styleID := ""
+	if route["style_skill_id"] != nil {
+		styleID = strings.TrimSpace(fmt.Sprint(route["style_skill_id"]))
+		if !strings.HasPrefix(styleID, "style-") {
+			problems = append(problems, "style_skill_id must be null or a style-* ID")
+		}
+	}
+	specialistIDs, specialistsOK := uniquePrefixedStringList(route["specialist_skill_ids"], "specialist-", 2)
+	if !specialistsOK {
+		problems = append(problems, "specialist_skill_ids must contain zero to two unique specialist-* IDs")
+	}
+	signals, signalsOK := route["matched_signals"].(map[string]any)
+	if signalsOK {
+		for skillID, rawSignals := range signals {
+			if strings.TrimSpace(skillID) == "" || !isNonEmptyStringList(rawSignals, true) {
+				signalsOK = false
+				break
+			}
+		}
+	}
+	if !signalsOK {
+		problems = append(problems, "matched_signals must map skill IDs to non-empty signal strings")
+	}
+	loadedRefs, loadedOK := uniquePrefixedStringList(route["loaded_refs"], "", 4)
+	if !loadedOK {
+		problems = append(problems, "loaded_refs must contain at most four unique references")
+	}
+	unresolved, unresolvedOK := uniquePrefixedStringList(route["unresolved_candidates"], "", -1)
+	if !unresolvedOK {
+		problems = append(problems, "unresolved_candidates must contain unique skill IDs")
+	}
+	catalogRefs, catalogErr := loadProfessionalSkillCatalogRefs()
+	if catalogErr != nil {
+		problems = append(problems, "the UI professional skill catalog is unavailable or invalid")
+	} else if len(problems) == 0 {
+		referencedIDs := append([]string{}, specialistIDs...)
+		if domainID != "" {
+			referencedIDs = append(referencedIDs, domainID)
+		}
+		if styleID != "" {
+			referencedIDs = append(referencedIDs, styleID)
+		}
+		referencedIDs = append(referencedIDs, unresolved...)
+		for skillID := range signals {
+			referencedIDs = append(referencedIDs, skillID)
+		}
+		var unknownIDs []string
+		seenUnknown := map[string]bool{}
+		for _, skillID := range referencedIDs {
+			if catalogRefs[skillID] == "" && !seenUnknown[skillID] {
+				unknownIDs = append(unknownIDs, skillID)
+				seenUnknown[skillID] = true
+			}
+		}
+		if len(unknownIDs) > 0 {
+			sort.Strings(unknownIDs)
+			problems = append(problems, "route references unknown skill IDs: "+strings.Join(unknownIDs, ", "))
+		}
+	}
+	if len(problems) > 0 {
+		addDesignDiagnostic(diagnostics, "invalid-professional-skill-route", strings.Join(problems, "; "), path)
+		return
+	}
+	if !ready {
+		return
+	}
+	expectedRefs := 1 + len(specialistIDs)
+	if styleID != "" {
+		expectedRefs++
+	}
+	if domainID != "" {
+		selectedIDs := []string{domainID}
+		if styleID != "" {
+			selectedIDs = append(selectedIDs, styleID)
+		}
+		selectedIDs = append(selectedIDs, specialistIDs...)
+		expectedLoadedRefs := make([]string, 0, len(selectedIDs))
+		for _, skillID := range selectedIDs {
+			expectedLoadedRefs = append(expectedLoadedRefs, catalogRefs[skillID])
+		}
+		if !reflect.DeepEqual(loadedRefs, expectedLoadedRefs) {
+			addDesignDiagnostic(diagnostics, "professional-skill-route-ref-mismatch", "loaded_refs must exactly match the selected domain, style, and specialists", path+".loaded_refs")
+		}
+	}
+	if status != "resolved" || domainID == "" || len(loadedRefs) != expectedRefs || len(unresolved) > 0 {
+		addDesignDiagnostic(diagnostics, "unresolved-professional-skill-route", "ready design must resolve one domain, optional one style, zero to two specialists, and the exact selected references", path)
+	}
+}
+
+func validateStyleAuthority(ds map[string]any, diagnostics *[]designDiagnostic, ready bool) {
+	raw, exists := ds["style_authority"]
+	schema := strings.TrimSpace(fmt.Sprint(ds["schema"]))
+	path := "design_system.style_authority"
+	if !exists || raw == nil {
+		if schema == designChangeSchema {
+			addDesignDiagnostic(diagnostics, "invalid-style-authority", "current design changes require style_authority", path)
+		}
+		return
+	}
+	authority, ok := raw.(map[string]any)
+	expectedFields := []string{
+		"mode", "scope_level", "source_refs", "protected_surfaces",
+		"allowed_style_delta_surfaces", "authorization_source",
+	}
+	if !ok || len(authority) != len(expectedFields) {
+		addDesignDiagnostic(diagnostics, "invalid-style-authority", "style_authority must contain the current exact fields", path)
+		return
+	}
+	for _, field := range expectedFields {
+		if _, present := authority[field]; !present {
+			addDesignDiagnostic(diagnostics, "invalid-style-authority", "style_authority must contain the current exact fields", path)
+			return
+		}
+	}
+	mode := strings.TrimSpace(fmt.Sprint(authority["mode"]))
+	if authority["mode"] == nil {
+		mode = ""
+	}
+	scopeLevel := ""
+	if authority["scope_level"] != nil {
+		scopeLevel = strings.TrimSpace(fmt.Sprint(authority["scope_level"]))
+	}
+	problems := []string{}
+	validModes := map[string]bool{
+		"unresolved": true, "greenfield": true, "inherit-existing": true,
+		"page-overhaul-authorized": true,
+	}
+	if !validModes[mode] {
+		problems = append(problems, "mode is invalid")
+	}
+	if scopeLevel != "" && scopeLevel != "feature-partial" && scopeLevel != "page" {
+		problems = append(problems, "scope_level must be null, feature-partial, or page")
+	}
+	lists := map[string][]string{}
+	for _, field := range []string{"source_refs", "protected_surfaces", "allowed_style_delta_surfaces"} {
+		values := []any{}
+		listOK := true
+		switch rawValues := authority[field].(type) {
+		case []any:
+			values = rawValues
+		case []string:
+			values = make([]any, 0, len(rawValues))
+			for _, value := range rawValues {
+				values = append(values, value)
+			}
+		default:
+			listOK = false
+		}
+		seen := map[string]bool{}
+		normalized := []string{}
+		if !listOK {
+			problems = append(problems, field+" must contain unique nonblank strings")
+			lists[field] = normalized
+			continue
+		}
+		valid := true
+		for _, value := range values {
+			text, stringOK := value.(string)
+			text = strings.TrimSpace(text)
+			if !stringOK || text == "" || seen[text] {
+				valid = false
+				break
+			}
+			seen[text] = true
+			normalized = append(normalized, text)
+		}
+		if !valid {
+			problems = append(problems, field+" must contain unique nonblank strings")
+			normalized = []string{}
+		}
+		lists[field] = normalized
+	}
+	authorization := ""
+	authorizationPresent := authority["authorization_source"] != nil
+	if authorizationPresent {
+		value, stringOK := authority["authorization_source"].(string)
+		authorization = strings.TrimSpace(value)
+		if !stringOK || authorization == "" {
+			problems = append(problems, "authorization_source must be null or a nonblank string")
+		}
+	}
+	if len(problems) > 0 {
+		addDesignDiagnostic(diagnostics, "invalid-style-authority", strings.Join(problems, "; "), path)
+		return
+	}
+	if !ready {
+		return
+	}
+
+	violations := []string{}
+	protected := stringSliceSet(lists["protected_surfaces"])
+	allowed := stringSliceSet(lists["allowed_style_delta_surfaces"])
+	baselineGuards := []string{"global-shell", "shared-components"}
+	styleSkillID := ""
+	if route, routeOK := ds["professional_skill_route"].(map[string]any); routeOK && route["style_skill_id"] != nil {
+		styleSkillID = strings.TrimSpace(fmt.Sprint(route["style_skill_id"]))
+	}
+	changeType := strings.TrimSpace(fmt.Sprint(ds["change_type"]))
+	declaredSurfaces := map[string]bool{}
+	if scope, scopeOK := ds["scope"].(map[string]any); scopeOK {
+		declaredSurfaces = stringSliceSet(stringList(scope["surfaces"]))
+	}
+	hasBaselineGuards := true
+	for _, guard := range baselineGuards {
+		if !protected[guard] {
+			hasBaselineGuards = false
+		}
+	}
+	switch mode {
+	case "unresolved":
+		violations = append(violations, "ready design must resolve style authority")
+	case "greenfield":
+		if schema == designChangeSchema && changeType != "greenfield" {
+			violations = append(violations, "greenfield style authority requires change_type greenfield")
+		}
+		if authorizationPresent {
+			violations = append(violations, "greenfield cannot claim overhaul authorization")
+		}
+	case "inherit-existing":
+		if scopeLevel != "feature-partial" {
+			violations = append(violations, "inherit-existing requires feature-partial scope")
+		}
+		if len(lists["source_refs"]) == 0 {
+			violations = append(violations, "inherit-existing requires live UI source_refs")
+		}
+		if !hasBaselineGuards {
+			violations = append(violations, "inherit-existing must protect global-shell and shared-components")
+		}
+		if len(allowed) > 0 {
+			violations = append(violations, "inherit-existing cannot allow a style delta")
+		}
+		if authorizationPresent {
+			violations = append(violations, "inherit-existing cannot claim overhaul authorization")
+		}
+		if styleSkillID != "" {
+			violations = append(violations, "inherit-existing requires style_skill_id null")
+		}
+	case "page-overhaul-authorized":
+		if changeType != "overhaul" {
+			violations = append(violations, "page overhaul style authority requires change_type overhaul")
+		}
+		if scopeLevel != "page" {
+			violations = append(violations, "page overhaul style authority requires page scope")
+		}
+		if len(lists["source_refs"]) == 0 {
+			violations = append(violations, "page overhaul requires live UI source_refs")
+		}
+		if !hasBaselineGuards {
+			violations = append(violations, "page overhaul must protect global-shell and shared-components")
+		}
+		allowedValid := len(allowed) > 0
+		for surface := range allowed {
+			if !declaredSurfaces[surface] {
+				allowedValid = false
+			}
+			if surface == "global-shell" || surface == "shared-components" {
+				violations = append(violations, "global shell and shared components cannot be style delta surfaces")
+			}
+		}
+		if !allowedValid {
+			violations = append(violations, "allowed style delta surfaces must be exact declared page surfaces")
+		}
+		if !authorizationPresent || authorization == "" {
+			violations = append(violations, "page overhaul requires explicit authorization_source")
+		}
+	}
+	if len(violations) > 0 {
+		addDesignDiagnostic(diagnostics, "style-authority-violation", strings.Join(violations, "; "), path)
+	}
+}
+
 func validateDesignSystem(doc designDocument, diagnostics *[]designDiagnostic) {
 	ds := doc.DesignSystem
 	schema := strings.TrimSpace(fmt.Sprint(ds["schema"]))
@@ -1639,6 +2740,8 @@ func validateDesignSystem(doc designDocument, diagnostics *[]designDiagnostic) {
 	if schema == designChangeSchema {
 		validateDesignChangeMetadata(ds, diagnostics)
 	}
+	validateProfessionalSkillRoute(ds, diagnostics, false)
+	validateStyleAuthority(ds, diagnostics, false)
 	if platforms, ok := ds["platforms"].([]any); !ok || len(platforms) == 0 {
 		addDesignDiagnostic(diagnostics, "invalid-platforms", "platforms must be a non-empty list", "design_system.platforms")
 	}
@@ -1862,6 +2965,8 @@ func validateTokenReferences(doc designDocument, diagnostics *[]designDiagnostic
 
 func validateDesignReadiness(doc designDocument, diagnostics *[]designDiagnostic) {
 	ds := doc.DesignSystem
+	validateProfessionalSkillRoute(ds, diagnostics, true)
+	validateStyleAuthority(ds, diagnostics, true)
 	if strings.ToLower(strings.TrimSpace(fmt.Sprint(ds["status"]))) != "approved" {
 		addDesignDiagnostic(diagnostics, "design-not-approved", "design_system.status must equal approved for downstream UI work", "design_system.status")
 	}
@@ -1931,6 +3036,122 @@ func validateDesignReadiness(doc designDocument, diagnostics *[]designDiagnostic
 	if name == "" || name == "project-design-system" || name == "bootstrap-design-seed" || strings.Contains(name, "{{") {
 		addDesignDiagnostic(diagnostics, "generic-design-name", "design_system.name must be project-specific before downstream UI work", "design_system.name")
 	}
+	if strings.TrimSpace(fmt.Sprint(ds["schema"])) == designChangeSchema {
+		verification, ok := ds["verification"].(map[string]any)
+		if !ok {
+			addDesignDiagnostic(diagnostics, "missing-design-professional-contract", "design_change.verification must carry the professional UI contract", "design_change.verification")
+		} else {
+			var handoffIDs []string
+			if ok {
+				if approval, approvalOK := ds["approval"].(map[string]any); approvalOK {
+					handoffIDs = stringList(approval["handoff_contract_ids"])
+				}
+			}
+			validateDesignProfessionalVerification(verification, manifestDecisionIDs(ds), handoffIDs, nil, diagnostics)
+		}
+	}
+}
+
+func validateDesignProfessionalVerification(verification map[string]any, decisionIDs, handoffContractIDs []string, immutableHandoff map[string]any, diagnostics *[]designDiagnostic) {
+	knownDecisions := stringSliceSet(decisionIDs)
+	frozenIDs := stringSliceSet(handoffContractIDs)
+	seenIDs := map[string]bool{}
+	fields := []string{"interaction_matrix", "editing_matrix", "data_state_matrix", "accessibility_matrix", "navigation_matrix", "content_matrix"}
+	validateBoundID := func(row map[string]any, path string) {
+		id := strings.TrimSpace(fmt.Sprint(row["id"]))
+		if !canonicalHandoffIDRE.MatchString(id) || seenIDs[id] || (len(frozenIDs) > 0 && !frozenIDs[id]) {
+			addDesignDiagnostic(diagnostics, "invalid-design-professional-contract-id", "professional contract IDs must be unique frozen DH-* values", path+".id")
+		}
+		seenIDs[id] = true
+		decisions := stringList(row["decision_ids"])
+		if len(decisions) == 0 || !stringSetContainsAll(knownDecisions, decisions) {
+			addDesignDiagnostic(diagnostics, "invalid-design-professional-decision-binding", "professional contract decision_ids must reference approved DS-* decisions", path+".decision_ids")
+		}
+	}
+	graphFields := []string{"surface_catalog", "scenario_matrix"}
+	for _, field := range graphFields {
+		rows, ok := verification[field].([]any)
+		if !ok || len(rows) == 0 {
+			addDesignDiagnostic(diagnostics, "missing-design-professional-contract", "verification."+field+" must be a non-empty list", "design_change.verification."+field)
+			continue
+		}
+		for index, raw := range rows {
+			row, ok := raw.(map[string]any)
+			path := fmt.Sprintf("design_change.verification.%s[%d]", field, index)
+			if !ok {
+				addDesignDiagnostic(diagnostics, "invalid-design-professional-contract", field+" rows must be mappings", path)
+				continue
+			}
+			validateBoundID(row, path)
+			valid := true
+			if field == "surface_catalog" {
+				valid = nonEmpty(row["profile_id"]) && nonEmpty(row["name"]) && nonEmpty(row["kind"]) && isNonEmptyStringList(row["source_refs"], true) && isNonEmptyStringList(row["specimen_ids"], true) && isNonEmptyStringList(row["component_ids"], true)
+			} else {
+				risk := strings.TrimSpace(fmt.Sprint(row["risk"]))
+				required, requiredOK := row["required"].(bool)
+				valid = nonEmpty(row["surface_id"]) && nonEmpty(row["name"]) && (risk == "low" || risk == "medium" || risk == "high") && requiredOK && required && validDesignInteractionScript(row["interaction_script"], listToStringSet(row["data_state_ids"]))
+				for _, refField := range []string{"interaction_ids", "editing_ids", "data_state_ids", "accessibility_ids", "navigation_ids", "content_ids", "responsive_ids", "motion_transition_ids"} {
+					valid = valid && isNonEmptyStringList(row[refField], true)
+				}
+			}
+			if !valid {
+				addDesignDiagnostic(diagnostics, "incomplete-design-professional-contract", field+" row is missing executable graph fields", path)
+			}
+		}
+	}
+	for _, field := range fields {
+		rows, ok := verification[field].([]any)
+		if !ok || len(rows) == 0 {
+			addDesignDiagnostic(diagnostics, "missing-design-professional-contract", "verification."+field+" must be a non-empty list", "design_change.verification."+field)
+			continue
+		}
+		for index, raw := range rows {
+			row, ok := raw.(map[string]any)
+			path := fmt.Sprintf("design_change.verification.%s[%d]", field, index)
+			if !ok {
+				addDesignDiagnostic(diagnostics, "invalid-design-professional-contract", field+" rows must be mappings", path)
+				continue
+			}
+			validateBoundID(row, path)
+			if !validDesignProfessionalRow(field, row) {
+				addDesignDiagnostic(diagnostics, "incomplete-design-professional-contract", field+" row is missing executable fields", path)
+			}
+		}
+	}
+	motion, motionOK := verification["motion_contract"].(map[string]any)
+	if !motionOK || !validDesignMotionContract(motion) {
+		addDesignDiagnostic(diagnostics, "incomplete-design-professional-contract", "verification.motion_contract requires purpose, transitions, reduced motion, and ordered feedback timing", "design_change.verification.motion_contract")
+	} else {
+		for index, raw := range motion["transitions"].([]any) {
+			transition, ok := raw.(map[string]any)
+			path := fmt.Sprintf("design_change.verification.motion_contract.transitions[%d]", index)
+			if !ok {
+				addDesignDiagnostic(diagnostics, "invalid-design-professional-contract", "motion transitions must be mappings", path)
+				continue
+			}
+			validateBoundID(transition, path)
+			if !validDesignMotionTransition(transition) {
+				addDesignDiagnostic(diagnostics, "incomplete-design-professional-contract", "motion transition is missing executable fields", path)
+			}
+		}
+	}
+	usability, usabilityOK := verification["usability_validation"].(map[string]any)
+	if !usabilityOK || !validDesignUsabilityValidation(usability) {
+		addDesignDiagnostic(diagnostics, "incomplete-design-professional-contract", "verification.usability_validation requires risk, methods, tasks, success criteria, and human-review decision", "design_change.verification.usability_validation")
+		if usabilityOK && strings.TrimSpace(fmt.Sprint(usability["risk_level"])) == "high" {
+			if humanReview, ok := usability["human_review_required"].(bool); !ok || !humanReview {
+				addDesignDiagnostic(diagnostics, "design-high-risk-human-review-required", "high-risk usability validation must require human review", "design_change.verification.usability_validation.human_review_required")
+			}
+		}
+	}
+	if immutableHandoff != nil {
+		allFields := append(append([]string{}, graphFields...), fields...)
+		for _, field := range append(allFields, "motion_contract", "usability_validation") {
+			if canonicalJSONSHA256(verification[field]) != canonicalJSONSHA256(immutableHandoff[field]) {
+				addDesignDiagnostic(diagnostics, "design-professional-contract-drift", "verification."+field+" must exactly match the immutable approved handoff", "design_change.verification."+field)
+			}
+		}
+	}
 }
 
 func validateApprovedVisualReference(doc designDocument, approval map[string]any, diagnostics *[]designDiagnostic) {
@@ -1944,11 +3165,18 @@ func validateApprovedVisualReference(doc designDocument, approval map[string]any
 			continue
 		}
 		previewRef, direction, _ := strings.Cut(ref, "#")
-		if !strings.HasSuffix(strings.ToLower(previewRef), ".html") || direction == "" {
+		suffix := strings.ToLower(filepath.Ext(previewRef))
+		if (suffix != ".html" && !designImageSuffixes[suffix]) || direction == "" {
 			continue
 		}
 		previewPath := filepath.Join(filepath.Dir(doc.Source), filepath.FromSlash(previewRef))
-		if diagnosticsPreview := lintDesignPreviewFile(previewPath, "ready"); len(diagnosticsPreview) > 0 {
+		var diagnosticsPreview []designDiagnostic
+		if suffix == ".html" {
+			diagnosticsPreview = lintDesignPreviewFile(previewPath, "ready")
+		} else {
+			diagnosticsPreview = lintDesignImageBundle(previewPath, "ready")
+		}
+		if len(diagnosticsPreview) > 0 {
 			addDesignDiagnostic(diagnostics, "approved-preview-invalid", "approved visual reference is not a valid immutable preview: "+diagnosticsPreview[0].Code+": "+diagnosticsPreview[0].Message, ref)
 			continue
 		}
@@ -1967,9 +3195,30 @@ func validateApprovedVisualReference(doc designDocument, approval map[string]any
 			addDesignDiagnostic(diagnostics, "approved-direction-reference-mismatch", "approval.direction must equal the approved visual reference fragment", "design_system.approval.direction")
 		}
 		for _, field := range []string{"preview_sha256", "manifest_sha256"} {
-			sidecarField := map[string]string{"preview_sha256": "html_sha256", "manifest_sha256": "manifest_sha256"}[field]
+			sidecarField := "manifest_sha256"
+			if field == "preview_sha256" {
+				sidecarField = "html_sha256"
+				if suffix != ".html" {
+					sidecarField = "image_sha256"
+				}
+			}
 			if strings.TrimSpace(fmt.Sprint(approval[field])) != strings.TrimSpace(fmt.Sprint(sidecar[sidecarField])) {
 				addDesignDiagnostic(diagnostics, "approved-preview-digest-mismatch", "approval."+field+" must match the immutable preview sidecar", "design_system.approval."+field)
+			}
+		}
+		if suffix != ".html" {
+			for _, field := range []string{"visual_medium", "prompt_sha256", "inspection_owner"} {
+				if strings.TrimSpace(fmt.Sprint(approval[field])) != strings.TrimSpace(fmt.Sprint(sidecar[field])) {
+					addDesignDiagnostic(diagnostics, "approved-image-provenance-mismatch", "approval."+field+" must match the immutable image approval sidecar", "design_system.approval."+field)
+				}
+			}
+			promptRef := strings.TrimSpace(fmt.Sprint(approval["prompt_ref"]))
+			expectedPromptPath := strings.TrimSuffix(previewPath, filepath.Ext(previewPath)) + ".prompt.md"
+			resolvedPromptPath := filepath.Join(filepath.Dir(doc.Source), filepath.FromSlash(promptRef))
+			expectedAbs, expectedErr := filepath.Abs(expectedPromptPath)
+			resolvedAbs, resolvedErr := filepath.Abs(resolvedPromptPath)
+			if promptRef == "" || expectedErr != nil || resolvedErr != nil || filepath.Clean(expectedAbs) != filepath.Clean(resolvedAbs) {
+				addDesignDiagnostic(diagnostics, "approved-image-prompt-reference-mismatch", "approval.prompt_ref must identify the exact adjacent image-generation prompt", "design_system.approval.prompt_ref")
 			}
 		}
 		if !reflect.DeepEqual(approval["decision_ids"], sidecar["decision_ids"]) {
@@ -2008,9 +3257,22 @@ func validateApprovedVisualReference(doc designDocument, approval map[string]any
 		if strings.TrimSpace(fmt.Sprint(handoffApproval["direction_id"])) != direction || strings.TrimSpace(fmt.Sprint(handoffApproval["preview_sha256"])) != strings.TrimSpace(fmt.Sprint(approval["preview_sha256"])) || strings.TrimSpace(fmt.Sprint(handoffApproval["manifest_sha256"])) != strings.TrimSpace(fmt.Sprint(approval["manifest_sha256"])) {
 			addDesignDiagnostic(diagnostics, "approved-handoff-approval-mismatch", "immutable handoff approval must preserve direction and preview/manifest digests", handoffPath)
 		}
+		if strings.TrimSpace(fmt.Sprint(doc.DesignSystem["schema"])) == designChangeSchema {
+			verification, verificationOK := doc.DesignSystem["verification"].(map[string]any)
+			reproduction, reproductionOK := handoff["reproduction"].(map[string]any)
+			if verificationOK && reproductionOK {
+				validateDesignProfessionalVerification(
+					verification,
+					stringList(approval["decision_ids"]),
+					stringList(approval["handoff_contract_ids"]),
+					reproduction,
+					diagnostics,
+				)
+			}
+		}
 		return
 	}
-	addDesignDiagnostic(diagnostics, "missing-local-approved-preview", "approved UI design requires a local round-NN.html#direction-id reference", "design_system.approval.visual_refs")
+	addDesignDiagnostic(diagnostics, "missing-local-approved-preview", "approved UI design requires a local immutable HTML or image round reference", "design_system.approval.visual_refs")
 }
 
 func parseHTMLSummary(content string) htmlParseSummary {
@@ -2116,7 +3378,35 @@ func firstTagBodyByID(content, tag, id string) string {
 	return ""
 }
 
-func previewManifestDiagnostics(manifest map[string]any, directionIDs []string, ready bool) []designDiagnostic {
+func previewVisualCollaborationDiagnostics(manifest map[string]any, expectedPrimaryMedium string) []designDiagnostic {
+	var diagnostics []designDiagnostic
+	collaboration, ok := manifest["visual_collaboration"].(map[string]any)
+	if !ok {
+		addDesignDiagnostic(&diagnostics, "preview-invalid-visual-collaboration", "preview manifest must freeze the live visual capability route", "manifest.visual_collaboration")
+		return diagnostics
+	}
+	primaryMedium := strings.TrimSpace(fmt.Sprint(collaboration["primary_medium"]))
+	imageGeneration := strings.TrimSpace(fmt.Sprint(collaboration["image_generation"]))
+	imageInspection := strings.TrimSpace(fmt.Sprint(collaboration["image_inspection"]))
+	imageEditing := strings.TrimSpace(fmt.Sprint(collaboration["image_editing"]))
+	inspectionOwner := strings.TrimSpace(fmt.Sprint(collaboration["inspection_owner"]))
+	promptStrategy := strings.TrimSpace(fmt.Sprint(collaboration["prompt_strategy"]))
+	expectedOwner := "user"
+	if imageInspection == "available" {
+		expectedOwner = "agent-and-user"
+	}
+	validCapabilities := (imageInspection == "available" || imageInspection == "unavailable") && (imageEditing == "available" || imageEditing == "unavailable")
+	validRoute := validCapabilities && inspectionOwner == expectedOwner && ((primaryMedium == "image-primary" && imageGeneration == "available" && promptStrategy == "image-generation") || (primaryMedium == "html-primary" && imageGeneration == "unavailable" && promptStrategy == "html-authoring"))
+	if expectedPrimaryMedium != "" && primaryMedium != expectedPrimaryMedium {
+		validRoute = false
+	}
+	if !validRoute {
+		addDesignDiagnostic(&diagnostics, "preview-invalid-visual-collaboration", "visual_collaboration must truthfully bind the selected medium, independent image capabilities, prompt strategy, and inspection owner", "manifest.visual_collaboration")
+	}
+	return diagnostics
+}
+
+func previewManifestDiagnostics(manifest map[string]any, directionIDs []string, ready bool, expectedPrimaryMedium string) []designDiagnostic {
 	var diagnostics []designDiagnostic
 	if manifest["schema"] != designPreviewManifestSchema {
 		addDesignDiagnostic(&diagnostics, "preview-invalid-manifest-schema", "preview manifest schema must equal "+designPreviewManifestSchema, "manifest.schema")
@@ -2124,9 +3414,10 @@ func previewManifestDiagnostics(manifest map[string]any, directionIDs []string, 
 	if ready && manifest["configured"] != true {
 		addDesignDiagnostic(&diagnostics, "preview-manifest-not-configured", "ready preview manifest must set configured to true", "manifest.configured")
 	}
+	diagnostics = append(diagnostics, previewVisualCollaborationDiagnostics(manifest, expectedPrimaryMedium)...)
 	directions, ok := manifest["directions"].([]any)
-	if !ok || len(directions) != 3 {
-		addDesignDiagnostic(&diagnostics, "preview-manifest-direction-count", "preview manifest must define exactly three directions", "manifest.directions")
+	if !ok || len(directions) != 1 {
+		addDesignDiagnostic(&diagnostics, "preview-manifest-direction-count", "preview manifest must define exactly one current concept", "manifest.directions")
 		return diagnostics
 	}
 	var manifestIDs []string
@@ -2152,10 +3443,38 @@ func previewManifestDiagnostics(manifest map[string]any, directionIDs []string, 
 					addDesignDiagnostic(&diagnostics, "preview-incomplete-direction", "ready direction "+id+" must define "+field, fmt.Sprintf("manifest.directions[%d].%s", index, field))
 				}
 			}
+			dials, dialsOK := direction["dials"].(map[string]any)
+			if !dialsOK {
+				addDesignDiagnostic(&diagnostics, "preview-missing-direction-dials", "ready direction "+id+" must define dials.variance/motion/density", fmt.Sprintf("manifest.directions[%d].dials", index))
+			} else {
+				validDials := true
+				for _, axis := range []string{"variance", "motion", "density"} {
+					if !validDesignDial(dials[axis]) {
+						validDials = false
+					}
+				}
+				if !validDials {
+					addDesignDiagnostic(&diagnostics, "preview-invalid-direction-dials", "ready direction "+id+" dials must be integers 1-10 for variance, motion, and density", fmt.Sprintf("manifest.directions[%d].dials", index))
+				}
+				reason := strings.TrimSpace(fmt.Sprint(dials["inference_reason"]))
+				if reason == "" || reason == "<nil>" {
+					addDesignDiagnostic(&diagnostics, "preview-missing-dial-inference", "ready direction "+id+" must explain dial inference_reason", fmt.Sprintf("manifest.directions[%d].dials.inference_reason", index))
+				} else if previewPlaceholderRE.MatchString(reason) {
+					addDesignDiagnostic(&diagnostics, "preview-unresolved-dial-inference", "ready direction "+id+" inference_reason must replace scaffold placeholders", fmt.Sprintf("manifest.directions[%d].dials.inference_reason", index))
+				} else if scaffoldTasteReason(reason) {
+					addDesignDiagnostic(&diagnostics, "preview-scaffold-taste-reason", "ready direction "+id+" inference_reason must use project intake instead of scaffold wording", fmt.Sprintf("manifest.directions[%d].dials.inference_reason", index))
+				}
+			}
+			family := strings.TrimSpace(fmt.Sprint(direction["aesthetic_family"]))
+			if family == "" || family == "<nil>" {
+				addDesignDiagnostic(&diagnostics, "preview-missing-aesthetic-family", "ready direction "+id+" must define aesthetic_family", fmt.Sprintf("manifest.directions[%d].aesthetic_family", index))
+			} else if previewPlaceholderRE.MatchString(family) {
+				addDesignDiagnostic(&diagnostics, "preview-unresolved-aesthetic-family", "ready direction "+id+" aesthetic_family must replace scaffold placeholders", fmt.Sprintf("manifest.directions[%d].aesthetic_family", index))
+			}
 		}
 	}
 	if !reflect.DeepEqual(manifestIDs, directionIDs) {
-		addDesignDiagnostic(&diagnostics, "preview-manifest-direction-mismatch", "preview manifest direction IDs must match the three rendered direction IDs in order", "manifest.directions")
+		addDesignDiagnostic(&diagnostics, "preview-manifest-direction-mismatch", "preview manifest direction ID must match the rendered current concept", "manifest.directions")
 	}
 	if decisions, ok := manifest["decisions"].([]any); !ok || len(decisions) == 0 {
 		addDesignDiagnostic(&diagnostics, "preview-missing-decisions", "preview manifest must define stable design decisions", "manifest.decisions")
@@ -2163,6 +3482,30 @@ func previewManifestDiagnostics(manifest map[string]any, directionIDs []string, 
 	diagnostics = append(diagnostics, previewCapabilityDiagnostics(manifest, directions, ready)...)
 	diagnostics = append(diagnostics, previewHandoffDiagnostics(manifest, ready)...)
 	return diagnostics
+}
+
+func validDesignDial(value any) bool {
+	switch typed := value.(type) {
+	case int:
+		return typed >= 1 && typed <= 10
+	case float64:
+		return typed == float64(int(typed)) && typed >= 1 && typed <= 10
+	case json.Number:
+		parsed, err := strconv.Atoi(typed.String())
+		return err == nil && parsed >= 1 && parsed <= 10
+	default:
+		return false
+	}
+}
+
+func scaffoldTasteReason(value string) bool {
+	lowered := strings.ToLower(strings.TrimSpace(value))
+	for _, prefix := range []string{"scaffold baseline:", "scaffold default:", "template baseline:"} {
+		if strings.HasPrefix(lowered, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func previewCapabilityDiagnostics(manifest map[string]any, directions []any, ready bool) []designDiagnostic {
@@ -2470,16 +3813,193 @@ func previewHandoffDiagnostics(manifest map[string]any, ready bool) []designDiag
 		addDesignDiagnostic(&diagnostics, "preview-invalid-reproduction-mode", "handoff reproduction_mode must be exact or platform-adapted", "manifest.handoff.reproduction_mode")
 	}
 	components, componentsOK := handoff["component_contracts"].([]any)
+	surfaces, surfacesOK := handoff["surface_catalog"].([]any)
+	scenarios, scenariosOK := handoff["scenario_matrix"].([]any)
 	responsive, responsiveOK := handoff["responsive_matrix"].([]any)
 	acceptance, acceptanceOK := handoff["visual_acceptance_matrix"].([]any)
 	if !componentsOK || len(components) == 0 {
 		addDesignDiagnostic(&diagnostics, "preview-missing-component-contracts", "handoff must define component contracts", "manifest.handoff.component_contracts")
+	}
+	if !surfacesOK || len(surfaces) == 0 {
+		addDesignDiagnostic(&diagnostics, "preview-missing-surface-catalog", "handoff must define a stable surface_catalog", "manifest.handoff.surface_catalog")
+	}
+	if !scenariosOK || len(scenarios) == 0 {
+		addDesignDiagnostic(&diagnostics, "preview-missing-scenario-matrix", "handoff must define a bounded scenario_matrix", "manifest.handoff.scenario_matrix")
 	}
 	if !responsiveOK || len(responsive) == 0 {
 		addDesignDiagnostic(&diagnostics, "preview-missing-responsive-matrix", "handoff must define responsive targets", "manifest.handoff.responsive_matrix")
 	}
 	if !acceptanceOK || len(acceptance) == 0 {
 		addDesignDiagnostic(&diagnostics, "preview-missing-visual-acceptance", "handoff must define visual acceptance rows", "manifest.handoff.visual_acceptance_matrix")
+	}
+	professionalFields := []string{"interaction_matrix", "editing_matrix", "data_state_matrix", "accessibility_matrix", "navigation_matrix", "content_matrix"}
+	for _, field := range professionalFields {
+		rows, ok := handoff[field].([]any)
+		if !ok || len(rows) == 0 {
+			addDesignDiagnostic(&diagnostics, "preview-missing-"+strings.ReplaceAll(field, "_", "-"), "preview handoff must define a non-empty "+field, "manifest.handoff."+field)
+			continue
+		}
+		for index, raw := range rows {
+			row, ok := raw.(map[string]any)
+			if !ok {
+				addDesignDiagnostic(&diagnostics, "preview-incomplete-professional-contract", field+" rows must be objects", fmt.Sprintf("manifest.handoff.%s[%d]", field, index))
+				continue
+			}
+			validateID(row["id"], fmt.Sprintf("manifest.handoff.%s[%d].id", field, index))
+			if ready && !validDesignProfessionalRow(field, row) {
+				addDesignDiagnostic(&diagnostics, "preview-incomplete-professional-contract", field+" row is missing its executable professional UI fields", fmt.Sprintf("manifest.handoff.%s[%d]", field, index))
+			}
+			for decisionID := range listToStringSet(row["decision_ids"]) {
+				if !knownDecisions[decisionID] {
+					addDesignDiagnostic(&diagnostics, "preview-unknown-handoff-decision", field+" row must reference known DS-* decisions", fmt.Sprintf("manifest.handoff.%s[%d].decision_ids", field, index))
+				}
+			}
+		}
+	}
+	motionContract, motionOK := handoff["motion_contract"].(map[string]any)
+	if !motionOK {
+		addDesignDiagnostic(&diagnostics, "preview-missing-motion-contract", "preview handoff must define a structured motion_contract", "manifest.handoff.motion_contract")
+	} else {
+		transitions, transitionsOK := motionContract["transitions"].([]any)
+		if !transitionsOK || len(transitions) == 0 {
+			addDesignDiagnostic(&diagnostics, "preview-incomplete-motion-contract", "motion_contract.transitions must be a non-empty list", "manifest.handoff.motion_contract.transitions")
+		}
+		for index, raw := range transitions {
+			transition, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			validateID(transition["id"], fmt.Sprintf("manifest.handoff.motion_contract.transitions[%d].id", index))
+			if ready && !validDesignMotionTransition(transition) {
+				addDesignDiagnostic(&diagnostics, "preview-incomplete-motion-contract", "motion transitions require surface, trigger, response, duration, easing, interruption behavior, and decisions", fmt.Sprintf("manifest.handoff.motion_contract.transitions[%d]", index))
+			}
+			for decisionID := range listToStringSet(transition["decision_ids"]) {
+				if !knownDecisions[decisionID] {
+					addDesignDiagnostic(&diagnostics, "preview-unknown-handoff-decision", "motion transition must reference known DS-* decisions", fmt.Sprintf("manifest.handoff.motion_contract.transitions[%d].decision_ids", index))
+				}
+			}
+		}
+		if ready && !validDesignMotionContract(motionContract) {
+			addDesignDiagnostic(&diagnostics, "preview-incomplete-motion-contract", "motion_contract requires purpose, reduced-motion behavior, transitions, and ordered immediate/progress/timeout timing", "manifest.handoff.motion_contract")
+		}
+	}
+
+	componentIDs := map[string]bool{}
+	for _, raw := range components {
+		if row, ok := raw.(map[string]any); ok {
+			componentIDs[strings.TrimSpace(fmt.Sprint(row["id"]))] = true
+		}
+	}
+	knownSpecimens := stringSliceSet(manifestSpecimenIDs(manifest))
+	surfaceIDs := map[string]bool{}
+	for index, raw := range surfaces {
+		surface, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		id := validateID(surface["id"], fmt.Sprintf("manifest.handoff.surface_catalog[%d].id", index))
+		if id != "" {
+			surfaceIDs[id] = true
+		}
+		if ready && (!nonEmpty(surface["profile_id"]) || !nonEmpty(surface["name"]) || !nonEmpty(surface["kind"]) || !isNonEmptyStringList(surface["source_refs"], true) || !isNonEmptyStringList(surface["specimen_ids"], true) || !stringSetContainsAll(knownSpecimens, stringList(surface["specimen_ids"])) || !isNonEmptyStringList(surface["component_ids"], true) || !stringSetContainsAll(componentIDs, stringList(surface["component_ids"])) || !isNonEmptyStringList(surface["decision_ids"], true)) {
+			addDesignDiagnostic(&diagnostics, "preview-incomplete-surface-catalog", "surface_catalog rows require profile, source, specimen, component, and decision bindings", fmt.Sprintf("manifest.handoff.surface_catalog[%d]", index))
+		}
+		for decisionID := range listToStringSet(surface["decision_ids"]) {
+			if !knownDecisions[decisionID] {
+				addDesignDiagnostic(&diagnostics, "preview-unknown-handoff-decision", "surface catalog must reference known DS-* decisions", fmt.Sprintf("manifest.handoff.surface_catalog[%d].decision_ids", index))
+			}
+		}
+	}
+	type scenarioValidationSource struct {
+		field string
+		rows  []any
+	}
+	interactionRows, _ := handoff["interaction_matrix"].([]any)
+	editingRows, _ := handoff["editing_matrix"].([]any)
+	dataStateRows, _ := handoff["data_state_matrix"].([]any)
+	accessibilityRows, _ := handoff["accessibility_matrix"].([]any)
+	navigationRows, _ := handoff["navigation_matrix"].([]any)
+	contentRows, _ := handoff["content_matrix"].([]any)
+	validationSources := []scenarioValidationSource{
+		{"interaction_ids", interactionRows},
+		{"editing_ids", editingRows},
+		{"data_state_ids", dataStateRows},
+		{"accessibility_ids", accessibilityRows},
+		{"navigation_ids", navigationRows},
+		{"content_ids", contentRows},
+		{"responsive_ids", responsive},
+	}
+	if motionOK {
+		if rows, ok := motionContract["transitions"].([]any); ok {
+			validationSources = append(validationSources, scenarioValidationSource{"motion_transition_ids", rows})
+		}
+	}
+	rowsByID := map[string]map[string]any{}
+	knownScenarioRefs := map[string]map[string]bool{}
+	coveredScenarioRefs := map[string]map[string]bool{}
+	for _, source := range validationSources {
+		knownScenarioRefs[source.field] = map[string]bool{}
+		coveredScenarioRefs[source.field] = map[string]bool{}
+		for _, raw := range source.rows {
+			row, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			id := strings.TrimSpace(fmt.Sprint(row["id"]))
+			knownScenarioRefs[source.field][id] = true
+			rowsByID[id] = row
+		}
+	}
+	for index, raw := range scenarios {
+		scenario, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		validateID(scenario["id"], fmt.Sprintf("manifest.handoff.scenario_matrix[%d].id", index))
+		valid := surfaceIDs[strings.TrimSpace(fmt.Sprint(scenario["surface_id"]))] && nonEmpty(scenario["name"])
+		risk := strings.TrimSpace(fmt.Sprint(scenario["risk"]))
+		valid = valid && (risk == "low" || risk == "medium" || risk == "high")
+		required, requiredOK := scenario["required"].(bool)
+		valid = valid && requiredOK && required && validDesignInteractionScript(scenario["interaction_script"], listToStringSet(scenario["data_state_ids"]))
+		referencedIDs := map[string]bool{}
+		for _, source := range validationSources {
+			refs := stringList(scenario[source.field])
+			if len(refs) == 0 || !stringSetContainsAll(knownScenarioRefs[source.field], refs) {
+				valid = false
+				continue
+			}
+			for _, id := range refs {
+				coveredScenarioRefs[source.field][id] = true
+				referencedIDs[id] = true
+			}
+		}
+		expectedDecisions := map[string]bool{}
+		for id := range referencedIDs {
+			for decisionID := range listToStringSet(rowsByID[id]["decision_ids"]) {
+				expectedDecisions[decisionID] = true
+			}
+		}
+		if !stringSetEqual(listToStringSet(scenario["decision_ids"]), expectedDecisions) {
+			valid = false
+		}
+		if ready && !valid {
+			addDesignDiagnostic(&diagnostics, "preview-invalid-scenario-contract", "scenario_matrix rows must bind one known surface to known matrix rows with exact decision coverage", fmt.Sprintf("manifest.handoff.scenario_matrix[%d]", index))
+		}
+	}
+	for _, source := range validationSources {
+		if !stringSetEqual(coveredScenarioRefs[source.field], knownScenarioRefs[source.field]) {
+			addDesignDiagnostic(&diagnostics, "preview-incomplete-scenario-coverage", "scenario_matrix must cover every "+source.field+" contract without a Cartesian expansion", "manifest.handoff.scenario_matrix")
+		}
+	}
+	if usability, ok := handoff["usability_validation"].(map[string]any); !ok {
+		addDesignDiagnostic(&diagnostics, "preview-missing-usability-validation", "preview handoff must define usability_validation", "manifest.handoff.usability_validation")
+	} else if ready && !validDesignUsabilityValidation(usability) {
+		addDesignDiagnostic(&diagnostics, "preview-incomplete-usability-validation", "usability_validation requires risk, methods, critical tasks, success criteria, and an explicit human-review decision", "manifest.handoff.usability_validation")
+		if strings.TrimSpace(fmt.Sprint(usability["risk_level"])) == "high" {
+			if humanReview, ok := usability["human_review_required"].(bool); !ok || !humanReview {
+				addDesignDiagnostic(&diagnostics, "preview-high-risk-human-review-required", "high-risk usability validation must require human review", "manifest.handoff.usability_validation.human_review_required")
+			}
+		}
 	}
 	tolerance, toleranceOK := handoff["comparison_tolerance"].(map[string]any)
 	if !toleranceOK || len(tolerance) == 0 {
@@ -2516,8 +4036,9 @@ func previewHandoffDiagnostics(manifest map[string]any, ready bool) []designDiag
 			continue
 		}
 		validateID(component["id"], fmt.Sprintf("manifest.handoff.component_contracts[%d].id", index))
-		if ready && (!nonEmpty(component["component"]) || !isNonEmptyStringList(component["anatomy"], true) || !isNonEmptyStringList(component["required_states"], true) || !isNonEmptyStringList(component["decision_ids"], true) || !isNonEmptyStringList(component["must_match"], true)) {
-			addDesignDiagnostic(&diagnostics, "preview-incomplete-component-contract", "component contracts require component, anatomy, states, decisions, and must_match", fmt.Sprintf("manifest.handoff.component_contracts[%d]", index))
+		governance := strings.TrimSpace(fmt.Sprint(component["governance"]))
+		if ready && (!nonEmpty(component["component"]) || !isNonEmptyStringList(component["anatomy"], true) || !isNonEmptyStringList(component["required_states"], true) || !isNonEmptyStringList(component["interaction_modes"], true) || !validDesignDataScenarios(component["data_scenarios"]) || !isNonEmptyStringList(component["variants"], true) || !isNonEmptyStringList(component["content_constraints"], true) || !isNonEmptyStringList(component["semantic_token_refs"], true) || (governance != "reuse" && governance != "extend" && governance != "new") || !nonEmpty(component["iconography"]) || !isNonEmptyStringList(component["decision_ids"], true) || !isNonEmptyStringList(component["must_match"], true)) {
+			addDesignDiagnostic(&diagnostics, "preview-incomplete-component-contract", "component contracts require anatomy, states, interaction/data scenarios, variants, content constraints, semantic tokens, governance, iconography, decisions, and must_match", fmt.Sprintf("manifest.handoff.component_contracts[%d]", index))
 		}
 		for state := range listToStringSet(component["required_states"]) {
 			requiredStates[state] = true
@@ -2542,8 +4063,8 @@ func previewHandoffDiagnostics(manifest map[string]any, ready bool) []designDiag
 		if target, ok := row["target"].(map[string]any); !ok || !nonEmpty(target["width"]) || !nonEmpty(target["height"]) || !nonEmpty(target["unit"]) {
 			addDesignDiagnostic(&diagnostics, "preview-incomplete-responsive-target", "responsive targets require width, height, and unit", fmt.Sprintf("manifest.handoff.responsive_matrix[%d].target", index))
 		}
-		if ready && (!nonEmpty(row["profile_id"]) || !nonEmpty(row["review_width_px"]) || !nonEmpty(row["label"]) || !nonEmpty(row["state"]) || !nonEmpty(row["adaptation"]) || !isNonEmptyStringList(row["decision_ids"], true)) {
-			addDesignDiagnostic(&diagnostics, "preview-incomplete-responsive-contract", "responsive contracts require profile, review width, label, state, adaptation, and decisions", fmt.Sprintf("manifest.handoff.responsive_matrix[%d]", index))
+		if ready && (!nonEmpty(row["profile_id"]) || !nonEmpty(row["review_width_px"]) || !nonEmpty(row["label"]) || !nonEmpty(row["state"]) || !nonEmpty(row["adaptation"]) || !nonEmpty(row["stretch_behavior"]) || !nonEmpty(row["overflow_behavior"]) || !isNonEmptyStringList(row["decision_ids"], true)) {
+			addDesignDiagnostic(&diagnostics, "preview-incomplete-responsive-contract", "responsive contracts require profile, review width, label, state, adaptation, stretch behavior, overflow behavior, and decisions", fmt.Sprintf("manifest.handoff.responsive_matrix[%d]", index))
 		}
 		for decisionID := range listToStringSet(row["decision_ids"]) {
 			if !knownDecisions[decisionID] {
@@ -2627,6 +4148,7 @@ func validatePreviewApprovalSidecar(path, content, approvedDirection string, man
 	}
 	expected := map[string]any{
 		"schema":          designPreviewApprovalSchema,
+		"visual_medium":   "html",
 		"preview_file":    filepath.Base(path),
 		"direction_id":    approvedDirection,
 		"preview_ref":     filepath.Base(path) + "#" + approvedDirection,
@@ -2634,6 +4156,11 @@ func validatePreviewApprovalSidecar(path, content, approvedDirection string, man
 		"manifest_sha256": canonicalJSONSHA256(manifest),
 		"handoff_file":    filepath.Base(strings.TrimSuffix(path, filepath.Ext(path)) + ".handoff.json"),
 		"handoff_ref":     filepath.Base(strings.TrimSuffix(path, filepath.Ext(path)) + ".handoff.json"),
+	}
+	if collaboration, ok := manifest["visual_collaboration"].(map[string]any); ok {
+		for _, field := range []string{"image_generation", "image_inspection", "image_editing", "inspection_owner", "prompt_strategy"} {
+			expected[field] = strings.TrimSpace(fmt.Sprint(collaboration[field]))
+		}
 	}
 	for key, value := range expected {
 		if strings.TrimSpace(fmt.Sprint(payload[key])) != strings.TrimSpace(fmt.Sprint(value)) {
@@ -2715,15 +4242,15 @@ func validateUITargetReadyManifest(manifest map[string]any, diagnostics *[]desig
 		if ref == "" || ref == "<nil>" || direction == "" || direction == "<nil>" {
 			addDesignDiagnostic(diagnostics, "ui-target-incomplete-approval", "ready UI target approval requires ref and direction_id", "manifest.approval")
 		}
-		if regexp.MustCompile(`(?i)round-\d+\.html#direction-[a-z0-9-]+$`).MatchString(ref) {
+		if regexp.MustCompile(`(?i)round-\d+\.(?:html|png|jpe?g|webp)#direction-[a-z0-9-]+$`).MatchString(ref) {
 			for _, field := range []string{"preview_sha256", "manifest_sha256", "handoff_sha256"} {
 				if !hexDigestRE.MatchString(strings.TrimSpace(fmt.Sprint(approval[field]))) {
-					addDesignDiagnostic(diagnostics, "ui-target-invalid-approval-digest", "approved HTML preview requires a valid "+field, "manifest.approval."+field)
+					addDesignDiagnostic(diagnostics, "ui-target-invalid-approval-digest", "approved visual round requires a valid "+field, "manifest.approval."+field)
 				}
 			}
 			handoffRef := strings.TrimSpace(fmt.Sprint(approval["handoff_ref"]))
 			if !strings.HasSuffix(strings.ToLower(handoffRef), ".handoff.json") {
-				addDesignDiagnostic(diagnostics, "ui-target-invalid-handoff-reference", "approved HTML preview requires an immutable handoff_ref", "manifest.approval.handoff_ref")
+				addDesignDiagnostic(diagnostics, "ui-target-invalid-handoff-reference", "approved visual round requires an immutable handoff_ref", "manifest.approval.handoff_ref")
 			}
 		}
 	}
@@ -3023,10 +4550,21 @@ func manifestHandoffContractIDs(manifest map[string]any) []string {
 	handoff, _ := manifest["handoff"].(map[string]any)
 	collections := []any{
 		manifest["token_map"],
+		handoff["surface_catalog"],
+		handoff["scenario_matrix"],
 		handoff["component_contracts"],
+		handoff["interaction_matrix"],
+		handoff["editing_matrix"],
+		handoff["data_state_matrix"],
+		handoff["accessibility_matrix"],
+		handoff["navigation_matrix"],
+		handoff["content_matrix"],
 		handoff["responsive_matrix"],
 		handoff["visual_acceptance_matrix"],
 		handoff["accepted_deviations"],
+	}
+	if motion, ok := handoff["motion_contract"].(map[string]any); ok {
+		collections = append(collections, motion["transitions"])
 	}
 	var ids []string
 	for _, collection := range collections {
@@ -3068,6 +4606,10 @@ func manifestSpecimenIDs(manifest map[string]any) []string {
 }
 
 func buildDesignHandoffPayload(path, content, directionID string, manifest map[string]any) (map[string]any, error) {
+	return buildDesignHandoffPayloadForMedium(path, []byte(content), directionID, manifest, "html", "", "")
+}
+
+func buildDesignHandoffPayloadForMedium(path string, content []byte, directionID string, manifest map[string]any, visualMedium, promptSHA256, inspectionOwner string) (map[string]any, error) {
 	var selected map[string]any
 	for _, raw := range manifest["directions"].([]any) {
 		direction, ok := raw.(map[string]any)
@@ -3085,6 +4627,9 @@ func buildDesignHandoffPayload(path, content, directionID string, manifest map[s
 	}
 	reproduction := cloneJSONMap(handoff)
 	reproduction["capability_model"] = cloneJSONValue(manifest["capability_model"])
+	// The selected direction owns review-board motion tokens. The reproduction
+	// contract already contains profile-adapted implementation transitions and
+	// reduced-motion behavior; keep those per-platform values intact.
 	responsiveByID := map[string]map[string]any{}
 	responsive, _ := reproduction["responsive_matrix"].([]any)
 	for _, raw := range responsive {
@@ -3105,18 +4650,22 @@ func buildDesignHandoffPayload(path, content, directionID string, manifest map[s
 		var targets []any
 		for _, colorMode := range stringList(row["color_modes"]) {
 			for _, motionMode := range stringList(row["motion_modes"]) {
-				query := "mode=" + url.QueryEscape(colorMode) + "&motion=" + url.QueryEscape(motionMode) + "&capture=1"
-				if profileID := strings.TrimSpace(fmt.Sprint(responsiveRow["profile_id"])); profileID != "" && profileID != "<nil>" {
-					query += "&profile=" + url.QueryEscape(profileID)
-				}
-				if targetID := strings.TrimSpace(fmt.Sprint(responsiveRow["id"])); targetID != "" && targetID != "<nil>" {
-					query += "&target=" + url.QueryEscape(targetID)
-				}
-				if responsiveRow["review_width_px"] != nil {
-					query += "&viewport=" + url.QueryEscape(jsonNumberString(responsiveRow["review_width_px"]))
+				approvedRef := filepath.Base(path) + "#" + directionID
+				if visualMedium == "html" {
+					query := "mode=" + url.QueryEscape(colorMode) + "&motion=" + url.QueryEscape(motionMode) + "&capture=1"
+					if profileID := strings.TrimSpace(fmt.Sprint(responsiveRow["profile_id"])); profileID != "" && profileID != "<nil>" {
+						query += "&profile=" + url.QueryEscape(profileID)
+					}
+					if targetID := strings.TrimSpace(fmt.Sprint(responsiveRow["id"])); targetID != "" && targetID != "<nil>" {
+						query += "&target=" + url.QueryEscape(targetID)
+					}
+					if responsiveRow["review_width_px"] != nil {
+						query += "&viewport=" + url.QueryEscape(jsonNumberString(responsiveRow["review_width_px"]))
+					}
+					approvedRef = filepath.Base(path) + "?" + query + "#" + directionID
 				}
 				targets = append(targets, map[string]any{
-					"ref":         filepath.Base(path) + "?" + query + "#" + directionID,
+					"ref":         approvedRef,
 					"color_mode":  colorMode,
 					"motion_mode": motionMode,
 				})
@@ -3128,17 +4677,33 @@ func buildDesignHandoffPayload(path, content, directionID string, manifest map[s
 	reproduction["visual_acceptance_matrix"] = resolvedAcceptance
 	reproduction["contract_ids"] = manifestHandoffContractIDs(manifest)
 	review, _ := manifest["review"].(map[string]any)
+	approval := map[string]any{
+		"preview_file":    filepath.Base(path),
+		"preview_ref":     filepath.Base(path) + "#" + directionID,
+		"direction_id":    directionID,
+		"review_round":    strings.TrimSpace(fmt.Sprint(review["round"])),
+		"preview_sha256":  sha256Bytes(content),
+		"manifest_sha256": canonicalJSONSHA256(manifest),
+		"decision_ids":    manifestDecisionIDs(manifest),
+		"visual_medium":   visualMedium,
+	}
+	if collaboration, ok := manifest["visual_collaboration"].(map[string]any); ok {
+		for _, field := range []string{"image_generation", "image_inspection", "image_editing", "inspection_owner", "prompt_strategy"} {
+			if value := strings.TrimSpace(fmt.Sprint(collaboration[field])); value != "" && value != "<nil>" {
+				approval[field] = value
+			}
+		}
+	}
+	if promptSHA256 != "" {
+		approval["prompt_ref"] = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)) + ".prompt.md"
+		approval["prompt_sha256"] = promptSHA256
+	}
+	if inspectionOwner != "" {
+		approval["inspection_owner"] = inspectionOwner
+	}
 	return map[string]any{
-		"schema": designHandoffSchema,
-		"approval": map[string]any{
-			"preview_file":    filepath.Base(path),
-			"preview_ref":     filepath.Base(path) + "#" + directionID,
-			"direction_id":    directionID,
-			"review_round":    strings.TrimSpace(fmt.Sprint(review["round"])),
-			"preview_sha256":  sha256String(content),
-			"manifest_sha256": canonicalJSONSHA256(manifest),
-			"decision_ids":    manifestDecisionIDs(manifest),
-		},
+		"schema":                  designHandoffSchema,
+		"approval":                approval,
 		"project":                 cloneJSONValue(manifest["project"]),
 		"direction":               selected,
 		"content":                 cloneJSONValue(manifest["content"]),
@@ -3172,6 +4737,23 @@ func jsonNumberString(value any) string {
 	}
 }
 
+func designJSONInt(value any) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, true
+	case float64:
+		if typed != float64(int(typed)) {
+			return 0, false
+		}
+		return int(typed), true
+	case json.Number:
+		parsed, err := strconv.Atoi(typed.String())
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
+}
+
 func canonicalJSONSHA256(payload any) string {
 	raw, _ := json.Marshal(payload)
 	sum := sha256.Sum256(raw)
@@ -3180,6 +4762,11 @@ func canonicalJSONSHA256(payload any) string {
 
 func sha256String(content string) string {
 	sum := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(sum[:])
+}
+
+func sha256Bytes(content []byte) string {
+	sum := sha256.Sum256(content)
 	return hex.EncodeToString(sum[:])
 }
 
@@ -3255,6 +4842,193 @@ func isNonEmptyStringList(value any, requireNonEmpty bool) bool {
 		}
 	}
 	return true
+}
+
+func validDesignInteractionScript(value any, dataStateIDs map[string]bool) bool {
+	script, ok := value.(map[string]any)
+	if !ok || len(script) != 8 || !isNonEmptyStringList(script["preconditions"], true) || !dataStateIDs[strings.TrimSpace(fmt.Sprint(script["start_state_id"]))] {
+		return false
+	}
+	for _, field := range []string{"focus_checkpoint", "announcement_checkpoint", "completion_checkpoint", "recovery_checkpoint"} {
+		if !nonEmpty(script[field]) {
+			return false
+		}
+	}
+	steps, ok := script["steps"].([]any)
+	if !ok || len(steps) == 0 {
+		return false
+	}
+	for _, raw := range steps {
+		step, ok := raw.(map[string]any)
+		if !ok || len(step) != 3 || !nonEmpty(step["input"]) || !nonEmpty(step["action"]) || !nonEmpty(step["expected_feedback"]) {
+			return false
+		}
+	}
+	branches, ok := script["branches"].([]any)
+	if !ok || len(branches) == 0 {
+		return false
+	}
+	allowedConditions := map[string]bool{
+		"success": true, "failure": true, "timeout": true, "cancel": true,
+		"retry": true, "duplicate": true, "out_of_order": true,
+	}
+	seenConditions := map[string]bool{}
+	for _, raw := range branches {
+		branch, ok := raw.(map[string]any)
+		if !ok || len(branch) != 7 || !isNonEmptyStringList(branch["conditions"], true) || !dataStateIDs[strings.TrimSpace(fmt.Sprint(branch["expected_state_id"]))] {
+			return false
+		}
+		for _, condition := range stringList(branch["conditions"]) {
+			if !allowedConditions[condition] || seenConditions[condition] {
+				return false
+			}
+			seenConditions[condition] = true
+		}
+		for _, field := range []string{"setup", "expected_feedback", "focus_behavior", "announcement", "continuation"} {
+			if !nonEmpty(branch[field]) {
+				return false
+			}
+		}
+	}
+	if !seenConditions["success"] || !(seenConditions["failure"] || seenConditions["timeout"] || seenConditions["cancel"]) || !(seenConditions["retry"] || seenConditions["duplicate"] || seenConditions["out_of_order"]) {
+		return false
+	}
+	return true
+}
+
+func validDesignDataScenarios(value any) bool {
+	rows, ok := value.([]any)
+	if !ok || len(rows) == 0 {
+		return false
+	}
+	for _, raw := range rows {
+		row, ok := raw.(map[string]any)
+		if !ok || !nonEmpty(row["state"]) || !nonEmpty(row["data_condition"]) || !nonEmpty(row["expectation"]) {
+			return false
+		}
+	}
+	return true
+}
+
+func validDesignProfessionalRow(field string, row map[string]any) bool {
+	if !isNonEmptyStringList(row["decision_ids"], true) || !nonEmpty(row["surface"]) {
+		return false
+	}
+	requiredStrings := map[string][]string{
+		"interaction_matrix": {
+			"input", "trigger", "event_sequence", "immediate_feedback", "focus_behavior",
+			"repeat_behavior", "cancellation_behavior", "pending_behavior",
+		},
+		"editing_matrix": {
+			"composition_behavior", "paste_autofill_behavior", "selection_caret_behavior", "formatting_behavior",
+			"validation_timing", "validation_feedback", "dirty_state_behavior", "persistence_behavior",
+			"undo_redo_behavior", "conflict_behavior", "read_only_disabled_behavior", "submission_behavior",
+		},
+		"data_state_matrix": {"state", "data_condition", "expectation"},
+		"accessibility_matrix": {
+			"reading_order", "focus_order", "target_size", "contrast", "zoom_reflow",
+		},
+		"navigation_matrix": {
+			"entry", "destination", "trigger", "back_behavior", "deep_link_behavior", "interruption_recovery",
+		},
+		"content_matrix": {
+			"state", "purpose", "copy", "primary_action", "trust_requirement", "localization",
+		},
+	}
+	for _, key := range requiredStrings[field] {
+		if !nonEmpty(row[key]) {
+			return false
+		}
+	}
+	switch field {
+	case "interaction_matrix":
+		expected := map[string]bool{
+			"id": true, "surface": true, "input": true, "trigger": true,
+			"event_sequence": true, "immediate_feedback": true, "focus_behavior": true,
+			"repeat_behavior": true, "cancellation_behavior": true, "pending_behavior": true,
+			"decision_ids": true,
+		}
+		if len(row) != len(expected) {
+			return false
+		}
+		for key := range row {
+			if !expected[key] {
+				return false
+			}
+		}
+	case "editing_matrix":
+		if !isNonEmptyStringList(row["input_methods"], true) {
+			return false
+		}
+		expected := map[string]bool{
+			"id": true, "surface": true, "input_methods": true, "composition_behavior": true,
+			"paste_autofill_behavior": true, "selection_caret_behavior": true, "formatting_behavior": true,
+			"validation_timing": true, "validation_feedback": true, "dirty_state_behavior": true,
+			"persistence_behavior": true, "undo_redo_behavior": true, "conflict_behavior": true,
+			"read_only_disabled_behavior": true, "submission_behavior": true, "decision_ids": true,
+		}
+		if len(row) != len(expected) {
+			return false
+		}
+		for key := range row {
+			if !expected[key] {
+				return false
+			}
+		}
+	case "accessibility_matrix":
+		for _, key := range []string{"semantics", "keyboard", "announcements", "alternatives"} {
+			if !isNonEmptyStringList(row[key], true) {
+				return false
+			}
+		}
+	case "content_matrix":
+		if !isNonEmptyStringList(row["content_limits"], true) {
+			return false
+		}
+	}
+	return true
+}
+
+func validDesignMotionTransition(transition map[string]any) bool {
+	for _, field := range []string{"surface", "trigger", "response", "easing", "interrupt_behavior"} {
+		if !nonEmpty(transition[field]) {
+			return false
+		}
+	}
+	duration, ok := designJSONInt(transition["duration_ms"])
+	return ok && duration >= 0 && isNonEmptyStringList(transition["decision_ids"], true)
+}
+
+func validDesignMotionContract(contract map[string]any) bool {
+	if !nonEmpty(contract["purpose"]) || !nonEmpty(contract["reduced_motion"]) {
+		return false
+	}
+	transitions, ok := contract["transitions"].([]any)
+	if !ok || len(transitions) == 0 {
+		return false
+	}
+	timing, ok := contract["feedback_timing"].(map[string]any)
+	if !ok {
+		return false
+	}
+	immediate, immediateOK := designJSONInt(timing["immediate_ms"])
+	progress, progressOK := designJSONInt(timing["progress_ms"])
+	timeout, timeoutOK := designJSONInt(timing["timeout_ms"])
+	return immediateOK && progressOK && timeoutOK && immediate >= 0 && progress > 0 && timeout > progress
+}
+
+func validDesignUsabilityValidation(value map[string]any) bool {
+	risk := strings.TrimSpace(fmt.Sprint(value["risk_level"]))
+	if risk != "low" && risk != "medium" && risk != "high" {
+		return false
+	}
+	for _, field := range []string{"methods", "critical_tasks", "success_criteria"} {
+		if !isNonEmptyStringList(value[field], true) {
+			return false
+		}
+	}
+	humanReview, ok := value["human_review_required"].(bool)
+	return ok && (risk != "high" || humanReview)
 }
 
 func stringList(value any) []string {

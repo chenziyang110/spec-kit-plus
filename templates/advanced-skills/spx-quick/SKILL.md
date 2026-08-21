@@ -5,6 +5,40 @@ description: Tracked direct-delivery workflow for advanced coding models. Use wh
 
 # SPX Quick
 
+## Hard preflight stop
+
+The invoking request is not a branch selection, even when it says to make the
+change. Before committing to any action, classify context sufficiency. If it is
+sufficient, render the evidence summary and exact two-option menu, then stop
+and wait for a new user reply. Do not infer consent from the recommendation.
+If it is insufficient, state that the full workflow will perform its normal
+intake and continue into that intake.
+Do not say "I'll change", "I'll fix", or "I'll reproduce" before the selected
+branch's gates allow that action.
+
+Before opening any reference or calling any tool, assess only evidence already
+present in the active conversation. Context-direct is eligible only when the
+request and mutation authority are explicit; the exact owner/current patch
+anchors, direct consumers, risk boundary, and verification entry point are all
+visible; no material decision is open; and the edit is one bounded coherent
+change. Unknown, stale, conflicting, large, cross-cutting, multi-item,
+multi-owner, acceptance-heavy, or resumable work is insufficient.
+
+The pre-intake routing result is strict:
+
+- **Insufficient: never show a branch menu.** Enter the full Quick branch and
+  perform its normal intake. Do not announce discovery, reproduction, or edits
+  before the full branch's own confirmation and execution gates.
+- **Sufficient:** show the exact scope, evidence, and fallback trigger, then ask
+  exactly **Direct change (Recommended)** or **Continue full sp-quick**.
+  Do not paraphrase these labels or add a third option.
+
+After the user's choice, read `references/context-sufficiency-choice.md` only
+for a selected context-direct branch. Execute only that branch, defer
+`references/project-cognition.md` until exact-path mutation closeout, and do not
+consume Project Learning. For the full branch, continue below without asking
+again. The remaining skill text owns the full Quick branch.
+
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/native-subagents.md` when task lanes are delegated.
 Read `references/project-cognition.md`, using cognition intent `implement`.
@@ -17,7 +51,11 @@ shared state, downstream consumers, compatibility, security-sensitive behavior,
 or multiple plausible product behaviors.
 Read `references/ui-quality-gate.md` for any user-visible UI change.
 
-`$spx-quick` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
+The full `$spx-quick` branch always starts a new run. Record that new run with
+`specify-runtime run create`, then execute only through `specify-runtime run
+supervise`; do not resume another workflow's run. The explicit user-selected
+context-direct branch is the sole exception and creates no run or Quick
+workspace.
 
 The runtime-managed `STATUS.md` Test Design input uses
 `test_design_gate.decision: not_selected|selected|required` plus a
@@ -36,7 +74,7 @@ the stable project-relative `.planning/quick/<id>/confirmation.json`, never the
 mutable `STATUS.md` that will receive `projection_binding`. `not_selected` is
 the legal optional path and carries no invented binding.
 
-## Hard Q Loop (do not skip)
+## Hard Q Loop (do not skip in the full Quick branch)
 
 After checkpoint confirmation, every in-progress `Qn` uses this hard order.
 Leader owns scope, `STATUS.md`, join, accept—not `write_scope` edits.
@@ -200,11 +238,9 @@ Patch `STATUS.md` at meaningful transitions through leased `specify-runtime arti
 
 1. Finish verification (tests/tsc/surface checks) and patch evidence into the quick-status and quick-summary artifacts through leased `specify-runtime artifact patch` calls.
 2. When any confirmed `write_scope` or `changed_code_paths` touches project source/runtime/templates/config/tests (not only `.planning/`), run planner-first cognition closeout **before** close:
-   `{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-quick --intent implement --format json}}`
-   → fill agent-owned fields → execute `update_argv` → for `result_state=ready|no_op` run validate-build then complete-refresh; for incomplete update run mark-dirty with reason.
-3. Record the durable receipt (hard gate for `quick close … resolved`):
-   `{{specify-subcmd:specify-runtime quick cognition-closeout <id> --result-state ready|no_op|mark-dirty|partial --reason "<text>" --format json}}`.
-   Greenfield / `baseline_kind=greenfield_empty` is **not** a skip: use `no_op` or `mark-dirty` with an explicit reason.
+   `{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-quick --scope-dir .planning/quick/<id>-<slug> --scope-mode explicit --intent implement --format json}}`
+   plus one explicit `--changed-path` per owned path → fill agent-owned fields → execute `apply_argv`. Shared apply owns update, validation, eligible finalization, and the durable receipt; do not stamp a second receipt. For an update failure only, run mark-dirty and then `quick cognition-closeout` with `--result-state mark-dirty` and reason.
+3. Greenfield / `baseline_kind=greenfield_empty` is **not** a skip: shared apply must still produce `no_op`, or dirty fallback must record an explicit reason.
 4. Confirm `{{specify-subcmd:specify-runtime quick status <id>}}` shows `cognition_closeout.allowed_close=true` when source-changing.
 5. Only then: `{{specify-subcmd:specify-runtime quick close <id> resolved}}` (argv is positional status, not a bare close).
 6. Archive later only with `{{specify-subcmd:specify-runtime quick archive <id>}}`.

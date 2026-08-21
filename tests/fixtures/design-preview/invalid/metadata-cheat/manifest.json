@@ -12,7 +12,7 @@
       "Configured design content"
     ],
     "platforms": [
-      "Configured design content"
+      "web"
     ],
     "modules": [
       "core",
@@ -59,7 +59,6 @@
     "specimens": [
       {
         "id": "SP-WEB-WORKSPACE-001",
-        "profile_id": "web",
         "kind": "web-workspace",
         "title": "Responsive application workspace",
         "purpose": "Prove hierarchy, navigation, primary action, and responsive reflow with representative content.",
@@ -83,11 +82,11 @@
           "card_one",
           "card_two",
           "card_three"
-        ]
+        ],
+        "profile_id": "web"
       },
       {
         "id": "SP-WEB-CONTROLS-001",
-        "profile_id": "web",
         "kind": "web-controls",
         "title": "Forms and action hierarchy",
         "purpose": "Prove labels, control anatomy, focus, validation, disabled behavior, and action priority.",
@@ -112,11 +111,11 @@
           "select_option_primary",
           "select_option_secondary",
           "primary_action"
-        ]
+        ],
+        "profile_id": "web"
       },
       {
         "id": "SP-WEB-COLLECTION-001",
-        "profile_id": "web",
         "kind": "web-collection",
         "title": "Collection and asynchronous feedback",
         "purpose": "Prove real data volume, status language, empty/error recovery, and progressive updates.",
@@ -138,7 +137,8 @@
           "loading_label",
           "success_label",
           "error_label"
-        ]
+        ],
+        "profile_id": "web"
       }
     ]
   },
@@ -195,12 +195,12 @@
   },
   "directions": [
     {
-      "id": "direction-a",
+      "id": "direction-main",
       "name": "Configured design content",
       "visual_thesis": "Configured design content",
       "content_thesis": "Configured design content",
       "interaction_thesis": "Configured design content",
-      "signature_element": "Precision enterprise language",
+      "signature_element": "Metadata claims completion",
       "gain": "Configured design content",
       "cost": "Configured design content",
       "specimen_ids": [
@@ -281,200 +281,12 @@
         }
       },
       "dials": {
-        "variance": 4,
-        "motion": 3,
-        "density": 7,
-        "inference_reason": "Project intake: metadata claims precision"
+        "variance": 5,
+        "motion": 4,
+        "density": 6,
+        "inference_reason": "Project intake: balanced operational workspace"
       },
-      "aesthetic_family": "precision"
-    },
-    {
-      "id": "direction-b",
-      "name": "Configured design content",
-      "visual_thesis": "Configured design content",
-      "content_thesis": "Configured design content",
-      "interaction_thesis": "Configured design content",
-      "signature_element": "Futuristic enterprise language",
-      "gain": "Configured design content",
-      "cost": "Configured design content",
-      "specimen_ids": [
-        "SP-WEB-WORKSPACE-001",
-        "SP-WEB-CONTROLS-001",
-        "SP-WEB-COLLECTION-001"
-      ],
-      "typography": {
-        "display": "\"Arial Narrow\", \"Aptos Display\", \"Segoe UI\", sans-serif",
-        "body": "\"Aptos\", \"Segoe UI\", sans-serif",
-        "heading_tracking": "-.045em"
-      },
-      "geometry": {
-        "radius_control": "4px",
-        "radius_surface": "8px"
-      },
-      "density": {
-        "space_unit": "4px",
-        "label": "compact",
-        "scale": 0.88
-      },
-      "elevation": {
-        "surface": "0 18px 55px rgb(49 42 28 / 12%)",
-        "control": "0 5px 14px rgb(49 42 28 / 12%)"
-      },
-      "motion": {
-        "duration_fast": "110ms",
-        "duration_base": "220ms",
-        "duration_slow": "460ms",
-        "easing_standard": "cubic-bezier(.2, .7, .2, 1)",
-        "easing_emphasized": "cubic-bezier(.16, 1, .3, 1)",
-        "distance_enter": "12px",
-        "stagger": "28ms",
-        "reduced_motion": "opacity and color change without spatial travel"
-      },
-      "modes": {
-        "light": {
-          "canvas": "#f3efe5",
-          "canvas_deep": "#e5ddcb",
-          "surface": "#fffdf7",
-          "surface_raised": "#ffffff",
-          "ink": "#14211f",
-          "ink_muted": "#56645f",
-          "line": "#c9c7bb",
-          "accent": "#c43d29",
-          "accent_ink": "#ffffff",
-          "support": "#1d6f64",
-          "warning": "#9b570f",
-          "danger": "#a92b2b"
-        },
-        "dark": {
-          "canvas": "#15120e",
-          "canvas_deep": "#0b0907",
-          "surface": "#211d17",
-          "surface_raised": "#2a251e",
-          "ink": "#fff8ed",
-          "ink_muted": "#d6c7b1",
-          "line": "#574d3f",
-          "accent": "#ff8068",
-          "accent_ink": "#210704",
-          "support": "#63c6b7",
-          "warning": "#ffc36b",
-          "danger": "#ff8585"
-        },
-        "high-contrast": {
-          "canvas": "#000000",
-          "canvas_deep": "#000000",
-          "surface": "#000000",
-          "surface_raised": "#111111",
-          "ink": "#ffffff",
-          "ink_muted": "#f2f2f2",
-          "line": "#ffffff",
-          "accent": "#ffde59",
-          "accent_ink": "#000000",
-          "support": "#65ffd6",
-          "warning": "#ffde59",
-          "danger": "#ff8a8a"
-        }
-      },
-      "dials": {
-        "variance": 7,
-        "motion": 5,
-        "density": 5,
-        "inference_reason": "Project intake: metadata claims futuristic"
-      },
-      "aesthetic_family": "futuristic"
-    },
-    {
-      "id": "direction-c",
-      "name": "Configured design content",
-      "visual_thesis": "Configured design content",
-      "content_thesis": "Configured design content",
-      "interaction_thesis": "Configured design content",
-      "signature_element": "Editorial enterprise language",
-      "gain": "Configured design content",
-      "cost": "Configured design content",
-      "specimen_ids": [
-        "SP-WEB-WORKSPACE-001",
-        "SP-WEB-CONTROLS-001",
-        "SP-WEB-COLLECTION-001"
-      ],
-      "typography": {
-        "display": "\"Arial Narrow\", \"Aptos Display\", \"Segoe UI\", sans-serif",
-        "body": "\"Aptos\", \"Segoe UI\", sans-serif",
-        "heading_tracking": "-.045em"
-      },
-      "geometry": {
-        "radius_control": "4px",
-        "radius_surface": "8px"
-      },
-      "density": {
-        "space_unit": "4px",
-        "label": "compact",
-        "scale": 0.88
-      },
-      "elevation": {
-        "surface": "0 18px 55px rgb(49 42 28 / 12%)",
-        "control": "0 5px 14px rgb(49 42 28 / 12%)"
-      },
-      "motion": {
-        "duration_fast": "110ms",
-        "duration_base": "220ms",
-        "duration_slow": "460ms",
-        "easing_standard": "cubic-bezier(.2, .7, .2, 1)",
-        "easing_emphasized": "cubic-bezier(.16, 1, .3, 1)",
-        "distance_enter": "12px",
-        "stagger": "28ms",
-        "reduced_motion": "opacity and color change without spatial travel"
-      },
-      "modes": {
-        "light": {
-          "canvas": "#f3efe5",
-          "canvas_deep": "#e5ddcb",
-          "surface": "#fffdf7",
-          "surface_raised": "#ffffff",
-          "ink": "#14211f",
-          "ink_muted": "#56645f",
-          "line": "#c9c7bb",
-          "accent": "#c43d29",
-          "accent_ink": "#ffffff",
-          "support": "#1d6f64",
-          "warning": "#9b570f",
-          "danger": "#a92b2b"
-        },
-        "dark": {
-          "canvas": "#15120e",
-          "canvas_deep": "#0b0907",
-          "surface": "#211d17",
-          "surface_raised": "#2a251e",
-          "ink": "#fff8ed",
-          "ink_muted": "#d6c7b1",
-          "line": "#574d3f",
-          "accent": "#ff8068",
-          "accent_ink": "#210704",
-          "support": "#63c6b7",
-          "warning": "#ffc36b",
-          "danger": "#ff8585"
-        },
-        "high-contrast": {
-          "canvas": "#000000",
-          "canvas_deep": "#000000",
-          "surface": "#000000",
-          "surface_raised": "#111111",
-          "ink": "#ffffff",
-          "ink_muted": "#f2f2f2",
-          "line": "#ffffff",
-          "accent": "#ffde59",
-          "accent_ink": "#000000",
-          "support": "#65ffd6",
-          "warning": "#ffde59",
-          "danger": "#ff8a8a"
-        }
-      },
-      "dials": {
-        "variance": 8,
-        "motion": 7,
-        "density": 3,
-        "inference_reason": "Project intake: metadata claims editorial"
-      },
-      "aesthetic_family": "editorial"
+      "aesthetic_family": "workbench-precision"
     }
   ],
   "boundaries": {
@@ -649,26 +461,72 @@
           "form and action controls",
           "collection and feedback states"
         ],
-        "required_states": [
-          "default",
-          "hover",
-          "focus",
-          "disabled",
-          "loading",
-          "empty",
-          "error"
+        "data_scenarios": [
+          {
+            "state": "empty",
+            "data_condition": "No records exist or the active filters match nothing.",
+            "expectation": "Explain the empty condition, preserve active filters, and expose the next useful action."
+          },
+          {
+            "state": "populated",
+            "data_condition": "Representative and maximum-density records are available.",
+            "expectation": "Preserve hierarchy, action availability, and scanability without layout shift."
+          },
+          {
+            "state": "partial",
+            "data_condition": "Some records are stale, still loading, or unavailable.",
+            "expectation": "Distinguish usable from pending content and preserve retry, selection, and scroll context."
+          },
+          {
+            "state": "unavailable",
+            "data_condition": "A request fails, permission is limited, or the client is offline.",
+            "expectation": "Keep confirmed data and unsaved input, explain the cause, and expose safe retry or recovery."
+          }
         ],
-        "decision_ids": [
-          "DS-COMP-001",
-          "DS-TYPE-001",
-          "DS-SPACE-001"
+        "variants": [
+          "navigation shell",
+          "form control",
+          "data collection",
+          "inline and global feedback"
         ],
+        "content_constraints": [
+          "Support labels and actions at 200% text zoom without truncation.",
+          "Keep table cells, validation, and recovery copy understandable with long localized values."
+        ],
+        "semantic_token_refs": [
+          "color.surface.canvas",
+          "color.text.primary",
+          "spacing.scale.4",
+          "motion.duration.fast"
+        ],
+        "governance": "extend",
+        "iconography": "Use the product icon set with text labels for unfamiliar, destructive, permission, and recovery actions; never rely on shape or color alone.",
         "must_match": [
           "anatomy",
           "hierarchy",
           "state language",
           "token bindings",
           "focus order"
+        ],
+        "required_states": [
+          "default",
+          "focus",
+          "loading",
+          "empty",
+          "error",
+          "hover",
+          "disabled"
+        ],
+        "interaction_modes": [
+          "pointer",
+          "keyboard"
+        ],
+        "decision_ids": [
+          "DS-COLOR-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001",
+          "DS-COMP-001",
+          "DS-MOTION-001"
         ]
       }
     ],
@@ -684,11 +542,14 @@
         },
         "review_width_px": 390,
         "state": "default",
-        "adaptation": "Configured design content",
+        "adaptation": "Navigation condenses, the primary task stays first, and controls remain operable without horizontal scrolling.",
+        "stretch_behavior": "Reflow continuously to the supported minimum while preserving focus, selection, scroll position, and unsaved input.",
+        "overflow_behavior": "Wrap or internally scroll bounded content; never clip primary actions or introduce page-level horizontal scrolling.",
         "decision_ids": [
-          "DS-RESP-001",
+          "DS-TYPE-001",
           "DS-SPACE-001",
-          "DS-COMP-001"
+          "DS-COMP-001",
+          "DS-RESP-001"
         ]
       },
       {
@@ -702,11 +563,14 @@
         },
         "review_width_px": 1024,
         "state": "default",
-        "adaptation": "Configured design content",
+        "adaptation": "Navigation, content, and secondary context share the viewport without changing task priority.",
+        "stretch_behavior": "Redistribute columns between compact and wide thresholds without resetting active interaction state.",
+        "overflow_behavior": "Keep long text, dense tables, menus, and dialogs operable through bounded wrapping or scrolling.",
         "decision_ids": [
-          "DS-RESP-001",
+          "DS-TYPE-001",
           "DS-SPACE-001",
-          "DS-COMP-001"
+          "DS-COMP-001",
+          "DS-RESP-001"
         ]
       },
       {
@@ -720,11 +584,14 @@
         },
         "review_width_px": 1440,
         "state": "default",
-        "adaptation": "Configured design content",
+        "adaptation": "Additional width improves scanability and context rather than stretching the reading measure.",
+        "stretch_behavior": "Cap reading measure and use surplus width for approved context without diluting task hierarchy.",
+        "overflow_behavior": "Constrain panes and collections independently so dense content cannot push primary controls off screen.",
         "decision_ids": [
-          "DS-RESP-001",
+          "DS-TYPE-001",
           "DS-SPACE-001",
-          "DS-COMP-001"
+          "DS-COMP-001",
+          "DS-RESP-001"
         ]
       }
     ],
@@ -739,12 +606,12 @@
         ],
         "states": [
           "default",
-          "hover",
           "focus",
-          "disabled",
           "loading",
           "empty",
-          "error"
+          "error",
+          "hover",
+          "disabled"
         ],
         "color_modes": [
           "light",
@@ -760,6 +627,8 @@
           "DS-TYPE-001",
           "DS-SPACE-001",
           "DS-COMP-001",
+          "DS-MOTION-001",
+          "DS-RESP-001",
           "DS-CONTENT-001"
         ],
         "must_match": [
@@ -767,7 +636,8 @@
           "geometry",
           "tokens",
           "content",
-          "state"
+          "state",
+          "motion"
         ],
         "evidence": [
           "structure_snapshot",
@@ -786,8 +656,12 @@
         ],
         "states": [
           "default",
+          "focus",
           "loading",
-          "error"
+          "empty",
+          "error",
+          "hover",
+          "disabled"
         ],
         "color_modes": [
           "light",
@@ -832,7 +706,12 @@
         ],
         "states": [
           "default",
-          "loading"
+          "focus",
+          "loading",
+          "empty",
+          "error",
+          "hover",
+          "disabled"
         ],
         "color_modes": [
           "light",
@@ -844,13 +723,20 @@
           "reduced"
         ],
         "decision_ids": [
+          "DS-COLOR-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001",
+          "DS-COMP-001",
           "DS-MOTION-001",
-          "DS-RESP-001"
+          "DS-RESP-001",
+          "DS-CONTENT-001"
         ],
         "must_match": [
           "structure",
           "geometry",
           "tokens",
+          "content",
+          "state",
           "motion"
         ],
         "evidence": [
@@ -880,6 +766,733 @@
       },
       "platform_variance": "approved-deviation-only"
     },
-    "accepted_deviations": []
+    "accepted_deviations": [],
+    "interaction_matrix": [
+      {
+        "id": "DH-INT-WEB-POINTER-001",
+        "surface": "Web application controls and collections",
+        "input": "pointer",
+        "trigger": "Click, double activation, hover, drag, or context-menu invocation on an enabled target.",
+        "event_sequence": "Resolve pointerdown, any pointermove beyond the drag threshold, and pointerup/click as one gesture; treat pointercancel, capture loss, or release outside the valid target as cancellation.",
+        "immediate_feedback": "Show pressed, selected, drag-preview, drop-target, or context-menu feedback within the immediate response budget without implying completion.",
+        "focus_behavior": "Move focus only when the native control or documented composite pattern requires it; preserve visible focus, selection, scroll anchor, and the invoking target across transient layers.",
+        "repeat_behavior": "Distinguish single, double, held, and repeated activation; debounce or reject duplicate consequential actions while preserving legitimate repeated controls.",
+        "cancellation_behavior": "Pointercancel, Escape during a captured gesture, invalid drop, or release outside restores the last committed state and removes transient feedback.",
+        "pending_behavior": "While work is pending, keep status and cancel/retry affordances perceivable, block only conflicting activation, and never convert a pending press into duplicate submission.",
+        "decision_ids": [
+          "DS-COMP-001",
+          "DS-MOTION-001",
+          "DS-RESP-001"
+        ]
+      },
+      {
+        "id": "DH-INT-WEB-KEYBOARD-001",
+        "surface": "Web application controls, navigation, dialogs, and collections",
+        "input": "keyboard",
+        "trigger": "Tab or arrow navigation followed by Enter, Space, Escape, or the documented shortcut.",
+        "event_sequence": "Resolve keydown and keyup according to the native control pattern, synthesize one activation, and reserve Tab, arrows, Escape, Enter, and Space for the focused context without browser-shortcut conflict.",
+        "immediate_feedback": "Expose visible focus before activation and show pressed, expanded, selected, pending, or validation feedback without waiting for key release when the platform pattern requires an immediate response.",
+        "focus_behavior": "Keep focus visible and ordered, contain modal focus, restore the invoker after dismissal, and preserve the active descendant and scroll position through rerenders.",
+        "repeat_behavior": "Ignore operating-system key repeat for single-submit actions while allowing documented repeat for navigation, stepping, scrolling, or continuous controls.",
+        "cancellation_behavior": "Escape or the documented cancel command closes only the top cancellable context, restores focus, and leaves committed state unchanged; keyboard traps are forbidden.",
+        "pending_behavior": "Announce pending state once, retain a stable focus target, suppress conflicting shortcuts or duplicate activation, and expose safe cancellation or retry when available.",
+        "decision_ids": [
+          "DS-COMP-001",
+          "DS-MOTION-001",
+          "DS-RESP-001"
+        ]
+      }
+    ],
+    "data_state_matrix": [
+      {
+        "id": "DH-DATA-WEB-EMPTY-001",
+        "surface": "Web data collection",
+        "state": "empty",
+        "data_condition": "No records exist or active filters match nothing.",
+        "expectation": "Distinguish first-use from no-results, preserve filters, and offer the next useful create, import, or reset action.",
+        "decision_ids": [
+          "DS-COLOR-001",
+          "DS-COMP-001",
+          "DS-CONTENT-001"
+        ]
+      },
+      {
+        "id": "DH-DATA-WEB-POPULATED-001",
+        "surface": "Web data collection",
+        "state": "populated",
+        "data_condition": "Representative and maximum-density records, long values, and mixed statuses are present.",
+        "expectation": "Keep hierarchy, action availability, selection, and scanability stable without layout shift or silent truncation.",
+        "decision_ids": [
+          "DS-COLOR-001",
+          "DS-COMP-001",
+          "DS-CONTENT-001"
+        ]
+      },
+      {
+        "id": "DH-DATA-WEB-PARTIAL-001",
+        "surface": "Web data collection",
+        "state": "partial",
+        "data_condition": "Cached records remain usable while pages, mutations, or dependent regions are loading or stale.",
+        "expectation": "Mark freshness and pending regions locally, retain usable content and input, and prevent out-of-order responses from overwriting newer state.",
+        "decision_ids": [
+          "DS-COLOR-001",
+          "DS-COMP-001",
+          "DS-CONTENT-001"
+        ]
+      },
+      {
+        "id": "DH-DATA-WEB-UNAVAILABLE-001",
+        "surface": "Web data collection and forms",
+        "state": "unavailable",
+        "data_condition": "Network, permission, session, validation, or server failure blocks the requested result.",
+        "expectation": "Explain the bounded cause, preserve confirmed data and unsaved input, place errors near the affected control or region, and expose a safe recovery path.",
+        "decision_ids": [
+          "DS-COLOR-001",
+          "DS-COMP-001",
+          "DS-CONTENT-001"
+        ]
+      }
+    ],
+    "accessibility_matrix": [
+      {
+        "id": "DH-A11Y-WEB-001",
+        "surface": "Web application workspace",
+        "semantics": [
+          "landmarks and headings",
+          "Name/Role/Value for controls",
+          "programmatic labels and descriptions",
+          "table or list relationships"
+        ],
+        "reading_order": "DOM reading order follows the visible task hierarchy before responsive visual rearrangement.",
+        "focus_order": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+        "keyboard": [
+          "Complete every primary task without a pointer.",
+          "Use standard Tab, arrow, Enter, Space, and Escape behavior without keyboard traps."
+        ],
+        "announcements": [
+          "Announce validation at the affected field.",
+          "Announce loading completion, errors, and asynchronous collection changes without stealing focus."
+        ],
+        "target_size": "Meet WCAG 2.2 AA target-size requirements, using at least 24x24 CSS px or documented spacing exceptions.",
+        "contrast": "Meet WCAG 2.2 AA contrast in light, dark, high-contrast, hover, focus, disabled, and error combinations.",
+        "zoom_reflow": "Reflow at 400% zoom and 200% text size without two-dimensional page scrolling, loss of content, or hidden controls.",
+        "alternatives": [
+          "Provide text equivalents for icons and meaningful images.",
+          "Provide non-drag and non-color alternatives for every action and status."
+        ],
+        "decision_ids": [
+          "DS-COLOR-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001",
+          "DS-COMP-001",
+          "DS-MOTION-001",
+          "DS-RESP-001",
+          "DS-CONTENT-001"
+        ]
+      }
+    ],
+    "navigation_matrix": [
+      {
+        "id": "DH-NAV-WEB-001",
+        "surface": "Web application routes and overlays",
+        "entry": "Application URL, navigation item, notification link, or preserved browser history entry.",
+        "destination": "The named route, selected record, state, or task step with required context restored.",
+        "trigger": "Pointer or keyboard activation, browser back/forward, or a validated deep link.",
+        "back_behavior": "Return to the prior meaningful route and restore filters, selection, scroll position, and safe draft state.",
+        "deep_link_behavior": "Open the intended authorized object or state directly; otherwise show a bounded missing, expired, or permission outcome without leaking data.",
+        "interruption_recovery": "After refresh, session renewal, connectivity loss, or external update, restore the last safe checkpoint and reconcile stale actions explicitly.",
+        "decision_ids": [
+          "DS-COMP-001",
+          "DS-RESP-001",
+          "DS-CONTENT-001"
+        ]
+      }
+    ],
+    "content_matrix": [
+      {
+        "id": "DH-CONTENT-WEB-DEFAULT-001",
+        "surface": "Web primary task",
+        "state": "default",
+        "purpose": "Help the user understand context and complete one primary job.",
+        "copy": "Use concrete labels and verbs that match the user's domain; keep supporting text scannable and place prerequisites before action.",
+        "primary_action": "Name the outcome rather than the gesture and keep one dominant action per task region.",
+        "trust_requirement": "Show consequence, scope, ownership, freshness, and irreversible effects before commitment.",
+        "localization": "Support right-to-left layout, locale-aware dates, numbers, names, and at least 30% text expansion without semantic truncation.",
+        "content_limits": [
+          "Keep button labels concise but never replace meaning with an unlabeled icon.",
+          "Wrap long names and identifiers or expose their full value on focus without obscuring controls."
+        ],
+        "decision_ids": [
+          "DS-COLOR-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001",
+          "DS-CONTENT-001"
+        ]
+      },
+      {
+        "id": "DH-CONTENT-WEB-RECOVERY-001",
+        "surface": "Web empty, error, permission, and destructive states",
+        "state": "recovery",
+        "purpose": "Explain what happened, what remains safe, and the next available action.",
+        "copy": "Use specific, non-blaming language with the failed scope and a useful recovery step.",
+        "primary_action": "Offer retry, revise, request access, undo, or return only when that action is safe and available.",
+        "trust_requirement": "Never imply success before confirmation; identify retained data, destructive consequences, and whether retry can duplicate work.",
+        "localization": "Keep recovery meaning intact under translation, plural rules, right-to-left order, and locale-specific support references.",
+        "content_limits": [
+          "Do not expose secrets, internal stack traces, or inaccessible object names.",
+          "Keep the essential cause and recovery action visible before expandable diagnostics."
+        ],
+        "decision_ids": [
+          "DS-COLOR-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001",
+          "DS-CONTENT-001"
+        ]
+      }
+    ],
+    "motion_contract": {
+      "purpose": "web: Use motion to preserve spatial continuity, confirm direct manipulation, and reveal asynchronous state without delaying work.",
+      "transitions": [
+        {
+          "id": "DH-MOTION-WEB-001",
+          "surface": "Web controls, overlays, collections, and responsive layout",
+          "trigger": "Direct activation, overlay entry or exit, collection update, or responsive reflow.",
+          "response": "Animate only the affected relationship while feedback and final state remain perceivable without motion.",
+          "duration_ms": 180,
+          "easing": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+          "interrupt_behavior": "A new input cancels or retargets from the current visual state without queuing, focus loss, duplicate action, or stale completion.",
+          "decision_ids": [
+            "DS-COMP-001",
+            "DS-MOTION-001"
+          ]
+        }
+      ],
+      "reduced_motion": "web: Remove spatial travel, parallax, and nonessential stagger; use immediate state changes, opacity, and persistent status text while preserving sequence and feedback.",
+      "feedback_timing": {
+        "immediate_ms": 100,
+        "progress_ms": 1000,
+        "timeout_ms": 10000
+      }
+    },
+    "usability_validation": {
+      "risk_level": "medium",
+      "methods": [
+        "expert heuristic review",
+        "keyboard and screen-reader walkthrough",
+        "target-user task session for high-consequence or unfamiliar flows"
+      ],
+      "critical_tasks": [
+        "Reach the intended route from navigation or a deep link.",
+        "Complete and recover the primary data-changing action.",
+        "Understand empty, partial, error, and permission outcomes."
+      ],
+      "success_criteria": [
+        "Participants complete the primary task without moderator rescue.",
+        "No critical accessibility blocker or unrecoverable context loss remains.",
+        "Users can state the consequence and recovery path before a high-consequence action."
+      ],
+      "human_review_required": true
+    },
+    "surface_catalog": [
+      {
+        "id": "DH-SURFACE-WEB-001",
+        "profile_id": "web",
+        "name": "Web application",
+        "kind": "web",
+        "source_refs": [
+          "core",
+          "Configured design content"
+        ],
+        "specimen_ids": [
+          "SP-WEB-WORKSPACE-001",
+          "SP-WEB-CONTROLS-001",
+          "SP-WEB-COLLECTION-001"
+        ],
+        "component_ids": [
+          "DH-COMP-WEB-001"
+        ],
+        "decision_ids": [
+          "DS-COLOR-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001",
+          "DS-COMP-001",
+          "DS-MOTION-001",
+          "DS-RESP-001",
+          "DS-CONTENT-001"
+        ]
+      }
+    ],
+    "scenario_matrix": [
+      {
+        "id": "DH-SCENARIO-WEB-001",
+        "surface_id": "DH-SURFACE-WEB-001",
+        "name": "Web application: empty via pointer at compact web",
+        "risk": "high",
+        "required": true,
+        "interaction_script": {
+          "preconditions": [
+            "Render DH-SURFACE-WEB-001 at compact web with No records exist or active filters match nothing.",
+            "Begin in the empty state before Click, double activation, hover, drag, or context-menu invocation on an enabled target."
+          ],
+          "start_state_id": "DH-DATA-WEB-EMPTY-001",
+          "steps": [
+            {
+              "input": "pointer",
+              "action": "Click, double activation, hover, drag, or context-menu invocation on an enabled target.",
+              "expected_feedback": "Show pressed, selected, drag-preview, drop-target, or context-menu feedback within the immediate response budget without implying completion."
+            }
+          ],
+          "branches": [
+            {
+              "conditions": [
+                "success"
+              ],
+              "setup": "Complete the action once without interruption: Click, double activation, hover, drag, or context-menu invocation on an enabled target.",
+              "expected_state_id": "DH-DATA-WEB-POPULATED-001",
+              "expected_feedback": "Keep hierarchy, action availability, selection, and scanability stable without layout shift or silent truncation.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Success: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "The named route, selected record, state, or task step with required context restored."
+            },
+            {
+              "conditions": [
+                "failure",
+                "timeout"
+              ],
+              "setup": "Force the action to fail or exceed its timeout: Click, double activation, hover, drag, or context-menu invocation on an enabled target.",
+              "expected_state_id": "DH-DATA-WEB-UNAVAILABLE-001",
+              "expected_feedback": "Explain the bounded cause, preserve confirmed data and unsaved input, place errors near the affected control or region, and expose a safe recovery path.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Failure or timeout: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "After refresh, session renewal, connectivity loss, or external update, restore the last safe checkpoint and reconcile stale actions explicitly."
+            },
+            {
+              "conditions": [
+                "cancel"
+              ],
+              "setup": "Cancel the action before completion: Click, double activation, hover, drag, or context-menu invocation on an enabled target.",
+              "expected_state_id": "DH-DATA-WEB-EMPTY-001",
+              "expected_feedback": "Distinguish first-use from no-results, preserve filters, and offer the next useful create, import, or reset action.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Cancellation: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "Return to the prior meaningful route and restore filters, selection, scroll position, and safe draft state."
+            },
+            {
+              "conditions": [
+                "retry",
+                "duplicate",
+                "out_of_order"
+              ],
+              "setup": "Retry or repeat the action and resolve completions out of order: Click, double activation, hover, drag, or context-menu invocation on an enabled target.",
+              "expected_state_id": "DH-DATA-WEB-PARTIAL-001",
+              "expected_feedback": "Mark freshness and pending regions locally, retain usable content and input, and prevent out-of-order responses from overwriting newer state.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Retry, duplicate, or out-of-order completion: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "After refresh, session renewal, connectivity loss, or external update, restore the last safe checkpoint and reconcile stale actions explicitly."
+            }
+          ],
+          "focus_checkpoint": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+          "announcement_checkpoint": "Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+          "completion_checkpoint": "Keep hierarchy, action availability, selection, and scanability stable without layout shift or silent truncation.",
+          "recovery_checkpoint": "After refresh, session renewal, connectivity loss, or external update, restore the last safe checkpoint and reconcile stale actions explicitly."
+        },
+        "interaction_ids": [
+          "DH-INT-WEB-POINTER-001"
+        ],
+        "editing_ids": [
+          "DH-EDIT-WEB-001"
+        ],
+        "data_state_ids": [
+          "DH-DATA-WEB-EMPTY-001",
+          "DH-DATA-WEB-POPULATED-001",
+          "DH-DATA-WEB-PARTIAL-001",
+          "DH-DATA-WEB-UNAVAILABLE-001"
+        ],
+        "accessibility_ids": [
+          "DH-A11Y-WEB-001"
+        ],
+        "navigation_ids": [
+          "DH-NAV-WEB-001"
+        ],
+        "content_ids": [
+          "DH-CONTENT-WEB-DEFAULT-001"
+        ],
+        "responsive_ids": [
+          "DH-RESP-WEB-COMPACT-001"
+        ],
+        "motion_transition_ids": [
+          "DH-MOTION-WEB-001"
+        ],
+        "decision_ids": [
+          "DS-COMP-001",
+          "DS-MOTION-001",
+          "DS-RESP-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001",
+          "DS-CONTENT-001",
+          "DS-COLOR-001"
+        ]
+      },
+      {
+        "id": "DH-SCENARIO-WEB-002",
+        "surface_id": "DH-SURFACE-WEB-001",
+        "name": "Web application: populated via keyboard at regular web",
+        "risk": "high",
+        "required": true,
+        "interaction_script": {
+          "preconditions": [
+            "Render DH-SURFACE-WEB-001 at regular web with Representative and maximum-density records, long values, and mixed statuses are present.",
+            "Begin in the populated state before Tab or arrow navigation followed by Enter, Space, Escape, or the documented shortcut."
+          ],
+          "start_state_id": "DH-DATA-WEB-POPULATED-001",
+          "steps": [
+            {
+              "input": "keyboard",
+              "action": "Tab or arrow navigation followed by Enter, Space, Escape, or the documented shortcut.",
+              "expected_feedback": "Expose visible focus before activation and show pressed, expanded, selected, pending, or validation feedback without waiting for key release when the platform pattern requires an immediate response."
+            }
+          ],
+          "branches": [
+            {
+              "conditions": [
+                "success"
+              ],
+              "setup": "Complete the action once without interruption: Tab or arrow navigation followed by Enter, Space, Escape, or the documented shortcut.",
+              "expected_state_id": "DH-DATA-WEB-POPULATED-001",
+              "expected_feedback": "Keep hierarchy, action availability, selection, and scanability stable without layout shift or silent truncation.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Success: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "The named route, selected record, state, or task step with required context restored."
+            },
+            {
+              "conditions": [
+                "failure",
+                "timeout"
+              ],
+              "setup": "Force the action to fail or exceed its timeout: Tab or arrow navigation followed by Enter, Space, Escape, or the documented shortcut.",
+              "expected_state_id": "DH-DATA-WEB-UNAVAILABLE-001",
+              "expected_feedback": "Explain the bounded cause, preserve confirmed data and unsaved input, place errors near the affected control or region, and expose a safe recovery path.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Failure or timeout: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "After refresh, session renewal, connectivity loss, or external update, restore the last safe checkpoint and reconcile stale actions explicitly."
+            },
+            {
+              "conditions": [
+                "cancel"
+              ],
+              "setup": "Cancel the action before completion: Tab or arrow navigation followed by Enter, Space, Escape, or the documented shortcut.",
+              "expected_state_id": "DH-DATA-WEB-POPULATED-001",
+              "expected_feedback": "Keep hierarchy, action availability, selection, and scanability stable without layout shift or silent truncation.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Cancellation: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "Return to the prior meaningful route and restore filters, selection, scroll position, and safe draft state."
+            },
+            {
+              "conditions": [
+                "retry",
+                "duplicate",
+                "out_of_order"
+              ],
+              "setup": "Retry or repeat the action and resolve completions out of order: Tab or arrow navigation followed by Enter, Space, Escape, or the documented shortcut.",
+              "expected_state_id": "DH-DATA-WEB-PARTIAL-001",
+              "expected_feedback": "Mark freshness and pending regions locally, retain usable content and input, and prevent out-of-order responses from overwriting newer state.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Retry, duplicate, or out-of-order completion: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "After refresh, session renewal, connectivity loss, or external update, restore the last safe checkpoint and reconcile stale actions explicitly."
+            }
+          ],
+          "focus_checkpoint": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+          "announcement_checkpoint": "Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+          "completion_checkpoint": "Keep hierarchy, action availability, selection, and scanability stable without layout shift or silent truncation.",
+          "recovery_checkpoint": "After refresh, session renewal, connectivity loss, or external update, restore the last safe checkpoint and reconcile stale actions explicitly."
+        },
+        "interaction_ids": [
+          "DH-INT-WEB-KEYBOARD-001"
+        ],
+        "editing_ids": [
+          "DH-EDIT-WEB-001"
+        ],
+        "data_state_ids": [
+          "DH-DATA-WEB-POPULATED-001",
+          "DH-DATA-WEB-PARTIAL-001",
+          "DH-DATA-WEB-UNAVAILABLE-001"
+        ],
+        "accessibility_ids": [
+          "DH-A11Y-WEB-001"
+        ],
+        "navigation_ids": [
+          "DH-NAV-WEB-001"
+        ],
+        "content_ids": [
+          "DH-CONTENT-WEB-RECOVERY-001"
+        ],
+        "responsive_ids": [
+          "DH-RESP-WEB-REGULAR-001"
+        ],
+        "motion_transition_ids": [
+          "DH-MOTION-WEB-001"
+        ],
+        "decision_ids": [
+          "DS-COMP-001",
+          "DS-MOTION-001",
+          "DS-RESP-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001",
+          "DS-CONTENT-001",
+          "DS-COLOR-001"
+        ]
+      },
+      {
+        "id": "DH-SCENARIO-WEB-003",
+        "surface_id": "DH-SURFACE-WEB-001",
+        "name": "Web application: partial via pointer at wide web",
+        "risk": "high",
+        "required": true,
+        "interaction_script": {
+          "preconditions": [
+            "Render DH-SURFACE-WEB-001 at wide web with Cached records remain usable while pages, mutations, or dependent regions are loading or stale.",
+            "Begin in the partial state before Click, double activation, hover, drag, or context-menu invocation on an enabled target."
+          ],
+          "start_state_id": "DH-DATA-WEB-PARTIAL-001",
+          "steps": [
+            {
+              "input": "pointer",
+              "action": "Click, double activation, hover, drag, or context-menu invocation on an enabled target.",
+              "expected_feedback": "Show pressed, selected, drag-preview, drop-target, or context-menu feedback within the immediate response budget without implying completion."
+            }
+          ],
+          "branches": [
+            {
+              "conditions": [
+                "success"
+              ],
+              "setup": "Complete the action once without interruption: Click, double activation, hover, drag, or context-menu invocation on an enabled target.",
+              "expected_state_id": "DH-DATA-WEB-POPULATED-001",
+              "expected_feedback": "Keep hierarchy, action availability, selection, and scanability stable without layout shift or silent truncation.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Success: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "The named route, selected record, state, or task step with required context restored."
+            },
+            {
+              "conditions": [
+                "failure",
+                "timeout"
+              ],
+              "setup": "Force the action to fail or exceed its timeout: Click, double activation, hover, drag, or context-menu invocation on an enabled target.",
+              "expected_state_id": "DH-DATA-WEB-UNAVAILABLE-001",
+              "expected_feedback": "Explain the bounded cause, preserve confirmed data and unsaved input, place errors near the affected control or region, and expose a safe recovery path.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Failure or timeout: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "After refresh, session renewal, connectivity loss, or external update, restore the last safe checkpoint and reconcile stale actions explicitly."
+            },
+            {
+              "conditions": [
+                "cancel"
+              ],
+              "setup": "Cancel the action before completion: Click, double activation, hover, drag, or context-menu invocation on an enabled target.",
+              "expected_state_id": "DH-DATA-WEB-PARTIAL-001",
+              "expected_feedback": "Mark freshness and pending regions locally, retain usable content and input, and prevent out-of-order responses from overwriting newer state.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Cancellation: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "Return to the prior meaningful route and restore filters, selection, scroll position, and safe draft state."
+            },
+            {
+              "conditions": [
+                "retry",
+                "duplicate",
+                "out_of_order"
+              ],
+              "setup": "Retry or repeat the action and resolve completions out of order: Click, double activation, hover, drag, or context-menu invocation on an enabled target.",
+              "expected_state_id": "DH-DATA-WEB-PARTIAL-001",
+              "expected_feedback": "Mark freshness and pending regions locally, retain usable content and input, and prevent out-of-order responses from overwriting newer state.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Retry, duplicate, or out-of-order completion: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "After refresh, session renewal, connectivity loss, or external update, restore the last safe checkpoint and reconcile stale actions explicitly."
+            }
+          ],
+          "focus_checkpoint": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+          "announcement_checkpoint": "Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+          "completion_checkpoint": "Keep hierarchy, action availability, selection, and scanability stable without layout shift or silent truncation.",
+          "recovery_checkpoint": "After refresh, session renewal, connectivity loss, or external update, restore the last safe checkpoint and reconcile stale actions explicitly."
+        },
+        "interaction_ids": [
+          "DH-INT-WEB-POINTER-001"
+        ],
+        "editing_ids": [
+          "DH-EDIT-WEB-001"
+        ],
+        "data_state_ids": [
+          "DH-DATA-WEB-PARTIAL-001",
+          "DH-DATA-WEB-POPULATED-001",
+          "DH-DATA-WEB-UNAVAILABLE-001"
+        ],
+        "accessibility_ids": [
+          "DH-A11Y-WEB-001"
+        ],
+        "navigation_ids": [
+          "DH-NAV-WEB-001"
+        ],
+        "content_ids": [
+          "DH-CONTENT-WEB-DEFAULT-001"
+        ],
+        "responsive_ids": [
+          "DH-RESP-WEB-WIDE-001"
+        ],
+        "motion_transition_ids": [
+          "DH-MOTION-WEB-001"
+        ],
+        "decision_ids": [
+          "DS-COMP-001",
+          "DS-MOTION-001",
+          "DS-RESP-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001",
+          "DS-CONTENT-001",
+          "DS-COLOR-001"
+        ]
+      },
+      {
+        "id": "DH-SCENARIO-WEB-004",
+        "surface_id": "DH-SURFACE-WEB-001",
+        "name": "Web application: unavailable via keyboard at compact web",
+        "risk": "high",
+        "required": true,
+        "interaction_script": {
+          "preconditions": [
+            "Render DH-SURFACE-WEB-001 at compact web with Network, permission, session, validation, or server failure blocks the requested result.",
+            "Begin in the unavailable state before Tab or arrow navigation followed by Enter, Space, Escape, or the documented shortcut."
+          ],
+          "start_state_id": "DH-DATA-WEB-UNAVAILABLE-001",
+          "steps": [
+            {
+              "input": "keyboard",
+              "action": "Tab or arrow navigation followed by Enter, Space, Escape, or the documented shortcut.",
+              "expected_feedback": "Expose visible focus before activation and show pressed, expanded, selected, pending, or validation feedback without waiting for key release when the platform pattern requires an immediate response."
+            }
+          ],
+          "branches": [
+            {
+              "conditions": [
+                "success"
+              ],
+              "setup": "Complete the action once without interruption: Tab or arrow navigation followed by Enter, Space, Escape, or the documented shortcut.",
+              "expected_state_id": "DH-DATA-WEB-POPULATED-001",
+              "expected_feedback": "Keep hierarchy, action availability, selection, and scanability stable without layout shift or silent truncation.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Success: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "The named route, selected record, state, or task step with required context restored."
+            },
+            {
+              "conditions": [
+                "failure",
+                "timeout"
+              ],
+              "setup": "Force the action to fail or exceed its timeout: Tab or arrow navigation followed by Enter, Space, Escape, or the documented shortcut.",
+              "expected_state_id": "DH-DATA-WEB-UNAVAILABLE-001",
+              "expected_feedback": "Explain the bounded cause, preserve confirmed data and unsaved input, place errors near the affected control or region, and expose a safe recovery path.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Failure or timeout: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "After refresh, session renewal, connectivity loss, or external update, restore the last safe checkpoint and reconcile stale actions explicitly."
+            },
+            {
+              "conditions": [
+                "cancel"
+              ],
+              "setup": "Cancel the action before completion: Tab or arrow navigation followed by Enter, Space, Escape, or the documented shortcut.",
+              "expected_state_id": "DH-DATA-WEB-UNAVAILABLE-001",
+              "expected_feedback": "Explain the bounded cause, preserve confirmed data and unsaved input, place errors near the affected control or region, and expose a safe recovery path.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Cancellation: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "Return to the prior meaningful route and restore filters, selection, scroll position, and safe draft state."
+            },
+            {
+              "conditions": [
+                "retry",
+                "duplicate",
+                "out_of_order"
+              ],
+              "setup": "Retry or repeat the action and resolve completions out of order: Tab or arrow navigation followed by Enter, Space, Escape, or the documented shortcut.",
+              "expected_state_id": "DH-DATA-WEB-PARTIAL-001",
+              "expected_feedback": "Mark freshness and pending regions locally, retain usable content and input, and prevent out-of-order responses from overwriting newer state.",
+              "focus_behavior": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+              "announcement": "Retry, duplicate, or out-of-order completion: Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+              "continuation": "After refresh, session renewal, connectivity loss, or external update, restore the last safe checkpoint and reconcile stale actions explicitly."
+            }
+          ],
+          "focus_checkpoint": "Focus follows task order, enters contained overlays deliberately, and returns to the invoking control after dismissal.",
+          "announcement_checkpoint": "Announce validation at the affected field. Announce loading completion, errors, and asynchronous collection changes without stealing focus.",
+          "completion_checkpoint": "Keep hierarchy, action availability, selection, and scanability stable without layout shift or silent truncation.",
+          "recovery_checkpoint": "After refresh, session renewal, connectivity loss, or external update, restore the last safe checkpoint and reconcile stale actions explicitly."
+        },
+        "interaction_ids": [
+          "DH-INT-WEB-KEYBOARD-001"
+        ],
+        "editing_ids": [
+          "DH-EDIT-WEB-001"
+        ],
+        "data_state_ids": [
+          "DH-DATA-WEB-UNAVAILABLE-001",
+          "DH-DATA-WEB-POPULATED-001",
+          "DH-DATA-WEB-PARTIAL-001"
+        ],
+        "accessibility_ids": [
+          "DH-A11Y-WEB-001"
+        ],
+        "navigation_ids": [
+          "DH-NAV-WEB-001"
+        ],
+        "content_ids": [
+          "DH-CONTENT-WEB-RECOVERY-001"
+        ],
+        "responsive_ids": [
+          "DH-RESP-WEB-COMPACT-001"
+        ],
+        "motion_transition_ids": [
+          "DH-MOTION-WEB-001"
+        ],
+        "decision_ids": [
+          "DS-COMP-001",
+          "DS-MOTION-001",
+          "DS-RESP-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001",
+          "DS-CONTENT-001",
+          "DS-COLOR-001"
+        ]
+      }
+    ],
+    "editing_matrix": [
+      {
+        "id": "DH-EDIT-WEB-001",
+        "surface": "Web forms, search, filters, and inline editable controls",
+        "input_methods": [
+          "keyboard",
+          "IME composition",
+          "paste",
+          "autofill and password manager",
+          "voice dictation"
+        ],
+        "composition_behavior": "Preserve the IME composition buffer and do not validate, format, submit, or invoke character shortcuts until composition commits.",
+        "paste_autofill_behavior": "Accept paste, browser autofill, password-manager, and dictation updates through native input events; preserve the entered value and expose intentional normalization.",
+        "selection_caret_behavior": "Preserve selection, caret, scroll, and text direction through rerenders, suggestions, masking, asynchronous feedback, and focus return.",
+        "formatting_behavior": "Parse locale-aware values without rewriting partial input; apply destructive trimming, masking, or canonical formatting only at a documented boundary without moving the caret unexpectedly.",
+        "validation_timing": "Do not validate during IME composition; validate at the documented blur, change, or submit boundary and update an already exposed error as soon as the value becomes valid.",
+        "validation_feedback": "Associate concise error and correction text with the field, retain the value, expose a summary only when useful, and announce each material change once without color alone.",
+        "dirty_state_behavior": "Distinguish unchanged, dirty, saving, saved, and failed values; warn on navigation only when confirmed user input would be lost.",
+        "persistence_behavior": "For manual save or autosave, expose ownership and freshness, retain safe drafts across retry, refresh, offline recovery, and session renewal, and never claim unsaved work is saved.",
+        "undo_redo_behavior": "Preserve native text undo/redo and provide bounded application undo for committed reversible edits without corrupting selection or newer changes.",
+        "conflict_behavior": "Detect stale, multi-tab, or remote edit conflict before overwrite; show the competing version and offer explicit reload, keep, compare, or merge recovery.",
+        "read_only_disabled_behavior": "Keep read-only values selectable and understandable, remove disabled controls from activation, and state why an action is disabled and what can enable it.",
+        "submission_behavior": "Define Enter and multiline behavior, validate before side effects, prevent duplicate submission while pending, preserve values on failure, and bind success to the authoritative response.",
+        "decision_ids": [
+          "DS-TYPE-001",
+          "DS-SPACE-001",
+          "DS-COMP-001",
+          "DS-MOTION-001",
+          "DS-RESP-001",
+          "DS-CONTENT-001"
+        ]
+      }
+    ]
   }
 }

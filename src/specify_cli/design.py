@@ -53,28 +53,90 @@ SUPPORTED_LINT_LEVELS = {"structural", "ready"}
 DESIGN_PREVIEW_SCHEMA = "spec-kit-design-preview-v1"
 DESIGN_PREVIEW_MANIFEST_SCHEMA = "spec-kit-design-preview-manifest-v1"
 DESIGN_PREVIEW_APPROVAL_SCHEMA = "spec-kit-design-preview-approval-v1"
+DESIGN_IMAGE_APPROVAL_SCHEMA = "spec-kit-design-image-approval-v1"
 DESIGN_HANDOFF_SCHEMA = "spec-kit-design-handoff-v1"
 DESIGN_CHANGE_SCHEMA = "spec-kit-ui-design-change-v1"
 DESIGN_CHANGE_INDEX_SCHEMA = "spec-kit-ui-design-index-v1"
+UI_PROFESSIONAL_SKILL_CATALOG = "spec-kit-ui-professional-v1"
 DESIGN_CAPABILITY_PROFILES_SCHEMA = "spec-kit-design-capability-profiles-v1"
 DESIGN_CAPABILITY_MODEL_SCHEMA = "spec-kit-design-capability-model-v1"
 DESIGN_PREVIEW_MANIFEST_ID = "design-preview-manifest"
 DESIGN_PREVIEW_DIRECTION_RE = re.compile(r"^direction-[a-z0-9][a-z0-9-]*$")
+DESIGN_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
+DESIGN_IMAGE_CAPABILITY_VALUES = {"available", "unavailable"}
+DESIGN_VISUAL_COLLABORATION_FIELDS = (
+    "image_generation",
+    "image_inspection",
+    "image_editing",
+    "inspection_owner",
+    "prompt_strategy",
+)
 DESIGN_SPECIMEN_ID_RE = re.compile(r"^SP-[A-Z0-9]+(?:-[A-Z0-9]+)+$")
 # Freeform boards do not require fixed specimen sections (foundations/components/...).
 # Direction canvases carry creative layout; governance lives in the embedded manifest.
 DESIGN_PREVIEW_REQUIRED_SECTIONS: tuple[str, ...] = ()
 DESIGN_PREVIEW_PLACEHOLDER_RE = re.compile(r"__[A-Z0-9_]+__")
+DESIGN_PREVIEW_SEED_RE = re.compile(
+    r"(?i)(?:freeform-seed|unfinished prototype seed|replace this seed)"
+)
 DESIGN_PREVIEW_REMOTE_RE = re.compile(r"(?i)(?:https?:)?//")
 DESIGN_PREVIEW_NETWORK_SCRIPT_RE = re.compile(
     r"(?i)\b(?:fetch|XMLHttpRequest|WebSocket|EventSource)\s*\("
 )
+DESIGN_DECISION_ID_RE = re.compile(r"^DS-[A-Z0-9]+(?:-[A-Z0-9]+)+$")
 DESIGN_HANDOFF_ID_RE = re.compile(r"^DH-[A-Z0-9]+(?:-[A-Z0-9]+)+$")
 DESIGN_HANDOFF_REQUIRED_EVIDENCE = {
     "structure_snapshot",
     "visual_capture",
     "runtime_diagnostics",
     "visual_comparison_or_human_review",
+}
+DESIGN_PROFESSIONAL_MATRIX_FIELDS = (
+    "interaction_matrix",
+    "editing_matrix",
+    "data_state_matrix",
+    "accessibility_matrix",
+    "navigation_matrix",
+    "content_matrix",
+)
+DESIGN_EXPERIENCE_GRAPH_FIELDS = ("surface_catalog", "scenario_matrix")
+DESIGN_PROFESSIONAL_FIELDS = (
+    *DESIGN_EXPERIENCE_GRAPH_FIELDS,
+    *DESIGN_PROFESSIONAL_MATRIX_FIELDS,
+    "motion_contract",
+    "usability_validation",
+)
+DESIGN_DECISION_KINDS_BY_CONTRACT = {
+    "component_contracts": (
+        "color",
+        "typography",
+        "spacing",
+        "component",
+        "motion",
+    ),
+    "interaction_matrix": ("component", "motion", "responsive"),
+    "editing_matrix": (
+        "typography",
+        "spacing",
+        "component",
+        "motion",
+        "responsive",
+        "content",
+    ),
+    "data_state_matrix": ("color", "component", "content"),
+    "accessibility_matrix": (
+        "color",
+        "typography",
+        "spacing",
+        "component",
+        "motion",
+        "responsive",
+        "content",
+    ),
+    "navigation_matrix": ("component", "responsive", "content"),
+    "content_matrix": ("color", "typography", "spacing", "content"),
+    "responsive_matrix": ("typography", "spacing", "component", "responsive"),
+    "motion_contract": ("component", "motion"),
 }
 UI_TARGET_SCHEMA = "spec-kit-ui-target-v1"
 UI_TARGET_MANIFEST_SCHEMA = "spec-kit-ui-target-manifest-v1"
@@ -84,7 +146,7 @@ UI_TARGET_NETWORK_OR_PERSISTENCE_RE = re.compile(
     r"|\b(?:localStorage|sessionStorage|indexedDB|document\.cookie)\b"
 )
 UI_TARGET_APPROVED_PREVIEW_REF_RE = re.compile(
-    r"round-\d+\.html#direction-[a-z0-9-]+$", re.IGNORECASE
+    r"round-\d+\.(?:html|png|jpe?g|webp)#direction-[a-z0-9-]+$", re.IGNORECASE
 )
 DESIGN_CHANGE_ID_RE = re.compile(r"^UD-[0-9]{4,}$")
 DESIGN_CHANGE_SCOPE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
@@ -1135,6 +1197,20 @@ def _design_reconciliation_contract(
                     "compile_task_ui_contracts",
                 ],
             }
+        if mode == "formal-post-specify":
+            return {
+                "preserved_bindings": [
+                    "feature.spec_contract",
+                    "feature.requirements",
+                    "feature.acceptance_criteria",
+                ],
+                "invalidated_bindings": [],
+                "reconcile_from": "plan",
+                "reconciliation_actions": [
+                    "compile_plan_ui_design_contract",
+                    "compile_task_ui_contracts",
+                ],
+            }
         return {
             "preserved_bindings": [],
             "invalidated_bindings": [],
@@ -1151,7 +1227,7 @@ def _design_reconciliation_contract(
         or affected_handoff_contract_ids
     )
     if not material_change:
-        if mode == "formal":
+        if mode in {"formal", "formal-post-specify"}:
             preserved = [
                 "feature.ui_brief",
                 "plan.ui_design_contract",
@@ -1159,6 +1235,13 @@ def _design_reconciliation_contract(
                 "implementation.completed_work",
                 "review.scope_evidence",
             ]
+            if mode == "formal-post-specify":
+                preserved = [
+                    "feature.spec_contract",
+                    "feature.requirements",
+                    "feature.acceptance_criteria",
+                    *preserved,
+                ]
         else:
             preserved = [
                 "quick.completed_work_items",
@@ -1188,6 +1271,48 @@ def _design_reconciliation_contract(
                 "retire_unstarted_worker_packets",
                 "stop_in_progress_worker_packets_at_safe_boundary",
                 "create_corrective_work_item_for_completed_work",
+                "recapture_affected_review_evidence",
+            ],
+        }
+
+    if mode == "formal-post-specify":
+        if set(changed_sections).issubset({"verification"}) and not (
+            affected_decision_ids or affected_handoff_contract_ids
+        ):
+            return {
+                "preserved_bindings": [
+                    "feature.spec_contract",
+                    "feature.requirements",
+                    "feature.acceptance_criteria",
+                    "feature.ui_brief",
+                    "plan.ui_design_contract",
+                    "tasks.ui_contracts",
+                    "implementation.completed_work",
+                    "review.unaffected_scope_evidence",
+                ],
+                "invalidated_bindings": ["review.affected_scope_evidence"],
+                "reconcile_from": "review",
+                "reconciliation_actions": [
+                    "recapture_affected_review_evidence"
+                ],
+            }
+        return {
+            "preserved_bindings": [
+                "feature.spec_contract",
+                "feature.requirements",
+                "feature.acceptance_criteria",
+                "implementation.completed_work",
+                "review.unaffected_scope_evidence",
+            ],
+            "invalidated_bindings": [
+                "plan.ui_design_contract",
+                "tasks.ui_contracts",
+                "review.affected_scope_evidence",
+            ] if current_change_id is not None else [],
+            "reconcile_from": "plan",
+            "reconciliation_actions": [
+                "recompile_plan_ui_design_contract",
+                "recompile_task_ui_contracts",
                 "recapture_affected_review_evidence",
             ],
         }
@@ -1281,11 +1406,13 @@ def _normalize_design_adoption_identity(
         raise DesignLintError(
             "design adoption scope must be a stable path-like identifier"
         )
-    if adoption_mode not in {"formal", "quick"}:
-        raise DesignLintError("design adoption mode must be formal or quick")
+    if adoption_mode not in {"formal", "formal-post-specify", "quick"}:
+        raise DesignLintError(
+            "design adoption mode must be formal, formal-post-specify, or quick"
+        )
     if expected != "NONE" and not DESIGN_CHANGE_ID_RE.fullmatch(expected):
         raise DesignLintError("expected current change must be a UD-* ID or none")
-    if adoption_mode == "formal" and not consumer.startswith("feature:"):
+    if adoption_mode in {"formal", "formal-post-specify"} and not consumer.startswith("feature:"):
         raise DesignLintError(
             "formal design adoption consumer must use feature:<id>"
         )
@@ -1506,6 +1633,17 @@ def _binding_contains_design_fields(
     return all(
         _json_contains_design_field(payload, key, value)
         for key, value in fields.items()
+    )
+
+
+def _planning_ready_spec_binding(content: bytes) -> bool:
+    try:
+        payload = json.loads(content)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    return (
+        isinstance(payload, dict)
+        and str(payload.get("status") or "").strip().lower() == "planning-ready"
     )
 
 
@@ -1998,7 +2136,7 @@ def adopt_design_change(
         binding_content = binding_path.read_bytes()
     except (ValueError, OSError) as exc:
         raise DesignLintError(f"cannot read design adoption binding: {exc}") from exc
-    if normalized_mode == "formal":
+    if normalized_mode in {"formal", "formal-post-specify"}:
         if not normalized_consumer.startswith("feature:"):
             raise DesignLintError(
                 "formal design adoption consumer must use feature:<id>"
@@ -2012,6 +2150,14 @@ def adopt_design_change(
         ):
             raise DesignLintError(
                 "formal design adoption binding must be a feature spec-contract.json"
+            )
+        if (
+            normalized_mode == "formal-post-specify"
+            and not _planning_ready_spec_binding(binding_content)
+        ):
+            raise DesignLintError(
+                "formal-post-specify design adoption requires an unchanged "
+                "planning-ready source spec-contract.json"
             )
     else:
         if not normalized_consumer.startswith("quick:"):
@@ -2118,7 +2264,10 @@ def adopt_design_change(
     }
     if normalized_mode == "quick":
         expected_fields["scope"] = normalized_scope
-    if not _binding_contains_design_fields(binding_content, expected_fields):
+    if (
+        normalized_mode != "formal-post-specify"
+        and not _binding_contains_design_fields(binding_content, expected_fields)
+    ):
         raise DesignLintError(
             "design adoption binding does not contain the exact registered "
             "change fields"
@@ -2153,6 +2302,7 @@ def adopt_design_change(
     if (
         current is not None
         and current_id == normalized_change
+        and current.get("mode") == normalized_mode
         and current.get("binding_sha256") == actual_binding_digest
     ):
         return deepcopy(current)
@@ -2230,6 +2380,107 @@ def adopt_design_change(
         json.dumps(index, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
     )
     return deepcopy(receipt)
+
+
+def resolve_design_adoption(
+    project_root: Path,
+    *,
+    consumer_ref: str,
+    scope: str,
+    binding_ref: Path,
+    binding_sha256: str,
+    expected_change: str | None = None,
+) -> dict[str, Any]:
+    """Verify the current post-Specify design overlay without mutating state."""
+
+    project_root = project_root.resolve()
+    normalized_consumer = consumer_ref.strip()
+    normalized_scope = scope.strip()
+    normalized_digest = binding_sha256.strip().lower()
+    if not DESIGN_CHANGE_SCOPE_RE.fullmatch(normalized_consumer):
+        raise DesignLintError(
+            "design adoption consumer reference must be a stable identifier"
+        )
+    if not normalized_consumer.startswith("feature:"):
+        raise DesignLintError(
+            "formal-post-specify adoption consumer must use feature:<id>"
+        )
+    if not DESIGN_CHANGE_SCOPE_RE.fullmatch(normalized_scope):
+        raise DesignLintError(
+            "design adoption scope must be a stable path-like identifier"
+        )
+    if not re.fullmatch(r"[0-9a-f]{64}", normalized_digest):
+        raise DesignLintError("design adoption requires a binding SHA-256")
+
+    index, _, records = _load_design_change_index(project_root)
+    _, current = _current_design_adoption(
+        index,
+        consumer_ref=normalized_consumer,
+        scope=normalized_scope,
+    )
+    if current is None:
+        raise DesignLintError(
+            "no current design adoption exists for the feature and scope"
+        )
+    if current.get("mode") != "formal-post-specify":
+        raise DesignLintError(
+            "current design adoption is not a formal-post-specify overlay"
+        )
+    change_id = str(current.get("change_id") or "").strip().upper()
+    if expected_change is not None:
+        normalized_expected = expected_change.strip().upper()
+        if not DESIGN_CHANGE_ID_RE.fullmatch(normalized_expected):
+            raise DesignLintError("expected current change must be a UD-* ID")
+        if change_id != normalized_expected:
+            raise DesignLintError(
+                f"expected current change {normalized_expected} but found {change_id}"
+            )
+
+    binding_path = (
+        binding_ref.resolve()
+        if binding_ref.is_absolute()
+        else (project_root / binding_ref).resolve()
+    )
+    try:
+        relative_binding = binding_path.relative_to(project_root).as_posix()
+        binding_content = binding_path.read_bytes()
+    except (ValueError, OSError) as exc:
+        raise DesignLintError(f"cannot read design adoption binding: {exc}") from exc
+    actual_digest = hashlib.sha256(binding_content).hexdigest()
+    if (
+        relative_binding != current.get("binding_ref")
+        or normalized_digest != current.get("binding_sha256")
+        or actual_digest != normalized_digest
+    ):
+        raise DesignLintError(
+            "source spec binding does not match the current design adoption receipt"
+        )
+    if not _planning_ready_spec_binding(binding_content):
+        raise DesignLintError(
+            "formal-post-specify adoption requires the unchanged planning-ready source spec"
+        )
+
+    record = _active_design_adoption_record(
+        records,
+        change_id=change_id,
+        scope=normalized_scope,
+    )
+    _, registered_digest, _, _ = _load_registered_design_change(
+        project_root, change_id
+    )
+    if (
+        registered_digest != current.get("design_change_sha256")
+        or record.get("design_ref") != current.get("design_change_ref")
+    ):
+        raise DesignLintError(
+            "current design adoption does not match the active registered design"
+        )
+
+    verified = deepcopy(current)
+    verified["verified"] = True
+    verified["source_spec_ref"] = relative_binding
+    verified["source_spec_sha256"] = actual_digest
+    return verified
 
 
 def design_preview_approval_path(path: Path) -> Path:
@@ -2406,11 +2657,28 @@ def _apply_design_capability_profiles(
         if isinstance(direction, dict):
             direction["specimen_ids"] = specimen_ids
 
-    decision_ids = [
-        str(decision.get("id") or "").strip()
+    decisions = [
+        decision
         for decision in manifest.get("decisions") or []
         if isinstance(decision, dict) and str(decision.get("id") or "").strip()
     ]
+    decision_ids = [str(decision.get("id") or "").strip() for decision in decisions]
+
+    def decision_ids_for(
+        contract_kind: str,
+        source: dict[str, Any] | None = None,
+    ) -> list[str]:
+        requested = source.get("decision_kinds") if isinstance(source, dict) else None
+        if not isinstance(requested, list) or not requested:
+            requested = DESIGN_DECISION_KINDS_BY_CONTRACT[contract_kind]
+        requested_kinds = {
+            str(kind).strip() for kind in requested if str(kind).strip()
+        }
+        return [
+            str(decision.get("id") or "").strip()
+            for decision in decisions
+            if str(decision.get("kind") or "").strip() in requested_kinds
+        ]
     handoff = manifest.get("handoff")
     if not isinstance(handoff, dict):
         handoff = {}
@@ -2420,8 +2688,27 @@ def _apply_design_capability_profiles(
     )
 
     component_contracts: list[dict[str, Any]] = []
+    professional_matrices: dict[str, list[dict[str, Any]]] = {
+        field: [] for field in DESIGN_PROFESSIONAL_MATRIX_FIELDS
+    }
+    motion_purposes: list[str] = []
+    motion_transitions: list[dict[str, Any]] = []
+    reduced_motion_rules: list[str] = []
+    feedback_timings: list[dict[str, int]] = []
     responsive_matrix: list[dict[str, Any]] = []
     acceptance_matrix: list[dict[str, Any]] = []
+    surface_catalog: list[dict[str, Any]] = []
+    scenario_matrix: list[dict[str, Any]] = []
+    project_payload = manifest.get("project")
+    project_source_refs = [
+        str(value).strip()
+        for value in (
+            project_payload.get("modules")
+            if isinstance(project_payload, dict)
+            else []
+        )
+        if isinstance(value, str) and value.strip()
+    ]
     for profile in profiles:
         profile_id = str(profile["id"])
         profile_specimens = [
@@ -2431,28 +2718,80 @@ def _apply_design_capability_profiles(
         required_states = _ordered_union(
             *(specimen.get("required_states") for specimen in profile_specimens)
         )
+        profile_component_rows: list[dict[str, Any]] = []
+        profile_matrix_rows: dict[str, list[dict[str, Any]]] = {
+            field: [] for field in professional_matrices
+        }
+        profile_motion_rows: list[dict[str, Any]] = []
+        profile_responsive_rows: list[dict[str, Any]] = []
         contract = deepcopy(profile.get("component_contract"))
         if isinstance(contract, dict):
             contract["required_states"] = required_states
-            contract["decision_ids"] = decision_ids
+            contract["interaction_modes"] = deepcopy(profile.get("input_modes"))
+            contract["decision_ids"] = decision_ids_for(
+                "component_contracts", contract
+            )
+            contract.pop("decision_kinds", None)
             component_contracts.append(contract)
+            profile_component_rows.append(contract)
+
+        for field, projected_rows in professional_matrices.items():
+            for raw in profile.get(field) or []:
+                if not isinstance(raw, dict):
+                    continue
+                row = deepcopy(raw)
+                row["decision_ids"] = decision_ids_for(field, raw)
+                row.pop("decision_kinds", None)
+                projected_rows.append(row)
+                profile_matrix_rows[field].append(row)
+
+        profile_motion = profile.get("motion_contract")
+        if isinstance(profile_motion, dict):
+            purpose = str(profile_motion.get("purpose") or "").strip()
+            if purpose:
+                motion_purposes.append(f"{profile_id}: {purpose}")
+            reduced_motion = str(profile_motion.get("reduced_motion") or "").strip()
+            if reduced_motion:
+                reduced_motion_rules.append(f"{profile_id}: {reduced_motion}")
+            for raw in profile_motion.get("transitions") or []:
+                if not isinstance(raw, dict):
+                    continue
+                transition = deepcopy(raw)
+                transition["decision_ids"] = decision_ids_for(
+                    "motion_contract", raw
+                )
+                transition.pop("decision_kinds", None)
+                motion_transitions.append(transition)
+                profile_motion_rows.append(transition)
+            timing = profile_motion.get("feedback_timing")
+            if isinstance(timing, dict) and all(
+                isinstance(timing.get(field), int)
+                for field in ("immediate_ms", "progress_ms", "timeout_ms")
+            ):
+                feedback_timings.append(deepcopy(timing))
 
         for target in profile.get("targets") or []:
             if not isinstance(target, dict):
                 continue
             target_id = str(target.get("id") or "").strip()
-            responsive_matrix.append(
-                {
-                    "id": target_id,
-                    "profile_id": profile_id,
-                    "label": str(target.get("label") or "").strip(),
-                    "target": deepcopy(target.get("target")),
-                    "review_width_px": target.get("review_width_px"),
-                    "state": "default",
-                    "adaptation": str(target.get("adaptation") or "").strip(),
-                    "decision_ids": decision_ids,
-                }
-            )
+            responsive_row = {
+                "id": target_id,
+                "profile_id": profile_id,
+                "label": str(target.get("label") or "").strip(),
+                "target": deepcopy(target.get("target")),
+                "review_width_px": target.get("review_width_px"),
+                "state": "default",
+                "adaptation": str(target.get("adaptation") or "").strip(),
+                "stretch_behavior": str(
+                    target.get("stretch_behavior") or ""
+                ).strip(),
+                "overflow_behavior": str(
+                    target.get("overflow_behavior") or ""
+                ).strip(),
+                "decision_ids": decision_ids_for("responsive_matrix", target),
+            }
+            responsive_matrix.append(responsive_row)
+            profile_responsive_rows.append(responsive_row)
             acceptance_matrix.append(
                 {
                     "id": str(target.get("acceptance_id") or "").strip(),
@@ -2478,8 +2817,327 @@ def _apply_design_capability_profiles(
                     ],
                 }
             )
+        profile_key = re.sub(r"[^A-Z0-9]+", "-", profile_id.upper())
+        surface_id = f"DH-SURFACE-{profile_key}-001"
+        graph_rows = [
+            *profile_component_rows,
+            *(
+                row
+                for field in DESIGN_PROFESSIONAL_MATRIX_FIELDS
+                for row in profile_matrix_rows[field]
+            ),
+            *profile_responsive_rows,
+            *profile_motion_rows,
+        ]
+        surface_catalog.append(
+            {
+                "id": surface_id,
+                "profile_id": profile_id,
+                "name": str(profile.get("label") or "").strip(),
+                "kind": profile_id,
+                "source_refs": deepcopy(project_source_refs),
+                "specimen_ids": profile_specimen_ids,
+                "component_ids": [
+                    str(row.get("id") or "").strip()
+                    for row in profile_component_rows
+                    if str(row.get("id") or "").strip()
+                ],
+                "decision_ids": _ordered_union(
+                    *(row.get("decision_ids") for row in graph_rows)
+                ),
+            }
+        )
+        scenario_sources = {
+            "interaction_ids": profile_matrix_rows["interaction_matrix"],
+            "editing_ids": profile_matrix_rows["editing_matrix"],
+            "data_state_ids": profile_matrix_rows["data_state_matrix"],
+            "accessibility_ids": profile_matrix_rows["accessibility_matrix"],
+            "navigation_ids": profile_matrix_rows["navigation_matrix"],
+            "content_ids": profile_matrix_rows["content_matrix"],
+            "responsive_ids": profile_responsive_rows,
+            "motion_transition_ids": profile_motion_rows,
+        }
+        scenario_count = max(len(rows) for rows in scenario_sources.values())
+        for index in range(scenario_count):
+            selected_rows = {
+                field: [rows[index % len(rows)]]
+                for field, rows in scenario_sources.items()
+            }
+            data_state = selected_rows["data_state_ids"][0]
+
+            def state_row(name: str) -> dict[str, Any]:
+                return next(
+                    (
+                        row
+                        for row in scenario_sources["data_state_ids"]
+                        if str(row.get("state") or "").strip().lower() == name
+                    ),
+                    data_state,
+                )
+
+            success_state = state_row("populated")
+            transient_state = state_row("partial")
+            unavailable_state = state_row("unavailable")
+            branch_state_rows: list[dict[str, Any]] = []
+            branch_state_ids: set[str] = set()
+            for row in (
+                data_state,
+                success_state,
+                transient_state,
+                unavailable_state,
+            ):
+                row_id = str(row.get("id") or "").strip()
+                if row_id and row_id not in branch_state_ids:
+                    branch_state_ids.add(row_id)
+                    branch_state_rows.append(row)
+            selected_rows["data_state_ids"] = branch_state_rows
+            scenario_text = json.dumps(
+                selected_rows,
+                ensure_ascii=False,
+                sort_keys=True,
+            ).lower()
+            if any(
+                marker in scenario_text
+                for marker in (
+                    "error",
+                    "offline",
+                    "permission",
+                    "destructive",
+                    "timeout",
+                    "failure",
+                    "recovery",
+                )
+            ):
+                risk = "high"
+            elif any(
+                marker in scenario_text
+                for marker in (
+                    "keyboard",
+                    "focus",
+                    "loading",
+                    "empty",
+                    "partial",
+                    "reduced",
+                    "overflow",
+                    "touch",
+                )
+            ):
+                risk = "medium"
+            else:
+                risk = "low"
+            interaction = selected_rows["interaction_ids"][0]
+            accessibility = selected_rows["accessibility_ids"][0]
+            navigation = selected_rows["navigation_ids"][0]
+            responsive = selected_rows["responsive_ids"][0]
+            focus_checkpoint = str(
+                accessibility.get("focus_order") or ""
+            ).strip()
+            announcement_checkpoint = " ".join(
+                str(item).strip()
+                for item in accessibility.get("announcements") or []
+                if str(item).strip()
+            )
+            recovery_checkpoint = str(
+                navigation.get("interruption_recovery") or ""
+            ).strip()
+            scenario_matrix.append(
+                {
+                    "id": f"DH-SCENARIO-{profile_key}-{index + 1:03d}",
+                    "surface_id": surface_id,
+                    "name": (
+                        f"{str(profile.get('label') or '').strip()}: "
+                        f"{str(data_state.get('state') or '').strip()} via "
+                        f"{str(interaction.get('input') or '').strip()} at "
+                        f"{str(responsive.get('label') or '').strip()}"
+                    ),
+                    "risk": risk,
+                    "required": True,
+                    "interaction_script": {
+                        "preconditions": [
+                            (
+                                f"Render {surface_id} at "
+                                f"{str(responsive.get('label') or '').strip()} "
+                                f"with {str(data_state.get('data_condition') or '').strip().rstrip(' .!?')}."
+                            ),
+                            (
+                                f"Begin in the {str(data_state.get('state') or '').strip()} "
+                                f"state before {str(interaction.get('trigger') or '').strip().rstrip(' .!?')}."
+                            ),
+                        ],
+                        "start_state_id": str(
+                            data_state.get("id") or ""
+                        ).strip(),
+                        "steps": [
+                            {
+                                "input": str(interaction.get("input") or "").strip(),
+                                "action": str(
+                                    interaction.get("trigger") or ""
+                                ).strip(),
+                                "expected_feedback": str(
+                                    interaction.get("immediate_feedback") or ""
+                                ).strip(),
+                            }
+                        ],
+                        "branches": [
+                            {
+                                "conditions": ["success"],
+                                "setup": (
+                                    "Complete the action once without interruption: "
+                                    f"{str(interaction.get('trigger') or '').strip()}"
+                                ),
+                                "expected_state_id": str(
+                                    success_state.get("id") or ""
+                                ).strip(),
+                                "expected_feedback": str(
+                                    success_state.get("expectation") or ""
+                                ).strip(),
+                                "focus_behavior": focus_checkpoint,
+                                "announcement": (
+                                    f"Success: {announcement_checkpoint}"
+                                ),
+                                "continuation": str(
+                                    navigation.get("destination") or ""
+                                ).strip(),
+                            },
+                            {
+                                "conditions": ["failure", "timeout"],
+                                "setup": (
+                                    "Force the action to fail or exceed its timeout: "
+                                    f"{str(interaction.get('trigger') or '').strip()}"
+                                ),
+                                "expected_state_id": str(
+                                    unavailable_state.get("id") or ""
+                                ).strip(),
+                                "expected_feedback": str(
+                                    unavailable_state.get("expectation") or ""
+                                ).strip(),
+                                "focus_behavior": focus_checkpoint,
+                                "announcement": (
+                                    f"Failure or timeout: {announcement_checkpoint}"
+                                ),
+                                "continuation": recovery_checkpoint,
+                            },
+                            {
+                                "conditions": ["cancel"],
+                                "setup": (
+                                    "Cancel the action before completion: "
+                                    f"{str(interaction.get('trigger') or '').strip()}"
+                                ),
+                                "expected_state_id": str(
+                                    data_state.get("id") or ""
+                                ).strip(),
+                                "expected_feedback": str(
+                                    data_state.get("expectation") or ""
+                                ).strip(),
+                                "focus_behavior": focus_checkpoint,
+                                "announcement": (
+                                    f"Cancellation: {announcement_checkpoint}"
+                                ),
+                                "continuation": str(
+                                    navigation.get("back_behavior") or ""
+                                ).strip(),
+                            },
+                            {
+                                "conditions": [
+                                    "retry",
+                                    "duplicate",
+                                    "out_of_order",
+                                ],
+                                "setup": (
+                                    "Retry or repeat the action and resolve completions "
+                                    "out of order: "
+                                    f"{str(interaction.get('trigger') or '').strip()}"
+                                ),
+                                "expected_state_id": str(
+                                    transient_state.get("id") or ""
+                                ).strip(),
+                                "expected_feedback": str(
+                                    transient_state.get("expectation") or ""
+                                ).strip(),
+                                "focus_behavior": focus_checkpoint,
+                                "announcement": (
+                                    "Retry, duplicate, or out-of-order completion: "
+                                    f"{announcement_checkpoint}"
+                                ),
+                                "continuation": recovery_checkpoint,
+                            },
+                        ],
+                        "focus_checkpoint": focus_checkpoint,
+                        "announcement_checkpoint": announcement_checkpoint,
+                        "completion_checkpoint": str(
+                            success_state.get("expectation") or ""
+                        ).strip(),
+                        "recovery_checkpoint": recovery_checkpoint,
+                    },
+                    **{
+                        field: [str(row.get("id") or "").strip() for row in rows]
+                        for field, rows in selected_rows.items()
+                    },
+                    "decision_ids": _ordered_union(
+                        *(
+                            row.get("decision_ids")
+                            for rows in selected_rows.values()
+                            for row in rows
+                        )
+                    ),
+                }
+            )
     handoff["component_contracts"] = component_contracts
+    handoff["surface_catalog"] = surface_catalog
+    handoff["scenario_matrix"] = scenario_matrix
+    handoff.update(professional_matrices)
     handoff["responsive_matrix"] = responsive_matrix
+    handoff["motion_contract"] = {
+        "purpose": " ".join(motion_purposes),
+        "transitions": motion_transitions,
+        "reduced_motion": " ".join(reduced_motion_rules),
+        "feedback_timing": {
+            "immediate_ms": min(
+                timing["immediate_ms"] for timing in feedback_timings
+            ),
+            "progress_ms": min(timing["progress_ms"] for timing in feedback_timings),
+            "timeout_ms": max(timing["timeout_ms"] for timing in feedback_timings),
+        },
+    }
+    risk_rank = {"low": 0, "medium": 1, "high": 2}
+    risk_level = max(
+        (
+            str(profile.get("usability_validation", {}).get("risk_level") or "")
+            for profile in profiles
+            if isinstance(profile.get("usability_validation"), dict)
+        ),
+        key=lambda value: risk_rank.get(value, -1),
+    )
+    handoff["usability_validation"] = {
+        "risk_level": risk_level,
+        "methods": _ordered_union(
+            *(
+                profile.get("usability_validation", {}).get("methods")
+                for profile in profiles
+                if isinstance(profile.get("usability_validation"), dict)
+            )
+        ),
+        "critical_tasks": _ordered_union(
+            *(
+                profile.get("usability_validation", {}).get("critical_tasks")
+                for profile in profiles
+                if isinstance(profile.get("usability_validation"), dict)
+            )
+        ),
+        "success_criteria": _ordered_union(
+            *(
+                profile.get("usability_validation", {}).get("success_criteria")
+                for profile in profiles
+                if isinstance(profile.get("usability_validation"), dict)
+            )
+        ),
+        "human_review_required": any(
+            profile.get("usability_validation", {}).get("human_review_required")
+            is True
+            for profile in profiles
+            if isinstance(profile.get("usability_validation"), dict)
+        ),
+    }
     handoff["visual_acceptance_matrix"] = acceptance_matrix
 
 
@@ -3125,7 +3783,7 @@ def enrich_design_diagnostics(
 def _direction_divergence_diagnostics(
     directions: list[Any],
 ) -> list[DesignDiagnostic]:
-    """Reject ready boards whose three directions are not meaningfully differentiated."""
+    """Validate concept taste fields and legacy multi-direction divergence."""
 
     diagnostics: list[DesignDiagnostic] = []
     dial_vectors: list[tuple[int, int, int]] = []
@@ -3287,11 +3945,69 @@ def _direction_divergence_diagnostics(
     return diagnostics
 
 
+def _visual_collaboration_diagnostics(
+    manifest: dict[str, Any],
+    *,
+    expected_primary_medium: str | None,
+) -> list[DesignDiagnostic]:
+    diagnostics: list[DesignDiagnostic] = []
+    collaboration = manifest.get("visual_collaboration")
+    if not isinstance(collaboration, dict):
+        _add_diagnostic(
+            diagnostics,
+            "preview-invalid-visual-collaboration",
+            "preview manifest must freeze the live visual capability route",
+            "manifest.visual_collaboration",
+        )
+        return diagnostics
+
+    primary_medium = str(collaboration.get("primary_medium") or "").strip()
+    image_generation = str(collaboration.get("image_generation") or "").strip()
+    image_inspection = str(collaboration.get("image_inspection") or "").strip()
+    image_editing = str(collaboration.get("image_editing") or "").strip()
+    inspection_owner = str(collaboration.get("inspection_owner") or "").strip()
+    prompt_strategy = str(collaboration.get("prompt_strategy") or "").strip()
+    expected_owner = (
+        "agent-and-user" if image_inspection == "available" else "user"
+    )
+    valid_route = (
+        image_inspection in DESIGN_IMAGE_CAPABILITY_VALUES
+        and image_editing in DESIGN_IMAGE_CAPABILITY_VALUES
+        and inspection_owner == expected_owner
+        and (
+            (
+                primary_medium == "image-primary"
+                and image_generation == "available"
+                and prompt_strategy == "image-generation"
+            )
+            or (
+                primary_medium == "html-primary"
+                and image_generation == "unavailable"
+                and prompt_strategy == "html-authoring"
+            )
+        )
+    )
+    if expected_primary_medium and primary_medium != expected_primary_medium:
+        valid_route = False
+    if not valid_route:
+        _add_diagnostic(
+            diagnostics,
+            "preview-invalid-visual-collaboration",
+            (
+                "visual_collaboration must truthfully bind the selected medium, "
+                "independent image capabilities, prompt strategy, and inspection owner"
+            ),
+            "manifest.visual_collaboration",
+        )
+    return diagnostics
+
+
 def _preview_manifest_diagnostics(
     manifest: dict[str, Any] | None,
     *,
     direction_ids: list[str],
     ready: bool,
+    expected_primary_medium: str | None = None,
 ) -> list[DesignDiagnostic]:
     diagnostics: list[DesignDiagnostic] = []
     if manifest is None:
@@ -3316,6 +4032,12 @@ def _preview_manifest_diagnostics(
             schema_name="design-preview-manifest.schema.json",
             code="preview-manifest-schema-error",
             root_path="manifest",
+        )
+    )
+    diagnostics.extend(
+        _visual_collaboration_diagnostics(
+            manifest,
+            expected_primary_medium=expected_primary_medium,
         )
     )
 
@@ -3348,11 +4070,11 @@ def _preview_manifest_diagnostics(
                 )
 
     directions = manifest.get("directions")
-    if not isinstance(directions, list) or len(directions) != 3:
+    if not isinstance(directions, list) or len(directions) != 1:
         _add_diagnostic(
             diagnostics,
             "preview-manifest-direction-count",
-            "preview manifest must define exactly three directions",
+            "preview manifest must define exactly one current concept",
             "manifest.directions",
         )
         directions = []
@@ -3365,7 +4087,7 @@ def _preview_manifest_diagnostics(
         _add_diagnostic(
             diagnostics,
             "preview-manifest-direction-mismatch",
-            "preview manifest direction IDs must match the three rendered direction IDs in order",
+            "preview manifest direction ID must match the rendered current concept",
             "manifest.directions",
         )
 
@@ -3502,7 +4224,7 @@ def _preview_manifest_diagnostics(
                         ),
                     )
 
-    if ready and isinstance(directions, list) and len(directions) == 3:
+    if ready and isinstance(directions, list) and len(directions) == 1:
         diagnostics.extend(_direction_divergence_diagnostics(directions))
 
     diagnostics.extend(
@@ -3697,10 +4419,37 @@ def _preview_manifest_diagnostics(
         return diagnostics
 
     component_contracts = handoff.get("component_contracts")
+    surface_catalog = handoff.get("surface_catalog")
+    scenario_matrix = handoff.get("scenario_matrix")
     responsive_matrix = handoff.get("responsive_matrix")
     acceptance_matrix = handoff.get("visual_acceptance_matrix")
+    professional_matrices = {
+        field: handoff.get(field) for field in DESIGN_PROFESSIONAL_MATRIX_FIELDS
+    }
+    for field, entries in (
+        ("surface_catalog", surface_catalog),
+        ("scenario_matrix", scenario_matrix),
+    ):
+        if not isinstance(entries, list) or not entries:
+            _add_diagnostic(
+                diagnostics,
+                f"preview-missing-{field.replace('_', '-')}",
+                f"preview handoff must define a non-empty {field}",
+                f"manifest.handoff.{field}",
+            )
+    for field, entries in professional_matrices.items():
+        if not isinstance(entries, list) or not entries:
+            _add_diagnostic(
+                diagnostics,
+                f"preview-missing-{field.replace('_', '-')}",
+                f"preview handoff must define a non-empty {field}",
+                f"manifest.handoff.{field}",
+            )
     contract_collections = (
+        ("surface_catalog", surface_catalog),
+        ("scenario_matrix", scenario_matrix),
         ("component_contracts", component_contracts),
+        *professional_matrices.items(),
         ("responsive_matrix", responsive_matrix),
         ("visual_acceptance_matrix", acceptance_matrix),
     )
@@ -3723,6 +4472,28 @@ def _preview_manifest_diagnostics(
                 continue
             contract_id = str(entry.get("id") or "").strip()
             handoff_ids.append(contract_id)
+            if (
+                ready
+                and field == "interaction_matrix"
+                and not _valid_design_interaction_contract(entry)
+            ):
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-incomplete-handoff-contract",
+                    "interaction_matrix rows must define the complete event, feedback, focus, repeat, cancellation, and pending lifecycle",
+                    f"manifest.handoff.{field}[{index}]",
+                )
+            if (
+                ready
+                and field == "editing_matrix"
+                and not _valid_design_editing_contract(entry)
+            ):
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-incomplete-handoff-contract",
+                    "editing_matrix rows must define the complete input and editing lifecycle",
+                    f"manifest.handoff.{field}[{index}]",
+                )
             if not DESIGN_HANDOFF_ID_RE.fullmatch(contract_id):
                 _add_diagnostic(
                     diagnostics,
@@ -3745,6 +4516,230 @@ def _preview_manifest_diagnostics(
                     "handoff contract decision_ids must reference manifest.decisions",
                     f"manifest.handoff.{field}[{index}].decision_ids",
                 )
+
+    motion_contract = handoff.get("motion_contract")
+    if not isinstance(motion_contract, dict):
+        _add_diagnostic(
+            diagnostics,
+            "preview-missing-motion-contract",
+            "preview handoff must define a structured motion_contract",
+            "manifest.handoff.motion_contract",
+        )
+    else:
+        transitions = motion_contract.get("transitions")
+        if not isinstance(transitions, list) or not transitions:
+            _add_diagnostic(
+                diagnostics,
+                "preview-incomplete-motion-contract",
+                "motion_contract.transitions must be a non-empty list",
+                "manifest.handoff.motion_contract.transitions",
+            )
+            transitions = []
+        for index, transition in enumerate(transitions):
+            if not isinstance(transition, dict):
+                continue
+            transition_id = str(transition.get("id") or "").strip()
+            handoff_ids.append(transition_id)
+            if not DESIGN_HANDOFF_ID_RE.fullmatch(transition_id):
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-invalid-handoff-id",
+                    "motion transition IDs must use a stable DH-<KIND>-<NUMBER> form",
+                    f"manifest.handoff.motion_contract.transitions[{index}].id",
+                )
+            referenced_decisions = transition.get("decision_ids")
+            if not isinstance(referenced_decisions, list) or not referenced_decisions:
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-unbound-handoff-contract",
+                    "motion transitions must reference approved DS-* decisions",
+                    f"manifest.handoff.motion_contract.transitions[{index}].decision_ids",
+                )
+            elif any(item not in decision_ids for item in referenced_decisions):
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-unknown-handoff-decision",
+                    "motion transition decision_ids must reference manifest.decisions",
+                    f"manifest.handoff.motion_contract.transitions[{index}].decision_ids",
+                )
+        timing = motion_contract.get("feedback_timing")
+        if ready and (
+            not str(motion_contract.get("purpose") or "").strip()
+            or not str(motion_contract.get("reduced_motion") or "").strip()
+            or not isinstance(timing, dict)
+            or isinstance(timing.get("immediate_ms"), bool)
+            or not isinstance(timing.get("immediate_ms"), int)
+            or timing.get("immediate_ms", -1) < 0
+            or isinstance(timing.get("progress_ms"), bool)
+            or not isinstance(timing.get("progress_ms"), int)
+            or timing.get("progress_ms", 0) <= 0
+            or isinstance(timing.get("timeout_ms"), bool)
+            or not isinstance(timing.get("timeout_ms"), int)
+            or timing.get("timeout_ms", 0) <= timing.get("progress_ms", 0)
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "preview-incomplete-motion-contract",
+                "motion_contract requires purpose, reduced-motion behavior, transitions, and ordered immediate/progress/timeout timing",
+                "manifest.handoff.motion_contract",
+            )
+
+    component_ids = {
+        str(row.get("id") or "").strip()
+        for row in component_contracts or []
+        if isinstance(row, dict) and str(row.get("id") or "").strip()
+    }
+    specimen_ids = set(_design_specimen_ids(manifest))
+    surface_ids: set[str] = set()
+    for index, surface in enumerate(surface_catalog or []):
+        if not isinstance(surface, dict):
+            continue
+        surface_id = str(surface.get("id") or "").strip()
+        surface_ids.add(surface_id)
+        if ready and (
+            any(
+                not str(surface.get(field) or "").strip()
+                for field in ("profile_id", "name", "kind")
+            )
+            or not _is_nonempty_string_list(surface.get("source_refs"))
+            or not _is_nonempty_string_list(surface.get("specimen_ids"))
+            or not set(surface.get("specimen_ids") or []) <= specimen_ids
+            or not _is_nonempty_string_list(surface.get("component_ids"))
+            or not set(surface.get("component_ids") or []) <= component_ids
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "preview-incomplete-surface-catalog",
+                "surface_catalog rows require profile, source, specimen, component, and decision bindings",
+                f"manifest.handoff.surface_catalog[{index}]",
+            )
+
+    motion_rows = (
+        motion_contract.get("transitions") or []
+        if isinstance(motion_contract, dict)
+        else []
+    )
+    scenario_sources = {
+        "interaction_ids": professional_matrices["interaction_matrix"] or [],
+        "editing_ids": professional_matrices["editing_matrix"] or [],
+        "data_state_ids": professional_matrices["data_state_matrix"] or [],
+        "accessibility_ids": professional_matrices["accessibility_matrix"] or [],
+        "navigation_ids": professional_matrices["navigation_matrix"] or [],
+        "content_ids": professional_matrices["content_matrix"] or [],
+        "responsive_ids": responsive_matrix or [],
+        "motion_transition_ids": motion_rows,
+    }
+    scenario_rows_by_id = {
+        str(row.get("id") or "").strip(): row
+        for rows in scenario_sources.values()
+        if isinstance(rows, list)
+        for row in rows
+        if isinstance(row, dict) and str(row.get("id") or "").strip()
+    }
+    known_scenario_refs = {
+        field: {
+            str(row.get("id") or "").strip()
+            for row in rows
+            if isinstance(row, dict) and str(row.get("id") or "").strip()
+        }
+        for field, rows in scenario_sources.items()
+        if isinstance(rows, list)
+    }
+    covered_scenario_refs = {field: set() for field in scenario_sources}
+    for index, scenario in enumerate(scenario_matrix or []):
+        if not isinstance(scenario, dict):
+            continue
+        path = f"manifest.handoff.scenario_matrix[{index}]"
+        valid = (
+            str(scenario.get("surface_id") or "").strip() in surface_ids
+            and bool(str(scenario.get("name") or "").strip())
+            and scenario.get("risk") in {"low", "medium", "high"}
+            and scenario.get("required") is True
+            and _valid_design_interaction_script(
+                scenario.get("interaction_script"),
+                {
+                    str(item).strip()
+                    for item in scenario.get("data_state_ids") or []
+                    if isinstance(item, str) and item.strip()
+                },
+            )
+        )
+        referenced_ids: set[str] = set()
+        for field in scenario_sources:
+            refs = scenario.get(field)
+            if (
+                not _is_nonempty_string_list(refs)
+                or not set(refs or []) <= known_scenario_refs.get(field, set())
+            ):
+                valid = False
+                continue
+            covered_scenario_refs[field].update(refs)
+            referenced_ids.update(refs)
+        referenced_decisions = {
+            decision_id
+            for row_id in referenced_ids
+            for decision_id in scenario_rows_by_id[row_id].get("decision_ids") or []
+            if isinstance(decision_id, str) and decision_id.strip()
+        }
+        if set(scenario.get("decision_ids") or []) != referenced_decisions:
+            valid = False
+        if ready and not valid:
+            _add_diagnostic(
+                diagnostics,
+                "preview-invalid-scenario-contract",
+                "scenario_matrix rows must bind one known surface to known matrix rows with exact decision coverage",
+                path,
+            )
+    for field, expected_refs in known_scenario_refs.items():
+        if covered_scenario_refs[field] != expected_refs:
+            _add_diagnostic(
+                diagnostics,
+                "preview-incomplete-scenario-coverage",
+                f"scenario_matrix must cover every {field} contract without a Cartesian expansion",
+                "manifest.handoff.scenario_matrix",
+            )
+
+    usability = handoff.get("usability_validation")
+    if not isinstance(usability, dict):
+        _add_diagnostic(
+            diagnostics,
+            "preview-missing-usability-validation",
+            "preview handoff must define usability_validation",
+            "manifest.handoff.usability_validation",
+        )
+    elif ready and (
+        usability.get("risk_level") not in {"low", "medium", "high"}
+        or any(
+            not isinstance(usability.get(field), list)
+            or not usability.get(field)
+            or any(
+                not isinstance(item, str) or not item.strip()
+                for item in usability.get(field) or []
+            )
+            for field in ("methods", "critical_tasks", "success_criteria")
+        )
+        or not isinstance(usability.get("human_review_required"), bool)
+        or (
+            usability.get("risk_level") == "high"
+            and usability.get("human_review_required") is not True
+        )
+    ):
+        _add_diagnostic(
+            diagnostics,
+            "preview-incomplete-usability-validation",
+            "usability_validation requires risk, methods, critical tasks, success criteria, and an explicit human-review decision",
+            "manifest.handoff.usability_validation",
+        )
+        if (
+            usability.get("risk_level") == "high"
+            and usability.get("human_review_required") is not True
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "preview-high-risk-human-review-required",
+                "high-risk usability validation must require human review",
+                "manifest.handoff.usability_validation.human_review_required",
+            )
 
     for index, entry in enumerate(handoff.get("accepted_deviations") or []):
         if not isinstance(entry, dict):
@@ -3862,10 +4857,17 @@ def _design_handoff_contract_ids(manifest: dict[str, Any]) -> list[str]:
     handoff = handoff if isinstance(handoff, dict) else {}
     collections = (
         manifest.get("token_map"),
+        *(handoff.get(field) for field in DESIGN_EXPERIENCE_GRAPH_FIELDS),
         handoff.get("component_contracts"),
+        *(handoff.get(field) for field in DESIGN_PROFESSIONAL_MATRIX_FIELDS),
         handoff.get("responsive_matrix"),
         handoff.get("visual_acceptance_matrix"),
         handoff.get("accepted_deviations"),
+        (
+            handoff.get("motion_contract", {}).get("transitions")
+            if isinstance(handoff.get("motion_contract"), dict)
+            else None
+        ),
     )
     return [
         str(entry.get("id") or "").strip()
@@ -3899,9 +4901,12 @@ def _design_specimen_ids(manifest: dict[str, Any]) -> list[str]:
 def _build_design_handoff_payload(
     path: Path,
     *,
-    content: str,
+    content: str | bytes,
     direction_id: str,
     manifest: dict[str, Any],
+    visual_medium: str = "html",
+    prompt_sha256: str | None = None,
+    inspection_owner: str | None = None,
 ) -> dict[str, Any]:
     """Select one direction and resolve its immutable implementation contract."""
 
@@ -3924,6 +4929,9 @@ def _build_design_handoff_payload(
 
     reproduction = deepcopy(handoff)
     reproduction["capability_model"] = deepcopy(manifest.get("capability_model"))
+    # The selected direction owns review-board motion tokens. The reproduction
+    # contract already contains profile-adapted implementation transitions and
+    # reduced-motion behavior; keep those per-platform values intact.
     responsive_by_id = {
         str(entry.get("id") or "").strip(): entry
         for entry in reproduction.get("responsive_matrix") or []
@@ -3939,23 +4947,27 @@ def _build_design_handoff_payload(
         approved_targets: list[dict[str, str]] = []
         for color_mode in entry.get("color_modes") or []:
             for motion_mode in entry.get("motion_modes") or []:
-                query: dict[str, str | int] = {
-                    "mode": str(color_mode),
-                    "motion": str(motion_mode),
-                    "capture": 1,
-                }
-                profile_id = str(target.get("profile_id") or "").strip()
-                if profile_id:
-                    query["profile"] = profile_id
-                target_id = str(target.get("id") or "").strip()
-                if target_id:
-                    query["target"] = target_id
-                review_width = target.get("review_width_px")
-                if isinstance(review_width, int):
-                    query["viewport"] = review_width
+                if visual_medium == "html":
+                    query: dict[str, str | int] = {
+                        "mode": str(color_mode),
+                        "motion": str(motion_mode),
+                        "capture": 1,
+                    }
+                    profile_id = str(target.get("profile_id") or "").strip()
+                    if profile_id:
+                        query["profile"] = profile_id
+                    target_id = str(target.get("id") or "").strip()
+                    if target_id:
+                        query["target"] = target_id
+                    review_width = target.get("review_width_px")
+                    if isinstance(review_width, int):
+                        query["viewport"] = review_width
+                    approved_ref = f"{path.name}?{urlencode(query)}#{direction_id}"
+                else:
+                    approved_ref = f"{path.name}#{direction_id}"
                 approved_targets.append(
                     {
-                        "ref": f"{path.name}?{urlencode(query)}#{direction_id}",
+                        "ref": approved_ref,
                         "color_mode": str(color_mode),
                         "motion_mode": str(motion_mode),
                     }
@@ -3972,17 +4984,31 @@ def _build_design_handoff_payload(
         for item in manifest.get("decisions") or []
         if isinstance(item, dict) and str(item.get("id") or "").strip()
     ]
+    content_bytes = content if isinstance(content, bytes) else content.encode("utf-8")
+    approval: dict[str, Any] = {
+        "preview_file": path.name,
+        "preview_ref": f"{path.name}#{direction_id}",
+        "direction_id": direction_id,
+        "review_round": str(review.get("round") or "").strip(),
+        "preview_sha256": _sha256_bytes(content_bytes),
+        "manifest_sha256": _canonical_json_sha256(manifest),
+        "decision_ids": decision_ids,
+        "visual_medium": visual_medium,
+    }
+    collaboration = manifest.get("visual_collaboration")
+    if isinstance(collaboration, dict):
+        for field in DESIGN_VISUAL_COLLABORATION_FIELDS:
+            value = str(collaboration.get(field) or "").strip()
+            if value:
+                approval[field] = value
+    if prompt_sha256 is not None:
+        approval["prompt_ref"] = f"{path.stem}.prompt.md"
+        approval["prompt_sha256"] = prompt_sha256
+    if inspection_owner is not None:
+        approval["inspection_owner"] = inspection_owner
     return {
         "schema": DESIGN_HANDOFF_SCHEMA,
-        "approval": {
-            "preview_file": path.name,
-            "preview_ref": f"{path.name}#{direction_id}",
-            "direction_id": direction_id,
-            "review_round": str(review.get("round") or "").strip(),
-            "preview_sha256": _sha256_bytes(content.encode("utf-8")),
-            "manifest_sha256": _canonical_json_sha256(manifest),
-            "decision_ids": decision_ids,
-        },
+        "approval": approval,
         "project": deepcopy(manifest.get("project")),
         "direction": deepcopy(selected),
         "content": deepcopy(manifest.get("content")),
@@ -4114,12 +5140,23 @@ def _validate_preview_approval_sidecar(
     )
     expected = {
         "schema": DESIGN_PREVIEW_APPROVAL_SCHEMA,
+        "visual_medium": "html",
         "preview_file": path.name,
         "direction_id": approved_direction,
         "preview_ref": f"{path.name}#{approved_direction}",
         "html_sha256": _sha256_bytes(content.encode("utf-8")),
         "manifest_sha256": expected_manifest_sha256,
     }
+    collaboration = (
+        manifest.get("visual_collaboration") if isinstance(manifest, dict) else None
+    )
+    if isinstance(collaboration, dict):
+        expected.update(
+            {
+                field: str(collaboration.get(field) or "").strip()
+                for field in DESIGN_VISUAL_COLLABORATION_FIELDS
+            }
+        )
     for field, expected_value in expected.items():
         if payload.get(field) != expected_value:
             _add_diagnostic(
@@ -4219,12 +5256,8 @@ def _render_preview_direction_ids(
     content: str,
     direction_ids: list[str],
 ) -> str:
-    source_ids = ("direction-a", "direction-b", "direction-c")
-    sentinels = (
-        "__SPECIFY_DIRECTION_SLOT_A__",
-        "__SPECIFY_DIRECTION_SLOT_B__",
-        "__SPECIFY_DIRECTION_SLOT_C__",
-    )
+    source_ids = ("direction-main",)
+    sentinels = ("__SPECIFY_DIRECTION_SLOT_MAIN__",)
     for source_id, sentinel in zip(source_ids, sentinels, strict=True):
         token_pattern = re.compile(
             rf"(?<![a-z0-9-]){re.escape(source_id)}(?![a-z0-9-])"
@@ -4279,6 +5312,11 @@ def approve_design_preview(
         raise DesignLintError("design preview manifest review must be an object")
     review["status"] = "approved"
     review["approved_direction"] = direction_id
+    collaboration = manifest.get("visual_collaboration")
+    if not isinstance(collaboration, dict):
+        raise DesignLintError(
+            "design preview manifest must freeze the live visual capability route"
+        )
 
     updated = _replace_preview_manifest(content, manifest)
     updated = _replace_preview_attribute(
@@ -4332,6 +5370,7 @@ def approve_design_preview(
     ) + "\n"
     payload = {
         "schema": DESIGN_PREVIEW_APPROVAL_SCHEMA,
+        "visual_medium": "html",
         "preview_file": path.name,
         "direction_id": direction_id,
         "preview_ref": f"{path.name}#{direction_id}",
@@ -4345,6 +5384,10 @@ def approve_design_preview(
         "handoff_contract_ids": _design_handoff_contract_ids(manifest),
         "capability_profile_ids": _design_capability_profile_ids(manifest),
         "specimen_ids": _design_specimen_ids(manifest),
+        **{
+            field: str(collaboration.get(field) or "").strip()
+            for field in DESIGN_VISUAL_COLLABORATION_FIELDS
+        },
     }
 
     atomic_write_text(path, updated)
@@ -4365,12 +5408,473 @@ def approve_design_preview(
     return payload
 
 
+def _design_image_artifact_diagnostics(path: Path) -> tuple[bytes, list[DesignDiagnostic]]:
+    diagnostics: list[DesignDiagnostic] = []
+    try:
+        image_bytes = path.read_bytes()
+    except OSError as exc:
+        return b"", [
+            DesignDiagnostic(
+                "image-missing-file",
+                f"cannot read design image: {exc}",
+                str(path),
+            )
+        ]
+    suffix = path.suffix.lower()
+    if suffix not in DESIGN_IMAGE_SUFFIXES:
+        _add_diagnostic(
+            diagnostics,
+            "image-unsupported-format",
+            "design image must be PNG, JPEG, or WEBP",
+            str(path),
+        )
+        return image_bytes, diagnostics
+    signatures = {
+        ".png": image_bytes.startswith(b"\x89PNG\r\n\x1a\n"),
+        ".jpg": image_bytes.startswith(b"\xff\xd8\xff"),
+        ".jpeg": image_bytes.startswith(b"\xff\xd8\xff"),
+        ".webp": (
+            len(image_bytes) >= 12
+            and image_bytes.startswith(b"RIFF")
+            and image_bytes[8:12] == b"WEBP"
+        ),
+    }
+    if not signatures[suffix]:
+        _add_diagnostic(
+            diagnostics,
+            "image-format-mismatch",
+            "design image bytes do not match the PNG, JPEG, or WEBP extension",
+            str(path),
+        )
+    return image_bytes, diagnostics
+
+
+def _design_image_bundle_path(
+    image_path: Path,
+    candidate: Path,
+    *,
+    expected_name: str,
+    label: str,
+) -> Path:
+    if candidate.name != expected_name or candidate.parent.resolve() != image_path.parent.resolve():
+        raise DesignLintError(
+            f"design image {label} must be the adjacent {expected_name}"
+        )
+    return candidate
+
+
+def approve_design_image(
+    path: Path,
+    *,
+    manifest_path: Path,
+    prompt_path: Path,
+    direction_id: str,
+    image_inspection: str,
+    image_editing: str,
+    approval_path: Path | None = None,
+) -> dict[str, Any]:
+    """Freeze one image-primary concept with its manifest and generation prompt."""
+
+    image_bytes, image_diagnostics = _design_image_artifact_diagnostics(path)
+    if image_diagnostics:
+        raise DesignLintError(
+            "; ".join(
+                f"{diagnostic.code}: {diagnostic.message}"
+                for diagnostic in image_diagnostics
+            )
+        )
+    normalized_inspection = image_inspection.strip().lower()
+    normalized_editing = image_editing.strip().lower()
+    for label, value in (
+        ("image inspection", normalized_inspection),
+        ("image editing", normalized_editing),
+    ):
+        if value not in DESIGN_IMAGE_CAPABILITY_VALUES:
+            raise DesignLintError(f"{label} must be available or unavailable")
+    manifest_path = _design_image_bundle_path(
+        path,
+        manifest_path,
+        expected_name=f"{path.stem}.manifest.json",
+        label="manifest",
+    )
+    prompt_path = _design_image_bundle_path(
+        path,
+        prompt_path,
+        expected_name=f"{path.stem}.prompt.md",
+        label="prompt",
+    )
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DesignLintError(f"cannot read design image manifest: {exc}") from exc
+    if not isinstance(manifest, dict):
+        raise DesignLintError("design image manifest must be a JSON object")
+    review = manifest.get("review")
+    if not isinstance(review, dict):
+        raise DesignLintError("design image manifest review must be an object")
+    status = str(review.get("status") or "").strip().lower()
+    if status == "approved" or design_preview_approval_path(path).exists():
+        raise DesignLintError(f"design image round is already approved and immutable: {path}")
+    if status != "candidate":
+        raise DesignLintError("design image manifest must be a configured candidate before approval")
+    directions = manifest.get("directions")
+    direction_ids = [
+        str(item.get("id") or "").strip()
+        for item in directions or []
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    ]
+    if direction_id not in direction_ids:
+        raise DesignLintError(
+            f"unknown design direction {direction_id}; choose one of "
+            + ", ".join(direction_ids)
+        )
+    try:
+        prompt_bytes = prompt_path.read_bytes()
+        prompt_text = prompt_bytes.decode("utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise DesignLintError(f"cannot read image generation prompt: {exc}") from exc
+    if len(prompt_text.strip()) < 40 or DESIGN_PREVIEW_PLACEHOLDER_RE.search(prompt_text):
+        raise DesignLintError(
+            "image generation prompt must be project-specific, non-placeholder Markdown"
+        )
+
+    inspection_owner = (
+        "agent-and-user" if normalized_inspection == "available" else "user"
+    )
+    manifest["visual_collaboration"] = {
+        "primary_medium": "image-primary",
+        "image_generation": "available",
+        "image_inspection": normalized_inspection,
+        "image_editing": normalized_editing,
+        "inspection_owner": inspection_owner,
+        "prompt_strategy": "image-generation",
+    }
+    review["status"] = "approved"
+    review["approved_direction"] = direction_id
+    diagnostics = _preview_manifest_diagnostics(
+        manifest,
+        direction_ids=direction_ids,
+        ready=True,
+        expected_primary_medium="image-primary",
+    )
+    if diagnostics:
+        raise DesignLintError(
+            "design image manifest is not ready for approval: "
+            + "; ".join(
+                f"{diagnostic.code}: {diagnostic.message}"
+                for diagnostic in diagnostics
+            )
+        )
+
+    decision_ids = [
+        str(item.get("id") or "").strip()
+        for item in manifest.get("decisions") or []
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    ]
+    if not decision_ids:
+        raise DesignLintError(
+            "design image manifest must define stable decisions before approval"
+        )
+    prompt_sha256 = _sha256_bytes(prompt_bytes)
+    image_sha256 = _sha256_bytes(image_bytes)
+    handoff_path = design_preview_handoff_path(path)
+    handoff_payload = _build_design_handoff_payload(
+        path,
+        content=image_bytes,
+        direction_id=direction_id,
+        manifest=manifest,
+        visual_medium="image",
+        prompt_sha256=prompt_sha256,
+        inspection_owner=inspection_owner,
+    )
+    handoff_diagnostics = _json_schema_diagnostics(
+        handoff_payload,
+        schema_name="design-handoff-schema.json",
+        code="image-handoff-schema-error",
+        root_path="handoff",
+    )
+    if handoff_diagnostics:
+        raise DesignLintError(
+            "cannot approve invalid design image handoff: "
+            + "; ".join(
+                f"{diagnostic.path}: {diagnostic.message}"
+                for diagnostic in handoff_diagnostics
+            )
+        )
+    handoff_text = json.dumps(
+        handoff_payload,
+        ensure_ascii=False,
+        indent=2,
+    ) + "\n"
+    payload = {
+        "schema": DESIGN_IMAGE_APPROVAL_SCHEMA,
+        "visual_medium": "image",
+        "preview_file": path.name,
+        "direction_id": direction_id,
+        "preview_ref": f"{path.name}#{direction_id}",
+        "review_round": str(review.get("round") or "").strip(),
+        "image_sha256": image_sha256,
+        "preview_sha256": image_sha256,
+        "manifest_file": manifest_path.name,
+        "manifest_ref": manifest_path.name,
+        "manifest_sha256": _canonical_json_sha256(manifest),
+        "prompt_file": prompt_path.name,
+        "prompt_ref": prompt_path.name,
+        "prompt_sha256": prompt_sha256,
+        "image_generation": "available",
+        "prompt_strategy": "image-generation",
+        "image_inspection": normalized_inspection,
+        "image_editing": normalized_editing,
+        "inspection_owner": inspection_owner,
+        "decision_ids": decision_ids,
+        "handoff_file": handoff_path.name,
+        "handoff_ref": handoff_path.name,
+        "handoff_sha256": _sha256_bytes(handoff_text.encode("utf-8")),
+        "handoff_contract_ids": _design_handoff_contract_ids(manifest),
+        "capability_profile_ids": _design_capability_profile_ids(manifest),
+        "specimen_ids": _design_specimen_ids(manifest),
+    }
+    resolved_approval_path = approval_path or design_preview_approval_path(path)
+    atomic_write_text(
+        manifest_path,
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+    )
+    atomic_write_text(handoff_path, handoff_text)
+    atomic_write_text(
+        resolved_approval_path,
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+    )
+    post_diagnostics = lint_design_image_bundle(path, level="ready")
+    if post_diagnostics:
+        raise DesignLintError(
+            "approved design image failed deterministic validation: "
+            + "; ".join(
+                f"{diagnostic.code}: {diagnostic.message}"
+                for diagnostic in post_diagnostics
+            )
+        )
+    return payload
+
+
+def lint_design_image_bundle(
+    path: Path,
+    *,
+    level: str = "ready",
+) -> list[DesignDiagnostic]:
+    """Validate an image-primary round and its immutable approval bundle."""
+
+    normalized_level = level.lower()
+    if normalized_level not in SUPPORTED_LINT_LEVELS:
+        raise DesignLintError(f"unsupported design image lint level: {level}")
+    image_bytes, diagnostics = _design_image_artifact_diagnostics(path)
+    if diagnostics or normalized_level == "structural":
+        return enrich_design_diagnostics(diagnostics)
+
+    approval_path = design_preview_approval_path(path)
+    try:
+        approval = json.loads(approval_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        _add_diagnostic(
+            diagnostics,
+            "image-missing-approval-sidecar",
+            f"cannot read approved image sidecar: {exc}",
+            str(approval_path),
+        )
+        return enrich_design_diagnostics(diagnostics)
+    if not isinstance(approval, dict):
+        _add_diagnostic(
+            diagnostics,
+            "image-invalid-approval-sidecar",
+            "approved image sidecar must be a JSON object",
+            str(approval_path),
+        )
+        return enrich_design_diagnostics(diagnostics)
+
+    direction_id = str(approval.get("direction_id") or "").strip()
+    image_sha256 = _sha256_bytes(image_bytes)
+    expected_approval = {
+        "schema": DESIGN_IMAGE_APPROVAL_SCHEMA,
+        "visual_medium": "image",
+        "preview_file": path.name,
+        "preview_ref": f"{path.name}#{direction_id}",
+        "image_sha256": image_sha256,
+        "preview_sha256": image_sha256,
+        "manifest_file": f"{path.stem}.manifest.json",
+        "manifest_ref": f"{path.stem}.manifest.json",
+        "prompt_file": f"{path.stem}.prompt.md",
+        "prompt_ref": f"{path.stem}.prompt.md",
+        "handoff_file": design_preview_handoff_path(path).name,
+        "handoff_ref": design_preview_handoff_path(path).name,
+        "image_generation": "available",
+        "prompt_strategy": "image-generation",
+    }
+    for field, expected_value in expected_approval.items():
+        if approval.get(field) != expected_value:
+            _add_diagnostic(
+                diagnostics,
+                "image-stale-approval-sidecar",
+                f"image approval sidecar {field} does not bind the immutable round",
+                f"{approval_path.name}.{field}",
+            )
+    image_inspection = str(approval.get("image_inspection") or "").strip()
+    image_editing = str(approval.get("image_editing") or "").strip()
+    inspection_owner = str(approval.get("inspection_owner") or "").strip()
+    expected_owner = "agent-and-user" if image_inspection == "available" else "user"
+    if (
+        image_inspection not in DESIGN_IMAGE_CAPABILITY_VALUES
+        or image_editing not in DESIGN_IMAGE_CAPABILITY_VALUES
+        or inspection_owner != expected_owner
+    ):
+        _add_diagnostic(
+            diagnostics,
+            "image-invalid-capability-binding",
+            "image approval must bind inspection/editing availability and the truthful inspection owner",
+            str(approval_path),
+        )
+
+    manifest_path = path.with_suffix(".manifest.json")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        _add_diagnostic(
+            diagnostics,
+            "image-invalid-manifest",
+            f"cannot read design image manifest: {exc}",
+            str(manifest_path),
+        )
+        return enrich_design_diagnostics(diagnostics)
+    if not isinstance(manifest, dict):
+        _add_diagnostic(
+            diagnostics,
+            "image-invalid-manifest",
+            "design image manifest must be a JSON object",
+            str(manifest_path),
+        )
+        return enrich_design_diagnostics(diagnostics)
+    if approval.get("manifest_sha256") != _canonical_json_sha256(manifest):
+        _add_diagnostic(
+            diagnostics,
+            "image-stale-manifest-binding",
+            "image approval sidecar does not bind the immutable manifest",
+            str(manifest_path),
+        )
+    direction_ids = [
+        str(item.get("id") or "").strip()
+        for item in manifest.get("directions") or []
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    ]
+    diagnostics.extend(
+        _preview_manifest_diagnostics(
+            manifest,
+            direction_ids=direction_ids,
+            ready=True,
+            expected_primary_medium="image-primary",
+        )
+    )
+    review = manifest.get("review")
+    review = review if isinstance(review, dict) else {}
+    if (
+        str(review.get("status") or "").strip() != "approved"
+        or str(review.get("approved_direction") or "").strip() != direction_id
+    ):
+        _add_diagnostic(
+            diagnostics,
+            "image-unapproved-manifest",
+            "design image manifest must freeze the approved direction",
+            "manifest.review",
+        )
+    expected_collaboration = {
+        "primary_medium": "image-primary",
+        "image_generation": "available",
+        "image_inspection": image_inspection,
+        "image_editing": image_editing,
+        "inspection_owner": inspection_owner,
+        "prompt_strategy": "image-generation",
+    }
+    if manifest.get("visual_collaboration") != expected_collaboration:
+        _add_diagnostic(
+            diagnostics,
+            "image-capability-manifest-drift",
+            "manifest visual_collaboration must match the approved live capability route",
+            "manifest.visual_collaboration",
+        )
+
+    prompt_path = path.with_suffix(".prompt.md")
+    try:
+        prompt_bytes = prompt_path.read_bytes()
+        prompt_text = prompt_bytes.decode("utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        _add_diagnostic(
+            diagnostics,
+            "image-invalid-generation-prompt",
+            f"cannot read image generation prompt: {exc}",
+            str(prompt_path),
+        )
+        return enrich_design_diagnostics(diagnostics)
+    if (
+        len(prompt_text.strip()) < 40
+        or DESIGN_PREVIEW_PLACEHOLDER_RE.search(prompt_text)
+        or approval.get("prompt_sha256") != _sha256_bytes(prompt_bytes)
+    ):
+        _add_diagnostic(
+            diagnostics,
+            "image-stale-prompt-binding",
+            "approved image must bind its project-specific generation/edit prompt",
+            str(prompt_path),
+        )
+
+    handoff_path = design_preview_handoff_path(path)
+    try:
+        handoff_bytes = handoff_path.read_bytes()
+        handoff = json.loads(handoff_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        _add_diagnostic(
+            diagnostics,
+            "image-invalid-handoff-sidecar",
+            f"cannot read design image handoff: {exc}",
+            str(handoff_path),
+        )
+        return enrich_design_diagnostics(diagnostics)
+    diagnostics.extend(
+        _json_schema_diagnostics(
+            handoff,
+            schema_name="design-handoff-schema.json",
+            code="image-handoff-schema-error",
+            root_path="handoff",
+        )
+    )
+    if approval.get("handoff_sha256") != _sha256_bytes(handoff_bytes):
+        _add_diagnostic(
+            diagnostics,
+            "image-stale-handoff-binding",
+            "image approval sidecar does not bind the immutable handoff",
+            str(handoff_path),
+        )
+    expected_handoff = _build_design_handoff_payload(
+        path,
+        content=image_bytes,
+        direction_id=direction_id,
+        manifest=manifest,
+        visual_medium="image",
+        prompt_sha256=_sha256_bytes(prompt_bytes),
+        inspection_owner=inspection_owner,
+    )
+    if handoff != expected_handoff:
+        _add_diagnostic(
+            diagnostics,
+            "image-stale-handoff-sidecar",
+            "image handoff must be the exact deterministic projection of the approved concept",
+            str(handoff_path),
+        )
+    return enrich_design_diagnostics(diagnostics)
+
+
 def lint_design_preview_file(
     path: Path,
     *,
     level: str = "structural",
 ) -> list[DesignDiagnostic]:
-    """Validate a project-level, three-direction HTML design preview board."""
+    """Validate a project-level, single-concept HTML design preview round."""
 
     normalized_level = level.lower()
     if normalized_level not in SUPPORTED_LINT_LEVELS:
@@ -4450,11 +5954,11 @@ def lint_design_preview_file(
         )
 
     direction_ids = parser.direction_ids
-    if len(direction_ids) != 3:
+    if len(direction_ids) != 1:
         _add_diagnostic(
             diagnostics,
             "preview-direction-count",
-            "design preview must contain exactly three comparable directions",
+            "design preview must contain exactly one current concept",
             "data-direction-id",
         )
     if len(set(direction_ids)) != len(direction_ids):
@@ -4523,6 +6027,7 @@ def lint_design_preview_file(
             manifest,
             direction_ids=direction_ids,
             ready=normalized_level == "ready",
+            expected_primary_medium="html-primary",
         )
     )
     for token_name in (
@@ -4571,6 +6076,19 @@ def lint_design_preview_file(
         )
 
     if normalized_level == "ready":
+        prototype_status = (
+            parser.preview_attrs.get("data-prototype-status", "").strip().lower()
+        )
+        if prototype_status != "authored" or DESIGN_PREVIEW_SEED_RE.search(content):
+            _add_diagnostic(
+                diagnostics,
+                "preview-unfinished-prototype",
+                (
+                    "ready preview must replace the prototype seed and set "
+                    'data-prototype-status="authored" after visual inspection'
+                ),
+                "data-prototype-status",
+            )
         status = parser.preview_attrs.get("data-preview-status", "").strip().lower()
         if status not in {"candidate", "approved"}:
             _add_diagnostic(
@@ -4697,7 +6215,7 @@ def render_design_preview(
     force: bool = False,
     template_path: Path | None = None,
 ) -> Path:
-    """Render a ready candidate preview from a compact manifest."""
+    """Render an unfinished structural preview draft from a compact manifest."""
 
     _source, content = _load_design_preview_template(template_path)
     if not manifest_path.is_file():
@@ -4752,6 +6270,7 @@ def render_design_preview(
         manifest,
         direction_ids=direction_ids,
         ready=True,
+        expected_primary_medium="html-primary",
     )
     if manifest_diagnostics:
         messages = "; ".join(
@@ -4784,7 +6303,7 @@ def render_design_preview(
         ) as validation_file:
             validation_file.write(content)
             validation_path = Path(validation_file.name)
-        diagnostics = lint_design_preview_file(validation_path, level="ready")
+        diagnostics = lint_design_preview_file(validation_path, level="structural")
     finally:
         if validation_path is not None:
             validation_path.unlink(missing_ok=True)
@@ -4808,7 +6327,7 @@ def scaffold_design_preview(
     force: bool = False,
     template_path: Path | None = None,
 ) -> Path:
-    """Copy the bundled three-direction design preview scaffold."""
+    """Copy the bundled single-concept design preview scaffold."""
 
     source, content = _load_design_preview_template(template_path)
     _ensure_preview_output_writable(out_path, force=force)
@@ -5200,7 +6719,7 @@ def lint_ui_target_file(
                         _add_diagnostic(
                             diagnostics,
                             "ui-target-invalid-approval-digest",
-                            f"approved HTML preview requires a valid {field}",
+                            f"approved visual round requires a valid {field}",
                             f"manifest.approval.{field}",
                         )
                 if not str(approval.get("handoff_ref") or "").strip().lower().endswith(
@@ -5209,7 +6728,7 @@ def lint_ui_target_file(
                     _add_diagnostic(
                         diagnostics,
                         "ui-target-invalid-handoff-ref",
-                        "approved HTML preview requires its immutable handoff reference",
+                        "approved visual round requires its immutable handoff reference",
                         "manifest.approval.handoff_ref",
                     )
         content_fixture = manifest.get("content")
@@ -5229,7 +6748,7 @@ def lint_ui_target_file(
             or not decision_ids
             or any(
                 not isinstance(item, str)
-                or not re.fullmatch(r"DS-[A-Z]+-\d{3}", item.strip())
+                or not DESIGN_DECISION_ID_RE.fullmatch(item.strip())
                 for item in decision_ids
             )
         ):
@@ -5349,6 +6868,12 @@ def export_design_system(
             "status": document.design_system.get("status"),
             "approval": document.design_system.get("approval", {}),
             "product_context": document.design_system.get("product_context", {}),
+            "professional_skill_route": document.design_system.get(
+                "professional_skill_route", {}
+            ),
+            "style_authority": document.design_system.get(
+                "style_authority", {}
+            ),
             "direction_contract": document.design_system.get("direction_contract", {}),
             "platforms": document.design_system.get("platforms", []),
             "capability_profiles": document.design_system.get(
@@ -5400,6 +6925,313 @@ def import_design_reference(source: str, *, out_dir: Path, notes: str = "") -> P
     return out_path
 
 
+def _load_professional_skill_catalog_refs() -> dict[str, str] | None:
+    path = _locate_design_schema("ui-professional-skills/catalog.json")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if (
+        not isinstance(payload, dict)
+        or payload.get("catalog_id") != UI_PROFESSIONAL_SKILL_CATALOG
+        or not isinstance(payload.get("skills"), list)
+    ):
+        return None
+    refs: dict[str, str] = {}
+    for raw_skill in payload["skills"]:
+        if not isinstance(raw_skill, dict):
+            return None
+        skill_id = raw_skill.get("id")
+        reference = raw_skill.get("ref")
+        if (
+            not isinstance(skill_id, str)
+            or not skill_id
+            or skill_id in refs
+            or not isinstance(reference, str)
+            or not reference
+        ):
+            return None
+        refs[skill_id] = reference
+    return refs
+
+
+def _validate_professional_skill_route(
+    design_system: dict[str, Any],
+    diagnostics: list[DesignDiagnostic],
+    *,
+    ready: bool,
+) -> None:
+    route = design_system.get("professional_skill_route")
+    if route is None:
+        # Compatibility for already-approved contracts created before the
+        # professional router existed. New scaffolds always include the field.
+        return
+    path = "design_system.professional_skill_route"
+    if not isinstance(route, dict):
+        _add_diagnostic(
+            diagnostics,
+            "invalid-professional-skill-route",
+            "professional_skill_route must be a mapping",
+            path,
+        )
+        return
+
+    problems: list[str] = []
+    if route.get("catalog_version") != UI_PROFESSIONAL_SKILL_CATALOG:
+        problems.append(
+            f"catalog_version must equal {UI_PROFESSIONAL_SKILL_CATALOG}"
+        )
+    status = str(route.get("status") or "").strip()
+    if status not in {"unresolved", "question-required", "resolved"}:
+        problems.append("status must be unresolved, question-required, or resolved")
+
+    domain_id = route.get("domain_skill_id")
+    if domain_id is not None and not (
+        isinstance(domain_id, str) and domain_id.startswith("domain-")
+    ):
+        problems.append("domain_skill_id must be null or a domain-* ID")
+    style_id = route.get("style_skill_id")
+    if style_id is not None and not (
+        isinstance(style_id, str) and style_id.startswith("style-")
+    ):
+        problems.append("style_skill_id must be null or a style-* ID")
+
+    specialist_ids = route.get("specialist_skill_ids")
+    if not (
+        isinstance(specialist_ids, list)
+        and len(specialist_ids) <= 2
+        and len(specialist_ids) == len(set(specialist_ids))
+        and all(
+            isinstance(item, str) and item.startswith("specialist-")
+            for item in specialist_ids
+        )
+    ):
+        problems.append("specialist_skill_ids must contain zero to two unique specialist-* IDs")
+
+    matched_signals = route.get("matched_signals")
+    if not (
+        isinstance(matched_signals, dict)
+        and all(
+            isinstance(skill_id, str)
+            and isinstance(signals, list)
+            and all(isinstance(signal, str) and signal.strip() for signal in signals)
+            for skill_id, signals in matched_signals.items()
+        )
+    ):
+        problems.append("matched_signals must map skill IDs to non-empty signal strings")
+
+    loaded_refs = route.get("loaded_refs")
+    if not (
+        isinstance(loaded_refs, list)
+        and len(loaded_refs) <= 4
+        and len(loaded_refs) == len(set(loaded_refs))
+        and all(isinstance(item, str) and item.strip() for item in loaded_refs)
+    ):
+        problems.append("loaded_refs must contain at most four unique references")
+
+    unresolved = route.get("unresolved_candidates")
+    if not (
+        isinstance(unresolved, list)
+        and len(unresolved) == len(set(unresolved))
+        and all(isinstance(item, str) and item.strip() for item in unresolved)
+    ):
+        problems.append("unresolved_candidates must contain unique skill IDs")
+
+    catalog_refs = _load_professional_skill_catalog_refs()
+    if catalog_refs is None:
+        problems.append("the UI professional skill catalog is unavailable or invalid")
+    elif not problems:
+        referenced_ids = [
+            skill_id
+            for skill_id in [domain_id, style_id, *specialist_ids, *unresolved]
+            if isinstance(skill_id, str)
+        ]
+        referenced_ids.extend(matched_signals)
+        unknown_ids = sorted(set(referenced_ids).difference(catalog_refs))
+        if unknown_ids:
+            problems.append(
+                "route references unknown skill IDs: " + ", ".join(unknown_ids)
+            )
+
+    if problems:
+        _add_diagnostic(
+            diagnostics,
+            "invalid-professional-skill-route",
+            "; ".join(problems),
+            path,
+        )
+        return
+
+    if not ready:
+        return
+    expected_refs = 1 + (1 if style_id else 0) + len(specialist_ids)
+    if isinstance(domain_id, str):
+        selected_ids = [domain_id]
+        if style_id:
+            selected_ids.append(style_id)
+        selected_ids.extend(specialist_ids)
+        expected_loaded_refs = [catalog_refs[skill_id] for skill_id in selected_ids]
+        if loaded_refs != expected_loaded_refs:
+            _add_diagnostic(
+                diagnostics,
+                "professional-skill-route-ref-mismatch",
+                "loaded_refs must exactly match the selected domain, style, "
+                "and specialists",
+                path + ".loaded_refs",
+            )
+    if (
+        status != "resolved"
+        or not isinstance(domain_id, str)
+        or len(loaded_refs) != expected_refs
+        or unresolved
+    ):
+        _add_diagnostic(
+            diagnostics,
+            "unresolved-professional-skill-route",
+            "ready design must resolve one domain, optional one style, "
+            "zero to two specialists, and the exact selected references",
+            path,
+        )
+
+
+def _validate_style_authority(
+    design_system: dict[str, Any],
+    diagnostics: list[DesignDiagnostic],
+    *,
+    ready: bool,
+) -> None:
+    authority = design_system.get("style_authority")
+    schema = design_system.get("schema")
+    path = "design_system.style_authority"
+    if authority is None:
+        if schema == DESIGN_CHANGE_SCHEMA:
+            _add_diagnostic(
+                diagnostics,
+                "invalid-style-authority",
+                "current design changes require style_authority",
+                path,
+            )
+        return
+    expected_fields = {
+        "mode",
+        "scope_level",
+        "source_refs",
+        "protected_surfaces",
+        "allowed_style_delta_surfaces",
+        "authorization_source",
+    }
+    if not isinstance(authority, dict) or set(authority) != expected_fields:
+        _add_diagnostic(
+            diagnostics,
+            "invalid-style-authority",
+            "style_authority must contain the current exact fields",
+            path,
+        )
+        return
+    mode = str(authority.get("mode") or "").strip()
+    scope_level_raw = authority.get("scope_level")
+    scope_level = (
+        str(scope_level_raw).strip() if scope_level_raw is not None else ""
+    )
+    problems: list[str] = []
+    if mode not in {
+        "unresolved",
+        "greenfield",
+        "inherit-existing",
+        "page-overhaul-authorized",
+    }:
+        problems.append("mode is invalid")
+    if scope_level not in {"", "feature-partial", "page"}:
+        problems.append("scope_level must be null, feature-partial, or page")
+    lists: dict[str, list[str]] = {}
+    for field in (
+        "source_refs",
+        "protected_surfaces",
+        "allowed_style_delta_surfaces",
+    ):
+        raw = authority.get(field)
+        if not (
+            isinstance(raw, list)
+            and all(isinstance(item, str) and item.strip() for item in raw)
+            and len(raw) == len(set(raw))
+        ):
+            problems.append(f"{field} must contain unique nonblank strings")
+            lists[field] = []
+        else:
+            lists[field] = [item.strip() for item in raw]
+    authorization = authority.get("authorization_source")
+    if authorization is not None and not (
+        isinstance(authorization, str) and authorization.strip()
+    ):
+        problems.append("authorization_source must be null or a nonblank string")
+    if problems:
+        _add_diagnostic(
+            diagnostics,
+            "invalid-style-authority",
+            "; ".join(problems),
+            path,
+        )
+        return
+    if not ready:
+        return
+
+    violations: list[str] = []
+    protected = set(lists["protected_surfaces"])
+    allowed = set(lists["allowed_style_delta_surfaces"])
+    baseline_guards = {"global-shell", "shared-components"}
+    route = design_system.get("professional_skill_route")
+    style_skill_id = route.get("style_skill_id") if isinstance(route, dict) else None
+    change_type = str(design_system.get("change_type") or "").strip()
+    scope = design_system.get("scope")
+    declared_surfaces = {
+        item.strip()
+        for item in (scope.get("surfaces") if isinstance(scope, dict) else []) or []
+        if isinstance(item, str) and item.strip()
+    }
+    if mode == "unresolved":
+        violations.append("ready design must resolve style authority")
+    elif mode == "greenfield":
+        if schema == DESIGN_CHANGE_SCHEMA and change_type != "greenfield":
+            violations.append("greenfield style authority requires change_type greenfield")
+        if authorization is not None:
+            violations.append("greenfield cannot claim overhaul authorization")
+    elif mode == "inherit-existing":
+        if scope_level != "feature-partial":
+            violations.append("inherit-existing requires feature-partial scope")
+        if not lists["source_refs"]:
+            violations.append("inherit-existing requires live UI source_refs")
+        if not baseline_guards <= protected:
+            violations.append("inherit-existing must protect global-shell and shared-components")
+        if allowed:
+            violations.append("inherit-existing cannot allow a style delta")
+        if authorization is not None:
+            violations.append("inherit-existing cannot claim overhaul authorization")
+        if style_skill_id is not None:
+            violations.append("inherit-existing requires style_skill_id null")
+    elif mode == "page-overhaul-authorized":
+        if change_type != "overhaul":
+            violations.append("page overhaul style authority requires change_type overhaul")
+        if scope_level != "page":
+            violations.append("page overhaul style authority requires page scope")
+        if not lists["source_refs"]:
+            violations.append("page overhaul requires live UI source_refs")
+        if not baseline_guards <= protected:
+            violations.append("page overhaul must protect global-shell and shared-components")
+        if not allowed or not allowed <= declared_surfaces:
+            violations.append("allowed style delta surfaces must be exact declared page surfaces")
+        if allowed & baseline_guards:
+            violations.append("global shell and shared components cannot be style delta surfaces")
+        if not isinstance(authorization, str) or not authorization.strip():
+            violations.append("page overhaul requires explicit authorization_source")
+    if violations:
+        _add_diagnostic(
+            diagnostics,
+            "style-authority-violation",
+            "; ".join(violations),
+            path,
+        )
+
+
 def _validate_design_system(document: DesignDocument, diagnostics: list[DesignDiagnostic]) -> None:
     design_system = document.design_system
     schema = design_system.get("schema")
@@ -5412,6 +7244,9 @@ def _validate_design_system(document: DesignDocument, diagnostics: list[DesignDi
         )
     if schema == DESIGN_CHANGE_SCHEMA:
         _validate_design_change_metadata(design_system, diagnostics)
+
+    _validate_professional_skill_route(design_system, diagnostics, ready=False)
+    _validate_style_authority(design_system, diagnostics, ready=False)
 
     platforms = design_system.get("platforms")
     if not isinstance(platforms, list) or not platforms:
@@ -5761,6 +7596,519 @@ def _validate_token_references(document: DesignDocument, diagnostics: list[Desig
                 )
 
 
+def _is_nonempty_string_list(value: Any) -> bool:
+    return (
+        isinstance(value, list)
+        and bool(value)
+        and all(isinstance(item, str) and item.strip() for item in value)
+    )
+
+
+def _valid_design_interaction_script(
+    value: Any,
+    data_state_ids: set[str],
+) -> bool:
+    required_fields = {
+        "preconditions",
+        "start_state_id",
+        "steps",
+        "branches",
+        "focus_checkpoint",
+        "announcement_checkpoint",
+        "completion_checkpoint",
+        "recovery_checkpoint",
+    }
+    if not isinstance(value, dict) or set(value) != required_fields:
+        return False
+    steps = value.get("steps")
+    branches = value.get("branches")
+    allowed_conditions = {
+        "success",
+        "failure",
+        "timeout",
+        "cancel",
+        "retry",
+        "duplicate",
+        "out_of_order",
+    }
+    seen_conditions: set[str] = set()
+    valid_branches = isinstance(branches, list) and bool(branches)
+    for branch in branches if isinstance(branches, list) else []:
+        if (
+            not isinstance(branch, dict)
+            or set(branch)
+            != {
+                "conditions",
+                "setup",
+                "expected_state_id",
+                "expected_feedback",
+                "focus_behavior",
+                "announcement",
+                "continuation",
+            }
+            or not _is_nonempty_string_list(branch.get("conditions"))
+        ):
+            valid_branches = False
+            continue
+        conditions = set(branch.get("conditions") or [])
+        if (
+            not conditions <= allowed_conditions
+            or conditions & seen_conditions
+            or str(branch.get("expected_state_id") or "").strip()
+            not in data_state_ids
+            or any(
+                not str(branch.get(field) or "").strip()
+                for field in (
+                    "setup",
+                    "expected_feedback",
+                    "focus_behavior",
+                    "announcement",
+                    "continuation",
+                )
+            )
+        ):
+            valid_branches = False
+        seen_conditions.update(conditions)
+    valid_branches = (
+        valid_branches
+        and "success" in seen_conditions
+        and bool(seen_conditions & {"failure", "timeout", "cancel"})
+        and bool(seen_conditions & {"retry", "duplicate", "out_of_order"})
+    )
+    return (
+        _is_nonempty_string_list(value.get("preconditions"))
+        and str(value.get("start_state_id") or "").strip() in data_state_ids
+        and isinstance(steps, list)
+        and bool(steps)
+        and all(
+            isinstance(step, dict)
+            and set(step) == {"input", "action", "expected_feedback"}
+            and all(
+                str(step.get(field) or "").strip()
+                for field in ("input", "action", "expected_feedback")
+            )
+            for step in steps
+        )
+        and valid_branches
+        and all(
+            str(value.get(field) or "").strip()
+            for field in (
+                "focus_checkpoint",
+                "announcement_checkpoint",
+                "completion_checkpoint",
+                "recovery_checkpoint",
+            )
+        )
+    )
+
+
+DESIGN_INTERACTION_CONTRACT_FIELDS = {
+    "id",
+    "surface",
+    "input",
+    "trigger",
+    "event_sequence",
+    "immediate_feedback",
+    "focus_behavior",
+    "repeat_behavior",
+    "cancellation_behavior",
+    "pending_behavior",
+    "decision_ids",
+}
+
+
+def _valid_design_interaction_contract(value: object) -> bool:
+    return (
+        isinstance(value, dict)
+        and set(value) == DESIGN_INTERACTION_CONTRACT_FIELDS
+        and all(
+            str(value.get(field) or "").strip()
+            for field in DESIGN_INTERACTION_CONTRACT_FIELDS - {"decision_ids"}
+        )
+        and _is_nonempty_string_list(value.get("decision_ids"))
+    )
+
+
+DESIGN_EDITING_CONTRACT_FIELDS = {
+    "id",
+    "surface",
+    "input_methods",
+    "composition_behavior",
+    "paste_autofill_behavior",
+    "selection_caret_behavior",
+    "formatting_behavior",
+    "validation_timing",
+    "validation_feedback",
+    "dirty_state_behavior",
+    "persistence_behavior",
+    "undo_redo_behavior",
+    "conflict_behavior",
+    "read_only_disabled_behavior",
+    "submission_behavior",
+    "decision_ids",
+}
+
+
+def _valid_design_editing_contract(value: object) -> bool:
+    return (
+        isinstance(value, dict)
+        and set(value) == DESIGN_EDITING_CONTRACT_FIELDS
+        and _is_nonempty_string_list(value.get("input_methods"))
+        and all(
+            str(value.get(field) or "").strip()
+            for field in DESIGN_EDITING_CONTRACT_FIELDS
+            - {"input_methods", "decision_ids"}
+        )
+        and _is_nonempty_string_list(value.get("decision_ids"))
+    )
+
+
+def _validate_design_professional_verification(
+    verification: dict[str, Any],
+    *,
+    decision_ids: list[str],
+    handoff_contract_ids: list[str],
+    immutable_handoff: dict[str, Any] | None,
+    diagnostics: list[DesignDiagnostic],
+) -> None:
+    """Validate and, when available, byte-projection-bind professional UI rows."""
+
+    known_decisions = set(decision_ids)
+    frozen_contract_ids = set(handoff_contract_ids)
+    seen_contract_ids: set[str] = set()
+    required_strings = {
+        "interaction_matrix": tuple(
+            sorted(DESIGN_INTERACTION_CONTRACT_FIELDS - {"id", "decision_ids"})
+        ),
+        "editing_matrix": tuple(
+            sorted(
+                DESIGN_EDITING_CONTRACT_FIELDS
+                - {"id", "input_methods", "decision_ids"}
+            )
+        ),
+        "data_state_matrix": (
+            "surface",
+            "state",
+            "data_condition",
+            "expectation",
+        ),
+        "accessibility_matrix": (
+            "surface",
+            "reading_order",
+            "focus_order",
+            "target_size",
+            "contrast",
+            "zoom_reflow",
+        ),
+        "navigation_matrix": (
+            "surface",
+            "entry",
+            "destination",
+            "trigger",
+            "back_behavior",
+            "deep_link_behavior",
+            "interruption_recovery",
+        ),
+        "content_matrix": (
+            "surface",
+            "state",
+            "purpose",
+            "copy",
+            "primary_action",
+            "trust_requirement",
+            "localization",
+        ),
+    }
+    required_lists = {
+        "editing_matrix": ("input_methods",),
+        "accessibility_matrix": (
+            "semantics",
+            "keyboard",
+            "announcements",
+            "alternatives",
+        ),
+        "content_matrix": ("content_limits",),
+    }
+    for field in DESIGN_EXPERIENCE_GRAPH_FIELDS:
+        rows = verification.get(field)
+        if not isinstance(rows, list) or not rows:
+            _add_diagnostic(
+                diagnostics,
+                "missing-design-professional-contract",
+                f"verification.{field} must be a non-empty list",
+                f"design_change.verification.{field}",
+            )
+            continue
+        for index, row in enumerate(rows):
+            path = f"design_change.verification.{field}[{index}]"
+            if not isinstance(row, dict):
+                _add_diagnostic(
+                    diagnostics,
+                    "invalid-design-professional-contract",
+                    f"verification.{field} rows must be mappings",
+                    path,
+                )
+                continue
+            contract_id = str(row.get("id") or "").strip()
+            referenced_decisions = row.get("decision_ids")
+            if (
+                not DESIGN_HANDOFF_ID_RE.fullmatch(contract_id)
+                or contract_id in seen_contract_ids
+                or (frozen_contract_ids and contract_id not in frozen_contract_ids)
+            ):
+                _add_diagnostic(
+                    diagnostics,
+                    "invalid-design-professional-contract-id",
+                    "surface/scenario IDs must be unique frozen DH-* contracts",
+                    f"{path}.id",
+                )
+            seen_contract_ids.add(contract_id)
+            valid = _is_nonempty_string_list(referenced_decisions) and set(
+                referenced_decisions or []
+            ) <= known_decisions
+            if field == "surface_catalog":
+                valid = valid and all(
+                    str(row.get(name) or "").strip()
+                    for name in ("profile_id", "name", "kind")
+                ) and all(
+                    _is_nonempty_string_list(row.get(name))
+                    for name in ("source_refs", "specimen_ids", "component_ids")
+                )
+            else:
+                valid = (
+                    valid
+                    and bool(str(row.get("surface_id") or "").strip())
+                    and bool(str(row.get("name") or "").strip())
+                    and row.get("risk") in {"low", "medium", "high"}
+                    and row.get("required") is True
+                    and _valid_design_interaction_script(
+                        row.get("interaction_script"),
+                        {
+                            str(item).strip()
+                            for item in row.get("data_state_ids") or []
+                            if isinstance(item, str) and item.strip()
+                        },
+                    )
+                    and all(
+                        _is_nonempty_string_list(row.get(name))
+                        for name in (
+                            "interaction_ids",
+                            "editing_ids",
+                            "data_state_ids",
+                            "accessibility_ids",
+                            "navigation_ids",
+                            "content_ids",
+                            "responsive_ids",
+                            "motion_transition_ids",
+                        )
+                    )
+                )
+            if not valid:
+                _add_diagnostic(
+                    diagnostics,
+                    "incomplete-design-professional-contract",
+                    f"verification.{field} row is missing executable graph fields",
+                    path,
+                )
+    for field in DESIGN_PROFESSIONAL_MATRIX_FIELDS:
+        rows = verification.get(field)
+        if not isinstance(rows, list) or not rows:
+            _add_diagnostic(
+                diagnostics,
+                "missing-design-professional-contract",
+                f"verification.{field} must be a non-empty list",
+                f"design_change.verification.{field}",
+            )
+            continue
+        for index, row in enumerate(rows):
+            path = f"design_change.verification.{field}[{index}]"
+            if not isinstance(row, dict):
+                _add_diagnostic(
+                    diagnostics,
+                    "invalid-design-professional-contract",
+                    f"verification.{field} rows must be mappings",
+                    path,
+                )
+                continue
+            contract_id = str(row.get("id") or "").strip()
+            if (
+                not DESIGN_HANDOFF_ID_RE.fullmatch(contract_id)
+                or contract_id in seen_contract_ids
+                or (frozen_contract_ids and contract_id not in frozen_contract_ids)
+            ):
+                _add_diagnostic(
+                    diagnostics,
+                    "invalid-design-professional-contract-id",
+                    "professional matrix IDs must be unique frozen DH-* contracts",
+                    f"{path}.id",
+                )
+            seen_contract_ids.add(contract_id)
+            referenced_decisions = row.get("decision_ids")
+            if not _is_nonempty_string_list(referenced_decisions) or not set(
+                referenced_decisions or []
+            ) <= known_decisions:
+                _add_diagnostic(
+                    diagnostics,
+                    "invalid-design-professional-decision-binding",
+                    "professional matrix decision_ids must reference approved DS-* decisions",
+                    f"{path}.decision_ids",
+                )
+            if any(
+                not str(row.get(name) or "").strip()
+                for name in required_strings[field]
+            ) or any(
+                not _is_nonempty_string_list(row.get(name))
+                for name in required_lists.get(field, ())
+            ) or (
+                field == "interaction_matrix"
+                and not _valid_design_interaction_contract(row)
+            ) or (
+                field == "editing_matrix"
+                and not _valid_design_editing_contract(row)
+            ):
+                _add_diagnostic(
+                    diagnostics,
+                    "incomplete-design-professional-contract",
+                    f"verification.{field} row is missing executable fields",
+                    path,
+                )
+
+    motion = verification.get("motion_contract")
+    if not isinstance(motion, dict):
+        _add_diagnostic(
+            diagnostics,
+            "missing-design-professional-contract",
+            "verification.motion_contract must be a mapping",
+            "design_change.verification.motion_contract",
+        )
+    else:
+        transitions = motion.get("transitions")
+        transitions = transitions if isinstance(transitions, list) else []
+        timing = motion.get("feedback_timing")
+        timing = timing if isinstance(timing, dict) else {}
+        immediate = timing.get("immediate_ms")
+        progress = timing.get("progress_ms")
+        timeout = timing.get("timeout_ms")
+        if (
+            not str(motion.get("purpose") or "").strip()
+            or not str(motion.get("reduced_motion") or "").strip()
+            or not transitions
+            or isinstance(immediate, bool)
+            or not isinstance(immediate, int)
+            or immediate < 0
+            or isinstance(progress, bool)
+            or not isinstance(progress, int)
+            or progress <= 0
+            or isinstance(timeout, bool)
+            or not isinstance(timeout, int)
+            or timeout <= progress
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "incomplete-design-professional-contract",
+                "verification.motion_contract requires purpose, transitions, reduced motion, and ordered feedback timing",
+                "design_change.verification.motion_contract",
+            )
+        for index, transition in enumerate(transitions):
+            path = f"design_change.verification.motion_contract.transitions[{index}]"
+            if not isinstance(transition, dict):
+                _add_diagnostic(
+                    diagnostics,
+                    "invalid-design-professional-contract",
+                    "motion transitions must be mappings",
+                    path,
+                )
+                continue
+            contract_id = str(transition.get("id") or "").strip()
+            referenced_decisions = transition.get("decision_ids")
+            duration = transition.get("duration_ms")
+            if (
+                not DESIGN_HANDOFF_ID_RE.fullmatch(contract_id)
+                or contract_id in seen_contract_ids
+                or (frozen_contract_ids and contract_id not in frozen_contract_ids)
+            ):
+                _add_diagnostic(
+                    diagnostics,
+                    "invalid-design-professional-contract-id",
+                    "motion transition IDs must be unique frozen DH-* contracts",
+                    f"{path}.id",
+                )
+            seen_contract_ids.add(contract_id)
+            if not _is_nonempty_string_list(referenced_decisions) or not set(
+                referenced_decisions or []
+            ) <= known_decisions:
+                _add_diagnostic(
+                    diagnostics,
+                    "invalid-design-professional-decision-binding",
+                    "motion transition decision_ids must reference approved DS-* decisions",
+                    f"{path}.decision_ids",
+                )
+            if (
+                any(
+                    not str(transition.get(name) or "").strip()
+                    for name in (
+                        "surface",
+                        "trigger",
+                        "response",
+                        "easing",
+                        "interrupt_behavior",
+                    )
+                )
+                or isinstance(duration, bool)
+                or not isinstance(duration, int)
+                or duration < 0
+            ):
+                _add_diagnostic(
+                    diagnostics,
+                    "incomplete-design-professional-contract",
+                    "motion transition is missing executable timing or interruption fields",
+                    path,
+                )
+
+    usability = verification.get("usability_validation")
+    if not isinstance(usability, dict):
+        _add_diagnostic(
+            diagnostics,
+            "missing-design-professional-contract",
+            "verification.usability_validation must be a mapping",
+            "design_change.verification.usability_validation",
+        )
+    else:
+        risk = usability.get("risk_level")
+        human_review = usability.get("human_review_required")
+        if (
+            risk not in {"low", "medium", "high"}
+            or any(
+                not _is_nonempty_string_list(usability.get(field))
+                for field in ("methods", "critical_tasks", "success_criteria")
+            )
+            or not isinstance(human_review, bool)
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "incomplete-design-professional-contract",
+                "verification.usability_validation requires risk, methods, tasks, success criteria, and human-review decision",
+                "design_change.verification.usability_validation",
+            )
+        if risk == "high" and human_review is not True:
+            _add_diagnostic(
+                diagnostics,
+                "design-high-risk-human-review-required",
+                "high-risk usability validation must require human review",
+                "design_change.verification.usability_validation.human_review_required",
+            )
+
+    if immutable_handoff is not None:
+        for field in DESIGN_PROFESSIONAL_FIELDS:
+            if verification.get(field) != immutable_handoff.get(field):
+                _add_diagnostic(
+                    diagnostics,
+                    "design-professional-contract-drift",
+                    f"verification.{field} must exactly match the immutable approved handoff",
+                    f"design_change.verification.{field}",
+                )
+
+
 def _validate_approved_visual_reference(
     document: DesignDocument,
     approval: dict[str, Any],
@@ -5781,7 +8129,7 @@ def _validate_approved_visual_reference(
         _add_diagnostic(
             diagnostics,
             "missing-local-approved-preview",
-            "approved UI design requires a local round-NN.html#direction-id reference",
+            "approved UI design requires a local immutable HTML or image round reference",
             "design_system.approval.visual_refs",
         )
         return
@@ -5791,7 +8139,8 @@ def _validate_approved_visual_reference(
     resolved = False
     for visual_ref in local_refs:
         preview_ref, _, direction_id = visual_ref.partition("#")
-        if not preview_ref.lower().endswith(".html") or not direction_id:
+        suffix = Path(preview_ref).suffix.lower()
+        if suffix not in ({".html"} | DESIGN_IMAGE_SUFFIXES) or not direction_id:
             continue
         preview_path = (source_root / preview_ref).resolve(strict=False)
         if not preview_path.is_file():
@@ -5802,7 +8151,11 @@ def _validate_approved_visual_reference(
                 "design_system.approval.visual_refs",
             )
             continue
-        preview_diagnostics = lint_design_preview_file(preview_path, level="ready")
+        preview_diagnostics = (
+            lint_design_preview_file(preview_path, level="ready")
+            if suffix == ".html"
+            else lint_design_image_bundle(preview_path, level="ready")
+        )
         if preview_diagnostics:
             _add_diagnostic(
                 diagnostics,
@@ -5827,7 +8180,11 @@ def _validate_approved_visual_reference(
             continue
         expected = {
             "direction": direction_id,
-            "preview_sha256": sidecar.get("html_sha256"),
+            "preview_sha256": (
+                sidecar.get("html_sha256")
+                if suffix == ".html"
+                else sidecar.get("image_sha256")
+            ),
             "manifest_sha256": sidecar.get("manifest_sha256"),
             "review_round": str(sidecar.get("review_round") or "").strip(),
             "handoff_sha256": sidecar.get("handoff_sha256"),
@@ -5854,6 +8211,32 @@ def _validate_approved_visual_reference(
                     "approved-preview-digest-mismatch",
                     f"approval.{field} must match the immutable preview sidecar",
                     f"design_system.approval.{field}",
+                )
+        if suffix != ".html":
+            for field in ("visual_medium", "prompt_sha256", "inspection_owner"):
+                value = str(approval.get(field) or "").strip()
+                if value != str(sidecar.get(field) or "").strip():
+                    _add_diagnostic(
+                        diagnostics,
+                        "approved-image-provenance-mismatch",
+                        f"approval.{field} must match the immutable image approval sidecar",
+                        f"design_system.approval.{field}",
+                    )
+            prompt_ref = str(approval.get("prompt_ref") or "").strip()
+            expected_prompt_path = preview_path.with_suffix(".prompt.md").resolve(
+                strict=False
+            )
+            resolved_prompt_path = (
+                (source_root / prompt_ref).resolve(strict=False)
+                if prompt_ref
+                else None
+            )
+            if resolved_prompt_path != expected_prompt_path:
+                _add_diagnostic(
+                    diagnostics,
+                    "approved-image-prompt-reference-mismatch",
+                    "approval.prompt_ref must identify the exact adjacent image-generation prompt",
+                    "design_system.approval.prompt_ref",
                 )
         handoff_ref = str(approval.get("handoff_ref") or "").strip()
         if not handoff_ref or not handoff_ref.lower().endswith(".handoff.json"):
@@ -5928,9 +8311,8 @@ def _validate_approved_visual_reference(
             )
         else:
             try:
-                actual_handoff_sha256 = _sha256_bytes(
-                    expected_handoff_path.read_bytes()
-                )
+                handoff_bytes = expected_handoff_path.read_bytes()
+                actual_handoff_sha256 = _sha256_bytes(handoff_bytes)
             except OSError as exc:
                 _add_diagnostic(
                     diagnostics,
@@ -5950,6 +8332,42 @@ def _validate_approved_visual_reference(
                         "approval.handoff_sha256 and handoff bytes must match the immutable preview sidecar",
                         "design_system.approval.handoff_sha256",
                     )
+                if document.design_system.get("schema") == DESIGN_CHANGE_SCHEMA:
+                    try:
+                        handoff_payload = json.loads(handoff_bytes.decode("utf-8"))
+                    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                        _add_diagnostic(
+                            diagnostics,
+                            "approved-handoff-unreadable",
+                            f"cannot parse approved handoff: {exc}",
+                            "design_system.approval.handoff_ref",
+                        )
+                    else:
+                        reproduction = (
+                            handoff_payload.get("reproduction")
+                            if isinstance(handoff_payload, dict)
+                            else None
+                        )
+                        verification = document.design_system.get("verification")
+                        if isinstance(reproduction, dict) and isinstance(
+                            verification, dict
+                        ):
+                            _validate_design_professional_verification(
+                                verification,
+                                decision_ids=[
+                                    str(item)
+                                    for item in approval.get("decision_ids") or []
+                                    if isinstance(item, str) and item.strip()
+                                ],
+                                handoff_contract_ids=[
+                                    str(item)
+                                    for item in approval.get("handoff_contract_ids")
+                                    or []
+                                    if isinstance(item, str) and item.strip()
+                                ],
+                                immutable_handoff=reproduction,
+                                diagnostics=diagnostics,
+                            )
         resolved = True
         break
     if not resolved and not any(
@@ -5965,6 +8383,8 @@ def _validate_approved_visual_reference(
 
 def _validate_design_readiness(document: DesignDocument, diagnostics: list[DesignDiagnostic]) -> None:
     design_system = document.design_system
+    _validate_professional_skill_route(design_system, diagnostics, ready=True)
+    _validate_style_authority(design_system, diagnostics, ready=True)
     status = str(design_system.get("status") or "").strip().lower()
     if status != "approved":
         _add_diagnostic(
@@ -6309,6 +8729,18 @@ def _validate_design_readiness(document: DesignDocument, diagnostics: list[Desig
                 "missing-visual-tolerance",
                 "verification.visual_tolerance must define comparison boundaries",
                 "design_system.verification.visual_tolerance",
+            )
+        if design_system.get("schema") == DESIGN_CHANGE_SCHEMA:
+            _validate_design_professional_verification(
+                verification,
+                decision_ids=canonical_decision_ids,
+                handoff_contract_ids=(
+                    approval.get("handoff_contract_ids", [])
+                    if isinstance(approval, dict)
+                    else []
+                ),
+                immutable_handoff=None,
+                diagnostics=diagnostics,
             )
 
     for section in READY_REQUIRED_SECTIONS:

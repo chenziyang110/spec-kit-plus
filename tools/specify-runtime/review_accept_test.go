@@ -61,23 +61,23 @@ func TestReviewPrepareRestartStaleArchivesExactState(t *testing.T) {
 	}
 }
 
-func TestReviewPrepareRejectsNonCanonicalOrStaleImplementationHandoff(t *testing.T) {
+func TestReviewPrepareRejectsNonCanonicalImplementationHandoff(t *testing.T) {
 	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "108-review-handoff-contract")
 	writeReviewAcceptWorkflowStateFixture(t, featureDir, "108-review-handoff-contract", 4, "review", "active", nil)
 	handoff := reviewAcceptHandoffFixture(projectRoot, featureDir, 4)
-	handoff["implementation_fingerprint"] = strings.Repeat("0", 64)
+	handoff["implementation_fingerprint"] = "not-a-sha256"
 	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), handoff)
 
 	var out bytes.Buffer
 	args := []string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}
 	if code := runReview(args, &out); code != 10 {
-		t.Fatalf("stale handoff exit = %d output = %s", code, out.String())
+		t.Fatalf("invalid handoff exit = %d output = %s", code, out.String())
 	}
-	if !strings.Contains(out.String(), "fingerprint is stale") {
-		t.Fatalf("stale handoff output = %s", out.String())
+	if !strings.Contains(out.String(), "implementation handoff contract is invalid") {
+		t.Fatalf("invalid handoff output = %s", out.String())
 	}
 	if _, err := os.Stat(filepath.Join(featureDir, reviewStateFilename)); !os.IsNotExist(err) {
-		t.Fatalf("stale handoff created review state: %v", err)
+		t.Fatalf("invalid handoff created review state: %v", err)
 	}
 
 	handoff = reviewAcceptHandoffFixture(projectRoot, featureDir, 4)
@@ -90,6 +90,376 @@ func TestReviewPrepareRejectsNonCanonicalOrStaleImplementationHandoff(t *testing
 	}
 	if !strings.Contains(out.String(), "legacy field entrypoints") {
 		t.Fatalf("legacy handoff output = %s", out.String())
+	}
+}
+
+func TestReviewPrepareSucceedsFromCanonicalImplementationHandoff(t *testing.T) {
+	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "111-review-prepare-success")
+	writeReviewAcceptWorkflowStateFixture(t, featureDir, "111-review-prepare-success", 4, "review", "active", nil)
+	mustMkdir(t, filepath.Join(projectRoot, "src"))
+	writeTextFile(t, filepath.Join(projectRoot, "src", "product.txt"), "before review\n")
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(projectRoot, featureDir, 4))
+	writeTextFile(t, filepath.Join(featureDir, "workflow-state.md"), "# Review transition projection\n")
+	writeTextFile(t, filepath.Join(projectRoot, ".specify", "memory", "project-rules.md"), "# cognition closeout\n")
+	writeTextFile(t, filepath.Join(projectRoot, ".specify", "features", "999-unrelated", "notes.md"), "unrelated feature drift\n")
+
+	var out bytes.Buffer
+	if code := runReview([]string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}, &out); code != 0 {
+		t.Fatalf("prepare exit = %d output = %s", code, out.String())
+	}
+	prepared := readReviewAcceptEnvelope(t, out.Bytes())
+	if prepared.Status != "ok" {
+		t.Fatalf("prepare = %#v", prepared)
+	}
+	state := readReviewAcceptJSON(t, filepath.Join(featureDir, reviewStateFilename))
+	source := state["source"].(map[string]any)
+	if source["implementation_fingerprint"] != sourceTreeFingerprint(projectRoot, featureDir) {
+		t.Fatalf("prepared source fingerprint = %#v", source)
+	}
+}
+
+func TestReviewPrepareRestartStaleReconcilesReviewOwnedProductRepairAndContinues(t *testing.T) {
+	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "112-review-reconcile-after-repair")
+	writeReviewAcceptWorkflowStateFixture(t, featureDir, "112-review-reconcile-after-repair", 4, "review", "active", nil)
+	mustMkdir(t, filepath.Join(projectRoot, "src"))
+	productPath := filepath.Join(projectRoot, "src", "product.txt")
+	writeTextFile(t, productPath, "before review repair\n")
+	declareReviewAcceptImplementationPaths(t, featureDir, "src/product.txt")
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(projectRoot, featureDir, 4))
+
+	var out bytes.Buffer
+	prepareArgs := []string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}
+	if code := runReview(prepareArgs, &out); code != 0 {
+		t.Fatalf("initial prepare exit = %d output = %s", code, out.String())
+	}
+
+	authorizeReviewAcceptRepair(t, featureDir, "src/product.txt")
+	writeTextFile(t, productPath, "after review-owned repair\n")
+	expectedFingerprint := sourceTreeFingerprint(projectRoot, featureDir)
+	out.Reset()
+	if code := runReview(append(append([]string{}, prepareArgs...), "--restart-stale"), &out); code != 0 {
+		t.Fatalf("restart-stale should reconcile review-owned repair: exit=%d output=%s", code, out.String())
+	}
+	restarted := readReviewAcceptEnvelope(t, out.Bytes())
+	if restarted.Status != "ok" {
+		t.Fatalf("restart-stale prepare = %#v", restarted)
+	}
+	state := readReviewAcceptJSON(t, filepath.Join(featureDir, reviewStateFilename))
+	source := state["source"].(map[string]any)
+	if source["implementation_fingerprint"] != expectedFingerprint {
+		t.Fatalf("reconciled source fingerprint = %#v, want %s", source, expectedFingerprint)
+	}
+	if int(source["review_cycle"].(float64)) != 2 {
+		t.Fatalf("reconciled review cycle = %#v", source)
+	}
+
+	bound := bindReadyReviewTarget(t, projectRoot, featureDir, featureRel, "RS-1")
+	target := bound.Data["target"].(map[string]any)
+	if target["reviewed_snapshot_sha256"] != expectedFingerprint {
+		t.Fatalf("bound target snapshot = %#v, want %s", target, expectedFingerprint)
+	}
+
+	out.Reset()
+	if code := runReview([]string{"validate", "--project-root", projectRoot, "--feature-dir", featureRel, "--format", "json"}, &out); code != 0 {
+		t.Fatalf("validate exit = %d output = %s", code, out.String())
+	}
+	validated := readReviewAcceptEnvelope(t, out.Bytes())
+	if validated.Data["valid"] != true || validated.Data["fresh"] != true || validated.Data["current_fingerprint"] != expectedFingerprint {
+		t.Fatalf("reconciled validate = %#v", validated)
+	}
+}
+
+func TestReviewPrepareRebasesInitialLegacyProductDriftWithoutUserBlocker(t *testing.T) {
+	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "113-review-reconcile-no-state")
+	writeReviewAcceptWorkflowStateFixture(t, featureDir, "113-review-reconcile-no-state", 4, "review", "active", nil)
+	mustMkdir(t, filepath.Join(projectRoot, "src"))
+	productPath := filepath.Join(projectRoot, "src", "product.txt")
+	writeTextFile(t, productPath, "before review prepare\n")
+	handoffPath := filepath.Join(featureDir, implementationHandoffFilename)
+	handoff := reviewAcceptHandoffFixture(projectRoot, featureDir, 4)
+	handoff["fingerprint_algorithm"] = "git-working-tree-v1"
+	mustWriteReviewAcceptJSON(t, handoffPath, handoff)
+	originalHandoff, err := os.ReadFile(handoffPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handoffFingerprint := stringField(handoff, "implementation_fingerprint")
+	writeTextFile(t, productPath, "after review-owned repair\n")
+	currentFingerprint := sourceTreeFingerprint(projectRoot, featureDir)
+	if currentFingerprint == handoffFingerprint {
+		t.Fatal("fixture did not create initial implementation drift")
+	}
+	var out bytes.Buffer
+	if code := runReview([]string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}, &out); code != 0 {
+		t.Fatalf("initial Review should rebase legacy drift: exit=%d output=%s", code, out.String())
+	}
+	prepared := readReviewAcceptEnvelope(t, out.Bytes())
+	if prepared.Status != "ok" {
+		t.Fatalf("initial Review rebase = %#v", prepared)
+	}
+	state := readReviewAcceptJSON(t, filepath.Join(featureDir, reviewStateFilename))
+	source := state["source"].(map[string]any)
+	if source["implementation_fingerprint"] != currentFingerprint || source["handoff_implementation_fingerprint"] != handoffFingerprint {
+		t.Fatalf("initial Review rebase source = %#v", source)
+	}
+	if source["snapshot_reconciliation"] != "initial-review-rebaseline" || intField(source, "review_cycle") != 1 {
+		t.Fatalf("initial Review rebase provenance = %#v", source)
+	}
+	manifestRef := stringField(source, "implementation_snapshot_manifest_ref")
+	if manifestRef == "" || optionalFileSHA256(filepath.Join(featureDir, filepath.FromSlash(manifestRef))) != source["implementation_snapshot_manifest_sha256"] {
+		t.Fatalf("initial Review rebase manifest = %#v", source)
+	}
+	currentHandoff, err := os.ReadFile(handoffPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(currentHandoff, originalHandoff) {
+		t.Fatal("initial Review rebase mutated the immutable implementation handoff")
+	}
+}
+
+func TestReviewPrepareQuarantinesLegacyStateWithoutManifestAndAutoRestarts(t *testing.T) {
+	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "120-review-legacy-state-rebase")
+	writeReviewAcceptWorkflowStateFixture(t, featureDir, "120-review-legacy-state-rebase", 4, "review", "active", nil)
+	mustMkdir(t, filepath.Join(projectRoot, "src"))
+	productPath := filepath.Join(projectRoot, "src", "product.txt")
+	writeTextFile(t, productPath, "before legacy Review drift\n")
+	declareReviewAcceptImplementationPaths(t, featureDir, "src/product.txt")
+	handoffPath := filepath.Join(featureDir, implementationHandoffFilename)
+	mustWriteReviewAcceptJSON(t, handoffPath, reviewAcceptHandoffFixture(projectRoot, featureDir, 4))
+
+	prepareArgs := []string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}
+	var out bytes.Buffer
+	if code := runReview(prepareArgs, &out); code != 0 {
+		t.Fatalf("initial prepare exit=%d output=%s", code, out.String())
+	}
+	statePath := filepath.Join(featureDir, reviewStateFilename)
+	legacyState := readReviewAcceptJSON(t, statePath)
+	legacySource := legacyState["source"].(map[string]any)
+	manifestRef := stringField(legacySource, "implementation_snapshot_manifest_ref")
+	delete(legacySource, "implementation_snapshot_manifest_ref")
+	delete(legacySource, "implementation_snapshot_manifest_sha256")
+	mustWriteReviewAcceptJSON(t, statePath, legacyState)
+	if err := os.Remove(filepath.Join(featureDir, filepath.FromSlash(manifestRef))); err != nil {
+		t.Fatal(err)
+	}
+	writeTextFile(t, productPath, "after legacy Review drift\n")
+	currentFingerprint := sourceTreeFingerprint(projectRoot, featureDir)
+
+	out.Reset()
+	if code := runReview(prepareArgs, &out); code != 10 {
+		t.Fatalf("legacy state should request automatic quarantine restart: exit=%d output=%s", code, out.String())
+	}
+	recovery := readReviewAcceptEnvelope(t, out.Bytes())
+	if recovery.Data["recovery_owner"] != "review" || recovery.Data["recovery_reason"] != "legacy-snapshot-quarantine" {
+		t.Fatalf("legacy state recovery metadata = %#v", recovery.Data)
+	}
+	if len(recovery.NextArgv) < 1 || !equalStringSlices(recovery.NextArgv[1:], []string{"review", "prepare", "--feature-dir", featureRel, "--expected-revision", "4", "--restart-stale", "--format", "json"}) {
+		t.Fatalf("legacy state recovery next argv = %#v", recovery.NextArgv)
+	}
+
+	out.Reset()
+	if code := runReview(append(append([]string{}, prepareArgs...), "--restart-stale"), &out); code != 0 {
+		t.Fatalf("legacy state quarantine restart exit=%d output=%s", code, out.String())
+	}
+	restarted := readReviewAcceptJSON(t, statePath)
+	source := restarted["source"].(map[string]any)
+	if source["implementation_fingerprint"] != currentFingerprint || source["snapshot_reconciliation"] != "legacy-review-rebaseline" {
+		t.Fatalf("legacy state quarantine source = %#v", source)
+	}
+	if source["handoff_implementation_fingerprint"] != stringField(readReviewAcceptJSON(t, handoffPath), "implementation_fingerprint") || intField(source, "review_cycle") != 2 {
+		t.Fatalf("legacy state quarantine provenance = %#v", source)
+	}
+}
+
+func TestReviewPrepareRestartStaleRejectsConcurrentChangeOutsideAcceptedRepair(t *testing.T) {
+	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "117-review-reconcile-scope")
+	writeReviewAcceptWorkflowStateFixture(t, featureDir, "117-review-reconcile-scope", 4, "review", "active", nil)
+	mustMkdir(t, filepath.Join(projectRoot, "src"))
+	productPath := filepath.Join(projectRoot, "src", "product.txt")
+	concurrentPath := filepath.Join(projectRoot, "src", "concurrent.txt")
+	writeTextFile(t, productPath, "before review repair\n")
+	writeTextFile(t, concurrentPath, "before concurrent edit\n")
+	declareReviewAcceptImplementationPaths(t, featureDir, "src/product.txt", "src/concurrent.txt")
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(projectRoot, featureDir, 4))
+
+	var out bytes.Buffer
+	prepareArgs := []string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}
+	if code := runReview(prepareArgs, &out); code != 0 {
+		t.Fatalf("initial prepare exit = %d output = %s", code, out.String())
+	}
+	authorizeReviewAcceptRepair(t, featureDir, "src/product.txt")
+	writeTextFile(t, productPath, "after review-owned repair\n")
+	writeTextFile(t, concurrentPath, "after concurrent edit\n")
+
+	out.Reset()
+	if code := runReview(append(append([]string{}, prepareArgs...), "--restart-stale"), &out); code != 10 {
+		t.Fatalf("concurrent drift should block restart: exit=%d output=%s", code, out.String())
+	}
+	blocked := readReviewAcceptEnvelope(t, out.Bytes())
+	if blocked.Data["recovery_owner"] == "review" || !strings.Contains(out.String(), "outside accepted Review fix assignments") {
+		t.Fatalf("concurrent drift = %#v", blocked)
+	}
+}
+
+func TestReviewPrepareRestartStaleRejectsUnboundFixAssignmentArtifacts(t *testing.T) {
+	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "119-review-reconcile-artifacts")
+	writeReviewAcceptWorkflowStateFixture(t, featureDir, "119-review-reconcile-artifacts", 4, "review", "active", nil)
+	mustMkdir(t, filepath.Join(projectRoot, "src"))
+	productPath := filepath.Join(projectRoot, "src", "product.txt")
+	writeTextFile(t, productPath, "before review repair\n")
+	declareReviewAcceptImplementationPaths(t, featureDir, "src/product.txt")
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(projectRoot, featureDir, 4))
+
+	var out bytes.Buffer
+	prepareArgs := []string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}
+	if code := runReview(prepareArgs, &out); code != 0 {
+		t.Fatalf("initial prepare exit = %d output = %s", code, out.String())
+	}
+	authorizeReviewAcceptRepair(t, featureDir, "src/product.txt")
+	state := readReviewAcceptJSON(t, filepath.Join(featureDir, reviewStateFilename))
+	assignment := state["fix_assignments"].([]any)[0].(map[string]any)
+	writeTextFile(t, filepath.Join(featureDir, filepath.FromSlash(stringField(assignment, "result_ref"))), "{\"tampered\":true}\n")
+	writeTextFile(t, productPath, "after review-owned repair\n")
+
+	out.Reset()
+	if code := runReview(append(append([]string{}, prepareArgs...), "--restart-stale"), &out); code != 10 {
+		t.Fatalf("unbound fix artifact should block restart: exit=%d output=%s", code, out.String())
+	}
+	if !strings.Contains(out.String(), "result artifact is missing, stale") {
+		t.Fatalf("unbound fix artifact output = %s", out.String())
+	}
+}
+
+func TestReviewResumeAuditRoutesSnapshotDriftToAutomaticReconciliation(t *testing.T) {
+	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "114-review-resume-reconcile")
+	writeReviewAcceptWorkflowStateFixture(t, featureDir, "114-review-resume-reconcile", 4, "review", "active", nil)
+	mustMkdir(t, filepath.Join(projectRoot, "src"))
+	productPath := filepath.Join(projectRoot, "src", "product.txt")
+	writeTextFile(t, productPath, "before review repair\n")
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(projectRoot, featureDir, 4))
+
+	var out bytes.Buffer
+	if code := runReview([]string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}, &out); code != 0 {
+		t.Fatalf("prepare exit = %d output = %s", code, out.String())
+	}
+	authorizeReviewAcceptRepair(t, featureDir, "src/product.txt")
+	writeTextFile(t, productPath, "after review-owned repair\n")
+
+	out.Reset()
+	if code := runReview([]string{"resume-audit", "--project-root", projectRoot, "--feature-dir", featureRel, "--format", "json"}, &out); code != 0 {
+		t.Fatalf("resume-audit exit = %d output = %s", code, out.String())
+	}
+	resumed := readReviewAcceptEnvelope(t, out.Bytes())
+	wantNext := []string{"review", "prepare", "--feature-dir", featureRel, "--expected-revision", "4", "--restart-stale", "--format", "json"}
+	if !equalStringSlices(resumed.NextArgv[1:], wantNext) {
+		t.Fatalf("resume-audit next argv = %#v, want %#v", resumed.NextArgv, wantNext)
+	}
+	if resumed.Data["recovery_owner"] != "review" {
+		t.Fatalf("resume-audit recovery owner = %#v", resumed.Data)
+	}
+}
+
+func TestReviewValidateRoutesSnapshotDriftToAutomaticReconciliation(t *testing.T) {
+	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "116-review-validate-reconcile")
+	writeReviewAcceptWorkflowStateFixture(t, featureDir, "116-review-validate-reconcile", 4, "review", "active", nil)
+	mustMkdir(t, filepath.Join(projectRoot, "src"))
+	productPath := filepath.Join(projectRoot, "src", "product.txt")
+	writeTextFile(t, productPath, "before review repair\n")
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(projectRoot, featureDir, 4))
+
+	var out bytes.Buffer
+	if code := runReview([]string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}, &out); code != 0 {
+		t.Fatalf("prepare exit = %d output = %s", code, out.String())
+	}
+	authorizeReviewAcceptRepair(t, featureDir, "src/product.txt")
+	writeTextFile(t, productPath, "after review-owned repair\n")
+
+	out.Reset()
+	if code := runReview([]string{"validate", "--project-root", projectRoot, "--feature-dir", featureRel, "--format", "json"}, &out); code != 0 {
+		t.Fatalf("validate exit = %d output = %s", code, out.String())
+	}
+	validated := readReviewAcceptEnvelope(t, out.Bytes())
+	wantNext := []string{"review", "prepare", "--feature-dir", featureRel, "--expected-revision", "4", "--restart-stale", "--format", "json"}
+	if len(validated.NextArgv) < 1 || !equalStringSlices(validated.NextArgv[1:], wantNext) {
+		t.Fatalf("validate next argv = %#v, want %#v", validated.NextArgv, wantNext)
+	}
+	if validated.Data["recovery_owner"] != "review" || validated.Data["recovery_reason"] != "implementation-snapshot-drift" {
+		t.Fatalf("validate recovery metadata = %#v", validated.Data)
+	}
+}
+
+func TestReviewCloseoutRejectsUnitOnlyDeliveryWithoutRealEntrypointProof(t *testing.T) {
+	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "115-review-unit-only-delivery")
+	writeReviewAcceptWorkflowStateFixture(t, featureDir, "115-review-unit-only-delivery", 4, "review", "active", nil)
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(projectRoot, featureDir, 4))
+
+	var out bytes.Buffer
+	if code := runReview([]string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}, &out); code != 0 {
+		t.Fatalf("prepare exit = %d output = %s", code, out.String())
+	}
+	fingerprint := sourceTreeFingerprint(projectRoot, featureDir)
+	started, err := reserveImplementValidationEpoch(projectRoot, featureDir, "review", "delivery", fingerprint, []string{"go test ./..."}, []string{"T001"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := completeImplementValidationEpoch(projectRoot, featureDir, implementValidationFinishRequest{
+		RunID: started["run_id"].(string), Status: "passed",
+		EvidenceRefs: []string{"implementation-review/validation-evidence/V1.txt"}, Summary: "unit tests passed",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	bindReadyReviewTarget(t, projectRoot, featureDir, featureRel, "RS-1")
+	statePath := filepath.Join(featureDir, reviewStateFilename)
+	state := readReviewAcceptJSON(t, statePath)
+	state["status"] = "approved"
+	final := state["final"].(map[string]any)
+	final["verdict"] = "pass"
+	final["coverage_verdict"] = "pass"
+	final["repair_verdict"] = "pass"
+	final["integration_verdict"] = "pass"
+	final["all_packets_joined"] = true
+	mustWriteReviewAcceptJSON(t, statePath, state)
+
+	out.Reset()
+	if code := runReview([]string{"closeout", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}, &out); code != 10 {
+		t.Fatalf("unit-only closeout exit = %d output = %s", code, out.String())
+	}
+	if !strings.Contains(out.String(), "official real-entrypoint delivery proof") {
+		t.Fatalf("unit-only closeout output = %s", out.String())
+	}
+}
+
+func TestReviewCloseoutRejectsStatusOnlyRealEntrypointClaimWithoutEvidence(t *testing.T) {
+	projectRoot, featureDir, featureRel := newReviewAcceptWorkflowFeature(t, "118-review-status-only-entrypoint")
+	writeReviewAcceptWorkflowStateFixture(t, featureDir, "118-review-status-only-entrypoint", 4, "review", "active", nil)
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(projectRoot, featureDir, 4))
+
+	var out bytes.Buffer
+	if code := runReview([]string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}, &out); code != 0 {
+		t.Fatalf("prepare exit = %d output = %s", code, out.String())
+	}
+	bindReadyReviewTarget(t, projectRoot, featureDir, featureRel, "RS-1")
+	statePath := filepath.Join(featureDir, reviewStateFilename)
+	state := readReviewAcceptJSON(t, statePath)
+	scenario := findObjectByID(state["scenarios"], "RS-1")
+	scenario["evidence"] = []any{}
+	state["status"] = "approved"
+	final := state["final"].(map[string]any)
+	final["verdict"] = "pass"
+	final["coverage_verdict"] = "pass"
+	final["repair_verdict"] = "pass"
+	final["integration_verdict"] = "pass"
+	final["all_packets_joined"] = true
+	markReviewDeliveryProofPassed(state)
+	mustWriteReviewAcceptJSON(t, statePath, state)
+
+	out.Reset()
+	if code := runReview([]string{"closeout", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}, &out); code != 10 {
+		t.Fatalf("status-only closeout exit = %d output = %s", code, out.String())
+	}
+	if !strings.Contains(out.String(), "missing runtime_diagnostics integrated evidence") {
+		t.Fatalf("status-only closeout output = %s", out.String())
 	}
 }
 
@@ -222,6 +592,7 @@ func TestReviewPrepareValidateAndCloseout(t *testing.T) {
 	final["repair_verdict"] = "pass"
 	final["integration_verdict"] = "pass"
 	final["all_packets_joined"] = true
+	markReviewDeliveryProofPassed(state)
 	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, reviewStateFilename), state)
 
 	out.Reset()
@@ -366,8 +737,8 @@ func TestReviewHardwareExceptionRequiresExactHumanConfirmation(t *testing.T) {
 	writeReviewAcceptWorkflowStateFixture(t, featureDir, "103-review-hardware", 4, "review", "active", nil)
 	handoff := reviewAcceptHandoffFixture(projectRoot, featureDir, 4)
 	handoff["system_review_scenarios"] = []any{
-		map[string]any{"id": "RS-HW-1", "required": true, "result": "pending", "evidence": []any{}, "entrypoint_id": "EP-1"},
-		map[string]any{"id": "RS-1", "required": true, "result": "pending", "evidence": []any{}, "entrypoint_id": "EP-1", "obligation_ids": []any{"RO-1"}},
+		map[string]any{"id": "RS-HW-1", "required": true, "result": "pending", "evidence": []any{}, "entrypoint_id": "EP-1", "required_evidence": []any{"runtime_diagnostics"}},
+		map[string]any{"id": "RS-1", "required": true, "result": "pending", "evidence": []any{}, "entrypoint_id": "EP-1", "obligation_ids": []any{"RO-1"}, "required_evidence": []any{"runtime_diagnostics"}},
 	}
 	handoff["review_obligations"] = []any{
 		map[string]any{"id": "RO-HW-1", "required": true, "scenario_ids": []any{"RS-HW-1"}, "status": "pending", "review_assignment_ids": []any{"RA-1"}},
@@ -427,6 +798,7 @@ func TestReviewHardwareExceptionRequiresExactHumanConfirmation(t *testing.T) {
 	final["repair_verdict"] = "pass"
 	final["integration_verdict"] = "pass"
 	final["all_packets_joined"] = true
+	markReviewDeliveryProofPassed(state)
 	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, reviewStateFilename), state)
 
 	out.Reset()
@@ -538,6 +910,60 @@ func TestAcceptPrepareValidateCloseoutAndRouteRepair(t *testing.T) {
 	}
 }
 
+func declareReviewAcceptImplementationPaths(t *testing.T, featureDir string, paths ...string) {
+	t.Helper()
+	taskDir := filepath.Join(featureDir, "implementation-review", "tasks")
+	mustMkdir(t, taskDir)
+	mustWriteReviewAcceptJSON(t, filepath.Join(taskDir, "T001.json"), map[string]any{
+		"changed_paths": stringSliceToAny(paths),
+	})
+}
+
+func authorizeReviewAcceptRepair(t *testing.T, featureDir string, paths ...string) {
+	t.Helper()
+	statePath := filepath.Join(featureDir, reviewStateFilename)
+	state := readReviewAcceptJSON(t, statePath)
+	source := state["source"].(map[string]any)
+	cycle := intField(source, "review_cycle")
+	resultRoot := "review-results"
+	if cycle > 1 {
+		resultRoot = filepath.ToSlash(filepath.Join(resultRoot, fmt.Sprintf("cycle-%d", cycle)))
+	}
+	mustMkdir(t, filepath.Join(featureDir, filepath.FromSlash(resultRoot)))
+	writeArtifact := func(name string) (string, string) {
+		ref := filepath.ToSlash(filepath.Join(resultRoot, name))
+		path := filepath.Join(featureDir, filepath.FromSlash(ref))
+		writeTextFile(t, path, "{}\n")
+		return ref, optionalFileSHA256(path)
+	}
+	reviewPacketRef, reviewPacketSHA := writeArtifact("RA-1.packet.json")
+	reviewResultRef, reviewResultSHA := writeArtifact("RA-1.result.json")
+	fixPacketRef, fixPacketSHA := writeArtifact("FX-1.packet.json")
+	fixResultRef, fixResultSHA := writeArtifact("FX-1.result.json")
+	state["status"] = "repairing"
+	state["review_assignments"] = []any{map[string]any{
+		"id": "RA-1", "kind": "wiring_audit", "worker_id": "review-auditor",
+		"obligation_ids": []any{"RO-1"}, "scenario_ids": []any{"RS-1"}, "read_only": true,
+		"packet_ref": reviewPacketRef, "result_ref": reviewResultRef,
+		"packet_sha256": reviewPacketSHA, "result_sha256": reviewResultSHA,
+		"review_cycle_id": source["review_cycle_id"], "observed_snapshot_sha256": source["implementation_fingerprint"],
+		"status": "accepted", "leader_verdict": "accepted",
+	}}
+	state["findings"] = []any{map[string]any{
+		"id": "F-1", "scenario_id": "RS-1", "obligation_ids": []any{"RO-1"},
+		"classification": "wiring", "gap_classification": "implementation_gap", "summary": "Review-owned repair",
+		"status": "fixed", "discovered_by_review_assignment_id": "RA-1", "fix_assignment_id": "FX-1",
+	}}
+	state["fix_assignments"] = []any{map[string]any{
+		"id": "FX-1", "finding_ids": []any{"F-1"}, "worker_id": "review-fixer",
+		"allowed_write_paths": stringSliceToAny(paths), "changed_paths": stringSliceToAny(paths),
+		"packet_ref": fixPacketRef, "result_ref": fixResultRef,
+		"packet_sha256": fixPacketSHA, "result_sha256": fixResultSHA,
+		"review_cycle_id": source["review_cycle_id"], "status": "accepted", "leader_verdict": "accepted",
+	}}
+	mustWriteReviewAcceptJSON(t, statePath, state)
+}
+
 func bindReadyReviewTarget(t *testing.T, projectRoot, featureDir, featureRel, scenarioID string) Envelope {
 	t.Helper()
 	statePath := filepath.Join(featureDir, reviewStateFilename)
@@ -550,11 +976,22 @@ func bindReadyReviewTarget(t *testing.T, projectRoot, featureDir, featureRel, sc
 	if entrypointID == "" {
 		t.Fatalf("Review scenario %s has no entrypoint", scenarioID)
 	}
-	mustMkdir(t, filepath.Join(featureDir, "review-evidence"))
-	readyRef := filepath.ToSlash(filepath.Join("review-evidence", "runtime-ready-"+scenarioID+".json"))
-	writeTextFile(t, filepath.Join(featureDir, filepath.FromSlash(readyRef)), "{\"ready\":true}\n")
+	cycle := intField(state["source"].(map[string]any), "review_cycle")
+	source := state["source"].(map[string]any)
+	evidenceDir := "review-evidence"
+	if cycle > 1 {
+		evidenceDir = filepath.ToSlash(filepath.Join(evidenceDir, fmt.Sprintf("cycle-%d", cycle)))
+	}
+	mustMkdir(t, filepath.Join(featureDir, filepath.FromSlash(evidenceDir)))
+	readyRef := filepath.ToSlash(filepath.Join(evidenceDir, "runtime-ready-"+scenarioID+".json"))
+	readyPath := filepath.Join(featureDir, filepath.FromSlash(readyRef))
+	writeTextFile(t, readyPath, "{\"ready\":true}\n")
 	scenario["result"] = "pass"
-	scenario["evidence"] = []any{map[string]any{"kind": "runtime_diagnostics", "path": readyRef}}
+	scenario["evidence"] = []any{map[string]any{
+		"kind": "runtime_diagnostics", "path": readyRef, "evidence_scope": "integrated",
+		"snapshot_sha256": source["implementation_fingerprint"], "review_cycle_id": source["review_cycle_id"],
+		"artifact_sha256": optionalFileSHA256(readyPath),
+	}}
 	mustWriteReviewAcceptJSON(t, statePath, state)
 	input := map[string]any{
 		"id": "RT-" + scenarioID, "mode": "source", "entrypoint_id": entrypointID,
@@ -581,10 +1018,16 @@ func approvedReviewStateFixture(t *testing.T, projectRoot, featureDir, featureRe
 	state := newReviewState(feature, handoff, revision, optionalFileSHA256(handoffPath), fingerprint, 1, "", "", nil, nil)
 	mustMkdir(t, filepath.Join(featureDir, "review-evidence"))
 	readyRef := "review-evidence/runtime-ready-RS-1.json"
-	writeTextFile(t, filepath.Join(featureDir, filepath.FromSlash(readyRef)), "{\"ready\":true}\n")
+	readyPath := filepath.Join(featureDir, filepath.FromSlash(readyRef))
+	writeTextFile(t, readyPath, "{\"ready\":true}\n")
 	scenario := findObjectByID(state["scenarios"], "RS-1")
 	scenario["result"] = "pass"
-	scenario["evidence"] = []any{map[string]any{"kind": "runtime_diagnostics", "path": readyRef}}
+	source := state["source"].(map[string]any)
+	scenario["evidence"] = []any{map[string]any{
+		"kind": "runtime_diagnostics", "path": readyRef, "evidence_scope": "integrated",
+		"snapshot_sha256": source["implementation_fingerprint"], "review_cycle_id": source["review_cycle_id"],
+		"artifact_sha256": optionalFileSHA256(readyPath),
+	}}
 	target, err := normalizeReviewRuntimeTarget(feature, state, map[string]any{
 		"id": "RT-RS-1", "mode": "source", "entrypoint_id": "EP-1",
 		"environment_ref": "local", "instance_ref": "http://localhost:3000", "configuration_ref": "test",
@@ -614,7 +1057,15 @@ func approvedReviewStateFixture(t *testing.T, projectRoot, featureDir, featureRe
 	final["all_packets_joined"] = true
 	final["reviewed_snapshot_sha256"] = fingerprint
 	final["runtime_targets_sha256"] = reviewRuntimeTargetsSHA256([]any{target})
+	markReviewDeliveryProofPassed(state)
 	return state
+}
+
+func markReviewDeliveryProofPassed(state map[string]any) {
+	state["validation"] = map[string]any{
+		"startup": "pass", "real_entrypoint_journeys": "pass",
+		"regression": "pass", "ui_verification": "pass",
+	}
 }
 
 func reviewAcceptHandoffFixture(projectRoot, featureDir string, revision int) map[string]any {
@@ -628,10 +1079,10 @@ func reviewAcceptHandoffFixture(projectRoot, featureDir string, revision int) ma
 		"source_stage":                     "implement",
 		"feature_dir":                      filepath.ToSlash(featureDir),
 		"implementation_fingerprint":       sourceTreeFingerprint(projectRoot, featureDir),
-		"fingerprint_algorithm":            implementationFingerprintAlgorith,
+		"fingerprint_algorithm":            implementationFingerprintAlgorithm,
 		"official_entrypoints":             []any{map[string]any{"id": "EP-1", "command": "npm run dev", "ready_signal": "http://localhost:3000/health"}},
 		"runtime_targets":                  []any{"http://localhost:3000"},
-		"system_review_scenarios":          []any{map[string]any{"id": "RS-1", "required": true, "obligation_ids": []any{"RO-1"}, "entrypoint_id": "EP-1"}},
+		"system_review_scenarios":          []any{map[string]any{"id": "RS-1", "required": true, "obligation_ids": []any{"RO-1"}, "entrypoint_id": "EP-1", "required_evidence": []any{"runtime_diagnostics"}}},
 		"review_obligations":               []any{map[string]any{"id": "RO-1", "required": true, "scenario_ids": []any{"RS-1"}}},
 		"human_acceptance_scenarios":       humanAcceptanceScenarios,
 		"human_acceptance_obligations":     humanAcceptanceObligations,

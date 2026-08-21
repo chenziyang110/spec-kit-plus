@@ -2736,7 +2736,24 @@ def _overlay_definition(
 def _render_list(values: object) -> str:
     if not isinstance(values, list) or not values:
         return "none"
-    return ", ".join(f"`{str(value)}`" for value in values)
+    return ", ".join(
+        f"`{_escape_markdown_table_cell(str(value))}`" for value in values
+    )
+
+
+def _escape_markdown_table_cell(value: str) -> str:
+    return value.replace("|", r"\|")
+
+
+def _render_compact_json(value: object) -> str:
+    if value in (None, "", [], {}):
+        return "none"
+    try:
+        return _escape_markdown_table_cell(
+            json.dumps(value, ensure_ascii=True, separators=(",", ":"))
+        )
+    except TypeError:
+        return _escape_markdown_table_cell(str(value))
 
 
 def _render_tasks_markdown(task_index: Mapping[str, Any], *, title: str) -> str:
@@ -2821,7 +2838,20 @@ def _render_tasks_markdown(task_index: Mapping[str, Any], *, title: str) -> str:
                     "| --- | --- |",
                     f"| ui_contract_ref | task-index.json#/tasks/{task_id}/ui_contract |",
                     f"| fidelity_level | {ui_contract.get('fidelity_level', 'none')} |",
+                    f"| surface_catalog | {_render_compact_json(ui_contract.get('surface_catalog'))} |",
+                    f"| scenario_matrix | {_render_compact_json(ui_contract.get('scenario_matrix'))} |",
+                    f"| interaction_matrix | {_render_compact_json(ui_contract.get('interaction_matrix'))} |",
+                    f"| editing_matrix | {_render_compact_json(ui_contract.get('editing_matrix'))} |",
                     f"| required_states | {_render_list(ui_contract.get('required_states'))} |",
+                    f"| data_state_matrix | {_render_compact_json(ui_contract.get('data_state_matrix'))} |",
+                    f"| accessibility_matrix | {_render_compact_json(ui_contract.get('accessibility_matrix'))} |",
+                    f"| navigation_matrix | {_render_compact_json(ui_contract.get('navigation_matrix'))} |",
+                    f"| content_matrix | {_render_compact_json(ui_contract.get('content_matrix'))} |",
+                    f"| component_contracts | {_render_compact_json(ui_contract.get('component_contracts'))} |",
+                    f"| responsive_matrix | {_render_compact_json(ui_contract.get('responsive_matrix'))} |",
+                    f"| motion_contract | {_render_compact_json(ui_contract.get('motion_contract'))} |",
+                    f"| usability_validation | {_render_compact_json(ui_contract.get('usability_validation'))} |",
+                    f"| visual_acceptance_matrix | {_render_compact_json(ui_contract.get('visual_acceptance_matrix'))} |",
                     f"| required_evidence | {_render_list(ui_contract.get('required_evidence'))} |",
                 ]
             )

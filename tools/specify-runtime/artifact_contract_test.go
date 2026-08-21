@@ -15,7 +15,7 @@ import (
 func TestArtifactPrepareSubmitAndProgressiveShow(t *testing.T) {
 	projectRoot := t.TempDir()
 	service := NewArtifactService(projectRoot)
-	artifactRelativePath := ".specify/features/001-runtime/research-evidence/EVD-001.json"
+	artifactRelativePath := ".specify/features/001-runtime/contracts/runtime-evidence.json"
 
 	prepared := service.Prepare(ArtifactPrepareRequest{
 		Path: artifactRelativePath,
@@ -290,17 +290,6 @@ func TestArtifactPatchUpdatesOnlyTargetedJSONMarkdownAndFrontmatter(t *testing.T
 		}
 	}
 
-	ndjsonPath := "specs/001-runtime/clarification/checkpoints.ndjson"
-	writeArtifactTestFile(t, projectRoot, ndjsonPath, "{\"id\":1}\n")
-	appendLease := service.Prepare(ArtifactPrepareRequest{Path: ndjsonPath})
-	appendResult := service.Patch(ArtifactPatchRequest{LeaseID: appendLease.Data["lease_id"].(string), Append: true, AppendJSON: map[string]any{"id": 2}})
-	if appendResult.Status != "ok" {
-		t.Fatalf("append patch = %#v", appendResult)
-	}
-	ndjsonRaw, _ := os.ReadFile(filepath.Join(projectRoot, filepath.FromSlash(ndjsonPath)))
-	if string(ndjsonRaw) != "{\"id\":1}\n{\"id\":2}\n" {
-		t.Fatalf("ndjson append = %q", ndjsonRaw)
-	}
 }
 
 func TestArtifactPatchRenamesMarkdownHeadingAndReplacesPreamble(t *testing.T) {
@@ -1123,8 +1112,6 @@ func TestArtifactScaffoldCreatesRegisteredStableWorkflowArtifacts(t *testing.T) 
 		contains string
 	}{
 		{kind: "alignment", template: "alignment-template.md", path: "specs/001-demo/alignment.md", contains: "## Readiness Decision"},
-		{kind: "clarification-checkpoints", template: "artifacts/empty.ndjson", path: "specs/001-demo/clarification/checkpoints.ndjson", contains: "\n"},
-		{kind: "clarification-evidence-index", template: "artifacts/evidence-index.json", path: ".specify/features/001-demo/clarification/evidence-index.json", contains: `"lanes": []`},
 		{kind: "spec-contract", template: "spec-contract-template.json", path: "specs/001-demo/spec-contract.json", contains: `"status": "draft"`},
 		{kind: "workflow-state", template: "workflow-state-template.md", path: "specs/001-demo/workflow-state.md", contains: "# Workflow State:"},
 		{kind: "constitution", template: "constitution-template.md", path: ".specify/memory/constitution.md", contains: "# [PROJECT_NAME] Constitution"},
@@ -1132,8 +1119,6 @@ func TestArtifactScaffoldCreatesRegisteredStableWorkflowArtifacts(t *testing.T) 
 		{kind: "design-brief", template: "design-brief-template.md", path: ".specify/design/design-brief.md", contains: "status: draft"},
 		{kind: "design-brief", template: "design-brief-template.md", path: ".specify/design/changes/UD-0042/brief.md", contains: "status: draft"},
 		{kind: "debug-session", template: "artifacts/debug-session.md", path: ".planning/debug/session-a.md", contains: "understanding_confirmed: false"},
-		{kind: "deep-research", template: "artifacts/deep-research.md", path: "specs/001-demo/deep-research.md", contains: "## Implementation Chain Evidence"},
-		{kind: "deep-research-not-needed", template: "artifacts/deep-research-not-needed.md", path: ".specify/features/001-demo/deep-research.md", contains: "**Status**: Pending"},
 		{kind: "design-review", template: "artifacts/design-review.md", path: ".specify/design/review.md", contains: "## Immutable References"},
 		{kind: "design-review", template: "artifacts/design-review.md", path: ".specify/design/changes/UD-0042/review.md", contains: "## Immutable References"},
 		{kind: "planning-lane-manifest", template: "artifacts/lane-manifest.json", path: "specs/001-demo/planning/lane-manifest.json", contains: `"command": "plan"`},
@@ -1295,8 +1280,8 @@ func TestArtifactScaffoldHelpDescribesCanonicalInvocation(t *testing.T) {
 
 func TestArtifactScaffoldCatalogPublishesOnlyImplementedKinds(t *testing.T) {
 	result := ArtifactScaffoldCatalog()
-	if result.Status != "ok" || len(result.Items) != 29 {
-		t.Fatalf("artifact scaffold catalog = %#v, want twenty-nine kinds", result)
+	if result.Status != "ok" || len(result.Items) != 25 {
+		t.Fatalf("artifact scaffold catalog = %#v, want twenty-five kinds", result)
 	}
 	kinds := map[string]bool{}
 	for _, item := range result.Items {
@@ -1317,13 +1302,9 @@ func TestArtifactScaffoldCatalogPublishesOnlyImplementedKinds(t *testing.T) {
 	}
 	for _, kind := range []string{
 		"alignment",
-		"clarification-checkpoints",
-		"clarification-evidence-index",
 		"constitution",
 		"data-model",
 		"debug-session",
-		"deep-research",
-		"deep-research-not-needed",
 		"design-brief",
 		"design-review",
 		"plan-contract",
@@ -1350,7 +1331,7 @@ func TestArtifactScaffoldCatalogPublishesOnlyImplementedKinds(t *testing.T) {
 			t.Fatalf("catalog kinds = %#v, missing %q", kinds, kind)
 		}
 	}
-	if len(kinds) != 29 {
+	if len(kinds) != 25 {
 		t.Fatalf("catalog kinds = %#v", kinds)
 	}
 }
@@ -1395,27 +1376,6 @@ func TestArtifactScaffoldRejectsUnsafeInstalledTemplates(t *testing.T) {
 		})
 		if result.Status != "invalid" {
 			t.Fatalf("incomplete quick template = %#v, want invalid", result)
-		}
-	})
-
-	t.Run("deep research missing semantic anchor", func(t *testing.T) {
-		projectRoot := t.TempDir()
-		installScaffoldTemplate(t, projectRoot, "artifacts/deep-research.md")
-		path := filepath.Join(projectRoot, ".specify", "templates", "artifacts", "deep-research.md")
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		raw = bytes.Replace(raw, []byte("<!-- agent-fill:planning_handoff -->"), nil, 1)
-		if err := os.WriteFile(path, raw, 0o644); err != nil {
-			t.Fatal(err)
-		}
-		result := NewArtifactService(projectRoot).Scaffold(ArtifactScaffoldRequest{
-			Kind: "deep-research",
-			Path: "specs/001-demo/deep-research.md",
-		})
-		if result.Status != "invalid" {
-			t.Fatalf("incomplete deep research template = %#v, want invalid", result)
 		}
 	})
 

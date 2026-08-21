@@ -39,25 +39,32 @@ func readAgentJSONInput(args []string, projectRoot, label string) ([]byte, error
 // Content is consumed at invoke time; agents must not treat the source path as
 // durable workflow state. Bare --input remains rejected.
 func resolveAgentJSONInputBytes(raw, projectRoot, label string) ([]byte, error) {
+	return resolveJSONInputBytesFrom(raw, projectRoot, label, "--input-json", os.Stdin)
+}
+
+func resolveJSONInputBytesFrom(raw, projectRoot, label, inputFlag string, stdin io.Reader) ([]byte, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return nil, nil
 	}
 	if trimmed == "-" {
-		limited := io.LimitReader(os.Stdin, int64(maxAgentJSONInputBytes)+1)
+		if stdin == nil {
+			return nil, fmt.Errorf("%s %s - requires stdin", label, inputFlag)
+		}
+		limited := io.LimitReader(stdin, int64(maxAgentJSONInputBytes)+1)
 		data, err := io.ReadAll(limited)
 		if err != nil {
-			return nil, fmt.Errorf("%s --input-json - failed to read stdin: %w", label, err)
+			return nil, fmt.Errorf("%s %s - failed to read stdin: %w", label, inputFlag, err)
 		}
 		if len(data) > maxAgentJSONInputBytes {
-			return nil, fmt.Errorf("%s --input-json exceeds %d bytes", label, maxAgentJSONInputBytes)
+			return nil, fmt.Errorf("%s %s exceeds %d bytes", label, inputFlag, maxAgentJSONInputBytes)
 		}
 		return data, nil
 	}
 	if strings.HasPrefix(trimmed, "@") {
 		path := strings.TrimSpace(strings.TrimPrefix(trimmed, "@"))
 		if path == "" {
-			return nil, fmt.Errorf("%s --input-json @path requires a non-empty path", label)
+			return nil, fmt.Errorf("%s %s @path requires a non-empty path", label, inputFlag)
 		}
 		if !filepath.IsAbs(path) {
 			root := strings.TrimSpace(projectRoot)
@@ -68,14 +75,18 @@ func resolveAgentJSONInputBytes(raw, projectRoot, label string) ([]byte, error) 
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("%s --input-json @path could not read %s: %w", label, path, err)
+			return nil, fmt.Errorf("%s %s @path could not read %s: %w", label, inputFlag, path, err)
 		}
 		if len(data) > maxAgentJSONInputBytes {
-			return nil, fmt.Errorf("%s --input-json exceeds %d bytes", label, maxAgentJSONInputBytes)
+			return nil, fmt.Errorf("%s %s exceeds %d bytes", label, inputFlag, maxAgentJSONInputBytes)
 		}
 		return data, nil
 	}
-	return []byte(raw), nil
+	data := []byte(raw)
+	if len(data) > maxAgentJSONInputBytes {
+		return nil, fmt.Errorf("%s %s exceeds %d bytes", label, inputFlag, maxAgentJSONInputBytes)
+	}
+	return data, nil
 }
 
 func readAgentJSONObject(args []string, projectRoot, label string) (map[string]any, error) {

@@ -68,6 +68,22 @@ adoption. The current binding artifacts are singular: each unit owns one exact
 scope and one binding artifact. Do not collapse parent and successor candidates
 into one invented contract.
 
+## Style Authority Routing
+
+Resolve `style_authority` before selecting the UI Professional Skill route.
+Live product UI is authoritative for feature, component, and partial functional
+page work: use `inherit-existing`, cite exact token/theme/component/surface
+sources, protect `global-shell` and `shared-components`, allow no style delta,
+and keep `style_skill_id: null`. Domain and specialist advice may refine the
+bounded UI without changing its visual language.
+
+Route to `page-overhaul-authorized` only after the user explicitly approves a
+visual-language change for one exact complete page. Bind the authorization and
+allowed delta to that page; the surrounding shell and shared components remain
+protected. A functional page refactor or new feature page defaults to
+`inherit-existing`. `greenfield` requires repository evidence that no live UI
+language governs the new surface.
+
 ## Decision Table
 
 | Current truth and prompt | Route |
@@ -91,7 +107,11 @@ ambiguity between `audit` and mutation, start with `audit`; promote to
   engineering principles belong to `sp-constitution`.
 - Route feature behavior, scope, and acceptance truth to `sp-specify`, or to
   `sp-quick` when the user chooses direct delivery and the outcome is already
-  confirmable.
+  confirmable. When a planning-ready source spec already owns unchanged
+  requirements, persist `delivery_context.origin: post-specify`; after Design
+  approval return directly to Plan through `formal-post-specify`, not through a
+  second Specify. Only a real requirements, scope, or acceptance change reopens
+  Specify.
 - Route implementation drift against correct approved design to `sp-review` or
   the active implementation workflow. Do not rewrite design truth to excuse a
   code defect.
@@ -100,7 +120,7 @@ ambiguity between `audit` and mutation, start with `audit`; promote to
 
 - Visual `create` and substantive `refine` require durable taste intake in the
   design-brief artifact (scaffold/patch via `specify-runtime artifact` only)
-  before three-direction preview work: `design_read`, dials with inference
+  before single-concept preview work: `design_read`, dials with inference
   reason, `aesthetic_family`, `foundation_strategy`, `redesign_mode` when live
   UI exists, and `anti_slop_locks` from the surface-aware policy.
 - `input_strategy: synthesize` may attach reference-board intents

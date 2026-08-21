@@ -25,6 +25,11 @@ Run `{{specify-subcmd:specify-runtime cognition build-from-scan --format json}}`
 the only construction and publication steps. Do not ask a model to reconstruct
 the graph, reread the repository, hand-edit SQLite, or finalize with incremental
 `complete-refresh`.
+When the validated scan receipt, compiled proposal fingerprint, compiler
+contract, and graph schema match the ready active generation,
+`build-from-scan` returns `reused=true` and preserves the same active generation rather
+than importing a duplicate. Continue through `validate-build` and Compass; the
+idempotent hit is not completion by itself.
 
 Prove the published baseline with
 `{{specify-subcmd:specify-runtime cognition compass --intent implement --query "<representative project query>" --format json}}`

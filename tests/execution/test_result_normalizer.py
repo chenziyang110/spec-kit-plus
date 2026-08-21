@@ -163,6 +163,7 @@ def test_normalize_worker_task_result_payload_preserves_ui_fields() -> None:
                 "visual_comparison": "unavailable",
                 "fidelity_status": "pending-human-review",
                 "reviewer": "agent",
+                "human_review_ref": "evidence/usability-review.md",
             },
         }
     )
@@ -175,6 +176,7 @@ def test_normalize_worker_task_result_payload_preserves_ui_fields() -> None:
         }
     ]
     assert result.ui_verification.fidelity_status == "pending-human-review"
+    assert result.ui_verification.human_review_ref == "evidence/usability-review.md"
 
 
 def test_normalize_worker_task_result_payload_preserves_current_visual_contract() -> (

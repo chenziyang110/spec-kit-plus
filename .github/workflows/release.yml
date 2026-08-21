@@ -254,6 +254,9 @@ jobs:
           done
           ./dist/release-tools/specify-runtime-linux-amd64 cognition scan-prepare --help 2>&1 | grep -q -- "-force"
           ./dist/release-tools/specify-runtime-linux-amd64 cognition scan-prepare --help 2>&1 | grep -q -- "-safety-percent"
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition scan-formats --help >/dev/null
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition scan-policy-stage --help 2>&1 | grep -q -- "-proposal-json"
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition scan-policy-confirm --help 2>&1 | grep -q -- "-proposal-digest"
           ./dist/release-tools/specify-runtime-linux-amd64 cognition scan-lease --help 2>&1 | grep -q -- "-worker-capacity-tokens"
           ./dist/release-tools/specify-runtime-linux-amd64 cognition scan-accept --help 2>&1 | grep -q -- "-packet-id"
           ./dist/release-tools/specify-runtime-linux-amd64 cognition --help | grep -q "semantic-intake"

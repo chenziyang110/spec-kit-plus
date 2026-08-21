@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from specify_cli.design import (
@@ -11,11 +10,7 @@ from specify_cli.design import (
     enrich_design_diagnostics,
     lint_design_preview_file,
 )
-from tests.test_design_preview import (
-    _candidate_preview,
-    _preview_manifest,
-    _replace_preview_manifest,
-)
+from tests.test_design_preview import _candidate_preview
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -97,49 +92,34 @@ def test_diagnostic_contract_maps_quality_and_semantic_codes() -> None:
     codes = contract["codes"]
     assert codes["preview-manifest-schema-error"]["layer"] == "structural"
     assert codes["preview-scaffold-taste-reason"]["layer"] == "semantic"
-    assert codes["preview-undifferentiated-direction-visuals"]["layer"] == "quality"
+    assert codes["preview-unfinished-prototype"]["layer"] == "quality"
     assert any(
-        "metadata" in item.lower() or "token" in item.lower()
-        for item in codes["preview-undifferentiated-direction-visuals"]["agent_action"]
+        "professional ui skill" in item.lower()
+        for item in codes["preview-unfinished-prototype"]["agent_action"]
     )
 
 
-def test_lint_enriches_identical_visual_failure_with_recovery(
+def test_lint_enriches_unfinished_prototype_failure_with_recovery(
     tmp_path: Path,
 ) -> None:
-    content = _candidate_preview()
-    manifest = _preview_manifest(content)
-    directions = manifest["directions"]
-    first = directions[0]
-    assert isinstance(first, dict)
-    shared = {
-        key: first[key]
-        for key in (
-            "typography",
-            "geometry",
-            "density",
-            "elevation",
-            "motion",
-            "modes",
-        )
-    }
-    for direction in directions:
-        assert isinstance(direction, dict)
-        direction.update(shared)
-    preview = tmp_path / "same-visuals.html"
-    preview.write_text(_replace_preview_manifest(content, manifest), encoding="utf-8")
+    content = _candidate_preview().replace(
+        'data-prototype-status="authored"',
+        'data-prototype-status="seed"',
+    )
+    preview = tmp_path / "unfinished.html"
+    preview.write_text(content, encoding="utf-8")
 
     diagnostics = lint_design_preview_file(preview, level="ready")
     match = next(
         item
         for item in diagnostics
-        if item.code == "preview-undifferentiated-direction-visuals"
+        if item.code == "preview-unfinished-prototype"
     )
     assert match.layer == "quality"
     assert match.recovery
     assert match.agent_action
     assert match.why
-    assert any("metadata" in item.lower() or "token" in item.lower() for item in match.agent_action)
+    assert any("professional ui skill" in item.lower() for item in match.agent_action)
 
 
 def test_enrich_design_diagnostics_applies_default_for_unknown_code() -> None:

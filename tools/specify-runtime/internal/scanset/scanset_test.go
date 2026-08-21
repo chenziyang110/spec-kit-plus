@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	cognitionignore "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/ignore"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
@@ -70,6 +71,39 @@ func TestResolveHonorsReincludeRulesInsideIgnoredDirectories(t *testing.T) {
 		t.Fatal(err)
 	}
 	if want := []string{"generated/keep.go"}; !reflect.DeepEqual(list.Files, want) {
+		t.Fatalf("files = %#v, want %#v", list.Files, want)
+	}
+}
+
+func TestResolveUsesActivatedStarterIgnorePatternsAfterConfirmation(t *testing.T) {
+	root := t.TempDir()
+	paths := testPaths(t, root)
+	writeScanSetFile(t, root, ".gitignore", "scripts/runtime/.bin/\n")
+	writeScanSetFile(t, root, "src/app.go", "package app\n")
+	writeScanSetFile(t, root, "scripts/runtime/.bin/tool/include.h", "generated header\n")
+	if _, created, err := cognitionignore.WriteStarterIgnoreFile(root); err != nil || !created {
+		t.Fatalf("WriteStarterIgnoreFile created=%t err=%v", created, err)
+	}
+	if _, err := cognitionignore.ActivateStarterIgnoreSuggestions(root, []string{"scripts/runtime/.bin/"}); err != nil {
+		t.Fatalf("ActivateStarterIgnoreSuggestions returned error: %v", err)
+	}
+
+	summary, err := Resolve(paths, Input{Scopes: []string{"src", "scripts"}})
+	if err != nil {
+		t.Fatalf("Resolve returned error: %v", err)
+	}
+	if summary.Count != 1 {
+		t.Fatalf("summary count = %d, want only product source", summary.Count)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(DefaultOutputPath)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var list FileList
+	if err := json.Unmarshal(raw, &list); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"src/app.go"}; !reflect.DeepEqual(list.Files, want) {
 		t.Fatalf("files = %#v, want %#v", list.Files, want)
 	}
 }

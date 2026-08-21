@@ -9,14 +9,12 @@ MANDATORY_COMMANDS = (
     "analyze",
     "auto",
     "checklist",
-    "clarify",
     "constitution",
     "deep-research",
     "explain",
     "map-build",
     "map-scan",
     "quick",
-    "research",
     "taskstoissues",
 )
 
@@ -224,24 +222,6 @@ def test_task4_templates_do_not_reintroduce_ordinary_local_leader_framing() -> N
 
     for team_command in TEAM_COMMANDS:
         assert (PROJECT_ROOT / "templates" / "commands" / f"{team_command}.md").exists()
-    clarify_content = _read_command("clarify").lower()
-
-    assert "validated artifact-update subagent lane" in clarify_content
-    assert "packetize the artifact update as a validated subagent lane" in clarify_content
-    assert "delegate artifact enhancements through a validated subagent lane" in clarify_content
-    assert "the leader owns coordination, packet validation, user-question decisions, structured-handoff review, acceptance, final status, and state consistency" in clarify_content
-    assert "if the artifact update lane cannot be safely packetized or delegated, patch `subagent-blocked` and its escalation or recovery reason into `workflow-state.md` through `specify-runtime artifact patch`, then stop" in clarify_content
-
-    forbidden_phrases = (
-        "can be improved directly from current context",
-        "prefer updating the artifacts directly",
-        "apply enhancements directly to the artifact set",
-        "making the edit directly",
-        "leader-authored direct edits",
-        "leader-authored artifact edits",
-    )
-    for phrase in forbidden_phrases:
-        assert phrase not in clarify_content, phrase
     implement_content = _read_command("implement").lower()
     fast_content = _read_command("fast").lower()
     debug_content = _read_command("debug").lower()

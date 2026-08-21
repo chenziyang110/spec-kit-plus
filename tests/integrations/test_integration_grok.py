@@ -35,7 +35,14 @@ def test_grok_skills_init_installs_command_and_passive_skills(tmp_path):
     assert (target / ".grok" / "skills" / "dispatching-parallel-agents" / "SKILL.md").exists()
     content = plan_skill.read_text(encoding="utf-8")
     assert "user-invocable: true" in content
+    assert "disable-model-invocation: true" in content
     assert "/sp-plan" in content or "sp-plan" in content
+
+    quick_content = (
+        target / ".grok" / "skills" / "sp-quick" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert "user-invocable: true" in quick_content
+    assert "disable-model-invocation" not in quick_content
 
 
 def test_grok_invoke_placeholder_projects_slash_skill_surface():

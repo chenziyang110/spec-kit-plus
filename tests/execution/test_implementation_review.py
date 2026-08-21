@@ -73,7 +73,7 @@ def test_upstream_truth_gap_requires_handoff_and_stop_route(tmp_path: Path) -> N
         gap_classification="upstream_truth_gap",
         severity="high",
         summary="A user-visible recovery behavior has no requirement owner.",
-        upstream_reentry="/sp.clarify",
+        upstream_reentry="/sp.specify",
     )
     invalid = ImplementationReviewRecord(
         review_id="truth-gap-invalid",
@@ -90,7 +90,7 @@ def test_upstream_truth_gap_requires_handoff_and_stop_route(tmp_path: Path) -> N
         review_id="truth-gap-valid",
         scope="join-point-drift",
         trigger="unmapped-user-visible-test",
-        decision="blocked-reopen-clarify",
+        decision="blocked-reopen-specify",
         findings=[finding],
         next_action="Reopen requirement truth before implementation resumes.",
     )

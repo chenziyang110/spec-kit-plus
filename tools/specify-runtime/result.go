@@ -52,6 +52,7 @@ var currentUIVerificationFields = map[string]bool{
 	"visual_comparison":            true,
 	"fidelity_status":              true,
 	"reviewer":                     true,
+	"human_review_ref":             true,
 	"approved_visual_ref":          true,
 	"approved_preview_sha256":      true,
 	"approved_manifest_sha256":     true,
@@ -122,6 +123,9 @@ func runResultSubmit(args []string, stdout io.Writer) int {
 		return writeResultError(stdout, "usage-error", err.Error())
 	}
 	commandName := strings.TrimSpace(optionValue(args, "--command", ""))
+	if strings.EqualFold(commandName, "deep-research") {
+		return writeResultError(stdout, "usage-error", "Deep Research track results are runtime-owned; use `specify-runtime deep-research track-submit`.")
+	}
 	if integration == "codex" && !usesStageOwnedResultChannel(commandName) {
 		return writeResultError(stdout, "usage-error", "Codex `result submit` is reserved for stage-owned native-lane results. Native implement workers return their result inline for `implement result-merge`; durable team requests use `sp-teams submit-result`.")
 	}
@@ -177,7 +181,7 @@ type resultPathRequest struct {
 
 func usesStageOwnedResultChannel(commandName string) bool {
 	switch strings.ToLower(strings.TrimSpace(commandName)) {
-	case "review", "clarify", "plan", "tasks", "deep-research", "prd-scan", "quick", "debug":
+	case "review", "plan", "tasks", "prd-scan", "quick", "debug":
 		return true
 	default:
 		return false
@@ -187,6 +191,9 @@ func usesStageOwnedResultChannel(commandName string) bool {
 func buildResultHandoffPath(projectRoot string, request resultPathRequest) (string, error) {
 	commandName := strings.ToLower(strings.TrimSpace(request.CommandName))
 	integrationKey := strings.ToLower(strings.TrimSpace(request.IntegrationKey))
+	if commandName == "deep-research" {
+		return "", fmt.Errorf("Deep Research track results are runtime-owned; use `specify-runtime deep-research track-submit`")
+	}
 
 	switch {
 	case commandName == "review":
@@ -199,7 +206,7 @@ func buildResultHandoffPath(projectRoot string, request resultPathRequest) (stri
 			return "", err
 		}
 		return resolveProjectContainedPath(projectRoot, filepath.Join(featureDir, "review-results", laneID+".json"))
-	case commandName == "clarify" || commandName == "plan" || commandName == "tasks" || commandName == "deep-research":
+	case commandName == "plan" || commandName == "tasks":
 		featureDir, err := resolveProjectContainedPath(projectRoot, request.FeatureDir)
 		if err != nil || strings.TrimSpace(request.LaneID) == "" {
 			return "", fmt.Errorf("--feature-dir and --lane-id are required for %s result handoff", commandName)
@@ -209,10 +216,8 @@ func buildResultHandoffPath(projectRoot string, request resultPathRequest) (stri
 			return "", err
 		}
 		directories := map[string]string{
-			"clarify":       "clarification/handoffs",
-			"plan":          "planning/handoffs",
-			"tasks":         "task-generation/handoffs",
-			"deep-research": "research/handoffs",
+			"plan":  "planning/handoffs",
+			"tasks": "task-generation/handoffs",
 		}
 		return resolveProjectContainedPath(projectRoot, filepath.Join(featureDir, directories[commandName], laneID+".json"))
 	case commandName == "prd-scan":
@@ -476,7 +481,7 @@ func normalizeUIVerification(value any) (map[string]any, error) {
 	result := defaultUIVerification()
 	for _, key := range []string{
 		"contract_check", "runtime_evidence", "visual_comparison", "fidelity_status",
-		"reviewer", "approved_visual_ref", "approved_preview_sha256",
+		"reviewer", "human_review_ref", "approved_visual_ref", "approved_preview_sha256",
 		"approved_manifest_sha256", "approved_handoff_ref",
 		"approved_handoff_sha256", "comparison_report_ref",
 		"comparison_report_sha256",
@@ -510,6 +515,7 @@ func defaultUIVerification() map[string]any {
 		"visual_comparison":            "unavailable",
 		"fidelity_status":              "not-applicable",
 		"reviewer":                     "agent",
+		"human_review_ref":             "",
 		"approved_visual_ref":          "",
 		"approved_preview_sha256":      "",
 		"approved_manifest_sha256":     "",

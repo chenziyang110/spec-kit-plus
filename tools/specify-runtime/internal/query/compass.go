@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -54,6 +55,8 @@ type CompassPayload struct {
 	IntentProfile                 string                        `json:"intent_profile,omitempty"`
 	RequiredLiveReadSurfaces      []string                      `json:"required_live_read_surfaces,omitempty"`
 	Readiness                     string                        `json:"readiness"`
+	Freshness                     string                        `json:"freshness,omitempty"`
+	Degraded                      bool                          `json:"degraded,omitempty"`
 	CompassState                  string                        `json:"compass_state"`
 	Mode                          string                        `json:"mode"`
 	FacetSource                   string                        `json:"facet_source"`
@@ -120,6 +123,7 @@ type EvidenceLane struct {
 	Title             string               `json:"title"`
 	Coverage          string               `json:"coverage"`
 	Confidence        string               `json:"confidence"`
+	Freshness         string               `json:"freshness,omitempty"`
 	FirstPassPaths    []FirstPassPath      `json:"first_pass_paths"`
 	VerificationHints []string             `json:"verification_hints"`
 	FollowupSurfaces  []string             `json:"followup_surfaces"`
@@ -245,6 +249,7 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		IntentProfile:                 compassIntentProfile(input.Intent),
 		RequiredLiveReadSurfaces:      compassRequiredLiveReadSurfaces(input.Intent),
 		Readiness:                     status.Readiness,
+		Freshness:                     status.Freshness,
 		CompassState:                  compassStateBlocked,
 		Mode:                          compassMode,
 		FacetSource:                   facetSource,
@@ -263,14 +268,17 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		BaselineKind:                  status.BaselineKind,
 	}
 
-	if compassReadinessBlocked(status.Readiness) {
+	blockedReadiness := compassReadinessBlocked(status.Readiness)
+	if blockedReadiness {
 		if status.Readiness == rt.NeedsRebuildReadiness && status.RecommendedNextAction == "run_map_scan_build" {
 			payload.RebuildReasons = compassStatusRebuildReasons(paths, status)
 			payload.RecommendedNextAction = compassRebuildAction()
 			payload.RecoveryAction = compassRecommendedActionRebuild
 		}
-		payload.IntentFacets = coverageForFacets(facets, nil, payload.CoverageDiagnostics, true)
-		return payload, nil
+		if status.Readiness == rt.UnsupportedReadiness {
+			payload.IntentFacets = coverageForFacets(facets, nil, payload.CoverageDiagnostics, true)
+			return payload, nil
+		}
 	}
 
 	st, err := store.OpenExisting(paths)
@@ -287,6 +295,11 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		defer st.Close()
 		rows, err := st.AllActiveConceptCandidateRows(context.Background())
 		if err != nil {
+			if blockedReadiness {
+				payload.Errors = appendDiagnosticString(payload.Errors, "read degraded Compass candidates: "+err.Error())
+				payload.IntentFacets = coverageForFacets(facets, nil, payload.CoverageDiagnostics, true)
+				return payload, nil
+			}
 			return CompassPayload{}, err
 		}
 		if len(rows) > 0 && payload.ActiveGenerationID == "" {
@@ -295,11 +308,21 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		candidates = compassCandidates(rows, compassCandidateTerms(input, terms, facets), compassUsesPrecisionInput(input), compassPrecisionConceptFilter(input))
 		claimLifecycleSummaries, err := st.ClaimLifecycleSummariesForNodeIDs(context.Background(), nodeIDsFromCompassCandidates(candidates))
 		if err != nil {
+			if blockedReadiness {
+				payload.Errors = appendDiagnosticString(payload.Errors, "read degraded Compass claim lifecycle: "+err.Error())
+				payload.IntentFacets = coverageForFacets(facets, nil, payload.CoverageDiagnostics, true)
+				return payload, nil
+			}
 			return CompassPayload{}, err
 		}
 		candidates = applyClaimRanking(candidates, claimLifecycleSummaries)
 		claimRecords, err = st.ClaimEvidenceForNodeIDs(context.Background(), nodeIDsFromCompassCandidates(candidates))
 		if err != nil {
+			if blockedReadiness {
+				payload.Errors = appendDiagnosticString(payload.Errors, "read degraded Compass claim evidence: "+err.Error())
+				payload.IntentFacets = coverageForFacets(facets, nil, payload.CoverageDiagnostics, true)
+				return payload, nil
+			}
 			return CompassPayload{}, err
 		}
 		selectedPaths := compassSelectedPrecisionPaths(input)
@@ -317,6 +340,36 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 		payload.EvidenceLanes = evidenceLanesFromCandidates(candidates, facets, selectedPaths, claimRefsByNode(claimRecords))
 		payload.CoverageDiagnostics = append(payload.CoverageDiagnostics, claimReconciliationDiagnostics(payload.EvidenceLanes, facets)...)
 		payload.MinimalLiveReads = minimalReadsFromLanes(payload.EvidenceLanes)
+	}
+	if blockedReadiness {
+		if st != nil {
+			if len(payload.EvidenceLanes) == 0 {
+				if lane, ok := degradedStatusPathLane(status, facets); ok {
+					payload.EvidenceLanes = []EvidenceLane{lane}
+					payload.MinimalLiveReads = minimalReadsFromLanes(payload.EvidenceLanes)
+				}
+			}
+			payload.Degraded = true
+			payload.Freshness = rt.StaleFreshness
+			for index := range payload.EvidenceLanes {
+				payload.EvidenceLanes[index].Freshness = rt.StaleFreshness
+				payload.EvidenceLanes[index].VerificationHints = appendDiagnosticString(
+					payload.EvidenceLanes[index].VerificationHints,
+					"Treat this stale route only as a navigation hint and verify it against the live repository.",
+				)
+			}
+			payload.CoverageDiagnostics = append(payload.CoverageDiagnostics, CoverageDiagnostic{
+				Kind:              "stale_cognition_degraded_navigation",
+				Severity:          "warning",
+				Message:           "Project cognition readiness is blocked; compatible graph routes are stale navigation hints and require live repository verification.",
+				AffectedFacets:    append([]string{}, facets...),
+				RecommendedAction: "verify_degraded_navigation_against_live_repository",
+			})
+			payload.Warnings = appendDiagnosticString(payload.Warnings, "project_cognition_navigation_is_stale_and_degraded")
+			payload.Summary = "Compass returned bounded stale navigation hints from a compatible graph store; verify every read against the live repository while restoring project cognition readiness."
+		}
+		payload.IntentFacets = coverageForFacets(facets, payload.EvidenceLanes, payload.CoverageDiagnostics, true)
+		return payload, nil
 	}
 	payload.IntentFacets = coverageForFacets(facets, payload.EvidenceLanes, payload.CoverageDiagnostics, true)
 	payload.AgentNormalization = compassAgentNormalization(status, input, payload)
@@ -865,6 +918,42 @@ func minimalReadsFromLanes(lanes []EvidenceLane) []string {
 		}
 	}
 	return reads
+}
+
+func degradedStatusPathLane(status rt.Status, facets []string) (EvidenceLane, bool) {
+	paths := normalizePaths(append(append([]string{}, status.StalePaths...), status.DirtyScopePaths...))
+	firstPass := make([]FirstPassPath, 0, maxCompassPathsPerLane)
+	for _, candidate := range paths {
+		candidate = filepath.ToSlash(filepath.Clean(strings.ReplaceAll(candidate, `\`, "/")))
+		if candidate == "." || candidate == ".." || strings.HasPrefix(candidate, "../") || filepath.IsAbs(candidate) || filepath.VolumeName(candidate) != "" {
+			continue
+		}
+		firstPass = append(firstPass, FirstPassPath{
+			Path:         candidate,
+			Reason:       "Project cognition status records this path as stale; inspect live contents before relying on it.",
+			EvidenceHint: "Confirm the path still exists and remains relevant to the requested workflow.",
+		})
+		if len(firstPass) >= maxCompassPathsPerLane {
+			break
+		}
+	}
+	if len(firstPass) == 0 {
+		return EvidenceLane{}, false
+	}
+	return EvidenceLane{
+		ID:                "degraded:status-stale-paths",
+		Title:             "Recorded stale project paths",
+		Coverage:          "degraded_navigation_hint",
+		Confidence:        "unverified",
+		Freshness:         rt.StaleFreshness,
+		FirstPassPaths:    firstPass,
+		VerificationHints: []string{"Verify every recorded path against the live repository before using it as implementation truth."},
+		FollowupSurfaces:  []string{},
+		BeforeFixClaim:    []string{"The recorded stale paths are navigation candidates only, not proof of current ownership or behavior."},
+		ClaimRefs:         []ClaimRef{},
+		matchedTerms:      append([]string{}, facets...),
+		nodeType:          "degraded_status_paths",
+	}, true
 }
 
 func candidatesForExpansion(candidates []compassCandidate) []map[string]any {

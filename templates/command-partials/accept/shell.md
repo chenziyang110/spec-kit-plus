@@ -33,6 +33,10 @@ Use product words and concrete labels. Do not assume they remember the feature n
 - Do not repeat System Review. Reuse its startup, wiring, automated, diagnostics, and broad regression proof; the human acceptance scenarios cover the frozen requirement delta and genuinely human-observable end-to-end outcomes.
 - Lead one scenario and one step at a time. Do not present the entire procedure as homework unless the human explicitly asks for a printable checklist.
 - For the current step, state the exact click path or command, explain placeholders, state the expected visible result, and state the safe failure branch.
+- For a frozen UI acceptance scenario, guide the exact declared input, data
+  condition, and size/resize state—including keyboard/focus, empty or populated
+  data, degraded/recovery behavior, or active resize when named—rather than
+  silently replacing it with the easiest populated pointer path.
 - End with one tiny response request such as “回复 `看到了`；如果没有，发当前画面或报错文本（不要发密钥）”.
 - Human performs the real end-to-end actions. The Agent maintains the prepared session, interprets the human's natural reply, and records a structured confirmation bound to the runtime-generated `confirmation_id`, Review-approved runtime target, and reviewed snapshot without changing its meaning. It then updates the step/scenario result and cursor. The final decision uses its separate confirmation id. Agent preparation, automation, or inspection never counts as human PASS and cannot author a receipt without an actual human reply.
 - On resume, restate only the accepted context and the exact current step. A fresh Review repair cycle resets every scenario, so rerun the full frozen universe and preserve no earlier PASS.
@@ -60,3 +64,13 @@ Use product words and concrete labels. Do not assume they remember the feature n
 - The CLI alone owns `repair_resume`, the append-only `repair_history`, and resolution of Review-routed findings. Never hand-mark one `resolved`: acceptance closeout requires an unbroken route-repair history whose latest cycle matches the current approved Review.
 
 {{spec-kit-include: ../common/blocker-resolution.md}}
+
+## Professional UI Contract Continuity
+
+Human Acceptance observes the frozen scenarios derived from the exact
+`surface_catalog`, `scenario_matrix`, `interaction_matrix`,
+`editing_matrix`, `data_state_matrix`, `accessibility_matrix`, `navigation_matrix`,
+`content_matrix`, `motion_contract`, and `usability_validation`; it never
+rewrites or diagnoses them. Execute the
+risk-based frozen universe, not an unbounded Cartesian product. Medium/high-risk
+usability cannot pass without its required target-user human review.

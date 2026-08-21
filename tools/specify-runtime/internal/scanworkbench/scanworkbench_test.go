@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -928,6 +929,179 @@ func TestPrepareClassifiesRepresentativePathsByValueAndDisposition(t *testing.T)
 	}
 }
 
+func TestPrepareDetectsCodeFormatsBeforeAgentSemanticScan(t *testing.T) {
+	files := []string{
+		"backend/main.go",
+		"web/App.vue",
+		"contracts/events.proto",
+		"scripts/release",
+		"Dockerfile",
+		"deploy/app.yaml",
+		"data/export.csv",
+		"data/snapshot/1417",
+		"domain/model.flowdsl",
+	}
+	paths := newScanPaths(t, files)
+	if err := os.WriteFile(filepath.Join(paths.Root, "scripts", "release"), []byte("#!/usr/bin/env python3\nprint('release')\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Prepare(paths, PrepareInput{PacketSize: len(files)}); err != nil {
+		t.Fatalf("Prepare returned error: %v", err)
+	}
+
+	universe := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"))
+	rows := rowsByPath(t, universe["candidate_universe"])
+	expectations := []struct {
+		path        string
+		format      string
+		family      string
+		detection   string
+		agentAssist string
+		decision    string
+	}{
+		{"backend/main.go", "go", "code", "extension", "semantic_scan", "scan"},
+		{"web/App.vue", "vue", "code", "extension", "semantic_scan", "scan"},
+		{"contracts/events.proto", "protobuf", "code", "extension", "semantic_scan", "scan"},
+		{"scripts/release", "python", "script", "shebang", "semantic_scan", "scan"},
+		{"Dockerfile", "dockerfile", "config", "special_filename", "semantic_scan", "scan"},
+		{"deploy/app.yaml", "yaml", "config", "extension", "semantic_scan", "scan"},
+		{"data/export.csv", "csv", "data", "extension", "none", "inventory_only"},
+		{"data/snapshot/1417", "unknown", "unknown", "none", "format_review", "inventory_only"},
+		{"domain/model.flowdsl", "unknown", "unknown", "extension", "format_review", "inventory_only"},
+	}
+	for _, expectation := range expectations {
+		t.Run(expectation.path, func(t *testing.T) {
+			row := rows[expectation.path]
+			if row["file_format"] != expectation.format || row["format_family"] != expectation.family || row["format_detection"] != expectation.detection {
+				t.Fatalf("format classification = %#v", row)
+			}
+			if row["agent_assist"] != expectation.agentAssist || row["scan_decision"] != expectation.decision {
+				t.Fatalf("agent/scan classification = %#v", row)
+			}
+		})
+	}
+
+	groups, ok := universe["format_review_groups"].([]any)
+	if !ok || len(groups) != 2 {
+		t.Fatalf("format_review_groups = %#v, want two bounded unknown-format groups", universe["format_review_groups"])
+	}
+	groupCounts := map[string]float64{}
+	for _, raw := range groups {
+		group, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatalf("format review group = %#v", raw)
+		}
+		groupCounts[stringValue(group["format_key"])] = group["path_count"].(float64)
+		representatives, ok := group["representative_paths"].([]any)
+		if !ok || len(representatives) != 1 {
+			t.Fatalf("format review representatives = %#v", group)
+		}
+	}
+	if groupCounts["extensionless"] != 1 || groupCounts["extension:.flowdsl"] != 1 {
+		t.Fatalf("format review group counts = %#v", groupCounts)
+	}
+}
+
+func TestPreparePrioritizesProductCodeOverLocalRuntimeAndAgentArtifacts(t *testing.T) {
+	files := []string{
+		"backend/api/main.go",
+		"backend/new_feature.go",
+		"src/runtime/data/loader.go",
+		"src/.data/loader.go",
+		"packages/foo/.bin/tool.go",
+		"scripts/runtime/.bin/pgsql/include/ecpg_config.h",
+		"scripts/runtime/.data/postgres/base/1/1417",
+		"scripts/runtime/logs/postgresql.csv",
+		".planning/quick/session.md",
+		".codex/skills/sp-map-scan/SKILL.md",
+		".cursor/skills/sp-map-scan/SKILL.md",
+		".grok/skills/sp-map-scan/SKILL.md",
+	}
+	paths := newScanPaths(t, files)
+	runScanGit(t, paths.Root, "init", "-q")
+	if err := os.WriteFile(filepath.Join(paths.Root, ".gitignore"), []byte("scripts/runtime/.bin/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runScanGit(t, paths.Root, "add", "--", ".gitignore", "backend/api/main.go", ".planning/quick/session.md", ".codex/skills/sp-map-scan/SKILL.md", ".cursor/skills/sp-map-scan/SKILL.md", ".grok/skills/sp-map-scan/SKILL.md")
+
+	if _, err := Prepare(paths, PrepareInput{PacketSize: len(files)}); err != nil {
+		t.Fatalf("Prepare returned error: %v", err)
+	}
+
+	universe := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"))
+	rows := rowsByPath(t, universe["candidate_universe"])
+	for _, path := range []string{"backend/api/main.go", "backend/new_feature.go", "src/runtime/data/loader.go", "src/.data/loader.go", "packages/foo/.bin/tool.go"} {
+		row := rows[path]
+		if row["scan_decision"] != "scan" || row["disposition"] != "deep_read" {
+			t.Fatalf("product source %s classification = %#v", path, row)
+		}
+	}
+	for _, path := range files[5:] {
+		row := rows[path]
+		if row["value_tier"] != "P3" || row["scan_decision"] != "inventory_only" || row["disposition"] != "inventory_only" {
+			t.Fatalf("low-signal path %s classification = %#v, want P3 inventory_only", path, row)
+		}
+	}
+	if rows["scripts/runtime/.bin/pgsql/include/ecpg_config.h"]["git_ignored"] != true {
+		t.Fatalf("gitignored runtime header metadata = %#v", rows["scripts/runtime/.bin/pgsql/include/ecpg_config.h"])
+	}
+	if rows["backend/api/main.go"]["git_tracked"] != true || rows["backend/new_feature.go"]["git_tracked"] != false {
+		t.Fatalf("product source tracking metadata: tracked=%#v untracked=%#v", rows["backend/api/main.go"], rows["backend/new_feature.go"])
+	}
+
+	targets := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-targets.json"))
+	selected := stringSlice(t, targets["selected_paths"])
+	if !sameStringSet(selected, []string{"backend/api/main.go", "backend/new_feature.go", "src/runtime/data/loader.go", "src/.data/loader.go", "packages/foo/.bin/tool.go"}) {
+		t.Fatalf("selected_paths = %v, want only product code", selected)
+	}
+}
+
+func TestPrepareCanExplicitlyIncludeGitIgnoredSource(t *testing.T) {
+	files := []string{"src/app.go", "scratch/experimental.go"}
+	paths := newScanPaths(t, files)
+	runScanGit(t, paths.Root, "init", "-q")
+	if err := os.WriteFile(filepath.Join(paths.Root, ".gitignore"), []byte("scratch/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runScanGit(t, paths.Root, "add", "--", ".gitignore", "src/app.go")
+
+	if _, err := Prepare(paths, PrepareInput{PacketSize: len(files)}); err != nil {
+		t.Fatalf("default Prepare returned error: %v", err)
+	}
+	universe := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"))
+	if row := rowsByPath(t, universe["candidate_universe"])["scratch/experimental.go"]; row["value_tier"] != "P3" || row["scan_decision"] != "inventory_only" {
+		t.Fatalf("default gitignored source classification = %#v", row)
+	}
+
+	if _, err := Prepare(paths, PrepareInput{PacketSize: len(files), IncludeGitIgnored: true, Force: true}); err != nil {
+		t.Fatalf("explicit gitignored Prepare returned error: %v", err)
+	}
+	universe = readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"))
+	if row := rowsByPath(t, universe["candidate_universe"])["scratch/experimental.go"]; row["value_tier"] != "P1" || row["scan_decision"] != "scan" {
+		t.Fatalf("explicit gitignored source classification = %#v", row)
+	}
+}
+
+func TestStatusCapsRecommendedParallelWorkers(t *testing.T) {
+	files := []string{"src/a.go", "src/b.go", "src/c.go", "src/d.go", "src/e.go", "src/f.go"}
+	paths := newScanPaths(t, files)
+	if _, err := Prepare(paths, PrepareInput{MaxPaths: 1}); err != nil {
+		t.Fatal(err)
+	}
+
+	status, err := Status(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Packets["pending"] != 6 {
+		t.Fatalf("pending packets = %d, want 6", status.Packets["pending"])
+	}
+	if status.RecommendedParallelWorkers != 4 {
+		t.Fatalf("recommended_parallel_workers = %d, want conservative cap 4", status.RecommendedParallelWorkers)
+	}
+}
+
 func TestPrepareDoesNotResetWorkbenchWhenClassificationHasNoDispatchTargets(t *testing.T) {
 	paths := newScanPaths(t, []string{"dist/app.bundle.js"})
 	sentinelPath := filepath.Join(paths.RuntimeDir, "workbench", "sentinel.txt")
@@ -962,13 +1136,16 @@ func TestPrepareWritesConsistentRepositoryUniverseAndScanTargetsMaps(t *testing.
 
 	universe := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"))
 	targets := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-targets.json"))
-	for _, key := range []string{"schema_version", "selection_policy"} {
+	for _, key := range []string{"schema_version", "selection_policy", "selection_basis"} {
 		if _, ok := targets[key]; !ok {
 			t.Fatalf("scan-targets.json lacks %s", key)
 		}
 	}
 	if targets["selection_policy"] != "value_weighted" {
 		t.Fatalf("scan-targets selection_policy = %v, want value_weighted", targets["selection_policy"])
+	}
+	if targets["selection_basis"] != "code_format_first_agent_assisted" {
+		t.Fatalf("scan-targets selection_basis = %v, want code_format_first_agent_assisted", targets["selection_basis"])
 	}
 
 	universeRows := rowsByPath(t, universe["candidate_universe"])
@@ -995,7 +1172,17 @@ func TestPrepareWritesConsistentRepositoryUniverseAndScanTargetsMaps(t *testing.
 		if !ok {
 			t.Fatalf("included path %s lacks candidate_universe row", path)
 		}
-		for _, key := range []string{"extension", "size_bytes", "directory_family", "decision_source"} {
+		for _, key := range []string{
+			"extension",
+			"size_bytes",
+			"directory_family",
+			"file_format",
+			"format_family",
+			"format_detection",
+			"format_key",
+			"agent_assist",
+			"decision_source",
+		} {
 			if _, ok := row[key]; !ok {
 				t.Fatalf("candidate_universe row %s lacks documented metadata %s", path, key)
 			}
@@ -1438,7 +1625,7 @@ func TestLeaseRejectsSymlinkedNestedControlDirectory(t *testing.T) {
 	}
 }
 
-func TestPrepareRequiresForceBeforeReplacingAcceptedWorkbench(t *testing.T) {
+func TestPrepareResumesAcceptedWorkbenchAndForceStillReplacesIt(t *testing.T) {
 	paths := newScanPaths(t, []string{"src/app.go"})
 	if _, err := Prepare(paths, PrepareInput{}); err != nil {
 		t.Fatal(err)
@@ -1450,15 +1637,19 @@ func TestPrepareRequiresForceBeforeReplacingAcceptedWorkbench(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := Prepare(paths, PrepareInput{}); err == nil || !strings.Contains(err.Error(), "--force") {
-		t.Fatalf("Prepare without force error = %v, want explicit --force requirement", err)
+	resumed, err := Prepare(paths, PrepareInput{})
+	if err != nil {
+		t.Fatalf("Prepare without force returned error: %v", err)
+	}
+	if resumed.Status != "resumed" || resumed.ReusedPathCount != 1 || resumed.PendingPathCount != 0 {
+		t.Fatalf("resumed Prepare payload = %#v", resumed)
 	}
 	queue := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"))
 	if state := objectRows(t, queue["packets"])[0]["state"]; state != "accepted" {
-		t.Fatalf("rejected prepare changed existing queue state to %v", state)
+		t.Fatalf("resumed prepare changed existing queue state to %v", state)
 	}
 	if _, err := os.Stat(filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-001.json")); err != nil {
-		t.Fatalf("rejected prepare removed accepted result: %v", err)
+		t.Fatalf("resumed prepare removed accepted result: %v", err)
 	}
 
 	if _, err := Prepare(paths, PrepareInput{Force: true}); err != nil {
@@ -1742,6 +1933,16 @@ func newScanPaths(t *testing.T, files []string) rt.Paths {
 	}
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "tmp", "scan-files.json"), map[string]any{"files": files})
 	return paths
+}
+
+func runScanGit(t *testing.T, root string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, output)
+	}
 }
 
 func writeJSON(t *testing.T, path string, value any) {

@@ -12,6 +12,8 @@ Prove that the integrated implementation is an operable product from its officia
 
 - Resolve exactly one feature and inspect `specify-runtime workflow show` before mutation. Transition from completed `implement` to `review` with the runtime-returned revision; do not hand-edit `workflow.json`.
 - Run `{{specify-subcmd:specify-runtime review prepare --feature-dir <feature-dir> --expected-revision <revision> --format json}}`. Treat `implementation-handoff.json` as the implementation-to-review source contract and `review-state.json` as Review's resumable truth. If preparation reports stale or malformed Review-owned state outside an acceptance-repair cycle, rerun the same command with `--restart-stale`; the runtime archives the exact old bytes under `review-history/` and creates a fresh evidence cycle. When `accept route-repair` reopens Review, preparation creates a new cycle bound to the prior approved Review digest and routed acceptance finding; never restart, edit, or reapprove the old accepted cycle.
+- When `review prepare`, `review validate`, or `review resume-audit` returns `recovery_owner=review` for `implementation-snapshot-drift`, treat the snapshot drift as Review-owned recovery and immediately execute its structured `next_argv` (`review prepare ... --restart-stale`). The runtime returns that owner only after comparing a byte-bound per-path snapshot manifest and proving every changed path belongs to a current-cycle accepted Fix assignment whose independent finding chain and packet/result digests are intact; never synthesize or hand-edit that authorization. It preserves the immutable handoff, archives stale Review evidence, binds the current scoped implementation snapshot, and starts the next evidence cycle without consuming another logical validation gate. Current scoped snapshots exclude unrelated repository state and workflow/cognition metadata, while accepted in-scope Review repairs use this recovery. Do not ask the user to choose `stop` or `authorize-later-cycle` for internal recovery. Escalate only when the runtime identifies unattributed or concurrent owned-path drift, a true external boundary, or a proven upstream truth gap.
+- When the runtime returns `recovery_reason=legacy-snapshot-quarantine`, immediately execute its structured `next_argv`; this archives the manifest-less legacy Review state and opens a fresh evidence cycle without claiming the old drift was an accepted Fix. If preparation succeeds with `source.snapshot_reconciliation` equal to `initial-review-rebaseline` or `legacy-review-rebaseline`, continue directly into a full Review from official entrypoints and recapture all current-cycle integrated evidence. Continuity with the old scalar fingerprint is deliberately unproven, so these modes grant neither approval nor reusable evidence and must not become a user recovery menu.
 - Query `/user_confirmed_deferrals` with `specify-runtime artifact show --path <feature-dir>/implementation-handoff.json --json-pointer /user_confirmed_deferrals` before allocation.
   Every DEF is unresolved scope transferred from Implement: restore its exact
   blocker/task/acceptance/validation refs, keep its listed claims withheld, and
@@ -64,7 +66,11 @@ Prove that the integrated implementation is an operable product from its officia
    failed. After timeout, isolate the last active scenario/test with
    open-handle/process-exit diagnostics; repair a hang, or split a legitimately
    long matrix into deterministic bounded shards inside the same delivery gate.
-   Never open a fourth logical gate.
+   Never open a fourth logical gate. Unit tests alone cannot substitute for
+   official real-entrypoint delivery proof, and a repeated unit-only pass does
+   not satisfy the Review delivery attempt. A `pass` status also cannot stand
+   alone: every required non-waived scenario must carry current-cycle integrated
+   evidence bound to the reviewed snapshot and the current artifact bytes.
 
 Hardware-only exception lane:
 
@@ -91,7 +97,7 @@ Hardware-only exception lane:
   in the implementation summary and Accept handoff. Unconfirmed, stale, or
   tampered proposals remain blocking.
 
-UI-bearing scenarios require real-entrypoint `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` evidence with `evidence_scope: integrated`. Group the viewport/state matrix by integrated surface and source fingerprint; do not run the full viewport/state capture loop per Txx. Validate interaction, navigation, loading, empty, error, permission, persistence/reload, responsive, keyboard/focus, console, network, and runtime states when applicable. For each passing task-bound visual judgment, call `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json`; the runtime binds the approved preview/manifest/handoff truth, exact `DS-*`/`DH-*` coverage, tolerance, and deviations to the observed matrix and returns the canonical report ref/digest. Never read the stable template or author/patch the report. Automated behavior checks remain distinct from visual and interaction acceptance.
+UI-bearing scenarios require real-entrypoint `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` evidence with `evidence_scope: integrated`. Group the risk-based input × data × size matrix by integrated surface and source fingerprint; do not run the full matrix per Txx or explode it into an unbounded Cartesian product. Execute every declared `interaction_matrix`, `editing_matrix`, and `data_state_matrix` row: pointer/mouse, keyboard/focus, applicable touch/shortcut/command event sequence, immediate feedback, focus, repeat, cancellation, and pending behavior; IME composition, paste/autofill, caret/selection, validation, dirty/persistence, undo/redo, conflict, read-only/disabled, and submission behavior; empty and populated data plus declared loading, partial, error, permission, offline, pending, retry, undo, and recovery states; and continuous stretch/compression/reflow/overflow while preserving focus, selection, scroll, overlays, and unsaved input. A populated pointer happy path cannot substitute for those rows. Validate navigation, persistence/reload, console, network, and runtime states when applicable. For each passing task-bound visual judgment, call `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json`; the runtime binds the approved preview/manifest/handoff truth, exact `DS-*`/`DH-*` coverage, tolerance, and deviations to the observed matrix and returns the canonical report ref/digest. Never read the stable template or author/patch the report. Automated behavior checks remain distinct from visual and interaction acceptance.
 
 ## Delegation
 
@@ -126,3 +132,18 @@ UI-bearing scenarios require real-entrypoint `structure_snapshot`, `visual_captu
   an extra logical gate or attempt. Review owns the reserved delivery gate and
   retries only inside it.
 - Do not push, deploy, modify protected systems, use real customer data, or perform external writes without explicit authority. Use isolated test data and the shared blocker contract for genuine external boundaries.
+
+## Professional UI Contract Continuity
+
+Review the integrated product against every exact applicable `surface_catalog`,
+`scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
+`accessibility_matrix`, `navigation_matrix`, `content_matrix`,
+`motion_contract`, and `usability_validation` row/object plus component
+governance. Enforce the exact `style_authority`: under `inherit-existing`, any
+unapproved visual-language drift from the cited live UI, especially in
+`global-shell` or `shared-components`, is a blocking finding; under
+`page-overhaul-authorized`, accept style delta only on the exact authorized
+complete-page surface. Execute risk-based
+or pairwise real-entrypoint scenarios rather than an unbounded Cartesian
+product. Automated tests and screenshots cannot close required target-user
+human review.

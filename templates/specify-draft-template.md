@@ -49,7 +49,7 @@
 
 - audit_readiness: [not-ready | ready-for-audit | audit-failed | audit-passed]
 - planning_readiness_summary: [Why the package is or is not ready to leave discovery]
-- handoff_candidate: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]
+- handoff_candidate: [/sp.plan | /sp.specify | /sp.deep-research | undecided]
 
 ## Lossless State Companion
 

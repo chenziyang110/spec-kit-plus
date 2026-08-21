@@ -34,20 +34,6 @@ var artifactScaffoldKinds = map[string]artifactScaffoldKind{
 		AgentFillRequired:     []string{"current_understanding", "confirmed_facts", "readiness_decision"},
 		EstimatedTokenSavings: 900,
 	},
-	"clarification-checkpoints": {
-		Kind:                  "clarification-checkpoints",
-		TemplatePath:          "artifacts/empty.ndjson",
-		AllowedPaths:          [][]string{{"specs", "*", "clarification", "checkpoints.ndjson"}, {".specify", "features", "*", "clarification", "checkpoints.ndjson"}},
-		EstimatedTokenSavings: 20,
-	},
-	"clarification-evidence-index": {
-		Kind:                  "clarification-evidence-index",
-		TemplatePath:          "artifacts/evidence-index.json",
-		AllowedPaths:          [][]string{{"specs", "*", "clarification", "evidence-index.json"}, {".specify", "features", "*", "clarification", "evidence-index.json"}},
-		AgentFillRequired:     []string{"lanes"},
-		FillTargets:           map[string]map[string]string{"lanes": {"type": "json_pointer", "pointer": "/lanes"}},
-		EstimatedTokenSavings: 80,
-	},
 	"constitution": {
 		Kind:                  "constitution",
 		TemplatePath:          "constitution-template.md",
@@ -68,6 +54,9 @@ var artifactScaffoldKinds = map[string]artifactScaffoldKind{
 			"subject",
 			"audience",
 			"single_job",
+			"professional_skill_route",
+			"style_authority",
+			"delivery_context",
 			"decisions",
 			"design_read",
 			"dials",
@@ -87,26 +76,6 @@ var artifactScaffoldKinds = map[string]artifactScaffoldKind{
 		},
 		AgentFillRequired:     []string{"mode", "inputs", "approved_direction", "immutable_references", "contract_ids", "platforms", "risks", "validation", "next_workflow"},
 		EstimatedTokenSavings: 500,
-	},
-	"deep-research": {
-		Kind:         "deep-research",
-		TemplatePath: "artifacts/deep-research.md",
-		AllowedPaths: [][]string{
-			{"specs", "*", "deep-research.md"},
-			{".specify", "features", "*", "deep-research.md"},
-		},
-		AgentFillRequired:     []string{"metadata", "feasibility_decision", "capability_matrix", "orchestration", "agent_findings", "evidence_quality", "implementation_chain", "spike_evidence", "contradiction_resolution", "synthesis_decisions", "planning_handoff", "traceability", "capability_cards", "research_exclusions", "sources", "readiness_checklist", "next_command"},
-		EstimatedTokenSavings: 1400,
-	},
-	"deep-research-not-needed": {
-		Kind:         "deep-research-not-needed",
-		TemplatePath: "artifacts/deep-research-not-needed.md",
-		AllowedPaths: [][]string{
-			{"specs", "*", "deep-research.md"},
-			{".specify", "features", "*", "deep-research.md"},
-		},
-		AgentFillRequired:     []string{"metadata", "feasibility_decision", "planning_handoff", "next_command"},
-		EstimatedTokenSavings: 450,
 	},
 	"data-model": {
 		Kind:                  "data-model",
@@ -225,6 +194,7 @@ var artifactScaffoldKinds = map[string]artifactScaffoldKind{
 			"capability_operations":       {"type": "json_pointer", "pointer": "/capability_operations"},
 			"must_preserve_refs":          {"type": "json_pointer", "pointer": "/must_preserve_refs"},
 			"consequence_obligation_refs": {"type": "json_pointer", "pointer": "/consequence_obligation_refs"},
+			"deep_research_binding":       {"type": "json_pointer", "pointer": "/deep_research_binding"},
 			"review_risk_notes":           {"type": "json_pointer", "pointer": "/review_risk_notes"},
 		},
 		EstimatedTokenSavings: 362,
@@ -264,6 +234,7 @@ var artifactScaffoldKinds = map[string]artifactScaffoldKind{
 			"capability_operations":       {"type": "json_pointer", "pointer": "/capability_operations"},
 			"must_preserve_refs":          {"type": "json_pointer", "pointer": "/must_preserve_refs"},
 			"consequence_obligation_refs": {"type": "json_pointer", "pointer": "/consequence_obligation_refs"},
+			"feasibility_gate":            {"type": "json_pointer", "pointer": "/feasibility_gate"},
 			"design_contract":             {"type": "json_pointer", "pointer": "/design_contract"},
 			"context_capsule":             {"type": "json_pointer", "pointer": "/context_capsule"},
 			"open_items":                  {"type": "json_pointer", "pointer": "/open_items"},
@@ -465,11 +436,9 @@ func renderArtifactScaffold(kind artifactScaffoldKind, template []byte, variable
 		return renderSpecContractScaffold(kind, template, variables)
 	case "planning-lane-manifest", "task-generation-lane-manifest":
 		return renderLaneManifestScaffold(kind, template, variables)
-	case "clarification-evidence-index":
-		return renderEvidenceIndexScaffold(kind, template, variables)
 	case "test-universe", "test-catalog", "test-data-manifest", "coverage-matrix":
 		return renderCanonicalJSONScaffold(kind, template, variables)
-	case "alignment", "clarification-checkpoints", "constitution", "data-model", "debug-session", "deep-research", "deep-research-not-needed", "design-brief", "design-review", "quick-plan", "quick-summary", "quickstart", "references", "research", "specify-context", "specify-draft", "ui-brief", "ui-reference-notes", "workflow-state":
+	case "alignment", "constitution", "data-model", "debug-session", "design-brief", "design-review", "quick-plan", "quick-summary", "quickstart", "references", "research", "specify-context", "specify-draft", "ui-brief", "ui-reference-notes", "workflow-state":
 		return renderStaticArtifactScaffold(kind, template, variables)
 	default:
 		return nil, fmt.Errorf("unsupported artifact scaffold kind %q", kind.Kind)
@@ -483,31 +452,6 @@ func renderCanonicalJSONScaffold(kind artifactScaffoldKind, template []byte, var
 	var payload any
 	if err := json.Unmarshal(template, &payload); err != nil {
 		return nil, fmt.Errorf("%s template is invalid JSON: %w", kind.Kind, err)
-	}
-	var output bytes.Buffer
-	encoder := json.NewEncoder(&output)
-	encoder.SetEscapeHTML(false)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(payload); err != nil {
-		return nil, err
-	}
-	return output.Bytes(), nil
-}
-
-func renderEvidenceIndexScaffold(kind artifactScaffoldKind, template []byte, variables map[string]any) ([]byte, error) {
-	if len(variables) != 0 {
-		return nil, fmt.Errorf("%s does not accept scaffold variables; patch accepted lanes after creation", kind.Kind)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(template, &payload); err != nil {
-		return nil, fmt.Errorf("evidence-index template is invalid JSON: %w", err)
-	}
-	if intFromAny(payload["version"]) != 1 {
-		return nil, fmt.Errorf("evidence-index template must use version 1")
-	}
-	lanes, ok := payload["lanes"].([]any)
-	if !ok || len(lanes) != 0 {
-		return nil, fmt.Errorf("evidence-index template lanes must default to an empty array")
 	}
 	var output bytes.Buffer
 	encoder := json.NewEncoder(&output)
@@ -597,25 +541,22 @@ func renderStaticArtifactScaffold(kind artifactScaffoldKind, template []byte, va
 	}
 	content := string(template)
 	requiredMarkers := map[string][]string{
-		"alignment":                 {"# Specification Alignment Report:", "## Current Understanding", "## Readiness Decision"},
-		"clarification-checkpoints": {},
-		"constitution":              {" Constitution", "## Core Principles", "## Governance"},
-		"data-model":                {"# Data Model", "## Data Structures and Ownership", "## Integration and Verification"},
-		"debug-session":             {"status: intake", "understanding_confirmed: false", "## Understanding Checkpoint"},
-		"deep-research":             {"# Deep Research", "**Status**: Pending", "## Feasibility Decision", "## Contradiction Resolution Log", "## Planning Handoff", "## Capability Cards", "## Research Exclusions", "## Planning Handoff Readiness Checklist", "## Next Command"},
-		"deep-research-not-needed":  {"# Deep Research", "**Status**: Pending", "## Feasibility Decision", "## Planning Handoff", "## Next Command"},
-		"design-brief":              {"design_brief:", "status: draft", "# Design Brief", "## Taste Intake", "## UI Evidence And System Model", "## Confirmed Experience", "## Approval", "design_read:", "dials:", "aesthetic_family:", "foundation_strategy:", "redesign_mode:", "anti_slop_locks:", "reference_board_intents:"},
-		"design-review":             {"# Design Review", "## Approved Direction", "## Immutable References", "## Recommended Next Workflow"},
-		"quick-plan":                {"# Quick Task Plan", "## Outcome and Boundaries", "## Acceptance and Verification"},
-		"quick-summary":             {"# Quick Task Summary", "## Outcome", "## Verification", "## Residual Risk"},
-		"quickstart":                {"# Quickstart Validation", "## Preconditions", "## Expected Results", "## Verification Evidence"},
-		"references":                {"# Reference Memory:", "## Source Files Read", "## Reference Entries"},
-		"research":                  {"# Research:", "## Summary", "## Decisions", "## Sources"},
-		"specify-context":           {"# Planning Context:", "## Planning Context", "## Relevant Repository Context"},
-		"specify-draft":             {"# Specification Draft Ledger:", "## Intent Analysis Record", "## Domain Progress Ledger"},
-		"ui-brief":                  {"# UI Brief", "## Source Design Change", "## Feature Adoption", "## Worker Contract"},
-		"ui-reference-notes":        {"# UI Reference Notes", "## Reference Inputs", "## Fidelity Mode", "## Risks And Gaps"},
-		"workflow-state":            {"# Workflow State:", "## Current Command", "## Next Command"},
+		"alignment":          {"# Specification Alignment Report:", "## Current Understanding", "## Readiness Decision"},
+		"constitution":       {" Constitution", "## Core Principles", "## Governance"},
+		"data-model":         {"# Data Model", "## Data Structures and Ownership", "## Integration and Verification"},
+		"debug-session":      {"status: intake", "understanding_confirmed: false", "## Understanding Checkpoint"},
+		"design-brief":       {"design_brief:", "status: draft", "# Design Brief", "## Taste Intake", "## UI Professional Skill Route", "## Style Authority And Delivery Context", "## UI Evidence And System Model", "## Confirmed Experience", "## Approval", "active_command:", "phase_mode:", "current_stage:", "active_question:", "feedback_history:", "prototype_rounds:", "professional_skill_route:", "style_authority:", "delivery_context:", "design_read:", "dials:", "aesthetic_family:", "foundation_strategy:", "redesign_mode:", "anti_slop_locks:", "reference_board_intents:"},
+		"design-review":      {"# Design Review", "## Approved Direction", "## Immutable References", "## Recommended Next Workflow"},
+		"quick-plan":         {"# Quick Task Plan", "## Outcome and Boundaries", "## Acceptance and Verification"},
+		"quick-summary":      {"# Quick Task Summary", "## Outcome", "## Verification", "## Residual Risk"},
+		"quickstart":         {"# Quickstart Validation", "## Preconditions", "## Expected Results", "## Verification Evidence"},
+		"references":         {"# Reference Memory:", "## Source Files Read", "## Reference Entries"},
+		"research":           {"# Research:", "## Summary", "## Decisions", "## Sources"},
+		"specify-context":    {"# Planning Context:", "## Planning Context", "## Relevant Repository Context"},
+		"specify-draft":      {"# Specification Draft Ledger:", "## Intent Analysis Record", "## Domain Progress Ledger"},
+		"ui-brief":           {"# UI Brief", "## Source Design Change", "## Feature Adoption", "## Worker Contract"},
+		"ui-reference-notes": {"# UI Reference Notes", "## Reference Inputs", "## Fidelity Mode", "## Risks And Gaps"},
+		"workflow-state":     {"# Workflow State:", "## Current Command", "## Next Command"},
 	}
 	for _, marker := range requiredMarkers[kind.Kind] {
 		if !strings.Contains(content, marker) {
@@ -623,13 +564,11 @@ func renderStaticArtifactScaffold(kind artifactScaffoldKind, template []byte, va
 		}
 	}
 	if map[string]bool{
-		"deep-research":            true,
-		"deep-research-not-needed": true,
-		"data-model":               true,
-		"design-review":            true,
-		"quick-plan":               true,
-		"quick-summary":            true,
-		"quickstart":               true,
+		"data-model":    true,
+		"design-review": true,
+		"quick-plan":    true,
+		"quick-summary": true,
+		"quickstart":    true,
 	}[kind.Kind] {
 		for _, target := range kind.AgentFillRequired {
 			anchor := "<!-- agent-fill:" + target + " -->"
@@ -654,6 +593,20 @@ func renderStaticArtifactScaffold(kind artifactScaffoldKind, template []byte, va
 func validateDesignBriefScaffoldTemplate(content string) error {
 	for _, marker := range []string{
 		"  status: draft",
+		"  active_command: sp-design",
+		"  phase_mode: design-only",
+		"  current_stage: context-intake",
+		"  active_question:",
+		"    status: none",
+		"  feedback_history: []",
+		"  prototype_rounds: []",
+		"  style_authority:",
+		"    mode: unresolved",
+		"    protected_surfaces: []",
+		"    allowed_style_delta_surfaces: []",
+		"  delivery_context:",
+		"    origin: standalone",
+		"    return_target: null",
 		"  design_read: null",
 		"  dials:",
 		"  aesthetic_family: null",

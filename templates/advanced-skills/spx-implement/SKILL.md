@@ -59,10 +59,16 @@ with `{{specify-subcmd:specify-runtime implement task-next --feature-dir <featur
 script. The compact execution state is the implementation source of truth,
 `implement-tracker.md` is a compatibility projection, and the CLI alone owns
 those files plus task lifecycle acceptance. Start with `task-start`, compile
-delegated packets with `packet-compile`, merge inline results with
-`result-merge --result-json`, and accept with `task-accept`. Never mutate
-lifecycle/tracker/task projections directly and never create
-temporary packet/result files.
+delegated packets with `packet-compile`, and pass the receipt's canonical `path`
+and `sha256` unchanged as
+`--work-packet-file <path> --work-packet-sha256 <sha256>` on the delegated
+`run launch` or `run supervise` call. Run Control verifies those exact compiled
+bytes before deriving the Work Board task identity, objective, and confirmed
+`scope.write_scope`; do not rebuild them with manual
+`--work-task-ref`, `--work-summary`, or `--work-intents-json`. Merge inline
+results with `result-merge --result-json`, and accept with `task-accept`. Never
+mutate lifecycle/tracker/task projections directly and never create temporary
+packet/result files.
 
 Honor persisted upstream routing. If `workflow-state.md` requires or is still
 running an Analyze Gate, its artifact fingerprints are stale, or task-index
@@ -139,7 +145,15 @@ anti-slop and the task `ui_contract`; prefer visual hierarchy and the component
 system over generic equal-weight card grids. Consume the compiled task `ui_contract`; do not
 reconstruct design intent from task prose. Workers preserve design inputs and
 return changed surfaces, required states/viewports, and visual risks, but do not
-run the full viewport/state capture loop per Txx. In a Leader-owned gate attempt,
+run the full viewport/state capture loop per Txx. The implementation must
+satisfy each task's applicable `interaction_matrix`, `editing_matrix`, and `data_state_matrix`
+rows: pointer/mouse, keyboard/focus, touch/shortcut/command paths; empty and
+populated data plus each event sequence, immediate feedback, focus, repeat,
+cancellation, and pending policy and applicable partial, error, permission, offline, pending,
+retry, undo, and recovery; and `stretch_behavior` / `overflow_behavior` during
+continuous resize while focus, selection, scrolling, overlays, or unsaved input
+is active. Preserve component `interaction_modes` and `data_scenarios`; do not
+substitute a populated pointer happy path. In a Leader-owned gate attempt,
 run the integrated real surface once per applicable fingerprint and record
 `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` with
 `evidence_scope: integrated`; visually inspect, repair drift, and recapture in
@@ -154,14 +168,24 @@ It exclusively and atomically writes `implementation-summary.md` and
 `implementation-handoff.json` with the unchanged validation ledger,
 logical-gate count, and attempt history; never author, patch, replace, or
 generically submit those files. Then run
-`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-implement --intent implement --format json}}`
-then execute update/validate-build/complete-refresh (or mark-dirty), and stamp
-`{{specify-subcmd:specify-runtime cognition mutation-receipt --workflow sp-implement --feature-dir <feature-dir> --result-state ready|no_op|mark-dirty|partial --reason "<text>" --format json}}`
-**before** `implement closeout` / `workflow complete-stage` (runtime hard gate)
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-implement --scope-dir <feature-dir> --scope-mode explicit --intent implement --format json}}`
 with explicit workflow-owned paths, fill returned agent-owned fields, and execute
-structured `update_argv`. Apply the receipt-bound finalizer gate in
+structured `apply_argv` **before** `implement closeout` / `workflow complete-stage`
+(runtime hard gate). Shared apply owns update, validation, eligible finalization,
+and receipt; only an update failure uses mark-dirty plus a standalone dirty
+receipt. Apply the gate in
 `references/project-cognition.md` before any clean claim. Report changed files, checks actually run, failures or skipped
 checks, and residual risk. Ensure closeout prepared a trusted implementation
 handoff, recommend `$spx-review`, and stop. Do not invoke `$spx-accept`
 directly: technical completion is not human product acceptance, and task
 completion is not system Review. Never claim completion without fresh evidence.
+
+## Professional UI contract continuity
+
+For UI-bearing tasks, implement the exact `surface_catalog`, `scenario_matrix`,
+`interaction_matrix`, `editing_matrix`, `data_state_matrix`, `accessibility_matrix`,
+`navigation_matrix`, `content_matrix`, `motion_contract`, and
+`usability_validation` subset,
+including component governance/iconography. Exercise risk-based or pairwise
+real-entrypoint scenarios, never an unbounded Cartesian product. Automated
+tests/screenshots cannot close required target-user human review.

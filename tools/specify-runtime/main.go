@@ -45,6 +45,10 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 		return runResultCommand(args[1:], stdout)
 	case "run":
 		return runRun(args[1:], stdout, stderr)
+	case "work":
+		return runWork(args[1:], stdout)
+	case "board":
+		return runBoard(args[1:], stdout)
 	case "candidate":
 		return runCandidateCommand(args[1:], stdout)
 	case "cas":
@@ -63,6 +67,8 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 		return runDesign(args[1:], stdout)
 	case "test-design":
 		return runTestDesign(args[1:], stdout)
+	case "deep-research":
+		return runDeepResearch(args[1:], stdout)
 	case "evidence":
 		return runEvidence(args[1:], stdout)
 	case "doctor":
@@ -98,11 +104,13 @@ func writeHelp(stdout io.Writer) int {
 	for _, name := range []string{
 		"api",
 		"artifact",
+		"board",
 		"candidate",
 		"cas",
 		"cognition",
 		"discussion",
 		"design",
+		"deep-research",
 		"test-design",
 		"doctor",
 		"evidence",
@@ -122,6 +130,7 @@ func writeHelp(stdout io.Writer) int {
 		"validate",
 		"version",
 		"workflow",
+		"work",
 	} {
 		_, _ = fmt.Fprintf(stdout, "  %s\n", name)
 	}
@@ -698,6 +707,12 @@ func resolveValidateSpecFeatureDir(args []string) (string, error) {
 }
 
 func runCognition(args []string, stdout, stderr io.Writer, cliVersion string) int {
+	if len(args) >= 2 && strings.EqualFold(strings.TrimSpace(args[0]), "closeout") && strings.EqualFold(strings.TrimSpace(args[1]), "apply") {
+		return runCognitionCloseoutApplyCLI(args[2:], stdout)
+	}
+	if len(args) > 0 && strings.EqualFold(strings.TrimSpace(args[0]), "closeout-apply") {
+		return runCognitionCloseoutApplyCLI(args[1:], stdout)
+	}
 	if containsHelpFlag(args) {
 		return cognitioncli.Run(args, stdout, stderr, cliVersion)
 	}
@@ -1012,6 +1027,11 @@ func defaultCapabilities() []string {
 		"artifact.restore",
 		"artifact.scaffold",
 		"artifact.show",
+		"board.owner",
+		"board.branch-policy",
+		"board.feature-bootstrap",
+		"board.reconcile",
+		"board.show",
 		"artifact.submit",
 		"cognition.build-from-scan",
 		"cognition.archive-incompatible-store",
@@ -1019,9 +1039,11 @@ func defaultCapabilities() []string {
 		"cognition.claim-reconcile.apply",
 		"cognition.claim-reconcile.prepare",
 		"cognition.clear-dirty",
+		"cognition.closeout.apply",
 		"cognition.closeout-plan",
 		"cognition.compass",
 		"cognition.complete-refresh",
+		"cognition.confirm-ignore",
 		"cognition.mutation-receipt",
 		"cognition.delta.append",
 		"cognition.delta.begin",
@@ -1038,8 +1060,11 @@ func defaultCapabilities() []string {
 		"cognition.run",
 		"cognition.scan-accept",
 		"cognition.scan-checkpoint",
+		"cognition.scan-formats",
 		"cognition.scan-lease",
 		"cognition.scan-packet",
+		"cognition.scan-policy-confirm",
+		"cognition.scan-policy-stage",
 		"cognition.scan-prepare",
 		"cognition.scan-requeue",
 		"cognition.scan-set",
@@ -1054,6 +1079,7 @@ func defaultCapabilities() []string {
 		"cognition.validate-scan",
 		"design.approve",
 		"design.adopt",
+		"design.adoption",
 		"design.change",
 		"design.diff",
 		"design.impact",
@@ -1069,6 +1095,21 @@ func defaultCapabilities() []string {
 		"design.resolve",
 		"design.ui-target",
 		"design.ui-target-lint",
+		"deep-research.audit-accept",
+		"deep-research.audit-prepare",
+		"deep-research.init",
+		"deep-research.not-needed",
+		"deep-research.publish",
+		"deep-research.status",
+		"deep-research.synthesize",
+		"deep-research.track-accept",
+		"deep-research.track-lease",
+		"deep-research.track-prepare",
+		"deep-research.track-reject",
+		"deep-research.track-submit",
+		"deep-research.track-yield",
+		"deep-research.validate",
+		"deep-research.verify-handoff",
 		"test-design.audit-prepare",
 		"test-design.handoff",
 		"test-design.gap-reconcile",
@@ -1207,6 +1248,15 @@ func defaultCapabilities() []string {
 		"workflow.resolve",
 		"workflow.show",
 		"workflow.transition",
+		"work.abandon",
+		"work.begin",
+		"work.block",
+		"work.checkpoint",
+		"work.finish",
+		"work.interrupt",
+		"work.resume",
+		"work.scope-add",
+		"work.show",
 	}
 	sort.Strings(capabilities)
 	return capabilities
@@ -1258,6 +1308,14 @@ func capabilitySummary(id string) string {
 		return "Atomically bind a compact reviewed runtime target, its exact identity evidence, snapshot, and digests."
 	case "cognition.semantic-audit":
 		return "Build a semantic routing audit and optionally persist its canonical input/output pair atomically."
+	case "cognition.confirm-ignore":
+		return "Activate only user-confirmed starter cognition-ignore suggestions."
+	case "cognition.scan-formats":
+		return "Inventory repository-specific file-format cohorts before scan boundary decisions."
+	case "cognition.scan-policy-stage":
+		return "Validate and stage an Agent-authored cohort policy for user review."
+	case "cognition.scan-policy-confirm":
+		return "Bind user confirmation to one exact staged scan-policy digest."
 	case "evidence.visual-compare":
 		return "Materialize a task-bound visual comparison report from compact observed differences and captures."
 	case "design.change":
@@ -1274,6 +1332,38 @@ func capabilitySummary(id string) string {
 		return "Register an approved change-local UI contract as immutable consumption truth."
 	case "design.adopt":
 		return "Record a compare-and-swap consumer adoption of one exact UI design binding."
+	case "design.adoption":
+		return "Verify a post-Specify UI design overlay against the unchanged source specification."
+	case "deep-research.init":
+		return "Initialize a runtime-owned, source-bound Deep Research workspace."
+	case "deep-research.status":
+		return "Show resumable Deep Research state, freshness, track counts, and next action."
+	case "deep-research.track-prepare":
+		return "Freeze bounded research tracks that cover every selected capability."
+	case "deep-research.track-lease":
+		return "Lease one pending research track to an independent worker."
+	case "deep-research.track-submit":
+		return "Validate and materialize one track result plus canonical evidence objects."
+	case "deep-research.track-accept":
+		return "Accept a digest-bound track result after evidence and source verification."
+	case "deep-research.track-reject":
+		return "Preserve a submitted result as a rejection record and requeue its one allowed retry."
+	case "deep-research.track-yield":
+		return "Release a track lease while preserving its resumable attempt history."
+	case "deep-research.synthesize":
+		return "Close capability, evidence, contradiction, spike, and planning-handoff coverage."
+	case "deep-research.audit-prepare":
+		return "Freeze an independent audit request over the exact accepted research corpus."
+	case "deep-research.audit-accept":
+		return "Record an identity-separated audit result for every required research check."
+	case "deep-research.validate":
+		return "Validate source freshness, canonical closure, evidence integrity, and audit acceptance."
+	case "deep-research.publish":
+		return "Publish a digest-bound, Plan-consumable Deep Research handoff."
+	case "deep-research.verify-handoff":
+		return "Fail closed unless the published handoff and every bound artifact remain current."
+	case "deep-research.not-needed":
+		return "Publish an evidence-backed no-research-needed disposition without inventing findings."
 	case "prd-scan.record-upsert":
 		return "Create or replace one PRD scan contract record without rewriting its JSON document."
 	case "prd-scan.record-remove":
@@ -1360,10 +1450,40 @@ func capabilitySummary(id string) string {
 		return "Atomically bind passed human acceptance to terminal workflow state."
 	case "cognition.mutation-receipt":
 		return "Record a durable project-cognition mutation closeout receipt required before implement/quick/review terminal close."
+	case "cognition.closeout.apply":
+		return "Run the shared mutation closeout sequence: bounded update, build validation, eligible finalization, and runtime-bound receipt."
 	case "implement.result-merge":
 		return "Merge a leader-submitted WorkerTaskResult with validation_results into task lifecycle state."
 	case "implement.task-reopen":
 		return "Reopen one non-acceptance-ready implemented task with revision guards and immutable audit history."
+	case "board.show":
+		return "List the durable repository Work Board with task ownership and declared write intents."
+	case "board.owner":
+		return "Find active or recovery-held work whose declared write scope overlaps one path."
+	case "board.reconcile":
+		return "Interrupt expired work leases and preserve dirty scopes behind recovery holds."
+	case "board.branch-policy":
+		return "Keep the current feature branch when another live task or dirty recovery hold exists."
+	case "board.feature-bootstrap":
+		return "Register the exact feature directory before creation and return its branch policy."
+	case "work.begin":
+		return "Register one agent task and its planned write scope on the shared Work Board."
+	case "work.scope-add":
+		return "Atomically expand a revision-bound task write scope after conflict checking."
+	case "work.checkpoint":
+		return "Renew a task lease and record its next action and observed changed paths."
+	case "work.block":
+		return "Mark active work blocked without releasing its declared write scope."
+	case "work.finish":
+		return "Complete one task and release its write scope while retaining history."
+	case "work.abandon":
+		return "Abandon one task and release its write scope while retaining history."
+	case "work.interrupt":
+		return "Fence a confirmed-ended owner session and preserve dirty scope for immediate recovery."
+	case "work.resume":
+		return "Resume interrupted work under a new fence after conflict checking."
+	case "work.show":
+		return "Read one Work Board item and its declared write intents."
 	case "run.create":
 		return "Record a new workflow Run request in the repository control plane."
 	case "run.show":

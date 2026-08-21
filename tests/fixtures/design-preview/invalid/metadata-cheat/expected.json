@@ -2,7 +2,7 @@
   "result": "fail",
   "diagnostics": [
     {
-      "code": "preview-undifferentiated-direction-visuals",
+      "code": "preview-unfinished-prototype",
       "layer": "quality"
     }
   ]

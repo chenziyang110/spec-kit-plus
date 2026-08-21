@@ -34,6 +34,14 @@ PASSING_VISUAL_STATUSES = {
     "matched",
     "matches",
 }
+HUMAN_UI_REVIEWERS = {
+    "human",
+    "human_review",
+    "human_reviewer",
+    "manual",
+    "manual_review",
+    "manual_reviewer",
+}
 
 
 def _canonical_records(values: object) -> tuple[str, ...]:
@@ -370,6 +378,41 @@ def validate_lifecycle_ui_verification(
     )
     if visual_comparison not in PASSING_VISUAL_STATUSES:
         errors.append(f"{relative} ui_verification.visual_comparison must pass")
+    usability_validation = ui_contract.get("usability_validation")
+    usability_validation = (
+        usability_validation if isinstance(usability_validation, dict) else {}
+    )
+    if usability_validation.get("human_review_required") is True:
+        reviewer = (
+            str(verification.get("reviewer") or "")
+            .strip()
+            .lower()
+            .replace("-", "_")
+            .replace(" ", "_")
+        )
+        if reviewer not in HUMAN_UI_REVIEWERS:
+            errors.append(
+                f"{relative} human usability validation requires a human reviewer"
+            )
+        human_review_ref = str(verification.get("human_review_ref") or "").strip()
+        human_review_path = (
+            resolve_feature_artifact_ref(feature_dir, human_review_ref)
+            if human_review_ref
+            else None
+        )
+        if human_review_path is None:
+            errors.append(
+                f"{relative} ui_verification.human_review_ref must reference an existing artifact"
+            )
+        else:
+            try:
+                human_review_size = human_review_path.stat().st_size
+            except OSError:
+                human_review_size = 0
+            if human_review_size == 0:
+                errors.append(
+                    f"{relative} ui_verification.human_review_ref artifact must be non-empty"
+                )
     design_decision_ids = {
         str(item).strip()
         for item in ui_contract.get("design_decision_ids", [])
@@ -398,7 +441,6 @@ def validate_lifecycle_ui_verification(
             "approved_manifest_sha256",
             "approved_handoff_ref",
             "approved_handoff_sha256",
-            "comparison_tolerance",
         ):
             if str(verification.get(field) or "").strip() != str(
                 ui_contract.get(field) or ""
@@ -406,6 +448,12 @@ def validate_lifecycle_ui_verification(
                 errors.append(
                     f"{relative} ui_verification.{field} must preserve the task contract"
                 )
+        if verification.get("comparison_tolerance") != ui_contract.get(
+            "comparison_tolerance"
+        ):
+            errors.append(
+                f"{relative} ui_verification.comparison_tolerance must preserve the task contract"
+            )
         covered_decision_ids = {
             str(item).strip()
             for item in verification.get("covered_decision_ids", [])

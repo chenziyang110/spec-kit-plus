@@ -55,12 +55,11 @@ code or style tests alone do not close the change.
 
 Create no spec, plan, tasks, quick workspace, delegation packet, or lifecycle
 artifact. When repository behavior changed, run
-`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-fast --intent implement --format json}}`
-then update/finalize (or mark-dirty) and
-`{{specify-subcmd:specify-runtime cognition mutation-receipt --workflow sp-fast --scope-dir <project-or-workspace> --result-state ready|no_op|mark-dirty|partial --reason "<text>" --format json}}`
-before claiming the fast change complete—project cognition must keep improving
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-fast --scope-dir <project-or-workspace> --scope-mode explicit --intent implement --format json}}`
 with explicit workflow-owned paths, fill returned agent-owned fields, and execute
-structured `update_argv`. Apply the receipt-bound finalizer gate in
+structured `apply_argv` before claiming the fast change complete. Shared apply
+owns update, validation, eligible finalization, and receipt; only an update
+failure uses mark-dirty plus a standalone dirty receipt. Apply the gate in
 `references/project-cognition.md` before any clean claim. Report the outcome, changed paths, exact verification, and
 residual risk. This invocation authorizes only this workflow stage; report any
 escalation as a handoff and do not invoke another workflow in this run.

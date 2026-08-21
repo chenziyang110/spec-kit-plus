@@ -4,6 +4,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 from specify_cli.agents import CommandRegistrar
 from specify_cli.integrations.base import IntegrationBase
 
@@ -14,6 +16,12 @@ from .template_utils import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PASSIVELY_INVOCABLE_CLASSIC_SKILLS = {
+    "sp-debug",
+    "sp-discussion",
+    "sp-fast",
+    "sp-quick",
+}
 
 
 def _normalize_newlines(text: str) -> str:
@@ -50,6 +58,99 @@ def _assert_managed_block_emitters_match_across_shells() -> None:
         )
     )
     assert bash_block == ps_block
+
+
+def test_classic_workflow_skill_passive_invocation_allowlist_is_exact():
+    assert (
+        CommandRegistrar.PASSIVELY_INVOCABLE_CLASSIC_SKILLS
+        == PASSIVELY_INVOCABLE_CLASSIC_SKILLS
+    )
+
+    for skill_name in PASSIVELY_INVOCABLE_CLASSIC_SKILLS:
+        assert CommandRegistrar.is_passively_invocable_classic_skill(skill_name)
+
+    for skill_name in ("sp-plan", "sp-specify", "sp-implement", "sp-map-update"):
+        assert not CommandRegistrar.is_passively_invocable_classic_skill(skill_name)
+
+
+@pytest.mark.parametrize("agent_name", ("claude", "grok"))
+def test_native_skill_frontmatter_blocks_model_invocation_outside_allowlist(
+    agent_name: str,
+):
+    allowed = CommandRegistrar.build_skill_frontmatter(
+        agent_name,
+        "sp-quick",
+        "Use when direct delivery is appropriate.",
+        "templates/commands/quick.md",
+    )
+    restricted = CommandRegistrar.build_skill_frontmatter(
+        agent_name,
+        "sp-plan",
+        "Use when implementation planning is required.",
+        "templates/commands/plan.md",
+    )
+
+    assert allowed["user-invocable"] is True
+    assert "disable-model-invocation" not in allowed
+    assert restricted["user-invocable"] is True
+    assert restricted["disable-model-invocation"] is True
+
+
+@pytest.mark.parametrize(
+    "agent_name",
+    ("agy", "codex", "cursor-agent", "kimi", "trae", "vibe", "zcode"),
+)
+def test_standard_skill_description_requires_explicit_user_invocation(
+    agent_name: str,
+):
+    frontmatter = CommandRegistrar.build_skill_frontmatter(
+        agent_name,
+        "sp-plan",
+        "Use when implementation planning is required.",
+        "templates/commands/plan.md",
+    )
+
+    assert frontmatter["description"].startswith("User-invoked workflow only:")
+    assert "Do not select it automatically." in frontmatter["description"]
+
+
+def test_passive_workflow_router_declares_exact_invocation_allowlist():
+    routing = read_template(
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md"
+    )
+    normalized = " ".join(routing.split())
+
+    assert (
+        "Passive SKILL invocation is allowed only for `sp-discussion`, "
+        "`sp-quick`, `sp-debug`, and `sp-fast`" in normalized
+    )
+    assert "All other `sp-*` workflows are user-invoked only" in routing
+    assert "recommend the projected invocation and stop" in routing
+
+
+@pytest.mark.parametrize(
+    "template_path",
+    (
+        "templates/passive-skills/dispatching-parallel-agents/SKILL.md",
+        "templates/passive-skills/frontend-design/SKILL.md",
+        "templates/passive-skills/project-to-prd/SKILL.md",
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+        "templates/passive-skills/spec-kit-ui-design/SKILL.md",
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
+        "templates/passive-skills/subagent-driven-development/SKILL.md",
+    ),
+)
+def test_passive_routing_skills_require_manual_entry_for_restricted_workflows(
+    template_path: str,
+) -> None:
+    normalized = " ".join(read_template(template_path).lower().split())
+
+    assert "recommend" in normalized
+    assert (
+        "user-invoked only" in normalized
+        or "explicit user invocation" in normalized
+        or "explicitly invokes" in normalized
+    )
 
 
 def test_init_generated_codex_skill_includes_invocation_note_and_projected_handoff(
@@ -94,7 +195,7 @@ def test_init_generated_codex_skill_includes_invocation_note_and_projected_hando
     assert "semantic_delta" in content
     assert "spec-contract.json" in content
     assert "/sp.plan" in content
-    assert "/sp.clarify" in content
+    assert "/sp.specify" in content
     assert "/sp.deep-research" in content
     assert "Choose exactly one next command" in content
     assert "`next_action`" in content or "next_action" in content
@@ -497,6 +598,7 @@ def test_classic_and_advanced_design_workflows_publish_scope_aware_iteration() -
             "specify-runtime design diff",
             "specify-runtime design impact",
             "specify-runtime design adopt",
+            "specify-runtime design adoption",
         ):
             assert command in content
         assert "iteration_of" in content
@@ -724,7 +826,6 @@ def test_learning_contract_surfaces_do_not_ship_fake_runnable_placeholder_comman
     command_template_paths = (
         PROJECT_ROOT / "templates" / "commands" / "analyze.md",
         PROJECT_ROOT / "templates" / "commands" / "checklist.md",
-        PROJECT_ROOT / "templates" / "commands" / "clarify.md",
         PROJECT_ROOT / "templates" / "commands" / "constitution.md",
         PROJECT_ROOT / "templates" / "commands" / "debug.md",
         PROJECT_ROOT / "templates" / "commands" / "deep-research.md",
@@ -741,7 +842,6 @@ def test_learning_contract_surfaces_do_not_ship_fake_runnable_placeholder_comman
     forbidden_fragments = (
         "capture-learning --command analyze ...",
         "capture-learning --command checklist ...",
-        "capture-learning --command clarify ...",
         "capture-learning --command constitution ...",
         "capture-learning --command deep-research ...",
         "capture-learning --command debug ...",
@@ -1038,7 +1138,9 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert "python `specify` is human-only" in content
         assert "show_argv" in content
         assert ".specify/memory/learnings/index.md" not in content
-        assert "do not auto-enter an `sp-*` workflow" in content
+        assert "passive skill invocation is allowed only for" in content
+        assert "`sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`" in content
+        assert "all other `sp-*` workflows are user-invoked only" in content
         assert "recommend `sp-discussion`" in content
         assert "presents both `sp-quick` and `sp-specify`" in content
         assert "complexity-informed recommendation" in content
@@ -1062,7 +1164,6 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert "## artifact priority" not in content
         assert "## project cognition usage" not in content
         assert "## map maintenance" not in content
-        assert "sp-fast" not in content
         assert "sp-test-scan" not in content
         assert "sp-test-build" not in content
         assert ("use `" + "project" + "-map complete-refresh`") not in content
@@ -1170,7 +1271,6 @@ def test_docs_describe_greenfield_project_cognition_bootstrap() -> None:
 
 def test_classic_auxiliary_artifact_workflows_fail_closed_through_go_gate() -> None:
     expected = {
-        "clarify": "--command clarify --feature-dir <feature-dir>",
         "deep-research": "--command deep-research --feature-dir <feature-dir>",
         "analyze": "--command analyze --feature-dir <feature-dir>",
         "constitution": "--command constitution --feature-dir .specify/memory",

@@ -2,7 +2,7 @@
 
 ## Current Command
 
-- active_command: [sp-specify | sp-plan | sp-tasks | sp-implement | sp-review | sp-accept | sp-debug | sp-analyze | sp-deep-research | sp-clarify | sp-constitution | sp-prd | sp-prd-scan | sp-prd-build]
+- active_command: [sp-specify | sp-plan | sp-tasks | sp-implement | sp-review | sp-accept | sp-debug | sp-analyze | sp-deep-research | sp-constitution | sp-prd | sp-prd-scan | sp-prd-build]
 - status: [active | completed | blocked]
 
 ## Phase Mode
@@ -18,7 +18,7 @@
 - blocker_reason: [None | Why progress is blocked]
 - approach_comparison_status: [not-needed | pending | awaiting-user-confirmation | selected | auto-accepted-recommended]
 - section_approval_status: [not-needed | pending | awaiting-user-confirmation | approved | auto-approved-recommended]
-- final_handoff_decision: [/sp.plan | /sp.clarify | /sp.deep-research | undecided]
+- final_handoff_decision: [/sp.plan | /sp.specify | /sp.deep-research | undecided]
 
 ## Review State
 
@@ -74,7 +74,7 @@
 
 - gate_status: [not-run | cleared | blocked]
 - gate_cycle: [0]
-- highest_invalid_stage: [none | clarify | deep-research | plan | tasks | execution-only]
+- highest_invalid_stage: [none | specify | deep-research | plan | tasks | execution-only]
 - blocker_bundle:
   - [finding-id | invalid-stage | open | attribution | compact summary | remediation requirement]
 - blocker_attribution_values: [none | missed_by_previous_analyze | introduced_by_remediation | upstream_artifact_changed | detector_scope_changed]
@@ -144,4 +144,4 @@
 
 ## Next Command
 
-- [`/sp.plan` | `/sp.clarify` | `/sp.deep-research` | other canonical next workflow token]
+- [`/sp.plan` | `/sp.specify` | `/sp.deep-research` | other canonical next workflow token]

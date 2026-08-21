@@ -57,7 +57,6 @@ CORE_WORKFLOW_TEMPLATES = (
     "templates/commands/quick.md",
     "templates/commands/debug.md",
     "templates/commands/fast.md",
-    "templates/commands/clarify.md",
     "templates/commands/checklist.md",
     "templates/commands/map-scan.md",
     "templates/commands/map-build.md",

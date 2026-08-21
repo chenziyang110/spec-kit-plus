@@ -46,6 +46,15 @@ func runImplementPacketCompile(args []string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	featureRef, err := filepath.Rel(root, feature)
+	if err != nil || featureRef == "." || featureRef == ".." || strings.HasPrefix(featureRef, ".."+string(filepath.Separator)) {
+		return nil, fmt.Errorf("feature directory must stay below the project root")
+	}
+	featureRef = filepath.ToSlash(featureRef)
+	featureID := strings.TrimSpace(filepath.Base(filepath.Clean(feature)))
+	if featureID == "" || featureID == "." || featureID == string(filepath.Separator) {
+		return nil, fmt.Errorf("feature directory must have a stable feature id")
+	}
 	taskID, err := normalizeTaskControlID(optionValue(args, "--task-id", ""))
 	if err != nil {
 		return nil, err
@@ -64,6 +73,7 @@ func runImplementPacketCompile(args []string) (map[string]any, error) {
 	}
 	packet := cloneJSONMap(template)
 	packet["version"] = 2
+	packet["feature_id"] = featureID
 	packet["task_id"] = taskID
 	packet["source_task_ref"] = fmt.Sprintf("task-index.json#/tasks/%d", position)
 	packet["source_revision"] = index["source_revision"]
@@ -135,7 +145,7 @@ func runImplementPacketCompile(args []string) (map[string]any, error) {
 	result["status"] = "ok"
 	result["task_id"] = taskID
 	result["packet_ref"] = packetRef
-	result["path"] = packetRef
+	result["path"] = filepath.ToSlash(filepath.Join(featureRef, packetRef))
 	result["sha256"] = taskControlSHA256(packetBytes)
 	return result, nil
 }
@@ -355,6 +365,9 @@ func runImplementTaskAccept(args []string) (map[string]any, error) {
 	validation, _ := lifecycle["validation"].([]any)
 	blockers, _ := lifecycle["blockers"].([]any)
 	if err := validateImplementTaskAcceptanceEvidence(task, validation, blockers); err != nil {
+		return nil, err
+	}
+	if err := validateImplementTaskUIAcceptance(feature, task, lifecycle); err != nil {
 		return nil, err
 	}
 	revision := intFromAny(lifecycle["revision"]) + 1
@@ -831,6 +844,9 @@ func resolveImplementTaskNext(root, feature string, index map[string]any, workfl
 		if acceptanceErr := validateImplementTaskAcceptanceEvidence(task, validation, blockers); acceptanceErr != nil {
 			return implementTaskReopenDecision(featureRef, taskID, revision, workflow.Revision, acceptanceErr)
 		}
+		if acceptanceErr := validateImplementTaskUIAcceptance(feature, task, lifecycle); acceptanceErr != nil {
+			return implementTaskReopenDecision(featureRef, taskID, revision, workflow.Revision, acceptanceErr)
+		}
 		return map[string]any{
 			"status":                  "blocked",
 			"reason_code":             "task-accept-required",
@@ -912,7 +928,8 @@ func resetImplementTaskUIVerification(value any) map[string]any {
 	return map[string]any{
 		"applicable": applicable, "contract_check": "not-run", "runtime_evidence": "not-run",
 		"visual_comparison": "unavailable", "fidelity_status": fidelityStatus, "reviewer": "agent",
-		"evidence": []any{}, "comparison_report_ref": "", "comparison_report_sha256": "",
+		"human_review_ref": "",
+		"evidence":         []any{}, "comparison_report_ref": "", "comparison_report_sha256": "",
 		"implementation_capture_refs": []any{}, "structural_differences": []any{}, "visual_differences": []any{},
 	}
 }
@@ -1249,6 +1266,47 @@ func validateImplementTaskAcceptanceEvidence(task map[string]any, validation, bl
 	}
 	if len(blockers) > 0 {
 		return fmt.Errorf("task acceptance is blocked by unresolved blockers; status success requires blockers:[]")
+	}
+	return nil
+}
+
+func validateImplementTaskUIAcceptance(feature string, task, lifecycle map[string]any) error {
+	uiContract, ok := task["ui_contract"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	usability, ok := uiContract["usability_validation"].(map[string]any)
+	if !ok || !boolValue(usability["human_review_required"]) {
+		return nil
+	}
+	verification, ok := lifecycle["ui_verification"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("human usability validation requires ui_verification")
+	}
+	reviewer := strings.NewReplacer("-", "_", " ", "_").Replace(
+		strings.ToLower(strings.TrimSpace(anyString(verification["reviewer"]))),
+	)
+	humanReviewers := map[string]bool{
+		"human": true, "human_review": true, "human_reviewer": true,
+		"manual": true, "manual_review": true, "manual_reviewer": true,
+	}
+	if !humanReviewers[reviewer] {
+		return fmt.Errorf("human usability validation requires a human reviewer")
+	}
+	humanReviewRef := filepath.ToSlash(strings.TrimSpace(anyString(verification["human_review_ref"])))
+	if humanReviewRef == "" || filepath.IsAbs(filepath.FromSlash(humanReviewRef)) {
+		return fmt.Errorf("ui_verification.human_review_ref must reference an existing artifact")
+	}
+	humanReviewPath, err := secureProjectPath(feature, humanReviewRef)
+	if err != nil {
+		return fmt.Errorf("ui_verification.human_review_ref must reference an existing artifact")
+	}
+	info, err := os.Stat(humanReviewPath)
+	if err != nil || !info.Mode().IsRegular() {
+		return fmt.Errorf("ui_verification.human_review_ref must reference an existing artifact")
+	}
+	if info.Size() == 0 {
+		return fmt.Errorf("ui_verification.human_review_ref artifact must be non-empty")
 	}
 	return nil
 }

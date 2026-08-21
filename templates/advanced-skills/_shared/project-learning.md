@@ -1,5 +1,11 @@
 # Project Learning
 
+`spx-quick` and `spx-debug` apply their pre-intake context sufficiency gate
+before this reference. When it passes and the user explicitly selects
+context-direct, follow the `spx-fast` skip policy and do not run Learning
+intake, capture, or review. Insufficient evidence, a full-branch choice, or
+scope expansion ends the exception and restores the policy below.
+
 Use the Learning CLI as the only agent-facing read surface. Do not parse the
 learning index, detail Markdown, compatibility summary, or runtime candidate
 files directly during normal execution.

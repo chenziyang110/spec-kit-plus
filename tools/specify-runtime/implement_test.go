@@ -440,6 +440,9 @@ func TestImplementCloseoutFreezesCanonicalReviewContractForPrepare(t *testing.T)
 	if strings.TrimSpace(fmt.Sprint(handoff["implementation_fingerprint"])) == "" {
 		t.Fatalf("handoff missing implementation_fingerprint: %#v", handoff)
 	}
+	if handoff["fingerprint_algorithm"] != "implement-scoped-snapshot-v2" {
+		t.Fatalf("handoff fingerprint_algorithm = %#v, want implement-scoped-snapshot-v2", handoff["fingerprint_algorithm"])
+	}
 	if handoff["entrypoints"] != nil || handoff["review_scenarios"] != nil || handoff["source_fingerprint"] != nil {
 		t.Fatalf("handoff kept legacy aliases: %#v", handoff)
 	}
@@ -480,6 +483,7 @@ func TestImplementSnapshotUsesRealGitIgnoreSemantics(t *testing.T) {
 	project, feature, _ := newImplementFeatureProject(t)
 	requireGit(t)
 	withImplementCwd(t, project)
+	writeSnapshotLifecycle(t, feature, "T001", []string{"src/product.txt"}, nil)
 	writeTextFile(t, filepath.Join(project, ".gitignore"), strings.Join([]string{
 		"dist/",
 		"*.out",
@@ -510,16 +514,17 @@ func TestImplementSnapshotUsesRealGitIgnoreSemantics(t *testing.T) {
 	}
 
 	writeTextFile(t, filepath.Join(project, "generated", "keep.txt"), "re-included by nested negation\n")
-	if afterKeep := implementSnapshotSHA256(project, feature); afterKeep == before {
-		t.Fatal("nonignored nested negation file did not change fingerprint")
+	if afterKeep := implementSnapshotSHA256(project, feature); afterKeep != before {
+		t.Fatal("out-of-scope re-included file changed fingerprint")
 	}
 }
 
-func TestImplementSnapshotTracksGitHeadTrackedAndUntrackedState(t *testing.T) {
+func TestImplementSnapshotDeclaredTopLevelFileStableAcrossStatusTransitions(t *testing.T) {
 	project, feature, _ := newImplementFeatureProject(t)
 	requireGit(t)
 	withImplementCwd(t, project)
-	writeTextFile(t, filepath.Join(project, "src", "product.txt"), "before\n")
+	writeSnapshotLifecycle(t, feature, "T001", []string{"package.json"}, nil)
+	writeTextFile(t, filepath.Join(project, "package.json"), "{\n  \"name\": \"demo\",\n  \"version\": \"1.0.0\"\n}\n")
 	gitRun(t, project, "init")
 	gitRun(t, project, "config", "user.email", "tests@example.com")
 	gitRun(t, project, "config", "user.name", "Spec Runtime Tests")
@@ -528,36 +533,212 @@ func TestImplementSnapshotTracksGitHeadTrackedAndUntrackedState(t *testing.T) {
 
 	before := implementSnapshotSHA256(project, feature)
 
-	writeTextFile(t, filepath.Join(project, "src", "product.txt"), "tracked edit\n")
-	afterTracked := implementSnapshotSHA256(project, feature)
-	if afterTracked == before {
-		t.Fatal("tracked source edit did not change fingerprint")
+	writeTextFile(t, filepath.Join(project, "package.json"), "{\n  \"name\": \"demo\",\n  \"version\": \"2.0.0\"\n}\n")
+	dirty := implementSnapshotSHA256(project, feature)
+	if dirty == before {
+		t.Fatal("declared top-level file content change did not change fingerprint")
 	}
 
-	gitRun(t, project, "checkout", "--", "src/product.txt")
-	clean := implementSnapshotSHA256(project, feature)
-	if clean != before {
-		t.Fatalf("clean checkout fingerprint = %s, want %s", clean, before)
+	gitRun(t, project, "add", "package.json")
+	staged := implementSnapshotSHA256(project, feature)
+	if staged != dirty {
+		t.Fatalf("staging the same package.json bytes changed fingerprint: %s != %s", staged, dirty)
 	}
 
-	writeTextFile(t, filepath.Join(project, "notes.txt"), "nonignored untracked file\n")
-	afterUntracked := implementSnapshotSHA256(project, feature)
-	if afterUntracked == before {
-		t.Fatal("nonignored untracked file did not change fingerprint")
+	gitRun(t, project, "commit", "-m", "package update")
+	committed := implementSnapshotSHA256(project, feature)
+	if committed != dirty {
+		t.Fatalf("committing unchanged package.json bytes changed fingerprint: %s != %s", committed, dirty)
+	}
+}
+
+func TestImplementSnapshotDeclaredPathOnlyScopesSiblingSourceFiles(t *testing.T) {
+	project, feature, _ := newImplementFeatureProject(t)
+	requireGit(t)
+	withImplementCwd(t, project)
+	writeSnapshotLifecycle(t, feature, "T001", []string{"src/declared.txt"}, nil)
+	writeTextFile(t, filepath.Join(project, "src", "declared.txt"), "before\n")
+	writeTextFile(t, filepath.Join(project, "src", "unrelated.txt"), "before\n")
+	gitRun(t, project, "init")
+	gitRun(t, project, "config", "user.email", "tests@example.com")
+	gitRun(t, project, "config", "user.name", "Spec Runtime Tests")
+	gitRun(t, project, "add", ".")
+	gitRun(t, project, "commit", "-m", "initial")
+
+	before := implementSnapshotSHA256(project, feature)
+	writeTextFile(t, filepath.Join(project, "src", "unrelated.txt"), "after unrelated\n")
+	afterSibling := implementSnapshotSHA256(project, feature)
+	if afterSibling != before {
+		t.Fatalf("undeclared sibling source file changed fingerprint: %s != %s", afterSibling, before)
 	}
 
-	if err := os.Remove(filepath.Join(project, "notes.txt")); err != nil {
-		t.Fatal(err)
+	writeTextFile(t, filepath.Join(project, "src", "declared.txt"), "after declared\n")
+	afterDeclared := implementSnapshotSHA256(project, feature)
+	if afterDeclared == before {
+		t.Fatal("declared path content change did not change fingerprint")
 	}
-	clean = implementSnapshotSHA256(project, feature)
-	if clean != before {
-		t.Fatalf("clean fingerprint after removing untracked file = %s, want %s", clean, before)
+}
+
+func TestImplementSnapshotTreatsDeclaredWriteScopeDirectoriesAsPrefixes(t *testing.T) {
+	project, feature, _ := newImplementFeatureProject(t)
+	requireGit(t)
+	withImplementCwd(t, project)
+	writeSnapshotLifecycle(t, feature, "T001", nil, map[string]any{
+		"write_scope": stringSliceToAny([]string{"src/demo"}),
+	})
+	writeTextFile(t, filepath.Join(project, "src", "demo", "button.ts"), "before\n")
+	writeTextFile(t, filepath.Join(project, "src", "unrelated.txt"), "before\n")
+	gitRun(t, project, "init")
+	gitRun(t, project, "config", "user.email", "tests@example.com")
+	gitRun(t, project, "config", "user.name", "Spec Runtime Tests")
+	gitRun(t, project, "add", ".")
+	gitRun(t, project, "commit", "-m", "initial")
+
+	before := implementSnapshotSHA256(project, feature)
+	writeTextFile(t, filepath.Join(project, "src", "unrelated.txt"), "after unrelated\n")
+	if afterUnrelated := implementSnapshotSHA256(project, feature); afterUnrelated != before {
+		t.Fatalf("unrelated sibling file changed fingerprint: %s != %s", afterUnrelated, before)
 	}
 
-	gitRun(t, project, "commit", "--allow-empty", "-m", "head only change")
-	afterHead := implementSnapshotSHA256(project, feature)
-	if afterHead == before {
-		t.Fatal("HEAD-only change did not change fingerprint")
+	writeTextFile(t, filepath.Join(project, "src", "demo", "button.ts"), "after declared dir\n")
+	if afterDeclaredDir := implementSnapshotSHA256(project, feature); afterDeclaredDir == before {
+		t.Fatal("declared write_scope directory change did not change fingerprint")
+	}
+}
+
+func TestImplementSnapshotIgnoresOtherFeatureAndSpecifyMetadataDrift(t *testing.T) {
+	project, feature, _ := newImplementFeatureProject(t)
+	requireGit(t)
+	withImplementCwd(t, project)
+	writeSnapshotLifecycle(t, feature, "T001", []string{"src/product.txt"}, nil)
+	writeTextFile(t, filepath.Join(project, "src", "product.txt"), "before\n")
+	otherFeature := filepath.Join(project, ".specify", "features", "002-other")
+	mustMkdir(t, otherFeature)
+	gitRun(t, project, "init")
+	gitRun(t, project, "config", "user.email", "tests@example.com")
+	gitRun(t, project, "config", "user.name", "Spec Runtime Tests")
+	gitRun(t, project, "add", ".")
+	gitRun(t, project, "commit", "-m", "initial")
+
+	before := implementSnapshotSHA256(project, feature)
+	writeTextFile(t, filepath.Join(otherFeature, "workflow-state.md"), "# other feature drift\n")
+	writeTextFile(t, filepath.Join(project, ".specify", "memory", "project-rules.md"), "# cognition drift\n")
+	writeTextFile(t, filepath.Join(project, ".specify", "design", "review.md"), "# design metadata\n")
+	after := implementSnapshotSHA256(project, feature)
+	if after != before {
+		t.Fatalf("other feature or .specify metadata drift changed fingerprint: %s != %s", after, before)
+	}
+}
+
+func TestImplementSnapshotRejectsUnsafeDeclaredPaths(t *testing.T) {
+	project, feature, _ := newImplementFeatureProject(t)
+	requireGit(t)
+	withImplementCwd(t, project)
+	outsideDir := filepath.Join(project, "..", "outside-snapshot")
+	mustMkdir(t, outsideDir)
+	outsidePath := filepath.Join(outsideDir, "secret.txt")
+	writeTextFile(t, outsidePath, "before\n")
+	unsafe := []string{"../outside-snapshot/secret.txt"}
+	if filepath.VolumeName("C:secret.txt") != "" {
+		unsafe = append(unsafe, "C:secret.txt")
+	}
+	if filepath.IsAbs(outsidePath) {
+		unsafe = append(unsafe, outsidePath)
+	}
+	writeSnapshotLifecycle(t, feature, "T001", unsafe, map[string]any{
+		"write_scope": stringSliceToAny(unsafe),
+	})
+	writeTextFile(t, filepath.Join(project, "src", "product.txt"), "before\n")
+	gitRun(t, project, "init")
+	gitRun(t, project, "config", "user.email", "tests@example.com")
+	gitRun(t, project, "config", "user.name", "Spec Runtime Tests")
+	gitRun(t, project, "add", ".")
+	gitRun(t, project, "commit", "-m", "initial")
+
+	before := implementSnapshotSHA256(project, feature)
+	writeTextFile(t, outsidePath, "after\n")
+	after := implementSnapshotSHA256(project, feature)
+	if after != before {
+		t.Fatalf("unsafe declared path outside project changed fingerprint: %s != %s", after, before)
+	}
+}
+
+func TestImplementSafeDeclaredSnapshotPathRejectsDotSegments(t *testing.T) {
+	root := t.TempDir()
+	for _, raw := range []string{
+		"./src/product.txt",
+		"src/./product.txt",
+		"src/../src/product.txt",
+	} {
+		t.Run(raw, func(t *testing.T) {
+			if normalized, ok := implementSafeDeclaredSnapshotPath(root, raw); ok {
+				t.Fatalf("dot-segment path was accepted as %q", normalized)
+			}
+		})
+	}
+
+	normalized, ok := implementSafeDeclaredSnapshotPath(root, "src/product.txt")
+	if !ok || normalized != "src/product.txt" {
+		t.Fatalf("safe declared path was rejected: normalized=%q ok=%v", normalized, ok)
+	}
+}
+
+func TestImplementSnapshotIncludesAcceptedReviewFixAssignmentPaths(t *testing.T) {
+	project, feature, _ := newImplementFeatureProject(t)
+	requireGit(t)
+	withImplementCwd(t, project)
+	writeTextFile(t, filepath.Join(project, "src", "product.txt"), "before\n")
+	writeImplementJSONFile(t, filepath.Join(feature, "review-state.json"), map[string]any{
+		"fix_assignments": []any{
+			map[string]any{
+				"id":             "FX-001",
+				"status":         "accepted",
+				"leader_verdict": "accepted",
+				"changed_paths":  []any{"src/review-fix.txt"},
+			},
+		},
+	})
+	gitRun(t, project, "init")
+	gitRun(t, project, "config", "user.email", "tests@example.com")
+	gitRun(t, project, "config", "user.name", "Spec Runtime Tests")
+	gitRun(t, project, "add", ".")
+	gitRun(t, project, "commit", "-m", "initial")
+
+	before := implementSnapshotSHA256(project, feature)
+	writeTextFile(t, filepath.Join(project, "src", "review-fix.txt"), "after accepted fix\n")
+	after := implementSnapshotSHA256(project, feature)
+	if after == before {
+		t.Fatal("accepted review fix assignment path did not change fingerprint")
+	}
+}
+
+func TestImplementSnapshotIncludesAcceptedReviewFixAssignmentPathsFromHistory(t *testing.T) {
+	project, feature, _ := newImplementFeatureProject(t)
+	requireGit(t)
+	withImplementCwd(t, project)
+	writeTextFile(t, filepath.Join(project, "src", "product.txt"), "before\n")
+	reviewHistory := filepath.Join(feature, "review-history", "review-state-abc123.json")
+	writeImplementJSONFile(t, reviewHistory, map[string]any{
+		"fix_assignments": []any{
+			map[string]any{
+				"id":             "FX-001",
+				"status":         "accepted",
+				"leader_verdict": "accepted",
+				"changed_paths":  []any{"src/history-fix.txt"},
+			},
+		},
+	})
+	gitRun(t, project, "init")
+	gitRun(t, project, "config", "user.email", "tests@example.com")
+	gitRun(t, project, "config", "user.name", "Spec Runtime Tests")
+	gitRun(t, project, "add", ".")
+	gitRun(t, project, "commit", "-m", "initial")
+
+	before := implementSnapshotSHA256(project, feature)
+	writeTextFile(t, filepath.Join(project, "src", "history-fix.txt"), "after history fix\n")
+	after := implementSnapshotSHA256(project, feature)
+	if after == before {
+		t.Fatal("accepted review-history fix assignment path did not change fingerprint")
 	}
 }
 
@@ -566,6 +747,7 @@ func TestImplementSnapshotTracksQuotedGitPathsViaNULProtocol(t *testing.T) {
 	requireGit(t)
 	withImplementCwd(t, project)
 	quotedPath := filepath.Join(project, "docs", "中文 name.txt")
+	writeSnapshotLifecycle(t, feature, "T001", []string{"docs/中文 name.txt"}, nil)
 	writeTextFile(t, quotedPath, "before\n")
 	gitRun(t, project, "init")
 	gitRun(t, project, "config", "user.email", "tests@example.com")
@@ -580,6 +762,22 @@ func TestImplementSnapshotTracksQuotedGitPathsViaNULProtocol(t *testing.T) {
 	if after == before {
 		t.Fatal("CJK/space path content change did not change fingerprint")
 	}
+}
+
+func writeSnapshotLifecycle(t *testing.T, feature, taskID string, changedPaths []string, extra map[string]any) {
+	t.Helper()
+	payload := map[string]any{
+		"version":       1,
+		"task_id":       taskID,
+		"status":        "accepted",
+		"changed_paths": stringSliceToAny(changedPaths),
+		"validation":    []any{map[string]any{"command": "pytest -q", "status": "passed"}},
+		"blockers":      []any{},
+	}
+	for key, value := range extra {
+		payload[key] = value
+	}
+	writeImplementJSONFile(t, filepath.Join(feature, "implementation-review", "tasks", taskID+".json"), payload)
 }
 
 func TestImplementFrozenHandoffPreventsConvergenceRetryButAllowsDelivery(t *testing.T) {

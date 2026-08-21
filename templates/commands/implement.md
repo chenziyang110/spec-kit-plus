@@ -58,7 +58,7 @@ projection.
 ## Main Flow
 
 1. Run `{SCRIPT}` to resolve the task-bearing feature context, then call `{{specify-subcmd:specify-runtime implement task-next --feature-dir <feature-dir> --format json}}`. Treat CLI-owned `task-index.json` as the structured execution contract from Tasks, while letting the CLI return only the next ready task and compact execution state; use `specify-runtime artifact show --json-pointer ...` for any additional canonical field. Never parse or rewrite the full task index with ad-hoc scripts. Required refs, protected requirements, user decisions, and task-local `MP-*` must-preserve obligations remain locked; a conflict must stop and route to the owning upstream phase rather than redefine the goal during implementation.
-2. Validate the returned task and current ready batch. For delegated work, call `{{specify-subcmd:specify-runtime implement packet-compile --feature-dir <feature-dir> --task-id <Txx> --format json}}`; do not author a packet file. When its task packet includes Test Design refs, enforce the task-packet boundary above and stop on any binding failure. Group behavior-changing Txx items into one coherent change-set, establish its RED/baseline through the Leader-owned logical validation-gate contract, and do not claim completion from chat narration.
+2. Validate the returned task and current ready batch. For delegated work, call `{{specify-subcmd:specify-runtime implement packet-compile --feature-dir <feature-dir> --task-id <Txx> --format json}}`; do not author a packet file. Pass the returned canonical `path` and `sha256` unchanged as `--work-packet-file <path> --work-packet-sha256 <sha256>` when the delegated worker is launched through `run launch` or `run supervise`; Run Control verifies the exact compiled bytes before parsing, then registers the packet's task identity, objective, and confirmed `scope.write_scope` on the shared Work Board before child launch. Do not reconstruct that metadata with manual `--work-task-ref`, `--work-summary`, or `--work-intents-json` flags. When its task packet includes Test Design refs, enforce the task-packet boundary above and stop on any binding failure. Group behavior-changing Txx items into one coherent change-set, establish its RED/baseline through the Leader-owned logical validation-gate contract, and do not claim completion from chat narration.
 3. Use `choose_subagent_dispatch(command_name="implement", snapshot, workload_shape)` for safe worker lanes, use the current integration's native subagent lifecycle where available, and keep leader ownership of tracker state.
 4. Start with `specify-runtime implement task-start`, execute the current task or ready batch, merge a structured result with `specify-runtime implement result-merge --result-json '<inline-json>'`, and accept it only with `specify-runtime implement task-accept`. These commands atomically own task status, lifecycle, execution state, and compatibility tracker projections. Never edit those workflow files directly and never create a temporary result JSON file under `worker-results/` (runtime owns that path). Expand the authoritative WorkerTaskResult shape with `specify-runtime api schema implement-result-merge-input --format json` or `api show implement.result-merge`. Acceptance-ready `status: success` requires `validation_results: [{command, status: "passed", summary?}, ...]` (field name is `validation_results`, not `validation`); `blockers` must be empty; worker status is `success|blocked|failed` (not `DONE`). Prefer `--result-json @path` or a clean argv JSON dump over shell `ConvertTo-Json`. `evidence register` is optional attachment and does not substitute for `validation_results`. Resolve blockers through bounded repair and route unknown root cause to `{{invoke:debug}}`.
 5. Run event-triggered review for repository drift, parallel joins, write-scope drift, validation failure, worker concerns, obligation conflicts, or sequential change-window limits. Let `specify-runtime implement task-start|result-merge|task-accept` maintain the single task lifecycle record; submit a blocked result through `result-merge` rather than inventing a task-block file operation. Report completion only when its changed paths, validation evidence, review status, and mutation closeout are complete.
@@ -80,7 +80,13 @@ projection.
    generating UI: query the task's exact registered design change, UI System
    Model (tokens, components, states), surface-aware anti-slop policy, and the task
    `ui_contract` through `specify-runtime artifact show`. Prefer visual hierarchy
-   and the component system over generic equal-weight card grids. Preserve states and changed surfaces
+   and the component system over generic equal-weight card grids. Execute the
+   declared pointer/mouse, keyboard/focus, touch, and command paths; verify
+   each interaction row's event sequence, immediate feedback, focus, repeat,
+   cancellation, and pending behavior plus component `interaction_modes`,
+   `data_scenarios`, `editing_matrix`, and
+   resize/stretch/overflow behavior instead of checking only the populated
+   happy path. Preserve states and changed surfaces
    through `specify-runtime implement`, and capture requirements, but do not run
    the full viewport/state capture loop per Txx. Group the matrix by integrated
    surface and capture typed `structure_snapshot`, `visual_capture`, and
@@ -128,8 +134,10 @@ dependency-safe ready work; preserve the exact resume action in every blocked
 stop.
 
 {{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
-Before `implement closeout` or `workflow complete-stage`, stamp
-`specify-runtime cognition mutation-receipt --workflow sp-implement --feature-dir <feature-dir> --result-state ready|no_op|mark-dirty|partial --reason "…"`. Runtime blocks closeout without it so every implement pass grows project cognition.
+Before `implement closeout` or `workflow complete-stage`, execute the shared
+planner-returned `apply_argv`; it writes the runtime-bound receipt after update,
+validation, and eligible finalization. Runtime blocks closeout without that
+receipt so every implement pass grows project cognition.
 
 ## Detailed References
 
@@ -141,3 +149,13 @@ Read [Reference index](references/INDEX.md) before applying detailed contracts.
 - [join point review](references/join-point-review.md)
 - [safe repair loop](references/safe-repair-loop.md)
 - [final reconciliation and closeout](references/branch-review-and-closeout.md)
+
+## Professional UI Contract Continuity
+
+Implement each task's exact `surface_catalog`, `scenario_matrix`,
+`interaction_matrix`, `editing_matrix`, `data_state_matrix`, `accessibility_matrix`,
+`navigation_matrix`, `content_matrix`, `motion_contract`, and
+`usability_validation` subset, including component
+governance and iconography. Exercise risk-based or pairwise combinations at
+real entry points, never an unbounded Cartesian product. Do not claim required
+target-user human review from automated tests or screenshots.

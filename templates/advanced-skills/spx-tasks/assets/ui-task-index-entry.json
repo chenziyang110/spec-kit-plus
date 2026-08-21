@@ -7,6 +7,14 @@
     "ui_work_type": "{{ui_work_type}}",
     "surface_type": "{{surface_type}}",
     "platforms": ["{{platform}}"],
+    "style_authority": {
+      "mode": "{{greenfield_inherit-existing_or_page-overhaul-authorized}}",
+      "scope_level": "{{feature-partial_or_page}}",
+      "source_refs": ["{{exact_live_style_or_registered_baseline_ref}}"],
+      "protected_surfaces": ["global-shell", "shared-components"],
+      "allowed_style_delta_surfaces": [],
+      "authorization_source": null
+    },
     "subject": "{{subject}}",
     "audience": "{{audience}}",
     "single_job": "{{single_job}}",
@@ -27,28 +35,208 @@
     "reference_intents": [{"ref": "{{reference_ref}}", "intent": "{{reference_intent}}"}],
     "real_content_plan": [{"source_ref": "{{content_source_ref}}", "applies_to_states": ["{{content_state}}"]}],
     "image_plan": [],
+    "surface_catalog": [{
+      "id": "{{selected_handoff_surface_id}}",
+      "profile_id": "{{copy_exact_surface_profile_id}}",
+      "name": "{{copy_exact_surface_name}}",
+      "kind": "{{copy_exact_surface_kind}}",
+      "source_refs": ["{{copy_exact_surface_source_ref}}"],
+      "specimen_ids": ["{{copy_exact_surface_specimen_id}}"],
+      "component_ids": ["{{selected_handoff_component_id}}"],
+      "decision_ids": ["{{copy_exact_surface_decision_ids}}"]
+    }],
+    "scenario_matrix": [{
+      "id": "{{selected_handoff_scenario_id}}",
+      "surface_id": "{{selected_handoff_surface_id}}",
+      "name": "{{copy_exact_scenario_name}}",
+      "risk": "{{copy_exact_low_medium_or_high_risk}}",
+      "required": true,
+      "interaction_script": {
+        "preconditions": ["{{copy_exact_scenario_precondition}}"],
+        "start_state_id": "{{copy_exact_scenario_start_data_state_id}}",
+        "steps": [{
+          "input": "{{copy_exact_scenario_step_input}}",
+          "action": "{{copy_exact_scenario_step_action}}",
+          "expected_feedback": "{{copy_exact_scenario_step_expected_feedback}}"
+        }],
+        "branches": [{
+          "conditions": ["success"],
+          "setup": "{{copy_exact_branch_setup}}",
+          "expected_state_id": "{{copy_exact_branch_expected_data_state_id}}",
+          "expected_feedback": "{{copy_exact_branch_expected_feedback}}",
+          "focus_behavior": "{{copy_exact_branch_focus_behavior}}",
+          "announcement": "{{copy_exact_branch_announcement}}",
+          "continuation": "{{copy_exact_branch_continuation}}"
+        }, {
+          "conditions": ["failure", "timeout", "cancel"],
+          "setup": "{{copy_exact_interruption_branch_setup}}",
+          "expected_state_id": "{{copy_exact_interruption_data_state_id}}",
+          "expected_feedback": "{{copy_exact_interruption_feedback}}",
+          "focus_behavior": "{{copy_exact_interruption_focus_behavior}}",
+          "announcement": "{{copy_exact_interruption_announcement}}",
+          "continuation": "{{copy_exact_interruption_continuation}}"
+        }, {
+          "conditions": ["retry", "duplicate", "out_of_order"],
+          "setup": "{{copy_exact_concurrency_branch_setup}}",
+          "expected_state_id": "{{copy_exact_concurrency_data_state_id}}",
+          "expected_feedback": "{{copy_exact_concurrency_feedback}}",
+          "focus_behavior": "{{copy_exact_concurrency_focus_behavior}}",
+          "announcement": "{{copy_exact_concurrency_announcement}}",
+          "continuation": "{{copy_exact_concurrency_continuation}}"
+        }],
+        "focus_checkpoint": "{{copy_exact_scenario_focus_checkpoint}}",
+        "announcement_checkpoint": "{{copy_exact_scenario_announcement_checkpoint}}",
+        "completion_checkpoint": "{{copy_exact_scenario_completion_checkpoint}}",
+        "recovery_checkpoint": "{{copy_exact_scenario_recovery_checkpoint}}"
+      },
+      "interaction_ids": ["{{selected_handoff_interaction_id}}"],
+      "editing_ids": ["{{selected_handoff_editing_id}}"],
+      "data_state_ids": ["{{copy_exact_scenario_start_data_state_id}}", "{{copy_exact_branch_expected_data_state_id}}", "{{copy_exact_interruption_data_state_id}}", "{{copy_exact_concurrency_data_state_id}}"],
+      "accessibility_ids": ["{{selected_handoff_accessibility_id}}"],
+      "navigation_ids": ["{{selected_handoff_navigation_id}}"],
+      "content_ids": ["{{selected_handoff_content_id}}"],
+      "responsive_ids": ["{{selected_handoff_responsive_id}}"],
+      "motion_transition_ids": ["{{selected_handoff_motion_id}}"],
+      "decision_ids": ["{{copy_exact_scenario_decision_ids}}"]
+    }],
+    "interaction_matrix": [{
+      "id": "{{selected_handoff_interaction_id_or_stable_local_id}}",
+      "surface": "{{task_surface}}",
+      "input": "{{pointer_mouse_keyboard_focus_touch_shortcut_command_or_system}}",
+      "trigger": "{{concrete_event_or_transition}}",
+      "event_sequence": "{{ordered_platform_events_from_input_start_through_commit_or_cancel}}",
+      "immediate_feedback": "{{pressed_focus_selection_drag_or_pending_feedback_before_completion}}",
+      "focus_behavior": "{{focus_selection_scroll_and_invoker_preservation_or_transfer}}",
+      "repeat_behavior": "{{single_double_hold_key_repeat_debounce_and_duplicate_policy}}",
+      "cancellation_behavior": "{{escape_pointercancel_interrupt_or_release_outside_recovery}}",
+      "pending_behavior": "{{allowed_blocked_cancel_retry_and_duplicate_behavior_while_pending}}",
+      "decision_ids": ["{{copy_exact_interaction_decision_ids}}"]
+    }],
+    "editing_matrix": [{
+      "id": "{{selected_handoff_editing_id_or_stable_local_id}}",
+      "surface": "{{task_surface}}",
+      "input_methods": ["{{keyboard_ime_voice_paste_autofill_or_platform_input}}"],
+      "composition_behavior": "{{ime_or_composed_input_commit_and_validation_behavior}}",
+      "paste_autofill_behavior": "{{paste_autofill_normalization_and_feedback_behavior}}",
+      "selection_caret_behavior": "{{selection_caret_focus_and_reflow_preservation_behavior}}",
+      "formatting_behavior": "{{display_formatting_and_underlying_value_behavior}}",
+      "validation_timing": "{{input_blur_submit_async_and_composition_validation_timing}}",
+      "validation_feedback": "{{inline_summary_announcement_and_correction_feedback}}",
+      "dirty_state_behavior": "{{unsaved_change_visibility_and_destructive_navigation_behavior}}",
+      "persistence_behavior": "{{draft_autosave_reload_retry_and_reauthentication_behavior}}",
+      "undo_redo_behavior": "{{native_or_application_history_boundaries_and_feedback}}",
+      "conflict_behavior": "{{concurrent_edit_detection_comparison_and_resolution_behavior}}",
+      "read_only_disabled_behavior": "{{read_only_selection_and_disabled_reason_behavior}}",
+      "submission_behavior": "{{enter_shortcut_duplicate_pending_success_failure_and_focus_behavior}}",
+      "decision_ids": ["{{copy_exact_editing_decision_ids}}"]
+    }],
+    "data_state_matrix": [{
+      "id": "{{selected_handoff_data_id_or_stable_local_id}}",
+      "surface": "{{task_surface}}",
+      "state": "{{empty_populated_loading_partial_error_permission_offline_pending_or_success}}",
+      "data_condition": "{{representative_data_condition_and_density}}",
+      "expectation": "{{rendering_actions_context_preservation_and_recovery}}",
+      "decision_ids": ["{{copy_exact_data_decision_ids}}"]
+    }],
+    "accessibility_matrix": [{
+      "id": "{{selected_handoff_accessibility_id_or_stable_local_id}}",
+      "surface": "{{task_surface}}",
+      "semantics": ["{{name_role_value_and_native_semantics}}"],
+      "reading_order": "{{reading_order}}",
+      "focus_order": "{{focus_order}}",
+      "keyboard": ["{{keyboard_behavior}}"],
+      "announcements": ["{{live_region_or_native_announcement}}"],
+      "target_size": "{{target_size_requirement}}",
+      "contrast": "{{contrast_requirement}}",
+      "zoom_reflow": "{{zoom_and_reflow_requirement}}",
+      "alternatives": ["{{non_visual_or_non_motion_alternative}}"],
+      "decision_ids": ["{{copy_exact_accessibility_decision_ids}}"]
+    }],
+    "navigation_matrix": [{
+      "id": "{{selected_handoff_navigation_id_or_stable_local_id}}",
+      "surface": "{{task_surface}}",
+      "entry": "{{entry_context}}",
+      "destination": "{{destination}}",
+      "trigger": "{{navigation_trigger}}",
+      "back_behavior": "{{back_behavior}}",
+      "deep_link_behavior": "{{deep_link_behavior}}",
+      "interruption_recovery": "{{interruption_recovery}}",
+      "decision_ids": ["{{copy_exact_navigation_decision_ids}}"]
+    }],
+    "content_matrix": [{
+      "id": "{{selected_handoff_content_id_or_stable_local_id}}",
+      "surface": "{{task_surface}}",
+      "state": "{{content_state}}",
+      "purpose": "{{content_purpose}}",
+      "copy": "{{approved_copy}}",
+      "primary_action": "{{primary_action_or_explicit_none}}",
+      "trust_requirement": "{{trust_and_safety_requirement}}",
+      "localization": "{{localization_rtl_date_number_and_expansion_behavior}}",
+      "content_limits": ["{{content_capacity_or_truncation_rule}}"],
+      "decision_ids": ["{{copy_exact_content_decision_ids}}"]
+    }],
     "color_modes": ["{{task_applicable_color_mode}}"],
     "component_contracts": [{
       "id": "{{selected_handoff_component_id}}",
       "component": "{{copy_exact_component_value}}",
       "anatomy": ["{{copy_exact_anatomy_values}}"],
       "required_states": ["{{copy_exact_required_state_values}}"],
+      "interaction_modes": ["{{copy_exact_interaction_modes}}"],
+      "data_scenarios": [{
+        "state": "{{copy_exact_data_state}}",
+        "data_condition": "{{copy_exact_data_condition}}",
+        "expectation": "{{copy_exact_data_expectation}}"
+      }],
+      "variants": ["{{copy_exact_component_variants}}"],
+      "content_constraints": ["{{copy_exact_component_content_constraints}}"],
+      "semantic_token_refs": ["{{copy_exact_semantic_token_refs}}"],
+      "governance": "{{reuse_extend_or_new}}",
+      "iconography": "{{copy_exact_iconography_contract}}",
       "decision_ids": ["{{copy_exact_component_decision_ids}}"],
       "must_match": ["{{copy_exact_component_must_match_values}}"]
     }],
     "responsive_matrix": [{
       "id": "{{selected_handoff_responsive_id}}",
+      "profile_id": "{{copy_exact_profile_id}}",
       "label": "{{copy_exact_responsive_label}}",
       "target": {
         "width": "{{copy_exact_numeric_width}}",
         "height": "{{copy_exact_numeric_height}}",
         "unit": "{{copy_exact_target_unit}}"
       },
+      "review_width_px": "{{copy_exact_numeric_review_width}}",
       "state": "{{copy_exact_responsive_state}}",
       "adaptation": "{{copy_exact_adaptation}}",
+      "stretch_behavior": "{{copy_exact_stretch_behavior}}",
+      "overflow_behavior": "{{copy_exact_overflow_behavior}}",
       "decision_ids": ["{{copy_exact_responsive_decision_ids}}"]
     }],
-    "motion_contract": {"purpose": "{{motion_purpose}}", "reduced_motion": "{{reduced_motion_equivalent}}"},
+    "motion_contract": {
+      "purpose": "{{motion_purpose}}",
+      "transitions": [{
+        "id": "{{selected_handoff_motion_id_or_stable_local_id}}",
+        "surface": "{{task_surface}}",
+        "trigger": "{{motion_trigger}}",
+        "response": "{{motion_response}}",
+        "duration_ms": "{{copy_exact_numeric_duration_ms}}",
+        "easing": "{{copy_exact_easing}}",
+        "interrupt_behavior": "{{interrupt_cancel_or_reverse_behavior}}",
+        "decision_ids": ["{{copy_exact_motion_decision_ids}}"]
+      }],
+      "reduced_motion": "{{reduced_motion_equivalent}}",
+      "feedback_timing": {
+        "immediate_ms": "{{copy_exact_numeric_immediate_ms}}",
+        "progress_ms": "{{copy_exact_numeric_progress_ms}}",
+        "timeout_ms": "{{copy_exact_numeric_timeout_ms}}"
+      }
+    },
+    "usability_validation": {
+      "risk_level": "{{low_medium_or_high}}",
+      "methods": ["{{heuristic_cognitive_walkthrough_or_target_user_test}}"],
+      "critical_tasks": ["{{critical_user_task}}"],
+      "success_criteria": ["{{observable_success_criterion}}"],
+      "human_review_required": "{{copy_exact_boolean_human_review_required}}"
+    },
     "visual_acceptance_matrix": [{
       "id": "{{selected_handoff_visual_acceptance_id}}",
       "target_id": "{{copy_exact_target_id}}",

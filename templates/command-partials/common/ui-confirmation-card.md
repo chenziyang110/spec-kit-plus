@@ -36,9 +36,9 @@ content is not an adequate acceptance basis.
 | Design basis and source material | [exact registered design-change ID/ref/hash, approved direction, inspectable current entry point, original references with reference intent, and real content or image sources] |
 | Target experience | [visual, content, and interaction thesis plus the signature element or recognizable behavior to preserve or introduce] |
 | Structure and visible change | [information hierarchy, layout, component placement, copy, and visible before-to-after change] |
-| Interaction, states, and adaptation | [primary interaction, loading/empty/error/success/disabled/focus states, responsive or window adaptation, keyboard and accessibility behavior] |
+| Interaction, states, and adaptation | [pointer/mouse, keyboard/focus, touch/shortcut/command and immediate feedback; cancel/retry/undo/recovery; empty and populated data plus applicable loading/partial/error/permission/offline/pending/success; continuous resize/stretch/reflow/overflow; preservation of focus, selection, scroll, overlays, and unsaved input; accessibility] |
 | Design boundaries | Must preserve: [non-negotiable patterns or behavior]. May adapt: [implementation-flexible details]. Must not: [visual, content, or interaction regressions]. |
-| Acceptance evidence | [real entry point, representative viewport/window and state matrix, structure snapshot, visual capture, runtime diagnostics, and visual comparison or explicit human review] |
+| Acceptance evidence | [real entry point, risk-based input × data × size matrix including active resize, structure snapshot, visual capture, runtime diagnostics, and visual comparison or explicit human review] |
 ```
 
 Do not add a second reply prompt here. When this card follows a Quick or Debug

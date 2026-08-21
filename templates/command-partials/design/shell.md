@@ -12,7 +12,8 @@ setup). Create, refine, or audit one bounded `UD-*` change through
 `specify-runtime design`; use synthesis only as the input strategy for
 create/refine. Set `<change-dir>` to
 `.specify/design/changes/<UD-ID>`. Prefer Evidence → UI System Model →
-three-direction preview over screenshot-to-page cloning. The global
+collaborative single-concept iteration over screenshot-to-page cloning or
+batch option generation. The global
 `.specify/design/index.json` is metadata only. An existing root `DESIGN.md` is
 a read-only legacy baseline, never an implicit latest contract.
 
@@ -38,6 +39,12 @@ Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep
   - `current_stage: context-intake`
   - `allowed_writes: .specify/design/index.json, <change-dir>/DESIGN.md, <change-dir>/brief.md, <change-dir>/design-contract.json, <change-dir>/references.md, <change-dir>/options.md, <change-dir>/previews/*, <change-dir>/review.md, .specify/memory/project-rules.md`
   - `forbidden_actions: edit source code, edit tests, write CSS/theme implementation files, create UI components, create feature specs, create plan artifacts, create task artifacts`
+- Persist `active_command`, `phase_mode`, `current_stage`, the one
+  `active_question`, `feedback_history`, and `prototype_rounds` inside
+  `<change-dir>/brief.md` through leased `artifact patch` calls. Advance stages
+  only after their observable exit condition is met:
+  `context-intake -> discovery -> concept-brief -> prototype-authoring ->
+  visual-review -> revision|approval -> contract-export -> registered`.
 - When resuming after compaction, query `.specify/design/index.json`, then the
   active `<change-dir>/brief.md` and `<change-dir>/DESIGN.md` through
   `specify-runtime artifact show` before continuing.
@@ -91,10 +98,23 @@ and never require a colon subskill or explicit mode argument.
    source being refined, run `specify-runtime design iterate` so lineage and
    source bytes are exact; do not manually reconstruct its baseline digest or
    mutate the approved source.
-4. Read `README.md`, project handbook files, existing UI surfaces, and existing design files. Use the command's shared Learning intake for project rules and reusable lessons.
+4. Read `README.md`, project handbook files, existing UI surfaces, and existing
+   design files. Use the command's shared Learning intake for project rules and
+   reusable lessons. Determine the delivery origin before designing:
+   - `design-first`: no planning-ready feature spec owns the request; after
+     approval the next formal consumer is Specify;
+   - `post-specify`: a planning-ready feature `spec-contract.json` already owns
+     requirements, scope, and acceptance; record its exact consumer ref, path,
+     SHA-256, and `return_target: plan` in `delivery_context`;
+   - `standalone`: audit-only work with no immediate consumer.
+   Post-Specify Design must not require a second Specify when requirements stay
+   unchanged. A genuine requirements, scope, or acceptance change exits this
+   lane and returns to the requirements owner before design adoption.
 5. **UI Evidence Analysis (when references or live UI exist):** collect sources
    into a surface/page map; extract candidate tokens, components, states, and
-   responsive rules; tag each claim with evidence level
+   responsive rules; enumerate pointer/mouse, keyboard/focus, touch, and
+   command interactions plus empty/populated/partial/error/permission/offline
+   data scenarios and stretch/overflow behavior; tag each claim with evidence level
    Design Evidence v1 (`measured` | `inferred` | `assumption`; alias
    `evidence-backed-inference`) with rationale when not measured and source or
    source_gap when inferred. Do not treat screenshot similarity as measured
@@ -103,20 +123,30 @@ and never require a colon subskill or explicit mode argument.
    reusable component owners, responsive/state patterns, visual or accessibility
    tests, and design assets; verify every selected route in live files before it
    becomes design evidence.
-7. Classify the experience separately by work type, surface type (`landing`,
+7. Resolve `style_authority` from live evidence before professional skill
+   routing. Feature, component, and partial functional-page work inside an
+   existing product uses `inherit-existing`, records exact live UI
+   `source_refs`, protects `global-shell` and `shared-components`, permits no
+   style-delta surfaces, and cannot select a style skill. Only explicit user
+   authorization to visually overhaul one exact complete page may use
+   `page-overhaul-authorized`; record that page as the sole allowed style-delta
+   surface and the approval checkpoint as `authorization_source`. Adding or
+   refactoring one function page does not authorize a new product-wide style.
+   Use `greenfield` only when no governing live UI language exists.
+8. Classify the experience separately by work type, surface type (`landing`,
    `product-workspace`, `hybrid`, or `existing-pattern-maintenance`), and one or
    more capability profiles. Read the deterministic catalog with
    `{{specify-subcmd:specify-runtime design profiles}}`; supported profiles are
    `web`, `mobile`, `desktop`, `cli`, `tui`, `content`, and `no-ui`. A hybrid
    product selects multiple visual profiles rather than collapsing them into a
    single project-type enum.
-8. If and only if `no-ui` is supported by current repository evidence, record
+9. If and only if `no-ui` is supported by current repository evidence, record
    `design_system_status: not-applicable` with that evidence and exit this
-   visual workflow. Do not generate three directions, HTML, approval, handoff,
+   visual workflow. Do not generate a concept, image, HTML, approval, handoff,
    `ui-target`, or visual comparison, and never combine `no-ui` with a visual
    profile.
-9. If references are supplied as URLs, screenshots, text notes, existing design files, or imported summaries, assign each an explicit intent: `exact`, `preserve-structure`, `inspiration`, `extract-tokens`, or `do-not-copy`.
-10. When built-in presets help, read shipped files under
+10. If references are supplied as URLs, screenshots, text notes, existing design files, or imported summaries, assign each an explicit intent: `exact`, `preserve-structure`, `inspiration`, `extract-tokens`, or `do-not-copy`.
+11. When built-in presets help, read shipped files under
    `.specify/templates/design-library/` or `templates/design-library/`
    (including aesthetic seeds and `anti-slop-policy.md`) and treat them as
    inspiration only—never as approved product direction or a substitute for
@@ -132,7 +162,7 @@ and never require a colon subskill or explicit mode argument.
    transcript.
 2. Infer everything supported by the repository, supplied references, and
    prior confirmed answers before asking the user.
-3. **Taste intake gate (create / substantive refine):** before three-direction
+3. **Taste intake gate (create / substantive refine):** before single-concept
    preview work, patch durable taste fields into the brief:
    - `design_read`: one-line "Reading this as: <kind> for <audience>, with a
      <vibe> language, leaning toward <foundation or aesthetic family>"
@@ -148,24 +178,53 @@ and never require a colon subskill or explicit mode argument.
    - `reference_board_intents` when `input_strategy: synthesize`
      (`mood` | `layout` | `type` | `color-only`); references are evidence, not
      a license to copy protected brand or artwork. The approved baseline is
-     evidence to preserve or supersede, not a global style veto.
-4. Ask one high-impact design question at a time when the answer can change
+     evidence to preserve or supersede within its exact scope. It cannot
+     authorize deviation from live style authority.
+4. Activate the installed `spec-kit-ui-design` professional skill package.
+   Before medium-specific authoring, read
+   `.specify/templates/ui-professional-skills/router.md` (source-tree fallback:
+   `templates/ui-professional-skills/router.md`) and resolve
+   `professional_skill_route`. Record `domain_skill_id`, `style_skill_id`,
+   `specialist_skill_ids`, `matched_signals`, and `loaded_refs`; load only the
+   selected one domain, zero-or-one style, and zero-to-two specialist
+   references. Pass the resolved `style_authority` to the deterministic router.
+   For `inherit-existing`, `style_skill_id` and style references must remain
+   null/absent; domain and specialists may improve the UI only inside the live
+   language. Never load the whole UI professional skill pack. If the router
+   reports material ambiguity, ask its one high-impact question and do not
+   author a visual round until answered. Read its
+   `references/discovery-dialogue.md` and
+   `references/visual-capability-routing.md`, then load only the relevant
+   platform reference. Read `references/image-generation-studio.md` for an
+   image-primary round. Read `references/html-prototype-studio.md` plus
+   `references/prototype-craft.md` for an HTML-primary round. Augment the chosen
+   medium's prompt with the exact selected professional references; never reuse
+   an image-generation prompt as an HTML-authoring prompt. Before presentation
+   or revision read `references/critique-loop.md`.
+5. State the current `design_read`, confidence, and the missing decision before
+   asking. Ask one high-impact design question at a time when the answer can change
    visual hierarchy, density, component anatomy, motion, responsive
    adaptation, accessibility, reference fidelity, dial vectors, or the approval
    boundary. Make each question build on the user's latest answer and include a
-   concrete recommendation when one is justified.
-5. Do not ask which production framework, CSS library, or rendering stack to
-   use merely to shape the preview. The HTML board is a framework-neutral
-   review carrier. Ask about a technical constraint only when it changes the
+   concrete recommendation or agent guess when one is justified. Do not ask for
+   facts already present in the repository, references, or confirmed brief.
+6. Do not advance past an unanswered question. If the user asks for context,
+   examples, implications, or trade-offs, answer that clarification and re-ask
+   the same decision more clearly; keep `active_question.status: open`.
+7. Do not ask which production framework, CSS library, image model, or rendering
+   stack to use merely to shape the review artifact. The selected visual medium
+   is implementation-neutral. Ask about a technical constraint only when it changes the
    target platform or the visual/interaction result.
-6. Before generating directions, confirm the product subject, audience, single
+8. Before generating the current concept, confirm the product subject, audience, single
    user job, modules, locales, color modes, platform/viewports, real or
    representative content, required component/state coverage, meaningful
    motion moments, reduced-motion equivalent, references, taste intake fields,
+   component interaction modes, data-state scenarios, resize/stretch behavior,
    and Must Preserve / May Adapt / Must Not boundaries.
-7. Continue the question loop until those decisions are either confirmed or
-   explicitly represented as bounded differences among the three directions.
-8. Record each confirmed choice as a stable design decision (`DS-<KIND>-NNN`)
+9. Continue the question loop until those decisions are confirmed or recorded
+   as bounded, visible assumptions. Do not manufacture more questions once the
+   concept can be explained and evaluated without inventing product facts.
+10. Record each confirmed choice as a stable design decision (`DS-<KIND>-NNN`)
    with its statement, source, status, affected surfaces, and verification
    method. The brief is the decision ledger; do not leave important choices
    trapped only in conversation prose.
@@ -174,8 +233,12 @@ and never require a colon subskill or explicit mode argument.
 
 When live UI or an approved system already exists:
 
-1. Detect mode: `preserve` modernizes without breaking brand; `overhaul` allows
-   a new visual language while preserving content/IA unless asked otherwise.
+1. Detect mode: `preserve` modernizes without breaking brand. `overhaul` allows
+   a new visual language only for an explicitly authorized exact complete page;
+   it does not unlock the global shell, shared components, sibling pages, or a
+   local feature surface. Without that authorization, use
+   `style_authority.mode: inherit-existing` even when the page structure is
+   substantially refactored.
 2. Audit before mutate: brand tokens, IA, signature interactions, AI-slop
    patterns to retire, current dial reading of the live surface, and web SEO
    or analytics ID risks when applicable.
@@ -185,71 +248,72 @@ When live UI or an approved system already exists:
    inside the source workspace is only for an unapproved draft, never for
    changing a registered contract.
 
-## Three-Direction Preview Loop (freeform board)
+## Capability-Aware Single-Concept Preview Loop
 
-The preview board is chrome plus three freeform direction canvases, not a fixed
-product UI specimen grid. Follow taste-skill-style creative authorship: invent
-layout, type, motion, and composition freely for each direction while governance
-stays machine-checkable via the embedded manifest and ready lint.
+Each immutable round contains one current concept (`direction-main`). The Agent
+and user improve that single concept in the same direction through dialogue; never generate three
+unrelated visual systems for one review round.
 
-- For `create`, or any unresolved high-visibility `refine`, with either input
-  strategy, scaffold the compact source with
-  `{{specify-subcmd:specify-runtime design preview-manifest --profiles <comma-separated-profile-ids> --out <change-dir>/previews/round-NN.manifest.json}}`,
-  fill project-specific manifest fields through leased `specify-runtime artifact patch`
-  calls, then render the freeform board shell with
-  `{{specify-subcmd:specify-runtime design preview --manifest <change-dir>/previews/round-NN.manifest.json --out <change-dir>/previews/round-NN.html}}`.
-- **Author creative HTML/CSS inside each `#direction-*` canvas** after render.
-  Hand-editing direction canvases is expected. Preserve stable direction IDs
-  (`direction-a|b|c`), board chrome, hash routing, and `#design-preview-manifest`.
-  Do not treat freeform seed copy as product UI.
-- Each review round holds exactly three project-specific directions in one
-  self-contained HTML board. Keep comparison content constant; change design
-  language freely. Manifest capability profiles still project specimens/states
-  for handoff contracts without forcing a fixed specimen HTML layout.
-- Force direction divergence while holding comparison content constant: each
-  direction needs its own project-specific `dials` triple
-  (variance/motion/density with non-scaffold inference reasons), unique
-  `signature_element`, and `aesthetic_family`. Ready lint rejects scaffold
-  baseline taste wording, near-duplicate dial vectors (multi-axis distance),
-  near-duplicate signatures, and identical visual token payloads
-  (typography/geometry/density/elevation/motion/modes). Do not ship template
-  dials unchanged.
-- Configure the manifest with representative content for every specimen,
-  directions, boundaries, tokens, every decision-to-owner mapping, modes, and
-  targets. Keep registry-required capabilities and specimen kinds; add a
-  project-specific capability/specimen only when its profile, content keys,
-  states, owner, and acceptance coverage are explicit. The renderer
-  must produce the matching embedded `spec-kit-design-preview-manifest-v1`;
-  then run
+- At every entry and resume, inspect the live capability surface for three
+  independent values: `image_generation`, `image_inspection`, and
+  `image_editing`. Do not hard-code capability from an Agent, model, CLI, or
+  integration name. Read
+  `spec-kit-ui-design/references/visual-capability-routing.md` and patch the
+  probe evidence plus route into `brief.md`.
+- Route `image_generation: available` to `image-primary`, regardless of whether
+  inspection is available. Route `image_generation: unavailable` to
+  `html-primary`. Inspection available means `inspection_owner:
+  agent-and-user`; unavailable means `inspection_owner: user` and the Agent
+  makes no visual-quality claim. Editing availability changes targeted edit
+  versus full regeneration only.
+- For every route, scaffold and complete the compact source with
+  `{{specify-subcmd:specify-runtime design preview-manifest --profiles <comma-separated-profile-ids> --out <change-dir>/previews/round-NN.manifest.json}}`.
+  Configure representative content, capability profiles/specimens, the one
+  direction, boundaries, tokens, decisions, owner mappings, modes, targets,
+  and complete `DS-*` / `DH-*` coverage. Patch `visual_collaboration` with the
+  exact live probe before authoring the visual; ready lint rejects a missing,
+  contradictory, or medium-mismatched route.
+- **Image-primary lane:** read
+  `references/image-generation-studio.md`. Write the exact professional
+  generate/edit request to `round-NN.prompt.md`, then generate one composite
+  `round-NN.png`/`.jpg`/`.webp` board for the current concept. Image prompts own
+  subject, context, style, composition, aspect ratio, exact text, reference
+  roles, and edit invariants; they are not HTML/DOM/CSS prompts. When image
+  inspection is available, open the actual saved pixels, critique, repair, and
+  re-inspect. Without inspection, show the image, make no visual-quality claim,
+  and revise from the user's observations.
+- **HTML-primary lane:** read `references/html-prototype-studio.md`,
+  `references/prototype-craft.md`, and selected platform guidance. Render
+  `{{specify-subcmd:specify-runtime design preview --manifest <change-dir>/previews/round-NN.manifest.json --out <change-dir>/previews/round-NN.html}}`,
+  replace the seed with one complete project-specific concept, set
+  `data-prototype-status="authored"`, and preserve the stable direction ID,
+  hash routing, embedded manifest, and inspectable `data-ui-*` hooks. Run
   `{{specify-subcmd:specify-runtime design preview-lint <change-dir>/previews/round-NN.html --level ready}}`.
-- Inspect the board in a real browser at representative desktop and mobile
-  widths. Verify direction switching, keyboard operation, overflow, component
-  states, meaningful animation, and `prefers-reduced-motion`.
-- Present the exact round path plus all three direction IDs and tradeoffs. Ask
-  the user to select one, combine named elements, or describe what remains
-  wrong. Approval must refer to the inspected HTML and one direction ID.
-- A requested combination is a fourth, new composition: encode it as a named
-  direction in the next immutable round and have the user inspect that result.
-  Never approve a verbal mix of fragments from different directions.
-- If the user is not satisfied, patch the design brief through `specify-runtime
-  artifact patch` and generate the next `round-NN.html` only with
-  `specify-runtime design preview`. Continue until the user approves. Do not overwrite a prior
-  review round, and never reinterpret criticism as approval.
-- Once the user explicitly approves, freeze it with
-  `{{specify-subcmd:specify-runtime design approve <change-dir>/previews/round-NN.html --direction <direction-id> --format json}}`.
-  This command changes the candidate to approved, embeds the selected
-  direction and writes immutable `.approval.json` plus selected-direction
-  `.handoff.json` sidecars. Record
-  `approved_visual_ref: previews/round-NN.html#<direction-id>`
-  plus the returned preview, manifest, and handoff SHA-256 values, handoff ref,
-  review round, exact `DS-*` decision IDs, and exact `DH-*` handoff contract IDs
-  plus the approved capability profile and specimen IDs in the brief and
-  review. Use the same values in `DESIGN.md` `approval`,
-  `capability_profiles`, and `specimens`.
-  Later revisions require a new round and renewed approval; an edited approved
-  file or stale/missing approval or handoff sidecar is invalid.
+  When inspection is available, inspect real browser captures at every target,
+  repair, and recapture. Without it, provide the stable HTML deep link and make
+  no visual-quality claim.
+- Present the exact artifact, medium, thesis, signature, preserved decisions,
+  intentional risk, and known trade-offs. Ask what feels right and what remains
+  wrong. Do not ask the user to choose a hidden or prose-only alternative.
+- If the user is not satisfied, classify feedback as preserve/change/question/
+  out-of-scope, patch `feedback_history` and affected decisions, and revise the
+  same direction in a new immutable round. Do not overwrite a reviewed round,
+  restart from an unrelated aesthetic, or reinterpret criticism as approval.
+- Do not advance past an unanswered question during feedback. A request for
+  explanation keeps that feedback decision open.
+- Only explicit approval of the named reviewed round is approval. For HTML,
+  freeze with
+  `{{specify-subcmd:specify-runtime design approve <change-dir>/previews/round-NN.html --direction direction-main --format json}}`.
+  For images, freeze the image, manifest, and exact generation prompt together:
+  `{{specify-subcmd:specify-runtime design approve <change-dir>/previews/round-NN.png --direction direction-main --manifest <change-dir>/previews/round-NN.manifest.json --prompt <change-dir>/previews/round-NN.prompt.md --image-inspection <available|unavailable> --image-editing <available|unavailable> --format json}}`.
+  Record `approved_visual_ref` with the actual extension and `#direction-main`,
+  plus returned preview/image, manifest, prompt (image lane), and handoff
+  SHA-256 values, handoff ref, review round, exact `DS-*` IDs, exact `DH-*`
+  IDs, profile IDs, and specimen IDs. Later revisions require a new immutable
+  round and renewed approval; edited artifacts or stale/missing sidecars are
+  invalid.
 
-## Preview Technology And Content Contract
+## HTML Preview Technology And Content Contract
 
 - The installed `design-preview-template.html` is a universal review carrier
   with a baseline specimen, not a claim that every product uses the same Web
@@ -258,7 +322,7 @@ stays machine-checkable via the embedded manifest and ready lint.
   platform-adaptive specimen contract owns which surfaces and states apply.
 - Use modern native web capabilities deliberately: semantic HTML, CSS custom
   properties, cascade layers, fluid `clamp()` scales, container queries,
-  progressive view transitions, URL-addressable direction/state controls, and
+  progressive view transitions, URL-addressable concept/state controls, and
   a small inline script only for review navigation, keyboard support, live
   viewport/state switching, comparison, and motion replay.
 - Keep the artifact a single HTML file with no framework, CDN, remote font,
@@ -296,17 +360,18 @@ stays machine-checkable via the embedded manifest and ready lint.
 
 - Complete the change-local `DESIGN.md` from the approved round, then lint,
   export, and register that exact file. Never rewrite another approved change.
-- Present exactly the three HTML-backed directions from the active preview
-  round when creating a design system or when synthesis shapes a material
-  refinement.
+- Present the one image-primary or HTML-primary current concept from the active
+  preview round.
+  Discuss alternatives in text only when they clarify a decision; render a new
+  immutable round when feedback changes the concept.
 - Before proposing them, name the product subject, audience, and single user job.
-- Each direction must state a visual thesis, content thesis, interaction thesis,
+- The concept must state a visual thesis, content thesis, interaction thesis,
   signature element, platform fit, state strategy, safe system choices, and any
   deliberate creative risk with its gain and cost.
-- Render all three through the shared HTML design preview and ask the user to
-  approve the inspected direction before running `specify-runtime design export` for `DESIGN.md`; a
+- Render the concept through the selected visual medium and ask the user to
+  approve the reviewed round before running `specify-runtime design export` for `DESIGN.md`; a
   prose label, mood adjective, or unseen file is not approval.
-- Ask the user to approve a direction; approval refers to its inspectable visual
+- Ask the user for explicit approval of the round; approval refers to its inspectable visual
   artifact and recorded tradeoffs, not only its name.
 - Preserve existing project rules unless the user approves a design-system change that supersedes them.
 - Do not copy external brand names, protected visual identity, proprietary token names, or third-party file text into the final design system.
@@ -321,7 +386,7 @@ stays machine-checkable via the embedded manifest and ready lint.
 - Set `design_change.status: approved` and record
   `design_change.approval.status`, the selected direction, and concrete product
   or repository `source_refs`, plus `approval.visual_refs`, review round,
-  preview/manifest/handoff SHA-256 values, immutable handoff ref, approved
+  visual/manifest/handoff SHA-256 values, conditional image-prompt digest, immutable handoff ref, approved
   decision IDs, and approved handoff contract IDs. Record
   `product_context`, `direction_contract`, color modes, responsive/content
   contracts, decisions, and verification matrices. Remove unresolved
@@ -331,7 +396,7 @@ stays machine-checkable via the embedded manifest and ready lint.
 ## Output Contract
 
 The workflow output is `.specify/design/changes/<UD-ID>/DESIGN.md` plus its
-confirmed brief, immutable HTML preview rounds, review artifacts,
+confirmed brief, immutable image-primary or HTML-primary visual rounds, review artifacts,
 `design-contract.json`, and selected-direction handoff sidecar. The index stores
 metadata and exact consumer bindings; it never contains design prose.
 Never write `<change-dir>/DESIGN.md` directly; patch only its named frontmatter
@@ -344,11 +409,13 @@ The change-local `DESIGN.md` must contain:
 - YAML front matter with `design_change.schema: spec-kit-ui-design-change-v1`
 - stable ID, title, change type, scopes, baseline refs, relationships, and
   Must Preserve / May Adapt / Must Not boundaries
+- exact `style_authority` with mode, scope level, inspected live source refs,
+  protected surfaces, allowed style-delta surfaces, and authorization source
 - `relationships.iteration_of` for a successor (null otherwise), with the same
   source in `supersedes` and its exact digest-pinned baseline
 - `design_change.status: approved` plus approval direction, source refs,
   immutable visual and handoff references, review round,
-  preview/manifest/handoff SHA-256 values, approved decision IDs, and approved
+  visual/manifest/handoff SHA-256 values, conditional image-prompt provenance, approved decision IDs, and approved
   handoff contract IDs
 - product subject, audience, single job, and approved visual reference
 - visual, content, and interaction theses; one signature element; safe system
@@ -376,7 +443,7 @@ The change-local `DESIGN.md` must contain:
 Before closeout:
 
 1. Run the active round's
-   `{{specify-subcmd:specify-runtime design preview-lint <change-dir>/previews/round-NN.html --level ready}}`,
+   `{{specify-subcmd:specify-runtime design preview-lint <change-dir>/previews/round-NN.<html|png|jpg|jpeg|webp> --level ready}}`,
    then run `{{specify-subcmd:specify-runtime design lint <change-dir>/DESIGN.md --level ready}}` when the CLI helpers
    are available. Export the same approved contract with
    `{{specify-subcmd:specify-runtime design export <change-dir>/DESIGN.md --format json --out <change-dir>/design-contract.json}}`,
@@ -402,7 +469,7 @@ Before closeout:
    - preview round and validation result
    - approved direction
    - exact `approved_visual_ref`
-   - preview/manifest/handoff SHA-256 values and approval/handoff sidecars
+   - visual/manifest/handoff SHA-256 values, conditional image-prompt provenance, and approval/handoff sidecars
    - approved design decision IDs
    - approved handoff contract IDs
    - requested revisions from rejected rounds
@@ -419,6 +486,21 @@ status, changed files, lint/register result, pinned approval identity, and exact
 recommended next command. Do not bypass explicit feature or Quick adoption of a
 new approval.
 
+- For `delivery_context.origin: design-first`, recommend Specify. Specify owns
+  requirements and binds the approved Design before Plan.
+- For `delivery_context.origin: post-specify`, preserve the source spec bytes.
+  Run `specify-runtime design impact <feature-ref> --change <UD-ID> --scope
+  <exact-surface> --mode formal-post-specify --expected-change
+  <CURRENT-UD-ID|none>`, then adopt with the same mode using the unchanged source
+  `spec-contract.json` path and SHA-256. Verify the receipt read-only with
+  `specify-runtime design adoption <feature-ref> --scope <exact-surface>
+  --binding-ref <source-spec-ref> --binding-sha256 <source-spec-sha256>
+  --expected-change <UD-ID>`. The next command is Plan. The normal route is
+  `specify -> design -> plan` and must not require a second Specify.
+- If Design uncovered a real requirements change, do not use
+  `formal-post-specify`; return the semantic delta to Specify, the requirements
+  owner, then resume from the newly bound contract.
+
 ## Guardrails
 
 - Do not edit source code, tests, CSS/theme implementation files, UI components, feature specs, plan artifacts, or task artifacts from this command.
@@ -431,3 +513,12 @@ new approval.
 - Do not let downstream workflows treat an unaudited, unregistered, or
   contradictory change as locked input. A new approval must never silently
   retarget an existing Feature or Quick workspace.
+
+## Professional UI Contract Continuity
+
+For substantive UI, approve complete `interaction_matrix`, `editing_matrix`,
+`data_state_matrix`, `accessibility_matrix`, `navigation_matrix`,
+`content_matrix`, `motion_contract`, and `usability_validation` values under
+`design_change.verification`, plus the component governance fields. Compare
+risk-based or pairwise scenarios, never an unbounded Cartesian product, and do
+not let automated tests or screenshots stand in for required target-user review.

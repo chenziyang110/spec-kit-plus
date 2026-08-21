@@ -5,6 +5,40 @@ description: Lean evidence-driven debugging workflow for advanced coding models.
 
 # SPX Debug
 
+## Hard preflight stop
+
+The invoking request is not a branch selection, even when it says to fix the
+problem. Before committing to any action, classify context sufficiency. If it
+is sufficient, render the evidence summary and exact two-option menu, then stop
+and wait for a new user reply. Do not infer consent from the recommendation.
+If it is insufficient, state that the full workflow will perform its normal
+intake and continue into that intake.
+Do not say "I'll change", "I'll fix", or "I'll reproduce" before the selected
+branch's gates allow that action.
+
+Before opening any reference or calling any tool, assess only evidence already
+present in the active conversation. Context-direct is eligible only when it
+contains a reproduced failure signal, a proven failure mechanism or root cause,
+no competing hypothesis, explicit fix authority, exact owner/current patch
+anchors, bounded consumers and risks, and a regression check. Unknown, stale,
+conflicting, multi-owner, consequence-bearing, or investigation-dependent work
+is insufficient.
+
+The pre-intake routing result is strict:
+
+- **Insufficient: never show a branch menu.** Enter the full Debug branch and
+  perform its normal intake. Do not announce discovery, reproduction, or edits
+  before the full branch's own confirmation and execution gates.
+- **Sufficient:** show the exact scope, evidence, and fallback trigger, then ask
+  exactly **Direct fix (Recommended)** or **Continue full sp-debug**.
+  Do not paraphrase these labels or add a third option.
+
+After the user's choice, read `references/context-sufficiency-choice.md` only
+for a selected context-direct branch. Execute only that branch, defer
+`references/project-cognition.md` until exact-path mutation closeout, and do not
+consume Project Learning. For the full branch, continue below without asking
+again. The remaining skill text owns the full Debug branch.
+
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/native-subagents.md` when evidence lanes are delegated.
 Read `references/project-cognition.md`, using cognition intent `debug`.
@@ -22,10 +56,17 @@ security, concurrency, retry, recovery, or generated consumers.
 Read `references/ui-quality-gate.md` when the symptom is visual, responsive,
 interaction, focus, accessibility, TUI, or CLI presentation behavior. For those
 UI symptoms, enter **UI Debug Mode**: classify visual/layout, UX/interaction
-(hover/focus/keyboard/loading/empty/error), and/or taste/generic-look; record
+(pointer/mouse, touch, hover, focus, keyboard, loading, empty, populated,
+partial, error, permission, offline, retry, undo, recovery), resize/reflow
+(stretch, compression, overflow, lost focus/selection/scroll/overlay/unsaved
+input), and/or taste/generic-look; record
 issue, reason, and design-aware fix direction before coding.
 
-`$spx-debug` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
+The full `$spx-debug` branch always starts a new run. Record that new run with
+`specify-runtime run create`, then execute only through `specify-runtime run
+supervise`; do not resume another workflow's run. The explicit user-selected
+context-direct branch is the sole exception and creates no run or debug
+session.
 
 Create or resume the session in its unconfirmed intake state. Render the Debug
 card from `references/human-confirmation.md`; for an applicable UI symptom,
@@ -46,7 +87,8 @@ instrumentation or request a precise user-log packet instead of guessing.
 
 Re-run the original reproduction and relevant surrounding verification.
 For a UI regression, reproduce and recapture the same real entry point,
-viewport, and state after the fix; source inspection or component tests cannot
+input event, data condition, viewport/continuous resize path, and state after
+the fix; source inspection or component tests cannot
 prove a visual symptom resolved.
 Delegate only independent evidence lanes or an independent review that improves
 confidence. Never reconstruct a debug-session template or create the state file
@@ -56,11 +98,20 @@ After agent verification and related-risk review, move to
 `awaiting_human_verify`; do not resolve or archive until explicit human
 confirmation. Only after the lifecycle rules in the investigation contract are
 satisfied, run
-`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-debug --intent debug --format json}}`
-then update/finalize (or mark-dirty) and
-`{{specify-subcmd:specify-runtime cognition mutation-receipt --workflow sp-debug --feature-dir <feature-or-scope> --result-state ready|no_op|mark-dirty|partial --reason "<text>" --format json}}`
-before claiming the fix complete
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-debug --scope-dir <feature-or-scope> --scope-mode explicit --intent debug --format json}}`
 with explicit workflow-owned paths, fill returned agent-owned fields, and execute
-structured `update_argv`. Apply the receipt-bound finalizer gate in
+structured `apply_argv` before claiming the fix complete. Shared apply owns
+update, validation, eligible finalization, and receipt; only an update failure
+uses mark-dirty plus a standalone dirty receipt. Apply the gate in
 `references/project-cognition.md` before any clean claim. Finish
 truthfully, citing root-cause evidence, changes, verification, and uncertainty.
+
+## Professional UI contract continuity
+
+For a UI defect, identify the violated exact row/object in `surface_catalog`,
+`scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
+`accessibility_matrix`, `navigation_matrix`, `content_matrix`,
+`motion_contract`, or `usability_validation`; preserve component governance and
+approved truth.
+Reproduce risk-based scenarios rather than an unbounded Cartesian product, and
+never substitute screenshots for required target-user review.

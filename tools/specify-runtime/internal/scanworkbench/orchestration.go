@@ -20,6 +20,7 @@ const (
 	estimatedResultTokensPerPath = int64(256)
 	defaultEffectiveWorkerTokens = int64(16_000)
 	defaultPacketBytes           = int64(2 * 1024 * 1024)
+	defaultParallelWorkerCap     = 4
 )
 
 type packetPlanningBudget struct {
@@ -728,9 +729,13 @@ func Status(paths rt.Paths) (StatusPayload, error) {
 		nextAction = "resolve_blocked_packets"
 		stageState = "packets_blocked"
 	}
+	recommendedWorkers := counts["pending"]
+	if recommendedWorkers > defaultParallelWorkerCap {
+		recommendedWorkers = defaultParallelWorkerCap
+	}
 	return StatusPayload{
 		Status: "ok", StageState: stageState, Packets: counts, ActiveLeases: activeLeases,
-		EstimatedRemainingTokens: remainingTokens, RecommendedParallelWorkers: counts["pending"],
+		EstimatedRemainingTokens: remainingTokens, RecommendedParallelWorkers: recommendedWorkers,
 		CompletionAllowed: false, CompletionGate: "validate_scan", NextAction: nextAction,
 	}, nil
 }

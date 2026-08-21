@@ -349,6 +349,7 @@ function Test-ScanBuildAllowedReason {
         "baseline_identity_invalid",
         "explicit_rebuild_requested",
         "failed_update_unusable_baseline",
+        "greenfield_baseline_has_project_code",
         "path_not_safely_adoptable_by_project_cognition_index"
     )
     foreach ($reason in $Reasons) {

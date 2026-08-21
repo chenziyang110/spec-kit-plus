@@ -209,9 +209,72 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "returned `suggested_patterns`" in scan_shell_lowered
     assert "do not open `.specify/project-cognition/.cognitionignore` directly" in scan_shell_lowered
     assert "wait for confirmation" in scan_shell_lowered
+    assert "specify-runtime cognition confirm-ignore" in content
+    assert "specify-runtime cognition confirm-ignore" in scan_shell
+    assert "review_required=true" in content
+    assert "review_required=true" in scan_shell
+    spx_scan = _read("templates/advanced-skills/spx-map-scan/SKILL.md")
+    assert "specify-runtime cognition confirm-ignore" in spx_scan
+    assert "review_required=true" in spx_scan
+    assert "git_ignored" in content
+    assert "--include-gitignored" in content
+    assert "--include-gitignored" in scan_shell
+    assert "--include-gitignored" in spx_scan
+    assert "recommended_parallel_workers" in content
+    assert "recommended_parallel_workers" in spx_scan
     assert "passive learning files as read-only workflow guidance, not scan evidence" in scan_shell_lowered
     assert "`.specify/**` is workflow/runtime state, not project graph evidence" in scan_shell
     assert "must not become scan targets or graph paths" in scan_shell_lowered
+
+
+def test_map_scan_requires_confirmed_repository_format_policy_before_prepare() -> None:
+    classic = _read("templates/commands/map-scan.md")
+    shell = _read("templates/command-partials/map-scan/shell.md")
+    advanced = _read("templates/advanced-skills/spx-map-scan/SKILL.md")
+
+    for content in (classic, shell, advanced):
+        lowered = " ".join(content.lower().split())
+        for command in ("scan-formats", "scan-policy-stage", "scan-policy-confirm", "scan-prepare"):
+            assert command in content
+        assert content.index("scan-formats") < content.index("scan-policy-stage")
+        assert content.index("scan-policy-stage") < content.index("scan-policy-confirm")
+        assert content.index("scan-policy-confirm") < content.index("scan-prepare")
+        assert "agent proposes cohort-level decisions" in lowered
+        assert "user confirms the exact `proposal_digest`" in lowered
+        assert "scan-prepare requires the confirmed policy" in lowered
+        assert "format inventory changed" in lowered
+        assert "must not submit path-level overrides" in lowered
+
+
+def test_map_scan_and_build_define_incremental_reuse_contract() -> None:
+    scan_surfaces = (
+        _read("templates/commands/map-scan.md"),
+        _read("templates/command-partials/map-scan/shell.md"),
+        _read("templates/advanced-skills/spx-map-scan/SKILL.md"),
+        _read("templates/advanced-skills/spx-map-scan/references/scan-gates.md"),
+    )
+    for content in scan_surfaces:
+        lowered = content.lower()
+        assert "preparation_digest" in content
+        assert "pending_path_count" in content
+        assert "reuse-*" in content
+        assert "--full-rebuild" in content
+        assert "old packet" in lowered or "old queue" in lowered
+        assert "cross-path" in lowered
+        assert "shared node" in lowered
+        assert "multi-path" in lowered
+        assert "cache lineage" in lowered
+
+    build_surfaces = (
+        _read("templates/commands/map-build.md"),
+        _read("templates/command-partials/map-build/shell.md"),
+        _read("templates/advanced-skills/spx-map-build/SKILL.md"),
+        _read("templates/advanced-skills/spx-map-build/references/build-gates.md"),
+    )
+    for content in build_surfaces:
+        assert "reused=true" in content
+        assert "validate-build" in content
+        assert "same active generation" in content.lower()
 
 
 def test_passive_subagent_guidance_uses_path_level_gap_outcomes() -> None:
@@ -451,6 +514,10 @@ def test_map_scan_template_requires_canonical_boundary_contract() -> None:
     assert ".specify/project-cognition/tmp/scan-files.json" in content
     assert "`schema_version`" in content
     assert "`candidate_universe`" in content
+    assert "`file_format`" in content
+    assert "`format_family`" in content
+    assert "`agent_assist`" in content
+    assert "`format_review_groups`" in content
     assert "`decision_source`" in content
     assert "`assigned_paths`" in content
     assert "`deep_read`" in content
@@ -472,6 +539,13 @@ def test_classic_map_scan_template_only_documents_runtime_materialized_boundary_
         "path",
         "path_kind",
         "extension",
+        "file_format",
+        "format_family",
+        "format_detection",
+        "format_key",
+        "cohort_id",
+        "policy_decision",
+        "agent_assist",
         "size_bytes",
         "directory_family",
         "git_tracked",
@@ -491,6 +565,8 @@ def test_classic_map_scan_template_only_documents_runtime_materialized_boundary_
     documented_target_fields = [
         "schema_version",
         "selection_policy",
+        "selection_basis",
+        "policy_digest",
         "selected_paths",
         "sampled_paths",
         "inventory_only_paths",
@@ -500,6 +576,8 @@ def test_classic_map_scan_template_only_documents_runtime_materialized_boundary_
         "scan_decision",
         "disposition",
         "criticality",
+        "agent_assist",
+        "policy_decision",
         "classification_reasons",
     ]
 
@@ -507,8 +585,11 @@ def test_classic_map_scan_template_only_documents_runtime_materialized_boundary_
         assert f"`{field}`" in scan_template
         assert f'"{field}"' in runtime_source
 
-    lowered = scan_template.lower()
-    assert "runtime applies the deterministic value classifier" in lowered
+    lowered = " ".join(scan_template.lower().split())
+    assert "runtime detects file format before value classification" in lowered
+    assert "directory and git metadata are guardrails" in lowered
+    assert "agent proposes one cohort-level policy" in lowered
+    assert "user-confirmed policy digest" in lowered
     assert "must not hand-write it" in lowered
     assert "queue's assigned-path union must equal `scan-targets.json.selected_paths`" in lowered
     assert "`inventory_only_paths` remains in full boundary accounting" in lowered
@@ -518,7 +599,10 @@ def test_advanced_map_scan_uses_the_same_runtime_owned_value_boundary() -> None:
     content = _read("templates/advanced-skills/spx-map-scan/references/scan-gates.md")
     lowered = " ".join(content.lower().split())
 
-    assert "`scan-prepare` applies the deterministic value classifier" in lowered
+    assert "`scan-prepare` detects file format before value classification" in lowered
+    assert "directory and git metadata remain guardrails" in lowered
+    assert "agent proposes one cohort-level policy" in lowered
+    assert "user-confirmed policy digest" in lowered
     assert "owns `repository-universe.json`, `scan-targets.json`, and the queue" in lowered
     assert "queue assigned-path union must exactly equal `scan-targets.json.selected_paths`" in lowered
     assert "`inventory_only_paths` must be disjoint" in lowered

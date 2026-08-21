@@ -98,12 +98,14 @@ from specify_cli.design import (
     DesignDiagnostic,
     DesignLintError,
     adopt_design_change,
+    approve_design_image,
     approve_design_preview,
     design_capability_profiles,
     diff_design_changes,
     export_design_system,
     impact_design_adoption,
     import_design_reference,
+    lint_design_image_bundle,
     lint_design_preview_file,
     lint_design_file,
     lint_ui_target_file,
@@ -115,6 +117,7 @@ from specify_cli.design import (
     scaffold_design_preview,
     scaffold_design_preview_manifest,
     scaffold_ui_target,
+    resolve_design_adoption,
     resolve_design_changes,
 )
 from specify_cli.specify_runtime import (
@@ -1037,7 +1040,11 @@ def design_impact(
     ),
     change_id: str = typer.Option(..., "--change", help="Registered UD-* change"),
     scope: str = typer.Option(..., "--scope", help="Exact consumer surface"),
-    mode: str = typer.Option(..., "--mode", help="Adoption mode: formal or quick"),
+    mode: str = typer.Option(
+        ...,
+        "--mode",
+        help="Adoption mode: formal, formal-post-specify, or quick",
+    ),
     expected_change: str = typer.Option(
         ...,
         "--expected-change",
@@ -1088,7 +1095,11 @@ def design_adopt(
     ),
     change_id: str = typer.Option(..., "--change", help="Registered UD-* change"),
     scope: str = typer.Option(..., "--scope", help="Exact adopted surface"),
-    mode: str = typer.Option(..., "--mode", help="Adoption mode: formal or quick"),
+    mode: str = typer.Option(
+        ...,
+        "--mode",
+        help="Adoption mode: formal, formal-post-specify, or quick",
+    ),
     binding_ref: Path = typer.Option(
         ...,
         "--binding-ref",
@@ -1135,6 +1146,60 @@ def design_adopt(
     console.print(
         f"Adopted {receipt['change_id']} for {receipt['consumer_ref']} "
         f"at {receipt['scope']} (revision {receipt['revision']})"
+    )
+
+
+@design_app.command("adoption")
+def design_adoption(
+    consumer_ref: str = typer.Argument(
+        ...,
+        help="Stable feature consumer reference",
+    ),
+    scope: str = typer.Option(..., "--scope", help="Exact adopted surface"),
+    binding_ref: Path = typer.Option(
+        ...,
+        "--binding-ref",
+        help="Unchanged source spec-contract.json",
+    ),
+    binding_sha256: str = typer.Option(
+        ...,
+        "--binding-sha256",
+        help="Exact SHA-256 of the source specification",
+    ),
+    expected_change: str | None = typer.Option(
+        None,
+        "--expected-change",
+        help="Optional expected current UD-* design change",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+) -> None:
+    """Verify a post-Specify design overlay without rewriting the source spec."""
+
+    try:
+        receipt = resolve_design_adoption(
+            Path.cwd(),
+            consumer_ref=consumer_ref,
+            scope=scope,
+            binding_ref=binding_ref,
+            binding_sha256=binding_sha256,
+            expected_change=expected_change,
+        )
+    except DesignLintError as exc:
+        if output_format.lower() == "json":
+            print_json({"ok": False, "error": str(exc)})
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    if output_format.lower() == "json":
+        print_json({"ok": True, "adoption": receipt})
+        return
+    console.print(
+        f"Verified {receipt['change_id']} for {receipt['consumer_ref']} "
+        f"against source spec {receipt['source_spec_ref']}"
     )
 
 
@@ -1245,7 +1310,7 @@ def design_preview(
     out: Path = typer.Option(
         Path(".specify/design/previews/round-01.html"),
         "--out",
-        help="Write the three-direction design preview scaffold to this path",
+        help="Write the single-concept design preview scaffold to this path",
     ),
     force: bool = typer.Option(
         False,
@@ -1255,10 +1320,10 @@ def design_preview(
     manifest: Optional[Path] = typer.Option(
         None,
         "--manifest",
-        help="Render a ready candidate from this compact preview manifest",
+        help="Render an unfinished structural draft from this compact preview manifest",
     ),
 ) -> None:
-    """Create or deterministically render a three-direction design review board."""
+    """Create or deterministically render a single-concept design review round."""
 
     try:
         out_path = (
@@ -1274,7 +1339,10 @@ def design_preview(
 
 @design_app.command("preview-lint")
 def design_preview_lint(
-    path: Path = typer.Argument(..., help="Path to a design preview HTML file"),
+    path: Path = typer.Argument(
+        ...,
+        help="Path to an HTML preview or approved image-primary round",
+    ),
     output_format: TextJsonFormat = typer.Option(
         TextJsonFormat.text,
         "--format",
@@ -1286,7 +1354,7 @@ def design_preview_lint(
         help="Validation level: structural or ready",
     ),
 ) -> None:
-    """Validate a self-contained three-direction HTML design preview."""
+    """Validate a self-contained single-concept HTML design preview."""
 
     normalized_format = output_format.lower()
     normalized_level = level.lower()
@@ -1297,7 +1365,11 @@ def design_preview_lint(
         )
         raise typer.Exit(2)
 
-    diagnostics = lint_design_preview_file(path, level=normalized_level)
+    diagnostics = (
+        lint_design_preview_file(path, level=normalized_level)
+        if path.suffix.lower() == ".html"
+        else lint_design_image_bundle(path, level=normalized_level)
+    )
     if normalized_format == "json":
         print_json(_diagnostics_payload(diagnostics))
         if diagnostics:
@@ -1377,11 +1449,34 @@ def design_ui_target_lint(
 
 @design_app.command("approve")
 def design_approve(
-    path: Path = typer.Argument(..., help="Path to a ready design preview HTML file"),
+    path: Path = typer.Argument(
+        ...,
+        help="Path to a ready HTML preview or image-primary visual round",
+    ),
     direction: str = typer.Option(
         ...,
         "--direction",
         help="Exact direction ID approved by the user",
+    ),
+    manifest: Optional[Path] = typer.Option(
+        None,
+        "--manifest",
+        help="Adjacent round-NN.manifest.json required for image-primary approval",
+    ),
+    prompt: Optional[Path] = typer.Option(
+        None,
+        "--prompt",
+        help="Adjacent round-NN.prompt.md required for image-primary approval",
+    ),
+    image_inspection: Optional[str] = typer.Option(
+        None,
+        "--image-inspection",
+        help="Live image-inspection capability: available or unavailable",
+    ),
+    image_editing: Optional[str] = typer.Option(
+        None,
+        "--image-editing",
+        help="Live image-editing capability: available or unavailable",
     ),
     output_format: TextJsonFormat = typer.Option(
         TextJsonFormat.text,
@@ -1389,10 +1484,35 @@ def design_approve(
         help="Output format: text or json",
     ),
 ) -> None:
-    """Freeze one user-approved direction and write its approval sidecar."""
+    """Freeze one user-approved visual round and write immutable sidecars."""
 
     try:
-        payload = approve_design_preview(path, direction_id=direction)
+        if path.suffix.lower() == ".html":
+            if any(
+                value is not None
+                for value in (manifest, prompt, image_inspection, image_editing)
+            ):
+                raise DesignLintError(
+                    "HTML approval does not accept image manifest, prompt, or capability flags"
+                )
+            payload = approve_design_preview(path, direction_id=direction)
+        else:
+            if manifest is None or prompt is None:
+                raise DesignLintError(
+                    "image approval requires --manifest and --prompt"
+                )
+            if image_inspection is None or image_editing is None:
+                raise DesignLintError(
+                    "image approval requires --image-inspection and --image-editing"
+                )
+            payload = approve_design_image(
+                path,
+                manifest_path=manifest,
+                prompt_path=prompt,
+                direction_id=direction,
+                image_inspection=image_inspection,
+                image_editing=image_editing,
+            )
     except DesignLintError as exc:
         if output_format.lower() == "json":
             print_json({"ok": False, "error": str(exc)})
@@ -2011,7 +2131,7 @@ def _render_spec_kit_managed_block(*, project_root: Path, newline: str) -> str:
             "",
             "## Workflow Recommendations",
             "",
-            "- Do not auto-enter an `sp-*` workflow unless the user invokes it. Continuing an already-invoked incomplete workflow is not auto-entry.",
+            "- Passive SKILL invocation is allowed only for `sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`. All other `sp-*` workflows are user-invoked only: recommend the projected invocation and stop; do not load or enter them until the user explicitly invokes them. Continuing an already-invoked incomplete workflow is not passive entry.",
             "- Recommend `sp-discussion` for open-ended requirement exploration. Its handoff presents both `sp-quick` and `sp-specify` with their eligibility, explains any blocker, gives a complexity-informed recommendation among eligible paths, and the user makes the final choice. Use `sp-deep-research` for feasibility proof and `sp-debug` for root-cause diagnosis.",
             "- If the user invokes an `sp-*` workflow, follow that workflow's own contract.",
             "- When a topical follow-up, acknowledgement, or contextual confirmation continues an active discussion, resume `sp-discussion` from durable state even when the user does not repeat the workflow name.",
@@ -6281,13 +6401,12 @@ def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
 DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
-    "design": "Use when product or UI visual direction needs a prompt-routed create, refine, or audit of one bounded UI design change; reference synthesis is an input strategy, registered adoption flows through Specify, and direct delivery flows through Quick.",
+    "design": "Use when product or UI visual direction needs a prompt-routed create, refine, or audit of one bounded UI design change; local UI inherits existing style, design-first adoption flows through Specify, post-Specify adoption returns directly to Plan when requirements stay unchanged, and direct delivery flows through Quick.",
     "discussion": "Use when a rough idea or requirement needs a resumable senior product-engineering discussion before direct Quick delivery or formal specification.",
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
     "prd-scan": "Use when an existing repository needs read-only heavy reconstruction scan outputs before final PRD synthesis; execution is subagent-mandatory and critical claims target L4 Reconstruction-Ready.",
     "prd-build": "Use when a validated PRD scan package exists and the final PRD suite must be compiled from it without a second repository scan.",
     "prd": "Use when an existing repository needs current-state PRD extraction without automatically handing off to planning; route legacy one-step habits through prd-scan followed by prd-build and the heavy reconstruction contract surface.",
-    "clarify": "Use when an existing specification package has planning-critical gaps, weak analysis, or new constraints that should be absorbed before planning.",
     "deep-research": "Use when a planning-ready spec still has feasibility risk and needs coordinated research, evidence packets, a Planning Handoff, or a disposable demo before implementation planning.",
     "research": "Use when a compatibility alias is needed for deep-research; route to the canonical feasibility research gate without creating separate sp-research artifacts.",
     "explain": "Use when the user needs the current stage artifact or project cognition/runtime artifact explained in plain language without changing the underlying files.",
@@ -7300,13 +7419,12 @@ def init(
             ("ask", "read-only project questions"),
             ("auto", "resume the safest next workflow"),
             ("checklist", "requirements-quality checklist"),
-            ("clarify", "repair an existing specification"),
             ("constitution", "project principles and governance"),
             ("debug", "evidence-driven diagnosis and repair"),
             ("deep-research", "pre-plan feasibility evidence"),
             (
                 "design",
-                "create, refine, or audit one prompt-routed design system; formal adoption through spx-specify, direct delivery through spx-quick",
+                "create, refine, or audit one prompt-routed design system; design-first formal adoption through spx-specify, post-Specify return to spx-plan without a second Specify, direct delivery through spx-quick",
             ),
             ("discussion", "resumable product and technical discussion"),
             ("explain", "plain-language workflow artifact explanation"),
@@ -7339,7 +7457,7 @@ def init(
             )
         steps_lines.append("   ")
         steps_lines.append(
-            "   Original Classic map companions for lower-cost model execution:"
+            "   Original Classic map companions for lower-cost model execution (user-invoked only):"
         )
         for name in ("map-scan", "map-build", "map-update"):
             steps_lines.append(f"   [cyan]{_display_cmd(name)}[/cyan]")
@@ -7349,6 +7467,16 @@ def init(
 
     steps_lines.append(f"{step_num}. Start using {usage_label} with your AI agent:")
     steps_lines.append("   ")
+    if native_skill_mode:
+        passive_invocations = ", ".join(
+            _display_cmd(name)
+            for name in ("discussion", "quick", "debug", "fast")
+        )
+        steps_lines.append(
+            "   Passive invocation allowlist: "
+            f"[cyan]{passive_invocations}[/cyan] only; invoke every other Classic sp-* skill manually"
+        )
+        steps_lines.append("   ")
     steps_lines.append("   Core workflow skills")
     constitution_review_text = "Review the seeded default constitution and apply project-specific changes when needed"
     if constitution_profile != "product":
@@ -7392,7 +7520,7 @@ def init(
         f"   - [cyan]{_display_cmd('discussion')}[/] - Mature a rough idea through resumable senior product-engineering discussion before direct Quick delivery or formal specification"
     )
     steps_lines.append(
-        f"   - [cyan]{_display_cmd('design')}[/] - Use one prompt-routed design entry to create, refine, or audit the root design system; formal adoption through [cyan]{_display_cmd('specify')}[/] and direct delivery through [cyan]{_display_cmd('quick')}[/]"
+        f"   - [cyan]{_display_cmd('design')}[/] - Use one prompt-routed collaborative studio to create, refine, or audit a bounded UI change, asking one high-impact question at a time and iterating one concept to explicit approval; local work inherits existing UI style, design-first formal adoption through [cyan]{_display_cmd('specify')}[/], post-Specify adoption returns to [cyan]{_display_cmd('plan')}[/] without a second Specify when requirements stay unchanged, and direct delivery through [cyan]{_display_cmd('quick')}[/]"
     )
     steps_lines.append(
         f"   - [cyan]{_display_cmd('prd-scan')}[/] - Produce heavy reconstruction PRD scan outputs with subagent-mandatory L4 Reconstruction-Ready evidence and config-contracts.json"
@@ -7402,9 +7530,6 @@ def init(
     )
     steps_lines.append(
         f"   - [cyan]{_display_cmd('prd')}[/] - Deprecated compatibility entrypoint; routes older reverse-PRD habits to the scan/build flow"
-    )
-    steps_lines.append(
-        f"   - [cyan]{_display_cmd('clarify')}[/] - Deepen an existing spec before planning when analysis or references still need work"
     )
     steps_lines.append(
         f"   - [cyan]{_display_cmd('deep-research')}[/] - Coordinate research, evidence packets, and disposable demos into a traceable Planning Handoff before planning"
@@ -7463,8 +7588,7 @@ def init(
             f"○ [cyan]{_display_cmd('prd-scan')}[/] [bright_black](existing-project PRD scan)[/bright_black] - Produce the heavy reconstruction scan package for reverse-PRD work before final synthesis, including subagent-mandatory evidence and config-contracts.json",
             f"○ [cyan]{_display_cmd('prd-build')}[/] [bright_black](after prd-scan)[/bright_black] - Compile the final PRD suite from a validated scan package without turning build back into an ad hoc scan",
             f"○ [cyan]{_display_cmd('prd')}[/] [bright_black](deprecated compatibility)[/bright_black] - Compatibility entrypoint only; prefer the canonical [cyan]{_display_cmd('prd-scan')}[/] -> [cyan]{_display_cmd('prd-build')}[/] flow",
-            f"○ [cyan]{_display_cmd('clarify')}[/] [bright_black](optional)[/bright_black] - Strengthen the current spec package before planning when requirements, references, or analysis need deeper work",
-            f"○ [cyan]{_display_cmd('deep-research')}[/] [bright_black](optional feasibility and research gate)[/bright_black] - Prove whether a clear requirement can be implemented and hand [cyan]{_display_cmd('plan')}[/] the research findings, demo evidence, constraints, and recommended approach",
+            f"○ [cyan]{_display_cmd('deep-research')}[/] [bright_black](optional feasibility gate)[/bright_black] - Bind the current spec, verify unproven capability chains through evidence or disposable spikes, independently audit them, and publish a digest-bound handoff for [cyan]{_display_cmd('plan')}[/]",
             f"○ [cyan]{_display_cmd('test-design')}[/] [bright_black](optional after plan)[/bright_black] - Compile an evidence-backed test universe, professional case catalog, data/material decisions, gaps, and a pointer-only handoff before [cyan]{_display_cmd('tasks')}[/]",
             f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional diagnostic / legacy revalidation)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift when explicitly requested or recorded in existing state",
             f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, task, implement, or project cognition/runtime artifact in plain language before moving forward",

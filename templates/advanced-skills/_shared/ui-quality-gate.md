@@ -39,6 +39,26 @@ This gate never authorizes production implementation inside design workflows.
 New or high-visibility direction requires an
 inspectable approved visual reference; a narrow existing-pattern exception must
 name its live governing surface. Reuse approved tokens and components.
+Resolve `style_authority` before professional routing. Existing-product feature,
+component, and partial functional-page work uses `inherit-existing`, records
+exact live token/theme/component/surface refs, protects `global-shell` and
+`shared-components`, allows no style-delta surfaces, and keeps the style skill
+null. `page-overhaul-authorized` requires explicit user authorization for one
+exact complete page; only that page may appear in
+`allowed_style_delta_surfaces`, while shell/shared components stay protected.
+Adding or refactoring one function page does not authorize a new visual
+language. `greenfield` requires evidence that no live UI style applies.
+For substantive create/refine, read
+`.specify/templates/ui-professional-skills/router.md` and preserve the resolved
+`professional_skill_route`: `domain_skill_id`, `style_skill_id`,
+`specialist_skill_ids`, `matched_signals`, and `loaded_refs`. Load only the
+selected one domain, zero-or-one style, and zero-to-two specialists. Never load
+the full UI professional skill catalog or blend conflicting style skills.
+Pass `style_authority` to the router; `inherit-existing` suppresses style refs
+without suppressing domain or specialist quality guidance.
+Approved references, registered design truth, platform rules, and accessibility
+constraints take precedence. Image-primary and html-primary authoring consume
+the same sparse route through separate prompt contracts.
 For Quick adoption, stage exact `scope`, `design_change_id`,
 `design_change_ref`, `design_change_sha256`, and `design_contract_ref` as
 confirmation-protected `decision.ui_confirmation.design_binding` before
@@ -53,8 +73,13 @@ For a replacement, first run `specify-runtime design diff`, then the read-only
 may trigger scope-bounded reconciliation. Preserve completed work and
 unaffected Review evidence. Quick retires unstarted affected packets and
 creates a corrective work item for completed-work drift.
-When `sp-design` produced a change-level HTML preview, preserve its exact
-change-local `round-NN.html#direction-id` reference, registered design-change
+For a Design created after a planning-ready feature spec, preserve that source
+spec's exact bytes and SHA-256, adopt with `--mode formal-post-specify`, and
+verify it using `specify-runtime design adoption`. Plan consumes this late
+overlay directly: specify -> design -> plan must not require a second Specify.
+Only a real requirements, scope, or acceptance change returns to Specify.
+When `sp-design` produced a change-level visual round, preserve its exact
+change-local `round-NN.<html|png|jpg|jpeg|webp>#direction-id` reference, registered design-change
 ref/hash, motion/reduced-motion contract, preview/manifest/handoff SHA-256
 values, immutable handoff ref, approved `DS-*` decision IDs, and applicable
 `DH-*` handoff contract IDs.
@@ -70,9 +95,110 @@ The UI brief is required for substantive UI work even without external
 references. It identifies entry points, required states and viewports,
 must-preserve/may-adapt/must-not decisions, responsive/accessibility rules, and
 visual acceptance evidence. Preserve the approval hashes, required design and
-handoff contract IDs, component anatomy, color modes, motion contract, viewport/state
-matrix, capability profile and specimen IDs, and real content/image plans. Each UI task carries only its applicable
-decision subset; all UI tasks together must cover the plan's required set.
+handoff contract IDs, component anatomy, color modes, motion contract,
+`style_authority`,
+component interaction modes, interaction rows, component data scenarios,
+viewport/state matrix, resize/stretch/overflow behavior, capability profile and
+specimen IDs, and real content/image plans. Each UI task carries only its
+applicable decision subset; all UI tasks together must cover the plan's
+required set.
+Preserve `surface_catalog` as the stable inventory of implemented UI surfaces,
+with source/specimen/component references and exact decision bindings. Preserve
+`scenario_matrix` as the bounded execution graph: each required, risk-labelled
+scenario references one `surface_id` plus the exact interaction, data,
+editing, accessibility, navigation, content, responsive, and motion rows exercised
+together. Each scenario also preserves an exact `interaction_script` with
+non-empty `preconditions`, a `start_state_id` selected by `data_state_ids`,
+ordered `steps` (`input`, `action`, `expected_feedback`), and bounded
+`branches`. Each branch has unique applicable `conditions` from success,
+failure, timeout, cancel, retry, duplicate, and out-of-order completion; its
+`expected_state_id` must be one of the same scenario's data states and it keeps
+setup, feedback, focus behavior, announcement, and continuation explicit.
+Also preserve non-empty `focus_checkpoint`,
+`announcement_checkpoint`, `completion_checkpoint`, and `recovery_checkpoint`.
+Scenarios collectively cover every referenced row and each
+scenario's `decision_ids` equals the union of those rows. Use risk-based or
+pairwise selection, never an unbounded Cartesian product.
+Carry interaction and data truth structurally, not as prose only: preserve
+`interaction_matrix` rows for pointer/mouse, keyboard, focus, touch, shortcuts,
+command/system events, and async feedback. Each row uses exact `id`, `surface`,
+`input`, `trigger`, `event_sequence`, `immediate_feedback`, `focus_behavior`,
+`repeat_behavior`, `cancellation_behavior`, `pending_behavior`, and
+`decision_ids`; it owns input mechanics while the scenario script owns journey
+outcomes. Add explicit rows for rapid/repeated activation,
+duplicate submission, drag cancellation, async completion order, timeouts,
+navigation/reload/close, session expiry, and external updates when they can
+lose work or duplicate effects. Preserve `data_state_matrix` rows for
+empty/first-use, populated representative and maximum-density data, loading,
+partial/stale/refreshing, validation/error, permission/read-only,
+offline/unavailable, optimistic/pending, and success conditions as applicable;
+every data-bearing surface includes both empty and populated. Preserve component
+rows with `interaction_modes` and `data_scenarios`; preserve responsive rows
+with `stretch_behavior` and `overflow_behavior`, including continuous
+stretch/compression/reflow while focus, selection, scrolling, dragging, an
+overlay, or unsaved input is active. Stress long/localized content, text zoom
+or scaling, software keyboards, safe areas, high contrast, and reduced motion
+when applicable. Use risk-based or pairwise input × data × size combinations
+rather than an unbounded Cartesian product; never let a populated pointer happy
+path substitute for keyboard, recovery, or resize evidence.
+
+Preserve `editing_matrix` rows through exact scenario `editing_ids`. Each row
+uses `id`, `surface`, `input_methods`, `composition_behavior`,
+`paste_autofill_behavior`, `selection_caret_behavior`, `formatting_behavior`,
+`validation_timing`, `validation_feedback`, `dirty_state_behavior`,
+`persistence_behavior`, `undo_redo_behavior`, `conflict_behavior`,
+`read_only_disabled_behavior`, `submission_behavior`, and `decision_ids`.
+Cover IME composition without premature validation, paste/autofill
+normalization, caret and selection preservation, formatting boundaries,
+inline and announced correction, visible dirty state, draft/autosave/reload,
+native or application undo/redo, edit conflict resolution, selectable
+read-only values, explained disabled controls, and Enter/shortcut/pending/
+failure/retry/duplicate submission behavior.
+
+Preserve the professional contract under `design_change.verification` and in
+every exact downstream subset: `surface_catalog`, `scenario_matrix`,
+`editing_matrix`, `accessibility_matrix`, `navigation_matrix`, `content_matrix`,
+`motion_contract`, and `usability_validation`, alongside `interaction_matrix`
+and `data_state_matrix`. A top-level accessibility summary
+does not replace `accessibility_matrix`.
+
+- Accessibility rows carry `id`, `surface`, `semantics`, `reading_order`,
+  `focus_order`, `keyboard`, `announcements`, `target_size`, `contrast`,
+  `zoom_reflow`, `alternatives`, and `decision_ids`. Target WCAG 2.2 AA or
+  platform equivalent; verify Name/Role/Value, logical reading order and focus
+  order, visible focus, keyboard alternative and drag alternative, dynamic
+  status announcement, applicable 24x24 (24×24 CSS px) Web and 44pt native
+  targets,
+  4.5:1/3:1 contrast, 400% reflow/zoom, forced colors/high contrast, and
+  image/icon alternatives.
+- Navigation rows carry `id`, `surface`, `entry`, `destination`, `trigger`,
+  `back_behavior`, `deep_link_behavior`, `interruption_recovery`, and
+  `decision_ids`. Cover hierarchy, entry and primary task, back/close, deep
+  link behavior, interruption recovery, consistency, landmarks, and task-state
+  preservation.
+- Content rows carry `id`, `surface`, `state`, `purpose`, `copy`,
+  `primary_action`, `trust_requirement`, `localization`, `content_limits`, and
+  `decision_ids`. Cover CTA, empty/loading/error/permission, destructive
+  action, confirmation, undo/recovery, privacy/trust, long copy and truncation,
+  right-to-left (RTL)/bidirectional layout, localization, and locale-aware date,
+  number, currency, and time zone output.
+- Component rows additionally preserve `variants`, `content_constraints`,
+  `semantic_token_refs`, reuse/extend/new `governance`, gap/deprecation
+  ownership, and `iconography` source, family, sizing, and optical alignment.
+  `semantic_token_refs` bind semantic token references rather than one-off
+  values; iconography also records semantics and fallback.
+- `motion_contract` preserves purpose, transition trigger/response,
+  `duration_ms`, easing, interrupt/cancel behavior, reduced-motion alternative,
+  and perceived-performance threshold values for immediate feedback, progress,
+  and timeout.
+- `usability_validation` preserves risk, methods, critical tasks, success
+  criteria, and `human_review_required`. Low-risk existing-pattern changes may
+  use a documented cognitive walkthrough or heuristic review. Medium/high-risk
+  journeys require representative target users and human review. Automated
+  tests and screenshots cannot substitute for target-user usability.
+
+Use risk-based or pairwise coverage rather than an unbounded Cartesian product;
+retain every high-severity accessibility, trust, recovery, and usability path.
 When references
 exist, keep the original inspectable assets and assign each a use intent; prose
 alone is not a fidelity source. Default reference fidelity is
@@ -171,8 +297,9 @@ Optional executable reports use
   design register.
 - **Specify — UI Requirements + acceptance**: layout pattern; design-system
   token/component use; required states (loading/empty/error/success/disabled/
-  focus); responsive targets; quality (no generic dashboard/template; maintain
-  DNA/dials); visual evidence kinds.
+  focus); required interaction/event paths; data-state scenarios; responsive
+  targets including resize/stretch/overflow behavior; quality (no generic
+  dashboard/template; maintain DNA/dials); visual evidence kinds.
 - **Test Design — UI coverage obligations**: enumerate accessibility,
   responsive, viewport/state, interaction, motion, and visual-comparison cases
   plus their data and evidence needs. Do not implement tests, run captures, or

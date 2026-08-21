@@ -28,7 +28,6 @@ ARGUMENT_HINTS: dict[str, str] = {
     "specify": "Describe the feature you want to specify",
     "ask": "Ask a read-only project question to answer from live evidence",
     "discussion": "Describe the rough idea or discussion slug to create or resume before Quick delivery or specification",
-    "clarify": "Describe what in the current spec package needs deeper analysis or correction",
     "deep-research": "Describe the feasibility question, research tracks, or demo proof needed before planning handoff",
     "research": "Describe the feasibility question; routes to sp-deep-research without separate artifacts",
     "explain": "Optionally name the stage or artifact you want explained",
@@ -768,7 +767,7 @@ class ClaudeIntegration(SkillsIntegration):
         parsed_options: dict[str, Any] | None = None,
         **opts: Any,
     ) -> list[Path]:
-        """Install Claude skills, then inject user-invocable and augment with leader guidance."""
+        """Install Claude skills, apply invocation controls, and add leader guidance."""
         workflow_profile = self.workflow_profile(parsed_options)
         # Run base setup which handles the core sp-skill creation and default augmentation
         created = super().setup(project_root, manifest, parsed_options, **opts)
@@ -862,9 +861,14 @@ class ClaudeIntegration(SkillsIntegration):
                 continue
             content = path.read_text(encoding="utf-8")
             if command_name == "implement":
+                from specify_cli.agents import CommandRegistrar
+
                 content = self._replace_frontmatter_description(
                     content=content,
-                    description="Execute the implementation plan by dispatching subagents and integrating their results",
+                    description=CommandRegistrar.apply_classic_skill_invocation_policy(
+                        path.parent.name,
+                        "Execute the implementation plan by dispatching subagents and integrating their results",
+                    ),
                 )
             content = self._append_delegation_surface_contract(
                 content=content,

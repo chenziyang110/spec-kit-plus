@@ -61,6 +61,7 @@ type UpdateBoundaryInput struct {
 	CommitRange        string   `json:"commit_range,omitempty"`
 	InitialDirtyPaths  []string `json:"initial_dirty_paths,omitempty"`
 	WorkflowOwnedPaths []string `json:"workflow_owned_paths,omitempty"`
+	ScopeMode          string   `json:"scope_mode,omitempty"`
 }
 
 type PayloadFileInput struct {
@@ -103,15 +104,16 @@ type UpdateInput struct {
 }
 
 type StatusUpdate struct {
-	Status                string   `json:"status"`
-	Freshness             string   `json:"freshness"`
-	Readiness             string   `json:"readiness"`
-	RecommendedNextAction string   `json:"recommended_next_action"`
-	Dirty                 bool     `json:"dirty"`
-	StalePaths            []string `json:"stale_paths"`
-	StaleReasons          []string `json:"stale_reasons"`
-	LastUpdateID          string   `json:"last_update_id"`
-	LastUpdateOutcome     string   `json:"last_update_outcome"`
+	Status                 string   `json:"status"`
+	Freshness              string   `json:"freshness"`
+	Readiness              string   `json:"readiness"`
+	RecommendedNextAction  string   `json:"recommended_next_action"`
+	Dirty                  bool     `json:"dirty"`
+	StalePaths             []string `json:"stale_paths"`
+	StaleReasons           []string `json:"stale_reasons"`
+	LastUpdateID           string   `json:"last_update_id"`
+	LastUpdateOutcome      string   `json:"last_update_outcome"`
+	LastUpdateScopeOutcome string   `json:"last_update_scope_outcome,omitempty"`
 }
 
 const (
@@ -122,6 +124,8 @@ const (
 	ResultBlocked        = "blocked"
 	ResultRecorded       = "recorded"
 	validateBuildReceipt = "validate-build-receipt.json"
+
+	GreenfieldBaselineHasProjectCodeReason = rt.GreenfieldBaselineHasProjectCodeReason
 )
 
 var closureNodeBudget = 1000
@@ -152,6 +156,11 @@ type UpdatePayload struct {
 	UpdateID                string                   `json:"update_id"`
 	UpdateOutcome           string                   `json:"update_outcome"`
 	ResultState             string                   `json:"result_state"`
+	ScopeResultState        string                   `json:"scope_result_state"`
+	GlobalFreshness         string                   `json:"global_freshness"`
+	GlobalReadiness         string                   `json:"global_readiness"`
+	GlobalDebtReasons       []string                 `json:"global_debt_reasons"`
+	ScopePartialReasons     []string                 `json:"scope_partial_reasons"`
 	StatusUpdate            StatusUpdate             `json:"status_update"`
 	ChangedPaths            []string                 `json:"changed_paths"`
 	PathChanges             []changemodel.PathChange `json:"path_changes"`
@@ -209,6 +218,12 @@ func MarkDirty(paths rt.Paths, input DirtyInput) (rt.Status, error) {
 	status.DirtyScopePaths = appendUnique(status.DirtyScopePaths, normalizePaths(scope)...)
 	status.StalePaths = appendUnique(status.StalePaths, status.DirtyScopePaths...)
 	status.StaleReasons = appendUnique(status.StaleReasons, input.Reason)
+	if status.BaselineKind == rt.BaselineKindGreenfieldEmpty && len(status.StalePaths) > 0 {
+		status.Readiness = rt.NeedsRebuildReadiness
+		status.RecommendedNextAction = "run_map_scan_build"
+		status.DirtyReasons = appendUnique(status.DirtyReasons, GreenfieldBaselineHasProjectCodeReason)
+		status.StaleReasons = appendUnique(status.StaleReasons, GreenfieldBaselineHasProjectCodeReason)
+	}
 	if err := rt.WriteStatus(paths, status); err != nil {
 		return rt.Status{}, err
 	}
@@ -527,12 +542,21 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 		return UpdatePayload{}, err
 	}
 	input.PathChanges = pathChanges
+	workflowOwned := normalizePaths(input.Boundary.WorkflowOwnedPaths)
+	if len(workflowOwned) > 0 {
+		input.ChangedPaths = intersectStrings(input.ChangedPaths, workflowOwned)
+		input.ScopePaths = intersectStrings(input.ScopePaths, workflowOwned)
+		input.PathChanges, err = filterPathChangesByWorkflowOwned(input.PathChanges, workflowOwned)
+		if err != nil {
+			return UpdatePayload{}, err
+		}
+	}
 	changed := append([]string{}, input.ChangedPaths...)
 	changed = append(changed, input.ScopePaths...)
-	for _, change := range pathChanges {
+	for _, change := range input.PathChanges {
 		changed = append(changed, change.Path)
 	}
-	if len(changed) == 0 {
+	if len(changed) == 0 && len(workflowOwned) == 0 {
 		derived, err := rt.GitChangedPaths(paths.Root)
 		if err != nil {
 			return UpdatePayload{}, err
@@ -550,6 +574,25 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 		return UpdatePayload{}, err
 	}
 	return runResolvedUpdate(paths, input, kept, ignored, nil)
+}
+
+func filterPathChangesByWorkflowOwned(values []changemodel.PathChange, workflowOwned []string) ([]changemodel.PathChange, error) {
+	owned := stringSet(workflowOwned)
+	out := make([]changemodel.PathChange, 0, len(values))
+	for _, value := range values {
+		path := normalizePathValue(value.Path)
+		oldPath := normalizePathValue(value.OldPath)
+		pathOwned := owned[path]
+		oldPathOwned := oldPath == "" || owned[oldPath]
+		if pathOwned && oldPathOwned {
+			out = append(out, value)
+			continue
+		}
+		if pathOwned || (oldPath != "" && owned[oldPath]) {
+			return nil, fmt.Errorf("path change %s crosses boundary.workflow_owned_paths: every path and old_path endpoint must be workflow-owned", path)
+		}
+	}
+	return out, nil
 }
 
 func blockSplitBrainBaseline(paths rt.Paths) error {
@@ -599,8 +642,11 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 	auditPathChanges := append([]changemodel.PathChange{}, input.PathChanges...)
 	auditPathChanges = append(auditPathChanges, ignoredDispositionChanges...)
 	sort.Slice(auditPathChanges, func(i, j int) bool { return auditPathChanges[i].Path < auditPathChanges[j].Path })
-	if err := validatePathChangesAgainstRuntime(input.PathChanges, pathNodeIDs); err != nil {
-		return UpdatePayload{}, err
+	greenfieldRebuildRequired := baselineStatus.BaselineKind == rt.BaselineKindGreenfieldEmpty && len(changed) > 0
+	if !greenfieldRebuildRequired {
+		if err := validatePathChangesAgainstRuntime(input.PathChanges, pathNodeIDs); err != nil {
+			return UpdatePayload{}, err
+		}
 	}
 	refreshScopePaths := pathChangeLookupPaths(changed, input.PathChanges)
 	graphChanges := graphMutationPathChanges(input.PathChanges)
@@ -613,26 +659,40 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 	if err != nil {
 		return UpdatePayload{}, err
 	}
-	resultState := constrainResultStateByBaseline(typedUpdateResultState(changed, input, closure, pathNodeIDs), baselineStatus, refreshScopePaths, input.Reason)
+	scopeResultState := typedUpdateResultState(changed, input, closure, pathNodeIDs)
+	if greenfieldRebuildRequired {
+		scopeResultState = ResultNeedsRebuild
+	}
+	resultState := constrainResultStateByBaseline(scopeResultState, baselineStatus, refreshScopePaths, input.Reason)
+	storePathChanges := auditPathChanges
+	recordChangedPaths := graphMutationPaths(input.PathChanges)
+	updateAttrs := map[string]any{
+		"generated_surfaces": input.GeneratedSurfaces,
+		"state_contracts":    input.StateContracts,
+		"known_unknowns":     input.KnownUnknowns,
+		"confidence_notes":   input.ConfidenceNotes,
+		"boundary":           boundaryResult,
+		"closure_truncated":  closure.Truncated,
+		"scope_result_state": scopeResultState,
+	}
+	if greenfieldRebuildRequired {
+		storePathChanges = nil
+		recordChangedPaths = refreshScopePaths
+		updateAttrs["requested_path_changes"] = auditPathChanges
+		updateAttrs["rebuild_reason"] = GreenfieldBaselineHasProjectCodeReason
+	}
 	typedResult, err := st.ApplyTypedUpdate(context.Background(), store.TypedUpdate{
 		Record: store.UpdateRecord{
 			ID:             updateID,
 			Trigger:        input.Reason,
-			ChangedPaths:   graphMutationPaths(input.PathChanges),
+			ChangedPaths:   recordChangedPaths,
 			AffectedNodes:  closure.NodeIDs,
 			AffectedClaims: closure.ClaimIDs,
 			AffectedSlices: closure.SliceIDs,
 			ResultState:    resultState,
-			Attrs: map[string]any{
-				"generated_surfaces": input.GeneratedSurfaces,
-				"state_contracts":    input.StateContracts,
-				"known_unknowns":     input.KnownUnknowns,
-				"confidence_notes":   input.ConfidenceNotes,
-				"boundary":           boundaryResult,
-				"closure_truncated":  closure.Truncated,
-			},
+			Attrs:          updateAttrs,
 		},
-		PathChanges:      auditPathChanges,
+		PathChanges:      storePathChanges,
 		Workflow:         input.Workflow,
 		BehaviorSurfaces: input.BehaviorSurfaces,
 		Verification:     verificationAttrs(input.Verification),
@@ -655,11 +715,23 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		return UpdatePayload{}, err
 	}
 
+	partialRefreshReasons := updateResultReasons(scopeResultState, changed, nodes, input, pathNodeIDs, true, baselineStatus, refreshScopePaths)
+	partialRefreshReasons = appendUnique(partialRefreshReasons, pathChangePartialReasons(input.PathChanges, closure)...)
+	if greenfieldRebuildRequired {
+		partialRefreshReasons = appendUnique(partialRefreshReasons, GreenfieldBaselineHasProjectCodeReason)
+	}
+	globalDebtReasons := []string{}
+	if resultState == ResultPartialRefresh && baselineHasUnresolvedState(baselineStatus, refreshScopePaths, input.Reason) {
+		globalDebtReasons = append(globalDebtReasons, "existing_project_cognition_stale_or_dirty")
+		partialRefreshReasons = appendUnique(partialRefreshReasons, globalDebtReasons...)
+	}
+	scopePartialReasons := subtractStrings(partialRefreshReasons, globalDebtReasons)
+
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
 		return UpdatePayload{}, err
 	}
-	status = applyResultState(status, resultState, updateID, refreshScopePaths, input.Reason)
+	status = applyResultState(status, scopeResultState, resultState, updateID, refreshScopePaths, input.Reason, partialRefreshReasons)
 	if input.DeltaSessionID != "" {
 		status.LastDeltaSessionID = input.DeltaSessionID
 	}
@@ -675,14 +747,12 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		pathAccounting = boundaryResult.PathAccounting
 	}
 	reviewPaths := reviewOnlyPaths(input.PathChanges)
-	if resultState != ResultReady && len(reviewPaths) == 0 {
+	if scopeResultState != ResultReady && scopeResultState != ResultNoOp && len(reviewPaths) == 0 {
 		reviewPaths = append([]string{}, changed...)
 	}
-	if boundaryResult != nil && resultState != ResultReady {
+	if boundaryResult != nil && scopeResultState != ResultReady && scopeResultState != ResultNoOp {
 		reviewPaths = appendUnique(reviewPaths, boundaryResult.AmbiguousPaths...)
 	}
-	partialRefreshReasons := updateResultReasons(resultState, changed, nodes, input, pathNodeIDs, true, baselineStatus, refreshScopePaths)
-	partialRefreshReasons = appendUnique(partialRefreshReasons, pathChangePartialReasons(input.PathChanges, closure)...)
 	knownUnknowns := compactStrings(input.KnownUnknowns)
 	if boundaryResult != nil {
 		knownUnknowns = compactStrings(append(knownUnknowns, boundaryResult.Warnings...))
@@ -709,6 +779,11 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		UpdateID:                updateID,
 		UpdateOutcome:           boundaryOutcome(boundaryResult),
 		ResultState:             resultState,
+		ScopeResultState:        scopeResultState,
+		GlobalFreshness:         status.Freshness,
+		GlobalReadiness:         status.Readiness,
+		GlobalDebtReasons:       globalDebtReasons,
+		ScopePartialReasons:     scopePartialReasons,
 		StatusUpdate:            statusUpdateFromStatus(status),
 		ChangedPaths:            append([]string{}, changed...),
 		PathChanges:             append([]changemodel.PathChange{}, auditPathChanges...),
@@ -750,15 +825,16 @@ func requireUpdateBaseline(paths rt.Paths) (rt.Status, error) {
 
 func statusUpdateFromStatus(status rt.Status) StatusUpdate {
 	return StatusUpdate{
-		Status:                status.Status,
-		Freshness:             status.Freshness,
-		Readiness:             status.Readiness,
-		RecommendedNextAction: status.RecommendedNextAction,
-		Dirty:                 status.Dirty,
-		StalePaths:            append([]string{}, status.StalePaths...),
-		StaleReasons:          append([]string{}, status.StaleReasons...),
-		LastUpdateID:          status.LastUpdateID,
-		LastUpdateOutcome:     status.LastUpdateOutcome,
+		Status:                 status.Status,
+		Freshness:              status.Freshness,
+		Readiness:              status.Readiness,
+		RecommendedNextAction:  status.RecommendedNextAction,
+		Dirty:                  status.Dirty,
+		StalePaths:             append([]string{}, status.StalePaths...),
+		StaleReasons:           append([]string{}, status.StaleReasons...),
+		LastUpdateID:           status.LastUpdateID,
+		LastUpdateOutcome:      status.LastUpdateOutcome,
+		LastUpdateScopeOutcome: status.LastUpdateScopeOutcome,
 	}
 }
 
@@ -837,6 +913,9 @@ func completePathChanges(changed []string, values []changemodel.PathChange, path
 		}
 		out = append(out, value)
 		seen[value.Path] = true
+		if value.OldPath != "" {
+			seen[value.OldPath] = true
+		}
 	}
 	for _, path := range changed {
 		if seen[path] {
@@ -1085,9 +1164,11 @@ func verificationAttrs(values []VerificationEvidence) []map[string]string {
 	return out
 }
 
-func applyResultState(status rt.Status, resultState string, updateID string, changedPaths []string, reason string) rt.Status {
+func applyResultState(status rt.Status, scopeResultState string, resultState string, updateID string, changedPaths []string, reason string, partialReasons []string) rt.Status {
 	status.LastUpdateID = updateID
 	status.LastUpdateOutcome = resultState
+	status.LastUpdateScopeOutcome = scopeResultState
+	status.LastUpdatePartialReasons = append([]string{}, partialReasons...)
 	status.LastRefreshChangedFilesBasis = append([]string{}, changedPaths...)
 	switch resultState {
 	case ResultReady:
@@ -1122,16 +1203,25 @@ func applyResultState(status rt.Status, resultState string, updateID string, cha
 		status.Readiness = rt.ReviewReadiness
 		status.RecommendedNextAction = "review_project_cognition_update"
 		status.Dirty = true
-		status.StalePaths = appendUnique(status.StalePaths, changedPaths...)
-		status.StaleReasons = appendUnique(status.StaleReasons, reason)
+		if scopeResultState == ResultReady || scopeResultState == ResultNoOp {
+			status.StalePaths = subtractStrings(status.StalePaths, changedPaths)
+			status.StaleReasons = subtractStrings(status.StaleReasons, []string{reason})
+			status.DirtyScopePaths = subtractStrings(status.DirtyScopePaths, changedPaths)
+			status.DirtyReasons = subtractStrings(status.DirtyReasons, []string{reason})
+		} else {
+			status.StalePaths = appendUnique(status.StalePaths, changedPaths...)
+			status.StaleReasons = appendUnique(status.StaleReasons, reason)
+		}
 	case ResultNeedsRebuild:
 		status.Status = "stale"
 		status.Freshness = rt.StaleFreshness
 		status.Readiness = rt.NeedsRebuildReadiness
 		status.RecommendedNextAction = "run_map_scan_build"
 		status.Dirty = true
+		status.DirtyReasons = appendUnique(status.DirtyReasons, partialReasons...)
 		status.StalePaths = appendUnique(status.StalePaths, changedPaths...)
 		status.StaleReasons = appendUnique(status.StaleReasons, reason)
+		status.StaleReasons = appendUnique(status.StaleReasons, partialReasons...)
 	default:
 		status.Status = "stale"
 		status.Freshness = rt.StaleFreshness
@@ -1246,7 +1336,7 @@ func applyPayloadFileInput(input UpdateInput, payload PayloadFileInput) UpdateIn
 	input.KnownUnknowns = append(input.KnownUnknowns, payload.KnownUnknowns...)
 	input.ConfidenceNotes = append(input.ConfidenceNotes, payload.ConfidenceNotes...)
 	input.UserDecisions = append(input.UserDecisions, payload.UserDecisions...)
-	if payload.Boundary.CommitRange != "" {
+	if payload.Boundary.CommitRange != "" || len(payload.Boundary.InitialDirtyPaths) > 0 || len(payload.Boundary.WorkflowOwnedPaths) > 0 {
 		input.Boundary = payload.Boundary
 	}
 	return input
@@ -1366,6 +1456,13 @@ func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, er
 	forceBoundaryOnlyAutoCommitDecision(&result)
 
 	resolvedInput := updateInputFromBoundary(input, result)
+	resolvedInput.PathChanges, err = filterPathChangesByWorkflowOwned(
+		resolvedInput.PathChanges,
+		resolvedInput.Boundary.WorkflowOwnedPaths,
+	)
+	if err != nil {
+		return UpdatePayload{}, err
+	}
 	kept, extraIgnored := ignore.Load(paths.Root).Filter(result.ChangedPaths)
 	resolvedInput.PathChanges = filterPathChanges(resolvedInput.PathChanges, normalizePaths(kept))
 	ignored := normalizePaths(append(result.IgnoredPaths, extraIgnored...))
@@ -1546,6 +1643,33 @@ func filterPathChanges(values []changemodel.PathChange, keptPaths []string) []ch
 	for _, value := range values {
 		if _, ok := kept[value.Path]; ok {
 			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func intersectStrings(values []string, keep []string) []string {
+	keepSet := stringSet(keep)
+	out := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		normalized := normalizePathValue(value)
+		if normalized == "" || !keepSet[normalized] || seen[normalized] {
+			continue
+		}
+		seen[normalized] = true
+		out = append(out, normalized)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func stringSet(values []string) map[string]bool {
+	out := make(map[string]bool, len(values))
+	for _, value := range values {
+		normalized := normalizePathValue(value)
+		if normalized != "" {
+			out[normalized] = true
 		}
 	}
 	return out

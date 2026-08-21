@@ -55,7 +55,9 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "show_argv" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## Workflow Recommendations" in content
-    assert "do not auto-enter an `sp-*` workflow" in lower
+    assert "passive skill invocation is allowed only for" in lower
+    assert "`sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`" in lower
+    assert "all other `sp-*` workflows are user-invoked only" in lower
     assert "recommend `sp-discussion`" in lower
     assert "presents both `sp-quick` and `sp-specify`" in lower
     assert "complexity-informed recommendation" in lower
@@ -85,7 +87,6 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "## Brownfield Context Gate" not in content
     assert "## Project Cognition Usage" not in content
     assert "## Map Maintenance" not in content
-    assert "sp-fast" not in lower
     assert "sp-test-scan" not in lower
     assert "sp-test-build" not in lower
 
@@ -634,15 +635,24 @@ class TestClaudeIntegration:
         parsed = yaml.safe_load(parts[1])
         assert parsed["name"] == "sp-plan"
         assert parsed["user-invocable"] is True
-        assert "disable-model-invocation" not in parsed
+        assert parsed["disable-model-invocation"] is True
         assert parsed["metadata"]["source"] == "templates/commands/plan.md"
         assert (skills_dir / "sp-implement-teams" / "SKILL.md").exists()
 
+        passively_invocable = {
+            "sp-debug",
+            "sp-discussion",
+            "sp-fast",
+            "sp-quick",
+        }
         for skill_file in sorted(skills_dir.glob("sp-*/SKILL.md")):
             skill_content = skill_file.read_text(encoding="utf-8")
             skill_frontmatter = yaml.safe_load(skill_content.split("---", 2)[1])
             assert skill_frontmatter["user-invocable"] is True
-            assert "disable-model-invocation" not in skill_frontmatter
+            if skill_file.parent.name in passively_invocable:
+                assert "disable-model-invocation" not in skill_frontmatter
+            else:
+                assert skill_frontmatter["disable-model-invocation"] is True
 
     def test_setup_keeps_passive_skills_model_invokable(self, tmp_path):
         integration = get_integration("claude")
@@ -3474,7 +3484,7 @@ class TestClaudeIntegration:
         assert skill_file.exists()
         skill_content = skill_file.read_text(encoding="utf-8")
         assert "user-invocable: true" in skill_content
-        assert "disable-model-invocation" not in skill_content
+        assert "disable-model-invocation: true" in skill_content
 
         init_options = json.loads(
             (project / ".specify" / "init-options.json").read_text(encoding="utf-8")
@@ -3581,7 +3591,7 @@ class TestClaudeIntegration:
         assert "preset:claude-skill-command" in content
         assert "name: sp-research" in content
         assert "user-invocable: true" in content
-        assert "disable-model-invocation" not in content
+        assert "disable-model-invocation: true" in content
 
         metadata = manager.registry.get("claude-skill-command")
         assert "sp-research" in metadata.get("registered_skills", [])
@@ -3832,6 +3842,7 @@ def test_claude_generated_implement_skill_includes_shared_leader_gate(tmp_path):
 def test_claude_generated_sp_implement_description_prefers_subagent_dispatch(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
+    from specify_cli.agents import CommandRegistrar
 
     runner = CliRunner()
     target = tmp_path / "claude-implement-subagent-description"
@@ -3859,7 +3870,8 @@ def test_claude_generated_sp_implement_description_prefers_subagent_dispatch(tmp
     parsed = yaml.safe_load(parts[1])
 
     assert parsed["description"] == (
-        "Execute the implementation plan by dispatching subagents and integrating their results"
+        CommandRegistrar.USER_INVOKED_DESCRIPTION_PREFIX
+        + "Execute the implementation plan by dispatching subagents and integrating their results"
     )
 
 
@@ -4156,7 +4168,7 @@ def test_claude_question_driven_skills_prefer_ask_user_question_with_fallback(tm
 
     assert result.exit_code == 0, f"init --ai claude failed: {result.output}"
 
-    for skill_name in ("sp-specify", "sp-clarify", "sp-checklist", "sp-quick"):
+    for skill_name in ("sp-specify", "sp-checklist", "sp-quick"):
         content = (target / ".claude" / "skills" / skill_name / "SKILL.md").read_text(
             encoding="utf-8"
         )

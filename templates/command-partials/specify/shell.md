@@ -39,6 +39,14 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
   screenshot. New or changed user-visible screens, components, layouts,
   navigation, interaction flows, responsive behavior, visual states, TUI
   layouts, or CLI presentation are UI-bearing work.
+- In UI-bearing work, make the contract explicit instead of leaving it implied:
+  capture component-level interaction modes (`mouse`/`pointer`, `keyboard`/
+  `focus`, `touch`, terminal input when relevant), concrete interaction rows
+  (`surface`, `input`, `trigger`, `event_sequence`, `immediate_feedback`,
+  `focus_behavior`, `repeat_behavior`, `cancellation_behavior`,
+  `pending_behavior`), required states, no-data vs
+  populated vs partial data behavior, permission/offline/error handling, and
+  resize/stretch/overflow behavior.
 - For substantive UI-bearing work, require `ui-brief.md` even when there is no
   external reference. Run
   `specify-runtime design resolve --scope <exact-surface> --format json`, then
@@ -66,11 +74,18 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
   binding and do not regenerate Plan or Tasks. On success, reconcile from the
   receipt's named stage, mark only listed Plan/Tasks/affected Review surfaces
   pending, and preserve completed implementation plus unaffected evidence.
+- This formal replacement path applies when Specify is creating/revising
+  requirement truth or Design exposed a genuine requirements, scope, or
+  acceptance change. If a planning-ready spec already existed before Design and
+  those semantics remain unchanged, do not invoke Specify a second time and do
+  not patch the spec merely to add Design fields. The Design owner uses
+  `formal-post-specify`; Plan verifies that late overlay against the exact
+  unchanged source spec digest.
 - Treat a pre-existing root `DESIGN.md` as read-only legacy baseline input, not
   a candidate for implicit adoption. Route new or high-visibility design
   decisions with no applicable registered change to `sp-design`.
 - When approved design provenance names
-  `.specify/design/changes/<UD-ID>/previews/round-NN.html#<direction-id>`, query the preview and
+  `.specify/design/changes/<UD-ID>/previews/round-NN.<html|png|jpg|jpeg|webp>#<direction-id>`, query the visual round and
   its approval/manifest/handoff sidecars only through targeted
   `specify-runtime artifact show` calls, then preserve that exact change-level
   visual reference, registered design ref/hash, approval sidecar,
@@ -95,7 +110,7 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 - Do not repeat user review for an unchanged confirmed discussion contract. Ask again only when specification compilation changes scope, behavior, risk acceptance, target boundary, or another user-owned decision.
 - When entered through `sp-auto` with `auto_default_recommendation: true`, automatically accept a single safe recommended approach or section-shape option instead of stopping only for a `1`/`2`/`3` reply; do not use this to confirm scope reduction, dropped upstream signals, out-of-scope conflicts, or unresolved planning-critical ambiguity.
 - Scaffold `spec-contract.json` first with `artifact scaffold --kind spec-contract`, refine it with targeted `artifact patch`, and patch named sections in the prerequisite-script-created `spec.md` skeleton through its registered owner; never write or resubmit those files directly.
-- Ask the user only about a non-empty `semantic_delta` or unresolved user-owned decision before recommending exactly one next command: `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
+- Ask the user only about a non-empty `semantic_delta` or unresolved user-owned decision before recommending exactly one next command: `/sp.plan`, `/sp.specify`, or `/sp.deep-research`.
 
 ## Output Contract
 
@@ -120,3 +135,15 @@ reference was supplied; create `ui-target.html` only through `specify-runtime de
 - Do not silently narrow user scope, redefine broad capability terms, or convert the request into a smaller delivery without user confirmation.
 - Do not require legacy brainstorming journals, stage manifests, lock JSON files, or replay artifacts for normal `sp-specify` completion.
 - Do not treat this summary block as the workflow itself; the detailed contract below remains authoritative.
+
+## Professional UI Contract Continuity
+
+For UI-bearing scope, copy the exact applicable `surface_catalog`,
+`scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
+`accessibility_matrix`, `navigation_matrix`, `content_matrix`,
+`motion_contract`, and `usability_validation` into the feature
+requirements and `ui-brief.md`; never replace them with generic accessibility,
+navigation, content, animation, or usability prose. Preserve the exact
+`style_authority`, component variants,
+content constraints, semantic tokens, governance, and iconography. Select
+risk-based or pairwise acceptance scenarios, not an unbounded Cartesian product.

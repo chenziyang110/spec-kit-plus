@@ -33,14 +33,22 @@ func TestScanPrepareAndAcceptCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(old) })
+	policyDigest := confirmDefaultCLIScanPolicy(t)
 
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"scan-prepare", "--packet-size", "1", "--format", "json"}, &stdout, &stderr, "test")
 	if code != 0 {
 		t.Fatalf("scan-prepare code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
 	}
-	if got, want := strings.TrimSpace(stdout.String()), `{"status":"prepared","path_count":1,"packet_count":1,"packet_ids":["lane-001"],"scan_set_path":".specify/project-cognition/tmp/scan-files.json","workbench_path":".specify/project-cognition/workbench","next_action":"dispatch_scan_packets"}`; got != want {
-		t.Fatalf("scan-prepare stdout = %q, want %q", got, want)
+	var prepared map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &prepared); err != nil {
+		t.Fatalf("decode scan-prepare output: %v; output=%s", err, stdout.String())
+	}
+	if prepared["status"] != "prepared" || prepared["path_count"] != float64(1) ||
+		prepared["pending_path_count"] != float64(1) || prepared["reused_path_count"] != float64(0) ||
+		prepared["packet_count"] != float64(1) || prepared["policy_digest"] != policyDigest ||
+		prepared["preparation_digest"] == "" || prepared["next_action"] != "dispatch_scan_packets" {
+		t.Fatalf("scan-prepare payload = %#v", prepared)
 	}
 	stdout.Reset()
 	stderr.Reset()
@@ -77,9 +85,31 @@ func TestScanPrepareAndAcceptCommands(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	code = Run([]string{"scan-prepare", "--format", "json"}, &stdout, &stderr, "test")
-	if code != 1 || !strings.Contains(stdout.String(), `"status":"blocked"`) || !strings.Contains(stdout.String(), "--force") {
-		t.Fatalf("guarded scan-prepare code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	code = Run([]string{"scan-prepare", "--packet-size", "1", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("resumed scan-prepare code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var resumed map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &resumed); err != nil {
+		t.Fatal(err)
+	}
+	if resumed["status"] != "resumed" || resumed["reused_path_count"] != float64(1) || resumed["next_action"] != "validate_scan" {
+		t.Fatalf("resumed scan-prepare payload = %#v", resumed)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	code = Run([]string{"validate-scan", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("validate-scan code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var validated map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &validated); err != nil {
+		t.Fatal(err)
+	}
+	details, _ := validated["details"].(map[string]any)
+	cache, _ := details["scan_cache"].(map[string]any)
+	if cache["status"] != "refreshed" || cache["path_count"] != float64(1) {
+		t.Fatalf("validate-scan cache details = %#v", validated)
 	}
 	stdout.Reset()
 	stderr.Reset()
@@ -114,6 +144,7 @@ func TestScanStatusReportsCompactLeaseCounts(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(old) })
+	confirmDefaultCLIScanPolicy(t)
 
 	var stdout, stderr bytes.Buffer
 	if code := Run([]string{"scan-prepare", "--packet-size", "2", "--format", "json"}, &stdout, &stderr, "test"); code != 0 {
@@ -288,6 +319,7 @@ func TestScanCheckpointRejectsResultOutsideDesignatedWorkbenchPath(t *testing.T)
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(old) })
+	confirmDefaultCLIScanPolicy(t)
 
 	var stdout, stderr bytes.Buffer
 	if code := Run([]string{"scan-prepare", "--format", "json"}, &stdout, &stderr, "test"); code != 0 {
@@ -334,6 +366,7 @@ func TestScanCheckpointAcceptsAtPathResultJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(old) })
+	confirmDefaultCLIScanPolicy(t)
 
 	runJSON := func(args ...string) map[string]any {
 		t.Helper()
@@ -388,6 +421,7 @@ func TestScanCheckpointAcceptsInlineResultWithoutWorkerFileWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(old) })
+	confirmDefaultCLIScanPolicy(t)
 
 	runJSON := func(args ...string) map[string]any {
 		t.Helper()
@@ -463,6 +497,7 @@ func TestScanCLIRequeuesCheckpointedRemainderEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(old) })
+	confirmDefaultCLIScanPolicy(t)
 
 	runJSON := func(args ...string) map[string]any {
 		t.Helper()
@@ -587,6 +622,61 @@ func acceptedCLIWorkerResult(packetID string, attemptID string, path string) map
 		"confidence":   "high",
 		"acceptance":   "partial",
 	}
+}
+
+func confirmDefaultCLIScanPolicy(t *testing.T) string {
+	t.Helper()
+	run := func(args ...string) map[string]any {
+		t.Helper()
+		var stdout, stderr bytes.Buffer
+		if code := Run(args, &stdout, &stderr, "test"); code != 0 {
+			t.Fatalf("%v code=%d stderr=%s stdout=%s", args, code, stderr.String(), stdout.String())
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+			t.Fatalf("decode %v output: %v; output=%s", args, err, stdout.String())
+		}
+		return payload
+	}
+	inventory := run("scan-formats", "--format", "json")
+	cohorts, ok := inventory["cohorts"].([]any)
+	if !ok || len(cohorts) == 0 {
+		t.Fatalf("scan-formats cohorts = %#v", inventory["cohorts"])
+	}
+	idsByDecision := map[string][]string{}
+	for _, raw := range cohorts {
+		cohort := raw.(map[string]any)
+		kind := cohort["path_kind"].(string)
+		decision := "inventory_only"
+		switch kind {
+		case "source", "config", "script", "template":
+			decision = "semantic_scan"
+		case "test", "doc":
+			decision = "sample"
+		}
+		idsByDecision[decision] = append(idsByDecision[decision], cohort["cohort_id"].(string))
+	}
+	groups := []map[string]any{}
+	for _, decision := range []string{"semantic_scan", "sample", "inventory_only"} {
+		if ids := idsByDecision[decision]; len(ids) > 0 {
+			groups = append(groups, map[string]any{
+				"cohort_ids": ids,
+				"decision":   decision,
+				"reason":     "legacy CLI test fixture default",
+			})
+		}
+	}
+	proposal, err := json.Marshal(map[string]any{
+		"protocol":         "project_cognition_scan_policy_proposal.v1",
+		"inventory_digest": inventory["inventory_digest"],
+		"decision_groups":  groups,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	staged := run("scan-policy-stage", "--proposal-json", string(proposal), "--format", "json")
+	confirmed := run("scan-policy-confirm", "--proposal-digest", staged["proposal_digest"].(string), "--format", "json")
+	return confirmed["policy_digest"].(string)
 }
 
 func writeCLIJSON(t *testing.T, path string, value any) {

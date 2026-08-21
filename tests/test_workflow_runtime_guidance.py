@@ -112,11 +112,6 @@ def test_auto_routes_canonical_features_from_structured_runtime_argv_first() -> 
 
 def test_auxiliary_workflows_guard_the_runtime_without_owning_it() -> None:
     surfaces = {
-        "clarify": (
-            _read("templates/commands/clarify.md"),
-            _read("templates/advanced-skills/spx-clarify/SKILL.md"),
-            "specify",
-        ),
         "deep-research": (
             _read("templates/commands/deep-research.md"),
             _read("templates/advanced-skills/spx-deep-research/SKILL.md"),
@@ -140,7 +135,7 @@ def test_auxiliary_workflows_guard_the_runtime_without_owning_it() -> None:
 
 
 def test_auxiliary_spx_skills_do_not_call_rich_state_runtime_owned() -> None:
-    for name in ("clarify", "deep-research", "analyze"):
+    for name in ("deep-research", "analyze"):
         content = _read(f"templates/advanced-skills/spx-{name}/SKILL.md")
         assert "runtime-owned `workflow-state.md`" not in content
 
@@ -149,9 +144,7 @@ def test_auxiliary_workflows_do_not_call_rich_state_the_required_stage_authority
     None
 ):
     surfaces = (
-        "templates/commands/clarify.md",
         "templates/commands/deep-research.md",
-        "templates/advanced-skills/spx-clarify/SKILL.md",
         "templates/advanced-skills/spx-deep-research/SKILL.md",
     )
     forbidden = (
@@ -176,7 +169,7 @@ def test_analyze_reopens_invalidated_required_stages_through_the_runtime() -> No
         assert "--reason" in content
         assert "--evidence" in content
         assert "--invalidated-artifact" in content
-        assert "clarify" in lowered and "deep-research" in lowered
+        assert "specify" in lowered and "deep-research" in lowered
         assert "reopen `specify`" in lowered
         assert "accept route-repair" in lowered
         assert "status: completed" in lowered

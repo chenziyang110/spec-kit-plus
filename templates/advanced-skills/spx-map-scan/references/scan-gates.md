@@ -6,10 +6,26 @@ explicit full rebuild. A localized stale route belongs in `$spx-map-update`.
 
 Respect root and runtime `.cognitionignore`; secrets, vendor/build output,
 binaries, and `.specify/**` are not ordinary graph evidence. The runtime's scan
-set is the authoritative already-filtered universe. `scan-prepare` applies the
-deterministic value classifier and owns `repository-universe.json`,
-`scan-targets.json`, and the queue. Audit those projections, but do not
-hand-write, rename fields in, or reclassify them. Every assigned path must be
+set is the authoritative already-filtered universe. `scan-formats` groups that
+universe by detected format, family, path kind, top-level directory, and Git
+state, with aggregate counts and at most three representatives per cohort. The
+Agent proposes one cohort-level policy over every runtime-issued `cohort_id`;
+it may select known or custom code for semantic scan, sample uncertainty, and
+leave non-code inventory-only or excluded. It cannot submit path overrides.
+`scan-policy-stage` validates exact cohort coverage, and
+`scan-policy-confirm` activates only the exact user-confirmed policy digest.
+Inventory drift while a proposal is staged, tampering, incompleteness, or
+`split_required` blocks preparation until a new or refined proposal is
+confirmed. After confirmation, content or membership drift inside a known
+stable cohort reuses its decision; a newly observed cohort requires review and
+confirmation.
+
+`scan-prepare` detects file format before value classification and owns
+`repository-universe.json`, `scan-targets.json`, and the queue. It requires the
+confirmed policy and freezes that inventory and policy into the workbench.
+Audit those projections, but do not hand-write, rename fields in, or reclassify
+them. Directory and Git metadata remain guardrails: they may demote known
+artifact families but cannot prove an unknown path is code. Every assigned path must be
 accounted for by a packet result; low-value `P3` paths remain inventory-only
 boundary accounting and receive no packet, evidence, or graph-facing coverage.
 Auth, security, payment, integration, end-to-end, contract, and smoke
@@ -20,12 +36,30 @@ workbench. It sizes packets by the effective worker context budget after
 instruction, inherited-context, reasoning, tool-output, checkpoint,
 result-output, and safety reserves. Estimated token cost is the primary packing
 constraint; path count and bytes are secondary guards. Preparation never
-replaces an existing workbench by default.
+replaces incompatible or in-progress workbench state by default.
+
+Preparation has two reuse layers. An identical `preparation_digest` resumes the
+current workbench. After successful `validate-scan`, the runtime keeps validated
+path-scope row bundles under its persistent cognition cache, keyed by source
+SHA-256, effective per-path policy, result/workbench contract, and graph schema.
+On a later generation it creates fresh `reuse-*` packet, attempt, acceptance,
+and scan receipts; old queue or receipt identity is never copied. A source,
+policy, or contract miss queues that whole dependency scope, and a cross-path
+edge joins both endpoint scopes. Workers must materialize shared nodes,
+cross-path edges, and multi-path evidence or claims; unrecorded coupling cannot
+participate in invalidation. Cache lineage must cover every current accepted
+packet/path before automatic generation replacement; older cache cannot discard
+newer unvalidated work. Dispatch only the returned
+`pending_path_count`. `--force` replaces incompatible current state
+but retains eligible validated cache; `--full-rebuild` is the explicit cache
+bypass.
+
 If preparation or status returns
 `error_classification=scan_workbench_contract`, preserve its
 `recovery_action`, `recovery_detail`, and `recovery_argv`. Back up a legacy or
 incompatible workbench before using the returned `scan-prepare --force` action,
-and do so only after explicitly abandoning accepted and pending results. Never
+and do so only after explicitly abandoning accepted and pending workbench
+results. Never
 hand-edit queue JSON or write a normalization script.
 
 The queue assigned-path union must exactly equal

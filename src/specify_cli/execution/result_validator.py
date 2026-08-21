@@ -527,6 +527,33 @@ def validate_worker_task_result(
                     "DP3",
                     "visual_comparison_or_human_review pending human review requires review evidence",
                 )
+        usability_validation = packet.ui_contract.usability_validation
+        if (
+            isinstance(usability_validation, dict)
+            and usability_validation.get("human_review_required") is True
+        ):
+            if not _has_human_ui_approval(result):
+                raise PacketValidationError(
+                    "DP3",
+                    "human usability validation requires a human reviewer",
+                )
+            human_review_ref = result.ui_verification.human_review_ref.strip()
+            if not human_review_ref:
+                raise PacketValidationError(
+                    "DP3",
+                    "human usability validation requires ui_verification.human_review_ref",
+                )
+            manual_refs = {
+                str(item.get("ref") or item.get("path") or "").strip()
+                for item in result.manual_evidence
+                if isinstance(item, dict)
+                and str(item.get("ref") or item.get("path") or "").strip()
+            }
+            if human_review_ref not in manual_refs:
+                raise PacketValidationError(
+                    "DP3",
+                    "ui_verification.human_review_ref must bind manual evidence",
+                )
         if (
             packet.must_preserve_obligations
             or "must_preserve_evidence" in required_evidence

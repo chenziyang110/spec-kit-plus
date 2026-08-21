@@ -11,10 +11,8 @@ from .result_schema import WorkerTaskResult, worker_task_result_payload
 
 FEATURE_LANE_RESULT_DIRECTORIES = {
     "review": "review-results",
-    "clarify": "clarification/handoffs",
     "plan": "planning/handoffs",
     "tasks": "task-generation/handoffs",
-    "deep-research": "research/handoffs",
 }
 WORKSPACE_LANE_RESULT_COMMANDS = frozenset({"quick", "prd-scan"})
 STAGE_OWNED_RESULT_COMMANDS = frozenset(
@@ -34,6 +32,8 @@ def describe_result_handoff_template(*, command_name: str, integration_key: str)
     normalized_command = command_name.strip().lower()
     normalized_integration = integration_key.strip().lower()
 
+    if normalized_command == "deep-research":
+        return "FEATURE_DIR/research/handoffs/<track-id>.json"
     if normalized_command in FEATURE_LANE_RESULT_DIRECTORIES:
         directory = FEATURE_LANE_RESULT_DIRECTORIES[normalized_command]
         return f"FEATURE_DIR/{directory}/<lane-id>.json"
@@ -56,6 +56,13 @@ def describe_result_submit_template(*, command_name: str, integration_key: str) 
     normalized_command = command_name.strip().lower()
     normalized_integration = integration_key.strip().lower()
 
+    if normalized_command == "deep-research":
+        return (
+            "`specify-runtime deep-research track-submit "
+            "--feature-dir <feature-dir> --track-id <track-id> "
+            "--attempt-id <attempt-id> --expected-revision <revision> "
+            "--result-json '<inline-json>'`"
+        )
     if normalized_command == "implement":
         return (
             "return the WorkerTaskResult inline; the leader runs "
@@ -107,6 +114,11 @@ def build_result_handoff_path(
     normalized_command = command_name.strip().lower()
     normalized_integration = integration_key.strip().lower()
 
+    if normalized_command == "deep-research":
+        raise ValueError(
+            "Deep Research track results are runtime-owned; use "
+            "specify-runtime deep-research track-submit"
+        )
     if normalized_command in FEATURE_LANE_RESULT_DIRECTORIES:
         if feature_dir is None or not lane_id:
             raise ValueError(

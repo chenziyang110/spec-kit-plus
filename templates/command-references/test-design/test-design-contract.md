@@ -52,7 +52,15 @@ UI contract as sources. Account for accessibility and structure, responsive
 viewport/state behavior, motion and interaction, visual comparison or explicit
 human review, and real-entrypoint runtime diagnostics. Preserve the required
 `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` evidence
-classes; automated functional checks cannot replace visual acceptance.
+classes; automated functional checks cannot replace visual acceptance. Freeze
+risk-based or pairwise cases across declared `interaction_matrix` × `editing_matrix` ×
+`data_state_matrix` × responsive rows rather than an unbounded Cartesian
+product. Cover pointer/mouse, keyboard/focus, applicable touch/shortcut/command
+paths; exact event sequence, immediate feedback, focus, repeat, cancellation,
+and pending behavior; empty and populated data plus applicable loading, partial, error,
+permission, offline, pending, retry, undo, and recovery; continuous
+stretch/compression/reflow/overflow; and high-risk resize or recovery while
+focus, selection, scrolling, overlays, or unsaved input is active.
 
 The Leader binds accepted search output to the content-addressed evidence store
 with `specify-runtime evidence register` for inline text/JSON and
@@ -85,3 +93,13 @@ claim `absolutely_complete`. A feature handoff is a compatibility pointer for
 `sp-tasks`; typed projections are the public read-only contract for selected
 Plan, Quick, Tasks, and Review consumers. Both preserve the frozen source
 fingerprint and canonical refs without copied truth.
+
+## Professional UI Coverage
+
+For UI-bearing scope, derive cases from the exact `surface_catalog`,
+`scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
+`accessibility_matrix`, `navigation_matrix`, `content_matrix`,
+`motion_contract`, and `usability_validation`. Cover component
+governance/iconography obligations and medium/high-risk target-user review.
+Choose risk-based or pairwise combinations, never an unbounded Cartesian
+product; automated tests and screenshots cannot prove target-user usability.

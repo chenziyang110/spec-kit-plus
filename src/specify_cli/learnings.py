@@ -102,7 +102,6 @@ KNOWN_COMMANDS = (
     "sp-ask",
     "sp-auto",
     "sp-checklist",
-    "sp-clarify",
     "sp-constitution",
     "sp-debug",
     "sp-deep-research",
@@ -3761,7 +3760,6 @@ def _suggest_quick_auto_capture(
 WORKFLOW_STATE_AUTO_CAPTURE_COMMANDS = {
     "sp-constitution",
     "sp-specify",
-    "sp-clarify",
     "sp-deep-research",
     "sp-plan",
     "sp-checklist",

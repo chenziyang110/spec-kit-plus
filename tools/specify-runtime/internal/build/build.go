@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -27,6 +28,7 @@ var unsafeIDPartPattern = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
 type Payload struct {
 	Status                 string                            `json:"status"`
+	Reused                 bool                              `json:"reused"`
 	Readiness              string                            `json:"readiness"`
 	StageState             string                            `json:"stage_state"`
 	CompletionAllowed      bool                              `json:"completion_allowed"`
@@ -91,7 +93,7 @@ func Run(paths rt.Paths) (Payload, error) {
 	}
 	pkg = compiled.Package
 
-	_, err := rt.ReadStatus(paths)
+	currentStatus, err := rt.ReadStatus(paths)
 	if err != nil {
 		payload.Errors = append(payload.Errors, fmt.Sprintf("read status: %v", err))
 		return payload, err
@@ -107,6 +109,52 @@ func Run(paths rt.Paths) (Payload, error) {
 	input := importInputFromPackage(pkg)
 	input.Rejections = append(input.Rejections, compilerRejections(compilation.Rejections)...)
 	input.MergeRecords = compilerMergeRecords(compilation.MergeRecords)
+	if receiptRequiredAfter {
+		buildFingerprint, fingerprintErr := scanBuildFingerprint(receiptAfter, compilation)
+		if fingerprintErr != nil {
+			payload.Errors = append(payload.Errors, fmt.Sprintf("compute scan build fingerprint: %v", fingerprintErr))
+			return payload, fingerprintErr
+		}
+		input.ScanBuildFingerprint = buildFingerprint
+		existingGenerationID, existingFingerprint, fingerprintErr := st.ActiveGenerationBuildFingerprint(context.Background())
+		if fingerprintErr != nil {
+			payload.Errors = append(payload.Errors, fingerprintErr.Error())
+			return payload, fingerprintErr
+		}
+		if existingGenerationID != "" && existingFingerprint == buildFingerprint &&
+			currentStatus.Status == "ok" && currentStatus.Freshness == rt.ReadyFreshness &&
+			currentStatus.Readiness == rt.ReadyReadiness && currentStatus.GraphReady &&
+			currentStatus.ActiveGenerationID == existingGenerationID {
+			agreement := runtimegate.Check(paths)
+			if len(agreement.Errors) == 0 && agreement.Status != "blocked" {
+				snapshot, snapshotErr := st.ActiveIdentitySnapshot(context.Background())
+				if snapshotErr != nil {
+					payload.Errors = append(payload.Errors, fmt.Sprintf("read reused DB identity snapshot: %v", snapshotErr))
+					return payload, snapshotErr
+				}
+				reconciliation := summarizeReconciliation(pkg.Identities, snapshot)
+				if len(reconciliationErrors(reconciliation, snapshot)) == 0 {
+					sparse := buildgate.ValidateSparsePathIndex(paths, st.DB(), existingGenerationID)
+					if len(sparse.Errors) == 0 {
+						payload.ActiveGenerationID = existingGenerationID
+						payload.DBCounts = dbCounts(snapshot)
+						payload.IdentityReconciliation = reconciliation
+						payload.Rejections = snapshot.Rejections
+						payload.MergeRecords = snapshot.MergeRecords
+						payload.SparsePathIndexDetails = sparse.Details
+						payload.Warnings = append(payload.Warnings, sparse.Warnings...)
+						payload.Warnings = append(payload.Warnings, agreement.Warnings...)
+						payload.Status = "ok"
+						payload.Readiness = rt.ReadyReadiness
+						payload.StageState = "validation_required"
+						payload.ErrorClassification = "none"
+						payload.Reused = true
+						return payload, nil
+					}
+				}
+			}
+		}
+	}
 	generationID, err := st.ImportGeneration(context.Background(), input)
 	if err != nil {
 		payload.Errors = append(payload.Errors, fmt.Sprintf("import generation: %v", err))
@@ -296,6 +344,26 @@ func importInputFromPackage(pkg scanartifacts.Package) store.ImportInput {
 		Rejections:   []store.RowDecision{},
 		MergeRecords: []store.MergeRecord{},
 	}
+}
+
+func scanBuildFingerprint(receipt scanreceipt.Receipt, compilation compiler.Result) (string, error) {
+	data, err := json.Marshal(struct {
+		Receipt             scanreceipt.Receipt `json:"receipt"`
+		CompilerContract    int                 `json:"compiler_contract"`
+		ProposalFingerprint string              `json:"proposal_fingerprint"`
+		CompiledFingerprint string              `json:"compiled_fingerprint"`
+		GraphSchema         int                 `json:"graph_schema"`
+		BaselineKind        string              `json:"baseline_kind"`
+	}{
+		Receipt: receipt, CompilerContract: compilation.ContractVersion,
+		ProposalFingerprint: compilation.ProposalFingerprint, CompiledFingerprint: compilation.CompiledFingerprint,
+		GraphSchema: store.SchemaVersion, BaselineKind: rt.BaselineKindBrownfieldFull,
+	})
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
 func evidenceImports(rows []scanartifacts.EvidenceRow) []store.EvidenceImport {

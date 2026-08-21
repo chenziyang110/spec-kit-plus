@@ -177,8 +177,9 @@ def _assert_managed_block_is_compact_always_on_context(content: str) -> None:
     assert "show_argv" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## workflow recommendations" in lower
-    assert "do not auto-enter an `sp-*` workflow" in lower
-    assert "unless the user invokes it" in lower
+    assert "passive skill invocation is allowed only for" in lower
+    assert "`sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`" in lower
+    assert "all other `sp-*` workflows are user-invoked only" in lower
     assert "recommend `sp-discussion`" in lower
     assert "presents both `sp-quick` and `sp-specify`" in lower
     assert "complexity-informed recommendation" in lower
@@ -215,7 +216,6 @@ def _assert_managed_block_is_compact_always_on_context(content: str) -> None:
     assert "## project cognition usage" not in lower
     assert "## map maintenance" not in lower
     assert "## delegated execution defaults" not in lower
-    assert "sp-fast" not in lower
     assert "sp-test-scan" not in lower
     assert "sp-test-build" not in lower
     assert ".specify/project-map/" not in lower

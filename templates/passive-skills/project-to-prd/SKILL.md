@@ -6,8 +6,10 @@ origin: spec-kit-plus
 
 # Project To PRD
 
-Use this passive skill to recognize existing-project PRD extraction work and
-route it to `sp-prd-scan`, then `sp-prd-build`.
+Use this passive skill to recognize existing-project PRD extraction work,
+recommend the projected `sp-prd-scan` invocation, and stop until the user
+invokes it. After Scan completes, recommend `sp-prd-build` and wait for that
+explicit user invocation too.
 
 Use `sp-specify` when the user wants to align a new or changed feature intent
 before planning. Use `sp-prd-scan -> sp-prd-build` when the user wants a
@@ -28,8 +30,9 @@ evidence is still missing.
 
 ## Required Behavior
 
-- Route existing-project reverse PRD requests to `sp-prd-scan`, then
-  `sp-prd-build`, before repository inspection.
+- For existing-project reverse PRD requests, recommend `sp-prd-scan` and stop
+  before repository inspection. Recommend `sp-prd-build` only after Scan
+  completes, and never invoke either workflow passively.
 - Treat `sp-prd-scan -> sp-prd-build` as the depth-aware current-state
   extraction workflow, not a flat repo summary pass.
 - Treat the canonical lane as heavy reconstruction work with
@@ -55,7 +58,7 @@ evidence is still missing.
 
 ## Routing Signals
 
-Use `sp-prd-scan`, then `sp-prd-build` for requests like:
+Recommend `sp-prd-scan`, then `sp-prd-build` for requests like:
 
 - "write a PRD for this existing app"
 - "extract product requirements from this repo"
@@ -63,8 +66,9 @@ Use `sp-prd-scan`, then `sp-prd-build` for requests like:
 - "turn the current implementation into a product requirements document"
 - "generate UI/service PRD docs from the codebase"
 
-Route to `sp-specify` instead when the user is describing a new product idea or
-future change that is not grounded in an existing repository surface.
+Recommend the projected `sp-specify` invocation instead when the user is
+describing a new product idea or future change that is not grounded in an
+existing repository surface, then wait for the user's explicit invocation.
 
 ## Output Expectations
 
