@@ -122,6 +122,9 @@ jobs:
           done
           bin/specify-runtime-linux-amd64 cognition scan-prepare --help 2>&1 | grep -q -- "-force"
           bin/specify-runtime-linux-amd64 cognition scan-prepare --help 2>&1 | grep -q -- "-safety-percent"
+          bin/specify-runtime-linux-amd64 cognition scan-formats --help >/dev/null
+          bin/specify-runtime-linux-amd64 cognition scan-policy-stage --help 2>&1 | grep -q -- "-proposal-json"
+          bin/specify-runtime-linux-amd64 cognition scan-policy-confirm --help 2>&1 | grep -q -- "-proposal-digest"
           bin/specify-runtime-linux-amd64 cognition scan-lease --help 2>&1 | grep -q -- "-worker-capacity-tokens"
           bin/specify-runtime-linux-amd64 cognition scan-accept --help 2>&1 | grep -q -- "-packet-id"
 

@@ -146,12 +146,14 @@ re-emit empty defaults or boilerplate. Use that expanded object as the only UI p
 global UI coverage table: the just-in-time packet compiler must receive design
 sources, the exact `design_change_id`, `design_change_ref`,
 `design_change_sha256`, sibling `design_contract_ref`, approved
-reference/digests, an applicable `DS-*` decision subset,
+reference/digests, exact `style_authority`, an applicable `DS-*` decision subset,
 component/color-mode/responsive/motion contracts, viewport/state acceptance
 rows, comparison tolerance, the unchanged accepted-deviation ledger,
 task-specific visual constraints, states, and evidence without re-inferring
 them. Across UI tasks, require exact coverage of the plan's design decision and
 acceptance rows.
+Treat `inherit-existing` as a hard worker guard; never broaden a page-authorized
+style delta into global shell or shared-component work.
 Never resolve “latest” from `.specify/design/index.json` and never substitute a
 root `DESIGN.md` for a registered task binding.
 

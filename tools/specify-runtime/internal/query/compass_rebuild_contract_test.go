@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
@@ -90,6 +91,207 @@ func TestCompassNeedsRebuildReturnsProfileAwareWorkflowRoutes(t *testing.T) {
 	}
 	assertWorkflowSteps(t, routes, "advanced", []string{"spx-map-rebuild"})
 	assertWorkflowSteps(t, routes, "classic", []string{"sp-map-scan", "sp-map-build"})
+}
+
+func TestCompassBlockedUsesCompatibleGraphForDegradedNavigation(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.Status = "stale"
+	status.Freshness = rt.StaleFreshness
+	status.Readiness = rt.BlockedReadiness
+	status.RecommendedNextAction = "run_map_update"
+	status.Dirty = true
+	status.DirtyReasons = []string{"closeout transport failed"}
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := Compass(paths, CompassInput{
+		Intent: "specify",
+		Query:  "runtimeOverride provider model switch",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if payload.Readiness != rt.BlockedReadiness || payload.CompassState != compassStateBlocked {
+		t.Fatalf("readiness/state = %q/%q, want %q/%q", payload.Readiness, payload.CompassState, rt.BlockedReadiness, compassStateBlocked)
+	}
+	if payload.RecommendedNextAction.ActionID != "run_map_update" {
+		t.Fatalf("recommended_next_action = %#v, want blocked recovery action unchanged", payload.RecommendedNextAction)
+	}
+	assertDegradedCompassNavigation(t, payload)
+}
+
+func TestCompassNeedsRebuildUsesCompatibleGraphForDegradedNavigationWithoutChangingRebuildAction(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.Status = "stale"
+	status.Freshness = rt.StaleFreshness
+	status.Readiness = rt.NeedsRebuildReadiness
+	status.RecommendedNextAction = "run_map_scan_build"
+	status.GraphReady = false
+	status.Dirty = true
+	status.StaleReasons = []string{"baseline must be rebuilt"}
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := Compass(paths, CompassInput{
+		Intent: "plan",
+		Query:  "runtimeOverride provider model switch",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if payload.Readiness != rt.NeedsRebuildReadiness || payload.CompassState != compassStateBlocked {
+		t.Fatalf("readiness/state = %q/%q, want %q/%q", payload.Readiness, payload.CompassState, rt.NeedsRebuildReadiness, compassStateBlocked)
+	}
+	if payload.RecommendedNextAction.ActionID != compassRecommendedActionRebuild || payload.RecoveryAction != compassRecommendedActionRebuild {
+		t.Fatalf("rebuild action = %#v recovery=%q, want rebuild action unchanged", payload.RecommendedNextAction, payload.RecoveryAction)
+	}
+	assertDegradedCompassNavigation(t, payload)
+}
+
+func TestCompassLegacyBlockedGreenfieldRepairsToRebuildAndUsesRecordedStalePaths(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedGreenfieldEmptyRuntime(t, paths)
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.Status = "stale"
+	status.Freshness = rt.StaleFreshness
+	status.Readiness = rt.BlockedReadiness
+	status.RecommendedNextAction = "run_map_update"
+	status.GraphReady = false
+	status.Dirty = true
+	status.StalePaths = []string{
+		"../outside.go",
+		`C:\outside.go`,
+		"backend/internal/bom/arrival.go",
+		"backend/internal/bom/service.go",
+		"frontend/src/views/BomPage.vue",
+		"frontend/src/api/bom.ts",
+		"backend/internal/project/service.go",
+		"backend/internal/auth/permissions.go",
+		"docs/bom-arrival.md",
+	}
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := Compass(paths, CompassInput{
+		Intent: "specify",
+		Query:  "BOM arrival control",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if payload.Readiness != rt.NeedsRebuildReadiness || payload.RecommendedNextAction.ActionID != compassRecommendedActionRebuild {
+		t.Fatalf("readiness/action = %q/%#v, want repaired rebuild route", payload.Readiness, payload.RecommendedNextAction)
+	}
+	foundGreenfieldConflict := false
+	for _, reason := range payload.RebuildReasons {
+		if hasString(reason.Evidence.Reasons, rt.GreenfieldBaselineHasProjectCodeReason) {
+			foundGreenfieldConflict = true
+			break
+		}
+	}
+	if !foundGreenfieldConflict {
+		t.Fatalf("rebuild reasons = %#v, want greenfield project-code conflict", payload.RebuildReasons)
+	}
+	assertDegradedCompassNavigation(t, payload)
+	if len(payload.EvidenceLanes) != 1 || payload.EvidenceLanes[0].ID != "degraded:status-stale-paths" {
+		t.Fatalf("evidence lanes = %#v, want one typed status stale-path lane", payload.EvidenceLanes)
+	}
+	if got := len(payload.MinimalLiveReads); got != maxCompassPathsPerLane {
+		t.Fatalf("minimal_live_reads count = %d, want bounded %d from status stale paths", got, maxCompassPathsPerLane)
+	}
+	if !hasString(payload.MinimalLiveReads, "backend/internal/bom/arrival.go") || !hasString(payload.MinimalLiveReads, "frontend/src/views/BomPage.vue") {
+		t.Fatalf("minimal_live_reads = %#v, want recorded BOM stale paths", payload.MinimalLiveReads)
+	}
+	if hasString(payload.MinimalLiveReads, "../outside.go") || hasString(payload.MinimalLiveReads, "C:/outside.go") {
+		t.Fatalf("minimal_live_reads = %#v, want repository-relative paths only", payload.MinimalLiveReads)
+	}
+}
+
+func TestCompassUnsafeBlockedRuntimeDoesNotEmitDegradedNavigation(t *testing.T) {
+	tests := []struct {
+		name    string
+		prepare func(t *testing.T) rt.Paths
+	}{
+		{
+			name: "missing graph store",
+			prepare: func(t *testing.T) rt.Paths {
+				paths := queryTestPaths(t)
+				status := rt.DefaultStatus(paths)
+				status.Status = "stale"
+				status.Freshness = rt.StaleFreshness
+				status.Readiness = rt.BlockedReadiness
+				status.RecommendedNextAction = "run_map_update"
+				if err := rt.WriteStatus(paths, status); err != nil {
+					t.Fatal(err)
+				}
+				return paths
+			},
+		},
+		{
+			name: "incompatible graph schema",
+			prepare: func(t *testing.T) rt.Paths {
+				paths := queryTestPaths(t)
+				seedCompassModelSwitchGraph(t, paths)
+				setCompassSchemaVersion(t, paths, 1)
+				return paths
+			},
+		},
+		{
+			name: "unreadable graph store",
+			prepare: func(t *testing.T) rt.Paths {
+				paths := queryTestPaths(t)
+				status := rt.DefaultStatus(paths)
+				status.Status = "stale"
+				status.Freshness = rt.StaleFreshness
+				status.Readiness = rt.BlockedReadiness
+				status.RecommendedNextAction = "run_map_update"
+				if err := rt.WriteStatus(paths, status); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(paths.DatabasePath, []byte("not a sqlite database"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				return paths
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload, err := Compass(tt.prepare(t), CompassInput{
+				Intent: "specify",
+				Query:  "runtimeOverride provider model switch",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(payload.MinimalLiveReads) != 0 || len(payload.EvidenceLanes) != 0 {
+				t.Fatalf("unsafe runtime emitted navigation reads=%#v lanes=%#v", payload.MinimalLiveReads, payload.EvidenceLanes)
+			}
+			if payload.Degraded {
+				t.Fatalf("Degraded = true, want false when no graph was safely read")
+			}
+		})
+	}
 }
 
 func TestCompassNeedsRebuildPreservesInProgressScanResumeAction(t *testing.T) {
@@ -290,5 +492,29 @@ func setCompassSchemaVersion(t *testing.T, paths rt.Paths, version int) {
 		fmt.Sprint(version),
 	); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func assertDegradedCompassNavigation(t *testing.T, payload CompassPayload) {
+	t.Helper()
+	if !payload.Degraded || payload.Freshness != rt.StaleFreshness {
+		t.Fatalf("degraded/freshness = %v/%q, want true/%q", payload.Degraded, payload.Freshness, rt.StaleFreshness)
+	}
+	if len(payload.EvidenceLanes) == 0 || len(payload.MinimalLiveReads) == 0 {
+		t.Fatalf("degraded navigation lanes/reads = %#v/%#v, want bounded non-empty hints", payload.EvidenceLanes, payload.MinimalLiveReads)
+	}
+	if len(payload.EvidenceLanes) > maxCompassLanes || len(payload.MinimalLiveReads) > maxCompassReads || compassLanePathCount(payload.EvidenceLanes) > maxCompassReads {
+		t.Fatalf("degraded navigation exceeded bounds: lanes=%d reads=%d lane_paths=%d", len(payload.EvidenceLanes), len(payload.MinimalLiveReads), compassLanePathCount(payload.EvidenceLanes))
+	}
+	for _, lane := range payload.EvidenceLanes {
+		if lane.Freshness != rt.StaleFreshness {
+			t.Fatalf("lane %q freshness = %q, want %q", lane.ID, lane.Freshness, rt.StaleFreshness)
+		}
+	}
+	if !compassDiagnosticsContain(payload.CoverageDiagnostics, "stale_cognition_degraded_navigation") {
+		t.Fatalf("coverage diagnostics = %#v, want explicit stale degraded-navigation warning", payload.CoverageDiagnostics)
+	}
+	if !strings.Contains(strings.ToLower(payload.Summary), "stale") || !strings.Contains(strings.ToLower(payload.Summary), "live") {
+		t.Fatalf("summary = %q, want stale/live-verification warning", payload.Summary)
 	}
 }

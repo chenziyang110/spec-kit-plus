@@ -103,7 +103,19 @@ Execute every required scenario from its official real entrypoint inside the
 current Leader-owned delivery attempt. UI-bearing scenarios
 must capture fresh integrated `structure_snapshot`, `visual_capture`, and
 `runtime_diagnostics` evidence and visually inspect the required states against
-approved design DNA, anti-slop, and hierarchy—not code correctness alone. A
+approved design DNA, anti-slop, hierarchy, and the exact `style_authority`—not
+code correctness alone. Treat any unapproved drift from cited live UI as
+blocking under `inherit-existing`, especially on protected `global-shell` and
+`shared-components`; permit a style delta only on the exact complete-page
+surface named by `page-overhaul-authorized`. A
+UI Review scenario executes the exact `interaction_matrix` and
+`data_state_matrix` rows and their risk-based combinations: pointer/mouse,
+keyboard/focus, applicable touch/shortcut/command input; exact event sequence,
+immediate feedback, focus, repeat, cancellation, and pending behavior; empty and populated
+data plus declared degraded/recovery states; and continuous stretch,
+compression, reflow, and overflow while active context is preserved. Missing
+retry, undo, recovery, permission, offline, focus, selection, scroll, overlay,
+or unsaved-input behavior remains uncovered. A
 passing comparison calls `specify-runtime evidence visual-compare` with compact observed matrix/evidence input; the runtime derives and atomically owns the task-bound `spec-kit-visual-comparison-v1` report, approved preview/manifest/handoff bindings, exact `DS-*`/`DH-*` coverage, tolerance, deviations, path, and digest. Passing unit
 tests, existing files, synthetic-only checks, or an isolated component do
 not prove the product works. Group capture by integrated surface and source
@@ -213,9 +225,10 @@ human PASS. After an acceptance repair, every human scenario is reset and must
 be rerun; preserve no earlier PASS.
 
 After verified Review-owned changes, run
-`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-review --intent implement --format json}}`
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-review --scope-dir <feature-dir> --scope-mode explicit --intent implement --format json}}`
 with explicit Review-owned paths, fill returned agent-owned fields, and execute
-structured `update_argv`. Apply the receipt-bound finalizer gate in
+structured `apply_argv`; it owns update, validation, eligible finalization, and
+receipt. Apply the gate in
 `references/project-cognition.md` before any clean claim; then run
 `{{specify-subcmd:specify-runtime review closeout --feature-dir <feature-dir> --expected-revision <revision> --format json}}`.
 Execute only the successful response's revision-bound workflow completion argv.

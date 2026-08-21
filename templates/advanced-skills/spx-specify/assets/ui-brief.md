@@ -8,9 +8,10 @@
 - ui_work_type: existing-pattern | feature-extension | reference-implementation
 - surface_type: landing | product-workspace | hybrid | existing-pattern-maintenance
 - platforms: [web | mobile | desktop | tui | cli | content]
+- style_authority: {mode: greenfield | inherit-existing | page-overhaul-authorized, scope_level: feature-partial | page, source_refs: [], protected_surfaces: [global-shell, shared-components], allowed_style_delta_surfaces: [], authorization_source: null}
 - capability_profile_ids: []
 - specimen_ids: []
-- approved_visual_ref: .specify/design/changes/<UD-ID>/previews/round-NN.html#direction-id
+- approved_visual_ref: .specify/design/changes/<UD-ID>/previews/round-NN.<html|png|jpg|jpeg|webp>#direction-id
 - approved_direction_id:
 - design_review_round:
 - approved_preview_sha256:
@@ -20,7 +21,17 @@
 - design_decision_ids: []
 - handoff_contract_rows: [{exact selected immutable DH-* row including id}]
 - entry_points: []
+- surface_catalog: [{id:, profile_id:, name:, kind:, source_refs:[], specimen_ids:[], component_ids:[], decision_ids:[]}]
+- scenario_matrix: [{id:, surface_id:, name:, risk: low | medium | high, required:, interaction_script:{preconditions:[], start_state_id:, steps:[{input:, action:, expected_feedback:}], branches:[{conditions:[], setup:, expected_state_id:, expected_feedback:, focus_behavior:, announcement:, continuation:}], focus_checkpoint:, announcement_checkpoint:, completion_checkpoint:, recovery_checkpoint:}, interaction_ids:[], editing_ids:[], data_state_ids:[], accessibility_ids:[], navigation_ids:[], content_ids:[], responsive_ids:[], motion_transition_ids:[], decision_ids:[]}]
+- interaction_matrix: [{id:, surface:, input:, trigger:, event_sequence:, immediate_feedback:, focus_behavior:, repeat_behavior:, cancellation_behavior:, pending_behavior:, decision_ids:[]}]
+- editing_matrix: [{id:, surface:, input_methods:[], composition_behavior:, paste_autofill_behavior:, selection_caret_behavior:, formatting_behavior:, validation_timing:, validation_feedback:, dirty_state_behavior:, persistence_behavior:, undo_redo_behavior:, conflict_behavior:, read_only_disabled_behavior:, submission_behavior:, decision_ids:[]}]
 - required_states: []
+- data_state_matrix: [{id:, surface:, state:, data_condition:, expectation:, decision_ids:[]}]
+- accessibility_matrix: [{id:, surface:, semantics:[], reading_order:, focus_order:, keyboard:[], announcements:[], target_size:, contrast:, zoom_reflow:, alternatives:[], decision_ids:[]}]
+- navigation_matrix: [{id:, surface:, entry:, destination:, trigger:, back_behavior:, deep_link_behavior:, interruption_recovery:, decision_ids:[]}]
+- content_matrix: [{id:, surface:, state:, purpose:, copy:, primary_action:, trust_requirement:, localization:, content_limits:[], decision_ids:[]}]
+- motion_contract: {purpose:, transitions:[{id:, surface:, trigger:, response:, duration_ms:, easing:, interrupt_behavior:, decision_ids:[]}], reduced_motion:, feedback_timing:{immediate_ms:, progress_ms:, timeout_ms:}}
+- usability_validation: {risk_level: low | medium | high, methods:[], critical_tasks:[], success_criteria:[], human_review_required:}
 - required_viewports: []
 - subject:
 - audience:
@@ -36,8 +47,14 @@
 - reference_intents: [{ref:, intent: exact | preserve-structure | inspiration | extract-tokens | do-not-copy}]
 - fidelity_mode: approximate | high | inspiration
 - fidelity_criteria:
+- component_contracts: [{exact selected immutable DH-* component row including required_states, interaction_modes, data_scenarios, variants, content_constraints, semantic_token_refs, governance, iconography, decision_ids}]
+- responsive_matrix: [{exact selected immutable DH-* responsive row including state, adaptation, stretch_behavior, overflow_behavior, decision_ids}]
 - visual_acceptance_matrix: [{exact selected immutable DH-* row including id and target_id}]
 - comparison_tolerance: {exact immutable structured object; never summarize as prose}
 - accepted_deviations: [{id:, decision_id:, reason:, approval_ref:}]
 - required_evidence: [structure_snapshot, visual_capture, runtime_diagnostics, visual_comparison_or_human_review]
 - pending_human_review:
+
+Use risk-based or pairwise combinations rather than an unbounded Cartesian
+product. Automated tests and screenshots cannot substitute for target-user
+usability validation or required human review.

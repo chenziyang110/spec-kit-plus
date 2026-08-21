@@ -39,6 +39,20 @@ class CommandRegistrar:
     # Populated lazily via _ensure_configs() on first use.
     AGENT_CONFIGS: dict[str, dict[str, Any]] = {}
     _configs_loaded: bool = False
+    PASSIVELY_INVOCABLE_CLASSIC_SKILLS = frozenset(
+        {
+            "sp-debug",
+            "sp-discussion",
+            "sp-fast",
+            "sp-quick",
+        }
+    )
+    NATIVE_MODEL_INVOCATION_CONTROL_AGENTS = frozenset({"claude", "grok"})
+    USER_INVOKED_DESCRIPTION_PREFIX = (
+        "User-invoked workflow only: activate only after the user explicitly "
+        "invokes this SKILL through the current integration. Do not select it "
+        "automatically. "
+    )
 
     def __init__(self) -> None:
         self._ensure_configs()
@@ -271,6 +285,10 @@ class CommandRegistrar:
         source: str,
     ) -> dict:
         """Build consistent SKILL.md frontmatter across all skill generators."""
+        description = CommandRegistrar.apply_classic_skill_invocation_policy(
+            skill_name,
+            description,
+        )
         skill_frontmatter = {
             "name": skill_name,
             "description": description,
@@ -283,7 +301,50 @@ class CommandRegistrar:
         if agent_name in {"claude", "grok"}:
             # Slash-command skill UIs should mark workflow skills user-invocable.
             skill_frontmatter["user-invocable"] = True
+            if CommandRegistrar.requires_native_model_invocation_disable(
+                agent_name,
+                skill_name,
+            ):
+                skill_frontmatter["disable-model-invocation"] = True
         return skill_frontmatter
+
+    @classmethod
+    def is_passively_invocable_classic_skill(cls, skill_name: str) -> bool:
+        """Return whether a Classic workflow SKILL may be selected by the model."""
+        return skill_name in cls.PASSIVELY_INVOCABLE_CLASSIC_SKILLS
+
+    @classmethod
+    def is_user_invoked_classic_skill(cls, skill_name: str) -> bool:
+        """Return whether a Classic ``sp-*`` SKILL requires explicit user entry."""
+        return (
+            skill_name.startswith("sp-")
+            and not cls.is_passively_invocable_classic_skill(skill_name)
+        )
+
+    @classmethod
+    def apply_classic_skill_invocation_policy(
+        cls,
+        skill_name: str,
+        description: str,
+    ) -> str:
+        """Make user-only Classic workflows undiscoverable by task similarity."""
+        if not cls.is_user_invoked_classic_skill(skill_name):
+            return description
+        if description.startswith(cls.USER_INVOKED_DESCRIPTION_PREFIX):
+            return description
+        return cls.USER_INVOKED_DESCRIPTION_PREFIX + description
+
+    @classmethod
+    def requires_native_model_invocation_disable(
+        cls,
+        agent_name: str,
+        skill_name: str,
+    ) -> bool:
+        """Return whether this integration can hard-block automatic invocation."""
+        return (
+            agent_name in cls.NATIVE_MODEL_INVOCATION_CONTROL_AGENTS
+            and cls.is_user_invoked_classic_skill(skill_name)
+        )
 
     @staticmethod
     def _skill_invocation_example(agent_name: str) -> str | None:

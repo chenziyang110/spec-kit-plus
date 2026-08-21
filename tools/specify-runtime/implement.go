@@ -1819,7 +1819,13 @@ func implementSafeDeclaredSnapshotPath(rootAbs, raw string) (string, bool) {
 	if trimmed == "" || filepath.IsAbs(trimmed) || filepath.VolumeName(trimmed) != "" {
 		return "", false
 	}
-	normalized := strings.Trim(filepath.ToSlash(trimmed), "/")
+	slashed := filepath.ToSlash(trimmed)
+	for _, part := range strings.Split(slashed, "/") {
+		if part == "." || part == ".." {
+			return "", false
+		}
+	}
+	normalized := strings.Trim(slashed, "/")
 	if normalized == "" || normalized == "." || strings.HasPrefix(normalized, "../") {
 		return "", false
 	}

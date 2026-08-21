@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/workflowregistry"
 )
 
@@ -18,10 +19,11 @@ const (
 
 // Terminal states that allow a mutation workflow to claim completion.
 var mutationCognitionAllowedStates = map[string]bool{
-	"ready":      true,
-	"no_op":      true,
-	"mark-dirty": true,
-	"partial":    true,
+	"ready":       true,
+	"no_op":       true,
+	"scope_ready": true,
+	"mark-dirty":  true,
+	"partial":     true,
 }
 
 // Feature stages that must leave a project-cognition mutation receipt before complete-stage.
@@ -122,9 +124,9 @@ func recordMutationCognitionReceipt(scopeDir, workflow, scopeLabel, resultState,
 	}
 	state := normalizeMutationCognitionState(resultState)
 	if !mutationCognitionAllowedStates[state] && state != "needs_rebuild" && state != "blocked" {
-		return nil, fmt.Errorf("--result-state must be ready|no_op|mark-dirty|partial|needs_rebuild|blocked (got %q)", resultState)
+		return nil, fmt.Errorf("--result-state must be ready|no_op|scope_ready|mark-dirty|partial|needs_rebuild|blocked (got %q)", resultState)
 	}
-	if (state == "mark-dirty" || state == "partial" || state == "needs_rebuild" || state == "blocked" || state == "no_op") && strings.TrimSpace(reason) == "" {
+	if (state == "mark-dirty" || state == "partial" || state == "scope_ready" || state == "needs_rebuild" || state == "blocked" || state == "no_op") && strings.TrimSpace(reason) == "" {
 		return nil, fmt.Errorf("result_state=%s requires --reason (greenfield/empty graph, no_op, or dirty fallback must be explicit so project cognition keeps improving)", state)
 	}
 	receipt := mutationCognitionReceipt{
@@ -150,8 +152,11 @@ func recordMutationCognitionReceipt(scopeDir, workflow, scopeLabel, resultState,
 		"evidence":      receipt.Evidence,
 		"update_id":     receipt.UpdateID,
 		"recorded_at":   receipt.RecordedAt,
-		"allowed_close": mutationCognitionAllowedStates[state],
+		"allowed_close": mutationCognitionReceiptAllowedClose(scopeDir, &receipt),
 		"policy":        "Every source-changing mutation workflow must refresh project cognition so a greenfield project continuously gains path_index, routes, and claims. Prefer result_state=ready after update+validate-build+complete-refresh; use mark-dirty/no_op only with an explicit reason.",
+	}
+	if allowed, reason := mutationCognitionReceiptGateReason(scopeDir, &receipt); !allowed && reason != "" {
+		payload["blocked_reason"] = reason
 	}
 	if state == "mark-dirty" {
 		payload["warning"] = "mark-dirty is a temporary unclean closeout; the next source-changing workflow must attempt a real cognition update so the graph keeps growing."
@@ -182,8 +187,107 @@ func mutationCognitionStatus(scopeDir string) map[string]any {
 	out["reason"] = receipt.Reason
 	out["workflow"] = receipt.Workflow
 	out["receipt_path"] = filepath.ToSlash(mutationCognitionReceiptPath(scopeDir))
-	out["allowed_close"] = mutationCognitionAllowedStates[normalizeMutationCognitionState(receipt.ResultState)]
+	allowed, reason := mutationCognitionReceiptGateReason(scopeDir, receipt)
+	out["allowed_close"] = allowed
+	if reason != "" {
+		out["blocked_reason"] = reason
+	}
 	return out
+}
+
+func mutationCognitionReceiptAllowedClose(scopeDir string, receipt *mutationCognitionReceipt) bool {
+	allowed, _ := mutationCognitionReceiptGateReason(scopeDir, receipt)
+	return allowed
+}
+
+func mutationCognitionReceiptGateReason(scopeDir string, receipt *mutationCognitionReceipt) (bool, string) {
+	if receipt == nil {
+		return false, "missing_receipt"
+	}
+	state := normalizeMutationCognitionState(receipt.ResultState)
+	if !mutationCognitionAllowedStates[state] {
+		return false, "non_terminal_result_state"
+	}
+	switch state {
+	case "ready", "no_op":
+		updateID := strings.TrimSpace(receipt.UpdateID)
+		if updateID == "" {
+			return false, "missing_update_id"
+		}
+		paths, ok := mutationCognitionProjectRuntimePaths(scopeDir)
+		if !ok {
+			return false, "missing_project_cognition_status"
+		}
+		status, err := rt.ReadStatus(paths)
+		if err != nil {
+			return false, "invalid_project_cognition_status"
+		}
+		if status.LastUpdateID != updateID || status.LastFinalizedUpdateID != updateID || status.LastUpdateOutcome != state {
+			return false, "update_not_finalized"
+		}
+		if status.Freshness != rt.ReadyFreshness || status.Readiness != rt.ReadyReadiness || status.Dirty {
+			return false, "project_cognition_not_fresh"
+		}
+	case "scope_ready":
+		updateID := strings.TrimSpace(receipt.UpdateID)
+		if updateID == "" {
+			return false, "missing_update_id"
+		}
+		paths, ok := mutationCognitionProjectRuntimePaths(scopeDir)
+		if !ok {
+			return false, "missing_project_cognition_status"
+		}
+		status, err := rt.ReadStatus(paths)
+		if err != nil {
+			return false, "invalid_project_cognition_status"
+		}
+		if status.LastUpdateID != updateID || status.LastUpdateOutcome != "partial_refresh" {
+			return false, "scope_update_not_current"
+		}
+		if status.LastUpdateScopeOutcome != "ready" && status.LastUpdateScopeOutcome != "no_op" {
+			return false, "workflow_scope_not_ready"
+		}
+		if status.Freshness == rt.ReadyFreshness || status.Readiness == rt.ReadyReadiness || !status.Dirty {
+			return false, "scope_ready_requires_visible_project_debt"
+		}
+	case "partial":
+		if mutationCognitionHasAutoRepairablePartialReason(receipt) {
+			return false, "auto_repairable_partial_missing_passing_verification_result"
+		}
+	}
+	return true, ""
+}
+
+func mutationCognitionHasAutoRepairablePartialReason(receipt *mutationCognitionReceipt) bool {
+	values := []string{receipt.Reason}
+	values = append(values, receipt.Evidence...)
+	for _, value := range values {
+		if strings.Contains(strings.ToLower(value), "missing_passing_verification_result") {
+			return true
+		}
+	}
+	return false
+}
+
+func mutationCognitionProjectRuntimePaths(scopeDir string) (rt.Paths, bool) {
+	abs, err := filepath.Abs(scopeDir)
+	if err != nil {
+		return rt.Paths{}, false
+	}
+	abs = filepath.Clean(abs)
+	for {
+		candidate, err := rt.ResolvePaths(abs)
+		if err == nil {
+			if _, statErr := os.Stat(candidate.StatusPath); statErr == nil {
+				return candidate, true
+			}
+		}
+		parent := filepath.Dir(abs)
+		if parent == abs {
+			return rt.Paths{}, false
+		}
+		abs = parent
+	}
 }
 
 func requireMutationCognitionReceipt(scopeDir, expectedWorkflow string) error {
@@ -210,7 +314,10 @@ func requireMutationCognitionReceipt(scopeDir, expectedWorkflow string) error {
 	if status == "invalid" {
 		return fmt.Errorf("project cognition mutation closeout receipt is invalid (%v); re-run %s", gate["error"], next)
 	}
-	return fmt.Errorf("project cognition mutation closeout result_state=%q is not terminal (need ready|no_op|mark-dirty|partial); re-run %s", gate["result_state"], next)
+	if reason := strings.TrimSpace(fmt.Sprint(gate["blocked_reason"])); reason != "" {
+		return fmt.Errorf("project cognition mutation closeout result_state=%q is not closeable: %s; re-run %s after repairing the closeout", gate["result_state"], reason, next)
+	}
+	return fmt.Errorf("project cognition mutation closeout result_state=%q is not terminal (need ready|no_op|scope_ready|mark-dirty|partial); re-run %s", gate["result_state"], next)
 }
 
 func mutationWorkflowForFeatureStage(stage string) (string, bool) {
@@ -240,7 +347,7 @@ func runMutationCognitionReceiptCLI(args []string, stdout io.Writer) int {
 	absScope = filepath.Clean(absScope)
 	resultState := firstNonEmpty(optionValue(args, "--result-state", ""), optionValue(args, "--status", ""))
 	if strings.TrimSpace(resultState) == "" {
-		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("mutation-receipt requires --result-state ready|no_op|mark-dirty|partial")))
+		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("mutation-receipt requires --result-state ready|no_op|scope_ready|mark-dirty|partial")))
 	}
 	reason := optionValue(args, "--reason", "")
 	updateID := optionValue(args, "--update-id", "")

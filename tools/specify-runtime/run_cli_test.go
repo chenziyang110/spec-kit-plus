@@ -251,6 +251,79 @@ func TestRunCLIRejectsUnsafeOrIncompleteRequests(t *testing.T) {
 			}
 		})
 	}
+
+	packetContent := []byte(`{
+		"feature_id":"feature-safe",
+		"task_id":"T001",
+		"objective":"exercise packet validation",
+		"scope":{"write_scope":["src/safe.go"]}
+	}`)
+	insidePacket := filepath.Join(root, "packet.json")
+	if err := os.WriteFile(insidePacket, packetContent, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outsidePacket := filepath.Join(t.TempDir(), "packet.json")
+	if err := os.WriteFile(outsidePacket, packetContent, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	packetRequests := []struct {
+		name            string
+		args            []string
+		summaryContains string
+	}{
+		{
+			name:            "packet outside project root",
+			args:            []string{"run", "supervise", "missing", "--project-root", root, "--adapter-id", "test", "--work-packet-file", outsidePacket, "--work-packet-sha256", taskControlSHA256(packetContent), "--", "child"},
+			summaryContains: "must stay inside",
+		},
+		{
+			name:            "packet mixed with manual metadata",
+			args:            []string{"run", "supervise", "missing", "--project-root", root, "--adapter-id", "test", "--work-packet-file", insidePacket, "--work-packet-sha256", taskControlSHA256(packetContent), "--work-summary", "duplicate", "--", "child"},
+			summaryContains: "cannot be combined",
+		},
+		{
+			name:            "packet digest missing",
+			args:            []string{"run", "supervise", "missing", "--project-root", root, "--adapter-id", "test", "--work-packet-file", insidePacket, "--", "child"},
+			summaryContains: "requires --work-packet-sha256",
+		},
+		{
+			name:            "packet digest without packet",
+			args:            []string{"run", "supervise", "missing", "--project-root", root, "--adapter-id", "test", "--work-packet-sha256", taskControlSHA256(packetContent), "--", "child"},
+			summaryContains: "requires --work-packet-file",
+		},
+		{
+			name:            "packet digest is not canonical sha256",
+			args:            []string{"run", "supervise", "missing", "--project-root", root, "--adapter-id", "test", "--work-packet-file", insidePacket, "--work-packet-sha256", strings.Repeat("A", 64), "--", "child"},
+			summaryContains: "64 lowercase hexadecimal",
+		},
+	}
+	for _, test := range packetRequests {
+		t.Run(test.name, func(t *testing.T) {
+			code, payload := invokeRunCLI(t, test.args...)
+			if code != 2 || payload["status"] != "usage-error" ||
+				!strings.Contains(strings.ToLower(fmt.Sprint(payload["summary"])), strings.ToLower(test.summaryContains)) {
+				t.Fatalf("request %v = code %d envelope %#v, want usage-error exit 2", test.args, code, payload)
+			}
+		})
+	}
+
+	malformedPacket := filepath.Join(root, "malformed-packet.json")
+	if err := os.WriteFile(malformedPacket, []byte(`{"feature_id":`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, payload := invokeRunCLI(t,
+		"run", "supervise", "missing",
+		"--project-root", root,
+		"--adapter-id", "test",
+		"--work-packet-file", malformedPacket,
+		"--work-packet-sha256", strings.Repeat("0", 64),
+		"--", "child",
+	)
+	if code != 2 || payload["status"] != "usage-error" ||
+		!strings.Contains(strings.ToLower(fmt.Sprint(payload["summary"])), "does not match") ||
+		strings.Contains(strings.ToLower(fmt.Sprint(payload["summary"])), "decode") {
+		t.Fatalf("packet digest must be checked before JSON decode: code=%d envelope=%#v", code, payload)
+	}
 }
 
 func TestRunCLILaunchCreatesAndSupervisesManagedRun(t *testing.T) {
@@ -275,6 +348,12 @@ func TestRunCLILaunchCreatesAndSupervisesManagedRun(t *testing.T) {
 		"--target-ref", "HEAD",
 		"--intent-sha256", strings.Repeat("d", 64),
 		"--adapter-id", "test-helper",
+		"--work-agent-id", "launch-agent",
+		"--work-task-ref", "launch:T001",
+		"--work-summary", "Launch managed task",
+		"--work-intents-json", marshalWorkBoardCLIJSON(t, []map[string]any{{
+			"path": "launch-marker.txt", "operation": "create", "confidence": "confirmed",
+		}}),
 		"--workspace-policy", "isolated",
 		"--format", "json",
 		"--",
@@ -288,6 +367,9 @@ func TestRunCLILaunchCreatesAndSupervisesManagedRun(t *testing.T) {
 	run := requireObject(t, data, "run")
 	execution := requireObject(t, data, "execution")
 	workspaceRoot, _ := execution["workspace_root"].(string)
+	if execution["work_id"] == "" || execution["work_fence"] != float64(1) {
+		t.Fatalf("launched Work Board execution = %#v", execution)
+	}
 	if run["run_id"] != "run_cli_launch" || run["kind"] != "debug" || run["status"] != "sealed" {
 		t.Fatalf("launched run = %#v", run)
 	}
@@ -418,6 +500,279 @@ func TestRunCLISuperviseBindsManagedRunEnvironment(t *testing.T) {
 	}
 }
 
+func TestRunCLISuperviseRecordsAutomaticWorkBoardLifecycle(t *testing.T) {
+	root := initRunCLIRepository(t)
+	gitRun(t, root, "config", "user.name", "Run CLI Test")
+	gitRun(t, root, "config", "user.email", "run-cli@example.invalid")
+	gitRun(t, root, "config", "commit.gpgsign", "false")
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("auto work board\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, root, "add", "README.md")
+	gitRun(t, root, "commit", "-m", "initial")
+	code, created := invokeRunCLI(t,
+		"run", "create",
+		"--project-root", root,
+		"--run-id", "run_cli_auto_work",
+		"--kind", "quick",
+		"--subject-type", "feature",
+		"--subject-id", "shared-board",
+		"--target-ref", "HEAD",
+		"--intent-sha256", strings.Repeat("e", 64),
+		"--format", "json",
+	)
+	if code != 0 || created["status"] != "ok" {
+		t.Fatalf("run create = code %d envelope %#v", code, created)
+	}
+	t.Setenv("SPECIFY_RUNTIME_CLI_FOREGROUND_HELPER", "1")
+
+	code, payload := invokeRunCLI(t,
+		"run", "supervise", "run_cli_auto_work",
+		"--project-root", root,
+		"--adapter-id", "test-helper",
+		"--work-agent-id", "codex-worker-42",
+		"--work-task-ref", "T042",
+		"--work-summary", "Implement shared board",
+		"--work-intents-json", marshalWorkBoardCLIJSON(t, []map[string]any{{
+			"path": "cli-auto-work.txt", "operation": "modify", "confidence": "confirmed",
+		}}),
+		"--workspace-policy", "isolated",
+		"--format", "json",
+		"--",
+		os.Args[0], "-test.run=^TestRunCLIForegroundHelperProcess$", "--",
+		"cli-auto-work.txt", "__work_environment__",
+	)
+	if code != 0 || payload["status"] != "ok" {
+		t.Fatalf("run supervise = code %d envelope %#v", code, payload)
+	}
+
+	code, board := invokeRunCLI(t,
+		"board", "show",
+		"--project-root", root,
+		"--status", "completed",
+		"--format", "json",
+	)
+	if code != 0 || board["status"] != "ok" {
+		t.Fatalf("board show completed = code %d envelope %#v", code, board)
+	}
+	items := board["items"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("completed work board items = %#v, want one", items)
+	}
+	work := requireObjectValue(t, items[0])
+	if work["run_id"] != "run_cli_auto_work" || work["task_ref"] != "T042" ||
+		work["summary"] != "Implement shared board" || work["agent_id"] != "codex-worker-42" ||
+		work["status"] != "completed" {
+		t.Fatalf("completed automatic work item = %#v", work)
+	}
+	execution := requireObject(t, requireObject(t, payload, "data"), "execution")
+	workID, _ := execution["work_id"].(string)
+	if workID == "" || workID != work["work_id"] {
+		t.Fatalf("supervised execution work id = %#v, board work = %#v", execution, work)
+	}
+	workspaceRoot, _ := execution["workspace_root"].(string)
+	content, err := os.ReadFile(filepath.Join(workspaceRoot, "cli-auto-work.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workEnvironment := strings.Split(strings.TrimSpace(string(content)), "\n")
+	if len(workEnvironment) != 3 || workEnvironment[0] != workID || workEnvironment[1] != "1" ||
+		!strings.Contains(workEnvironment[2], "SPECIFY_WORK_ID") ||
+		!strings.Contains(workEnvironment[2], "SPECIFY_WORK_FENCE") {
+		t.Fatalf("managed Work environment = %#v", workEnvironment)
+	}
+	observedPaths := work["observed_paths"].([]any)
+	if len(observedPaths) != 1 || observedPaths[0] != "cli-auto-work.txt" {
+		t.Fatalf("observed paths = %#v, want cli-auto-work.txt", observedPaths)
+	}
+	writeIntents := work["write_intents"].([]any)
+	if len(writeIntents) != 1 {
+		t.Fatalf("write intents = %#v, want one automatic intent", writeIntents)
+	}
+	intent := requireObjectValue(t, writeIntents[0])
+	if intent["path"] != "cli-auto-work.txt" || intent["status"] != "released" {
+		t.Fatalf("automatic write intent = %#v", intent)
+	}
+}
+
+func TestRunCLISuperviseCompilesWorkBoardMetadataFromTaskPacket(t *testing.T) {
+	root := initRunCLIRepository(t)
+	gitRun(t, root, "config", "user.name", "Run CLI Test")
+	gitRun(t, root, "config", "user.email", "run-cli@example.invalid")
+	gitRun(t, root, "config", "commit.gpgsign", "false")
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("task packet work board\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	featureRef := filepath.ToSlash(filepath.Join(".specify", "features", "packet-feature"))
+	featureDir := filepath.Join(root, filepath.FromSlash(featureRef))
+	writeTaskRuntimeFixture(t, filepath.Join(root, ".specify", "templates", "task-packet-template.json"), map[string]any{
+		"version": 2, "feature_id": nil, "task_id": nil, "objective": nil,
+		"read_scope": []any{}, "write_scope": []any{}, "ui_contract": map[string]any{},
+	})
+	writeTaskRuntimeFixture(t, filepath.Join(featureDir, "task-index.json"), map[string]any{
+		"version": 2, "status": "ready", "source_revision": "packet-r1",
+		"tasks": []any{map[string]any{
+			"id": "T123", "objective": "Implement the packet-owned file", "status": "pending",
+			"dependencies": []any{}, "read_scope": []any{"README.md"},
+			"expected_write_scope": []any{"packet-owned.go"},
+		}},
+	})
+	compileExit, compileEnvelope := runTaskRuntimeCommand(t, []string{
+		"implement", "packet-compile",
+		"--project-root", root,
+		"--feature-dir", featureRef,
+		"--task-id", "T123",
+		"--format", "json",
+	})
+	if compileExit != 0 || compileEnvelope.Status != "ok" {
+		t.Fatalf("canonical packet compile = code %d envelope %#v", compileExit, compileEnvelope)
+	}
+	packetPath, _ := compileEnvelope.Data["path"].(string)
+	packetSHA256, _ := compileEnvelope.Data["sha256"].(string)
+	wantPacketPath := filepath.ToSlash(filepath.Join(featureRef, "implementation-review", "packets", "T123.json"))
+	if packetPath != wantPacketPath || len(packetSHA256) != 64 {
+		t.Fatalf("canonical packet receipt = %#v, want root-relative path %q and sha256", compileEnvelope.Data, wantPacketPath)
+	}
+	packet := readImplementJSONFile(t, filepath.Join(root, filepath.FromSlash(packetPath)))
+	if packet["feature_id"] != "packet-feature" || packet["task_id"] != "T123" {
+		t.Fatalf("compiled packet identity = %#v", packet)
+	}
+	gitRun(t, root, "add", ".")
+	gitRun(t, root, "commit", "-m", "canonical task packet")
+
+	ownerIntents := marshalWorkBoardCLIJSON(t, []map[string]any{{
+		"path": "other-agent.go", "operation": "modify", "confidence": "confirmed",
+	}})
+	code, owner := invokeRunCLI(t,
+		"work", "begin",
+		"--project-root", root,
+		"--work-id", "other-live-agent",
+		"--summary", "Other agent remains active",
+		"--agent-id", "other-agent",
+		"--adapter-id", "test-helper",
+		"--lease-seconds", "1800",
+		"--intents-json", ownerIntents,
+		"--format", "json",
+	)
+	if code != 0 || owner["status"] != "ok" {
+		t.Fatalf("other work owner = code %d envelope %#v", code, owner)
+	}
+
+	createRunThroughCLI(t, root, "run_cli_packet_work")
+	t.Setenv("SPECIFY_RUNTIME_CLI_FOREGROUND_HELPER", "1")
+	code, payload := invokeRunCLI(t,
+		"run", "supervise", "run_cli_packet_work",
+		"--project-root", root,
+		"--adapter-id", "test-helper",
+		"--work-agent-id", "packet-agent",
+		"--work-packet-file", packetPath,
+		"--work-packet-sha256", packetSHA256,
+		"--workspace-policy", "isolated",
+		"--format", "json",
+		"--",
+		os.Args[0], "-test.run=^TestRunCLIForegroundHelperProcess$", "--",
+		"packet-owned.go", "__branch_policy_environment__",
+	)
+	if code != 0 || payload["status"] != "ok" {
+		t.Fatalf("packet-backed run supervise = code %d envelope %#v", code, payload)
+	}
+	execution := requireObject(t, requireObject(t, payload, "data"), "execution")
+	if execution["feature_branch_policy"] != "keep-current" {
+		t.Fatalf("packet-backed execution = %#v, want keep-current branch policy", execution)
+	}
+
+	code, board := invokeRunCLI(t,
+		"board", "show",
+		"--project-root", root,
+		"--status", "completed",
+		"--format", "json",
+	)
+	if code != 0 || board["status"] != "ok" {
+		t.Fatalf("completed packet work board = code %d envelope %#v", code, board)
+	}
+	items := board["items"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("completed packet work = %#v, want one item", items)
+	}
+	work := requireObjectValue(t, items[0])
+	if work["task_ref"] != "packet-feature#T123" ||
+		work["summary"] != "Implement the packet-owned file" ||
+		work["agent_id"] != "packet-agent" {
+		t.Fatalf("packet-derived work metadata = %#v", work)
+	}
+	writeIntents := work["write_intents"].([]any)
+	if len(writeIntents) != 1 || requireObjectValue(t, writeIntents[0])["path"] != "packet-owned.go" {
+		t.Fatalf("packet-derived work intents = %#v", writeIntents)
+	}
+	workspaceRoot := execution["workspace_root"].(string)
+	branchPolicy, err := os.ReadFile(filepath.Join(workspaceRoot, "packet-owned.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lines := strings.Split(strings.TrimSpace(string(branchPolicy)), "\n"); len(lines) != 2 || lines[0] != "keep-current" || !strings.Contains(lines[1], "SPECIFY_FEATURE_BRANCH_POLICY") {
+		t.Fatalf("managed feature branch environment = %q", branchPolicy)
+	}
+}
+
+func TestRunCLISuperviseReportsAutomaticWorkBoardConflictOwner(t *testing.T) {
+	root := initRunCLIRepository(t)
+	gitRun(t, root, "config", "user.name", "Run CLI Test")
+	gitRun(t, root, "config", "user.email", "run-cli@example.invalid")
+	gitRun(t, root, "config", "commit.gpgsign", "false")
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("work conflict\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, root, "add", "README.md")
+	gitRun(t, root, "commit", "-m", "initial")
+	intents := marshalWorkBoardCLIJSON(t, []map[string]any{{
+		"path": "shared/conflict.go", "operation": "modify", "confidence": "confirmed",
+	}})
+	code, owner := invokeRunCLI(t,
+		"work", "begin",
+		"--project-root", root,
+		"--work-id", "manual-owner",
+		"--summary", "Own shared code",
+		"--agent-id", "owner-agent",
+		"--adapter-id", "test-helper",
+		"--intents-json", intents,
+		"--format", "json",
+	)
+	if code != 0 || owner["status"] != "ok" {
+		t.Fatalf("work owner = code %d envelope %#v", code, owner)
+	}
+	createRunThroughCLI(t, root, "run_cli_work_conflict")
+	t.Setenv("SPECIFY_RUNTIME_CLI_FOREGROUND_HELPER", "1")
+
+	code, payload := invokeRunCLI(t,
+		"run", "supervise", "run_cli_work_conflict",
+		"--project-root", root,
+		"--adapter-id", "test-helper",
+		"--work-summary", "Conflicting managed task",
+		"--work-intents-json", intents,
+		"--workspace-policy", "isolated",
+		"--format", "json",
+		"--",
+		os.Args[0], "-test.run=^TestRunCLIForegroundHelperProcess$", "--",
+		"should-not-run.txt", "conflict",
+	)
+	if code != 10 || payload["status"] != "blocked" {
+		t.Fatalf("conflicting run supervise = code %d envelope %#v", code, payload)
+	}
+	data := requireObject(t, payload, "data")
+	if data["error_code"] != "work_intent_conflict" {
+		t.Fatalf("conflicting run data = %#v", data)
+	}
+	conflicts, ok := data["conflicts"].([]any)
+	if !ok || len(conflicts) != 1 {
+		t.Fatalf("conflicting run owners = %#v", data["conflicts"])
+	}
+	conflict := requireObjectValue(t, conflicts[0])
+	if conflict["owner_work_id"] != "manual-owner" || conflict["owner_agent_id"] != "owner-agent" ||
+		conflict["requested_path"] != "shared/conflict.go" {
+		t.Fatalf("conflicting run owner = %#v", conflict)
+	}
+}
+
 func TestRunCLIForegroundHelperProcess(t *testing.T) {
 	if os.Getenv("SPECIFY_RUNTIME_CLI_FOREGROUND_HELPER") != "1" {
 		return
@@ -446,6 +801,17 @@ func TestRunCLIForegroundHelperProcess(t *testing.T) {
 			os.Getenv("SPECIFY_RUN_WORKSPACE_MODE"),
 			os.Getenv("SPECIFY_RUN_WORKSPACE"),
 			os.Getenv("SPECIFY_RUN_PRIVATE_REF"),
+			os.Getenv("WSLENV"),
+		}, "\n")
+	} else if arguments[1] == "__work_environment__" {
+		content = strings.Join([]string{
+			os.Getenv("SPECIFY_WORK_ID"),
+			os.Getenv("SPECIFY_WORK_FENCE"),
+			os.Getenv("WSLENV"),
+		}, "\n")
+	} else if arguments[1] == "__branch_policy_environment__" {
+		content = strings.Join([]string{
+			os.Getenv("SPECIFY_FEATURE_BRANCH_POLICY"),
 			os.Getenv("WSLENV"),
 		}, "\n")
 	}

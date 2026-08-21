@@ -8,6 +8,11 @@ origin: spec-kit-plus
 
 This passive skill is the brownfield advisory navigation layer, not a hard workflow gate.
 
+Only `sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast` may be entered
+passively. Every other `sp-*` workflow is user-invoked only: recommend its
+projected invocation and stop until the user explicitly invokes it. Cognition
+advice must not load or enter a restricted map or feature workflow.
+
 ## Complementary Passive Skills
 
 - `spec-kit-workflow-routing` owns route selection into the correct `sp-*` workflow
@@ -177,7 +182,7 @@ judgment in an established Spec Kit Plus repository:
   evidence and recommend the canonical `sp-map-scan -> sp-map-build` workflow only as
   external baseline maintenance. When giving the user an explicit command to type, write
   `{{invoke:map-scan}} -> {{invoke:map-build}}`.
-- If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live requirements. Do not recommend map-scan -> map-build solely because the graph has no paths.
+- If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live requirements only while the repository has no project-code evidence. Do not recommend map-scan -> map-build solely because the graph has no paths. If the runtime reports `greenfield_baseline_has_project_code`, preserve `recommended_next_action.action_id=project_cognition.rebuild` and its structured route; this identity conflict must not be routed to map-update.
 - If the project cognition runtime is stale for a localized touched area, continue
   with live repository evidence and recommend `sp-map-update` first when map
   maintenance is useful. When giving the user an explicit
@@ -201,12 +206,14 @@ judgment in an established Spec Kit Plus repository:
   only when validation reports a reserved rebuild condition such as unusable
   baseline, schema failure, zero active-generation path index rows outside
   `greenfield_empty`, missing or invalid `alias_index`,
-  `explicit_rebuild_requested`, or `baseline_identity_invalid`.
+  `explicit_rebuild_requested`, `greenfield_baseline_has_project_code`, or
+  `baseline_identity_invalid`.
 - If project cognition readiness is `blocked`, report the runtime issue as
   degraded advisory map state. Ordinary discussion may continue with product
   framing or bounded live evidence; recommend a map maintenance workflow only
   when the user asks for map maintenance or handoff needs evidence that live
   reads cannot provide.
+- When a blocked Compass packet has `degraded=true` and `coverage_diagnostics[].kind=stale_cognition_degraded_navigation`, consume its bounded `minimal_live_reads` only as stale route hints, verify each selected path against the live repository, and preserve the recovery action. Never treat those hints as fresh truth; without the marker, do not infer routes from an empty packet.
 - Preserve the distinction between the machine freshness field and public state
   guidance: `freshness` records factual state, while `recommended_next_action`
   tells the operator what to do next.
@@ -223,10 +230,10 @@ judgment in an established Spec Kit Plus repository:
   facts, known unknowns, and `minimal_live_reads`.
 - Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. A workflow may continue from live evidence when entry guidance allows it. That entry routing rule does not waive closeout ownership.
 - Workflow-owned mutation closeout is not an external map-maintenance handoff. If the active mutation workflow changed project-related source, runtime, templates, generated assets, config, tests, state contracts, or behavior-bearing docs, follow its rendered planner-first closeout command with the registry-owned literal `sp-*` workflow ID and explicit workflow-owned paths; never derive the ID from an environment variable.
-- When `DELTA_SESSION_ID` exists, pass `--delta-session "$DELTA_SESSION_ID"` to `closeout-plan`. Fill fields listed in `required_agent_fields` from live evidence; optional payload/delta fields such as `known_unknowns` and `boundary` are populated only when evidence supports them. Follow `update_mode=delta_session` by completing `delta_append_draft.argv_prefix` with evidence placeholders, appending the workflow closeout delta event, then running structured `update_argv`. Follow `update_mode=inline_json` by completing `payload_draft` in memory, substituting it for `<inline-json>` in `update_argv`, and never creating a payload file. The display-only `update_command` and display-only `delta_append_command` placeholders are not execution strings.
+- Pass `--scope-dir <feature-or-scope> --scope-mode explicit` plus one explicit `--changed-path` per workflow-owned path to `closeout-plan`; a rename owns both its old and new endpoint, so pass and preserve both in `boundary.workflow_owned_paths`. When `DELTA_SESSION_ID` exists, also pass `--delta-session "$DELTA_SESSION_ID"`. Fill fields listed in `required_agent_fields` from live evidence; optional payload/delta fields such as `known_unknowns` and `boundary` are populated only when evidence supports them. Follow `update_mode=delta_session` by completing `delta_append_draft.argv_prefix` with evidence placeholders, appending the workflow closeout delta event, then running structured `apply_argv`. Follow `update_mode=inline_json` by completing `payload_draft` in memory, executing the returned `apply_argv` with `--payload-json -`, and writing the completed payload JSON to stdin; never place the JSON in process argv or create a payload file. `update_argv` is compatibility/debug only. The display-only `update_command`, display-only `delta_append_command`, and display-only `apply_command` placeholders are not execution strings.
 - Use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If the working tree contains unrelated dirty/untracked paths and the workflow uses explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as a blocking `known_unknowns` item.
-- Before update recording, resolve `unknown_path_dispositions` by setting `agent_disposition` to `adoptable`, `review_only`, `ignored`, or `blocking_known_unknown`. Verified `adoptable` paths do not become blocking `known_unknowns`. Only `blocking_known_unknown` dispositions become payload or delta known unknowns. `agent_disposition=adoptable` is an agent accounting decision, not proof that runtime indexing already succeeded; after `update_argv` runs, inspect `result_state`, `adopted_paths`, `review_paths`, `minimal_live_reads`, and `partial_refresh_reasons`.
-- Clean closeout keys on `result_state`, not `status=ok`, `update_id`, `last_update_id`, or freshness alone; `recorded` is legacy recorded-only partial/blocked output. If `partial_refresh_reasons` includes `missing_passing_verification_result`, repair the payload or delta evidence and rerun `update_argv` before final closeout instead of routing to `sp-map-update`. Never run the `complete-refresh` or `clear-dirty` helper after `result_state=partial_refresh`, `needs_rebuild`, `blocked`, or legacy `recorded`. Use `specify-runtime cognition mark-dirty --reason "workflow-closeout-failed" --format json` only when planner/update is unavailable, fails before recording useful update data, cannot safely identify workflow-owned scope, is blocked by runtime state, or verification/workflow completion is not trustworthy.
+- Before closeout apply, resolve `unknown_path_dispositions` by setting `agent_disposition` to `adoptable`, `review_only`, `ignored`, or `blocking_known_unknown`. Verified `adoptable` paths do not become blocking `known_unknowns`. Only `blocking_known_unknown` dispositions become payload or delta known unknowns. `agent_disposition=adoptable` is an agent accounting decision, not proof that runtime indexing already succeeded; after `apply_argv` runs, inspect `scope_result_state`, project-wide `result_state`, `global_freshness`, `global_debt_reasons`, `adopted_paths`, `review_paths`, `minimal_live_reads`, and `partial_refresh_reasons`.
+- Shared closeout keys on the current scope separately from project-wide state. `apply_argv` owns update, validate-build, eligible complete-refresh, and receipt. `closeout_state=scope_ready` closes successful owned paths without hiding unrelated global debt. Missing passing verification returns `closeout_status=needs_agent_input` before mutation instead of creating `missing_passing_verification_result`. `recorded` remains legacy partial/blocked output. Use `specify-runtime cognition mark-dirty --reason "workflow-closeout-failed" --format json` only when shared apply is unavailable, fails before useful update data, cannot identify workflow-owned scope, is blocked by runtime state, or verification/workflow completion is untrustworthy.
 - `sp-map-update` is for manual/external maintenance and follow-up repair after user edits, interrupted workflows, or explicit operator map-maintenance requests. It is external map maintenance, not routine cleanup for changes this workflow just made. In shared routing summaries, sp-map-update is for manual/external maintenance.
 - Do not rely on generic framework instinct, chat memory, or prior sessions when the
   project cognition runtime should be the source of truth.

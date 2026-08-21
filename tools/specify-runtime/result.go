@@ -52,6 +52,7 @@ var currentUIVerificationFields = map[string]bool{
 	"visual_comparison":            true,
 	"fidelity_status":              true,
 	"reviewer":                     true,
+	"human_review_ref":             true,
 	"approved_visual_ref":          true,
 	"approved_preview_sha256":      true,
 	"approved_manifest_sha256":     true,
@@ -480,7 +481,7 @@ func normalizeUIVerification(value any) (map[string]any, error) {
 	result := defaultUIVerification()
 	for _, key := range []string{
 		"contract_check", "runtime_evidence", "visual_comparison", "fidelity_status",
-		"reviewer", "approved_visual_ref", "approved_preview_sha256",
+		"reviewer", "human_review_ref", "approved_visual_ref", "approved_preview_sha256",
 		"approved_manifest_sha256", "approved_handoff_ref",
 		"approved_handoff_sha256", "comparison_report_ref",
 		"comparison_report_sha256",
@@ -514,6 +515,7 @@ func defaultUIVerification() map[string]any {
 		"visual_comparison":            "unavailable",
 		"fidelity_status":              "not-applicable",
 		"reviewer":                     "agent",
+		"human_review_ref":             "",
 		"approved_visual_ref":          "",
 		"approved_preview_sha256":      "",
 		"approved_manifest_sha256":     "",

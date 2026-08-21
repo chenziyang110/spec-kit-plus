@@ -1,6 +1,7 @@
 package ignore
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -54,6 +55,8 @@ var starterOptionalDirectorySuggestions = []string{
 	"benchmarks/",
 }
 
+const reviewedKeepInScanPrefix = "# reviewed-keep-in-scan: "
+
 func Load(root string) Matcher {
 	rules := rulesFromPatterns(defaultIgnorePatterns)
 	for _, ignorePath := range []string{
@@ -95,6 +98,7 @@ func GenerateStarterIgnoreFile(root string) string {
 	b.WriteString("# gitignore-compatible patterns for project cognition only.\n")
 	b.WriteString("# These rules affect sp-map-scan, sp-map-build, and sp-map-update.\n")
 	b.WriteString("# Uncomment suggestions only after confirming they are not useful project evidence.\n")
+	b.WriteString("# The runtime marks reviewed but declined suggestions as reviewed-keep-in-scan.\n")
 	b.WriteString("#\n")
 	b.WriteString("# Built-in defaults are already ignored before this file is loaded: .git/,\n")
 	b.WriteString("# .specify/, node_modules/, common virtualenv/cache directories, Python bytecode,\n")
@@ -130,6 +134,124 @@ func StarterIgnoreSuggestions(root string) []string {
 	patterns := append([]string(nil), gitignorePatterns...)
 	patterns = append(patterns, optionalPatterns...)
 	return patterns
+}
+
+// PendingStarterIgnoreSuggestions returns current starter suggestions that are
+// still present as undecided comments. Active rules and explicit
+// reviewed-keep-in-scan markers are already resolved decisions.
+func PendingStarterIgnoreSuggestions(root string) []string {
+	suggestions := StarterIgnoreSuggestions(root)
+	if len(suggestions) == 0 {
+		return nil
+	}
+	data, err := os.ReadFile(StarterIgnorePath(root))
+	if err != nil {
+		return nil
+	}
+	available := map[string]bool{}
+	for _, pattern := range suggestions {
+		available[pattern] = true
+	}
+	active := map[string]bool{}
+	pending := map[string]bool{}
+	for _, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, reviewedKeepInScanPrefix) {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "#") {
+			commented := filepath.ToSlash(strings.TrimSpace(strings.TrimPrefix(trimmed, "#")))
+			if available[commented] {
+				pending[commented] = true
+			}
+			continue
+		}
+		candidate := filepath.ToSlash(trimmed)
+		if available[candidate] {
+			active[candidate] = true
+		}
+	}
+	result := make([]string, 0, len(pending))
+	for _, pattern := range suggestions {
+		if pending[pattern] && !active[pattern] {
+			result = append(result, pattern)
+		}
+	}
+	return result
+}
+
+// ActivateStarterIgnoreSuggestions turns only user-confirmed starter comments
+// into active cognition-ignore rules. Callers may select any subset of the
+// current suggestions, but cannot use this surface to append arbitrary rules.
+func ActivateStarterIgnoreSuggestions(root string, selected []string) ([]string, error) {
+	if len(selected) == 0 {
+		return nil, fmt.Errorf("at least one reviewed starter ignore pattern is required")
+	}
+	available := map[string]bool{}
+	for _, pattern := range StarterIgnoreSuggestions(root) {
+		available[pattern] = true
+	}
+
+	confirmed := make([]string, 0, len(selected))
+	seen := map[string]bool{}
+	for _, raw := range selected {
+		pattern := filepath.ToSlash(strings.TrimSpace(raw))
+		if pattern == "" {
+			return nil, fmt.Errorf("confirmed starter ignore patterns must not be empty")
+		}
+		if !available[pattern] {
+			return nil, fmt.Errorf("pattern %q was not present in the current starter review set", pattern)
+		}
+		if !seen[pattern] {
+			seen[pattern] = true
+			confirmed = append(confirmed, pattern)
+		}
+	}
+
+	path := StarterIgnorePath(root)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read starter cognition ignore: %w", err)
+	}
+	lines := strings.Split(string(data), "\n")
+	found := map[string]bool{}
+	for index, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if seen[trimmed] {
+			found[trimmed] = true
+			continue
+		}
+		if strings.HasPrefix(trimmed, reviewedKeepInScanPrefix) {
+			reviewed := filepath.ToSlash(strings.TrimSpace(strings.TrimPrefix(trimmed, reviewedKeepInScanPrefix)))
+			if seen[reviewed] {
+				lines[index] = reviewed
+				found[reviewed] = true
+			}
+			continue
+		}
+		if !strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		commented := filepath.ToSlash(strings.TrimSpace(strings.TrimPrefix(trimmed, "#")))
+		if !available[commented] {
+			continue
+		}
+		if seen[commented] {
+			lines[index] = commented
+			found[commented] = true
+		} else {
+			lines[index] = reviewedKeepInScanPrefix + commented
+		}
+	}
+	for _, pattern := range confirmed {
+		if !found[pattern] {
+			return nil, fmt.Errorf("reviewed pattern %q is not present in the starter cognition ignore file", pattern)
+		}
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		return nil, fmt.Errorf("activate starter cognition ignore patterns: %w", err)
+	}
+	return confirmed, nil
 }
 
 func rulesFromPatterns(patterns []string) []rule {

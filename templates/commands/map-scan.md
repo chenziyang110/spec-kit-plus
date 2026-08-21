@@ -2,7 +2,7 @@
 description: Use when a brownfield workflow needs a fresh graph-native cognition baseline and you must collect full project-internal evidence before graph reconstruction.
 workflow_contract:
   when_to_use: A workflow needs reliable brownfield cognition and no graph-native baseline exists yet, or a full baseline rebuild is explicitly required.
-  primary_objective: Enumerate the full project file universe cheaply, classify file value, deep-scan the highest-value project evidence, build provisional nodes and candidate edges, and publish the scan artifacts required for graph reconstruction.
+  primary_objective: Enumerate the project file universe cheaply, detect code-relevant file formats deterministically, use bounded Agent assistance for semantics and unknown-format review, build provisional nodes and candidate edges, and publish the scan artifacts required for graph reconstruction.
   primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/evidence/`, `.specify/project-cognition/provisional/nodes.json`, `.specify/project-cognition/provisional/edges.json`, `.specify/project-cognition/provisional/observations.json`, `.specify/project-cognition/coverage.json`, `.specify/project-cognition/workbench/repository-universe.json`, `.specify/project-cognition/workbench/scan-targets.json`, `.specify/project-cognition/workbench/coverage-ledger.*`, `.specify/project-cognition/workbench/scan-queue.json`, `.specify/project-cognition/workbench/handoff-ledger.json`, and `.specify/project-cognition/workbench/map-state.md`.'
   default_handoff: /sp-map-build after the evidence baseline is complete and the scan outputs are ready for graph reconstruction.
 ---
@@ -54,10 +54,32 @@ sets `completion_allowed=false`, `bypass_allowed=false`, and
 
 ## Process
 
-- Before repository inventory, run `{{specify-subcmd:specify-runtime cognition generate-ignore --format json}}`. If it creates `.specify/project-cognition/.cognitionignore`, present the returned `suggested_patterns`, ask the user to review them, and wait for confirmation before continuing. Never open the runtime-owned ignore file directly.
+- Before repository inventory, run `{{specify-subcmd:specify-runtime cognition generate-ignore --format json}}`. If it returns `review_required=true`, present the returned `suggested_patterns`, ask the user to review them, and wait for confirmation. Use `{{specify-subcmd:specify-runtime cognition confirm-ignore --all-suggested --format json}}` only when every returned suggestion was approved; otherwise pass the approved subset as repeated exact `--pattern` values. Require `status=confirmed` before continuing. A created starter with `review_required=false` has no decision-bearing suggestions and needs no confirmation. Chat confirmation without this runtime transition is not an active ignore rule. Never open or edit the runtime-owned ignore file directly.
 - After the ignore gate is clear, run `{{specify-subcmd:specify-runtime cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json}}` and use the returned file list as the candidate scan set. The agent may choose scan intent and concrete `--scope` values, but `specify-runtime cognition scan-set` decides the initial included file list through deterministic runtime rules; do not let the agent freely decide which files to omit.
+- Run `{{specify-subcmd:specify-runtime cognition scan-formats --format json}}` to
+  build the repository-specific format inventory. The runtime groups every
+  candidate by detected format, family, path kind, top-level directory, and Git
+  state, and returns only aggregate counts plus bounded representatives.
+- The Agent proposes cohort-level decisions using the returned proposal
+  protocol: `semantic_scan`, `sample`, `inventory_only`, `exclude`, or
+  `split_required`. Submit the complete grouped proposal with
+  `{{specify-subcmd:specify-runtime cognition scan-policy-stage --proposal-json '<inline-json>' --format json}}`.
+  Cover every `cohort_id` exactly once, give each group a short reason, and use
+  only runtime-issued cohort IDs. The Agent must not submit path-level
+  overrides, add paths excluded by `scan-set`, or edit policy state directly.
+- Present the staged decision summary, affected path/byte counts, reasons, and
+  bounded representatives to the user. Wait until the user confirms the exact
+  `proposal_digest`; then run
+  `{{specify-subcmd:specify-runtime cognition scan-policy-confirm --proposal-digest <exact-digest> --format json}}`.
+  Chat approval without this digest-bound transition does not activate the
+  policy. `split_required` is not confirmable; refine the cohort decision first.
+  If any command reports `format inventory changed`, restart at `scan-formats`
+  and obtain confirmation for the new proposal.
 - Run `{{specify-subcmd:specify-runtime cognition scan-prepare}}` against that scan set.
-  It performs the cheap inventory/classification pass, estimates token cost,
+  scan-prepare requires the confirmed policy and rejects a missing, tampered,
+  stale, or incomplete policy before it can reset the workbench or create a
+  queue.
+  It performs the cheap format-first inventory/classification pass, estimates token cost,
   calculates each worker's effective context budget after instruction,
   inherited-context, reasoning, tool-output, checkpoint, result-output, and
   safety reserves, and deterministically renders bounded packets. Estimated
@@ -68,15 +90,49 @@ sets `completion_allowed=false`, `bypass_allowed=false`, and
   `recovery_action`, `recovery_detail`, and `recovery_argv`. For a legacy or
   incompatible queue, back up the existing workbench and use the returned
   `scan-prepare --force` action only after explicitly abandoning its accepted
-  and pending results. Do not edit queue JSON or write a normalization script.
-- Build a value-weighted evidence baseline before any graph reconstruction work
-  begins. The runtime classifies every non-excluded candidate path as `P0`,
+  and pending workbench results. `--force` may still replay the last validated
+  cache; use `--full-rebuild` only when the user or a typed rebuild route
+  explicitly requires bypassing all scan reuse. Do not edit queue JSON or write
+  a normalization script.
+- Repeated preparation is incremental. An identical `preparation_digest`
+  resumes the existing generation and preserves accepted/pending packets. After
+  `validate-scan`, the runtime stores content-SHA-256 and policy/contract-bound
+  path-scope bundles outside the resettable workbench. A later preparation
+  replays matching bundles into new generation-bound `reuse-*` packets and
+  dispatches only `pending_path_count`; it never copies old packet, attempt, or
+  receipt identity. Source, effective policy, or scan-contract drift invalidates
+  the whole dependency scope, including both sides of cross-path edges. Workers
+  must materialize shared nodes, cross-path edges, and multi-path evidence or
+  claims; unrecorded coupling cannot participate in cache invalidation.
+  Automatic generation replacement additionally requires cache lineage that
+  covers every accepted packet and path in the current workbench; an older
+  cache never authorizes discarding newer unvalidated accepted work.
+- A confirmed cohort decision is reusable when file contents or membership
+  change inside the same stable cohort. A newly observed cohort still requires
+  the Agent proposal and exact user-confirmation cycle before preparation.
+- Build a code-format-first, value-weighted evidence baseline before any graph
+  reconstruction work begins. The runtime first detects special filenames,
+  recognized extensions, and extensionless shebang scripts, then classifies
+  every non-excluded candidate path as `P0`,
   `P1`, `P2`, or `P3`, keeps related paths together when the budget permits, and
   creates an oversized single-path packet rather than silently truncating a
   file that cannot fit a normal packet.
+- Treat the baseline as code-serving evidence, not an equal-depth mirror of
+  every readable repository file. The runtime keeps ordinary untracked source
+  eligible, but classifies untracked paths matched by `.gitignore`, local
+  runtime vendor/data/log trees, and generated agent/workflow state as `P3`
+  inventory-only by default. Use `scan-prepare --include-gitignored` only after
+  explicit review proves an ignored untracked source path is required code
+  evidence; it does not promote known runtime or agent/workflow artifacts.
+- Treat directory and Git metadata as guardrails and value modifiers after
+  format detection. They may demote vendor, generated, ignored, local-runtime,
+  data, or workflow surfaces, but they must not turn an unrecognized or
+  non-code format into `source` merely because of its directory name.
 - Drive dispatch from `{{specify-subcmd:specify-runtime cognition scan-status --format json}}`, which
   returns the compact pending/leased/accepted state and the next safe action.
-  Bound each wave by the platform's currently available subagent slots and the
+  `recommended_parallel_workers` is conservatively capped by the runtime and
+  is never the pending packet count when the queue is larger than that cap.
+  Bound each wave further by the platform's currently available subagent slots and the
   selected models' effective capacities; never spawn one worker per pending
   packet merely because the queue is parallelizable.
   Use `{{specify-subcmd:specify-runtime cognition scan-lease --worker-id <worker-id> --format json}}` to claim one prepared
@@ -115,7 +171,7 @@ sets `completion_allowed=false`, `bypass_allowed=false`, and
   dispatched lane's structured handoff before accepting scan coverage.
 - If a safe scan lane cannot be packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
 
-## Value-Weighted Repository Inventory
+## Format-First, Value-Weighted Repository Inventory
 
 `sp-map-scan` must inventory all candidate paths from the runtime-resolved scan
 set, but it must not deep-read all files by default. The first pass is a
@@ -124,9 +180,11 @@ path-level accounting pass, not a content scan.
 `scan-prepare` materializes
 `.specify/project-cognition/workbench/repository-universe.json` with one row per
 candidate path from `.specify/project-cognition/tmp/scan-files.json`; the leader
-must not hand-write it. The runtime applies the deterministic value classifier
-and writes the boundary row plus every aggregate projection from that single
-classification result. The leader audits the output and reports a classifier
+must not hand-write it. The runtime detects file format before value
+classification and writes the boundary row plus every aggregate projection
+from that single classification result. Directory and Git metadata are
+guardrails, not the primary proof that a path contains code. The leader audits
+the output and reports a classifier
 defect; it does not repair field names or reclassify paths by editing JSON.
 Runtime-excluded paths may be recorded only in boundary accounting when the
 runtime exposes them through a debug/explain path; the default agent-facing
@@ -136,9 +194,17 @@ ambiguous row should record:
 - `path`: repository-relative path
 - `path_kind`: `source`, `test`, `config`, `script`, `doc`, `template`, `asset`, `generated`, `vendor`, `build_output`, `lockfile`, `unknown`
 - `extension`
+- `file_format`: normalized detected format such as `go`, `typescript`, `vue`, `protobuf`, `yaml`, or `unknown`
+- `format_family`: `code`, `script`, `config`, `doc`, `data`, `asset`, or `unknown`
+- `format_detection`: `special_filename`, `extension`, `shebang`, or `none`
+- `format_key`: stable grouping key for the detector result
+- `cohort_id`: runtime-issued identity for the repository-specific format cohort
+- `policy_decision`: confirmed cohort decision that controls scan depth
+- `agent_assist`: `semantic_scan`, `context_scan`, `format_review`, or `none`
 - `size_bytes`
 - `directory_family`
 - `git_tracked`
+- `git_ignored`
 - `ignored_by_cognition`
 - `matched_ignore_rule` when applicable
 - `value_tier`: `P0`, `P1`, `P2`, or `P3`
@@ -147,6 +213,22 @@ ambiguous row should record:
 - `criticality`: `critical`, `important`, or `low_risk`
 - `classification_reasons`
 - `decision_source`
+
+Before this projection exists, `scan-formats` groups every candidate into a
+stable `cohort_id` by format identity, family, path kind, top-level directory,
+and Git state. Each cohort exposes aggregate path/byte counts and at most three
+representative paths. The Agent proposes one cohort-level policy across the
+complete inventory: known or custom code may receive `semantic_scan`, uncertain
+groups may receive `sample`, and clear non-code may receive `inventory_only` or
+`exclude`. It must not decide individual paths or treat representative review as
+graph evidence. A heterogeneous cohort uses `split_required` and must be refined
+before confirmation.
+
+Only the user-confirmed policy digest authorizes those decisions. The runtime
+requires every current cohort exactly once, freezes the inventory and confirmed
+policy, and rejects missing, tampered, stale, incomplete, or path-level policy
+input. Deterministic format detection still supplies the evidence for grouping;
+Agent judgment and user confirmation decide the repository-specific scan depth.
 
 Value tier rules:
 
@@ -163,9 +245,11 @@ Value tier rules:
   integration, end-to-end, contract, and smoke verification paths are promoted
   to `P1` and deep-read.
 - `P3`: vendored dependencies, generated bundles, cache/build/dist output,
-  binary/static assets, lockfiles that do not define behavior beyond dependency
-  identity, archived material, and large low-signal files. Keep these as
-  `inventory_only` or `excluded` unless explicitly needed.
+  downloaded runtime binaries/data/logs, generated agent/workflow state,
+  untracked `.gitignore` matches, binary/static assets, lockfiles that do not
+  define behavior beyond dependency identity, archived material, and large
+  low-signal files. Keep these as `inventory_only` or `excluded` unless an
+  explicit reviewed override applies.
 
 `scan-prepare` also materializes
 `.specify/project-cognition/workbench/scan-targets.json` with the subset selected
@@ -173,13 +257,15 @@ for packet dispatch. It includes:
 
 - `schema_version`
 - `selection_policy`: `"value_weighted"`
+- `selection_basis`: `"confirmed_format_policy_agent_assisted"`
+- `policy_digest`: exact digest of the confirmed cohort policy
 - `selected_paths`
 - `sampled_paths`
 - `inventory_only_paths`
 - `excluded_paths`
 - `blocked_paths`
-- per-path `value_tier`, `scan_decision`, `disposition`, `criticality`, and
-  `classification_reasons`
+- per-path `value_tier`, `scan_decision`, `disposition`, `criticality`,
+  `agent_assist`, `policy_decision`, and `classification_reasons`
 
 High-value coverage is more important than raw path-count coverage. A scan can
 validly leave many `P3` paths inventory-only, but it must not leave unexplained
@@ -208,7 +294,10 @@ Only the runtime may persist:
 
 Do not edit these global state projections to manufacture or clear a blocker.
 
-`unknown` blocks, `blocked`, `critical_open_gap`, and `subagent_blocked` block baseline
+At final evidence classification, `unknown` is a scan failure; a confirmed
+unknown-format cohort decision is only a boundary input, not permission to
+leave its scanned evidence unclassified. `unknown` blocks, `blocked`,
+`critical_open_gap`, and `subagent_blocked` block baseline
 activation. `low_risk_open_gap` may pass only with owner, reason,
 `evidence_expectation`, and `revisit_condition`.
 
@@ -397,7 +486,8 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 ## Canonical Boundary Contract
 
 - `.specify/project-cognition/workbench/repository-universe.json` is the canonical boundary artifact derived from the runtime-resolved scan set.
-- It must include `schema_version`, `candidate_universe`, `included_paths`, `excluded_paths`, `ambiguous_paths`, `dispositions`, `criticality`, `value_tier`, `scan_decision`, `path_kind`, `classification_reasons`, and `decision_source`.
+- It must include `schema_version`, `candidate_universe`, `included_paths`, `excluded_paths`, `ambiguous_paths`, `dispositions`, `criticality`, `value_tier`, `scan_decision`, `path_kind`, `file_format`, `format_family`, `cohort_id`, `policy_decision`, `agent_assist`, `format_review_groups`, `classification_reasons`, `decision_source`, and the confirmed `policy_digest` projection.
+- Format detection is the first positive classifier. Directory and Git state are guardrails that may demote or exclude a recognized surface; they are not sufficient evidence that an unknown file is source code. The Agent proposes one cohort-level policy, and only the user-confirmed policy digest may change scan depth.
 - Every candidate path must receive exactly one disposition: `deep_read`, `sampled`, `inventory_only`, `excluded`, or `blocked`.
 - Disposition is separate from criticality; value tier adds another classification axis. Value tier remains `P0`, `P1`, `P2`, or `P3`; criticality remains `critical`, `important`, or `low_risk`.
 - `scan_decision` is the execution intent derived from value tier and disposition. Use `scan` for deep-read packets, `sample` for sampled proof, `inventory_only` for accounted low-value surfaces, `exclude` for boundary exclusions, and `blocked` when no safe decision can be made.
@@ -461,10 +551,10 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 
 `sp-map-scan` must:
 
-- enumerate project-internal evidence comprehensively as value-weighted repository inventory, then scan evidence selectively by value
+- enumerate project-internal evidence comprehensively as a format-first, value-weighted repository inventory, then use Agent semantic assistance only on the selected code-relevant evidence
 - generate a full project-relevant inventory from the runtime-resolved scan set across nested directories, then add Git tracking status and directory metadata during classification
 - have `specify-runtime cognition scan-prepare` materialize its runtime-owned repository universe with `included_paths` and any available `excluded_paths`; default `scan-set` output is intentionally minimal and does not require per-path exclusion details unless an explicit explain/debug mode was used
-- have `specify-runtime cognition scan-prepare` materialize its runtime-owned value-weighted execution target set
+- have `specify-runtime cognition scan-prepare` materialize its runtime-owned code-format-first, Agent-assisted execution target set
 - audit the runtime classification of project-relevant repository surfaces;
   do not hand-edit its schema or per-path projections
 - gather evidence first from high-value committed source, runtime entrypoints, tests that prove behavior, scripts, configs, docs that define behavior, templates, generated-surface sources, and `.git` history
@@ -474,7 +564,8 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - current-runtime native subagents are the default execution surface for scan lanes
 - scan packets are executable read instructions and must still execute the packet reads before the leader accepts atlas evidence
 - every project-relevant row is categorized with value tiers and coverage classes such as `P0`, `P1`, `P2`, `P3`, `inventory`, `sampled`, `deep-read`, `critical`, `important`, and `low-risk`
-- `unknown` is a scan failure
+- unresolved custom-code or unsafe unknown-format review is a classifier gap;
+  recognized non-code unknown groups may remain inventory-only
 - maintain `excluded_from_deep_read` reasoning for `vendor-cache-build-output` and similar excluded roots
 - The runtime-resolved scan set is the primary inventory boundary; Git-tracked files and Git tracking status are classification metadata unless the scan explicitly records why untracked evidence matters.
 - `.cognitionignore`-excluded paths must not appear in coverage rows, evidence rows, provisional nodes, provisional edges, observations, or scan packets unless a later `!` rule re-includes the path.

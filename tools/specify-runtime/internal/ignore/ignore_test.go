@@ -288,3 +288,72 @@ func TestWriteStarterIgnoreFileDoesNotOverwriteExistingFile(t *testing.T) {
 		t.Fatalf("existing .cognitionignore was overwritten: %q", string(data))
 	}
 }
+
+func TestActivateStarterIgnoreSuggestionsActivatesOnlyConfirmedPatterns(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("scripts/runtime/.bin/\nscripts/runtime/.data/\n"), 0o644); err != nil {
+		t.Fatalf("write .gitignore: %v", err)
+	}
+	if _, created, err := WriteStarterIgnoreFile(root); err != nil || !created {
+		t.Fatalf("WriteStarterIgnoreFile created=%t err=%v", created, err)
+	}
+	if pending := PendingStarterIgnoreSuggestions(root); len(pending) != 2 {
+		t.Fatalf("pending suggestions before review = %v, want both patterns", pending)
+	}
+
+	activated, err := ActivateStarterIgnoreSuggestions(root, []string{"scripts/runtime/.bin/"})
+	if err != nil {
+		t.Fatalf("ActivateStarterIgnoreSuggestions returned error: %v", err)
+	}
+	if len(activated) != 1 || activated[0] != "scripts/runtime/.bin/" {
+		t.Fatalf("activated = %v", activated)
+	}
+
+	matcher := Load(root)
+	if !matcher.Ignored("scripts/runtime/.bin/pgsql/include/ecpg_config.h") {
+		t.Fatal("confirmed starter pattern did not become an active cognition ignore")
+	}
+	if matcher.Ignored("scripts/runtime/.data/postgres/base/1/1417") {
+		t.Fatal("unconfirmed starter pattern became active")
+	}
+
+	data, err := os.ReadFile(StarterIgnorePath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "\nscripts/runtime/.bin/\n") {
+		t.Fatalf("confirmed pattern is not active:\n%s", content)
+	}
+	if !strings.Contains(content, "\n# reviewed-keep-in-scan: scripts/runtime/.data/\n") {
+		t.Fatalf("declined pattern was not preserved as a reviewed keep-in-scan decision:\n%s", content)
+	}
+	if pending := PendingStarterIgnoreSuggestions(root); len(pending) != 0 {
+		t.Fatalf("pending suggestions after subset review = %v, want none", pending)
+	}
+}
+
+func TestActivateStarterIgnoreSuggestionsRejectsPatternOutsideReviewSet(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("scripts/runtime/.bin/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := WriteStarterIgnoreFile(root); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(StarterIgnorePath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := ActivateStarterIgnoreSuggestions(root, []string{"backend/"}); err == nil {
+		t.Fatal("expected an unreviewed pattern to be rejected")
+	}
+	after, err := os.ReadFile(StarterIgnorePath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("rejected confirmation mutated the starter ignore file")
+	}
+}

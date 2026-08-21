@@ -160,7 +160,7 @@ render_speckit_managed_block() {
 
 ## Workflow Recommendations
 
-- Do not auto-enter an `sp-*` workflow unless the user invokes it. Continuing an already-invoked incomplete workflow is not auto-entry.
+- Passive SKILL invocation is allowed only for `sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`. All other `sp-*` workflows are user-invoked only: recommend the projected invocation and stop; do not load or enter them until the user explicitly invokes them. Continuing an already-invoked incomplete workflow is not passive entry.
 - Recommend `sp-discussion` for open-ended requirement exploration. Its handoff presents both `sp-quick` and `sp-specify` with their eligibility, explains any blocker, gives a complexity-informed recommendation among eligible paths, and the user makes the final choice. Use `sp-deep-research` for feasibility proof and `sp-debug` for root-cause diagnosis.
 - If the user invokes an `sp-*` workflow, follow that workflow's own contract.
 - When a topical follow-up, acknowledgement, or contextual confirmation continues an active discussion, resume `sp-discussion` from durable state even when the user does not repeat the workflow name.

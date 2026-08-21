@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 from pathlib import Path
@@ -16,6 +17,7 @@ from specify_cli.design import (
     _stable_go_json,
     _validate_quick_confirmation_document,
     adopt_design_change,
+    approve_design_image,
     approve_design_preview,
     diff_design_changes,
     export_design_system,
@@ -24,6 +26,7 @@ from specify_cli.design import (
     lint_design_file,
     parse_design_markdown,
     register_design_change,
+    resolve_design_adoption,
     resolve_design_changes,
     scaffold_design_change,
     scaffold_design_iteration,
@@ -84,12 +87,12 @@ design_system:
   status: approved
   approval:
     status: approved
-    direction: direction-a
+    direction: direction-main
     review_round: 1
     source_refs:
       - src/app/page.tsx
     visual_refs:
-      - .specify/design/previews/round-01.html#direction-a
+      - .specify/design/previews/round-01.html#direction-main
     preview_sha256: PREVIEW_SHA256
     manifest_sha256: MANIFEST_SHA256
     handoff_ref: .specify/design/previews/round-01.handoff.json
@@ -113,6 +116,21 @@ design_system:
     subject: account settings
     audience: account owners
     single_job: update preferences
+  professional_skill_route:
+    catalog_version: spec-kit-ui-professional-v1
+    status: resolved
+    domain_skill_id: domain-product-workspace
+    style_skill_id: style-minimal-product-linear
+    specialist_skill_ids:
+      - specialist-accessibility-localization
+    matched_signals:
+      domain-product-workspace:
+        - professional workspace
+    loaded_refs:
+      - ui-professional-skills/domains/product-workspace.md
+      - design-library/minimal-product-linear.md
+      - ui-professional-skills/specialists/accessibility-localization.md
+    unresolved_candidates: []
   direction_contract:
     visual_thesis: compact hierarchy
     content_thesis: real preference values
@@ -201,37 +219,37 @@ design_system:
     - id: DS-COLOR-001
       kind: color
       statement: use accessible semantic color pairs
-      source_ref: .specify/design/previews/round-01.html#direction-a
+      source_ref: .specify/design/previews/round-01.html#direction-main
       verification: contrast report and visual capture
     - id: DS-TYPE-001
       kind: typography
       statement: preserve compact readable hierarchy
-      source_ref: .specify/design/previews/round-01.html#direction-a
+      source_ref: .specify/design/previews/round-01.html#direction-main
       verification: resolved font and visual capture
     - id: DS-SPACE-001
       kind: spacing
       statement: preserve the spacing rhythm
-      source_ref: .specify/design/previews/round-01.html#direction-a
+      source_ref: .specify/design/previews/round-01.html#direction-main
       verification: computed tokens and visual capture
     - id: DS-COMP-001
       kind: component
       statement: preserve component anatomy and states
-      source_ref: .specify/design/previews/round-01.html#direction-a
+      source_ref: .specify/design/previews/round-01.html#direction-main
       verification: state matrix and structure snapshot
     - id: DS-MOTION-001
       kind: motion
       statement: preserve purposeful feedback and reduced motion
-      source_ref: .specify/design/previews/round-01.html#direction-a
+      source_ref: .specify/design/previews/round-01.html#direction-main
       verification: runtime capture
     - id: DS-RESP-001
       kind: responsive
       statement: preserve hierarchy across target widths
-      source_ref: .specify/design/previews/round-01.html#direction-a
+      source_ref: .specify/design/previews/round-01.html#direction-main
       verification: viewport matrix
     - id: DS-CONTENT-001
       kind: content
       statement: preserve representative content density
-      source_ref: .specify/design/previews/round-01.html#direction-a
+      source_ref: .specify/design/previews/round-01.html#direction-main
       verification: content evidence and visual capture
   verification:
     required_viewports:
@@ -243,6 +261,16 @@ design_system:
       - error
     visual_tolerance: no unapproved structural drift; rendering variance documented
     accepted_deviations: []
+    surface_catalog: SURFACE_CATALOG
+    scenario_matrix: SCENARIO_MATRIX
+    interaction_matrix: INTERACTION_MATRIX
+    editing_matrix: EDITING_MATRIX
+    data_state_matrix: DATA_STATE_MATRIX
+    accessibility_matrix: ACCESSIBILITY_MATRIX
+    navigation_matrix: NAVIGATION_MATRIX
+    content_matrix: CONTENT_MATRIX
+    motion_contract: MOTION_CONTRACT
+    usability_validation: USABILITY_VALIDATION
   accessibility:
     contrast_intent: WCAG AA
     focus_visible: required
@@ -319,6 +347,16 @@ def _configured_preview() -> str:
         'data-preview-status="scaffold"',
         'data-preview-status="candidate"',
     )
+    content = content.replace(
+        'data-prototype-status="seed"',
+        'data-prototype-status="authored"',
+    )
+    content = content.replace("freeform-seed", "authored-concept")
+    content = content.replace("Unfinished prototype seed", "Operations command center")
+    content = content.replace(
+        "Replace this seed with the complete project-specific concept before review.",
+        "Review incidents, ownership, and recovery actions in one workspace.",
+    )
     content = content.replace('"configured": false', '"configured": true')
     content = content.replace(
         '"status": "scaffold",\n    "approved_direction": null',
@@ -332,46 +370,17 @@ def _configured_preview() -> str:
     )
     assert match is not None
     manifest = json.loads(match.group(1))
-    taste = (
-        (
-            "Configured signature A",
-            {
-                "variance": 5,
-                "motion": 3,
-                "density": 7,
-                "inference_reason": "Project intake: dense workspace hierarchy for operators",
-            },
-            "minimal-product-linear",
-        ),
-        (
-            "Configured signature B",
-            {
-                "variance": 7,
-                "motion": 5,
-                "density": 5,
-                "inference_reason": "Project intake: balanced product language for mixed tasks",
-            },
-            "developer-tool-sharp",
-        ),
-        (
-            "Configured signature C",
-            {
-                "variance": 8,
-                "motion": 7,
-                "density": 3,
-                "inference_reason": "Project intake: expressive marketing lean for acquisition",
-            },
-            "marketing-editorial-asymmetric",
-        ),
-    )
-    for direction, (signature, dials, family) in zip(
-        manifest["directions"],
-        taste,
-        strict=True,
-    ):
-        direction["signature_element"] = signature
-        direction["dials"] = dials
-        direction["aesthetic_family"] = family
+    directions = manifest["directions"]
+    assert len(directions) == 1
+    direction = directions[0]
+    direction["signature_element"] = "Persistent recovery rail"
+    direction["dials"] = {
+        "variance": 5,
+        "motion": 3,
+        "density": 7,
+        "inference_reason": "Project intake: dense workspace hierarchy for operators",
+    }
+    direction["aesthetic_family"] = "minimal-product-linear"
     rendered = json.dumps(manifest, ensure_ascii=False, indent=2)
     pattern = re.compile(
         r'(<script\b(?=[^>]*\bid="design-preview-manifest")[^>]*>).*?(</script>)',
@@ -386,19 +395,107 @@ def _configured_preview() -> str:
     return updated
 
 
-def _ready_design_text(tmp_path: Path, content: str = VALID_DESIGN) -> str:
-    preview = tmp_path / ".specify" / "design" / "previews" / "round-01.html"
-    preview.parent.mkdir(parents=True, exist_ok=True)
-    preview.write_text(_configured_preview(), encoding="utf-8")
-    approval = approve_design_preview(preview, direction_id="direction-a")
-    return (
-        content.replace("PREVIEW_SHA256", approval["html_sha256"])
-        .replace("MANIFEST_SHA256", approval["manifest_sha256"])
-        .replace("HANDOFF_SHA256", approval["handoff_sha256"])
+def _bind_approved_contract(
+    content: str,
+    *,
+    preview: Path,
+    approval: dict[str, object],
+) -> str:
+    handoff = json.loads(
+        preview.with_suffix(".handoff.json").read_text(encoding="utf-8")
+    )
+    reproduction = handoff["reproduction"]
+    preview_sha256 = approval.get("html_sha256") or approval.get("image_sha256")
+    bound = (
+        content.replace("PREVIEW_SHA256", str(preview_sha256))
+        .replace("MANIFEST_SHA256", str(approval["manifest_sha256"]))
+        .replace("HANDOFF_SHA256", str(approval["handoff_sha256"]))
         .replace(
             "HANDOFF_CONTRACT_IDS",
             json.dumps(approval["handoff_contract_ids"]),
         )
+    )
+    if preview.suffix.lower() != ".html":
+        bound = bound.replace(
+            "round-01.html#direction-main",
+            f"{preview.name}#direction-main",
+        )
+        manifest_line = f"    manifest_sha256: {approval['manifest_sha256']}"
+        bound = bound.replace(
+            manifest_line,
+            manifest_line
+            + "\n    visual_medium: image"
+            + f"\n    prompt_ref: .specify/design/previews/{preview.stem}.prompt.md"
+            + f"\n    prompt_sha256: {approval['prompt_sha256']}"
+            + f"\n    inspection_owner: {approval['inspection_owner']}",
+        )
+    for field in (
+        "surface_catalog",
+        "scenario_matrix",
+        "interaction_matrix",
+        "editing_matrix",
+        "data_state_matrix",
+        "accessibility_matrix",
+        "navigation_matrix",
+        "content_matrix",
+        "motion_contract",
+        "usability_validation",
+    ):
+        bound = bound.replace(field.upper(), json.dumps(reproduction[field]))
+    return bound
+
+
+def _ready_design_text(tmp_path: Path, content: str = VALID_DESIGN) -> str:
+    preview = tmp_path / ".specify" / "design" / "previews" / "round-01.html"
+    preview.parent.mkdir(parents=True, exist_ok=True)
+    preview.write_text(_configured_preview(), encoding="utf-8")
+    approval = approve_design_preview(preview, direction_id="direction-main")
+    return _bind_approved_contract(
+        content,
+        preview=preview,
+        approval=approval,
+    )
+
+
+def _ready_image_design_text(tmp_path: Path, content: str = VALID_DESIGN) -> str:
+    image = tmp_path / ".specify" / "design" / "previews" / "round-01.png"
+    image.parent.mkdir(parents=True, exist_ok=True)
+    image.write_bytes(
+        base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2n1cAAAAASUVORK5CYII="
+        )
+    )
+    configured = _configured_preview()
+    match = re.search(
+        r'<script\b(?=[^>]*\bid="design-preview-manifest")[^>]*>(.*?)</script>',
+        configured,
+        re.DOTALL | re.IGNORECASE,
+    )
+    assert match is not None
+    manifest = image.with_suffix(".manifest.json")
+    manifest.write_text(
+        json.dumps(json.loads(match.group(1)), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    prompt = image.with_suffix(".prompt.md")
+    prompt.write_text(
+        "# Image generation prompt\n\n"
+        "One composite product UI board with the persistent recovery rail and "
+        "representative operator states.\n",
+        encoding="utf-8",
+    )
+    approval = approve_design_image(
+        image,
+        manifest_path=manifest,
+        prompt_path=prompt,
+        direction_id="direction-main",
+        image_inspection="available",
+        image_editing="unavailable",
+    )
+    return _bind_approved_contract(
+        content,
+        preview=image,
+        approval=approval,
     )
 
 
@@ -414,7 +511,7 @@ def _ready_change_design_text(
     preview = design_path.parent / "previews" / "round-01.html"
     preview.parent.mkdir(parents=True, exist_ok=True)
     preview.write_text(_configured_preview(), encoding="utf-8")
-    approval = approve_design_preview(preview, direction_id="direction-a")
+    approval = approve_design_preview(preview, direction_id="direction-main")
     header = (
         "design_change:\n"
         "  schema: spec-kit-ui-design-change-v1\n"
@@ -436,10 +533,26 @@ def _ready_change_design_text(
         "    must_preserve: []\n"
         "    may_adapt: []\n"
         "    must_not: []\n"
+        "  style_authority:\n"
+        "    mode: inherit-existing\n"
+        "    scope_level: feature-partial\n"
+        "    source_refs: [src/app/page.tsx]\n"
+        "    protected_surfaces: [global-shell, shared-components]\n"
+        "    allowed_style_delta_surfaces: []\n"
+        "    authorization_source: null\n"
     )
     content = VALID_DESIGN.replace(
         "design_system:\n  schema: spec-kit-design-v1\n",
         header,
+        1,
+    )
+    content = content.replace(
+        "    style_skill_id: style-minimal-product-linear\n",
+        "    style_skill_id: null\n",
+        1,
+    ).replace(
+        "      - design-library/minimal-product-linear.md\n",
+        "",
         1,
     )
     content = content.replace(
@@ -449,14 +562,10 @@ def _ready_change_design_text(
         ".specify/design/previews/round-01.handoff.json",
         "previews/round-01.handoff.json",
     )
-    return (
-        content.replace("PREVIEW_SHA256", approval["html_sha256"])
-        .replace("MANIFEST_SHA256", approval["manifest_sha256"])
-        .replace("HANDOFF_SHA256", approval["handoff_sha256"])
-        .replace(
-            "HANDOFF_CONTRACT_IDS",
-            json.dumps(approval["handoff_contract_ids"]),
-        )
+    return _bind_approved_contract(
+        content,
+        preview=preview,
+        approval=approval,
     )
 
 
@@ -930,6 +1039,17 @@ def test_design_adoption_requires_expected_change_and_retains_history(
         return hashlib.sha256(target.read_bytes()).hexdigest()
 
     parent_binding_digest = write_binding("UD-0042", parent_digest, parent_contract)
+    post_specify_impact = impact_design_adoption(
+        tmp_path,
+        consumer_ref="feature:001-orders",
+        change_id="UD-0042",
+        scope="web:orders/detail",
+        mode="formal-post-specify",
+        expected_change="none",
+    )
+    assert post_specify_impact["reconcile_from"] == "plan"
+    assert post_specify_impact["invalidated_bindings"] == []
+    assert "feature.requirements" in post_specify_impact["preserved_bindings"]
     approved_contract = parent_contract.read_text(encoding="utf-8")
     tampered_contract = json.loads(approved_contract)
     tampered_contract["title"] = "tampered export"
@@ -1086,6 +1206,68 @@ def test_design_adoption_requires_expected_change_and_retains_history(
         "superseded",
         "current",
     ]
+
+
+def test_post_specify_adoption_preserves_source_spec_and_returns_to_plan(
+    tmp_path: Path,
+) -> None:
+    design, _ = _create_registered_change(tmp_path, "UD-0042", "web:orders")
+    contract = design.parent / "design-contract.json"
+    contract.write_text(
+        export_design_system(design, export_format="json"), encoding="utf-8"
+    )
+    binding_ref = Path(".specify/features/001-orders/spec-contract.json")
+    binding = tmp_path / binding_ref
+    binding.parent.mkdir(parents=True, exist_ok=True)
+    source_spec = (
+        json.dumps(
+            {
+                "version": 1,
+                "status": "planning-ready",
+                "acceptance_criteria": ["order detail is usable"],
+            },
+            indent=2,
+        )
+        + "\n"
+    ).encode()
+    binding.write_bytes(source_spec)
+    source_digest = hashlib.sha256(source_spec).hexdigest()
+
+    impact = impact_design_adoption(
+        tmp_path,
+        consumer_ref="feature:001-orders",
+        change_id="UD-0042",
+        scope="web:orders/detail",
+        mode="formal-post-specify",
+        expected_change="none",
+    )
+    assert impact["reconcile_from"] == "plan"
+    assert impact["invalidated_bindings"] == []
+    assert "feature.requirements" in impact["preserved_bindings"]
+
+    receipt = adopt_design_change(
+        tmp_path,
+        consumer_ref="feature:001-orders",
+        change_id="UD-0042",
+        scope="web:orders/detail",
+        mode="formal-post-specify",
+        binding_ref=binding_ref,
+        binding_sha256=source_digest,
+        expected_change="none",
+    )
+    assert receipt["mode"] == "formal-post-specify"
+    assert binding.read_bytes() == source_spec
+
+    verified = resolve_design_adoption(
+        tmp_path,
+        consumer_ref="feature:001-orders",
+        scope="web:orders/detail",
+        binding_ref=binding_ref,
+        binding_sha256=source_digest,
+        expected_change="UD-0042",
+    )
+    assert verified["verified"] is True
+    assert verified["source_spec_sha256"] == source_digest
 
 
 @pytest.mark.parametrize(
@@ -1652,7 +1834,7 @@ def test_ready_lint_rejects_bootstrap_design_but_structural_lint_accepts_it(
         "  status: approved\n"
         "  approval:\n"
         "    status: approved\n"
-        "    direction: direction-a\n",
+        "    direction: direction-main\n",
         "  status: bootstrap\n"
         "  approval:\n"
         "    status: unapproved\n"
@@ -1694,7 +1876,7 @@ def test_ready_lint_requires_an_inspectable_approved_visual_reference(
             tmp_path,
             VALID_DESIGN.replace(
                 "    visual_refs:\n"
-                "      - .specify/design/previews/round-01.html#direction-a\n",
+                "      - .specify/design/previews/round-01.html#direction-main\n",
                 "    visual_refs: []\n",
             ),
         ),
@@ -1707,6 +1889,23 @@ def test_ready_lint_requires_an_inspectable_approved_visual_reference(
         item.code == "missing-approved-visual-reference"
         for item in diagnostics
     )
+
+
+def test_ready_lint_accepts_and_byte_binds_an_approved_image_round(
+    tmp_path: Path,
+) -> None:
+    design_file = tmp_path / "DESIGN.md"
+    design_file.write_text(
+        _ready_image_design_text(tmp_path),
+        encoding="utf-8",
+    )
+
+    assert lint_design_file(design_file, level="ready") == []
+
+    image = tmp_path / ".specify" / "design" / "previews" / "round-01.png"
+    image.write_bytes(image.read_bytes() + b"tampered")
+    diagnostics = lint_design_file(design_file, level="ready")
+    assert any(item.code == "approved-preview-invalid" for item in diagnostics)
 
 
 def test_lint_design_file_reports_non_file_path(tmp_path: Path) -> None:
@@ -1804,7 +2003,144 @@ def test_export_design_system_json_returns_normalized_tokens(tmp_path: Path) -> 
     )
     assert payload["accessibility"]["focus_visible"] == "required"
     assert payload["product_context"]["single_job"] == "update preferences"
+    assert payload["professional_skill_route"] == {
+        "catalog_version": "spec-kit-ui-professional-v1",
+        "status": "resolved",
+        "domain_skill_id": "domain-product-workspace",
+        "style_skill_id": "style-minimal-product-linear",
+        "specialist_skill_ids": ["specialist-accessibility-localization"],
+        "matched_signals": {
+            "domain-product-workspace": ["professional workspace"]
+        },
+        "loaded_refs": [
+            "ui-professional-skills/domains/product-workspace.md",
+            "design-library/minimal-product-linear.md",
+            "ui-professional-skills/specialists/accessibility-localization.md",
+        ],
+        "unresolved_candidates": [],
+    }
     assert payload["direction_contract"]["signature_element"] == "section progress rail"
+
+
+def test_ready_lint_rejects_unresolved_professional_skill_route(
+    tmp_path: Path,
+) -> None:
+    design_file = tmp_path / "DESIGN.md"
+    content = _ready_design_text(tmp_path).replace(
+        "    status: resolved\n    domain_skill_id: domain-product-workspace",
+        "    status: question-required\n    domain_skill_id: domain-product-workspace",
+        1,
+    )
+    design_file.write_text(content, encoding="utf-8")
+
+    diagnostics = lint_design_file(design_file, level="ready")
+
+    assert any(
+        diagnostic.code == "unresolved-professional-skill-route"
+        for diagnostic in diagnostics
+    )
+
+
+def test_ready_lint_rejects_local_existing_ui_style_override(tmp_path: Path) -> None:
+    design_file = (
+        tmp_path / ".specify" / "design" / "changes" / "UD-0042" / "DESIGN.md"
+    )
+    design_file.parent.mkdir(parents=True)
+    content = _ready_change_design_text(
+        design_file,
+        change_id="UD-0042",
+        scopes=["web:orders/detail"],
+    ).replace(
+        "    style_skill_id: null\n",
+        "    style_skill_id: style-commerce-tactile\n",
+        1,
+    ).replace(
+        "    loaded_refs:\n"
+        "      - ui-professional-skills/domains/product-workspace.md\n",
+        "    loaded_refs:\n"
+        "      - ui-professional-skills/domains/product-workspace.md\n"
+        "      - design-library/commerce-tactile.md\n",
+        1,
+    )
+    design_file.write_text(content, encoding="utf-8")
+
+    diagnostics = lint_design_file(design_file, level="ready")
+
+    assert any(item.code == "style-authority-violation" for item in diagnostics)
+
+
+def test_ready_lint_rejects_page_overhaul_without_exact_authority(
+    tmp_path: Path,
+) -> None:
+    design_file = (
+        tmp_path / ".specify" / "design" / "changes" / "UD-0042" / "DESIGN.md"
+    )
+    design_file.parent.mkdir(parents=True)
+    content = _ready_change_design_text(
+        design_file,
+        change_id="UD-0042",
+        scopes=["web:orders/detail"],
+    ).replace(
+        "    mode: inherit-existing\n"
+        "    scope_level: feature-partial\n"
+        "    source_refs: [src/app/page.tsx]\n"
+        "    protected_surfaces: [global-shell, shared-components]\n"
+        "    allowed_style_delta_surfaces: []\n"
+        "    authorization_source: null\n",
+        "    mode: page-overhaul-authorized\n"
+        "    scope_level: feature-partial\n"
+        "    source_refs: [src/app/page.tsx]\n"
+        "    protected_surfaces: [global-shell]\n"
+        "    allowed_style_delta_surfaces: [global-shell]\n"
+        "    authorization_source: null\n",
+        1,
+    )
+    design_file.write_text(content, encoding="utf-8")
+
+    diagnostics = lint_design_file(design_file, level="ready")
+
+    assert any(item.code == "style-authority-violation" for item in diagnostics)
+
+
+def test_lint_rejects_more_than_two_professional_specialists(
+    tmp_path: Path,
+) -> None:
+    design_file = tmp_path / "DESIGN.md"
+    content = _ready_design_text(tmp_path).replace(
+        "      - specialist-accessibility-localization\n    matched_signals:",
+        "      - specialist-accessibility-localization\n"
+        "      - specialist-motion-interaction\n"
+        "      - specialist-design-system\n"
+        "    matched_signals:",
+        1,
+    )
+    design_file.write_text(content, encoding="utf-8")
+
+    diagnostics = lint_design_file(design_file, level="structural")
+
+    assert any(
+        diagnostic.code == "invalid-professional-skill-route"
+        for diagnostic in diagnostics
+    )
+
+
+def test_ready_lint_rejects_professional_skill_reference_mismatch(
+    tmp_path: Path,
+) -> None:
+    design_file = tmp_path / "DESIGN.md"
+    content = _ready_design_text(tmp_path).replace(
+        "ui-professional-skills/domains/product-workspace.md",
+        "ui-professional-skills/domains/commerce-service.md",
+        1,
+    )
+    design_file.write_text(content, encoding="utf-8")
+
+    diagnostics = lint_design_file(design_file, level="ready")
+
+    assert any(
+        diagnostic.code == "professional-skill-route-ref-mismatch"
+        for diagnostic in diagnostics
+    )
 
 
 def test_export_design_system_tailwind_maps_supported_token_categories(tmp_path: Path) -> None:

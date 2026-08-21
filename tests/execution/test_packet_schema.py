@@ -16,6 +16,12 @@ from specify_cli.execution.packet_schema import (
     worker_task_packet_from_json,
     worker_task_packet_payload,
 )
+
+
+def test_current_ui_contract_includes_stable_surface_and_scenario_graph() -> None:
+    from specify_cli.execution.packet_schema import UI_CONTRACT_FIELDS
+
+    assert {"surface_catalog", "scenario_matrix", "editing_matrix"} <= UI_CONTRACT_FIELDS
 from specify_cli.execution.result_schema import (
     RuleAcknowledgement,
     UIVerification,
@@ -192,6 +198,125 @@ def test_worker_task_packet_captures_ui_contract_and_result_verification() -> No
                 }
             ],
             image_plan=[],
+            interaction_matrix=[
+                {
+                    "surface": "exception table row",
+                    "input": "mouse",
+                    "trigger": "hover a row action cluster",
+                    "expectation": "show inline recovery actions without shifting layout",
+                },
+                {
+                    "surface": "exception table row",
+                    "input": "keyboard",
+                    "trigger": "tab to a row action and press Enter",
+                    "expectation": "run the same recovery action with visible focus feedback",
+                },
+            ],
+            data_state_matrix=[
+                {
+                    "state": "empty",
+                    "data_condition": "no exceptions match the active filters",
+                    "expectation": "show a no-results message with filter reset affordance",
+                },
+                {
+                    "state": "ready",
+                    "data_condition": "exceptions are loaded",
+                    "expectation": "render live exception rows and recovery context",
+                },
+            ],
+            accessibility_matrix=[
+                {
+                    "id": "DH-A11Y-001",
+                    "surface": "exception table",
+                    "semantics": ["table", "row", "button"],
+                    "reading_order": "heading, filters, table, row actions",
+                    "focus_order": "filters then rows then row actions",
+                    "keyboard": ["Tab moves between controls", "Enter activates"],
+                    "announcements": ["announce filter result count"],
+                    "target_size": "24x24 CSS px minimum",
+                    "contrast": "WCAG 2.2 AA",
+                    "zoom_reflow": "reflows without loss at 400%",
+                    "alternatives": ["text label accompanies status icon"],
+                    "decision_ids": ["DS-ACCESS-001"],
+                }
+            ],
+            navigation_matrix=[
+                {
+                    "id": "DH-NAV-001",
+                    "surface": "exception detail",
+                    "entry": "exception table row",
+                    "destination": "exception detail panel",
+                    "trigger": "activate row",
+                    "back_behavior": "return to the same filtered row",
+                    "deep_link_behavior": "open the requested exception directly",
+                    "interruption_recovery": "restore unsaved recovery notes",
+                    "decision_ids": ["DS-NAV-001"],
+                }
+            ],
+            content_matrix=[
+                {
+                    "id": "DH-CONTENT-001",
+                    "surface": "empty exception table",
+                    "state": "empty",
+                    "purpose": "explain why no exceptions are shown",
+                    "copy": "No exceptions match these filters.",
+                    "primary_action": "Reset filters",
+                    "trust_requirement": "do not imply that all exceptions are resolved",
+                    "localization": "support RTL and translated expansion",
+                    "content_limits": ["title 80 characters", "one primary action"],
+                    "decision_ids": ["DS-CONTENT-001"],
+                }
+            ],
+            motion_contract={
+                "purpose": "connect row selection to the detail panel",
+                "transitions": [
+                    {
+                        "id": "DH-MOTION-001",
+                        "surface": "exception detail panel",
+                        "trigger": "open detail",
+                        "response": "panel enters without moving table context",
+                        "duration_ms": 180,
+                        "easing": "ease-out",
+                        "interrupt_behavior": "reverse from the current position",
+                        "decision_ids": ["DS-MOTION-001"],
+                    }
+                ],
+                "reduced_motion": "show the final panel state without translation",
+                "feedback_timing": {
+                    "immediate_ms": 100,
+                    "progress_ms": 1000,
+                    "timeout_ms": 10000,
+                },
+            },
+            usability_validation={
+                "risk_level": "high",
+                "methods": ["target-user task test", "cognitive walkthrough"],
+                "critical_tasks": ["recover one failed exception safely"],
+                "success_criteria": ["complete without losing table context"],
+                "human_review_required": True,
+            },
+            component_contracts=[
+                {
+                    "id": "DH-COMP-001",
+                    "component": "exception table",
+                    "anatomy": ["filters", "header", "rows", "row actions"],
+                    "required_states": ["loading", "empty", "ready", "error"],
+                    "interaction_modes": ["mouse", "keyboard"],
+                    "data_scenarios": [
+                        {
+                            "state": "ready",
+                            "data_condition": "exceptions are loaded",
+                            "expectation": "render rows and recovery actions",
+                        }
+                    ],
+                    "variants": ["compact", "comfortable"],
+                    "content_constraints": ["long identifiers must wrap safely"],
+                    "semantic_token_refs": ["color.status.critical"],
+                    "governance": "extend",
+                    "iconography": "icons require visible text or an accessible name",
+                    "decision_ids": ["DS-COMP-001"],
+                }
+            ],
             fidelity_level="approximate",
             must_preserve=["three-column layout", "compact table density"],
             may_adapt=["icons", "minor spacing"],
@@ -218,6 +343,12 @@ def test_worker_task_packet_captures_ui_contract_and_result_verification() -> No
         round_tripped.ui_contract.real_content_plan[0]["source_ref"]
         == "src/exceptions/schema.py"
     )
+    assert round_tripped.ui_contract.accessibility_matrix[0]["id"] == "DH-A11Y-001"
+    assert round_tripped.ui_contract.navigation_matrix[0]["id"] == "DH-NAV-001"
+    assert round_tripped.ui_contract.content_matrix[0]["id"] == "DH-CONTENT-001"
+    assert round_tripped.ui_contract.motion_contract["feedback_timing"]["progress_ms"] == 1000
+    assert round_tripped.ui_contract.usability_validation["risk_level"] == "high"
+    assert round_tripped.ui_contract.component_contracts[0]["governance"] == "extend"
     assert "compact table density" in round_tripped.ui_contract.must_preserve
     assert "visual_capture" in round_tripped.ui_contract.required_evidence
 

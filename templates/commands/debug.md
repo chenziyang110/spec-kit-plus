@@ -14,9 +14,18 @@ workflow_contract:
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
-[AGENT] `sp-debug` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
+[AGENT] Apply the Pre-Intake Context Sufficiency Gate first. The full Debug
+branch always starts a new run: record it with `specify-runtime run create`,
+then execute only through `specify-runtime run supervise`; do not resume another
+workflow's run. The explicit user-selected context-direct branch is the sole
+exception and creates no run or debug session.
 
 ## Main Flow
+
+The steps below own only the full Debug branch. A user-selected context-direct
+branch is legal only when the failure mechanism is already proven by evidence
+in the conversation; it performs the bounded fix, RED/reproduction, fresh
+verification, and exact-path mutation closeout without entering this flow.
 
 1. Choose `leader-inline`, `subagent-assisted`, or `blocked` based on investigation size, safety, and packetizability; keep the leader responsible for session state and root-cause decisions.
 2. Create or resume the debug session through its CLI owner, query required workflow context through `specify-runtime artifact show`, run the Debug Cognition Gate, and confirm the Debug Understanding Checkpoint before reproduction, logs, source reads, code edits, or validation.

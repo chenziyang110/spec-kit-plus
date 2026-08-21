@@ -9,6 +9,7 @@ import yaml
 from typer.testing import CliRunner
 
 from specify_cli import app
+from specify_cli.agents import CommandRegistrar
 from specify_cli.launcher import render_command
 from tests.conftest import strip_ansi
 from tests.template_utils import assert_quick_checkpoint_card_shape
@@ -1022,11 +1023,17 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         assert isinstance(map_scan_fm["description"], str) and map_scan_fm["description"].strip()
         assert isinstance(map_build_fm["description"], str) and map_build_fm["description"].strip()
 
-        assert specify_fm["description"].startswith("Use when")
-        assert plan_fm["description"].startswith("Use when")
-        assert explain_fm["description"].startswith("Use when")
-        assert map_scan_fm["description"].startswith("Use when")
-        assert map_build_fm["description"].startswith("Use when")
+        for frontmatter in (
+            specify_fm,
+            deep_research_fm,
+            plan_fm,
+            explain_fm,
+            map_scan_fm,
+            map_build_fm,
+        ):
+            assert frontmatter["description"].startswith(
+                CommandRegistrar.USER_INVOKED_DESCRIPTION_PREFIX
+            )
         assert "guided requirement discovery" in specify_fm["description"].lower()
         assert "planning-ready specification package" in specify_fm["description"].lower()
         assert "implementation planning" in plan_fm["description"].lower()

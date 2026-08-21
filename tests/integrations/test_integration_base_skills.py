@@ -117,7 +117,9 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "show_argv" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## Workflow Recommendations" in content
-    assert "do not auto-enter an `sp-*` workflow" in lower
+    assert "passive skill invocation is allowed only for" in lower
+    assert "`sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`" in lower
+    assert "all other `sp-*` workflows are user-invoked only" in lower
     assert "recommend `sp-discussion`" in lower
     assert "presents both `sp-quick` and `sp-specify`" in lower
     assert "complexity-informed recommendation" in lower
@@ -144,7 +146,6 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "## Brownfield Context Gate" not in content
     assert "## Project Cognition Usage" not in content
     assert "## Map Maintenance" not in content
-    assert "sp-fast" not in lower
     assert "sp-test-scan" not in lower
     assert "sp-test-build" not in lower
 
@@ -506,6 +507,41 @@ def test_collected_skills_integrations_generate_design_workflow(tmp_path):
         design_path = integration.skills_dest(project) / "sp-design" / "SKILL.md"
         assert design_path.exists(), integration_key
         _assert_design_contract(design_path.read_text(encoding="utf-8"))
+
+
+def test_collected_skills_integrations_install_ui_design_studio_references(tmp_path):
+    expected_references = {
+        "critique-loop.md",
+        "discovery-dialogue.md",
+        "html-prototype-studio.md",
+        "image-generation-studio.md",
+        "platform-android.md",
+        "platform-apple.md",
+        "platform-web.md",
+        "platform-windows.md",
+        "prototype-craft.md",
+        "visual-capability-routing.md",
+    }
+
+    for integration_key in SKILLS_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        skill_dir = integration.skills_dest(project) / "spec-kit-ui-design"
+        skill_content = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+        references_dir = skill_dir / "references"
+        installed_references = {path.name for path in references_dir.glob("*.md")}
+
+        assert installed_references == expected_references, integration_key
+        assert "references/discovery-dialogue.md" in skill_content, integration_key
+        assert "references/prototype-craft.md" in skill_content, integration_key
+        for reference in references_dir.glob("*.md"):
+            assert reference.relative_to(project).as_posix() in manifest.files, (
+                integration_key,
+                reference.name,
+            )
 
 
 def test_all_skills_integrations_generate_migrated_workflow_references(tmp_path):

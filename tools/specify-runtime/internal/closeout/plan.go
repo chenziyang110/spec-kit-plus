@@ -32,17 +32,22 @@ type Input struct {
 	IncludeUntracked   bool     `json:"include_untracked"`
 	ExplicitPaths      []string `json:"explicit_paths,omitempty"`
 	DeltaSessionID     string   `json:"delta_session_id,omitempty"`
+	ScopeDir           string   `json:"scope_dir,omitempty"`
+	ScopeMode          string   `json:"scope_mode,omitempty"`
 }
 
 type Payload struct {
 	Status                  string                   `json:"status"`
 	Workflow                string                   `json:"workflow,omitempty"`
 	WorkflowCanonical       string                   `json:"workflow_canonical,omitempty"`
+	ScopeMode               string                   `json:"scope_mode,omitempty"`
 	UpdateMode              string                   `json:"update_mode,omitempty"`
 	DeltaSessionID          *string                  `json:"delta_session_id,omitempty"`
 	CommandSafetyNote       string                   `json:"command_safety_note,omitempty"`
 	UpdateCommand           string                   `json:"update_command,omitempty"`
 	UpdateArgv              []string                 `json:"update_argv"`
+	ApplyCommand            string                   `json:"apply_command,omitempty"`
+	ApplyArgv               []string                 `json:"apply_argv"`
 	DeltaAppendCommand      string                   `json:"delta_append_command,omitempty"`
 	DeltaAppendDraft        *DeltaAppendDraft        `json:"delta_append_draft,omitempty"`
 	RecommendedNextCommand  string                   `json:"recommended_next_command,omitempty"`
@@ -107,6 +112,7 @@ type BoundaryDraft struct {
 	CommitRange        string   `json:"commit_range,omitempty"`
 	InitialDirtyPaths  []string `json:"initial_dirty_paths"`
 	WorkflowOwnedPaths []string `json:"workflow_owned_paths"`
+	ScopeMode          string   `json:"scope_mode"`
 }
 
 func Run(paths rt.Paths, input Input) (Payload, error) {
@@ -116,6 +122,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 			Status:                  statusBlocked,
 			Workflow:                strings.TrimSpace(input.Workflow),
 			UpdateArgv:              []string{},
+			ApplyArgv:               []string{},
 			RequiredAgentFields:     []string{},
 			KnownPaths:              []string{},
 			UnknownPaths:            []string{},
@@ -133,12 +140,41 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 	if strings.TrimSpace(input.Intent) != "" {
 		intent = strings.TrimSpace(input.Intent)
 	}
+	scopeMode := strings.ToLower(strings.TrimSpace(input.ScopeMode))
+	if scopeMode == "" {
+		if len(input.ExplicitPaths) > 0 {
+			scopeMode = "explicit"
+		} else {
+			scopeMode = "repository_diff"
+		}
+	}
+	if scopeMode != "explicit" && scopeMode != "repository_diff" {
+		return Payload{
+			Status: statusBlocked, Workflow: workflow, WorkflowCanonical: workflow,
+			UpdateArgv: []string{}, ApplyArgv: []string{}, RequiredAgentFields: []string{}, KnownPaths: []string{}, UnknownPaths: []string{},
+			UnknownPathDispositions: []UnknownPathDisposition{}, Changes: []changes.Change{}, Warnings: []string{}, Errors: []string{"scope mode must be explicit or repository_diff"},
+		}, nil
+	}
+	if scopeMode == "explicit" && len(input.ExplicitPaths) == 0 {
+		return Payload{
+			Status: statusBlocked, Workflow: workflow, WorkflowCanonical: workflow, ScopeMode: scopeMode,
+			UpdateArgv: []string{}, ApplyArgv: []string{}, RequiredAgentFields: []string{}, KnownPaths: []string{}, UnknownPaths: []string{},
+			UnknownPathDispositions: []UnknownPathDisposition{}, Changes: []changes.Change{}, Warnings: []string{}, Errors: []string{"explicit closeout scope requires at least one --changed-path"},
+		}, nil
+	}
+
+	includeWorkingTree := input.IncludeWorkingTree
+	includeUntracked := input.IncludeUntracked
+	if scopeMode == "explicit" {
+		includeWorkingTree = false
+		includeUntracked = false
+	}
 
 	changePayload, err := changes.Run(paths, changes.Input{
 		Since:              input.Since,
 		Head:               input.Head,
-		IncludeWorkingTree: input.IncludeWorkingTree,
-		IncludeUntracked:   input.IncludeUntracked,
+		IncludeWorkingTree: includeWorkingTree,
+		IncludeUntracked:   includeUntracked,
 		ExplicitPaths:      input.ExplicitPaths,
 		Intent:             intent,
 	})
@@ -151,7 +187,9 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		Status:                  changePayload.Status,
 		Workflow:                workflow,
 		WorkflowCanonical:       workflow,
+		ScopeMode:               scopeMode,
 		UpdateArgv:              []string{},
+		ApplyArgv:               []string{},
 		RequiredAgentFields:     requiredAgentFields(changePayload.UnknownPaths),
 		KnownPaths:              knownPaths(changePayload.Changes),
 		UnknownPaths:            append([]string{}, changePayload.UnknownPaths...),
@@ -167,25 +205,33 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 	}
 
 	changedPaths := changedPaths(changePayload.Changes)
+	scopeDir := strings.TrimSpace(input.ScopeDir)
+	if scopeDir == "" {
+		scopeDir = "<feature-or-scope>"
+	}
 	if strings.TrimSpace(input.DeltaSessionID) != "" {
 		sessionID := strings.TrimSpace(input.DeltaSessionID)
 		payload.UpdateMode = modeDeltaSession
 		payload.DeltaSessionID = &sessionID
-		payload.CommandSafetyNote = "command strings are display-only; use argv arrays after filling required agent-owned evidence fields"
+		payload.CommandSafetyNote = "command strings are display-only; fill delta_append_draft, then execute apply_argv after recording the required agent-owned evidence; update_argv is low-level compatibility/debug only"
 		payload.DeltaAppendCommand = "display only: specify-runtime cognition delta append --session <delta_session_id> --event-type workflow_closeout ...agent evidence flags... --format json"
 		payload.DeltaAppendDraft = deltaAppendDraft(sessionID, workflow, changedPaths, pathChanges(changePayload.Changes), dispositions, payload.RequiredAgentFields)
 		payload.UpdateCommand = "display only: specify-runtime cognition update --delta-session <delta_session_id> --reason <reason> --format json"
 		payload.UpdateArgv = []string{"specify-runtime", "cognition", "update", "--delta-session", sessionID, "--reason", reason, "--format", "json"}
-		payload.RecommendedNextCommand = "fill_delta_append_draft_then_update"
+		payload.ApplyCommand = "display only: specify-runtime cognition closeout apply --workflow <workflow> --scope-dir <feature-or-scope> --delta-session <delta_session_id> --reason <reason> --format json"
+		payload.ApplyArgv = []string{"specify-runtime", "cognition", "closeout", "apply", "--workflow", workflow, "--scope-dir", scopeDir, "--delta-session", sessionID, "--reason", reason, "--format", "json"}
+		payload.RecommendedNextCommand = "fill_delta_append_draft_then_closeout_apply"
 		return payload, nil
 	}
 
 	updateArgv := []string{"specify-runtime", "cognition", "update", "--payload-json", "<inline-json>", "--reason", reason, "--format", "json"}
 	payload.UpdateMode = modeInlineJSON
-	payload.CommandSafetyNote = "fill payload_draft in memory, substitute it for <inline-json> in update_argv, and never create a payload file"
+	payload.CommandSafetyNote = "fill payload_draft in memory, JSON-encode it to apply_argv stdin, and execute argv directly without shell interpolation or creating an agent-authored payload file; update_argv is low-level compatibility/debug only"
 	payload.UpdateCommand = "display only: specify-runtime cognition update --payload-json '<inline-json>' --reason <reason> --format json"
 	payload.UpdateArgv = updateArgv
-	payload.RecommendedNextCommand = "fill_payload_draft_then_update_inline"
+	payload.ApplyCommand = "display only: JSON-encode the filled payload_draft to stdin, then run specify-runtime cognition closeout apply --workflow <workflow> --scope-dir <feature-or-scope> --payload-json - --reason <reason> --format json"
+	payload.ApplyArgv = []string{"specify-runtime", "cognition", "closeout", "apply", "--workflow", workflow, "--scope-dir", scopeDir, "--payload-json", "-", "--reason", reason, "--format", "json"}
+	payload.RecommendedNextCommand = "fill_payload_draft_then_closeout_apply"
 	payload.PayloadDraft = &PayloadDraft{
 		Workflow:                workflow,
 		Reason:                  reason,
@@ -204,7 +250,8 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		UserDecisions:           []string{},
 		Boundary: BoundaryDraft{
 			InitialDirtyPaths:  []string{},
-			WorkflowOwnedPaths: []string{},
+			WorkflowOwnedPaths: append([]string{}, changedPaths...),
+			ScopeMode:          scopeMode,
 		},
 	}
 	return payload, nil
@@ -225,9 +272,12 @@ func knownPaths(items []changes.Change) []string {
 }
 
 func changedPaths(items []changes.Change) []string {
-	out := make([]string, 0, len(items))
+	out := make([]string, 0, len(items)*2)
 	for _, item := range items {
 		out = append(out, item.Path)
+		if strings.TrimSpace(item.OldPath) != "" {
+			out = append(out, item.OldPath)
+		}
 	}
 	return sortedUnique(out)
 }

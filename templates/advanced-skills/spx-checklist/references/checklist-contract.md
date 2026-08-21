@@ -15,6 +15,13 @@ questions such as "Are retry limits and the user-visible exhausted state
 specified? [Recovery]". Keep the set focused enough that a reviewer can use it
 as a real gate rather than a compliance inventory.
 
+For UI-bearing contracts, ask whether the writing defines applicable
+pointer/mouse, keyboard/focus, touch/shortcut/command events and feedback;
+empty and populated data plus degraded/recovery states; continuous
+resize/stretch/reflow/overflow; and preservation of focus, selection, scroll,
+overlays, and unsaved input. Check risk-based input × data × size combinations
+without turning a requirements checklist into executable testing.
+
 Checklist history is append-only. Never delete, replace, or renumber existing
 items. Deduplicate against existing semantic items only when needed by querying
 them through `artifact show`; never scan or allocate IDs manually. Send plain item strings
@@ -22,3 +29,14 @@ to `specify-runtime artifact checklist` and let the CLI allocate the next
 unused `CHK###`, render Markdown, and append atomically. At least 80% of items
 carry traceability to a stable requirement or gap marker; untraceable items
 must name why no stable source exists.
+
+## Professional UI contract continuity
+
+For UI-bearing requirements, Checklist asks whether every applicable
+`surface_catalog`, `scenario_matrix`, `interaction_matrix`,
+`editing_matrix`, `data_state_matrix`, `accessibility_matrix`, `navigation_matrix`,
+`content_matrix`, `motion_contract`, and `usability_validation` obligation is
+specific, measurable, and traceable,
+including component governance. Use risk-based prioritization, not an unbounded
+Cartesian product; automated tests/screenshots never replace target-user human
+review.

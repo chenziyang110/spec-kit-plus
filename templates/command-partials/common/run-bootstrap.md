@@ -11,6 +11,82 @@ is pristine; every overlap and every idle-but-dirty launch is isolated. Overlaps
 inherit the primary Run's pre-launch Snapshot. Never change cwd or select
 another Run's workspace yourself.
 
+For a host-managed modifying Run backed by a compiled worker task packet, pass
+the compile receipt's canonical values unchanged as
+`--work-packet-file <receipt.path> --work-packet-sha256 <receipt.sha256>` on
+`run launch` or `run supervise`; never pass the path alone. The runtime verifies
+the SHA-256 over the file's exact bytes before parsing, then derives task
+identity, objective, and confirmed `scope.write_scope` intents, so do not
+reconstruct `--work-intents-json` in a prompt or adapter. For non-packet work,
+pass exact task identity and planned scope with `--work-agent-id`,
+`--work-task-ref`, `--work-summary`, and
+`--work-intents-json`. The supervisor
+automatically runs `specify-runtime board reconcile` to reconcile stale leases,
+registers the Work item before child launch, renews its lease, and owns terminal
+closeout. A managed child receives `SPECIFY_WORK_ID` and `SPECIFY_WORK_FENCE`;
+do not call `specify-runtime work begin`, `specify-runtime work finish`, or
+`specify-runtime work abandon` from that child. If scope grows, first read the
+current revision with `specify-runtime work show`, then use
+`specify-runtime work scope-add` before touching the new path. Exit nonzero after
+`specify-runtime work block` when human or external action is required; the
+supervisor retains the blocked scope.
+
+Feature bootstrap has a read-only planning boundary. Before any feature write or
+branch action, run the exact installed `create-new-feature` script from the repo
+root with the original feature description plus `--dry-run --json` (PowerShell:
+`-DryRun -Json`). Retain its exact `BRANCH_NAME` as `feature_id` and exact
+`FEATURE_DIR` as `feature_dir`; the dry run must not write, create a branch, or
+switch branches. Every later real script invocation must replay that dry-run
+`BRANCH_NAME` unchanged with `--resolved-feature-id <dry-run BRANCH_NAME>`
+(PowerShell: `-ResolvedFeatureId <dry-run BRANCH_NAME>`); never recompute its
+timestamp or automatic feature number.
+
+For managed feature work, record the dry-run `feature_id` as
+`subject_type=feature`, using
+`--subject-type feature --subject-id <dry-run BRANCH_NAME>`. Run the real
+create-feature script only as the child of `specify-runtime run
+supervise`; the supervisor automatically binds the exact feature directory as a
+confirmed write intent. A managed child always remains on its allocated
+private/current ref, regardless of the returned `feature_branch_policy`; it
+must not create or switch to a business feature branch. The exported
+`SPECIFY_FEATURE_BRANCH_POLICY` is advisory context and never overrides that
+managed-workspace invariant.
+
+For an unhosted feature bootstrap, first run `specify-runtime board reconcile`
+and `specify-runtime board show`. Then call exactly one
+`specify-runtime board feature-bootstrap --feature-id <dry-run BRANCH_NAME> --feature-dir <dry-run FEATURE_DIR> --summary <summary> --agent-id <agent-id> --adapter-id <adapter-id> --format json`.
+That command atomically registers the Work, records the exact
+feature directory as a confirmed write intent, and returns `data.work` plus
+`data.feature_branch_policy`. Do not query `specify-runtime board branch-policy`
+before registration, and do not call `specify-runtime work begin` separately.
+Only after that receipt may the caller run the real create-feature script. When
+the returned policy is `keep-current`, pass `--keep-current-branch` (PowerShell:
+`-KeepCurrentBranch`) and do not create or switch branches. Only when the policy
+is `default` because the board was idle does the existing business-branch
+behavior remain unchanged.
+
+For any other unhosted modifying workflow, reconcile and show the board, then
+register before writing with `specify-runtime work begin`. Use
+`specify-runtime work checkpoint` for durable progress, `specify-runtime work
+block` when blocked, and `specify-runtime work finish` when writes are complete.
+The board is a SQLite CLI projection; do not edit it by hand. At process or
+computer restart, reconcile and show before deciding what to do. Active
+same-task Work may still belong to another agent: do not take it over or resume
+it, and you must not interrupt another live agent. Only when the new session has
+confirmed that the old owner/session has ended (for example, after a computer
+restart), and only after inspecting the board plus its recorded workspace, use
+`specify-runtime work interrupt <work-id> --expected-revision <n> --fence <n> --reason <reason> --format json`.
+The runtime checks the original workspace, advances the fence, changes the Work
+to `interrupted`, and preserves a dirty recovery hold for affected scope. Then
+use `specify-runtime work resume` with the returned identity to continue the
+preserved task. If prior-owner termination cannot be established, wait rather
+than taking over; reconciliation also converts an expired lease to
+`interrupted`. After inspecting its recorded workspace and changes, resume it
+explicitly or use `specify-runtime work abandon` to release it. If the board
+reports a conflict, avoid the overlap by yielding, splitting responsibility, or
+narrowing scope. Do not delete unknown edits or unfamiliar changes just because
+they appeared during your run.
+
 Inspect Result history with `specify-runtime result list` and
 `specify-runtime result show`; record only explicit relationships with
 `specify-runtime result depend`, and use `specify-runtime result reopen` rather

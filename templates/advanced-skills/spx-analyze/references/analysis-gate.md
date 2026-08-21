@@ -8,6 +8,12 @@ Treat artifacts as a chain of obligations rather than a prose comparison:
 - live repository: current owners, consumers, generated surfaces, and test entry
   points.
 
+When UI applies, the obligation chain also includes exact
+`interaction_matrix`, `editing_matrix`, `data_state_matrix`, component interaction/data rows, and
+responsive stretch/overflow rows. A downstream `required_states`-only shape or
+a populated pointer-happy-path-only plan/task set is a continuity defect, not a
+harmless summarization.
+
 Use `CRITICAL` for violated project principles or missing baseline truth,
 `HIGH` for contradictions, uncovered requirements, unsafe boundaries, or lost
 must-preserve behavior, and lower severities for local clarity or maintainability
@@ -31,3 +37,13 @@ Patch the complete blocker bundle into `workflow-state.md` through a leased `spe
 finding attribution, evidence fingerprint, and exactly one next route. Preserve
 IDs across revalidation and clear the gate only after fresh evidence resolves
 every blocking row.
+
+## Professional UI contract continuity
+
+For UI-bearing scope, Analyze checks exact continuity, contradictions,
+ownership, and task coverage across `surface_catalog`, `scenario_matrix`,
+`interaction_matrix`, `editing_matrix`, `data_state_matrix`, `accessibility_matrix`,
+`navigation_matrix`, `content_matrix`, `motion_contract`, and
+`usability_validation`, including component governance.
+Prioritize risk-based gaps rather than an unbounded Cartesian product; stay
+read-only and never reinterpret required target-user review.

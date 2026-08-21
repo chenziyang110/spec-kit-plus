@@ -220,6 +220,336 @@ func TestForegroundSupervisorRecordsNonzeroExitAsFailedExecution(t *testing.T) {
 	}
 }
 
+func TestForegroundSupervisorCompletesAutomaticWorkBoardItemForSuccessfulRun(t *testing.T) {
+	t.Setenv(foregroundHelperEnvironment, "1")
+	mainRoot, _ := createLinkedRepository(t)
+	repository, err := ResolveRepository(context.Background(), mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := openTestStore(t, repository.DatabasePath, WithOwnerEpoch("work_success_submit"))
+	if _, err := store.EnqueueRun(context.Background(), CreateRunParams{
+		RunID:        "foreground_work_success",
+		Kind:         "sp-quick",
+		SubjectType:  "file",
+		SubjectID:    "work-success.txt",
+		TargetRef:    "HEAD",
+		IntentSHA256: digestForTest("foreground work success"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := SuperviseRun(context.Background(), repository, foregroundIsolatedTestParams(
+		"foreground_work_success",
+		"write",
+		"work-success.txt",
+		"completed",
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	work, intents := requireSingleWorkForRun(t, repository, result.Run.RunID, WorkCompleted)
+	if work.TaskRef != "file:work-success.txt" || work.WorkspaceRoot != result.Workspace.RootPath ||
+		work.BaseCommit != result.Workspace.BaseCommit {
+		t.Fatalf("completed automatic work = %#v, want exact run workspace binding", work)
+	}
+	if len(intents) != 1 || intents[0].Path != "work-success.txt" ||
+		intents[0].Status != WriteIntentReleased {
+		t.Fatalf("completed automatic intents = %#v, want released run subject path", intents)
+	}
+}
+
+func TestAutomaticRunWriteIntentsBindFeatureSubjectToExactFeatureDirectory(t *testing.T) {
+	intents := automaticRunWriteIntents(Run{
+		SubjectType: "feature",
+		SubjectID:   "001-shared-board",
+	})
+	if len(intents) != 1 || intents[0].Path != ".specify/features/001-shared-board" ||
+		intents[0].Operation != WriteCreate || intents[0].Confidence != IntentConfirmed {
+		t.Fatalf("feature automatic write intents = %#v", intents)
+	}
+
+	for _, unsafeID := range []string{"../escape", "nested/feature", `.specify\\features\\001-other`} {
+		if got := automaticRunWriteIntents(Run{SubjectType: "feature", SubjectID: unsafeID}); len(got) != 0 {
+			t.Fatalf("unsafe feature subject %q produced intents %#v", unsafeID, got)
+		}
+	}
+}
+
+func TestForegroundSupervisorBlocksRunWhenAutomaticWorkBoardIntentConflicts(t *testing.T) {
+	t.Setenv(foregroundHelperEnvironment, "1")
+	mainRoot, _ := createLinkedRepository(t)
+	repository, err := ResolveRepository(context.Background(), mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner := openTestStore(t, repository.DatabasePath, WithOwnerEpoch("work_conflict_owner"))
+	if _, _, err := owner.BeginWork(context.Background(), BeginWorkParams{
+		WorkID:        "manual_conflict_owner",
+		Summary:       "manual owner edits conflict.txt",
+		AgentID:       "manual-agent",
+		AdapterID:     "manual-adapter",
+		WorkspaceRoot: mainRoot,
+		LeaseUntil:    time.Now().UTC().Add(10 * time.Minute),
+		WriteIntents: []WriteIntentSpec{{
+			Path:       "conflict.txt",
+			Operation:  WriteModify,
+			Confidence: IntentConfirmed,
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	enqueue := openTestStore(t, repository.DatabasePath, WithOwnerEpoch("work_conflict_submit"))
+	if _, err := enqueue.EnqueueRun(context.Background(), CreateRunParams{
+		RunID:        "foreground_work_conflict",
+		Kind:         "sp-quick",
+		SubjectType:  "file",
+		SubjectID:    "conflict.txt",
+		TargetRef:    "HEAD",
+		IntentSHA256: digestForTest("foreground work conflict"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := SuperviseRun(context.Background(), repository, foregroundIsolatedTestParams(
+		"foreground_work_conflict",
+		"write",
+		"conflict.txt",
+		"should-not-run",
+	))
+	if !errors.Is(err, ErrWorkIntentConflict) {
+		t.Fatalf("conflicting automatic work error = %#v result=%#v, want ErrWorkIntentConflict", err, result)
+	}
+	items, err := owner.ListWork(context.Background(), ListWorkParams{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].WorkID != "manual_conflict_owner" {
+		t.Fatalf("conflicting run registered work = %#v, want only manual owner", items)
+	}
+}
+
+func TestForegroundSupervisorInterruptsAutomaticWorkBoardItemWhenRunIsCancelled(t *testing.T) {
+	t.Setenv(foregroundHelperEnvironment, "1")
+	mainRoot, _ := createLinkedRepository(t)
+	repository, err := ResolveRepository(context.Background(), mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := openTestStore(t, repository.DatabasePath, WithOwnerEpoch("work_cancel_submit"))
+	if _, err := store.EnqueueRun(context.Background(), CreateRunParams{
+		RunID:        "foreground_work_cancel",
+		Kind:         "sp-quick",
+		SubjectType:  "file",
+		SubjectID:    "cancelled.txt",
+		TargetRef:    "HEAD",
+		IntentSHA256: digestForTest("foreground work cancel"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	readyPath := filepath.Join(t.TempDir(), "child-ready")
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, runErr := SuperviseRun(ctx, repository, foregroundIsolatedTestParams(
+			"foreground_work_cancel",
+			"block-after-write",
+			"cancelled.txt",
+			readyPath,
+		))
+		done <- runErr
+	}()
+	waitForForegroundHelper(t, readyPath)
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled supervision error = %v, want context.Canceled", err)
+	}
+
+	work, intents := requireSingleWorkForRun(t, repository, "foreground_work_cancel", WorkInterrupted)
+	if !work.RecoveryHold || work.LastReason == "" || len(work.ObservedPaths) != 1 ||
+		work.ObservedPaths[0] != "cancelled.txt" {
+		t.Fatalf("interrupted automatic work = %#v, want dirty path recovery hold", work)
+	}
+	if len(intents) != 1 || intents[0].Path != "cancelled.txt" ||
+		intents[0].Status != WriteIntentRecovery {
+		t.Fatalf("interrupted automatic intents = %#v, want recovery-held run subject path", intents)
+	}
+}
+
+func TestForegroundSupervisorKeepsAutomaticWorkBlockedAfterChildFailure(t *testing.T) {
+	t.Setenv(foregroundHelperEnvironment, "1")
+	mainRoot, _ := createLinkedRepository(t)
+	repository, err := ResolveRepository(context.Background(), mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := openTestStore(t, repository.DatabasePath, WithOwnerEpoch("work_failure_submit"))
+	if _, err := store.EnqueueRun(context.Background(), CreateRunParams{
+		RunID:        "foreground_work_failure",
+		Kind:         "sp-quick",
+		SubjectType:  "file",
+		SubjectID:    "failed.txt",
+		TargetRef:    "HEAD",
+		IntentSHA256: digestForTest("foreground work failure"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := SuperviseRun(context.Background(), repository, foregroundIsolatedTestParams(
+		"foreground_work_failure",
+		"fail",
+		"7",
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ExitCode != 7 {
+		t.Fatalf("failed supervised exit code = %d, want 7", result.ExitCode)
+	}
+	work, intents := requireSingleWorkForRun(t, repository, result.Run.RunID, WorkBlocked)
+	if work.RecoveryHold || !strings.Contains(work.LastReason, "code 7") {
+		t.Fatalf("failed automatic work = %#v, want blocked without recovery hold", work)
+	}
+	if len(intents) != 1 || intents[0].Status != WriteIntentActive {
+		t.Fatalf("failed automatic intents = %#v, want retained active intent", intents)
+	}
+}
+
+func TestForegroundSupervisorHeartbeatSurvivesChildScopeExpansion(t *testing.T) {
+	t.Setenv(foregroundHelperEnvironment, "1")
+	mainRoot, _ := createLinkedRepository(t)
+	repository, err := ResolveRepository(context.Background(), mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := openTestStore(t, repository.DatabasePath, WithOwnerEpoch("work_scope_submit"))
+	if _, err := store.EnqueueRun(context.Background(), CreateRunParams{
+		RunID:        "foreground_work_scope",
+		Kind:         "sp-quick",
+		SubjectType:  "file",
+		SubjectID:    "initial.txt",
+		TargetRef:    "HEAD",
+		IntentSHA256: digestForTest("foreground work scope expansion"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	readyPath := filepath.Join(t.TempDir(), "child-ready")
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, runErr := SuperviseRun(ctx, repository, foregroundIsolatedTestParams(
+			"foreground_work_scope",
+			"block",
+			readyPath,
+		))
+		done <- runErr
+	}()
+	waitForForegroundHelper(t, readyPath)
+
+	observer := openTestStore(t, repository.DatabasePath, WithOwnerEpoch("work_scope_observer"))
+	work := waitForRunWork(t, observer, "foreground_work_scope", WorkActive)
+	work, _, err = observer.AddWorkIntent(context.Background(), AddWorkIntentParams{
+		WorkID:           work.WorkID,
+		ExpectedRevision: work.Revision,
+		Fence:            work.Fence,
+		Spec: WriteIntentSpec{
+			Path:       "discovered.txt",
+			Operation:  WriteModify,
+			Confidence: IntentConfirmed,
+		},
+	})
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	time.Sleep(2 * foregroundTestParams("unused").HeartbeatInterval)
+	select {
+	case runErr := <-done:
+		cancel()
+		t.Fatalf("supervisor stopped after child scope expansion: %v", runErr)
+	default:
+	}
+	checkpointed, _, err := observer.GetWork(context.Background(), work.WorkID)
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	if checkpointed.Revision <= work.Revision || checkpointed.HeartbeatAtMS <= work.HeartbeatAtMS ||
+		checkpointed.LeaseUntilMS < work.LeaseUntilMS {
+		cancel()
+		<-done
+		t.Fatalf("automatic work heartbeat = %#v, want monotonic lease and renewed heartbeat after scope expansion %#v", checkpointed, work)
+	}
+
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled supervision error = %v, want context.Canceled", err)
+	}
+}
+
+func TestForegroundSupervisorReconcilesExpiredWorkBeforeRegisteringAutomaticScope(t *testing.T) {
+	t.Setenv(foregroundHelperEnvironment, "1")
+	mainRoot, _ := createLinkedRepository(t)
+	repository, err := ResolveRepository(context.Background(), mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner := openTestStore(t, repository.DatabasePath, WithOwnerEpoch("expired_work_owner"))
+	expired, _, err := owner.BeginWork(context.Background(), BeginWorkParams{
+		WorkID:        "expired_work",
+		Summary:       "stale task from stopped computer",
+		AgentID:       "stopped-agent",
+		AdapterID:     "test-helper",
+		WorkspaceRoot: mainRoot,
+		LeaseUntil:    time.Now().UTC().Add(time.Minute),
+		WriteIntents: []WriteIntentSpec{{
+			Path:       "reclaimed.txt",
+			Operation:  WriteModify,
+			Confidence: IntentConfirmed,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.db.ExecContext(context.Background(),
+		`UPDATE work_items SET lease_until_ms = 1 WHERE work_id = ?`, expired.WorkID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := owner.EnqueueRun(context.Background(), CreateRunParams{
+		RunID:        "foreground_work_reclaim",
+		Kind:         "sp-quick",
+		SubjectType:  "file",
+		SubjectID:    "reclaimed.txt",
+		TargetRef:    "HEAD",
+		IntentSHA256: digestForTest("foreground work reclaim"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := SuperviseRun(context.Background(), repository, foregroundIsolatedTestParams(
+		"foreground_work_reclaim",
+		"write",
+		"reclaimed.txt",
+		"reclaimed",
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Run.Status != RunSealed {
+		t.Fatalf("reclaimed run = %#v, want sealed", result.Run)
+	}
+	staleWork, staleIntents, err := owner.GetWork(context.Background(), expired.WorkID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if staleWork.Status != WorkInterrupted || staleWork.RecoveryHold ||
+		len(staleIntents) != 1 || staleIntents[0].Status != WriteIntentReleased {
+		t.Fatalf("reconciled expired work = %#v intents=%#v", staleWork, staleIntents)
+	}
+}
+
 func TestForegroundSupervisorHelperProcess(t *testing.T) {
 	if os.Getenv(foregroundHelperEnvironment) != "1" {
 		return
@@ -262,6 +592,27 @@ func TestForegroundSupervisorHelperProcess(t *testing.T) {
 		for {
 			time.Sleep(time.Hour)
 		}
+	case "block-after-write":
+		if len(arguments) != 3 {
+			os.Exit(99)
+		}
+		cwd, err := os.Getwd()
+		if err != nil {
+			os.Exit(100)
+		}
+		target := filepath.Join(cwd, filepath.FromSlash(arguments[1]))
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			os.Exit(101)
+		}
+		if err := os.WriteFile(target, []byte("partial"), 0o644); err != nil {
+			os.Exit(102)
+		}
+		if err := os.WriteFile(arguments[2], []byte(cwd), 0o644); err != nil {
+			os.Exit(103)
+		}
+		for {
+			time.Sleep(time.Hour)
+		}
 	case "fail":
 		if len(arguments) != 2 {
 			os.Exit(96)
@@ -274,6 +625,48 @@ func TestForegroundSupervisorHelperProcess(t *testing.T) {
 	default:
 		os.Exit(98)
 	}
+}
+
+func requireSingleWorkForRun(t *testing.T, repository Repository, runID string, status WorkStatus) (WorkItem, []WriteIntent) {
+	t.Helper()
+	observer := openTestStore(t, repository.DatabasePath, WithOwnerEpoch("work_observer_"+runID))
+	items, err := observer.ListWork(context.Background(), ListWorkParams{Statuses: []WorkStatus{status}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	matches := make([]WorkItem, 0, 1)
+	for _, item := range items {
+		if item.RunID == runID {
+			matches = append(matches, item)
+		}
+	}
+	if len(matches) != 1 {
+		t.Fatalf("work items for run %q status %q = %#v, want one", runID, status, items)
+	}
+	work, intents, err := observer.GetWork(context.Background(), matches[0].WorkID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return work, intents
+}
+
+func waitForRunWork(t *testing.T, store *Store, runID string, status WorkStatus) WorkItem {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		items, err := store.ListWork(context.Background(), ListWorkParams{Statuses: []WorkStatus{status}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range items {
+			if item.RunID == runID {
+				return item
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("work item for run %q did not reach %q", runID, status)
+	return WorkItem{}
 }
 
 func foregroundTestParams(runID string, helperArguments ...string) SuperviseRunParams {

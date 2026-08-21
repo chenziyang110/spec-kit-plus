@@ -7,10 +7,60 @@
       "type": "string",
       "pattern": "^DH-[A-Z0-9]+(?:-[A-Z0-9]+)+$"
     },
+    "handoffIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/handoffId"}
+    },
     "nonEmptyStrings": {
       "type": "array",
       "minItems": 1,
       "items": {"type": "string", "minLength": 1}
+    },
+    "interactionStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input", "action", "expected_feedback"],
+      "properties": {
+        "input": {"type": "string", "minLength": 1},
+        "action": {"type": "string", "minLength": 1},
+        "expected_feedback": {"type": "string", "minLength": 1}
+      }
+    },
+    "interactionBranch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conditions", "setup", "expected_state_id", "expected_feedback", "focus_behavior", "announcement", "continuation"],
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["success", "failure", "timeout", "cancel", "retry", "duplicate", "out_of_order"]}
+        },
+        "setup": {"type": "string", "minLength": 1},
+        "expected_state_id": {"$ref": "#/$defs/handoffId"},
+        "expected_feedback": {"type": "string", "minLength": 1},
+        "focus_behavior": {"type": "string", "minLength": 1},
+        "announcement": {"type": "string", "minLength": 1},
+        "continuation": {"type": "string", "minLength": 1}
+      }
+    },
+    "interactionScript": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preconditions", "start_state_id", "steps", "branches", "focus_checkpoint", "announcement_checkpoint", "completion_checkpoint", "recovery_checkpoint"],
+      "properties": {
+        "preconditions": {"$ref": "#/$defs/nonEmptyStrings"},
+        "start_state_id": {"$ref": "#/$defs/handoffId"},
+        "steps": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/interactionStep"}},
+        "branches": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/interactionBranch"}},
+        "focus_checkpoint": {"type": "string", "minLength": 1},
+        "announcement_checkpoint": {"type": "string", "minLength": 1},
+        "completion_checkpoint": {"type": "string", "minLength": 1},
+        "recovery_checkpoint": {"type": "string", "minLength": 1}
+      }
     },
     "decisionIds": {
       "type": "array",
@@ -77,17 +127,230 @@
         "specimens": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/specimen"}}
       }
     },
+    "dataScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "data_condition", "expectation"],
+      "properties": {
+        "state": {"type": "string", "minLength": 1},
+        "data_condition": {"type": "string", "minLength": 1},
+        "expectation": {"type": "string", "minLength": 1}
+      }
+    },
+    "interactionContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "surface", "input", "trigger", "event_sequence", "immediate_feedback", "focus_behavior", "repeat_behavior", "cancellation_behavior", "pending_behavior", "decision_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "surface": {"type": "string", "minLength": 1},
+        "input": {"type": "string", "minLength": 1},
+        "trigger": {"type": "string", "minLength": 1},
+        "event_sequence": {"type": "string", "minLength": 1},
+        "immediate_feedback": {"type": "string", "minLength": 1},
+        "focus_behavior": {"type": "string", "minLength": 1},
+        "repeat_behavior": {"type": "string", "minLength": 1},
+        "cancellation_behavior": {"type": "string", "minLength": 1},
+        "pending_behavior": {"type": "string", "minLength": 1},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"}
+      }
+    },
+    "editingContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "surface", "input_methods", "composition_behavior", "paste_autofill_behavior", "selection_caret_behavior", "formatting_behavior", "validation_timing", "validation_feedback", "dirty_state_behavior", "persistence_behavior", "undo_redo_behavior", "conflict_behavior", "read_only_disabled_behavior", "submission_behavior", "decision_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "surface": {"type": "string", "minLength": 1},
+        "input_methods": {"$ref": "#/$defs/nonEmptyStrings"},
+        "composition_behavior": {"type": "string", "minLength": 1},
+        "paste_autofill_behavior": {"type": "string", "minLength": 1},
+        "selection_caret_behavior": {"type": "string", "minLength": 1},
+        "formatting_behavior": {"type": "string", "minLength": 1},
+        "validation_timing": {"type": "string", "minLength": 1},
+        "validation_feedback": {"type": "string", "minLength": 1},
+        "dirty_state_behavior": {"type": "string", "minLength": 1},
+        "persistence_behavior": {"type": "string", "minLength": 1},
+        "undo_redo_behavior": {"type": "string", "minLength": 1},
+        "conflict_behavior": {"type": "string", "minLength": 1},
+        "read_only_disabled_behavior": {"type": "string", "minLength": 1},
+        "submission_behavior": {"type": "string", "minLength": 1},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"}
+      }
+    },
+    "dataStateContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "surface", "state", "data_condition", "expectation", "decision_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "surface": {"type": "string", "minLength": 1},
+        "state": {"type": "string", "minLength": 1},
+        "data_condition": {"type": "string", "minLength": 1},
+        "expectation": {"type": "string", "minLength": 1},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"}
+      }
+    },
+    "accessibilityContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "surface", "semantics", "reading_order", "focus_order", "keyboard", "announcements", "target_size", "contrast", "zoom_reflow", "alternatives", "decision_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "surface": {"type": "string", "minLength": 1},
+        "semantics": {"$ref": "#/$defs/nonEmptyStrings"},
+        "reading_order": {"type": "string", "minLength": 1},
+        "focus_order": {"type": "string", "minLength": 1},
+        "keyboard": {"$ref": "#/$defs/nonEmptyStrings"},
+        "announcements": {"$ref": "#/$defs/nonEmptyStrings"},
+        "target_size": {"type": "string", "minLength": 1},
+        "contrast": {"type": "string", "minLength": 1},
+        "zoom_reflow": {"type": "string", "minLength": 1},
+        "alternatives": {"$ref": "#/$defs/nonEmptyStrings"},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"}
+      }
+    },
+    "navigationContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "surface", "entry", "destination", "trigger", "back_behavior", "deep_link_behavior", "interruption_recovery", "decision_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "surface": {"type": "string", "minLength": 1},
+        "entry": {"type": "string", "minLength": 1},
+        "destination": {"type": "string", "minLength": 1},
+        "trigger": {"type": "string", "minLength": 1},
+        "back_behavior": {"type": "string", "minLength": 1},
+        "deep_link_behavior": {"type": "string", "minLength": 1},
+        "interruption_recovery": {"type": "string", "minLength": 1},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"}
+      }
+    },
+    "contentContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "surface", "state", "purpose", "copy", "primary_action", "trust_requirement", "localization", "content_limits", "decision_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "surface": {"type": "string", "minLength": 1},
+        "state": {"type": "string", "minLength": 1},
+        "purpose": {"type": "string", "minLength": 1},
+        "copy": {"type": "string", "minLength": 1},
+        "primary_action": {"type": "string", "minLength": 1},
+        "trust_requirement": {"type": "string", "minLength": 1},
+        "localization": {"type": "string", "minLength": 1},
+        "content_limits": {"$ref": "#/$defs/nonEmptyStrings"},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"}
+      }
+    },
+    "motionTransition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "surface", "trigger", "response", "duration_ms", "easing", "interrupt_behavior", "decision_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "surface": {"type": "string", "minLength": 1},
+        "trigger": {"type": "string", "minLength": 1},
+        "response": {"type": "string", "minLength": 1},
+        "duration_ms": {"type": "integer", "minimum": 0},
+        "easing": {"type": "string", "minLength": 1},
+        "interrupt_behavior": {"type": "string", "minLength": 1},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"}
+      }
+    },
+    "motionContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["purpose", "transitions", "reduced_motion", "feedback_timing"],
+      "properties": {
+        "purpose": {"type": "string", "minLength": 1},
+        "transitions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/motionTransition"}},
+        "reduced_motion": {"type": "string", "minLength": 1},
+        "feedback_timing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["immediate_ms", "progress_ms", "timeout_ms"],
+          "properties": {
+            "immediate_ms": {"type": "integer", "minimum": 0},
+            "progress_ms": {"type": "integer", "minimum": 1},
+            "timeout_ms": {"type": "integer", "minimum": 1}
+          }
+        }
+      }
+    },
+    "usabilityValidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"risk_level": {"const": "high"}}, "required": ["risk_level"]},
+          "then": {"properties": {"human_review_required": {"const": true}}}
+        }
+      ],
+      "required": ["risk_level", "methods", "critical_tasks", "success_criteria", "human_review_required"],
+      "properties": {
+        "risk_level": {"enum": ["low", "medium", "high"]},
+        "methods": {"$ref": "#/$defs/nonEmptyStrings"},
+        "critical_tasks": {"$ref": "#/$defs/nonEmptyStrings"},
+        "success_criteria": {"$ref": "#/$defs/nonEmptyStrings"},
+        "human_review_required": {"type": "boolean"}
+      }
+    },
     "componentContract": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "component", "anatomy", "required_states", "decision_ids", "must_match"],
+      "required": ["id", "component", "anatomy", "required_states", "interaction_modes", "data_scenarios", "variants", "content_constraints", "semantic_token_refs", "governance", "iconography", "decision_ids", "must_match"],
       "properties": {
         "id": {"$ref": "#/$defs/handoffId"},
         "component": {"type": "string", "minLength": 1},
         "anatomy": {"$ref": "#/$defs/nonEmptyStrings"},
         "required_states": {"$ref": "#/$defs/nonEmptyStrings"},
+        "interaction_modes": {"$ref": "#/$defs/nonEmptyStrings"},
+        "data_scenarios": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/dataScenario"}},
+        "variants": {"$ref": "#/$defs/nonEmptyStrings"},
+        "content_constraints": {"$ref": "#/$defs/nonEmptyStrings"},
+        "semantic_token_refs": {"$ref": "#/$defs/nonEmptyStrings"},
+        "governance": {"enum": ["reuse", "extend", "new"]},
+        "iconography": {"type": "string", "minLength": 1},
         "decision_ids": {"$ref": "#/$defs/decisionIds"},
         "must_match": {"$ref": "#/$defs/nonEmptyStrings"}
+      }
+    },
+    "surfaceContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "profile_id", "name", "kind", "source_refs", "specimen_ids", "component_ids", "decision_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "profile_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "name": {"type": "string", "minLength": 1},
+        "kind": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "source_refs": {"$ref": "#/$defs/nonEmptyStrings"},
+        "specimen_ids": {"$ref": "#/$defs/specimenIds"},
+        "component_ids": {"$ref": "#/$defs/handoffIds"},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"}
+      }
+    },
+    "scenarioContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "surface_id", "name", "risk", "required", "interaction_script", "interaction_ids", "editing_ids", "data_state_ids", "accessibility_ids", "navigation_ids", "content_ids", "responsive_ids", "motion_transition_ids", "decision_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "surface_id": {"$ref": "#/$defs/handoffId"},
+        "name": {"type": "string", "minLength": 1},
+        "risk": {"enum": ["low", "medium", "high"]},
+        "required": {"const": true},
+        "interaction_script": {"$ref": "#/$defs/interactionScript"},
+        "interaction_ids": {"$ref": "#/$defs/handoffIds"},
+        "editing_ids": {"$ref": "#/$defs/handoffIds"},
+        "data_state_ids": {"$ref": "#/$defs/handoffIds"},
+        "accessibility_ids": {"$ref": "#/$defs/handoffIds"},
+        "navigation_ids": {"$ref": "#/$defs/handoffIds"},
+        "content_ids": {"$ref": "#/$defs/handoffIds"},
+        "responsive_ids": {"$ref": "#/$defs/handoffIds"},
+        "motion_transition_ids": {"$ref": "#/$defs/handoffIds"},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"}
       }
     },
     "renderTarget": {
@@ -103,7 +366,7 @@
     "responsiveContract": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "profile_id", "label", "target", "review_width_px", "state", "adaptation", "decision_ids"],
+      "required": ["id", "profile_id", "label", "target", "review_width_px", "state", "adaptation", "stretch_behavior", "overflow_behavior", "decision_ids"],
       "properties": {
         "id": {"$ref": "#/$defs/handoffId"},
         "profile_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
@@ -112,6 +375,8 @@
         "review_width_px": {"type": "integer", "minimum": 240, "maximum": 2400},
         "state": {"type": "string", "minLength": 1},
         "adaptation": {"type": "string", "minLength": 1},
+        "stretch_behavior": {"type": "string", "minLength": 1},
+        "overflow_behavior": {"type": "string", "minLength": 1},
         "decision_ids": {"$ref": "#/$defs/decisionIds"}
       }
     },
@@ -208,10 +473,11 @@
     "approval": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["preview_file", "preview_ref", "direction_id", "review_round", "preview_sha256", "manifest_sha256", "decision_ids"],
+      "required": ["preview_file", "preview_ref", "direction_id", "review_round", "preview_sha256", "manifest_sha256", "decision_ids", "visual_medium", "image_generation", "image_inspection", "image_editing", "inspection_owner", "prompt_strategy"],
       "properties": {
         "preview_file": {"type": "string", "minLength": 1},
         "preview_ref": {"type": "string", "minLength": 1},
+        "visual_medium": {"enum": ["html", "image"]},
         "direction_id": {
           "type": "string",
           "pattern": "^direction-[a-z0-9][a-z0-9-]*$"
@@ -219,6 +485,13 @@
         "review_round": {"type": "string", "minLength": 1},
         "preview_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "prompt_ref": {"type": "string", "minLength": 1},
+        "prompt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "image_generation": {"enum": ["available", "unavailable"]},
+        "image_inspection": {"enum": ["available", "unavailable"]},
+        "image_editing": {"enum": ["available", "unavailable"]},
+        "inspection_owner": {"enum": ["agent-and-user", "user"]},
+        "prompt_strategy": {"enum": ["image-generation", "html-authoring"]},
         "decision_ids": {"$ref": "#/$defs/decisionIds"}
       }
     },
@@ -231,20 +504,30 @@
     "reproduction": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reproduction_mode", "capability_model", "component_contracts", "responsive_matrix", "visual_acceptance_matrix", "comparison_tolerance", "accepted_deviations", "contract_ids"],
+      "required": ["reproduction_mode", "capability_model", "surface_catalog", "scenario_matrix", "component_contracts", "interaction_matrix", "editing_matrix", "data_state_matrix", "accessibility_matrix", "navigation_matrix", "content_matrix", "responsive_matrix", "motion_contract", "usability_validation", "visual_acceptance_matrix", "comparison_tolerance", "accepted_deviations", "contract_ids"],
       "properties": {
         "reproduction_mode": {"enum": ["exact", "platform-adapted"]},
         "capability_model": {"$ref": "#/$defs/capabilityModel"},
+        "surface_catalog": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/surfaceContract"}},
+        "scenario_matrix": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/scenarioContract"}},
         "component_contracts": {
           "type": "array",
           "minItems": 1,
           "items": {"$ref": "#/$defs/componentContract"}
         },
+        "interaction_matrix": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/interactionContract"}},
+        "editing_matrix": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/editingContract"}},
+        "data_state_matrix": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/dataStateContract"}},
+        "accessibility_matrix": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/accessibilityContract"}},
+        "navigation_matrix": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/navigationContract"}},
+        "content_matrix": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/contentContract"}},
         "responsive_matrix": {
           "type": "array",
           "minItems": 1,
           "items": {"$ref": "#/$defs/responsiveContract"}
         },
+        "motion_contract": {"$ref": "#/$defs/motionContract"},
+        "usability_validation": {"$ref": "#/$defs/usabilityValidation"},
         "visual_acceptance_matrix": {
           "type": "array",
           "minItems": 1,

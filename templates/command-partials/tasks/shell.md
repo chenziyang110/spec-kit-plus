@@ -34,12 +34,15 @@ Exact delegated packet shape lives in `templates/task-packet-template.json`. `sp
 - Any UI-bearing work: minimal canonical `task-index.json` plus task-local UI contracts in rendered `tasks.md`.
 - For UI tasks, project the plan's approved reference,
   preview/manifest/handoff digests, immutable handoff ref, applicable `DS-*`
-  decision subset, applicable `DH-*` contract subset,
+  decision subset, applicable `DH-*` contract subset, exact
+  `style_authority`,
   component/color-mode/responsive/motion contracts, viewport/state acceptance
   rows, comparison tolerance, and the unchanged accepted-deviation ledger.
   Copy structured values from targeted `specify-runtime artifact show` results
   for the immutable handoff rather than reauthoring them. The unions across UI tasks must exactly cover every required plan
   decision, handoff contract, and acceptance row.
+  No task may turn `inherit-existing` into a style choice or expand an
+  authorized page delta into the global shell/shared components.
 - Standard/heavy: the same canonical `task-index.json` plus rendered `tasks.md`, with richer graph fields as needed.
 - Delegated decomposition only: one lane manifest plus lane results.
 - Consume every accepted task-generation lane result into a task, edge, batch, join point, guardrail, or explicit blocker/deferral; chat-only lane output is not handoff truth.

@@ -131,13 +131,21 @@ description: "Task list template for feature implementation"
 | ui_contract_ref | task-index.json#/tasks/T###/ui_contract |
 | schema_ref | .specify/templates/task-packet-template.json#/ui_contract |
 | design_change_binding | [design_change_id; design_change_ref; design_change_sha256; design_contract_ref] |
+| style_authority | [mode; scope_level; source_refs; protected_surfaces; allowed_style_delta_surfaces; authorization_source] |
 | direction_core | [ui_work_type; surface_type; platforms; subject; audience; single_job] |
 | approved_direction | [visual_thesis; content_thesis; interaction_thesis; signature_element; approved_visual_ref; approved_preview_sha256; approved_manifest_sha256; approved_handoff_ref; approved_handoff_sha256] |
 | task_inputs | [design_sources; design_decision_ids; handoff_contract_ids; reference_intents; real_content_plan; image_plan] |
-| implementation_contracts | [color_modes; component_contracts; responsive_matrix; motion_contract] |
+| implementation_contracts | [surface_catalog; scenario_matrix; interaction_matrix; editing_matrix; data_state_matrix; accessibility_matrix; navigation_matrix; content_matrix; color_modes; component_contracts; responsive_matrix; motion_contract; usability_validation] |
 | fidelity_level | [approximate | high | inspiration] |
 | adaptation_rules | [must_preserve; may_adapt; must_not] |
-| required_states | [loading, empty, error, selected, disabled, permission-limited as applicable] |
+| required_states | [loading, empty, populated, partial, error, selected, disabled, permission-limited as applicable] |
+| surface_catalog | [stable surface id; profile; kind; source/specimen/component refs; decision_ids] |
+| scenario_matrix | [scenario id; surface_id; risk; required; exact interaction/editing/data/accessibility/navigation/content/responsive/motion refs including editing_ids; interaction_script preconditions + selected start_state_id + ordered steps + bounded success/failure/timeout/cancel/retry/duplicate/out_of_order branches whose expected_state_id is selected + focus/announcement/completion/recovery checkpoints; decision_ids] |
+| interaction_matrix | [surface; input; trigger; event sequence; immediate feedback; focus; repeat; cancellation; pending behavior] |
+| editing_matrix | [surface; input_methods; composition; paste/autofill; selection/caret; formatting; validation timing/feedback; dirty state; persistence; undo/redo; conflict; read-only/disabled; submission; decision_ids] |
+| data_state_matrix | [state; data condition; empty/representative/edge density; expected rendering and actions] |
+| component_contracts | [required_states; interaction_modes; data_scenarios; decision_ids] |
+| responsive_matrix | [viewport/target; state; adaptation; stretch_behavior; overflow_behavior; decision_ids] |
 | visual_acceptance | [visual_acceptance_matrix; comparison_tolerance; accepted_deviations] |
 | required_evidence | [structure_snapshot; visual_capture; runtime_diagnostics; visual_comparison_or_human_review] |
 ```

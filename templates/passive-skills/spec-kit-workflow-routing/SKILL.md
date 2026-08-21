@@ -1,22 +1,25 @@
 ---
 name: "spec-kit-workflow-routing"
-description: "Use when working inside a Spec Kit Plus repository and the user asks whether a structured sp-* workflow would help, or when a manually invoked sp-* workflow needs routing context."
+description: "Use when working inside a Spec Kit Plus repository and a request may match the passive invocation allowlist, the user asks whether a structured sp-* workflow would help, or a manually invoked sp-* workflow needs routing context."
 origin: spec-kit-plus
 ---
 
 # Spec Kit Workflow Routing
 
-This repository's explicit `sp-*` workflow skills are structured entrypoints that
-users normally invoke manually. This passive skill helps recommend a workflow or
-interpret a manually invoked workflow; it should not auto-enter a workflow during
-ordinary chat or coding. When giving a user an explicit next-step invocation, use
-the projected invocation placeholder, such as `{{invoke:specify}}`, rather than
-assuming one universal slash-style syntax.
+This repository's explicit `sp-*` workflow skills are structured entrypoints.
+This passive skill may enter only the four allowlisted workflows from a matching
+natural-language request; every other workflow remains a manual user entrypoint.
+When giving a user an explicit next-step invocation, use the projected invocation
+placeholder, such as `{{invoke:specify}}`, rather than assuming one universal
+slash-style syntax.
 
 ## Workflow Recommendation Discipline
 
-Do not auto-enter an `sp-*` workflow unless the user invokes it. Continuing
-an already-invoked incomplete workflow is not auto-entry. When a topical
+Passive SKILL invocation is allowed only for `sp-discussion`, `sp-quick`,
+`sp-debug`, and `sp-fast`. All other `sp-*` workflows are user-invoked only:
+recommend the projected invocation and stop; do not load, enter, or hand off into
+the workflow until the user explicitly invokes it. Continuing an already-invoked
+incomplete workflow is not passive entry. When a topical
 follow-up, acknowledgement, or contextual confirmation continues an active
 discussion, resume `sp-discussion` from durable state even when the user does
 not repeat the workflow name. Before recommending `sp-specify`, inspect the
@@ -31,8 +34,9 @@ affinity before unrelated feature, Quick, Debug, or task candidates are
 considered. The phrases `continue`, `next step`, and `可以继续下一步` continue only
 the last valid in-discussion action; they do not authorize the agent to
 synthesize a downstream stage. An active discussion stays in `sp-discussion`;
-a handoff-ready discussion may continue only through its selected `sp-quick` or
-`sp-specify` consumer, never directly to `sp-implement`.
+a handoff-ready discussion may continue passively through a selected `sp-quick`
+consumer. A selected `sp-specify` consumer requires the projected user invocation;
+never continue directly to `sp-implement`.
 
 Candidate priority applies only within one resolved workflow lineage. A name,
 slug, title, topic, or keyword similarity is not binding evidence between a
@@ -120,19 +124,22 @@ explicit numeric option.
   project-slang terms into project vocabulary, and separate proven facts from
   evidence-derived inferences.
 - Use `sp-discussion` before either direct Quick delivery or formal specification when the request is a rough idea, not-yet-ready requirement, unsettled product direction, or depends on unclear project boundaries. `sp-discussion` is the high-throughput senior product-engineering advisor route: the visible conversation gives the recommended direction, plain-language reason, usable draft or next design step, default next step, and override path, while frontstage / backstage separation keeps state accounting backstage. It uses checkpoint persistence, does not persist every turn, continues by default, does not ask for continuation when a safe default exists, performs a Truth Pass before project-specific technical advice, maintains a Discussion Compass, and applies proactive implication mapping so adjacent implications are surfaced without one-point-at-a-time follow-up loops.
-- Use `sp-design` when the request is high-risk UI or design-system work: new product UI, redesign or rebrand, core workflow experience, multi-platform design decisions, high-visibility customer-facing surfaces, or no applicable registered `UD-*` change for a UI-heavy request. Recommend `{{invoke:design}}` rather than letting implementation invent styling. Small UI work can proceed with a recorded soft risk when it is a narrow internal form change, copy or state improvement, already-covered component variant, or low-risk CLI/TUI wording refinement.
+- Use `sp-design` when the request is high-risk UI or design-system work: new product UI, redesign or rebrand, core workflow experience, multi-platform design decisions, high-visibility customer-facing surfaces, or no applicable registered `UD-*` change for a UI-heavy request. Recommend `{{invoke:design}}` rather than letting implementation invent styling. Existing-product feature, component, and partial functional-page work must inherit live UI style; only explicitly authorized exact full-page overhaul scope may change visual language, and the global shell/shared components remain protected. Small UI work can proceed with a recorded soft risk when it is a narrow internal form change, copy or state improvement, already-covered component variant, or low-risk CLI/TUI wording refinement.
 - Use `sp-specify` with the UI reference artifact lane when concrete UI reference input only shapes one feature requirement. Use `sp-design` when a bounded visual direction must be created, refined through a new change, or audited; do not mutate a project-wide design file.
 - `sp-design` remains one natural-language entrypoint. It routes internal
   `create/refine/audit` task types after resuming active design work; synthesis
   is an input strategy for create/refine, not a fourth terminal type.
-  `sp-specify` is the first formal consumer and `sp-quick` is the
-  direct-delivery consumer. A newer approval must not silently retarget active
-  work: formal adoption rebinds through Specify, while Quick requires a
-  confirmed checkpoint amendment.
+  On a design-first route, `sp-specify` is the first formal consumer; on a
+  post-Specify route with unchanged requirements, a `formal-post-specify`
+  receipt returns directly to Plan (`specify -> design -> plan`) and must not
+  require a second Specify. A real requirements change returns to Specify, the
+  requirements owner. `sp-quick` is the direct-delivery consumer. A newer
+  approval must not silently retarget active work; Quick requires a confirmed
+  checkpoint amendment.
 - `sp-discussion` must run the Context Boundary Gate before project-specific technical options, affected-file claims, or handoff generation.
 - For cross-project or transfer requests, lock the target project root before technicalizing.
 - Do not route to `sp-split`; broad directions either become one unified handoff with capability map, sequence, dependencies, deferred scope, and reopen conditions, or stay in `sp-discussion`.
-- A valid explicit handoff from discussion is one canonical agent-only JSON contract: `handoff-to-specify.json`, with self-review and user confirmation. Before drafting, present both paths and their eligibility, explain any blocker, and give a complexity-informed recommendation among eligible paths: recommend `sp-quick` for bounded, well-understood direct delivery with stable requirements and limited cross-boundary risk; recommend `sp-specify` for high-complexity or ambiguous work, interacting capabilities or systems, architecture/data migration/security/compliance/rollout concerns, broad acceptance obligations, or durable specification traceability. Task size alone is not a hard routing ceiling. The user's final choice controls the route, including when it differs from the recommendation; record it as `recommended_consumer` only after the user chooses an eligible path. Pass the JSON path or discussion slug to that selected consumer. Require the matching `consumer_eligibility.<consumer>.status: ready`; when exactly one unconsumed `handoff-ready` discussion exists, that selected consumer may consume it directly. Before the ready contract exists, do not tell the user to run either downstream consumer; the next action is `sp-discussion` handoff creation, review, or repair. `specification-input.md` is not a substitute handoff. Both consumers validate the user-confirmed quality gate, zero hard unknowns, zero open conflicts, and source-contract integrity; `sp-specify` additionally compiles the formal feature contract before feature creation, while `sp-quick` binds the source contract and digest into its task-local `STATUS.md`.
+- A valid explicit handoff from discussion is one canonical agent-only JSON contract: `handoff-to-specify.json`, with self-review and user confirmation. Before drafting, present both paths and their eligibility, explain any blocker, and give a complexity-informed recommendation among eligible paths: recommend `sp-quick` for bounded, well-understood direct delivery with stable requirements and limited cross-boundary risk; recommend `sp-specify` for high-complexity or ambiguous work, interacting capabilities or systems, architecture/data migration/security/compliance/rollout concerns, broad acceptance obligations, or durable specification traceability. Task size alone is not a hard routing ceiling. The user's final choice controls the route, including when it differs from the recommendation; record it as `recommended_consumer` only after the user chooses an eligible path. Pass the JSON path or discussion slug to that selected consumer. Require the matching `consumer_eligibility.<consumer>.status: ready`; when exactly one unconsumed `handoff-ready` discussion exists, `sp-quick` may consume its selected handoff through passive invocation, while `sp-specify` must be recommended through its projected invocation and wait for the user's explicit command. Before the ready contract exists, do not tell the user to run either downstream consumer; the next action is `sp-discussion` handoff creation, review, or repair. `specification-input.md` is not a substitute handoff. Both consumers validate the user-confirmed quality gate, zero hard unknowns, zero open conflicts, and source-contract integrity; `sp-specify` additionally compiles the formal feature contract before feature creation, while `sp-quick` binds the source contract and digest into its task-local `STATUS.md`.
 - When asked to review a discussion handoff, apply
   `spec-kit-discussion-handoff-review`: return `approve`,
   `request-changes`, or `blocked`, apply the ready summary quality check,
@@ -174,22 +181,24 @@ explicit numeric option.
 - Use `sp-map-update` before other workflow steps when project cognition runtime
   coverage is stale or too weak for a localized touched area and the user wants
   map maintenance first, including ordinary existing-baseline gaps.
-- If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live requirements. Do not recommend map-scan -> map-build solely because the graph has no paths.
+- If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live requirements only while the repository has no project-code evidence. Do not recommend map-scan -> map-build solely because the graph has no paths. If the runtime reports `greenfield_baseline_has_project_code`, preserve `recommended_next_action.action_id=project_cognition.rebuild` and its structured route; this identity conflict must not be routed to map-update.
+- When a blocked Compass packet has `degraded=true` and `coverage_diagnostics[].kind=stale_cognition_degraded_navigation`, consume its bounded `minimal_live_reads` only as stale route hints, verify each selected path against the live repository, and preserve the recovery action. Never treat those hints as fresh truth; without the marker, do not infer routes from an empty packet.
 - Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build
   only for brownfield first/missing/unusable baseline, schema failure, schema v1
   or old broad-schema rebuild-required readiness, zero active-generation
   path_index rows outside `greenfield_empty`, missing or invalid `alias_index`,
-  `explicit_rebuild_requested`, or `baseline_identity_invalid`.
+  `explicit_rebuild_requested`, `greenfield_baseline_has_project_code`, or
+  `baseline_identity_invalid`.
   Schema v5 is current-only. The runtime does not migrate schema v4 or older
   databases. Run `specify-runtime cognition archive-incompatible-store --inspect --format json`,
   then execute its guarded `archive_argv`; only that CLI may archive the
   incompatible store before `sp-map-scan -> sp-map-build` with the current binary.
 - `sp-map-update` is for manual/external maintenance as the external/manual maintenance entrypoint for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair. A source-changing `sp-*` workflow does not hand off its own verified changes to `sp-map-update`; it runs inline project cognition update during closeout from its workflow-owned changed paths, affected surfaces, and verification evidence. In shared routing summaries, sp-map-update is for manual/external maintenance.
 - Workflow-owned mutation closeout is not an external map-maintenance handoff. If the active mutation workflow changed project-related source, runtime, templates, generated assets, config, tests, state contracts, or behavior-bearing docs, follow its rendered planner-first closeout command with the registry-owned literal `sp-*` workflow ID and explicit workflow-owned paths; never derive the ID from an environment variable.
-- When `DELTA_SESSION_ID` exists, pass `--delta-session "$DELTA_SESSION_ID"` to `closeout-plan`. Fill fields listed in `required_agent_fields` from live evidence; optional payload/delta fields such as `known_unknowns` and `boundary` are populated only when evidence supports them. Follow `update_mode=delta_session` by completing `delta_append_draft.argv_prefix` with evidence placeholders, appending the workflow closeout delta event, then running structured `update_argv`. Follow `update_mode=inline_json` by completing `payload_draft` in memory, substituting it for `<inline-json>` in `update_argv`, and never creating a payload file. The display-only `update_command` and display-only `delta_append_command` placeholders are not execution strings.
+- Pass `--scope-dir <feature-or-scope> --scope-mode explicit` plus one explicit `--changed-path` per workflow-owned path to `closeout-plan`; a rename owns both its old and new endpoint, so pass and preserve both in `boundary.workflow_owned_paths`. When `DELTA_SESSION_ID` exists, also pass `--delta-session "$DELTA_SESSION_ID"`. Fill fields listed in `required_agent_fields` from live evidence; optional payload/delta fields such as `known_unknowns` and `boundary` are populated only when evidence supports them. Follow `update_mode=delta_session` by completing `delta_append_draft.argv_prefix` with evidence placeholders, appending the workflow closeout delta event, then running structured `apply_argv`. Follow `update_mode=inline_json` by completing `payload_draft` in memory, executing the returned `apply_argv` with `--payload-json -`, and writing the completed payload JSON to stdin; never place the JSON in process argv or create a payload file. `update_argv` is compatibility/debug only. The display-only `update_command`, display-only `delta_append_command`, and display-only `apply_command` placeholders are not execution strings.
 - Use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If the working tree contains unrelated dirty/untracked paths and the workflow uses explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as a blocking `known_unknowns` item.
-- Before update recording, resolve `unknown_path_dispositions` by setting `agent_disposition` to `adoptable`, `review_only`, `ignored`, or `blocking_known_unknown`. Verified `adoptable` paths do not become blocking `known_unknowns`. Only `blocking_known_unknown` dispositions become payload or delta known unknowns. `agent_disposition=adoptable` is an agent accounting decision, not proof that runtime indexing already succeeded; after `update_argv` runs, inspect `result_state`, `adopted_paths`, `review_paths`, `minimal_live_reads`, and `partial_refresh_reasons`.
-- Clean closeout keys on `result_state`, not `status=ok`, `update_id`, `last_update_id`, or freshness alone; `recorded` is legacy recorded-only partial/blocked output. If `partial_refresh_reasons` includes `missing_passing_verification_result`, repair the payload or delta evidence and rerun `update_argv` before final closeout instead of routing to `sp-map-update`. Never run the `complete-refresh` or `clear-dirty` helper after `result_state=partial_refresh`, `needs_rebuild`, `blocked`, or legacy `recorded`. Use `specify-runtime cognition mark-dirty --reason "workflow-closeout-failed" --format json` only when planner/update is unavailable, fails before recording useful update data, cannot safely identify workflow-owned scope, is blocked by runtime state, or verification/workflow completion is not trustworthy. Workflow-owned mutation closeout is not external map maintenance. Dirty state is fallback-only after inline update cannot complete.
+- Before closeout apply, resolve `unknown_path_dispositions` by setting `agent_disposition` to `adoptable`, `review_only`, `ignored`, or `blocking_known_unknown`. Verified `adoptable` paths do not become blocking `known_unknowns`. Only `blocking_known_unknown` dispositions become payload or delta known unknowns. `agent_disposition=adoptable` is an agent accounting decision, not proof that runtime indexing already succeeded; after `apply_argv` runs, inspect `scope_result_state`, project-wide `result_state`, `global_freshness`, `global_debt_reasons`, `adopted_paths`, `review_paths`, `minimal_live_reads`, and `partial_refresh_reasons`.
+- Shared closeout keys on the current scope separately from project-wide state. `apply_argv` owns update, validate-build, eligible complete-refresh, and receipt. `closeout_state=scope_ready` closes successful owned paths without hiding unrelated global debt. Missing passing verification returns `closeout_status=needs_agent_input` before mutation instead of creating `missing_passing_verification_result`. `recorded` remains legacy partial/blocked output. Use `specify-runtime cognition mark-dirty --reason "workflow-closeout-failed" --format json` only when shared apply is unavailable, fails before useful update data, cannot identify workflow-owned scope, is blocked by runtime state, or verification/workflow completion is untrustworthy. Workflow-owned mutation closeout is not external map maintenance. Dirty state is fallback-only after shared apply cannot complete.
 - Use `sp-analyze` only for optional diagnostics, explicit user requests, or persisted legacy `/sp.analyze` state.
 - Use `sp-explain` when the user needs a plain-language explanation of current
   artifacts or runtime state.
@@ -289,27 +298,30 @@ user what to type:
   proposal into user authorization. Use `sp-auto` only when the user explicitly
   chooses automatic state reconciliation or no unique canonical next command
   can be proven safely.
-- Clean completed `sp-tasks` state with `/sp.implement` routes directly to
-  `sp-implement`; it does not need an `sp-auto` hop.
-- Keep `sp-*` workflows as visible optional entrypoints. This passive skill should
-  recommend them, not become a competing workflow.
+- Clean completed `sp-tasks` state recommends the projected `sp-implement`
+  invocation directly; it does not need an `sp-auto` hop and must wait for the
+  user's explicit `sp-implement` invocation.
+- Keep `sp-*` workflows as visible optional entrypoints. This passive skill may
+  enter only the four-workflow allowlist; recommend every other workflow and wait.
 - If the user is already invoking the correct `sp-*` skill, do not redirect.
-- Do not skip from `sp-discussion` into `sp-specify` unless the user explicitly
-  requests handoff and the ready JSON contract exists.
+- Do not skip from `sp-discussion` into `sp-specify`; even after the user requests
+  handoff and the ready JSON contract exists, present the projected invocation and
+  wait for the user to invoke that skill.
 - If a required next step is a user-invoked workflow entrypoint rather than an
   in-workflow action, stop the current flow and tell the user exactly what to run.
-- Do not self-execute a different explicit `sp-*` workflow just because the current
-  workflow discovered a stale gate or missing prerequisite. Hand off by telling the
-  user to run the projected invocation, then wait.
+- Do not self-execute a different non-allowlisted `sp-*` workflow just because the
+  current workflow discovered a stale gate or missing prerequisite. Hand off by
+  telling the user to run the projected invocation, then wait.
 
 ## Red Flags
 
-- You are about to auto-enter an `sp-*` workflow that the user did not invoke.
+- You are about to auto-enter a non-allowlisted `sp-*` workflow that the user did
+  not invoke.
 - You are presenting a workflow recommendation as mandatory when ordinary chat,
   coding, or review would satisfy the request.
 - The user is exploring rough requirements, but you did not mention `sp-discussion`
   as an optional structured path.
-- You are treating "small" as a reason to recommend `sp-fast` automatically instead
-  of staying in the user's requested mode.
+- You are about to enter `sp-fast` without first proving its trivial, local,
+  low-risk scope gate.
 - You found independent lanes but have not considered `one-subagent` or
   `parallel-subagents` dispatch.

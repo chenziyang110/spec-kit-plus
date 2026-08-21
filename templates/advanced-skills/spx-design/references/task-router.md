@@ -39,7 +39,7 @@ owner CLI to repeat the route in review when it explains closeout.
   an input strategy, not a terminal task type; attach it to create or refine.
   References are evidence, not a license to copy protected brand or artwork.
 - Taste intake is required for visual create and substantive refine before
-  three-direction preview work: `design_read`, dials with inference reason,
+  single-concept preview work: `design_read`, dials with inference reason,
   `aesthetic_family`, `foundation_strategy`, `redesign_mode` when live UI
   exists, and surface-aware `anti_slop_locks`. Do not expose colon-namespaced
   design skills (including taste variants).
@@ -75,7 +75,19 @@ Use approval status to break create/refine ambiguity. Start audit/mutation
 ambiguity as audit and promote only after evidence proves truth must change.
 Treat proven `no-ui` as a terminal applicability result, never a visual mode.
 
+Resolve `style_authority` before the professional skill route. Existing-product
+feature, component, or partial functional-page work is `inherit-existing`: cite
+live sources, protect `global-shell` and `shared-components`, allow no style
+delta, and select no style skill. Use `page-overhaul-authorized` only for an
+explicitly approved exact complete-page visual overhaul; sibling pages, shared
+components, and shell stay protected. A local feature or function-page refactor
+does not authorize a new style. `greenfield` requires evidence that no live UI
+language applies.
+
 Route feature behavior and acceptance to `$spx-specify` or user-selected
 `$spx-quick`, implementation architecture to `$spx-plan`, durable engineering
 principles to `$spx-constitution`, and code drift against correct design to
-`$spx-review` or the active implementation workflow.
+`$spx-review` or the active implementation workflow. If a planning-ready source
+spec already owns unchanged requirements, persist `post-specify` and return to
+Plan through `formal-post-specify`; do not run a second Specify. Only a real
+requirements, scope, or acceptance change reopens Specify.

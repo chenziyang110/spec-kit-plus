@@ -152,10 +152,16 @@ present in a test project.
 - `sp-design` / `spx-design` is one natural-language entrypoint. Route prompt
   intent to `create/refine/audit`; reference synthesis is an input strategy for
   create/refine, not a public colon subskill or terminal task type. Resume
-  active design work before reclassification. `sp-specify` is the first formal
-  consumer and `sp-quick` is the direct-delivery consumer. A new approval must
-  not silently retarget pinned work: formal adoption rebinds through Specify,
-  while Quick requires a confirmed checkpoint amendment whose
+  active design work before reclassification. On a design-first route,
+  `sp-specify` is the first formal consumer; when Design follows an already
+  planning-ready feature spec and requirements remain unchanged, a
+  `formal-post-specify` receipt binds the late Design overlay to the unchanged
+  source-spec digest and returns directly to Plan (`specify -> design -> plan`).
+  Plan verifies that receipt with `specify-runtime design adoption`; that path
+  must not require a second Specify. Only a genuine requirements,
+  scope, or acceptance change reopens Specify. `sp-quick` is the direct-delivery
+  consumer. A new approval must not silently retarget pinned work: design-first
+  formal adoption rebinds through Specify, while Quick requires a confirmed checkpoint amendment whose
   `decision.ui_confirmation.design_binding` names the exact scope and
   registered change.
 - The product goal is better implemented UI, not merely more UI documentation.
@@ -211,13 +217,43 @@ present in a test project.
   in-progress affected packets at a safe boundary, preserves completed work,
   creates a corrective work item for completed-work drift, and recaptures only
   affected Review evidence.
-- Every substantive design round presents exactly three comparable,
-  self-contained HTML directions with stable deep links, component/state
-  specimens, independent color and motion systems, responsive targets, and an
-  embedded machine-readable manifest. Combining or revising directions creates
-  a new inspected round; never mutate an approved round in place.
+- Every substantive design round presents one professionally authored current
+  concept through a live capability-routed primary medium. Probe
+  `image_generation`, `image_inspection`, and `image_editing` independently at
+  entry/resume; never hard-code them from an Agent, model, CLI, or integration.
+  When generation is available, use one image-primary review board plus its
+  exact generate/edit prompt and machine-readable manifest. When generation is
+  unavailable, use one self-contained HTML-primary concept with a stable deep
+  link and embedded manifest. Inspection availability separately determines
+  whether the Agent may inspect actual pixels and claim visual quality or must
+  leave visual critique to the user; editing availability selects targeted edit
+  versus invariant-preserving regeneration. Image prompts and semantic
+  HTML/DOM/CSS authoring prompts are distinct professional contracts. Both
+  routes preserve component/state specimens, deliberate color and motion
+  systems, and responsive targets. The Agent discovers intent through one
+  high-impact question at a time, makes a grounded recommendation, and does not
+  advance past an unanswered question. User feedback revises the same concept
+  in a new inspected/reviewed immutable round; never mutate an approved round
+  in place. Only explicit user approval may freeze the current concept.
+- The shared **UI Professional Skill** pack uses progressive disclosure before
+  substantive create/refine authoring: read its compact catalog, select exactly
+  one domain, zero-or-one style, and zero-to-two specialists, then load only
+  those references. Persist the route and resume it for the active immutable
+  round. Material ambiguity asks one high-impact question instead of blending
+  conflicting styles. Approved references and registered design truth outrank
+  routed advice; image-primary and HTML-primary use distinct augmented prompts.
+- Live UI is the default style authority. Feature, component, and partial
+  functional-page work inside an existing product uses structured
+  `style_authority.mode: inherit-existing`, cites exact live source refs,
+  protects `global-shell` and `shared-components`, allows no style-delta
+  surfaces, and cannot select a style skill. Only explicit user authorization
+  for one exact complete-page visual overhaul may use
+  `page-overhaul-authorized`; only that page may change style, while shell and
+  shared components stay protected. Carry `style_authority` unchanged through
+  Design, UI brief, Spec/Plan, Tasks, worker packets, and Review.
 - `specify-runtime design approve` freezes one exact change-local direction
-  with a byte-bound approval sidecar, preview/manifest SHA-256 digests, a
+  with a byte-bound approval sidecar, visual/manifest SHA-256 digests, the
+  image-generation prompt digest when image-primary, a
   separate immutable handoff sidecar and digest, review round, stable `DS-*`
   decision IDs, and stable `DH-*` implementation contract IDs. Ready lint and
   export must reject a change-local `DESIGN.md` whose approval fields do not
@@ -240,11 +276,33 @@ present in a test project.
   subject, audience, single job, visual/content/interaction theses, a signature
   element, an inspectable approved visual reference, per-reference use intent,
   task-relevant real-content/image plans, approval digests, decision and handoff
-  contract subsets, color modes, component contracts, responsive and motion
+  contract subsets, a stable `surface_catalog`, a bounded risk-based or pairwise
+  `scenario_matrix`, an exact `editing_matrix`, color modes, component contracts, responsive and motion
   rules, visual acceptance rows, comparison tolerance, and approved deviations
-  through the Classic and Advanced artifact chain. Downstream stages select
-  immutable `DS-*`/`DH-*` rows by ID; they do not reauthor them as prose. Do not
-  collapse those dimensions into one enum or prose.
+  through the Classic and Advanced artifact chain. Every scenario binds one
+  stable surface to the exact interaction, editing, data, accessibility, navigation,
+  content, responsive, and motion rows exercised together and carries an exact
+  `interaction_script` with preconditions, a selected start-state ID, ordered
+  input/action/feedback steps, and bounded state branches for applicable
+  success, failure, timeout, cancel, retry, duplicate, and out-of-order outcomes.
+  Every branch target is one of the scenario's selected data-state IDs and
+  preserves setup, feedback, focus behavior, announcement, and continuation,
+  plus scenario-level focus/announcement/completion/recovery checkpoints.
+  Interaction rows are exact input-mechanics contracts: `id`, `surface`,
+  `input`, `trigger`, `event_sequence`, `immediate_feedback`, `focus_behavior`,
+  `repeat_behavior`, `cancellation_behavior`, `pending_behavior`, and
+  `decision_ids`. They preserve platform event ordering, pre-completion
+  feedback, focus/selection/scroll continuity, repeated activation rules,
+  cancellation, and allowed or blocked pending actions; scenario scripts own
+  journey outcome branches rather than duplicating those mechanics.
+  Editing rows preserve input methods, IME composition, paste/autofill,
+  selection/caret, formatting, validation timing/feedback, dirty state,
+  persistence, undo/redo, edit conflict, read-only/disabled, and submission
+  behavior; scenarios bind them through exact `editing_ids`.
+  Scenarios cover all
+  selected rows without an unbounded Cartesian product. Downstream stages
+  select immutable `DS-*`/`DH-*` rows by ID; they do not reauthor them as prose.
+  Do not collapse those dimensions into one enum or prose.
 - A feature `ui-target.html` is a self-contained composition/state target bound
   to the exact registered design-change and handoff digests, task decisions, and
   handoff contracts. It may contain
@@ -911,7 +969,9 @@ When adding new agents:
 
 ## Workflow Recommendations
 
-- Do not auto-enter an `sp-*` workflow unless the user invokes it.
+- Passive SKILL invocation is allowed only for `sp-discussion`, `sp-quick`,
+  `sp-debug`, and `sp-fast`. All other `sp-*` workflows are user-invoked only:
+  recommend the projected invocation and stop until the user invokes it.
 - Recommend `sp-discussion` for open-ended requirement exploration, `sp-specify` for formal alignment, `sp-deep-research` for feasibility proof, and `sp-debug` for root-cause diagnosis.
 - If the user invokes an `sp-*` workflow, follow that workflow's own contract.
 

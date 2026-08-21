@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"sort"
 	"strings"
 )
 
@@ -99,6 +101,64 @@ func OpenViewForRepository(ctx context.Context, cwd string) (*View, error) {
 		return nil, fmt.Errorf("open repository run control view: %w", err)
 	}
 	return view, nil
+}
+
+// InspectWorkspaceChanges returns repository-relative paths changed in one
+// worktree. Both sides of a rename or copy are included so recovery holds do
+// not accidentally release either declared scope.
+func InspectWorkspaceChanges(ctx context.Context, workspaceRoot string) ([]string, error) {
+	workspaceRoot = strings.TrimSpace(workspaceRoot)
+	if workspaceRoot == "" {
+		return nil, fmt.Errorf("%w: workspace root is required", ErrInvalidArgument)
+	}
+	command := exec.CommandContext(ctx, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	command.Dir = workspaceRoot
+	output, err := command.Output()
+	if err != nil {
+		if contextErr := ctx.Err(); contextErr != nil {
+			return nil, contextErr
+		}
+		return nil, fmt.Errorf("inspect workspace changes for %q: %w", workspaceRoot, err)
+	}
+	fields := bytes.Split(output, []byte{0})
+	paths := make([]string, 0, len(fields))
+	seen := make(map[string]struct{}, len(fields))
+	appendPath := func(raw []byte) error {
+		value := filepath.ToSlash(string(raw))
+		pathValue, pathKey, err := normalizeWorkPath(value, runtime.GOOS == "windows")
+		if err != nil {
+			return fmt.Errorf("parse Git status path %q: %w", value, err)
+		}
+		if _, exists := seen[pathKey]; !exists {
+			seen[pathKey] = struct{}{}
+			paths = append(paths, pathValue)
+		}
+		return nil
+	}
+	for index := 0; index < len(fields); index++ {
+		field := fields[index]
+		if len(field) == 0 {
+			continue
+		}
+		if len(field) < 4 || field[2] != ' ' {
+			return nil, fmt.Errorf("Git returned malformed porcelain status for %q", workspaceRoot)
+		}
+		if err := appendPath(field[3:]); err != nil {
+			return nil, err
+		}
+		if (field[0] == 'R' || field[0] == 'C' || field[1] == 'R' || field[1] == 'C') && index+1 < len(fields) {
+			index++
+			if err := appendPath(fields[index]); err != nil {
+				return nil, err
+			}
+		}
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+func ReadHeadCommit(ctx context.Context, workspaceRoot string) (string, error) {
+	return runGitRevParse(ctx, workspaceRoot, "HEAD")
 }
 
 func runGitRevParse(ctx context.Context, directory string, argument string) (string, error) {

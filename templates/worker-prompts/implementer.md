@@ -53,6 +53,10 @@ Use this template when the leader dispatches a concrete implementation lane for 
   `boundary_or_executor`, and `validation`. Synthetic component, reducer,
   helper, or hand-built state evidence does not satisfy integrated proof.
 - If the packet includes `ui_contract`, follow it as binding UI implementation scope. Do not reinterpret the original screenshot, HTML, or UI code reference into a different layout pattern.
+- Enforce `ui_contract.style_authority`: `inherit-existing` requires the named
+  live UI sources and forbids restyling; `page-overhaul-authorized` permits
+  style changes only on its exact allowed page surfaces. Never drift protected
+  `global-shell` or `shared-components`.
 - For the current UI contract, preserve work/surface/platform classification, direction
   theses, signature, approved visual ref, immutable handoff ref and all three
   digests, applicable `DS-*` decisions and `DH-*` contracts,

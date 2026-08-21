@@ -97,7 +97,7 @@ Hardware-only exception lane:
   in the implementation summary and Accept handoff. Unconfirmed, stale, or
   tampered proposals remain blocking.
 
-UI-bearing scenarios require real-entrypoint `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` evidence with `evidence_scope: integrated`. Group the viewport/state matrix by integrated surface and source fingerprint; do not run the full viewport/state capture loop per Txx. Validate interaction, navigation, loading, empty, error, permission, persistence/reload, responsive, keyboard/focus, console, network, and runtime states when applicable. For each passing task-bound visual judgment, call `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json`; the runtime binds the approved preview/manifest/handoff truth, exact `DS-*`/`DH-*` coverage, tolerance, and deviations to the observed matrix and returns the canonical report ref/digest. Never read the stable template or author/patch the report. Automated behavior checks remain distinct from visual and interaction acceptance.
+UI-bearing scenarios require real-entrypoint `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` evidence with `evidence_scope: integrated`. Group the risk-based input × data × size matrix by integrated surface and source fingerprint; do not run the full matrix per Txx or explode it into an unbounded Cartesian product. Execute every declared `interaction_matrix`, `editing_matrix`, and `data_state_matrix` row: pointer/mouse, keyboard/focus, applicable touch/shortcut/command event sequence, immediate feedback, focus, repeat, cancellation, and pending behavior; IME composition, paste/autofill, caret/selection, validation, dirty/persistence, undo/redo, conflict, read-only/disabled, and submission behavior; empty and populated data plus declared loading, partial, error, permission, offline, pending, retry, undo, and recovery states; and continuous stretch/compression/reflow/overflow while preserving focus, selection, scroll, overlays, and unsaved input. A populated pointer happy path cannot substitute for those rows. Validate navigation, persistence/reload, console, network, and runtime states when applicable. For each passing task-bound visual judgment, call `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json`; the runtime binds the approved preview/manifest/handoff truth, exact `DS-*`/`DH-*` coverage, tolerance, and deviations to the observed matrix and returns the canonical report ref/digest. Never read the stable template or author/patch the report. Automated behavior checks remain distinct from visual and interaction acceptance.
 
 ## Delegation
 
@@ -132,3 +132,18 @@ UI-bearing scenarios require real-entrypoint `structure_snapshot`, `visual_captu
   an extra logical gate or attempt. Review owns the reserved delivery gate and
   retries only inside it.
 - Do not push, deploy, modify protected systems, use real customer data, or perform external writes without explicit authority. Use isolated test data and the shared blocker contract for genuine external boundaries.
+
+## Professional UI Contract Continuity
+
+Review the integrated product against every exact applicable `surface_catalog`,
+`scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
+`accessibility_matrix`, `navigation_matrix`, `content_matrix`,
+`motion_contract`, and `usability_validation` row/object plus component
+governance. Enforce the exact `style_authority`: under `inherit-existing`, any
+unapproved visual-language drift from the cited live UI, especially in
+`global-shell` or `shared-components`, is a blocking finding; under
+`page-overhaul-authorized`, accept style delta only on the exact authorized
+complete-page surface. Execute risk-based
+or pairwise real-entrypoint scenarios rather than an unbounded Cartesian
+product. Automated tests and screenshots cannot close required target-user
+human review.

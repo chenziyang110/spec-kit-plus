@@ -153,7 +153,8 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 	}
 
 	merged := map[string]*mergedChange{}
-	if baseline != "" && head != "" {
+	explicitOnly := len(input.ExplicitPaths) > 0 && !input.IncludeWorkingTree && !input.IncludeUntracked
+	if baseline != "" && head != "" && !explicitOnly {
 		entries, err := rt.GitDiffNameStatus(paths.Root, baseline, head)
 		if err != nil {
 			payload.Status = "blocked"

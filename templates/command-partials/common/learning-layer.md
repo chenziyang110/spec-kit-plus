@@ -1,5 +1,12 @@
 ## Project Learning
 
+`sp-quick` and `sp-debug` have one explicit exception: their Pre-Intake Context
+Sufficiency Gate runs before this layer. When that gate passes and the user
+selects context-direct, follow the Fast Learning skip policy and do not run
+Learning intake, capture, or review. If the gate is insufficient, the user
+chooses the full branch, or the direct scope expands, this exception ends and
+the normal policy below applies.
+
 The CLI is the only agent-facing Learning read surface:
 
 1. Run `{{specify-subcmd:specify-runtime learning start --command <classic-command-name> --format json}}` before deeper non-trivial work.

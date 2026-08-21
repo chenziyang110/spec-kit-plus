@@ -78,4 +78,8 @@ docs/dev
 
 # Local run-control / pytest temp caches (may be file-locked on Windows)
 .codex-run-control-cache/
-
+.pytest_cache/
+.pytest-tmp-*/
+.tmp-*/
+tools/specify-runtime/bin/
+tools/specify-runtime/specify-runtime*.exe

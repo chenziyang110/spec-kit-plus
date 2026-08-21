@@ -45,6 +45,10 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 		return runResultCommand(args[1:], stdout)
 	case "run":
 		return runRun(args[1:], stdout, stderr)
+	case "work":
+		return runWork(args[1:], stdout)
+	case "board":
+		return runBoard(args[1:], stdout)
 	case "candidate":
 		return runCandidateCommand(args[1:], stdout)
 	case "cas":
@@ -100,6 +104,7 @@ func writeHelp(stdout io.Writer) int {
 	for _, name := range []string{
 		"api",
 		"artifact",
+		"board",
 		"candidate",
 		"cas",
 		"cognition",
@@ -125,6 +130,7 @@ func writeHelp(stdout io.Writer) int {
 		"validate",
 		"version",
 		"workflow",
+		"work",
 	} {
 		_, _ = fmt.Fprintf(stdout, "  %s\n", name)
 	}
@@ -701,6 +707,12 @@ func resolveValidateSpecFeatureDir(args []string) (string, error) {
 }
 
 func runCognition(args []string, stdout, stderr io.Writer, cliVersion string) int {
+	if len(args) >= 2 && strings.EqualFold(strings.TrimSpace(args[0]), "closeout") && strings.EqualFold(strings.TrimSpace(args[1]), "apply") {
+		return runCognitionCloseoutApplyCLI(args[2:], stdout)
+	}
+	if len(args) > 0 && strings.EqualFold(strings.TrimSpace(args[0]), "closeout-apply") {
+		return runCognitionCloseoutApplyCLI(args[1:], stdout)
+	}
 	if containsHelpFlag(args) {
 		return cognitioncli.Run(args, stdout, stderr, cliVersion)
 	}
@@ -1015,6 +1027,11 @@ func defaultCapabilities() []string {
 		"artifact.restore",
 		"artifact.scaffold",
 		"artifact.show",
+		"board.owner",
+		"board.branch-policy",
+		"board.feature-bootstrap",
+		"board.reconcile",
+		"board.show",
 		"artifact.submit",
 		"cognition.build-from-scan",
 		"cognition.archive-incompatible-store",
@@ -1022,9 +1039,11 @@ func defaultCapabilities() []string {
 		"cognition.claim-reconcile.apply",
 		"cognition.claim-reconcile.prepare",
 		"cognition.clear-dirty",
+		"cognition.closeout.apply",
 		"cognition.closeout-plan",
 		"cognition.compass",
 		"cognition.complete-refresh",
+		"cognition.confirm-ignore",
 		"cognition.mutation-receipt",
 		"cognition.delta.append",
 		"cognition.delta.begin",
@@ -1041,8 +1060,11 @@ func defaultCapabilities() []string {
 		"cognition.run",
 		"cognition.scan-accept",
 		"cognition.scan-checkpoint",
+		"cognition.scan-formats",
 		"cognition.scan-lease",
 		"cognition.scan-packet",
+		"cognition.scan-policy-confirm",
+		"cognition.scan-policy-stage",
 		"cognition.scan-prepare",
 		"cognition.scan-requeue",
 		"cognition.scan-set",
@@ -1057,6 +1079,7 @@ func defaultCapabilities() []string {
 		"cognition.validate-scan",
 		"design.approve",
 		"design.adopt",
+		"design.adoption",
 		"design.change",
 		"design.diff",
 		"design.impact",
@@ -1225,6 +1248,15 @@ func defaultCapabilities() []string {
 		"workflow.resolve",
 		"workflow.show",
 		"workflow.transition",
+		"work.abandon",
+		"work.begin",
+		"work.block",
+		"work.checkpoint",
+		"work.finish",
+		"work.interrupt",
+		"work.resume",
+		"work.scope-add",
+		"work.show",
 	}
 	sort.Strings(capabilities)
 	return capabilities
@@ -1276,6 +1308,14 @@ func capabilitySummary(id string) string {
 		return "Atomically bind a compact reviewed runtime target, its exact identity evidence, snapshot, and digests."
 	case "cognition.semantic-audit":
 		return "Build a semantic routing audit and optionally persist its canonical input/output pair atomically."
+	case "cognition.confirm-ignore":
+		return "Activate only user-confirmed starter cognition-ignore suggestions."
+	case "cognition.scan-formats":
+		return "Inventory repository-specific file-format cohorts before scan boundary decisions."
+	case "cognition.scan-policy-stage":
+		return "Validate and stage an Agent-authored cohort policy for user review."
+	case "cognition.scan-policy-confirm":
+		return "Bind user confirmation to one exact staged scan-policy digest."
 	case "evidence.visual-compare":
 		return "Materialize a task-bound visual comparison report from compact observed differences and captures."
 	case "design.change":
@@ -1292,6 +1332,8 @@ func capabilitySummary(id string) string {
 		return "Register an approved change-local UI contract as immutable consumption truth."
 	case "design.adopt":
 		return "Record a compare-and-swap consumer adoption of one exact UI design binding."
+	case "design.adoption":
+		return "Verify a post-Specify UI design overlay against the unchanged source specification."
 	case "deep-research.init":
 		return "Initialize a runtime-owned, source-bound Deep Research workspace."
 	case "deep-research.status":
@@ -1408,10 +1450,40 @@ func capabilitySummary(id string) string {
 		return "Atomically bind passed human acceptance to terminal workflow state."
 	case "cognition.mutation-receipt":
 		return "Record a durable project-cognition mutation closeout receipt required before implement/quick/review terminal close."
+	case "cognition.closeout.apply":
+		return "Run the shared mutation closeout sequence: bounded update, build validation, eligible finalization, and runtime-bound receipt."
 	case "implement.result-merge":
 		return "Merge a leader-submitted WorkerTaskResult with validation_results into task lifecycle state."
 	case "implement.task-reopen":
 		return "Reopen one non-acceptance-ready implemented task with revision guards and immutable audit history."
+	case "board.show":
+		return "List the durable repository Work Board with task ownership and declared write intents."
+	case "board.owner":
+		return "Find active or recovery-held work whose declared write scope overlaps one path."
+	case "board.reconcile":
+		return "Interrupt expired work leases and preserve dirty scopes behind recovery holds."
+	case "board.branch-policy":
+		return "Keep the current feature branch when another live task or dirty recovery hold exists."
+	case "board.feature-bootstrap":
+		return "Register the exact feature directory before creation and return its branch policy."
+	case "work.begin":
+		return "Register one agent task and its planned write scope on the shared Work Board."
+	case "work.scope-add":
+		return "Atomically expand a revision-bound task write scope after conflict checking."
+	case "work.checkpoint":
+		return "Renew a task lease and record its next action and observed changed paths."
+	case "work.block":
+		return "Mark active work blocked without releasing its declared write scope."
+	case "work.finish":
+		return "Complete one task and release its write scope while retaining history."
+	case "work.abandon":
+		return "Abandon one task and release its write scope while retaining history."
+	case "work.interrupt":
+		return "Fence a confirmed-ended owner session and preserve dirty scope for immediate recovery."
+	case "work.resume":
+		return "Resume interrupted work under a new fence after conflict checking."
+	case "work.show":
+		return "Read one Work Board item and its declared write intents."
 	case "run.create":
 		return "Record a new workflow Run request in the repository control plane."
 	case "run.show":

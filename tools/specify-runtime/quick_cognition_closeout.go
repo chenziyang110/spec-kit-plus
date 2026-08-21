@@ -14,10 +14,11 @@ const quickCognitionCloseoutVersion = 1
 
 // Terminal result_state values that satisfy the quick close gate for source-changing work.
 var quickCognitionCloseoutAllowedStates = map[string]bool{
-	"ready":      true,
-	"no_op":      true,
-	"mark-dirty": true,
-	"partial":    true,
+	"ready":       true,
+	"no_op":       true,
+	"scope_ready": true,
+	"mark-dirty":  true,
+	"partial":     true,
 }
 
 type quickCognitionCloseoutReceipt struct {
@@ -84,7 +85,14 @@ func (service quickService) cognitionCloseoutStatus(workspacePath string) map[st
 		out["result_state"] = receipt.ResultState
 		out["reason"] = receipt.Reason
 		out["receipt_path"] = filepath.ToSlash(filepath.Join(workspacePath, quickCognitionCloseoutFileName))
-		out["allowed_close"] = mutationCognitionAllowedStates[normalizeMutationCognitionState(receipt.ResultState)]
+		allowed, reason := mutationCognitionReceiptGateReason(workspacePath, &mutationCognitionReceipt{
+			Version: receipt.Version, Workflow: receipt.Workflow, Scope: filepath.Base(workspacePath), ResultState: receipt.ResultState,
+			Reason: receipt.Reason, Evidence: receipt.Evidence, UpdateID: receipt.UpdateID, RecordedAt: receipt.RecordedAt,
+		})
+		out["allowed_close"] = allowed
+		if reason != "" {
+			out["blocked_reason"] = reason
+		}
 		if !needs {
 			out["allowed_close"] = true
 		}
@@ -129,7 +137,10 @@ func (service quickService) validateCognitionCloseoutForClose(workspacePath, sta
 	case "invalid":
 		return fmt.Errorf("cannot close as resolved: cognition-closeout receipt is invalid (%v); re-run %s", gate["error"], next)
 	default:
-		return fmt.Errorf("cannot close as resolved: cognition closeout result_state=%q is not terminal for close (need ready|no_op|mark-dirty|partial); re-run %s", state, next)
+		if reason := strings.TrimSpace(fmt.Sprint(gate["blocked_reason"])); reason != "" {
+			return fmt.Errorf("cannot close as resolved: cognition closeout result_state=%q is not closeable: %s; re-run %s after repairing the closeout", state, reason, next)
+		}
+		return fmt.Errorf("cannot close as resolved: cognition closeout result_state=%q is not terminal for close (need ready|no_op|scope_ready|mark-dirty|partial); re-run %s", state, next)
 	}
 }
 

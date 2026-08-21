@@ -118,9 +118,23 @@
     "preview-manifest-direction-count": {
       "layer": "structural",
       "severity": "error",
-      "why": "Exactly three directions are required.",
-      "recovery": ["provide exactly three direction objects"],
-      "agent_action": ["do not add a fourth; keep three comparable options"]
+      "why": "Each immutable review round carries exactly one current concept.",
+      "recovery": ["provide exactly one direction-main object"],
+      "agent_action": ["keep alternative ideas for later feedback-led rounds"]
+    },
+    "preview-unfinished-prototype": {
+      "layer": "quality",
+      "severity": "error",
+      "why": "The generated preview seed is structural scaffolding, not a professional visual concept.",
+      "recovery": [
+        "replace the visible seed with project-specific HTML, content, states, and responsive behavior",
+        "inspect the result in a real browser at the applicable target viewports",
+        "set data-prototype-status to authored only after the inspection and repair pass"
+      ],
+      "agent_action": [
+        "use the professional UI skill and platform reference for this surface",
+        "author, capture, inspect, repair, and recapture the current concept"
+      ]
     },
     "preview-unresolved-placeholder": {
       "layer": "semantic",

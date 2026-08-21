@@ -19,8 +19,15 @@ Scaffold `plan-contract.json` through its artifact CLI owner, then fill targeted
 - global constraints and allowed optimization scope;
 - exact canonical acceptance refs for every specification criterion, followed by task-relevant `MP-*`, `CA-###`, UI/fidelity, and evidence refs;
 - for UI work, the current work/surface/platform types, direction core, approved visual,
-  reference intents, real content/image plans, and structure/visual/runtime
-  evidence requirements;
+  exact `style_authority`, reference intents, real content/image plans, `surface_catalog`, bounded
+  `scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`, component
+  interaction/data scenarios, continuous
+  stretch/overflow behavior, and risk-based input × data × size
+  structure/visual/runtime evidence requirements;
+- for a post-Specify design, the verified `formal-post-specify` adoption receipt
+  bound to the unchanged source spec ref/SHA-256; verify it with
+  `specify-runtime design adoption` and do not rewrite the source spec or rerun
+  Specify unless requirements changed;
 - implementation target and boundary refs;
 - conditional artifact refs for research, data model, contracts, and validation scenario;
 - review risks, stop/reopen conditions, and compact agent transition to `sp-tasks`.

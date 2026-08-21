@@ -2,12 +2,16 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -99,13 +103,17 @@ func runLaunch(args []string, stdout, stderr io.Writer) int {
 		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
 	}
 	projectRoot := parsed.option("--project-root", ".")
+	workParams, err := runSuperviseWorkParams(parsed, projectRoot)
+	if err != nil {
+		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
+	}
 
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
 	if _, operationErr := enqueueRunForCLI(ctx, projectRoot, createParams); operationErr != nil {
 		return writeEnvelope(stdout, runControlErrorEnvelope("launch run", operationErr))
 	}
-	result, operationErr := superviseRunForCLI(ctx, projectRoot, createParams.RunID, adapterID, workspacePolicy, childArgv, stderr)
+	result, operationErr := superviseRunForCLI(ctx, projectRoot, createParams.RunID, adapterID, workspacePolicy, workParams, childArgv, stderr)
 	return writeRunSupervisionEnvelope(stdout, ctx, createParams.RunID, projectRoot, result, operationErr)
 }
 
@@ -244,10 +252,14 @@ func runSupervise(args []string, stdout, stderr io.Writer) int {
 		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
 	}
 	projectRoot := parsed.option("--project-root", ".")
+	workParams, err := runSuperviseWorkParams(parsed, projectRoot)
+	if err != nil {
+		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
+	}
 
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
-	result, operationErr := superviseRunForCLI(ctx, projectRoot, runID, adapterID, workspacePolicy, childArgv, stderr)
+	result, operationErr := superviseRunForCLI(ctx, projectRoot, runID, adapterID, workspacePolicy, workParams, childArgv, stderr)
 	return writeRunSupervisionEnvelope(stdout, ctx, runID, projectRoot, result, operationErr)
 }
 
@@ -283,6 +295,7 @@ func superviseRunForCLI(
 	runID string,
 	adapterID string,
 	workspacePolicy runcontrol.WorkspacePolicy,
+	work runcontrol.SuperviseWorkParams,
 	childArgv []string,
 	childOutput io.Writer,
 ) (runcontrol.SupervisedRun, error) {
@@ -293,6 +306,7 @@ func superviseRunForCLI(
 	return runcontrol.SuperviseRun(ctx, repository, runcontrol.SuperviseRunParams{
 		RunID:           runID,
 		AdapterID:       adapterID,
+		Work:            work,
 		WorkspacePolicy: workspacePolicy,
 		Argv:            childArgv,
 		ChildStdin:      os.Stdin,
@@ -310,7 +324,7 @@ func writeRunSupervisionEnvelope(
 	operationErr error,
 ) int {
 	if operationErr != nil {
-		env := runControlErrorEnvelope("supervise run", operationErr)
+		env := workBoardErrorEnvelope("supervise run", operationErr)
 		if errors.Is(operationErr, context.Canceled) {
 			env.Status = "blocked"
 			env.Summary = "run supervision interrupted and fenced"
@@ -405,6 +419,12 @@ func parseRunSuperviseArgs(args []string) (parsedRunCommand, []string, error) {
 		"run supervise",
 		"--project-root",
 		"--adapter-id",
+		"--work-agent-id",
+		"--work-task-ref",
+		"--work-summary",
+		"--work-intents-json",
+		"--work-packet-file",
+		"--work-packet-sha256",
 		"--workspace-policy",
 		"--format",
 	)
@@ -423,6 +443,12 @@ func parseRunLaunchArgs(args []string) (parsedRunCommand, []string, error) {
 		"--target-ref",
 		"--intent-sha256",
 		"--adapter-id",
+		"--work-agent-id",
+		"--work-task-ref",
+		"--work-summary",
+		"--work-intents-json",
+		"--work-packet-file",
+		"--work-packet-sha256",
 		"--workspace-policy",
 		"--format",
 	)
@@ -515,6 +541,167 @@ func (parsed parsedRunCommand) workspacePolicy() (runcontrol.WorkspacePolicy, er
 	}
 }
 
+const maximumManagedTaskPacketBytes int64 = 4 * 1024 * 1024
+
+type managedTaskPacketWorkScope struct {
+	WriteScope []string `json:"write_scope"`
+}
+
+type managedTaskPacket struct {
+	FeatureID  string                     `json:"feature_id"`
+	TaskID     string                     `json:"task_id"`
+	Objective  string                     `json:"objective"`
+	Scope      managedTaskPacketWorkScope `json:"scope"`
+	WriteScope []string                   `json:"write_scope"`
+}
+
+func runSuperviseWorkParams(parsed parsedRunCommand, projectRoot string) (runcontrol.SuperviseWorkParams, error) {
+	params := runcontrol.SuperviseWorkParams{
+		AgentID: strings.TrimSpace(parsed.option("--work-agent-id", "")),
+		TaskRef: strings.TrimSpace(parsed.option("--work-task-ref", "")),
+		Summary: strings.TrimSpace(parsed.option("--work-summary", "")),
+	}
+	packetPath, hasPacketPath := parsed.options["--work-packet-file"]
+	packetSHA256, hasPacketSHA256 := parsed.options["--work-packet-sha256"]
+	if hasPacketSHA256 && !hasPacketPath {
+		return runcontrol.SuperviseWorkParams{}, errors.New("--work-packet-sha256 requires --work-packet-file")
+	}
+	if hasPacketPath {
+		if !hasPacketSHA256 {
+			return runcontrol.SuperviseWorkParams{}, errors.New("--work-packet-file requires --work-packet-sha256")
+		}
+		for _, conflicting := range []string{"--work-task-ref", "--work-summary", "--work-intents-json"} {
+			if _, supplied := parsed.options[conflicting]; supplied {
+				return runcontrol.SuperviseWorkParams{}, fmt.Errorf("--work-packet-file cannot be combined with %s", conflicting)
+			}
+		}
+		packetParams, err := workParamsFromTaskPacket(projectRoot, packetPath, packetSHA256)
+		if err != nil {
+			return runcontrol.SuperviseWorkParams{}, err
+		}
+		packetParams.AgentID = params.AgentID
+		return packetParams, nil
+	}
+	if raw, present := parsed.options["--work-intents-json"]; present {
+		intents, err := parseWriteIntentsJSON(raw)
+		if err != nil {
+			return runcontrol.SuperviseWorkParams{}, err
+		}
+		params.WriteIntents = intents
+	}
+	return params, nil
+}
+
+func workParamsFromTaskPacket(projectRoot, packetPath, expectedSHA256 string) (runcontrol.SuperviseWorkParams, error) {
+	expectedSHA256 = strings.TrimSpace(expectedSHA256)
+	if !isLowerHexSHA256(expectedSHA256) {
+		return runcontrol.SuperviseWorkParams{}, errors.New("--work-packet-sha256 must be 64 lowercase hexadecimal characters")
+	}
+	resolvedPath, err := resolveManagedTaskPacketPath(projectRoot, packetPath)
+	if err != nil {
+		return runcontrol.SuperviseWorkParams{}, err
+	}
+	file, err := os.Open(resolvedPath)
+	if err != nil {
+		return runcontrol.SuperviseWorkParams{}, fmt.Errorf("open --work-packet-file: %w", err)
+	}
+	content, readErr := io.ReadAll(io.LimitReader(file, maximumManagedTaskPacketBytes+1))
+	closeErr := file.Close()
+	if readErr != nil {
+		return runcontrol.SuperviseWorkParams{}, fmt.Errorf("read --work-packet-file: %w", readErr)
+	}
+	if closeErr != nil {
+		return runcontrol.SuperviseWorkParams{}, fmt.Errorf("close --work-packet-file: %w", closeErr)
+	}
+	if int64(len(content)) > maximumManagedTaskPacketBytes {
+		return runcontrol.SuperviseWorkParams{}, fmt.Errorf("--work-packet-file exceeds %d bytes", maximumManagedTaskPacketBytes)
+	}
+	expectedDigest, _ := hex.DecodeString(expectedSHA256)
+	actualDigest := sha256.Sum256(content)
+	if subtle.ConstantTimeCompare(expectedDigest, actualDigest[:]) != 1 {
+		return runcontrol.SuperviseWorkParams{}, errors.New("--work-packet-sha256 does not match --work-packet-file")
+	}
+	var packet managedTaskPacket
+	if err := json.Unmarshal(content, &packet); err != nil {
+		return runcontrol.SuperviseWorkParams{}, fmt.Errorf("decode --work-packet-file: %w", err)
+	}
+	packet.FeatureID = strings.TrimSpace(packet.FeatureID)
+	packet.TaskID = strings.TrimSpace(packet.TaskID)
+	packet.Objective = strings.TrimSpace(packet.Objective)
+	if packet.FeatureID == "" || packet.TaskID == "" || packet.Objective == "" {
+		return runcontrol.SuperviseWorkParams{}, errors.New("--work-packet-file requires feature_id, task_id, and objective")
+	}
+	writeScope := packet.Scope.WriteScope
+	if len(writeScope) == 0 {
+		writeScope = packet.WriteScope
+	}
+	if len(writeScope) == 0 {
+		return runcontrol.SuperviseWorkParams{}, errors.New("--work-packet-file requires scope.write_scope")
+	}
+	intents := make([]runcontrol.WriteIntentSpec, 0, len(writeScope))
+	for _, path := range writeScope {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			return runcontrol.SuperviseWorkParams{}, errors.New("--work-packet-file scope.write_scope cannot contain blank paths")
+		}
+		intents = append(intents, runcontrol.WriteIntentSpec{
+			Path:       path,
+			Operation:  runcontrol.WriteModify,
+			Reason:     "declared by worker task packet " + packet.TaskID,
+			Confidence: runcontrol.IntentConfirmed,
+		})
+	}
+	return runcontrol.SuperviseWorkParams{
+		TaskRef:      packet.FeatureID + "#" + packet.TaskID,
+		Summary:      packet.Objective,
+		WriteIntents: intents,
+	}, nil
+}
+
+func isLowerHexSHA256(value string) bool {
+	if len(value) != sha256.Size*2 {
+		return false
+	}
+	for _, character := range value {
+		if (character < '0' || character > '9') && (character < 'a' || character > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func resolveManagedTaskPacketPath(projectRoot, packetPath string) (string, error) {
+	packetPath = strings.TrimSpace(packetPath)
+	if packetPath == "" || strings.ContainsRune(packetPath, '\x00') {
+		return "", errors.New("--work-packet-file requires a path")
+	}
+	root, err := filepath.Abs(projectRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve --project-root: %w", err)
+	}
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve --project-root: %w", err)
+	}
+	candidate := packetPath
+	if !filepath.IsAbs(candidate) {
+		candidate = filepath.Join(root, candidate)
+	}
+	candidate, err = filepath.Abs(candidate)
+	if err != nil {
+		return "", fmt.Errorf("resolve --work-packet-file: %w", err)
+	}
+	candidate, err = filepath.EvalSymlinks(candidate)
+	if err != nil {
+		return "", fmt.Errorf("resolve --work-packet-file: %w", err)
+	}
+	relative, err := filepath.Rel(root, candidate)
+	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", errors.New("--work-packet-file must stay inside --project-root")
+	}
+	return candidate, nil
+}
+
 func runDTO(run runcontrol.Run) map[string]any {
 	return map[string]any{
 		"run_id":        run.RunID,
@@ -553,6 +740,9 @@ func supervisedRunDTO(result runcontrol.SupervisedRun) map[string]any {
 		"snapshot_id":                  result.Snapshot.SnapshotID,
 		"workspace_attestation_id":     result.Attestation.AttestationID,
 		"workspace_attestation_sha256": result.Attestation.AttestationDigest,
+		"work_id":                      result.Work.WorkID,
+		"work_fence":                   result.Work.Fence,
+		"feature_branch_policy":        result.FeatureBranchPolicy,
 	}
 	if result.Result.ResultID != "" {
 		payload["result_id"] = result.Result.ResultID
@@ -584,6 +774,7 @@ func runControlErrorEnvelope(action string, err error) Envelope {
 		errors.Is(err, runcontrol.ErrWorkspaceGeneration),
 		errors.Is(err, runcontrol.ErrWorkspaceNotUsable),
 		errors.Is(err, runcontrol.ErrResourceConflict),
+		errors.Is(err, runcontrol.ErrWorkIntentConflict),
 		errors.Is(err, runcontrol.ErrUnsupportedSchema),
 		errors.Is(err, runcontrol.ErrCandidateBinding),
 		errors.Is(err, runcontrol.ErrTargetWorktreeDirty),

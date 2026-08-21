@@ -15,11 +15,26 @@
 - Reference intents and real content/image plans:
 - Design and UI brief sources:
 - Tokens/components and planned extensions:
-- Required states and responsive/accessibility rules:
+- Interaction matrix: [surface; input; trigger; feedback/state/context/recovery expectation]
+- Editing matrix: [input methods; composition; paste/autofill; selection/caret; formatting; validation; dirty/persistence; undo/redo; conflict; read-only/disabled; submission]
+- Data-state matrix: [empty and populated plus applicable loading/partial/error/permission/offline/pending/success]
+- Accessibility matrix: [semantics; reading/focus order; keyboard/drag alternative; announcement; target; contrast; zoom/reflow; forced colors; alternatives]
+- Navigation matrix: [hierarchy; entry/destination; trigger; back/close; deep link; interruption recovery; landmarks]
+- Content matrix: [CTA and state copy; action; trust/privacy; content limits; localization/RTL/date/number/time zone]
+- Motion contract: [purpose; trigger/response; duration/easing; interruption; reduced motion; feedback thresholds]
+- Usability validation: [risk; methods; critical tasks; success criteria; required target-user human review]
+- Component interaction/data/governance: [variants; content constraints; semantic tokens; reuse/extend/new; iconography]
+- Responsive/accessibility rules: [target/state; adaptation; continuous stretch behavior; overflow behavior; active-context preservation]
 - Required motion moments, tokens, and reduced-motion equivalents:
 - Fidelity and must-preserve constraints:
-- Real entry points and structure/visual/runtime evidence:
+- Real entry points and risk-based input × data × size structure/visual/runtime evidence:
 - Visual comparison, deviations, or human-review boundary:
+
+Preserve exact `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
+`accessibility_matrix`, `navigation_matrix`, `content_matrix`,
+`motion_contract`, and `usability_validation` values in the machine Plan
+contract. Use risk-based or pairwise combinations, not an unbounded Cartesian
+product; automation/screenshots cannot replace target-user usability review.
 
 ## Compatibility, Migration, and Recovery
 

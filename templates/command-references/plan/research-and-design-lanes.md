@@ -56,6 +56,12 @@ findings into Plan prose.
 
 For UI-facing work, query `ui-brief.md`, its exact registered `.specify/design/changes/<UD-ID>/DESIGN.md`, the sibling `design-contract.json`, and the approved immutable design handoff through targeted `specify-runtime artifact show` calls; consume them only when selected by the spec contract. Never resolve “latest” from `.specify/design/index.json`. Record Feature UI Brief Adoption and Design Change Adoption, including token strategy. Preserve the exact contract/preview/manifest/handoff digests, immutable handoff ref, selected `DS-*` and `DH-*` IDs, `Reference-Implementation`, tokens, component ownership, required states, component interaction modes, interaction rows, no-data/populated/partial/error/permission/offline behavior, resize/stretch/overflow behavior, accessibility, fidelity criteria, allowed adaptation, forbidden drift, `visual_comparison_or_human_review`, Playwright screenshots or representative output when applicable, real-entrypoint evidence, and accepted deviations. Select structured handoff rows by ID; never recreate their values from prose.
 
+Carry the exact `style_authority` unchanged. Under `inherit-existing`, live
+theme/token/component/surface refs are implementation truth, `global-shell` and
+`shared-components` remain protected, and no task may invent a new visual
+language. A `page-overhaul-authorized` delta is limited to its explicitly
+authorized complete-page surface and cannot escape into protected surfaces.
+
 Do not repeat UI reference parsing already completed upstream unless the source changed or a required implementation facet is missing.
 
 ## Operational Consequence Design

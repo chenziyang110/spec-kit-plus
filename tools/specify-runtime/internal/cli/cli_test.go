@@ -556,7 +556,7 @@ func TestRootHelpListsResumableScanWorkbenchCommands(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "generate-ignore, scan-set, scan-prepare, scan-lease, scan-packet, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, mark-dirty") {
+	if !strings.Contains(stdout.String(), "generate-ignore, confirm-ignore, scan-set, scan-formats, scan-policy-stage, scan-policy-confirm, scan-prepare, scan-lease, scan-packet, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, mark-dirty") {
 		t.Fatalf("help does not list the resumable scan workbench commands:\n%s", stdout.String())
 	}
 }
@@ -1152,6 +1152,8 @@ func TestCloseoutPlanCommandPayloadMode(t *testing.T) {
 	code := Run([]string{
 		"closeout-plan",
 		"--workflow", "implement",
+		"--scope-dir", ".specify/features/001-cli-closeout",
+		"--changed-path", "src/app.go",
 		"--format", "json",
 	}, &stdout, &stderr, "test")
 	if code != 0 {
@@ -1190,6 +1192,33 @@ func TestCloseoutPlanCommandPayloadMode(t *testing.T) {
 	if !reflect.DeepEqual(updateArgv, wantUpdateArgv) {
 		t.Fatalf("update_argv = %#v, want %#v", updateArgv, wantUpdateArgv)
 	}
+	applyArgvValue, ok := payload["apply_argv"].([]any)
+	if !ok {
+		t.Fatalf("apply_argv = %#v, want array", payload["apply_argv"])
+	}
+	applyArgv := jsonAnySliceStrings(applyArgvValue)
+	wantApplyArgv := []string{
+		"specify-runtime",
+		"cognition",
+		"closeout",
+		"apply",
+		"--workflow",
+		"sp-implement",
+		"--scope-dir",
+		".specify/features/001-cli-closeout",
+		"--payload-json",
+		"<inline-json>",
+		"--reason",
+		"workflow-finalize",
+		"--format",
+		"json",
+	}
+	if !reflect.DeepEqual(applyArgv, wantApplyArgv) {
+		t.Fatalf("apply_argv = %#v, want %#v", applyArgv, wantApplyArgv)
+	}
+	if note, _ := payload["command_safety_note"].(string); !strings.Contains(note, "apply_argv") {
+		t.Fatalf("command_safety_note = %#v, want shared apply_argv guidance", payload["command_safety_note"])
+	}
 	updateCommand, ok := payload["update_command"].(string)
 	if !ok || !strings.Contains(updateCommand, "display only:") {
 		t.Fatalf("update_command = %#v, want display-only placeholder", payload["update_command"])
@@ -1207,6 +1236,8 @@ func TestCloseoutPlanCommandDeltaSessionMode(t *testing.T) {
 	code := Run([]string{
 		"closeout-plan",
 		"--workflow", "sp-quick",
+		"--scope-dir", ".specify/features/002-cli-closeout",
+		"--changed-path", "src/app.go",
 		"--delta-session", "D-cli",
 		"--format", "json",
 	}, &stdout, &stderr, "test")
@@ -1246,6 +1277,22 @@ func TestCloseoutPlanCommandDeltaSessionMode(t *testing.T) {
 	}
 	if !reflect.DeepEqual(updateArgv, wantUpdateArgv) {
 		t.Fatalf("update_argv = %#v, want %#v", updateArgv, wantUpdateArgv)
+	}
+	applyArgvValue, ok := payload["apply_argv"].([]any)
+	if !ok {
+		t.Fatalf("apply_argv = %#v, want array", payload["apply_argv"])
+	}
+	applyArgv := jsonAnySliceStrings(applyArgvValue)
+	wantApplyArgv := []string{
+		"specify-runtime", "cognition", "closeout", "apply",
+		"--workflow", "sp-quick",
+		"--scope-dir", ".specify/features/002-cli-closeout",
+		"--delta-session", "D-cli",
+		"--reason", "workflow-finalize",
+		"--format", "json",
+	}
+	if !reflect.DeepEqual(applyArgv, wantApplyArgv) {
+		t.Fatalf("apply_argv = %#v, want %#v", applyArgv, wantApplyArgv)
 	}
 	argvPrefixValue, ok := deltaAppendDraft["argv_prefix"].([]any)
 	if !ok {
@@ -1573,6 +1620,154 @@ func TestGenerateIgnoreCommandDoesNotOverwriteExistingFile(t *testing.T) {
 	}
 	if string(data) != "custom/\n" {
 		t.Fatalf("existing ignore file was overwritten: %q", string(data))
+	}
+}
+
+func TestGenerateIgnoreCommandSkipsReviewWhenThereAreNoSuggestions(t *testing.T) {
+	root := t.TempDir()
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"generate-ignore", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "created" || payload["review_required"] != false {
+		t.Fatalf("payload = %#v, want created without review", payload)
+	}
+	if _, ok := payload["suggested_patterns"]; ok {
+		t.Fatalf("payload = %#v, empty review set should be omitted", payload)
+	}
+}
+
+func TestGenerateIgnoreCommandKeepsReviewRequiredForExistingUnconfirmedStarter(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("scripts/runtime/.bin/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	if code := Run([]string{"generate-ignore", "--format", "json"}, &stdout, &stderr, "test"); code != 0 {
+		t.Fatalf("first generate-ignore code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"generate-ignore", "--format", "json"}, &stdout, &stderr, "test"); code != 0 {
+		t.Fatalf("second generate-ignore code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "exists" || payload["review_required"] != true {
+		t.Fatalf("second payload = %#v, want existing starter to remain review-required", payload)
+	}
+	suggestions, ok := payload["suggested_patterns"].([]any)
+	if !ok || !jsonAnySliceContains(suggestions, "scripts/runtime/.bin/") {
+		t.Fatalf("second suggested_patterns = %#v", payload["suggested_patterns"])
+	}
+}
+
+func TestConfirmIgnoreCommandActivatesSelectedStarterPatterns(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("scripts/runtime/.bin/\nscripts/runtime/.data/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	if code := Run([]string{"generate-ignore", "--format", "json"}, &stdout, &stderr, "test"); code != 0 {
+		t.Fatalf("generate-ignore code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	code := Run([]string{"confirm-ignore", "--pattern", "scripts/runtime/.bin/", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("confirm-ignore code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "confirmed" || payload["review_required"] != false {
+		t.Fatalf("confirm-ignore payload = %#v", payload)
+	}
+	confirmed, ok := payload["confirmed_patterns"].([]any)
+	if !ok || !jsonAnySliceContains(confirmed, "scripts/runtime/.bin/") {
+		t.Fatalf("confirmed_patterns = %#v", payload["confirmed_patterns"])
+	}
+
+	data, err := os.ReadFile(filepath.Join(root, ".specify", "project-cognition", ".cognitionignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "\nscripts/runtime/.bin/\n") || !strings.Contains(content, "\n# reviewed-keep-in-scan: scripts/runtime/.data/\n") {
+		t.Fatalf("confirmation did not activate only the selected pattern:\n%s", content)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"generate-ignore", "--format", "json"}, &stdout, &stderr, "test"); code != 0 {
+		t.Fatalf("post-confirmation generate-ignore code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["review_required"] != false {
+		t.Fatalf("post-confirmation payload = %#v, reviewed subset must not be prompted again", payload)
+	}
+}
+
+func TestConfirmIgnoreCommandActivatesAllSuggestedPatterns(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("scripts/runtime/.bin/\nscripts/runtime/.data/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	if code := Run([]string{"generate-ignore", "--format", "json"}, &stdout, &stderr, "test"); code != 0 {
+		t.Fatalf("generate-ignore code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	code := Run([]string{"confirm-ignore", "--all-suggested", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("confirm-ignore code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+
+	data, err := os.ReadFile(filepath.Join(root, ".specify", "project-cognition", ".cognitionignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	for _, pattern := range []string{"scripts/runtime/.bin/", "scripts/runtime/.data/"} {
+		if !strings.Contains(content, "\n"+pattern+"\n") {
+			t.Fatalf("all-suggested confirmation left %q inactive:\n%s", pattern, content)
+		}
 	}
 }
 

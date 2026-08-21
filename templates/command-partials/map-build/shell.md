@@ -9,6 +9,10 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 - Primary inputs: the accepted scan package and readiness returned by `specify-runtime cognition validate-scan --format json`, followed by `specify-runtime cognition build-from-scan --format json`. Those commands consume the runtime-owned status, evidence, provisional graph, coverage, queue, ledger, packet, and result stores; the agent never opens those stores directly.
 - This command owns the query-backed cognition runtime outputs: `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db`.
 - Run `{{specify-subcmd:specify-runtime cognition build-from-scan --format json}}` after scan and package validation. It adapts the accepted canonical scan package into a versioned proposal and runs the deterministic cognition proposal compiler before any graph-store mutation; only a publishable result may continue to DB import, metadata, status publication, and DB/status agreement.
+- A matching validated receipt plus compiled-proposal/compiler/schema fingerprint
+  returns `reused=true` with the same active generation (still ready) instead of a
+  duplicate import. Continue to `validate-build`; the idempotent hit is not
+  completion.
 - If `validate-scan` returns `status=blocked`, stop before `build-from-scan`.
   Report the exact blocking errors, preserve the runtime's typed recovery
   signal, and do not say the format issues are harmless or that they do not
@@ -24,7 +28,9 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 - Validate `repository-universe.json` as the canonical scan boundary before graph reconstruction; excluded paths are boundary facts, not graph evidence.
 - Typed runtime recovery owns stale, incompatible, or abandoned workbench
   repair. Using `--force` explicitly abandons the old workbench and its
-  accepted/pending results, so use it only after that decision is recorded.
+  accepted/pending current results, so use it only after that decision is
+  recorded. It may still replay validated cache; `--full-rebuild` is the
+  explicit no-reuse route.
 - If native subagent dispatch is unavailable or a required read-only
   verification lane cannot complete, report `subagent_blocked` and stop before
   construction. Do not hand-write canonical cognition state to record it.

@@ -179,6 +179,7 @@ def test_classic_mutation_workflows_render_literal_canonical_closeout_ids(
     rendered = _classic_surface(command_name)
 
     assert f"specify-runtime cognition closeout-plan --workflow {canonical_workflow}" in rendered
+    assert "--scope-mode explicit" in rendered
     assert "$ACTIVE_WORKFLOW" not in rendered
     assert "{{project-cognition-workflow}}" not in rendered
 
@@ -206,7 +207,8 @@ def test_generated_mutation_surface_has_one_closeout_contract(
         )
         == 1
     )
-    assert "update_argv" in rendered
+    assert "apply_argv" in rendered
+    assert "scope_result_state" in rendered
     for update_shape in DIRECT_UPDATE_FRAGMENTS:
         assert update_shape not in rendered
 
@@ -223,6 +225,7 @@ def test_spx_mutation_workflows_own_literal_canonical_closeout_commands(
     ).read_text(encoding="utf-8")
 
     assert f"specify-runtime cognition closeout-plan --workflow {canonical_workflow}" in skill
+    assert "--scope-mode explicit" in skill
     assert "$ACTIVE_WORKFLOW" not in skill
     assert "<canonical-sp-workflow>" not in skill
 
@@ -254,7 +257,7 @@ def test_classic_map_update_has_one_planner_first_update_path() -> None:
     planner = "specify-runtime cognition closeout-plan --workflow sp-map-update"
     assert rendered.count(planner) == 1
     assert "--changed-path" in rendered
-    assert "update_argv" in rendered
+    assert "apply_argv" in rendered
     for fragment in DIRECT_UPDATE_FRAGMENTS:
         assert fragment not in rendered
 
@@ -335,9 +338,10 @@ def test_readme_separates_planning_handoff_from_mutation_closeout() -> None:
     assert "Planning-only workflows do not acquire source mutation authority" in readme
     assert "hand off to a registry-owned mutation workflow" in readme
     assert "unless they actually change source/runtime/template/config/test/generated-asset surfaces" not in readme
-    assert "selects the finalization branch" in readme
-    assert "Clean completion additionally requires" in readme
-    assert "`status=ok` and `readiness=query_ready`" in readme
+    assert "Shared `specify-runtime cognition closeout apply`" in readme
+    assert "completes refresh only when globally eligible" in readme
+    assert "`scope_result_state`/`scope_partial_reasons`" in readme
+    assert "`update_argv` remains low-level compatibility/debug only" in readme
     assert "Clean closeout gates on `result_state=ready` or `result_state=no_op`, not `status=ok`" not in readme
 
 
@@ -375,17 +379,19 @@ def test_cursor_advisory_does_not_reintroduce_direct_update_commands() -> None:
 
 
 def _assert_receipt_finalizer_gate(content: str) -> None:
+    normalized = " ".join(content.split())
     validate = "specify-runtime cognition validate-build --format json"
     finalize = "specify-runtime cognition complete-refresh --format json"
     assert validate in content
     assert finalize in content
     assert content.index(validate) < content.index(finalize)
-    assert "result_state=ready" in content
-    assert "result_state=no_op" in content
+    assert "ready|no_op" in content
+    assert "scope_result_state" in content
+    assert "scope_ready" in content
+    assert "apply_argv" in content
     assert "status=ok" in content
     assert "readiness=query_ready" in content
-    assert "validate-build receipt" in content
-    assert "Compass/query" in content
+    assert "validate-build receipt" in content or "bound receipt" in content
     assert "pending finalization" in content
     for blocked_state in (
         "partial_refresh",
@@ -394,7 +400,8 @@ def _assert_receipt_finalizer_gate(content: str) -> None:
         "recorded",
     ):
         assert blocked_state in content
-    assert "must not run `complete-refresh`" in content
+    assert "must not run" in normalized
+    assert "`complete-refresh`" in content
 
 
 def _assert_audit_only_inputs(content: str) -> None:
@@ -419,6 +426,93 @@ def test_classic_inline_closeout_requires_receipt_bound_finalization() -> None:
     _assert_audit_only_inputs(partial)
     assert STRUCTURED_PASSED_VERIFICATION in partial
     assert "array of command-result strings" not in partial
+
+
+def test_shared_closeout_transport_keeps_completed_payload_off_process_argv() -> None:
+    surfaces = (
+        ROOT
+        / "templates"
+        / "command-partials"
+        / "common"
+        / "inline-project-cognition-update.md",
+        ROOT
+        / "templates"
+        / "advanced-skills"
+        / "_shared"
+        / "project-cognition.md",
+    )
+
+    for surface in surfaces:
+        content = surface.read_text(encoding="utf-8")
+        normalized = " ".join(content.split()).lower()
+        assert "--payload-json -" in content, surface
+        assert "completed payload" in normalized and "stdin" in normalized, surface
+        assert "substitute that object for `<inline-json>` in `apply_argv`" not in content, surface
+        assert "--payload-json '<inline-json>'" not in content, surface
+
+
+def test_greenfield_with_project_code_uses_structured_rebuild_recovery() -> None:
+    surfaces = (
+        ROOT
+        / "templates"
+        / "command-partials"
+        / "common"
+        / "context-loading-gradient.md",
+        ROOT
+        / "templates"
+        / "advanced-skills"
+        / "_shared"
+        / "project-cognition.md",
+        ROOT
+        / "templates"
+        / "passive-skills"
+        / "spec-kit-project-cognition-gate"
+        / "SKILL.md",
+        ROOT
+        / "templates"
+        / "passive-skills"
+        / "spec-kit-workflow-routing"
+        / "SKILL.md",
+    )
+
+    for surface in surfaces:
+        content = surface.read_text(encoding="utf-8")
+        assert "greenfield_baseline_has_project_code" in content, surface
+        assert "project_cognition.rebuild" in content, surface
+        assert "map-update" in content, surface
+        assert "must not" in content.lower(), surface
+
+
+def test_blocked_compass_degraded_reads_remain_bounded_advisory_navigation() -> None:
+    surfaces = (
+        ROOT
+        / "templates"
+        / "command-partials"
+        / "common"
+        / "context-loading-gradient.md",
+        ROOT
+        / "templates"
+        / "advanced-skills"
+        / "_shared"
+        / "project-cognition.md",
+        ROOT
+        / "templates"
+        / "passive-skills"
+        / "spec-kit-project-cognition-gate"
+        / "SKILL.md",
+        ROOT
+        / "templates"
+        / "passive-skills"
+        / "spec-kit-workflow-routing"
+        / "SKILL.md",
+    )
+
+    for surface in surfaces:
+        content = surface.read_text(encoding="utf-8")
+        assert "stale_cognition_degraded_navigation" in content, surface
+        assert "degraded=true" in content, surface
+        assert "minimal_live_reads" in content, surface
+        assert "live repository" in content.lower(), surface
 
 
 def test_fast_pre_work_map_maintenance_cannot_bypass_validation_receipt() -> None:
@@ -473,7 +567,9 @@ def test_spx_shared_and_owning_mutation_skills_require_receipt_finalization() ->
             / f"spx-{command_name}"
             / "SKILL.md"
         ).read_text(encoding="utf-8")
-        assert "receipt-bound finalizer gate" in skill, command_name
+        normalized_skill = " ".join(skill.split())
+        assert "apply_argv" in skill, command_name
+        assert "owns update, validation, eligible finalization" in normalized_skill, command_name
         assert "references/project-cognition.md" in skill, command_name
 
 

@@ -211,6 +211,7 @@ func TestResultSubmitPreservesImmutableUIHandoffBinding(t *testing.T) {
 		"task_id": "lane-ui",
 		"status":  "success",
 		"ui_verification": map[string]any{
+			"human_review_ref":             "evidence/usability-review.md",
 			"approved_handoff_ref":         ".specify/design/previews/round-01.handoff.json",
 			"approved_handoff_sha256":      strings.Repeat("a", 64),
 			"covered_handoff_contract_ids": []any{"DH-COMP-001", "DH-VA-001"},
@@ -237,6 +238,9 @@ func TestResultSubmitPreservesImmutableUIHandoffBinding(t *testing.T) {
 	verification := requireObjectValue(t, stored["ui_verification"])
 	if verification["approved_handoff_ref"] != ".specify/design/previews/round-01.handoff.json" {
 		t.Fatalf("handoff ref was not preserved: %#v", verification)
+	}
+	if verification["human_review_ref"] != "evidence/usability-review.md" {
+		t.Fatalf("human review ref was not preserved: %#v", verification)
 	}
 	requireStringArrayEqual(t, verification["covered_handoff_contract_ids"], []string{"DH-COMP-001", "DH-VA-001"})
 	tolerance := requireObjectValue(t, verification["comparison_tolerance"])

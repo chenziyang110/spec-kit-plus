@@ -150,6 +150,7 @@ def _normalize_ui_verification(payload: dict[str, Any]) -> UIVerification:
         visual_comparison=str(raw.get("visual_comparison") or "unavailable"),
         fidelity_status=str(raw.get("fidelity_status") or "not-applicable"),
         reviewer=str(_pick(raw, "reviewer") or "agent"),
+        human_review_ref=str(raw.get("human_review_ref") or ""),
         approved_visual_ref=str(raw.get("approved_visual_ref") or ""),
         approved_preview_sha256=str(raw.get("approved_preview_sha256") or ""),
         approved_manifest_sha256=str(raw.get("approved_manifest_sha256") or ""),

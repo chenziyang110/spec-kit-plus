@@ -29,8 +29,13 @@ For substantive new UI with no applicable registered change, route through
 implementation in the live product surface and record the bounded design
 assumption.
 
+Only `sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast` may be entered
+passively. Every other Classic `sp-*` workflow is user-invoked only: recommend
+its projected invocation and stop until the user explicitly invokes it. In
+particular, this passive skill must not load or enter `sp-design` itself.
+
 When the bound contract reports an approved
-`.specify/design/changes/<UD-ID>/previews/round-NN.html#<direction-id>`, inspect
+`.specify/design/changes/<UD-ID>/previews/round-NN.<html|png|jpg|jpeg|webp>#<direction-id>`, inspect
 that exact change-level board through the design/artifact CLI before
 implementation. Carry its component states, density, motion tokens, and
 reduced-motion equivalent into the feature brief and real UI. A feature-level
@@ -41,8 +46,8 @@ Do not invent unrelated bold aesthetics when a registered change governs the
 affected scope or when the request is to implement an existing product surface.
 If no applicable change exists and the work is high-visibility, new product UI,
 a redesign or rebrand, or a core workflow experience, recommend `sp-design`
-before implementation rather than treating visual style as an implementation
-detail.
+before implementation, then wait for the user's explicit invocation rather than
+treating visual style as an implementation detail.
 
 ## Design Thinking
 

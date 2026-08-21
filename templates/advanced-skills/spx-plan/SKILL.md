@@ -32,6 +32,15 @@ unknowns, and zero open conflicts. Fail closed to the owning upstream workflow
 when any gate fails. Verify architecture claims against cognition-selected live
 repository paths.
 
+If Design ran after that planning-ready spec, require a current
+`formal-post-specify` receipt and verify it with `specify-runtime design adoption
+<feature-ref> --scope <exact-surface> --binding-ref <source-spec-ref>
+--binding-sha256 <source-spec-sha256> --expected-change <UD-ID> --format json`.
+The unchanged source spec remains requirements/acceptance truth; the receipt is
+the exact Design overlay. Do not run a second Specify or resolve “latest”. A
+receipt/spec digest mismatch blocks Plan; a real requirements change routes to
+Specify.
+
 Treat `plan-contract.json#/test_design_gate/decision` as exactly
 `not_selected`, `selected`, or `required`. A selected/required binding may be
 all-null while production is pending; partial binding is invalid. When Plan
@@ -98,7 +107,7 @@ contract sections, original fidelity sources, and the spec design contract. Set
 surface/platform classification, approved visual,
 preview/manifest/handoff SHA-256 values, immutable handoff ref, selected `DS-*`
 decisions and `DH-*` contracts, component/color-mode/responsive/motion
-contracts, reference intents, real content/image plans, design-system
+contracts, exact `style_authority`, reference intents, real content/image plans, design-system
 adoption, required states, must-preserve rules, real entry points,
 viewport/state acceptance matrix, comparison tolerance, accepted deviations,
 and the evidence triad. Carry verified cognition routes into the compact

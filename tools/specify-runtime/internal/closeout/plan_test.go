@@ -56,11 +56,111 @@ func TestRunPlansInlinePayloadModeForKnownMappedChange(t *testing.T) {
 	if !reflect.DeepEqual(payload.UpdateArgv, wantArgv) {
 		t.Fatalf("UpdateArgv = %#v", payload.UpdateArgv)
 	}
-	if !strings.Contains(payload.CommandSafetyNote, "never create a payload file") {
-		t.Fatalf("CommandSafetyNote = %q, want inline safety guidance", payload.CommandSafetyNote)
+	if !strings.Contains(payload.CommandSafetyNote, "stdin") || !strings.Contains(payload.CommandSafetyNote, "without shell interpolation") {
+		t.Fatalf("CommandSafetyNote = %q, want stdin safety guidance", payload.CommandSafetyNote)
 	}
 	if !containsCloseoutString(payload.RequiredAgentFields, "verification") || !containsCloseoutString(payload.RequiredAgentFields, "behavior_surfaces") {
 		t.Fatalf("RequiredAgentFields = %#v", payload.RequiredAgentFields)
+	}
+}
+
+func TestRunReturnsSharedCloseoutApplyArgv(t *testing.T) {
+	root, paths := initCloseoutFixture(t)
+	writeCloseoutFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"apply\" }\n")
+
+	payload, err := Run(paths, Input{
+		Workflow:           "sp-implement",
+		ScopeDir:           ".specify/features/001-apply",
+		ExplicitPaths:      []string{"src/app.go"},
+		IncludeWorkingTree: true,
+		IncludeUntracked:   true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"specify-runtime", "cognition", "closeout", "apply",
+		"--workflow", "sp-implement",
+		"--scope-dir", ".specify/features/001-apply",
+		"--payload-json", "-",
+		"--reason", "workflow-finalize",
+		"--format", "json",
+	}
+	if !reflect.DeepEqual(payload.ApplyArgv, want) {
+		t.Fatalf("ApplyArgv = %#v, want %#v", payload.ApplyArgv, want)
+	}
+	if !strings.Contains(payload.ApplyCommand, "cognition closeout apply") {
+		t.Fatalf("ApplyCommand = %q", payload.ApplyCommand)
+	}
+	if payload.RecommendedNextCommand != "fill_payload_draft_then_closeout_apply" {
+		t.Fatalf("RecommendedNextCommand = %q", payload.RecommendedNextCommand)
+	}
+}
+
+func TestRunLargeFilledPayloadKeepsWorkflowApplyArgvBounded(t *testing.T) {
+	root, paths := initCloseoutFixture(t)
+	writeCloseoutFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"large\" }\n")
+
+	payload, err := Run(paths, Input{
+		Workflow:      "sp-implement",
+		ScopeDir:      ".specify/features/001-large",
+		ExplicitPaths: []string{"src/app.go"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.PayloadDraft == nil {
+		t.Fatal("PayloadDraft is nil")
+	}
+	payload.PayloadDraft.ConfidenceNotes = []string{strings.Repeat("large-closeout-evidence-", 4096)}
+	filled, err := json.Marshal(payload.PayloadDraft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filled) <= 32*1024 {
+		t.Fatalf("filled payload is only %d bytes; test must exceed the Windows argv danger zone", len(filled))
+	}
+
+	want := []string{
+		"specify-runtime", "cognition", "closeout", "apply",
+		"--workflow", "sp-implement",
+		"--scope-dir", ".specify/features/001-large",
+		"--payload-json", "-",
+		"--reason", "workflow-finalize",
+		"--format", "json",
+	}
+	if !reflect.DeepEqual(payload.ApplyArgv, want) {
+		t.Fatalf("ApplyArgv = %#v, want stdin-safe %#v", payload.ApplyArgv, want)
+	}
+	if got := len(strings.Join(payload.ApplyArgv, "")); got >= 4096 {
+		t.Fatalf("ApplyArgv is %d bytes; workflow argv must stay bounded independently of payload size", got)
+	}
+	if !containsCloseoutString(payload.UpdateArgv, "<inline-json>") {
+		t.Fatalf("UpdateArgv = %#v, low-level compatibility/debug argv must remain available", payload.UpdateArgv)
+	}
+}
+
+func TestRunExplicitScopeModeBlocksWithoutWorkflowOwnedPath(t *testing.T) {
+	root, paths := initCloseoutFixture(t)
+	writeCloseoutFile(t, root, "src/app.go", "package app\n")
+
+	payload, err := Run(paths, Input{
+		Workflow:           "sp-quick",
+		ScopeMode:          "explicit",
+		IncludeWorkingTree: true,
+		IncludeUntracked:   true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked", payload.Status)
+	}
+	if len(payload.Errors) == 0 || !strings.Contains(payload.Errors[0], "--changed-path") {
+		t.Fatalf("Errors = %#v, want explicit changed-path recovery", payload.Errors)
+	}
+	if payload.PayloadDraft != nil || len(payload.ApplyArgv) != 0 {
+		t.Fatalf("payload = %#v, explicit mode must not broad-scan a draft", payload)
 	}
 }
 
@@ -170,6 +270,44 @@ func TestRunQueuesUnknownPathDispositionWithoutBlockingKnownUnknown(t *testing.T
 	}
 }
 
+func TestRunUsesExplicitPathsAsWorkflowOwnedCloseoutScope(t *testing.T) {
+	root, paths := initCloseoutFixture(t)
+	writeCloseoutFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"owned\" }\n")
+	writeCloseoutFile(t, root, "src/unrelated.go", "package app\n\nfunc Unrelated() string { return \"dirty\" }\n")
+	runCloseoutGit(t, root, "add", "src/unrelated.go")
+	runCloseoutGit(t, root, "commit", "-m", "unrelated committed change")
+	writeCloseoutFile(t, root, "src/untracked.go", "package app\n\nfunc Untracked() string { return \"noise\" }\n")
+
+	payload, err := Run(paths, Input{
+		Workflow:           "quick",
+		ExplicitPaths:      []string{"src/app.go"},
+		IncludeWorkingTree: true,
+		IncludeUntracked:   true,
+	})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if payload.Status != "ok" {
+		t.Fatalf("Status = %q, errors=%#v", payload.Status, payload.Errors)
+	}
+	if payload.PayloadDraft == nil {
+		t.Fatal("PayloadDraft is nil")
+	}
+	if !reflect.DeepEqual(payload.PayloadDraft.ChangedPaths, []string{"src/app.go"}) {
+		t.Fatalf("ChangedPaths = %#v, want only explicit workflow-owned path", payload.PayloadDraft.ChangedPaths)
+	}
+	if !reflect.DeepEqual(payload.PayloadDraft.ScopePaths, []string{"src/app.go"}) {
+		t.Fatalf("ScopePaths = %#v, want only explicit workflow-owned path", payload.PayloadDraft.ScopePaths)
+	}
+	if !reflect.DeepEqual(payload.PayloadDraft.Boundary.WorkflowOwnedPaths, []string{"src/app.go"}) {
+		t.Fatalf("WorkflowOwnedPaths = %#v, want explicit workflow-owned path", payload.PayloadDraft.Boundary.WorkflowOwnedPaths)
+	}
+	if containsCloseoutString(payload.PayloadDraft.ChangedPaths, "src/unrelated.go") || containsCloseoutString(payload.PayloadDraft.ChangedPaths, "src/untracked.go") {
+		t.Fatalf("ChangedPaths = %#v, unrelated repository state leaked into mutation closeout", payload.PayloadDraft.ChangedPaths)
+	}
+}
+
 func TestRunPayloadDraftPreservesMappedRenameOperationAndOldPath(t *testing.T) {
 	root, paths := initCloseoutFixture(t)
 	base := runCloseoutGit(t, root, "rev-parse", "HEAD")
@@ -199,6 +337,16 @@ func TestRunPayloadDraftPreservesMappedRenameOperationAndOldPath(t *testing.T) {
 	}
 	if len(payload.PayloadDraft.UnknownPathDispositions) != 0 {
 		t.Fatalf("UnknownPathDispositions = %#v, want none for mapped rename", payload.PayloadDraft.UnknownPathDispositions)
+	}
+	wantEndpoints := []string{"src/app.go", "src/renamed-app.go"}
+	if !reflect.DeepEqual(payload.PayloadDraft.ChangedPaths, wantEndpoints) {
+		t.Fatalf("ChangedPaths = %#v, want both rename endpoints %#v", payload.PayloadDraft.ChangedPaths, wantEndpoints)
+	}
+	if !reflect.DeepEqual(payload.PayloadDraft.ScopePaths, wantEndpoints) {
+		t.Fatalf("ScopePaths = %#v, want both rename endpoints %#v", payload.PayloadDraft.ScopePaths, wantEndpoints)
+	}
+	if !reflect.DeepEqual(payload.PayloadDraft.Boundary.WorkflowOwnedPaths, wantEndpoints) {
+		t.Fatalf("WorkflowOwnedPaths = %#v, want both rename endpoints %#v", payload.PayloadDraft.Boundary.WorkflowOwnedPaths, wantEndpoints)
 	}
 }
 
@@ -262,7 +410,7 @@ func TestRunPreservesDeltaSessionMode(t *testing.T) {
 	if !reflect.DeepEqual(payload.UpdateArgv, []string{"specify-runtime", "cognition", "update", "--delta-session", "D-session", "--reason", "workflow-finalize", "--format", "json"}) {
 		t.Fatalf("UpdateArgv = %#v", payload.UpdateArgv)
 	}
-	if payload.RecommendedNextCommand != "fill_delta_append_draft_then_update" {
+	if payload.RecommendedNextCommand != "fill_delta_append_draft_then_closeout_apply" {
 		t.Fatalf("RecommendedNextCommand = %q", payload.RecommendedNextCommand)
 	}
 }

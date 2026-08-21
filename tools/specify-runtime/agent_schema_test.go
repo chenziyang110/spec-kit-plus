@@ -64,6 +64,62 @@ func TestAPIShowExpandsEveryAdvertisedCapability(t *testing.T) {
 	}
 }
 
+func TestAPIShowWorkBoardCapabilitiesPublishCoordinationContracts(t *testing.T) {
+	for _, capabilityID := range []string{
+		"board.show",
+		"board.owner",
+		"board.reconcile",
+		"board.branch-policy",
+		"board.feature-bootstrap",
+		"work.begin",
+		"work.show",
+		"work.scope-add",
+		"work.checkpoint",
+		"work.block",
+		"work.finish",
+		"work.abandon",
+		"work.interrupt",
+		"work.resume",
+	} {
+		t.Run(capabilityID, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"api", "show", capabilityID, "--format", "json"}, &stdout, &stderr, "test")
+			if code != 0 {
+				t.Fatalf("api show %s exit code = %d; stdout=%s stderr=%s", capabilityID, code, stdout.String(), stderr.String())
+			}
+			payload := decodeJSONObject(t, stdout.Bytes())
+			capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+			for _, field := range []string{"summary", "usage", "side_effect", "input_contract"} {
+				value, ok := capability[field].(string)
+				if !ok || strings.TrimSpace(value) == "" || value == "Runtime capability." {
+					t.Fatalf("api show %s capability.%s = %#v, want a specific non-empty contract", capabilityID, field, capability[field])
+				}
+			}
+		})
+	}
+}
+
+func TestAPIShowRunPacketCapabilitiesRequireCompiledReceiptDigest(t *testing.T) {
+	for _, capabilityID := range []string{"run.launch", "run.supervise"} {
+		t.Run(capabilityID, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"api", "show", capabilityID, "--format", "json"}, &stdout, &stderr, "test")
+			if code != 0 {
+				t.Fatalf("api show %s exit code = %d; stdout=%s stderr=%s", capabilityID, code, stdout.String(), stderr.String())
+			}
+			capability := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "capability")
+			usage, _ := capability["usage"].(string)
+			contract, _ := capability["input_contract"].(string)
+			if !strings.Contains(usage, "--work-packet-sha256 <sha256>") {
+				t.Fatalf("api show %s usage = %q, want packet receipt digest", capabilityID, usage)
+			}
+			if !strings.Contains(contract, "exact compiled bytes") || !strings.Contains(contract, "sha256") {
+				t.Fatalf("api show %s input_contract = %q, want exact-byte digest binding", capabilityID, contract)
+			}
+		})
+	}
+}
+
 func TestAPIShowArtifactScaffoldPublishesSchemaAndCatalogRoute(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"api", "show", "--id", "artifact.scaffold", "--format", "json"}, &stdout, &stderr, "test")
@@ -282,7 +338,14 @@ func TestAPIShowRunSupervisePublishesForcedWorkspaceEnvironmentContract(t *testi
 	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
 	usage, _ := capability["usage"].(string)
 	contract, _ := capability["input_contract"].(string)
-	if !strings.Contains(usage, "run supervise") || !strings.Contains(usage, "--workspace-policy") || !strings.Contains(contract, "forces child cwd") || !strings.Contains(contract, "SPECIFY_RUN_*") || !strings.Contains(contract, "WSLENV") || !strings.Contains(contract, "primary workspace") || !strings.Contains(contract, "isolated") {
+	if !strings.Contains(usage, "run supervise") || !strings.Contains(usage, "--workspace-policy") ||
+		!strings.Contains(usage, "--work-intents-json") || !strings.Contains(usage, "--work-packet-file") ||
+		!strings.Contains(contract, "task packet") || !strings.Contains(contract, "forces child cwd") ||
+		!strings.Contains(contract, "SPECIFY_RUN_*") || !strings.Contains(contract, "SPECIFY_WORK_*") ||
+		!strings.Contains(contract, "SPECIFY_FEATURE_BRANCH_POLICY") ||
+		!strings.Contains(contract, "automatically reconciles expired Work Board leases") ||
+		!strings.Contains(contract, "WSLENV") || !strings.Contains(contract, "primary workspace") ||
+		!strings.Contains(contract, "isolated") {
 		t.Fatalf("run supervise capability = %#v", capability)
 	}
 }
@@ -297,7 +360,12 @@ func TestAPIShowRunLaunchPublishesSingleCallAdapterContract(t *testing.T) {
 	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
 	usage, _ := capability["usage"].(string)
 	contract, _ := capability["input_contract"].(string)
-	if !strings.Contains(usage, "run launch") || !strings.Contains(usage, "--workspace-policy") || !strings.Contains(contract, "single call") || !strings.Contains(contract, "queues") || !strings.Contains(contract, "forces child cwd") || !strings.Contains(contract, "pre-launch Snapshot") {
+	if !strings.Contains(usage, "run launch") || !strings.Contains(usage, "--workspace-policy") ||
+		!strings.Contains(usage, "--work-intents-json") || !strings.Contains(usage, "--work-packet-file") ||
+		!strings.Contains(contract, "task packet") || !strings.Contains(contract, "single call") ||
+		!strings.Contains(contract, "queues") || !strings.Contains(contract, "forces child cwd") ||
+		!strings.Contains(contract, "automatically registers one Work Board item") ||
+		!strings.Contains(contract, "pre-launch Snapshot") {
 		t.Fatalf("run launch capability = %#v", capability)
 	}
 }

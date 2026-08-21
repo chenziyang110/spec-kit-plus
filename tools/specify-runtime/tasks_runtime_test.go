@@ -10,6 +10,52 @@ import (
 	"testing"
 )
 
+func TestTaskMarkdownProjectsProfessionalUIContractWithoutBreakingTable(t *testing.T) {
+	payload := map[string]any{
+		"tasks": []any{
+			map[string]any{
+				"id": "T001", "objective": "Implement settings UI", "status": "pending",
+				"parallel": false, "story_id": "US1", "read_scope": []any{},
+				"expected_write_scope": []any{"src/settings.tsx"}, "required_refs": []any{},
+				"test_case_refs": []any{}, "test_data_refs": []any{}, "dependencies": []any{},
+				"acceptance": []any{}, "verification": []any{}, "consequence_obligation_ids": []any{},
+				"ui_contract": map[string]any{
+					"fidelity_level":           "high",
+					"interaction_matrix":       []any{map[string]any{"immediate_feedback": "screen | dialog"}},
+					"editing_matrix":           []any{map[string]any{"surface": "settings | form"}},
+					"required_states":          []any{"ready"},
+					"data_state_matrix":        []any{map[string]any{"state": "ready"}},
+					"accessibility_matrix":     []any{map[string]any{"surface": "settings form"}},
+					"navigation_matrix":        []any{map[string]any{"entry": "settings index"}},
+					"content_matrix":           []any{map[string]any{"copy": "Saved | retry"}},
+					"component_contracts":      []any{map[string]any{"component": "settings form"}},
+					"responsive_matrix":        []any{map[string]any{"viewport": "390"}},
+					"motion_contract":          map[string]any{"purpose": "feedback | continuity"},
+					"usability_validation":     map[string]any{"risk_level": "medium"},
+					"visual_acceptance_matrix": []any{map[string]any{"viewport": "390"}},
+					"required_evidence":        []any{"visual_capture"},
+				},
+			},
+		},
+	}
+
+	markdown, err := renderTaskControlMarkdown(payload, "Settings")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{
+		"accessibility_matrix", "navigation_matrix", "content_matrix",
+		"motion_contract", "usability_validation",
+	} {
+		if !strings.Contains(markdown, "| "+field+" |") {
+			t.Fatalf("missing %s projection:\n%s", field, markdown)
+		}
+	}
+	if !strings.Contains(markdown, `screen \| dialog`) || !strings.Contains(markdown, `Saved \| retry`) {
+		t.Fatalf("markdown table cell pipes were not escaped:\n%s", markdown)
+	}
+}
+
 func TestUnifiedTaskControlPlaneOwnsAuthoringAndLifecycle(t *testing.T) {
 	root := t.TempDir()
 	templates := filepath.Join(root, ".specify", "templates")
@@ -40,7 +86,7 @@ func TestUnifiedTaskControlPlaneOwnsAuthoringAndLifecycle(t *testing.T) {
 		"write_scope": []any{}, "forbidden_drift": []any{}, "acceptance_refs": []any{},
 		"must_preserve_refs": []any{}, "consequence_obligation_refs": []any{},
 		"capability_operation_refs": []any{}, "fidelity_refs": []any{}, "ui_contract": map[string]any{
-			"fidelity_level": "none", "required_states": []any{}, "required_evidence": []any{}, "must_not": []any{},
+			"fidelity_level": "none", "interaction_matrix": []any{}, "editing_matrix": []any{}, "required_states": []any{}, "data_state_matrix": []any{}, "required_evidence": []any{}, "must_not": []any{},
 		},
 		"validation_policy": map[string]any{}, "task_checks": []any{}, "required_validation": []any{},
 		"required_consumer_evidence": []any{}, "done_condition": []any{},
@@ -74,7 +120,7 @@ func TestUnifiedTaskControlPlaneOwnsAuthoringAndLifecycle(t *testing.T) {
 	indexedTasks, _ := index["tasks"].([]any)
 	indexedTask, _ := indexedTasks[0].(map[string]any)
 	ui, _ := indexedTask["ui_contract"].(map[string]any)
-	if ui["fidelity_level"] != "high" || ui["required_states"] == nil || ui["must_not"] == nil {
+	if ui["fidelity_level"] != "high" || ui["interaction_matrix"] == nil || ui["editing_matrix"] == nil || ui["required_states"] == nil || ui["data_state_matrix"] == nil || ui["must_not"] == nil {
 		t.Fatalf("CLI did not expand stable UI defaults: %#v", ui)
 	}
 
@@ -671,6 +717,87 @@ func newImplementedTaskRecoveryFixture(t *testing.T) (string, string, string) {
 	}
 	t.Cleanup(func() { _ = os.Chdir(oldCWD) })
 	return root, feature, filepath.ToSlash(filepath.Join(".specify", "features", featureID))
+}
+
+func TestImplementTaskAcceptEnforcesRequiredHumanUsabilityValidation(t *testing.T) {
+	root, feature, featureRef := newImplementedTaskRecoveryFixture(t)
+	templatesDir := filepath.Join(root, ".specify", "templates")
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskRuntimeFixture(t, filepath.Join(templatesDir, "task-packet-template.json"), map[string]any{
+		"ui_contract": map[string]any{
+			"fidelity_level": "none", "usability_validation": map[string]any{},
+		},
+	})
+	indexPath := filepath.Join(feature, "task-index.json")
+	index := readImplementJSONFile(t, indexPath)
+	tasks, _ := index["tasks"].([]any)
+	task, _ := tasks[1].(map[string]any)
+	task["ui_contract"] = map[string]any{
+		"usability_validation": map[string]any{
+			"risk_level": "high", "methods": []any{"moderated task-based usability test"},
+			"critical_tasks":        []any{"Complete the irreversible action"},
+			"success_criteria":      []any{"Complete without a critical error"},
+			"human_review_required": true,
+		},
+	}
+	writeTaskRuntimeFixture(t, indexPath, index)
+
+	lifecyclePath := filepath.Join(feature, "implementation-review", "tasks", "T002.json")
+	lifecycle := readImplementJSONFile(t, lifecyclePath)
+	lifecycle["validation"] = []any{map[string]any{"command": "required check", "status": "passed"}}
+	lifecycle["ui_verification"] = map[string]any{
+		"applicable": true, "contract_check": "passed", "runtime_evidence": "passed",
+		"visual_comparison": "passed", "fidelity_status": "passed", "reviewer": "agent",
+		"human_review_ref": "evidence/usability-review.md",
+	}
+	writeTaskRuntimeFixture(t, lifecyclePath, lifecycle)
+
+	exit, rejected := runTaskRuntimeCommand(t, []string{
+		"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T002", "--format", "json",
+	})
+	if exit == 0 || !strings.Contains(rejected.Summary, "human usability validation requires a human reviewer") {
+		t.Fatalf("agent-only usability approval unexpectedly passed: exit=%d env=%#v", exit, rejected)
+	}
+
+	lifecycle = readImplementJSONFile(t, lifecyclePath)
+	verification, _ := lifecycle["ui_verification"].(map[string]any)
+	verification["reviewer"] = "human"
+	writeTaskRuntimeFixture(t, lifecyclePath, lifecycle)
+	exit, rejected = runTaskRuntimeCommand(t, []string{
+		"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T002", "--format", "json",
+	})
+	if exit == 0 || !strings.Contains(rejected.Summary, "human_review_ref must reference an existing artifact") {
+		t.Fatalf("missing human review artifact unexpectedly passed: exit=%d env=%#v", exit, rejected)
+	}
+
+	evidenceDir := filepath.Join(feature, "evidence")
+	if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(evidenceDir, "usability-review.md"), []byte{}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exit, rejected = runTaskRuntimeCommand(t, []string{
+		"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T002", "--format", "json",
+	})
+	if exit == 0 || !strings.Contains(rejected.Summary, "human_review_ref artifact must be non-empty") {
+		t.Fatalf("empty human review artifact unexpectedly passed: exit=%d env=%#v", exit, rejected)
+	}
+	if err := os.WriteFile(
+		filepath.Join(evidenceDir, "usability-review.md"),
+		[]byte("# Human usability review\n\nPASS: critical task met the approved success criteria.\n"),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+	accepted := assertTaskRuntimeCommandOK(t, []string{
+		"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T002", "--format", "json",
+	})
+	if accepted["task_status"] != "accepted" {
+		t.Fatalf("human usability evidence did not unblock acceptance: %#v", accepted)
+	}
 }
 
 func assertTaskRuntimeCommandOK(t *testing.T, args []string) map[string]any {

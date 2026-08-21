@@ -11,6 +11,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -33,9 +35,17 @@ func initialAttemptLeaseDuration(activeLease time.Duration) time.Duration {
 
 // SuperviseRunParams describes one tokenized child process. Argv is passed
 // directly to the operating system; it is never joined into shell text.
+type SuperviseWorkParams struct {
+	TaskRef      string
+	Summary      string
+	AgentID      string
+	WriteIntents []WriteIntentSpec
+}
+
 type SuperviseRunParams struct {
 	RunID                string
 	AdapterID            string
+	Work                 SuperviseWorkParams
 	Argv                 []string
 	ChildStdin           io.Reader
 	ChildStdout          io.Writer
@@ -51,15 +61,17 @@ type SuperviseRunParams struct {
 // child exits. A nonzero ExitCode is a successfully recorded failed Run, not a
 // supervisor infrastructure error.
 type SupervisedRun struct {
-	Run         Run
-	Attempt     Attempt
-	Activity    Activity
-	Workspace   Workspace
-	Snapshot    Snapshot
-	Attestation WorkspaceAttestation
-	Resources   RunResourceNamespace
-	Result      RunResult
-	ExitCode    int
+	Run                 Run
+	Attempt             Attempt
+	Activity            Activity
+	Workspace           Workspace
+	Snapshot            Snapshot
+	Attestation         WorkspaceAttestation
+	Resources           RunResourceNamespace
+	Result              RunResult
+	Work                WorkItem
+	FeatureBranchPolicy FeatureBranchPolicy
+	ExitCode            int
 }
 
 // SuperviseRun owns the complete foreground lifecycle: stale-owner recovery,
@@ -96,6 +108,9 @@ func SuperviseRun(
 	now := time.Now().UTC()
 	if _, err := store.ReconcileStaleSupervisors(ctx, now, now.Add(-params.SupervisorStaleAfter)); err != nil {
 		return SupervisedRun{}, fmt.Errorf("reconcile stale supervisors: %w", err)
+	}
+	if _, err := store.ReconcileRepositoryWork(ctx, now); err != nil {
+		return SupervisedRun{}, fmt.Errorf("reconcile expired Work Board items: %w", err)
 	}
 
 	lifecycleCtx, cancelLifecycle := context.WithCancel(ctx)
@@ -212,6 +227,38 @@ func SuperviseRun(
 	if err != nil {
 		return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "create workspace attestation", err)
 	}
+	automaticWork, err := beginAutomaticRunWork(
+		lifecycleCtx,
+		store,
+		prepared.Run,
+		prepared.Workspace,
+		params.AdapterID,
+		params.Work,
+		time.Now().UTC().Add(initialAttemptLeaseDuration(params.LeaseDuration)),
+	)
+	if err != nil {
+		return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "register automatic work board item", err)
+	}
+	automaticWorkFinalized := false
+	defer func() {
+		if automaticWork.WorkID == "" || automaticWorkFinalized || returnErr == nil {
+			return
+		}
+		interruptedWork, interruptErr := interruptAutomaticRunWork(
+			store,
+			automaticWork,
+			"supervised run interrupted before terminal closeout",
+		)
+		if interruptErr == nil {
+			automaticWork = interruptedWork
+			return
+		}
+		returnErr = errors.Join(returnErr, interruptErr)
+	}()
+	branchDecision, err := store.ResolveFeatureBranchPolicy(lifecycleCtx, automaticWork.WorkID, time.Now().UTC())
+	if err != nil {
+		return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "resolve feature branch policy", err)
+	}
 
 	attempt, err := store.IssueAttempt(lifecycleCtx, IssueAttemptParams{
 		AttemptID:                 supervisedAggregateID("attempt", claimed.RunID, generation),
@@ -229,13 +276,15 @@ func SuperviseRun(
 		return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "issue attempt", err)
 	}
 	result = SupervisedRun{
-		Run:         prepared.Run,
-		Attempt:     attempt,
-		Activity:    prepared.Activity,
-		Workspace:   prepared.Workspace,
-		Snapshot:    snapshot,
-		Attestation: attestation,
-		ExitCode:    -1,
+		Run:                 prepared.Run,
+		Attempt:             attempt,
+		Activity:            prepared.Activity,
+		Workspace:           prepared.Workspace,
+		Snapshot:            snapshot,
+		Attestation:         attestation,
+		Work:                automaticWork,
+		FeatureBranchPolicy: branchDecision.Policy,
+		ExitCode:            -1,
 	}
 	resources, err := prepareRunResourceNamespace(
 		lifecycleCtx,
@@ -280,6 +329,8 @@ func SuperviseRun(
 		prepared.Run,
 		attempt,
 		prepared.Workspace,
+		automaticWork,
+		branchDecision.Policy,
 	)...)
 	command.Env = append(command.Env, supervisedResourceEnvironment(resources)...)
 	command.Stdin = params.ChildStdin
@@ -358,6 +409,20 @@ func SuperviseRun(
 				return result, fmt.Errorf("heartbeat supervised attempt: %w", err)
 			}
 			result.Attempt = attempt
+			if automaticWork.WorkID != "" {
+				automaticWork, err = store.RenewWorkLease(
+					lifecycleCtx,
+					RenewWorkLeaseParams{
+						WorkID: automaticWork.WorkID, Fence: automaticWork.Fence,
+						LeaseUntil: time.Now().UTC().Add(params.LeaseDuration),
+					},
+				)
+				if err != nil {
+					stopAndWait()
+					return result, fmt.Errorf("renew automatic Work Board lease: %w", err)
+				}
+				result.Work = automaticWork
+			}
 		}
 	}
 	if closeErr := processes.close(); closeErr != nil {
@@ -381,6 +446,16 @@ func SuperviseRun(
 		if err != nil {
 			return result, supervisionOperationError(ctx, heartbeatErrors, "renew candidate snapshot lease", err)
 		}
+		if automaticWork.WorkID != "" {
+			automaticWork, err = store.RenewWorkLease(lifecycleCtx, RenewWorkLeaseParams{
+				WorkID: automaticWork.WorkID, Fence: automaticWork.Fence,
+				LeaseUntil: time.Now().UTC().Add(params.LeaseDuration),
+			})
+			if err != nil {
+				return result, supervisionOperationError(ctx, heartbeatErrors, "renew candidate Work Board lease", err)
+			}
+			result.Work = automaticWork
+		}
 		postprocessCtx, cancelPostprocess := context.WithCancel(lifecycleCtx)
 		postprocessErrors, postprocessDone := superviseAttemptHeartbeat(
 			postprocessCtx,
@@ -388,6 +463,8 @@ func SuperviseRun(
 			store,
 			attempt.AttemptID,
 			attempt.Fence,
+			automaticWork.WorkID,
+			automaticWork.Fence,
 			params.HeartbeatInterval,
 			params.LeaseDuration,
 		)
@@ -438,20 +515,287 @@ func SuperviseRun(
 	if err != nil {
 		return result, supervisionOperationError(ctx, heartbeatErrors, "finish attempt", err)
 	}
+	if automaticWork.WorkID != "" {
+		observedPaths, observedErr := automaticRunObservedPaths(
+			lifecycleCtx,
+			store,
+			finished,
+		)
+		if observedErr != nil {
+			return result, supervisionOperationError(ctx, heartbeatErrors, "capture automatic work board paths", observedErr)
+		}
+		if len(observedPaths) != 0 {
+			latestWork, _, getErr := store.GetWork(lifecycleCtx, automaticWork.WorkID)
+			if getErr != nil {
+				return result, supervisionOperationError(ctx, heartbeatErrors, "load automatic Work Board item", getErr)
+			}
+			if latestWork.Fence != automaticWork.Fence {
+				return result, supervisionOperationError(ctx, heartbeatErrors, "load automatic Work Board item",
+					fmt.Errorf("%w: work %q holds fence %d, received %d", ErrStaleFence,
+						latestWork.WorkID, latestWork.Fence, automaticWork.Fence))
+			}
+			automaticWork = latestWork
+			automaticWork, err = checkpointAutomaticRunWork(
+				lifecycleCtx,
+				store,
+				automaticWork,
+				extendAutomaticWorkLease(automaticWork, params.LeaseDuration),
+				"supervised run reached terminal state",
+				observedPaths,
+			)
+			if err != nil {
+				return result, supervisionOperationError(ctx, heartbeatErrors, "checkpoint automatic work board item", err)
+			}
+		}
+		if outcome == AttemptOutcomeFailed {
+			automaticWork, err = blockAutomaticRunWork(lifecycleCtx, store, automaticWork, reason)
+			if err != nil {
+				return result, supervisionOperationError(ctx, heartbeatErrors, "block automatic Work Board item", err)
+			}
+		} else {
+			latestWork, _, getErr := store.GetWork(lifecycleCtx, automaticWork.WorkID)
+			if getErr != nil {
+				return result, supervisionOperationError(ctx, heartbeatErrors, "load automatic Work Board item", getErr)
+			}
+			automaticWork = latestWork
+			automaticWork, err = store.TransitionWork(lifecycleCtx, TransitionWorkParams{
+				WorkID:           automaticWork.WorkID,
+				ExpectedRevision: automaticWork.Revision,
+				Fence:            automaticWork.Fence,
+				Target:           WorkCompleted,
+				Reason:           reason,
+				NextAction:       "supervised run reached terminal state",
+			})
+			if err != nil {
+				return result, supervisionOperationError(ctx, heartbeatErrors, "finish automatic work board item", err)
+			}
+		}
+		automaticWorkFinalized = true
+		result.Work = automaticWork
+	}
 	return SupervisedRun{
-		Run:         finished.Run,
-		Attempt:     finished.Attempt,
-		Activity:    finished.Activity,
-		Workspace:   finished.Workspace,
-		Snapshot:    snapshot,
-		Attestation: attestation,
-		Resources:   resources,
-		Result:      finished.Result,
-		ExitCode:    exitCode,
+		Run:                 finished.Run,
+		Attempt:             finished.Attempt,
+		Activity:            finished.Activity,
+		Workspace:           finished.Workspace,
+		Snapshot:            snapshot,
+		Attestation:         attestation,
+		Resources:           resources,
+		Result:              finished.Result,
+		Work:                automaticWork,
+		FeatureBranchPolicy: branchDecision.Policy,
+		ExitCode:            exitCode,
 	}, nil
 }
 
-func supervisedRunEnvironment(run Run, attempt Attempt, workspace Workspace) []string {
+func beginAutomaticRunWork(
+	ctx context.Context,
+	store *Store,
+	run Run,
+	workspace Workspace,
+	adapterID string,
+	requested SuperviseWorkParams,
+	leaseUntil time.Time,
+) (WorkItem, error) {
+	taskRef := strings.TrimSpace(requested.TaskRef)
+	if taskRef == "" {
+		taskRef = strings.Trim(strings.TrimSpace(run.SubjectType)+":"+strings.TrimSpace(run.SubjectID), ":")
+	}
+	summary := strings.TrimSpace(requested.Summary)
+	if summary == "" {
+		summary = "managed run " + run.RunID + " (" + run.Kind + ")"
+	}
+	agentID := strings.TrimSpace(requested.AgentID)
+	if agentID == "" {
+		agentID = adapterID
+	}
+	writeIntents := append([]WriteIntentSpec(nil), requested.WriteIntents...)
+	if len(writeIntents) == 0 {
+		writeIntents = automaticRunWriteIntents(run)
+	}
+	params := BeginWorkParams{
+		WorkID:        automaticRunWorkID(run.RunID, workspace.Generation),
+		RunID:         run.RunID,
+		TaskRef:       taskRef,
+		Summary:       summary,
+		AgentID:       agentID,
+		AdapterID:     adapterID,
+		WorkspaceRoot: workspace.RootPath,
+		BaseCommit:    workspace.BaseCommit,
+		NextAction:    "supervised child process running",
+		LeaseUntil:    leaseUntil,
+		WriteIntents:  writeIntents,
+	}
+	work, _, err := store.BeginWork(ctx, params)
+	if err == nil {
+		return work, nil
+	}
+	if !errors.Is(err, ErrAlreadyExists) {
+		return WorkItem{}, err
+	}
+	existing, _, getErr := store.GetWork(ctx, params.WorkID)
+	if getErr != nil {
+		return WorkItem{}, getErr
+	}
+	if existing.Status != WorkInterrupted {
+		return WorkItem{}, err
+	}
+	return store.ResumeWork(ctx, ResumeWorkParams{
+		WorkID:           existing.WorkID,
+		ExpectedRevision: existing.Revision,
+		AgentID:          agentID,
+		AdapterID:        adapterID,
+		WorkspaceRoot:    workspace.RootPath,
+		BaseCommit:       workspace.BaseCommit,
+		NextAction:       "supervised child process resumed",
+		LeaseUntil:       leaseUntil,
+	})
+}
+
+func checkpointAutomaticRunWork(
+	ctx context.Context,
+	store *Store,
+	work WorkItem,
+	leaseUntil time.Time,
+	nextAction string,
+	observedPaths []string,
+) (WorkItem, error) {
+	return store.CheckpointWork(ctx, CheckpointWorkParams{
+		WorkID:           work.WorkID,
+		ExpectedRevision: work.Revision,
+		Fence:            work.Fence,
+		LeaseUntil:       leaseUntil,
+		NextAction:       nextAction,
+		ObservedPaths:    observedPaths,
+	})
+}
+
+func interruptAutomaticRunWork(store *Store, work WorkItem, reason string) (WorkItem, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	latest, intents, err := store.GetWork(ctx, work.WorkID)
+	if err != nil {
+		return WorkItem{}, err
+	}
+	if latest.Fence != work.Fence {
+		return WorkItem{}, fmt.Errorf("%w: work %q holds fence %d, received %d", ErrStaleFence,
+			latest.WorkID, latest.Fence, work.Fence)
+	}
+	observedPaths, inspectErr := InspectWorkspaceChanges(ctx, latest.WorkspaceRoot)
+	if inspectErr != nil {
+		observedPaths = activeWorkIntentPaths(intents)
+		reason = strings.TrimSpace(reason) + "; workspace unavailable, declared scopes preserved"
+	}
+	return store.InterruptWork(ctx, InterruptWorkParams{
+		WorkID:           latest.WorkID,
+		ExpectedRevision: latest.Revision,
+		Fence:            latest.Fence,
+		Reason:           reason,
+		ObservedPaths:    observedPaths,
+	})
+}
+
+func blockAutomaticRunWork(ctx context.Context, store *Store, work WorkItem, reason string) (WorkItem, error) {
+	latest, _, err := store.GetWork(ctx, work.WorkID)
+	if err != nil {
+		return WorkItem{}, err
+	}
+	if latest.Fence != work.Fence {
+		return WorkItem{}, fmt.Errorf("%w: work %q holds fence %d, received %d", ErrStaleFence,
+			latest.WorkID, latest.Fence, work.Fence)
+	}
+	if latest.Status == WorkBlocked {
+		return latest, nil
+	}
+	return store.TransitionWork(ctx, TransitionWorkParams{
+		WorkID:           latest.WorkID,
+		ExpectedRevision: latest.Revision,
+		Fence:            latest.Fence,
+		Target:           WorkBlocked,
+		Reason:           reason,
+		NextAction:       "inspect the failed managed run before resuming or abandoning its scope",
+	})
+}
+
+func activeWorkIntentPaths(intents []WriteIntent) []string {
+	paths := make([]string, 0, len(intents))
+	for _, intent := range intents {
+		if intent.Status == WriteIntentActive || intent.Status == WriteIntentRecovery {
+			paths = append(paths, intent.Path)
+		}
+	}
+	return paths
+}
+
+func automaticRunObservedPaths(
+	ctx context.Context,
+	store *Store,
+	finished FinishedExecution,
+) ([]string, error) {
+	if finished.Result.ResultID != "" {
+		return store.ListRunResultPaths(ctx, finished.Result.ResultID)
+	}
+	return InspectWorkspaceChanges(ctx, finished.Workspace.RootPath)
+}
+
+func extendAutomaticWorkLease(work WorkItem, leaseDuration time.Duration) time.Time {
+	leaseUntil := time.Now().UTC().Add(leaseDuration)
+	currentLease := time.UnixMilli(work.LeaseUntilMS).UTC().Add(time.Millisecond)
+	if currentLease.After(leaseUntil) {
+		return currentLease
+	}
+	return leaseUntil
+}
+
+func automaticRunWorkID(runID string, generation int64) string {
+	return supervisedAggregateID("work", runID, generation)
+}
+
+func automaticRunWriteIntents(run Run) []WriteIntentSpec {
+	subjectID := strings.TrimSpace(run.SubjectID)
+	if subjectID == "" {
+		return nil
+	}
+	subjectType := strings.ToLower(strings.TrimSpace(run.SubjectType))
+	if subjectType == "feature" {
+		if subjectID == "." || subjectID == ".." || strings.TrimSpace(run.SubjectID) != run.SubjectID ||
+			strings.ContainsAny(subjectID, `/\\`) || strings.ContainsRune(subjectID, '\x00') {
+			return nil
+		}
+		featurePath := filepath.ToSlash(filepath.Join(".specify", "features", subjectID))
+		if _, _, err := normalizeWorkPath(featurePath, runtime.GOOS == "windows"); err != nil {
+			return nil
+		}
+		return []WriteIntentSpec{{
+			Path:       featurePath,
+			Operation:  WriteCreate,
+			Reason:     "automatic feature bootstrap scope from managed Run subject",
+			Confidence: IntentConfirmed,
+		}}
+	}
+	pathLikeSubject := subjectType == "file" || subjectType == "path" ||
+		strings.ContainsAny(subjectID, `/\`)
+	if !pathLikeSubject {
+		return nil
+	}
+	if _, _, err := normalizeWorkPath(subjectID, runtime.GOOS == "windows"); err != nil {
+		return nil
+	}
+	return []WriteIntentSpec{{
+		Path:       subjectID,
+		Operation:  WriteModify,
+		Reason:     "automatic write scope from managed Run subject",
+		Confidence: IntentConfirmed,
+	}}
+}
+
+func supervisedRunEnvironment(
+	run Run,
+	attempt Attempt,
+	workspace Workspace,
+	work WorkItem,
+	featureBranchPolicy FeatureBranchPolicy,
+) []string {
 	environment := []string{
 		"SPECIFY_RUN_MANAGED=1",
 		"SPECIFY_RUN_ID=" + run.RunID,
@@ -466,6 +810,9 @@ func supervisedRunEnvironment(run Run, attempt Attempt, workspace Workspace) []s
 		"SPECIFY_RUN_WORKSPACE_MODE=" + string(normalizeWorkspaceMode(workspace.Mode)),
 		"SPECIFY_RUN_WORKSPACE=" + workspace.RootPath,
 		"SPECIFY_RUN_PRIVATE_REF=" + workspace.PrivateRef,
+		"SPECIFY_WORK_ID=" + work.WorkID,
+		"SPECIFY_WORK_FENCE=" + strconv.FormatInt(work.Fence, 10),
+		"SPECIFY_FEATURE_BRANCH_POLICY=" + string(featureBranchPolicy),
 	}
 	return append(environment, "WSLENV="+supervisedRunWSLEnv(os.Getenv("WSLENV")))
 }
@@ -485,6 +832,9 @@ func supervisedRunWSLEnv(existing string) string {
 		"SPECIFY_RUN_WORKSPACE_MODE",
 		"SPECIFY_RUN_WORKSPACE/p",
 		"SPECIFY_RUN_PRIVATE_REF",
+		"SPECIFY_WORK_ID",
+		"SPECIFY_WORK_FENCE",
+		"SPECIFY_FEATURE_BRANCH_POLICY",
 		"SPECIFY_RUN_RESOURCE_ROOT/p",
 		"SPECIFY_RUN_TEMP/p",
 		"SPECIFY_RUN_CACHE/p",
@@ -522,6 +872,8 @@ func superviseAttemptHeartbeat(
 	store *Store,
 	attemptID string,
 	fence int64,
+	workID string,
+	workFence int64,
 	interval time.Duration,
 	leaseDuration time.Duration,
 ) (<-chan error, <-chan struct{}) {
@@ -548,6 +900,19 @@ func superviseAttemptHeartbeat(
 					errorsChannel <- err
 					cancel()
 					return
+				}
+				if workID != "" {
+					if _, err := store.RenewWorkLease(ctx, RenewWorkLeaseParams{
+						WorkID: workID, Fence: workFence,
+						LeaseUntil: time.Now().UTC().Add(leaseDuration),
+					}); err != nil {
+						if ctx.Err() != nil {
+							return
+						}
+						errorsChannel <- err
+						cancel()
+						return
+					}
 				}
 			}
 		}
@@ -593,6 +958,26 @@ func validateSuperviseRunParams(repository Repository, params SuperviseRunParams
 		if strings.ContainsRune(argument, '\x00') {
 			return fmt.Errorf("%w: child argv cannot contain NUL", ErrInvalidArgument)
 		}
+	}
+	for name, value := range map[string]string{
+		"work agent id": params.Work.AgentID,
+		"work task ref": params.Work.TaskRef,
+		"work summary":  params.Work.Summary,
+	} {
+		if strings.ContainsRune(value, '\x00') {
+			return fmt.Errorf("%w: %s cannot contain NUL", ErrInvalidArgument, name)
+		}
+	}
+	seenWorkPaths := make(map[string]struct{}, len(params.Work.WriteIntents))
+	for _, raw := range params.Work.WriteIntents {
+		spec, err := normalizeWriteIntentSpec(raw)
+		if err != nil {
+			return err
+		}
+		if _, duplicate := seenWorkPaths[spec.pathKey]; duplicate {
+			return fmt.Errorf("%w: duplicate managed write intent path %q", ErrInvalidArgument, spec.Path)
+		}
+		seenWorkPaths[spec.pathKey] = struct{}{}
 	}
 	if params.LeaseDuration <= 2*params.HeartbeatInterval {
 		return fmt.Errorf("%w: lease duration must exceed two heartbeat intervals", ErrInvalidArgument)

@@ -38,11 +38,13 @@ Current routing vocabulary:
 
 ## Process
 
-1. **Route first**: Select the owning `sp-*` workflow before dispatch. Common
-   canonical routes are `sp-quick`, `sp-debug`, `sp-map-scan`, `sp-map-build`,
-   and `sp-implement`. When telling the user what to type, use placeholders such
-   as `{{invoke:quick}}`, `{{invoke:debug}}`, `{{invoke:map-scan}}`,
-   `{{invoke:map-build}}`, or `{{invoke:implement}}`.
+1. **Route first**: Select the owning `sp-*` workflow before dispatch. Passive
+   invocation may enter `sp-quick` or `sp-debug` (and only the shared four-skill
+   allowlist). When showing those entrypoints to the user, use
+   `{{invoke:quick}}` or `{{invoke:debug}}`. For `sp-map-scan`, `sp-map-build`,
+   `sp-implement`, or any other non-allowlisted workflow, recommend `{{invoke:map-scan}}`,
+   `{{invoke:map-build}}`, or `{{invoke:implement}}` as appropriate and stop
+   until the user explicitly invokes it.
 2. **Split lanes**: Name each lane, purpose, read context, write-set, forbidden
    paths, shared surfaces, and verification target.
    `sp-debug` dispatches parallel agents only when the investigation exposes

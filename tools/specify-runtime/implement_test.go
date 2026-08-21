@@ -579,6 +579,33 @@ func TestImplementSnapshotDeclaredPathOnlyScopesSiblingSourceFiles(t *testing.T)
 	}
 }
 
+func TestImplementSnapshotTreatsDeclaredWriteScopeDirectoriesAsPrefixes(t *testing.T) {
+	project, feature, _ := newImplementFeatureProject(t)
+	requireGit(t)
+	withImplementCwd(t, project)
+	writeSnapshotLifecycle(t, feature, "T001", nil, map[string]any{
+		"write_scope": stringSliceToAny([]string{"src/demo"}),
+	})
+	writeTextFile(t, filepath.Join(project, "src", "demo", "button.ts"), "before\n")
+	writeTextFile(t, filepath.Join(project, "src", "unrelated.txt"), "before\n")
+	gitRun(t, project, "init")
+	gitRun(t, project, "config", "user.email", "tests@example.com")
+	gitRun(t, project, "config", "user.name", "Spec Runtime Tests")
+	gitRun(t, project, "add", ".")
+	gitRun(t, project, "commit", "-m", "initial")
+
+	before := implementSnapshotSHA256(project, feature)
+	writeTextFile(t, filepath.Join(project, "src", "unrelated.txt"), "after unrelated\n")
+	if afterUnrelated := implementSnapshotSHA256(project, feature); afterUnrelated != before {
+		t.Fatalf("unrelated sibling file changed fingerprint: %s != %s", afterUnrelated, before)
+	}
+
+	writeTextFile(t, filepath.Join(project, "src", "demo", "button.ts"), "after declared dir\n")
+	if afterDeclaredDir := implementSnapshotSHA256(project, feature); afterDeclaredDir == before {
+		t.Fatal("declared write_scope directory change did not change fingerprint")
+	}
+}
+
 func TestImplementSnapshotIgnoresOtherFeatureAndSpecifyMetadataDrift(t *testing.T) {
 	project, feature, _ := newImplementFeatureProject(t)
 	requireGit(t)
@@ -633,6 +660,26 @@ func TestImplementSnapshotRejectsUnsafeDeclaredPaths(t *testing.T) {
 	after := implementSnapshotSHA256(project, feature)
 	if after != before {
 		t.Fatalf("unsafe declared path outside project changed fingerprint: %s != %s", after, before)
+	}
+}
+
+func TestImplementSafeDeclaredSnapshotPathRejectsDotSegments(t *testing.T) {
+	root := t.TempDir()
+	for _, raw := range []string{
+		"./src/product.txt",
+		"src/./product.txt",
+		"src/../src/product.txt",
+	} {
+		t.Run(raw, func(t *testing.T) {
+			if normalized, ok := implementSafeDeclaredSnapshotPath(root, raw); ok {
+				t.Fatalf("dot-segment path was accepted as %q", normalized)
+			}
+		})
+	}
+
+	normalized, ok := implementSafeDeclaredSnapshotPath(root, "src/product.txt")
+	if !ok || normalized != "src/product.txt" {
+		t.Fatalf("safe declared path was rejected: normalized=%q ok=%v", normalized, ok)
 	}
 }
 

@@ -2,19 +2,29 @@ Trigger: before design closeout, downstream recommendation, adoption of a new ap
 
 Purpose: name the formal and direct consumers of design truth and prevent an approved design revision from silently changing in-flight delivery contracts.
 
-Preserved Contract: formal delivery binds design through `sp-specify`, direct delivery binds it through `sp-quick`, immutable approvals remain pinned until explicit adoption, and integrated verification owns the final design-conformance claim.
+Preserved Contract: design-first formal delivery binds design through
+`sp-specify`; post-Specify design binds an immutable late overlay to the
+unchanged source spec and returns to Plan; direct delivery binds through
+`sp-quick`. Immutable approvals remain pinned until explicit adoption, and
+integrated verification owns the final design-conformance claim.
 
 ## Consumer Roles
 
 - `sp-discussion` may shape the product and help the user choose formal or
   direct delivery, but it is not a formal design-contract consumer and must not
   bind or rewrite `DS-*`/`DH-*` rows.
-- `sp-specify` is the first formal consumer. It selects the feature-relevant
+- For a design-first route, `sp-specify` is the first formal consumer. It selects the feature-relevant
   registered `UD-*` contract, immutable approval digest, `DS-*` decisions, and
   `DH-*` handoff contracts and binds them into `spec-contract.json` plus the
   compact adoption document `ui-brief.md`.
-- `sp-plan` maps that already-bound feature contract into technical choices and
-  `ui_design_contract`; it does not select an unbound newer design version.
+- For a post-Specify route, `sp-specify` is already the requirements owner. Its
+  planning-ready `spec-contract.json` remains byte-identical while Design is
+  approved and registered. A `formal-post-specify` adoption receipt binds the
+  late Design overlay to that exact source spec digest.
+- `sp-plan` maps either the design-first bound feature contract or a verified
+  post-Specify overlay into technical choices and `ui_design_contract`; it does
+  not select an unbound newer design version. In both routes, Plan must verify
+  the exact current approval digests before authoring technical choices.
 - `sp-tasks` projects the plan-bound subset into each task-local `ui_contract`.
 - `sp-implement` implements the pinned task contract and captures real-entrypoint
   evidence.
@@ -30,13 +40,15 @@ Preserved Contract: formal delivery binds design through `sp-specify`, direct de
 
 - After `create` or `refine`, recommend `sp-discussion` when product intent is
   still too unclear to choose a delivery route.
-- Recommend `sp-specify` when the user chooses durable requirements-first
-  delivery. Recommend `sp-quick` when the user chooses direct delivery and the
-  complete outcome is confirmable at the Quick checkpoint.
-- Do not recommend `sp-plan` immediately after a design mutation unless the
-  active `spec-contract.json` already binds the exact current approval digests
-  and selected design rows. A changed approval normally re-enters
-  `sp-specify` first.
+- On a design-first route, recommend `sp-specify`; the mainline is
+  `design -> specify -> plan`. Recommend `sp-quick` when the user chooses direct
+  delivery and the complete outcome is confirmable at the Quick checkpoint.
+- On a post-Specify route, preserve the planning-ready source spec and use
+  `formal-post-specify`; the mainline is `specify -> design -> plan` and must
+  not require a second Specify. Reopen Specify only when Design exposes a real
+  requirements change in behavior, scope, constraints, or acceptance—not for a
+  visual, interaction, layout, responsive, or component-contract decision that
+  stays inside the approved feature semantics.
 - An audit pass that changes no design bytes, index state, or approval metadata may resume the
   originally blocked workflow when its existing binding is still exact. An
   audit failure routes change-scoped design truth to `create`/`refine`,
@@ -58,12 +70,12 @@ Preserved Contract: formal delivery binds design through `sp-specify`, direct de
   `specify-runtime design diff <CURRENT-UD-ID> <CANDIDATE-UD-ID> --format json`
   and preserve its scope, decision, handoff-contract, and changed-section delta
   in the owning consumer workflow. Then run the read-only
-  `specify-runtime design impact <consumer-ref> --change <CANDIDATE-UD-ID> --scope <exact-surface> --mode <formal|quick> --expected-change <CURRENT-UD-ID|none> --format json`
+  `specify-runtime design impact <consumer-ref> --change <CANDIDATE-UD-ID> --scope <exact-surface> --mode <formal|formal-post-specify|quick> --expected-change <CURRENT-UD-ID|none> --format json`
   before patching any binding. Present its impact classes, affected `DS-*` /
   `DH-*` IDs, `preserved_bindings`, `invalidated_bindings`, and
   `reconcile_from`; its compare-and-swap preview must still match at adoption.
-- To adopt the new approval in an existing formal feature, re-enter
-  `sp-specify` and use fresh leased `specify-runtime artifact patch` calls to
+- For design-first adoption, or after a genuine requirements change, use
+  `sp-specify` and fresh leased `specify-runtime artifact patch` calls to
   set the complete new four-field binding in `spec-contract.json` and
   `ui-brief.md`. Hash the exact `spec-contract.json` bytes, then run
   `specify-runtime design adopt feature:<feature-id> --change <UD-ID> --scope <exact-surface> --mode formal --binding-ref <feature-dir>/spec-contract.json --binding-sha256 <sha256> --expected-change <CURRENT-UD-ID|none> --format json`.
@@ -73,6 +85,19 @@ Preserved Contract: formal delivery binds design through `sp-specify`, direct de
   stage, marks only the listed downstream surfaces pending, preserves completed
   implementation, and invalidates only affected-scope Review evidence. The
   design runtime does not rewrite `ui-brief.md`, Plan, Tasks, or Review.
+- For Design started from an existing planning-ready feature spec whose
+  requirements did not change, do not patch `spec-contract.json` and do not run
+  Specify again. Hash the unchanged source spec, preview impact with
+  `--mode formal-post-specify`, then run
+  `specify-runtime design adopt feature:<feature-id> --change <UD-ID> --scope
+  <exact-surface> --mode formal-post-specify --binding-ref
+  <feature-dir>/spec-contract.json --binding-sha256 <source-spec-sha256>
+  --expected-change <CURRENT-UD-ID|none> --format json`. Verify the current
+  receipt with `specify-runtime design adoption feature:<feature-id> --scope
+  <exact-surface> --binding-ref <feature-dir>/spec-contract.json
+  --binding-sha256 <source-spec-sha256> --expected-change <UD-ID>`. This receipt
+  is the explicit late overlay and sends the feature to Plan. The runtime never
+  rewrites the source specification.
 - To adopt it in an active Quick task, present and persist a Quick checkpoint
   amendment containing the new exact design binding as
   `decision.ui_confirmation.design_binding` before implementation resumes.

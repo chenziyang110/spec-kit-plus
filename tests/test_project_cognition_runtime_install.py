@@ -10,6 +10,7 @@ from specify_cli.launcher import load_runtime_launcher, resolve_runtime_launcher
 
 
 RUNTIME_NAME = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _write_runtime(path: Path) -> Path:
@@ -18,6 +19,21 @@ def _write_runtime(path: Path) -> Path:
     if os.name != "nt":
         path.chmod(0o755)
     return path
+
+
+def test_standalone_installers_require_the_format_policy_command_chain() -> None:
+    for relative_path in (
+        "tools/specify-runtime/install.sh",
+        "tools/specify-runtime/install.ps1",
+    ):
+        content = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
+        for command in (
+            "scan-formats",
+            "scan-policy-stage",
+            "scan-policy-confirm",
+            "scan-prepare",
+        ):
+            assert command in content, (relative_path, command)
 
 
 def test_binary_filename_uses_unified_runtime_name(monkeypatch: pytest.MonkeyPatch) -> None:

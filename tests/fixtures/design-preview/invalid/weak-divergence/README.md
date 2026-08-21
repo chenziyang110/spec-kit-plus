@@ -1,3 +1,3 @@
 # weak-divergence
 
-Golden design-preview fixture (invalid).
+Golden single-concept design-preview fixture (invalid).

@@ -55,6 +55,8 @@ def test_context_direct_skips_only_entry_discovery_and_keeps_safety_gates() -> N
         "failing test or executable reproduction",
         "fresh verification",
         "post-change project cognition closeout",
+        "cognition mutation-receipt",
+        "--scope-dir",
         "does not waive",
     ):
         assert required in content
@@ -90,11 +92,44 @@ def test_advanced_quick_and_debug_read_shared_gate_first() -> None:
             / skill_name
             / "SKILL.md"
         )
+        flat_skill = " ".join(skill.split())
         gate_index = skill.index("references/context-sufficiency-choice.md")
         learning_index = skill.index("references/project-learning.md")
         cognition_index = skill.index("references/project-cognition.md")
         assert gate_index < learning_index
         assert gate_index < cognition_index
+        assert "insufficient: never show a branch menu" in flat_skill
+        assert "do not paraphrase these labels or add a third option" in flat_skill
+        assert "before opening any reference or calling any tool" in flat_skill
+        assert "show the exact scope, evidence, and fallback trigger" in flat_skill
+        assert "do not announce discovery, reproduction, or edits" in flat_skill
+        assert "the invoking request is not a branch selection" in flat_skill
+        assert "stop and wait for a new user reply" in flat_skill
+        assert (
+            "do not say \"i'll change\", \"i'll fix\", or \"i'll reproduce\""
+            in flat_skill
+        )
+
+    quick = _read(
+        PROJECT_ROOT
+        / "templates"
+        / "advanced-skills"
+        / "spx-quick"
+        / "SKILL.md"
+    )
+    debug = _read(
+        PROJECT_ROOT
+        / "templates"
+        / "advanced-skills"
+        / "spx-debug"
+        / "SKILL.md"
+    )
+    assert "direct change (recommended)" in quick
+    assert "continue full sp-quick" in quick
+    assert "large, cross-cutting, multi-item" in quick
+    assert "direct fix (recommended)" in debug
+    assert "continue full sp-debug" in debug
+    assert "proven failure mechanism" in debug
 
 
 def test_user_guidance_documents_context_direct_as_an_explicit_choice() -> None:

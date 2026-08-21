@@ -412,9 +412,12 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
         "agent_disposition",
         "blocking_known_unknown",
         "update_argv",
+        "apply_argv",
         "delta_append_draft.argv_prefix",
-        "display-only `update_command`",
+        "display-only `apply_command`",
         "display-only `delta_append_command`",
+        "scope_result_state",
+        "closeout_status=needs_agent_input",
         "partial_refresh_reasons",
         "adopted_paths",
         "review_paths",
@@ -437,8 +440,8 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
     assert "verification_evidence" in shared
     assert "generated_surface_notes" in shared
     assert "`agent_disposition=adoptable` is an agent accounting decision" in shared
-    assert "do not route that to `sp-map-update`" in shared
-    assert "Never run the `complete-refresh` or `clear-dirty` helper after `result_state=partial_refresh`" in shared
+    assert "do not route that defect to `sp-map-update`" in shared
+    assert "Never run `update`, `validate-build`, `complete-refresh`, or `mutation-receipt` individually" in shared
 
     for path in (
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
@@ -562,7 +565,8 @@ def test_design_workflow_is_not_an_implementation_workflow() -> None:
     assert "forbidden writes" in lowered
     assert "source code" in lowered
     assert "css or theme implementation files" in lowered
-    assert "ask the user to approve a direction" in lowered
+    assert "explicit approval" in lowered
+    assert "same direction in a new immutable round" in lowered
     assert "{{specify-subcmd:specify-runtime design lint" in lowered
     assert "specify-runtime design export <change-dir>/design.md" in lowered
     assert "never write `<change-dir>/design.md` directly" in lowered
@@ -654,8 +658,9 @@ def test_source_changing_sp_workflows_include_inline_cognition_closeout_contract
         "agent_disposition",
         "blocking_known_unknown",
         "update_argv",
+        "apply_argv",
         "delta_append_draft.argv_prefix",
-        "display-only `update_command`",
+        "display-only `apply_command`",
         "display-only `delta_append_command`",
     ):
         assert term in shared, f"inline closeout partial missing {term}"
@@ -681,8 +686,9 @@ def test_inline_cognition_payload_schema_names_match_worker_handoffs_and_runtime
         "agent_disposition",
         "blocking_known_unknown",
         "update_argv",
+        "apply_argv",
         "delta_append_draft.argv_prefix",
-        "display-only `update_command`",
+        "display-only `apply_command`",
         "display-only `delta_append_command`",
     ):
         assert field in shared, f"inline closeout partial missing {field}"
@@ -1115,8 +1121,9 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert ".specify/memory/learnings/INDEX.md" not in block
 
     assert "## Workflow Recommendations" in block
-    assert "do not auto-enter an `sp-*` workflow" in lowered
-    assert "unless the user invokes it" in lowered
+    assert "passive skill invocation is allowed only for" in lowered
+    assert "`sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`" in lowered
+    assert "all other `sp-*` workflows are user-invoked only" in lowered
     assert "recommend `sp-discussion`" in lowered
     assert "presents both `sp-quick` and `sp-specify`" in lowered
     assert "complexity-informed recommendation" in lowered
@@ -1150,7 +1157,6 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "## Project Cognition Usage" not in block
     assert "## Map Maintenance" not in block
     assert "## Delegated Execution Defaults" not in block
-    assert "sp-fast" not in lowered
     assert "sp-test-scan" not in lowered
     assert "sp-test-build" not in lowered
 
@@ -4504,10 +4510,15 @@ def test_mutation_workflows_require_inline_cognition_update_before_dirty_fallbac
         assert "update_mode=delta_session" in content
         assert "update_mode=inline_json" in content
         assert "update_argv" in content
-        assert "clean closeout keys on `result_state`" in content
+        assert "shared closeout keys on the current scope separately from the project-wide state" in content
+        assert "apply_argv" in content
+        assert "closeout_state=scope_ready" in content
         assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
         assert "specify-runtime cognition mark-dirty" in content
         assert "dirty only when inline update" in content
+        assert "one `--changed-path <repo-relative-path>` flag for each workflow-owned path" in content
+        assert "rename owns both" in content
+        assert "unrelated dirty, untracked, or committed-since-baseline repository paths must not be allowed to enter `changed_paths`" in content
 
         for stale_closeout_phrase in (
             "actual `{{invoke:map-update}}` refresh",
@@ -4578,6 +4589,18 @@ def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
     passive_gate = _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md").lower()
     assert "do not silently switch into `sp-map-update`" not in passive_gate
     assert "user-invoked workflow handoff" not in passive_gate
+
+
+def test_advanced_shared_cognition_requires_explicit_closeout_paths() -> None:
+    content = _read("templates/advanced-skills/_shared/project-cognition.md").lower()
+
+    assert "`--changed-path <repo-relative-path>` flag per explicit" in content
+    assert "rename owns both" in content
+    assert "--scope-mode explicit" in content
+    assert "those paths are the mutation closeout scope" in content
+    assert "unrelated dirty, untracked, or committed-since-baseline repository paths must" in content
+    assert "do not broad" in content
+    assert "scan to guess it" in content
 
 
 def test_constitution_workflow_reports_cognition_followup_without_mutating_it() -> None:
