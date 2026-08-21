@@ -31,8 +31,8 @@ the concept.
 
 ## Author, run, and inspect
 
-1. Render `round-NN.html` from the shared manifest and replace the entire seed
-   with one complete current concept at `#direction-main`. Before rendering,
+1. Run the design preview CLI from the shared manifest, then replace the entire
+   seed with one complete current concept at `#direction-main`. Before rendering,
    freeze `html-primary`, `image_generation: unavailable`, the independently
    probed inspection/editing values, truthful inspection owner, and
    `html-authoring` strategy in `visual_collaboration`.

@@ -24,7 +24,7 @@ Scaffold `plan-contract.json` through its artifact CLI owner, then fill targeted
   interaction/data scenarios, continuous
   stretch/overflow behavior, and risk-based input × data × size
   structure/visual/runtime evidence requirements;
-- for a post-Specify design, the verified `formal-post-specify` adoption receipt
+- for a late design overlay, the verified `formal-post-specify` adoption receipt
   bound to the unchanged source spec ref/SHA-256; verify it with
   `specify-runtime design adoption` and do not rewrite the source spec or rerun
   Specify unless requirements changed;

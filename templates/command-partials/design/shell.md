@@ -107,7 +107,7 @@ and never require a colon subskill or explicit mode argument.
      requirements, scope, and acceptance; record its exact consumer ref, path,
      SHA-256, and `return_target: plan` in `delivery_context`;
    - `standalone`: audit-only work with no immediate consumer.
-   Post-Specify Design must not require a second Specify when requirements stay
+   A late design overlay must not require a second requirements workflow pass when requirements stay
    unchanged. A genuine requirements, scope, or acceptance change exits this
    lane and returns to the requirements owner before design adoption.
 5. **UI Evidence Analysis (when references or live UI exist):** collect sources
@@ -274,9 +274,9 @@ unrelated visual systems for one review round.
   exact live probe before authoring the visual; ready lint rejects a missing,
   contradictory, or medium-mismatched route.
 - **Image-primary lane:** read
-  `references/image-generation-studio.md`. Write the exact professional
-  generate/edit request to `round-NN.prompt.md`, then generate one composite
-  `round-NN.png`/`.jpg`/`.webp` board for the current concept. Image prompts own
+  `references/image-generation-studio.md`. Use the design CLI to persist the exact
+  professional generate/edit request for the numbered round, then generate one
+  composite image board for the current concept. Image prompts own
   subject, context, style, composition, aspect ratio, exact text, reference
   roles, and edit invariants; they are not HTML/DOM/CSS prompts. When image
   inspection is available, open the actual saved pixels, critique, repair, and

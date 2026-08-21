@@ -3,7 +3,7 @@ Trigger: before design closeout, downstream recommendation, adoption of a new ap
 Purpose: name the formal and direct consumers of design truth and prevent an approved design revision from silently changing in-flight delivery contracts.
 
 Preserved Contract: design-first formal delivery binds design through
-`sp-specify`; post-Specify design binds an immutable late overlay to the
+`sp-specify`; a late design overlay binds immutably to the
 unchanged source spec and returns to Plan; direct delivery binds through
 `sp-quick`. Immutable approvals remain pinned until explicit adoption, and
 integrated verification owns the final design-conformance claim.

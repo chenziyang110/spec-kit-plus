@@ -27,7 +27,7 @@ authorization; Tasks requires a fresh feature handoff, its own projection, and
 runtime task-index binding. Avoid a Plan-contract basis/hash cycle.
 
 When UI applies, preserve the feature `ui-brief.md` adoption binding rather
-than reinterpreting it. For a post-Specify Design, first verify the current
+than reinterpreting it. For a late design overlay, first verify the current
 `formal-post-specify` overlay with `specify-runtime design adoption` against the
 exact unchanged source spec ref and SHA-256. This is the
 specify -> design -> plan route; it does not rerun Specify. A missing/mismatched

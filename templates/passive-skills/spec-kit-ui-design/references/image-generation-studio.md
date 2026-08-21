@@ -13,9 +13,9 @@ show only the labeled component, state, responsive, or platform specimens
 needed to judge that concept. A multi-platform scope keeps one shared thesis but
 uses clearly labeled native frames; it must not disguise every platform as Web.
 
-Write the exact final prompt to `round-NN.prompt.md` and save the primary raster
-artifact beside it as `round-NN.png`, `.jpg`, or `.webp`. Keep the compact
-`round-NN.manifest.json` as the machine contract. The image is the visual review
+Use the design CLI to persist the exact final prompt and primary raster artifact
+for the numbered round. Keep the compact round manifest as the machine contract.
+The image is the visual review
 surface; the manifest remains the authority for interactions, editing behavior,
 accessibility, motion, data branches, and exact implementation handoff.
 
@@ -85,4 +85,3 @@ Sources informing this prompt contract:
 - https://github.com/openai/skills/blob/main/skills/.system/imagegen/SKILL.md
 - https://github.com/openai/role-specific-plugins/blob/main/plugins/product-design/skills/ideate/SKILL.md
 - https://ai.google.dev/gemini-api/docs/imagen
-

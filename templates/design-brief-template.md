@@ -259,7 +259,7 @@ evidence. Use `image-primary` whenever image generation is available and
 - No generation or inspection: use `html-primary`, set `inspection_owner: user`,
   provide the stable deep link, and make no visual-quality claim.
 - Image prompt strategy: `image-generation`; preserve the exact generate/edit
-  prompt as `round-NN.prompt.md`.
+  prompt through the design CLI for the numbered round.
 - HTML prompt strategy: `html-authoring`; do not reuse an image-generation
   prompt as DOM/CSS instructions.
 

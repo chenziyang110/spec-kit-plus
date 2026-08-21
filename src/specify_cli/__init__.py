@@ -1177,7 +1177,7 @@ def design_adoption(
         help="Output format: text or json",
     ),
 ) -> None:
-    """Verify a post-Specify design overlay without rewriting the source spec."""
+    """Verify a late design overlay without rewriting the source spec."""
 
     try:
         receipt = resolve_design_adoption(

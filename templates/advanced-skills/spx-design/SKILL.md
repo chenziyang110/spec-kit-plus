@@ -27,7 +27,7 @@ system when an established one can be extended.
 
 Determine `delivery_context` before authoring: `design-first` when no
 planning-ready feature spec exists, `post-specify` when an exact planning-ready
-`spec-contract.json` already owns requirements/scope/acceptance, or
+feature spec contract already owns requirements/scope/acceptance, or
 `standalone` for audit-only work. Persist the post-Specify feature consumer,
 source-spec ref/SHA-256, and `return_target: plan`. Unchanged post-Specify work
 returns directly to Plan; only a genuine requirements change returns to
@@ -136,13 +136,13 @@ then configure its one current concept, boundaries, modes, decisions, and full
 generation/inspection/editing probe; ready lint rejects missing,
 contradictory, or medium-mismatched capability truth.
 
-For `image-primary`, read `references/image-round.md`, write the exact
-generate/edit prompt to `round-NN.prompt.md`, and create one composite
-`round-NN.png`/`.jpg`/`.webp` board. Image prompts own subject, context, style,
+For `image-primary`, read `references/image-round.md`, use the design CLI to
+persist the exact generate/edit prompt for the numbered round, and generate one
+composite image board for that round. Image prompts own subject, context, style,
 composition, aspect ratio, exact text, input-image roles, and invariants; they
 are not HTML authoring prompts. Inspect actual saved pixels when possible; when
 inspection is unavailable, show the image without a visual-quality claim and
-revise from user observations. Freeze explicit approval with `design approve
+revise from user observations. Freeze explicit approval with `specify-runtime design approve
 <round-image> --direction direction-main --manifest <manifest> --prompt
 <prompt> --image-inspection <available|unavailable> --image-editing
 <available|unavailable> --format json`.

@@ -3,8 +3,8 @@
 Use only when the live capability probe reports `image_generation: available`.
 Do not reuse the HTML authoring prompt.
 
-Create one composite GUI review board for one current concept and write the
-exact final request to `round-NN.prompt.md`. The image prompt names: use case and
+Create one composite GUI review board for one current concept and have the
+design CLI persist the exact final request for the numbered round. The image prompt names: use case and
 asset type; generate versus edit; product subject, audience, and job; every
 input image role; context; style; composition/framing; aspect ratio and output
 dimensions; palette/material/type/icon language; exact text; required states;
@@ -25,4 +25,3 @@ responsive/data branches, and handoff. Freeze explicit approval with `design
 approve <round-image> --manifest <manifest> --prompt <prompt>
 --image-inspection <available|unavailable> --image-editing
 <available|unavailable>`.
-

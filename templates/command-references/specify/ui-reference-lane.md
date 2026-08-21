@@ -29,7 +29,7 @@ Preserved Contract: UI reference work must preserve lane dispatch, static target
 - For `inspiration`, inline fallback may proceed only after `choose_ui_reference_lane_dispatch` returns a gated `leader-inline` soft-risk decision with safe lane and contract-ready state satisfied.
 - Dispatch the UI reference lane with registered artifact owners for notes/brief and `specify-runtime design ui-target` for optional `ui-target.html`.
 - This lane is a Specify-owned intake path, not a reason to rerun Specify after
-  an unchanged planning-ready spec. Post-Specify Design uses
+  an unchanged planning-ready spec. A late design overlay uses
   `formal-post-specify` and returns to Plan; only requirements changes reopen
   this lane.
 - Validate that `ui-target.html`, when present, is a single-file,
