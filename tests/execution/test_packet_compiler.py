@@ -494,6 +494,21 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                                     "semantic_token_refs": ["color.feedback.success"],
                                     "governance": "extend",
                                     "iconography": "status icons include accessible text",
+                                    "adoption": {
+                                        "resource_id": "material-ui",
+                                        "action": "extend",
+                                        "package": "@mui/material",
+                                        "version": "^7.0.0",
+                                        "license": "MIT",
+                                        "source_ref": "package.json#/dependencies/@mui/material",
+                                        "component_refs": ["@mui/material/TextField"],
+                                        "reason_codes": ["installed", "live-style-authority"],
+                                        "selection_basis_refs": [
+                                            "professional_skill_route.mature_web_ui_selection"
+                                        ],
+                                        "permission_gate": "not-required",
+                                        "permission_status": "authorized",
+                                    },
                                 }
                             ],
                             "responsive_matrix": [
@@ -695,6 +710,21 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
         "reduced-motion",
     ]
     assert packet.ui_contract.component_contracts[0]["governance"] == "extend"
+    assert packet.ui_contract.component_contracts[0]["adoption"] == {
+        "resource_id": "material-ui",
+        "action": "extend",
+        "package": "@mui/material",
+        "version": "^7.0.0",
+        "license": "MIT",
+        "source_ref": "package.json#/dependencies/@mui/material",
+        "component_refs": ["@mui/material/TextField"],
+        "reason_codes": ["installed", "live-style-authority"],
+        "selection_basis_refs": [
+            "professional_skill_route.mature_web_ui_selection"
+        ],
+        "permission_gate": "not-required",
+        "permission_status": "authorized",
+    }
     assert packet.ui_contract.required_states == ["loading", "error", "success"]
     assert packet.ui_contract.must_not == ["collapse settings into cards"]
     assert packet.ui_contract.required_evidence == [

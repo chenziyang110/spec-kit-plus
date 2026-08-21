@@ -1,0 +1,12 @@
+{
+  "items": [
+    {
+      "resource_id": "material-ui",
+      "content_hash": "sha256:old",
+      "observed_version": "old-version",
+      "license": {
+        "declared": "MIT"
+      }
+    }
+  ]
+}

@@ -199,6 +199,8 @@ def test_normalize_worker_task_result_payload_preserves_current_visual_contract(
                 "approved_manifest_sha256": digest,
                 "comparison_report_ref": "evidence/visual-report.json",
                 "comparison_report_sha256": digest,
+                "smoothness_lab_report_ref": "evidence/smoothness-lab-T106.json",
+                "smoothness_lab_report_sha256": digest,
                 "implementation_capture_refs": ["evidence/desktop.png"],
                 "covered_decision_ids": ["DS-001"],
                 "covered_smoothness_acceptance_ids": [
@@ -221,6 +223,8 @@ def test_normalize_worker_task_result_payload_preserves_current_visual_contract(
     assert verification.approved_manifest_sha256 == digest
     assert verification.comparison_report_ref == "evidence/visual-report.json"
     assert verification.comparison_report_sha256 == digest
+    assert verification.smoothness_lab_report_ref == "evidence/smoothness-lab-T106.json"
+    assert verification.smoothness_lab_report_sha256 == digest
     assert verification.implementation_capture_refs == ["evidence/desktop.png"]
     assert verification.covered_decision_ids == ["DS-001"]
     assert verification.covered_smoothness_acceptance_ids == [

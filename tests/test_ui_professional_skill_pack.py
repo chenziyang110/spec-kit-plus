@@ -25,6 +25,29 @@ def _catalog() -> dict[str, object]:
     return payload
 
 
+def _assert_component_adoption_plan_row(
+    row: dict[str, object], *, resource_id: str, action: str
+) -> None:
+    assert row["resource_id"] == resource_id
+    assert row["action"] == action
+    assert isinstance(row["package"], str)
+    assert isinstance(row["version"], str)
+    assert isinstance(row["license"], str)
+    assert isinstance(row["source_ref"], str)
+    component_refs = row["component_refs"]
+    assert isinstance(component_refs, list)
+    assert component_refs
+    assert all(isinstance(item, str) and item for item in component_refs)
+    reason_codes = row["reason_codes"]
+    assert isinstance(reason_codes, list)
+    assert reason_codes
+    assert all(isinstance(item, str) and item for item in reason_codes)
+    selection_basis_refs = row["selection_basis_refs"]
+    assert isinstance(selection_basis_refs, list)
+    assert selection_basis_refs
+    assert all(isinstance(item, str) and item for item in selection_basis_refs)
+
+
 def _route(
     query: str,
     *,
@@ -238,6 +261,18 @@ def test_router_scans_live_ui_assets_and_prefers_the_installed_primary_system(
     assert selection["candidates"][0]["resource_id"] == "material-ui"
     assert "installed" in selection["candidates"][0]["reason_codes"]
     assert selection["confirmation_codes"] == []
+    adoption_plan = selection["component_adoption_plan"]
+    assert [row["resource_id"] for row in adoption_plan] == ["material-ui"]
+    material_ui = adoption_plan[0]
+    _assert_component_adoption_plan_row(
+        material_ui,
+        resource_id="material-ui",
+        action="reuse",
+    )
+    assert material_ui["package"] == "@mui/material"
+    assert material_ui["version"] == "^7.0.0"
+    assert material_ui["permission_gate"] == "not-required"
+    assert material_ui["permission_status"] == "authorized"
     assert payload["professional_skill_route"]["web_ui_asset_inventory"] == inventory
     assert payload["professional_skill_route"]["mature_web_ui_selection"] == selection
 
@@ -335,6 +370,67 @@ def test_router_explains_selection_and_routes_smoothness_acceptance_ids() -> Non
     assert persisted["smoothness_acceptance_ids"] == acceptance_ids
 
 
+def test_router_component_adoption_plan_marks_selected_uninstalled_support_as_add_with_permission_gate() -> None:
+    payload = _route(
+        "React 数据工作台，需要十万行虚拟表格、富文本编辑和可中断流畅动效"
+    )
+
+    selection = payload["mature_web_ui_selection"]
+    adoption_plan = selection["component_adoption_plan"]
+    assert [row["resource_id"] for row in adoption_plan] == [
+        selection["primary_resource_id"],
+        *selection["supporting_resource_ids"],
+    ]
+    for row in adoption_plan[1:]:
+        _assert_component_adoption_plan_row(
+            row,
+            resource_id=str(row["resource_id"]),
+            action="add",
+        )
+        assert row["permission_gate"] == "required"
+        assert row["permission_status"] == "not-authorized"
+
+
+def test_router_component_adoption_plan_creates_local_reuse_rows_for_unmapped_live_component_roots(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "react-app"
+    (project / "src" / "components" / "ui").mkdir(parents=True)
+    (project / "src" / "app").mkdir(parents=True)
+    (project / "package.json").write_text(
+        json.dumps({"dependencies": {"react": "^19.0.0"}}),
+        encoding="utf-8",
+    )
+    (project / "src" / "app" / "page.tsx").write_text(
+        "export default function Page() { return null }\n",
+        encoding="utf-8",
+    )
+    (project / "src" / "components" / "ui" / "CommandPalette.tsx").write_text(
+        "export function CommandPalette() { return null }\n",
+        encoding="utf-8",
+    )
+
+    payload = _route(
+        "React Web 应用，优先使用成熟组件库，组件状态要丝滑流畅",
+        style_authority="inherit-existing",
+        project_root=project,
+    )
+
+    adoption_plan = payload["mature_web_ui_selection"]["component_adoption_plan"]
+    local_rows = [row for row in adoption_plan if row["resource_id"] == "local-components"]
+    assert len(local_rows) == 1
+    local_row = local_rows[0]
+    _assert_component_adoption_plan_row(
+        local_row,
+        resource_id="local-components",
+        action="reuse",
+    )
+    assert local_row["permission_gate"] == "not-required"
+    assert local_row["permission_status"] == "authorized"
+    assert "requires-mapping" in local_row["reason_codes"]
+    assert local_row["component_refs"] == ["src/components/ui/CommandPalette.tsx"]
+
+
 def test_router_surfaces_mature_web_ui_resources_for_component_library_work() -> None:
     payload = _route("React Web 应用，优先使用成熟组件库，组件状态要丝滑流畅")
 
@@ -379,6 +475,7 @@ def test_router_keeps_web_resources_out_of_native_platform_routes() -> None:
     ):
         payload = _route(query)
         assert payload["mature_web_ui_resource_ids"] == [], query
+        assert payload["mature_web_ui_selection"]["component_adoption_plan"] == [], query
         assert payload["professional_skill_route"]["mature_web_ui_resource_ids"] == [], query
         assert payload["professional_skill_route"]["status"] == "resolved", query
 

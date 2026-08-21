@@ -848,6 +848,26 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
         "compact",
     ]
 
+    sample_packet.ui_contract.component_contracts[0]["adoption"] = {
+        "resource_id": "material-ui",
+        "action": "replace",
+        "package": "@mui/material",
+        "version": "^7.0.0",
+        "license": "MIT",
+        "source_ref": "package.json#/dependencies/@mui/material",
+        "component_refs": ["@mui/material/TextField"],
+        "reason_codes": ["installed"],
+        "selection_basis_refs": [
+            "professional_skill_route.mature_web_ui_selection"
+        ],
+        "permission_gate": "not-required",
+        "permission_status": "authorized",
+    }
+    with pytest.raises(PacketValidationError, match="component_contracts"):
+        validate_worker_task_packet(sample_packet)
+    sample_packet.ui_contract.component_contracts[0]["adoption"]["action"] = "extend"
+    assert validate_worker_task_packet(sample_packet) is sample_packet
+
     sample_packet.ui_contract.interaction_matrix = []
     with pytest.raises(PacketValidationError, match="interaction_matrix"):
         validate_worker_task_packet(sample_packet)
