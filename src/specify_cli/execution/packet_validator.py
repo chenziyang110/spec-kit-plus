@@ -637,7 +637,10 @@ def _valid_usability_validation(value: object) -> bool:
         return False
     smoothness_ids = value.get("smoothness_acceptance_ids")
     if smoothness_ids is not None:
-        if not _nonblank_string_list(smoothness_ids):
+        if not isinstance(smoothness_ids, list) or any(
+            not isinstance(item, str) or not item.strip()
+            for item in smoothness_ids
+        ):
             return False
         normalized_ids = [str(item).strip() for item in smoothness_ids]
         if len(normalized_ids) != len(set(normalized_ids)):

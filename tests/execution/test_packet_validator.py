@@ -616,6 +616,10 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
         validate_worker_task_packet(sample_packet)
     sample_packet.ui_contract.usability_validation[
         "smoothness_acceptance_ids"
+    ] = []
+    assert validate_worker_task_packet(sample_packet) is sample_packet
+    sample_packet.ui_contract.usability_validation[
+        "smoothness_acceptance_ids"
     ] = [
         "focus-continuity",
         "pending-cancel-feedback",
