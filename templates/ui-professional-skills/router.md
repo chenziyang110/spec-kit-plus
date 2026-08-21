@@ -38,7 +38,9 @@ selected mature resource.
 Carry `mature_web_ui_resource_ids` in `professional_skill_route` when the route
 touches Web, React, Vue, Tailwind, component libraries, or reusable UI systems.
 Also persist the compact `web_ui_asset_inventory`, explainable
-`mature_web_ui_selection`, and applicable `smoothness_acceptance_ids`. An
+`mature_web_ui_selection`, deterministic `component_adoption_plan`, official
+resource refresh receipt, applicable `smoothness_acceptance_ids`, and the
+selected performance budgets. An
 unscanned inventory makes the selection provisional; do not turn a provisional
 candidate into an installation or migration decision.
 Use the catalog entries as source pointers and guardrails, not as permission to
@@ -49,6 +51,20 @@ scoped, and compatible with the current stack. Keep the shortlist sparse: one
 primary component system, an optional compatible headless layer, and only the
 specialist libraries justified by exact capabilities. Load Agent Skills, MCP,
 `llms.txt`, or Markdown docs only for a selected candidate.
+
+After candidate selection, obtain only the selected candidates' official
+Agent/MCP/`llms.txt`/Markdown snapshots through the available retrieval
+capability, then pass that caller-provided snapshot to the read-only helper:
+
+```text
+python <pack-dir>/refresh.py --snapshot <selected-official-snapshot.json> --baseline <previous-snapshot.json>
+```
+
+The helper is offline and side-effect-free by default. Persist its normalized
+hashes and drift codes under
+`mature_web_ui_selection.official_resource_refresh`; changed version, license,
+or content reopens selection review but never authorizes install, upgrade,
+migration, or license acceptance.
 
 ## Style authority gate
 
@@ -124,7 +140,17 @@ professional_skill_route:
     agent_resource_ids: []
     candidates: []
     confirmation_codes: []
+    component_adoption_plan: []
+    official_resource_refresh:
+      status: not-run
+      helper_ref: ui-professional-skills/refresh.py
+      selected_resource_ids: []
+      selected_agent_resource_ids: []
+      network_policy: blocked_by_default
+      install_or_upgrade: unauthorized
+      items: []
   smoothness_acceptance_ids: []
+  smoothness_performance_budgets: {}
 ```
 
 `matched_signals` records concise user/reference/platform evidence, not hidden
@@ -135,7 +161,9 @@ When mature Web UI selection is `provisional` or `unresolved`, persist the
 overall route `status: unresolved`; a resolved domain or style choice must not
 hide an unscanned, conflicting, or unmapped live component system.
 Candidate `reason_codes` are stable evidence labels, not prose reasoning. Carry
-the selected smoothness IDs into existing interaction, motion, and
+each component adoption row into the affected immutable component contract;
+`add` remains permission-gated until the user authorizes the exact dependency
+change. Carry the selected smoothness IDs and budgets into existing interaction, motion, and
 `usability_validation` rows; they do not introduce a new evidence kind.
 
 ## Medium-specific use

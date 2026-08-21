@@ -1692,8 +1692,10 @@ func applyDesignCapabilityProfiles(manifest map[string]any, profileIDs []string)
 	feedbackTimingSet := false
 	riskRank := map[string]int{"low": 0, "medium": 1, "high": 2}
 	riskLevel := ""
-	var usabilityMethods, usabilityTasks, usabilityCriteria []string
-	methodSeen, taskSeen, criteriaSeen := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	var usabilityMethods, usabilityTasks, usabilityCriteria, smoothnessIDs []string
+	methodSeen, taskSeen, criteriaSeen, smoothnessSeen := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}
+	performanceBudgets := map[string]float64{}
+	budgetRowsSeen, budgetRowsValid := false, true
 	humanReviewRequired := false
 	for _, profile := range profiles {
 		profileID := strings.TrimSpace(fmt.Sprint(profile["id"]))
@@ -1783,6 +1785,24 @@ func applyDesignCapabilityProfiles(manifest map[string]any, profileIDs []string)
 			usabilityMethods = appendUniqueStrings(usabilityMethods, methodSeen, usability["methods"])
 			usabilityTasks = appendUniqueStrings(usabilityTasks, taskSeen, usability["critical_tasks"])
 			usabilityCriteria = appendUniqueStrings(usabilityCriteria, criteriaSeen, usability["success_criteria"])
+			smoothnessIDs = appendUniqueStrings(smoothnessIDs, smoothnessSeen, usability["smoothness_acceptance_ids"])
+			if configured, ok := usability["performance_budgets"].(map[string]any); ok {
+				budgetRowsSeen = true
+				candidate := map[string]float64{}
+				for _, field := range []string{"inp_ms", "long_task_ms", "cls", "animation_dropped_frame_pct", "bundle_delta_kb"} {
+					if value, valid := designJSONFloat(configured[field]); valid && value >= 0 {
+						candidate[field] = value
+					} else {
+						budgetRowsValid = false
+					}
+				}
+				for field, value := range candidate {
+					current, exists := performanceBudgets[field]
+					if !exists || value < current {
+						performanceBudgets[field] = value
+					}
+				}
+			}
 			if required, ok := usability["human_review_required"].(bool); ok && required {
 				humanReviewRequired = true
 			}
@@ -1853,6 +1873,7 @@ func applyDesignCapabilityProfiles(manifest map[string]any, profileIDs []string)
 			"profile_id":    profileID,
 			"name":          strings.TrimSpace(fmt.Sprint(profile["label"])),
 			"kind":          profileID,
+			"entrypoint_id": "EP-" + profileKey + "-001",
 			"source_refs":   designAnyStringList(projectSourceRefs),
 			"specimen_ids":  designAnyStringList(profileSpecimenIDs),
 			"component_ids": designAnyStringList(componentIDs),
@@ -2035,6 +2056,16 @@ func applyDesignCapabilityProfiles(manifest map[string]any, profileIDs []string)
 		"critical_tasks":        designAnyStringList(usabilityTasks),
 		"success_criteria":      designAnyStringList(usabilityCriteria),
 		"human_review_required": humanReviewRequired,
+	}
+	if len(smoothnessIDs) > 0 {
+		handoff["usability_validation"].(map[string]any)["smoothness_acceptance_ids"] = designAnyStringList(smoothnessIDs)
+	}
+	if budgetRowsSeen && budgetRowsValid && len(performanceBudgets) == 5 {
+		budgetPayload := map[string]any{}
+		for key, value := range performanceBudgets {
+			budgetPayload[key] = value
+		}
+		handoff["usability_validation"].(map[string]any)["performance_budgets"] = budgetPayload
 	}
 	handoff["visual_acceptance_matrix"] = acceptance
 	return nil
@@ -3085,7 +3116,7 @@ func validateDesignProfessionalVerification(verification map[string]any, decisio
 			validateBoundID(row, path)
 			valid := true
 			if field == "surface_catalog" {
-				valid = nonEmpty(row["profile_id"]) && nonEmpty(row["name"]) && nonEmpty(row["kind"]) && isNonEmptyStringList(row["source_refs"], true) && isNonEmptyStringList(row["specimen_ids"], true) && isNonEmptyStringList(row["component_ids"], true)
+				valid = nonEmpty(row["profile_id"]) && nonEmpty(row["name"]) && nonEmpty(row["kind"]) && nonEmpty(row["entrypoint_id"]) && isNonEmptyStringList(row["source_refs"], true) && isNonEmptyStringList(row["specimen_ids"], true) && isNonEmptyStringList(row["component_ids"], true)
 			} else {
 				risk := strings.TrimSpace(fmt.Sprint(row["risk"]))
 				required, requiredOK := row["required"].(bool)
@@ -3901,8 +3932,8 @@ func previewHandoffDiagnostics(manifest map[string]any, ready bool) []designDiag
 		if id != "" {
 			surfaceIDs[id] = true
 		}
-		if ready && (!nonEmpty(surface["profile_id"]) || !nonEmpty(surface["name"]) || !nonEmpty(surface["kind"]) || !isNonEmptyStringList(surface["source_refs"], true) || !isNonEmptyStringList(surface["specimen_ids"], true) || !stringSetContainsAll(knownSpecimens, stringList(surface["specimen_ids"])) || !isNonEmptyStringList(surface["component_ids"], true) || !stringSetContainsAll(componentIDs, stringList(surface["component_ids"])) || !isNonEmptyStringList(surface["decision_ids"], true)) {
-			addDesignDiagnostic(&diagnostics, "preview-incomplete-surface-catalog", "surface_catalog rows require profile, source, specimen, component, and decision bindings", fmt.Sprintf("manifest.handoff.surface_catalog[%d]", index))
+		if ready && (!nonEmpty(surface["profile_id"]) || !nonEmpty(surface["name"]) || !nonEmpty(surface["kind"]) || !nonEmpty(surface["entrypoint_id"]) || !isNonEmptyStringList(surface["source_refs"], true) || !isNonEmptyStringList(surface["specimen_ids"], true) || !stringSetContainsAll(knownSpecimens, stringList(surface["specimen_ids"])) || !isNonEmptyStringList(surface["component_ids"], true) || !stringSetContainsAll(componentIDs, stringList(surface["component_ids"])) || !isNonEmptyStringList(surface["decision_ids"], true)) {
+			addDesignDiagnostic(&diagnostics, "preview-incomplete-surface-catalog", "surface_catalog rows require profile, official entrypoint, source, specimen, component, and decision bindings", fmt.Sprintf("manifest.handoff.surface_catalog[%d]", index))
 		}
 		for decisionID := range listToStringSet(surface["decision_ids"]) {
 			if !knownDecisions[decisionID] {
@@ -4037,7 +4068,11 @@ func previewHandoffDiagnostics(manifest map[string]any, ready bool) []designDiag
 		}
 		validateID(component["id"], fmt.Sprintf("manifest.handoff.component_contracts[%d].id", index))
 		governance := strings.TrimSpace(fmt.Sprint(component["governance"]))
-		if ready && (!nonEmpty(component["component"]) || !isNonEmptyStringList(component["anatomy"], true) || !isNonEmptyStringList(component["required_states"], true) || !isNonEmptyStringList(component["interaction_modes"], true) || !validDesignDataScenarios(component["data_scenarios"]) || !isNonEmptyStringList(component["variants"], true) || !isNonEmptyStringList(component["content_constraints"], true) || !isNonEmptyStringList(component["semantic_token_refs"], true) || (governance != "reuse" && governance != "extend" && governance != "new") || !nonEmpty(component["iconography"]) || !isNonEmptyStringList(component["decision_ids"], true) || !isNonEmptyStringList(component["must_match"], true)) {
+		adoptionValid := true
+		if adoption, exists := component["adoption"]; exists {
+			adoptionValid = validDesignComponentAdoption(adoption)
+		}
+		if ready && (!nonEmpty(component["component"]) || !isNonEmptyStringList(component["anatomy"], true) || !isNonEmptyStringList(component["required_states"], true) || !isNonEmptyStringList(component["interaction_modes"], true) || !validDesignDataScenarios(component["data_scenarios"]) || !isNonEmptyStringList(component["variants"], true) || !isNonEmptyStringList(component["content_constraints"], true) || !isNonEmptyStringList(component["semantic_token_refs"], true) || (governance != "reuse" && governance != "extend" && governance != "new") || !nonEmpty(component["iconography"]) || !isNonEmptyStringList(component["decision_ids"], true) || !isNonEmptyStringList(component["must_match"], true) || !adoptionValid) {
 			addDesignDiagnostic(&diagnostics, "preview-incomplete-component-contract", "component contracts require anatomy, states, interaction/data scenarios, variants, content constraints, semantic tokens, governance, iconography, decisions, and must_match", fmt.Sprintf("manifest.handoff.component_contracts[%d]", index))
 		}
 		for state := range listToStringSet(component["required_states"]) {
@@ -4754,6 +4789,20 @@ func designJSONInt(value any) (int, bool) {
 	}
 }
 
+func designJSONFloat(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case int:
+		return float64(typed), true
+	case float64:
+		return typed, true
+	case json.Number:
+		parsed, err := strconv.ParseFloat(typed.String(), 64)
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
+}
+
 func canonicalJSONSHA256(payload any) string {
 	raw, _ := json.Marshal(payload)
 	sum := sha256.Sum256(raw)
@@ -4910,6 +4959,33 @@ func validDesignDataScenarios(value any) bool {
 	return true
 }
 
+func validDesignComponentAdoption(value any) bool {
+	adoption, ok := value.(map[string]any)
+	if !ok || !nonEmpty(adoption["resource_id"]) || !nonEmpty(adoption["source_ref"]) {
+		return false
+	}
+	action := strings.TrimSpace(anyString(adoption["action"]))
+	if action != "reuse" && action != "extend" && action != "add" && action != "custom" {
+		return false
+	}
+	for _, field := range []string{"package", "version", "license", "source_ref"} {
+		if value, ok := adoption[field].(string); !ok || strings.TrimSpace(value) == "" {
+			return false
+		}
+	}
+	for _, field := range []string{"component_refs", "reason_codes", "selection_basis_refs"} {
+		if !isNonEmptyStringList(adoption[field], true) {
+			return false
+		}
+	}
+	gate := strings.TrimSpace(anyString(adoption["permission_gate"]))
+	status := strings.TrimSpace(anyString(adoption["permission_status"]))
+	if (gate != "required" && gate != "not-required") || (status != "authorized" && status != "not-authorized") {
+		return false
+	}
+	return !(action == "add" && gate != "required") && !(gate == "not-required" && status != "authorized")
+}
+
 func validDesignProfessionalRow(field string, row map[string]any) bool {
 	if !isNonEmptyStringList(row["decision_ids"], true) || !nonEmpty(row["surface"]) {
 		return false
@@ -5028,7 +5104,27 @@ func validDesignUsabilityValidation(value map[string]any) bool {
 		}
 	}
 	humanReview, ok := value["human_review_required"].(bool)
-	return ok && (risk != "high" || humanReview)
+	if !ok || (risk == "high" && !humanReview) {
+		return false
+	}
+	if rawIDs, exists := value["smoothness_acceptance_ids"]; exists {
+		ids := stringList(rawIDs)
+		if raw, ok := rawIDs.([]any); !ok || len(raw) != len(ids) || len(ids) != len(listToStringSet(rawIDs)) {
+			return false
+		}
+	}
+	if rawBudgets, exists := value["performance_budgets"]; exists {
+		budgets, ok := rawBudgets.(map[string]any)
+		if !ok || len(budgets) != 5 {
+			return false
+		}
+		for _, field := range []string{"inp_ms", "long_task_ms", "cls", "animation_dropped_frame_pct", "bundle_delta_kb"} {
+			if number, valid := designJSONFloat(budgets[field]); !valid || number < 0 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func stringList(value any) []string {

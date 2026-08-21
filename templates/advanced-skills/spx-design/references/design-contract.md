@@ -68,13 +68,16 @@ Only user-authorized exact full-page overhaul scope may declare
 source. Carry this structure unchanged into every downstream UI contract.
 
 For Web UI, retain the router's `mature_web_ui_resource_ids` shortlist,
-`web_ui_asset_inventory`, `mature_web_ui_selection`, and
-`smoothness_acceptance_ids`. Final selection requires a scanned live project;
-provisional scores cannot authorize dependency changes.
+`web_ui_asset_inventory`, `mature_web_ui_selection`, its exact component
+adoption and official-resource refresh records, and
+`smoothness_acceptance_ids` plus performance budgets. Final selection requires a scanned live project;
+provisional scores or refresh results cannot authorize dependency changes.
 Component contracts prefer inspected live components and documented
 extensions; select one compatible mature primary system and only
 capability-justified headless or specialist support. `governance: new` requires
-a recorded gap. Official Agent, MCP, or LLM material is retrieval input for a
+a recorded gap. Every affected component contract copies the exact nested
+adoption action/package/version/license/source/permission row. Official Agent,
+MCP, or LLM material is retrieval input for a
 selected candidate, not dependency, license, upgrade, or migration authority.
 
 The current concept defines motion purpose plus duration, easing, distance or
@@ -162,6 +165,8 @@ For substantive UI, freeze complete `surface_catalog`, `scenario_matrix`,
 `navigation_matrix`, `content_matrix`, `motion_contract`, and
 `usability_validation` values under
 `design_change.verification`, plus component governance and iconography. Use
+routed official entrypoint IDs as exact `surface_catalog[].entrypoint_id`
+bindings; do not leave a multi-entrypoint consumer ambiguous. Use
 routed smoothness IDs in the applicable interaction, motion, and usability
 rows, using only the current evidence kinds. Use risk-based or pairwise scenarios rather than an unbounded Cartesian product;
 automation/screenshots do not replace required target-user human review.

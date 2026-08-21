@@ -142,9 +142,9 @@ For UI-bearing scope, copy the exact applicable `surface_catalog`,
 `scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
 `accessibility_matrix`, `navigation_matrix`, `content_matrix`,
 `motion_contract`, and `usability_validation`—including its exact
-`smoothness_acceptance_ids`—into the feature
+`smoothness_acceptance_ids` and performance budgets—into the feature
 requirements and `ui-brief.md`; never replace them with generic accessibility,
 navigation, content, animation, or usability prose. Preserve the exact
-`style_authority`, component variants,
+`style_authority`, component adoption/permission rows, component variants,
 content constraints, semantic tokens, governance, and iconography. Select
 risk-based or pairwise acceptance scenarios, not an unbounded Cartesian product.

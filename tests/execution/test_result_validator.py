@@ -804,6 +804,16 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
     with pytest.raises(PacketValidationError, match="smoothness acceptance coverage"):
         validate_worker_task_result(result, sample_packet)
 
+    result.ui_verification.covered_smoothness_acceptance_ids = [
+        "focus-continuity",
+        "pending-cancel-feedback",
+        "duplicate-activation",
+        "reduced-motion",
+        "reduced-motion",
+    ]
+    with pytest.raises(PacketValidationError, match="smoothness acceptance coverage"):
+        validate_worker_task_result(result, sample_packet)
+
 
 def test_validate_worker_task_result_rejects_missing_ui_evidence_for_approximate_ui_contract(
     sample_packet: WorkerTaskPacket,

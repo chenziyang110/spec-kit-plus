@@ -368,6 +368,13 @@
       "safe_instruction_patterns": ["evidence visual-compare", "artifact show", "artifact list", "runtime derives", "runtime-owned", "cli-owned"]
     },
     {
+      "id": "smoothness_lab_artifacts",
+      "path_patterns": ["**/implementation-review/smoothness/smoothness-manifest-*.json", "**/implementation-review/smoothness/smoothness-lab-*.json"],
+      "owner_cli": ["specify-runtime evidence smoothness-manifest", "specify-runtime evidence smoothness-validate", "specify-runtime artifact show", "specify-runtime artifact list"],
+      "path_hints": ["smoothness-manifest", "smoothness-lab", "smoothness_lab_report_ref", "smoothness lab report"],
+      "safe_instruction_patterns": ["evidence smoothness-manifest", "evidence smoothness-validate", "artifact show", "artifact list", "runtime derives", "runtime-owned", "cli-owned"]
+    },
+    {
       "id": "review_state",
       "path_patterns": ["**/review-state.json"],
       "owner_cli": ["specify-runtime review", "specify-runtime artifact patch"],

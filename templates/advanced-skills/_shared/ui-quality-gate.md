@@ -53,7 +53,9 @@ For substantive create/refine, read
 `professional_skill_route`: `domain_skill_id`, `style_skill_id`,
 `specialist_skill_ids`, `matched_signals`, `loaded_refs`, and Web-only
 `mature_web_ui_resource_ids`, `web_ui_asset_inventory`, explainable
-`mature_web_ui_selection`, and `smoothness_acceptance_ids`. Pass the actual
+`mature_web_ui_selection`, deterministic component adoption/permission rows,
+read-only selected-official-resource refresh results,
+`smoothness_acceptance_ids`, and performance budgets. Pass the actual
 project root for the bounded read-only asset scan. Load only the selected one domain, zero-or-one
 style, and zero-to-two specialists. For Web component work, use the
 router-triggered mature-component selection reference: prefer compatible live
@@ -109,7 +111,10 @@ specimen IDs, and real content/image plans. Each UI task carries only its
 applicable decision subset; all UI tasks together must cover the plan's
 required set.
 Preserve `surface_catalog` as the stable inventory of implemented UI surfaces,
-with source/specimen/component references and exact decision bindings. Preserve
+with one exact official `entrypoint_id`, source/specimen/component references,
+and exact decision bindings. Missing, unknown, or ambiguous entrypoint bindings
+block real-entrypoint evidence rather than falling back to another runnable
+surface. Preserve
 `scenario_matrix` as the bounded execution graph: each required, risk-labelled
 scenario references one `surface_id` plus the exact interaction, data,
 editing, accessibility, navigation, content, responsive, and motion rows exercised
@@ -199,9 +204,13 @@ does not replace `accessibility_matrix`.
   and timeout.
 - `usability_validation` preserves risk, methods, critical tasks, success
   criteria, `human_review_required`, and applicable routed
-  `smoothness_acceptance_ids`. Those IDs bind to the existing structure,
+  `smoothness_acceptance_ids` plus performance budgets. Those IDs bind through
+  the CLI-owned Smoothness Lab report to the existing structure,
   visual, runtime, and visual-comparison-or-human-review evidence kinds; they
-  do not create another evidence kind. Low-risk existing-pattern changes may
+  do not create another evidence kind. Acceptance revalidates the canonical
+  manifest, current task-index digest, exact entrypoint, typed evidence triad,
+  complete scenario coverage, and performance budgets; a handwritten or
+  reduced report is not acceptable. Low-risk existing-pattern changes may
   use a documented cognitive walkthrough or heuristic review. Medium/high-risk
   journeys require representative target users and human review. Automated
   tests and screenshots cannot substitute for target-user usability.

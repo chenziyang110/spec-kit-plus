@@ -494,6 +494,8 @@ func generatedRuntimeVerbCapabilities() []string {
 		"evidence.import",
 		"evidence.register",
 		"evidence.show",
+		"evidence.smoothness-manifest",
+		"evidence.smoothness-validate",
 		"evidence.verify",
 		"hook.validate-artifacts",
 		"hook.validate-commit",

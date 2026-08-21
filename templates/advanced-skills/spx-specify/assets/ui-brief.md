@@ -21,7 +21,7 @@
 - design_decision_ids: []
 - handoff_contract_rows: [{exact selected immutable DH-* row including id}]
 - entry_points: []
-- surface_catalog: [{id:, profile_id:, name:, kind:, source_refs:[], specimen_ids:[], component_ids:[], decision_ids:[]}]
+- surface_catalog: [{id:, profile_id:, name:, kind:, entrypoint_id:, source_refs:[], specimen_ids:[], component_ids:[], decision_ids:[]}]
 - scenario_matrix: [{id:, surface_id:, name:, risk: low | medium | high, required:, interaction_script:{preconditions:[], start_state_id:, steps:[{input:, action:, expected_feedback:}], branches:[{conditions:[], setup:, expected_state_id:, expected_feedback:, focus_behavior:, announcement:, continuation:}], focus_checkpoint:, announcement_checkpoint:, completion_checkpoint:, recovery_checkpoint:}, interaction_ids:[], editing_ids:[], data_state_ids:[], accessibility_ids:[], navigation_ids:[], content_ids:[], responsive_ids:[], motion_transition_ids:[], decision_ids:[]}]
 - interaction_matrix: [{id:, surface:, input:, trigger:, event_sequence:, immediate_feedback:, focus_behavior:, repeat_behavior:, cancellation_behavior:, pending_behavior:, decision_ids:[]}]
 - editing_matrix: [{id:, surface:, input_methods:[], composition_behavior:, paste_autofill_behavior:, selection_caret_behavior:, formatting_behavior:, validation_timing:, validation_feedback:, dirty_state_behavior:, persistence_behavior:, undo_redo_behavior:, conflict_behavior:, read_only_disabled_behavior:, submission_behavior:, decision_ids:[]}]
@@ -31,7 +31,7 @@
 - navigation_matrix: [{id:, surface:, entry:, destination:, trigger:, back_behavior:, deep_link_behavior:, interruption_recovery:, decision_ids:[]}]
 - content_matrix: [{id:, surface:, state:, purpose:, copy:, primary_action:, trust_requirement:, localization:, content_limits:[], decision_ids:[]}]
 - motion_contract: {purpose:, transitions:[{id:, surface:, trigger:, response:, duration_ms:, easing:, interrupt_behavior:, decision_ids:[]}], reduced_motion:, feedback_timing:{immediate_ms:, progress_ms:, timeout_ms:}}
-- usability_validation: {risk_level: low | medium | high, methods:[], critical_tasks:[], success_criteria:[], human_review_required:, smoothness_acceptance_ids:[]}
+- usability_validation: {risk_level: low | medium | high, methods:[], critical_tasks:[], success_criteria:[], human_review_required:, smoothness_acceptance_ids:[], performance_budgets:{inp_ms:, long_task_ms:, cls:, animation_dropped_frame_pct:, bundle_delta_kb:}}
 - required_viewports: []
 - subject:
 - audience:
@@ -47,7 +47,7 @@
 - reference_intents: [{ref:, intent: exact | preserve-structure | inspiration | extract-tokens | do-not-copy}]
 - fidelity_mode: approximate | high | inspiration
 - fidelity_criteria:
-- component_contracts: [{exact selected immutable DH-* component row including required_states, interaction_modes, data_scenarios, variants, content_constraints, semantic_token_refs, governance, iconography, decision_ids}]
+- component_contracts: [{exact selected immutable DH-* component row including required_states, interaction_modes, data_scenarios, variants, content_constraints, semantic_token_refs, governance, adoption, iconography, decision_ids}]
 - responsive_matrix: [{exact selected immutable DH-* responsive row including state, adaptation, stretch_behavior, overflow_behavior, decision_ids}]
 - visual_acceptance_matrix: [{exact selected immutable DH-* row including id and target_id}]
 - comparison_tolerance: {exact immutable structured object; never summarize as prose}

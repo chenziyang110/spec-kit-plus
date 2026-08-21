@@ -53,7 +53,17 @@ design_system:
       agent_resource_ids: []
       candidates: []
       confirmation_codes: []
+      component_adoption_plan: []
+      official_resource_refresh:
+        status: not-run
+        helper_ref: ui-professional-skills/refresh.py
+        selected_resource_ids: []
+        selected_agent_resource_ids: []
+        network_policy: blocked_by_default
+        install_or_upgrade: unauthorized
+        items: []
     smoothness_acceptance_ids: []
+    smoothness_performance_budgets: {}
   style_authority:
     mode: unresolved
     scope_level: null
@@ -184,6 +194,9 @@ claims need source or source_gap.
 - Final Web selection requires a scanned `web_ui_asset_inventory`; retain the
   selected candidate, compact reason codes, and confirmation codes from
   `mature_web_ui_selection`.
+- Retain the exact deterministic adoption row for every affected component and
+  keep `add` permission-gated. Refresh selected official resources read-only;
+  content/version/license drift reopens selection without authorizing change.
 - Buttons must have default, hover, focus, disabled, and loading states.
 - Inputs must have default, hover, focus, disabled, and error states.
 - Record mouse/pointer, keyboard/focus, touch, and shortcut behavior for each

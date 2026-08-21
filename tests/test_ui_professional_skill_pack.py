@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
@@ -13,6 +14,14 @@ PACK = ROOT / "templates" / "ui-professional-skills"
 CATALOG = PACK / "catalog.json"
 ROUTER = PACK / "router.md"
 ROUTE_SCRIPT = PACK / "route.py"
+
+
+def _load_route_module():
+    spec = importlib.util.spec_from_file_location("ui_professional_route", ROUTE_SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _read(path: Path) -> str:
@@ -256,13 +265,13 @@ def test_router_scans_live_ui_assets_and_prefers_the_installed_primary_system(
         "surface_refs": ["src/app/page.tsx"],
     }
     selection = payload["mature_web_ui_selection"]
-    assert selection["status"] == "resolved"
+    assert selection["status"] == "provisional"
     assert selection["primary_resource_id"] == "material-ui"
     assert selection["candidates"][0]["resource_id"] == "material-ui"
     assert "installed" in selection["candidates"][0]["reason_codes"]
-    assert selection["confirmation_codes"] == []
+    assert "dependency-add-authorization-required" in selection["confirmation_codes"]
     adoption_plan = selection["component_adoption_plan"]
-    assert [row["resource_id"] for row in adoption_plan] == ["material-ui"]
+    assert [row["resource_id"] for row in adoption_plan] == ["material-ui", "ag-grid"]
     material_ui = adoption_plan[0]
     _assert_component_adoption_plan_row(
         material_ui,
@@ -273,8 +282,56 @@ def test_router_scans_live_ui_assets_and_prefers_the_installed_primary_system(
     assert material_ui["version"] == "^7.0.0"
     assert material_ui["permission_gate"] == "not-required"
     assert material_ui["permission_status"] == "authorized"
+    ag_grid = adoption_plan[1]
+    _assert_component_adoption_plan_row(
+        ag_grid,
+        resource_id="ag-grid",
+        action="add",
+    )
+    assert ag_grid["permission_gate"] == "required"
+    assert ag_grid["permission_status"] == "not-authorized"
+    assert payload["professional_skill_route"]["status"] == "unresolved"
     assert payload["professional_skill_route"]["web_ui_asset_inventory"] == inventory
     assert payload["professional_skill_route"]["mature_web_ui_selection"] == selection
+
+
+def test_router_library_api_exercises_deterministic_adoption_and_native_boundaries(
+    tmp_path: Path,
+) -> None:
+    module = _load_route_module()
+    project = tmp_path / "react-app"
+    component_root = project / "src" / "components" / "ui"
+    component_root.mkdir(parents=True)
+    (component_root / "Grid.tsx").write_text(
+        "export function Grid() { return null }\n", encoding="utf-8"
+    )
+    (project / "package.json").write_text(
+        json.dumps(
+            {
+                "dependencies": {
+                    "react": "^19.0.0",
+                    "@mui/material": "^7.0.0",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    web = module.route(
+        _catalog(),
+        "React 数据工作台，需要十万行表格、富文本编辑和可中断动效",
+        style_authority="inherit-existing",
+        project_root=project,
+    )
+    adoption = web["mature_web_ui_selection"]["component_adoption_plan"]
+    assert adoption[0]["resource_id"] == "local-components"
+    assert any(row["action"] == "reuse" for row in adoption)
+    assert any(row["action"] == "add" for row in adoption)
+    assert web["smoothness_performance_budgets"]["inp_ms"] == 200
+
+    native = module.route(_catalog(), "iOS SwiftUI 组件设计")
+    assert native["mature_web_ui_selection"]["component_adoption_plan"] == []
+    assert native["smoothness_performance_budgets"] == {}
 
 
 def test_router_requires_confirmation_for_multiple_installed_primary_systems(
@@ -368,6 +425,15 @@ def test_router_explains_selection_and_routes_smoothness_acceptance_ids() -> Non
     } <= set(acceptance_ids)
     persisted = payload["professional_skill_route"]
     assert persisted["smoothness_acceptance_ids"] == acceptance_ids
+    budgets = payload["smoothness_performance_budgets"]
+    assert budgets == {
+        "inp_ms": 200,
+        "long_task_ms": 50,
+        "cls": 0.1,
+        "animation_dropped_frame_pct": 5,
+        "bundle_delta_kb": 30,
+    }
+    assert persisted["smoothness_performance_budgets"] == budgets
 
 
 def test_router_component_adoption_plan_marks_selected_uninstalled_support_as_add_with_permission_gate() -> None:
@@ -589,6 +655,8 @@ def test_design_workflows_route_to_the_shared_professional_pack() -> None:
         assert "domain_skill_id" in lowered
         assert "style_skill_id" in lowered
         assert "specialist_skill_ids" in lowered
+        assert "component_adoption_plan" in lowered or "component adoption" in lowered
+        assert "official-resource refresh" in lowered
         assert "load only" in lowered or "only load" in lowered
 
 
@@ -613,7 +681,10 @@ def test_design_artifacts_persist_the_resolved_professional_route() -> None:
         assert "mature_web_ui_resource_ids:" in content
         assert "web_ui_asset_inventory:" in content
         assert "mature_web_ui_selection:" in content
+        assert "component_adoption_plan:" in content
+        assert "official_resource_refresh:" in content
         assert "smoothness_acceptance_ids:" in content
+        assert "smoothness_performance_budgets:" in content
         assert "matched_signals:" in content
         assert "loaded_refs:" in content
 
@@ -657,6 +728,7 @@ def test_shared_infra_install_copies_the_runnable_professional_pack(
     installed = project / ".specify" / "templates" / "ui-professional-skills"
     assert (installed / "catalog.json").is_file()
     assert (installed / "router.md").is_file()
+    assert (installed / "refresh.py").is_file()
     assert (installed / "web-component-selection.md").is_file()
     assert (installed / "domains" / "product-workspace.md").is_file()
 

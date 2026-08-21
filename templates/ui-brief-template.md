@@ -53,9 +53,11 @@ adoption; it does not authorize reinterpretation.
 - Component governance:
   Preserve selected `component_contracts` rows including `variants`,
   `content_constraints`, `semantic_token_refs`, `governance` (`reuse` |
-  `extend` | `new`), and `iconography` source/style/optical rules.
+  `extend` | `new`), exact nested `adoption` action/package/version/license/
+  source/permission fields, and `iconography` source/style/optical rules.
 - Surface and scenario graph:
-  Select exact `surface_catalog` rows for the feature surfaces and exact
+  Select exact `surface_catalog` rows for the feature surfaces, including each
+  row's immutable `entrypoint_id`, and exact
   `scenario_matrix` rows for bounded risk-based or pairwise coverage. Each
   scenario references one stable surface plus every interaction, editing, data,
   accessibility, navigation, content, responsive, and motion row it exercises;
@@ -102,7 +104,8 @@ adoption; it does not authorize reinterpretation.
 - Usability validation:
   Bind `usability_validation` risk, methods, critical tasks, success criteria,
   whether human review is required, and the exact routed
-  `smoothness_acceptance_ids` for Web UI.
+  `smoothness_acceptance_ids` and performance budgets for Web UI. Passing
+  acceptance binds the CLI-owned Smoothness Lab report ref and SHA-256.
 - Real content and imagery plan:
 - Data scenarios:
   Include `data_state_matrix` rows for empty, populated, partial, loading,

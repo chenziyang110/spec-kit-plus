@@ -139,12 +139,13 @@ description: "Task list template for feature implementation"
 | fidelity_level | [approximate | high | inspiration] |
 | adaptation_rules | [must_preserve; may_adapt; must_not] |
 | required_states | [loading, empty, populated, partial, error, selected, disabled, permission-limited as applicable] |
-| surface_catalog | [stable surface id; profile; kind; source/specimen/component refs; decision_ids] |
+| surface_catalog | [stable surface id; profile; kind; exact official entrypoint_id; source/specimen/component refs; decision_ids] |
 | scenario_matrix | [scenario id; surface_id; risk; required; exact interaction/editing/data/accessibility/navigation/content/responsive/motion refs including editing_ids; interaction_script preconditions + selected start_state_id + ordered steps + bounded success/failure/timeout/cancel/retry/duplicate/out_of_order branches whose expected_state_id is selected + focus/announcement/completion/recovery checkpoints; decision_ids] |
 | interaction_matrix | [surface; input; trigger; event sequence; immediate feedback; focus; repeat; cancellation; pending behavior] |
 | editing_matrix | [surface; input_methods; composition; paste/autofill; selection/caret; formatting; validation timing/feedback; dirty state; persistence; undo/redo; conflict; read-only/disabled; submission; decision_ids] |
 | data_state_matrix | [state; data condition; empty/representative/edge density; expected rendering and actions] |
-| component_contracts | [required_states; interaction_modes; data_scenarios; decision_ids] |
+| component_contracts | [required_states; interaction_modes; data_scenarios; nested adoption action/package/version/license/source/permission; decision_ids] |
+| usability_validation | [risk; methods; critical tasks; success criteria; human review; smoothness_acceptance_ids; performance_budgets] |
 | responsive_matrix | [viewport/target; state; adaptation; stretch_behavior; overflow_behavior; decision_ids] |
 | visual_acceptance | [visual_acceptance_matrix; comparison_tolerance; accepted_deviations] |
 | required_evidence | [structure_snapshot; visual_capture; runtime_diagnostics; visual_comparison_or_human_review] |

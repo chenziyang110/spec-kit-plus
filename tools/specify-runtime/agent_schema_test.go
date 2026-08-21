@@ -298,6 +298,46 @@ func TestAPIShowVisualComparePublishesDerivedReportContract(t *testing.T) {
 	}
 }
 
+func TestAPIShowSmoothnessLabPublishesDerivedManifestAndReportContracts(t *testing.T) {
+	tests := []struct {
+		capabilityID string
+		usage        string
+		contract     []string
+	}{
+		{
+			capabilityID: "evidence.smoothness-manifest",
+			usage:        "evidence smoothness-manifest",
+			contract:     []string{"exact smoothness acceptance ids", "task-index.json", "stale task bindings are rejected"},
+		},
+		{
+			capabilityID: "evidence.smoothness-validate",
+			usage:        "evidence smoothness-validate",
+			contract:     []string{"one passing observation per expected smoothness id", "task-bound budgets", "byte digest"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.capabilityID, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"api", "show", test.capabilityID, "--format", "json"}, &stdout, &stderr, "test")
+			if code != 0 {
+				t.Fatalf("api show %s exit code = %d; stdout=%s stderr=%s", test.capabilityID, code, stdout.String(), stderr.String())
+			}
+			payload := decodeJSONObject(t, stdout.Bytes())
+			capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+			usage, _ := capability["usage"].(string)
+			contract, _ := capability["input_contract"].(string)
+			if !strings.Contains(usage, test.usage) {
+				t.Fatalf("%s usage = %q", test.capabilityID, usage)
+			}
+			for _, want := range test.contract {
+				if !strings.Contains(contract, want) {
+					t.Fatalf("%s contract %q does not contain %q", test.capabilityID, contract, want)
+				}
+			}
+		})
+	}
+}
+
 func TestAPIShowPRDRecordUpsertPublishesRecordOwnedContract(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"api", "show", "prd-scan.record-upsert", "--format", "json"}, &stdout, &stderr, "test")

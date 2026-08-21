@@ -108,6 +108,15 @@ def _dependency_version(
     return None
 
 
+def _first_package_marker(markers: Any) -> str:
+    if not isinstance(markers, list):
+        return ""
+    for marker in markers:
+        if isinstance(marker, str) and marker:
+            return marker.rstrip("/")
+    return ""
+
+
 def scan_web_ui_assets(
     project_root: Path | None, catalog: dict[str, Any]
 ) -> dict[str, Any]:
@@ -184,6 +193,38 @@ def scan_web_ui_assets(
             )
     inventory["installed_resources"] = installed_resources
     return inventory
+
+
+def _component_refs_from_roots(
+    project_root: Path | None, inventory: dict[str, Any]
+) -> list[str]:
+    if project_root is None:
+        return []
+    try:
+        root = project_root.resolve()
+    except OSError:
+        return []
+    refs: list[str] = []
+    for root_ref in inventory.get("component_roots", []):
+        if not isinstance(root_ref, str) or not root_ref:
+            continue
+        component_root = root / root_ref
+        try:
+            resolved_root = component_root.resolve()
+            resolved_root.relative_to(root)
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if not resolved_root.is_dir():
+            continue
+        for pattern in ("*.tsx", "*.ts", "*.jsx", "*.js", "*.vue", "*.svelte"):
+            for candidate in sorted(resolved_root.rglob(pattern)):
+                try:
+                    relative = candidate.resolve().relative_to(root).as_posix()
+                except (OSError, RuntimeError, ValueError):
+                    continue
+                if relative not in refs:
+                    refs.append(relative)
+    return refs
 
 
 def _web_ui_signals(
@@ -535,6 +576,115 @@ def _select_mature_web_ui_resources(
     }
 
 
+def _component_adoption_plan(
+    catalog: dict[str, Any],
+    *,
+    is_web_ui: bool,
+    selection: dict[str, Any],
+    inventory: dict[str, Any],
+    project_root: Path | None,
+) -> list[dict[str, Any]]:
+    if not is_web_ui:
+        return []
+    resources = catalog.get("mature_web_ui_resources", [])
+    routing = catalog.get("mature_web_ui_routing", {})
+    package_markers = (
+        routing.get("resource_package_markers", {})
+        if isinstance(routing, dict)
+        else {}
+    )
+    package_markers = package_markers if isinstance(package_markers, dict) else {}
+    by_id = {
+        resource["id"]: resource
+        for resource in resources
+        if isinstance(resource, dict) and isinstance(resource.get("id"), str)
+    }
+    installed_versions = {
+        item["resource_id"]: item["version"]
+        for item in inventory.get("installed_resources", [])
+        if isinstance(item, dict)
+        and isinstance(item.get("resource_id"), str)
+        and isinstance(item.get("version"), str)
+    }
+    candidate_reasons = {
+        item.get("resource_id"): list(item.get("reason_codes", []))
+        for item in selection.get("candidates", [])
+        if isinstance(item, dict) and isinstance(item.get("resource_id"), str)
+    }
+    base_selection_refs = [
+        *[
+            ref
+            for ref in inventory.get("manifest_refs", [])
+            if isinstance(ref, str) and ref
+        ],
+        *[
+            ref
+            for ref in inventory.get("lockfile_refs", [])
+            if isinstance(ref, str) and ref
+        ],
+    ]
+
+    rows: list[dict[str, Any]] = []
+    local_component_refs = _component_refs_from_roots(project_root, inventory)
+    if local_component_refs:
+        local_basis_refs = base_selection_refs or list(local_component_refs)
+        rows.append(
+            {
+                "resource_id": "local-components",
+                "action": "reuse",
+                "package": "local-components",
+                "version": "local-source",
+                "license": "project-local",
+                "source_ref": inventory.get("component_roots", ["local-components"])[0]
+                if inventory.get("component_roots")
+                else "local-components",
+                "component_refs": local_component_refs,
+                "reason_codes": ["requires-mapping"],
+                "selection_basis_refs": local_basis_refs,
+                "permission_gate": "not-required",
+                "permission_status": "authorized",
+            }
+        )
+
+    selected_resource_ids: list[str] = []
+    primary_resource_id = selection.get("primary_resource_id")
+    if isinstance(primary_resource_id, str) and primary_resource_id:
+        selected_resource_ids.append(primary_resource_id)
+    for resource_id in selection.get("supporting_resource_ids", []):
+        if (
+            isinstance(resource_id, str)
+            and resource_id
+            and resource_id not in selected_resource_ids
+        ):
+            selected_resource_ids.append(resource_id)
+
+    for resource_id in selected_resource_ids:
+        resource = by_id.get(resource_id, {})
+        package_name = _first_package_marker(package_markers.get(resource_id))
+        installed_version = installed_versions.get(resource_id, "")
+        is_installed = bool(installed_version)
+        action = "reuse" if is_installed else "add"
+        selection_basis_refs = list(base_selection_refs)
+        if not selection_basis_refs:
+            selection_basis_refs = [str(resource.get("official_url") or resource_id)]
+        rows.append(
+            {
+                "resource_id": resource_id,
+                "action": action,
+                "package": package_name or resource_id,
+                "version": installed_version or "not-installed",
+                "license": str(resource.get("license") or "unknown"),
+                "source_ref": str(resource.get("official_url") or resource_id),
+                "component_refs": [str(resource.get("official_url") or resource_id)],
+                "reason_codes": candidate_reasons.get(resource_id, ["selected"]),
+                "selection_basis_refs": selection_basis_refs,
+                "permission_gate": "not-required" if is_installed else "required",
+                "permission_status": "authorized" if is_installed else "not-authorized",
+            }
+        )
+    return rows
+
+
 def _smoothness_acceptance_ids(
     catalog: dict[str, Any],
     *,
@@ -651,10 +801,55 @@ def route(
         matched_capabilities=web_capabilities,
         inventory=asset_inventory,
     )
+    mature_selection["component_adoption_plan"] = _component_adoption_plan(
+        catalog,
+        is_web_ui=is_web_ui,
+        selection=mature_selection,
+        inventory=asset_inventory,
+        project_root=project_root,
+    )
+    if any(
+        row.get("action") == "add"
+        and row.get("permission_status") == "not-authorized"
+        for row in mature_selection["component_adoption_plan"]
+        if isinstance(row, dict)
+    ):
+        mature_selection["status"] = "provisional"
+        confirmation_codes = mature_selection.setdefault("confirmation_codes", [])
+        if "dependency-add-authorization-required" not in confirmation_codes:
+            confirmation_codes.append("dependency-add-authorization-required")
+    selected_refresh_ids = [
+        resource_id
+        for resource_id in [
+            mature_selection.get("primary_resource_id"),
+            *mature_selection.get("supporting_resource_ids", []),
+        ]
+        if isinstance(resource_id, str) and resource_id
+    ]
+    mature_selection["official_resource_refresh"] = {
+        "status": "not-run" if is_web_ui and selected_refresh_ids else "not-applicable",
+        "helper_ref": "ui-professional-skills/refresh.py",
+        "selected_resource_ids": selected_refresh_ids,
+        "selected_agent_resource_ids": list(
+            mature_selection.get("agent_resource_ids", [])
+        ),
+        "network_policy": "blocked_by_default",
+        "install_or_upgrade": "unauthorized",
+        "items": [],
+    }
     smoothness_ids = _smoothness_acceptance_ids(
         catalog,
         is_web_ui=is_web_ui,
         matched_capabilities=web_capabilities,
+    )
+    smoothness_budgets = (
+        dict(
+            catalog.get("mature_web_ui_routing", {}).get(
+                "smoothness_performance_budgets", {}
+            )
+        )
+        if is_web_ui
+        else {}
     )
 
     question = None
@@ -694,6 +889,7 @@ def route(
         "web_ui_asset_inventory": asset_inventory,
         "mature_web_ui_selection": mature_selection,
         "smoothness_acceptance_ids": smoothness_ids,
+        "smoothness_performance_budgets": smoothness_budgets,
     }
 
     return {
@@ -713,6 +909,7 @@ def route(
         "web_ui_asset_inventory": asset_inventory,
         "mature_web_ui_selection": mature_selection,
         "smoothness_acceptance_ids": smoothness_ids,
+        "smoothness_performance_budgets": smoothness_budgets,
         "professional_skill_route": professional_skill_route,
     }
 

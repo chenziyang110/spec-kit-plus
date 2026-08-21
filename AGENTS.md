@@ -254,10 +254,15 @@ present in a test project.
   performance, interruption, and reduced motion.
   The deterministic helper accepts the actual project root, reads only
   catalog-listed manifests and paths, and persists `web_ui_asset_inventory`,
-  explainable `mature_web_ui_selection` reason/confirmation codes, and
-  `smoothness_acceptance_ids`. An unscanned inventory is provisional. Carry the
-  smoothness IDs through existing interaction, motion, usability, and integrated
-  Review evidence; do not introduce another UI evidence kind.
+  explainable `mature_web_ui_selection` reason/confirmation codes, a
+  deterministic component adoption plan, read-only selected-official-resource
+  drift results, `smoothness_acceptance_ids`, and performance budgets. An
+  unscanned inventory is provisional; install/add/upgrade/license actions remain
+  confirmation-gated. Carry adoption rows into component contracts and
+  smoothness IDs/budgets through interaction, motion, usability, and integrated
+  Review evidence. `evidence smoothness-manifest|smoothness-validate` owns the
+  real-entrypoint Playwright matrix and hashed report without adding another UI
+  evidence kind.
 - Live UI is the default style authority. Feature, component, and partial
   functional-page work inside an existing product uses structured
   `style_authority.mode: inherit-existing`, cites exact live source refs,

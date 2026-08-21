@@ -84,9 +84,15 @@ Use this template when the leader dispatches a concrete implementation lane for 
 - If the packet requires `visual_comparison_or_human_review` and you cannot perform visual comparison, return `ui_verification.fidelity_status: pending-human-review` instead of claiming visual match.
 - When `usability_validation.smoothness_acceptance_ids` is non-empty, exercise
   every applicable ID and return the exact set as
-  `ui_verification.covered_smoothness_acceptance_ids`; use only the current
+  `ui_verification.covered_smoothness_acceptance_ids`. In the Leader-owned
+  integrated attempt, use `specify-runtime evidence smoothness-manifest`, run
+  its exact real-entrypoint matrix through Playwright or the available browser
+  runner, and submit observations through `evidence smoothness-validate`; bind
+  the returned `smoothness_lab_report_ref` and SHA-256. Use only the current
   structure, visual, runtime, and visual-comparison-or-human-review evidence
-  channels.
+  channels. The task surface must bind one exact official `entrypoint_id`;
+  report missing or ambiguous bindings instead of choosing another entrypoint.
+  Never handwrite or shorten the runtime-owned manifest/report.
 - When the Leader performs a passing comparison, return compact observed matrix differences and typed evidence refs for `specify-runtime evidence visual-compare`; do not read the stable template or author the report. The runtime derives approved bindings, exact decision/contract coverage, tolerance, deviations, path, and digest from the task contract. A screenshot path without this CLI-owned comparison record is not a fidelity pass.
 - Report back in this exact status family: `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`.
 - Prefer `DONE_WITH_CONCERNS` over silent guessing when the work is complete but confidence is mixed.

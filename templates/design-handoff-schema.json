@@ -293,7 +293,43 @@
         "methods": {"$ref": "#/$defs/nonEmptyStrings"},
         "critical_tasks": {"$ref": "#/$defs/nonEmptyStrings"},
         "success_criteria": {"$ref": "#/$defs/nonEmptyStrings"},
-        "human_review_required": {"type": "boolean"}
+        "human_review_required": {"type": "boolean"},
+        "smoothness_acceptance_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "performance_budgets": {"$ref": "#/$defs/smoothnessPerformanceBudgets"}
+      }
+    },
+    "smoothnessPerformanceBudgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inp_ms", "long_task_ms", "cls", "animation_dropped_frame_pct", "bundle_delta_kb"],
+      "properties": {
+        "inp_ms": {"type": "number", "minimum": 0},
+        "long_task_ms": {"type": "number", "minimum": 0},
+        "cls": {"type": "number", "minimum": 0},
+        "animation_dropped_frame_pct": {"type": "number", "minimum": 0},
+        "bundle_delta_kb": {"type": "number", "minimum": 0}
+      }
+    },
+    "componentAdoption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource_id", "action", "package", "version", "license", "source_ref", "component_refs", "reason_codes", "selection_basis_refs", "permission_gate", "permission_status"],
+      "properties": {
+        "resource_id": {"type": "string", "minLength": 1},
+        "action": {"enum": ["reuse", "extend", "add", "custom"]},
+        "package": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "license": {"type": "string", "minLength": 1},
+        "source_ref": {"type": "string", "minLength": 1},
+        "component_refs": {"$ref": "#/$defs/nonEmptyStrings"},
+        "reason_codes": {"$ref": "#/$defs/nonEmptyStrings"},
+        "selection_basis_refs": {"$ref": "#/$defs/nonEmptyStrings"},
+        "permission_gate": {"enum": ["required", "not-required"]},
+        "permission_status": {"enum": ["authorized", "not-authorized"]}
       }
     },
     "componentContract": {
@@ -313,18 +349,20 @@
         "governance": {"enum": ["reuse", "extend", "new"]},
         "iconography": {"type": "string", "minLength": 1},
         "decision_ids": {"$ref": "#/$defs/decisionIds"},
-        "must_match": {"$ref": "#/$defs/nonEmptyStrings"}
+        "must_match": {"$ref": "#/$defs/nonEmptyStrings"},
+        "adoption": {"$ref": "#/$defs/componentAdoption"}
       }
     },
     "surfaceContract": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "profile_id", "name", "kind", "source_refs", "specimen_ids", "component_ids", "decision_ids"],
+      "required": ["id", "profile_id", "name", "kind", "entrypoint_id", "source_refs", "specimen_ids", "component_ids", "decision_ids"],
       "properties": {
         "id": {"$ref": "#/$defs/handoffId"},
         "profile_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
         "name": {"type": "string", "minLength": 1},
         "kind": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "entrypoint_id": {"type": "string", "minLength": 1},
         "source_refs": {"$ref": "#/$defs/nonEmptyStrings"},
         "specimen_ids": {"$ref": "#/$defs/specimenIds"},
         "component_ids": {"$ref": "#/$defs/handoffIds"},

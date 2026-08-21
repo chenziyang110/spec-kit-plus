@@ -96,7 +96,8 @@ Read `.specify/templates/ui-professional-skills/router.md`, resolve and persist
 `professional_skill_route` with `domain_skill_id`, `style_skill_id`,
 `specialist_skill_ids`, `matched_signals`, `loaded_refs`, and
 `mature_web_ui_resource_ids`, `web_ui_asset_inventory`,
-`mature_web_ui_selection`, and `smoothness_acceptance_ids` when Web UI applies.
+`mature_web_ui_selection`, deterministic `component_adoption_plan`, read-only
+official-resource refresh result, `smoothness_acceptance_ids`, and performance budgets when Web UI applies.
 Pass the actual project root to the deterministic router, then load only the selected
 one domain, zero-or-one style, and zero-to-two specialist references. Web
 component work also reads the router-triggered `web-component-selection.md`:

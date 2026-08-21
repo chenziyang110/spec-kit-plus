@@ -159,7 +159,15 @@ run the integrated real surface once per applicable fingerprint and record
 `evidence_scope: integrated`; visually inspect, repair drift, and recapture in
 a new attempt inside the same gate. Record exact
 `covered_smoothness_acceptance_ids` in `ui_verification`; missing or extra IDs
-block task acceptance without introducing a new evidence kind. For a passing comparison, call
+block task acceptance without introducing a new evidence kind. Materialize the
+CLI-owned manifest with `specify-runtime evidence smoothness-manifest`, run its
+exact real-entrypoint matrix through Playwright or the available browser runner,
+and submit observations to `evidence smoothness-validate`; bind the returned
+`smoothness_lab_report_ref` and `smoothness_lab_report_sha256`. The runtime must
+resolve the task surface's exact `entrypoint_id`; missing, unknown, or ambiguous
+bindings block the lab. Acceptance revalidates the canonical manifest, current
+task-index digest, typed evidence triad, complete scenario set, and performance
+budgets, so never handwrite or reduce the report. For a passing comparison, call
 `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json` with only the observed entrypoint/revision, typed evidence refs, matrix differences, explicit verdict, and reviewer. The runtime derives the approved preview/manifest/handoff bindings, exact `DS-*`/`DH-*` coverage, tolerance, deviations, canonical report, and byte digest from the task contract. Never read the stable template or author/patch the report. Record behavior checks separately from
 visual/interaction acceptance. Missing or bootstrap design sources hand off to
 `$spx-design` and stop; unavailable comparison remains `pending-human-review`,

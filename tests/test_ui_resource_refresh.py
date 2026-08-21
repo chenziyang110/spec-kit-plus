@@ -53,7 +53,9 @@ def test_refresh_rejects_non_official_or_unauthorized_sources() -> None:
         offline=True,
     )
     assert report["run_mode"] == "read_only"
+    assert report["status"] == "complete"
     assert report["network_policy"] == "blocked_by_default"
+    assert report["writes"] == "none"
     assert report["install_or_upgrade"] == "unauthorized"
     assert all(item["source_kind"] in {"agent-skill", "mcp", "llms-txt", "markdown"} for item in report["items"])
 

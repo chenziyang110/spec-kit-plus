@@ -1169,6 +1169,8 @@ func defaultCapabilities() []string {
 		"evidence.import",
 		"evidence.register",
 		"evidence.show",
+		"evidence.smoothness-manifest",
+		"evidence.smoothness-validate",
 		"evidence.visual-compare",
 		"evidence.verify",
 		"hook.extension-plan",
@@ -1343,6 +1345,10 @@ func capabilitySummary(id string) string {
 		return "Bind user confirmation to one exact staged scan-policy digest."
 	case "evidence.visual-compare":
 		return "Materialize a task-bound visual comparison report from compact observed differences and captures."
+	case "evidence.smoothness-manifest":
+		return "Materialize a task-bound Smoothness Lab manifest from the current immutable task contract."
+	case "evidence.smoothness-validate":
+		return "Validate Smoothness Lab observations and materialize a passing task-bound report."
 	case "design.change":
 		return "Create a scoped UI design-change workspace and draft index record."
 	case "design.iterate":

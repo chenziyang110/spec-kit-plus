@@ -187,6 +187,7 @@ var artifactTypePatterns = []artifactTypePattern{
 			return relative == name && strings.HasPrefix(name, "visual-comparison") && strings.HasSuffix(name, ".json")
 		},
 	},
+	newFeatureWorkspaceNestedPattern("implementation-review/smoothness/", ".json", ArtifactTypeMetadata{TypeID: "feature-smoothness-lab", Owner: "specify-runtime evidence smoothness-manifest / smoothness-validate", Role: "canonical", Schema: "json/smoothness-lab", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newFeatureArtifactPattern("spec.md", ArtifactTypeMetadata{
 		TypeID:         "feature-spec",
 		Owner:          "specify-runtime artifact",

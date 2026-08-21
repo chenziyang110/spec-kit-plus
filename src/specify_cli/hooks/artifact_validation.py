@@ -3382,6 +3382,34 @@ def _ui_contract_valid_data_scenario(item: Any) -> bool:
     )
 
 
+def _ui_contract_valid_component_adoption(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    if not str(value.get("resource_id") or "").strip():
+        return False
+    if value.get("action") not in {"reuse", "extend", "add", "custom"}:
+        return False
+    if any(
+        not isinstance(value.get(field), str)
+        or not str(value.get(field) or "").strip()
+        for field in ("package", "version", "license", "source_ref")
+    ):
+        return False
+    if any(
+        not _ui_contract_has_nonblank_string_list(value.get(field))
+        for field in ("component_refs", "reason_codes", "selection_basis_refs")
+    ):
+        return False
+    gate = value.get("permission_gate")
+    status = value.get("permission_status")
+    return (
+        gate in {"required", "not-required"}
+        and status in {"authorized", "not-authorized"}
+        and (value.get("action") != "add" or gate == "required")
+        and (gate != "not-required" or status == "authorized")
+    )
+
+
 def _ui_contract_valid_row_refs(
     item: Any,
     decision_ids: set[str],
@@ -3413,6 +3441,7 @@ def _ui_contract_valid_surface_row(
         and bool(str(item.get("profile_id") or "").strip())
         and bool(str(item.get("name") or "").strip())
         and bool(str(item.get("kind") or "").strip())
+        and bool(str(item.get("entrypoint_id") or "").strip())
         and _ui_contract_has_nonblank_string_list(item.get("source_refs"))
         and _ui_contract_has_nonblank_string_list(item.get("specimen_ids"))
         and _ui_contract_has_nonblank_string_list(item.get("component_ids"))
@@ -3792,6 +3821,34 @@ def _ui_contract_valid_usability(value: Any) -> bool:
     human_review_required = value.get("human_review_required")
     if not isinstance(human_review_required, bool):
         return False
+    smoothness_ids = value.get("smoothness_acceptance_ids")
+    if smoothness_ids is not None:
+        if not isinstance(smoothness_ids, list) or any(
+            not isinstance(item, str) or not item.strip()
+            for item in smoothness_ids
+        ):
+            return False
+        normalized_ids = [item.strip() for item in smoothness_ids]
+        if len(normalized_ids) != len(set(normalized_ids)):
+            return False
+    budgets = value.get("performance_budgets")
+    if budgets is not None:
+        expected = {
+            "inp_ms",
+            "long_task_ms",
+            "cls",
+            "animation_dropped_frame_pct",
+            "bundle_delta_kb",
+        }
+        if not isinstance(budgets, dict) or set(budgets) != expected:
+            return False
+        if any(
+            isinstance(item, bool)
+            or not isinstance(item, (int, float))
+            or item < 0
+            for item in budgets.values()
+        ):
+            return False
     return value.get("risk_level") != "high" or human_review_required
 
 
@@ -4087,7 +4144,7 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
         for item in surface_catalog
     ):
         errors.append(
-            f"{label}.surface_catalog entries require stable identity, profile, source/specimen/component coverage, and known references"
+            f"{label}.surface_catalog entries require stable identity, an official entrypoint binding, profile, source/specimen/component coverage, and known references"
         )
     surface_ids = {
         str(item.get("id") or "").strip()
@@ -4156,6 +4213,10 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
         or not _ui_contract_has_nonblank_string_list(item.get("semantic_token_refs"))
         or item.get("governance") not in {"reuse", "extend", "new"}
         or not str(item.get("iconography") or "").strip()
+        or (
+            item.get("adoption") is not None
+            and not _ui_contract_valid_component_adoption(item.get("adoption"))
+        )
         for item in component_contracts
     ):
         errors.append(
@@ -4631,6 +4692,15 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
         if isinstance(task_index_payload, dict)
         else None
     )
+    official_entrypoint_ids = {
+        str(item.get("id") or "").strip()
+        for item in (
+            task_index_payload.get("official_entrypoints", [])
+            if isinstance(task_index_payload, dict)
+            else []
+        )
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    }
     if isinstance(raw_tasks, list):
         for task_entry in raw_tasks:
             if (
@@ -4702,6 +4772,30 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
                     f"task-index.json UI task {task_id} ui_contract",
                 )
             )
+            surface_entrypoint_ids = [
+                str(surface.get("entrypoint_id") or "").strip()
+                for surface in task_contract.get("surface_catalog") or []
+                if isinstance(surface, dict)
+                and str(surface.get("entrypoint_id") or "").strip()
+            ]
+            unknown_entrypoint_ids = sorted(
+                set(surface_entrypoint_ids) - official_entrypoint_ids
+            )
+            if unknown_entrypoint_ids:
+                errors.append(
+                    f"task-index.json UI task {task_id} surface_catalog references unknown official entrypoint IDs: "
+                    + ", ".join(unknown_entrypoint_ids)
+                )
+            usability = task_contract.get("usability_validation")
+            smoothness_ids = (
+                usability.get("smoothness_acceptance_ids")
+                if isinstance(usability, dict)
+                else None
+            )
+            if smoothness_ids and len(set(surface_entrypoint_ids)) != 1:
+                errors.append(
+                    f"task-index.json UI task {task_id} Smoothness Lab surfaces must bind exactly one official entrypoint"
+                )
             for field in ("design_sources", "required_states"):
                 value = task_contract.get(field)
                 if not isinstance(value, list) or not any(

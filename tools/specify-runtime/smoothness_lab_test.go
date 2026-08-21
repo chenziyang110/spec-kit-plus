@@ -55,6 +55,9 @@ func TestEvidenceSmoothnessManifestDerivesReadyTaskContract(t *testing.T) {
 			t.Fatalf("missing default budget %q in %#v", key, budgets)
 		}
 	}
+	if budgets["bundle_delta_kb"] != float64(30) {
+		t.Fatalf("task performance budgets were not preserved: %#v", budgets)
+	}
 	source := smoothnessLabObject(manifest["source"])
 	if source["task_index_sha256"] != smoothnessLabFileSHA256(filepath.Join(feature, "task-index.json")) {
 		t.Fatalf("task-index digest = %#v", source)
@@ -73,6 +76,51 @@ func TestEvidenceSmoothnessManifestDerivesReadyTaskContract(t *testing.T) {
 	env = decodeSmoothnessLabEnvelope(t, stdout.Bytes(), stderr.String())
 	if exit != 0 || env.Status != "ok" || env.Data["applicable"] != false || env.Data["status"] != "not-applicable" {
 		t.Fatalf("empty smoothness ids should be not-applicable: exit=%d env=%#v stderr=%s", exit, env, stderr.String())
+	}
+}
+
+func TestEvidenceSmoothnessManifestRejectsUnboundOrAmbiguousEntrypoint(t *testing.T) {
+	root, feature, featureRef := newSmoothnessLabFixture(t)
+	indexPath := filepath.Join(feature, "task-index.json")
+	index := readImplementJSONFile(t, indexPath)
+	tasks, _ := index["tasks"].([]any)
+	task, _ := tasks[0].(map[string]any)
+	ui, _ := task["ui_contract"].(map[string]any)
+	surfaces, _ := ui["surface_catalog"].([]any)
+	surface, _ := surfaces[0].(map[string]any)
+	delete(surface, "entrypoint_id")
+	writeSmoothnessLabJSON(t, indexPath, index)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	exit := Run([]string{
+		"evidence", "smoothness-manifest",
+		"--project-root", root, "--feature-dir", featureRef,
+		"--task-id", "T101", "--format", "json",
+	}, &stdout, &stderr, "test")
+	env := decodeSmoothnessLabEnvelope(t, stdout.Bytes(), stderr.String())
+	if exit == 0 || !strings.Contains(env.Summary, "bound official entrypoint") {
+		t.Fatalf("unbound entrypoint unexpectedly passed: exit=%d env=%#v", exit, env)
+	}
+
+	surface["entrypoint_id"] = "EP-WEB-SETTINGS"
+	ui["surface_catalog"] = append(surfaces, map[string]any{
+		"id": "SURF-ADMIN", "entrypoint_id": "EP-WEB-ADMIN", "surface": "admin",
+	})
+	index["official_entrypoints"] = append(index["official_entrypoints"].([]any), map[string]any{
+		"id": "EP-WEB-ADMIN", "kind": "web", "route": "/admin", "url": "http://127.0.0.1:4173/admin",
+	})
+	writeSmoothnessLabJSON(t, indexPath, index)
+	stdout.Reset()
+	stderr.Reset()
+	exit = Run([]string{
+		"evidence", "smoothness-manifest",
+		"--project-root", root, "--feature-dir", featureRef,
+		"--task-id", "T101", "--format", "json",
+	}, &stdout, &stderr, "test")
+	env = decodeSmoothnessLabEnvelope(t, stdout.Bytes(), stderr.String())
+	if exit == 0 || !strings.Contains(env.Summary, "exactly one official entrypoint") {
+		t.Fatalf("ambiguous entrypoint unexpectedly passed: exit=%d env=%#v", exit, env)
 	}
 }
 
@@ -228,6 +276,9 @@ func TestEvidenceSmoothnessValidateMaterializesPassingReport(t *testing.T) {
 	if got := smoothnessLabStrings(patch["covered_smoothness_acceptance_ids"]); !reflect.DeepEqual(got, []string{"focus-continuity", "pending-cancel-feedback", "reduced-motion", "large-data-performance"}) {
 		t.Fatalf("ui verification patch = %#v", patch)
 	}
+	if patch["smoothness_lab_report_ref"] != reportRef || patch["smoothness_lab_report_sha256"] != env.Data["report_sha256"] {
+		t.Fatalf("ui verification report binding = %#v", patch)
+	}
 }
 
 func newSmoothnessLabFixture(t *testing.T) (string, string, string) {
@@ -270,6 +321,11 @@ func smoothnessLabTask(taskID string, smoothnessIDs []any) map[string]any {
 				"human_review_required":         false,
 				"smoothness_acceptance_ids":     smoothnessIDs,
 				"smoothness_acceptance_lab_ref": "implementation-review/smoothness/smoothness-manifest-" + taskID + ".json",
+				"performance_budgets": map[string]any{
+					"inp_ms": 200, "long_task_ms": 50, "cls": 0.1,
+					"animation_dropped_frame_pct": 5,
+					"bundle_delta_kb":             30,
+				},
 			},
 			"interaction_matrix": []any{
 				map[string]any{"id": "DH-FOCUS", "surface": "settings", "input": "keyboard", "trigger": "Tab", "focus_behavior": "retain-visible-focus"},

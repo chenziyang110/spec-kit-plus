@@ -2489,6 +2489,26 @@ func configureUITargetCandidate(t *testing.T, path string) string {
 	return content
 }
 
+func TestValidDesignComponentAdoptionRequiresNonBlankMetadata(t *testing.T) {
+	valid := map[string]any{
+		"resource_id": "material-ui", "action": "reuse",
+		"package": "@mui/material", "version": "^7.0.0", "license": "MIT",
+		"source_ref": "package.json", "component_refs": []any{"TextField"},
+		"reason_codes": []any{"installed"}, "selection_basis_refs": []any{"package.json"},
+		"permission_gate": "not-required", "permission_status": "authorized",
+	}
+	if !validDesignComponentAdoption(valid) {
+		t.Fatal("complete component adoption should be valid")
+	}
+	for _, field := range []string{"package", "version", "license"} {
+		invalid := cloneJSONMap(valid)
+		invalid[field] = ""
+		if validDesignComponentAdoption(invalid) {
+			t.Fatalf("blank %s must be rejected", field)
+		}
+	}
+}
+
 func decodeEnvelope(t *testing.T, raw []byte) Envelope {
 	t.Helper()
 	var env Envelope

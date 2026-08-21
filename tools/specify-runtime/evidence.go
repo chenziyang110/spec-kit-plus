@@ -96,6 +96,18 @@ func runEvidence(args []string, stdout io.Writer) int {
 			return writeEvidenceEnvelope(stdout, evidenceUsageError(err.Error()))
 		}
 		return writeEvidenceEnvelope(stdout, service.visualCompare(args, input))
+	case "smoothness-manifest":
+		return writeEvidenceEnvelope(stdout, service.smoothnessManifest(args))
+	case "smoothness-validate":
+		input, err := readAgentJSONObject(args, projectRoot, "evidence smoothness-validate")
+		if err != nil {
+			return writeEvidenceEnvelope(stdout, evidenceUsageError(err.Error()))
+		}
+		env := service.smoothnessValidate(args, input)
+		if env.Status == "error" {
+			return writeEvidenceEnvelopeWithExit(stdout, env, 2)
+		}
+		return writeEvidenceEnvelope(stdout, env)
 	case "show":
 		env := service.show(evidenceOptionValue(args, "--record", ""), evidenceOptionValue(args, "--view", "summary"))
 		return writeEvidenceEnvelope(stdout, env)
@@ -446,6 +458,10 @@ func evidenceOptionValue(args []string, name, fallback string) string {
 }
 
 func writeEvidenceEnvelope(stdout io.Writer, env Envelope) int {
+	return writeEvidenceEnvelopeWithExit(stdout, env, ExitCodeForStatus(env.Status))
+}
+
+func writeEvidenceEnvelopeWithExit(stdout io.Writer, env Envelope, exitCode int) int {
 	raw, err := json.MarshalIndent(env, "", "  ")
 	if err != nil {
 		fallback := NewEnvelope("error", "failed to encode evidence response")
@@ -455,7 +471,7 @@ func writeEvidenceEnvelope(stdout io.Writer, env Envelope) int {
 		return ExitCodeForStatus(fallback.Status)
 	}
 	_, _ = stdout.Write(append(raw, '\n'))
-	return ExitCodeForStatus(env.Status)
+	return exitCode
 }
 
 func evidenceAtomicWriteFile(path string, content []byte, perm os.FileMode) error {

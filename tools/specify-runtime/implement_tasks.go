@@ -930,6 +930,7 @@ func resetImplementTaskUIVerification(value any) map[string]any {
 		"visual_comparison": "unavailable", "fidelity_status": fidelityStatus, "reviewer": "agent",
 		"human_review_ref": "",
 		"evidence":         []any{}, "comparison_report_ref": "", "comparison_report_sha256": "",
+		"smoothness_lab_report_ref": "", "smoothness_lab_report_sha256": "",
 		"implementation_capture_refs": []any{}, "structural_differences": []any{}, "visual_differences": []any{},
 	}
 }
@@ -1301,6 +1302,14 @@ func validateImplementTaskUIAcceptance(feature string, task, lifecycle map[strin
 		}
 		if !exactCoverage {
 			return fmt.Errorf("ui_verification.covered_smoothness_acceptance_ids must exactly cover the task contract")
+		}
+		if !hasVerification {
+			return fmt.Errorf("smoothness lab report requires ui_verification")
+		}
+		reportRef := filepath.ToSlash(strings.TrimSpace(anyString(verification["smoothness_lab_report_ref"])))
+		reportSHA256 := strings.TrimSpace(anyString(verification["smoothness_lab_report_sha256"]))
+		if err := validatePersistedSmoothnessReport(feature, task, expectedSmoothness, reportRef, reportSHA256); err != nil {
+			return fmt.Errorf("ui_verification %w", err)
 		}
 	}
 	if !boolValue(usability["human_review_required"]) {
