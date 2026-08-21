@@ -40,8 +40,8 @@ func runDiscussion(args []string, stdout io.Writer) int {
 		}
 		env.Data["input_json"] = "inline JSON, @path, or - (stdin). On Windows PowerShell prefer @path or stdin because inline quoting often strips double quotes."
 		env.Data["checkpoint"] = map[string]any{
-			"usage": "specify-runtime discussion checkpoint <slug> --input-json <object|@path|-> [--summary <text>] [--phase <phase>] [--user-goal <text>] [--decision <text>]... [--recommendation <text>]",
-			"persists": append([]string{"summary", "lifecycle_phase"}, discussionCheckpointPacketKeys...),
+			"usage":          "specify-runtime discussion checkpoint <slug> --input-json <object|@path|-> [--summary <text>] [--phase <phase>] [--user-goal <text>] [--decision <text>]... [--recommendation <text>]",
+			"persists":       append([]string{"summary", "lifecycle_phase"}, discussionCheckpointPacketKeys...),
 			"unknown_fields": "rejected with invalid error (not silently dropped)",
 		}
 		env.Data["write_handoff"] = map[string]any{
@@ -551,9 +551,9 @@ var discussionCheckpointPacketKeys = []string{
 }
 
 var discussionCheckpointMetaKeys = map[string]bool{
-	"summary":          true,
-	"lifecycle_phase":  true,
-	"phase":            true, // alias for lifecycle_phase
+	"summary":         true,
+	"lifecycle_phase": true,
+	"phase":           true, // alias for lifecycle_phase
 }
 
 func resolveDiscussionCheckpointInput(args []string, projectRoot, positional string) (map[string]any, error) {
@@ -1067,17 +1067,17 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 	state["updated_at"] = ts
 	state["latest_checkpoint"] = map[string]any{"event_id": eventID, "timestamp": ts}
 	event := map[string]any{
-		"version":             float64(1),
-		"event_id":            eventID,
-		"timestamp":           ts,
-		"kind":                "durable-checkpoint",
-		"lifecycle_phase":     phase,
-		"summary":             summary,
-		"user_goal":           packet["user_goal"],
-		"confirmed_decisions": packet["confirmed_decisions"],
-		"open_questions":      packet["open_questions"],
+		"version":                float64(1),
+		"event_id":               eventID,
+		"timestamp":              ts,
+		"kind":                   "durable-checkpoint",
+		"lifecycle_phase":        phase,
+		"summary":                summary,
+		"user_goal":              packet["user_goal"],
+		"confirmed_decisions":    packet["confirmed_decisions"],
+		"open_questions":         packet["open_questions"],
 		"current_recommendation": packet["current_recommendation"],
-		"context_boundary":    packet["context_boundary"],
+		"context_boundary":       packet["context_boundary"],
 	}
 	raw, _ := canonicalJSON(event)
 	logPath := filepath.Join(workspace, "discussion-log.jsonl")

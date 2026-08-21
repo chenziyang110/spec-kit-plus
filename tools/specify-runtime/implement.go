@@ -287,6 +287,9 @@ func reserveImplementValidationEpoch(root, feature, stage, purpose, fingerprint 
 	if fingerprint == "" {
 		return nil, errors.New("validation fingerprint is required")
 	}
+	if stage == "implement" && purpose == "convergence" && implementHandoffFrozen(feature) {
+		return nil, errors.New("passed convergence is immutable after implementation-handoff.json is frozen; continue in Review delivery")
+	}
 	commands, err = uniqueStrings(commands, "commands", true)
 	if err != nil {
 		return nil, err
