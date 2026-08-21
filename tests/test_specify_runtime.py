@@ -74,6 +74,21 @@ def test_required_runtime_contract_matches_the_shipped_agent_surface() -> None:
     assert set(runtime.REQUIRED_CAPABILITIES) == shipped
 
 
+@pytest.mark.parametrize(
+    "capability",
+    (
+        "evidence.smoothness-manifest",
+        "evidence.smoothness-validate",
+    ),
+)
+def test_required_runtime_contract_includes_smoothness_evidence(
+    capability: str,
+) -> None:
+    runtime = _load_runtime()
+
+    assert capability in runtime.REQUIRED_CAPABILITIES
+
+
 def test_runtime_resolver_prefers_project_fixed_launcher(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

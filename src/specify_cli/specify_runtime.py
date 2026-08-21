@@ -194,6 +194,8 @@ REQUIRED_CAPABILITIES = (
     "evidence.import",
     "evidence.register",
     "evidence.show",
+    "evidence.smoothness-manifest",
+    "evidence.smoothness-validate",
     "evidence.visual-compare",
     "evidence.verify",
     "hook.extension-plan",
