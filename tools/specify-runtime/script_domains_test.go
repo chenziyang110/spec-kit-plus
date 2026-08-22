@@ -424,6 +424,88 @@ func TestDiscussionResolveBlocksAmbiguousCandidatesAndBindsExplicitSlug(t *testi
 	}
 }
 
+func TestDiscussionResolveRejectsReadyStatusWithNonReadyLifecycle(t *testing.T) {
+	root := t.TempDir()
+	slug, reviewDigest := createReadyDiscussionForConsumer(t, root, "Lifecycle Drift", "sp-specify")
+	statePath := filepath.Join(root, ".specify", "discussions", slug, "discussion-state.json")
+	state, err := readJSONMap(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state["lifecycle_phase"] = "review"
+	mustWriteJSONScriptDomainTest(t, statePath, state)
+
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "resolve", "--intent", "sp-specify", "--slug", slug,
+	})
+	if env.Status != "blocked" || env.Data["resolution"] != "explicit_slug_not_eligible" {
+		t.Fatalf("resolve accepted a handoff-ready status with non-ready lifecycle: %#v", env)
+	}
+
+	featureRel := ".specify/features/2026-08-23-lifecycle-drift"
+	mustMkdirAllScriptDomainTest(t, filepath.Join(root, filepath.FromSlash(featureRel)))
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "bind-consumer", slug,
+		"--feature-dir", featureRel,
+		"--review-digest", reviewDigest,
+		"--input-json", `{"semantic_delta":[],"required_refs":[],"blockers":[],"recovery":null}`,
+	})
+	if env.Status != "blocked" {
+		t.Fatalf("bind-consumer accepted a handoff-ready status with non-ready lifecycle: %#v", env)
+	}
+}
+
+func TestDiscussionResolveRejectsReadyStateWithDraftSourceContract(t *testing.T) {
+	root := t.TempDir()
+	slug, reviewDigest := createReadyDiscussionForConsumer(t, root, "Draft Source Drift", "sp-specify")
+	handoffPath := filepath.Join(root, ".specify", "discussions", slug, "handoff-to-specify.json")
+	handoff, err := readJSONMap(handoffPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handoff["status"] = "draft"
+	mustWriteJSONScriptDomainTest(t, handoffPath, handoff)
+
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "resolve", "--intent", "sp-specify", "--slug", slug,
+	})
+	if env.Status != "blocked" || env.Data["resolution"] != "explicit_slug_not_eligible" {
+		t.Fatalf("resolve accepted a draft source contract behind ready state: %#v", env)
+	}
+
+	featureRel := ".specify/features/2026-08-23-draft-source-drift"
+	mustMkdirAllScriptDomainTest(t, filepath.Join(root, filepath.FromSlash(featureRel)))
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "bind-consumer", slug,
+		"--feature-dir", featureRel,
+		"--review-digest", reviewDigest,
+		"--input-json", `{"semantic_delta":[],"required_refs":[],"blockers":[],"recovery":null}`,
+	})
+	if env.Status != "blocked" {
+		t.Fatalf("bind-consumer accepted a draft source contract behind ready state: %#v", env)
+	}
+}
+
+func TestDiscussionResolveRejectsStateContractReviewDigestDrift(t *testing.T) {
+	root := t.TempDir()
+	slug, _ := createReadyDiscussionForConsumer(t, root, "Digest Drift", "sp-specify")
+	statePath := filepath.Join(root, ".specify", "discussions", slug, "discussion-state.json")
+	state, err := readJSONMap(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handoff := state["handoff"].(map[string]any)
+	handoff["review_digest"] = strings.Repeat("0", 64)
+	mustWriteJSONScriptDomainTest(t, statePath, state)
+
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "resolve", "--intent", "sp-specify", "--slug", slug,
+	})
+	if env.Status != "blocked" || env.Data["resolution"] != "explicit_slug_not_eligible" {
+		t.Fatalf("resolve accepted divergent state and source review digests: %#v", env)
+	}
+}
+
 func TestDiscussionCheckpointRequiresExpectedStateSHAWhenMultipleDiscussionsAreIncomplete(t *testing.T) {
 	root := t.TempDir()
 	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Primary", "Primary"})

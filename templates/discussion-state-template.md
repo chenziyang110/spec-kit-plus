@@ -125,8 +125,17 @@
 
 - incomplete_statuses: active, blocked, handoff-ready
 - resume_rule: resume only when exactly one incomplete discussion is available or the user selected a slug
+- resolver_rule: use `specify-runtime discussion resolve --intent continue|sp-specify|sp-quick [--slug <slug>]`; multiple candidates require explicit slug selection, never latest or similarity
 - collision_rule: append date or short numeric suffix when a generated slug already exists
 - close_archive_rule: handoff-ready remains resumable only until consumed or explicitly dropped; after the selected `sp-quick` or `sp-specify` consumer binds the handoff, mark consumed/completed before archiving
+
+## Topic Ownership
+
+- owner_slug: [normalized-slug]
+- anchor: [stable topic anchor]
+- owned_scope: []
+- routed_topics: []
+- ownership_rule: only route=continue_current updates this discussion's owned scope or handoff; route=branch_new/link_existing/defer stay reference-only with target_slug/source_digest when available
 
 ## Handoff Assessment
 

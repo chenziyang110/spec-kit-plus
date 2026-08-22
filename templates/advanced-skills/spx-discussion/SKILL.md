@@ -15,10 +15,13 @@ Read `references/ui-quality-gate.md` when product experience, interface
 direction, screen hierarchy, or interaction behavior is part of the decision.
 
 Discover or create the session with the project launcher-backed
-`{{specify-subcmd:specify-runtime discussion list --json}}` and
-`{{specify-subcmd:specify-runtime discussion init <slug> --json}}` helpers. Resume existing
+`{{specify-subcmd:specify-runtime discussion resolve --intent continue --json}}`
+and `{{specify-subcmd:specify-runtime discussion init <slug> --json}}` helpers. Resume existing
 state with `{{specify-subcmd:specify-runtime discussion resume <slug> --json}}` instead of
-reconstructing it from chat memory.
+reconstructing it from chat memory. Append `--slug <slug>` to resolve when the
+user supplied an exact slug. If resolve returns multiple candidates,
+ask for an explicit slug; never guess, never select latest, and never infer an
+unstated slug from a name, title, topic, or keyword similarity.
 
 Use the live repository only to ground product boundaries, current behavior,
 technical options, and constraints. Keep the visible conversation natural:
@@ -35,9 +38,17 @@ transcript. A summary-only checkpoint is valid only for an explicit savepoint
 with no semantic change. When meaning changed since the last durable state,
 submit every changed semantic field needed to preserve current truth,
 especially confirmed decisions, the context boundary, the current
-recommendation, and open assumptions. Do not report checkpoint success while
-leaving newly confirmed decisions only in chat memory. Stay in discussion until
-the user explicitly requests a handoff.
+recommendation, topic ownership, and open assumptions. Use the resolver-returned
+`state_sha256` as `--expected-state-sha256` on checkpoint and write-handoff
+writes. Do not report checkpoint success while leaving newly confirmed decisions
+only in chat memory. Stay in discussion until the user explicitly requests a
+handoff.
+Run a Topic Ownership Gate each turn with exactly one `route`:
+`continue_current`, `branch_new`, `link_existing`, or `defer`. Only
+`route: continue_current` may mutate this discussion's owned scope or handoff.
+`branch_new`, `link_existing`, and `defer` stay out of the current
+`owned_scope`, requirement contract, and decision digest; record only routed
+topic pointers such as `target_slug` and `source_digest` when available.
 Do not treat an already-active discussion as a new automatic workflow entry;
 topical acknowledgements and follow-ups continue this stage without requiring
 the user to repeat `$spx-discussion`. A contextual confirmation such as `yes`,
@@ -67,7 +78,7 @@ exists, ask one route-choice question and stay in this discussion. A contextual
 that named route-choice question; it does not approve the later digest.
 Then set `recommended_consumer` to record that confirmed selection, build only
 one compact semantic contract input, and submit it with
-`{{specify-subcmd:specify-runtime discussion write-handoff <slug> --input-json '<semantic-json>' --json}}`.
+`{{specify-subcmd:specify-runtime discussion write-handoff <slug> --expected-state-sha256 <state_sha256> --input-json '<semantic-json>' --json}}`.
 The runtime expands the installed stable template, binds metadata and blocked
 defaults, and computes the review digest. Never read or reproduce the template
 and never create a draft JSON file; the discussion runtime alone materializes

@@ -6,7 +6,9 @@ Preserved Contract: feature creation begins only from a ready, user-confirmed, p
 
 ## Contract Intake
 
-Classify arguments as a normal feature request, `.specify/discussions/<slug>/handoff-to-specify.json`, or a discussion slug. Use `specify-runtime discussion list --format json` for discovery and `discussion status <slug>` for selection. With no arguments and exactly one unconsumed `status: handoff-ready` discussion eligible for `sp-specify`, select it. If multiple unconsumed `handoff-ready` discussions exist, stop and ask for the slug; never guess.
+Classify arguments as a normal feature request, `.specify/discussions/<slug>/handoff-to-specify.json`, or a discussion slug. Use `specify-runtime discussion resolve --intent sp-specify [--slug <slug>] --format json` for selection. With no arguments and exactly one unconsumed `status: handoff-ready` discussion eligible for `sp-specify`, select it. If multiple unconsumed `handoff-ready` discussions exist, stop and ask for the slug; never guess. Multiple candidates from resolve are ambiguous; do not select latest or infer an unstated slug from a name, title, topic, or keyword similarity.
+
+Respect the upstream Topic Ownership Gate: only `continue_current` material is owned by this discussion handoff. `branch_new`, `link_existing`, and `defer` entries in `topic_ownership.routed_topics` are reference-only and must not be silently compiled into this spec.
 
 Set `SOURCE_CONTRACT` and `SOURCE_DISCUSSION_SLUG`. Require one canonical JSON contract. Do not require a Markdown companion and do not reconstruct the contract from `specification-input.md`, discussion state, logs, or checkpoint documents.
 
@@ -17,6 +19,7 @@ Before feature creation require:
 - `consumer_eligibility.sp-specify.status: ready`;
 - complete coverage and ready planning gate;
 - user-confirmed quality gate with `confirmed_digest == review_digest`;
+- `recommended_consumer: sp-specify` and `topic_ownership.owner_slug` matching `SOURCE_DISCUSSION_SLUG`;
 - zero hard unknowns and open conflicts;
 - locked context boundary and confirmed implementation target;
 - valid evidence refs and complete task-relevant `MP-*`/`CA-###` coverage.
@@ -50,6 +53,6 @@ Project cognition is advisory navigation. Reuse fresh upstream evidence; run a n
 
 Scaffold canonical `spec-contract.json` first with `specify-runtime artifact scaffold --kind spec-contract` and fill only targeted JSON pointers through fresh leased patches. Render `spec.md` and conditional views through their registered owners only when triggered content has independent value.
 
-When compile mode requires `brainstorming/handoff-to-specify.json`, pass only `semantic_delta`, `required_refs`, `blockers`, and `recovery` to `specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --input-json '<transition-json>'` (inline JSON, `@path`, or `-` for stdin). The runtime validates the ready source contract and binds its digest, status, and next action; do not generate or patch the pointer directly. A create-feature scaffold with `status: pending` and null `discussion_slug` / `source_contract` / `review_digest` is unbound and may receive the first bind; a pointer already bound to a different discussion is rejected.
+When compile mode requires `brainstorming/handoff-to-specify.json`, pass only `semantic_delta`, `required_refs`, `blockers`, and `recovery` to `specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --review-digest <review_digest> --input-json '<transition-json>'` (inline JSON, `@path`, or `-` for stdin). The `review_digest` must come from the resolver for this slug, not from a later artifact scan. The runtime validates the ready source contract and binds its digest, status, selected `recommended_consumer`, source `state_sha256`, and next action; do not generate or patch the pointer directly. A create-feature scaffold with `status: pending` and null `discussion_slug` / `source_contract` / `review_digest` is unbound and may receive the first bind; a pointer already bound to a different discussion is rejected.
 
 After deterministic schema, acceptance-coverage, traceability, contradiction, and scope-preservation checks pass, record the single next route. Mark the source discussion consumed only after canonical spec output exists and passes review.

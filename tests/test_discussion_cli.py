@@ -293,6 +293,66 @@ def test_discussion_cli_reviews_then_confirms_exact_handoff_digest(tmp_path: Pat
     assert json.loads(ready.stdout)["discussion"]["next_command"] == "sp-specify"
 
 
+def test_discussion_resolve_explicit_slug_returns_focus_and_consumer_binding(tmp_path: Path):
+    project, _discussion_root = _setup_project(tmp_path)
+    _runtime, _feature_dir, slug = _create_ready_discussion(project, "checkout-flow")
+
+    result = _invoke_in_project(
+        project,
+        ["discussion", "resolve", "--intent", "sp-specify", "--slug", slug],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["resolved"] is True
+    assert payload["ambiguous"] is False
+    assert payload["binding"]["discussion_slug"] == slug
+    assert payload["binding"]["state_sha256"]
+    assert payload["consumer"]["source_contract"] == f".specify/discussions/{slug}/handoff-to-specify.json"
+    assert payload["consumer"]["recommended_consumer"] == "sp-specify"
+    assert payload["consumer"]["review_digest"]
+
+
+def test_discussion_resolve_implicit_consumer_reports_ambiguous_candidates(tmp_path: Path):
+    project, _discussion_root = _setup_project(tmp_path)
+    _create_ready_discussion(project, "checkout-flow")
+    _create_ready_discussion(project, "billing-flow")
+
+    result = _invoke_in_project(
+        project,
+        ["discussion", "resolve", "--intent", "sp-specify"],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["resolved"] is False
+    assert payload["ambiguous"] is True
+    assert payload["reason"] == "ambiguous_candidates"
+    assert {candidate["slug"] for candidate in payload["candidates"]} == {
+        "checkout-flow",
+        "billing-flow",
+    }
+
+
+def test_discussion_resolve_explicit_slug_cannot_bypass_consumer_eligibility(
+    tmp_path: Path,
+):
+    project, _discussion_root = _setup_project(tmp_path)
+    _runtime, _feature_dir, slug = _create_ready_discussion(project, "checkout-flow")
+
+    result = _invoke_in_project(
+        project,
+        ["discussion", "resolve", "--intent", "sp-quick", "--slug", slug],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["resolved"] is False
+    assert payload["ambiguous"] is False
+    assert payload["reason"] == "explicit_slug_not_eligible"
+    assert payload["binding"] is None
+
+
 def test_discussion_list_defaults_to_unclosed_discussions(tmp_path: Path):
     project, discussion_root = _setup_project(tmp_path)
     _write_discussion(

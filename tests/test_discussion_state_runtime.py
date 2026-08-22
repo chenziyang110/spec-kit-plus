@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -498,6 +499,54 @@ def test_write_handoff_carries_topic_ownership_owner_slug(runtime, tmp_path: Pat
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     assert payload["topic_ownership"]["owner_slug"] == initialized["slug"]
     assert payload["topic_ownership"]["routed_topics"][0]["target_slug"] == "billing-export"
+
+
+def test_runtime_topic_ownership_artifacts_match_published_schemas(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(
+        project, "Schema Bound Topic", "Schema-bound topic"
+    )
+    runtime.checkpoint_discussion(
+        project,
+        initialized["slug"],
+        {
+            "summary": "Keep side topics pointer-only.",
+            "topic_ownership": {
+                "anchor": initialized["slug"],
+                "owned_scope": ["schema-bound topic"],
+                "routed_topics": [
+                    {
+                        "topic": "billing export",
+                        "route": "branch_new",
+                        "target_slug": "billing-export",
+                    }
+                ],
+            },
+        },
+    )
+    handoff_path, _digest = _write_confirmed_handoff(
+        runtime, project, initialized["slug"]
+    )
+
+    state_schema = json.loads(
+        (PROJECT_ROOT / "templates" / "discussion-state-schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    handoff_schema = json.loads(
+        (PROJECT_ROOT / "templates" / "discussion-handoff-schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    state = json.loads(
+        (Path(initialized["workspace_path"]) / "discussion-state.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+
+    Draft202012Validator(state_schema).validate(state)
+    Draft202012Validator(handoff_schema).validate(handoff)
 
 
 def test_validate_handoff_rejects_missing_json_and_stale_confirmation(runtime, tmp_path: Path):

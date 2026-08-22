@@ -5,6 +5,8 @@
   "discussion_slug": null,
   "source_contract": null,
   "review_digest": null,
+  "recommended_consumer": null,
+  "state_sha256": null,
   "semantic_delta": [],
   "required_refs": [],
   "blockers": [],

@@ -4,6 +4,12 @@
   "status": "draft",
   "entry_source": "sp-discussion",
   "discussion_slug": null,
+  "topic_ownership": {
+    "owner_slug": null,
+    "anchor": null,
+    "owned_scope": [],
+    "routed_topics": []
+  },
   "source_contract": null,
   "handoff_goal": null,
   "agent_requirement_contract": {

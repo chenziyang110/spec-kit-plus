@@ -23,6 +23,7 @@ HANDOFF_VERSION = 4
 TERMINAL_STATUSES = {"completed", "abandoned"}
 INCOMPLETE_STATUSES = {"active", "blocked", "handoff-ready"}
 HANDOFF_VALIDATION_MODES = {"draft", "ready"}
+TOPIC_ROUTES = {"continue_current", "branch_new", "link_existing", "defer"}
 LIFECYCLE_PHASES = {
     "explore",
     "ground",
@@ -137,6 +138,12 @@ def _default_turn_packet(slug: str, topic: str) -> dict[str, Any]:
         "allowed_actions": ["discuss", "ground", "checkpoint", "close"],
         "persistence_mode": "frontstage-only",
         "next_gate": "context-boundary",
+        "topic_ownership": {
+            "owner_slug": slug,
+            "anchor": slug,
+            "owned_scope": [topic],
+            "routed_topics": [],
+        },
     }
 
 
@@ -316,6 +323,18 @@ def _load_state(workspace: Path) -> tuple[dict[str, Any], bool]:
         if isinstance(handoff, dict):
             handoff.pop("json_path", None)
             handoff.pop("markdown_path", None)
+        packet = payload.get("turn_packet")
+        if isinstance(packet, dict):
+            packet["topic_ownership"] = _normalize_topic_ownership(
+                packet.get("topic_ownership"),
+                str(payload.get("slug") or workspace.name),
+                str(
+                    payload.get("topic")
+                    or payload.get("summary")
+                    or payload.get("slug")
+                    or workspace.name
+                ),
+            )
         return payload, False
     markdown_path = workspace / "discussion-state.md"
     if not markdown_path.is_file():
@@ -346,6 +365,99 @@ def _validate_state(state: dict[str, Any]) -> None:
         "slug"
     ):
         raise ValueError("discussion turn packet does not match state slug")
+    _normalize_topic_ownership(
+        packet.get("topic_ownership"),
+        state.get("slug", ""),
+        state.get("topic") or state.get("summary") or state.get("slug", ""),
+    )
+
+
+def _state_sha256(workspace: Path) -> str:
+    json_path = workspace / "discussion-state.json"
+    if json_path.is_file():
+        return hashlib.sha256(json_path.read_bytes()).hexdigest()
+    return hashlib.sha256((workspace / "discussion-state.md").read_bytes()).hexdigest()
+
+
+def _focus_binding(workspace: Path, state: dict[str, Any]) -> dict[str, Any]:
+    ownership = _normalize_topic_ownership(
+        state.get("turn_packet", {}).get("topic_ownership"),
+        state["slug"],
+        state.get("topic") or state.get("summary") or state["slug"],
+    )
+    return {
+        "binding_kind": "discussion_focus",
+        "discussion_slug": state["slug"],
+        "selected_slug": state["slug"],
+        "state_sha256": _state_sha256(workspace),
+        "topic": state.get("topic"),
+        "current_decision_frame": state.get("turn_packet", {}).get(
+            "current_decision_frame"
+        ),
+        "topic_ownership": ownership,
+    }
+
+
+def _normalize_topic_ownership(
+    value: Any,
+    slug: str,
+    topic: str,
+) -> dict[str, Any]:
+    if value is None:
+        ownership: dict[str, Any] = {}
+    elif isinstance(value, dict):
+        ownership = copy.deepcopy(value)
+    else:
+        raise ValueError("topic_ownership must be an object")
+
+    owner_slug = ownership.get("owner_slug")
+    if owner_slug is not None and owner_slug != slug:
+        raise ValueError("topic_ownership.owner_slug must match discussion slug")
+
+    anchor = str(ownership.get("anchor") or slug).strip()
+    if not anchor:
+        raise ValueError("topic_ownership.anchor is required")
+    owned_scope = ownership.get("owned_scope")
+    if owned_scope is None:
+        owned_scope = [topic]
+    if not isinstance(owned_scope, list) or not owned_scope or not all(
+        isinstance(item, str) and item.strip() for item in owned_scope
+    ):
+        raise ValueError("topic_ownership.owned_scope must be a non-empty string list")
+    routed_topics = ownership.get("routed_topics")
+    if routed_topics is None:
+        routed_topics = []
+    if not isinstance(routed_topics, list):
+        raise ValueError("topic_ownership.routed_topics must be a list")
+    normalized_routes: list[dict[str, Any]] = []
+    for index, item in enumerate(routed_topics):
+        if not isinstance(item, dict):
+            raise ValueError(f"topic_ownership.routed_topics[{index}] must be an object")
+        route = str(item.get("route") or "").strip()
+        if route not in TOPIC_ROUTES:
+            raise ValueError(
+                "topic_ownership.routed_topics route must be one of "
+                + ", ".join(sorted(TOPIC_ROUTES))
+            )
+        if not str(item.get("topic") or "").strip():
+            raise ValueError(
+                f"topic_ownership.routed_topics[{index}].topic is required"
+            )
+        if route in {"branch_new", "link_existing"} and not str(
+            item.get("target_slug") or ""
+        ).strip():
+            raise ValueError(
+                f"topic_ownership.routed_topics[{index}].target_slug is required for {route}"
+            )
+        normalized_routes.append(copy.deepcopy(item))
+
+    normalized: dict[str, Any] = {
+        "anchor": anchor,
+        "owned_scope": list(owned_scope),
+        "routed_topics": normalized_routes,
+    }
+    normalized["owner_slug"] = slug
+    return normalized
 
 
 def _workspace_candidates(
@@ -368,6 +480,8 @@ def _workspace_candidates(
 
 
 def _record(workspace: Path, state: dict[str, Any], archived: bool) -> dict[str, Any]:
+    packet = state.get("turn_packet", {})
+    handoff = state.get("handoff", {})
     return {
         "slug": state["slug"],
         "workspace": workspace.name,
@@ -375,10 +489,16 @@ def _record(workspace: Path, state: dict[str, Any], archived: bool) -> dict[str,
         "status": state["status"],
         "lifecycle_phase": state["lifecycle_phase"],
         "summary": state["summary"],
+        "topic": state.get("topic"),
+        "current_decision_frame": packet.get("current_decision_frame"),
+        "topic_ownership": packet.get("topic_ownership"),
+        "state_sha256": _state_sha256(workspace),
         "updated_at": state["updated_at"],
         "closed_at": state.get("closed_at"),
         "archived_at": state.get("archived_at"),
         "next_command": state.get("next_command", "none"),
+        "recommended_consumer": handoff.get("recommended_consumer"),
+        "review_digest": handoff.get("review_digest"),
         "handoff_consumption_status": state["consumption"]["status"],
         "consumed_at": state["consumption"].get("consumed_at"),
         "consumed_by_feature_dir": state["consumption"].get("consumer_path"),
@@ -448,10 +568,13 @@ def initialize_discussion(
     _persist_state(workspace, state)
     _atomic_write_text(workspace / "discussion-log.jsonl", "")
     _write_index(project_root)
+    binding = _focus_binding(workspace, state)
     return {
         "discussion": _record(workspace, state, False),
         "slug": slug,
         "workspace_path": str(workspace.resolve()),
+        "binding": binding,
+        "focus_binding": binding,
     }
 
 
@@ -469,8 +592,14 @@ def list_discussions(project_root: Path, include_all: bool = False) -> dict[str,
 def discussion_status(project_root: Path, slug: str) -> dict[str, Any]:
     workspace, archived = _find_workspace(project_root, slug)
     state, _legacy = _load_state(workspace)
+    binding = _focus_binding(workspace, state)
     return {
-        "discussion": {**_record(workspace, state, archived), **copy.deepcopy(state)}
+        "discussion": {
+            **_record(workspace, state, archived),
+            **copy.deepcopy(state),
+            "focus_binding": binding,
+        },
+        "focus_binding": binding,
     }
 
 
@@ -511,10 +640,14 @@ def resume_context(project_root: Path, slug: str) -> dict[str, Any]:
     else:
         recent_events = events
     return {
-        "discussion": _record(workspace, state, False),
+        "discussion": {
+            **_record(workspace, state, False),
+            "focus_binding": _focus_binding(workspace, state),
+        },
         "turn_packet": copy.deepcopy(state["turn_packet"]),
         "recent_events": recent_events,
         "legacy_state": _legacy,
+        "focus_binding": _focus_binding(workspace, state),
     }
 
 
@@ -531,6 +664,7 @@ CHECKPOINT_PACKET_KEYS = (
     "allowed_actions",
     "next_gate",
     "current_decision_frame",
+    "topic_ownership",
 )
 CHECKPOINT_META_KEYS = frozenset({"summary", "lifecycle_phase", "phase"})
 
@@ -570,7 +704,14 @@ def checkpoint_discussion(
     packet = state["turn_packet"]
     for key in CHECKPOINT_PACKET_KEYS:
         if key in changes:
-            packet[key] = copy.deepcopy(changes[key])
+            if key == "topic_ownership":
+                packet[key] = _normalize_topic_ownership(
+                    changes[key],
+                    state["slug"],
+                    state.get("topic") or state.get("summary") or state["slug"],
+                )
+            else:
+                packet[key] = copy.deepcopy(changes[key])
     packet["lifecycle_phase"] = phase
     packet["persistence_mode"] = "durable-checkpoint"
     state.update(
@@ -632,6 +773,11 @@ def write_handoff(
             "source_contract": f".specify/discussions/{slug}/handoff-to-specify.json",
             "handoff_integrity": "not-checked",
         }
+    )
+    payload["topic_ownership"] = _normalize_topic_ownership(
+        state.get("turn_packet", {}).get("topic_ownership"),
+        slug,
+        state.get("topic") or state.get("summary") or slug,
     )
     quality_gate = payload.get("quality_gate")
     if not isinstance(quality_gate, dict):
@@ -772,6 +918,22 @@ def _validate_handoff_fields(
     for field, expected in expected_values.items():
         if payload.get(field) != expected:
             errors.append(_error(f"invalid_{field}", f"{field} must be {expected!r}"))
+    topic_ownership = payload.get("topic_ownership")
+    if not isinstance(topic_ownership, dict) or topic_ownership.get("owner_slug") != slug:
+        errors.append(
+            _error(
+                "invalid_topic_ownership",
+                "topic_ownership.owner_slug must match discussion_slug",
+            )
+        )
+    try:
+        _normalize_topic_ownership(
+            topic_ownership,
+            slug,
+            str(payload.get("handoff_goal") or slug),
+        )
+    except ValueError as exc:
+        errors.append(_error("invalid_topic_ownership", str(exc)))
     if not str(payload.get("handoff_goal") or "").strip():
         errors.append(_error("missing_handoff_goal", "handoff_goal is required"))
     _validate_boundary(payload.get("context_boundary"), errors)
@@ -1219,6 +1381,222 @@ def rebuild_index(project_root: Path) -> dict[str, Any]:
     return _write_index(project_root)
 
 
+def _discussion_candidate(
+    workspace: Path,
+    state: dict[str, Any],
+    *,
+    handoff_payload: dict[str, Any] | None = None,
+    validation: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    consumer: dict[str, Any] = {
+        "source_contract": None,
+        "review_digest": None,
+        "recommended_consumer": state.get("handoff", {}).get("recommended_consumer"),
+    }
+    if handoff_payload:
+        consumer.update(
+            {
+                "source_contract": handoff_payload.get("source_contract"),
+                "review_digest": handoff_payload.get("review_digest"),
+                "recommended_consumer": handoff_payload.get("recommended_consumer"),
+            }
+        )
+    elif state.get("handoff"):
+        consumer.update(
+            {
+                "source_contract": state["handoff"].get("contract_path"),
+                "review_digest": state["handoff"].get("review_digest"),
+            }
+        )
+    if validation is not None:
+        consumer["ready_validation"] = {
+            "valid": validation.get("valid") is True,
+            "error_codes": list(validation.get("error_codes") or []),
+        }
+    return {
+        "slug": state["slug"],
+        "summary": state["summary"],
+        "status": state["status"],
+        "lifecycle_phase": state["lifecycle_phase"],
+        "workspace_path": str(workspace.resolve()),
+        "focus_binding": _focus_binding(workspace, state),
+        "consumer": consumer,
+    }
+
+
+def _load_handoff_payload(workspace: Path) -> dict[str, Any] | None:
+    path = workspace / "handoff-to-specify.json"
+    if not path.is_file():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
+def _normalized_resolve_intent(intent: str) -> str:
+    normalized = str(intent or "").strip().lower()
+    aliases = {
+        "resume": "continue",
+        "continue_current": "continue",
+        "specify": "sp-specify",
+        "quick": "sp-quick",
+    }
+    normalized = aliases.get(normalized, normalized)
+    if normalized not in {"continue", "sp-specify", "sp-quick"}:
+        raise ValueError("discussion resolve intent must be continue, sp-specify, or sp-quick")
+    return normalized
+
+
+def resolve_discussion(
+    project_root: Path,
+    intent: str,
+    slug: str = "",
+) -> dict[str, Any]:
+    normalized_intent = _normalized_resolve_intent(intent)
+    requested_slug = str(slug or "").strip()
+    if requested_slug:
+        workspace, _archived = _find_workspace(
+            project_root, requested_slug, include_archived=False
+        )
+        state, _legacy = _load_state(workspace)
+        handoff_payload = _load_handoff_payload(workspace)
+        validation = None
+        eligible = state.get("status") in INCOMPLETE_STATUSES
+        if normalized_intent in {"sp-specify", "sp-quick"}:
+            eligible = (
+                state.get("status") == "handoff-ready"
+                and state.get("lifecycle_phase") == "ready"
+                and state.get("consumption", {}).get("status") == "not_consumed"
+                and handoff_payload is not None
+                and handoff_payload.get("status") == "handoff-ready"
+            )
+            if eligible:
+                validation = validate_handoff(
+                    project_root, state["slug"], validation_mode="ready"
+                )
+                state_handoff = state.get("handoff", {})
+                eligible = (
+                    validation.get("valid") is True
+                    and handoff_payload.get("recommended_consumer")
+                    == normalized_intent
+                    and state_handoff.get("recommended_consumer")
+                    == normalized_intent
+                    and state_handoff.get("review_digest")
+                    == handoff_payload.get("review_digest")
+                    and state_handoff.get("contract_path")
+                    == handoff_payload.get("source_contract")
+                )
+        candidate = _discussion_candidate(
+            workspace,
+            state,
+            handoff_payload=handoff_payload,
+            validation=validation,
+        )
+        if not eligible:
+            return {
+                "resolved": False,
+                "ambiguous": False,
+                "intent": normalized_intent,
+                "resolution": "explicit_slug_not_eligible",
+                "binding": None,
+                "discussion": None,
+                "consumer": None,
+                "candidates": [],
+                "reason": "explicit_slug_not_eligible",
+            }
+        binding = candidate["focus_binding"]
+        if normalized_intent != "continue":
+            binding["consumer"] = copy.deepcopy(candidate["consumer"])
+        return {
+            "resolved": True,
+            "ambiguous": False,
+            "intent": normalized_intent,
+            "resolution": "resolved",
+            "binding": binding,
+            "discussion": candidate,
+            "consumer": candidate["consumer"],
+            "candidates": [candidate],
+        }
+
+    candidates: list[dict[str, Any]] = []
+    for workspace, archived in _workspace_candidates(project_root, include_archived=False):
+        if archived:
+            continue
+        try:
+            state, _legacy = _load_state(workspace)
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        if normalized_intent == "continue":
+            if state.get("status") in INCOMPLETE_STATUSES:
+                candidates.append(_discussion_candidate(workspace, state))
+            continue
+        if (
+            state.get("status") != "handoff-ready"
+            or state.get("lifecycle_phase") != "ready"
+            or state.get("consumption", {}).get("status") != "not_consumed"
+        ):
+            continue
+        try:
+            validation = validate_handoff(
+                project_root, state["slug"], validation_mode="ready"
+            )
+            handoff_payload = _load_handoff_payload(workspace)
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        if not validation.get("valid") or not handoff_payload:
+            continue
+        if handoff_payload.get("status") != "handoff-ready":
+            continue
+        if handoff_payload.get("recommended_consumer") != normalized_intent:
+            continue
+        state_handoff = state.get("handoff", {})
+        if (
+            state_handoff.get("recommended_consumer") != normalized_intent
+            or state_handoff.get("review_digest")
+            != handoff_payload.get("review_digest")
+            or state_handoff.get("contract_path")
+            != handoff_payload.get("source_contract")
+        ):
+            continue
+        candidates.append(
+            _discussion_candidate(
+                workspace,
+                state,
+                handoff_payload=handoff_payload,
+                validation=validation,
+            )
+        )
+
+    candidates = sorted(candidates, key=lambda item: (item["slug"], item["summary"]))
+    if len(candidates) == 1:
+        candidate = candidates[0]
+        binding = candidate["focus_binding"]
+        if normalized_intent != "continue":
+            binding["consumer"] = copy.deepcopy(candidate["consumer"])
+        return {
+            "resolved": True,
+            "ambiguous": False,
+            "intent": normalized_intent,
+            "resolution": "resolved",
+            "binding": binding,
+            "discussion": candidate,
+            "consumer": candidate["consumer"],
+            "candidates": candidates,
+        }
+    return {
+        "resolved": False,
+        "ambiguous": len(candidates) > 1,
+        "intent": normalized_intent,
+        "resolution": "ambiguous" if len(candidates) > 1 else "none",
+        "binding": None,
+        "discussion": None,
+        "consumer": None,
+        "candidates": candidates,
+        "reason": "ambiguous_candidates" if len(candidates) > 1 else "no_matching_discussion",
+    }
+
+
 def main() -> int:
     project_root = Path(sys.argv[1]).resolve()
     mode = (sys.argv[2] if len(sys.argv) > 2 else "list").strip().lower()
@@ -1271,6 +1649,8 @@ def main() -> int:
         result = archive_discussion(project_root, slug)
     elif mode == "rebuild-index":
         result = rebuild_index(project_root)
+    elif mode == "resolve":
+        result = resolve_discussion(project_root, value or "continue", slug)
     else:
         raise ValueError(f"unknown mode: {mode}")
     print(json.dumps(result, ensure_ascii=False))

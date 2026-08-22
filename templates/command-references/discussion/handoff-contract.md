@@ -6,7 +6,7 @@ Preserved Contract: requirements stay consumer-neutral, while the route is user-
 
 ## Agent-Facing Requirement Contract
 
-Build only the compact semantic handoff input in memory—target, scope, constraints, success criteria, evidence, boundary, unknowns, downstream obligations, consumer eligibility, and decision digest—and submit it with `{{specify-subcmd:specify-runtime discussion write-handoff <slug> --input-json '<semantic-json>' --json}}`. Prefer `--input-json @payload.json` or `--input-json -` on Windows PowerShell when the draft is large. Expand the live field contract with `{{specify-subcmd:specify-runtime api schema discussion-write-handoff-input --json}}` instead of guessing shapes. The CLI expands `templates/discussion-handoff-template.json`, supplies stable metadata and blocked defaults, computes the review digest, and atomically writes the canonical contract. Never read or reproduce the template and never create a draft file. The canonical result is `.specify/discussions/<slug>/handoff-to-specify.json`; the filename is compatibility-only, and the payload is one `discussion_requirement_contract` that may select `sp-specify` or `sp-quick`.
+Build only the compact semantic handoff input in memory—target, owned scope, routed-topic references, constraints, success criteria, evidence, boundary, unknowns, downstream obligations, consumer eligibility, and decision digest—and submit it with `{{specify-subcmd:specify-runtime discussion write-handoff <slug> --expected-state-sha256 <state_sha256> --input-json '<semantic-json>' --json}}`, where `state_sha256` is returned by `discussion resolve`. Prefer `--input-json @payload.json` or `--input-json -` on Windows PowerShell when the draft is large. Expand the live field contract with `{{specify-subcmd:specify-runtime api schema discussion-write-handoff-input --json}}` instead of guessing shapes. The CLI expands `templates/discussion-handoff-template.json`, supplies stable metadata and blocked defaults, computes the review digest, and atomically writes the canonical contract. Never read or reproduce the template and never create a draft file. The canonical result is `.specify/discussions/<slug>/handoff-to-specify.json`; the filename is compatibility-only, and the payload is one `discussion_requirement_contract` that may select `sp-specify` or `sp-quick`.
 
 Before that write, present both paths and their eligibility, explain any blocker, give a complexity-informed recommendation among eligible paths, and obtain the user's final consumer choice. `recommended_consumer` records that confirmed selection, even when it differs from the recommendation. Do not create a draft with an unresolved route; the digest review reconfirms the selected consumer as protected meaning.
 
@@ -15,6 +15,7 @@ Do not write a Markdown companion, consumer-specific copy, reviewer guide, trans
 The contract must contain the minimum sufficient inputs for the next agent:
 
 - target need, in/out/deferred scope, constraints, success criteria, selected design direction, and optimal solution approach;
+- `topic_ownership.owner_slug` matching the resolved slug, the current discussion's `owned_scope`, and only reference-level `routed_topics` for `branch_new`, `link_existing`, or `defer` side topics;
 - locked context boundary (`status: locked`) and implementation target;
 - `current_project_roles` / `target_project_roles` as objects with `role`, `scope`, `evidence_source`, `notes` (not bare string arrays);
 - `source_evidence[]` objects with `source_type`, `evidence_status`, `source`, `claim` (not `ref`/`authority`/`status` aliases);
@@ -27,6 +28,8 @@ The contract must contain the minimum sufficient inputs for the next agent:
 - coverage/planning gates, protected `review_digest`, and `source_contract`.
 
 Soft unknowns that remain open must be carried forward explicitly with owner or reopen condition; never disguise them as settled facts.
+
+Side topics are not soft unknowns and not downstream scope. If the Topic Ownership Gate classified a turn as `branch_new`, `link_existing`, or `defer`, keep that material out of this handoff's requirement contract except for a routed-topic reference containing the target slug/source digest when available.
 
 Exclude human presentation, duplicated background prose, full discussion history, timestamps not required by confirmation, ordered execution plans, and fields that do not change downstream action, verification, or recovery.
 

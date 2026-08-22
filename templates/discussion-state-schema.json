@@ -42,12 +42,61 @@
         "current_decision_frame",
         "confirmed_decisions",
         "context_boundary",
+        "topic_ownership",
         "open_questions",
         "current_recommendation",
         "allowed_actions",
         "persistence_mode",
         "next_gate"
-      ]
+      ],
+      "properties": {
+        "topic_ownership": {
+          "type": "object",
+          "required": ["owner_slug", "anchor", "owned_scope", "routed_topics"],
+          "properties": {
+            "owner_slug": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+            "anchor": {"type": "string", "minLength": 1},
+            "owned_scope": {
+              "type": "array",
+              "minItems": 1,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "routed_topics": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["topic", "route"],
+                "properties": {
+                  "route": {
+                    "enum": ["continue_current", "branch_new", "link_existing", "defer"]
+                  },
+                  "topic": {"type": "string", "minLength": 1},
+                  "target_slug": {"type": ["string", "null"], "minLength": 1},
+                  "source_digest": {"type": ["string", "null"]}
+                },
+                "additionalProperties": true,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "route": {"enum": ["branch_new", "link_existing"]}
+                      },
+                      "required": ["route"]
+                    },
+                    "then": {
+                      "required": ["target_slug"],
+                      "properties": {
+                        "target_slug": {"type": "string", "minLength": 1}
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "additionalProperties": true
+        }
+      }
     },
     "latest_checkpoint": {"type": ["object", "null"]},
     "handoff": {"type": "object"},

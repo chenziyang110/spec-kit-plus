@@ -43,7 +43,7 @@ You are a senior product-engineering advisor: a senior technical expert and seni
 
 ## Session Store
 
-All state lives under `.specify/discussions/<slug>/`. Use the project-pinned `{{specify-subcmd:specify-runtime discussion --help}}` lifecycle surface for `init`, `list`, `resume`, `checkpoint`, `write-handoff`, `validate-handoff`, `confirm-handoff`, `mark-ready`, `mark-consumed`, `close`, and `archive` instead of reconstructing state by hand.
+All state lives under `.specify/discussions/<slug>/`. Use the project-pinned `{{specify-subcmd:specify-runtime discussion --help}}` lifecycle surface for `resolve`, `init`, `list`, `resume`, `checkpoint`, `write-handoff`, `validate-handoff`, `confirm-handoff`, `mark-ready`, `mark-consumed`, `close`, and `archive` instead of reconstructing state by hand.
 
 Required files:
 
@@ -71,6 +71,8 @@ Use the shared discussion runtime to initialize state and render `discussion-sta
 
 ## Session Selection
 
+- Resolve the session first with `{{specify-subcmd:specify-runtime discussion resolve --intent continue --format json}}`; pass `--slug <slug>` when the user named one. Use only the returned slug, status, `state_sha256`, `review_digest`, and `recommended_consumer` for this invocation. Do not select by latest update or infer an unstated slug from a name, title, topic, or keyword similarity.
+- If `discussion resolve --intent continue` reports multiple candidates, list only the returned candidates and ask the user to choose a slug or explicitly request a new slug. Never guess. If it reports no candidate and the user did not ask to create one, ask for the topic/slug before creating durable state.
 - Normalize user-provided slugs to lowercase ASCII, trim separators, replace non-alphanumeric runs with `-`, collapse duplicate separators, and cap the slug at a readable length.
 - If a generated slug collides, append a date or short numeric suffix.
 - Valid statuses are `active | blocked | handoff-ready | completed | abandoned`.
@@ -80,20 +82,29 @@ Use the shared discussion runtime to initialize state and render `discussion-sta
 - To remove a no-longer-needed discussion from default resume candidates without consumption, close it as `completed` or `abandoned` after the user confirms the topic should be dropped, then archive it. Use `{{specify-subcmd:specify-runtime discussion close <slug> --status completed|abandoned}}` followed by `{{specify-subcmd:specify-runtime discussion archive <slug>}}` when the generated project has the Specify CLI helper surface available.
 - Do not archive `active`, `blocked`, or `handoff-ready` discussions directly.
 - If the user specifies a slug, resume or create that slug according to the user's wording.
-- If no slug is specified and exactly one incomplete discussion exists, resume it.
-- If multiple incomplete discussions exist, list candidates with slug, status, summary, and `updated_at`, then ask the user to choose one or explicitly start a new discussion.
+- If no slug is specified and exactly one incomplete discussion exists, resume it only after `discussion resolve --intent continue` returns that single selected slug.
+- If multiple incomplete discussions exist, the resolver blocks with candidates; list candidates with slug, status, summary, and `updated_at`, then ask the user to choose one or explicitly start a new discussion.
 - Let `specify-runtime discussion list` sort candidates by canonical `updated_at`; use the derived Markdown or file modification time only through runtime-managed legacy recovery.
+
+## Topic Ownership Gate
+
+- At the start of every substantive turn after session resolve, classify the turn against the resolved discussion's `topic_ownership.owned_scope` with exactly one `route`: `continue_current`, `branch_new`, `link_existing`, or `defer`.
+- `route: continue_current` means the turn belongs to this discussion and may update this discussion's confirmed decisions, owned scope, checkpoint state, or handoff.
+- `route: branch_new` means the user introduced a separate topic that needs its own discussion. Offer or create a new slug only after explicit user direction, and do not copy that side-topic decision into the current `owned_scope` or handoff.
+- `route: link_existing` means the side topic belongs to another known discussion. Record the required `target_slug` and optional `source_digest` as a routed-topic reference; the current discussion remains the sole owner of its own handoff.
+- `route: defer` means the topic is acknowledged but intentionally not owned by this discussion yet. Keep it out of `agent_requirement_contract`, `downstream_instructions`, `must_preserve`, and `discussion_decision_digest` until the user routes it.
+- A handoff must have a single owner: `topic_ownership.owner_slug` must equal the resolved slug. Cross-discussion context is reference-only through slug/source digest; never duplicate another discussion's decisions into this handoff as if they were owned here.
 
 ## Main Flow
 
-1. Classify the turn.
+1. Resolve or create the session through `discussion resolve --intent continue [--slug <slug>]`, then classify the turn with the Topic Ownership Gate.
 2. Run the Context Boundary Gate before project-specific technical advice.
 3. Use project cognition only as advisory navigation; prove facts from live evidence.
 4. Answer with the unified frontstage contract.
-5. Persist only at semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions. After several unsaved ordinary turns, optionally append a short frontstage note with the unsaved turn count and suggest `checkpoint, continue`; the suggestion is prompt-only and must not write files by itself.
+5. Persist only at semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions. When the resolver returned `state_sha256`, pass it as `--expected-state-sha256 <state_sha256>` to `specify-runtime discussion checkpoint`; if the runtime reports a stale state, re-run `discussion resolve --intent continue [--slug <slug>]` and reconcile before retrying. After several unsaved ordinary turns, optionally append a short frontstage note with the unsaved turn count and suggest `checkpoint, continue`; the suggestion is prompt-only and must not write files by itself.
 6. On an explicit handoff request, or a contextual confirmation such as `yes`, `ok`, or `可以` that directly answers a named handoff action, assess readiness in memory. Continue discussion if boundary, evidence, product judgment, hard unknowns, or conflicts remain; do not create a separate assessment artifact.
 7. When handoff assessment is ready, present both paths and their eligibility side by side: `sp-quick` for direct execution with task-local planning and `sp-specify` for a formal specification-first pipeline. Explain any ineligible path's blocker. Recommend among eligible paths by whether a formal durable specification chain is needed, not by task size alone: favor Quick when the outcome is clear enough for confirmed direct delivery—even if multi-capability, architecture, migration, compatibility, rollout, or acceptance-heavy—because Quick can stage a multi-Q Decision Checkpoint, Delivery Map, and acceptance DAG; favor Specify when requirements remain ambiguous, decisions are still unlocked, interacting systems need formal traceability, or the user wants a durable specification-first artifact chain. Complexity alone is not a reason to leave Quick. The user owns the final consumer choice, including choosing against the recommendation when that path is eligible. If no explicit choice exists, ask one route-choice question and stay in `sp-discussion`.
-8. Only after the user selects an eligible consumer, set `recommended_consumer` to record that confirmed selection—even when it differs from the recommendation. Do not call `{{specify-subcmd:specify-runtime discussion write-handoff <slug> --input-json '<semantic-json>' --json}}` before that choice. Then build only the semantic input—such as `consumer_eligibility`, `recommended_consumer`, `planning_constraints`, and `discussion_decision_digest`—record agent self-review, submit it, and run `{{specify-subcmd:specify-runtime discussion validate-handoff <slug> --mode draft --json}}`. The CLI expands stable defaults, metadata, and schema structure. Never read the template or create a draft JSON file; the discussion runtime alone materializes the canonical handoff.
+8. Only after the user selects an eligible consumer, set `recommended_consumer` to record that confirmed selection—even when it differs from the recommendation. Do not call `{{specify-subcmd:specify-runtime discussion write-handoff <slug> --expected-state-sha256 <state_sha256> --input-json '<semantic-json>' --json}}` before that choice. Then build only the semantic input—such as `topic_ownership`, `consumer_eligibility`, `recommended_consumer`, `planning_constraints`, and `discussion_decision_digest`—record agent self-review, submit it with the resolver-returned `state_sha256`, and run `{{specify-subcmd:specify-runtime discussion validate-handoff <slug> --mode draft --json}}`. The CLI expands stable defaults, metadata, and schema structure. Never read the template or create a draft JSON file; the discussion runtime alone materializes the canonical handoff.
 9. Present the returned `review_digest` with the selected consumer, selected direction, scope, exclusions, protected obligations, and non-blocking assumptions. Stop for this named human approval; it is the required exception to continue-by-default guidance.
 10. Only when the user confirms that exact revision, run `{{specify-subcmd:specify-runtime discussion confirm-handoff <slug> --digest <review-digest> --json}}`, then `{{specify-subcmd:specify-runtime discussion mark-ready <slug> --json}}`.
 11. Before every final response that names `sp-quick` or `sp-specify`, run `{{specify-subcmd:specify-runtime discussion status <slug> --format json}}` and consume the returned status and canonical `recommended_consumer`. Mention only that selected downstream invocation, and only when status is `handoff-ready`; otherwise keep the next action inside `sp-discussion` assessment, route choice, draft review, or repair.

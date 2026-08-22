@@ -2641,6 +2641,41 @@ def discussion_resume(
     console.print(f"Next decision gate: {packet.get('next_gate', 'none')}")
 
 
+@discussion_app.command("resolve")
+def discussion_resolve(
+    intent: str = typer.Option(
+        ...,
+        "--intent",
+        help="Resolution intent: continue, sp-specify, or sp-quick",
+    ),
+    slug: str = typer.Option(
+        "",
+        "--slug",
+        help="Optional explicit discussion slug; without it ambiguous matches are reported, not guessed",
+    ),
+):
+    """Resolve the exact discussion focus binding for a workflow handoff or resume."""
+    _require_spec_kit_plus_project(Path.cwd())
+    normalized_intent = intent.strip().lower()
+    if normalized_intent in {"resume", "continue_current"}:
+        normalized_intent = "continue"
+    elif normalized_intent == "specify":
+        normalized_intent = "sp-specify"
+    elif normalized_intent == "quick":
+        normalized_intent = "sp-quick"
+    if normalized_intent not in {"continue", "sp-specify", "sp-quick"}:
+        console.print(
+            "[red]Error:[/red] --intent must be continue, sp-specify, or sp-quick"
+        )
+        raise typer.Exit(2)
+    payload = _run_discussion_helper(
+        "resolve",
+        slug=slug.strip(),
+        status=normalized_intent,
+    )
+    print_json(payload, indent=2)
+
+
 @discussion_app.command("checkpoint")
 def discussion_checkpoint(
     slug: str = typer.Argument(..., help="Discussion slug"),
