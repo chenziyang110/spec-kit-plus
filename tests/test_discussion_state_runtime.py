@@ -163,6 +163,19 @@ def test_initialize_discussion_creates_minimal_typed_state(runtime, tmp_path: Pa
     assert markdown.count("# Discussion State:") == 1
 
 
+def test_initialize_discussion_sets_topic_ownership_anchor(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+
+    payload = runtime.initialize_discussion(project, "Checkout Decisions", "Checkout decisions")
+
+    workspace = Path(payload["workspace_path"])
+    state = json.loads((workspace / "discussion-state.json").read_text(encoding="utf-8"))
+    ownership = state["turn_packet"]["topic_ownership"]
+    assert ownership["anchor"] == "checkout-decisions"
+    assert ownership["owned_scope"] == ["Checkout decisions"]
+    assert ownership["routed_topics"] == []
+
+
 def test_legacy_markdown_state_migrates_to_typed_shape(runtime, tmp_path: Path):
     project = _setup_project(tmp_path)
     workspace = project / ".specify" / "discussions" / "legacy-review"
@@ -284,6 +297,34 @@ def test_checkpoint_updates_typed_state_and_compact_event_log(runtime, tmp_path:
     assert events[-1]["kind"] == "durable-checkpoint"
     assert events[-1]["user_goal"] == "Ship durable discussion recovery."
     assert "Human frontstage" in events[-1]["summary"]
+
+
+def test_checkpoint_persists_topic_ownership(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Topic Ownership", "Topic ownership")
+
+    payload = runtime.checkpoint_discussion(
+        project,
+        initialized["slug"],
+        {
+            "summary": "Route side topics without polluting this discussion.",
+            "topic_ownership": {
+                "anchor": "topic-ownership",
+                "owned_scope": ["primary checkout requirement"],
+                "routed_topics": [
+                    {
+                        "topic": "billing export",
+                        "route": "branch_new",
+                        "target_slug": "billing-export",
+                    }
+                ],
+            },
+        },
+    )
+
+    ownership = payload["discussion"]["turn_packet"]["topic_ownership"]
+    assert ownership["anchor"] == "topic-ownership"
+    assert ownership["routed_topics"][0]["route"] == "branch_new"
 
 
 def test_checkpoint_rejects_unknown_fields(runtime, tmp_path: Path):
@@ -431,6 +472,32 @@ def test_write_handoff_persists_only_agent_contract(runtime, tmp_path: Path):
     assert payload["quality_gate"]["confirmed_digest"] == review_digest
     assert payload["source_contract"] == json_path.relative_to(project).as_posix()
     assert not json_path.with_suffix(".md").exists()
+
+
+def test_write_handoff_carries_topic_ownership_owner_slug(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Owned Handoff", "Owned handoff")
+    workspace = Path(initialized["workspace_path"])
+    state_path = workspace / "discussion-state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["turn_packet"]["topic_ownership"] = {
+        "anchor": "owned-handoff",
+        "owned_scope": ["owned handoff"],
+        "routed_topics": [
+            {
+                "topic": "billing export",
+                "route": "branch_new",
+                "target_slug": "billing-export",
+            }
+        ],
+    }
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    json_path, _review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["topic_ownership"]["owner_slug"] == initialized["slug"]
+    assert payload["topic_ownership"]["routed_topics"][0]["target_slug"] == "billing-export"
 
 
 def test_validate_handoff_rejects_missing_json_and_stale_confirmation(runtime, tmp_path: Path):
