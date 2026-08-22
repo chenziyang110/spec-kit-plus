@@ -287,6 +287,26 @@ func TestAPISchemaDiscussionWriteHandoffAndCheckpoint(t *testing.T) {
 		if !ok || len(allOf) == 0 {
 			t.Fatalf("%s topic_ownership items missing target_slug conditional: %#v", schemaID, items)
 		}
+		foundTargetSlugGuard := false
+		for _, clause := range allOf {
+			clauseObj, ok := clause.(map[string]any)
+			if !ok {
+				continue
+			}
+			thenObj, ok := clauseObj["then"].(map[string]any)
+			if !ok {
+				continue
+			}
+			thenProps := requireObject(t, thenObj, "properties")
+			targetSlug := requireObject(t, thenProps, "target_slug")
+			if targetSlug["type"] != "string" || targetSlug["minLength"] != float64(1) {
+				t.Fatalf("%s topic_ownership.target_slug guard = %#v", schemaID, targetSlug)
+			}
+			foundTargetSlugGuard = true
+		}
+		if !foundTargetSlugGuard {
+			t.Fatalf("%s topic_ownership items missing branch/link target_slug type guard: %#v", schemaID, items)
+		}
 	}
 
 	var stdout, stderr bytes.Buffer
