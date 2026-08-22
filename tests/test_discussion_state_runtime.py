@@ -26,7 +26,13 @@ def _setup_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _write_confirmed_handoff(runtime, project: Path, slug: str) -> tuple[Path, str]:
+def _write_confirmed_handoff(
+    runtime,
+    project: Path,
+    slug: str,
+    *,
+    recommended_consumer: str = "sp-specify",
+) -> tuple[Path, str]:
     workspace = project / ".specify" / "discussions" / slug
     json_path = workspace / "handoff-to-specify.json"
     source_contract = f".specify/discussions/{slug}/handoff-to-specify.json"
@@ -47,10 +53,16 @@ def _write_confirmed_handoff(runtime, project: Path, slug: str) -> tuple[Path, s
             "scope": {"in": ["discussion workflow"], "out": ["implementation planning"], "deferred": []},
         },
         "consumer_eligibility": {
-            "sp-specify": {"status": "ready", "reason": "Requirement contract is complete."},
-            "sp-quick": {"status": "blocked", "reason": "Specification is required first."},
+            "sp-specify": {
+                "status": "ready" if recommended_consumer == "sp-specify" else "blocked",
+                "reason": "Requirement contract is complete.",
+            },
+            "sp-quick": {
+                "status": "ready" if recommended_consumer == "sp-quick" else "blocked",
+                "reason": "The selected consumer owns this exact lineage.",
+            },
         },
-        "recommended_consumer": "sp-specify",
+        "recommended_consumer": recommended_consumer,
         "context_boundary": {
             "status": "locked",
             "current_project_root": str(project.resolve()),
@@ -328,6 +340,91 @@ def test_checkpoint_persists_topic_ownership(runtime, tmp_path: Path):
     assert ownership["routed_topics"][0]["route"] == "branch_new"
 
 
+def test_checkpoint_rejects_foreign_topic_owner_slug(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Owned Topic", "Owned topic")
+
+    with pytest.raises(ValueError, match="owner_slug must match discussion slug"):
+        runtime.checkpoint_discussion(
+            project,
+            initialized["slug"],
+            {
+                "summary": "Reject cross-discussion topic ownership.",
+                "topic_ownership": {
+                    "owner_slug": "other-discussion",
+                    "anchor": initialized["slug"],
+                    "owned_scope": ["owned topic"],
+                    "routed_topics": [],
+                },
+            },
+        )
+
+
+def test_checkpoint_helper_uses_expected_state_sha_before_mutating(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    first = runtime.initialize_discussion(project, "First Active", "First active")
+    runtime.initialize_discussion(project, "Second Active", "Second active")
+    resolved = runtime.resolve_discussion(project, "continue", first["slug"])
+    expected_sha = resolved["binding"]["state_sha256"]
+    stale_sha = "0" * 64 if expected_sha != "0" * 64 else "1" * 64
+
+    with pytest.raises(ValueError, match="expected-state-sha256|state sha|stale"):
+        runtime.checkpoint_discussion(
+            project,
+            first["slug"],
+            {"summary": "Reject a stale checkpoint write."},
+            expected_state_sha256=stale_sha,
+        )
+
+    checkpointed = runtime.checkpoint_discussion(
+        project,
+        first["slug"],
+        {"summary": "Accept the resolver-bound checkpoint write."},
+        expected_state_sha256=expected_sha,
+    )
+
+    assert checkpointed["discussion"]["summary"] == "Accept the resolver-bound checkpoint write."
+
+
+def test_write_handoff_helper_uses_expected_state_sha_before_mutating(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    first = runtime.initialize_discussion(project, "First Handoff", "First handoff")
+    runtime.initialize_discussion(project, "Second Handoff", "Second handoff")
+    resolved = runtime.resolve_discussion(project, "continue", first["slug"])
+    expected_sha = resolved["binding"]["state_sha256"]
+    stale_sha = "f" * 64 if expected_sha != "f" * 64 else "e" * 64
+    workspace = Path(first["workspace_path"])
+    handoff_payload = json.loads(
+        (PROJECT_ROOT / "templates" / "discussion-handoff-template.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    handoff_payload["discussion_slug"] = first["slug"]
+    handoff_payload["handoff_goal"] = "Write only when the focus binding is current."
+    handoff_payload["agent_requirement_contract"][
+        "target_need"
+    ] = "A resolver-bound handoff mutation."
+
+    with pytest.raises(ValueError, match="expected-state-sha256|state sha|stale"):
+        runtime.write_handoff(
+            project,
+            first["slug"],
+            handoff_payload,
+            expected_state_sha256=stale_sha,
+        )
+    assert not (workspace / "handoff-to-specify.json").exists()
+
+    written = runtime.write_handoff(
+        project,
+        first["slug"],
+        handoff_payload,
+        expected_state_sha256=expected_sha,
+    )
+
+    assert written["review_digest"]
+    assert (workspace / "handoff-to-specify.json").is_file()
+
+
 def test_checkpoint_rejects_unknown_fields(runtime, tmp_path: Path):
     project = _setup_project(tmp_path)
     initialized = runtime.initialize_discussion(project, "Unknown fields", "Unknown checkpoint fields")
@@ -577,6 +674,7 @@ def test_mark_consumed_requires_matching_downstream_evidence(runtime, tmp_path: 
     initialized = runtime.initialize_discussion(project, "Consumption", "Consumption integrity")
     json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
     runtime.mark_ready(project, initialized["slug"])
+    resolved = runtime.resolve_discussion(project, "sp-specify", initialized["slug"])
     feature_dir = project / ".specify" / "features" / "001-consumption"
     brainstorming = feature_dir / "brainstorming"
     brainstorming.mkdir(parents=True)
@@ -587,6 +685,8 @@ def test_mark_consumed_requires_matching_downstream_evidence(runtime, tmp_path: 
                 "discussion_slug": initialized["slug"],
                 "source_contract": str(json_path.relative_to(project).as_posix()),
                 "review_digest": review_digest,
+                "state_sha256": resolved["binding"]["state_sha256"],
+                "recommended_consumer": "sp-specify",
             }
         )
         + "\n",
@@ -600,11 +700,155 @@ def test_mark_consumed_requires_matching_downstream_evidence(runtime, tmp_path: 
     assert consumed["discussion"]["consumption"]["consumer_path"] == feature_dir.relative_to(project).as_posix()
 
 
+def test_mark_consumed_requires_source_not_already_consumed(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Already Consumed", "Already consumed")
+    json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    runtime.mark_ready(project, initialized["slug"])
+    state_path = Path(initialized["workspace_path"]) / "discussion-state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["consumption"]["status"] = "consumed"
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    feature_dir = project / ".specify" / "features" / "001-already-consumed"
+    brainstorming = feature_dir / "brainstorming"
+    brainstorming.mkdir(parents=True)
+    (brainstorming / "handoff-to-specify.json").write_text(
+        json.dumps(
+            {
+                "entry_source": "sp-discussion",
+                "discussion_slug": initialized["slug"],
+                "source_contract": json_path.relative_to(project).as_posix(),
+                "review_digest": review_digest,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="not_consumed|already consumed"):
+        runtime.mark_consumed(project, initialized["slug"], str(feature_dir.relative_to(project)))
+
+
+def test_mark_consumed_requires_current_source_handoff_ready_valid(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Stale Source", "Stale source")
+    json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    runtime.mark_ready(project, initialized["slug"])
+    handoff = json.loads(json_path.read_text(encoding="utf-8"))
+    handoff["handoff_goal"] = "Changed after the ready validation."
+    json_path.write_text(json.dumps(handoff, indent=2) + "\n", encoding="utf-8")
+    feature_dir = project / ".specify" / "features" / "001-stale-source"
+    brainstorming = feature_dir / "brainstorming"
+    brainstorming.mkdir(parents=True)
+    (brainstorming / "handoff-to-specify.json").write_text(
+        json.dumps(
+            {
+                "entry_source": "sp-discussion",
+                "discussion_slug": initialized["slug"],
+                "source_contract": json_path.relative_to(project).as_posix(),
+                "review_digest": review_digest,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="handoff|ready|digest"):
+        runtime.mark_consumed(project, initialized["slug"], str(feature_dir.relative_to(project)))
+
+
+@pytest.mark.parametrize(
+    ("state_field", "state_value"),
+    [
+        ("contract_path", ".specify/discussions/other/handoff-to-specify.json"),
+        ("review_digest", "1" * 64),
+        ("recommended_consumer", "sp-quick"),
+    ],
+)
+def test_mark_consumed_requires_state_and_handoff_lineage_to_match(
+    runtime,
+    tmp_path: Path,
+    state_field: str,
+    state_value: str,
+):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Lineage Drift", "Lineage drift")
+    json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    runtime.mark_ready(project, initialized["slug"])
+    state_path = Path(initialized["workspace_path"]) / "discussion-state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["handoff"][state_field] = state_value
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    feature_dir = project / ".specify" / "features" / f"001-lineage-drift-{state_field}"
+    brainstorming = feature_dir / "brainstorming"
+    brainstorming.mkdir(parents=True)
+    (brainstorming / "handoff-to-specify.json").write_text(
+        json.dumps(
+            {
+                "entry_source": "sp-discussion",
+                "discussion_slug": initialized["slug"],
+                "source_contract": json_path.relative_to(project).as_posix(),
+                "review_digest": review_digest,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="handoff|lineage|source|review|consumer"):
+        runtime.mark_consumed(project, initialized["slug"], str(feature_dir.relative_to(project)))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("state_sha256", "0" * 64),
+        ("recommended_consumer", "sp-quick"),
+    ],
+)
+def test_mark_consumed_rejects_mismatched_consumer_lineage_fields(
+    runtime,
+    tmp_path: Path,
+    field: str,
+    value: str,
+):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Evidence Lineage", "Evidence lineage")
+    json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    runtime.mark_ready(project, initialized["slug"])
+    resolved = runtime.resolve_discussion(project, "sp-specify", initialized["slug"])
+    evidence_payload = {
+        "entry_source": "sp-discussion",
+        "discussion_slug": initialized["slug"],
+        "source_contract": json_path.relative_to(project).as_posix(),
+        "review_digest": review_digest,
+        "state_sha256": resolved["binding"]["state_sha256"],
+        "recommended_consumer": "sp-specify",
+    }
+    evidence_payload[field] = value
+    feature_dir = project / ".specify" / "features" / f"001-evidence-lineage-{field}"
+    brainstorming = feature_dir / "brainstorming"
+    brainstorming.mkdir(parents=True)
+    (brainstorming / "handoff-to-specify.json").write_text(
+        json.dumps(evidence_payload) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=field):
+        runtime.mark_consumed(project, initialized["slug"], str(feature_dir.relative_to(project)))
+
+
 def test_mark_consumed_requires_quick_status_to_bind_paths_and_digest(runtime, tmp_path: Path):
     project = _setup_project(tmp_path)
     initialized = runtime.initialize_discussion(project, "Quick consumption", "Quick consumption integrity")
-    json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    json_path, review_digest = _write_confirmed_handoff(
+        runtime,
+        project,
+        initialized["slug"],
+        recommended_consumer="sp-quick",
+    )
     runtime.mark_ready(project, initialized["slug"])
+    resolved = runtime.resolve_discussion(project, "sp-quick", initialized["slug"])
     quick_dir = project / ".planning" / "quick" / "001-quick-consumption"
     quick_dir.mkdir(parents=True)
     status_path = quick_dir / "STATUS.md"
@@ -622,6 +866,8 @@ def test_mark_consumed_requires_quick_status_to_bind_paths_and_digest(runtime, t
                 f"source_discussion_slug: {initialized['slug']}",
                 f"source_contract: {json_path.relative_to(project).as_posix()}",
                 f"review_digest: {review_digest}",
+                f"state_sha256: {resolved['binding']['state_sha256']}",
+                "recommended_consumer: sp-quick",
             ]
         )
         + "\n",
@@ -681,6 +927,7 @@ def test_runtime_main_dispatches_complete_lifecycle(runtime, tmp_path: Path, mon
     ]
     assert call("validate-handoff", slug, "ready")["valid"] is True
     assert call("mark-ready", slug)["discussion"]["status"] == "handoff-ready"
+    resolved = runtime.resolve_discussion(project, "sp-specify", slug)
 
     feature_dir = project / ".specify" / "features" / "001-dispatcher"
     evidence_dir = feature_dir / "brainstorming"
@@ -691,6 +938,8 @@ def test_runtime_main_dispatches_complete_lifecycle(runtime, tmp_path: Path, mon
                 "discussion_slug": slug,
                 "source_contract": json_path.relative_to(project).as_posix(),
                 "review_digest": written["review_digest"],
+                "state_sha256": resolved["binding"]["state_sha256"],
+                "recommended_consumer": "sp-specify",
             }
         ),
         encoding="utf-8",
