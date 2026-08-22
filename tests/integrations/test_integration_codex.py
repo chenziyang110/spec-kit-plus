@@ -1445,6 +1445,27 @@ def test_codex_question_driven_skills_prefer_request_user_input_with_fallback(tm
     assert_quick_checkpoint_card_shape(quick_content)
 
 
+def test_codex_init_start_here_routes_discussion_consumers_through_resolve(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "codex-start-here-discussion-resolve"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+    lowered = result.output.lower()
+    assert "start here" in lowered
+    assert "discussion resolve --intent sp-specify" in lowered
+    assert "discussion resolve --intent sp-quick" in lowered
+    assert "consumer selection" in lowered
+    assert "discussion status" not in lowered
+
+
 def test_codex_generated_skills_preserve_agent_required_marker_lines(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app

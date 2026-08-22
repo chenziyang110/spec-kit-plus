@@ -109,6 +109,7 @@ def _create_ready_discussion(project: Path, slug: str) -> tuple[object, Path, st
     initialized = runtime.initialize_discussion(project, slug, slug.replace("-", " ").title())
     json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
     runtime.mark_ready(project, initialized["slug"])
+    resolved = runtime.resolve_discussion(project, "sp-specify", initialized["slug"])
     feature_dir = project / ".specify" / "features" / f"001-{initialized['slug']}"
     brainstorming = feature_dir / "brainstorming"
     brainstorming.mkdir(parents=True)
@@ -119,12 +120,39 @@ def _create_ready_discussion(project: Path, slug: str) -> tuple[object, Path, st
                 "discussion_slug": initialized["slug"],
                 "source_contract": json_path.relative_to(project).as_posix(),
                 "review_digest": review_digest,
+                "state_sha256": resolved["binding"]["state_sha256"],
+                "recommended_consumer": "sp-specify",
             }
         )
         + "\n",
         encoding="utf-8",
     )
     return runtime, feature_dir, initialized["slug"]
+
+
+def _handoff_draft(slug: str) -> dict:
+    payload = json.loads(
+        (Path(__file__).resolve().parents[1] / "templates" / "discussion-handoff-template.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    payload["discussion_slug"] = slug
+    payload["handoff_goal"] = "Generate one canonical resolver-bound requirement contract."
+    payload["agent_requirement_contract"]["target_need"] = "A deterministic handoff contract."
+    payload["must_preserve"] = [
+        {
+            "id": "MP-001",
+            "type": "decision",
+            "claim": "JSON remains canonical.",
+            "source": "user confirmation",
+            "downstream_requirement": "Preserve the agent-only JSON contract.",
+            "blocking_level": "hard",
+            "owner": "sp-discussion",
+            "latest_resolve_phase": "review",
+            "status": "confirmed",
+        }
+    ]
+    return payload
 
 
 def test_discussion_init_and_resume_json_emit_compact_turn_packet(tmp_path: Path):
@@ -178,6 +206,70 @@ def test_discussion_checkpoint_json_updates_dynamic_turn_context(tmp_path: Path)
     ]
 
 
+def test_discussion_checkpoint_requires_expected_state_sha_when_multiple_active_discussions(
+    tmp_path: Path,
+):
+    project, _discussion_root = _setup_project(tmp_path)
+    _invoke_in_project(project, ["discussion", "init", "Alpha discussion", "--slug", "alpha"])
+    _invoke_in_project(project, ["discussion", "init", "Beta discussion", "--slug", "beta"])
+
+    result = _invoke_in_project(
+        project,
+        [
+            "discussion",
+            "checkpoint",
+            "alpha",
+            "--summary",
+            "This mutation must be bound to a resolver state digest.",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 1, result.stdout
+    assert "expected-state-sha256" in strip_ansi(result.stdout).lower()
+
+
+def test_discussion_checkpoint_uses_resolved_expected_state_sha(tmp_path: Path):
+    project, _discussion_root = _setup_project(tmp_path)
+    _invoke_in_project(project, ["discussion", "init", "Alpha discussion", "--slug", "alpha"])
+    _invoke_in_project(project, ["discussion", "init", "Beta discussion", "--slug", "beta"])
+    resolved = _invoke_in_project(project, ["discussion", "resolve", "--intent", "continue", "--slug", "alpha"])
+    expected_sha = json.loads(resolved.stdout)["binding"]["state_sha256"]
+    stale_sha = "0" * 64 if expected_sha != "0" * 64 else "1" * 64
+
+    stale = _invoke_in_project(
+        project,
+        [
+            "discussion",
+            "checkpoint",
+            "alpha",
+            "--summary",
+            "Reject stale digest.",
+            "--expected-state-sha256",
+            stale_sha,
+            "--json",
+        ],
+    )
+    accepted = _invoke_in_project(
+        project,
+        [
+            "discussion",
+            "checkpoint",
+            "alpha",
+            "--summary",
+            "Accept resolver digest.",
+            "--expected-state-sha256",
+            expected_sha,
+            "--json",
+        ],
+    )
+
+    assert stale.exit_code == 1, stale.stdout
+    assert "expected-state-sha256" in strip_ansi(stale.stdout).lower()
+    assert accepted.exit_code == 0, accepted.stdout
+    assert json.loads(accepted.stdout)["discussion"]["summary"] == "Accept resolver digest."
+
+
 def test_discussion_write_handoff_writes_agent_only_contract(tmp_path: Path):
     project, _discussion_root = _setup_project(tmp_path)
     _invoke_in_project(
@@ -224,6 +316,70 @@ def test_discussion_write_handoff_writes_agent_only_contract(tmp_path: Path):
     assert contract_path.is_file()
     assert "markdown_path" not in written
     assert not contract_path.with_suffix(".md").exists()
+
+
+def test_discussion_write_handoff_requires_expected_state_sha_when_multiple_active_discussions(
+    tmp_path: Path,
+):
+    project, _discussion_root = _setup_project(tmp_path)
+    _invoke_in_project(project, ["discussion", "init", "Alpha handoff", "--slug", "alpha"])
+    _invoke_in_project(project, ["discussion", "init", "Beta handoff", "--slug", "beta"])
+
+    result = _invoke_in_project(
+        project,
+        [
+            "discussion",
+            "write-handoff",
+            "alpha",
+            "--input-json",
+            json.dumps(_handoff_draft("alpha")),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 1, result.stdout
+    assert "expected-state-sha256" in strip_ansi(result.stdout).lower()
+
+
+def test_discussion_write_handoff_uses_resolved_expected_state_sha(tmp_path: Path):
+    project, _discussion_root = _setup_project(tmp_path)
+    _invoke_in_project(project, ["discussion", "init", "Alpha handoff", "--slug", "alpha"])
+    _invoke_in_project(project, ["discussion", "init", "Beta handoff", "--slug", "beta"])
+    resolved = _invoke_in_project(project, ["discussion", "resolve", "--intent", "continue", "--slug", "alpha"])
+    expected_sha = json.loads(resolved.stdout)["binding"]["state_sha256"]
+    stale_sha = "f" * 64 if expected_sha != "f" * 64 else "e" * 64
+
+    stale = _invoke_in_project(
+        project,
+        [
+            "discussion",
+            "write-handoff",
+            "alpha",
+            "--input-json",
+            json.dumps(_handoff_draft("alpha")),
+            "--expected-state-sha256",
+            stale_sha,
+            "--json",
+        ],
+    )
+    accepted = _invoke_in_project(
+        project,
+        [
+            "discussion",
+            "write-handoff",
+            "alpha",
+            "--input-json",
+            json.dumps(_handoff_draft("alpha")),
+            "--expected-state-sha256",
+            expected_sha,
+            "--json",
+        ],
+    )
+
+    assert stale.exit_code == 1, stale.stdout
+    assert "expected-state-sha256" in strip_ansi(stale.stdout).lower()
+    assert accepted.exit_code == 0, accepted.stdout
+    assert json.loads(accepted.stdout)["review_digest"]
 
 
 def test_discussion_validate_and_mark_ready_json_use_runtime_gate(tmp_path: Path):

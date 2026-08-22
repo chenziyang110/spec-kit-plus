@@ -2113,6 +2113,37 @@ def test_quick_consumes_unified_discussion_handoff_through_checkpoint() -> None:
     assert "validates its `status.md` binding" in lowered
 
 
+def test_quick_discussion_binding_persists_exact_lineage_before_consumption() -> None:
+    surfaces = {
+        "classic quick": "\n".join(
+            [
+                _read("templates/commands/quick.md"),
+                _read("templates/command-references/quick/handoff-consumption.md"),
+            ]
+        ),
+        "advanced quick": _read("templates/advanced-skills/spx-quick/SKILL.md"),
+    }
+
+    required_fields = (
+        "source_discussion_slug",
+        "source_contract",
+        "review_digest",
+        "state_sha256",
+        "recommended_consumer",
+    )
+    for name, content in surfaces.items():
+        lowered = " ".join(content.lower().split())
+        for field in required_fields:
+            assert field in lowered, (name, field)
+        assert "status.md" in lowered, name
+        assert "mark-consumed" in lowered, name
+        assert (
+            "before mark-consumed" in lowered
+            or "before `specify-runtime discussion mark-consumed" in lowered
+            or "before the binding evidence exists" in lowered
+        ), name
+
+
 def test_specify_preserves_discussion_decision_digest_not_only_handoff_files() -> None:
     content = _read("templates/commands/specify.md")
 
@@ -2156,6 +2187,53 @@ def test_discussion_handoff_is_agent_facing_requirement_contract() -> None:
     assert "accepted_tradeoffs" in combined
     assert "review criteria" in lowered
     assert "must_not_dilute" in content
+
+
+def test_discussion_lineage_docs_stay_synchronized_across_root_and_templates() -> None:
+    for path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+    ):
+        lowered = _read(path).lower()
+        assert "discussion resolve --intent continue|sp-specify|sp-quick" in lowered, path
+        assert "multiple candidates" in lowered, path
+        assert "explicit slug" in lowered, path
+        assert "latest" in lowered, path
+        assert "similarity" in lowered, path
+        assert "topic ownership" in lowered or "topic_ownership" in lowered, path
+
+
+def test_bind_consumer_guidance_always_requires_resolved_review_digest() -> None:
+    surfaces = {
+        "runtime api guidance": _read("tools/specify-runtime/agent_schema.go"),
+        "classic specify": "\n".join(
+            [
+                _read("templates/commands/specify.md"),
+                _read("templates/command-partials/specify/shell.md"),
+                _read("templates/command-references/specify/discussion-handoff-validation.md"),
+            ]
+        ),
+        "advanced specify": "\n".join(
+            [
+                _read("templates/advanced-skills/spx-specify/SKILL.md"),
+                _read("templates/advanced-skills/spx-specify/references/discussion-handoff.md"),
+            ]
+        ),
+        "readme": _read("README.md"),
+    }
+
+    for name, content in surfaces.items():
+        lowered = " ".join(content.lower().split())
+        assert "--review-digest" in lowered, name
+        assert "discussion resolve" in lowered, name
+        assert "required when multiple" not in lowered, name
+        assert "multiple ready discussion handoffs" not in lowered, name
+        assert (
+            "always" in lowered
+            or "must come from the resolver" in lowered
+            or "resolver-returned" in lowered
+        ), name
 
 
 def test_discussion_handoff_requires_must_preserve_ledger_contract() -> None:

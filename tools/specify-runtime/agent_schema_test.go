@@ -188,7 +188,7 @@ func TestAPIShowDiscussionBindConsumerPublishesDerivedPointerContract(t *testing
 		t.Fatalf("discussion bind-consumer capability = %#v", capability)
 	}
 	contract, _ := capability["input_contract"].(string)
-	if !strings.Contains(contract, "runtime binds") || !strings.Contains(contract, "review digest") || !strings.Contains(contract, "required when multiple ready discussion handoffs exist") {
+	if !strings.Contains(contract, "runtime binds") || !strings.Contains(contract, "review digest") || !strings.Contains(contract, "always required") {
 		t.Fatalf("discussion bind-consumer input contract = %#v", capability)
 	}
 }
@@ -256,6 +256,36 @@ func TestAPISchemaDiscussionWriteHandoffAndCheckpoint(t *testing.T) {
 		schema := requireObject(t, requireObject(t, payload, "data"), "schema")
 		if schema["type"] != "object" {
 			t.Fatalf("%s schema = %#v", schemaID, schema)
+		}
+		properties := requireObject(t, schema, "properties")
+		topicOwnership := requireObject(t, properties, "topic_ownership")
+		topicProperties := requireObject(t, topicOwnership, "properties")
+		if _, ok := topicProperties["owned_scope"]; !ok {
+			t.Fatalf("%s topic_ownership missing owned_scope: %#v", schemaID, topicOwnership)
+		}
+		routedTopics := requireObject(t, topicProperties, "routed_topics")
+		items := requireObject(t, routedTopics, "items")
+		itemProperties := requireObject(t, items, "properties")
+		route := requireObject(t, itemProperties, "route")
+		enumValues, ok := route["enum"].([]any)
+		if !ok || len(enumValues) != 4 {
+			t.Fatalf("%s topic_ownership.route enum = %#v", schemaID, route["enum"])
+		}
+		for _, want := range []any{"continue_current", "branch_new", "link_existing", "defer"} {
+			found := false
+			for _, candidate := range enumValues {
+				if candidate == want {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("%s topic_ownership.route enum missing %q: %#v", schemaID, want, enumValues)
+			}
+		}
+		allOf, ok := items["allOf"].([]any)
+		if !ok || len(allOf) == 0 {
+			t.Fatalf("%s topic_ownership items missing target_slug conditional: %#v", schemaID, items)
 		}
 	}
 
