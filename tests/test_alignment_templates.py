@@ -2048,6 +2048,48 @@ def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() 
     assert "mark the source discussion consumed" in lowered
 
 
+def test_discussion_and_specify_surfaces_require_resolve_and_topic_routing() -> None:
+    surfaces = {
+        "classic discussion": "\n".join(
+            [
+                _read("templates/commands/discussion.md"),
+                _read("templates/command-partials/discussion/shell.md"),
+                _read("templates/command-references/discussion/question-and-advice-contract.md"),
+                _read("templates/command-references/discussion/downstream-consumption.md"),
+            ]
+        ),
+        "classic specify": "\n".join(
+            [
+                _read("templates/commands/specify.md"),
+                _read("templates/command-partials/specify/shell.md"),
+                _read("templates/command-references/specify/discussion-handoff-validation.md"),
+            ]
+        ),
+        "advanced discussion": "\n".join(
+            [
+                _read("templates/advanced-skills/spx-discussion/SKILL.md"),
+                _read("templates/advanced-skills/spx-discussion/references/discussion-contract.md"),
+            ]
+        ),
+        "advanced specify": "\n".join(
+            [
+                _read("templates/advanced-skills/spx-specify/SKILL.md"),
+                _read("templates/advanced-skills/spx-specify/references/discussion-handoff.md"),
+            ]
+        ),
+    }
+
+    for name, content in surfaces.items():
+        lowered = " ".join(content.lower().split())
+        assert "discussion resolve" in lowered, name
+        assert "continue_current" in lowered, name
+        assert "branch_new" in lowered, name
+        assert "link_existing" in lowered, name
+        assert "defer" in lowered, name
+        assert "multiple candidates" in lowered or "multiple unconsumed" in lowered, name
+        assert "never guess" in lowered or "do not guess" in lowered or "do not select latest" in lowered, name
+
+
 def test_quick_consumes_unified_discussion_handoff_through_checkpoint() -> None:
     content = _read("templates/commands/quick.md")
     lowered = content.lower()

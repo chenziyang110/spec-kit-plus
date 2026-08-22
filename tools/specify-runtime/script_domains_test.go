@@ -387,6 +387,108 @@ func TestDiscussionHandoffAllowsBothEligibleConsumersAndLocksSelectedConsumer(t 
 	}
 }
 
+func TestDiscussionResolveBlocksAmbiguousCandidatesAndBindsExplicitSlug(t *testing.T) {
+	root := t.TempDir()
+	firstSlug, firstDigest := createReadyDiscussionForConsumer(t, root, "Orders Import", "sp-specify")
+	secondSlug, _ := createReadyDiscussionForConsumer(t, root, "Orders Export", "sp-specify")
+
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "resolve", "--intent", "sp-specify",
+	})
+	if env.Status != "blocked" {
+		t.Fatalf("ambiguous resolve status = %s, want blocked; env=%#v", env.Status, env)
+	}
+	candidates, ok := env.Data["candidates"].([]any)
+	if !ok || len(candidates) != 2 {
+		t.Fatalf("ambiguous resolve candidates = %#v, want both ready discussions", env.Data["candidates"])
+	}
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "resolve", "--intent", "sp-specify", "--slug", firstSlug,
+	})
+	if env.Status != "ok" {
+		t.Fatalf("explicit resolve status = %s, blockers=%v", env.Status, env.Blockers)
+	}
+	binding := env.Data["binding"].(map[string]any)
+	if binding["discussion_slug"] != firstSlug || strings.TrimSpace(fmt.Sprint(binding["state_sha256"])) == "" {
+		t.Fatalf("explicit resolve binding missing discussion identity: %#v", binding)
+	}
+	consumer := binding["consumer"].(map[string]any)
+	if consumer["source_contract"] != ".specify/discussions/"+firstSlug+"/handoff-to-specify.json" ||
+		consumer["review_digest"] != firstDigest ||
+		consumer["recommended_consumer"] != "sp-specify" {
+		t.Fatalf("explicit resolve consumer binding = %#v", consumer)
+	}
+	if binding["selected_slug"] == secondSlug {
+		t.Fatalf("explicit resolve selected the wrong discussion: %#v", binding)
+	}
+}
+
+func TestDiscussionCheckpointRequiresExpectedStateSHAWhenMultipleDiscussionsAreIncomplete(t *testing.T) {
+	root := t.TempDir()
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Primary", "Primary"})
+	slug := env.Data["slug"].(string)
+	runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Secondary", "Secondary"})
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "checkpoint", slug, "--input-json", `{"summary":"missing digest"}`,
+	})
+	if env.Status != "blocked" {
+		t.Fatalf("checkpoint without expected state digest = %#v, want blocked", env)
+	}
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "checkpoint", slug, "--expected-state-sha256", "sha256:wrong",
+		"--input-json", `{"summary":"wrong digest"}`,
+	})
+	if env.Status != "blocked" {
+		t.Fatalf("checkpoint with stale state digest = %#v, want blocked", env)
+	}
+
+	stateDigest, err := fileSHA256(filepath.Join(root, ".specify", "discussions", slug, "discussion-state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "checkpoint", slug, "--expected-state-sha256", stateDigest,
+		"--input-json", `{"summary":"matching digest","lifecycle_phase":"decide"}`,
+	})
+	if env.Status != "ok" {
+		t.Fatalf("checkpoint with matching state digest = %#v, want ok", env)
+	}
+}
+
+func TestDiscussionWriteHandoffRequiresExpectedStateSHAWhenMultipleDiscussionsAreIncomplete(t *testing.T) {
+	root := t.TempDir()
+	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Primary Handoff", "Primary"})
+	slug := env.Data["slug"].(string)
+	runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Secondary Handoff", "Secondary"})
+	raw, err := json.Marshal(discussionHandoffFixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "write-handoff", slug, "--input-json", string(raw),
+	})
+	if env.Status != "blocked" {
+		t.Fatalf("write-handoff without expected state digest = %#v, want blocked", env)
+	}
+
+	stateDigest, err := fileSHA256(filepath.Join(root, ".specify", "discussions", slug, "discussion-state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "write-handoff", slug, "--expected-state-sha256", stateDigest,
+		"--input-json", string(raw),
+	})
+	if env.Status != "ok" {
+		t.Fatalf("write-handoff with matching state digest = %#v, want ok", env)
+	}
+}
+
 func TestDiscussionBindConsumerWritesDerivedFeaturePointerAndEnablesConsumption(t *testing.T) {
 	root := t.TempDir()
 	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
@@ -402,7 +504,15 @@ func TestDiscussionBindConsumerWritesDerivedFeaturePointerAndEnablesConsumption(
 	if err != nil {
 		t.Fatal(err)
 	}
-	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "write-handoff", slug, "--input-json", string(raw)})
+	stateDigest, err := fileSHA256(filepath.Join(root, ".specify", "discussions", slug, "discussion-state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "write-handoff", slug,
+		"--expected-state-sha256", stateDigest,
+		"--input-json", string(raw),
+	})
 	digest := env.Data["review_digest"].(string)
 	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "confirm-handoff", slug, "--digest", digest})
 	if env.Status != "ok" {
@@ -436,6 +546,12 @@ func TestDiscussionBindConsumerWritesDerivedFeaturePointerAndEnablesConsumption(
 	if payload["source_contract"] != ".specify/discussions/"+slug+"/handoff-to-specify.json" {
 		t.Fatalf("consumer source contract = %#v", payload["source_contract"])
 	}
+	if payload["recommended_consumer"] != "sp-specify" {
+		t.Fatalf("consumer recommended_consumer = %#v, want sp-specify", payload["recommended_consumer"])
+	}
+	if strings.TrimSpace(fmt.Sprint(payload["state_sha256"])) == "" {
+		t.Fatalf("consumer pointer missing state_sha256: %#v", payload)
+	}
 	env = runScriptDomainEnvelope(t, runDiscussion, []string{
 		"--project-root", root, "bind-consumer", slug,
 		"--feature-dir", featureRel,
@@ -448,6 +564,34 @@ func TestDiscussionBindConsumerWritesDerivedFeaturePointerAndEnablesConsumption(
 	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "mark-consumed", slug, "--feature-dir", featureRel})
 	if env.Status != "ok" {
 		t.Fatalf("mark consumed from bound pointer = %#v", env)
+	}
+}
+
+func TestDiscussionBindConsumerRequiresReviewDigestWhenMultipleReadySpecifyHandoffsExist(t *testing.T) {
+	root := t.TempDir()
+	firstSlug, firstDigest := createReadyDiscussionForConsumer(t, root, "Payment Auth", "sp-specify")
+	createReadyDiscussionForConsumer(t, root, "Payment Capture", "sp-specify")
+	featureRel := ".specify/features/2026-08-22-payment-auth"
+	mustMkdirAllScriptDomainTest(t, filepath.Join(root, filepath.FromSlash(featureRel)))
+	input := `{"semantic_delta":[],"required_refs":["MP-001"],"blockers":[],"recovery":null}`
+
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "bind-consumer", firstSlug,
+		"--feature-dir", featureRel,
+		"--input-json", input,
+	})
+	if env.Status != "blocked" {
+		t.Fatalf("bind-consumer without review digest = %#v, want blocked", env)
+	}
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "bind-consumer", firstSlug,
+		"--feature-dir", featureRel,
+		"--review-digest", firstDigest,
+		"--input-json", input,
+	})
+	if env.Status != "ok" {
+		t.Fatalf("bind-consumer with matching review digest = %#v, want ok", env)
 	}
 }
 
@@ -504,6 +648,66 @@ func TestDiscussionBindConsumerRejectsFeatureBoundToDifferentDiscussion(t *testi
 	}
 	if stored["discussion_slug"] != existing["discussion_slug"] || stored["review_digest"] != existing["review_digest"] {
 		t.Fatalf("existing consumer binding was overwritten: %#v", stored)
+	}
+}
+
+func TestDiscussionCheckpointPersistsTopicOwnership(t *testing.T) {
+	root := t.TempDir()
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Topic Owner", "Topic ownership"})
+	slug := env.Data["slug"].(string)
+	ownership := `{"anchor":"checkout","owned_scope":["checkout requirements"],"routed_topics":[{"topic":"billing export","route":"branch_new","target_slug":"billing-export"}]}`
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "checkpoint", slug,
+		"--input-json", `{"summary":"topic ownership","topic_ownership":` + ownership + `}`,
+	})
+	if env.Status != "ok" {
+		t.Fatalf("checkpoint topic ownership = %#v, want ok", env)
+	}
+	packet := env.Data["turn_packet"].(map[string]any)
+	if fmt.Sprint(packet["topic_ownership"]) == "" {
+		t.Fatalf("turn_packet missing topic_ownership: %#v", packet)
+	}
+}
+
+func TestDiscussionHandoffCarriesTopicOwnershipFromCurrentState(t *testing.T) {
+	root := t.TempDir()
+	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Owned Handoff", "Owned handoff"})
+	slug := env.Data["slug"].(string)
+	statePath := filepath.Join(root, ".specify", "discussions", slug, "discussion-state.json")
+	state, err := readJSONMap(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	packet := state["turn_packet"].(map[string]any)
+	packet["topic_ownership"] = map[string]any{
+		"anchor":        "checkout",
+		"owned_scope":   []any{"checkout requirements"},
+		"routed_topics": []any{map[string]any{"topic": "billing export", "route": "branch_new", "target_slug": "billing-export"}},
+	}
+	mustWriteJSONScriptDomainTest(t, statePath, state)
+	raw, err := json.Marshal(discussionHandoffFixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "write-handoff", slug, "--input-json", string(raw),
+	})
+	if env.Status != "ok" {
+		t.Fatalf("write-handoff = %#v", env)
+	}
+	handoff, err := readJSONMap(filepath.Join(root, ".specify", "discussions", slug, "handoff-to-specify.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownership, ok := handoff["topic_ownership"].(map[string]any)
+	if !ok {
+		t.Fatalf("handoff missing topic_ownership: %#v", handoff)
+	}
+	if ownership["owner_slug"] != slug {
+		t.Fatalf("handoff topic ownership = %#v, want owner_slug %q", ownership, slug)
 	}
 }
 
@@ -714,6 +918,55 @@ func discussionHandoffFixture() map[string]any {
 			"self_reviewed_at": "2026-07-24T00:00:00Z",
 		},
 	}
+}
+
+func createReadyDiscussionForConsumer(t *testing.T, root, title, consumer string) (string, string) {
+	t.Helper()
+	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", title, title})
+	if env.Status != "ok" {
+		t.Fatalf("init %q = %#v", title, env)
+	}
+	slug := env.Data["slug"].(string)
+	handoff := discussionHandoffFixture()
+	if consumer == "sp-specify" {
+		handoff["consumer_eligibility"] = map[string]any{
+			"sp-specify": map[string]any{"status": "ready"},
+			"sp-quick":   map[string]any{"status": "blocked"},
+		}
+	} else {
+		handoff["consumer_eligibility"] = map[string]any{
+			"sp-specify": map[string]any{"status": "blocked"},
+			"sp-quick":   map[string]any{"status": "ready"},
+		}
+	}
+	handoff["recommended_consumer"] = consumer
+	raw, err := json.Marshal(handoff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateDigest, err := fileSHA256(filepath.Join(root, ".specify", "discussions", slug, "discussion-state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "write-handoff", slug,
+		"--expected-state-sha256", stateDigest,
+		"--input-json", string(raw),
+	})
+	if env.Status != "ok" {
+		t.Fatalf("write-handoff %q = %#v", title, env)
+	}
+	digest := env.Data["review_digest"].(string)
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "confirm-handoff", slug, "--digest", digest})
+	if env.Status != "ok" {
+		t.Fatalf("confirm-handoff %q = %#v", title, env)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "mark-ready", slug})
+	if env.Status != "ok" {
+		t.Fatalf("mark-ready %q = %#v", title, env)
+	}
+	return slug, digest
 }
 
 func TestDiscussionCheckpointPersistsSemanticFieldsAndInputJSON(t *testing.T) {

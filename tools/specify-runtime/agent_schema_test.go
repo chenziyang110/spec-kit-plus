@@ -184,12 +184,37 @@ func TestAPIShowDiscussionBindConsumerPublishesDerivedPointerContract(t *testing
 	payload := decodeJSONObject(t, stdout.Bytes())
 	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
 	usage, _ := capability["usage"].(string)
-	if !strings.Contains(usage, "discussion bind-consumer") || !strings.Contains(usage, "--input-json") {
+	if !strings.Contains(usage, "discussion bind-consumer") || !strings.Contains(usage, "--input-json") || !strings.Contains(usage, "--review-digest") {
 		t.Fatalf("discussion bind-consumer capability = %#v", capability)
 	}
 	contract, _ := capability["input_contract"].(string)
-	if !strings.Contains(contract, "runtime binds") || !strings.Contains(contract, "review digest") {
+	if !strings.Contains(contract, "runtime binds") || !strings.Contains(contract, "review digest") || !strings.Contains(contract, "required when multiple ready discussion handoffs exist") {
 		t.Fatalf("discussion bind-consumer input contract = %#v", capability)
+	}
+}
+
+func TestAPIShowDiscussionResolvePublishesExplicitSelectionContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "discussion.resolve", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show discussion.resolve exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	usage, _ := capability["usage"].(string)
+	if !strings.Contains(usage, "discussion resolve") || !strings.Contains(usage, "--intent continue|sp-specify|sp-quick") || !strings.Contains(usage, "--slug") {
+		t.Fatalf("discussion resolve usage = %#v", capability)
+	}
+	contract, _ := capability["input_contract"].(string)
+	for _, fragment := range []string{
+		"multiple candidates return blocked/ambiguous",
+		"state_sha256",
+		"source_contract",
+		"recommended_consumer",
+	} {
+		if !strings.Contains(contract, fragment) {
+			t.Fatalf("discussion resolve input contract = %q, missing %q", contract, fragment)
+		}
 	}
 }
 
