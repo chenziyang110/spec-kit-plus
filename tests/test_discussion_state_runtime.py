@@ -1,5 +1,6 @@
 import importlib.util
 import json
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -150,7 +151,13 @@ def _write_confirmed_handoff(
         "open_conflict_count": 0,
         "review_digest": None,
     }
-    written = runtime.write_handoff(project, slug, payload)
+    resolved = runtime.resolve_discussion(project, "continue", slug)
+    written = runtime.write_handoff(
+        project,
+        slug,
+        payload,
+        expected_state_sha256=resolved["binding"]["state_sha256"],
+    )
     review_digest = written["review_digest"]
     runtime.confirm_handoff(project, slug, review_digest)
     return json_path, review_digest
@@ -698,6 +705,37 @@ def test_mark_consumed_requires_matching_downstream_evidence(runtime, tmp_path: 
     assert consumed["discussion"]["status"] == "completed"
     assert consumed["discussion"]["consumption"]["status"] == "consumed"
     assert consumed["discussion"]["consumption"]["consumer_path"] == feature_dir.relative_to(project).as_posix()
+    assert consumed["discussion"]["consumption"]["source_contract"] == json_path.relative_to(project).as_posix()
+    assert consumed["discussion"]["consumption"]["review_digest"] == review_digest
+    assert consumed["discussion"]["consumption"]["state_sha256"] == resolved["binding"]["state_sha256"]
+    assert consumed["discussion"]["consumption"]["recommended_consumer"] == "sp-specify"
+
+
+def test_direct_mutation_helpers_acquire_the_shared_lock(
+    runtime, tmp_path: Path, monkeypatch
+):
+    project = _setup_project(tmp_path)
+    ready = runtime.initialize_discussion(project, "Direct Lock", "Direct lock")
+    _json_path, review_digest = _write_confirmed_handoff(
+        runtime, project, ready["slug"]
+    )
+    entered: list[Path] = []
+
+    @contextmanager
+    def tracked_lock(project_root: Path):
+        entered.append(Path(project_root).resolve())
+        yield
+
+    monkeypatch.setattr(runtime, "_discussion_mutation_lock", tracked_lock)
+
+    runtime.confirm_handoff(project, ready["slug"], review_digest)
+    runtime.mark_ready(project, ready["slug"])
+    closable = runtime.initialize_discussion(project, "Closable", "Closable")
+    runtime.close_discussion(project, closable["slug"], "abandoned")
+    runtime.archive_discussion(project, closable["slug"])
+    runtime.rebuild_index(project)
+
+    assert entered == [project.resolve()] * 6
 
 
 def test_mark_consumed_requires_source_not_already_consumed(runtime, tmp_path: Path):
@@ -705,6 +743,7 @@ def test_mark_consumed_requires_source_not_already_consumed(runtime, tmp_path: P
     initialized = runtime.initialize_discussion(project, "Already Consumed", "Already consumed")
     json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
     runtime.mark_ready(project, initialized["slug"])
+    resolved = runtime.resolve_discussion(project, "sp-specify", initialized["slug"])
     state_path = Path(initialized["workspace_path"]) / "discussion-state.json"
     state = json.loads(state_path.read_text(encoding="utf-8"))
     state["consumption"]["status"] = "consumed"
@@ -719,6 +758,8 @@ def test_mark_consumed_requires_source_not_already_consumed(runtime, tmp_path: P
                 "discussion_slug": initialized["slug"],
                 "source_contract": json_path.relative_to(project).as_posix(),
                 "review_digest": review_digest,
+                "state_sha256": resolved["binding"]["state_sha256"],
+                "recommended_consumer": "sp-specify",
             }
         )
         + "\n",
@@ -734,6 +775,7 @@ def test_mark_consumed_requires_current_source_handoff_ready_valid(runtime, tmp_
     initialized = runtime.initialize_discussion(project, "Stale Source", "Stale source")
     json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
     runtime.mark_ready(project, initialized["slug"])
+    resolved = runtime.resolve_discussion(project, "sp-specify", initialized["slug"])
     handoff = json.loads(json_path.read_text(encoding="utf-8"))
     handoff["handoff_goal"] = "Changed after the ready validation."
     json_path.write_text(json.dumps(handoff, indent=2) + "\n", encoding="utf-8")
@@ -747,6 +789,8 @@ def test_mark_consumed_requires_current_source_handoff_ready_valid(runtime, tmp_
                 "discussion_slug": initialized["slug"],
                 "source_contract": json_path.relative_to(project).as_posix(),
                 "review_digest": review_digest,
+                "state_sha256": resolved["binding"]["state_sha256"],
+                "recommended_consumer": "sp-specify",
             }
         )
         + "\n",
@@ -775,6 +819,7 @@ def test_mark_consumed_requires_state_and_handoff_lineage_to_match(
     initialized = runtime.initialize_discussion(project, "Lineage Drift", "Lineage drift")
     json_path, review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
     runtime.mark_ready(project, initialized["slug"])
+    resolved = runtime.resolve_discussion(project, "sp-specify", initialized["slug"])
     state_path = Path(initialized["workspace_path"]) / "discussion-state.json"
     state = json.loads(state_path.read_text(encoding="utf-8"))
     state["handoff"][state_field] = state_value
@@ -789,6 +834,8 @@ def test_mark_consumed_requires_state_and_handoff_lineage_to_match(
                 "discussion_slug": initialized["slug"],
                 "source_contract": json_path.relative_to(project).as_posix(),
                 "review_digest": review_digest,
+                "state_sha256": resolved["binding"]["state_sha256"],
+                "recommended_consumer": "sp-specify",
             }
         )
         + "\n",
