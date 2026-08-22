@@ -144,8 +144,10 @@ If multiple candidates are returned, ask for the exact slug; never guess, never
 select latest, and never infer an unstated slug from a name, title, topic, or
 keyword similarity. Query the resolved contract through `specify-runtime artifact show`
 and consume it only when it is handoff-ready, its digests are current, the
-resolver-returned `review_digest`, `state_sha256`, and `recommended_consumer`
-match, `topic_ownership.owner_slug` equals the selected slug, it has zero
+resolver's exact `discussion_slug` maps to `source_discussion_slug`,
+`source_contract` is bound, resolver-returned `review_digest`,
+`state_sha256`, and `recommended_consumer` match, `topic_ownership.owner_slug`
+equals the selected slug, it has zero
 blocking decisions, and `consumer_eligibility.sp-quick.status: ready`, except
 for the legacy size/breadth-only override below. With no semantic
 delta, stage inheritance with the handoff `review_digest` and continue without
@@ -158,8 +160,9 @@ inheritance or delta rules above. Return to discussion for an unconfirmed,
 contradictory, or decision-blocked contract.
 Honor `$spx-specify` only when the user explicitly selected the formal spec-first
 path, not as an automatic upgrade.
-After binding a confirmed discussion contract and its `review_digest` into the
-Quick `STATUS.md`, run
+After binding a confirmed discussion contract into Quick `STATUS.md`, verify
+the five lineage fields `source_discussion_slug`, `source_contract`,
+`review_digest`, `state_sha256`, and `recommended_consumer` before running
 `{{specify-subcmd:specify-runtime discussion mark-consumed <slug> --feature-dir <quick-workspace>}}`.
 The `--feature-dir` spelling is retained for compatibility and accepts the Quick
 workspace; do not mark consumption before the binding evidence exists.

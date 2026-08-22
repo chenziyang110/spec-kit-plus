@@ -294,13 +294,19 @@ func TestDiscussionHandoffLifecycleParity(t *testing.T) {
 	if discussion["status"] != "handoff-ready" || discussion["next_command"] != "sp-quick" {
 		t.Fatalf("discussion not ready: %#v", discussion)
 	}
+	stateSHA, err := discussionStateSHA256(filepath.Join(root, ".specify", "discussions", slug))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	consumer := filepath.Join(root, ".planning", "quick", "260724-001-checkout")
 	mustMkdirAllScriptDomainTest(t, consumer)
 	mustWriteJSONScriptDomainTest(t, filepath.Join(consumer, "handoff-to-specify.json"), map[string]any{
-		"discussion_slug": slug,
-		"source_contract": ".specify/discussions/" + slug + "/handoff-to-specify.json",
-		"review_digest":   digest,
+		"discussion_slug":      slug,
+		"source_contract":      ".specify/discussions/" + slug + "/handoff-to-specify.json",
+		"review_digest":        digest,
+		"recommended_consumer": "sp-quick",
+		"state_sha256":         stateSHA,
 	})
 	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "mark-consumed", slug, ".planning/quick/260724-001-checkout"})
 	if env.Status != "ok" {
@@ -630,7 +636,7 @@ func TestDiscussionWriteHandoffRejectsStaleDigestAfterConcurrentWriterCommits(t 
 		t.Fatal(err)
 	}
 
-	entered, release, restore := installDiscussionMutationBarrierForTest(t, "write-handoff", slug)
+	entered, release, restore := installDiscussionMutationBarrierForTest(t, "write-handoff-json", slug)
 	defer restore()
 
 	firstDone := make(chan Envelope, 1)
@@ -1100,6 +1106,39 @@ func TestDiscussionMarkConsumedRejectsNotReadySourceHandoffAfterBinding(t *testi
 	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "mark-consumed", slug, "--feature-dir", featureRel})
 	if env.Status != "blocked" {
 		t.Fatalf("mark-consumed accepted stale/not-ready source handoff = %#v, want blocked", env)
+	}
+}
+
+func TestDiscussionMarkConsumedRejectsMismatchedStateHandoffContractPath(t *testing.T) {
+	root := t.TempDir()
+	slug, digest := createReadyDiscussionForConsumer(t, root, "Formal Contract Path", "sp-specify")
+	featureRel := ".specify/features/2026-08-22-formal-contract-path"
+	feature := filepath.Join(root, filepath.FromSlash(featureRel))
+	mustMkdirAllScriptDomainTest(t, feature)
+	input := `{"semantic_delta":[],"required_refs":["MP-001"],"blockers":[],"recovery":null}`
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "bind-consumer", slug,
+		"--feature-dir", featureRel,
+		"--review-digest", digest,
+		"--input-json", input,
+	})
+	if env.Status != "ok" {
+		t.Fatalf("bind formal consumer = %#v", env)
+	}
+
+	statePath := filepath.Join(root, ".specify", "discussions", slug, "discussion-state.json")
+	state, err := readJSONMap(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handoff := mapValue(state["handoff"])
+	handoff["contract_path"] = ".specify/discussions/other/handoff-to-specify.json"
+	state["handoff"] = handoff
+	mustWriteJSONScriptDomainTest(t, statePath, state)
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "mark-consumed", slug, "--feature-dir", featureRel})
+	if env.Status != "blocked" {
+		t.Fatalf("mark-consumed accepted mismatched state handoff contract_path = %#v, want blocked", env)
 	}
 }
 

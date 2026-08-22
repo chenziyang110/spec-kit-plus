@@ -43,7 +43,10 @@ Its job is to read current repository state, identify the recommended next Spec 
   before unrelated feature, Quick, Debug, or task candidates are considered.
 - A name, slug, title, topic, or keyword similarity is not binding evidence
   between workflow roots. Require a runtime lane selection or the durable
-  `source_contract` plus `review_digest` relationship. When feature context is
+  five-value lineage relationship: the resolver's exact slug in
+  `discussion_slug` for a formal feature pointer or `source_discussion_slug`
+  for Quick `STATUS.md`, plus `source_contract`, `review_digest`,
+  `state_sha256`, and `recommended_consumer`. When feature context is
   absent, do not enumerate `.specify/features/**`, `tasks.md`, or
   `task-index.json` to guess a feature directory.
 
@@ -142,7 +145,7 @@ Inspect the available state surfaces in this order and prefer the most specific 
 - For `status: handoff-ready` with `handoff_consumption_status` not `consumed`, query canonical `handoff-to-specify.json` through `specify-runtime artifact show` and require `recommended_consumer`, `consumer_eligibility.<consumer>.status: ready`, and `next_command` to agree.
    - If the ready contract, eligibility, and state disagree, route back to `/sp.discussion` for handoff repair instead of guessing or defaulting to `/sp.specify`.
    - If `handoff_consumption_status: consumed`, `status: completed`, `consumed_by_feature_dir` is populated, or `next_command: none`, do not count that discussion as a resumable candidate.
-   - If a handoff-ready discussion's `handoff-to-specify.json` path and `review_digest` are already referenced by a feature consumer artifact or a Quick `STATUS.md`, treat it as a consumed-stale cleanup item, not a competing route. Recommend `{{specify-subcmd:specify-runtime discussion mark-consumed <slug> --feature-dir <consumer-workspace>}}` as the repair evidence, or perform that repair only when the active workflow allows state cleanup before routing. The `--feature-dir` spelling is a compatibility flag and may point to the bound Quick workspace.
+   - If a handoff-ready discussion's consumer artifact or Quick `STATUS.md` already references the full five-value lineage—the resolver's exact slug in `discussion_slug` for the formal pointer or `source_discussion_slug` for Quick, plus `source_contract`, `review_digest`, `state_sha256`, and `recommended_consumer`—treat it as a consumed-stale cleanup item, not a competing route. Require that consumer-specific slug field to match the resolver's exact `discussion_slug`, the source contract path and digest to match, `state_sha256` to match the resolved source state, and `recommended_consumer` to match the selected consumer. Recommend `{{specify-subcmd:specify-runtime discussion mark-consumed <slug> --feature-dir <consumer-workspace>}}` as the repair evidence, or perform that repair only when the active workflow allows state cleanup before routing. The `--feature-dir` spelling is a compatibility flag and may point to the bound Quick workspace.
    - If multiple unconsumed handoff-ready discussions remain, stop and ask for a specific slug instead of guessing.
 
 ## Route Resolution

@@ -17,6 +17,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/filelock"
 	runtimecmd "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
@@ -132,7 +133,12 @@ func runDiscussion(args []string, stdout io.Writer) int {
 			projectRoot:          projectRoot,
 			expectedReviewDigest: strings.TrimSpace(optionValue(args, "--review-digest", "")),
 		}
-		data, err := service.bindConsumer(slug, featureDir, input)
+		var data map[string]any
+		err = service.withMutationLock("bind-consumer", slug, func() error {
+			var bindErr error
+			data, bindErr = service.bindConsumer(slug, featureDir, input)
+			return bindErr
+		})
 		if err != nil {
 			return writeEnvelope(stdout, scriptDomainError("discussion", err))
 		}
@@ -500,60 +506,133 @@ type discussionService struct {
 	expectedReviewDigest string
 }
 
+var discussionMutationBarrierForTest func(mode, slug string)
+
 var discussionIncompleteStatuses = map[string]bool{"active": true, "blocked": true, "handoff-ready": true}
 var discussionTerminalStatuses = map[string]bool{"completed": true, "abandoned": true}
 var discussionLifecyclePhases = map[string]bool{"explore": true, "ground": true, "decide": true, "prepare": true, "review": true, "ready": true, "consumed": true, "closed": true}
+var discussionMutationModes = map[string]bool{
+	"archive":            true,
+	"bind-consumer":      true,
+	"checkpoint":         true,
+	"close":              true,
+	"confirm-handoff":    true,
+	"init":               true,
+	"mark-consumed":      true,
+	"mark-ready":         true,
+	"rebuild-index":      true,
+	"write-handoff-json": true,
+}
 
 func (service discussionService) run(mode, slug, value string, includeAll bool) (Envelope, error) {
 	var data map[string]any
-	var err error
-	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case "init":
-		data, err = service.initialize(slug, value)
-	case "list":
-		data, err = service.list(includeAll)
-	case "status":
-		data, err = service.status(slug)
-	case "resume-context":
-		data, err = service.resume(slug)
-	case "checkpoint":
-		var changes map[string]any
-		if err = json.Unmarshal([]byte(defaultString(value, "{}")), &changes); err != nil || changes == nil {
-			if err == nil {
-				err = fmt.Errorf("checkpoint payload must be an object")
+	normalizedMode := strings.ToLower(strings.TrimSpace(mode))
+	action := func() error {
+		var err error
+		switch normalizedMode {
+		case "init":
+			data, err = service.initialize(slug, value)
+		case "list":
+			data, err = service.list(includeAll)
+		case "status":
+			data, err = service.status(slug)
+		case "resume-context":
+			data, err = service.resume(slug)
+		case "checkpoint":
+			var changes map[string]any
+			if err = json.Unmarshal([]byte(defaultString(value, "{}")), &changes); err != nil || changes == nil {
+				if err == nil {
+					err = fmt.Errorf("checkpoint payload must be an object")
+				}
+				return err
 			}
+			data, err = service.checkpoint(slug, changes)
+		case "write-handoff-json":
+			payload, parseErr := decodeDiscussionHandoffPayload([]byte(value))
+			if parseErr != nil {
+				return parseErr
+			}
+			data, err = service.writeHandoff(slug, payload)
+		case "validate-handoff":
+			data, err = service.validateHandoff(slug, defaultString(value, "ready"))
+		case "confirm-handoff":
+			data, err = service.confirmHandoff(slug, value)
+		case "mark-ready":
+			data, err = service.markReady(slug)
+		case "mark-consumed":
+			data, err = service.markConsumed(slug, value)
+		case "close":
+			data, err = service.close(slug, strings.ToLower(value))
+		case "archive":
+			data, err = service.archive(slug)
+		case "rebuild-index":
+			data, err = service.writeIndex()
+		default:
+			return fmt.Errorf("unknown mode: %s", mode)
+		}
+		return err
+	}
+	if discussionMutationModes[normalizedMode] {
+		if err := service.withMutationLock(normalizedMode, slug, action); err != nil {
 			return Envelope{}, err
 		}
-		data, err = service.checkpoint(slug, changes)
-	case "write-handoff-json":
-		payload, parseErr := decodeDiscussionHandoffPayload([]byte(value))
-		if parseErr != nil {
-			return Envelope{}, parseErr
+	} else {
+		if err := action(); err != nil {
+			return Envelope{}, err
 		}
-		data, err = service.writeHandoff(slug, payload)
-	case "validate-handoff":
-		data, err = service.validateHandoff(slug, defaultString(value, "ready"))
-	case "confirm-handoff":
-		data, err = service.confirmHandoff(slug, value)
-	case "mark-ready":
-		data, err = service.markReady(slug)
-	case "mark-consumed":
-		data, err = service.markConsumed(slug, value)
-	case "close":
-		data, err = service.close(slug, strings.ToLower(value))
-	case "archive":
-		data, err = service.archive(slug)
-	case "rebuild-index":
-		data, err = service.writeIndex()
-	default:
-		return Envelope{}, fmt.Errorf("unknown mode: %s", mode)
-	}
-	if err != nil {
-		return Envelope{}, err
 	}
 	env := NewEnvelope("ok", "discussion state command completed")
 	env.Data = data
 	return env, nil
+}
+
+func (service discussionService) withMutationLock(mode, slug string, action func() error) error {
+	projectRoot, err := filepath.Abs(service.projectRoot)
+	if err != nil {
+		return fmt.Errorf("cannot resolve discussion project root: %w", err)
+	}
+	lockDir, err := secureProjectPath(projectRoot, ".specify/runtime/discussion")
+	if err != nil {
+		return fmt.Errorf("cannot resolve discussion lock directory: %w", err)
+	}
+	if err := os.MkdirAll(lockDir, 0o755); err != nil {
+		return fmt.Errorf("cannot create discussion lock directory: %w", err)
+	}
+	lockPath, err := secureProjectPath(projectRoot, ".specify/runtime/discussion/mutation.lock")
+	if err != nil {
+		return fmt.Errorf("cannot resolve discussion mutation lock: %w", err)
+	}
+	if err := ensureDiscussionMutationLockByte(lockPath); err != nil {
+		return err
+	}
+	release, err := filelock.Acquire(lockPath)
+	if err != nil {
+		return fmt.Errorf("cannot acquire discussion mutation lock: %w", err)
+	}
+	defer release()
+	if discussionMutationBarrierForTest != nil {
+		discussionMutationBarrierForTest(mode, slug)
+	}
+	return action()
+}
+
+func ensureDiscussionMutationLockByte(lockPath string) error {
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return fmt.Errorf("cannot initialize discussion mutation lock: %w", err)
+	}
+	info, err := lockFile.Stat()
+	if err == nil && info.Size() == 0 {
+		_, err = lockFile.WriteAt([]byte{0}, 0)
+	}
+	closeErr := lockFile.Close()
+	if err != nil {
+		return fmt.Errorf("cannot initialize discussion mutation lock byte: %w", err)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("cannot close discussion mutation lock: %w", closeErr)
+	}
+	return nil
 }
 
 func decodeDiscussionHandoffPayload(raw []byte) (map[string]any, error) {
@@ -741,6 +820,9 @@ func normalizeDiscussionTopicOwnership(value any, slug, topic string) (map[strin
 		ownership = defaultDiscussionTopicOwnership(slug, topic)
 	} else {
 		ownership = cloneAnyMap(ownership)
+	}
+	if owner := strings.TrimSpace(stringValue(ownership["owner_slug"])); owner != "" && owner != slug {
+		return nil, fmt.Errorf("topic_ownership.owner_slug must match discussion slug")
 	}
 	ownership["owner_slug"] = slug
 	if strings.TrimSpace(stringValue(ownership["anchor"])) == "" {
@@ -1639,18 +1721,11 @@ func (service discussionService) bindConsumer(slug, featureDir string, input map
 		return nil, fmt.Errorf("discussion state and handoff contract lineage do not match")
 	}
 	expectedDigest := strings.TrimSpace(service.expectedReviewDigest)
-	if expectedDigest != "" {
-		if expectedDigest != reviewDigest {
-			return nil, fmt.Errorf("discussion consumer binding review digest does not match the resolved discussion")
-		}
-	} else {
-		candidates, candidateErr := service.resolutionCandidates("sp-specify", "")
-		if candidateErr != nil {
-			return nil, candidateErr
-		}
-		if len(candidates) > 1 {
-			return nil, fmt.Errorf("multiple ready discussion handoffs exist; --review-digest from discussion resolve is required")
-		}
+	if expectedDigest == "" {
+		return nil, fmt.Errorf("discussion consumer binding requires --review-digest from discussion resolve")
+	}
+	if expectedDigest != reviewDigest {
+		return nil, fmt.Errorf("discussion consumer binding review digest does not match the resolved discussion")
 	}
 	stateSHA, err := discussionStateSHA256(sourceWorkspace)
 	if err != nil {
@@ -2060,9 +2135,9 @@ func (service discussionService) markConsumed(slug, consumerPathValue string) (m
 	if state["status"] != "handoff-ready" || state["lifecycle_phase"] != "ready" {
 		return nil, fmt.Errorf("only a validated handoff-ready discussion can be consumed")
 	}
-	reviewDigest := stringValue(mapValue(state["handoff"])["review_digest"])
-	if reviewDigest == "" {
-		return nil, fmt.Errorf("ready discussion is missing a reviewed digest")
+	sourceContract, reviewDigest, recommendedConsumer, stateSHA, err := service.currentReadyDiscussionLineage(workspace, slug, state)
+	if err != nil {
+		return nil, err
 	}
 	consumerPath, err := safeProjectContainedPath(service.projectRoot, consumerPathValue)
 	if err != nil {
@@ -2072,7 +2147,7 @@ func (service discussionService) markConsumed(slug, consumerPathValue string) (m
 	if err != nil {
 		return nil, err
 	}
-	if err := service.validateConsumerEvidence(slug, reviewDigest, evidencePath); err != nil {
+	if err := service.validateConsumerEvidence(slug, sourceContract, reviewDigest, recommendedConsumer, stateSHA, evidencePath); err != nil {
 		return nil, err
 	}
 	ts := nowUTCString()
@@ -2094,7 +2169,16 @@ func (service discussionService) markConsumed(slug, consumerPathValue string) (m
 	if err != nil {
 		return nil, err
 	}
-	state["consumption"] = map[string]any{"status": "consumed", "consumed_at": ts, "consumer_path": consumerRel, "evidence_path": evidenceRel, "review_digest": reviewDigest}
+	state["consumption"] = map[string]any{
+		"status":               "consumed",
+		"consumed_at":          ts,
+		"consumer_path":        consumerRel,
+		"evidence_path":        evidenceRel,
+		"review_digest":        reviewDigest,
+		"source_contract":      sourceContract,
+		"recommended_consumer": recommendedConsumer,
+		"state_sha256":         stateSHA,
+	}
 	if err := service.persistState(workspace, state); err != nil {
 		return nil, err
 	}
@@ -2104,19 +2188,67 @@ func (service discussionService) markConsumed(slug, consumerPathValue string) (m
 	return map[string]any{"discussion": mergeMap(service.record(workspace, state, false), state)}, nil
 }
 
-func (service discussionService) validateConsumerEvidence(slug, digest, evidencePath string) error {
+func (service discussionService) currentReadyDiscussionLineage(workspace, slug string, state map[string]any) (string, string, string, string, error) {
+	if stringValue(mapValue(state["consumption"])["status"]) != "not_consumed" {
+		return "", "", "", "", fmt.Errorf("discussion state is not an unconsumed handoff-ready lineage")
+	}
+	validation, err := service.validateHandoff(slug, "ready")
+	if err != nil {
+		return "", "", "", "", err
+	}
+	if validation["valid"] != true {
+		return "", "", "", "", fmt.Errorf("discussion handoff is not ready: %s", strings.Join(anyStrings(validation["error_codes"]), ", "))
+	}
+	_, sourcePath, err := service.handoffPaths(slug)
+	if err != nil {
+		return "", "", "", "", err
+	}
+	source, err := readJSONMap(sourcePath)
+	if err != nil {
+		return "", "", "", "", fmt.Errorf("discussion handoff is not valid JSON")
+	}
 	expectedContract := fmt.Sprintf(".specify/discussions/%s/handoff-to-specify.json", slug)
+	reviewDigest := stringValue(mapValue(state["handoff"])["review_digest"])
+	if reviewDigest == "" {
+		return "", "", "", "", fmt.Errorf("ready discussion is missing a reviewed digest")
+	}
+	stateHandoff := mapValue(state["handoff"])
+	recommendedConsumer := stringValue(stateHandoff["recommended_consumer"])
+	if recommendedConsumer == "" {
+		return "", "", "", "", fmt.Errorf("ready discussion is missing a selected consumer")
+	}
+	if recommendedConsumer != "sp-specify" && recommendedConsumer != "sp-quick" {
+		return "", "", "", "", fmt.Errorf("ready discussion selected unsupported consumer %q", recommendedConsumer)
+	}
+	if stringValue(stateHandoff["contract_path"]) != expectedContract {
+		return "", "", "", "", fmt.Errorf("discussion state and source handoff lineage do not match")
+	}
+	if source["status"] != "handoff-ready" ||
+		stringValue(source["source_contract"]) != expectedContract ||
+		stringValue(source["review_digest"]) != reviewDigest ||
+		stringValue(source["recommended_consumer"]) != recommendedConsumer {
+		return "", "", "", "", fmt.Errorf("discussion state and source handoff lineage do not match")
+	}
+	stateSHA, err := discussionStateSHA256(workspace)
+	if err != nil {
+		return "", "", "", "", err
+	}
+	return expectedContract, reviewDigest, recommendedConsumer, stateSHA, nil
+}
+
+func (service discussionService) validateConsumerEvidence(slug, sourceContract, digest, recommendedConsumer, stateSHA, evidencePath string) error {
 	if strings.EqualFold(filepath.Ext(evidencePath), ".md") {
 		raw, err := os.ReadFile(evidencePath)
 		if err != nil {
 			return err
 		}
 		fields := extractScalarFields(string(raw))
-		if fields["source_discussion_slug"] != slug || fields["review_digest"] != digest {
+		if fields["source_discussion_slug"] != slug ||
+			fields["source_contract"] != sourceContract ||
+			fields["review_digest"] != digest ||
+			fields["recommended_consumer"] != recommendedConsumer ||
+			fields["state_sha256"] != stateSHA {
 			return fmt.Errorf("consumer evidence does not reference the reviewed discussion")
-		}
-		if fields["source_contract"] != expectedContract {
-			return fmt.Errorf("consumer evidence does not bind the source contract")
 		}
 		return nil
 	}
@@ -2125,7 +2257,13 @@ func (service discussionService) validateConsumerEvidence(slug, digest, evidence
 		return fmt.Errorf("consumer evidence is not valid JSON")
 	}
 	mismatched := []string{}
-	for field, want := range map[string]string{"discussion_slug": slug, "source_contract": expectedContract, "review_digest": digest} {
+	for field, want := range map[string]string{
+		"discussion_slug":      slug,
+		"source_contract":      sourceContract,
+		"review_digest":        digest,
+		"recommended_consumer": recommendedConsumer,
+		"state_sha256":         stateSHA,
+	} {
 		if payload[field] != want {
 			mismatched = append(mismatched, field)
 		}

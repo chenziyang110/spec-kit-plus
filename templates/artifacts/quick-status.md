@@ -19,6 +19,8 @@ handoff_consumer: none
 source_discussion_slug: none
 source_contract: none
 review_digest: none
+state_sha256: none
+recommended_consumer: none
 source_files_read: []
 locked_direction: []
 must_preserve: []

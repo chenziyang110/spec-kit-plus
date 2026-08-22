@@ -1445,7 +1445,7 @@ def test_codex_question_driven_skills_prefer_request_user_input_with_fallback(tm
     assert_quick_checkpoint_card_shape(quick_content)
 
 
-def test_codex_init_start_here_routes_discussion_consumers_through_resolve(tmp_path):
+def test_codex_init_managed_rules_route_discussion_consumers_through_resolve(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
 
@@ -1458,12 +1458,12 @@ def test_codex_init_start_here_routes_discussion_consumers_through_resolve(tmp_p
     )
 
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
-    lowered = result.output.lower()
-    assert "start here" in lowered
-    assert "discussion resolve --intent sp-specify" in lowered
-    assert "discussion resolve --intent sp-quick" in lowered
-    assert "consumer selection" in lowered
-    assert "discussion status" not in lowered
+    assert "start here" in result.output.lower()
+    managed_rules = (target / "AGENTS.md").read_text(encoding="utf-8").lower()
+    assert "discussion resolve --intent sp-specify" in managed_rules
+    assert "discussion resolve --intent sp-quick" in managed_rules
+    assert "consumer selection" in managed_rules
+    assert "discussion status" not in managed_rules
 
 
 def test_codex_generated_skills_preserve_agent_required_marker_lines(tmp_path):

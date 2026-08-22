@@ -1974,6 +1974,7 @@ def _run_discussion_helper(
     slug: str = "",
     status: str = "",
     include_all: bool = False,
+    expected_state_sha256: str = "",
 ) -> dict[str, Any]:
     interpreter, script_path = _discussion_helper_script()
     if not script_path.exists():
@@ -1990,6 +1991,7 @@ def _run_discussion_helper(
         slug,
         status,
         "true" if include_all else "false",
+        expected_state_sha256.strip(),
     ]
 
     env = os.environ.copy()
@@ -2135,7 +2137,7 @@ def _render_spec_kit_managed_block(*, project_root: Path, newline: str) -> str:
             "- Recommend `sp-discussion` for open-ended requirement exploration. Its handoff presents both `sp-quick` and `sp-specify` with their eligibility, explains any blocker, gives a complexity-informed recommendation among eligible paths, and the user makes the final choice. Use `sp-deep-research` for feasibility proof and `sp-debug` for root-cause diagnosis.",
             "- If the user invokes an `sp-*` workflow, follow that workflow's own contract.",
             "- When a topical follow-up, acknowledgement, or contextual confirmation continues an active discussion, resume `sp-discussion` from durable state even when the user does not repeat the workflow name.",
-            "- Before recommending `sp-quick` or `sp-specify` from a discussion, run `{{specify-subcmd:specify-runtime discussion status <slug> --format json}}` and consume its status and `recommended_consumer`. If it is not `handoff-ready` or the consumer does not match, resume `sp-discussion` assessment, draft review, or repair; only a ready confirmed route may continue downstream.",
+            "- For discussion consumer selection, run `{{specify-subcmd:specify-runtime discussion resolve --intent sp-specify [--slug <slug>] --format json}}` or `{{specify-subcmd:specify-runtime discussion resolve --intent sp-quick [--slug <slug>] --format json}}` for the selected path. Multiple candidates require an explicit slug; never bind by latest update, title, topic, or similarity. Consume only the resolver-returned status, `state_sha256`, `review_digest`, and `recommended_consumer`; otherwise resume `sp-discussion` assessment, draft review, or repair.",
             "",
             "## Command Surface Rules",
             "",
@@ -2691,6 +2693,11 @@ def discussion_checkpoint(
     recommendation: str = typer.Option(
         "", "--recommendation", help="Current recommended direction"
     ),
+    expected_state_sha256: str = typer.Option(
+        "",
+        "--expected-state-sha256",
+        help="State digest returned by discussion resolve; required when multiple discussions are active",
+    ),
     json_output: bool = typer.Option(
         False, "--json", help="Print checkpoint state as JSON"
     ),
@@ -2705,7 +2712,10 @@ def discussion_checkpoint(
     if recommendation.strip():
         changes["current_recommendation"] = recommendation.strip()
     payload = _run_discussion_helper(
-        "checkpoint", slug=slug, status=json.dumps(changes, ensure_ascii=False)
+        "checkpoint",
+        slug=slug,
+        status=json.dumps(changes, ensure_ascii=False),
+        expected_state_sha256=expected_state_sha256,
     )
     if json_output:
         print_json(payload, indent=2)
@@ -2762,6 +2772,11 @@ def discussion_write_handoff(
     input_json: str | None = typer.Option(
         None, "--input-json", help="Inline canonical handoff JSON draft"
     ),
+    expected_state_sha256: str = typer.Option(
+        "",
+        "--expected-state-sha256",
+        help="State digest returned by discussion resolve; required when multiple discussions are active",
+    ),
     json_output: bool = typer.Option(
         False, "--json", help="Print agent contract path and digest as JSON"
     ),
@@ -2778,6 +2793,7 @@ def discussion_write_handoff(
             "write-handoff-json",
             slug=slug,
             status=json.dumps(draft, ensure_ascii=False, separators=(",", ":")),
+            expected_state_sha256=expected_state_sha256,
         )
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
         console.print(f"[red]Error:[/red] {exc}")
