@@ -64,10 +64,17 @@ in `spx-discussion` until its handoff is ready. A ready discussion can continue
 only through its explicitly selected `spx-quick` or `spx-specify` consumer,
 never directly through `spx-implement`. A name, slug, title, topic, or keyword
 similarity is not binding evidence between workflow roots; require runtime lane
-selection or the consumer's durable `source_contract` and `review_digest`. When
-feature context is absent, do not enumerate `.specify/features/**`, `tasks.md`,
-or `task-index.json` to guess a feature directory. An unconsumed discussion and
-an unrelated feature are competing candidates, not priority-ranked stages.
+selection or the consumer's durable five-value lineage binding: the resolver's
+exact slug in `discussion_slug` for a formal feature pointer or
+`source_discussion_slug` for Quick `STATUS.md`, plus `source_contract`,
+`review_digest`, `state_sha256`, and `recommended_consumer`. For consumed-stale
+cleanup, require that consumer-specific slug field to match the resolver's exact
+`discussion_slug`, the source contract path and digest to match, `state_sha256`
+to match the resolved source state, and `recommended_consumer` to match the
+selected consumer. When feature context is
+absent, do not enumerate `.specify/features/**`, `tasks.md`, or
+`task-index.json` to guess a feature directory. An unconsumed discussion and an
+unrelated feature are competing candidates, not priority-ranked stages.
 
 Choose the first applicable trustworthy route:
 

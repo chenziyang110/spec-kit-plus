@@ -26,9 +26,9 @@ Before execution require:
 
 Query the agent requirement contract, task-relevant `must_preserve`, decision digest, planning constraints, and reopen conditions through their CLI owners. Treat only source refs actually queried through `specify-runtime artifact show` as consumed; query supporting discussion files only when a named evidence reference is stale, missing, or contradictory.
 
-Submit `source_discussion_slug`, `source_contract`, `review_digest`, confirmed scope, locked direction, obligations, and reopen conditions through the registered quick/status artifact CLI. Never seed `STATUS.md` with a direct write.
+Submit the resolver's exact `discussion_slug` as `source_discussion_slug`, plus `source_contract`, resolver-returned `review_digest`, resolver-returned `state_sha256`, resolver-returned `recommended_consumer`, confirmed scope, locked direction, obligations, and reopen conditions through the registered quick/status artifact CLI. Never seed `STATUS.md` with a direct write.
 
-After the confirmed Quick checkpoint is bound into `STATUS.md`, mark the source discussion consumed with `{{specify-subcmd:specify-runtime discussion mark-consumed <slug> --feature-dir <quick-workspace>}}`. The `--feature-dir` option is the compatibility spelling; the runtime accepts the Quick workspace and validates its `STATUS.md` binding to `source_contract` and `review_digest`. Do not mark consumed before that evidence exists.
+After the confirmed Quick checkpoint is bound into `STATUS.md`, verify the five lineage fields `source_discussion_slug`, `source_contract`, `review_digest`, `state_sha256`, and `recommended_consumer`, then mark the source discussion consumed with `{{specify-subcmd:specify-runtime discussion mark-consumed <slug> --feature-dir <quick-workspace>}}`. The `--feature-dir` option is the compatibility spelling; the runtime accepts the Quick workspace and validates its `STATUS.md` binding to all five lineage fields. Do not mark consumed before that binding evidence exists.
 
 When quick introduces no `semantic_delta`, bind `understanding_confirmed` to the confirmed `review_digest` and do not repeat user confirmation. Present a new Understanding Checkpoint only when quick changes scope, behavior, risk acceptance, target boundary, validation obligations, or another user-owned decision.
 

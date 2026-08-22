@@ -57,7 +57,11 @@ A confirmed discussion handoff with no semantic delta stages as `inherited` and
 skips re-confirmation; show the binding summary plus Delivery Map/Pulse instead.
 
 When Quick consumes a confirmed discussion handoff, first patch
-`source_discussion_slug`, `source_contract`, and `review_digest` into `STATUS.md` through leased `specify-runtime artifact patch` calls.
+the resolver's exact `discussion_slug` as `source_discussion_slug`, plus
+`source_contract`, resolver-returned `review_digest`, resolver-returned
+`state_sha256`, and resolver-returned `recommended_consumer` into `STATUS.md`
+through leased `specify-runtime artifact patch` calls. Verify those five fields
+before mark-consumed.
 Then mark the source consumed with
 `{{specify-subcmd:specify-runtime discussion mark-consumed <slug> --feature-dir <quick-workspace>}}`;
 the legacy option name accepts the Quick workspace, whose `STATUS.md` is the

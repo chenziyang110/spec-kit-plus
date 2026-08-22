@@ -108,7 +108,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "discussion.bind-consumer":
 		capability["side_effect"] = "writes-derived-consumer-handoff"
 		capability["usage"] = "specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --review-digest <resolved-review-digest> --input-json <transition-fields> --format json"
-		capability["input_contract"] = "semantic_delta, required_refs, blockers, and recovery only via --input-json (inline, @path, or -); runtime binds source contract, review digest, recommended consumer, state digest, status, and next action; --review-digest is required when multiple ready discussion handoffs exist; unbound create-feature scaffolds may receive first bind"
+		capability["input_contract"] = "semantic_delta, required_refs, blockers, and recovery only via --input-json (inline, @path, or -); runtime binds source contract, review digest, recommended consumer, state digest, status, and next action; --review-digest is always required from discussion resolve; unbound create-feature scaffolds may receive first bind"
 	case "discussion.checkpoint":
 		capability["side_effect"] = "writes-discussion-state-and-log"
 		capability["usage"] = "specify-runtime discussion checkpoint <slug> --expected-state-sha256 <resolved-state-sha256> --input-json <object|@path|-> [--summary <text>] [--phase <phase>] [--user-goal <text>] --format json"
@@ -539,7 +539,7 @@ func discussionCheckpointInputSchema() map[string]any {
 			"user_goal":               nonEmptyString,
 			"turn_class":              nonEmptyString,
 			"current_decision_frame":  nonEmptyString,
-			"topic_ownership":         map[string]any{"type": "object"},
+			"topic_ownership":         discussionTopicOwnershipSchema(),
 			"confirmed_decisions":     stringArray,
 			"changed_recommendations": stringArray,
 			"context_boundary":        map[string]any{"type": "object"},
@@ -684,7 +684,7 @@ func discussionWriteHandoffInputSchema() map[string]any {
 				},
 			},
 			"discussion_decision_digest": map[string]any{"type": "object"},
-			"topic_ownership":            map[string]any{"type": "object"},
+			"topic_ownership":            discussionTopicOwnershipSchema(),
 			"implementation_target":      map[string]any{"type": "object"},
 			"blocking_unknowns":          map[string]any{"type": "array"},
 			"soft_unknowns":              map[string]any{"type": "array"},
@@ -692,6 +692,54 @@ func discussionWriteHandoffInputSchema() map[string]any {
 			"planning_gate_status":       map[string]any{"type": "string", "enum": []any{"ready"}},
 			"hard_unknown_count":         map[string]any{"type": "integer", "const": 0},
 			"open_conflict_count":        map[string]any{"type": "integer", "const": 0},
+		},
+	}
+}
+
+func discussionTopicOwnershipSchema() map[string]any {
+	nonEmptyString := map[string]any{"type": "string", "minLength": 1}
+	routedTopic := map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"required":             []string{"topic", "route"},
+		"properties": map[string]any{
+			"topic":         nonEmptyString,
+			"route":         map[string]any{"type": "string", "enum": []any{"continue_current", "branch_new", "link_existing", "defer"}},
+			"target_slug":   map[string]any{"type": []any{"string", "null"}, "minLength": 1},
+			"source_digest": map[string]any{"type": []any{"string", "null"}},
+		},
+		"allOf": []any{
+			map[string]any{
+				"if": map[string]any{
+					"properties": map[string]any{
+						"route": map[string]any{"enum": []any{"branch_new", "link_existing"}},
+					},
+				},
+				"then": map[string]any{
+					"required": []string{"target_slug"},
+					"properties": map[string]any{
+						"target_slug": map[string]any{"type": "string", "minLength": 1},
+					},
+				},
+			},
+		},
+	}
+	return map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"required":             []string{"owned_scope", "routed_topics"},
+		"properties": map[string]any{
+			"owner_slug": nonEmptyString,
+			"anchor":     nonEmptyString,
+			"owned_scope": map[string]any{
+				"type":     "array",
+				"minItems": 1,
+				"items":    nonEmptyString,
+			},
+			"routed_topics": map[string]any{
+				"type":  "array",
+				"items": routedTopic,
+			},
 		},
 	}
 }

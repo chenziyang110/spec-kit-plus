@@ -88,13 +88,17 @@ review its boundary against confirmed decisions, and ask the user to confirm
 that exact revision. Then run
 `{{specify-subcmd:specify-runtime discussion confirm-handoff <slug> --digest <review-digest> --json}}`
 before `{{specify-subcmd:specify-runtime discussion mark-ready <slug> --json}}`. Before every
-final response that names `$spx-quick` or `$spx-specify`, read canonical status
-and `recommended_consumer`; withhold the downstream invocation unless status is
-`handoff-ready` and the named workflow is the selected consumer.
+final response that names `$spx-quick` or `$spx-specify`, run
+`{{specify-subcmd:specify-runtime discussion resolve --intent <selected-consumer> --slug <slug> --format json}}`
+and consume only that exact binding, including `state_sha256`, `review_digest`,
+and `recommended_consumer`; withhold the downstream invocation unless resolution
+succeeds, status is `handoff-ready`, and the named workflow is the selected consumer.
 
 Do not create feature state, a spec, plan, tasks, or production changes. A ready
 handoff continues only through its user-selected consumer, regardless of which
-route the agent recommended. Mark it consumed only after that consumer writes evidence binding
-`source_contract` and `review_digest` into its Quick or feature workspace. This
-invocation authorizes only this workflow stage; do not invoke another workflow
-in this run.
+route the agent recommended. Mark it consumed only after that consumer writes
+evidence binding all five lineage values into its workspace: the resolver's
+exact slug in `discussion_slug` for the formal feature pointer or
+`source_discussion_slug` for Quick `STATUS.md`, plus `source_contract`,
+`review_digest`, `state_sha256`, and `recommended_consumer`. This invocation
+authorizes only this workflow stage; do not invoke another workflow in this run.

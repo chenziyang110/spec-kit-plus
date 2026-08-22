@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import errno
 import hashlib
 import json
 import os
@@ -11,11 +12,18 @@ import re
 import shutil
 import sys
 import tempfile
+import time
 import unicodedata
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 
 STATE_VERSION = 2
@@ -48,6 +56,19 @@ MUST_PRESERVE_FIELDS = {
     "latest_resolve_phase",
     "status",
 }
+MUTATION_MODES = {
+    "init",
+    "checkpoint",
+    "write-handoff-json",
+    "confirm-handoff",
+    "mark-ready",
+    "mark-consumed",
+    "close",
+    "archive",
+    "rebuild-index",
+}
+LOCK_RETRY_SECONDS = 0.05
+LOCK_TIMEOUT_SECONDS = 30.0
 
 
 def now_utc() -> str:
@@ -69,6 +90,59 @@ def slugify(value: str) -> str:
 
 def discussion_root(project_root: Path) -> Path:
     return project_root.resolve() / ".specify" / "discussions"
+
+
+def _discussion_mutation_lock_path(project_root: Path) -> Path:
+    return (
+        project_root.resolve()
+        / ".specify"
+        / "runtime"
+        / "discussion"
+        / "mutation.lock"
+    )
+
+
+@contextmanager
+def _discussion_mutation_lock(project_root: Path):
+    lock_path = _discussion_mutation_lock_path(project_root)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+b") as lock_file:
+        lock_file.seek(0, os.SEEK_END)
+        if lock_file.tell() == 0:
+            lock_file.write(b"\0")
+            lock_file.flush()
+            os.fsync(lock_file.fileno())
+        deadline = time.monotonic() + LOCK_TIMEOUT_SECONDS
+        while True:
+            try:
+                lock_file.seek(0)
+                if os.name == "nt":
+                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"timed out acquiring discussion mutation lock: {lock_path}"
+                    )
+                time.sleep(LOCK_RETRY_SECONDS)
+            except OSError as exc:
+                if exc.errno not in {errno.EACCES, errno.EAGAIN, errno.EDEADLK}:
+                    raise
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"timed out acquiring discussion mutation lock: {lock_path}"
+                    ) from exc
+                time.sleep(LOCK_RETRY_SECONDS)
+        try:
+            yield
+        finally:
+            lock_file.seek(0)
+            if os.name == "nt":
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
@@ -519,6 +593,36 @@ def _scan(project_root: Path) -> list[dict[str, Any]]:
     )
 
 
+def _incomplete_discussion_count(project_root: Path) -> int:
+    return sum(
+        1
+        for record in _scan(project_root)
+        if not record.get("archived") and record.get("status") in INCOMPLETE_STATUSES
+    )
+
+
+def _require_expected_state_sha256(
+    project_root: Path,
+    workspace: Path,
+    expected_state_sha256: str | None,
+) -> None:
+    expected = str(expected_state_sha256 or "").strip()
+    current = _state_sha256(workspace)
+    if expected:
+        if expected != current:
+            raise ValueError(
+                "discussion focus binding is stale or belongs to a different "
+                "discussion; refresh --expected-state-sha256 from discussion "
+                f"resolve or resume: expected state_sha256 {expected}, current {current}"
+            )
+        return
+    if _incomplete_discussion_count(project_root) > 1:
+        raise ValueError(
+            "multiple incomplete discussions require --expected-state-sha256 "
+            "from discussion resolve or resume"
+        )
+
+
 def _write_index(project_root: Path) -> dict[str, Any]:
     root = discussion_root(project_root)
     payload = {
@@ -548,8 +652,20 @@ def _find_workspace(
 
 
 def initialize_discussion(
-    project_root: Path, requested_slug: str, topic: str = ""
+    project_root: Path,
+    requested_slug: str,
+    topic: str = "",
+    *,
+    _lock_held: bool = False,
 ) -> dict[str, Any]:
+    if not _lock_held:
+        with _discussion_mutation_lock(project_root):
+            return initialize_discussion(
+                project_root,
+                requested_slug,
+                topic,
+                _lock_held=True,
+            )
     root = discussion_root(project_root)
     root.mkdir(parents=True, exist_ok=True)
     base_slug = slugify(requested_slug or topic)
@@ -684,8 +800,22 @@ def _validate_checkpoint_fields(changes: dict[str, Any]) -> None:
 
 
 def checkpoint_discussion(
-    project_root: Path, slug: str, changes: dict[str, Any]
+    project_root: Path,
+    slug: str,
+    changes: dict[str, Any],
+    expected_state_sha256: str | None = None,
+    *,
+    _lock_held: bool = False,
 ) -> dict[str, Any]:
+    if not _lock_held:
+        with _discussion_mutation_lock(project_root):
+            return checkpoint_discussion(
+                project_root,
+                slug,
+                changes,
+                expected_state_sha256,
+                _lock_held=True,
+            )
     workspace, archived = _find_workspace(project_root, slug, include_archived=False)
     if archived:
         raise ValueError("archived discussion cannot be checkpointed")
@@ -693,6 +823,7 @@ def checkpoint_discussion(
         raise ValueError("checkpoint payload must be an object")
     _validate_checkpoint_fields(changes)
     state, _legacy = _load_state(workspace)
+    _require_expected_state_sha256(project_root, workspace, expected_state_sha256)
     phase = changes.get("lifecycle_phase", changes.get("phase", state["lifecycle_phase"]))
     if isinstance(phase, str):
         phase = phase.strip().lower()
@@ -756,12 +887,27 @@ def compute_review_digest(payload: dict[str, Any]) -> str:
 
 
 def write_handoff(
-    project_root: Path, slug: str, handoff_payload: dict[str, Any]
+    project_root: Path,
+    slug: str,
+    handoff_payload: dict[str, Any],
+    expected_state_sha256: str | None = None,
+    *,
+    _lock_held: bool = False,
 ) -> dict[str, Any]:
+    if not _lock_held:
+        with _discussion_mutation_lock(project_root):
+            return write_handoff(
+                project_root,
+                slug,
+                handoff_payload,
+                expected_state_sha256,
+                _lock_held=True,
+            )
     workspace, archived = _find_workspace(project_root, slug, include_archived=False)
     if archived:
         raise ValueError("archived discussion cannot write a handoff")
     state, _legacy = _load_state(workspace)
+    _require_expected_state_sha256(project_root, workspace, expected_state_sha256)
     payload = copy.deepcopy(handoff_payload)
     payload.update(
         {
@@ -1082,7 +1228,17 @@ def confirm_handoff(
     project_root: Path,
     slug: str,
     review_digest: str,
+    *,
+    _lock_held: bool = False,
 ) -> dict[str, Any]:
+    if not _lock_held:
+        with _discussion_mutation_lock(project_root):
+            return confirm_handoff(
+                project_root,
+                slug,
+                review_digest,
+                _lock_held=True,
+            )
     expected_digest = str(review_digest or "").strip()
     if not expected_digest:
         raise ValueError("review digest is required")
@@ -1155,7 +1311,15 @@ def confirm_handoff(
     }
 
 
-def mark_ready(project_root: Path, slug: str) -> dict[str, Any]:
+def mark_ready(
+    project_root: Path,
+    slug: str,
+    *,
+    _lock_held: bool = False,
+) -> dict[str, Any]:
+    if not _lock_held:
+        with _discussion_mutation_lock(project_root):
+            return mark_ready(project_root, slug, _lock_held=True)
     validation = validate_handoff(
         project_root,
         slug,
@@ -1229,6 +1393,8 @@ def _validate_consumer_evidence(
     project_root: Path,
     slug: str,
     review_digest: str,
+    state_sha256: str,
+    recommended_consumer: str,
     evidence_path: Path,
 ) -> None:
     expected_contract = f".specify/discussions/{slug}/handoff-to-specify.json"
@@ -1241,16 +1407,21 @@ def _validate_consumer_evidence(
                 text,
             )
         }
-        if (
-            scalar_fields.get("source_discussion_slug") != slug
-            or scalar_fields.get("review_digest") != review_digest
-        ):
+        expected = {
+            "source_discussion_slug": slug,
+            "source_contract": expected_contract,
+            "review_digest": review_digest,
+            "state_sha256": state_sha256,
+            "recommended_consumer": recommended_consumer,
+        }
+        mismatched = [
+            field for field, value in expected.items() if scalar_fields.get(field) != value
+        ]
+        if mismatched:
             raise ValueError(
-                "consumer evidence does not reference the reviewed discussion"
-            )
-        if scalar_fields.get("source_contract") != expected_contract:
-            raise ValueError(
-                "consumer evidence does not bind the source contract"
+                "consumer evidence does not bind the source contract or required "
+                "lineage fields: "
+                + ", ".join(mismatched)
             )
         return
     try:
@@ -1263,31 +1434,77 @@ def _validate_consumer_evidence(
         "discussion_slug": slug,
         "source_contract": expected_contract,
         "review_digest": review_digest,
+        "state_sha256": state_sha256,
+        "recommended_consumer": recommended_consumer,
     }
     mismatched = [
         field for field, value in expected.items() if payload.get(field) != value
     ]
     if mismatched:
         raise ValueError(
-            f"consumer evidence does not reference the reviewed discussion: {', '.join(mismatched)}"
+            "consumer evidence does not bind the source contract or required "
+            f"lineage fields: {', '.join(mismatched)}"
         )
 
 
 def mark_consumed(
-    project_root: Path, slug: str, consumer_path_value: str
+    project_root: Path,
+    slug: str,
+    consumer_path_value: str,
+    *,
+    _lock_held: bool = False,
 ) -> dict[str, Any]:
+    if not _lock_held:
+        with _discussion_mutation_lock(project_root):
+            return mark_consumed(
+                project_root,
+                slug,
+                consumer_path_value,
+                _lock_held=True,
+            )
     workspace, archived = _find_workspace(project_root, slug, include_archived=False)
     if archived:
         raise ValueError("archived discussion cannot be consumed")
     state, _legacy = _load_state(workspace)
     if state["status"] != "handoff-ready" or state["lifecycle_phase"] != "ready":
         raise ValueError("only a validated handoff-ready discussion can be consumed")
-    review_digest = str(state["handoff"].get("review_digest") or "")
+    if state.get("consumption", {}).get("status") != "not_consumed":
+        raise ValueError("discussion source must be not_consumed before consumption")
+    validation = validate_handoff(project_root, slug, validation_mode="ready")
+    if not validation.get("valid"):
+        codes = ", ".join(str(code) for code in validation.get("error_codes", []))
+        raise ValueError(f"discussion handoff is not ready: {codes}")
+    handoff_payload = _load_handoff_payload(workspace)
+    if not isinstance(handoff_payload, dict):
+        raise ValueError("discussion handoff is not valid JSON")
+    if handoff_payload.get("status") != "handoff-ready":
+        raise ValueError("discussion source contract is not handoff-ready")
+    state_handoff = state.get("handoff", {})
+    if not isinstance(state_handoff, dict):
+        raise ValueError("discussion state handoff lineage is invalid")
+    review_digest = str(state_handoff.get("review_digest") or "")
     if not review_digest:
         raise ValueError("ready discussion is missing a reviewed digest")
+    expected_contract = f".specify/discussions/{slug}/handoff-to-specify.json"
+    recommended_consumer = str(state_handoff.get("recommended_consumer") or "")
+    if (
+        state_handoff.get("contract_path") != expected_contract
+        or handoff_payload.get("source_contract") != expected_contract
+        or handoff_payload.get("review_digest") != review_digest
+        or handoff_payload.get("recommended_consumer") != recommended_consumer
+    ):
+        raise ValueError("discussion state and handoff contract lineage do not match")
+    state_sha256 = _state_sha256(workspace)
     consumer_path = _safe_consumer_path(project_root, consumer_path_value)
     evidence_path = _consumer_evidence_path(consumer_path)
-    _validate_consumer_evidence(project_root, slug, review_digest, evidence_path)
+    _validate_consumer_evidence(
+        project_root,
+        slug,
+        review_digest,
+        state_sha256,
+        recommended_consumer,
+        evidence_path,
+    )
     timestamp = now_utc()
     state.update(
         {
@@ -1316,7 +1533,10 @@ def mark_consumed(
         "evidence_path": evidence_path.resolve()
         .relative_to(project_root.resolve())
         .as_posix(),
+        "source_contract": expected_contract,
         "review_digest": review_digest,
+        "state_sha256": state_sha256,
+        "recommended_consumer": recommended_consumer,
     }
     _persist_state(workspace, state)
     _write_index(project_root)
@@ -1324,8 +1544,20 @@ def mark_consumed(
 
 
 def close_discussion(
-    project_root: Path, slug: str, status_value: str
+    project_root: Path,
+    slug: str,
+    status_value: str,
+    *,
+    _lock_held: bool = False,
 ) -> dict[str, Any]:
+    if not _lock_held:
+        with _discussion_mutation_lock(project_root):
+            return close_discussion(
+                project_root,
+                slug,
+                status_value,
+                _lock_held=True,
+            )
     if status_value not in TERMINAL_STATUSES:
         raise ValueError("close requires status completed or abandoned")
     workspace, archived = _find_workspace(project_root, slug, include_archived=False)
@@ -1355,7 +1587,15 @@ def close_discussion(
     return {"discussion": {**_record(workspace, state, False), **copy.deepcopy(state)}}
 
 
-def archive_discussion(project_root: Path, slug: str) -> dict[str, Any]:
+def archive_discussion(
+    project_root: Path,
+    slug: str,
+    *,
+    _lock_held: bool = False,
+) -> dict[str, Any]:
+    if not _lock_held:
+        with _discussion_mutation_lock(project_root):
+            return archive_discussion(project_root, slug, _lock_held=True)
     workspace, archived = _find_workspace(project_root, slug, include_archived=False)
     if archived:
         raise ValueError("discussion is already archived")
@@ -1377,7 +1617,14 @@ def archive_discussion(project_root: Path, slug: str) -> dict[str, Any]:
     return {"discussion": {**_record(destination, state, True), **copy.deepcopy(state)}}
 
 
-def rebuild_index(project_root: Path) -> dict[str, Any]:
+def rebuild_index(
+    project_root: Path,
+    *,
+    _lock_held: bool = False,
+) -> dict[str, Any]:
+    if not _lock_held:
+        with _discussion_mutation_lock(project_root):
+            return rebuild_index(project_root, _lock_held=True)
     return _write_index(project_root)
 
 
@@ -1597,16 +1844,23 @@ def resolve_discussion(
     }
 
 
-def main() -> int:
-    project_root = Path(sys.argv[1]).resolve()
-    mode = (sys.argv[2] if len(sys.argv) > 2 else "list").strip().lower()
-    slug = (sys.argv[3] if len(sys.argv) > 3 else "").strip()
-    value = (sys.argv[4] if len(sys.argv) > 4 else "").strip()
-    include_all = (
-        sys.argv[5] if len(sys.argv) > 5 else "false"
-    ).strip().lower() == "true"
+def _main_dispatch(
+    project_root: Path,
+    mode: str,
+    slug: str,
+    value: str,
+    include_all: bool,
+    expected_state_sha256: str,
+    *,
+    _lock_held: bool = False,
+) -> dict[str, Any]:
     if mode == "init":
-        result = initialize_discussion(project_root, slug, value)
+        result = initialize_discussion(
+            project_root,
+            slug,
+            value,
+            _lock_held=_lock_held,
+        )
     elif mode == "list":
         result = list_discussions(project_root, include_all)
     elif mode == "status":
@@ -1617,7 +1871,13 @@ def main() -> int:
         changes = json.loads(value or "{}")
         if not isinstance(changes, dict):
             raise ValueError("checkpoint payload must be an object")
-        result = checkpoint_discussion(project_root, slug, changes)
+        result = checkpoint_discussion(
+            project_root,
+            slug,
+            changes,
+            expected_state_sha256,
+            _lock_held=_lock_held,
+        )
     elif mode == "write-handoff":
         raise ValueError(
             "write-handoff file input is disabled; pass the in-memory draft through "
@@ -1630,7 +1890,13 @@ def main() -> int:
             raise ValueError("handoff input is not valid JSON") from exc
         if not isinstance(handoff_payload, dict):
             raise ValueError("handoff input must be a JSON object")
-        result = write_handoff(project_root, slug, handoff_payload)
+        result = write_handoff(
+            project_root,
+            slug,
+            handoff_payload,
+            expected_state_sha256,
+            _lock_held=_lock_held,
+        )
     elif mode == "validate-handoff":
         result = validate_handoff(
             project_root,
@@ -1638,21 +1904,63 @@ def main() -> int:
             validation_mode=value or "ready",
         )
     elif mode == "confirm-handoff":
-        result = confirm_handoff(project_root, slug, value)
+        result = confirm_handoff(
+            project_root,
+            slug,
+            value,
+            _lock_held=_lock_held,
+        )
     elif mode == "mark-ready":
-        result = mark_ready(project_root, slug)
+        result = mark_ready(project_root, slug, _lock_held=_lock_held)
     elif mode == "mark-consumed":
-        result = mark_consumed(project_root, slug, value)
+        result = mark_consumed(project_root, slug, value, _lock_held=_lock_held)
     elif mode == "close":
-        result = close_discussion(project_root, slug, value.lower())
+        result = close_discussion(
+            project_root,
+            slug,
+            value.lower(),
+            _lock_held=_lock_held,
+        )
     elif mode == "archive":
-        result = archive_discussion(project_root, slug)
+        result = archive_discussion(project_root, slug, _lock_held=_lock_held)
     elif mode == "rebuild-index":
-        result = rebuild_index(project_root)
+        result = rebuild_index(project_root, _lock_held=_lock_held)
     elif mode == "resolve":
         result = resolve_discussion(project_root, value or "continue", slug)
     else:
         raise ValueError(f"unknown mode: {mode}")
+    return result
+
+
+def main() -> int:
+    project_root = Path(sys.argv[1]).resolve()
+    mode = (sys.argv[2] if len(sys.argv) > 2 else "list").strip().lower()
+    slug = (sys.argv[3] if len(sys.argv) > 3 else "").strip()
+    value = (sys.argv[4] if len(sys.argv) > 4 else "").strip()
+    include_all = (
+        sys.argv[5] if len(sys.argv) > 5 else "false"
+    ).strip().lower() == "true"
+    expected_state_sha256 = (sys.argv[6] if len(sys.argv) > 6 else "").strip()
+    if mode in MUTATION_MODES:
+        with _discussion_mutation_lock(project_root):
+            result = _main_dispatch(
+                project_root,
+                mode,
+                slug,
+                value,
+                include_all,
+                expected_state_sha256,
+                _lock_held=True,
+            )
+    else:
+        result = _main_dispatch(
+            project_root,
+            mode,
+            slug,
+            value,
+            include_all,
+            expected_state_sha256,
+        )
     print(json.dumps(result, ensure_ascii=False))
     return 0
 
