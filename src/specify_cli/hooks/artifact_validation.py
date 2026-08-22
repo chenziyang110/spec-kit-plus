@@ -1106,8 +1106,33 @@ def _validate_handoff_to_specify_payload(payload: Any, label: str) -> list[str]:
 
     source_contract = str(payload.get("source_contract") or "").strip()
     if source_contract:
-        if not str(payload.get("review_digest") or "").strip():
-            errors.append(f"{label} review_digest is required")
+        discussion_slug = str(payload.get("discussion_slug") or "").strip()
+        if not discussion_slug:
+            errors.append(f"{label} discussion_slug is required")
+        elif not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", discussion_slug):
+            errors.append(f"{label} discussion_slug must be a normalized slug")
+        else:
+            expected_source = (
+                f".specify/discussions/{discussion_slug}/handoff-to-specify.json"
+            )
+            if source_contract != expected_source:
+                errors.append(
+                    f"{label} source_contract must match discussion_slug"
+                )
+        if payload.get("version") != 3:
+            errors.append(f"{label} version must be 3")
+        if payload.get("entry_source") != "sp-discussion":
+            errors.append(f"{label} entry_source must be sp-discussion")
+        if payload.get("status") not in {"ready", "blocked"}:
+            errors.append(f"{label} status must be ready or blocked")
+        if payload.get("recommended_consumer") != "sp-specify":
+            errors.append(f"{label} recommended_consumer must be sp-specify")
+        review_digest = str(payload.get("review_digest") or "").strip()
+        if not re.fullmatch(r"[0-9a-f]{64}", review_digest):
+            errors.append(f"{label} review_digest must be a sha256 digest")
+        state_sha256 = str(payload.get("state_sha256") or "").strip()
+        if not re.fullmatch(r"[0-9a-f]{64}", state_sha256):
+            errors.append(f"{label} state_sha256 must be a sha256 digest")
         for field in ("semantic_delta", "required_refs", "blockers"):
             if not isinstance(payload.get(field), list):
                 errors.append(f"{label} {field} must be a list")
