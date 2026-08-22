@@ -880,6 +880,8 @@ class TestCodexAutoPromote:
             "discussion_slug": None,
             "source_contract": None,
             "review_digest": None,
+            "recommended_consumer": None,
+            "state_sha256": None,
             "semantic_delta": [],
             "required_refs": [],
             "blockers": [],

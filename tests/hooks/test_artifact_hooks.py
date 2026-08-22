@@ -1132,6 +1132,49 @@ def test_specify_artifact_validation_does_not_require_compatibility_handoff(
     assert result.errors == []
 
 
+def test_bound_discussion_consumer_pointer_requires_exact_lineage_fields() -> None:
+    payload = {
+        "version": 3,
+        "status": "ready",
+        "entry_source": "sp-discussion",
+        "source_contract": ".specify/discussions/checkout/handoff-to-specify.json",
+        "review_digest": "a" * 64,
+        "semantic_delta": [],
+        "required_refs": [],
+        "blockers": [],
+        "next_action": "/sp.plan",
+    }
+
+    errors = artifact_validation._validate_handoff_to_specify_payload(
+        payload, "brainstorming/handoff-to-specify.json"
+    )
+    assert any("discussion_slug is required" in error for error in errors)
+    assert any("recommended_consumer must be sp-specify" in error for error in errors)
+    assert any("state_sha256 must be a sha256 digest" in error for error in errors)
+
+    payload.update(
+        {
+            "discussion_slug": "checkout",
+            "recommended_consumer": "sp-specify",
+            "state_sha256": "b" * 64,
+        }
+    )
+    assert (
+        artifact_validation._validate_handoff_to_specify_payload(
+            payload, "brainstorming/handoff-to-specify.json"
+        )
+        == []
+    )
+
+    payload["source_contract"] = (
+        ".specify/discussions/search/handoff-to-specify.json"
+    )
+    errors = artifact_validation._validate_handoff_to_specify_payload(
+        payload, "brainstorming/handoff-to-specify.json"
+    )
+    assert any("source_contract must match discussion_slug" in error for error in errors)
+
+
 @pytest.mark.parametrize(
     ("mutation", "expected_error"),
     [
