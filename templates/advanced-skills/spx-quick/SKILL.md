@@ -136,10 +136,18 @@ substantive execution. During execution, prefer
 over vague waiting text. Keep Delivery Map, waves, subagents, and file splits
 agent-owned; they never enter `confirmation_digest`.
 
-When intake names `.specify/discussions/<slug>/handoff-to-specify.json`, query it through `specify-runtime artifact show` and consume
-it only when it is handoff-ready, its digests are current, it has zero blocking
-decisions, and `consumer_eligibility.sp-quick.status: ready`, except for the
-legacy size/breadth-only override below. With no semantic
+When intake names `.specify/discussions/<slug>/handoff-to-specify.json`, or a
+discussion slug may be implied, first run
+`{{specify-subcmd:specify-runtime discussion resolve --intent sp-quick --json}}`,
+appending `--slug <slug>` when an exact slug was supplied.
+If multiple candidates are returned, ask for the exact slug; never guess, never
+select latest, and never infer an unstated slug from a name, title, topic, or
+keyword similarity. Query the resolved contract through `specify-runtime artifact show`
+and consume it only when it is handoff-ready, its digests are current, the
+resolver-returned `review_digest`, `state_sha256`, and `recommended_consumer`
+match, `topic_ownership.owner_slug` equals the selected slug, it has zero
+blocking decisions, and `consumer_eligibility.sp-quick.status: ready`, except
+for the legacy size/breadth-only override below. With no semantic
 delta, stage inheritance with the handoff `review_digest` and continue without
 re-confirmation; show the binding summary plus Delivery Map/Pulse. With a
 semantic delta, stage only the changed decision rows and confirm the new digest.

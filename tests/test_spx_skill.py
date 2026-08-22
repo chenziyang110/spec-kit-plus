@@ -1236,7 +1236,8 @@ def test_fresh_advanced_codex_init_keeps_agent_flows_off_source_launcher(
         / "project-learning.md"
     ).read_text(encoding="utf-8")
     assert (
-        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime discussion list --json"
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime discussion resolve "
+        "--intent continue --json"
         in discussion
     )
     assert (

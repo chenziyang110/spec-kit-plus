@@ -101,21 +101,25 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime hook extension-plan --event <event-id> --format json"
 		capability["input_contract"] = "the runtime reads and filters .specify/extensions.yml; agents consume only returned actionable hook items"
+	case "discussion.resolve":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime discussion resolve --intent continue|sp-specify|sp-quick [--slug <slug>] --format json"
+		capability["input_contract"] = "resolves one canonical discussion lineage; multiple candidates return blocked/ambiguous and require an explicit slug; focus bindings carry discussion_slug and state_sha256, while consumer bindings also carry source_contract, review_digest, and recommended_consumer"
 	case "discussion.bind-consumer":
 		capability["side_effect"] = "writes-derived-consumer-handoff"
-		capability["usage"] = "specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --input-json <transition-fields> --format json"
-		capability["input_contract"] = "semantic_delta, required_refs, blockers, and recovery only via --input-json (inline, @path, or -); runtime binds source contract, review digest, status, and next action; unbound create-feature scaffolds may receive first bind"
+		capability["usage"] = "specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --review-digest <resolved-review-digest> --input-json <transition-fields> --format json"
+		capability["input_contract"] = "semantic_delta, required_refs, blockers, and recovery only via --input-json (inline, @path, or -); runtime binds source contract, review digest, recommended consumer, state digest, status, and next action; --review-digest is required when multiple ready discussion handoffs exist; unbound create-feature scaffolds may receive first bind"
 	case "discussion.checkpoint":
 		capability["side_effect"] = "writes-discussion-state-and-log"
-		capability["usage"] = "specify-runtime discussion checkpoint <slug> --input-json <object|@path|-> [--summary <text>] [--phase <phase>] [--user-goal <text>] --format json"
+		capability["usage"] = "specify-runtime discussion checkpoint <slug> --expected-state-sha256 <resolved-state-sha256> --input-json <object|@path|-> [--summary <text>] [--phase <phase>] [--user-goal <text>] --format json"
 		capability["input_schema"] = "discussion-checkpoint-input"
-		capability["input_contract"] = "persists turn_packet semantic fields (user_goal, context_boundary, confirmed_decisions, open_questions, current_recommendation, ...); unknown fields are rejected; --input-json accepts inline, @path, or - (PowerShell should prefer @path/stdin)"
+		capability["input_contract"] = "persists turn_packet semantic fields (user_goal, context_boundary, topic_ownership, confirmed_decisions, open_questions, current_recommendation, ...); unknown fields are rejected; --expected-state-sha256 comes from discussion resolve; --input-json accepts inline, @path, or - (PowerShell should prefer @path/stdin)"
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "discussion-checkpoint-input", "--format", "json"}
 	case "discussion.write-handoff":
 		capability["side_effect"] = "writes-discussion-handoff"
-		capability["usage"] = "specify-runtime discussion write-handoff <slug> --input-json <object|@path|-> --format json"
+		capability["usage"] = "specify-runtime discussion write-handoff <slug> --expected-state-sha256 <resolved-state-sha256> --input-json <object|@path|-> --format json"
 		capability["input_schema"] = "discussion-write-handoff-input"
-		capability["input_contract"] = "semantic draft merged into the installed handoff template; roles/evidence/must_preserve are object lists; consumer status ready (not eligible); quality_gate needs self_reviewed_at; --input-json accepts inline, @path, or -"
+		capability["input_contract"] = "semantic draft merged into the installed handoff template; topic_ownership owner_slug is runtime-bound to the resolved slug; roles/evidence/must_preserve are object lists; consumer status ready (not eligible); quality_gate needs self_reviewed_at; --expected-state-sha256 comes from discussion resolve; --input-json accepts inline, @path, or -"
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "discussion-write-handoff-input", "--format", "json"}
 	case "validate.spec":
 		capability["side_effect"] = "read-only"
@@ -535,6 +539,7 @@ func discussionCheckpointInputSchema() map[string]any {
 			"user_goal":               nonEmptyString,
 			"turn_class":              nonEmptyString,
 			"current_decision_frame":  nonEmptyString,
+			"topic_ownership":         map[string]any{"type": "object"},
 			"confirmed_decisions":     stringArray,
 			"changed_recommendations": stringArray,
 			"context_boundary":        map[string]any{"type": "object"},
@@ -679,6 +684,7 @@ func discussionWriteHandoffInputSchema() map[string]any {
 				},
 			},
 			"discussion_decision_digest": map[string]any{"type": "object"},
+			"topic_ownership":            map[string]any{"type": "object"},
 			"implementation_target":      map[string]any{"type": "object"},
 			"blocking_unknowns":          map[string]any{"type": "array"},
 			"soft_unknowns":              map[string]any{"type": "array"},

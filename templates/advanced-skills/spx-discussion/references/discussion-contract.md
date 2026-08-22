@@ -5,6 +5,17 @@ actors, outcomes, scope boundaries, repository facts, confirmed decisions,
 rejected options with reasons, assumptions, open decisions, and current next
 question.
 
+Session identity comes from `specify-runtime discussion resolve --intent continue
+[--slug <slug>] --format json`. Multiple candidates are a blocker until the
+user chooses a slug; do not guess and do not select latest. The resolver's
+`state_sha256` is the compare-and-swap input for checkpoint and write-handoff.
+
+Topic ownership is explicit. Classify each turn with `route: continue_current`,
+`branch_new`, `link_existing`, or `defer`. Only `route: continue_current` may change
+this discussion's owned scope or handoff. Branch/link/defer side topics stay as
+references with `target_slug`/`source_digest` when available; do not copy those
+decisions into the current requirement contract.
+
 Before a handoff, preserve the locked target root, `verified_project_facts`,
 evidence checked, open assumptions, and advice confidence. Carry triggered
 consequence obligations with affected objects and stop/reopen conditions. For UI

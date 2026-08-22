@@ -27,6 +27,7 @@ func runDiscussion(args []string, stdout io.Writer) int {
 		env.Data["commands"] = []string{
 			"list",
 			"init",
+			"resolve",
 			"status",
 			"resume",
 			"checkpoint",
@@ -41,12 +42,12 @@ func runDiscussion(args []string, stdout io.Writer) int {
 		}
 		env.Data["input_json"] = "inline JSON, @path, or - (stdin). On Windows PowerShell prefer @path or stdin because inline quoting often strips double quotes."
 		env.Data["checkpoint"] = map[string]any{
-			"usage":          "specify-runtime discussion checkpoint <slug> --input-json <object|@path|-> [--summary <text>] [--phase <phase>] [--user-goal <text>] [--decision <text>]... [--recommendation <text>]",
+			"usage":          "specify-runtime discussion checkpoint <slug> --expected-state-sha256 <sha256> --input-json <object|@path|-> [--summary <text>] [--phase <phase>] [--user-goal <text>] [--decision <text>]... [--recommendation <text>]",
 			"persists":       append([]string{"summary", "lifecycle_phase"}, discussionCheckpointPacketKeys...),
 			"unknown_fields": "rejected with invalid error (not silently dropped)",
 		}
 		env.Data["write_handoff"] = map[string]any{
-			"usage":  "specify-runtime discussion write-handoff <slug> --input-json <object|@path|->",
+			"usage":  "specify-runtime discussion write-handoff <slug> --expected-state-sha256 <sha256> --input-json <object|@path|->",
 			"schema": "specify-runtime api schema discussion-write-handoff-input --format json",
 		}
 		return writeEnvelope(stdout, env)
@@ -66,6 +67,26 @@ func runDiscussion(args []string, stdout io.Writer) int {
 		}
 	case "resume":
 		mode = "resume-context"
+	case "resolve":
+		intent := strings.ToLower(strings.TrimSpace(optionValue(args, "--intent", "continue")))
+		selectedSlug := strings.TrimSpace(optionValue(args, "--slug", slug))
+		service := discussionService{projectRoot: projectRoot}
+		data, resolved, err := service.resolve(intent, selectedSlug)
+		if err != nil {
+			return writeEnvelope(stdout, scriptDomainError("discussion", err))
+		}
+		status := "ok"
+		summary := "discussion selection resolved"
+		if !resolved {
+			status = "blocked"
+			summary = "discussion selection is ambiguous or unavailable"
+		}
+		env := NewEnvelope(status, summary)
+		env.Data = data
+		if candidates, ok := data["candidates"].([]any); ok {
+			env.Items = candidates
+		}
+		return writeEnvelope(stdout, env)
 	case "checkpoint":
 		changes, err := resolveDiscussionCheckpointInput(args, projectRoot, value)
 		if err != nil {
@@ -107,7 +128,10 @@ func runDiscussion(args []string, stdout io.Writer) int {
 		if err != nil {
 			return writeEnvelope(stdout, scriptDomainError("discussion", err))
 		}
-		service := discussionService{projectRoot: projectRoot}
+		service := discussionService{
+			projectRoot:          projectRoot,
+			expectedReviewDigest: strings.TrimSpace(optionValue(args, "--review-digest", "")),
+		}
 		data, err := service.bindConsumer(slug, featureDir, input)
 		if err != nil {
 			return writeEnvelope(stdout, scriptDomainError("discussion", err))
@@ -125,7 +149,10 @@ func runDiscussion(args []string, stdout io.Writer) int {
 	case "close":
 		value = optionValue(args, "--status", value)
 	}
-	service := discussionService{projectRoot: projectRoot}
+	service := discussionService{
+		projectRoot:         projectRoot,
+		expectedStateSHA256: strings.TrimSpace(optionValue(args, "--expected-state-sha256", "")),
+	}
 	env, err := service.run(mode, slug, value, includeAll)
 	if err != nil {
 		return writeEnvelope(stdout, scriptDomainError("discussion", err))
@@ -327,6 +354,7 @@ func scriptOptionTakesValue(name string) bool {
 	case "--project-root",
 		"--format",
 		"--slug",
+		"--intent",
 		"--summary",
 		"--phase",
 		"--decision",
@@ -335,6 +363,8 @@ func scriptOptionTakesValue(name string) bool {
 		"--input",
 		"--input-json",
 		"--digest",
+		"--review-digest",
+		"--expected-state-sha256",
 		"--feature-dir",
 		"--surface",
 		"--record-id",
@@ -465,7 +495,9 @@ func relativeToProject(projectRoot, path string) (string, error) {
 }
 
 type discussionService struct {
-	projectRoot string
+	projectRoot          string
+	expectedStateSHA256  string
+	expectedReviewDigest string
 }
 
 var discussionIncompleteStatuses = map[string]bool{"active": true, "blocked": true, "handoff-ready": true}
@@ -549,6 +581,7 @@ var discussionCheckpointPacketKeys = []string{
 	"allowed_actions",
 	"next_gate",
 	"current_decision_frame",
+	"topic_ownership",
 }
 
 var discussionCheckpointMetaKeys = map[string]bool{
@@ -655,6 +688,7 @@ func (service discussionService) state(slug, topic string) map[string]any {
 			"turn_class":              "product_intent",
 			"user_goal":               topic,
 			"current_decision_frame":  topic,
+			"topic_ownership":         defaultDiscussionTopicOwnership(slug, topic),
 			"confirmed_decisions":     []any{},
 			"changed_recommendations": []any{},
 			"context_boundary":        map[string]any{"status": "not-started"},
@@ -678,6 +712,84 @@ func (service discussionService) state(slug, topic string) map[string]any {
 			"consumed_at":   nil,
 			"consumer_path": nil,
 		},
+	}
+}
+
+func defaultDiscussionTopicOwnership(slug, topic string) map[string]any {
+	owned := strings.TrimSpace(topic)
+	if owned == "" {
+		owned = slug
+	}
+	return map[string]any{
+		"owner_slug":    slug,
+		"anchor":        slug,
+		"owned_scope":   []any{owned},
+		"routed_topics": []any{},
+	}
+}
+
+var discussionTopicRoutes = map[string]bool{
+	"continue_current": true,
+	"branch_new":       true,
+	"link_existing":    true,
+	"defer":            true,
+}
+
+func normalizeDiscussionTopicOwnership(value any, slug, topic string) (map[string]any, error) {
+	ownership := mapValue(value)
+	if ownership == nil {
+		ownership = defaultDiscussionTopicOwnership(slug, topic)
+	} else {
+		ownership = cloneAnyMap(ownership)
+	}
+	ownership["owner_slug"] = slug
+	if strings.TrimSpace(stringValue(ownership["anchor"])) == "" {
+		ownership["anchor"] = slug
+	}
+	ownedScope, ok := ownership["owned_scope"].([]any)
+	if !ok || len(ownedScope) == 0 {
+		return nil, fmt.Errorf("topic_ownership.owned_scope must be a non-empty array")
+	}
+	for index, item := range ownedScope {
+		if strings.TrimSpace(stringValue(item)) == "" {
+			return nil, fmt.Errorf("topic_ownership.owned_scope[%d] must be non-empty", index)
+		}
+	}
+	routes, ok := ownership["routed_topics"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("topic_ownership.routed_topics must be an array")
+	}
+	for index, item := range routes {
+		route := mapValue(item)
+		if route == nil {
+			return nil, fmt.Errorf("topic_ownership.routed_topics[%d] must be an object", index)
+		}
+		if strings.TrimSpace(stringValue(route["topic"])) == "" {
+			return nil, fmt.Errorf("topic_ownership.routed_topics[%d].topic is required", index)
+		}
+		action := strings.TrimSpace(stringValue(route["route"]))
+		if !discussionTopicRoutes[action] {
+			return nil, fmt.Errorf("topic_ownership.routed_topics[%d].route must be continue_current, branch_new, link_existing, or defer", index)
+		}
+		if (action == "branch_new" || action == "link_existing") && strings.TrimSpace(stringValue(route["target_slug"])) == "" {
+			return nil, fmt.Errorf("topic_ownership.routed_topics[%d].target_slug is required for %s", index, action)
+		}
+	}
+	return ownership, nil
+}
+
+func normalizeDiscussionState(state map[string]any) {
+	packet := mapValue(state["turn_packet"])
+	if packet == nil {
+		return
+	}
+	ownership, err := normalizeDiscussionTopicOwnership(
+		packet["topic_ownership"],
+		stringValue(state["slug"]),
+		firstNonEmpty(stringValue(state["topic"]), stringValue(state["summary"])),
+	)
+	if err == nil {
+		packet["topic_ownership"] = ownership
 	}
 }
 
@@ -716,7 +828,11 @@ func (service discussionService) initialize(requestedSlug, topic string) (map[st
 	if _, err := service.writeIndex(); err != nil {
 		return nil, err
 	}
-	return map[string]any{"discussion": service.record(workspace, state, false), "slug": slug, "workspace_path": workspace}, nil
+	binding, err := service.focusBinding(workspace, state)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"discussion": service.record(workspace, state, false), "slug": slug, "workspace_path": workspace, "binding": binding}, nil
 }
 
 type discussionCandidate struct {
@@ -769,6 +885,7 @@ func (service discussionService) loadState(workspace string) (map[string]any, bo
 			delete(handoff, "json_path")
 			delete(handoff, "markdown_path")
 		}
+		normalizeDiscussionState(state)
 		return state, false, nil
 	}
 	if !os.IsNotExist(err) {
@@ -813,6 +930,7 @@ func (service discussionService) legacyState(workspaceName, text string) map[str
 }
 
 func (service discussionService) persistState(workspace string, state map[string]any) error {
+	normalizeDiscussionState(state)
 	if err := validateDiscussionState(state); err != nil {
 		return err
 	}
@@ -838,6 +956,9 @@ func validateDiscussionState(state map[string]any) error {
 	if !ok || packet["discussion_slug"] != state["slug"] {
 		return fmt.Errorf("discussion turn packet does not match state slug")
 	}
+	if _, err := normalizeDiscussionTopicOwnership(packet["topic_ownership"], stringValue(state["slug"]), stringValue(state["topic"])); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -845,6 +966,7 @@ func renderDiscussionMarkdown(state map[string]any) string {
 	handoff := mapValue(state["handoff"])
 	consumption := mapValue(state["consumption"])
 	packet := mapValue(state["turn_packet"])
+	ownership := mapValue(packet["topic_ownership"])
 	lines := []string{
 		"# Discussion State: " + stringValue(state["topic"]), "",
 		"## Session", "",
@@ -859,6 +981,8 @@ func renderDiscussionMarkdown(state map[string]any) string {
 		"- summary: " + stringValue(state["summary"]), "",
 		"## Decision Context", "",
 		"- current_decision_frame: " + stringValue(packet["current_decision_frame"]),
+		"- topic_owner_slug: " + stringValue(ownership["owner_slug"]),
+		"- topic_anchor: " + stringValue(ownership["anchor"]),
 		"- current_recommendation: " + stringValue(packet["current_recommendation"]),
 		"- next_gate: " + stringValue(packet["next_gate"]),
 		"- blocker_reason: " + noneText(state["blocker_reason"]), "",
@@ -880,6 +1004,9 @@ func renderDiscussionMarkdown(state map[string]any) string {
 
 func (service discussionService) record(workspace string, state map[string]any, archived bool) map[string]any {
 	consumption := mapValue(state["consumption"])
+	handoff := mapValue(state["handoff"])
+	packet := mapValue(state["turn_packet"])
+	stateSHA, _ := discussionStateSHA256(workspace)
 	return map[string]any{
 		"slug":                       state["slug"],
 		"workspace":                  filepath.Base(workspace),
@@ -887,15 +1014,76 @@ func (service discussionService) record(workspace string, state map[string]any, 
 		"status":                     state["status"],
 		"lifecycle_phase":            state["lifecycle_phase"],
 		"summary":                    state["summary"],
+		"topic":                      state["topic"],
+		"current_decision_frame":     packet["current_decision_frame"],
+		"topic_ownership":            packet["topic_ownership"],
+		"state_sha256":               stateSHA,
 		"updated_at":                 state["updated_at"],
 		"closed_at":                  state["closed_at"],
 		"archived_at":                state["archived_at"],
 		"next_command":               firstAny(state["next_command"], "none"),
+		"recommended_consumer":       handoff["recommended_consumer"],
+		"review_digest":              handoff["review_digest"],
 		"handoff_consumption_status": consumption["status"],
 		"consumed_at":                consumption["consumed_at"],
 		"consumed_by_feature_dir":    consumption["consumer_path"],
 		"archived":                   archived,
 	}
+}
+
+func discussionStateSHA256(workspace string) (string, error) {
+	jsonPath := filepath.Join(workspace, "discussion-state.json")
+	if _, err := os.Stat(jsonPath); err == nil {
+		return fileSHA256(jsonPath)
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	return fileSHA256(filepath.Join(workspace, "discussion-state.md"))
+}
+
+func (service discussionService) focusBinding(workspace string, state map[string]any) (map[string]any, error) {
+	stateSHA, err := discussionStateSHA256(workspace)
+	if err != nil {
+		return nil, err
+	}
+	packet := mapValue(state["turn_packet"])
+	return map[string]any{
+		"binding_kind":           "discussion_focus",
+		"discussion_slug":        state["slug"],
+		"selected_slug":          state["slug"],
+		"state_sha256":           stateSHA,
+		"topic":                  state["topic"],
+		"current_decision_frame": packet["current_decision_frame"],
+		"topic_ownership":        packet["topic_ownership"],
+	}, nil
+}
+
+func (service discussionService) requireExpectedStateSHA(workspace string) error {
+	current, err := discussionStateSHA256(workspace)
+	if err != nil {
+		return err
+	}
+	expected := strings.TrimSpace(service.expectedStateSHA256)
+	if expected != "" {
+		if expected != current {
+			return fmt.Errorf("discussion focus binding is stale or belongs to a different discussion: expected state_sha256 %s, current %s", expected, current)
+		}
+		return nil
+	}
+	records, err := service.scan()
+	if err != nil {
+		return err
+	}
+	incomplete := 0
+	for _, record := range records {
+		if record["archived"] != true && discussionIncompleteStatuses[stringValue(record["status"])] {
+			incomplete++
+		}
+	}
+	if incomplete > 1 {
+		return fmt.Errorf("multiple incomplete discussions require --expected-state-sha256 from discussion resolve or resume")
+	}
+	return nil
 }
 
 func (service discussionService) scan() ([]map[string]any, error) {
@@ -952,6 +1140,137 @@ func (service discussionService) list(includeAll bool) (map[string]any, error) {
 	return map[string]any{"discussions": records}, nil
 }
 
+type discussionResolutionCandidate struct {
+	workspace string
+	state     map[string]any
+	record    map[string]any
+	source    map[string]any
+}
+
+func (service discussionService) resolutionCandidates(intent, requestedSlug string) ([]discussionResolutionCandidate, error) {
+	workspaces, err := service.workspaceCandidates(false)
+	if err != nil {
+		return nil, err
+	}
+	candidates := []discussionResolutionCandidate{}
+	for _, candidate := range workspaces {
+		state, _, loadErr := service.loadState(candidate.path)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		slug := stringValue(state["slug"])
+		if requestedSlug != "" && slug != requestedSlug && filepath.Base(candidate.path) != requestedSlug {
+			continue
+		}
+		if intent == "continue" {
+			if discussionIncompleteStatuses[stringValue(state["status"])] {
+				candidates = append(candidates, discussionResolutionCandidate{
+					workspace: candidate.path,
+					state:     state,
+					record:    service.record(candidate.path, state, false),
+				})
+			}
+			continue
+		}
+		if state["status"] != "handoff-ready" ||
+			state["lifecycle_phase"] != "ready" ||
+			stringValue(mapValue(state["consumption"])["status"]) != "not_consumed" {
+			continue
+		}
+		if stringValue(mapValue(state["handoff"])["recommended_consumer"]) != intent {
+			continue
+		}
+		validation, validationErr := service.validateHandoff(slug, "ready")
+		if validationErr != nil {
+			return nil, validationErr
+		}
+		if validation["valid"] != true {
+			continue
+		}
+		_, sourcePath, pathErr := service.handoffPaths(slug)
+		if pathErr != nil {
+			return nil, pathErr
+		}
+		source, readErr := readJSONMap(sourcePath)
+		if readErr != nil {
+			return nil, readErr
+		}
+		stateHandoff := mapValue(state["handoff"])
+		if source["status"] != "handoff-ready" ||
+			stringValue(source["recommended_consumer"]) != intent ||
+			stringValue(stateHandoff["review_digest"]) != stringValue(source["review_digest"]) ||
+			stringValue(stateHandoff["contract_path"]) != stringValue(source["source_contract"]) {
+			continue
+		}
+		record := service.record(candidate.path, state, false)
+		record["source_contract"] = source["source_contract"]
+		record["review_digest"] = source["review_digest"]
+		candidates = append(candidates, discussionResolutionCandidate{
+			workspace: candidate.path,
+			state:     state,
+			record:    record,
+			source:    source,
+		})
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		left := stringValue(candidates[i].record["updated_at"]) + stringValue(candidates[i].record["slug"])
+		right := stringValue(candidates[j].record["updated_at"]) + stringValue(candidates[j].record["slug"])
+		return left > right
+	})
+	return candidates, nil
+}
+
+func (service discussionService) resolve(intent, requestedSlug string) (map[string]any, bool, error) {
+	intent = strings.ToLower(strings.TrimSpace(intent))
+	if intent != "continue" && intent != "sp-specify" && intent != "sp-quick" {
+		return nil, false, fmt.Errorf("discussion resolve --intent must be continue, sp-specify, or sp-quick")
+	}
+	if requestedSlug != "" && !safeSegment(requestedSlug) {
+		return nil, false, fmt.Errorf("discussion resolve --slug must be a safe discussion slug")
+	}
+	candidates, err := service.resolutionCandidates(intent, requestedSlug)
+	if err != nil {
+		return nil, false, err
+	}
+	items := make([]any, 0, len(candidates))
+	for _, candidate := range candidates {
+		items = append(items, candidate.record)
+	}
+	data := map[string]any{
+		"intent":     intent,
+		"resolved":   false,
+		"resolution": "none",
+		"candidates": items,
+	}
+	if len(candidates) == 0 {
+		if requestedSlug != "" {
+			data["resolution"] = "explicit_slug_not_eligible"
+		}
+		return data, false, nil
+	}
+	if len(candidates) > 1 {
+		data["resolution"] = "ambiguous"
+		return data, false, nil
+	}
+	selected := candidates[0]
+	binding, err := service.focusBinding(selected.workspace, selected.state)
+	if err != nil {
+		return nil, false, err
+	}
+	if intent != "continue" {
+		binding["consumer"] = map[string]any{
+			"source_contract":      selected.source["source_contract"],
+			"review_digest":        selected.source["review_digest"],
+			"recommended_consumer": selected.source["recommended_consumer"],
+		}
+	}
+	data["resolved"] = true
+	data["resolution"] = "resolved"
+	data["discussion"] = selected.record
+	data["binding"] = binding
+	return data, true, nil
+}
+
 func (service discussionService) findWorkspace(slug string, includeArchived bool) (string, bool, error) {
 	if !safeSegment(slug) {
 		return "", false, fmt.Errorf("a safe discussion slug is required")
@@ -989,7 +1308,11 @@ func (service discussionService) status(slug string) (map[string]any, error) {
 		return nil, err
 	}
 	discussion := mergeMap(service.record(workspace, state, archived), state)
-	return map[string]any{"discussion": discussion}, nil
+	binding, err := service.focusBinding(workspace, state)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"discussion": discussion, "binding": binding}, nil
 }
 
 func (service discussionService) resume(slug string) (map[string]any, error) {
@@ -1018,7 +1341,11 @@ func (service discussionService) resume(slug string) (map[string]any, error) {
 			}
 		}
 	}
-	return map[string]any{"discussion": service.record(workspace, state, false), "turn_packet": state["turn_packet"], "recent_events": events, "legacy_state": legacy}, nil
+	binding, err := service.focusBinding(workspace, state)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"discussion": service.record(workspace, state, false), "turn_packet": state["turn_packet"], "recent_events": events, "legacy_state": legacy, "binding": binding}, nil
 }
 
 func (service discussionService) checkpoint(slug string, changes map[string]any) (map[string]any, error) {
@@ -1036,6 +1363,9 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 	if err != nil {
 		return nil, err
 	}
+	if err := service.requireExpectedStateSHA(workspace); err != nil {
+		return nil, err
+	}
 	if _, hasPhase := changes["lifecycle_phase"]; !hasPhase {
 		if alias := strings.TrimSpace(stringValue(changes["phase"])); alias != "" {
 			changes["lifecycle_phase"] = strings.ToLower(alias)
@@ -1049,6 +1379,13 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 	if packet == nil {
 		packet = map[string]any{}
 		state["turn_packet"] = packet
+	}
+	if value, exists := changes["topic_ownership"]; exists {
+		ownership, ownershipErr := normalizeDiscussionTopicOwnership(value, slug, stringValue(state["topic"]))
+		if ownershipErr != nil {
+			return nil, ownershipErr
+		}
+		changes["topic_ownership"] = ownership
 	}
 	for _, key := range discussionCheckpointPacketKeys {
 		if value, exists := changes[key]; exists {
@@ -1079,6 +1416,7 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 		"open_questions":         packet["open_questions"],
 		"current_recommendation": packet["current_recommendation"],
 		"context_boundary":       packet["context_boundary"],
+		"topic_ownership":        packet["topic_ownership"],
 	}
 	raw, _ := canonicalJSON(event)
 	logPath := filepath.Join(workspace, "discussion-log.jsonl")
@@ -1099,7 +1437,11 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 	if _, err := service.writeIndex(); err != nil {
 		return nil, err
 	}
-	return map[string]any{"discussion": mergeMap(service.record(workspace, state, false), state), "event": event, "turn_packet": packet}, nil
+	binding, err := service.focusBinding(workspace, state)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"discussion": mergeMap(service.record(workspace, state, false), state), "event": event, "turn_packet": packet, "binding": binding}, nil
 }
 
 func (service discussionService) writeHandoff(slug string, input map[string]any) (map[string]any, error) {
@@ -1114,6 +1456,9 @@ func (service discussionService) writeHandoff(slug string, input map[string]any)
 	if err != nil {
 		return nil, err
 	}
+	if err := service.requireExpectedStateSHA(workspace); err != nil {
+		return nil, err
+	}
 	payload, err := service.renderHandoffInput(input)
 	if err != nil {
 		return nil, err
@@ -1125,6 +1470,12 @@ func (service discussionService) writeHandoff(slug string, input map[string]any)
 	payload["discussion_slug"] = slug
 	payload["source_contract"] = fmt.Sprintf(".specify/discussions/%s/handoff-to-specify.json", slug)
 	payload["handoff_integrity"] = "not-checked"
+	packet := mapValue(state["turn_packet"])
+	ownership, err := normalizeDiscussionTopicOwnership(packet["topic_ownership"], slug, stringValue(state["topic"]))
+	if err != nil {
+		return nil, err
+	}
+	payload["topic_ownership"] = ownership
 	quality := mapValue(payload["quality_gate"])
 	if quality == nil {
 		quality = map[string]any{}
@@ -1151,7 +1502,7 @@ func (service discussionService) writeHandoff(slug string, input map[string]any)
 	state["status"] = "active"
 	state["lifecycle_phase"] = "review"
 	state["updated_at"] = ts
-	packet := mapValue(state["turn_packet"])
+	packet = mapValue(state["turn_packet"])
 	packet["lifecycle_phase"] = "review"
 	packet["context_boundary"] = payload["context_boundary"]
 	packet["persistence_mode"] = "lifecycle-transition"
@@ -1174,7 +1525,11 @@ func (service discussionService) writeHandoff(slug string, input map[string]any)
 	if _, err := service.writeIndex(); err != nil {
 		return nil, err
 	}
-	return map[string]any{"discussion": mergeMap(service.record(workspace, state, false), state), "review_digest": digest, "json_path": jsonPath}, nil
+	binding, err := service.focusBinding(workspace, state)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"discussion": mergeMap(service.record(workspace, state, false), state), "review_digest": digest, "json_path": jsonPath, "binding": binding}, nil
 }
 
 func (service discussionService) renderHandoffInput(input map[string]any) (map[string]any, error) {
@@ -1254,7 +1609,7 @@ func (service discussionService) bindConsumer(slug, featureDir string, input map
 	if validation["valid"] != true {
 		return nil, fmt.Errorf("discussion handoff is not ready for consumer binding")
 	}
-	_, sourcePath, err := service.handoffPaths(slug)
+	sourceWorkspace, sourcePath, err := service.handoffPaths(slug)
 	if err != nil {
 		return nil, err
 	}
@@ -1262,8 +1617,44 @@ func (service discussionService) bindConsumer(slug, featureDir string, input map
 	if err != nil {
 		return nil, fmt.Errorf("discussion handoff is not valid JSON")
 	}
+	if source["status"] != "handoff-ready" {
+		return nil, fmt.Errorf("discussion source contract is not handoff-ready")
+	}
+	sourceState, _, err := service.loadState(sourceWorkspace)
+	if err != nil {
+		return nil, err
+	}
+	if sourceState["status"] != "handoff-ready" ||
+		sourceState["lifecycle_phase"] != "ready" ||
+		stringValue(mapValue(sourceState["consumption"])["status"]) != "not_consumed" {
+		return nil, fmt.Errorf("discussion state is not an unconsumed handoff-ready lineage")
+	}
 	if stringValue(source["recommended_consumer"]) != "sp-specify" {
 		return nil, fmt.Errorf("discussion handoff does not select sp-specify")
+	}
+	reviewDigest := stringValue(source["review_digest"])
+	stateHandoff := mapValue(sourceState["handoff"])
+	if stringValue(stateHandoff["recommended_consumer"]) != "sp-specify" ||
+		stringValue(stateHandoff["review_digest"]) != reviewDigest {
+		return nil, fmt.Errorf("discussion state and handoff contract lineage do not match")
+	}
+	expectedDigest := strings.TrimSpace(service.expectedReviewDigest)
+	if expectedDigest != "" {
+		if expectedDigest != reviewDigest {
+			return nil, fmt.Errorf("discussion consumer binding review digest does not match the resolved discussion")
+		}
+	} else {
+		candidates, candidateErr := service.resolutionCandidates("sp-specify", "")
+		if candidateErr != nil {
+			return nil, candidateErr
+		}
+		if len(candidates) > 1 {
+			return nil, fmt.Errorf("multiple ready discussion handoffs exist; --review-digest from discussion resolve is required")
+		}
+	}
+	stateSHA, err := discussionStateSHA256(sourceWorkspace)
+	if err != nil {
+		return nil, err
 	}
 	featurePath, displayFeature, err := hookFeaturePath(service.projectRoot, featureDir)
 	if err != nil {
@@ -1281,19 +1672,20 @@ func (service discussionService) bindConsumer(slug, featureDir string, input map
 		nextAction = "/sp.specify"
 	}
 	sourceContract := fmt.Sprintf(".specify/discussions/%s/handoff-to-specify.json", slug)
-	reviewDigest := stringValue(source["review_digest"])
 	payload := map[string]any{
-		"version":         3,
-		"status":          status,
-		"entry_source":    "sp-discussion",
-		"discussion_slug": slug,
-		"source_contract": sourceContract,
-		"review_digest":   source["review_digest"],
-		"semantic_delta":  input["semantic_delta"],
-		"required_refs":   input["required_refs"],
-		"blockers":        blockers,
-		"next_action":     nextAction,
-		"recovery":        input["recovery"],
+		"version":              3,
+		"status":               status,
+		"entry_source":         "sp-discussion",
+		"discussion_slug":      slug,
+		"source_contract":      sourceContract,
+		"review_digest":        source["review_digest"],
+		"recommended_consumer": source["recommended_consumer"],
+		"state_sha256":         stateSHA,
+		"semantic_delta":       input["semantic_delta"],
+		"required_refs":        input["required_refs"],
+		"blockers":             blockers,
+		"next_action":          nextAction,
+		"recovery":             input["recovery"],
 	}
 	target := filepath.Join(featurePath, "brainstorming", "handoff-to-specify.json")
 	if _, statErr := os.Stat(target); statErr == nil {
@@ -1326,6 +1718,8 @@ func (service discussionService) bindConsumer(slug, featureDir string, input map
 		"consumer_handoff_sha256": digest,
 		"discussion_slug":         slug,
 		"review_digest":           source["review_digest"],
+		"recommended_consumer":    source["recommended_consumer"],
+		"state_sha256":            stateSHA,
 		"status":                  status,
 		"next_action":             nextAction,
 	}, nil
@@ -1403,6 +1797,7 @@ func (service discussionService) validateHandoffFields(payload map[string]any, s
 	if strings.TrimSpace(stringValue(payload["handoff_goal"])) == "" {
 		*errors = append(*errors, discussionError("missing_handoff_goal", "handoff_goal is required"))
 	}
+	validateHandoffTopicOwnership(payload["topic_ownership"], slug, errors)
 	validateBoundary(payload["context_boundary"], errors)
 	validateObjectList(payload["source_evidence"], []string{"source_type", "evidence_status", "source", "claim"}, "source_evidence", errors)
 	validateObjectList(payload["must_preserve"], []string{"id", "type", "claim", "source", "downstream_requirement", "blocking_level", "owner", "latest_resolve_phase", "status"}, "must_preserve", errors)
@@ -1419,6 +1814,21 @@ func (service discussionService) validateHandoffFields(payload map[string]any, s
 	}
 	service.validateConsumers(payload, errors)
 	service.validateReviewDigest(payload, mode, errors)
+}
+
+func validateHandoffTopicOwnership(value any, slug string, errors *[]map[string]string) {
+	ownership, err := normalizeDiscussionTopicOwnership(value, slug, slug)
+	if err != nil {
+		*errors = append(*errors, discussionError("invalid_topic_ownership", err.Error()))
+		return
+	}
+	if stringValue(mapValue(value)["owner_slug"]) != slug {
+		*errors = append(*errors, discussionError("invalid_topic_owner", "topic_ownership.owner_slug must match discussion_slug"))
+		return
+	}
+	if stringValue(ownership["owner_slug"]) != slug {
+		*errors = append(*errors, discussionError("invalid_topic_owner", "topic ownership must remain bound to its source discussion"))
+	}
 }
 
 func validateBoundary(value any, errors *[]map[string]string) {

@@ -485,6 +485,7 @@ func generatedRuntimeVerbCapabilities() []string {
 		"discussion.list",
 		"discussion.mark-consumed",
 		"discussion.mark-ready",
+		"discussion.resolve",
 		"discussion.resume",
 		"discussion.status",
 		"discussion.validate-handoff",

@@ -6,7 +6,7 @@ Preserved Contract: quick accepts a ready, confirmed contract selected for direc
 
 ## Resolve Discussion Handoff Intake Before Quick-Task Execution
 
-Accept a normal quick request, a discussion slug, or `.specify/discussions/<slug>/handoff-to-specify.json`. When no argument is supplied, select only one unconsumed handoff-ready discussion whose `recommended_consumer` or `consumer_eligibility.sp-quick.status` selects quick.
+Accept a normal quick request, a discussion slug, or `.specify/discussions/<slug>/handoff-to-specify.json`. Resolve discussion intake with `specify-runtime discussion resolve --intent sp-quick [--slug <slug>] --format json`. When no argument is supplied, select only one unconsumed handoff-ready discussion whose `recommended_consumer` or `consumer_eligibility.sp-quick.status` selects quick. If multiple candidates are returned, stop for an explicit slug; never guess, do not select latest, and do not use name, slug, title, topic, or keyword similarity as binding evidence.
 
 Set `SOURCE_CONTRACT` and `SOURCE_DISCUSSION_SLUG`. Require one canonical JSON contract; do not require or search for a Markdown companion or a quick-specific handoff.
 
@@ -16,6 +16,8 @@ Before execution require:
 - `handoff_kind: discussion_requirement_contract`;
 - `status: handoff-ready`;
 - current `review_digest` matching `quality_gate.confirmed_digest`;
+- resolver-returned `recommended_consumer`, `review_digest`, and `state_sha256` matching the consumed source contract;
+- `topic_ownership.owner_slug` matching `SOURCE_DISCUSSION_SLUG`;
 - user-confirmed quality gate;
 - zero hard unknowns and open conflicts;
 - `consumer_eligibility.sp-quick.status: ready`, except for the legacy size/breadth-only override defined below;

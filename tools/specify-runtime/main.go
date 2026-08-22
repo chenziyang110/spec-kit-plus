@@ -1160,6 +1160,7 @@ func defaultCapabilities() []string {
 		"discussion.list",
 		"discussion.mark-consumed",
 		"discussion.mark-ready",
+		"discussion.resolve",
 		"discussion.resume",
 		"discussion.status",
 		"discussion.validate-handoff",
@@ -1327,6 +1328,8 @@ func capabilitySummary(id string) string {
 		return "List registered artifact instances without returning full content."
 	case "discussion.bind-consumer":
 		return "Bind a ready discussion digest into a runtime-owned feature compatibility pointer."
+	case "discussion.resolve":
+		return "Resolve one explicit discussion focus or downstream consumer binding without guessing among parallel discussions."
 	case "discussion.checkpoint":
 		return "Persist a durable discussion checkpoint and semantic turn_packet fields."
 	case "discussion.write-handoff":

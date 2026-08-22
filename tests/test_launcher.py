@@ -1633,7 +1633,7 @@ def test_diagnose_project_runtime_compatibility_reports_stale_generated_skill_la
 @pytest.mark.parametrize(
     ("skill_name", "runtime_call"),
     (
-        ("spx-discussion", "specify discussion list --json"),
+        ("spx-discussion", "specify discussion resolve --intent continue --json"),
         ("spx-implement", "specify implement resume-audit --format json"),
     ),
 )
@@ -1709,13 +1709,13 @@ def test_diagnose_project_runtime_compatibility_ignores_non_executable_specify_m
         "Specify discussion behavior in plain language.\n\n"
         "Do not probe `specify cognition` or invent the unsupported "
         "`specify create-feature` command.\n\n"
-        "The literal `specify discussion list --json` is documentation-only, "
+        "The literal `specify discussion resolve --intent continue --json` is documentation-only, "
         "not an executable instruction.\n\n"
         "```python\n"
         "def specify(value):\n"
         "    return value\n"
         "```\n\n"
-        f"Run `{pinned_command} discussion list --json`.\n",
+        f"Run `{pinned_command} discussion resolve --intent continue --json`.\n",
         encoding="utf-8",
     )
 
@@ -1737,7 +1737,7 @@ def test_runtime_diagnostics_inspect_all_supported_generated_guidance_roots(
     command_path = tmp_path / guidance_root / "spx-discussion.md"
     command_path.parent.mkdir(parents=True)
     command_path.write_text(
-        "Run `specify discussion list --json`.\n",
+        "Run `specify discussion resolve --intent continue --json`.\n",
         encoding="utf-8",
     )
 
@@ -1794,7 +1794,7 @@ def test_runtime_diagnostics_ignore_documentation_only_shell_fence(tmp_path):
     skill_path.write_text(
         "Documentation-only example:\n"
         "```bash\n"
-        "specify discussion list --json\n"
+        "specify discussion resolve --intent continue --json\n"
         "```\n",
         encoding="utf-8",
     )
@@ -1813,7 +1813,7 @@ def test_runtime_diagnostics_do_not_leak_negative_context_across_paragraphs(tmp_
     skill_path.parent.mkdir(parents=True)
     skill_path.write_text(
         "Do not run an unpinned Specify command during discovery.\n\n"
-        "Run `specify discussion list --json` to resume.\n",
+        "Run `specify discussion resolve --intent continue --json` to resume.\n",
         encoding="utf-8",
     )
 
@@ -1969,7 +1969,7 @@ def test_launcher_rebinding_uses_same_executable_detection_contract():
         ),
     )
     content = (
-        "Run `specify discussion list --json`.\n\n"
+        "Run `specify discussion resolve --intent continue --json`.\n\n"
         "Documentation-only example:\n"
         "```bash\n"
         "specify check\n"
@@ -1989,7 +1989,9 @@ def test_launcher_rebinding_uses_same_executable_detection_contract():
 
     assert source_count == 1
     assert bare_count == 2
-    assert f"`{pinned.command} discussion list --json`" in rebound
+    assert (
+        f"`{pinned.command} discussion resolve --intent continue --json`" in rebound
+    )
     assert f"{pinned.command} learning list --format json" in rebound
     assert "Documentation-only example:\n```bash\nspecify check" in rebound
     assert "`specify -> plan`" in rebound

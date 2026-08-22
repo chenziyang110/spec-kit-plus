@@ -84,7 +84,11 @@ def test_spx_optional_feature_stages_separate_runtime_and_rich_resume_state() ->
 def test_spx_discussion_preserves_truth_consequence_and_ui_handoff_inputs() -> None:
     content = _text("spx-discussion", "discussion-contract.md")
 
-    assert "discussion write-handoff <slug> --input-json '<semantic-json>' --json" in content
+    assert "discussion resolve --intent continue" in content
+    assert (
+        "discussion write-handoff <slug> --expected-state-sha256 "
+        "<state_sha256> --input-json '<semantic-json>' --json"
+    ) in content
     assert "expands the installed stable template" in content
     assert "discussion validate-handoff <slug> --mode draft --json" in content
     assert "discussion confirm-handoff <slug> --digest <review-digest> --json" in content
