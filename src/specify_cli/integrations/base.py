@@ -521,11 +521,9 @@ class IntegrationBase(ABC):
         ``\r\n`` sequences in *content* are normalised to ``\n`` before
         writing.  Returns *dest*.
         """
-        dest.parent.mkdir(parents=True, exist_ok=True)
         normalized = content.replace("\r\n", "\n")
-        dest.write_bytes(normalized.encode("utf-8"))
         rel = dest.resolve().relative_to(project_root.resolve())
-        manifest.record_existing(rel)
+        manifest.record_file(rel, normalized.encode("utf-8"))
         return dest
 
     def integration_scripts_dir(self) -> Path | None:

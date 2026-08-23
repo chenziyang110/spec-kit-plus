@@ -1,5 +1,6 @@
 """Tests for IntegrationManifest — record, hash, save, load, uninstall, modified detection."""
 
+import errno
 import hashlib
 import json
 import os
@@ -26,6 +27,73 @@ class TestManifestRecordFile:
         abs_path = m.record_file("bin.dat", data)
         assert abs_path.read_bytes() == data
         assert m.files["bin.dat"] == hashlib.sha256(data).hexdigest()
+
+    def test_record_file_retries_transient_file_access_errors(
+        self, tmp_path, monkeypatch
+    ):
+        destination = tmp_path / "watched.md"
+        real_write_bytes = Path.write_bytes
+        attempts = 0
+
+        def fail_once(path, data):
+            nonlocal attempts
+            if path == destination:
+                attempts += 1
+                if attempts == 1:
+                    raise OSError(errno.EINVAL, "Invalid argument", str(path))
+            return real_write_bytes(path, data)
+
+        monkeypatch.setattr(Path, "write_bytes", fail_once)
+
+        manifest = IntegrationManifest("test", tmp_path)
+        result = manifest.record_file("watched.md", b"content")
+
+        assert result == destination
+        assert attempts == 2
+        assert destination.read_bytes() == b"content"
+        assert manifest.files["watched.md"] == hashlib.sha256(b"content").hexdigest()
+
+    def test_record_file_does_not_retry_nontransient_errors(
+        self, tmp_path, monkeypatch
+    ):
+        attempts = 0
+
+        def fail_write(path, _data):
+            nonlocal attempts
+            attempts += 1
+            raise OSError(errno.ENOSPC, "No space left on device", str(path))
+
+        monkeypatch.setattr(Path, "write_bytes", fail_write)
+        manifest = IntegrationManifest("test", tmp_path)
+
+        with pytest.raises(OSError) as exc_info:
+            manifest.record_file("full.md", b"content")
+
+        assert exc_info.value.errno == errno.ENOSPC
+        assert attempts == 1
+        assert manifest.files == {}
+
+    def test_record_file_bounds_transient_error_retries(self, tmp_path, monkeypatch):
+        attempts = 0
+
+        def fail_write(path, _data):
+            nonlocal attempts
+            attempts += 1
+            raise OSError(errno.EINVAL, "Invalid argument", str(path))
+
+        monkeypatch.setattr(Path, "write_bytes", fail_write)
+        monkeypatch.setattr(
+            "specify_cli.integrations.manifest.time.sleep",
+            lambda _delay: None,
+        )
+        manifest = IntegrationManifest("test", tmp_path)
+
+        with pytest.raises(OSError) as exc_info:
+            manifest.record_file("locked.md", b"content")
+
+        assert exc_info.value.errno == errno.EINVAL
+        assert attempts == 5
+        assert manifest.files == {}
 
     def test_record_existing(self, tmp_path):
         f = tmp_path / "existing.txt"
