@@ -117,18 +117,14 @@ def test_standard_skill_description_requires_explicit_user_invocation(
         assert "Do not select it automatically." in frontmatter["description"]
 
 
-def test_passive_workflow_router_forbids_passive_sp_workflow_invocation():
-    routing = read_template(
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md"
-    )
-    normalized = " ".join(routing.split())
-
-    assert (
-        "Passive SKILL invocation must not enter any `sp-*` or `spx-*` workflow"
-        in normalized
-    )
-    assert "All `sp-*` and `spx-*` workflows are user-invoked only" in routing
-    assert "recommend the projected invocation and stop" in routing
+def test_passive_workflow_router_is_removed() -> None:
+    assert not (
+        PROJECT_ROOT
+        / "templates"
+        / "passive-skills"
+        / "spec-kit-workflow-routing"
+        / "SKILL.md"
+    ).exists()
 
 
 @pytest.mark.parametrize(
@@ -147,6 +143,8 @@ def test_product_guidance_requires_explicit_invocation_for_both_workflow_profile
     normalized = " ".join(content.lower().split())
 
     assert "all `sp-*` and `spx-*` workflow skills are user-invoked only" in normalized
+    assert "passive routing may recommend" not in normalized
+    assert "recommend the projected invocation" not in normalized
     assert "passive model invocation is allowed only" not in normalized
     assert "passive model invocation has one exact allowlist" not in normalized
 
