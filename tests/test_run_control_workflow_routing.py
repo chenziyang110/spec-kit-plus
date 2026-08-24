@@ -66,7 +66,10 @@ def _assert_shared_run_bootstrap_contract(content: str) -> None:
 
     assert "bootstrap_contract" in lowered
     assert "spec-kit-feature-bootstrap-v1" in lowered
-    assert "specify integration repair" in lowered
+    assert (
+        "{{specify-subcmd:integration repair}}" in lowered
+        or "integration repair" in lowered
+    )
 
     for command in (
         "specify-runtime run create",

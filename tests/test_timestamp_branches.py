@@ -1132,7 +1132,7 @@ class TestDryRun:
         """T015: JSON output includes DRY_RUN field when --dry-run is active."""
         import json
 
-        result = run_script(
+        result = run_branch_policy_script(
             git_repo, "--dry-run", "--json", "--short-name", "json-test", "JSON test"
         )
         assert result.returncode == 0, result.stderr

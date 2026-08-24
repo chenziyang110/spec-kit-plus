@@ -30,6 +30,11 @@ For new feature state, first run the exact installed
 `--dry-run --json`, or its PowerShell equivalent with `-DryRun -Json`. This
 read-only call happens before any feature write or branch action; retain its
 exact `BRANCH_NAME` as `feature_id` and exact `FEATURE_DIR` as `feature_dir`.
+Require the dry-run receipt's exact `BOOTSTRAP_CONTRACT` field to equal
+`spec-kit-feature-bootstrap-v1`. If it is absent or different, stop before the
+managed or unhosted registration paths and before any branch action or feature
+write; run `{{specify-subcmd:integration repair}}` through the trusted project
+Specify launcher, then repeat the dry run.
 Every real script invocation must replay the dry-run `BRANCH_NAME` unchanged
 with `--resolved-feature-id <dry-run BRANCH_NAME>` or PowerShell
 `-ResolvedFeatureId <dry-run BRANCH_NAME>`; never recompute its timestamp or

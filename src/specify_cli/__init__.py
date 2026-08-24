@@ -7115,7 +7115,13 @@ def init(
 
             # Install shared infrastructure (scripts, templates)
             tracker.start("shared-infra")
-            _install_shared_infra(project_path, selected_script, tracker=tracker)
+            _install_shared_infra(
+                project_path,
+                selected_script,
+                tracker=tracker,
+                overwrite_existing=True,
+                preserve_modified_tracked=True,
+            )
             _bootstrap_integration_context_file(
                 project_path,
                 resolved_integration,
@@ -10251,6 +10257,7 @@ def _repair_active_integration_runtime_assets(
                 "unrebound-specify-runtime-launcher",
                 "unbound-generated-specify-runtime-launcher",
                 "claude-personal-skills-shadow-project",
+                "stale-feature-bootstrap-contract",
             }
         ]
         if launcher_conflicts:
@@ -10337,6 +10344,7 @@ def _repair_active_integration_runtime_assets(
             "unrebound-specify-runtime-launcher",
             "unbound-generated-specify-runtime-launcher",
             "claude-personal-skills-shadow-project",
+            "stale-feature-bootstrap-contract",
         }
     ]
     if launcher_conflicts:

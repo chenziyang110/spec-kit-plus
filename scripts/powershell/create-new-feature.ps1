@@ -16,6 +16,7 @@ param(
     [string[]]$FeatureDescription
 )
 $ErrorActionPreference = 'Stop'
+$BOOTSTRAP_CONTRACT = 'spec-kit-feature-bootstrap-v1'
 
 # Show help if requested
 if ($Help) {
@@ -590,6 +591,7 @@ if ($Json) {
     }
     if ($DryRun) {
         $obj | Add-Member -NotePropertyName 'DRY_RUN' -NotePropertyValue $true
+        $obj | Add-Member -NotePropertyName 'BOOTSTRAP_CONTRACT' -NotePropertyValue $BOOTSTRAP_CONTRACT
     }
     $obj | ConvertTo-Json -Compress
 } else {
@@ -601,7 +603,9 @@ if ($Json) {
     Write-Output "FEATURE_NUM: $featureNum"
     Write-Output "HAS_GIT: $hasGit"
     Write-Output "BRANCH_POLICY: $branchPolicy"
-    if (-not $DryRun) {
+    if ($DryRun) {
+        Write-Output "BOOTSTRAP_CONTRACT: $BOOTSTRAP_CONTRACT"
+    } else {
         Write-Output "SPECIFY_FEATURE environment variable set to: $branchName"
     }
 }
