@@ -590,10 +590,18 @@ def test_scaffold_design_change_creates_change_local_contract_and_index(
     )
 
     assert design_path == (
-        tmp_path / ".specify" / "design" / "changes" / "UD-0042" / "DESIGN.md"
+        tmp_path
+        / ".specify"
+        / "design"
+        / "changes"
+        / "UD-0042"
+        / "design-change.md"
     )
     assert design_path.is_file()
     assert not (tmp_path / "DESIGN.md").exists()
+    assert not (
+        tmp_path / ".specify" / "design" / "changes" / "UD-0042" / "DESIGN.md"
+    ).exists()
 
     document = parse_design_markdown(
         design_path.read_text(encoding="utf-8"),
@@ -621,7 +629,7 @@ def test_scaffold_design_change_creates_change_local_contract_and_index(
             "approval_sha256": None,
             "change_type": "overhaul",
             "consumers": [],
-            "design_ref": ".specify/design/changes/UD-0042/DESIGN.md",
+            "design_ref": ".specify/design/changes/UD-0042/design-change.md",
             "id": "UD-0042",
             "scope": ["web:orders/list", "web:orders/detail"],
             "status": "draft",

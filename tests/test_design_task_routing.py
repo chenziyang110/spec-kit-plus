@@ -120,7 +120,7 @@ def test_quick_pins_an_exact_registered_design_change_for_direct_delivery() -> N
         assert "must not silently adopt a later design approval" in content.lower()
 
 
-def test_workflow_registry_models_change_scoped_design_artifacts_and_legacy_root() -> None:
+def test_workflow_registry_models_change_scoped_design_artifacts_without_design_md() -> None:
     registry = json.loads(
         _read(PROJECT_ROOT / "templates" / "workflow-artifact-registry.json")
     )
@@ -130,14 +130,14 @@ def test_workflow_registry_models_change_scoped_design_artifacts_and_legacy_root
         "path_patterns"
     ]
     change = entries["ui_design_change_contract"]
-    assert ".specify/design/changes/*/DESIGN.md" in change["path_patterns"]
+    assert ".specify/design/changes/*/design-change.md" in change["path_patterns"]
     assert ".specify/design/changes/*/design-contract.json" in change[
         "path_patterns"
     ]
     workspace = entries["ui_design_change_workspace"]
     assert ".specify/design/changes/*/brief.md" in workspace["path_patterns"]
     assert ".specify/design/changes/*/review.md" in workspace["path_patterns"]
-    assert entries["legacy_project_design_contract"]["path_patterns"] == ["DESIGN.md"]
+    assert "legacy_project_design_contract" not in entries
     index_patterns = entries["ui_design_change_index"]["safe_instruction_patterns"]
     for command in (
         "specify-runtime design iterate",
