@@ -26,6 +26,28 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _matches_recorded_hash(path: Path, expected_hash: str) -> bool:
+    """Match generated text while tolerating checkout-only EOL translation."""
+
+    content = path.read_bytes()
+    if hashlib.sha256(content).hexdigest() == expected_hash:
+        return True
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+
+    logical_text = text.replace("\r\n", "\n").replace("\r", "\n")
+    newline_variants = (
+        logical_text.encode("utf-8"),
+        logical_text.replace("\n", "\r\n").encode("utf-8"),
+    )
+    return any(
+        hashlib.sha256(variant).hexdigest() == expected_hash
+        for variant in newline_variants
+    )
+
+
 def _is_link_or_junction(path: Path) -> bool:
     """Return whether *path* is a link-like redirect without following it."""
 
@@ -145,7 +167,7 @@ class IntegrationManifest:
             if abs_path.is_symlink() or not abs_path.is_file():
                 modified.append(rel)
                 continue
-            if _sha256(abs_path) != expected_hash:
+            if not _matches_recorded_hash(abs_path, expected_hash):
                 modified.append(rel)
         return modified
 
@@ -176,7 +198,7 @@ class IntegrationManifest:
         if (
             _is_link_or_junction(abs_path)
             or not abs_path.is_file()
-            or _sha256(abs_path) != expected_hash
+            or not _matches_recorded_hash(abs_path, expected_hash)
         ):
             return False
         abs_path.unlink()
@@ -235,7 +257,7 @@ class IntegrationManifest:
                     skipped.append(path)
                     continue
             else:
-                if not force and _sha256(path) != expected_hash:
+                if not force and not _matches_recorded_hash(path, expected_hash):
                     skipped.append(path)
                     continue
             try:

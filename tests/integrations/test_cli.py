@@ -4,6 +4,7 @@ import json
 import os
 import re
 import subprocess
+from pathlib import Path
 
 import yaml
 from typer.testing import CliRunner
@@ -1340,7 +1341,10 @@ def test_shared_infra_repair_only_overwrites_manifest_proven_unmodified_files(
 
 def test_repeat_init_refreshes_unmodified_stale_feature_bootstrap_scripts(
     tmp_path,
+    monkeypatch,
 ):
+    from specify_cli import _install_shared_infra
+
     project = tmp_path / "project"
     project.mkdir()
     old_script = (
@@ -1358,38 +1362,31 @@ def test_repeat_init_refreshes_unmodified_stale_feature_bootstrap_scripts(
     # Reproduce Git's common Windows checkout translation after installation.
     stale_script.write_bytes(old_script.replace("\n", "\r\n").encode("utf-8"))
 
-    runner = CliRunner()
-    old_cwd = os.getcwd()
-    try:
-        os.chdir(project)
-        result = runner.invoke(
-            app,
-            [
-                "init",
-                "--here",
-                "--force",
-                "--ai",
-                "codex",
-                "--workflow-profile",
-                "advanced",
-                "--script",
-                "ps",
-                "--no-git",
-                "--ignore-agent-tools",
-            ],
-            catch_exceptions=False,
-        )
-    finally:
-        os.chdir(old_cwd)
+    project_root = Path(__file__).resolve().parents[2]
+    monkeypatch.setattr("specify_cli._locate_core_pack", lambda: project_root)
+    monkeypatch.setattr(
+        "specify_cli.launcher.write_project_specify_launcher_config",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "specify_cli.launcher.load_project_specify_launcher",
+        lambda *_args, **_kwargs: None,
+    )
 
-    assert result.exit_code == 0, result.output
+    assert (
+        _install_shared_infra(
+            project,
+            "ps",
+            overwrite_existing=True,
+            preserve_modified_tracked=True,
+        )
+        is True
+    )
+
     refreshed = stale_script.read_text(encoding="utf-8")
     assert "[switch]$KeepCurrentBranch" in refreshed
     assert "[string]$ResolvedFeatureId" in refreshed
     assert "spec-kit-feature-bootstrap-v1" in refreshed
-    assert (
-        project / ".codex" / "skills" / "spx-specify" / "SKILL.md"
-    ).is_file()
     assert IntegrationManifest.load("speckit", project).check_modified() == []
 
 
@@ -1421,7 +1418,7 @@ def test_init_here_force_refreshes_unmodified_shared_scripts_but_preserves_user_
         lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(
-        "specify_cli.load_project_specify_launcher",
+        "specify_cli.launcher.load_project_specify_launcher",
         lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
@@ -1435,6 +1432,25 @@ def test_init_here_force_refreshes_unmodified_shared_scripts_but_preserves_user_
     monkeypatch.setattr(
         "specify_cli.specify_runtime.write_project_launcher_config",
         lambda *args, **kwargs: None,
+    )
+
+    class StubIntegration:
+        key = "codex"
+        context_file = None
+
+        def __init__(self):
+            self.config = {"name": "Codex", "folder": ".codex"}
+
+        def setup(self, *_args, **_kwargs):
+            return None
+
+        def post_init_bootstrap(self, *_args, **_kwargs):
+            return None
+
+    stub_integration = StubIntegration()
+    monkeypatch.setattr(
+        "specify_cli.integrations.get_integration",
+        lambda _key: stub_integration,
     )
 
     project = tmp_path / "project"

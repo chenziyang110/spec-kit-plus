@@ -36,7 +36,11 @@ branch action, run the exact installed `create-new-feature` script from the repo
 root with the original feature description plus `--dry-run --json` (PowerShell:
 `-DryRun -Json`). Retain its exact `BRANCH_NAME` as `feature_id` and exact
 `FEATURE_DIR` as `feature_dir`; the dry run must not write, create a branch, or
-switch branches. Every later real script invocation must replay that dry-run
+switch branches. Require the dry-run receipt's exact `BOOTSTRAP_CONTRACT` field
+to equal `spec-kit-feature-bootstrap-v1`. If it is absent or different, stop
+before any Run/Work registration, branch action, or feature write; use the
+trusted project Specify launcher to run `{{specify-subcmd:integration repair}}`,
+then repeat the dry run. Every later real script invocation must replay that dry-run
 `BRANCH_NAME` unchanged with `--resolved-feature-id <dry-run BRANCH_NAME>`
 (PowerShell: `-ResolvedFeatureId <dry-run BRANCH_NAME>`); never recompute its
 timestamp or automatic feature number.

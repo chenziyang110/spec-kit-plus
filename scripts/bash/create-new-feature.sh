@@ -6,6 +6,7 @@ JSON_MODE=false
 DRY_RUN=false
 ALLOW_EXISTING=false
 KEEP_CURRENT_BRANCH=false
+BOOTSTRAP_CONTRACT="spec-kit-feature-bootstrap-v1"
 RESOLVED_FEATURE_ID=""
 RESOLVED_FEATURE_ID_SET=false
 SHORT_NAME=""
@@ -595,7 +596,8 @@ if $JSON_MODE; then
                 --arg specify_draft_file "$SPECIFY_DRAFT_FILE" \
                 --arg feature_num "$FEATURE_NUM" \
                 --arg branch_policy "$BRANCH_POLICY" \
-                '{BRANCH_NAME:$branch_name,FEATURE_DIR:$feature_dir,SPEC_FILE:$spec_file,CONTEXT_FILE:$context_file,SPECIFY_DRAFT_FILE:$specify_draft_file,FEATURE_NUM:$feature_num,BRANCH_POLICY:$branch_policy,DRY_RUN:true}'
+                --arg bootstrap_contract "$BOOTSTRAP_CONTRACT" \
+                '{BRANCH_NAME:$branch_name,FEATURE_DIR:$feature_dir,SPEC_FILE:$spec_file,CONTEXT_FILE:$context_file,SPECIFY_DRAFT_FILE:$specify_draft_file,FEATURE_NUM:$feature_num,BRANCH_POLICY:$branch_policy,DRY_RUN:true,BOOTSTRAP_CONTRACT:$bootstrap_contract}'
         else
             jq -cn \
                 --arg branch_name "$BRANCH_NAME" \
@@ -609,7 +611,7 @@ if $JSON_MODE; then
         fi
     else
         if [ "$DRY_RUN" = true ]; then
-            printf '{"BRANCH_NAME":"%s","FEATURE_DIR":"%s","SPEC_FILE":"%s","CONTEXT_FILE":"%s","SPECIFY_DRAFT_FILE":"%s","FEATURE_NUM":"%s","BRANCH_POLICY":"%s","DRY_RUN":true}\n' "$(json_escape "$BRANCH_NAME")" "$(json_escape "$FEATURE_DIR")" "$(json_escape "$SPEC_FILE")" "$(json_escape "$CONTEXT_FILE")" "$(json_escape "$SPECIFY_DRAFT_FILE")" "$(json_escape "$FEATURE_NUM")" "$(json_escape "$BRANCH_POLICY")"
+            printf '{"BRANCH_NAME":"%s","FEATURE_DIR":"%s","SPEC_FILE":"%s","CONTEXT_FILE":"%s","SPECIFY_DRAFT_FILE":"%s","FEATURE_NUM":"%s","BRANCH_POLICY":"%s","DRY_RUN":true,"BOOTSTRAP_CONTRACT":"%s"}\n' "$(json_escape "$BRANCH_NAME")" "$(json_escape "$FEATURE_DIR")" "$(json_escape "$SPEC_FILE")" "$(json_escape "$CONTEXT_FILE")" "$(json_escape "$SPECIFY_DRAFT_FILE")" "$(json_escape "$FEATURE_NUM")" "$(json_escape "$BRANCH_POLICY")" "$(json_escape "$BOOTSTRAP_CONTRACT")"
         else
             printf '{"BRANCH_NAME":"%s","FEATURE_DIR":"%s","SPEC_FILE":"%s","CONTEXT_FILE":"%s","SPECIFY_DRAFT_FILE":"%s","FEATURE_NUM":"%s","BRANCH_POLICY":"%s"}\n' "$(json_escape "$BRANCH_NAME")" "$(json_escape "$FEATURE_DIR")" "$(json_escape "$SPEC_FILE")" "$(json_escape "$CONTEXT_FILE")" "$(json_escape "$SPECIFY_DRAFT_FILE")" "$(json_escape "$FEATURE_NUM")" "$(json_escape "$BRANCH_POLICY")"
         fi
@@ -622,7 +624,9 @@ else
     echo "SPECIFY_DRAFT_FILE: $SPECIFY_DRAFT_FILE"
     echo "FEATURE_NUM: $FEATURE_NUM"
     echo "BRANCH_POLICY: $BRANCH_POLICY"
-    if [ "$DRY_RUN" != true ]; then
+    if [ "$DRY_RUN" = true ]; then
+        echo "BOOTSTRAP_CONTRACT: $BOOTSTRAP_CONTRACT"
+    else
         printf '# To persist in your shell: export SPECIFY_FEATURE=%q\n' "$BRANCH_NAME"
     fi
 fi

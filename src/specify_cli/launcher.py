@@ -51,6 +51,7 @@ SPECIFY_BINDING_DISPATCH_WINDOWS = "dispatch.ps1"
 SPECIFY_BINDING_DISPATCH_METADATA = "dispatch.json"
 SPECIFY_BINDING_PLACEHOLDER = "__SPECIFY_BINDING_ID__"
 SPECIFY_REPAIR_MESSAGE_PLACEHOLDER = "__SPECIFY_REPAIR_MESSAGE__"
+FEATURE_BOOTSTRAP_CONTRACT = "spec-kit-feature-bootstrap-v1"
 RUNTIME_LAUNCHER_CONFIG_KEY = "runtime_launcher"
 RUNTIME_LAUNCHER_BINDING_CONFIG_KEY = "runtime_launcher_binding"
 SPECIFY_RUNTIME_UNAVAILABLE_MARKER = "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE"
@@ -2158,6 +2159,34 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
             or "$specsdir = join-path $reporoot 'specs'" in lowered
         )
 
+    def _missing_feature_bootstrap_contract(path: Path, text: str) -> bool:
+        if not text:
+            return False
+        if path.suffix == ".sh":
+            required_patterns = (
+                rf'BOOTSTRAP_CONTRACT=["\']{re.escape(FEATURE_BOOTSTRAP_CONTRACT)}["\']',
+                r"^\s*--resolved-feature-id\)",
+                r"^\s*--keep-current-branch\)",
+                r"BOOTSTRAP_CONTRACT:\$bootstrap_contract",
+            )
+            return any(
+                re.search(pattern, text, flags=re.MULTILINE) is None
+                for pattern in required_patterns
+            )
+        if path.suffix == ".ps1":
+            required_patterns = (
+                rf"\$BOOTSTRAP_CONTRACT\s*=\s*['\"]{re.escape(FEATURE_BOOTSTRAP_CONTRACT)}['\"]",
+                r"\[string\]\s*\$ResolvedFeatureId\b",
+                r"\[switch\]\s*\$KeepCurrentBranch\b",
+                r"NotePropertyName\s+['\"]BOOTSTRAP_CONTRACT['\"]\s+"
+                r"-NotePropertyValue\s+\$BOOTSTRAP_CONTRACT\b",
+            )
+            return any(
+                re.search(pattern, text, flags=re.IGNORECASE) is None
+                for pattern in required_patterns
+            )
+        return False
+
     launcher_config = _load_config(project_root / SPECIFY_CONFIG_FILE)
     raw_launcher_present = (
         isinstance(launcher_config, dict)
@@ -2364,6 +2393,37 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                 "code": "stale-feature-root-contract",
                 "summary": "Generated shared workflow scripts still target legacy feature roots instead of the canonical `.specify/features/` contract.",
                 "repair": "Run `specify integration repair` (or re-run `specify init --here --force --ai <agent>`) so generated shared scripts and templates refresh to the canonical `.specify/features/` feature-root contract.",
+            }
+        )
+    stale_bootstrap_scripts = [
+        script_path.relative_to(project_root).as_posix()
+        for script_path in shared_runtime_scripts
+        if script_path.name.startswith("create-new-feature.")
+        and _missing_feature_bootstrap_contract(
+            script_path,
+            _read_text_if_exists(script_path),
+        )
+    ]
+    if stale_bootstrap_scripts:
+        preview = ", ".join(stale_bootstrap_scripts[:5])
+        if len(stale_bootstrap_scripts) > 5:
+            preview += f", +{len(stale_bootstrap_scripts) - 5} more"
+        issues.append(
+            {
+                "code": "stale-feature-bootstrap-contract",
+                "severity": "repairable-block",
+                "summary": (
+                    "Generated feature bootstrap scripts are stale and do not expose "
+                    f"the versioned `{FEATURE_BOOTSTRAP_CONTRACT}` dry-run receipt, "
+                    "resolved feature identity, or keep-current branch policy: "
+                    f"{preview}."
+                ),
+                "repair": (
+                    "Run `specify integration repair` (or re-run "
+                    "`specify init --here --force --ai <agent>`) so generated "
+                    "create-new-feature helpers and workflow prompts upgrade together "
+                    "before any feature registration, branch action, or write."
+                ),
             }
         )
 

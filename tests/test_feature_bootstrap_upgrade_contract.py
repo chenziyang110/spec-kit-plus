@@ -9,7 +9,6 @@ import pytest
 from specify_cli.integrations.manifest import IntegrationManifest
 from specify_cli.launcher import diagnose_project_runtime_compatibility
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP_CONTRACT = "spec-kit-feature-bootstrap-v1"
 
