@@ -1,10 +1,10 @@
 # UI design-change contract
 
-Use `.specify/design/changes/<UD-ID>/DESIGN.md` as the immutable visual and
+Use `.specify/design/changes/<UD-ID>/design-change.md` as the immutable visual and
 interaction delta for its declared scope. Ground it in live product surfaces,
 accepted baseline refs, and confirmed references. The metadata-only
 `.specify/design/index.json` resolves candidates and relationships; it is not
-design truth. A root `DESIGN.md` is a read-only legacy baseline.
+design truth. No root design contract participates in the workflow.
 
 Include only applicable decisions:
 
@@ -92,7 +92,7 @@ the resulting approval sidecar, selected-direction handoff sidecar, preview
 SHA-256, manifest SHA-256, handoff SHA-256, review round, approved decision IDs,
 and handoff contract IDs are the approval truth. Carry those values unchanged
 with capability profile and specimen IDs through the exact change-local
-`DESIGN.md`, the feature UI
+`design-change.md`, the feature UI
 brief, plan/task UI contracts, and final
 visual comparison. A verbal hybrid is not approvable; render it as a new
 direction in a new immutable round.
@@ -112,9 +112,9 @@ The embedded preview manifest and visible specimen must agree. Canonical
 `DS-<KIND>-NNN` decisions cover color, typography, spacing, component anatomy,
 motion/reduced motion, responsive adaptation, and representative content as
 applicable. Each decision names its source, affected surfaces, implementation
-token or owner, and verification method. Export the approved `DESIGN.md` to
+token or owner, and verification method. Export the approved `design-change.md` to
 `.specify/design/changes/<UD-ID>/design-contract.json`, then run
-`specify-runtime design register <change-dir>/DESIGN.md`. Downstream work
+`specify-runtime design register <change-dir>/design-change.md`. Downstream work
 consumes that stable shape and registered digest instead of re-authoring the
 design from prose.
 

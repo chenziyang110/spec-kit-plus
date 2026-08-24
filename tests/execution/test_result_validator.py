@@ -708,7 +708,7 @@ def test_feature_epoch_worker_still_requires_cheap_consumer_wiring_evidence(
 def test_validate_worker_task_result_requires_current_ui_evidence_triad(
     sample_packet: WorkerTaskPacket,
 ) -> None:
-    sample_packet.ui_contract.approved_visual_ref = "DESIGN.md#settings"
+    sample_packet.ui_contract.approved_visual_ref = "design-change.md#settings"
     sample_packet.ui_contract.design_decision_ids = [
         "DS-COMP-001",
         "DS-RESP-001",
@@ -754,7 +754,7 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
             runtime_evidence="pass",
             visual_comparison="passed",
             fidelity_status="passed",
-            approved_visual_ref="DESIGN.md#settings",
+            approved_visual_ref="design-change.md#settings",
             comparison_report_ref="artifacts/ui/comparison.json",
             comparison_report_sha256="c" * 64,
             smoothness_lab_report_ref="smoothness-lab-T017.json",

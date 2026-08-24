@@ -154,8 +154,8 @@ them. Across UI tasks, require exact coverage of the plan's design decision and
 acceptance rows.
 Treat `inherit-existing` as a hard worker guard; never broaden a page-authorized
 style delta into global shell or shared-component work.
-Never resolve “latest” from `.specify/design/index.json` and never substitute a
-root `DESIGN.md` for a registered task binding.
+Never resolve “latest” from `.specify/design/index.json` and never substitute an
+unregistered root design document for a registered task binding.
 
 Before handoff, run
 `{{specify-subcmd:specify-runtime hook validate-artifacts --command tasks --feature-dir <feature-dir> --format json}}`

@@ -420,7 +420,7 @@ func TestDesignPreviewApproveFreezesDirectionAndBindsSidecar(t *testing.T) {
 func TestDesignImageApproveFreezesImageManifestPromptAndCapabilities(t *testing.T) {
 	tmp := t.TempDir()
 	withCwd(t, tmp)
-	image := filepath.Join(".specify", "design", "previews", "round-21.png")
+	image := filepath.Join(".specify", "design", "changes", "UD-0021", "previews", "round-21.png")
 	manifestPath := strings.TrimSuffix(image, filepath.Ext(image)) + ".manifest.json"
 	promptPath := strings.TrimSuffix(image, filepath.Ext(image)) + ".prompt.md"
 
@@ -492,15 +492,23 @@ func TestDesignImageApproveFreezesImageManifestPromptAndCapabilities(t *testing.
 	if exit := runDesign([]string{"preview-lint", image, "--level", "ready"}, &stdout); exit != 0 {
 		t.Fatalf("approved image should lint: %d %s", exit, stdout.String())
 	}
-	design := strings.ReplaceAll(validDesignForRuntime, "round-01.html#direction-main", "round-21.png#direction-main")
+	design := strings.ReplaceAll(
+		validDesignForRuntime,
+		".specify/design/previews/round-01.html#direction-main",
+		"previews/round-21.png#direction-main",
+	)
 	design = strings.ReplaceAll(design, "PREVIEW_SHA256", approval["image_sha256"].(string))
 	design = strings.ReplaceAll(design, "MANIFEST_SHA256", approval["manifest_sha256"].(string))
 	design = strings.ReplaceAll(design, "HANDOFF_SHA256", approval["handoff_sha256"].(string))
-	design = strings.ReplaceAll(design, "round-01.handoff.json", "round-21.handoff.json")
+	design = strings.ReplaceAll(
+		design,
+		".specify/design/previews/round-01.handoff.json",
+		"previews/round-21.handoff.json",
+	)
 	manifestLine := "    manifest_sha256: " + approval["manifest_sha256"].(string)
 	design = strings.Replace(design, manifestLine, manifestLine+
 		"\n    visual_medium: image"+
-		"\n    prompt_ref: .specify/design/previews/round-21.prompt.md"+
+		"\n    prompt_ref: previews/round-21.prompt.md"+
 		"\n    prompt_sha256: "+approval["prompt_sha256"].(string)+
 		"\n    inspection_owner: "+approval["inspection_owner"].(string), 1)
 	var handoffYAML []string
@@ -508,12 +516,16 @@ func TestDesignImageApproveFreezesImageManifestPromptAndCapabilities(t *testing.
 		handoffYAML = append(handoffYAML, "      - "+id)
 	}
 	design = strings.ReplaceAll(design, "HANDOFF_CONTRACT_IDS", strings.Join(handoffYAML, "\n"))
-	if err := os.WriteFile("DESIGN.md", []byte(design), 0o644); err != nil {
+	designPath := filepath.Join(".specify", "design", "changes", "UD-0021", "design-change.md")
+	if err := os.MkdirAll(filepath.Dir(designPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(designPath, []byte(design), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	stdout.Reset()
-	if exit := runDesign([]string{"lint", "DESIGN.md", "--level", "ready"}, &stdout); exit != 0 {
-		t.Fatalf("DESIGN.md should accept image round: %d %s", exit, stdout.String())
+	if exit := runDesign([]string{"lint", designPath, "--level", "ready"}, &stdout); exit != 0 {
+		t.Fatalf("design-change.md should accept image round: %d %s", exit, stdout.String())
 	}
 	if err := os.WriteFile(image, append(pngBytes, []byte("tampered")...), 0o644); err != nil {
 		t.Fatal(err)
@@ -1082,7 +1094,7 @@ func TestDesignUITargetLintRejectsRemoteRuntimeAndInlineHandlers(t *testing.T) {
 func TestDesignExportRendersApprovedDesignAndAllowsLegacyEscapeHatch(t *testing.T) {
 	tmp := t.TempDir()
 	withCwd(t, tmp)
-	preview := filepath.Join(".specify", "design", "previews", "round-01.html")
+	preview := filepath.Join(".specify", "design", "changes", "UD-0042", "previews", "round-01.html")
 	var scaffoldOut bytes.Buffer
 	if exit := runDesign([]string{"preview", "--out", preview}, &scaffoldOut); exit != 0 {
 		t.Fatalf("preview scaffold failed: %d %s", exit, scaffoldOut.String())
@@ -1096,16 +1108,30 @@ func TestDesignExportRendersApprovedDesignAndAllowsLegacyEscapeHatch(t *testing.
 	design := strings.ReplaceAll(validDesignForRuntime, "PREVIEW_SHA256", approval["html_sha256"].(string))
 	design = strings.ReplaceAll(design, "MANIFEST_SHA256", approval["manifest_sha256"].(string))
 	design = strings.ReplaceAll(design, "HANDOFF_SHA256", approval["handoff_sha256"].(string))
+	design = strings.ReplaceAll(
+		design,
+		".specify/design/previews/round-01.html#direction-main",
+		"previews/round-01.html#direction-main",
+	)
+	design = strings.ReplaceAll(
+		design,
+		".specify/design/previews/round-01.handoff.json",
+		"previews/round-01.handoff.json",
+	)
 	var handoffYAML []string
 	for _, id := range stringList(approval["handoff_contract_ids"]) {
 		handoffYAML = append(handoffYAML, "      - "+id)
 	}
 	design = strings.ReplaceAll(design, "HANDOFF_CONTRACT_IDS", strings.Join(handoffYAML, "\n"))
-	if err := os.WriteFile("DESIGN.md", []byte(design), 0o644); err != nil {
+	designPath := filepath.Join(".specify", "design", "changes", "UD-0042", "design-change.md")
+	if err := os.MkdirAll(filepath.Dir(designPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(designPath, []byte(design), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	stdout.Reset()
-	if exit := runDesign([]string{"export", "--format", "tailwind"}, &stdout); exit != 0 {
+	if exit := runDesign([]string{"export", designPath, "--format", "tailwind"}, &stdout); exit != 0 {
 		t.Fatalf("export tailwind failed: %d %s", exit, stdout.String())
 	}
 	env := decodeEnvelope(t, stdout.Bytes())
@@ -1117,7 +1143,7 @@ func TestDesignExportRendersApprovedDesignAndAllowsLegacyEscapeHatch(t *testing.
 		t.Fatalf("unexpected tailwind color export: %#v", colors)
 	}
 	stdout.Reset()
-	if exit := runDesign([]string{"export", "--format", "json"}, &stdout); exit != 0 {
+	if exit := runDesign([]string{"export", designPath, "--format", "json"}, &stdout); exit != 0 {
 		t.Fatalf("export json failed: %d %s", exit, stdout.String())
 	}
 	env = decodeEnvelope(t, stdout.Bytes())
@@ -1128,22 +1154,22 @@ func TestDesignExportRendersApprovedDesignAndAllowsLegacyEscapeHatch(t *testing.
 	}
 
 	legacy := strings.Replace(design, "  status: approved\n", "", 1)
-	if err := os.WriteFile("DESIGN.md", []byte(legacy), 0o644); err != nil {
+	if err := os.WriteFile(designPath, []byte(legacy), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	stdout.Reset()
-	if exit := runDesign([]string{"export", "--format", "json"}, &stdout); exit != 10 {
+	if exit := runDesign([]string{"export", designPath, "--format", "json"}, &stdout); exit != 10 {
 		t.Fatalf("unapproved export should block, exit=%d output=%s", exit, stdout.String())
 	}
 	stdout.Reset()
-	if exit := runDesign([]string{"export", "--format", "json", "--allow-unapproved"}, &stdout); exit != 0 {
+	if exit := runDesign([]string{"export", designPath, "--format", "json", "--allow-unapproved"}, &stdout); exit != 0 {
 		t.Fatalf("legacy export should pass with escape hatch: %d %s", exit, stdout.String())
 	}
 }
 
 func TestDesignLintValidatesProfessionalSkillRoute(t *testing.T) {
 	t.Run("ready route must be resolved", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "DESIGN.md")
+		path := filepath.Join(t.TempDir(), "design-change.md")
 		base := strings.ReplaceAll(
 			validDesignForRuntime,
 			"HANDOFF_CONTRACT_IDS",
@@ -1168,7 +1194,7 @@ func TestDesignLintValidatesProfessionalSkillRoute(t *testing.T) {
 	})
 
 	t.Run("route has at most two specialists", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "DESIGN.md")
+		path := filepath.Join(t.TempDir(), "design-change.md")
 		base := strings.ReplaceAll(
 			validDesignForRuntime,
 			"HANDOFF_CONTRACT_IDS",
@@ -1193,7 +1219,7 @@ func TestDesignLintValidatesProfessionalSkillRoute(t *testing.T) {
 	})
 
 	t.Run("loaded refs must match selected skills", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "DESIGN.md")
+		path := filepath.Join(t.TempDir(), "design-change.md")
 		content := strings.ReplaceAll(
 			validDesignForRuntime,
 			"HANDOFF_CONTRACT_IDS",
@@ -1231,7 +1257,7 @@ func TestDesignImportWritesReferenceWithoutRootDesign(t *testing.T) {
 		t.Fatalf("reference content missing source or notes:\n%s", content)
 	}
 	if _, err := os.Stat("DESIGN.md"); !os.IsNotExist(err) {
-		t.Fatalf("import should not create DESIGN.md")
+		t.Fatalf("import should not create root DESIGN.md")
 	}
 }
 
@@ -1329,7 +1355,7 @@ func TestDesignRegisterPinsDigestBlocksOverlapAndAppliesSupersedes(t *testing.T)
 		if exit := runDesign(args, &stdout); exit != 0 {
 			t.Fatalf("create %s failed: %d %s", id, exit, stdout.String())
 		}
-		path := filepath.Join(".specify", "design", "changes", id, "DESIGN.md")
+		path := filepath.Join(".specify", "design", "changes", id, "design-change.md")
 		writeReadyDesignChangeRuntime(t, path, id, []string{scope}, supersedes)
 		return path
 	}
@@ -1401,7 +1427,7 @@ func TestDesignIterateCreatesDigestPinnedSuccessorWithoutMutatingSource(t *testi
 	if relationships["iteration_of"] != "UD-0042" {
 		t.Fatalf("iteration_of = %#v, want UD-0042", relationships["iteration_of"])
 	}
-	wantBaseline := ".specify/design/changes/UD-0042/DESIGN.md#sha256=" + sourceDigest
+	wantBaseline := ".specify/design/changes/UD-0042/design-change.md#sha256=" + sourceDigest
 	if got := stringList(doc.DesignSystem["baseline_refs"]); !reflect.DeepEqual(got, []string{wantBaseline}) {
 		t.Fatalf("baseline_refs = %#v, want exact registered source", got)
 	}
@@ -1783,14 +1809,14 @@ func TestDesignQuickAdoptRequiresConfirmedExactStatusBinding(t *testing.T) {
 		bindingBody := fmt.Sprintf(`ui_design_binding:
   scope: %s
   design_change_id: %s
-  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+  design_change_ref: .specify/design/changes/UD-0042/design-change.md
   design_change_sha256: %s
   design_contract_ref: %s
 `, boundScope, boundChange, designDigest, filepath.ToSlash(contractPath))
 		if bindingShape == "flat" {
 			bindingBody = fmt.Sprintf(`scope: %s
 design_change_id: %s
-design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+design_change_ref: .specify/design/changes/UD-0042/design-change.md
 design_change_sha256: %s
 design_contract_ref: %s
 `, boundScope, boundChange, designDigest, filepath.ToSlash(contractPath))
@@ -1903,7 +1929,7 @@ understanding_confirmed: true
 ui_design_binding:
   scope: web:orders/detail
   design_change_id: UD-0042
-  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+  design_change_ref: .specify/design/changes/UD-0042/design-change.md
   design_change_sha256: %s
   design_contract_ref: %s
 `, designDigest, filepath.ToSlash(contractPath))
@@ -1959,7 +1985,7 @@ understanding_confirmed: true
 ui_design_binding:
   scope: web:orders/detail
   design_change_id: UD-9999
-  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+  design_change_ref: .specify/design/changes/UD-0042/design-change.md
   design_change_sha256: %s
   design_contract_ref: %s
 
@@ -2028,7 +2054,7 @@ func TestDesignQuickAdoptRejectsAmbiguousStatusAndInvalidConfirmationDigest(t *t
 			bindingBody := fmt.Sprintf(`ui_design_binding:
   scope: web:orders/detail
   design_change_id: UD-0042
-  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md
+  design_change_ref: .specify/design/changes/UD-0042/design-change.md
   design_change_sha256: %s
   design_contract_ref: %s
 `, designDigest, contractPath)
@@ -2139,7 +2165,7 @@ func quickAdoptionTestDecision(designDigest, contractPath, boundChange string) q
 			"design_binding": map[string]any{
 				"scope":                "web:orders/detail",
 				"design_change_id":     boundChange,
-				"design_change_ref":    ".specify/design/changes/UD-0042/DESIGN.md",
+				"design_change_ref":    ".specify/design/changes/UD-0042/design-change.md",
 				"design_change_sha256": designDigest,
 				"design_contract_ref":  contractPath,
 			},
@@ -2177,7 +2203,7 @@ func TestQuickAdoptionDigestCrossLanguageVector(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const expected = "44ba801bb2f538980b81e6096c9e5ff622df159a7e4d7e3564b7636dfad6388e"
+	const expected = "d6ddb1756e49e4e64be11ed6753071ecf39c19f5253f8c7485f8a5debab4dafd"
 	if digest != expected {
 		t.Fatalf("cross-language quick confirmation digest = %s, want %s", digest, expected)
 	}
@@ -2232,7 +2258,7 @@ func quickAdoptionDigestVectorDecision() quickConfirmationDecision {
 			"design_binding": map[string]any{
 				"scope":                "web:订单/detail",
 				"design_change_id":     "UD-0042",
-				"design_change_ref":    ".specify/design/changes/UD-0042/DESIGN.md",
+				"design_change_ref":    ".specify/design/changes/UD-0042/design-change.md",
 				"design_change_sha256": strings.Repeat("a", 64),
 				"design_contract_ref":  ".specify/design/changes/UD-0042/design-contract.json",
 			},
@@ -2247,7 +2273,7 @@ func createRegisteredDesignChangeRuntime(t *testing.T, changeID, scope string) (
 	if exit := runDesign([]string{"change", changeID, "--title", changeID + " design", "--type", "extension", "--scope", scope, "--profiles", "web"}, &stdout); exit != 0 {
 		t.Fatalf("create %s failed: %d %s", changeID, exit, stdout.String())
 	}
-	path := filepath.Join(".specify", "design", "changes", changeID, "DESIGN.md")
+	path := filepath.Join(".specify", "design", "changes", changeID, "design-change.md")
 	writeReadyDesignChangeRuntime(t, path, changeID, []string{scope}, nil)
 	stdout.Reset()
 	if exit := runDesign([]string{"register", path}, &stdout); exit != 0 {
@@ -2263,14 +2289,14 @@ func createDesignIterationRuntime(t *testing.T, sourceID, changeID, scope string
 	if exit := runDesign([]string{"iterate", sourceID, changeID, "--title", changeID + " iteration", "--scope", scope}, &stdout); exit != 0 {
 		t.Fatalf("iterate %s failed: %d %s", changeID, exit, stdout.String())
 	}
-	return filepath.Join(".specify", "design", "changes", changeID, "DESIGN.md")
+	return filepath.Join(".specify", "design", "changes", changeID, "design-change.md")
 }
 
 func writeReadyDesignIterationRuntime(t *testing.T, designPath, changeID string, scopes []string, sourceID, sourceDigest string) {
 	t.Helper()
 	writeReadyDesignChangeRuntime(t, designPath, changeID, scopes, []string{sourceID})
 	content := readFile(t, designPath)
-	baseline := ".specify/design/changes/" + sourceID + "/DESIGN.md#sha256=" + sourceDigest
+	baseline := ".specify/design/changes/" + sourceID + "/design-change.md#sha256=" + sourceDigest
 	content = strings.Replace(content, "  baseline_refs: []", "  baseline_refs: [\""+baseline+"\"]", 1)
 	content = strings.Replace(content, "  relationships:\n", "  relationships:\n    iteration_of: "+sourceID+"\n", 1)
 	if err := os.WriteFile(designPath, []byte(content), 0o644); err != nil {
@@ -2309,7 +2335,7 @@ func writeDesignBindingRuntime(t *testing.T, bindingRef, changeID, digest, contr
 	t.Helper()
 	payload := map[string]any{
 		"design_change_id":     changeID,
-		"design_change_ref":    ".specify/design/changes/" + changeID + "/DESIGN.md",
+		"design_change_ref":    ".specify/design/changes/" + changeID + "/design-change.md",
 		"design_change_sha256": digest,
 		"design_contract_ref":  contractRef,
 	}

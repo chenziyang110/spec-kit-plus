@@ -1153,7 +1153,7 @@ func normalizeTaskControlTask(value any, allowRuntimeFields bool) (map[string]an
 }
 
 var taskControlWorkflowScopeOwners = map[string]string{
-	"design.md":                   "specify-runtime design",
+	"design-change.md":            "specify-runtime design",
 	"alignment.md":                "specify-runtime artifact",
 	"context.md":                  "specify-runtime artifact",
 	"data-model.md":               "specify-runtime artifact",

@@ -352,7 +352,6 @@ func TestArtifactGenericMutationRejectsSpecializedStateAndHandoffArtifacts(t *te
 		"specs/001-runtime/implementation-review/tasks/T001.json",
 		"specs/001-runtime/implementation-review/packets/T001.json",
 		"specs/001-runtime/worker-results/T001.json",
-		"DESIGN.md",
 		".specify/prd/status.json",
 	} {
 		prepared := service.Prepare(ArtifactPrepareRequest{Path: path})

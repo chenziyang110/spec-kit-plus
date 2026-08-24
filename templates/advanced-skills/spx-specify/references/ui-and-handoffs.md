@@ -5,7 +5,7 @@ was supplied. Confirmed discussion state is governed by
 `discussion-handoff.md`.
 
 Run `specify-runtime design resolve --scope <exact-surface> --format json`, then
-query `.specify/design/index.json` and the exact change-local `DESIGN.md` /
+query `.specify/design/index.json` and the exact change-local `design-change.md` /
 `design-contract.json` for every returned registered candidate. Resolve is
 discovery only and never selects “latest” or adopts. The current formal binding
 is singular, so split `composite: true` coverage into independently bound
@@ -26,7 +26,7 @@ the relevant design/fidelity refs. Record:
   `DH-*` handoff contracts, motion tokens, and reduced-motion equivalent;
 - real entry points, surface/platform classification, experience intent, and
   information hierarchy;
-- approved change-local `DESIGN.md` rows, tokens/components, and any explicit
+- approved change-local `design-change.md` rows, tokens/components, and any explicit
   feature-only delta;
 - layout and hierarchy plus exact `interaction_matrix`, `editing_matrix`, and
   `data_state_matrix` rows; component `interaction_modes` / `data_scenarios`;

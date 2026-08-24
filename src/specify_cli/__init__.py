@@ -806,7 +806,10 @@ def api_command_command(
 
 @design_app.command("lint")
 def design_lint(
-    path: Path = typer.Argument(Path("DESIGN.md"), help="Path to DESIGN.md"),
+    path: Path = typer.Argument(
+        ...,
+        help="Path to a change-local design-change.md",
+    ),
     output_format: TextJsonFormat = typer.Option(
         TextJsonFormat.text, "--format", help="Output format: text or json"
     ),
@@ -816,7 +819,7 @@ def design_lint(
         help="Validation level: structural or ready",
     ),
 ) -> None:
-    """Validate DESIGN.md structure or approval readiness."""
+    """Validate a change-local design contract or approval readiness."""
 
     output_format = output_format.lower()
     if output_format not in {"text", "json"}:
@@ -877,7 +880,7 @@ def design_change(
         help="Repeatable prior UD-* change replaced by this change",
     ),
 ) -> None:
-    """Create one change-scoped UI design workspace without a root DESIGN.md."""
+    """Create one iteration-scoped UI design workspace."""
 
     try:
         profile_ids = parse_design_capability_profile_ids(profiles)
@@ -1207,7 +1210,7 @@ def design_adoption(
 def design_register(
     path: Path = typer.Argument(
         ...,
-        help="Path to an approved change-local DESIGN.md",
+        help="Path to an approved change-local design-change.md",
     ),
     output_format: TextJsonFormat = typer.Option(
         TextJsonFormat.text,
@@ -1531,7 +1534,10 @@ def design_approve(
 
 @design_app.command("export")
 def design_export(
-    path: Path = typer.Argument(Path("DESIGN.md"), help="Path to DESIGN.md"),
+    path: Path = typer.Argument(
+        ...,
+        help="Path to a change-local design-change.md",
+    ),
     output_format: str = typer.Option(
         "json", "--format", help="Output format: json or tailwind"
     ),
@@ -1541,7 +1547,7 @@ def design_export(
     allow_unapproved: bool = typer.Option(
         False,
         "--allow-unapproved",
-        help="Compatibility escape hatch: export a structurally valid legacy design without ready approval",
+        help="Compatibility escape hatch: export a structurally valid unapproved change without ready approval",
     ),
 ) -> None:
     """Render an approved design system as JSON or Tailwind data."""

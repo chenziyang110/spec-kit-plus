@@ -211,8 +211,8 @@ workspaces; do not distribute conflicting parent/successor bindings across
 workers in one workspace. Select the registered change whose scope matches the Quick task, and
 pin its `design_change_id`, exact `design_change_ref`,
 `design_change_sha256`, and sibling `design_contract_ref` into Quick state and
-every UI worker contract. Never resolve “latest” and never substitute a root
-`DESIGN.md`; a root file is read-only legacy baseline evidence. Also pin the
+every UI worker contract. Never resolve “latest” and never substitute any
+unregistered design document. Also pin the
 change's approved visual ref, preview/manifest/handoff SHA-256 values,
 immutable handoff ref, and selected `DS-*`/`DH-*` rows. An active Quick task
 must not silently adopt a later design approval. Before replacement, run

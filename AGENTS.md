@@ -167,17 +167,17 @@ present in a test project.
 - The product goal is better implemented UI, not merely more UI documentation.
   Both profiles must preserve this executable chain for substantive UI work:
   `approved immutable change-local preview + original references -> registered
-  .specify/design/changes/<UD-ID>/DESIGN.md + approval_sha256 -> feature
+  .specify/design/changes/<UD-ID>/design-change.md + approval_sha256 -> feature
   ui-brief.md -> plan ui_design_contract -> per-task ui_contract ->
   real-entrypoint captures + visual comparison report`.
 - UI applicability is broader than reference-image intake. New or changed
   screens, components, layouts, navigation/interaction flows, responsive
   behavior, visual states, desktop/mobile surfaces, TUI layouts, and CLI
   presentation can all trigger the UI contract.
-- Init does not create a root `DESIGN.md`. `specify-runtime design change`
-  creates one bounded `.specify/design/changes/<UD-ID>/` workspace; an existing
-  root `DESIGN.md` is read-only legacy baseline input and is never an implicit
-  latest contract. New or high-visibility UI requires an approved, registered
+- The design workflow has no root design contract. `specify-runtime design change`
+  creates one bounded `.specify/design/changes/<UD-ID>/` workspace, and only an
+  explicitly selected, registered change-local contract may bind delivery work.
+  New or high-visibility UI requires an approved, registered
   change-local contract; narrow existing-pattern fixes may record a bounded
   exception. Durable invariants for future unrelated work are promoted
   explicitly to `.specify/memory/project-rules.md`, not accumulated by mutating
@@ -277,7 +277,7 @@ present in a test project.
   image-generation prompt digest when image-primary, a
   separate immutable handoff sidecar and digest, review round, stable `DS-*`
   decision IDs, and stable `DH-*` implementation contract IDs. Ready lint and
-  export must reject a change-local `DESIGN.md` whose approval fields do not
+  export must reject a change-local `design-change.md` whose approval fields do not
   match those immutable artifacts. `specify-runtime design register` is the
   downstream consumption boundary: it pins that document's exact SHA-256 in
   metadata-only `.specify/design/index.json`, rejects later mutation, and
@@ -352,8 +352,8 @@ present in a test project.
   `ui_contract_version`, `contract_version`, `ui_fidelity_requirements`,
   `ui_fidelity_evidence`, lifecycle `evidence_refs`, or legacy evidence-kind
   aliases. Regenerate stale UI artifacts into the single current contract.
-- A UI workflow change must evaluate `templates/design-change-template.md`, the
-  legacy-only `templates/design-template.md`, design CLI change/register and
+- A UI workflow change must evaluate `templates/design-change-template.md`,
+  design CLI change/register and
   readiness behavior, Classic command/partial/passive/worker surfaces,
   Advanced shared and owning skill references/assets, spec/plan/task machine
   contracts, `execution/packet_compiler.py`, lifecycle closeout, integration

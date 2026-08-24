@@ -462,7 +462,7 @@ class TestCodexAutoPromote:
         skill_content = skill_path.read_text(encoding="utf-8")
         skill_lower = skill_content.lower()
 
-        assert "DESIGN.md" in skill_content
+        assert "design-change.md" in skill_content
         assert "design lint" in skill_content
         assert "Forbidden Writes" in skill_content
         assert "CSS or theme implementation files" in skill_content

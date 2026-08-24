@@ -431,10 +431,6 @@ var registeredArtifactRoots = []string{
 	"specs/",
 }
 
-var registeredRootArtifacts = map[string]bool{
-	"DESIGN.md": true,
-}
-
 var registeredArtifactExtensions = map[string]bool{
 	".css":     true,
 	".csv":     true,
@@ -471,9 +467,6 @@ func registeredArtifactPath(requestedPath string) (string, error) {
 	normalized := filepath.ToSlash(filepath.Clean(filepath.FromSlash(trimmed)))
 	if normalized == "." || normalized == ".." || strings.HasPrefix(normalized, "../") {
 		return "", fmt.Errorf("artifact path must stay inside the project")
-	}
-	if registeredRootArtifacts[normalized] {
-		return normalized, nil
 	}
 	allowedRoot := false
 	for _, root := range registeredArtifactRoots {
@@ -564,7 +557,7 @@ func validateArtifactContent(canonicalPath string, content []byte) error {
 }
 
 func (service *ArtifactService) registeredDesignChangeImmutable(canonicalPath string) (bool, error) {
-	if !isDesignChangeWorkspaceFile(canonicalPath, "DESIGN.md") {
+	if !isDesignChangeWorkspaceFile(canonicalPath, "design-change.md") {
 		return false, nil
 	}
 	indexPath, err := secureProjectPath(service.projectRoot, ".specify/design/index.json")
@@ -590,7 +583,7 @@ func (service *ArtifactService) registeredDesignChangeImmutable(canonicalPath st
 	}
 	changeID := strings.TrimSuffix(
 		strings.TrimPrefix(canonicalPath, ".specify/design/changes/"),
-		"/DESIGN.md",
+		"/design-change.md",
 	)
 	for _, record := range index.Changes {
 		if strings.TrimSpace(fmt.Sprint(record["id"])) != changeID {

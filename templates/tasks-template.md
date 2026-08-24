@@ -122,7 +122,7 @@ description: "Task list template for feature implementation"
 ### Scope Boundaries
 | Field | Value |
 | --- | --- |
-| read_scope | [.specify/design/changes/UD-####/DESIGN.md, .specify/design/changes/UD-####/design-contract.json, FEATURE_DIR/ui-brief.md] |
+| read_scope | [.specify/design/changes/UD-####/design-change.md, .specify/design/changes/UD-####/design-contract.json, FEATURE_DIR/ui-brief.md] |
 | write_scope | [task-owned implementation paths] |
 
 ### UI Implementation Contract
@@ -179,7 +179,7 @@ requirements when the implemented surface must be wired into a real entry point.
 
 | Task ID | Consumes | Produces | Review Inputs |
 | --- | --- | --- | --- |
-| T### | [upstream component, route, schema, or artifact] | [component, route, schema, or artifact] | [plan.md, pinned UD-* DESIGN.md, quickstart.md] |
+| T### | [upstream component, route, schema, or artifact] | [component, route, schema, or artifact] | [plan.md, pinned UD-* design-change.md, quickstart.md] |
 
 ## Review-Risk Notes
 

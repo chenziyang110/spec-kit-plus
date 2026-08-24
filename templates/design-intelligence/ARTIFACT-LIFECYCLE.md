@@ -12,7 +12,7 @@ It does not invent a new mainline command and does not replace
 | Kind | Path (generated project) | Owner stages |
 |------|--------------------------|--------------|
 | Design change index | `.specify/design/index.json` | design change/register; metadata only |
-| Registered design change | `.specify/design/changes/<UD-ID>/DESIGN.md` + `design-contract.json` | design approve/export/register |
+| Registered design change | `.specify/design/changes/<UD-ID>/design-change.md` + `design-contract.json` | design approve/export/register |
 | Change review workspace | `.specify/design/changes/<UD-ID>/{brief.md,previews/**,review.md}` | design only until registration |
 | DesignContext payload | `.specify/design/context/design-context.json` or a change-local referenced projection | discussion → design → explicitly bound consumers |
 | Evidence records | `.specify/design/evidence/*.json` or change-local referenced evidence | design reverse-engineering, discussion discovery |

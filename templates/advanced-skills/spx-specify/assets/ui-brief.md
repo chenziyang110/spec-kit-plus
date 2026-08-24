@@ -1,7 +1,7 @@
 # UI Brief: {{feature_name}}
 
 - design_change_id: UD-____
-- design_change_ref: .specify/design/changes/<UD-ID>/DESIGN.md
+- design_change_ref: .specify/design/changes/<UD-ID>/design-change.md
 - design_contract_ref: .specify/design/changes/<UD-ID>/design-contract.json
 - design_change_sha256:
 - design_readiness: approved | narrow-existing-pattern-exception | blocked

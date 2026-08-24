@@ -1319,7 +1319,7 @@ def test_agent_native_ui_task_lifecycle_requires_visual_acceptance(
                     {
                         "id": "T001",
                         "ui_contract": {
-                            "design_sources": ["DESIGN.md", "ui-brief.md"],
+                            "design_sources": ["design-change.md", "ui-brief.md"],
                             "required_states": ["loading", "error"],
                             "required_evidence": [
                                 "structure_snapshot",
@@ -1390,7 +1390,7 @@ def test_tasks_markdown_only_ui_task_still_requires_lifecycle_ui_verification(
         "## T001: Settings surface\n\n"
         "### UI Implementation Contract\n\n"
         "| Field | Value |\n| --- | --- |\n"
-        "| design_sources | [DESIGN.md, ui-brief.md] |\n"
+        "| design_sources | [design-change.md, ui-brief.md] |\n"
         "| required_evidence | [desktop_screenshot] |\n",
         encoding="utf-8",
     )
@@ -1442,7 +1442,7 @@ def test_incomplete_ui_contract_is_not_accepted_as_a_legacy_shape(
         "ui_applicable": True,
         "ui_brief_ref": "ui-brief.md",
         "design_readiness": "approved",
-        "source_refs": ["DESIGN.md", "ui-brief.md"],
+        "source_refs": ["design-change.md", "ui-brief.md"],
         "design_system_adoption": ["settings controls"],
         "token_strategy": ["reuse approved tokens"],
         "component_strategy": ["reuse settings form"],
@@ -1709,7 +1709,7 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
     (feature_dir / "ui-brief.md").write_text("# UI Brief\n", encoding="utf-8")
     direction = {
         "design_change_id": "UD-0042",
-        "design_change_ref": ".specify/design/changes/UD-0042/DESIGN.md",
+        "design_change_ref": ".specify/design/changes/UD-0042/design-change.md",
         "design_change_sha256": "d" * 64,
         "design_contract_ref": ".specify/design/changes/UD-0042/design-contract.json",
         "ui_work_type": "feature-extension",
@@ -1730,7 +1730,7 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
         "content_thesis": "real preference labels and values",
         "interaction_thesis": "immediate local feedback",
         "signature_element": "persistent section progress",
-        "approved_visual_ref": ".specify/design/changes/UD-0042/DESIGN.md#settings",
+        "approved_visual_ref": ".specify/design/changes/UD-0042/design-change.md#settings",
         "approved_preview_sha256": "",
         "approved_manifest_sha256": "",
         "approved_handoff_ref": "",
@@ -1748,7 +1748,7 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
         "handoff_contract_ids": [],
         "reference_intents": [
             {
-                "ref": ".specify/design/changes/UD-0042/DESIGN.md#settings",
+                "ref": ".specify/design/changes/UD-0042/design-change.md#settings",
                 "intent": "preserve-structure",
             },
             {"ref": "ui-brief.md#interaction", "intent": "exact"},
@@ -2040,7 +2040,7 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
         "ui_brief_ref": "ui-brief.md",
         "design_readiness": "approved",
         "source_refs": [
-            ".specify/design/changes/UD-0042/DESIGN.md",
+            ".specify/design/changes/UD-0042/design-change.md",
             ".specify/design/changes/UD-0042/design-contract.json",
             "ui-brief.md",
         ],
@@ -2091,7 +2091,7 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
     task_contract = {
         **direction,
         "design_sources": [
-            ".specify/design/changes/UD-0042/DESIGN.md",
+            ".specify/design/changes/UD-0042/design-change.md",
             ".specify/design/changes/UD-0042/design-contract.json",
             "ui-brief.md",
         ],
@@ -2166,7 +2166,7 @@ def _write_ui_continuity_fixture(
     (feature_dir / "ui-brief.md").write_text("# UI Brief\n", encoding="utf-8")
     direction: dict[str, object] = {
         "design_change_id": "UD-0042",
-        "design_change_ref": ".specify/design/changes/UD-0042/DESIGN.md",
+        "design_change_ref": ".specify/design/changes/UD-0042/design-change.md",
         "design_change_sha256": "d" * 64,
         "design_contract_ref": ".specify/design/changes/UD-0042/design-contract.json",
         "ui_work_type": "feature-extension",
@@ -2187,7 +2187,7 @@ def _write_ui_continuity_fixture(
         "content_thesis": "real preference labels and values",
         "interaction_thesis": "immediate local feedback",
         "signature_element": "persistent section progress",
-        "approved_visual_ref": ".specify/design/changes/UD-0042/DESIGN.md#settings",
+        "approved_visual_ref": ".specify/design/changes/UD-0042/design-change.md#settings",
         "approved_preview_sha256": "",
         "approved_manifest_sha256": "",
         "approved_handoff_ref": "",
@@ -2205,7 +2205,7 @@ def _write_ui_continuity_fixture(
         "handoff_contract_ids": [],
         "reference_intents": [
             {
-                "ref": ".specify/design/changes/UD-0042/DESIGN.md#settings",
+                "ref": ".specify/design/changes/UD-0042/design-change.md#settings",
                 "intent": "preserve-structure",
             }
         ],
@@ -2475,7 +2475,7 @@ def _write_ui_continuity_fixture(
         "ui_applicable": True,
         "ui_brief_ref": "ui-brief.md",
         "original_reference_refs": [
-            ".specify/design/changes/UD-0042/DESIGN.md#settings"
+            ".specify/design/changes/UD-0042/design-change.md#settings"
         ],
         **direction,
         **constraints,
@@ -2485,14 +2485,14 @@ def _write_ui_continuity_fixture(
         "ui_brief_ref": "ui-brief.md",
         "design_readiness": "approved",
         "source_refs": [
-            ".specify/design/changes/UD-0042/DESIGN.md",
+            ".specify/design/changes/UD-0042/design-change.md",
             ".specify/design/changes/UD-0042/design-contract.json",
             "ui-brief.md",
         ],
         "design_system_adoption": ["settings controls"],
         "token_strategy": ["reuse approved tokens"],
         "component_strategy": ["reuse settings form"],
-        "fidelity_refs": [".specify/design/changes/UD-0042/DESIGN.md#settings"],
+        "fidelity_refs": [".specify/design/changes/UD-0042/design-change.md#settings"],
         "validation_refs": ["browser settings route"],
         "human_review_conditions": ["comparison unavailable"],
         **direction,
@@ -2501,7 +2501,7 @@ def _write_ui_continuity_fixture(
     task_contract: dict[str, object] = {
         **direction,
         "design_sources": [
-            ".specify/design/changes/UD-0042/DESIGN.md",
+            ".specify/design/changes/UD-0042/design-change.md",
             ".specify/design/changes/UD-0042/design-contract.json",
             "ui-brief.md",
         ],
@@ -3633,7 +3633,7 @@ def test_agent_native_ui_task_lifecycle_blocks_pending_human_review(
                         "id": "T001",
                         "ui_contract": {
                             "fidelity_level": "high",
-                            "design_sources": ["DESIGN.md", "ui-brief.md"],
+                            "design_sources": ["design-change.md", "ui-brief.md"],
                             "required_states": ["ready"],
                             "required_evidence": [
                                 "structure_snapshot",

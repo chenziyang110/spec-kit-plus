@@ -118,7 +118,7 @@ integrated verification owns the final design-conformance claim.
   now drifts, and recapture only affected Review evidence; unaffected scope and
   evidence stay valid.
 
-Every consumer records `.specify/design/changes/<UD-ID>/DESIGN.md`, its
+Every consumer records `.specify/design/changes/<UD-ID>/design-change.md`, its
 registered `approval_sha256`, preview/manifest/handoff digests, and selected
 `DS-*`/`DH-*` rows. A new approval must never silently retarget an existing
 consumer. The metadata-only `.specify/design/index.json` may resolve candidates,

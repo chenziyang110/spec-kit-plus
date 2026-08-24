@@ -15,13 +15,13 @@ desktop, or Web presentation surface.
 
 Run `specify-runtime design resolve --scope <exact-surface> --format json`, then
 query metadata-only `.specify/design/index.json`, select an applicable
-registered `UD-*` change, and inspect that exact change-local `DESIGN.md`
+registered `UD-*` change, and inspect that exact change-local `design-change.md`
 through `specify-runtime artifact show` together with relevant live surfaces.
 Resolution is discovery only. Split composite coverage into explicit bindings.
 Because current consumer binding artifacts are singular, the split must produce
 independently bound consumer units rather than one worker blending contracts.
-Never resolve "latest". Inspect a root `DESIGN.md` only when it is explicitly
-cited as a read-only legacy baseline. Route a new product surface, redesign,
+Never resolve "latest" and never use an unregistered root design document as
+workflow input. Route a new product surface, redesign,
 rebrand, shared component-language change, or unresolved visual direction to
 `$spx-design`. A narrow existing-pattern fix may continue only when the live
 governing tokens/components and affected states are clear.
@@ -97,7 +97,7 @@ Do not replace them with a prose summary or the later feature target.
 
 For substantive UI work preserve one contract through the workflow:
 
-`registered change-local DESIGN.md + approved preview/approval/handoff sidecars + original references -> ui-brief.md -> plan ui_design_contract -> task ui_contract -> comparison report + real-entrypoint evidence`
+`registered change-local design-change.md + approved preview/approval/handoff sidecars + original references -> ui-brief.md -> plan ui_design_contract -> task ui_contract -> comparison report + real-entrypoint evidence`
 
 The UI brief is required for substantive UI work even without external
 references. It identifies entry points, required states and viewports,
@@ -294,7 +294,7 @@ with `validate_design_evidence` / `validate_design_context`. Model UI as pixel /
 system / behavior / engineering layers: tokens, components, state matrix
 (including hover/focus/loading/empty/error), responsive rules, and
 keyboard/behavior. Bind into
-`.specify/design/changes/<UD-ID>/DESIGN.md` and its change-local exported
+`.specify/design/changes/<UD-ID>/design-change.md` and its change-local exported
 `design-contract.json`—not a global design document or parallel root
 `.design/` tree.
 Optional executable reports use

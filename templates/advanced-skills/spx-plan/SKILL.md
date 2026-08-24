@@ -97,9 +97,9 @@ rollout or rollback, and material risks only when relevant.
 
 For UI-bearing work, query `ui-brief.md`, then its exact registered
 `.specify/design/changes/<UD-ID>/design-contract.json` and matching
-change-local `DESIGN.md` through targeted `specify-runtime artifact show`
+change-local `design-change.md` through targeted `specify-runtime artifact show`
 calls. Treat the change-local JSON as the machine-readable source of truth and
-its `DESIGN.md` as the human-readable projection. Never select an unbound newer
+its `design-change.md` as the human-readable projection. Never select an unbound newer
 change from `.specify/design/index.json`. Consume the returned
 contract sections, original fidelity sources, and the spec design contract. Set
 `ui_design_contract.ui_applicable: true`, preserve `ui_brief_ref`, and record

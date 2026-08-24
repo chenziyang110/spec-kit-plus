@@ -364,7 +364,7 @@ def _assert_design_contract(content: str) -> None:
     lowered = content.lower()
 
     assert "sp-design" in content
-    assert "DESIGN.md" in content
+    assert "design-change.md" in content
     assert "specify-runtime" in content
     assert "design lint" in content
     assert "Forbidden Writes" in content or "forbidden writes" in lowered

@@ -12,13 +12,13 @@ through Design Intelligence hooks.
 
 ## Owners (do not invent parallel systems)
 
-- Design DNA / theses / signature → exact registered change-local `DESIGN.md` + design brief
+- Design DNA / theses / signature → exact registered change-local `design-change.md` + design brief
 - Change dials → `design_brief.dials` variance · motion · density (1-10)
 - Taste intake → `design_read`, aesthetic family, foundation strategy, redesign
   mode
 - Anti-slop locks → `design_brief.anti_slop_locks` +
   `design-library/anti-slop-policy.md`
-- UI System Model → `.specify/design/changes/<UD-ID>/DESIGN.md` + its
+- UI System Model → `.specify/design/changes/<UD-ID>/design-change.md` + its
   change-local `design-contract.json`
 - Evidence confidence →
   `templates/design-intelligence/schema/design-evidence.schema.json` +
@@ -161,8 +161,8 @@ expand them into an unbounded Cartesian product. Preserve all high-severity
 failure, recovery, accessibility, trust, and usability obligations.
 
 Do **not** create a parallel root `.design/` tree or mutable global design
-authority. Use `.specify/design/changes/<UD-ID>/**`; a pre-existing root
-`DESIGN.md` is read-only legacy baseline input only.
+authority. Use `.specify/design/changes/<UD-ID>/**`; no root design document is
+a workflow input.
 
 ## DesignContext v1 (schema contract)
 

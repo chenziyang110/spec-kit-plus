@@ -143,7 +143,7 @@ def test_spx_plan_requires_ready_input_and_conditional_design_outputs() -> None:
     assert "deep research traceability matrix" in content
     assert ".specify/design/changes/<ud-id>/design-contract.json" in content
     assert "machine-readable" in content
-    assert "design.md" in content
+    assert "design-change.md" in content
     assert "human-readable projection" in content
     for column in (
         "plan decision",

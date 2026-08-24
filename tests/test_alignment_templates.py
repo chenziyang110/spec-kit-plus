@@ -128,45 +128,17 @@ def test_command_reference_coverage_ledgers_target_existing_text(workflow):
         assert entry["source_excerpt"] in target.read_text(encoding="utf-8"), entry
 
 
-def test_design_template_declares_v1_schema_and_required_guidance() -> None:
-    content = _read("templates/design-template.md")
-    design_system = _design_system_from_front_matter(content)
+def test_global_design_template_is_removed_in_favor_of_change_template() -> None:
+    assert not (PROJECT_ROOT / "templates" / "design-template.md").exists()
 
-    assert "design_system:" in content
-    assert "schema: spec-kit-design-v1" in content
-    assert design_system["schema"] == "spec-kit-design-v1"
-    assert design_system["status"] == "bootstrap"
-    assert design_system["approval"]["status"] == "unapproved"
-    assert design_system["approval"]["visual_refs"] == []
-    assert set(design_system["product_context"]) == {
-        "subject",
-        "audience",
-        "single_job",
-    }
-    assert set(design_system["direction_contract"]) == {
-        "visual_thesis",
-        "content_thesis",
-        "interaction_thesis",
-        "signature_element",
-        "safe_system_choices",
-        "creative_risks",
-    }
-    assert set((design_system.get("tokens") or {})) >= {
-        "color",
-        "spacing",
-        "radius",
-        "typography",
-        "motion",
-    }
-    assert all(not entries for entries in design_system["tokens"].values())
-    assert design_system.get("components") == {}
-    assert "tokens:" in content
-    assert "components:" in content
-    assert "accessibility:" in content
-    assert "## Anti-Patterns" in content
-    assert "## UI QA Checklist" in content
-    for generic_anchor in ("#2563eb", 'value: "8px"', 'value: "14px"', "system-ui"):
-        assert generic_anchor not in content
+    content = _read("templates/design-change-template.md")
+    front_matter = yaml.safe_load(content.split("---", 2)[1])
+    design_change = front_matter["design_change"]
+
+    assert design_change["schema"] == "spec-kit-ui-design-change-v1"
+    assert design_change["status"] == "draft"
+    assert design_change["approval"]["status"] == "unapproved"
+    assert "## Design Change Policy" in content
 
 
 def test_design_library_contains_owned_second_created_presets() -> None:
@@ -204,10 +176,10 @@ def test_discussion_carries_ui_design_intent_to_handoff() -> None:
 def test_specify_reads_registered_design_change_for_ui_features() -> None:
     content = _read("templates/commands/specify.md")
 
-    assert "DESIGN.md" in content
+    assert "design-change.md" in content
     assert "Experience Requirements" in content
     assert ".specify/design/index.json" in content
-    assert ".specify/design/changes/<UD-ID>/DESIGN.md" in content
+    assert ".specify/design/changes/<UD-ID>/design-change.md" in content
     assert "Never" in content and "latest" in content
     assert "design_system_status" in content
     assert "strong blocker" in content.lower()
@@ -328,7 +300,7 @@ def test_plan_tasks_implement_preserve_design_quality_chain() -> None:
     assert "token strategy" in plan.lower()
     assert "Design Quality Coverage" in tasks
     assert "required states" in tasks.lower()
-    assert "DESIGN.md" in implement
+    assert "design-change.md" in implement
     assert "Playwright screenshots" in implement
     assert "representative output" in implement
     assert "tests passed" in implement
@@ -568,8 +540,8 @@ def test_design_workflow_is_not_an_implementation_workflow() -> None:
     assert "explicit approval" in lowered
     assert "same direction in a new immutable round" in lowered
     assert "{{specify-subcmd:specify-runtime design lint" in lowered
-    assert "specify-runtime design export <change-dir>/design.md" in lowered
-    assert "never write `<change-dir>/design.md` directly" in lowered
+    assert "specify-runtime design export <change-dir>/design-change.md" in lowered
+    assert "never write `<change-dir>/design-change.md` directly" in lowered
 
 
 def test_discussion_and_specify_share_read_only_evidence_lane_contract() -> None:

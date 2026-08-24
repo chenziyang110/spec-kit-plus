@@ -2,9 +2,9 @@
 
 Horizontal UI/product design capability for every UI-bearing stage. Not a new
 mainline command. Subordinate to the exact registered
-`.specify/design/changes/<UD-ID>/DESIGN.md` selected by the consumer, plus its
-immutable preview/approval/handoff. A root `DESIGN.md` is only a read-only
-legacy baseline and is never an implicit latest direction.
+`.specify/design/changes/<UD-ID>/design-change.md` selected by the consumer, plus its
+immutable preview/approval/handoff. No root design contract participates in
+selection or delivery.
 
 **UI is a design-system modeling problem, not a one-shot page generation
 problem.** Do not jump from a screenshot or idea straight to production markup.

@@ -47,7 +47,7 @@ Use the same owner CLI to repeat the route in review when it explains closeout.
 ## Resume Before Reclassification
 
 1. Query `.specify/design/index.json` and matching
-   `.specify/design/changes/<UD-ID>/brief.md` / `DESIGN.md` through
+   `.specify/design/changes/<UD-ID>/brief.md` / `design-change.md` through
    `artifact show` first when they exist.
 2. If they record nonterminal work for the same objective, resume before
    reclassification at the brief's exact `task_type` and `input_strategy` plus

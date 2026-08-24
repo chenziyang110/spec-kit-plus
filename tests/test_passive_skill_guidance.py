@@ -136,12 +136,12 @@ def test_workflow_routing_uses_prd_scan_then_prd_build_as_canonical_prd_flow() -
     assert "deprecated compatibility alias" in content
 
 
-def test_ui_design_passive_skill_requires_design_md_before_ui_work() -> None:
+def test_ui_design_passive_skill_requires_change_contract_before_ui_work() -> None:
     content = _read("templates/passive-skills/spec-kit-ui-design/SKILL.md")
     lowered = content.lower()
 
-    assert "DESIGN.md" in content
-    assert "design.md" in lowered
+    assert "design-change.md" in content
+    assert "design-change.md" in lowered
     assert "sp-design" in content
     assert "web" in lowered
     assert "mobile" in lowered
@@ -179,11 +179,11 @@ def test_workflow_routing_recommends_design_for_high_risk_ui() -> None:
     assert "soft risk" in lowered
 
 
-def test_frontend_design_is_subordinate_to_design_md() -> None:
+def test_frontend_design_is_subordinate_to_design_change_contract() -> None:
     content = _read("templates/passive-skills/frontend-design/SKILL.md")
     lowered = content.lower()
 
-    assert "design.md" in lowered
+    assert "design-change.md" in lowered
     assert "subordinate" in lowered
     assert "sp-design" in content
     assert "do not invent unrelated bold aesthetics" in lowered

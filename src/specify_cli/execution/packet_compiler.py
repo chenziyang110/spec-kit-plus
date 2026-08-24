@@ -625,7 +625,7 @@ _CLI_OWNED_SCOPE_PREFIXES = (
     ".planning/quick/",
 )
 _CLI_OWNED_SCOPE_NAMES = {
-    "design.md",
+    "design-change.md",
     "alignment.md",
     "context.md",
     "data-model.md",

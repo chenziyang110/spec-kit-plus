@@ -2,7 +2,7 @@
 
 This policy corrects default LLM UI fingerprints. It is **subordinate** to an
 approved registered design-change contract at
-`.specify/design/changes/<UD-ID>/DESIGN.md` and its immutable
+`.specify/design/changes/<UD-ID>/design-change.md` and its immutable
 preview/approval/handoff artifacts. It never authorizes production
 implementation inside `sp-design` / `spx-design`, and it never replaces
 `design approve` or `design register`.

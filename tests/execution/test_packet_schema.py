@@ -151,6 +151,7 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
 
 
 def test_worker_task_packet_captures_ui_contract_and_result_verification() -> None:
+    design_ref = ".specify/design/changes/UD-0042/design-change.md"
     packet = WorkerTaskPacket(
         feature_id="001-feature",
         task_id="T021",
@@ -160,7 +161,9 @@ def test_worker_task_packet_captures_ui_contract_and_result_verification() -> No
         scope=PacketScope(write_scope=["src/app/exceptions/page.tsx"]),
         context_bundle=[],
         required_references=[
-            PacketReference(path="DESIGN.md", reason="root design contract"),
+            PacketReference(
+                path=design_ref, reason="registered design change contract"
+            ),
             PacketReference(
                 path="specs/001-feature/ui-brief.md", reason="feature UI contract"
             ),
@@ -181,8 +184,8 @@ def test_worker_task_packet_captures_ui_contract_and_result_verification() -> No
             content_thesis="show real exception data and recovery context",
             interaction_thesis="keep triage actions local and reversible",
             signature_element="persistent exception context rail",
-            approved_visual_ref="DESIGN.md#exception-direction",
-            design_sources=["DESIGN.md", "specs/001-feature/ui-brief.md"],
+            approved_visual_ref=f"{design_ref}#exception-direction",
+            design_sources=[design_ref, "specs/001-feature/ui-brief.md"],
             reference_notes="specs/001-feature/ui-reference-notes.md",
             visual_target="specs/001-feature/ui-target.html",
             reference_intents=[

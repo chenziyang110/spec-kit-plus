@@ -81,8 +81,8 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
   not patch the spec merely to add Design fields. The Design owner uses
   `formal-post-specify`; Plan verifies that late overlay against the exact
   unchanged source spec digest.
-- Treat a pre-existing root `DESIGN.md` as read-only legacy baseline input, not
-  a candidate for implicit adoption. Route new or high-visibility design
+- Never use an unregistered root design document as design input. Route new or
+  high-visibility design
   decisions with no applicable registered change to `sp-design`.
 - When approved design provenance names
   `.specify/design/changes/<UD-ID>/previews/round-NN.<html|png|jpg|jpeg|webp>#<direction-id>`, query the visual round and

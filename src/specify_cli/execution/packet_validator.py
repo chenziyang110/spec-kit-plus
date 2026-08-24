@@ -823,7 +823,7 @@ def validate_ui_contract(contract: UIContract) -> None:
                 "DP1", "UI contract design_change_id must be a canonical UD-#### ID"
             )
         expected_workspace = f".specify/design/changes/{contract.design_change_id}"
-        expected_design_ref = f"{expected_workspace}/DESIGN.md"
+        expected_design_ref = f"{expected_workspace}/design-change.md"
         expected_contract_ref = f"{expected_workspace}/design-contract.json"
         if contract.design_change_ref != expected_design_ref:
             raise PacketValidationError(
