@@ -5,9 +5,87 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestCaptureAmbientEntriesExcludesRuntimeOwnedProjectCognition(t *testing.T) {
+	mainRoot, _ := createLinkedRepository(t)
+	repository, err := ResolveRepository(context.Background(), mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cognitionDir := filepath.Join(mainRoot, ".specify", "project-cognition")
+	if err := os.MkdirAll(cognitionDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(cognitionDir, "project-cognition.db"),
+		[]byte("SQLite format 3\x00"+syntheticSecretCandidate()),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mainRoot, "ambient-note.txt"), []byte("ambient input\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := captureAmbientEntries(
+		context.Background(),
+		repository,
+		"snapshot-cognition-runtime-state",
+		mainRoot,
+		SnapshotContextOnly,
+	)
+	if err != nil {
+		t.Fatalf("capture ambient entries with runtime-owned cognition database: %v", err)
+	}
+	if len(entries) != 1 || entries[0].RelativePath != "ambient-note.txt" {
+		t.Fatalf("ambient entries = %#v, want only ordinary project input", entries)
+	}
+}
+
+func TestCaptureAmbientEntriesStillBlocksSecretsOutsideProjectCognition(t *testing.T) {
+	tests := []struct {
+		name         string
+		relativePath string
+	}{
+		{name: "ordinary database", relativePath: "app.db"},
+		{name: "nearby specify directory", relativePath: ".specify/project-cognition-copy/project-cognition.db"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mainRoot, _ := createLinkedRepository(t)
+			repository, err := ResolveRepository(context.Background(), mainRoot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			targetPath := filepath.Join(mainRoot, filepath.FromSlash(test.relativePath))
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(targetPath, []byte(syntheticSecretCandidate()), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = captureAmbientEntries(
+				context.Background(),
+				repository,
+				"snapshot-secret-boundary-"+strings.ReplaceAll(test.name, " ", "-"),
+				mainRoot,
+				SnapshotContextOnly,
+			)
+			if !errors.Is(err, ErrSnapshotSecretCandidate) {
+				t.Fatalf("capture ambient entries error = %v, want ErrSnapshotSecretCandidate", err)
+			}
+		})
+	}
+}
+
+func syntheticSecretCandidate() string {
+	return "ghp_" + strings.Repeat("0", 20)
+}
 
 func TestForegroundSupervisorCapturesImmutableAmbientSnapshotWithoutChangingSource(t *testing.T) {
 	t.Setenv(foregroundHelperEnvironment, "1")
