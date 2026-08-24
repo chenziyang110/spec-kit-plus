@@ -710,15 +710,23 @@ class TestIntegrationRepair:
             for issue in report.remaining_issues
         )
 
-    def test_repair_keeps_claude_personal_skill_shadow_as_remaining_issue(
+    @pytest.mark.parametrize(
+        "issue_code",
+        (
+            "claude-personal-skills-shadow-project",
+            "stale-feature-bootstrap-contract",
+        ),
+    )
+    def test_repair_keeps_repairable_diagnostic_as_remaining_issue(
         self,
         tmp_path,
         monkeypatch,
+        issue_code,
     ):
         project = tmp_path / "project"
         (project / ".specify").mkdir(parents=True)
         collision = {
-            "code": "claude-personal-skills-shadow-project",
+            "code": issue_code,
             "severity": "repairable-block",
             "summary": "Claude personal skills shadow project skills: sp-map-scan.",
             "repair": "Move the personal skill outside Claude's skills directory.",
