@@ -247,14 +247,17 @@ def test_specify_feature_bootstrap_keeps_current_branch_during_concurrent_work()
     for content in (classic, advanced):
         lowered = _normalized(content)
         dry_run = lowered.index("--dry-run")
+        contract = lowered.index("spec-kit-feature-bootstrap-v1")
         managed = lowered.index("on the managed path")
         managed_bootstrap = lowered.index("real create-feature script", managed)
         unhosted = lowered.index("unhosted path")
         reservation = lowered.index("specify-runtime board feature-bootstrap", unhosted)
         unhosted_bootstrap = lowered.index("real create-feature script", reservation)
 
-        assert dry_run < managed < managed_bootstrap
-        assert dry_run < unhosted < reservation < unhosted_bootstrap
+        assert dry_run < contract < managed < managed_bootstrap
+        assert dry_run < contract < unhosted < reservation < unhosted_bootstrap
+        assert "bootstrap_contract" in lowered
+        assert "before" in lowered[contract:managed]
         assert "--json" in lowered
         assert "feature_id" in lowered
         assert "feature_dir" in lowered

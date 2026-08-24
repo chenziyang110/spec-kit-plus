@@ -204,6 +204,36 @@ def test_diagnose_ignores_nonworkflow_claude_skill_collisions(
     )
 
 
+def test_diagnose_reports_stale_feature_bootstrap_contract(tmp_path):
+    project = tmp_path / "project"
+    bash_script = project / ".specify" / "scripts" / "bash" / "create-new-feature.sh"
+    powershell_script = (
+        project / ".specify" / "scripts" / "powershell" / "create-new-feature.ps1"
+    )
+    bash_script.parent.mkdir(parents=True, exist_ok=True)
+    powershell_script.parent.mkdir(parents=True, exist_ok=True)
+    bash_script.write_text(
+        "#!/usr/bin/env bash\nwhile [ $# -gt 0 ]; do case \"$1\" in --json) ;; esac; shift; done\n",
+        encoding="utf-8",
+    )
+    powershell_script.write_text(
+        "#!/usr/bin/env pwsh\nparam([switch]$Json, [string[]]$FeatureDescription)\n",
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(project)
+
+    issue = next(
+        item for item in issues if item["code"] == "stale-feature-bootstrap-contract"
+    )
+    assert issue["severity"] == "repairable-block"
+    assert "create-new-feature.sh" in issue["summary"]
+    assert "create-new-feature.ps1" in issue["summary"]
+    assert "resolved feature identity" in issue["summary"]
+    assert "keep-current" in issue["summary"]
+    assert "specify integration repair" in issue["repair"]
+
+
 def test_agent_payload_argv_and_derived_commands_bind_from_nested_cwd(tmp_path):
     project = tmp_path / "project 项目 & $literal"
     nested = project / "nested" / "work"
