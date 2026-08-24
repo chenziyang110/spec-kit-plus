@@ -1139,6 +1139,7 @@ class TestDryRun:
         data = json.loads(result.stdout)
         assert "DRY_RUN" in data, f"DRY_RUN missing from JSON: {data}"
         assert data["DRY_RUN"] is True
+        assert data["BOOTSTRAP_CONTRACT"] == "spec-kit-feature-bootstrap-v1"
 
     def test_dry_run_json_absent_without_flag(self, git_repo: Path):
         """T016: Normal JSON output does NOT include DRY_RUN field."""
@@ -1575,6 +1576,7 @@ class TestPowerShellDryRun:
         data = json.loads(result.stdout)
         assert "DRY_RUN" in data, f"DRY_RUN missing from JSON: {data}"
         assert data["DRY_RUN"] is True
+        assert data["BOOTSTRAP_CONTRACT"] == "spec-kit-feature-bootstrap-v1"
 
     def test_ps_dry_run_json_absent_without_flag(self, ps_git_repo: Path):
         """PowerShell normal JSON output does NOT include DRY_RUN field."""

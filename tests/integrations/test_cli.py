@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from specify_cli import app
 from specify_cli.agents import CommandRegistrar
+from specify_cli.integrations.manifest import IntegrationManifest
 from specify_cli.launcher import render_command
 from tests.conftest import strip_ansi
 from tests.template_utils import assert_quick_checkpoint_card_shape
@@ -1335,3 +1336,162 @@ def test_shared_infra_repair_only_overwrites_manifest_proven_unmodified_files(
     assert installed_script.read_text(encoding="utf-8") == "# runtime v2\n"
     assert installed_template.read_text(encoding="utf-8") == "# USER MODIFICATION\n"
     assert ".specify/templates/spec-template.md" in skipped
+
+
+def test_repeat_init_refreshes_unmodified_stale_feature_bootstrap_scripts(
+    tmp_path,
+):
+    project = tmp_path / "project"
+    project.mkdir()
+    old_script = (
+        "#!/usr/bin/env pwsh\n"
+        "param([switch]$Json, [string[]]$FeatureDescription)\n"
+    )
+    stale_script = (
+        project / ".specify" / "scripts" / "powershell" / "create-new-feature.ps1"
+    )
+    stale_script.parent.mkdir(parents=True, exist_ok=True)
+    stale_script.write_text(old_script, encoding="utf-8")
+    manifest = IntegrationManifest("speckit", project, version="0.0-old")
+    manifest.record_existing(stale_script.relative_to(project))
+    manifest.save()
+    # Reproduce Git's common Windows checkout translation after installation.
+    stale_script.write_bytes(old_script.replace("\n", "\r\n").encode("utf-8"))
+
+    runner = CliRunner()
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--force",
+                "--ai",
+                "codex",
+                "--workflow-profile",
+                "advanced",
+                "--script",
+                "ps",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    refreshed = stale_script.read_text(encoding="utf-8")
+    assert "[switch]$KeepCurrentBranch" in refreshed
+    assert "[string]$ResolvedFeatureId" in refreshed
+    assert (
+        project / ".codex" / "skills" / "spx-specify" / "SKILL.md"
+    ).is_file()
+    assert IntegrationManifest.load("speckit", project).check_modified() == []
+
+
+def test_init_here_force_refreshes_unmodified_shared_scripts_but_preserves_user_edits(
+    tmp_path,
+    monkeypatch,
+):
+    from typer.testing import CliRunner
+
+    from specify_cli import app
+
+    core_pack = tmp_path / "core-pack"
+    scripts = core_pack / "scripts" / "powershell"
+    templates = core_pack / "templates"
+    scripts.mkdir(parents=True)
+    templates.mkdir(parents=True)
+
+    source_script = scripts / "create-new-feature.ps1"
+    source_template = templates / "project-handbook-template.md"
+    source_script.write_text(
+        "param(\n  [switch]$KeepCurrentBranch\n)\n",
+        encoding="utf-8",
+    )
+    source_template.write_text("# upstream v1\n", encoding="utf-8")
+
+    monkeypatch.setattr("specify_cli._locate_core_pack", lambda: core_pack)
+    monkeypatch.setattr(
+        "specify_cli.launcher.write_project_specify_launcher_config",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "specify_cli.load_project_specify_launcher",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "specify_cli._run_project_cognition_init_empty",
+        lambda *_args, **_kwargs: (False, "skipped in test"),
+    )
+    monkeypatch.setattr(
+        "specify_cli.specify_runtime.ensure_binary",
+        lambda: tmp_path / "specify-runtime.exe",
+    )
+    monkeypatch.setattr(
+        "specify_cli.specify_runtime.write_project_launcher_config",
+        lambda *args, **kwargs: None,
+    )
+
+    project = tmp_path / "project"
+    project.mkdir()
+    runner = CliRunner()
+    monkeypatch.chdir(project)
+
+    first = runner.invoke(
+        app,
+        [
+            "init",
+            "--here",
+            "--force",
+            "--ai",
+            "codex",
+            "--script",
+            "ps",
+            "--no-git",
+            "--ignore-agent-tools",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert first.exit_code == 0, first.output
+
+    installed_script = (
+        project / ".specify" / "scripts" / "powershell" / "create-new-feature.ps1"
+    )
+    installed_template = (
+        project / ".specify" / "templates" / "project-handbook-template.md"
+    )
+    assert "ResolvedFeatureId" not in installed_script.read_text(encoding="utf-8")
+
+    installed_template.write_text("# USER MODIFICATION\n", encoding="utf-8")
+    source_script.write_text(
+        "param(\n  [switch]$KeepCurrentBranch,\n  [string]$ResolvedFeatureId\n)\n",
+        encoding="utf-8",
+    )
+    source_template.write_text("# upstream v2\n", encoding="utf-8")
+
+    second = runner.invoke(
+        app,
+        [
+            "init",
+            "--here",
+            "--force",
+            "--ai",
+            "codex",
+            "--script",
+            "ps",
+            "--no-git",
+            "--ignore-agent-tools",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert second.exit_code == 0, second.output
+    installed_script_content = installed_script.read_text(encoding="utf-8")
+    assert "KeepCurrentBranch" in installed_script_content
+    assert "ResolvedFeatureId" in installed_script_content
+    assert installed_template.read_text(encoding="utf-8") == "# USER MODIFICATION\n"
