@@ -40,16 +40,55 @@ def test_manifest_still_detects_real_content_changes_with_crlf(tmp_path: Path) -
     assert relative.as_posix() in manifest.check_modified()
 
 
+def test_manifest_treats_lf_translation_as_unmodified_when_recorded_crlf(
+    tmp_path: Path,
+) -> None:
+    relative = Path(".specify/scripts/powershell/create-new-feature.ps1")
+    script = tmp_path / relative
+    script.parent.mkdir(parents=True)
+    script.write_bytes(b"first\r\nsecond\r\n")
+    manifest = IntegrationManifest("speckit", tmp_path)
+    manifest.record_existing(relative)
+
+    script.write_bytes(b"first\nsecond\n")
+
+    assert relative.as_posix() not in manifest.check_modified()
+
+
+def test_manifest_uninstall_accepts_eol_only_translation(tmp_path: Path) -> None:
+    relative = Path(".specify/scripts/powershell/create-new-feature.ps1")
+    script = tmp_path / relative
+    script.parent.mkdir(parents=True)
+    script.write_bytes(b"first\nsecond\n")
+    manifest = IntegrationManifest("speckit", tmp_path)
+    manifest.record_existing(relative)
+
+    script.write_bytes(b"first\r\nsecond\r\n")
+
+    removed, skipped = manifest.uninstall()
+    assert removed == [script]
+    assert skipped == []
+
+
 @pytest.mark.parametrize(
     ("relative", "stale_content"),
     (
         (
             ".specify/scripts/powershell/create-new-feature.ps1",
-            "param([switch]$DryRun, [switch]$Json)\n",
+            (
+                "param([switch]$DryRun, [switch]$Json, "
+                "[switch]$KeepCurrentBranch, [string]$ResolvedFeatureId)\n"
+            ),
         ),
         (
             ".specify/scripts/bash/create-new-feature.sh",
-            "case \"$1\" in --dry-run) ;; esac\n",
+            (
+                "case \"$1\" in\n"
+                "  --dry-run) ;;\n"
+                "  --keep-current-branch) ;;\n"
+                "  --resolved-feature-id) shift ;;\n"
+                "esac\n"
+            ),
         ),
     ),
 )
