@@ -1386,6 +1386,7 @@ def test_repeat_init_refreshes_unmodified_stale_feature_bootstrap_scripts(
     refreshed = stale_script.read_text(encoding="utf-8")
     assert "[switch]$KeepCurrentBranch" in refreshed
     assert "[string]$ResolvedFeatureId" in refreshed
+    assert "spec-kit-feature-bootstrap-v1" in refreshed
     assert (
         project / ".codex" / "skills" / "spx-specify" / "SKILL.md"
     ).is_file()
