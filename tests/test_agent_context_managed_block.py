@@ -176,18 +176,11 @@ def _assert_managed_block_is_compact_always_on_context(content: str) -> None:
     )
     assert "show_argv" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
-    assert "## workflow recommendations" in lower
-    assert (
-        "passive skill invocation must not enter any `sp-*` or `spx-*` workflow"
-        in lower
-    )
-    assert "all `sp-*` and `spx-*` workflows are user-invoked only" in lower
-    assert "recommend `sp-discussion`" in lower
-    assert "presents both `sp-quick` and `sp-specify`" in lower
-    assert "complexity-informed recommendation" in lower
-    assert "user makes the final choice" in lower
-    assert "`sp-deep-research` for feasibility proof" in lower
-    assert "`sp-debug` for root-cause diagnosis" in lower
+    assert "## workflow invocation boundary" in lower
+    assert "all `sp-*` and `spx-*` workflow skills are user-invoked only" in lower
+    assert "no passive workflow router is installed" in lower
+    assert "## workflow recommendations" not in lower
+    assert "recommend `sp-discussion`" not in lower
     assert "## command surface rules" in lower
     assert "api list --format json" in lower
     assert "python `specify` is human-only" in lower

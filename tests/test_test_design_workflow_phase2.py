@@ -365,12 +365,11 @@ def test_test_design_is_documented_as_optional_between_plan_and_tasks() -> None:
 
 def test_auto_routing_resumes_selected_test_design_before_tasks() -> None:
     classic = _read("templates/commands/auto.md").lower()
-    passive = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md").lower()
     advanced = _read(
         "templates/advanced-skills/spx-auto/references/routing-contract.md"
     ).lower()
 
-    for content in (classic, passive, advanced):
+    for content in (classic, advanced):
         assert "test-design" in content
         assert "stale" in content
         assert "handoff" in content

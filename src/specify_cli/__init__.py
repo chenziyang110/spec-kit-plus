@@ -2137,13 +2137,11 @@ def _render_spec_kit_managed_block(*, project_root: Path, newline: str) -> str:
             "- When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.",
             "- Run `{{specify-subcmd:specify-runtime learning start --command <workflow> --format json}}` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.",
             "",
-            "## Workflow Recommendations",
+            "## Workflow Invocation Boundary",
             "",
-            "- Passive SKILL invocation is allowed only for `sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`. All other `sp-*` workflows are user-invoked only: recommend the projected invocation and stop; do not load or enter them until the user explicitly invokes them. Continuing an already-invoked incomplete workflow is not passive entry.",
-            "- Recommend `sp-discussion` for open-ended requirement exploration. Its handoff presents both `sp-quick` and `sp-specify` with their eligibility, explains any blocker, gives a complexity-informed recommendation among eligible paths, and the user makes the final choice. Use `sp-deep-research` for feasibility proof and `sp-debug` for root-cause diagnosis.",
-            "- If the user invokes an `sp-*` workflow, follow that workflow's own contract.",
-            "- When a topical follow-up, acknowledgement, or contextual confirmation continues an active discussion, resume `sp-discussion` from durable state even when the user does not repeat the workflow name.",
-            "- For discussion consumer selection, run `{{specify-subcmd:specify-runtime discussion resolve --intent sp-specify [--slug <slug>] --format json}}` or `{{specify-subcmd:specify-runtime discussion resolve --intent sp-quick [--slug <slug>] --format json}}` for the selected path. Multiple candidates require an explicit slug; never bind by latest update, title, topic, or similarity. Consume only the resolver-returned status, `state_sha256`, `review_digest`, and `recommended_consumer`; otherwise resume `sp-discussion` assessment, draft review, or repair.",
+            "- All `sp-*` and `spx-*` workflow skills are user-invoked only.",
+            "- No passive workflow router is installed; natural-language similarity must not select, load, enter, or hand off into a workflow indirectly.",
+            "- If the user invokes an `sp-*` or `spx-*` workflow, follow that workflow's own contract.",
             "",
             "## Command Surface Rules",
             "",
@@ -7476,6 +7474,10 @@ def init(
             return f"/{skill_name}"
 
         steps_lines.append(f"{step_num}. Use the independent advanced workflow skills:")
+        steps_lines.append(
+            "   All spx-* workflow skills and Classic map companions are user-invoked only; invoke each workflow skill explicitly."
+        )
+        steps_lines.append("   ")
         for name, purpose in (
             ("accept", "guided human product acceptance"),
             ("analyze", "read-only cross-artifact consistency gate"),
@@ -7531,13 +7533,8 @@ def init(
     steps_lines.append(f"{step_num}. Start using {usage_label} with your AI agent:")
     steps_lines.append("   ")
     if native_skill_mode:
-        passive_invocations = ", ".join(
-            _display_cmd(name)
-            for name in ("discussion", "quick", "debug", "fast")
-        )
         steps_lines.append(
-            "   Passive invocation allowlist: "
-            f"[cyan]{passive_invocations}[/cyan] only; invoke every other Classic sp-* skill manually"
+            "   All Classic sp-* workflow skills are user-invoked only; invoke each workflow skill explicitly."
         )
         steps_lines.append("   ")
     steps_lines.append("   Core workflow skills")

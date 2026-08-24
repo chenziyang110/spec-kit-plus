@@ -15,7 +15,6 @@ SCANNED_FILES = [
     "templates/commands/debug.md",
     "templates/commands/explain.md",
     "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
-    "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
 ]
 LEGACY_TOKENS = ("BUILD-HANDBOOK.md", "DEBUG-HANDBOOK.md", ".specify/project-map/")
 LOWERCASE_LEGACY_TOKENS = tuple(token.lower() for token in LEGACY_TOKENS)

@@ -157,7 +157,6 @@ def test_product_guidance_requires_explicit_invocation_for_both_workflow_profile
         "templates/passive-skills/project-to-prd/SKILL.md",
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
         "templates/passive-skills/spec-kit-ui-design/SKILL.md",
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
         "templates/passive-skills/subagent-driven-development/SKILL.md",
     ),
 )
@@ -351,10 +350,7 @@ def test_invoke_placeholder_does_not_rewrite_canonical_tokens():
     assert "`/sp-map-scan`" in rendered
 
 
-def test_workflow_routing_passive_skill_uses_placeholder_for_user_invocation_examples():
-    routing = read_template(
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md"
-    )
+def test_remaining_passive_skills_use_placeholder_for_user_invocation_examples():
     cognition_gate = read_template(
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md"
     )
@@ -364,11 +360,6 @@ def test_workflow_routing_passive_skill_uses_placeholder_for_user_invocation_exa
     parallel = read_template(
         "templates/passive-skills/dispatching-parallel-agents/SKILL.md"
     )
-
-    assert "{{invoke:specify}}" in routing
-    assert "{{invoke:map-scan}} -> {{invoke:map-build}}" in routing
-    assert "Use `/sp-specify`" not in routing
-    assert "Use `/sp-plan`" not in routing
 
     assert "{{invoke:map-scan}} -> {{invoke:map-build}}" in cognition_gate
     assert "use `/sp-map-scan -> /sp-map-build`" not in cognition_gate
@@ -383,14 +374,11 @@ def test_workflow_routing_passive_skill_uses_placeholder_for_user_invocation_exa
 
 
 def test_passive_workflow_skills_enforce_real_specify_command_surface() -> None:
-    routing = read_template(
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md"
-    ).lower()
     cognition_gate = read_template(
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md"
     ).lower()
 
-    for content in (routing, cognition_gate):
+    for content in (cognition_gate,):
         assert "{{specify-subcmd:specify-runtime api list --format json}}" in content
         assert (
             "generated\ncreate-feature script" in content
@@ -749,7 +737,7 @@ def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_sto
     assert "lane register" not in content
 
 
-def test_generated_codex_passive_routing_skills_expose_create_feature_helper_paths(
+def test_generated_codex_cognition_skill_exposes_create_feature_helper_paths(
     tmp_path: Path,
 ):
     target = tmp_path / "codex-passive-skill-entrypoint"
@@ -772,9 +760,9 @@ def test_generated_codex_passive_routing_skills_expose_create_feature_helper_pat
                 "target = Path(sys.argv[1])\n"
                 "result = CliRunner().invoke(app, ['init', str(target), '--ai', 'codex', '--no-git', '--ignore-agent-tools', '--script', 'sh'])\n"
                 "assert result.exit_code == 0, result.output\n"
-                "for name in ('spec-kit-workflow-routing', 'spec-kit-project-cognition-gate'):\n"
-                "    print(f'## {name}')\n"
-                "    print((target / '.codex' / 'skills' / name / 'SKILL.md').read_text(encoding='utf-8'))\n"
+                "name = 'spec-kit-project-cognition-gate'\n"
+                "print(f'## {name}')\n"
+                "print((target / '.codex' / 'skills' / name / 'SKILL.md').read_text(encoding='utf-8'))\n"
             ),
             str(target),
         ],
@@ -1160,17 +1148,11 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert "python `specify` is human-only" in content
         assert "show_argv" in content
         assert ".specify/memory/learnings/index.md" not in content
-        assert (
-            "passive skill invocation must not enter any `sp-*` or `spx-*` workflow"
-            in content
-        )
-        assert "all `sp-*` and `spx-*` workflows are user-invoked only" in content
-        assert "recommend `sp-discussion`" in content
-        assert "presents both `sp-quick` and `sp-specify`" in content
-        assert "complexity-informed recommendation" in content
-        assert "user makes the final choice" in content
-        assert "`sp-deep-research` for feasibility proof" in content
-        assert "`sp-debug` for root-cause diagnosis" in content
+        assert "## workflow invocation boundary" in content
+        assert "all `sp-*` and `spx-*` workflow skills are user-invoked only" in content
+        assert "no passive workflow router is installed" in content
+        assert "## workflow recommendations" not in content
+        assert "recommend `sp-discussion`" not in content
         assert "generated create-feature script" in content
         assert "prefer durable workflow state and explicit feature paths" in content
         assert "frontstage-only deferred persistence" in content

@@ -158,13 +158,11 @@ render_speckit_managed_block() {
 - When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.
 - Run `{{specify-runtime-cli}} learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.
 
-## Workflow Recommendations
+## Workflow Invocation Boundary
 
-- Passive SKILL invocation is allowed only for `sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`. All other `sp-*` workflows are user-invoked only: recommend the projected invocation and stop; do not load or enter them until the user explicitly invokes them. Continuing an already-invoked incomplete workflow is not passive entry.
-- Recommend `sp-discussion` for open-ended requirement exploration. Its handoff presents both `sp-quick` and `sp-specify` with their eligibility, explains any blocker, gives a complexity-informed recommendation among eligible paths, and the user makes the final choice. Use `sp-deep-research` for feasibility proof and `sp-debug` for root-cause diagnosis.
-- If the user invokes an `sp-*` workflow, follow that workflow's own contract.
-- When a topical follow-up, acknowledgement, or contextual confirmation continues an active discussion, resume `sp-discussion` from durable state even when the user does not repeat the workflow name.
-- Before recommending `sp-quick` or `sp-specify` from a discussion, run `{{specify-runtime-cli}} discussion status <slug> --format json` and consume its status and `recommended_consumer`. If it is not `handoff-ready` or the consumer does not match, resume `sp-discussion` assessment, draft review, or repair; only a ready confirmed route may continue downstream.
+- All `sp-*` and `spx-*` workflow skills are user-invoked only.
+- No passive workflow router is installed; natural-language similarity must not select, load, enter, or hand off into a workflow indirectly.
+- If the user invokes an `sp-*` or `spx-*` workflow, follow that workflow's own contract.
 
 ## Command Surface Rules
 

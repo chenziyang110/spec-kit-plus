@@ -54,18 +54,11 @@ def _assert_compact_managed_context(content: str) -> None:
     assert ".specify" in content and "specify-runtime" in content
     assert "show_argv" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
-    assert "## Workflow Recommendations" in content
-    assert (
-        "passive skill invocation must not enter any `sp-*` or `spx-*` workflow"
-        in lower
-    )
-    assert "all `sp-*` and `spx-*` workflows are user-invoked only" in lower
-    assert "recommend `sp-discussion`" in lower
-    assert "presents both `sp-quick` and `sp-specify`" in lower
-    assert "complexity-informed recommendation" in lower
-    assert "user makes the final choice" in lower
-    assert "`sp-deep-research` for feasibility proof" in lower
-    assert "`sp-debug` for root-cause diagnosis" in lower
+    assert "## Workflow Invocation Boundary" in content
+    assert "all `sp-*` and `spx-*` workflow skills are user-invoked only" in lower
+    assert "no passive workflow router is installed" in lower
+    assert "## workflow recommendations" not in lower
+    assert "recommend `sp-discussion`" not in lower
     assert "## Command Surface Rules" in content
     assert "api list --format json" in content
     assert "api show workflow.block --format json" in content
@@ -648,27 +641,14 @@ class TestClaudeIntegration:
             assert skill_frontmatter["user-invocable"] is True
             assert skill_frontmatter["disable-model-invocation"] is True
 
-    def test_setup_keeps_passive_skills_model_invokable(self, tmp_path):
+    def test_setup_does_not_install_retired_passive_workflow_router(self, tmp_path):
         integration = get_integration("claude")
         manifest = IntegrationManifest("claude", tmp_path)
         integration.setup(tmp_path, manifest, script_type="sh")
 
-        passive_skill = (
-            tmp_path / ".claude" / "skills" / "spec-kit-workflow-routing" / "SKILL.md"
-        )
-        assert passive_skill.exists()
-
-        content = passive_skill.read_text(encoding="utf-8")
-        parts = content.split("---", 2)
-        parsed = yaml.safe_load(parts[1])
-
-        assert parsed["name"] == "spec-kit-workflow-routing"
-        assert "user-invocable" not in parsed
-        assert "disable-model-invocation" not in parsed
-        assert (
-            parsed["metadata"]["source"]
-            == "templates/passive-skills/spec-kit-workflow-routing/SKILL.md"
-        )
+        assert not (
+            tmp_path / ".claude" / "skills" / "spec-kit-workflow-routing"
+        ).exists()
 
     def test_feature_creation_surfaces_use_explicit_helper_paths_without_fake_cli(
         self, tmp_path
@@ -679,7 +659,6 @@ class TestClaudeIntegration:
 
         surfaces = [
             tmp_path / ".claude" / "skills" / "sp-specify" / "SKILL.md",
-            tmp_path / ".claude" / "skills" / "spec-kit-workflow-routing" / "SKILL.md",
         ]
 
         for path in surfaces:
@@ -3288,8 +3267,8 @@ class TestClaudeIntegration:
 
         assert result.exit_code == 0, result.output
         assert (project / ".claude" / "skills" / "sp-plan" / "SKILL.md").exists()
-        assert (
-            project / ".claude" / "skills" / "spec-kit-workflow-routing" / "SKILL.md"
+        assert not (
+            project / ".claude" / "skills" / "spec-kit-workflow-routing"
         ).exists()
         assert (
             project

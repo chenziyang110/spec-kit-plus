@@ -52,7 +52,6 @@ def test_classic_codex_native_subagent_skills_require_spawn_wait_and_no_close(
     for shared_skill_name in (
         "subagent-driven-development",
         "dispatching-parallel-agents",
-        "spec-kit-workflow-routing",
     ):
         shared_content = _read_skill_with_references(
             skills_dir / shared_skill_name / "SKILL.md"

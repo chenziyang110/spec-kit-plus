@@ -180,26 +180,6 @@ def test_design_routing_is_documented_as_a_cross_profile_product_contract() -> N
         assert "reconcile_from" in content, path
 
 
-def test_classic_passive_router_preserves_design_types_and_consumers() -> None:
-    content = " ".join(
-        _read(
-            PROJECT_ROOT
-            / "templates"
-            / "passive-skills"
-            / "spec-kit-workflow-routing"
-            / "SKILL.md"
-        )
-        .lower()
-        .split()
-    )
-    assert "one natural-language entrypoint" in content
-    assert "create/refine/audit" in content
-    assert "synthesis is an input strategy" in content
-    assert "first formal consumer" in content
-    assert "direct-delivery consumer" in content
-    assert "must not silently retarget" in content
-
-
 def test_design_brief_persists_the_prompt_route() -> None:
     content = _read(PROJECT_ROOT / "templates" / "design-brief-template.md")
     assert "task_type: null" in content

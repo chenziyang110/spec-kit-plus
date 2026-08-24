@@ -10,9 +10,9 @@ implementation invents generic one-off styling. Use it whenever UI, UX, visual
 design, design-system, accessibility, component coverage, platform interface,
 TUI, or CLI output quality affects the outcome.
 
-Only `sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast` may be entered
-passively. Every other `sp-*` workflow is user-invoked only: recommend its
-projected invocation and stop until the user explicitly invokes it. This passive
+Passive SKILL invocation must not enter any `sp-*` or `spx-*` workflow. All
+`sp-*` and `spx-*` workflows are user-invoked only: recommend the projected
+invocation and stop until the user explicitly invokes it. This passive
 skill must not load or enter `sp-design` itself.
 
 ## Collaborative Design Studio

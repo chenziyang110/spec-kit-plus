@@ -488,12 +488,6 @@ class TestBuiltInSkillGeneration:
         assert "complete-refresh" in tasks_body
         assert "manual override/fallback" in tasks_body.lower()
         assert "run `/sp-map-scan` followed by `/sp-map-build`" in tasks_body
-        routing_body = _body_without_frontmatter(PROJECT_ROOT / "templates" / "passive-skills" / "spec-kit-workflow-routing" / "SKILL.md").lower()
-        assert "default generated formal path is `sp-specify -> sp-plan -> [sp-test-design] -> sp-tasks -> sp-implement -> sp-review -> sp-accept`" in routing_body
-        assert "use `sp-implement` after `sp-tasks` produces canonical `task-index.json` in any execution mode, renders `tasks.md`, and records `/sp.implement`." in routing_body
-        assert "use `sp-analyze` only for optional diagnostics, explicit user requests, or persisted legacy `/sp.analyze` state." in routing_body
-        assert "clean completed `sp-tasks` state with `/sp.implement` routes directly to" in routing_body
-        assert "it does not need an `sp-auto` hop" in routing_body
 
         implement_body = _skill_body("sp-implement")
         assert "task-index.json" in implement_body

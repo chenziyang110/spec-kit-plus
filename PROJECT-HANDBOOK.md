@@ -303,11 +303,11 @@ partial supersession, resolution, semantic diff, and explicit adoption.
 
 ## High-Value Capabilities
 
-- **Classic SKILL invocation boundary**: Passive model invocation is allowed only
-  for `sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`. Every other Classic
-  `sp-*` SKILL is user-invoked only: routing may recommend its projected command,
-  but must stop until the user invokes it. An already user-invoked workflow may
-  resume without requiring the command name on every turn.
+- **Workflow SKILL invocation boundary**: All `sp-*` and `spx-*` workflow skills
+  are user-invoked only (Classic and Advanced respectively). No passive workflow
+  router is installed, and natural-language similarity must not select or enter
+  one indirectly. An already user-invoked workflow may resume without
+  requiring the command name on every turn.
 - **Project initialization and generated agent surfaces**: `specify init` resolves `--ai` or `--integration`, installs command/skill/workflow files, copies scripts/templates, and records integration manifests. Read `src/specify_cli/__init__.py`, `src/specify_cli/integrations/**`, and `modules/specify-cli-core/ARCHITECTURE.md`.
 - **Generated-project repair and compatibility diagnostics**: `specify check` now surfaces broken project launchers, stale generated runtime assets, and Claude personal workflow skills (`sp-*` / `spx-*`) that shadow same-named project-installed skills. Claude shadowing is a repairable block because personal scope wins over project scope; init/install and SessionStart warn immediately, while `specify integration repair` preserves the personal files and returns a human recovery tutorial instead of mutating state outside the project. Read `src/specify_cli/__init__.py`, `src/specify_cli/launcher.py`, `src/specify_cli/integrations/base.py`, and `modules/specify-cli-core/ARCHITECTURE.md`.
 - **Project Learning lifecycle**: Agents consume Learning only through read-only CLI progressive disclosure: `learning start` returns relevant compact cards, `learning list` filters/pages summaries, and `learning show` expands one selected agent-oriented record. `capture` / `capture-auto` create or merge every reusable candidate; `learning start` protects mature knowledge with a 15-card stable quota and up to 5 candidate cards, while ranking candidates by context, assessed value, recurrence, and novelty and diversifying repeated families when enough exist. The bound controls disclosure, not storage. `promote` explicitly confirms a candidate before any separate project-rule promotion, so reads never mutate lifecycle state. Classic commands share the Learning partial/passive skill, every Advanced skill receives `_shared/project-learning.md`, and SPX names normalize to the same Classic namespace. Confirmed, index, detail, and candidate files remain runtime implementation surfaces rather than normal agent reads.

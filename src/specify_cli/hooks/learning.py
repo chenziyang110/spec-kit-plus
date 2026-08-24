@@ -450,7 +450,6 @@ def derive_injection_targets(command_name: str, learning_type: str) -> list[str]
     normalized_type = normalize_learning_type(learning_type)
     targets_by_type = {
         "routing_mistake": [
-            "spec-kit-workflow-routing",
             "sp-fast",
             "sp-quick",
             "sp-specify",

@@ -28,9 +28,9 @@ For substantive new UI with no applicable registered change, route through
 implementation in the live product surface and record the bounded design
 assumption.
 
-Only `sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast` may be entered
-passively. Every other Classic `sp-*` workflow is user-invoked only: recommend
-its projected invocation and stop until the user explicitly invokes it. In
+Passive SKILL invocation must not enter any `sp-*` or `spx-*` workflow. All
+`sp-*` and `spx-*` workflows are user-invoked only: recommend its projected
+invocation and stop until the user explicitly invokes it. In
 particular, this passive skill must not load or enter `sp-design` itself.
 
 When the bound contract reports an approved

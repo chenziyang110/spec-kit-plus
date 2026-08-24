@@ -874,7 +874,7 @@ managed `<!-- SPEC-KIT:BEGIN -->` block because
 
 - Command templates: `templates/commands/*.md`
 - Shared command partials and shared hook insertion points: `templates/command-partials/**`, especially `templates/command-partials/common/**`
-- Passive skill mirrors and routing rules: `templates/passive-skills/**`, especially `spec-kit-workflow-routing`, `spec-kit-project-map-gate`, `subagent-driven-development`, `test-driven-development`, `tdd-workflow`, `verification-before-completion`, and `dispatching-parallel-agents`
+- Passive support-skill mirrors: `templates/passive-skills/**`, especially `spec-kit-project-cognition-gate`, `subagent-driven-development`, `test-driven-development`, `tdd-workflow`, `verification-before-completion`, and `dispatching-parallel-agents`
 - Worker prompts used by delegated execution lanes: `templates/worker-prompts/*.md`
 - CLI registration, aliases, state routing, and generated-command help: `src/specify_cli/__init__.py`, `src/specify_cli/agents.py`, `src/specify_cli/workflow_markers.py`, `src/specify_cli/launcher.py`
 - Integration rendering and generated asset installation: `src/specify_cli/integrations/base.py` and `src/specify_cli/integrations/**`
@@ -988,13 +988,12 @@ When adding new agents:
 - When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.
 - Run `specify-runtime learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.
 
-## Workflow Recommendations
+## Workflow Invocation Boundary
 
-- Passive SKILL invocation is allowed only for `sp-discussion`, `sp-quick`,
-  `sp-debug`, and `sp-fast`. All other `sp-*` workflows are user-invoked only:
-  recommend the projected invocation and stop until the user invokes it.
-- Recommend `sp-discussion` for open-ended requirement exploration, `sp-specify` for formal alignment, `sp-deep-research` for feasibility proof, and `sp-debug` for root-cause diagnosis.
-- If the user invokes an `sp-*` workflow, follow that workflow's own contract.
+- All `sp-*` and `spx-*` workflow skills are user-invoked only. No passive
+  workflow router is installed, and natural-language similarity must not select
+  or enter a workflow indirectly.
+- If the user invokes an `sp-*` or `spx-*` workflow, follow that workflow's own contract.
 
 ## Command Surface Rules
 

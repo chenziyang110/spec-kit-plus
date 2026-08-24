@@ -594,22 +594,6 @@ def test_any_fix_requires_fresh_evidence_for_the_full_review_matrix(
     assert "byte" in flat and "digest" in flat
 
 
-def test_classic_routing_summarizes_the_acceptance_repair_cycle_contract() -> None:
-    routing = _flat(
-        _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
-    )
-
-    assert "new review cycle" in routing
-    assert "reviewed_runtime_targets" in routing and "immutable" in routing
-    assert "structured human confirmation" in routing
-    assert (
-        "reset every frozen human acceptance scenario" in routing
-        or "invalidates every prior human pass and confirmation" in routing
-        or "invalidate every human result" in routing
-    )
-    assert "full frozen human acceptance universe" in routing
-
-
 def test_diagnostic_packets_map_to_the_review_state_scenario_kind() -> None:
     contracts = (
         _flat(_read("templates/command-references/review/subagent-review-contract.md")),

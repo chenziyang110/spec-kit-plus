@@ -13,7 +13,6 @@ def test_classic_and_advanced_consumers_require_exact_catalog_binding() -> None:
         "templates/command-partials/common/context-loading-gradient.md",
         "templates/command-partials/common/planning-context-loading-gradient.md",
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
         "templates/advanced-skills/_shared/project-cognition.md",
     ]
 

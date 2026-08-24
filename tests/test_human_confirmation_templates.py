@@ -205,7 +205,6 @@ def test_generated_quick_guidance_does_not_restore_the_legacy_approval_table() -
     propagated_sources = (
         "src/specify_cli/integrations/base.py",
         "src/specify_cli/integrations/cursor_agent/__init__.py",
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
         "README.md",
         "templates/project-handbook-template.md",
     )

@@ -2681,6 +2681,7 @@ class SkillsIntegration(IntegrationBase):
     """
 
     WORKFLOW_PROFILES = frozenset({"classic", "advanced"})
+    RETIRED_PASSIVE_SKILLS = frozenset({"spec-kit-workflow-routing"})
 
     def skills_dest(self, project_root: Path) -> Path:
         """Return the absolute path to the skills output directory.
@@ -2721,8 +2722,35 @@ class SkillsIntegration(IntegrationBase):
         return sorted(
             path
             for path in passive_dir.iterdir()
-            if path.is_dir() and (path / "SKILL.md").is_file()
+            if path.is_dir()
+            and path.name not in self.RETIRED_PASSIVE_SKILLS
+            and (path / "SKILL.md").is_file()
         )
+
+    def remove_retired_passive_skills(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        skills_dir: Path,
+    ) -> list[Path]:
+        """Remove unchanged files from passive skills retired by the product."""
+        project_root_resolved = project_root.resolve()
+        skills_prefix = skills_dir.resolve().relative_to(project_root_resolved)
+        removed: list[Path] = []
+        for relative in sorted(manifest.files):
+            relative_path = Path(relative)
+            try:
+                skill_relative = relative_path.relative_to(skills_prefix)
+            except ValueError:
+                continue
+            if (
+                not skill_relative.parts
+                or skill_relative.parts[0] not in self.RETIRED_PASSIVE_SKILLS
+            ):
+                continue
+            if manifest.remove_file_if_unmodified(relative_path):
+                removed.append(project_root_resolved / relative_path)
+        return removed
 
     def shared_advanced_skills_dir(self) -> Path | None:
         """Return the opt-in advanced-model skill template directory."""
@@ -2832,7 +2860,7 @@ class SkillsIntegration(IntegrationBase):
                 processed_body,
             )
 
-        description = CommandRegistrar.apply_classic_skill_invocation_policy(
+        description = CommandRegistrar.apply_workflow_skill_invocation_policy(
             skill_name,
             description,
         )
@@ -2865,19 +2893,12 @@ class SkillsIntegration(IntegrationBase):
         skill_name: str,
         description: str,
     ) -> str:
-        from specify_cli.agents import CommandRegistrar
-
         display_words = [
             part.capitalize()
             for part in skill_name.removeprefix("sp-").split("-")
             if part
         ]
         display_name = f"SP {' '.join(display_words)}".strip()
-        allow_implicit = (
-            "true"
-            if CommandRegistrar.is_passively_invocable_classic_skill(skill_name)
-            else "false"
-        )
         return (
             "interface:\n"
             f"  display_name: {self._quote_skill_value(display_name)}\n"
@@ -2885,7 +2906,7 @@ class SkillsIntegration(IntegrationBase):
             f"  default_prompt: {self._quote_skill_value(f'Use ${skill_name} to run this workflow.')}\n"
             "\n"
             "policy:\n"
-            f"  allow_implicit_invocation: {allow_implicit}\n"
+            "  allow_implicit_invocation: false\n"
         )
 
     def _copy_command_reference_sidecars(
@@ -3367,6 +3388,8 @@ class SkillsIntegration(IntegrationBase):
                 f"Skills destination {skills_dir} escapes "
                 f"project root {project_root_resolved}"
             ) from exc
+
+        self.remove_retired_passive_skills(project_root, manifest, skills_dir)
 
         script_type = opts.get("script_type", "sh")
         arg_placeholder = (

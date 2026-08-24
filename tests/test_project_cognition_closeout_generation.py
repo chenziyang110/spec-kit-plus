@@ -468,11 +468,6 @@ def test_greenfield_with_project_code_uses_structured_rebuild_recovery() -> None
         / "passive-skills"
         / "spec-kit-project-cognition-gate"
         / "SKILL.md",
-        ROOT
-        / "templates"
-        / "passive-skills"
-        / "spec-kit-workflow-routing"
-        / "SKILL.md",
     )
 
     for surface in surfaces:
@@ -499,11 +494,6 @@ def test_blocked_compass_degraded_reads_remain_bounded_advisory_navigation() -> 
         / "templates"
         / "passive-skills"
         / "spec-kit-project-cognition-gate"
-        / "SKILL.md",
-        ROOT
-        / "templates"
-        / "passive-skills"
-        / "spec-kit-workflow-routing"
         / "SKILL.md",
     )
 
