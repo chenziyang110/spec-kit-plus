@@ -23,13 +23,12 @@ Txx, dispatch, join, resume, or completion handoff.
 
 Route first, choose the lightest safe execution surface, then packetize only selected delegated work.
 
-Passive SKILL invocation may enter only `sp-discussion`, `sp-quick`, `sp-debug`,
-or `sp-fast`. For every other `sp-*` workflow, routing means recommending the
-projected invocation and waiting for the user to invoke it; this passive skill
-must not load or enter that workflow itself.
+Passive SKILL invocation must not enter any `sp-*` or `spx-*` workflow. Routing
+means recommending the projected invocation and waiting for the user to invoke
+it; this passive skill must not load or enter that workflow itself.
 
-- Route into the smallest correct `sp-*` workflow before implementation or
-  investigation begins.
+- Route into the smallest correct `sp-*` or `spx-*` workflow before
+  implementation or investigation begins.
 - Use leader-direct execution for a small or tightly coupled task when delegation
   adds no critical-path or quality benefit and the owning workflow permits it.
 - Compile and validate a `WorkerTaskPacket` just in time before selected delegated work.
@@ -52,7 +51,7 @@ must not load or enter that workflow itself.
 
 ## Process
 
-1. **Select the owning workflow**: Passively enter `sp-quick` for tracked direct
+1. **Select the owning workflow**: Recommend `sp-quick` for tracked direct
    delivery or `sp-debug` for root-cause work when the request matches. When a
    plan lacks an executable task graph, recommend `{{invoke:tasks}}` and stop.
    For planned feature execution, recommend `{{invoke:implement}}` and stop.

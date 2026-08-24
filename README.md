@@ -784,11 +784,10 @@ Implementation closes with a real-entrypoint capture, visual inspection,
 repair, and recapture loop. If comparison is unavailable, fidelity remains
 `pending-human-review` instead of being claimed as complete.
 
-For generated Classic SKILL integrations, passive model invocation has one exact
-allowlist: `sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`. Every other
-`sp-*` skill is user-invoked only; agents may recommend its projected command but
-must stop until the user invokes it. Resuming a workflow the user already invoked
-does not reopen the passive-entry decision.
+For generated SKILL integrations, all `sp-*` and `spx-*` workflow skills are
+user-invoked only. The passive workflow router is not installed, so
+natural-language similarity does not select or enter a workflow indirectly.
+Resuming a workflow the user already invoked does not reopen the entry decision.
 
 Use `ask` for read-only evidence-backed project Q&A when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. In v1, `sp-ask` is independent from `sp-discussion`, creates no state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. There is no `specify ask` Typer helper in v1.
 

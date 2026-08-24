@@ -48,7 +48,7 @@ def test_cursor_skills_init_installs_command_and_passive_skills(tmp_path):
     assert "Do not execute project CLI commands" in ask_content
     assert "discussion-state.md" not in ask_content
     assert "handoff-to-specify" not in ask_content
-    assert (target / ".cursor" / "skills" / "spec-kit-workflow-routing" / "SKILL.md").exists()
+    assert not (target / ".cursor" / "skills" / "spec-kit-workflow-routing").exists()
 
     for skill_name in ("sp-design", "sp-plan", "sp-tasks"):
         content = _read_skill_with_references(

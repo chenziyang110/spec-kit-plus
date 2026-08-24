@@ -141,18 +141,11 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "specify-runtime learning start" in content
     assert "show_argv" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
-    assert "## Workflow Recommendations" in content
-    assert (
-        "passive skill invocation must not enter any `sp-*` or `spx-*` workflow"
-        in lower
-    )
-    assert "all `sp-*` and `spx-*` workflows are user-invoked only" in lower
-    assert "recommend `sp-discussion`" in lower
-    assert "presents both `sp-quick` and `sp-specify`" in lower
-    assert "complexity-informed recommendation" in lower
-    assert "user makes the final choice" in lower
-    assert "`sp-deep-research` for feasibility proof" in lower
-    assert "`sp-debug` for root-cause diagnosis" in lower
+    assert "## Workflow Invocation Boundary" in content
+    assert "all `sp-*` and `spx-*` workflow skills are user-invoked only" in lower
+    assert "no passive workflow router is installed" in lower
+    assert "## workflow recommendations" not in lower
+    assert "recommend `sp-discussion`" not in lower
     assert "## Command Surface Rules" in content
     assert "specify-runtime api list" in content
     assert "generated create-feature script" in lower
@@ -654,16 +647,6 @@ class TomlIntegrationTests:
         context_path = tmp_path / self.CONTEXT_FILE
         if context_path.exists():
             surfaces.append(context_path)
-
-        routing_toml = i.commands_dest(tmp_path) / i.command_filename("spec-kit-workflow-routing")
-        if routing_toml.exists():
-            surfaces.append(routing_toml)
-            routing_content = routing_toml.read_text(encoding="utf-8").lower()
-            assert "high-throughput senior product-engineering advisor" in routing_content
-            assert "frontstage / backstage separation" in routing_content
-            assert "does not persist every turn" in routing_content
-            assert "continues by default" in routing_content
-            assert "does not ask for continuation" in routing_content
 
         for path in surfaces:
             content = path.read_text(encoding="utf-8").lower()

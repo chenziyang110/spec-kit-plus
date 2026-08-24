@@ -8,15 +8,13 @@ origin: spec-kit-plus
 
 This passive skill is the brownfield advisory navigation layer, not a hard workflow gate.
 
-Only `sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast` may be entered
-passively. Every other `sp-*` workflow is user-invoked only: recommend its
-projected invocation and stop until the user explicitly invokes it. Cognition
+Passive SKILL invocation must not enter any `sp-*` or `spx-*` workflow. All
+`sp-*` and `spx-*` workflows are user-invoked only: recommend the projected
+invocation and stop until the user explicitly invokes it. Cognition
 advice must not load or enter a restricted map or feature workflow.
 
 ## Complementary Passive Skills
 
-- `spec-kit-workflow-routing` owns route selection into the correct `sp-*` workflow
-  before implementation, planning, or debugging proceeds.
 - `spec-kit-project-learning` owns the shared memory capture layer after context is
   loaded. Once this gate is satisfied, follow that skill's learning-start and
   learning-capture expectations for the active workflow.

@@ -116,18 +116,11 @@ def _assert_compact_managed_context(content: str) -> None:
     assert ".specify" in content and "specify-runtime" in content
     assert "show_argv" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
-    assert "## Workflow Recommendations" in content
-    assert (
-        "passive skill invocation must not enter any `sp-*` or `spx-*` workflow"
-        in lower
-    )
-    assert "all `sp-*` and `spx-*` workflows are user-invoked only" in lower
-    assert "recommend `sp-discussion`" in lower
-    assert "presents both `sp-quick` and `sp-specify`" in lower
-    assert "complexity-informed recommendation" in lower
-    assert "user makes the final choice" in lower
-    assert "`sp-deep-research` for feasibility proof" in lower
-    assert "`sp-debug` for root-cause diagnosis" in lower
+    assert "## Workflow Invocation Boundary" in content
+    assert "all `sp-*` and `spx-*` workflow skills are user-invoked only" in lower
+    assert "no passive workflow router is installed" in lower
+    assert "## workflow recommendations" not in lower
+    assert "recommend `sp-discussion`" not in lower
     assert "## Command Surface Rules" in content
     assert "api list --format json" in content
     assert "api show workflow.block --format json" in content
@@ -1161,15 +1154,9 @@ class SkillsIntegrationTests:
         if context_path.exists():
             surfaces.append(context_path)
 
-        routing_skill = i.skills_dest(tmp_path) / "spec-kit-workflow-routing" / "SKILL.md"
-        if routing_skill.exists():
-            surfaces.append(routing_skill)
-            routing_content = routing_skill.read_text(encoding="utf-8").lower()
-            assert "high-throughput senior product-engineering advisor" in routing_content
-            assert "frontstage / backstage separation" in routing_content
-            assert "does not persist every turn" in routing_content
-            assert "continues by default" in routing_content
-            assert "does not ask for continuation" in routing_content
+        assert not (
+            i.skills_dest(tmp_path) / "spec-kit-workflow-routing"
+        ).exists()
 
         for path in surfaces:
             content = path.read_text(encoding="utf-8").lower()
@@ -1394,12 +1381,14 @@ class SkillsIntegrationTests:
             ), (self.KEY, skill_file.parent.name)
             assert "Do not select it automatically." in frontmatter["description"]
 
-            openai_metadata = yaml.safe_load(
-                (skill_file.parent / "agents" / "openai.yaml").read_text(
-                    encoding="utf-8"
+            metadata_path = skill_file.parent / "agents" / "openai.yaml"
+            if self.KEY == "codex":
+                assert metadata_path.exists(), skill_file.parent.name
+            if metadata_path.exists():
+                openai_metadata = yaml.safe_load(
+                    metadata_path.read_text(encoding="utf-8")
                 )
-            )
-            assert openai_metadata["policy"]["allow_implicit_invocation"] is False
+                assert openai_metadata["policy"]["allow_implicit_invocation"] is False
 
             if self.KEY in {"claude", "cursor-agent", "grok", "kimi"}:
                 assert frontmatter["disable-model-invocation"] is True

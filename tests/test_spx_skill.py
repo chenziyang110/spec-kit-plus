@@ -1954,6 +1954,39 @@ def test_classic_profile_keeps_existing_skills_and_does_not_install_spx(
 
 
 @pytest.mark.parametrize("integration_key", SKILLS_INTEGRATIONS)
+def test_all_skills_integrations_require_explicit_classic_invocation(
+    tmp_path,
+    integration_key,
+) -> None:
+    integration = get_integration(integration_key)
+    project = tmp_path / integration_key
+    manifest = IntegrationManifest(integration_key, project)
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "classic"},
+        script_type="sh",
+    )
+
+    skill_files = sorted(integration.skills_dest(project).glob("sp-*/SKILL.md"))
+    assert skill_files, integration_key
+    for skill_file in skill_files:
+        frontmatter = _frontmatter(skill_file)
+        assert frontmatter["description"].startswith(
+            CommandRegistrar.USER_INVOKED_DESCRIPTION_PREFIX
+        ), (integration_key, skill_file.parent.name)
+        metadata_path = skill_file.parent / "agents" / "openai.yaml"
+        if integration_key == "codex":
+            assert metadata_path.exists(), skill_file.parent.name
+        if metadata_path.exists():
+            metadata = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))
+            assert metadata["policy"]["allow_implicit_invocation"] is False
+        if integration_key in {"claude", "cursor-agent", "grok", "kimi"}:
+            assert frontmatter["disable-model-invocation"] is True
+
+
+@pytest.mark.parametrize("integration_key", SKILLS_INTEGRATIONS)
 def test_all_skills_integrations_support_the_advanced_profile(
     tmp_path,
     integration_key,

@@ -417,7 +417,6 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
 
     for path in (
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
     ):
         content = _read(path)
         assert "rendered planner-first closeout command" in content, path
@@ -566,19 +565,6 @@ def test_discussion_and_specify_share_read_only_evidence_lane_contract() -> None
     )
     assert "leader owns product judgment" in discussion.lower()
     assert "never for source edits or artifact writes" in specify.lower()
-
-
-def test_workflow_routing_recommends_ask_before_discussion_for_read_only_questions() -> None:
-    routing = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
-    lowered = routing.lower()
-
-    assert "Use `sp-ask` before `sp-discussion`" in routing
-    assert "{{invoke:ask}}" in routing
-    assert "read-only project" in lowered
-    assert "evidence from live files, templates, docs, generated" in routing
-    assert "memory, or project cognition" in routing
-    assert "does not write state, create" in routing
-    assert "handoffs, run tests, run builds, or edit files" in routing
 
 
 def test_project_cognition_gate_has_ask_specific_read_only_navigation() -> None:
@@ -834,7 +820,6 @@ TASK7_GREENFIELD_POLICY_SURFACES = {
     "navigation check": "templates/command-partials/common/navigation-check.md",
     "senior consequence gate": "templates/command-partials/common/senior-consequence-analysis-gate.md",
     "project cognition gate": "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
-    "workflow routing": "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
 }
 
 TASK7_MAP_POLICY_LABELS = {
@@ -845,7 +830,6 @@ TASK7_MAP_POLICY_LABELS = {
     "navigation check",
     "senior consequence gate",
     "project cognition gate",
-    "workflow routing",
 }
 
 LEGACY_MAP_POLICY_ALLOWLIST = {
@@ -1092,19 +1076,11 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "show_argv" in block
     assert ".specify/memory/learnings/INDEX.md" not in block
 
-    assert "## Workflow Recommendations" in block
-    assert (
-        "passive skill invocation must not enter any `sp-*` or `spx-*` workflow"
-        in lowered
-    )
-    assert "all `sp-*` and `spx-*` workflows are user-invoked only" in lowered
-    assert "recommend `sp-discussion`" in lowered
-    assert "presents both `sp-quick` and `sp-specify`" in lowered
-    assert "complexity-informed recommendation" in lowered
-    assert "user makes the final choice" in lowered
-    assert "`sp-deep-research` for feasibility proof" in lowered
-    assert "`sp-debug` for root-cause diagnosis" in lowered
-
+    assert "## Workflow Invocation Boundary" in block
+    assert "all `sp-*` and `spx-*` workflow skills are user-invoked only" in lowered
+    assert "no passive workflow router is installed" in lowered
+    assert "## workflow recommendations" not in lowered
+    assert "recommend `sp-discussion`" not in lowered
     assert "## Command Surface Rules" in block
     assert "{{specify-runtime-cli}} api list --format json" in block
     assert "specify create-feature" in block
@@ -1611,9 +1587,8 @@ def test_discussion_handoff_assessment_preview_precedes_artifact_writes() -> Non
 def test_discussion_does_not_route_to_a_consumer_before_ready_handoff() -> None:
     content = _read("templates/commands/discussion.md")
     shell = _read("templates/command-partials/discussion/shell.md")
-    routing = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
     review = _read("templates/passive-skills/spec-kit-discussion-handoff-review/SKILL.md")
-    combined = "\n".join([content, shell, routing, review])
+    combined = "\n".join([content, shell, review])
     lowered = combined.lower()
 
     assert "pre-ready handoff next-step guard" in lowered
@@ -1623,8 +1598,6 @@ def test_discussion_does_not_route_to_a_consumer_before_ready_handoff() -> None:
     assert "before `handoff-ready`, do not describe the next consumption path as a user-invoked `sp-quick` or `sp-specify` command" in lowered
     assert "`specification-input.md`, `discussion-state.md`, and other discussion source files are not fallback handoffs" in lowered
     assert "specification-input.md` is not a substitute handoff" in lowered
-    assert "the next action is `sp-discussion` handoff creation, review, or repair" in lowered
-    assert "ready json contract exists" in lowered
 
 
 def test_discussion_handoff_prompt_uses_executable_digest_bound_transition() -> None:
@@ -1645,18 +1618,16 @@ def test_discussion_handoff_prompt_uses_executable_digest_bound_transition() -> 
     assert "decide `ready-for-handoff`" not in combined
 
 
-def test_managed_context_preserves_active_discussion_across_follow_up_turns() -> None:
+def test_managed_context_removes_indirect_workflow_router_guidance() -> None:
     source = _read("src/specify_cli/__init__.py")
     bash = _read("scripts/bash/update-agent-context.sh")
     powershell = _read("scripts/powershell/update-agent-context.ps1")
-    routing = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
-    combined = "\n".join([source, bash, powershell, routing]).lower()
+    combined = "\n".join([source, bash, powershell]).lower()
 
-    assert "continuing an already-invoked incomplete workflow is not auto-entry" in combined
-    assert "before recommending `sp-quick` or `sp-specify` from a discussion" in combined
-    assert "`recommended_consumer`" in combined
-    assert "not `handoff-ready`" in combined
-    assert "resume `sp-discussion`" in combined
+    assert "workflow invocation boundary" in combined
+    assert "no passive workflow router is installed" in combined
+    assert "workflow recommendations" not in combined
+    assert "before recommending `sp-quick` or `sp-specify`" not in combined
 
 
 def test_discussion_readiness_summary_does_not_plan_execution_phases() -> None:
@@ -2258,42 +2229,6 @@ def test_specify_discussion_handoff_has_coverage_and_planning_gate_split() -> No
     assert "zero hard unknowns and open conflicts" in lowered
 
 
-def test_workflow_routing_discussion_selects_quick_or_specify_for_rough_ideas() -> None:
-    content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
-    lowered = content.lower()
-
-    assert "sp-discussion" in content
-    assert "rough idea" in lowered
-    assert "not-yet-ready" in lowered
-    assert "before either direct quick delivery or formal specification" in lowered
-    assert "explicit handoff" in lowered
-    assert "{{invoke:discussion}}" in content
-    assert "{{invoke:specify}}" in content
-    assert "senior product-engineering advisor" in lowered
-    assert "high-throughput senior product-engineering advisor" in lowered
-    assert "visible conversation" in lowered
-    assert "frontstage / backstage separation" in lowered
-    assert "state accounting backstage" in lowered
-    assert "checkpoint persistence" in lowered
-    assert "does not persist every turn" in lowered
-    assert "continues by default" in lowered
-    assert "does not ask for continuation" in lowered
-    assert "truth pass" in lowered
-    assert "discussion compass" in lowered
-    assert "proactive implication mapping" in lowered
-    assert "json path or discussion slug" in lowered
-    assert "exactly one unconsumed `handoff-ready` discussion" in content
-    assert "before feature creation" in lowered
-    assert "`recommended_consumer`" in content
-    assert "present both paths and their eligibility" in lowered
-    assert "explain any blocker" in lowered
-    assert "complexity-informed recommendation" in lowered
-    assert "user's final choice" in lowered
-    assert "recommend `sp-quick` for bounded" in lowered
-    assert "recommend `sp-specify` for high-complexity" in lowered
-    assert "task size alone is not a hard routing ceiling" in lowered
-
-
 def test_project_cognition_gate_has_staged_discussion_gate() -> None:
     content = _read("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md")
     lowered = content.lower()
@@ -2609,13 +2544,6 @@ def test_map_update_first_policy_is_locked_across_owned_surfaces() -> None:
             "for blocked, stale",
             "for brownfield missing or unusable reference baselines",
             context=4,
-        ),
-        "workflow routing": _extract_matching_lines(
-            _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md"),
-            "use `sp-map-update`",
-            "use `sp-map-scan`",
-            "only for brownfield",
-            context=6,
         ),
         "README": _extract_matching_lines(
             _read_project_file("README.md"),
@@ -3973,22 +3901,6 @@ def test_auto_routes_feature_test_design_before_tasks_and_rejects_stale_handoffs
     assert "artifact_digests" in lowered
 
 
-def test_shared_routing_keeps_test_design_optional_and_project_scope_isolated() -> None:
-    content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
-    lowered = " ".join(content.lower().split())
-
-    assert "sp-plan -> [sp-test-design] -> sp-tasks" in lowered
-    assert "artifact list --path-prefix <feature-dir>/test-design/" in lowered
-    assert "specify-runtime test-design status --feature-dir <feature-dir>" in lowered
-    for state in ("active", "blocked", "validated-unhanded", "stale"):
-        assert state in lowered
-    assert "fresh handed-off" in lowered
-    assert "project-baseline" in lowered
-    assert "explicitly selected project scope" in lowered
-    assert "must not compete with or override a selected feature lineage" in lowered
-    assert "{{invoke:test-design}}" in content
-
-
 def test_discussion_convergence_never_becomes_implementation_authority() -> None:
     surfaces = {
         "classic": " ".join(
@@ -4043,11 +3955,6 @@ def test_auto_routing_keeps_continuations_inside_one_workflow_lineage() -> None:
             .lower()
             .split()
         ),
-        "shared": " ".join(
-            _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
-            .lower()
-            .split()
-        ),
     }
 
     for surface, content in surfaces.items():
@@ -4065,12 +3972,6 @@ def test_auto_routing_keeps_continuations_inside_one_workflow_lineage() -> None:
             in content
         ), surface
         assert "do not enumerate `.specify/features/**`" in content, surface
-
-    shared = surfaces["shared"]
-    assert "`可以继续下一步`" in shared
-    assert "do not authorize the agent to synthesize a downstream stage" in shared
-    assert "never directly to `sp-implement`" in shared
-
 
 def test_implement_requires_proven_feature_context_before_task_intake() -> None:
     surfaces = {
@@ -4188,9 +4089,6 @@ def test_plan_tasks_templates_enforce_complete_first_scope_preservation() -> Non
         "templates/plan-template.md": _read("templates/plan-template.md").lower(),
         "templates/commands/tasks.md": _read("templates/commands/tasks.md").lower(),
         "templates/tasks-template.md": _read("templates/tasks-template.md").lower(),
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md": _read(
-            "templates/passive-skills/spec-kit-workflow-routing/SKILL.md"
-        ).lower(),
     }
 
     expected_by_surface = {
@@ -4229,12 +4127,6 @@ def test_plan_tasks_templates_enforce_complete_first_scope_preservation() -> Non
             "agent-invented `v1/v2`",
             "agent-invented `p0/p1`",
             "future-work delivery slice",
-        ),
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md": (
-            "complete-first scope preservation",
-            "do not shrink scope",
-            "runtime capability limits are blockers only under the adaptive execution policy",
-            "heavy, safety-critical, or unpacketizable",
         ),
     }
 
@@ -4638,7 +4530,6 @@ def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
         "templates/command-partials/common/navigation-check.md",
         "templates/command-partials/fast/shell.md",
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
         "templates/project-handbook-template.md",
         "templates/constitution-template.md",
     )
@@ -4654,7 +4545,6 @@ def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
         assert "sp-map-update is for manual/external maintenance" in content.replace("`", ""), path
         if path in {
             "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
-            "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
         }:
             assert "rendered planner-first closeout command" in content, path
             assert "registry-owned literal `sp-*` workflow id" in content, path
@@ -4671,7 +4561,6 @@ def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
         "templates/command-partials/common/context-loading-gradient.md",
         "templates/command-partials/common/planning-context-loading-gradient.md",
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
         "templates/project-handbook-template.md",
     ):
         content = _read(path).lower()

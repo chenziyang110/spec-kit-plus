@@ -345,7 +345,7 @@ class TestCodexAutoPromote:
         assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
         assert (target / ".codex" / "skills" / "sp-plan" / "SKILL.md").exists()
         assert (target / ".codex" / "skills" / "sp-teams" / "SKILL.md").exists()
-        assert (target / ".codex" / "skills" / "spec-kit-workflow-routing" / "SKILL.md").exists()
+        assert not (target / ".codex" / "skills" / "spec-kit-workflow-routing").exists()
         assert (target / ".codex" / "skills" / "spec-kit-project-cognition-gate" / "SKILL.md").exists()
         assert not (target / ".codex" / "skills" / "spec-kit-project-map-gate").exists()
         assert (target / ".specify" / "teams" / "runtime.json").exists()
@@ -996,22 +996,10 @@ def test_codex_generated_passive_subagent_skills_include_stable_dispatch_contrac
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skills_dir = target / ".codex" / "skills"
-    routing = (skills_dir / "spec-kit-workflow-routing" / "SKILL.md").read_text(encoding="utf-8").lower()
     subagent = (skills_dir / "subagent-driven-development" / "SKILL.md").read_text(encoding="utf-8").lower()
     parallel = (skills_dir / "dispatching-parallel-agents" / "SKILL.md").read_text(encoding="utf-8").lower()
 
-    assert "passive skill invocation must not enter any `sp-*` or `spx-*` workflow" in routing
-    assert "all `sp-*` and `spx-*` workflows are user-invoked only" in routing
-    assert "you may recommend a" in routing
-    assert "natural-language tasks" in routing
-    assert "always-on" in routing
-    assert "project cognition and project learning" in routing
-    assert "red flags" in routing
-    assert "high-throughput senior product-engineering advisor" in routing
-    assert "frontstage / backstage separation" in routing
-    assert "does not persist every turn" in routing
-    assert "continues by default" in routing
-    assert "does not ask for continuation" in routing
+    assert not (skills_dir / "spec-kit-workflow-routing").exists()
 
     assert "native subagents" in subagent
     assert "validated `workertaskpacket`" in subagent
@@ -1430,7 +1418,7 @@ def test_codex_question_driven_skills_prefer_request_user_input_with_fallback(tm
     assert_quick_checkpoint_card_shape(quick_content)
 
 
-def test_codex_init_managed_rules_route_discussion_consumers_through_resolve(tmp_path):
+def test_codex_init_managed_rules_do_not_route_discussion_consumers(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app
 
@@ -1445,9 +1433,11 @@ def test_codex_init_managed_rules_route_discussion_consumers_through_resolve(tmp
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
     assert "start here" in result.output.lower()
     managed_rules = (target / "AGENTS.md").read_text(encoding="utf-8").lower()
-    assert "discussion resolve --intent sp-specify" in managed_rules
-    assert "discussion resolve --intent sp-quick" in managed_rules
-    assert "consumer selection" in managed_rules
+    assert "workflow invocation boundary" in managed_rules
+    assert "no passive workflow router is installed" in managed_rules
+    assert "discussion resolve --intent sp-specify" not in managed_rules
+    assert "discussion resolve --intent sp-quick" not in managed_rules
+    assert "consumer selection" not in managed_rules
     assert "discussion status" not in managed_rules
 
 

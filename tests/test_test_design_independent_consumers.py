@@ -365,7 +365,6 @@ def test_review_treats_test_design_as_input_not_pass_evidence(surface: str) -> N
     "surface",
     (
         "templates/commands/auto.md",
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
         "templates/advanced-skills/spx-auto/references/routing-contract.md",
     ),
 )

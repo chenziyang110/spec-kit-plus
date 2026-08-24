@@ -64,7 +64,6 @@ def test_current_query_contract_versions_propagate_to_agent_routing_surfaces() -
         "templates/command-partials/common/context-loading-gradient.md",
         "templates/command-partials/common/planning-context-loading-gradient.md",
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
     ):
         content = " ".join(_read(rel_path).lower().split())
 

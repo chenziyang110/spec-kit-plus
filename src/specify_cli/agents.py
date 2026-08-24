@@ -39,15 +39,10 @@ class CommandRegistrar:
     # Populated lazily via _ensure_configs() on first use.
     AGENT_CONFIGS: dict[str, dict[str, Any]] = {}
     _configs_loaded: bool = False
-    PASSIVELY_INVOCABLE_CLASSIC_SKILLS = frozenset(
-        {
-            "sp-debug",
-            "sp-discussion",
-            "sp-fast",
-            "sp-quick",
-        }
+    PASSIVELY_INVOCABLE_CLASSIC_SKILLS = frozenset()
+    NATIVE_MODEL_INVOCATION_CONTROL_AGENTS = frozenset(
+        {"claude", "cursor-agent", "grok", "kimi"}
     )
-    NATIVE_MODEL_INVOCATION_CONTROL_AGENTS = frozenset({"claude", "grok"})
     USER_INVOKED_DESCRIPTION_PREFIX = (
         "User-invoked workflow only: activate only after the user explicitly "
         "invokes this SKILL through the current integration. Do not select it "
@@ -285,7 +280,7 @@ class CommandRegistrar:
         source: str,
     ) -> dict:
         """Build consistent SKILL.md frontmatter across all skill generators."""
-        description = CommandRegistrar.apply_classic_skill_invocation_policy(
+        description = CommandRegistrar.apply_workflow_skill_invocation_policy(
             skill_name,
             description,
         )
@@ -299,13 +294,13 @@ class CommandRegistrar:
             },
         }
         if agent_name in {"claude", "grok"}:
-            # Slash-command skill UIs should mark workflow skills user-invocable.
+            # Slash-command skill UIs expose an explicit user-invocable marker.
             skill_frontmatter["user-invocable"] = True
-            if CommandRegistrar.requires_native_model_invocation_disable(
-                agent_name,
-                skill_name,
-            ):
-                skill_frontmatter["disable-model-invocation"] = True
+        if CommandRegistrar.requires_native_model_invocation_disable(
+            agent_name,
+            skill_name,
+        ):
+            skill_frontmatter["disable-model-invocation"] = True
         return skill_frontmatter
 
     @classmethod
@@ -322,17 +317,33 @@ class CommandRegistrar:
         )
 
     @classmethod
+    def is_user_invoked_workflow_skill(cls, skill_name: str) -> bool:
+        """Return whether an ``sp-*`` or ``spx-*`` workflow requires user entry."""
+        if skill_name.startswith("spx-"):
+            return True
+        return cls.is_user_invoked_classic_skill(skill_name)
+
+    @classmethod
+    def apply_workflow_skill_invocation_policy(
+        cls,
+        skill_name: str,
+        description: str,
+    ) -> str:
+        """Mark every workflow skill as unavailable to automatic selection."""
+        if not cls.is_user_invoked_workflow_skill(skill_name):
+            return description
+        if description.startswith(cls.USER_INVOKED_DESCRIPTION_PREFIX):
+            return description
+        return cls.USER_INVOKED_DESCRIPTION_PREFIX + description
+
+    @classmethod
     def apply_classic_skill_invocation_policy(
         cls,
         skill_name: str,
         description: str,
     ) -> str:
-        """Make user-only Classic workflows undiscoverable by task similarity."""
-        if not cls.is_user_invoked_classic_skill(skill_name):
-            return description
-        if description.startswith(cls.USER_INVOKED_DESCRIPTION_PREFIX):
-            return description
-        return cls.USER_INVOKED_DESCRIPTION_PREFIX + description
+        """Compatibility alias for the cross-profile workflow invocation policy."""
+        return cls.apply_workflow_skill_invocation_policy(skill_name, description)
 
     @classmethod
     def requires_native_model_invocation_disable(
@@ -343,7 +354,7 @@ class CommandRegistrar:
         """Return whether this integration can hard-block automatic invocation."""
         return (
             agent_name in cls.NATIVE_MODEL_INVOCATION_CONTROL_AGENTS
-            and cls.is_user_invoked_classic_skill(skill_name)
+            and cls.is_user_invoked_workflow_skill(skill_name)
         )
 
     @staticmethod

@@ -12,7 +12,6 @@ SHARED_COGNITION_PARTIALS = (
 SHARED_COGNITION_GUIDANCE_SURFACES = (
     *SHARED_COGNITION_PARTIALS,
     "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
-    "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
 )
 EPISTEMIC_CONTRACT_TERMS = (
     "epistemic_contract",
@@ -337,7 +336,6 @@ def test_shared_project_cognition_partials_require_semantic_intake_contract() ->
         "templates/command-partials/common/context-loading-gradient.md",
         "templates/command-partials/common/planning-context-loading-gradient.md",
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
     ]:
         content = _read(path).lower()
         for term in required_terms:
@@ -893,7 +891,6 @@ def test_shared_project_cognition_partials_require_project_language_search_terms
         "templates/command-partials/common/context-loading-gradient.md",
         "templates/command-partials/common/planning-context-loading-gradient.md",
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
     ]:
         content = _compact(_read(path).lower())
         assert "project-language search terms" in content, path
@@ -916,7 +913,6 @@ def test_shared_project_cognition_partials_assign_semantic_normalization_to_agen
         "templates/command-partials/common/context-loading-gradient.md",
         "templates/command-partials/common/planning-context-loading-gradient.md",
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
-        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
     ]:
         content = _compact(_read(path).lower())
         for term in required_terms:
