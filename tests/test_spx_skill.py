@@ -63,12 +63,6 @@ CLASSIC_MAP_COMPANION_SKILLS = {
     "sp-map-scan",
     "sp-map-update",
 }
-CLASSIC_IMPLICIT_INVOCATION_SKILLS = {
-    "sp-debug",
-    "sp-discussion",
-    "sp-fast",
-    "sp-quick",
-}
 SKILLS_INTEGRATIONS = (
     "agy",
     "claude",
@@ -943,7 +937,7 @@ def test_advanced_profile_installs_spx_with_only_classic_map_companions(
         assert "Mandatory Subagent Execution" in skill.read_text(encoding="utf-8")
 
 
-def test_classic_codex_openai_metadata_limits_implicit_invocation_to_passive_workflows(
+def test_classic_codex_openai_metadata_requires_explicit_invocation(
     tmp_path,
 ) -> None:
     integration = get_integration("codex")
@@ -967,12 +961,8 @@ def test_classic_codex_openai_metadata_limits_implicit_invocation_to_passive_wor
     }
 
     assert set(metadata_by_skill) == installed_sp_skills
-    assert {
-        skill_name
-        for skill_name, metadata in metadata_by_skill.items()
-        if metadata["policy"]["allow_implicit_invocation"] is True
-    } == CLASSIC_IMPLICIT_INVOCATION_SKILLS
     for skill_name, metadata in metadata_by_skill.items():
+        assert metadata["policy"]["allow_implicit_invocation"] is False
         assert f"${skill_name}" in metadata["interface"]["default_prompt"]
 
 
@@ -1993,6 +1983,19 @@ def test_all_skills_integrations_support_the_advanced_profile(
         for skill_name in SPX_SKILLS:
             skill = skills_dir / skill_name / "SKILL.md"
             assert _frontmatter(skill)["user-invocable"] is True
+
+    for skill_name in SPX_SKILLS | CLASSIC_MAP_COMPANION_SKILLS:
+        skill_dir = skills_dir / skill_name
+        frontmatter = _frontmatter(skill_dir / "SKILL.md")
+        assert frontmatter["description"].startswith(
+            CommandRegistrar.USER_INVOKED_DESCRIPTION_PREFIX
+        ), (integration_key, skill_name)
+        metadata = yaml.safe_load(
+            (skill_dir / "agents" / "openai.yaml").read_text(encoding="utf-8")
+        )
+        assert metadata["policy"]["allow_implicit_invocation"] is False
+        if integration_key in {"claude", "cursor-agent", "grok", "kimi"}:
+            assert frontmatter["disable-model-invocation"] is True
 
     cognition_reference = (
         skills_dir / "spx-ask" / "references" / "project-cognition.md"

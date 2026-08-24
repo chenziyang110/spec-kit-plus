@@ -177,9 +177,11 @@ def _assert_managed_block_is_compact_always_on_context(content: str) -> None:
     assert "show_argv" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## workflow recommendations" in lower
-    assert "passive skill invocation is allowed only for" in lower
-    assert "`sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`" in lower
-    assert "all other `sp-*` workflows are user-invoked only" in lower
+    assert (
+        "passive skill invocation must not enter any `sp-*` or `spx-*` workflow"
+        in lower
+    )
+    assert "all `sp-*` and `spx-*` workflows are user-invoked only" in lower
     assert "recommend `sp-discussion`" in lower
     assert "presents both `sp-quick` and `sp-specify`" in lower
     assert "complexity-informed recommendation" in lower

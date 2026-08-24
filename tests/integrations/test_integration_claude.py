@@ -55,9 +55,11 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "show_argv" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## Workflow Recommendations" in content
-    assert "passive skill invocation is allowed only for" in lower
-    assert "`sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`" in lower
-    assert "all other `sp-*` workflows are user-invoked only" in lower
+    assert (
+        "passive skill invocation must not enter any `sp-*` or `spx-*` workflow"
+        in lower
+    )
+    assert "all `sp-*` and `spx-*` workflows are user-invoked only" in lower
     assert "recommend `sp-discussion`" in lower
     assert "presents both `sp-quick` and `sp-specify`" in lower
     assert "complexity-informed recommendation" in lower
@@ -640,20 +642,11 @@ class TestClaudeIntegration:
         assert parsed["metadata"]["source"] == "templates/commands/plan.md"
         assert (skills_dir / "sp-implement-teams" / "SKILL.md").exists()
 
-        passively_invocable = {
-            "sp-debug",
-            "sp-discussion",
-            "sp-fast",
-            "sp-quick",
-        }
         for skill_file in sorted(skills_dir.glob("sp-*/SKILL.md")):
             skill_content = skill_file.read_text(encoding="utf-8")
             skill_frontmatter = yaml.safe_load(skill_content.split("---", 2)[1])
             assert skill_frontmatter["user-invocable"] is True
-            if skill_file.parent.name in passively_invocable:
-                assert "disable-model-invocation" not in skill_frontmatter
-            else:
-                assert skill_frontmatter["disable-model-invocation"] is True
+            assert skill_frontmatter["disable-model-invocation"] is True
 
     def test_setup_keeps_passive_skills_model_invokable(self, tmp_path):
         integration = get_integration("claude")

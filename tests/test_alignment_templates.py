@@ -1093,9 +1093,11 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert ".specify/memory/learnings/INDEX.md" not in block
 
     assert "## Workflow Recommendations" in block
-    assert "passive skill invocation is allowed only for" in lowered
-    assert "`sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`" in lowered
-    assert "all other `sp-*` workflows are user-invoked only" in lowered
+    assert (
+        "passive skill invocation must not enter any `sp-*` or `spx-*` workflow"
+        in lowered
+    )
+    assert "all `sp-*` and `spx-*` workflows are user-invoked only" in lowered
     assert "recommend `sp-discussion`" in lowered
     assert "presents both `sp-quick` and `sp-specify`" in lowered
     assert "complexity-informed recommendation" in lowered
