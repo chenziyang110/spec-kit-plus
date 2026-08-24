@@ -16,12 +16,7 @@ from .template_utils import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PASSIVELY_INVOCABLE_CLASSIC_SKILLS = {
-    "sp-debug",
-    "sp-discussion",
-    "sp-fast",
-    "sp-quick",
-}
+PASSIVELY_INVOCABLE_CLASSIC_SKILLS = set()
 
 
 def _normalize_newlines(text: str) -> str:
@@ -60,24 +55,30 @@ def _assert_managed_block_emitters_match_across_shells() -> None:
     assert bash_block == ps_block
 
 
-def test_classic_workflow_skill_passive_invocation_allowlist_is_exact():
+def test_classic_workflow_skills_do_not_allow_passive_invocation():
     assert (
         CommandRegistrar.PASSIVELY_INVOCABLE_CLASSIC_SKILLS
         == PASSIVELY_INVOCABLE_CLASSIC_SKILLS
     )
 
-    for skill_name in PASSIVELY_INVOCABLE_CLASSIC_SKILLS:
-        assert CommandRegistrar.is_passively_invocable_classic_skill(skill_name)
-
-    for skill_name in ("sp-plan", "sp-specify", "sp-implement", "sp-map-update"):
+    for skill_name in (
+        "sp-debug",
+        "sp-discussion",
+        "sp-fast",
+        "sp-quick",
+        "sp-plan",
+        "sp-specify",
+        "sp-implement",
+        "sp-map-update",
+    ):
         assert not CommandRegistrar.is_passively_invocable_classic_skill(skill_name)
 
 
-@pytest.mark.parametrize("agent_name", ("claude", "grok"))
-def test_native_skill_frontmatter_blocks_model_invocation_outside_allowlist(
+@pytest.mark.parametrize("agent_name", ("claude", "cursor-agent", "grok", "kimi"))
+def test_native_skill_frontmatter_blocks_model_invocation_for_all_workflows(
     agent_name: str,
 ):
-    allowed = CommandRegistrar.build_skill_frontmatter(
+    direct_delivery = CommandRegistrar.build_skill_frontmatter(
         agent_name,
         "sp-quick",
         "Use when direct delivery is appropriate.",
@@ -85,47 +86,69 @@ def test_native_skill_frontmatter_blocks_model_invocation_outside_allowlist(
     )
     restricted = CommandRegistrar.build_skill_frontmatter(
         agent_name,
-        "sp-plan",
+        "spx-plan",
         "Use when implementation planning is required.",
-        "templates/commands/plan.md",
+        "templates/advanced-skills/spx-plan/SKILL.md",
     )
 
-    assert allowed["user-invocable"] is True
-    assert "disable-model-invocation" not in allowed
-    assert restricted["user-invocable"] is True
+    assert direct_delivery["disable-model-invocation"] is True
     assert restricted["disable-model-invocation"] is True
+    if agent_name in {"claude", "grok"}:
+        assert direct_delivery["user-invocable"] is True
+        assert restricted["user-invocable"] is True
 
 
 @pytest.mark.parametrize(
     "agent_name",
-    ("agy", "codex", "cursor-agent", "kimi", "trae", "vibe", "zcode"),
+    ("agy", "claude", "codex", "cursor-agent", "grok", "kimi", "trae", "vibe", "zcode"),
 )
 def test_standard_skill_description_requires_explicit_user_invocation(
     agent_name: str,
 ):
-    frontmatter = CommandRegistrar.build_skill_frontmatter(
-        agent_name,
-        "sp-plan",
-        "Use when implementation planning is required.",
-        "templates/commands/plan.md",
-    )
+    for skill_name in ("sp-quick", "sp-debug", "sp-plan", "spx-plan"):
+        frontmatter = CommandRegistrar.build_skill_frontmatter(
+            agent_name,
+            skill_name,
+            "Use when implementation planning is required.",
+            "templates/commands/plan.md",
+        )
 
-    assert frontmatter["description"].startswith("User-invoked workflow only:")
-    assert "Do not select it automatically." in frontmatter["description"]
+        assert frontmatter["description"].startswith("User-invoked workflow only:")
+        assert "Do not select it automatically." in frontmatter["description"]
 
 
-def test_passive_workflow_router_declares_exact_invocation_allowlist():
+def test_passive_workflow_router_forbids_passive_sp_workflow_invocation():
     routing = read_template(
         "templates/passive-skills/spec-kit-workflow-routing/SKILL.md"
     )
     normalized = " ".join(routing.split())
 
     assert (
-        "Passive SKILL invocation is allowed only for `sp-discussion`, "
-        "`sp-quick`, `sp-debug`, and `sp-fast`" in normalized
+        "Passive SKILL invocation must not enter any `sp-*` or `spx-*` workflow"
+        in normalized
     )
-    assert "All other `sp-*` workflows are user-invoked only" in routing
+    assert "All `sp-*` and `spx-*` workflows are user-invoked only" in routing
     assert "recommend the projected invocation and stop" in routing
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "AGENTS.md",
+        "PROJECT-HANDBOOK.md",
+        "README.md",
+        "templates/project-handbook-template.md",
+    ),
+)
+def test_product_guidance_requires_explicit_invocation_for_both_workflow_profiles(
+    relative_path: str,
+):
+    content = read_template(relative_path)
+    normalized = " ".join(content.lower().split())
+
+    assert "all `sp-*` and `spx-*` workflow skills are user-invoked only" in normalized
+    assert "passive model invocation is allowed only" not in normalized
+    assert "passive model invocation has one exact allowlist" not in normalized
 
 
 @pytest.mark.parametrize(
@@ -1139,9 +1162,11 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert "python `specify` is human-only" in content
         assert "show_argv" in content
         assert ".specify/memory/learnings/index.md" not in content
-        assert "passive skill invocation is allowed only for" in content
-        assert "`sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`" in content
-        assert "all other `sp-*` workflows are user-invoked only" in content
+        assert (
+            "passive skill invocation must not enter any `sp-*` or `spx-*` workflow"
+            in content
+        )
+        assert "all `sp-*` and `spx-*` workflows are user-invoked only" in content
         assert "recommend `sp-discussion`" in content
         assert "presents both `sp-quick` and `sp-specify`" in content
         assert "complexity-informed recommendation" in content

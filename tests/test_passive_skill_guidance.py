@@ -36,6 +36,10 @@ def test_workflow_routing_references_cognition_gate_and_project_learning_roles()
     assert "handoff-to-specify.json" in content
     assert "exactly one unconsumed `handoff-ready` discussion" in content
     assert "before feature creation" in content
+    assert "passive invocation" not in content.replace(
+        "passive skill invocation must not enter", ""
+    )
+    assert "projected user invocation" in content
 
 
 def test_workflow_routing_distinguishes_embedded_task_review_from_system_review() -> None:

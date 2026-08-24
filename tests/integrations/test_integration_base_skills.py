@@ -117,9 +117,11 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "show_argv" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## Workflow Recommendations" in content
-    assert "passive skill invocation is allowed only for" in lower
-    assert "`sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`" in lower
-    assert "all other `sp-*` workflows are user-invoked only" in lower
+    assert (
+        "passive skill invocation must not enter any `sp-*` or `spx-*` workflow"
+        in lower
+    )
+    assert "all `sp-*` and `spx-*` workflows are user-invoked only" in lower
     assert "recommend `sp-discussion`" in lower
     assert "presents both `sp-quick` and `sp-specify`" in lower
     assert "complexity-informed recommendation" in lower
@@ -1373,6 +1375,34 @@ class SkillsIntegrationTests:
         for f in created:
             rel = f.resolve().relative_to(tmp_path.resolve()).as_posix()
             assert rel in m.files, f"{rel} not tracked in manifest"
+
+    def test_generated_classic_workflow_skills_require_explicit_invocation(
+        self, tmp_path
+    ):
+        integration = get_integration(self.KEY)
+        manifest = IntegrationManifest(self.KEY, tmp_path)
+        integration.setup(tmp_path, manifest)
+
+        skill_files = sorted(integration.skills_dest(tmp_path).glob("sp-*/SKILL.md"))
+        assert skill_files
+        for skill_file in skill_files:
+            frontmatter = yaml.safe_load(
+                skill_file.read_text(encoding="utf-8").split("---", 2)[1]
+            )
+            assert frontmatter["description"].startswith(
+                "User-invoked workflow only:"
+            ), (self.KEY, skill_file.parent.name)
+            assert "Do not select it automatically." in frontmatter["description"]
+
+            openai_metadata = yaml.safe_load(
+                (skill_file.parent / "agents" / "openai.yaml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            assert openai_metadata["policy"]["allow_implicit_invocation"] is False
+
+            if self.KEY in {"claude", "cursor-agent", "grok", "kimi"}:
+                assert frontmatter["disable-model-invocation"] is True
 
     def test_install_uninstall_roundtrip(self, tmp_path):
         i = get_integration(self.KEY)

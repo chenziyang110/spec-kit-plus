@@ -307,7 +307,7 @@ class TestCodexIntegration:
 class TestCodexAutoPromote:
     """--ai codex auto-promotes to integration path."""
 
-    def test_codex_start_here_names_passive_invocation_allowlist(self, tmp_path):
+    def test_codex_start_here_requires_explicit_workflow_skill_invocation(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
 
@@ -329,14 +329,9 @@ class TestCodexAutoPromote:
 
         assert result.exit_code == 0, result.output
         normalized_output = " ".join(result.output.split())
-        assert "Passive invocation allowlist" in normalized_output
-        assert (
-            "$sp-discussion, $sp-quick, $sp-debug, $sp-fast only"
-            in normalized_output
-        )
-        assert (
-            "invoke every other Classic sp-* skill manually" in normalized_output
-        )
+        assert "All Classic sp-* workflow skills are user-invoked only" in normalized_output
+        assert "invoke each workflow skill explicitly" in normalized_output
+        assert "Passive invocation allowlist" not in normalized_output
 
     def test_ai_codex_without_ai_skills_auto_promotes(self, tmp_path):
         """--ai codex should work the same as --integration codex."""
@@ -1005,9 +1000,8 @@ def test_codex_generated_passive_subagent_skills_include_stable_dispatch_contrac
     subagent = (skills_dir / "subagent-driven-development" / "SKILL.md").read_text(encoding="utf-8").lower()
     parallel = (skills_dir / "dispatching-parallel-agents" / "SKILL.md").read_text(encoding="utf-8").lower()
 
-    assert "passive skill invocation is allowed only for" in routing
-    assert "`sp-discussion`, `sp-quick`, `sp-debug`, and `sp-fast`" in routing
-    assert "all other `sp-*` workflows are user-invoked only" in routing
+    assert "passive skill invocation must not enter any `sp-*` or `spx-*` workflow" in routing
+    assert "all `sp-*` and `spx-*` workflows are user-invoked only" in routing
     assert "you may recommend a" in routing
     assert "natural-language tasks" in routing
     assert "always-on" in routing
@@ -1036,13 +1030,13 @@ def test_codex_generated_passive_subagent_skills_include_stable_dispatch_contrac
     assert "advise the user to run multiple parallel instances" not in parallel
 
 
-def test_codex_generated_classic_skills_expose_only_passive_invocation_allowlist(
+def test_codex_generated_classic_skills_require_explicit_invocation(
     tmp_path,
 ):
     from typer.testing import CliRunner
     from specify_cli import app
 
-    target = tmp_path / "codex-passive-invocation-allowlist"
+    target = tmp_path / "codex-explicit-invocation"
     result = CliRunner().invoke(
         app,
         [
@@ -1059,12 +1053,6 @@ def test_codex_generated_classic_skills_expose_only_passive_invocation_allowlist
 
     assert result.exit_code == 0, result.output
 
-    passively_invocable = {
-        "sp-debug",
-        "sp-discussion",
-        "sp-fast",
-        "sp-quick",
-    }
     skill_files = sorted((target / ".codex" / "skills").glob("sp-*/SKILL.md"))
     assert skill_files
 
@@ -1073,11 +1061,8 @@ def test_codex_generated_classic_skills_expose_only_passive_invocation_allowlist
             skill_file.read_text(encoding="utf-8").split("---", 2)[1]
         )
         description = frontmatter["description"]
-        if skill_file.parent.name in passively_invocable:
-            assert not description.startswith("User-invoked workflow only:")
-        else:
-            assert description.startswith("User-invoked workflow only:")
-            assert "Do not select it automatically." in description
+        assert description.startswith("User-invoked workflow only:")
+        assert "Do not select it automatically." in description
 
 
 def test_codex_generated_skills_render_launcher_backed_runtime_commands(tmp_path):
