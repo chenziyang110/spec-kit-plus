@@ -930,7 +930,8 @@ func isRuntimeOwnedAmbientPath(relativePath string) bool {
 	path := strings.TrimPrefix(filepath.ToSlash(relativePath), "./")
 	return strings.HasPrefix(path, ".worktrees/specify-runs/") ||
 		strings.HasPrefix(path, ".worktrees/specify-candidates/") ||
-		strings.HasPrefix(path, ".specify/runtime/")
+		strings.HasPrefix(path, ".specify/runtime/") ||
+		strings.HasPrefix(path, ".specify/project-cognition/")
 }
 
 func normalizeSnapshotRelativePath(value string) (string, error) {
