@@ -358,7 +358,9 @@ class _UITargetHTMLParser(HTMLParser):
             self.manifest_parts.append(data)
 
 
-def parse_design_markdown(text: str, *, source: str = "DESIGN.md") -> DesignDocument:
+def parse_design_markdown(
+    text: str, *, source: str = "design-change.md"
+) -> DesignDocument:
     match = FRONT_MATTER_RE.match(text)
     if not match:
         raise DesignLintError(f"{source}: missing YAML front matter")
@@ -510,7 +512,7 @@ def scaffold_design_change(
     project_root = project_root.resolve()
     design_root = project_root / ".specify" / "design"
     workspace = design_root / "changes" / normalized_id
-    design_path = workspace / "DESIGN.md"
+    design_path = workspace / "design-change.md"
     if design_path.exists():
         raise DesignLintError(f"design change already exists: {normalized_id}")
 
@@ -801,14 +803,16 @@ def register_design_change(project_root: Path, design_path: Path) -> dict[str, A
         relative_workspace_path = target.relative_to(changes_root)
     except ValueError as exc:
         raise DesignLintError(
-            "design change must be inside .specify/design/changes/<UD-ID>/DESIGN.md"
+            "design change must be inside "
+            ".specify/design/changes/<UD-ID>/design-change.md"
         ) from exc
     if (
         len(relative_workspace_path.parts) != 2
-        or relative_workspace_path.name != "DESIGN.md"
+        or relative_workspace_path.name != "design-change.md"
     ):
         raise DesignLintError(
-            "design change must be inside .specify/design/changes/<UD-ID>/DESIGN.md"
+            "design change must be inside "
+            ".specify/design/changes/<UD-ID>/design-change.md"
         )
 
     diagnostics = lint_design_file(target, level="ready")
@@ -6995,7 +6999,8 @@ def import_design_reference(source: str, *, out_dir: Path, notes: str = "") -> P
         "## Synthesis Instructions\n\n"
         "- Extract reusable design principles.\n"
         "- Remove brand-specific expression.\n"
-        "- Write original scoped guidance into a change-local `DESIGN.md` only after user approval in `sp-design`.\n"
+        "- Write original scoped guidance into the change-local "
+        "`design-change.md` only after user approval in `sp-design`.\n"
     )
     out_path.write_text(content, encoding="utf-8")
     return out_path

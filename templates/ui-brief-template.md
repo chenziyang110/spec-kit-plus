@@ -6,7 +6,7 @@ the selected design-change identity, feature-relevant rows, and feature delta.
 ## Source Design Change
 
 - Design change ID: UD-____
-- Registered design ref: .specify/design/changes/<UD-ID>/DESIGN.md
+- Registered design ref: .specify/design/changes/<UD-ID>/design-change.md
 - Machine contract ref: .specify/design/changes/<UD-ID>/design-contract.json
 - Registered design-change SHA-256:
 - Design readiness: approved | narrow-existing-pattern-exception | blocked

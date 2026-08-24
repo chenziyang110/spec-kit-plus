@@ -410,7 +410,7 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
 ) -> None:
     sample_packet.context_nav = [
         {"kind": "ui_entrypoint", "value": "/settings", "source": "plan-contract.json"},
-        {"kind": "design_source", "value": "DESIGN.md", "source": "task-index.json"},
+        {"kind": "design_source", "value": "design-change.md", "source": "task-index.json"},
     ]
     sample_packet.ui_contract = UIContract(
         fidelity_level="approximate",
@@ -432,7 +432,7 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
         content_thesis="real preference labels and values",
         interaction_thesis="immediate local feedback",
         signature_element="persistent section progress",
-        approved_visual_ref="DESIGN.md#settings",
+        approved_visual_ref="design-change.md#settings",
         design_decision_ids=[
             "DS-COMP-001",
             "DS-RESP-001",
@@ -443,7 +443,7 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
             "DS-CONTENT-001",
             "DS-MOTION-001",
         ],
-        design_sources=["DESIGN.md", "ui-brief.md"],
+        design_sources=["design-change.md", "ui-brief.md"],
         real_content_plan=[{"source_ref": "src/settings/schema.ts"}],
         surface_catalog=[
             {
@@ -1010,14 +1010,14 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
     sample_packet.ui_contract.ui_work_type = "feature-extension"
     sample_packet.ui_contract.design_change_id = "UD-0042"
     sample_packet.ui_contract.design_change_ref = (
-        ".specify/design/changes/UD-0042/DESIGN.md"
+        ".specify/design/changes/UD-0042/design-change.md"
     )
     sample_packet.ui_contract.design_change_sha256 = "a" * 64
     sample_packet.ui_contract.design_contract_ref = (
         ".specify/design/changes/UD-0042/design-contract.json"
     )
     sample_packet.ui_contract.design_sources = [
-        ".specify/design/changes/UD-0042/DESIGN.md",
+        ".specify/design/changes/UD-0042/design-change.md",
         ".specify/design/changes/UD-0042/design-contract.json",
     ]
     sample_packet.ui_contract.approved_visual_ref = (

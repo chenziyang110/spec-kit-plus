@@ -399,7 +399,7 @@ def test_resume_audit_blocks_ui_lifecycle_without_visual_acceptance(
         "## T001: Settings UI\n\n"
         "### UI Implementation Contract\n\n"
         "| Field | Value |\n| --- | --- |\n"
-        "| design_sources | [DESIGN.md, ui-brief.md] |\n"
+        "| design_sources | [design-change.md, ui-brief.md] |\n"
         "| required_evidence | [desktop_screenshot] |\n",
         encoding="utf-8",
     )

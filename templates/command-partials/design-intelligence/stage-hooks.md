@@ -60,7 +60,7 @@ machine-readable DesignContext under `.specify/design/context/` when durable.
 refine: run Evidence → System before the current-concept board. Extract tokens,
 components, states, and responsive rules as Design Evidence objects. Export
 approved truth only through design approve/export into
-`.specify/design/changes/<UD-ID>/DESIGN.md`, then make it consumable through
+`.specify/design/changes/<UD-ID>/design-change.md`, then make it consumable through
 design register. The approved change records interaction and data-state rows,
 the exact `accessibility_matrix`, `navigation_matrix`, `content_matrix`,
 `motion_contract`, and `usability_validation`, component governance and
@@ -93,7 +93,7 @@ For substantive UI work, specification must carry **UI Requirements** and
 - evidence: structure_snapshot, visual_capture, runtime_diagnostics, comparison
   or pending-human-review
 
-Never treat a legacy root contract as current approval direction.
+Never treat an unregistered root design document as current approval direction.
 
 ### Plan / Tasks — architecture and packet continuity
 

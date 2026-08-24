@@ -245,7 +245,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                         "acceptance": ["Desktop and mobile states match the UI brief"],
                         "ui_contract": {
                             "design_change_id": "UD-0042",
-                            "design_change_ref": ".specify/design/changes/UD-0042/DESIGN.md",
+                            "design_change_ref": ".specify/design/changes/UD-0042/design-change.md",
                             "design_change_sha256": "a" * 64,
                             "design_contract_ref": ".specify/design/changes/UD-0042/design-contract.json",
                             "ui_work_type": "feature-extension",
@@ -289,7 +289,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                             ],
                             "handoff_contract_ids": [],
                             "design_sources": [
-                                ".specify/design/changes/UD-0042/DESIGN.md",
+                                ".specify/design/changes/UD-0042/design-change.md",
                                 ".specify/design/changes/UD-0042/design-contract.json",
                                 "specs/001-ui-feature/ui-brief.md",
                             ],
@@ -680,7 +680,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
     assert packet.ui_contract.design_change_id == "UD-0042"
     assert (
         packet.ui_contract.design_change_ref
-        == ".specify/design/changes/UD-0042/DESIGN.md"
+        == ".specify/design/changes/UD-0042/design-change.md"
     )
     assert packet.ui_contract.design_change_sha256 == "a" * 64
     assert (
@@ -743,7 +743,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
     assert "src/ui/theme.ts" in {item.path for item in packet.context_bundle}
     assert all("#" not in item.path for item in packet.context_bundle)
     reference_paths = [item.path for item in packet.required_references]
-    assert ".specify/design/changes/UD-0042/DESIGN.md" in reference_paths
+    assert ".specify/design/changes/UD-0042/design-change.md" in reference_paths
     assert (
         ".specify/design/changes/UD-0042/design-contract.json" in reference_paths
     )
@@ -824,13 +824,13 @@ def test_ui_context_nav_exposes_the_immutable_handoff_as_a_first_class_read() ->
         {"ui_design_contract": {"entry_points": ["/settings"]}},
         UIContract(
             fidelity_level="high",
-            design_sources=["DESIGN.md"],
+            design_sources=["design-change.md"],
             approved_handoff_ref=handoff_ref,
         ),
     )
 
     assert {(item["kind"], item["value"]) for item in context_nav} >= {
-        ("design_source", "DESIGN.md"),
+        ("design_source", "design-change.md"),
         ("design_handoff", handoff_ref),
     }
 
@@ -1154,7 +1154,7 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
             [
                 "## Required Implementation References",
                 "",
-                "- `DESIGN.md`",
+                "- `design-change.md`",
                 "",
                 "## Forbidden Implementation Drift",
                 "",
@@ -1188,7 +1188,7 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
                 "| read_scope | [src/ui/settings-state.ts] |",
                 "| consumes | [settings_state, design_tokens] |",
                 "| produces | [settings_panel_events, responsive_settings_markup] |",
-                "| review_inputs | [DESIGN.md, screenshots/settings-panel.png] |",
+                "| review_inputs | [design-change.md, screenshots/settings-panel.png] |",
                 "| review_risks | [Keyboard shortcuts may regress] |",
                 "| controller_checks_required | [keyboard_navigation_check, state_persistence_check] |",
                 "| global_constraints | [Do not introduce a new state store] |",
@@ -1207,7 +1207,7 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
 
     reference_paths = [ref.path for ref in packet.required_references]
     assert reference_paths == [
-        "DESIGN.md",
+        "design-change.md",
         "screenshots/settings-panel.png",
     ]
     assert packet.forbidden_drift == ["Do not change generated settings routes"]
@@ -1224,7 +1224,7 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
         "settings_panel_events",
         "responsive_settings_markup",
     ]
-    assert packet.review_inputs == ["DESIGN.md", "screenshots/settings-panel.png"]
+    assert packet.review_inputs == ["design-change.md", "screenshots/settings-panel.png"]
     assert packet.review_risks == [
         "Screenshot drift can hide responsive regressions",
         "Keyboard shortcuts may regress",
@@ -1247,14 +1247,18 @@ def test_compile_worker_task_packet_rejects_markdown_only_ui_contract(
         "# Constitution\n\n- MUST preserve UI implementation contracts\n",
         encoding="utf-8",
     )
-    (project_root / "DESIGN.md").write_text("# Design\n", encoding="utf-8")
+    design_ref = ".specify/design/changes/UD-0042/design-change.md"
+    design_path = project_root / design_ref
+    design_path.parent.mkdir(parents=True)
+    design_path.write_text("# Design change\n", encoding="utf-8")
     (feature_dir / "ui-reference-notes.md").write_text(
         "# UI Reference Notes\n", encoding="utf-8"
     )
     (feature_dir / "ui-brief.md").write_text("# UI Brief\n", encoding="utf-8")
     (feature_dir / "ui-target.html").write_text("<!doctype html>\n", encoding="utf-8")
     (feature_dir / "plan.md").write_text(
-        "## Required Implementation References\n\n- DESIGN.md\n", encoding="utf-8"
+        f"## Required Implementation References\n\n- {design_ref}\n",
+        encoding="utf-8",
     )
     (feature_dir / "tasks.md").write_text(
         "\n".join(
@@ -1269,13 +1273,13 @@ def test_compile_worker_task_packet_rejects_markdown_only_ui_contract(
                 "| Field | Value |",
                 "|-------|-------|",
                 "| write_scope | [src/app/exceptions/page.tsx] |",
-                "| read_scope | [DESIGN.md, specs/001-ui-feature/ui-brief.md] |",
+                f"| read_scope | [{design_ref}, specs/001-ui-feature/ui-brief.md] |",
                 "| required_evidence | [reference_source_evidence, ui_fidelity_criteria, real_entrypoint_ui_evidence, visual_comparison_or_human_review] |",
                 "",
                 "### UI Implementation Contract",
                 "| Field | Value |",
                 "|-------|-------|",
-                "| design_sources | [DESIGN.md, specs/001-ui-feature/ui-brief.md] |",
+                f"| design_sources | [{design_ref}, specs/001-ui-feature/ui-brief.md] |",
                 "| reference_notes | specs/001-ui-feature/ui-reference-notes.md |",
                 "| visual_target | specs/001-ui-feature/ui-target.html |",
                 "| ui_fidelity_mode | approximate |",

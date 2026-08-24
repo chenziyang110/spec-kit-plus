@@ -79,10 +79,10 @@ def test_docs_describe_change_scoped_design_workflow() -> None:
 
     for content in (readme, handbook, template):
         assert "sp-design" in content
-        assert "DESIGN.md" in content
+        assert "design-change.md" in content
         assert "design change" in content.lower() or "design-change" in content.lower()
         assert "specify-runtime design lint" in content
-        assert ".specify/design/changes/<UD-ID>/DESIGN.md" in content
+        assert ".specify/design/changes/<UD-ID>/design-change.md" in content
         assert ".specify/design/index.json" in content
         assert "specify-runtime design register" in content
         assert "ui-brief.md" in content

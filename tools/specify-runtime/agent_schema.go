@@ -152,7 +152,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "design.change":
 		capability["side_effect"] = "creates-design-change-workspace-and-index-record"
 		capability["usage"] = "specify-runtime design change <UD-ID> --title <title> [--type greenfield|preserve|overhaul|extension] --scope <surface>... [--profiles <csv>] [--baseline-ref <ref>]... [--supersedes <UD-ID>]... --format json"
-		capability["input_contract"] = "creates .specify/design/changes/<UD-ID>/DESIGN.md plus local working surfaces and a draft metadata-only index record; scopes are stable path-like identifiers"
+		capability["input_contract"] = "creates .specify/design/changes/<UD-ID>/design-change.md plus local working surfaces and a draft metadata-only index record; scopes are stable path-like identifiers"
 	case "design.iterate":
 		capability["side_effect"] = "creates-digest-pinned-successor-workspace"
 		capability["usage"] = "specify-runtime design iterate <SOURCE-UD-ID> <SUCCESSOR-UD-ID> --title <title> [--type preserve|overhaul|extension] [--scope <surface>]... [--profiles <csv>] --format json"
@@ -171,7 +171,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["input_contract"] = "candidate must be active for the exact scope and expected-change must match the current receipt; formal-post-specify preserves the unchanged planning-ready source spec and reconciles from Plan; returns impact classes, affected DS/DH IDs, preserved_bindings, invalidated_bindings, reconcile_from, and reconciliation actions without rewriting consumer artifacts"
 	case "design.register":
 		capability["side_effect"] = "registers-immutable-design-change"
-		capability["usage"] = "specify-runtime design register .specify/design/changes/<UD-ID>/DESIGN.md --format json"
+		capability["usage"] = "specify-runtime design register .specify/design/changes/<UD-ID>/design-change.md --format json"
 		capability["input_contract"] = "requires an approved change-local contract whose ID, path, scope, and supersedes relationships match index.json; overlapping approved scopes must be explicitly superseded; registration binds the exact SHA-256 and subtracts only intersecting scopes from prior changes"
 	case "design.approve":
 		capability["side_effect"] = "freezes-immutable-visual-round-and-handoff"

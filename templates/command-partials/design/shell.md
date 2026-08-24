@@ -14,8 +14,8 @@ create/refine. Set `<change-dir>` to
 `.specify/design/changes/<UD-ID>`. Prefer Evidence → UI System Model →
 collaborative single-concept iteration over screenshot-to-page cloning or
 batch option generation. The global
-`.specify/design/index.json` is metadata only. An existing root `DESIGN.md` is
-a read-only legacy baseline, never an implicit latest contract.
+`.specify/design/index.json` is metadata only. No root design contract
+participates in selection or delivery.
 
 ## Process
 
@@ -37,7 +37,7 @@ Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep
   - `active_command: sp-design`
   - `phase_mode: design-only`
   - `current_stage: context-intake`
-  - `allowed_writes: .specify/design/index.json, <change-dir>/DESIGN.md, <change-dir>/brief.md, <change-dir>/design-contract.json, <change-dir>/references.md, <change-dir>/options.md, <change-dir>/previews/*, <change-dir>/review.md, .specify/memory/project-rules.md`
+  - `allowed_writes: .specify/design/index.json, <change-dir>/design-change.md, <change-dir>/brief.md, <change-dir>/design-contract.json, <change-dir>/references.md, <change-dir>/options.md, <change-dir>/previews/*, <change-dir>/review.md, .specify/memory/project-rules.md`
   - `forbidden_actions: edit source code, edit tests, write CSS/theme implementation files, create UI components, create feature specs, create plan artifacts, create task artifacts`
 - Persist `active_command`, `phase_mode`, `current_stage`, the one
   `active_question`, `feedback_history`, and `prototype_rounds` inside
@@ -46,13 +46,13 @@ Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep
   `context-intake -> discovery -> concept-brief -> prototype-authoring ->
   visual-review -> revision|approval -> contract-export -> registered`.
 - When resuming after compaction, query `.specify/design/index.json`, then the
-  active `<change-dir>/brief.md` and `<change-dir>/DESIGN.md` through
+  active `<change-dir>/brief.md` and `<change-dir>/design-change.md` through
   `specify-runtime artifact show` before continuing.
 
 ## Allowed Writes
 
 - `.specify/design/index.json` through `specify-runtime design change/iterate/register`
-- `.specify/design/changes/<UD-ID>/DESIGN.md`
+- `.specify/design/changes/<UD-ID>/design-change.md`
 - `.specify/design/changes/<UD-ID>/brief.md`
 - `.specify/design/changes/<UD-ID>/design-contract.json`
 - `.specify/design/changes/<UD-ID>/references.md`
@@ -82,9 +82,8 @@ and never require a colon subskill or explicit mode argument.
 
 1. Query `.specify/design/index.json` and resume a nonterminal change for the
    same objective through targeted `specify-runtime artifact show` calls. Query
-   only its exact `DESIGN.md`, brief, references, options, and review through
-   the same owner. If a root `DESIGN.md` exists, treat it as a read-only legacy
-   baseline and never mutate or select it as “latest.”
+   only its exact `design-change.md`, brief, references, options, and review through
+   the same owner. Never query or select an unregistered root design document.
 2. For each exact affected surface, run
    `specify-runtime design resolve --scope <surface> --format json` to discover
    active registered candidates. Resolution is discovery only: it never binds
@@ -366,7 +365,7 @@ unrelated visual systems for one review round.
 
 ## Synthesis Rules
 
-- Complete the change-local `DESIGN.md` from the approved round, then lint,
+- Complete the change-local `design-change.md` from the approved round, then lint,
   export, and register that exact file. Never rewrite another approved change.
 - Present the one image-primary or HTML-primary current concept from the active
   preview round.
@@ -377,7 +376,7 @@ unrelated visual systems for one review round.
   signature element, platform fit, state strategy, safe system choices, and any
   deliberate creative risk with its gain and cost.
 - Render the concept through the selected visual medium and ask the user to
-  approve the reviewed round before running `specify-runtime design export` for `DESIGN.md`; a
+  approve the reviewed round before running `specify-runtime design export` for `design-change.md`; a
   prose label, mood adjective, or unseen file is not approval.
 - Ask the user for explicit approval of the round; approval refers to its inspectable visual
   artifact and recorded tradeoffs, not only its name.
@@ -403,16 +402,16 @@ unrelated visual systems for one review round.
 
 ## Output Contract
 
-The workflow output is `.specify/design/changes/<UD-ID>/DESIGN.md` plus its
+The workflow output is `.specify/design/changes/<UD-ID>/design-change.md` plus its
 confirmed brief, immutable image-primary or HTML-primary visual rounds, review artifacts,
 `design-contract.json`, and selected-direction handoff sidecar. The index stores
 metadata and exact consumer bindings; it never contains design prose.
-Never write `<change-dir>/DESIGN.md` directly; patch only its named frontmatter
+Never write `<change-dir>/design-change.md` directly; patch only its named frontmatter
 fields and sections through fresh leased `specify-runtime artifact patch` calls.
 
-## Required DESIGN.md Shape
+## Required design-change.md Shape
 
-The change-local `DESIGN.md` must contain:
+The change-local `design-change.md` must contain:
 
 - YAML front matter with `design_change.schema: spec-kit-ui-design-change-v1`
 - stable ID, title, change type, scopes, baseline refs, relationships, and
@@ -452,11 +451,11 @@ Before closeout:
 
 1. Run the active round's
    `{{specify-subcmd:specify-runtime design preview-lint <change-dir>/previews/round-NN.<html|png|jpg|jpeg|webp> --level ready}}`,
-   then run `{{specify-subcmd:specify-runtime design lint <change-dir>/DESIGN.md --level ready}}` when the CLI helpers
+   then run `{{specify-subcmd:specify-runtime design lint <change-dir>/design-change.md --level ready}}` when the CLI helpers
    are available. Export the same approved contract with
-   `{{specify-subcmd:specify-runtime design export <change-dir>/DESIGN.md --format json --out <change-dir>/design-contract.json}}`,
+   `{{specify-subcmd:specify-runtime design export <change-dir>/design-change.md --format json --out <change-dir>/design-contract.json}}`,
    then pin it with
-   `{{specify-subcmd:specify-runtime design register <change-dir>/DESIGN.md --format json}}`
+   `{{specify-subcmd:specify-runtime design register <change-dir>/design-change.md --format json}}`
    so implementation consumes deterministic data rather than reconstructing
    YAML prose. For a successor, immediately run
    `{{specify-subcmd:specify-runtime design diff <SOURCE-UD-ID> <UD-ID> --format json}}`
@@ -517,7 +516,7 @@ new approval.
   workflow; they are not application implementation.
 - Never hand-edit an approved preview or its sidecar. Generate a new numbered
   candidate round, obtain approval, and let `design approve` freeze it.
-- Do not clone protected brands or copy third-party design files into `DESIGN.md`; synthesize project-owned design principles and tokens.
+- Do not clone protected brands or copy third-party design files into `design-change.md`; synthesize project-owned design principles and tokens.
 - Do not let downstream workflows treat an unaudited, unregistered, or
   contradictory change as locked input. A new approval must never silently
   retarget an existing Feature or Quick workspace.

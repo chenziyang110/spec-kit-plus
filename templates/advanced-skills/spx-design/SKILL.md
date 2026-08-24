@@ -20,8 +20,8 @@ shared component state or generated consumers change.
 Query `.specify/design/index.json` through `specify-runtime artifact show`,
 resume a matching nonterminal `UD-*` workspace, then inspect its exact contract,
 relevant live UI entry points, existing tokens/components, accessibility rules,
-and supplied references. An existing root `DESIGN.md` is a read-only legacy
-baseline, never an implicit latest contract. Distinguish
+and supplied references. No root design contract participates in selection or
+delivery. Distinguish
 observed product language from new design decisions; do not invent a parallel
 system when an established one can be extended.
 
@@ -68,7 +68,7 @@ and route reason in the design brief; treat any selected mode in derived state
 only as a compatibility projection.
 Resume the stored route before reclassification. The `allowed_writes` are only
 `.specify/design/index.json` through `design change/iterate/register`,
-`.specify/design/changes/<UD-ID>/DESIGN.md`, `<change-dir>/brief.md`,
+`.specify/design/changes/<UD-ID>/design-change.md`, `<change-dir>/brief.md`,
 `<change-dir>/previews/*`, `<change-dir>/references.md`,
 `<change-dir>/options.md`,
 `.specify/design/changes/<UD-ID>/design-contract.json`,
@@ -170,7 +170,7 @@ rounds, branch into three unrelated concepts, or treat criticism or vague
 praise as approval. Record `approved_visual_ref` with the actual artifact
 extension plus returned preview/image, manifest, prompt when applicable, and
 handoff SHA-256 values, sidecars, exact decision and handoff contract IDs,
-capability profile IDs, and specimen IDs in the brief, review, and `DESIGN.md`.
+capability profile IDs, and specimen IDs in the brief, review, and `design-change.md`.
 An edited approved artifact or missing/stale sidecar is invalid.
 Refinement that does not change approved truth needs no ceremonial
 re-selection; any changed truth requires a new inspected round and explicit approval.
@@ -183,7 +183,7 @@ projects the selected direction and complete capability model
 into the immutable handoff; never manually rewrite that artifact or replace it
 with a prose summary.
 
-Complete `<change-dir>/DESIGN.md` from the approved round. Use
+Complete `<change-dir>/design-change.md` from the approved round. Use
 `assets/design-change.md` as content guidance while the installed
 `design-change-template.md` owns the schema. Record only
 decisions that constrain downstream UI work: principles, foundations, tokens,
@@ -195,11 +195,11 @@ Set `design_change.status: approved`, record the selected direction and
 product/repository source refs plus `approval.visual_refs`, review round,
 preview/manifest/handoff SHA-256 values, immutable handoff ref, decision IDs,
 and handoff contract IDs. Replace every asset
-placeholder, run `{{specify-subcmd:specify-runtime design lint <change-dir>/DESIGN.md --level ready}}`, then export the
+placeholder, run `{{specify-subcmd:specify-runtime design lint <change-dir>/design-change.md --level ready}}`, then export the
 deterministic implementation contract with
-`{{specify-subcmd:specify-runtime design export <change-dir>/DESIGN.md --format json --out .specify/design/changes/<UD-ID>/design-contract.json}}`.
+`{{specify-subcmd:specify-runtime design export <change-dir>/design-change.md --format json --out .specify/design/changes/<UD-ID>/design-contract.json}}`.
 Finally pin the exact contract and enforce overlap/supersedes with
-`{{specify-subcmd:specify-runtime design register <change-dir>/DESIGN.md --format json}}`.
+`{{specify-subcmd:specify-runtime design register <change-dir>/design-change.md --format json}}`.
 Registration subtracts only intersecting successor scopes, records them as
 `superseded_scopes`, and leaves the parent active elsewhere. For a successor,
 run
@@ -218,7 +218,7 @@ otherwise query it through `artifact show`. Patch only its named sections with
 the mode, inputs, approved direction, visual and handoff references, hashes,
 decision and handoff contract IDs, covered platforms, risks, lint/export
 results, and one recommended next workflow, using a fresh lease per section.
-Never submit or reconstruct the whole review document. Ask the user to review the CLI-exported `DESIGN.md` before
+Never submit or reconstruct the whole review document. Ask the user to review the CLI-exported `design-change.md` before
 recording the final design handoff; approval of an earlier
 direction artifact does not silently approve a drifted final contract.
 

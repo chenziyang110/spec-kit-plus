@@ -52,7 +52,7 @@ artifact work only through `specify-runtime run supervise`.
    formal binding is singular, split a composite result into independently
    bound feature units, each with one exact scope, `spec-contract.json`, and
    `ui-brief.md`. Query each exact
-   `.specify/design/changes/<UD-ID>/DESIGN.md`, sibling
+   `.specify/design/changes/<UD-ID>/design-change.md`, sibling
    `design-contract.json`, and live UI evidence through targeted
    `specify-runtime artifact show` calls. Compile
    `Experience Requirements`, design readiness

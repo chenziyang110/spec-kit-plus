@@ -196,7 +196,7 @@ func runDesignChange(args []string, stdout io.Writer) int {
 
 func runDesignRegister(args []string, stdout io.Writer) int {
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
-		return writeDesignError(stdout, "usage-error", "design register requires a change-local DESIGN.md path")
+		return writeDesignError(stdout, "usage-error", "design register requires a change-local design-change.md path")
 	}
 	target, env, ok := designContainedPath(args[0], false)
 	if !ok {
@@ -216,7 +216,10 @@ func runDesignLint(args []string, stdout io.Writer) int {
 	if !supportedDesignLintLevel(level) {
 		return writeDesignError(stdout, "usage-error", "unsupported design lint level: "+level)
 	}
-	path := firstPositional(args, "DESIGN.md")
+	path := firstPositional(args, "")
+	if path == "" {
+		return writeDesignError(stdout, "usage-error", "design lint requires a change-local design-change.md path")
+	}
 	target, env, ok := designContainedPath(path, false)
 	if !ok {
 		return writeEnvelope(stdout, env)
@@ -398,7 +401,10 @@ func runDesignExport(args []string, stdout io.Writer) int {
 	if format != "json" && format != "tailwind" {
 		return writeDesignError(stdout, "usage-error", "--format must be json or tailwind")
 	}
-	path := firstPositional(args, "DESIGN.md")
+	path := firstPositional(args, "")
+	if path == "" {
+		return writeDesignError(stdout, "usage-error", "design export requires a change-local design-change.md path")
+	}
 	target, env, ok := designContainedPath(path, false)
 	if !ok {
 		return writeEnvelope(stdout, env)
@@ -539,7 +545,7 @@ func scaffoldDesignChange(changeID, title, changeType string, scopes, profileIDs
 	defer release()
 
 	workspace := filepath.Join(".specify", "design", "changes", changeID)
-	designPath := filepath.Join(workspace, "DESIGN.md")
+	designPath := filepath.Join(workspace, "design-change.md")
 	if _, err := os.Stat(designPath); err == nil {
 		return "", fmt.Errorf("design change already exists: %s", changeID)
 	} else if !os.IsNotExist(err) {
@@ -680,8 +686,8 @@ func registerDesignChange(path string) (map[string]any, error) {
 	}
 	relative = filepath.ToSlash(relative)
 	parts := strings.Split(relative, "/")
-	if len(parts) != 5 || parts[0] != ".specify" || parts[1] != "design" || parts[2] != "changes" || parts[3] != changeID || parts[4] != "DESIGN.md" {
-		return nil, fmt.Errorf("design change must be inside .specify/design/changes/<UD-ID>/DESIGN.md and match design_change.id")
+	if len(parts) != 5 || parts[0] != ".specify" || parts[1] != "design" || parts[2] != "changes" || parts[3] != changeID || parts[4] != "design-change.md" {
+		return nil, fmt.Errorf("design change must be inside .specify/design/changes/<UD-ID>/design-change.md and match design_change.id")
 	}
 
 	indexPath := filepath.Join(root, ".specify", "design", "index.json")
@@ -4402,7 +4408,7 @@ func designReferenceContent(source, notes string) string {
 		"## Synthesis Instructions\n\n" +
 		"- Extract reusable design principles.\n" +
 		"- Remove brand-specific expression.\n" +
-		"- Write original scoped guidance into a change-local `DESIGN.md` only after user approval in `sp-design`.\n"
+		"- Write original scoped guidance into the change-local `design-change.md` only after user approval in `sp-design`.\n"
 }
 
 func designContainedPath(path string, allowMissing bool) (string, Envelope, bool) {

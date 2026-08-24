@@ -4,7 +4,7 @@ design_system:
   name: public-service-trust
   version: 1
   status: seed
-  seed_warning: "Aesthetic seed only. Not approval truth. Never substitute for design approve or an approved DESIGN.md."
+  seed_warning: "Aesthetic seed only. Not approval truth. Never substitute for design approve or an approved design-change.md."
   platforms:
     - web
     - mobile

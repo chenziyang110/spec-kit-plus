@@ -249,20 +249,26 @@ def test_implement_and_review_bind_design_system_and_anti_slop() -> None:
 
     assert "design intelligence" in combined or "ui implementation rules" in combined
     assert "anti-slop" in combined or "anti_slop" in combined
-    assert "design.md" in combined
+    assert "design-change.md" in combined
     assert "visual hierarchy" in combined or "hierarchy" in combined
     assert "bootstrap" in combined
     assert "structure_snapshot" in combined
     assert "pending-human-review" in combined
 
 
-def test_design_template_documents_personality_and_dials() -> None:
-    design = _read("templates/design-template.md")
+def test_change_scoped_design_templates_document_personality_and_dials() -> None:
+    design = "\n".join(
+        [
+            _read("templates/design-change-template.md"),
+            _read("templates/design-brief-template.md"),
+            _read("templates/command-partials/design-intelligence/shared-foundation.md"),
+        ]
+    )
     lowered = design.lower()
     assert "design personality" in lowered or "design dna" in lowered
     assert "variance" in lowered and "motion" in lowered and "density" in lowered
     assert "anti-patterns" in lowered
-    assert "bootstrap" in lowered
+    assert "change" in lowered
 
 
 def test_passive_ui_skill_surfaces_design_intelligence() -> None:

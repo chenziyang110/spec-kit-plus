@@ -671,9 +671,7 @@ def test_design_artifacts_persist_the_resolved_professional_route() -> None:
         / "assets"
         / "design-change.md"
     )
-    legacy = _read(ROOT / "templates" / "design-template.md")
-
-    for content in (brief, classic_change, advanced_change, legacy):
+    for content in (brief, classic_change, advanced_change):
         assert "professional_skill_route:" in content
         assert "domain_skill_id:" in content
         assert "style_skill_id:" in content

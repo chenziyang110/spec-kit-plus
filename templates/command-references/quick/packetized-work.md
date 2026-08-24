@@ -111,8 +111,8 @@ The following flags are available and composable:
   and successor bindings across worker packets in one workspace. Pin the exact
   registered change selected for the task: `design_change_id`,
   `design_change_ref`, `design_change_sha256`, and `design_contract_ref`. Never
-  resolve “latest” and never substitute a root `DESIGN.md`; a root file is
-  read-only legacy baseline evidence. Also reference the approved change/live pattern, affected entry point,
+  resolve “latest” and never substitute any unregistered design document. Also
+  reference the approved change/live pattern, affected entry point,
   work/surface/platform type, subject/audience/job, approved direction/signature,
   states and viewports, must-preserve decisions, and real-entrypoint
   structure/visual/runtime evidence. Route a missing applicable registered

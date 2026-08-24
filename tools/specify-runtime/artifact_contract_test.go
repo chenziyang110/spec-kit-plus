@@ -411,10 +411,10 @@ func TestArtifactPatchRejectsSpecializedArtifacts(t *testing.T) {
 
 func TestDesignChangeContractPatchStopsAfterRegistration(t *testing.T) {
 	projectRoot := t.TempDir()
-	path := ".specify/design/changes/UD-0042/DESIGN.md"
+	path := ".specify/design/changes/UD-0042/design-change.md"
 	original := "---\ndesign_change:\n  schema: spec-kit-ui-design-change-v1\n  id: UD-0042\n---\n\n# UI Design Change\n\n## Product Feel\n\nDraft\n"
 	writeArtifactTestFile(t, projectRoot, path, original)
-	writeArtifactTestFile(t, projectRoot, ".specify/design/index.json", `{"schema":"spec-kit-ui-design-index-v1","changes":[{"id":"UD-0042","status":"draft","design_ref":".specify/design/changes/UD-0042/DESIGN.md","approval_sha256":null}]}`)
+	writeArtifactTestFile(t, projectRoot, ".specify/design/index.json", `{"schema":"spec-kit-ui-design-index-v1","changes":[{"id":"UD-0042","status":"draft","design_ref":".specify/design/changes/UD-0042/design-change.md","approval_sha256":null}]}`)
 
 	service := NewArtifactService(projectRoot)
 	draftLease := service.Prepare(ArtifactPrepareRequest{Path: path})
@@ -434,7 +434,7 @@ func TestDesignChangeContractPatchStopsAfterRegistration(t *testing.T) {
 	if registeredLease.Status != "ok" {
 		t.Fatalf("pre-registration lease = %#v, want ok", registeredLease)
 	}
-	writeArtifactTestFile(t, projectRoot, ".specify/design/index.json", `{"schema":"spec-kit-ui-design-index-v1","changes":[{"id":"UD-0042","status":"approved","design_ref":".specify/design/changes/UD-0042/DESIGN.md","approval_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}`)
+	writeArtifactTestFile(t, projectRoot, ".specify/design/index.json", `{"schema":"spec-kit-ui-design-index-v1","changes":[{"id":"UD-0042","status":"approved","design_ref":".specify/design/changes/UD-0042/design-change.md","approval_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}`)
 
 	blocked := service.Patch(ArtifactPatchRequest{
 		LeaseID: registeredLease.Data["lease_id"].(string),

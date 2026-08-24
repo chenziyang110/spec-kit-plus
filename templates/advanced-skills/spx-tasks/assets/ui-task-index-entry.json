@@ -1,7 +1,7 @@
 {
   "ui_contract": {
     "design_change_id": "{{design_change_id}}",
-    "design_change_ref": ".specify/design/changes/{{design_change_id}}/DESIGN.md",
+    "design_change_ref": ".specify/design/changes/{{design_change_id}}/design-change.md",
     "design_change_sha256": "{{registered_design_change_sha256}}",
     "design_contract_ref": ".specify/design/changes/{{design_change_id}}/design-contract.json",
     "ui_work_type": "{{ui_work_type}}",
@@ -29,7 +29,7 @@
     "approved_handoff_sha256": "{{approved_handoff_sha256_or_empty_for_live_pattern}}",
     "design_decision_ids": ["{{task_applicable_design_decision_id}}"],
     "handoff_contract_ids": ["{{task_applicable_handoff_contract_id}}"],
-    "design_sources": [".specify/design/changes/{{design_change_id}}/DESIGN.md", ".specify/design/changes/{{design_change_id}}/design-contract.json", "{{approved_visual_ref}}", "{{feature_dir}}/ui-brief.md"],
+    "design_sources": [".specify/design/changes/{{design_change_id}}/design-change.md", ".specify/design/changes/{{design_change_id}}/design-contract.json", "{{approved_visual_ref}}", "{{feature_dir}}/ui-brief.md"],
     "reference_notes": "{{reference_notes_or_empty}}",
     "visual_target": "{{visual_target_or_empty}}",
     "reference_intents": [{"ref": "{{reference_ref}}", "intent": "{{reference_intent}}"}],

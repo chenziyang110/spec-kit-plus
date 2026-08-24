@@ -32,7 +32,7 @@ than reinterpreting it. For a late design overlay, first verify the current
 exact unchanged source spec ref and SHA-256. This is the
 specify -> design -> plan route; it does not rerun Specify. A missing/mismatched
 receipt blocks Plan, while a real requirements change returns to Specify. Query its exact
-`.specify/design/changes/<UD-ID>/design-contract.json` and matching `DESIGN.md`
+`.specify/design/changes/<UD-ID>/design-contract.json` and matching `design-change.md`
 through targeted `specify-runtime artifact show` calls; use the former as the
 machine-readable source of truth and the latter only as the corresponding
 human-readable projection for review and explanation. Never resolve “latest”

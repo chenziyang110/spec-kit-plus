@@ -48,7 +48,7 @@ owner CLI to repeat the route in review when it explains closeout.
 
 Query `.specify/design/index.json` and the matching change brief/contract first
 through targeted `specify-runtime artifact show` calls.
-Treat a root `DESIGN.md` only as a read-only legacy baseline. Resume before reclassification when
+Never use an unregistered root design document as workflow input. Resume before reclassification when
 the same objective is nonterminal, using the brief's task type and input
 strategy plus the derived state's current stage. Approval, feedback, and
 continuation are lifecycle events for the active task. Reclassify only for an

@@ -51,7 +51,7 @@ def test_spx_design_preserves_change_local_support_artifacts_and_final_review() 
     content = _skill("spx-design")
 
     for required in (
-        ".specify/design/changes/<UD-ID>/DESIGN.md",
+        ".specify/design/changes/<UD-ID>/design-change.md",
         "<change-dir>/brief.md",
         "<change-dir>/references.md",
         "<change-dir>/options.md",
@@ -62,7 +62,7 @@ def test_spx_design_preserves_change_local_support_artifacts_and_final_review() 
     ):
         assert required in content
     assert ".specify/design/design-state.md" not in content
-    assert "Ask the user to review the CLI-exported `DESIGN.md`" in content
+    assert "Ask the user to review the CLI-exported `design-change.md`" in content
 
 
 def test_spx_map_scan_persists_unavailable_worker_recovery() -> None:

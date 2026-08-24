@@ -273,7 +273,7 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "exactly one next spx workflow" in skills["spx-auto"]
     assert "create no separate auto state" in skills["spx-auto"]
 
-    assert "design.md" in skills["spx-design"]
+    assert "design-change.md" in skills["spx-design"]
     assert "specify-runtime design change <ud-id>" in skills["spx-design"]
     assert "<change-dir>/brief.md" in skills["spx-design"]
     assert "artifact scaffold --kind design-brief" not in skills["spx-design"]
@@ -614,7 +614,8 @@ def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
     assert ".specify/design/index.json" in ui_gate
     assert "exact registered design change" in ui_gate
     assert 'Never resolve "latest"' in ui_gate
-    assert "read-only legacy baseline" in ui_gate
+    assert "unregistered root design document" in ui_gate
+    assert "read-only legacy baseline" not in ui_gate
     assert "real entry point" in ui_gate
     assert "pending-human-review" in ui_gate
 
@@ -1579,8 +1580,8 @@ def test_advanced_integration_repair_installs_and_rebinds_missing_cognition_runt
         assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" in (
             installed_reference.read_text(encoding="utf-8")
         )
-        (project / "DESIGN.md").write_text(
-            "# Approved project design\n\nDo not replace this contract.\n",
+        (project / "user-notes.md").write_text(
+            "# User notes\n\nDo not replace this file.\n",
             encoding="utf-8",
         )
 
@@ -1608,8 +1609,8 @@ def test_advanced_integration_repair_installs_and_rebinds_missing_cognition_runt
         "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
     )
     assert project_runtime.exists()
-    assert (project / "DESIGN.md").read_text(encoding="utf-8") == (
-        "# Approved project design\n\nDo not replace this contract.\n"
+    assert (project / "user-notes.md").read_text(encoding="utf-8") == (
+        "# User notes\n\nDo not replace this file.\n"
     )
     cognition_references = [
         reference.read_text(encoding="utf-8")

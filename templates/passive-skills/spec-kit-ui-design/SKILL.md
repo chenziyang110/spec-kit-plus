@@ -79,9 +79,9 @@ DNA / personality, dials (variance · motion · density), evidence levels
 (`measured` / `evidence-backed-inference` / `assumption`), UI System Model
 (tokens, components, states, responsive, behavior), surface-aware anti-slop, and
 design readiness. Subordinate all of these to the exact registered
-`.specify/design/changes/<UD-ID>/DESIGN.md` plus its immutable
+`.specify/design/changes/<UD-ID>/design-change.md` plus its immutable
 preview/approval/handoff—not a global root contract or parallel `.design/`
-tree. A pre-existing root `DESIGN.md` is read-only legacy baseline input.
+tree. No root design document participates in the workflow.
 Discussion captures
 durable `design_context`; design reverse-engineers system rules; specify carries
 UI Requirements + Acceptance Criteria; quick runs UI Audit then
@@ -100,7 +100,7 @@ implement/review require system model + anti-slop + visual validation loop.
   the leader to split the work into independently bound consumer units, each
   with one exact scope and singular binding artifact; do not merge parent and
   successor rules or choose one for a broader surface.
-- Implementation must follow that exact change-local `DESIGN.md` for its
+- Implementation must follow that exact change-local `design-change.md` for its
   declared scope: layout, component usage, color, typography, motion, density,
   interaction states, explicit pointer/mouse, keyboard/focus, touch, and
   command behavior, data-state handling, accessibility expectations, and
@@ -110,9 +110,8 @@ implement/review require system model + anti-slop + visual validation loop.
   treat that exact change-level design artifact as inspectable handoff evidence. Preserve its
   component/state, density, meaningful-motion, and reduced-motion decisions;
   do not replace it with prose or a later feature target.
-- A root `DESIGN.md`, if present, is read-only legacy baseline input. It cannot
-  authorize adoption, be selected as an implicit latest contract, or suppress
-  a new bounded UI change.
+- An unregistered root design document cannot authorize adoption, be selected
+  as an implicit latest contract, or suppress a new bounded UI change.
 - If no applicable registered change exists, its scope is contradictory, or it
   is too thin for high-risk UI work,
   recommend `sp-design` and the projected invocation `{{invoke:design}}` before

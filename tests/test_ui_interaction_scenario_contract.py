@@ -246,7 +246,6 @@ def test_design_artifacts_define_a_professional_ui_contract() -> None:
     for relative in (
         "templates/design-change-template.md",
         "templates/advanced-skills/spx-design/assets/design-change.md",
-        "templates/design-template.md",
         "templates/ui-brief-template.md",
         "templates/design-brief-template.md",
         "templates/passive-skills/spec-kit-ui-design/SKILL.md",

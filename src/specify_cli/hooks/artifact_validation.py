@@ -4036,7 +4036,7 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
     if all(binding_values):
         change_id, design_ref, design_sha256, contract_ref = binding_values
         expected_workspace = f".specify/design/changes/{change_id}"
-        expected_design_ref = f"{expected_workspace}/DESIGN.md"
+        expected_design_ref = f"{expected_workspace}/design-change.md"
         expected_contract_ref = f"{expected_workspace}/design-contract.json"
         if not UI_DESIGN_CHANGE_ID_RE.fullmatch(change_id):
             errors.append(f"{label}.design_change_id must be a canonical UD-#### ID")

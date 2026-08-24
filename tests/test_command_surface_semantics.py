@@ -547,11 +547,12 @@ def test_design_command_declares_change_scoped_workflow_contract() -> None:
         in content
     )
     assert "primary_outputs" in content
-    assert ".specify/design/changes/<UD-ID>/DESIGN.md" in content
+    assert ".specify/design/changes/<UD-ID>/design-change.md" in content
     assert ".specify/design/index.json" in content
     assert "specify-runtime design change" in content
     assert "specify-runtime design register" in content
-    assert "read-only legacy baseline" in content
+    assert "No root design contract participates" in content
+    assert "read-only legacy baseline" not in content
     assert "{{spec-kit-include: ../command-partials/design/shell.md}}" in raw
 
 
@@ -560,7 +561,7 @@ def test_classic_and_advanced_design_contracts_pin_exact_change_identity() -> No
     advanced = read_template("templates/advanced-skills/spx-design/SKILL.md")
 
     for content in (classic, advanced):
-        assert ".specify/design/changes/<UD-ID>/DESIGN.md" in content
+        assert ".specify/design/changes/<UD-ID>/design-change.md" in content
         assert ".specify/design/changes/<UD-ID>/design-contract.json" in content
         assert ".specify/design/index.json" in content
         assert "specify-runtime design register" in content

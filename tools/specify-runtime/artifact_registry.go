@@ -40,7 +40,7 @@ var artifactTypePatterns = []artifactTypePattern{
 	{
 		metadata: ArtifactTypeMetadata{TypeID: "ui-design-change-contract", Owner: "specify-runtime artifact patch before specify-runtime design register", Role: "canonical", Schema: "markdown/ui-design-change", Operations: []string{"prepare", "patch", "show", "list"}, SummaryAdapter: "markdown-headings"},
 		match: func(path string) bool {
-			return isDesignChangeWorkspaceFile(path, "DESIGN.md")
+			return isDesignChangeWorkspaceFile(path, "design-change.md")
 		},
 	},
 	{
@@ -66,10 +66,6 @@ var artifactTypePatterns = []artifactTypePattern{
 		match: func(path string) bool {
 			return isDesignChangeWorkspaceFile(path, "options.md") || isDesignChangeWorkspaceFile(path, "references.md")
 		},
-	},
-	{
-		metadata: ArtifactTypeMetadata{TypeID: "project-design-contract", Owner: "specify-runtime design", Role: "legacy", Schema: "markdown/design-contract", Operations: []string{"show", "list"}, SummaryAdapter: "markdown-headings"},
-		match:    func(path string) bool { return path == "DESIGN.md" },
 	},
 	newFeatureWorkspacePattern("task-index.json", ArtifactTypeMetadata{TypeID: "feature-task-index", Owner: "specify-runtime tasks", Role: "canonical", Schema: "json/task-index", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newFeatureWorkspacePattern("tasks.md", ArtifactTypeMetadata{TypeID: "feature-tasks", Owner: "specify-runtime tasks", Role: "derived", Schema: "markdown/tasks", Operations: []string{"show", "list"}, SummaryAdapter: "markdown-headings"}),
@@ -498,7 +494,9 @@ var artifactTypePatterns = []artifactTypePattern{
 			SummaryAdapter: "markdown-headings",
 		},
 		match: func(path string) bool {
-			return strings.HasPrefix(path, ".specify/design/") && strings.HasSuffix(path, ".md")
+			return strings.HasPrefix(path, ".specify/design/") &&
+				!isDesignChangeWorkspaceFile(path, "DESIGN.md") &&
+				strings.HasSuffix(path, ".md")
 		},
 	},
 	{
@@ -733,9 +731,6 @@ func (service *ArtifactService) ListArtifacts(request ArtifactListRequest) Envel
 		roots = []string{normalizedPrefix}
 	} else {
 		roots = append([]string(nil), registeredArtifactRoots...)
-		if registeredRootArtifacts["DESIGN.md"] {
-			roots = append(roots, "DESIGN.md")
-		}
 	}
 
 	items := []map[string]any{}
@@ -771,9 +766,6 @@ func normalizeArtifactPrefix(prefix string) (string, error) {
 	if normalized == "." || normalized == ".." || strings.HasPrefix(normalized, "../") {
 		return "", fmt.Errorf("artifact path prefix must stay inside the project")
 	}
-	if registeredRootArtifacts[normalized] {
-		return normalized, nil
-	}
 	for _, root := range registeredArtifactRoots {
 		if strings.HasPrefix(normalized, root) {
 			if strings.HasSuffix(trimmed, "/") && !strings.HasSuffix(normalized, "/") {
@@ -788,17 +780,6 @@ func normalizeArtifactPrefix(prefix string) (string, error) {
 func (service *ArtifactService) discoverArtifactsUnder(root string, request ArtifactListRequest, limit int, seen map[string]bool) ([]map[string]any, error) {
 	if limit <= 0 {
 		return nil, nil
-	}
-	if registeredRootArtifacts[root] {
-		target, err := secureProjectPath(service.projectRoot, root)
-		if err != nil {
-			return nil, err
-		}
-		item, ok, err := service.describeArtifactFile(root, target, request, seen)
-		if err != nil || !ok {
-			return nil, err
-		}
-		return []map[string]any{item}, nil
 	}
 	targetRoot := strings.TrimSuffix(root, "/")
 	targetPath, err := secureProjectPath(service.projectRoot, targetRoot)

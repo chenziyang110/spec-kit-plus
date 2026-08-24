@@ -299,9 +299,9 @@
     },
     {
       "id": "ui_design_change_contract",
-      "path_patterns": [".specify/design/changes/*/DESIGN.md", ".specify/design/changes/*/design-contract.json", ".specify/design/changes/*/previews/**"],
+      "path_patterns": [".specify/design/changes/*/design-change.md", ".specify/design/changes/*/design-contract.json", ".specify/design/changes/*/previews/**"],
       "owner_cli": ["specify-runtime design", "specify-runtime artifact patch before design register"],
-      "path_hints": [".specify/design/changes/<UD-ID>/DESIGN.md", ".specify/design/changes/UD-", "<change-dir>/DESIGN.md", "<change-dir>/design-contract.json", "<change-dir>/previews/"],
+      "path_hints": [".specify/design/changes/<UD-ID>/design-change.md", ".specify/design/changes/UD-", "<change-dir>/design-change.md", "<change-dir>/design-contract.json", "<change-dir>/previews/"],
       "instruction_sources": ["templates/design-change-template.md"],
       "safe_instruction_patterns": ["specify-runtime design", "design change", "design register", "artifact show", "artifact patch", "before registration", "immutable", "cli-owned", "human-readable projection", "review and explanation"]
     },
@@ -312,14 +312,6 @@
       "path_hints": [".specify/design/changes/<UD-ID>/brief.md", ".specify/design/changes/<UD-ID>/review.md", "<change-dir>/brief.md", "<change-dir>/review.md", "<change-dir>/options.md", "<change-dir>/references.md"],
       "forbidden_cli_patterns": ["artifact\\s+(?:prepare\\s*(?:/|\\||plus)\\s*)?submit.*(?:brief\\.md|review\\.md)"],
       "safe_instruction_patterns": ["specify-runtime artifact", "artifact show", "artifact prepare", "artifact scaffold", "artifact patch", "artifact submit", "registered artifact owner", "cli-owned", "never submit the brief", "never submit the review", "never reconstruct"]
-    },
-    {
-      "id": "legacy_project_design_contract",
-      "path_patterns": ["DESIGN.md"],
-      "owner_cli": ["specify-runtime design"],
-      "path_hints": ["legacy root DESIGN.md"],
-      "instruction_sources": ["templates/design-template.md"],
-      "safe_instruction_patterns": ["read-only legacy", "legacy baseline", "specify-runtime design", "artifact show", "artifact list", "cli-owned"]
     },
     {
       "id": "legacy_design_runtime_artifacts",

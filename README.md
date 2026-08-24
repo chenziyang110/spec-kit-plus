@@ -22,7 +22,7 @@ Spec Kit Plus is an independently developed Spec-Driven Development toolkit for 
 | Work in the agent you already use | One integration registry renders the same workflow concepts into skills, commands, prompts, hooks, and context files native to each supported tool. |
 | Match prompts to the model | **Classic** keeps the full, explicit `sp-*` workflow; **Advanced** provides independent, prompt-optimized `spx-*` skills for skills-based integrations. |
 | Navigate an existing codebase | Project Cognition narrows brownfield evidence reads and change-impact routes while requiring live repository verification before technical claims or edits. |
-| Treat UI and acceptance as executable work | Change-scoped `.specify/design/changes/<UD-ID>/DESIGN.md`, feature `ui-brief.md`, task-local UI contracts, real-entrypoint evidence, and resumable human acceptance remain part of delivery rather than optional prose. |
+| Treat UI and acceptance as executable work | Change-scoped `.specify/design/changes/<UD-ID>/design-change.md`, feature `ui-brief.md`, task-local UI contracts, real-entrypoint evidence, and resumable human acceptance remain part of delivery rather than optional prose. |
 | Extend without forking the runtime | Presets, extensions, a generic integration, project Learning, and optional team execution add capabilities around the shared CLI and artifact contracts. |
 
 ## Quick start
@@ -673,12 +673,12 @@ when the `classic` profile is selected.
   refinement of registered truth starts with
   `specify-runtime design iterate <SOURCE-UD-ID> <SUCCESSOR-UD-ID>`, which pins
   exact lineage and source bytes. Each change owns
-  `.specify/design/changes/<UD-ID>/DESIGN.md`, its brief, previews, approval,
+  `.specify/design/changes/<UD-ID>/design-change.md`, its brief, previews, approval,
   handoff, and exported `design-contract.json`. Approved changes become
   consumable only after `specify-runtime design register`; the metadata-only
   `.specify/design/index.json` records scope, relationships, status, exact path,
-  and the registered document digest. A root `DESIGN.md` is read-only legacy
-  input when present and is never created or silently rewritten by init.
+  and the registered document digest. No root design contract participates in
+  selection or delivery; durable cross-change rules live in project memory.
   `specify-runtime design resolve --scope <exact-surface>` discovers active
   candidates without adopting them. Current binding artifacts are singular, so
   composite coverage is split into independently bound consumer units, each
@@ -1448,7 +1448,7 @@ Maintainer note:
   editable manifest, not the Jinja source tree.
 - `specify-runtime design change UD-0001 --title "..." --type overhaul
   --scope web:orders --profiles web` creates one bounded workspace and ensures
-  `.specify/design/index.json` exists without creating a root `DESIGN.md`.
+  `.specify/design/index.json` exists without creating a root design contract.
 - `specify-runtime design iterate UD-0001 UD-0002 --title "..." --scope
   web:orders/detail` creates a successor pinned to the registered source's
   exact SHA-256 and lineage without mutating it. The requested scope must still
@@ -1473,8 +1473,8 @@ Maintainer note:
   profiles project surface-native capabilities, specimens, states, targets, and
   production units into every direction; `no-ui` instead requires current
   not-applicable evidence and creates no preview artifact.
-- `specify-runtime design lint .specify/design/changes/UD-0001/DESIGN.md --level structural` checks schema and reference shape;
-  `specify-runtime design lint .specify/design/changes/UD-0001/DESIGN.md --level ready` additionally requires an approved,
+- `specify-runtime design lint .specify/design/changes/UD-0001/design-change.md --level structural` checks schema and reference shape;
+  `specify-runtime design lint .specify/design/changes/UD-0001/design-change.md --level ready` additionally requires an approved,
   project-specific direction whose image-primary or HTML-primary visual round,
   approval sidecar, immutable
   handoff, hashes, design decisions, handoff contracts, modes,
@@ -1494,9 +1494,9 @@ Maintainer note:
   exact ordered capability profiles and `SP-*` specimen set needed to reproduce
   the approved direction without treating either review carrier as production
   implementation.
-- `specify-runtime design export .specify/design/changes/UD-0001/DESIGN.md --format json` exports normalized design tokens and component token references after ready validation.
-- `specify-runtime design export .specify/design/changes/UD-0001/DESIGN.md --format tailwind` exports supported token categories into Tailwind theme fields after ready validation.
-- `specify-runtime design register .specify/design/changes/UD-0001/DESIGN.md` makes the ready, approved change consumable and pins its document digest in `.specify/design/index.json`; overlapping approved scope requires explicit `supersedes` metadata.
+- `specify-runtime design export .specify/design/changes/UD-0001/design-change.md --format json` exports normalized design tokens and component token references after ready validation.
+- `specify-runtime design export .specify/design/changes/UD-0001/design-change.md --format tailwind` exports supported token categories into Tailwind theme fields after ready validation.
+- `specify-runtime design register .specify/design/changes/UD-0001/design-change.md` makes the ready, approved change consumable and pins its document digest in `.specify/design/index.json`; overlapping approved scope requires explicit `supersedes` metadata.
 - Formal adoption uses `specify-runtime design adopt feature:<feature-id>
   --change UD-0002 --scope web:orders/detail --mode formal --binding-ref
   <feature-dir>/spec-contract.json --binding-sha256 <sha256>
@@ -1529,7 +1529,7 @@ Maintainer note:
   Partial registration records parent `superseded_scopes` rather than retiring
   unaffected scope.
 - Existing projects can use `--allow-unapproved` as a temporary structural-compatibility export while `sp-design`/`spx-design` records change-specific approval and provenance.
-- `specify-runtime design import SOURCE_REFERENCE --out .specify/design/changes/UD-0001/references.md` records synthesis input for one design change; it does not overwrite either the change-local `DESIGN.md` or a legacy root file.
+- `specify-runtime design import SOURCE_REFERENCE --out .specify/design/changes/UD-0001/references.md` records synthesis input for one design change; it does not overwrite the change-local `design-change.md`.
 - `specify-runtime design ui-target --out FEATURE_DIR/ui-target.html` scaffolds a
   feature-level composition/state target, and `specify-runtime design ui-target-lint
   PATH --level ready` validates its manifest, review controls, approved design

@@ -570,7 +570,7 @@ def _ready_change_design_text(
 
 
 def test_parse_design_markdown_reads_yaml_front_matter() -> None:
-    document = parse_design_markdown(VALID_DESIGN, source="DESIGN.md")
+    document = parse_design_markdown(VALID_DESIGN, source="design-change.md")
 
     assert document.design_system["schema"] == "spec-kit-design-v1"
     assert document.design_system["name"] == "test-system"
@@ -812,7 +812,7 @@ def _ready_iteration(
     source_digest: str,
 ) -> None:
     baseline = (
-        f".specify/design/changes/{source_id}/DESIGN.md#sha256={source_digest}"
+        f".specify/design/changes/{source_id}/design-change.md#sha256={source_digest}"
     )
     design_path.write_text(
         _ready_change_design_text(
@@ -848,7 +848,7 @@ def test_scaffold_design_iteration_pins_registered_source_without_mutating_it(
         successor.read_text(encoding="utf-8"), source=str(successor)
     )
     expected_baseline = (
-        ".specify/design/changes/UD-0042/DESIGN.md#sha256=" + source_digest
+        ".specify/design/changes/UD-0042/design-change.md#sha256=" + source_digest
     )
     assert document.design_system["baseline_refs"] == [expected_baseline]
     assert document.design_system["relationships"]["iteration_of"] == "UD-0042"
@@ -1035,7 +1035,7 @@ def test_design_adoption_requires_expected_change_and_retains_history(
             json.dumps(
                 {
                     "design_change_id": change_id,
-                    "design_change_ref": f".specify/design/changes/{change_id}/DESIGN.md",
+                    "design_change_ref": f".specify/design/changes/{change_id}/design-change.md",
                     "design_change_sha256": digest,
                     "design_contract_ref": contract.relative_to(tmp_path).as_posix(),
                 },
@@ -1335,7 +1335,7 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
             "ui_design_binding:\n"
             f"  scope: {bound_scope}\n"
             f"  design_change_id: {bound_change}\n"
-            "  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md\n"
+            "  design_change_ref: .specify/design/changes/UD-0042/design-change.md\n"
             f"  design_change_sha256: {design_digest}\n"
             "  design_contract_ref: .specify/design/changes/UD-0042/design-contract.json\n"
         )
@@ -1343,7 +1343,7 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
             binding_lines = (
                 f"scope: {bound_scope}\n"
                 f"design_change_id: {bound_change}\n"
-                "design_change_ref: .specify/design/changes/UD-0042/DESIGN.md\n"
+                "design_change_ref: .specify/design/changes/UD-0042/design-change.md\n"
                 f"design_change_sha256: {design_digest}\n"
                 "design_contract_ref: .specify/design/changes/UD-0042/design-contract.json\n"
             )
@@ -1358,7 +1358,7 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
                 "ui_design_binding:\n"
                 f"  scope: {bound_scope}\n"
                 f"  design_change_id: {bound_change}\n"
-                "  design_change_ref: .specify/design/changes/UD-0042/DESIGN.md\n"
+                "  design_change_ref: .specify/design/changes/UD-0042/design-change.md\n"
                 f"  design_change_sha256: {design_digest}\n"
                 "  design_contract_ref: .specify/design/changes/UD-0042/design-contract.json\n"
             )
@@ -1411,7 +1411,7 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
                 "design_binding": {
                     "scope": "web:orders/detail",
                     "design_change_id": bound_change,
-                    "design_change_ref": ".specify/design/changes/UD-0042/DESIGN.md",
+                    "design_change_ref": ".specify/design/changes/UD-0042/design-change.md",
                     "design_change_sha256": design_digest,
                     "design_contract_ref": ".specify/design/changes/UD-0042/design-contract.json",
                 },
@@ -1674,14 +1674,14 @@ def test_quick_confirmation_digest_matches_go_cross_language_vector() -> None:
             "design_binding": {
                 "scope": "web:订单/detail",
                 "design_change_id": "UD-0042",
-                "design_change_ref": ".specify/design/changes/UD-0042/DESIGN.md",
+                "design_change_ref": ".specify/design/changes/UD-0042/design-change.md",
                 "design_change_sha256": "a" * 64,
                 "design_contract_ref": ".specify/design/changes/UD-0042/design-contract.json",
             },
         },
         "user_corrections": ["excluded from digest"],
     }
-    expected = "44ba801bb2f538980b81e6096c9e5ff622df159a7e4d7e3564b7636dfad6388e"
+    expected = "d6ddb1756e49e4e64be11ed6753071ecf39c19f5253f8c7485f8a5debab4dafd"
     assert _quick_confirmation_digest(decision) == expected
 
     changed_write_scope = json.loads(json.dumps(decision, ensure_ascii=False))
@@ -1826,7 +1826,7 @@ def test_stable_go_json_rejects_noncanonical_values(
 
 
 def test_lint_design_file_accepts_valid_design(tmp_path: Path) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     design_file.write_text(VALID_DESIGN, encoding="utf-8")
 
     diagnostics = lint_design_file(design_file)
@@ -1837,7 +1837,7 @@ def test_lint_design_file_accepts_valid_design(tmp_path: Path) -> None:
 def test_ready_lint_rejects_bootstrap_design_but_structural_lint_accepts_it(
     tmp_path: Path,
 ) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     bootstrap = VALID_DESIGN.replace("name: test-system", "name: bootstrap-design-seed").replace(
         "  status: approved\n"
         "  approval:\n"
@@ -1858,7 +1858,7 @@ def test_ready_lint_rejects_bootstrap_design_but_structural_lint_accepts_it(
 
 
 def test_ready_lint_rejects_non_string_approval_source_refs(tmp_path: Path) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     design_file.write_text(
         _ready_design_text(
             tmp_path,
@@ -1878,7 +1878,7 @@ def test_ready_lint_rejects_non_string_approval_source_refs(tmp_path: Path) -> N
 def test_ready_lint_requires_an_inspectable_approved_visual_reference(
     tmp_path: Path,
 ) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     design_file.write_text(
         _ready_design_text(
             tmp_path,
@@ -1902,7 +1902,7 @@ def test_ready_lint_requires_an_inspectable_approved_visual_reference(
 def test_ready_lint_accepts_and_byte_binds_an_approved_image_round(
     tmp_path: Path,
 ) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     design_file.write_text(
         _ready_image_design_text(tmp_path),
         encoding="utf-8",
@@ -1923,7 +1923,7 @@ def test_lint_design_file_reports_non_file_path(tmp_path: Path) -> None:
 
 
 def test_lint_design_file_reports_missing_required_markdown_section(tmp_path: Path) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     design_file.write_text(
         VALID_DESIGN.replace("## Anti-Patterns\n\nNo unrelated styling.\n\n", ""),
         encoding="utf-8",
@@ -1935,7 +1935,7 @@ def test_lint_design_file_reports_missing_required_markdown_section(tmp_path: Pa
 
 
 def test_lint_design_file_reports_missing_design_change_policy(tmp_path: Path) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     design_file.write_text(
         VALID_DESIGN.replace("## Design Change Policy\n\nUpdate this file through `sp-design`.\n\n", ""),
         encoding="utf-8",
@@ -1947,7 +1947,7 @@ def test_lint_design_file_reports_missing_design_change_policy(tmp_path: Path) -
 
 
 def test_lint_design_file_reports_unknown_token_reference(tmp_path: Path) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     design_file.write_text(VALID_DESIGN.replace("{color.text.primary}", "{color.text.missing}"), encoding="utf-8")
 
     diagnostics = lint_design_file(design_file)
@@ -1956,7 +1956,7 @@ def test_lint_design_file_reports_unknown_token_reference(tmp_path: Path) -> Non
 
 
 def test_lint_design_file_reports_malformed_token_reference(tmp_path: Path) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     design_file.write_text(VALID_DESIGN.replace("{color.text.primary}", "color.text.primary"), encoding="utf-8")
 
     diagnostics = lint_design_file(design_file)
@@ -1965,7 +1965,7 @@ def test_lint_design_file_reports_malformed_token_reference(tmp_path: Path) -> N
 
 
 def test_lint_design_file_reports_unclosed_token_reference(tmp_path: Path) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     design_file.write_text(VALID_DESIGN.replace("{color.text.primary}", "{color.text.primary"), encoding="utf-8")
 
     diagnostics = lint_design_file(design_file)
@@ -1974,7 +1974,7 @@ def test_lint_design_file_reports_unclosed_token_reference(tmp_path: Path) -> No
 
 
 def test_lint_design_file_reports_non_string_token_reference(tmp_path: Path) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     design_file.write_text(VALID_DESIGN.replace('text: "{color.text.primary}"', "text: 123"), encoding="utf-8")
 
     diagnostics = lint_design_file(design_file)
@@ -1983,7 +1983,7 @@ def test_lint_design_file_reports_non_string_token_reference(tmp_path: Path) -> 
 
 
 def test_lint_design_file_reports_non_mapping_token_refs(tmp_path: Path) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     design_file.write_text(
         VALID_DESIGN.replace(
             '      token_refs:\n        background: "{color.surface.canvas}"\n        text: "{color.text.primary}"',
@@ -1998,7 +1998,7 @@ def test_lint_design_file_reports_non_mapping_token_refs(tmp_path: Path) -> None
 
 
 def test_export_design_system_json_returns_normalized_tokens(tmp_path: Path) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     design_file.write_text(_ready_design_text(tmp_path), encoding="utf-8")
 
     exported = export_design_system(design_file, export_format="json")
@@ -2033,7 +2033,7 @@ def test_export_design_system_json_returns_normalized_tokens(tmp_path: Path) -> 
 def test_ready_lint_rejects_unresolved_professional_skill_route(
     tmp_path: Path,
 ) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     content = _ready_design_text(tmp_path).replace(
         "    status: resolved\n    domain_skill_id: domain-product-workspace",
         "    status: question-required\n    domain_skill_id: domain-product-workspace",
@@ -2051,7 +2051,7 @@ def test_ready_lint_rejects_unresolved_professional_skill_route(
 
 def test_ready_lint_rejects_local_existing_ui_style_override(tmp_path: Path) -> None:
     design_file = (
-        tmp_path / ".specify" / "design" / "changes" / "UD-0042" / "DESIGN.md"
+        tmp_path / ".specify" / "design" / "changes" / "UD-0042" / "design-change.md"
     )
     design_file.parent.mkdir(parents=True)
     content = _ready_change_design_text(
@@ -2081,7 +2081,7 @@ def test_ready_lint_rejects_page_overhaul_without_exact_authority(
     tmp_path: Path,
 ) -> None:
     design_file = (
-        tmp_path / ".specify" / "design" / "changes" / "UD-0042" / "DESIGN.md"
+        tmp_path / ".specify" / "design" / "changes" / "UD-0042" / "design-change.md"
     )
     design_file.parent.mkdir(parents=True)
     content = _ready_change_design_text(
@@ -2113,7 +2113,7 @@ def test_ready_lint_rejects_page_overhaul_without_exact_authority(
 def test_lint_rejects_more_than_two_professional_specialists(
     tmp_path: Path,
 ) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     content = _ready_design_text(tmp_path).replace(
         "      - specialist-accessibility-localization\n    matched_signals:",
         "      - specialist-accessibility-localization\n"
@@ -2135,7 +2135,7 @@ def test_lint_rejects_more_than_two_professional_specialists(
 def test_ready_lint_rejects_professional_skill_reference_mismatch(
     tmp_path: Path,
 ) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     content = _ready_design_text(tmp_path).replace(
         "ui-professional-skills/domains/product-workspace.md",
         "ui-professional-skills/domains/commerce-service.md",
@@ -2152,7 +2152,7 @@ def test_ready_lint_rejects_professional_skill_reference_mismatch(
 
 
 def test_export_design_system_tailwind_maps_supported_token_categories(tmp_path: Path) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     design_file.write_text(_ready_design_text(tmp_path), encoding="utf-8")
 
     exported = export_design_system(design_file, export_format="tailwind")
@@ -2172,7 +2172,7 @@ def test_export_design_system_tailwind_maps_supported_token_categories(tmp_path:
 def test_export_design_system_allows_explicit_legacy_structural_escape_hatch(
     tmp_path: Path,
 ) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     legacy_design = VALID_DESIGN.replace("  status: approved\n", "", 1)
     design_file.write_text(legacy_design, encoding="utf-8")
 
@@ -2189,7 +2189,7 @@ def test_export_design_system_allows_explicit_legacy_structural_escape_hatch(
 
 
 def test_export_design_system_rejects_unknown_format(tmp_path: Path) -> None:
-    design_file = tmp_path / "DESIGN.md"
+    design_file = tmp_path / "design-change.md"
     design_file.write_text(VALID_DESIGN, encoding="utf-8")
 
     with pytest.raises(DesignLintError):
@@ -2212,16 +2212,16 @@ def test_import_design_reference_writes_reference_summary(tmp_path: Path) -> Non
     assert not (tmp_path / "DESIGN.md").exists()
 
 
-def test_design_lint_cli_reports_success_by_default_against_cwd_design(
+def test_design_lint_cli_does_not_implicitly_select_a_root_design_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    Path("DESIGN.md").write_text(VALID_DESIGN, encoding="utf-8")
+    Path("design-change.md").write_text(VALID_DESIGN, encoding="utf-8")
 
     result = runner.invoke(app, ["design", "lint"])
 
-    assert result.exit_code == 0
-    assert "DESIGN.md is valid at structural level" in result.output
+    assert result.exit_code == 2
+    assert "PATH" in result.output
 
 
 def test_design_cli_exposes_explicit_iteration_commands() -> None:
@@ -2236,9 +2236,12 @@ def test_design_lint_cli_ready_accepts_approved_project_design(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    Path("DESIGN.md").write_text(_ready_design_text(tmp_path), encoding="utf-8")
+    Path("design-change.md").write_text(_ready_design_text(tmp_path), encoding="utf-8")
 
-    result = runner.invoke(app, ["design", "lint", "--level", "ready"])
+    result = runner.invoke(
+        app,
+        ["design", "lint", "design-change.md", "--level", "ready"],
+    )
 
     assert result.exit_code == 0
     assert "valid at ready level" in result.output
@@ -2248,12 +2251,15 @@ def test_design_lint_cli_json_reports_diagnostics_for_invalid_schema(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    Path("DESIGN.md").write_text(
+    Path("design-change.md").write_text(
         VALID_DESIGN.replace("schema: spec-kit-design-v1", "schema: wrong-schema"),
         encoding="utf-8",
     )
 
-    result = runner.invoke(app, ["design", "lint", "--format", "json"])
+    result = runner.invoke(
+        app,
+        ["design", "lint", "design-change.md", "--format", "json"],
+    )
 
     assert result.exit_code == 1
     payload = json.loads(result.output)
@@ -2265,9 +2271,12 @@ def test_design_export_cli_json_prints_design_schema(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    Path("DESIGN.md").write_text(_ready_design_text(tmp_path), encoding="utf-8")
+    Path("design-change.md").write_text(_ready_design_text(tmp_path), encoding="utf-8")
 
-    result = runner.invoke(app, ["design", "export", "--format", "json"])
+    result = runner.invoke(
+        app,
+        ["design", "export", "design-change.md", "--format", "json"],
+    )
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
@@ -2279,12 +2288,22 @@ def test_design_export_cli_allows_explicit_unapproved_legacy_migration(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     legacy_design = VALID_DESIGN.replace("  status: approved\n", "", 1)
-    Path("DESIGN.md").write_text(legacy_design, encoding="utf-8")
+    Path("design-change.md").write_text(legacy_design, encoding="utf-8")
 
-    blocked = runner.invoke(app, ["design", "export", "--format", "json"])
+    blocked = runner.invoke(
+        app,
+        ["design", "export", "design-change.md", "--format", "json"],
+    )
     migrated = runner.invoke(
         app,
-        ["design", "export", "--format", "json", "--allow-unapproved"],
+        [
+            "design",
+            "export",
+            "design-change.md",
+            "--format",
+            "json",
+            "--allow-unapproved",
+        ],
     )
 
     assert blocked.exit_code == 1
@@ -2296,10 +2315,13 @@ def test_specify_design_export_rejects_unknown_format_as_usage_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "DESIGN.md").write_text(VALID_DESIGN, encoding="utf-8")
+    (tmp_path / "design-change.md").write_text(VALID_DESIGN, encoding="utf-8")
     runner = CliRunner()
 
-    result = runner.invoke(app, ["design", "export", "--format", "css"])
+    result = runner.invoke(
+        app,
+        ["design", "export", "design-change.md", "--format", "css"],
+    )
 
     assert result.exit_code == 2
     assert "--format must be json or tailwind" in result.output
