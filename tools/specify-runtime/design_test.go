@@ -1251,7 +1251,7 @@ func TestDesignChangeScaffoldCreatesChangeLocalContractAndIndex(t *testing.T) {
 	if exit != 0 {
 		t.Fatalf("design change exit=%d output=%s", exit, stdout.String())
 	}
-	designPath := filepath.Join(".specify", "design", "changes", "UD-0042", "DESIGN.md")
+	designPath := filepath.Join(".specify", "design", "changes", "UD-0042", "design-change.md")
 	content := readFile(t, designPath)
 	if !strings.Contains(content, "design_change:") || !strings.Contains(content, "schema: spec-kit-ui-design-change-v1") {
 		t.Fatalf("change-local contract is missing the new schema:\n%s", content)
@@ -1261,6 +1261,9 @@ func TestDesignChangeScaffoldCreatesChangeLocalContractAndIndex(t *testing.T) {
 	}
 	if _, err := os.Stat("DESIGN.md"); !os.IsNotExist(err) {
 		t.Fatalf("design change must not create a root DESIGN.md")
+	}
+	if _, err := os.Stat(filepath.Join(".specify", "design", "changes", "UD-0042", "DESIGN.md")); !os.IsNotExist(err) {
+		t.Fatalf("design change must not create a change-local DESIGN.md")
 	}
 	var index map[string]any
 	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(".specify", "design", "index.json"))), &index); err != nil {
@@ -1272,6 +1275,9 @@ func TestDesignChangeScaffoldCreatesChangeLocalContractAndIndex(t *testing.T) {
 	changes, ok := index["changes"].([]any)
 	if !ok || len(changes) != 1 || changes[0].(map[string]any)["id"] != "UD-0042" {
 		t.Fatalf("unexpected design index changes: %#v", index["changes"])
+	}
+	if changes[0].(map[string]any)["design_ref"] != ".specify/design/changes/UD-0042/design-change.md" {
+		t.Fatalf("unexpected design ref: %#v", changes[0].(map[string]any)["design_ref"])
 	}
 }
 

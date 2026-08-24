@@ -63,7 +63,7 @@ func TestArtifactTypeRegistryCoversCrossWorkflowControlPlaneArtifacts(t *testing
 		".specify/design/previews/round-01.html":                                           "design-html",
 		".specify/design/design-brief.md":                                                  "design-brief",
 		".specify/design/index.json":                                                       "ui-design-change-index",
-		".specify/design/changes/UD-0042/DESIGN.md":                                        "ui-design-change-contract",
+		".specify/design/changes/UD-0042/design-change.md":                                 "ui-design-change-contract",
 		".specify/design/changes/UD-0042/design-contract.json":                             "ui-design-change-export",
 		".specify/design/changes/UD-0042/brief.md":                                         "ui-design-change-brief",
 		".specify/design/changes/UD-0042/review.md":                                        "ui-design-change-review",
@@ -87,13 +87,15 @@ func TestArtifactTypeRegistryCoversCrossWorkflowControlPlaneArtifacts(t *testing
 		t.Fatalf("design preview manifest must support leased patches: %#v, %v", manifest, ok)
 	}
 
-	changeContract, ok := LookupArtifactType(".specify/design/changes/UD-0042/DESIGN.md")
+	changeContract, ok := LookupArtifactType(".specify/design/changes/UD-0042/design-change.md")
 	if !ok || changeContract.Role != "canonical" || !artifactTypeAllows(changeContract, "patch") {
 		t.Fatalf("draft design change contract must support leased patches: %#v, %v", changeContract, ok)
 	}
-	legacyRoot, ok := LookupArtifactType("DESIGN.md")
-	if !ok || legacyRoot.Role != "legacy" || artifactTypeAllows(legacyRoot, "patch") {
-		t.Fatalf("root DESIGN.md must remain read-only legacy input: %#v, %v", legacyRoot, ok)
+	if legacyRoot, ok := LookupArtifactType("DESIGN.md"); ok {
+		t.Fatalf("root DESIGN.md must not remain a registered product artifact: %#v", legacyRoot)
+	}
+	if legacyChange, ok := LookupArtifactType(".specify/design/changes/UD-0042/DESIGN.md"); ok {
+		t.Fatalf("change-local DESIGN.md must not remain a registered product artifact: %#v", legacyChange)
 	}
 
 	prdState, ok := LookupArtifactType(".specify/prd-runs/260729-demo/workflow-state.md")
