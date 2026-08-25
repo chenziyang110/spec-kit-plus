@@ -601,7 +601,15 @@ must identify the exact stage, cause, owner, sanitized evidence, recovery
 already attempted, affected scope, smallest next action, observable unblock
 criteria, and exact resume point; an error list or “ask a human” is not a valid
 blocked result. Ordinary repository repair and available fallbacks stay
-agent-owned. When credentials, protected external systems, external-write
+agent-owned. In Fast, Quick, Implement, and Debug, this explicitly includes
+project-controlled launchers and process tracking, test harnesses/fixtures,
+dependency restoration, build/startup tooling, local services, generated tools,
+and supporting files outside the initial packet. The active workflow expands
+tracked scope, repairs the owner through its own internal recovery lane, and
+resumes the failed gate in the same invocation; it does not automatically invoke
+another user-invoked workflow. Canonical runtime operations remain available,
+while contradictory upstream truth uses an explicit handoff-and-stop boundary.
+When credentials, protected external systems, external-write
 approval, subjective product/visual decisions, or physical access genuinely
 require a person, the response expands into a step-by-step Human Action Guide
 with prerequisites, safety notes, exact clicks or commands, expected results,

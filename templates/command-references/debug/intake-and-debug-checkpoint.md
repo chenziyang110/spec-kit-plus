@@ -12,7 +12,11 @@ Use `leader-inline` when the investigation is small, focused, and has a short ev
 
 Use `subagent-assisted` when the investigation has multiple independent evidence lanes, broad surface area, multiple plausible causes, multiple modules or logs to inspect, independent repro or verification lanes, or meaningful parallelism.
 
-Use `blocked` when the next safe step is unsafe, unavailable, or unpacketizable. Preserve the blocked state as `dispatch_shape: subagent-blocked`, `execution_surface: none`, and a concrete `blocked_reason`.
+Use `subagent-blocked` only for the dispatch surface when the proposed lane is
+unsafe, unavailable, or unpacketizable. Repair/recompile the lane, choose a safe
+leader path, or open a tracked recovery subflow before considering the workflow
+blocked. Terminal `blocked` requires that every safe authorized fallback is
+exhausted and a human/external boundary is proven; preserve its concrete reason.
 
 Patch these fields into the debug session only through a leased `specify-runtime artifact patch` call:
 
@@ -109,7 +113,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 4. **Fix and Verify**
    - Apply the minimum code change needed to address the confirmed root cause when `execution_model: leader-inline`.
    - When `execution_model: subagent-assisted`, delegate it through a validated subagent lane and integrate the returned handoff on the leader path.
-   - When the fix cannot proceed safely, cannot be packetized, or cannot be verified, record `subagent-blocked` with `execution_surface: none` and a concrete blocked reason instead of layering a speculative fix.
+   - When the selected fix cannot proceed safely, cannot be packetized, or cannot be verified, record `subagent-blocked` with `execution_surface: none`, repair or recompile the lane, or continue through a safe leader-owned/internal recovery path instead of layering a speculative fix. Mark Debug itself blocked only at the shared proven human/external boundary.
    - Verify with the reproduction steps and relevant tests.
 
 5. **Human Verification**

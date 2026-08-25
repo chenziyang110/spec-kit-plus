@@ -447,11 +447,13 @@ def test_quick_template_requires_tdd_gate_for_behavior_changes() -> None:
     assert re.search(r"\bsp-test(?!-design)\b", content) is None
 
 
-def test_quick_template_routes_uncertain_bugfixes_into_debug() -> None:
+def test_quick_template_keeps_uncertain_bugfix_recovery_inside_quick() -> None:
     content = read_command_with_references("quick").lower()
 
     assert "root cause is still unknown" in content or "root cause is not yet known" in content
-    assert "{{invoke:debug}}" in content or "/sp-debug" in content
+    assert "debug-grade" in content
+    assert "inside quick" in content
+    assert "do not invoke another user-invoked workflow automatically" in content
     assert "surface-only" in content or "symptom-only" in content
     assert "cannot satisfy the quick-task contract" in content or "cannot satisfy the quick contract" in content
 

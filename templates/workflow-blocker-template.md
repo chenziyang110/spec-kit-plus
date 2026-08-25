@@ -3,6 +3,9 @@
 Use this view only after the workflow has exhausted safe, authorized recovery.
 Do not create a separate artifact merely to repeat information already owned by
 workflow state or a task lifecycle record.
+Project-controlled launcher, harness, dependency, build/startup, local-service,
+or supporting-scope failures are not eligible for this terminal view merely
+because validation discovered them or they were outside the initial packet.
 
 ## Blocked
 

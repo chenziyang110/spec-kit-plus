@@ -188,22 +188,27 @@ unknown IDs, or row drift block the lane instead of permitting reconstruction.
 Perform task-level review on drift, parallel joins, write-scope changes,
 validation failure, worker concern, obligation conflict, real-entrypoint gaps,
 or an oversized unreviewed window. This does not replace the mandatory
-post-implementation system Review. Repair only understood local failures;
-reopen planning or debugging when upstream truth or root cause is unknown.
+post-implementation system Review. Repair understood local failures directly.
+For an unknown technical root cause, preserve the task and use a bounded
+Debug-grade evidence lane inside Implement; repair the proven owner and return
+after verified recovery without automatically invoking another workflow.
 
 Give every discovered gap an orthogonal classification. `implementation_gap`
 means upstream behavior is clear but code/wiring/tests are wrong;
 `traceability_gap` means supported behavior lacks task/CA/validation mapping;
 `upstream_truth_gap` means user-visible behavior, recovery/retry/cancel,
 interaction escalation, lifecycle, requirement, design, or architecture truth
-is missing or contradictory. Repair implementation gaps locally; repair safe
-task traceability or reopen Tasks/Plan; stop and reopen the owning upstream
-workflow for an upstream truth gap. A new behavior/test with no requirement,
+is missing or contradictory. Repair implementation gaps locally and repair safe
+task traceability through its canonical runtime operation. For a true upstream
+truth gap, park Implement and emit an explicit handoff to the owning workflow;
+stop rather than silently changing that truth. A new behavior/test with no requirement,
 acceptance, or CA ref is not an implementation-only repair.
 
-Every cross-workflow route is a handoff-and-stop boundary. Hand off unknown root
-causes to `$spx-debug`, missing/invalid design truth to `$spx-design`, and durable
-team execution to `$spx-implement-teams`; do not run any of them inline in this invocation.
+Distinguish terminal delivery handoffs from internal recovery. Unknown technical
+root causes stay inside Implement's Debug-grade evidence lane and return to the
+failed gate in the same invocation. Missing/invalid design or upstream truth,
+a user-selected durable-team switch, and successful handoff to `$spx-review`
+remain explicit handoff-and-stop boundaries.
 
 Before completion, run
 `{{specify-subcmd:specify-runtime implement closeout --feature-dir <feature-dir> --format json}}`
