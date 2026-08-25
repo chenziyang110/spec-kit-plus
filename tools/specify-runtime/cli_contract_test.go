@@ -544,6 +544,7 @@ func generatedRuntimeVerbCapabilities() []string {
 		"quick.item-status",
 		"quick.list",
 		"quick.packet-compile",
+		"quick.preflight",
 		"quick.resume",
 		"quick.status",
 		"result.path",

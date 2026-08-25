@@ -60,12 +60,18 @@ The generated scaffold initializes `understanding_confirmed: false`, `status: ga
 ## Recovery Routing
 
 - `sp-quick <description>` creates a new quick task.
-- Empty `sp-quick` should look for unfinished quick tasks before asking for a new description.
+- Empty `sp-quick` should run `specify-runtime quick preflight --format json`
+  and look for unfinished quick tasks before asking for a new description. The
+  combined snapshot is authoritative for discovery: an empty Work Board does
+  not mean the Quick list is empty.
 - If exactly one unfinished quick task exists, resume it automatically.
 - If multiple unfinished quick tasks exist, ask the user which quick task to continue.
 - The selection list should show `id`, title, current status, and `next_action`.
 - Treat `gathering`, `planned`, `executing`, `validating`, and `blocked` as unfinished quick-task states for recovery routing.
 - If resuming a `blocked` quick task, prioritize `blocker_reason`, `recovery_action`, and `next_action` before widening scope.
+- A `write_overlap` signal is a hard blocker. Untracked or merely concurrent
+  Quick tasks are advisory until repository evidence proves a write conflict or
+  a shared product outcome that should be resumed, merged, or sequenced.
 
 ## Lifecycle Commands
 

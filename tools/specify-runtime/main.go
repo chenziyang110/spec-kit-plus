@@ -1257,6 +1257,7 @@ func defaultCapabilities() []string {
 		"quick.item-status",
 		"quick.list",
 		"quick.packet-compile",
+		"quick.preflight",
 		"quick.resume",
 		"quick.status",
 		"sync.safe",
@@ -1492,6 +1493,8 @@ func capabilitySummary(id string) string {
 		return "Reopen one non-acceptance-ready implemented task with revision guards and immutable audit history."
 	case "board.show":
 		return "List the durable repository Work Board with task ownership and declared write intents."
+	case "quick.preflight":
+		return "Reconcile and combine unfinished Quick tasks with live Work Board ownership and overlap signals."
 	case "board.owner":
 		return "Find active or recovery-held work whose declared write scope overlaps one path."
 	case "board.reconcile":

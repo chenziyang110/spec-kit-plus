@@ -405,7 +405,7 @@ def test_quick_template_uses_event_driven_coordination_preflight() -> None:
     assert "work board" in content
     assert "empty work board" in content
     assert "does not mean" in content
-    assert "before the first `quick item-start`" in content
+    assert "first `quick item-start`" in content
     assert "after each join" in content
     assert "before `work scope-add`" in content
     assert "do not poll" in content
@@ -413,6 +413,21 @@ def test_quick_template_uses_event_driven_coordination_preflight() -> None:
     assert "unfinished_quick_untracked" in content
     assert "hard blocker" in content
     assert "advisory" in content
+
+
+def test_quick_coordination_preflight_is_documented_across_operator_surfaces() -> None:
+    surfaces = (
+        PROJECT_ROOT / "README.md",
+        PROJECT_ROOT / "PROJECT-HANDBOOK.md",
+        PROJECT_ROOT / "templates/project-handbook-template.md",
+    )
+
+    for path in surfaces:
+        content = path.read_text(encoding="utf-8").lower()
+        assert "specify-runtime quick preflight" in content, path
+        assert "empty work board" in content, path
+        assert "write_overlap" in content, path
+        assert "do not poll" in content, path
 
 
 def test_quick_template_blocks_resume_until_understanding_is_confirmed() -> None:

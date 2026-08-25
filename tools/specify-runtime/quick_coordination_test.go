@@ -69,7 +69,7 @@ func TestQuickPreflightBlocksOnlyOnConfirmedBoardOverlap(t *testing.T) {
 		"--project-root", root,
 		"--format", "json",
 	)
-	if code != 0 || payload["status"] != "ok" {
+	if code != ExitCodeForStatus("blocked") || payload["status"] != "blocked" {
 		t.Fatalf("quick preflight = code %d envelope %#v", code, payload)
 	}
 	data := requireObject(t, payload, "data")
@@ -88,6 +88,10 @@ func TestQuickPreflightBlocksOnlyOnConfirmedBoardOverlap(t *testing.T) {
 	if signal["level"] != "block" {
 		t.Fatalf("write overlap signal = %#v", signal)
 	}
+	blocker := quickCoordinationObjectByField(t, requireObjectSlice(t, payload, "blockers"), "code", "write_overlap")
+	if blocker["owner_work_id"] != "work-owner" {
+		t.Fatalf("write overlap blocker = %#v", blocker)
+	}
 }
 
 func TestQuickPreflightDoesNotTreatAnEmptyBoardAsAnEmptyRepository(t *testing.T) {
@@ -104,6 +108,46 @@ func TestQuickPreflightDoesNotTreatAnEmptyBoardAsAnEmptyRepository(t *testing.T)
 	}
 	if data["coordination_state"] != "attention" || data["untracked_quick_count"] != float64(1) {
 		t.Fatalf("empty-board interpretation = %#v", data)
+	}
+}
+
+func TestQuickPreflightNormalizesGlobScopeForConfirmedBoardOverlap(t *testing.T) {
+	root := initRunCLIRepository(t)
+	writeQuickCoordinationFixture(t, root, "260825-current", "Current upload work", "planned", []string{"src/**"})
+	beginQuickCoordinationWork(t, root, "work-owner", "feature:upload", "Upload owner", "src/upload.go")
+
+	code, payload := invokeRunCLI(t,
+		"quick", "preflight", "260825-current",
+		"--project-root", root,
+		"--format", "json",
+	)
+	if code != ExitCodeForStatus("blocked") || payload["status"] != "blocked" {
+		t.Fatalf("glob-scope preflight = code %d envelope %#v", code, payload)
+	}
+	data := requireObject(t, payload, "data")
+	conflict := requireObjectSlice(t, data, "conflicts")[0]
+	if conflict["requested_path"] != "src" || conflict["owner_path"] != "src/upload.go" {
+		t.Fatalf("normalized glob conflict = %#v", conflict)
+	}
+}
+
+func TestQuickPreflightNormalizesGlobScopeForUnfinishedQuickAdvisory(t *testing.T) {
+	root := initRunCLIRepository(t)
+	writeQuickCoordinationFixture(t, root, "260825-current", "Current upload work", "planned", []string{"src/*"})
+	writeQuickCoordinationFixture(t, root, "260825-other", "Other node work", "executing", []string{"src/nodes"})
+
+	code, payload := invokeRunCLI(t,
+		"quick", "preflight", "260825-current",
+		"--project-root", root,
+		"--format", "json",
+	)
+	if code != 0 || payload["status"] != "ok" {
+		t.Fatalf("glob-scope advisory = code %d envelope %#v", code, payload)
+	}
+	data := requireObject(t, payload, "data")
+	signal := quickCoordinationObjectByField(t, requireObjectSlice(t, data, "signals"), "code", "unfinished_quick_scope_overlap")
+	if signal["requested_path"] != "src" || signal["other_quick_path"] != "src/nodes" {
+		t.Fatalf("normalized Quick overlap signal = %#v", signal)
 	}
 }
 

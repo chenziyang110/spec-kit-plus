@@ -127,6 +127,25 @@ and fill only the returned semantic anchors. Resume an existing
 Keep state compact and ask the user only for decisions the repository cannot
 supply.
 
+For full-branch coordination, prefer the combined
+`{{specify-subcmd:specify-runtime quick preflight [<quick-id>] --format json}}`
+snapshot over separately interpreting `quick list` and `board show`. It
+reconciles expired leases and joins unfinished Quick tasks to live or
+recovery-held Work Board items. An empty Work Board does not mean no other
+Quick task is in progress. `write_overlap` is a hard blocker; an
+`unfinished_quick_untracked`, `unfinished_quick_scope_overlap`,
+`other_unfinished_quick`, or `board_only_work` signal is advisory. Compare
+title, current focus, next action, and planned scope, then
+resume/merge/sequence related work or proceed with unrelated work without
+inventing a user gate.
+
+Run the preflight at entry or resume, before the first `quick item-start`, after
+each join before the next Q item or batch, and before `work scope-add`,
+interrupted-work recovery, or material scope expansion. Do not poll between
+events. Use Work Board task refs `quick:<id>` for the Quick and
+`quick:<id>#Qn` for separately registered Q workers (`--work-task-ref` for a
+managed Run, `--task-ref` for unhosted work).
+
 Initialize or preserve the unconfirmed intake state, then stage a
 `quick-confirmation-v1` contract with
 `{{specify-subcmd:specify-runtime quick checkpoint-stage <id> --input-json '<decision+delivery>' --format json}}`

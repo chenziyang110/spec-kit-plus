@@ -21,6 +21,31 @@ then execute only through `specify-runtime run supervise`; do not resume another
 workflow's run. The explicit user-selected context-direct branch is the sole
 exception and creates no run or Quick workspace.
 
+## Coordination Preflight
+
+For the full Quick branch, run
+`specify-runtime quick preflight [<quick-id>] --format json` before choosing a
+new task versus a resume. The runtime reconciles expired leases and returns one
+`quick-coordination-v1` snapshot that joins unfinished Quick tasks with live or
+recovery-held Work Board items. An empty Work Board does not mean that no other
+Quick work exists; inspect `quick_tasks`, `work_board`, and `signals` together.
+
+Interpret `write_overlap` as a hard blocker until the owner yields, the work is
+resequenced, or scope is safely narrowed. Treat `unfinished_quick_untracked`,
+`unfinished_quick_scope_overlap`, `other_unfinished_quick`, and
+`board_only_work` as advisory coordination signals: compare title, current
+focus, next action, and planned write scope, then resume/merge/sequence related
+work or record that it is unrelated and proceed. Unrelated unfinished work is
+visible context, not an automatic stop or a reason to ask the user.
+
+Refresh this snapshot at events, not on a timer: at entry or resume, before the
+first `quick item-start`, after each join before selecting the next Q item or
+batch, and before `work scope-add`, interrupted-work recovery, or a material
+scope expansion. Do not poll the two stores continuously. Register managed
+Quick work with `--work-task-ref quick:<id>` and unhosted work with `--task-ref
+quick:<id>`; use `quick:<id>#Qn` for separately registered Q workers so the
+preflight can correlate both views.
+
 ## Read-Only Test Design Projection Gate
 
 The runtime-managed `STATUS.md` Test Design input records

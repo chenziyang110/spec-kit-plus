@@ -219,6 +219,10 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "artifact.catalog":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime artifact catalog --format json"
+	case "quick.preflight":
+		capability["side_effect"] = "reconciles-work-board-and-refreshes-derived-quick-index"
+		capability["usage"] = "specify-runtime quick preflight [<quick-id>] [--current-work-id <work-id>] [--project-root <path>] --format json"
+		capability["input_contract"] = "returns one quick-coordination-v1 snapshot joining unfinished STATUS.md tasks to live or recovery-held Work Board items through canonical task_ref quick:<id>[#Qn]; only confirmed Work Board path overlap is a hard blocker, while untracked Quick tasks, board-only work, and unfinished Quick scope overlap are advisory attention signals; current-work-id defaults to SPECIFY_WORK_ID"
 	case "board.show":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime board show [--status active|blocked|interrupted|completed|abandoned] [--project-root <path>] --format json"

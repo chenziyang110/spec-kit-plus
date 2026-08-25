@@ -1204,6 +1204,20 @@ func workPathsOverlap(left, right string) bool {
 	return left == right || strings.HasPrefix(left, right+"/") || strings.HasPrefix(right, left+"/")
 }
 
+// WritePathsOverlap applies the Work Board's repository-relative path
+// normalization and same/ancestor/descendant overlap semantics.
+func WritePathsOverlap(left, right string) (bool, error) {
+	_, leftKey, err := normalizeWorkPath(left, runtime.GOOS == "windows")
+	if err != nil {
+		return false, err
+	}
+	_, rightKey, err := normalizeWorkPath(right, runtime.GOOS == "windows")
+	if err != nil {
+		return false, err
+	}
+	return workPathsOverlap(leftKey, rightKey), nil
+}
+
 func findWorkIntentConflictsTx(
 	ctx context.Context,
 	tx *sql.Tx,

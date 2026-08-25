@@ -66,6 +66,7 @@ func TestAPIShowExpandsEveryAdvertisedCapability(t *testing.T) {
 
 func TestAPIShowWorkBoardCapabilitiesPublishCoordinationContracts(t *testing.T) {
 	for _, capabilityID := range []string{
+		"quick.preflight",
 		"board.show",
 		"board.owner",
 		"board.reconcile",

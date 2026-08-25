@@ -286,6 +286,11 @@ The following flags are available and composable:
 
 5. **Execution**
    - Start execution only after a leased `specify-runtime artifact patch` sets `understanding_confirmed: true` in `STATUS.md`.
+   - Run `specify-runtime quick preflight <quick-id> --format json` before the
+     first `quick item-start`, after each join before choosing the next item or
+     batch, and before `work scope-add` or a material scope expansion. Resolve
+     `write_overlap`; review advisory concurrent/untracked signals and continue
+     automatically when the work is unrelated. Do not poll between events.
    - Execute the current quick-task lane or ready batch through the selected dispatch shape and execution surface.
    - For `one-subagent`, dispatch one subagent once the subagent-readiness bar is satisfied; otherwise finish compiling the missing contract before dispatch. If the contract cannot be made safe, record `subagent-blocked` and stop for escalation or recovery.
    - The first concrete execution action after understanding confirmation should normally be dispatching that subagent batch, not continuing local repository analysis.

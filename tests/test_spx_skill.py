@@ -374,6 +374,11 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "spx-specify" in skills["spx-quick"]
     assert "discussion mark-consumed" in skills["spx-quick"]
     assert "accepts the quick" in skills["spx-quick"]
+    assert "quick preflight" in skills["spx-quick"]
+    assert "empty work board does not mean" in skills["spx-quick"]
+    assert "write_overlap" in skills["spx-quick"]
+    assert "unfinished_quick_untracked" in skills["spx-quick"]
+    assert "do not poll" in skills["spx-quick"]
 
     assert "spx-map-scan" in skills["spx-map-rebuild"]
     assert "spx-map-build" in skills["spx-map-rebuild"]

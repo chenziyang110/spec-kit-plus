@@ -1100,6 +1100,7 @@ Routing guide for direct delivery work:
 - Quick workspaces now live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the task source of truth, an ordered work-item/dependency/acceptance ledger for one or many deliverables, and `.planning/quick/index.json` as a derived management index.
 - Invoking `sp-quick` with no arguments should resume unfinished quick work when possible. If only one unfinished quick task exists, continue it automatically. `blocked` quick tasks still count as resumable unfinished work.
 - Use the project-local `specify-runtime quick list` to inspect unfinished quick tasks by default.
+- Before Quick writes, use `specify-runtime quick preflight [<quick-id>] --format json` to reconcile the Work Board and join it with unfinished Quick state in one snapshot. An empty Work Board does not mean there are no unfinished Quick tasks. Only a confirmed `write_overlap` is a hard blocker; untracked or unrelated Quick/work items are advisory and must be reviewed against title, current focus, next action, and planned write scope. Refresh at Quick entry or resume, before the first item starts, after each join, and before scope expansion or `work scope-add`; do not poll continuously.
 - Quick-task helper command shapes:
   - Command shape: `specify-runtime quick status <id>`
   - Command shape: `specify-runtime quick resume <id>`

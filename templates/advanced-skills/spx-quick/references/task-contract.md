@@ -97,6 +97,14 @@ command. Repository evidence may resolve
 technical questions; ask the user only for product choices or authority the
 repository cannot supply.
 
+Use the event-driven coordination gate alongside those durable transitions:
+run `specify-runtime quick preflight <quick-id> --format json` before the first
+`quick item-start`, after each join before selecting more work, and before
+`work scope-add` or material scope expansion. Resolve a confirmed
+`write_overlap`; treat unfinished/untracked Quick and board-only signals as
+advisory context and continue when their product intent and planned paths are
+unrelated. Do not poll between these events.
+
 Execute confirmed work items in dependency order through the hard Q loop:
 `quick packet-compile --item Qn` → `quick item-start --item Qn`
 (`requires_worker: true`) → **spawn subagent** (no Leader write_scope Edit/Write

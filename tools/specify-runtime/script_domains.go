@@ -172,6 +172,7 @@ func runQuick(args []string, stdout io.Writer) int {
 		env := NewEnvelope("ok", "quick command help")
 		env.Data["commands"] = []string{
 			"list",
+			"preflight",
 			"status",
 			"resume",
 			"close",
@@ -187,6 +188,7 @@ func runQuick(args []string, stdout io.Writer) int {
 			"packet-compile",
 		}
 		env.Data["close_usage"] = "specify-runtime quick close <id> resolved|blocked"
+		env.Data["preflight_usage"] = "specify-runtime quick preflight [<id>] [--current-work-id <work-id>] --format json"
 		env.Data["cognition_closeout_usage"] = "specify-runtime quick cognition-closeout <id> --result-state ready|no_op|mark-dirty|partial [--reason <text>] [--evidence-json <array>] [--update-id <id>] --format json"
 		env.Data["item_accept_usage"] = "specify-runtime quick item-accept <id> --item Qn --evidence <text> [--allow-inline --reason <spawn_failed:...>] --format json"
 		env.Data["item_accept_requires"] = "matching worker-results/<lane-id>.json from result submit, or prior allow-inline / --allow-inline after spawn/tool failure; docs-only is invalid"
@@ -200,6 +202,12 @@ func runQuick(args []string, stdout io.Writer) int {
 	}
 	service := quickService{projectRoot: projectRoot}
 	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "preflight":
+		env, err := service.runPreflight(quickID, args)
+		if err != nil {
+			return writeEnvelope(stdout, scriptDomainError("quick", err))
+		}
+		return writeEnvelope(stdout, env)
 	case "checkpoint-stage", "checkpoint-confirm", "checkpoint-show":
 		env, err := service.runCheckpoint(mode, quickID, args)
 		if err != nil {
@@ -371,6 +379,7 @@ func scriptOptionTakesValue(name string) bool {
 		"--digest",
 		"--review-digest",
 		"--expected-state-sha256",
+		"--current-work-id",
 		"--feature-dir",
 		"--surface",
 		"--record-id",
