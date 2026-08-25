@@ -854,78 +854,120 @@ func renderQuickConfirmationView(doc *quickConfirmationDoc, view string) (string
 
 func renderQuickDecisionView(doc *quickConfirmationDoc) string {
 	var b strings.Builder
-	b.WriteString("## Quick Delivery Checkpoint\n\n")
+	b.WriteString("## 请确认本次修改\n\n")
 	sourceLabel := doc.Source.Kind
 	if doc.Source.Kind == "discussion" && doc.Source.DiscussionSlug != "" {
 		sourceLabel = "discussion/" + doc.Source.DiscussionSlug
 	}
-	bindState := "待确认"
-	semantic := "有变更"
-	handling := "需要用户确认后执行"
 	switch doc.ConfirmationState {
 	case "inherited":
-		bindState = "已继承确认"
-		semantic = "无"
-		handling = "无需重复确认，直接进入执行"
+		b.WriteString(fmt.Sprintf("确认状态：已继承确认（来源：%s），无需重复确认。\n\n", sourceLabel))
 	case "confirmed":
-		bindState = "已确认"
 		if doc.ConfirmationMode == "delta" {
-			semantic = firstNonEmpty(doc.Source.DeltaSummary, "局部变更已确认")
+			b.WriteString(fmt.Sprintf("确认状态：变更已确认（%s）。\n\n", firstNonEmpty(doc.Source.DeltaSummary, "局部变更")))
 		} else {
-			semantic = "无"
+			b.WriteString("确认状态：已确认。\n\n")
 		}
-		handling = "已确认，可执行"
 	case "staged":
 		if doc.ConfirmationMode == "delta" {
-			bindState = "待确认变更"
-			semantic = firstNonEmpty(doc.Source.DeltaSummary, "存在语义变更")
-			handling = "只确认变更项"
+			b.WriteString(fmt.Sprintf("确认状态：待确认变更。本次只确认：%s。\n\n", firstNonEmpty(doc.Source.DeltaSummary, "已标记的变更项")))
 		} else {
-			bindState = "待确认"
-			semantic = "新请求"
-			handling = "展示完整 Decision Checkpoint，确认一次"
+			b.WriteString("确认状态：待确认。\n\n")
 		}
+	default:
+		b.WriteString("确认状态：待确认。\n\n")
 	}
-	b.WriteString(fmt.Sprintf("来源：%s\n", sourceLabel))
-	b.WriteString(fmt.Sprintf("绑定状态：%s\n", bindState))
-	b.WriteString(fmt.Sprintf("语义变化：%s\n", semantic))
-	b.WriteString(fmt.Sprintf("处理方式：%s\n\n", handling))
-	if doc.ConfirmationDigest != "" {
-		b.WriteString(fmt.Sprintf("confirmation_digest: %s\n\n", doc.ConfirmationDigest))
-	}
-	b.WriteString(fmt.Sprintf("目标：%s\n\n", doc.Decision.Goal))
-	b.WriteString(fmt.Sprintf("可见结果：%s\n\n", doc.Decision.UserVisibleResult))
-	b.WriteString(fmt.Sprintf("范围：包含 %s；排除 %s", joinOrDash(doc.Decision.Scope.Include), joinOrDash(doc.Decision.Scope.Exclude)))
-	if len(doc.Decision.Scope.Defer) > 0 {
-		b.WriteString(fmt.Sprintf("；延期 %s", joinOrDash(doc.Decision.Scope.Defer)))
-	}
+	b.WriteString(doc.Decision.Goal)
 	b.WriteString("\n\n")
-	b.WriteString(" ID     交付结果                          依赖              独立验收门槛\n")
-	b.WriteString("━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-	for i, item := range doc.Decision.Items {
-		deps := "—"
+	writeQuickBulletSection(&b, "### 你会看到", []string{doc.Decision.UserVisibleResult})
+	writeQuickBulletSection(&b, "### 本次会做", doc.Decision.Scope.Include)
+	writeQuickBulletSection(&b, "### 本次不做", doc.Decision.Scope.Exclude)
+	if len(doc.Decision.Scope.Defer) > 0 {
+		writeQuickBulletSection(&b, "### 后续处理", doc.Decision.Scope.Defer)
+	}
+
+	b.WriteString("### 交付与验收\n\n")
+	for _, item := range doc.Decision.Items {
+		b.WriteString(fmt.Sprintf("- **%s · %s**\n", item.ID, item.Deliverable))
+		b.WriteString(fmt.Sprintf("  - 验收：%s\n", item.Acceptance))
 		if len(item.DependsOn) > 0 {
-			deps = strings.Join(item.DependsOn, "、")
-		}
-		b.WriteString(fmt.Sprintf(" %-5s  %-33s  %-16s  %s\n", item.ID, truncateRunes(item.Deliverable, 33), truncateRunes(deps, 16), item.Acceptance))
-		if i+1 < len(doc.Decision.Items) {
-			b.WriteString("─────  ─────────────────────────────────  ────────────────  ───────────────────────────────\n")
+			b.WriteString(fmt.Sprintf("  - 前置：%s\n", strings.Join(item.DependsOn, "、")))
 		}
 	}
-	if doc.Decision.RecommendedApproach != "" {
-		b.WriteString(fmt.Sprintf("\n推荐路径：%s\n", doc.Decision.RecommendedApproach))
+	b.WriteString("\n")
+
+	if quickBool(doc.Decision.UIConfirmation["applicable"]) {
+		renderQuickUIDecision(&b, doc.Decision.UIConfirmation)
 	}
-	if len(doc.Decision.AssumptionsAndRisks) > 0 {
-		b.WriteString(fmt.Sprintf("假设与风险：%s\n", strings.Join(doc.Decision.AssumptionsAndRisks, "；")))
+
+	if doc.Decision.RecommendedApproach != "" || len(doc.Decision.AssumptionsAndRisks) > 0 || len(doc.Decision.CompletionEvidence) > 0 {
+		b.WriteString("### 方案与完成标准\n\n")
+		appendQuickLabeledBullet(&b, "推荐路径", doc.Decision.RecommendedApproach)
+		for _, risk := range doc.Decision.AssumptionsAndRisks {
+			appendQuickLabeledBullet(&b, "假设或风险", risk)
+		}
+		for _, evidence := range doc.Decision.CompletionEvidence {
+			appendQuickLabeledBullet(&b, "完成证据", evidence)
+		}
+		b.WriteString("\n")
 	}
-	if len(doc.Decision.CompletionEvidence) > 0 {
-		b.WriteString(fmt.Sprintf("完成证据：%s\n", strings.Join(doc.Decision.CompletionEvidence, "；")))
-	}
-	b.WriteString(fmt.Sprintf("重新确认触发：%s\n", doc.Decision.ReconfirmationTrigger))
+
+	writeQuickBulletSection(&b, "### 需要重新确认的情况", []string{doc.Decision.ReconfirmationTrigger})
 	if doc.ConfirmationState == "staged" {
-		b.WriteString("\n回复：确认全部 / 修改 Qn 验收 / 调整依赖 / 调整范围\n")
+		b.WriteString("回复：**确认** / **修改范围** / **修改 Qn 验收** / **修改界面方向**\n")
 	}
 	return b.String()
+}
+
+func writeQuickBulletSection(b *strings.Builder, heading string, values []string) {
+	b.WriteString(heading)
+	b.WriteString("\n\n")
+	if len(values) == 0 {
+		b.WriteString("- 无\n\n")
+		return
+	}
+	for _, value := range values {
+		if text := strings.TrimSpace(value); text != "" {
+			b.WriteString("- ")
+			b.WriteString(text)
+			b.WriteString("\n")
+		}
+	}
+	b.WriteString("\n")
+}
+
+func appendQuickLabeledBullet(b *strings.Builder, label, value string) {
+	if text := strings.TrimSpace(value); text != "" {
+		b.WriteString(fmt.Sprintf("- **%s**：%s\n", label, text))
+	}
+}
+
+func renderQuickUIDecision(b *strings.Builder, ui map[string]any) {
+	b.WriteString("### 界面方向\n\n")
+	appendQuickLabeledBullet(b, "确认目的", stringValue(ui["confirmation_purpose"]))
+	appendQuickLabeledBullet(b, "使用者与主要任务", stringValue(ui["user_and_primary_job"]))
+	appendQuickLabeledBullet(b, "目标体验", stringValue(ui["target_experience"]))
+	appendQuickLabeledBullet(b, "可见变化", stringValue(ui["structure_and_visible_change"]))
+
+	boundaries := mapValue(ui["design_boundaries"])
+	appendQuickLabeledBullet(b, "必须保留", joinOrDash(quickStringSlice(boundaries["must_preserve"])))
+	appendQuickLabeledBullet(b, "可以调整", joinOrDash(quickStringSlice(boundaries["may_adapt"])))
+	appendQuickLabeledBullet(b, "不得改变", joinOrDash(quickStringSlice(boundaries["must_not"])))
+	appendQuickLabeledBullet(b, "设计依据", joinOrDash(quickStringSlice(ui["design_basis_and_source_material"])))
+	appendQuickLabeledBullet(b, "交互与适配", joinOrDash(quickStringSlice(ui["interaction_states_and_adaptation"])))
+	appendQuickLabeledBullet(b, "验收方式", joinOrDash(quickStringSlice(ui["acceptance_evidence"])))
+
+	if binding := mapValue(ui["design_binding"]); len(binding) > 0 {
+		fields := []string{
+			"scope=" + stringValue(binding["scope"]),
+			"design_change_id=" + stringValue(binding["design_change_id"]),
+			"design_change_ref=" + stringValue(binding["design_change_ref"]),
+			"design_change_sha256=" + stringValue(binding["design_change_sha256"]),
+			"design_contract_ref=" + stringValue(binding["design_contract_ref"]),
+		}
+		appendQuickLabeledBullet(b, "注册设计绑定", strings.Join(fields, "；"))
+	}
+	b.WriteString("\n")
 }
 
 func renderQuickDeliveryView(doc *quickConfirmationDoc) string {

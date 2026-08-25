@@ -4,11 +4,15 @@ Use one human-facing confirmation before substantive Quick execution or Debug
 investigation. Confirm only user-owned product facts, scope, risk, and
 authority. Keep technical sequencing and hypotheses in agent-owned state.
 
+The human surface uses short headings and bullets rather than dense tables. The
+machine contract stays complete: concise rendering must not remove a decision
+field, change digest ownership, or turn confirmation into approval of hidden
+details.
+
 ## Quick card
 
-Freeform prose, bullet-only confirmations, or partial field lists do not satisfy
-this gate. Do not hand-author a two-column approval table for multi-item Quick
-work. Stage a `quick-confirmation-v1` contract and render runtime views.
+Do not hand-author freeform prose or a partial field list. Stage a
+`quick-confirmation-v1` contract and render the runtime Quick Delivery Checkpoint.
 
 ### Runtime owner
 
@@ -23,124 +27,163 @@ specify-runtime quick item-accept <quick-id> --item Qn --evidence '<acceptance p
 
 `confirmation_digest` hashes decision fields only. Delivery Map, waves,
 batches, subagents, file splits, and test order never enter the digest and never
-require user approval.
+require user approval. Do not print the raw digest in the default human view;
+read it from the runtime envelope when calling `checkpoint-confirm`.
 
 ### Decision Checkpoint only confirms
 
 - goal and user-visible result
-- include / exclude / defer
+- include / exclude / defer scope
 - stable `Q1`/`Q2`/... deliverables
-- product-level dependencies
-- per-item acceptance
+- product-level dependencies and per-item acceptance
 - risk and authority decisions
 - UI goals/boundaries when applicable
 - reconfirmation trigger
 
-### Do not ask the user to approve
-
-- subagent count
-- file choreography
-- batch/wave construction beyond deliverable dependencies
-- test command order
-- worker packet internals
+Do not ask the user to approve subagent count, file choreography, batch/wave
+construction beyond deliverable dependencies, test command order, or worker
+packet internals.
 
 ### Modes
 
 1. New prompt: full Decision Checkpoint, confirm once.
-2. Discussion handoff with no semantic delta: inherit digest, show binding summary + Delivery Map/Pulse, no re-confirm.
-3. Semantic delta: show only changed decision rows, confirm the delta.
-4. Execution-only rearrange: `checkpoint-stage --delivery-only` after confirmation.
+2. Discussion handoff with no semantic delta: inherit the digest, show a binding
+   summary, and do not re-confirm.
+3. Semantic delta: foreground only changed decisions and confirm the new digest.
+4. Execution-only rearrange: use `checkpoint-stage --delivery-only` after
+   confirmation.
 
-### Decision view shape
+### Default decision view
+
+Do not use a dense table. Keep every digest-protected deliverable, dependency,
+and independent acceptance criterion visible as readable bullets.
 
 ```markdown
-## Quick Delivery Checkpoint
+## 请确认本次修改
 
-来源：[prompt|discussion/<slug>]
-绑定状态：[待确认|已确认|已继承确认]
-语义变化：[无|delta summary]
-处理方式：[确认一次|无需重复确认，直接进入执行|只确认变更项]
+[goal]
 
-目标：[goal]
-可见结果：[user-visible result]
-范围：包含 [include]；排除 [exclude]
+### 你会看到
 
- ID     交付结果              依赖          独立验收门槛
-━━━━━  ━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Q1     [deliverable]         —             [acceptance]
-─────  ────────────────────  ────────────  ───────────────────────────
- Q2     [deliverable]         Q1            [acceptance]
+- [user-visible result]
+
+### 本次会做
+
+- [included scope]
+
+### 本次不做
+
+- [excluded scope]
+
+### 后续处理
+
+- [deferred scope, only when present]
+
+### 交付与验收
+
+- **Q1 · [deliverable]**
+  - 验收：[per-item acceptance]
+- **Q2 · [deliverable]**
+  - 验收：[per-item acceptance]
+  - 前置：Q1
+
+### 需要重新确认的情况
+
+- [reconfirmation trigger]
+
+回复：**确认** / **修改范围** / **修改 Qn 验收** / **修改界面方向**
 ```
 
-### Delivery Map and Pulse
+Do not place the Delivery Map before the reply for a staged decision. Show it
+after confirmation, when the user requests execution detail, or immediately for
+inherited confirmation. During execution, show Pulse with active items,
+dependency waits, and the next join point instead of only "Waiting for agents".
 
-Show Delivery Map after the Decision Checkpoint for awareness only. During
-execution, show Pulse with active items, dependency waits, and the next join
-point instead of only "Waiting for agents".
-
-Reply with `confirm`/`确认` after a staged Decision Checkpoint and any
-applicable UI card, or use precise corrections such as `修改 Q3 验收 ...`,
+Reply with `confirm`/`确认` after a staged Decision Checkpoint and any applicable
+UI direction, or use a precise correction such as `修改 Q3 验收 ...`,
 `revise: scope ...`, `revise: order ...`, or `revise: UI ...`.
 
 ## Debug card
 
+Use localized headings with the same meanings; technical hypotheses remain
+agent-owned.
+
 ```markdown
 ## Debug Checkpoint
 
-| Decision to confirm | Current understanding |
-| --- | --- |
-| Reported problem | [user-visible symptom, where it appears, why it matters, and the nearby issue excluded] |
-| Expected behavior | [what should happen instead, or the explicit unknown] |
-| Occurrence conditions | [environment, inputs, sequence, frequency, reproduction/failing signal, or Unknown: why it matters] |
-| Investigation boundary | Include: [investigation boundary]. Exclude: [non-goals]. |
-| Fix authority | [Diagnose only, or diagnose and fix after causal evidence; include mutation boundaries] |
-| Assumptions to correct | [reporter assumptions or uncertain facts, or None] |
-| Reconfirmation trigger | [new defect, boundary, authority, compatibility, migration, side effect, or material risk] |
+### 我理解的问题
+
+[user-visible symptom, location, impact, and nearby excluded issue]
+
+### 应有表现
+
+[what should happen instead, or the explicit unknown]
+
+### 已知条件
+
+- 发生条件：[environment, inputs, sequence, frequency, failing signal, or
+  `Unknown: reason`]
+- 待纠正假设：[reporter assumptions or uncertain facts, or None]
+
+### 本次调查
+
+- 包含：[investigation boundary]
+- 不包含：[non-goals]
+
+### 修复授权
+
+[Diagnose only, or diagnose and fix after causal evidence; include mutation
+boundaries]
+
+### 需要重新确认的情况
+
+[new defect, boundary, authority, compatibility, migration, side effect, or
+material risk]
 ```
 
 Technical hypotheses belong to the agent. The first evidence action, fix gate,
 and progress signal may follow for awareness, not as a request to approve a
 hypothesis.
 
-Reply with `confirm`/`确认` after the Debug card and any applicable UI card, or
-use `revise: scope ...`, `revise: UI ...`, or another precise correction.
+Reply with `confirm`/`确认` after the Debug card and any applicable UI direction,
+or use `revise: scope ...`, `revise: UI ...`, or another precise correction.
 
 ## UI Confirmation
 
-Append this independent card only for a user-visible screen, component, layout,
-navigation/interaction flow, visual state, responsive behavior, desktop/mobile
-surface, accessibility presentation, TUI layout, or CLI presentation. An
-external image is not required. Quick uses it for an implementation proposal;
-Debug uses it for a target baseline and must not pre-approve a speculative fix.
+Keep UI Confirmation independent in machine state but render it inside the same
+human checkpoint as one `界面方向` section. Use it only for a user-visible
+screen, component, layout, interaction flow, visual state, responsive behavior,
+accessibility presentation, TUI layout, or CLI presentation. Quick uses an
+implementation proposal; Debug uses a target baseline and must not pre-approve
+a speculative repair.
 
-Do not present the card when its basis is only an unregistered draft or legacy
+Do not present it when the basis is only an unregistered draft or legacy
 bootstrap seed, or when a new/high-visibility direction lacks an inspectable
-visual artifact. Route those cases to `$spx-design`. For Quick,
-keep multi-surface or acceptance-heavy UI in `$spx-quick` and expand its
-task-local plan, viewport/state matrix, batches, and acceptance evidence rather
-than routing to `$spx-specify`. Preserve original references with each reference
-intent and name real content/image sources.
+visual artifact. Route those cases to `$spx-design`. Preserve original
+references with their reference intent and name real content/image sources.
 
 ```markdown
-## UI Confirmation
+## 界面方向
 
-| Decision to confirm | UI proposal or target baseline |
-| --- | --- |
-| Confirmation purpose | [Quick implementation proposal or Debug target baseline, plus affected surface] |
-| User and primary job | [user, context, and single job] |
-| Registered design binding (Quick adoption) | [exact scope, `design_change_id`, `design_change_ref`, `design_change_sha256`, and `design_contract_ref`; stage as `decision.ui_confirmation.design_binding` so `confirmation_digest` protects it; use not applicable for a Debug-only baseline] |
-| Design basis and source material | [approved direction/current entry point/original references with intent/real content and images] |
-| Target experience | [visual, content, and interaction thesis plus signature element] |
-| Structure and visible change | [hierarchy, layout, components, copy, and visible before-to-after] |
-| Interaction, states, and adaptation | [pointer/mouse, keyboard/focus, touch/shortcut/command; immediate feedback and cancel/retry/undo/recovery; empty and populated data plus applicable loading/partial/error/permission/offline/pending/success; continuous resize/stretch/reflow/overflow; preservation of focus, selection, scroll, overlays, and unsaved input; accessibility] |
-| Design boundaries | Must preserve: [...]. May adapt: [...]. Must not: [...]. |
-| Acceptance evidence | [real entry point, risk-based input × data × size matrix including active resize, structure snapshot, visual capture, runtime diagnostics, comparison or human review] |
+[Quick implementation proposal or Debug target baseline, plus affected surface]
+
+- **使用者与主要任务**：[user, context, and single job]
+- **目标体验**：[visual, content, and interaction thesis plus signature element]
+- **可见变化**：[hierarchy, layout, components, copy, and before-to-after]
+- **必须保留**：[non-negotiable patterns or behavior]
+- **可以调整**：[implementation-flexible details]
+- **不得改变**：[visual, content, or interaction regressions]
+- **确认依据**：
+  - 设计来源：[approved direction/current entry point/original references]
+  - 注册设计绑定：[Quick adoption only: exact five-field binding]
+  - 交互与适配：[input, focus, feedback, states, recovery, resize, accessibility]
+  - 验收方式：[real entry point, risk-based matrix, captures, diagnostics,
+    comparison or human review]
 ```
 
-Do not render an incomplete UI Confirmation. Do not add another reply prompt:
-when this UI card is present, a single confirmation covers both the main card
-and the UI decision. Persist the main confirmation and `ui_confirmation`
-separately so a later amendment can change only the affected decision. For
-Quick adoption, stage the exact five-field
-`decision.ui_confirmation.design_binding` before `checkpoint-confirm`; because
-it is a decision field, `confirmation_digest` protects the binding the user saw.
+Do not render an incomplete UI Confirmation and do not add another reply prompt:
+a single confirmation covers both the main checkpoint and this UI decision.
+Persist the main confirmation and `ui_confirmation` separately so an amendment
+can change only affected fields. For Quick adoption, stage the exact five-field
+`decision.ui_confirmation.design_binding` before `checkpoint-confirm`; the
+decision digest protects the binding the user reviewed.

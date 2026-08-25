@@ -77,24 +77,26 @@ query, and any bounded `minimal_live_reads`, stage a structured
 ```text
 {{specify-subcmd:specify-runtime quick checkpoint-stage <quick-id> --input-json '<decision+delivery>' --format json}}
 {{specify-subcmd:specify-runtime quick checkpoint-show <quick-id> --view decision --format json}}
-{{specify-subcmd:specify-runtime quick checkpoint-show <quick-id> --view delivery --format json}}
 ```
 
-Present the runtime Decision Checkpoint and Delivery Map views. Do not hand-author
-a freeform two-column approval table for multi-item work. The Decision Checkpoint
-contains only user-owned decisions: goal, user-visible result, scope, ordered
+Present the runtime Decision Checkpoint human view. It uses short headings and
+bullets rather than a dense table, but still shows all user-owned decisions:
+goal, user-visible result, scope, ordered
 `Q1`/`Q2`/... deliverables and product-level dependencies, independent acceptance
 for every work item, recommended approach, assumptions and risks, overall
-completion evidence, and the reconfirmation trigger. Delivery Map shows waves,
-parallelism, join points, and integration gates for awareness only.
+completion evidence, and the reconfirmation trigger. Keep the raw
+`confirmation_digest` in runtime state instead of printing it in the default
+human view.
 
 Never ask the user to approve subagent count, file split, batch choreography,
 test command order, or worker packet details. Those remain agent-owned and may
 change through `checkpoint-stage --delivery-only` after confirmation without
 reopening approval.
 
-When the task affects a user-visible UI surface, append the UI Confirmation
-card and include `decision.ui_confirmation` in the staged contract. Ask once for
+When the task affects a user-visible UI surface, include
+`decision.ui_confirmation` in the staged contract and fold its readable
+`界面方向` section into the same human checkpoint. Do not append a second table or
+reply prompt. Ask once for
 staged non-inherited checkpoints; the user may confirm both or revise only
 scope, UI, dependency, acceptance, or another named decision. When the Quick
 workspace will adopt a registered design change, stage its exact `scope`,
@@ -109,7 +111,13 @@ For staged checkpoints, wait for user confirmation, then bind it with:
 
 ```text
 {{specify-subcmd:specify-runtime quick checkpoint-confirm <quick-id> --digest <confirmation_digest> --format json}}
+{{specify-subcmd:specify-runtime quick checkpoint-show <quick-id> --view delivery --format json}}
 ```
+
+The Delivery Map shows waves, parallelism, join points, and integration gates
+for awareness only. Show it after confirmation, on explicit request, or
+immediately for inherited confirmation; do not place it between a staged
+decision and the reply prompt.
 
 Inherited discussion handoffs with no semantic delta do not wait for a second
 confirmation. If the user corrects the understanding, re-stage only the changed
@@ -159,7 +167,7 @@ explicitly approved the exact delta in the message that supplied it, confirm
 that digest instead of requesting a duplicate confirmation.
 
 When the material delta is UI-only, keep the
-`## Quick Checkpoint Amendment` heading. Include only the changed UI Confirmation rows.
+`## Quick Checkpoint Amendment` heading. Include only the changed UI Confirmation fields.
 State that the main checkpoint is unchanged. The reason-first explanation still
 comes before this delta; do not replay either complete initial table. A design
 replacement must include the complete five-field

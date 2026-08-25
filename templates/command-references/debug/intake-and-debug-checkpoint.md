@@ -160,8 +160,8 @@ Use the returned readiness:
 
 After session initialization, passive memory intake, the project cognition query, and only the bounded session, memory, or specify-runtime cognition context reads needed to frame the reported problem, present one concise user-facing checkpoint card. Use the user's language for the card content and confirmation prompt when practical. Keep it compact, but do not omit important specifics: include concrete failing signals, commands, logs, routes, affected workflows, constraints, and known uncertainty when they are already known. If a row is genuinely unknown, write `Unknown: [why it matters]` instead of leaving it vague.
 
-Use the fixed card below. The main table contains only user-owned facts and
-authority: the reported problem, expected behavior, occurrence conditions,
+Use the fixed semantic sections below. The human view contains only user-owned
+facts and authority: the reported problem, expected behavior, occurrence conditions,
 investigation boundary, whether authority is diagnose only or diagnose and
 fix, assumptions to correct, and the reconfirmation trigger. Technical
 hypotheses belong to the agent. Present the first evidence action, fix gate,
@@ -171,10 +171,11 @@ output: do not use HTML tags or inline line-break markup. Do not reuse the
 placeholder text as content; replace each bracketed item with session-specific
 facts.
 
-When the symptom is UI-related, append the UI Confirmation card as the target
-baseline for the affected experience. It confirms what should be restored or
+When the symptom is UI-related, render the independent UI Confirmation state as
+the readable `界面方向` section inside the same checkpoint. It is the target
+baseline for the affected experience and confirms what should be restored or
 preserved and must not approve a proposed fix before evidence identifies the
-failure mechanism. Ask once after both cards.
+failure mechanism. Ask once after both sections.
 
 {{spec-kit-include: ../../command-partials/debug/checkpoint-card.md}}
 
@@ -221,6 +222,6 @@ user already explicitly approved the exact delta, record it instead of asking
 again.
 
 When the material delta is UI-only, keep the
-`## Debug Checkpoint Amendment` heading. Include only the changed UI Confirmation rows.
+`## Debug Checkpoint Amendment` heading. Include only the changed UI Confirmation fields.
 State that the main checkpoint is unchanged. The reason-first explanation still
 comes before this delta; do not replay either complete initial table.

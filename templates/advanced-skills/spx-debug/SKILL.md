@@ -71,9 +71,10 @@ context-direct branch is the sole exception and creates no run or debug
 session.
 
 Create or resume the session in its unconfirmed intake state. Render the Debug
-card from `references/human-confirmation.md`; for an applicable UI symptom,
-append its target-baseline card without proposing a repair, then ask once for
-both decisions. Wait for user confirmation before reproduction, log review,
+checkpoint from `references/human-confirmation.md` as readable headings and
+bullets; for an applicable UI symptom, fold its independent target-baseline
+state into the same checkpoint as `界面方向` without proposing a repair, then ask
+once for both decisions. Wait for user confirmation before reproduction, log review,
 source or test reads, evidence collection, delegation, instrumentation, code
 edits, or validation. Persist the main and UI confirmations separately and keep
 hypotheses in the agent investigation plan. After confirmation, reproduce the symptom or establish

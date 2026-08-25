@@ -130,9 +130,11 @@ supply.
 Initialize or preserve the unconfirmed intake state, then stage a
 `quick-confirmation-v1` contract with
 `{{specify-subcmd:specify-runtime quick checkpoint-stage <id> --input-json '<decision+delivery>' --format json}}`
-and render the runtime Decision Checkpoint plus Delivery Map from
-`references/human-confirmation.md`. For applicable UI work, include
-`decision.ui_confirmation` and append its UI proposal. When Quick will adopt a
+and render the runtime Decision Checkpoint from
+`references/human-confirmation.md`. Use its human-first heading/bullet view;
+show Delivery Map only after confirmation, on request, or for inherited state.
+For applicable UI work, include `decision.ui_confirmation` and fold its readable
+`界面方向` proposal into the same checkpoint. When Quick will adopt a
 registered `UD-*` change, stage the exact five-field
 `decision.ui_confirmation.design_binding` before confirmation; its `scope` and
 four registered binding fields enter `confirmation_digest`. For staged
@@ -160,7 +162,7 @@ blocking decisions, and `consumer_eligibility.sp-quick.status: ready`, except
 for the legacy size/breadth-only override below. With no semantic
 delta, stage inheritance with the handoff `review_digest` and continue without
 re-confirmation; show the binding summary plus Delivery Map/Pulse. With a
-semantic delta, stage only the changed decision rows and confirm the new digest.
+semantic delta, stage only the changed decision fields and confirm the new digest.
 A legacy size-, capability-, architecture-, migration-, acceptance-, or
 consequence-breadth-only Quick block is obsolete routing advice: keep the source
 immutable, stage a Quick checkpoint bound to its digest, and continue under the

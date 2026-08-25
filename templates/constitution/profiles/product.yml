@@ -1,6 +1,6 @@
 id: product
 name: Product Delivery
-version: 1.3.0
+version: 1.4.0
 description: Balanced default for application and product repositories.
 core_principles: |
   ## Core Principles

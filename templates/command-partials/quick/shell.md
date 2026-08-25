@@ -31,9 +31,9 @@ delta-only amendment contract; execution-only rearranges never re-confirm.
   evidence, and reconfirmation triggers. Delivery Map, waves, subagents, file
   splits, and test order are agent-owned and never require approval. For
   discussion handoffs with no semantic delta, inherit the digest and skip
-  re-confirmation. For applicable UI work, include independent UI Confirmation
-  in the staged decision and ask for one combined confirmation on staged
-  non-inherited checkpoints.
+  re-confirmation. For applicable UI work, keep UI Confirmation independent in
+  state, fold its readable `界面方向` section into the same human card, and ask
+  once on staged non-inherited checkpoints.
 - **UI change? UI Audit then design-before-code.** When the request changes
   user-visible UI, run **UI Audit** first (hierarchy weak? spacing inconsistent?
   missing pointer/keyboard/touch feedback, empty/populated/partial/error/

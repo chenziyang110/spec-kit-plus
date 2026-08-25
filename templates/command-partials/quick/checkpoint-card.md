@@ -1,8 +1,12 @@
-Use the runtime-owned Quick Delivery Checkpoint surface. Do not hand-author a
-freeform two-column approval table for multi-item work. Stage structured input
-through `specify-runtime quick checkpoint-stage`, then show the deterministic
-views. Freeform prose, bullet-only confirmations, or partial field lists are not
-sufficient.
+Use the runtime-owned Quick Delivery Checkpoint. Stage the complete structured
+decision through `specify-runtime quick checkpoint-stage`, then render the
+deterministic decision view. Do not hand-author freeform prose or reconstruct a
+partial field list from memory.
+
+The machine contract remains complete, but its default human view is a readable
+decision summary. Do not use a dense table. Do not print the raw digest in the default human view;
+`confirmation_digest` remains available in the runtime
+envelope, `confirmation.json`, and confirmation command.
 
 ## What the user confirms
 
@@ -42,111 +46,94 @@ specify-runtime quick item-status <quick-id> --format json
 ```
 
 `confirmation_digest` covers decision fields only. Delivery Map, waves, batches,
-subagents, and test order never enter the digest. Updating only execution shape
-uses `checkpoint-stage --delivery-only` after confirmation and must not reopen
-user approval.
+subagents, file splits, and test order never enter the digest. Updating only the
+execution shape uses `checkpoint-stage --delivery-only` after confirmation and
+must not reopen user approval.
 
 ## Confirmation modes
 
-1. **New prompt Quick**: stage a full Decision Checkpoint, show `--view decision`, wait for one confirmation, then `checkpoint-confirm`.
-2. **Discussion handoff with no semantic delta**: stage with `source.kind=discussion`, `semantic_delta=false`, and the handoff `review_digest`. Runtime marks state `inherited`. Show a short binding summary plus Delivery Map / Pulse. Do not ask the user to re-confirm.
-3. **Semantic delta only**: stage with `confirmation_mode=delta` / `semantic_delta=true` and a delta summary. Show only changed decision rows. Confirm the delta.
-4. **Execution-only rearrange**: after confirmation, adjust waves/batches/subagents with `--delivery-only`. Never re-confirm.
+1. **New prompt Quick**: stage the full decision, show `--view decision`, wait
+   for one confirmation, then `checkpoint-confirm`.
+2. **Discussion handoff with no semantic delta**: stage with
+   `source.kind=discussion`, `semantic_delta=false`, and the handoff
+   `review_digest`. Runtime marks state `inherited`; show the binding summary and
+   continue without asking again.
+3. **Semantic delta only**: stage with `confirmation_mode=delta` /
+   `semantic_delta=true` and a delta summary. Emphasize only the changed
+   decisions and confirm the new digest.
+4. **Execution-only rearrange**: after confirmation, adjust
+   waves/batches/subagents with `--delivery-only`. Never re-confirm.
 
-## Decision Checkpoint shape
+## Default human decision view
 
-Present the runtime `decision` view. It must read like:
-
-```markdown
-## Quick Delivery Checkpoint
-
-来源：discussion/prompt-authoring-modes
-绑定状态：已继承确认
-语义变化：无
-处理方式：无需重复确认，直接进入执行
-
-目标：[final goal]
-可见结果：[user-visible result]
-范围：包含 [include]；排除 [exclude]
-
- ID     交付结果              依赖          独立验收门槛
-━━━━━  ━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Q1     [deliverable]         —             [acceptance]
-─────  ────────────────────  ────────────  ───────────────────────────
- Q2     [deliverable]         Q1            [acceptance]
-```
-
-For a brand-new prompt request, the binding status is `待确认` and the reply
-prompt is required. For inherited discussion handoffs with no semantic delta,
-omit the reply prompt.
-
-## Delivery Map shape
-
-Immediately after the Decision Checkpoint (or inheritance summary), present the
-runtime `delivery` view for awareness only:
+The runtime decision view uses headings and bullets so it wraps cleanly in chat,
+terminals, narrow windows, and assistive technology. It still exposes every
+digest-protected deliverable, dependency, and acceptance criterion; readability
+must not become blind confirmation.
 
 ```markdown
-## Delivery Map
+## 请确认本次修改
 
-W1
-└─ Q1 [deliverable]
+[one-sentence goal]
 
-W2
-├─ Q2 [deliverable]  ┐
-└─ Q3 [deliverable]  ┘ 并行
+### 你会看到
 
-Join points:
-- after Q1 → start W2 (Q1 acceptance evidence)
+- [user-visible result]
 
-最终集成门槛：[integration gate]
+### 本次会做
+
+- [included scope]
+
+### 本次不做
+
+- [excluded scope]
+
+### 后续处理
+
+- [deferred scope, only when present]
+
+### 交付与验收
+
+- **Q1 · [deliverable]**
+  - 验收：[independent acceptance]
+- **Q2 · [deliverable]**
+  - 验收：[independent acceptance]
+  - 前置：Q1
+
+### 需要重新确认的情况
+
+- [reconfirmation trigger]
+
+回复：**确认** / **修改范围** / **修改 Qn 验收** / **修改界面方向**
 ```
 
-Never ask the user to approve the Delivery Map.
+For inherited or already confirmed decisions, replace the reply with a compact
+confirmation-state sentence. For delta mode, name the delta immediately after
+the state and avoid replaying unchanged prose unless it is needed to understand
+the change.
 
-## Pulse shape
+## Delivery Map and Pulse
 
-During execution, prefer `checkpoint-show --view pulse` over vague
-"Waiting for agents" text:
-
-```markdown
-## Delivery Pulse
-
-✓ Checkpoint 已继承
-→ Q1 metadata-contract 正在执行
-⏸ Q2、Q3 等待 Q1
-⏸ Q4 等待 Q1、Q2
-
-Join point：Q1 验收证据通过后启动 W2
-```
+Do not place the Delivery Map between a staged decision and its reply prompt.
+Show `--view delivery` after confirmation, on explicit request for execution
+detail, or immediately for inherited confirmation. During execution, prefer
+`--view pulse` over vague "Waiting for agents" text. The map and pulse are
+awareness surfaces only and never require approval.
 
 ## UI Confirmation
 
-When the task affects a user-visible UI surface, append the independent UI
-Confirmation card and include `decision.ui_confirmation` in the staged contract.
-When Quick will bind or replace a registered `UD-*` change, stage the exact
-five-field `decision.ui_confirmation.design_binding` (`scope` plus the four
-registered binding fields) before confirmation. It is part of the decision and
-therefore protected by `confirmation_digest`. One user reply confirms both the
-main Decision Checkpoint and the UI card. After confirmation, the separate
-top-level `STATUS.md` adoption copy may be patched, but it must exactly match
-the confirmed decision copy.
+When the task affects a user-visible UI surface, keep
+`decision.ui_confirmation` independent in machine state but fold its readable
+proposal into the same human decision card under `### 界面方向`. Do not append a
+second dense table or a second reply prompt. When Quick will bind or replace a
+registered `UD-*` change, stage the exact five-field design binding before
+confirmation so `confirmation_digest` protects it.
 
 {{spec-kit-include: ../common/ui-confirmation-card.md}}
 
 ## User reply surface
 
-For staged (non-inherited) checkpoints:
-
-```text
-确认全部
-修改 Q3 验收 ...
-把 Q4 改为依赖 Q1、Q2、Q3
-将自动翻译加入排除范围
-revise: scope ...
-revise: order ...
-revise: UI ...
-```
-
 Reply with `confirm`/`确认` to approve the staged Decision Checkpoint and any
-present UI proposal. Precise corrections should re-stage only the changed
-decision fields, then confirm the new digest.
+present UI direction. Precise corrections should re-stage only the named
+decision fields, for example `修改 Q3 验收 ...`, `修改范围 ...`,
+`revise: order ...`, or `revise: UI ...`, then confirm the new digest.

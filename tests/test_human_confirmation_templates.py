@@ -199,7 +199,7 @@ def test_ui_only_reconfirmation_is_reason_first_and_delta_only() -> None:
     for contract in contracts:
         lowered = contract.lower()
         assert "ui-only" in lowered
-        assert "changed ui confirmation rows" in lowered
+        assert "changed ui confirmation fields" in lowered
         assert "main checkpoint is unchanged" in lowered
 
 

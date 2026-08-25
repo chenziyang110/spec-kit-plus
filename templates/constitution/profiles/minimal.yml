@@ -1,6 +1,6 @@
 id: minimal
 name: Minimal Delivery
-version: 1.2.0
+version: 1.3.0
 description: Lean default for small repositories and low-ceremony teams.
 core_principles: |
   ## Core Principles

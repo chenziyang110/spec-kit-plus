@@ -88,7 +88,7 @@ the full initial Quick Checkpoint. Persist the confirmed delta with
 when the user already approved that exact delta.
 
 For a UI-only material delta, keep the Quick amendment heading, include only
-the changed UI Confirmation rows. State that the main checkpoint is unchanged.
+the changed UI Confirmation fields. State that the main checkpoint is unchanged.
 The reason-first explanation remains mandatory; do not replay either complete initial table.
 
 Patch `STATUS.md` through its artifact CLI owner at scope changes, before/after

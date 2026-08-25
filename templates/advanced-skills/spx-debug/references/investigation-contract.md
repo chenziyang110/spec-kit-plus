@@ -10,8 +10,9 @@ mechanism, and fix claim separate.
 ## Intake gate
 
 New or materially changed intake starts with `understanding_confirmed: false`.
-Present the Debug card from `references/human-confirmation.md`; when UI applies,
-append its target-baseline card and use one reply for both. Persist user-owned
+Present the Debug checkpoint from `references/human-confirmation.md`; when UI
+applies, fold its independent target-baseline state into the same human card as
+`界面方向` and use one reply for both. Persist user-owned
 facts, fix authority, and `ui_confirmation` separately from the
 `agent_investigation_plan`. Present the first evidence step only as agent-owned
 context, then wait for user confirmation. Before reproduction, log
@@ -41,7 +42,7 @@ Checkpoint. Persist the confirmed delta before resuming, and do not request
 duplicate confirmation when the user already approved that exact delta.
 
 For a UI-only material delta, keep the Debug amendment heading, include only
-the changed UI Confirmation rows. State that the main checkpoint is unchanged.
+the changed UI Confirmation fields. State that the main checkpoint is unchanged.
 The reason-first explanation remains mandatory; do not replay either complete initial table.
 
 1. Capture an executable reproduction or the strongest available failure
