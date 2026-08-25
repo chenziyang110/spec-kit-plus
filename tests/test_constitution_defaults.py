@@ -27,6 +27,19 @@ def _assert_project_style_standard(content: str) -> None:
     )
 
 
+def _assert_language_aware_source_file_boundaries(content: str) -> None:
+    compact = _compact(content)
+    assert "Language-Aware Source File Boundaries" in content
+    assert "MUST NOT use one universal line limit" in compact
+    assert "language, framework, and artifact role" in compact
+    assert "400 logical source lines" in compact
+    assert "600 logical source lines" in compact
+    assert "review triggers, not automatic split points" in compact
+    assert "twice the applicable review trigger" in compact
+    assert "generated, vendored, or machine-produced" in compact
+    assert "documented exception" in compact
+
+
 def _seed_constitution_template(project_path: Path) -> None:
     source_template = (
         Path(__file__).resolve().parents[1] / "templates" / "constitution-template.md"
@@ -117,9 +130,10 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
         "`explicit_rebuild_requested`, or `baseline_identity_invalid`."
     ) in compact_content
     _assert_project_style_standard(content)
+    _assert_language_aware_source_file_boundaries(content)
     assert "[PROJECT_NAME]" not in content
     assert "[RATIFICATION_DATE]" not in content
-    assert "**Version**: 1.3.0" in content
+    assert "**Version**: 1.4.0" in content
     assert f"**Ratified**: {date.today().isoformat()}" in content
 
 
@@ -162,7 +176,8 @@ def test_ensure_constitution_from_template_materializes_library_profile(tmp_path
     assert "Stable Public Surface" in template_content
     assert "[PROJECT_NAME]" not in content
     _assert_project_style_standard(content)
-    assert "**Version**: 1.2.0" in content
+    _assert_language_aware_source_file_boundaries(content)
+    assert "**Version**: 1.3.0" in content
     assert f"**Ratified**: {date.today().isoformat()}" in content
 
 
@@ -182,7 +197,8 @@ def test_ensure_constitution_from_template_materializes_minimal_profile(tmp_path
     assert "scope boundaries" in content
     assert ".specify/project-cognition/status.json" not in content
     _assert_project_style_standard(content)
-    assert "**Version**: 1.2.0" in content
+    _assert_language_aware_source_file_boundaries(content)
+    assert "**Version**: 1.3.0" in content
 
 
 def test_ensure_constitution_from_template_materializes_regulated_profile(tmp_path):
@@ -202,7 +218,8 @@ def test_ensure_constitution_from_template_materializes_regulated_profile(tmp_pa
     assert "control impact" in content
     assert ".specify/project-cognition/status.json" not in content
     _assert_project_style_standard(content)
-    assert "**Version**: 1.2.0" in content
+    _assert_language_aware_source_file_boundaries(content)
+    assert "**Version**: 1.3.0" in content
 
 
 def test_ensure_constitution_from_template_preserves_existing_constitution(tmp_path):

@@ -52,6 +52,21 @@ active_lane: ""
 			},
 			"reconfirmation_trigger": "范围、依赖、验收或权限模型变化",
 			"completion_evidence":    []any{"全链路验证通过"},
+			"ui_confirmation": map[string]any{
+				"applicable":                        true,
+				"confirmation_purpose":              "Quick implementation proposal for Prompt discovery",
+				"user_and_primary_job":              "创作者发布并管理 Prompt",
+				"design_basis_and_source_material":  []any{"现有资产详情页"},
+				"target_experience":                 "清晰、可扫描的 Prompt 管理体验",
+				"structure_and_visible_change":      "统一发布、治理和详情层级",
+				"interaction_states_and_adaptation": []any{"桌面和窄窗均可操作"},
+				"design_boundaries": map[string]any{
+					"must_preserve": []any{"现有导航"},
+					"may_adapt":     []any{"内容密度"},
+					"must_not":      []any{"引入第二套视觉体系"},
+				},
+				"acceptance_evidence": []any{"真实入口视觉检查"},
+			},
 		},
 	}
 	raw, err := json.Marshal(payload)
@@ -76,8 +91,16 @@ active_lane: ""
 	}
 	views := env.Data["views"].(map[string]any)
 	decisionText := stringValue(views["decision"])
-	if !strings.Contains(decisionText, "Q1") || !strings.Contains(decisionText, "独立验收门槛") {
-		t.Fatalf("decision view missing Q table: %s", decisionText)
+	for _, marker := range []string{"## 请确认本次修改", "### 你会看到", "### 本次会做", "### 本次不做", "### 交付与验收", "### 界面方向", "Q1", "DB、API、Web 类型一致"} {
+		if !strings.Contains(decisionText, marker) {
+			t.Fatalf("decision view missing human-first marker %q: %s", marker, decisionText)
+		}
+	}
+	if strings.Contains(decisionText, digest) || strings.Contains(decisionText, "confirmation_digest:") {
+		t.Fatalf("default human view must not print the raw digest: %s", decisionText)
+	}
+	if strings.Contains(decisionText, "━━━━━") || strings.Contains(decisionText, "独立验收门槛") {
+		t.Fatalf("default human view must not use the dense Q table: %s", decisionText)
 	}
 	deliveryText := stringValue(views["delivery"])
 	if !strings.Contains(deliveryText, "W1") || !strings.Contains(deliveryText, "Delivery Map") {

@@ -8,6 +8,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 QUICK_CHECKPOINT_CARD_MARKERS = (
     "quick delivery checkpoint",
+    "请确认本次修改",
+    "你会看到",
+    "本次会做",
+    "本次不做",
+    "交付与验收",
     "checkpoint-stage",
     "checkpoint-confirm",
     "checkpoint-show",
@@ -22,27 +27,25 @@ QUICK_CHECKPOINT_CARD_MARKERS = (
 )
 
 
-DEBUG_CHECKPOINT_CARD_ROWS = (
-    "| reported problem |",
-    "| expected behavior |",
-    "| occurrence conditions |",
-    "| investigation boundary |",
-    "| fix authority |",
-    "| assumptions to correct |",
-    "| reconfirmation trigger |",
+DEBUG_CHECKPOINT_CARD_SECTIONS = (
+    "我理解的问题",
+    "应有表现",
+    "已知条件",
+    "本次调查",
+    "修复授权",
+    "需要重新确认的情况",
 )
 
 
-UI_CONFIRMATION_CARD_ROWS = (
-    "| confirmation purpose |",
-    "| user and primary job |",
-    "| registered design binding (quick adoption) |",
-    "| design basis and source material |",
-    "| target experience |",
-    "| structure and visible change |",
-    "| interaction, states, and adaptation |",
-    "| design boundaries |",
-    "| acceptance evidence |",
+UI_CONFIRMATION_CARD_SECTIONS = (
+    "## 界面方向",
+    "使用者与主要任务",
+    "目标体验",
+    "可见变化",
+    "必须保留",
+    "可以调整",
+    "不得改变",
+    "确认依据",
 )
 
 
@@ -72,19 +75,18 @@ def assert_debug_checkpoint_card_shape(content: str) -> None:
     lowered = content.lower()
 
     assert "## debug checkpoint" in lowered
-    assert "| decision to confirm | current understanding |" in lowered
-    for row in DEBUG_CHECKPOINT_CARD_ROWS:
-        assert row in lowered
+    for section in DEBUG_CHECKPOINT_CARD_SECTIONS:
+        assert section in content
+    assert "| decision to confirm | current understanding |" not in lowered
     assert "reply with `confirm`/`确认`" in lowered
 
 
 def assert_ui_confirmation_card_shape(content: str) -> None:
     lowered = content.lower()
 
-    assert "## ui confirmation" in lowered
-    assert "| decision to confirm | ui proposal or target baseline |" in lowered
-    for row in UI_CONFIRMATION_CARD_ROWS:
-        assert row in lowered
+    for section in UI_CONFIRMATION_CARD_SECTIONS:
+        assert section in content
+    assert "| decision to confirm | ui proposal or target baseline |" not in lowered
     assert "single confirmation covers both" in lowered
 
 

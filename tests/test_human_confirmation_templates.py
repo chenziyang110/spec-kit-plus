@@ -35,6 +35,8 @@ def test_classic_quick_and_debug_cards_confirm_human_decisions_not_agent_interna
     assert "checkpoint-stage" in quick_lower
     assert "delivery map" in quick_lower
     assert "confirmation_digest" in quick_lower
+    assert "do not print the raw digest in the default human view" in quick_lower
+    assert "do not use a dense table" in quick_lower
     assert "subagent count" in quick_lower or "subagent" in quick_lower
     assert "never enter the digest" in quick_lower or "never enter" in quick_lower
 
@@ -77,12 +79,12 @@ def test_classic_ui_card_is_independent_conditional_and_shares_one_confirmation(
     assert "ui confirmation" in quick_card
     assert "reply with `confirm`/`确认`" in quick_card
     assert "revise: ui" in quick_card or "revise: scope" in quick_card
-    assert quick_card.index("quick delivery checkpoint") < quick_card.index("ui confirmation")
+    assert quick_card.index("quick delivery checkpoint") < quick_card.index("界面方向")
 
     debug_card = read_template("templates/command-partials/debug/checkpoint-card.md").lower()
     main_heading = debug_card.index("## debug checkpoint")
-    assert main_heading < debug_card.index("## ui confirmation")
-    assert debug_card.index("## ui confirmation") < debug_card.index(
+    assert main_heading < debug_card.index("## 界面方向")
+    assert debug_card.index("## 界面方向") < debug_card.index(
         "reply with `confirm`/`确认`"
     )
     assert debug_card.count("reply with `confirm`/`确认`") == 1
@@ -211,7 +213,7 @@ def test_generated_quick_guidance_does_not_restore_the_legacy_approval_table() -
 
     combined = "\n".join(_read(path).lower() for path in propagated_sources)
     assert "| item | current understanding |" not in combined
-    assert "ui confirmation" in combined
+    assert "ui confirmation" in combined or "界面方向" in combined
     # Legacy two-column Quick approval table must not be restored as the primary surface.
     assert "| decision to confirm | current understanding |" not in _read(
         "templates/command-partials/quick/checkpoint-card.md"
