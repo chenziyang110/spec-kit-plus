@@ -270,7 +270,9 @@ is complete, and do not run `quick close … resolved`, until step 3 succeeds wh
 cognition is required. `item-accept` and green tests alone are not terminal
 truth; only `quick close … resolved` after cognition closeout is terminal truth.
 Report changed paths, evidence, residual risk, and
-`project_cognition_refresh`. An explicit user-selected workflow replacement is
-a terminal handoff. Autonomous recovery routing under
+`project_cognition_refresh`. This invocation authorizes only this workflow
+stage. Report an explicit user-selected workflow replacement as a terminal
+handoff; do not invoke another workflow in this run. Autonomous recovery
+routing under
 `references/autonomous-blocker-recovery.md` is not a replacement: keep the
 recovery inside Quick and return to the recorded failed gate.

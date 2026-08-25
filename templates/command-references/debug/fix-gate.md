@@ -11,12 +11,10 @@ Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the 
 - Enter `fixing` only after the root cause is confirmed.
 - Write a failing automated repro test before changing production code.
 - Do not modify production behavior until the RED state is proven.
-- If no reliable automated test surface exists for the failing behavior, add
-  the missing harness first. If that expands beyond the first debug fix lane,
-  preserve the Debug session, expand the registered causal scope, and repair
-  the harness inside the active Debug recovery lane. Do not invoke another
-  user-invoked workflow automatically; then return to the reproduction. Use
-  `/sp-specify` only when the user explicitly chooses a formal spec-first path.
+- If no reliable automated test surface exists for the failing behavior, add the missing harness first. If that expands beyond the debug fix lane, route it through `/sp-quick`; use `/sp-specify` only when the user explicitly chooses a formal spec-first path.
+  A harness expansion strictly causal to the active blocker may instead expand
+  the registered Debug scope, repair inside the active recovery lane, and
+  return to the reproduction without invoking another user-invoked workflow.
 - Apply the minimum code change needed to address the confirmed root cause when `execution_model: leader-inline`; when `execution_model: subagent-assisted`, delegate it through a validated subagent lane and integrate the returned evidence on the leader path.
 - For a confirmed UI target baseline, recapture the same real entry point,
   viewport/window, and state after the fix; compare it with the baseline and
