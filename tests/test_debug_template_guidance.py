@@ -192,7 +192,10 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "write a failing automated repro test before changing production code" in content
     assert "do not modify production behavior until the red state is proven" in content
     assert "if no reliable automated test surface exists for the failing behavior" in content
-    assert "if that expands beyond the debug fix lane, route it through `/sp-quick`" in content
+    assert "if that expands beyond the first debug fix lane" in content
+    assert "expand the registered causal scope" in content
+    assert "repair the harness inside the active debug recovery lane" in content
+    assert "do not invoke another user-invoked workflow automatically" in content
     assert "use `/sp-specify` only when the user explicitly chooses a formal spec-first path" in content
     assert "senior consequence analysis gate" in content
     assert "dependency loop" in content

@@ -263,3 +263,8 @@ def test_quick_confirmation_schema_exists_and_separates_decision_from_delivery()
     assert "delivery" in digest_desc
     delivery_desc = props["delivery"]["description"].lower()
     assert "never part of confirmation_digest" in delivery_desc
+    changed_fields = props["source"]["properties"]["changed_decision_fields"]
+    assert changed_fields["type"] == "array"
+    assert changed_fields["items"]["type"] == "string"
+    assert "render" in changed_fields["description"].lower()
+    assert "digest" in changed_fields["description"].lower()

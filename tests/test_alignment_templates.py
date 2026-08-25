@@ -5792,7 +5792,7 @@ def test_implement_template_rejects_locked_goal_redefinition() -> None:
     assert "task-index.json" in implement
     assert "protected requirement" in implement
     assert "user decision" in implement
-    assert "stop and route to the owning upstream phase" in implement
+    assert "route repair through the owning upstream phase rather than redefining the goal" in implement
 
 
 def test_implement_template_requires_actionable_blocked_closeout() -> None:
@@ -5955,7 +5955,7 @@ def test_implement_template_requires_structured_execution_contract_from_tasks() 
     assert "task-index.json" in implement
     assert "required refs" in implement
     assert "protected requirement" in implement
-    assert "stop and route to the owning upstream phase" in implement
+    assert "route repair through the owning upstream phase rather than redefining the goal" in implement
 
 
 def test_ui_reference_artifact_templates_define_strict_formats() -> None:

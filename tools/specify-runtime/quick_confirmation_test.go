@@ -66,6 +66,13 @@ active_lane: ""
 					"must_not":      []any{"引入第二套视觉体系"},
 				},
 				"acceptance_evidence": []any{"真实入口视觉检查"},
+				"design_binding": map[string]any{
+					"scope":                "prompt-detail",
+					"design_change_id":     "UD-1234",
+					"design_change_ref":    ".specify/design/changes/UD-1234/design-change.md",
+					"design_change_sha256": strings.Repeat("b", 64),
+					"design_contract_ref":  ".specify/design/changes/UD-1234/handoff.json",
+				},
 			},
 		},
 	}
@@ -91,7 +98,14 @@ active_lane: ""
 	}
 	views := env.Data["views"].(map[string]any)
 	decisionText := stringValue(views["decision"])
-	for _, marker := range []string{"## 请确认本次修改", "### 你会看到", "### 本次会做", "### 本次不做", "### 交付与验收", "### 界面方向", "Q1", "DB、API、Web 类型一致"} {
+	for _, marker := range []string{
+		"## 请确认本次修改", "### 你会看到", "### 本次会做", "### 本次不做",
+		"### 交付与验收", "### 界面方向", "Q1", "DB、API、Web 类型一致",
+		"scope=prompt-detail", "design_change_id=UD-1234",
+		"design_change_ref=.specify/design/changes/UD-1234/design-change.md",
+		"design_change_sha256=" + strings.Repeat("b", 64),
+		"design_contract_ref=.specify/design/changes/UD-1234/handoff.json",
+	} {
 		if !strings.Contains(decisionText, marker) {
 			t.Fatalf("decision view missing human-first marker %q: %s", marker, decisionText)
 		}
@@ -187,6 +201,87 @@ active_lane: ""
 	}
 	if !strings.Contains(stringValue(env.Data["text"]), "Checkpoint 已确认") {
 		t.Fatalf("pulse text = %s", env.Data["text"])
+	}
+}
+
+func TestQuickCheckpointDeltaShowsOnlyChangedDecisionFields(t *testing.T) {
+	root := t.TempDir()
+	workspace := filepath.Join(root, ".planning", "quick", "260805-004-delta")
+	mustMkdirAllScriptDomainTest(t, workspace)
+	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), `---
+id: "260805-004"
+slug: "delta"
+title: "Delta"
+status: gathering
+understanding_confirmed: false
+---
+
+## Understanding Checkpoint
+
+placeholder
+
+## Execution
+
+placeholder
+`)
+
+	payload := map[string]any{
+		"source": map[string]any{
+			"kind":                    "delta",
+			"semantic_delta":          true,
+			"delta_summary":           "Q2 验收与目标体验调整",
+			"changed_decision_fields": []any{"items.Q2.acceptance", "ui_confirmation.target_experience"},
+		},
+		"decision": map[string]any{
+			"goal":                "保持完整决策用于摘要校验",
+			"user_visible_result": "未变化的用户结果",
+			"scope": map[string]any{
+				"include": []any{"未变化的包含范围"},
+				"exclude": []any{"未变化的排除范围"},
+			},
+			"items": []any{
+				map[string]any{"id": "Q1", "deliverable": "未变化交付", "depends_on": []any{}, "acceptance": "未变化验收"},
+				map[string]any{"id": "Q2", "deliverable": "目标交付", "depends_on": []any{"Q1"}, "acceptance": "新的 Q2 验收"},
+			},
+			"reconfirmation_trigger": "未变化的重确认条件",
+			"ui_confirmation": map[string]any{
+				"applicable":                        true,
+				"confirmation_purpose":              "未变化的确认目的",
+				"user_and_primary_job":              "未变化的使用者",
+				"target_experience":                 "新的目标体验",
+				"structure_and_visible_change":      "未变化的可见变化",
+				"interaction_states_and_adaptation": []any{"未变化的交互"},
+				"acceptance_evidence":               []any{"未变化的证据"},
+			},
+		},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	env := runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root,
+		"checkpoint-stage", "260805-004",
+		"--input-json", string(raw),
+	})
+	if env.Status != "ok" {
+		t.Fatalf("stage status=%s blockers=%v", env.Status, env.Blockers)
+	}
+	decisionText := stringValue(env.Data["views"].(map[string]any)["decision"])
+	for _, marker := range []string{"本次只确认：Q2 验收与目标体验调整", "Q2", "新的 Q2 验收", "### 界面方向", "新的目标体验"} {
+		if !strings.Contains(decisionText, marker) {
+			t.Fatalf("delta decision view missing %q: %s", marker, decisionText)
+		}
+	}
+	for _, unchanged := range []string{
+		"保持完整决策用于摘要校验", "未变化的用户结果", "未变化的包含范围",
+		"未变化的排除范围", "未变化交付", "未变化验收", "未变化的确认目的",
+		"未变化的使用者", "未变化的可见变化", "未变化的交互",
+		"未变化的证据", "未变化的重确认条件",
+	} {
+		if strings.Contains(decisionText, unchanged) {
+			t.Fatalf("delta decision view replayed unchanged field %q: %s", unchanged, decisionText)
+		}
 	}
 }
 
