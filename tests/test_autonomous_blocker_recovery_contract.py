@@ -123,3 +123,26 @@ def test_recovery_routing_is_not_a_terminal_user_handoff() -> None:
         contract = _compact(relative)
         for phrase in phrases:
             assert phrase not in contract, (relative, phrase)
+
+
+def test_recovery_preserves_explicit_cross_workflow_handoff_boundaries() -> None:
+    expected = {
+        "templates/commands/implement.md": (
+            "stop and route to the owning upstream phase",
+        ),
+        "templates/command-references/debug/fix-gate.md": (
+            "if that expands beyond the debug fix lane, route it through `/sp-quick`",
+        ),
+        "templates/advanced-skills/spx-fast/SKILL.md": (
+            "this invocation authorizes only this workflow stage",
+            "do not invoke another workflow in this run",
+        ),
+        "templates/advanced-skills/spx-implement/references/execution-contract.md": (
+            "every cross-workflow route is a handoff-and-stop boundary",
+        ),
+    }
+
+    for relative, phrases in expected.items():
+        contract = _compact(relative)
+        for phrase in phrases:
+            assert phrase in contract, (relative, phrase)
