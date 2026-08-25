@@ -445,3 +445,128 @@ func TestQuickConfirmationDigestIgnoresDelivery(t *testing.T) {
 		t.Fatalf("acceptance change must affect digest")
 	}
 }
+
+func TestQuickConfirmationRejectsInvalidDeltaMetadata(t *testing.T) {
+	base := func() *quickConfirmationDoc {
+		return &quickConfirmationDoc{
+			Source: quickConfirmationSource{
+				Kind:          "delta",
+				SemanticDelta: true,
+				DeltaSummary:  "acceptance changed",
+			},
+			Decision: quickConfirmationDecision{
+				Goal:              "goal",
+				UserVisibleResult: "result",
+				Scope:             quickConfirmationScope{Include: []string{"a"}, Exclude: []string{"b"}},
+				Items: []quickConfirmationItem{
+					{ID: "Q1", Deliverable: "one", Acceptance: "pass"},
+				},
+				ReconfirmationTrigger: "change",
+			},
+			Delivery: quickConfirmationDelivery{
+				Waves: []quickConfirmationWave{{ID: "W1", ItemIDs: []string{"Q1"}}},
+			},
+		}
+	}
+
+	cases := []struct {
+		name   string
+		fields []string
+	}{
+		{name: "missing"},
+		{name: "unknown top-level field", fields: []string{"unknown"}},
+		{name: "unknown work item", fields: []string{"items.Q9.acceptance"}},
+		{name: "duplicate", fields: []string{"goal", "goal"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := base()
+			doc.Source.ChangedDecisionFields = tc.fields
+			if err := validateQuickDeltaMetadata(doc); err == nil {
+				t.Fatalf("invalid delta metadata should fail: %#v", tc.fields)
+			}
+		})
+	}
+}
+
+func TestQuickCheckpointLegacyDeltaAllowsDeliveryOnlyUpdate(t *testing.T) {
+	root := t.TempDir()
+	workspace := filepath.Join(root, ".planning", "quick", "260805-005-legacy-delta")
+	mustMkdirAllScriptDomainTest(t, workspace)
+	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), `---
+id: "260805-005"
+slug: "legacy-delta"
+title: "Legacy delta"
+status: ready
+understanding_confirmed: true
+---
+
+## Understanding Checkpoint
+
+legacy
+
+## Execution
+
+legacy
+`)
+	decision := quickConfirmationDecision{
+		Goal:              "legacy goal",
+		UserVisibleResult: "legacy result",
+		Scope:             quickConfirmationScope{Include: []string{"a"}, Exclude: []string{"b"}},
+		Items: []quickConfirmationItem{
+			{ID: "Q1", Deliverable: "one", Acceptance: "pass"},
+		},
+		ReconfirmationTrigger: "change",
+	}
+	digest, err := computeQuickConfirmationDigest(decision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy := &quickConfirmationDoc{
+		Schema:             quickConfirmationSchema,
+		Workspace:          "260805-005-legacy-delta",
+		ConfirmationMode:   "delta",
+		ConfirmationState:  "confirmed",
+		ConfirmationDigest: digest,
+		Source: quickConfirmationSource{
+			Kind:          "delta",
+			SemanticDelta: true,
+			DeltaSummary:  "legacy delta before field-level rendering",
+		},
+		Decision: decision,
+		Delivery: quickConfirmationDelivery{
+			Waves: []quickConfirmationWave{{ID: "W1", ItemIDs: []string{"Q1"}}},
+		},
+	}
+	if err := (quickService{projectRoot: root}).persistConfirmation(workspace, legacy); err != nil {
+		t.Fatalf("persist legacy confirmation: %v", err)
+	}
+	payload := map[string]any{
+		"delivery": map[string]any{
+			"waves": []any{map[string]any{"id": "W1", "item_ids": []any{"Q1"}, "parallel": false}},
+		},
+	}
+	raw, _ := json.Marshal(payload)
+	env := runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root,
+		"checkpoint-stage", "260805-005",
+		"--delivery-only",
+		"--input-json", string(raw),
+	})
+	if env.Status != "ok" {
+		t.Fatalf("legacy delta delivery-only update should remain compatible: blockers=%v", env.Blockers)
+	}
+}
+
+func TestQuickConfirmationSemanticDeltaFlagSelectsDeltaMode(t *testing.T) {
+	doc := &quickConfirmationDoc{
+		Source: quickConfirmationSource{Kind: "prompt", SemanticDelta: true},
+	}
+	mode, state, err := deriveQuickConfirmationMode(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode != "delta" || state != "staged" {
+		t.Fatalf("semantic delta flag should select staged delta mode, got mode=%s state=%s", mode, state)
+	}
+}

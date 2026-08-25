@@ -55,6 +55,11 @@ An unconfirmed checkpoint blocks broad investigation, delegation,
 implementation, and validation until runtime marks it confirmed or inherited.
 A confirmed discussion handoff with no semantic delta stages as `inherited` and
 skips re-confirmation; show the binding summary plus Delivery Map/Pulse instead.
+For a semantic delta, keep the complete resulting decision for digest
+validation and stage `source.kind=delta`, `source.delta_summary`, plus exact
+`source.changed_decision_fields`. Runtime renders only those paths plus
+necessary work-item or design-binding context; the display list never enters
+the digest.
 
 When Quick consumes a confirmed discussion handoff, first patch
 the resolver's exact `discussion_slug` as `source_discussion_slug`, plus

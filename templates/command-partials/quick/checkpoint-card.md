@@ -58,9 +58,14 @@ must not reopen user approval.
    `source.kind=discussion`, `semantic_delta=false`, and the handoff
    `review_digest`. Runtime marks state `inherited`; show the binding summary and
    continue without asking again.
-3. **Semantic delta only**: stage with `confirmation_mode=delta` /
-   `semantic_delta=true` and a delta summary. Emphasize only the changed
-   decisions and confirm the new digest.
+3. **Semantic delta only**: stage with `source.kind=delta`,
+   `source.semantic_delta=true`, `source.delta_summary`, and
+   `source.changed_decision_fields` containing the
+   exact changed decision paths (for example `scope.include`,
+   `items.Q2.acceptance`, or `ui_confirmation.target_experience`). Runtime keeps
+   the complete decision for digest validation but renders only the named
+   fields plus necessary row context. The field list is display metadata and
+   never enters `confirmation_digest`. Confirm the new digest.
 4. **Execution-only rearrange**: after confirmation, adjust
    waves/batches/subagents with `--delivery-only`. Never re-confirm.
 

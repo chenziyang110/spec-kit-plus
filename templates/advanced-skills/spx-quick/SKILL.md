@@ -181,7 +181,11 @@ blocking decisions, and `consumer_eligibility.sp-quick.status: ready`, except
 for the legacy size/breadth-only override below. With no semantic
 delta, stage inheritance with the handoff `review_digest` and continue without
 re-confirmation; show the binding summary plus Delivery Map/Pulse. With a
-semantic delta, stage only the changed decision fields and confirm the new digest.
+semantic delta, retain the complete resulting decision, stage
+`source.kind=delta`, name its exact changed paths in
+`source.changed_decision_fields`, render only those fields plus
+necessary row context, and confirm the new digest. The display field list does
+not enter the digest.
 A legacy size-, capability-, architecture-, migration-, acceptance-, or
 consequence-breadth-only Quick block is obsolete routing advice: keep the source
 immutable, stage a Quick checkpoint bound to its digest, and continue under the

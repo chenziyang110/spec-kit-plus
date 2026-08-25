@@ -49,7 +49,11 @@ packet internals.
 1. New prompt: full Decision Checkpoint, confirm once.
 2. Discussion handoff with no semantic delta: inherit the digest, show a binding
    summary, and do not re-confirm.
-3. Semantic delta: foreground only changed decisions and confirm the new digest.
+3. Semantic delta: stage `source.kind=delta`, then supply
+   `source.delta_summary` plus exact `source.changed_decision_fields`. Runtime
+   retains the complete decision for digest validation, renders only those
+   fields plus necessary row context, and confirms the new digest. The display
+   field list never enters the digest.
 4. Execution-only rearrange: use `checkpoint-stage --delivery-only` after
    confirmation.
 
@@ -144,6 +148,9 @@ material risk]
 Technical hypotheses belong to the agent. The first evidence action, fix gate,
 and progress signal may follow for awareness, not as a request to approve a
 hypothesis.
+
+Keep the checkpoint plain text for terminal output: use Markdown without HTML
+tags or inline line-break markup.
 
 Reply with `confirm`/`确认` after the Debug card and any applicable UI direction,
 or use `revise: scope ...`, `revise: UI ...`, or another precise correction.

@@ -33,11 +33,12 @@ type quickConfirmationDoc struct {
 }
 
 type quickConfirmationSource struct {
-	Kind           string `json:"kind"`
-	DiscussionSlug string `json:"discussion_slug,omitempty"`
-	ReviewDigest   string `json:"review_digest,omitempty"`
-	SemanticDelta  bool   `json:"semantic_delta"`
-	DeltaSummary   string `json:"delta_summary,omitempty"`
+	Kind                  string   `json:"kind"`
+	DiscussionSlug        string   `json:"discussion_slug,omitempty"`
+	ReviewDigest          string   `json:"review_digest,omitempty"`
+	SemanticDelta         bool     `json:"semantic_delta"`
+	DeltaSummary          string   `json:"delta_summary,omitempty"`
+	ChangedDecisionFields []string `json:"changed_decision_fields,omitempty"`
 }
 
 type quickConfirmationDecision struct {
@@ -219,6 +220,11 @@ func (service quickService) stageCheckpoint(workspacePath, workspace string, inp
 	if err := validateQuickConfirmation(doc); err != nil {
 		return nil, err
 	}
+	if !deliveryOnly {
+		if err := validateQuickDeltaMetadata(doc); err != nil {
+			return nil, err
+		}
+	}
 	digest, err := computeQuickConfirmationDigest(doc.Decision)
 	if err != nil {
 		return nil, err
@@ -353,11 +359,12 @@ func normalizeQuickConfirmationInput(input map[string]any, workspace string, exi
 
 	sourceRaw := mapValue(input["source"])
 	doc.Source = quickConfirmationSource{
-		Kind:           firstNonEmpty(stringValue(sourceRaw["kind"]), "prompt"),
-		DiscussionSlug: stringValue(sourceRaw["discussion_slug"]),
-		ReviewDigest:   stringValue(sourceRaw["review_digest"]),
-		SemanticDelta:  quickBool(sourceRaw["semantic_delta"]),
-		DeltaSummary:   stringValue(sourceRaw["delta_summary"]),
+		Kind:                  firstNonEmpty(stringValue(sourceRaw["kind"]), "prompt"),
+		DiscussionSlug:        stringValue(sourceRaw["discussion_slug"]),
+		ReviewDigest:          stringValue(sourceRaw["review_digest"]),
+		SemanticDelta:         quickBool(sourceRaw["semantic_delta"]),
+		DeltaSummary:          stringValue(sourceRaw["delta_summary"]),
+		ChangedDecisionFields: quickStringSlice(sourceRaw["changed_decision_fields"]),
 	}
 
 	decisionRaw := mapValue(input["decision"])
@@ -577,6 +584,9 @@ func deriveQuickConfirmationMode(doc *quickConfirmationDoc) (mode, state string,
 	case "delta":
 		return "delta", "staged", nil
 	case "prompt", "":
+		if doc.Source.SemanticDelta {
+			return "delta", "staged", nil
+		}
 		return "full", "staged", nil
 	default:
 		return "", "", fmt.Errorf("unsupported source.kind %q", doc.Source.Kind)
@@ -680,6 +690,79 @@ func validateQuickConfirmation(doc *quickConfirmationDoc) error {
 					return fmt.Errorf("ui_confirmation.%s is required when UI confirmation is present", field)
 				}
 			}
+		}
+	}
+	return nil
+}
+
+func validateQuickDeltaMetadata(doc *quickConfirmationDoc) error {
+	if doc.Source.SemanticDelta || strings.EqualFold(strings.TrimSpace(doc.Source.Kind), "delta") {
+		if strings.TrimSpace(doc.Source.DeltaSummary) == "" {
+			return fmt.Errorf("source.delta_summary is required for a semantic delta")
+		}
+		if len(doc.Source.ChangedDecisionFields) == 0 {
+			return fmt.Errorf("source.changed_decision_fields must name each changed decision field for a semantic delta")
+		}
+		if err := validateQuickChangedDecisionFields(doc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateQuickChangedDecisionFields(doc *quickConfirmationDoc) error {
+	staticFields := map[string]bool{
+		"goal": true, "user_visible_result": true, "recommended_approach": true,
+		"assumptions_and_risks": true, "completion_evidence": true,
+		"reconfirmation_trigger": true,
+	}
+	scopeFields := map[string]bool{"include": true, "exclude": true, "defer": true}
+	itemFields := map[string]bool{"deliverable": true, "depends_on": true, "acceptance": true}
+	uiFields := map[string]bool{
+		"applicable": true, "confirmation_purpose": true, "user_and_primary_job": true,
+		"design_basis_and_source_material": true, "target_experience": true,
+		"structure_and_visible_change": true, "interaction_states_and_adaptation": true,
+		"acceptance_evidence": true,
+	}
+	uiNestedFields := map[string]map[string]bool{
+		"design_binding": {
+			"scope": true, "design_change_id": true, "design_change_ref": true,
+			"design_change_sha256": true, "design_contract_ref": true,
+		},
+		"design_boundaries": {"must_preserve": true, "may_adapt": true, "must_not": true},
+	}
+	itemIDs := map[string]bool{}
+	for _, item := range doc.Decision.Items {
+		itemIDs[item.ID] = true
+	}
+	seen := map[string]bool{}
+	for _, raw := range doc.Source.ChangedDecisionFields {
+		field := strings.TrimSpace(raw)
+		if field == "" {
+			return fmt.Errorf("source.changed_decision_fields must not contain an empty path")
+		}
+		if seen[field] {
+			return fmt.Errorf("source.changed_decision_fields contains duplicate path %q", field)
+		}
+		seen[field] = true
+		parts := strings.Split(field, ".")
+		valid := len(parts) == 1 && staticFields[parts[0]]
+		switch parts[0] {
+		case "scope":
+			valid = len(parts) == 1 || len(parts) == 2 && scopeFields[parts[1]]
+		case "items":
+			valid = len(parts) == 1 || len(parts) >= 2 && len(parts) <= 3 && itemIDs[parts[1]]
+			if valid && len(parts) == 3 {
+				valid = itemFields[parts[2]]
+			}
+		case "ui_confirmation":
+			valid = len(parts) == 1 || len(parts) == 2 && (uiFields[parts[1]] || uiNestedFields[parts[1]] != nil)
+			if len(parts) == 3 {
+				valid = uiNestedFields[parts[1]][parts[2]]
+			}
+		}
+		if !valid {
+			return fmt.Errorf("source.changed_decision_fields contains unsupported decision path %q", field)
 		}
 	}
 	return nil
@@ -839,260 +922,6 @@ func stableMarshalJSON(value any) ([]byte, error) {
 	}
 }
 
-func renderQuickConfirmationView(doc *quickConfirmationDoc, view string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(view)) {
-	case "decision":
-		return renderQuickDecisionView(doc), nil
-	case "delivery":
-		return renderQuickDeliveryView(doc), nil
-	case "pulse":
-		return renderQuickPulseView(doc), nil
-	default:
-		return "", fmt.Errorf("unsupported view %q (use decision|delivery|pulse)", view)
-	}
-}
-
-func renderQuickDecisionView(doc *quickConfirmationDoc) string {
-	var b strings.Builder
-	b.WriteString("## 请确认本次修改\n\n")
-	sourceLabel := doc.Source.Kind
-	if doc.Source.Kind == "discussion" && doc.Source.DiscussionSlug != "" {
-		sourceLabel = "discussion/" + doc.Source.DiscussionSlug
-	}
-	switch doc.ConfirmationState {
-	case "inherited":
-		b.WriteString(fmt.Sprintf("确认状态：已继承确认（来源：%s），无需重复确认。\n\n", sourceLabel))
-	case "confirmed":
-		if doc.ConfirmationMode == "delta" {
-			b.WriteString(fmt.Sprintf("确认状态：变更已确认（%s）。\n\n", firstNonEmpty(doc.Source.DeltaSummary, "局部变更")))
-		} else {
-			b.WriteString("确认状态：已确认。\n\n")
-		}
-	case "staged":
-		if doc.ConfirmationMode == "delta" {
-			b.WriteString(fmt.Sprintf("确认状态：待确认变更。本次只确认：%s。\n\n", firstNonEmpty(doc.Source.DeltaSummary, "已标记的变更项")))
-		} else {
-			b.WriteString("确认状态：待确认。\n\n")
-		}
-	default:
-		b.WriteString("确认状态：待确认。\n\n")
-	}
-	b.WriteString(doc.Decision.Goal)
-	b.WriteString("\n\n")
-	writeQuickBulletSection(&b, "### 你会看到", []string{doc.Decision.UserVisibleResult})
-	writeQuickBulletSection(&b, "### 本次会做", doc.Decision.Scope.Include)
-	writeQuickBulletSection(&b, "### 本次不做", doc.Decision.Scope.Exclude)
-	if len(doc.Decision.Scope.Defer) > 0 {
-		writeQuickBulletSection(&b, "### 后续处理", doc.Decision.Scope.Defer)
-	}
-
-	b.WriteString("### 交付与验收\n\n")
-	for _, item := range doc.Decision.Items {
-		b.WriteString(fmt.Sprintf("- **%s · %s**\n", item.ID, item.Deliverable))
-		b.WriteString(fmt.Sprintf("  - 验收：%s\n", item.Acceptance))
-		if len(item.DependsOn) > 0 {
-			b.WriteString(fmt.Sprintf("  - 前置：%s\n", strings.Join(item.DependsOn, "、")))
-		}
-	}
-	b.WriteString("\n")
-
-	if quickBool(doc.Decision.UIConfirmation["applicable"]) {
-		renderQuickUIDecision(&b, doc.Decision.UIConfirmation)
-	}
-
-	if doc.Decision.RecommendedApproach != "" || len(doc.Decision.AssumptionsAndRisks) > 0 || len(doc.Decision.CompletionEvidence) > 0 {
-		b.WriteString("### 方案与完成标准\n\n")
-		appendQuickLabeledBullet(&b, "推荐路径", doc.Decision.RecommendedApproach)
-		for _, risk := range doc.Decision.AssumptionsAndRisks {
-			appendQuickLabeledBullet(&b, "假设或风险", risk)
-		}
-		for _, evidence := range doc.Decision.CompletionEvidence {
-			appendQuickLabeledBullet(&b, "完成证据", evidence)
-		}
-		b.WriteString("\n")
-	}
-
-	writeQuickBulletSection(&b, "### 需要重新确认的情况", []string{doc.Decision.ReconfirmationTrigger})
-	if doc.ConfirmationState == "staged" {
-		b.WriteString("回复：**确认** / **修改范围** / **修改 Qn 验收** / **修改界面方向**\n")
-	}
-	return b.String()
-}
-
-func writeQuickBulletSection(b *strings.Builder, heading string, values []string) {
-	b.WriteString(heading)
-	b.WriteString("\n\n")
-	if len(values) == 0 {
-		b.WriteString("- 无\n\n")
-		return
-	}
-	for _, value := range values {
-		if text := strings.TrimSpace(value); text != "" {
-			b.WriteString("- ")
-			b.WriteString(text)
-			b.WriteString("\n")
-		}
-	}
-	b.WriteString("\n")
-}
-
-func appendQuickLabeledBullet(b *strings.Builder, label, value string) {
-	if text := strings.TrimSpace(value); text != "" {
-		b.WriteString(fmt.Sprintf("- **%s**：%s\n", label, text))
-	}
-}
-
-func renderQuickUIDecision(b *strings.Builder, ui map[string]any) {
-	b.WriteString("### 界面方向\n\n")
-	appendQuickLabeledBullet(b, "确认目的", stringValue(ui["confirmation_purpose"]))
-	appendQuickLabeledBullet(b, "使用者与主要任务", stringValue(ui["user_and_primary_job"]))
-	appendQuickLabeledBullet(b, "目标体验", stringValue(ui["target_experience"]))
-	appendQuickLabeledBullet(b, "可见变化", stringValue(ui["structure_and_visible_change"]))
-
-	boundaries := mapValue(ui["design_boundaries"])
-	appendQuickLabeledBullet(b, "必须保留", joinOrDash(quickStringSlice(boundaries["must_preserve"])))
-	appendQuickLabeledBullet(b, "可以调整", joinOrDash(quickStringSlice(boundaries["may_adapt"])))
-	appendQuickLabeledBullet(b, "不得改变", joinOrDash(quickStringSlice(boundaries["must_not"])))
-	appendQuickLabeledBullet(b, "设计依据", joinOrDash(quickStringSlice(ui["design_basis_and_source_material"])))
-	appendQuickLabeledBullet(b, "交互与适配", joinOrDash(quickStringSlice(ui["interaction_states_and_adaptation"])))
-	appendQuickLabeledBullet(b, "验收方式", joinOrDash(quickStringSlice(ui["acceptance_evidence"])))
-
-	if binding := mapValue(ui["design_binding"]); len(binding) > 0 {
-		fields := []string{
-			"scope=" + stringValue(binding["scope"]),
-			"design_change_id=" + stringValue(binding["design_change_id"]),
-			"design_change_ref=" + stringValue(binding["design_change_ref"]),
-			"design_change_sha256=" + stringValue(binding["design_change_sha256"]),
-			"design_contract_ref=" + stringValue(binding["design_contract_ref"]),
-		}
-		appendQuickLabeledBullet(b, "注册设计绑定", strings.Join(fields, "；"))
-	}
-	b.WriteString("\n")
-}
-
-func renderQuickDeliveryView(doc *quickConfirmationDoc) string {
-	var b strings.Builder
-	b.WriteString("## Delivery Map\n\n")
-	itemLabel := map[string]string{}
-	for _, item := range doc.Decision.Items {
-		itemLabel[item.ID] = item.Deliverable
-	}
-	for _, wave := range doc.Delivery.Waves {
-		b.WriteString(fmt.Sprintf("%s\n", wave.ID))
-		if len(wave.ItemIDs) == 1 {
-			id := wave.ItemIDs[0]
-			b.WriteString(fmt.Sprintf("└─ %s %s\n\n", id, itemLabel[id]))
-			continue
-		}
-		for i, id := range wave.ItemIDs {
-			branch := "├─"
-			suffix := ""
-			if i+1 == len(wave.ItemIDs) {
-				branch = "└─"
-				if wave.Parallel {
-					suffix = "  ┘ 并行"
-				}
-			} else if wave.Parallel && i == 0 {
-				suffix = "  ┐"
-			} else if wave.Parallel {
-				suffix = "  │"
-			}
-			b.WriteString(fmt.Sprintf("%s %s %s%s\n", branch, id, itemLabel[id], suffix))
-		}
-		b.WriteString("\n")
-	}
-	if len(doc.Delivery.JoinPoints) > 0 {
-		b.WriteString("Join points:\n")
-		for _, join := range doc.Delivery.JoinPoints {
-			gate := join.Gate
-			if gate == "" {
-				gate = "prerequisite acceptance"
-			}
-			b.WriteString(fmt.Sprintf("- after %s → start %s (%s)\n", strings.Join(join.After, ", "), join.Starts, gate))
-		}
-		b.WriteString("\n")
-	}
-	if doc.Delivery.IntegrationGate != "" {
-		b.WriteString(fmt.Sprintf("最终集成门槛：%s\n", doc.Delivery.IntegrationGate))
-	}
-	b.WriteString("\n（Delivery Map 为 Agent 执行投影，不要求用户确认；仅调整 wave/batch/subagent 不触发重新确认。）\n")
-	return b.String()
-}
-
-func renderQuickPulseView(doc *quickConfirmationDoc) string {
-	var b strings.Builder
-	b.WriteString("## Delivery Pulse\n\n")
-	switch doc.ConfirmationState {
-	case "inherited":
-		b.WriteString("✓ Checkpoint 已继承\n")
-	case "confirmed":
-		b.WriteString("✓ Checkpoint 已确认\n")
-	default:
-		b.WriteString("• Checkpoint 待确认\n")
-	}
-
-	statusByID := map[string]quickWorkItemStatus{}
-	for _, row := range doc.Execution.WorkItemStatus {
-		statusByID[row.WorkItemID] = row
-	}
-	for _, item := range doc.Decision.Items {
-		row, ok := statusByID[item.ID]
-		if !ok {
-			row = quickWorkItemStatus{WorkItemID: item.ID, Status: "pending"}
-		}
-		label := item.Deliverable
-		switch strings.ToLower(row.Status) {
-		case "in_progress", "active":
-			b.WriteString(fmt.Sprintf("→ %s %s 正在执行\n", item.ID, label))
-		case "accepted", "done", "completed":
-			b.WriteString(fmt.Sprintf("✓ %s %s 已验收\n", item.ID, label))
-		case "blocked":
-			b.WriteString(fmt.Sprintf("✕ %s %s 阻塞\n", item.ID, label))
-		default:
-			waiting := unmetQuickDeps(item.DependsOn, statusByID)
-			if len(waiting) > 0 {
-				b.WriteString(fmt.Sprintf("⏸ %s %s 等待 %s\n", item.ID, label, strings.Join(waiting, "、")))
-			} else if quickContains(doc.Execution.ActiveItemIDs, item.ID) {
-				b.WriteString(fmt.Sprintf("→ %s %s 正在执行\n", item.ID, label))
-			} else {
-				b.WriteString(fmt.Sprintf("· %s %s 就绪\n", item.ID, label))
-			}
-		}
-	}
-	if doc.Execution.JoinPoint != "" {
-		b.WriteString(fmt.Sprintf("\nJoin point：%s\n", doc.Execution.JoinPoint))
-	} else if len(doc.Delivery.JoinPoints) > 0 {
-		// derive next join from first incomplete wave
-		for _, join := range doc.Delivery.JoinPoints {
-			ready := true
-			for _, id := range join.After {
-				if strings.ToLower(statusByID[id].Status) != "accepted" {
-					ready = false
-					break
-				}
-			}
-			if !ready {
-				b.WriteString(fmt.Sprintf("\nJoin point：%s 验收通过后启动 %s\n", strings.Join(join.After, "、"), join.Starts))
-				break
-			}
-		}
-	}
-	if len(doc.Execution.Blockers) > 0 {
-		b.WriteString(fmt.Sprintf("\nBlockers：%s\n", strings.Join(doc.Execution.Blockers, "；")))
-	}
-	return b.String()
-}
-
-func unmetQuickDeps(deps []string, statusByID map[string]quickWorkItemStatus) []string {
-	out := []string{}
-	for _, dep := range deps {
-		if strings.ToLower(statusByID[dep].Status) != "accepted" {
-			out = append(out, dep)
-		}
-	}
-	return out
-}
-
 func (service quickService) projectConfirmationIntoStatus(workspacePath string, doc *quickConfirmationDoc) error {
 	statusPath := filepath.Join(workspacePath, "STATUS.md")
 	raw, err := os.ReadFile(statusPath)
@@ -1160,7 +989,11 @@ func buildQuickStatusCheckpointSection(doc *quickConfirmationDoc) string {
 	if doc.Source.ReviewDigest != "" {
 		b.WriteString(fmt.Sprintf("source_review_digest: %s\n", doc.Source.ReviewDigest))
 	}
-	b.WriteString(fmt.Sprintf("semantic_delta: %t\n\n", doc.Source.SemanticDelta))
+	b.WriteString(fmt.Sprintf("semantic_delta: %t\n", doc.Source.SemanticDelta))
+	if len(doc.Source.ChangedDecisionFields) > 0 {
+		b.WriteString(fmt.Sprintf("changed_decision_fields: %s\n", formatYAMLStringList(doc.Source.ChangedDecisionFields)))
+	}
+	b.WriteString("\n")
 	b.WriteString("checkpoint:\n")
 	b.WriteString(fmt.Sprintf("  request_and_outcome: %q\n", doc.Decision.Goal))
 	b.WriteString(fmt.Sprintf("  user_visible_result: %q\n", doc.Decision.UserVisibleResult))

@@ -30,7 +30,14 @@
         "discussion_slug": { "type": "string" },
         "review_digest": { "type": "string" },
         "semantic_delta": { "type": "boolean" },
-        "delta_summary": { "type": "string" }
+        "delta_summary": { "type": "string" },
+        "changed_decision_fields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Exact decision paths used to render a delta-only human view. Display metadata; excluded from confirmation_digest."
+        }
       },
       "additionalProperties": false
     },

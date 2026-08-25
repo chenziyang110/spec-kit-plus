@@ -3,18 +3,19 @@ the labels to the reporter's language when practical, but preserve every
 meaning below. Do not use a dense two-column table: wrapping makes it difficult
 to scan in chat, terminals, narrow windows, and assistive technology.
 
-The checkpoint is for user-owned facts and authority. Technical hypotheses belong to the agent
-and must not be presented as decisions the user has to
-validate. Do not reuse placeholder text as content. Keep terminal output plain
-Markdown without HTML tags or inline line-break markup.
+The checkpoint is for user-owned facts and authority.
+Technical hypotheses belong to the agent and must not be presented as decisions
+the user has to validate. Do not reuse the placeholder text as content. Keep
+the checkpoint plain text for terminal output: use Markdown without HTML tags
+or inline line-break markup.
 
 ```markdown
 ## Debug Checkpoint
 
 ### 我理解的问题
 
-[2-4 concrete sentences: user-visible symptom, where it appears, why it
-matters, and the nearby issue this session is not debugging]
+[2-4 concrete sentences: user-visible symptom, where it appears, why it matters,
+and the nearby issue this session is not debugging]
 
 ### 应有表现
 

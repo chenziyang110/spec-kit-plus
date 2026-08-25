@@ -234,6 +234,8 @@ def test_quick_checkpoint_supports_ordered_multi_work_item_delivery() -> None:
         assert "confirmation_digest" in lowered
         assert "independent acceptance" in lowered or "独立验收" in lowered or "per-item acceptance" in lowered
         assert "semantic delta" in lowered
+        assert "changed_decision_fields" in lowered
+        assert "digest" in lowered
         assert "delivery map" in lowered
         assert "subagent" in lowered
 

@@ -56,12 +56,12 @@ The reason-first explanation remains mandatory; do not replay either complete in
    test alone is insufficient.
 5. Before production edits, write and run a failing automated reproduction. If
    no reliable test surface exists, build the smallest viable test harness. If
-   that expands beyond the first debug fix lane, preserve the session and run
-   a tracked internal Debug recovery lane after expanding the registered causal
-   scope. Do not invoke another user-invoked workflow automatically; after the
-   harness is verified, return to this reproduction rather than weakening RED
-   or ending at the route. Use `$spx-specify` only when the user explicitly
-   chooses a formal spec-first path.
+   that expands beyond the first debug fix lane, preserve the session, expand
+   the registered causal scope, and repair the harness inside the active Debug recovery lane.
+   Do not invoke another user-invoked workflow automatically. After the harness
+   is verified, return to this reproduction rather than weakening RED or ending
+   at the route. Use `$spx-specify` only when the user explicitly chooses a
+   formal spec-first path.
 6. Apply the minimum coherent fix. Re-run the original reproduction and verify
    the regression plus adjacent and related-risk surfaces.
 
