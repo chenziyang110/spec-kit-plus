@@ -503,6 +503,8 @@ class TestBuiltInSkillGeneration:
         assert "optional red/baseline gate" in implement_body.lower()
         assert "leader opens one convergence" in implement_body.lower()
         assert "reset the ledger or open a fourth logical gate" in implement_body.lower()
+        assert "preserve the task lifecycle" in implement_body.lower()
+        assert "resume the interrupted validation gate" in implement_body.lower()
 
         analyze_body = _skill_body("sp-analyze")
         assert "Boundary Guardrail Gaps" in analyze_body
@@ -568,15 +570,21 @@ class TestBuiltInSkillGeneration:
         assert "/sp-quick" in fast_body.lower()
         assert "/sp-debug" in fast_body.lower()
         assert "root cause is still unknown" in fast_body.lower() or "root cause is not yet known" in fast_body.lower()
+        assert "enter autonomous recovery mode inside" in fast_body.lower()
+        assert "continue in the same invocation" in re.sub(r"\s+", " ", fast_body.lower())
 
         quick_body = _skill_body("sp-quick")
         assert "first executable lane must produce a failing automated test or failing repro check before production edits begin" in quick_body.lower()
         assert "do not write production code until the red state is captured" in quick_body.lower()
         assert "bootstrap the smallest viable test surface as its own quick lane or batch" in quick_body.lower()
         assert "/sp-specify" in quick_body.lower()
-        assert "/sp-debug" in quick_body.lower()
+        assert "debug-grade" in quick_body.lower()
+        assert "inside quick" in quick_body.lower()
+        assert "do not invoke another user-invoked workflow automatically" in quick_body.lower()
         assert "root cause is still unknown" in quick_body.lower() or "root cause is not yet known" in quick_body.lower()
         assert "surface-only" in quick_body.lower() or "symptom-only" in quick_body.lower()
+        assert "preserve the quick workspace" in quick_body.lower()
+        assert "resume the blocked q item or verification point" in re.sub(r"\s+", " ", quick_body.lower())
 
         checklist_body = _skill_body("sp-checklist")
         checklist_lower = checklist_body.lower()
@@ -640,8 +648,11 @@ class TestBuiltInSkillGeneration:
         assert "automatically continue into evidence investigation" in debug_lower
         assert "write a failing automated repro test before changing production code" in debug_lower
         assert "do not modify production behavior until the red state is proven" in debug_lower
-        assert "if that expands beyond the debug fix lane, route it through `/sp-quick`" in debug_lower
-        assert "use `/sp-specify` only when the user explicitly chooses a formal spec-first path" in debug_lower
+        assert "repair" in debug_lower
+        assert "harness inside the active debug recovery lane" in debug_lower
+        assert "do not invoke another user-invoked" in re.sub(r"\s+", " ", debug_lower)
+        assert "then return to the reproduction" in debug_lower
+        assert "use `/sp-specify` only when the user explicitly chooses a formal spec-first path" in re.sub(r"\s+", " ", debug_lower)
         assert "alternative_hypotheses_considered" in debug_lower
         assert "alternative_hypotheses_ruled_out" in debug_lower
         assert "root_cause_confidence" in debug_lower

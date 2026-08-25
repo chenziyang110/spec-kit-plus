@@ -9,6 +9,8 @@ Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/native-subagents.md` when implementation lanes are delegated.
 Read `references/workflow-runtime.md` and let its CLI own phase state.
 Read `references/run-bootstrap.md`.
+Read `references/autonomous-blocker-recovery.md` before treating any task,
+tooling, or validation failure as terminal.
 Read `references/project-cognition.md`, using cognition intent `implement`.
 Read `references/execution-contract.md`. Read `references/worker-contract.md`
 only when delegating. Read `references/consequence-gate.md` only on its triggers.
@@ -122,8 +124,11 @@ the raw count alone; zero still permits an attempt when
 Run the relevant verification as attempts inside one convergence gate for the
 integrated change-set, not once per task. On interruption, repair the runner and
 retry the same fingerprint; on a real failure, repair the implementation and
-retry after the fingerprint changes. Hand off unknown root causes to
-`$spx-debug` and stop. Update task status through the task CLI and run
+retry after the fingerprint changes. For an unknown technical root cause,
+preserve the task lifecycle, ledger, and failed fingerprint; enter a bounded
+Debug-grade evidence lane inside Implement, repair the proven owner, and resume
+the interrupted validation gate in the same invocation. Do not invoke another
+user-invoked workflow automatically. Update task status through the task CLI and run
 `specify-runtime implement closeout` to transactionally create the
 preliminary `implementation-summary.md` and machine-readable
 `implementation-handoff.json` for the later system Review.

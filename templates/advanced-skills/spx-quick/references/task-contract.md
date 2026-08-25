@@ -130,7 +130,10 @@ batches and join points as needed. None of these conditions require
 `$spx-specify`, and the request must not be shrunk to make Quick appear small.
 
 Unsafe write overlap is a Quick blocker until lanes are resequenced or isolated.
-An unknown root cause routes to `$spx-debug`. `$spx-specify` is used only when
+An unknown root cause parks the current Quick item through its runtime owner and
+starts a Debug-grade diagnostic lane inside Quick; after verified repair, resume
+that item without invoking another user-invoked workflow automatically.
+`$spx-specify` is used only when
 the user explicitly replaces direct delivery with a formal spec-first workflow.
 
 At closeout, `SUMMARY.md` records outcome, changed paths, verification actually

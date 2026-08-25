@@ -204,7 +204,9 @@ risk breadth, or artifact count.
 A move from Quick to Specify is not automatic.
 
 If the task is a bug fix or regression but the root cause is still unknown:
-- Use `{{invoke:debug}}` instead of treating `sp-quick` as a symptom-fix lane.
+- Preserve the Quick workspace and current Q state through their runtime owners,
+  run a bounded Debug-grade diagnostic recovery lane inside Quick instead of
+  treating it as a symptom-fix lane, then return to the recorded resume point.
 
 ## Scale Up Within Quick
 
@@ -226,10 +228,13 @@ workspace deliberately:
 - Preserve the user's full scope. Complexity is a planning and dispatch input,
   never a reason to invent a smaller quick outcome.
 
-The task becomes `blocked` only for a concrete unresolved decision, missing
-authority, unavailable external dependency, unsafe overlap, or failed recovery
-with no safe next action. Record the exact unblock and resume point. Size or
-planning depth alone is not a blocker.
+The task becomes `blocked` only for a concrete unresolved human decision,
+missing authority the Agent cannot obtain or request, a proven unavailable
+external dependency, unsafe/destructive action awaiting confirmation, or failed
+recovery with no safe authorized agent action. Local launchers, harnesses,
+dependencies, tooling, services, and supporting scope expansion remain
+agent-owned recovery. Record the exact unblock and resume point. Size, planning
+depth, retry count, or an unknown root cause alone is not a blocker.
 
 ## Quick Consequence Coverage
 
@@ -244,4 +249,6 @@ Broad consequential work remains in Quick once its outcome is confirmed.
 - If it triggers, record affected objects, state behavior, dependency impact, recovery and validation, project cognition evidence, coverage gaps, and every `CA-###` obligation before the owning execution batch starts.
 - Keep `STATUS.md` compact. When the consequence material is large, place the expanded tables in task-local `PLAN.md` and record stable references plus active statuses in `STATUS.md` and worker packets.
 - Resolve user-owned lifecycle, compatibility, migration, destructive-policy, shared-state, and downstream-consumer decisions through the Quick Checkpoint Amendment contract. Do not route them to `{{invoke:specify}}` merely because they are broad.
-- If the task is a defect and the dependency loop is unknown, use `{{invoke:debug}}` rather than guessing inside `sp-quick`.
+- If an active Quick defect lane exposes an unknown dependency loop, preserve
+  the Quick checkpoint and enter a bounded Debug-grade diagnostic lane inside
+  Quick rather than guessing or invoking another workflow automatically.

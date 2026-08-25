@@ -68,15 +68,26 @@ Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the 
 - During `investigating`, determine whether the current investigation has one or more safe evidence-collection lanes before running multiple independent evidence-gathering actions sequentially.
 - [AGENT] Use the shared policy function with the current capability snapshot when the investigation has safe delegated lanes: `choose_subagent_dispatch(command_name="debug", snapshot, workload_shape)`.
 - `SESSION PATCH` the decision fields exactly: `execution_model: leader-inline | subagent-assisted | blocked`, `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`, `execution_surface: leader-inline | native-subagents | none`, `dispatch_reason`, and `blocked_reason` when blocked.
-- Treat runtime safety as a dispatch-blocking decision. If the next step is unsafe, unavailable, or unpacketizable, use `subagent-blocked`, `SESSION PATCH` `execution_surface: none`, and stop instead of widening brittle native fan-out.
+- Treat runtime safety as a dispatch decision. If native fan-out is unsafe,
+  unavailable, or unpacketizable, record `subagent-blocked`, then repair the
+  dispatch surface, resequence the lane, use safe leader-inline investigation,
+  or open a tracked internal Debug recovery lane. Do not invoke another
+  user-invoked workflow automatically, do not widen brittle fan-out, and do not
+  end the workflow solely because delegation failed.
 - Debug routing decision order:
   - Small focused investigation with one short evidence chain -> `leader-inline`.
   - One safe validated evidence lane where isolation improves quality -> `one-subagent` on `native-subagents` when available.
   - Two or more independent evidence lanes with non-overlapping side effects -> `parallel-subagents` on `native-subagents` when available.
   - Two or more useful evidence lanes that share mutable state or cannot safely run concurrently -> `one-subagent` serial evidence packets (or keep the session leader-inline only while the investigation remains small/focused and that choice is recorded)—not an automatic silent widen of Leader scope.
-  - No safe lane, missing contract, incomplete packet, unavailable delegation, or unsafe next step -> `subagent-blocked` with `execution_surface: none` and a recorded reason.
+  - Missing contract, incomplete packet, or unavailable delegation -> record
+    `subagent-blocked`, repair/recompile/fallback, and continue. Only a next step
+    that remains unsafe under every authorized execution surface may block the
+    workflow.
 - Dispatch a subagent only when the evidence-lane contract is complete: probe intent, required evidence, authoritative inputs, and validation targets must all be recorded before dispatch.
-- If that subagent-readiness bar is not met, compile the missing evidence-lane contract before dispatch; if the lane cannot be made safe, `SESSION PATCH` `subagent-blocked` and stop for escalation or recovery.
+- If that subagent-readiness bar is not met, compile the missing evidence-lane
+  contract before dispatch; if the lane cannot use subagents safely, `SESSION
+  PATCH` the dispatch block and continue through an authorized recovery or
+  leader path. Stop only at the shared human/external boundary.
 - `parallel-subagents` means the leader dispatches bounded evidence-gathering subagents and rejoins at an explicit join point.
 - `native-subagents` means the leader uses the current runtime native subagent surface for dispatched evidence lanes.
 - The durable team workflow remains separate from ordinary debug dispatch and is not the execution surface for this command.

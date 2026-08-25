@@ -35,13 +35,21 @@ heavyweight gate attempt.
 ## Obligation And Boundary Integrity
 
 - Preserve task-relevant `MP-*` and `CA-###` IDs through packet, result, review, and closeout.
-- If live evidence contradicts a protected requirement, architecture, target boundary, or user decision, stop and route to the owning upstream phase.
+- If live evidence contradicts a protected requirement, architecture, target
+  boundary, or user decision, park the task and emit an explicit handoff to the
+  owning upstream phase. Stop rather than silently changing upstream truth;
+  resume Implement only after that owner validates the repair.
 - If only task metadata is stale, repair the task graph and regenerate the current packet.
 - Require real-entrypoint consumer evidence when the task creates or changes routes, registries, providers, factories, handlers, UI entry points, or reusable integration surfaces.
 
 ## Blocker Recovery
 
-Agent-owned technical blockers receive bounded diagnosis and safe retries. Do not retry unchanged failures. Escalate unknown root cause to `{{invoke:debug}}`; route requirement/design/task truth defects to their owning phase.
+Agent-owned technical blockers receive diagnosis and safe, progress-bound
+retries. Do not retry unchanged failures. Preserve the task while an unknown
+technical root cause enters a bounded Debug-grade recovery lane inside
+Implement; do not invoke another user-invoked workflow automatically. Route
+requirement/design/task truth defects through an explicit owning-phase
+handoff-and-stop boundary.
 
 Every terminal blocker records code/cause, owner, exact next action, evidence ref, unblock criteria, whether other tasks may continue, retry guidance, and stop condition.
 

@@ -43,6 +43,8 @@ Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/native-subagents.md` when task lanes are delegated.
 Read `references/project-cognition.md`, using cognition intent `implement`.
 Read `references/run-bootstrap.md`.
+Read `references/autonomous-blocker-recovery.md` before treating any execution
+or validation failure as terminal.
 Read `references/human-confirmation.md`, then `references/task-contract.md`.
 Read `references/worker-contract.md` only
 when delegating. Read `references/consequence-gate.md` when work can affect
@@ -96,9 +98,15 @@ failure, then accept.
 Accept non-trivial direct-delivery work whose outcome can be confirmed at the
 Quick Checkpoint. Task size, capability count, architecture, migration,
 compatibility, rollout, shared-state impact, and acceptance depth do not limit
-Quick eligibility. Route unknown failure mechanisms to `$spx-debug`; do not
-route to `$spx-specify` because the implementation grows. That formal
+Quick eligibility. Diagnose unknown failure mechanisms through an internal
+Debug-grade recovery lane; do not route to `$spx-specify` because the
+implementation grows. That formal
 specification workflow is a separate user-selected path.
+For recovery routing, preserve the Quick workspace, current Q lifecycle,
+confirmation binding, and failed evidence through their runtime owners. Run a
+bounded Debug-grade diagnostic lane inside Quick; do not invoke `$spx-debug` or
+another user-invoked workflow automatically. Resume the blocked Q item or
+verification point in the same invocation after the repair is verified.
 Quick can handle larger tasks through deeper task-local planning, multiple
 batches, explicit joins, and acceptance coverage, including multi-capability
 work.
@@ -262,6 +270,7 @@ is complete, and do not run `quick close … resolved`, until step 3 succeeds wh
 cognition is required. `item-accept` and green tests alone are not terminal
 truth; only `quick close … resolved` after cognition closeout is terminal truth.
 Report changed paths, evidence, residual risk, and
-`project_cognition_refresh`. This invocation authorizes only this workflow
-stage; report any explicit user-selected workflow change as a handoff and do not
-invoke another workflow in this run.
+`project_cognition_refresh`. An explicit user-selected workflow replacement is
+a terminal handoff. Autonomous recovery routing under
+`references/autonomous-blocker-recovery.md` is not a replacement: keep the
+recovery inside Quick and return to the recorded failed gate.

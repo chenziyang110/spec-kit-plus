@@ -42,6 +42,7 @@ def test_shared_recovery_contract_owns_project_control_plane_failures() -> None:
             "same invocation",
             "resume the exact interrupted gate",
             "retry count alone",
+            "do not invoke another user-invoked workflow",
         ):
             assert required in contract
 
@@ -73,7 +74,7 @@ def test_four_spx_workflows_route_to_the_shared_recovery_reference() -> None:
 def test_recovery_routes_preserve_parent_state_and_resume_the_failed_gate() -> None:
     expected = {
         "fast": (
-            "promote the active invocation",
+            "enter autonomous recovery mode",
             "continue in the same invocation",
         ),
         "quick": (

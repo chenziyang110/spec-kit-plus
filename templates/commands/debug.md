@@ -11,6 +11,7 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 {{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
+{{spec-kit-include: ../command-partials/common/autonomous-blocker-recovery.md}}
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
@@ -34,6 +35,14 @@ of cognition freshness or mutation closeout.
 3. Build the causal map, investigation contract, log plan, observer framing, and first evidence path; do not form a final root cause before reproduction and evidence.
 4. Investigate one active hypothesis at a time, record eliminated alternatives, confirm root cause, and reject surface-only fixes.
 5. Apply the minimum safe fix through the selected execution model, verify with reproduction and tests, review related risks, patch the debug session only through leased `specify-runtime artifact patch` calls, and close only as resolved or blocked.
+
+Preserve the debug session whenever its repair needs a harness, launcher,
+dependency, runner, or other supporting control-plane change beyond the first
+fix scope. Expand the registered causal scope and repair that control plane
+inside the active Debug recovery lane; do not invoke another user-invoked
+workflow automatically. Verify it, then resume the original reproduction and
+verification path in the same invocation. Unfamiliarity, scope growth, or
+unavailable delegation does not by itself justify a blocked Debug close.
 
 ## Detailed References
 

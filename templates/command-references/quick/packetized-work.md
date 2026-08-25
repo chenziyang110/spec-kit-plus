@@ -273,7 +273,12 @@ The following flags are available and composable:
    - For behavior-changing work, bug fixes, and refactors, the first executable lane must produce a failing automated test or failing repro check before production edits begin.
    - Do not write production code until the RED state is captured and patched into `STATUS.md` through the artifact CLI.
    - If no reliable automated test surface exists for the touched behavior, bootstrap the smallest viable test surface as its own quick lane or batch. If the harness is blocked, record the concrete blocker and recovery path; do not substitute a `{{invoke:specify}}` handoff for executable evidence.
-   - For bug fixes and regressions, record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `{{invoke:debug}}` instead of applying a quick symptom patch.
+   - For bug fixes and regressions, record the current root-cause explanation
+     before implementation starts. If the root cause is not yet known, or if
+     multiple plausible causes are still in play, preserve Quick state through
+     its runtime owner and run a bounded Debug-grade recovery lane inside Quick;
+     repair the proven owner, then resume the Q item instead of applying a
+     symptom patch or ending at routing advice.
    - A `surface-only` or symptom-only change cannot satisfy the quick-task contract for a bug fix unless the user explicitly scoped the work to temporary mitigation.
    - Name the affected surfaces for this quick-task pass and decide how each one will be checked.
    - If multiple safe lanes would materially improve throughput, plan the first fan-out as parallel subagents instead of defaulting to serial execution.

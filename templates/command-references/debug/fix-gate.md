@@ -11,13 +11,22 @@ Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the 
 - Enter `fixing` only after the root cause is confirmed.
 - Write a failing automated repro test before changing production code.
 - Do not modify production behavior until the RED state is proven.
-- If no reliable automated test surface exists for the failing behavior, add the missing harness first. If that expands beyond the debug fix lane, route it through `/sp-quick`; use `/sp-specify` only when the user explicitly chooses a formal spec-first path.
+- If no reliable automated test surface exists for the failing behavior, add
+  the missing harness first. If that expands beyond the first debug fix lane,
+  preserve the Debug session, expand the registered causal scope, and repair
+  the harness inside the active Debug recovery lane. Do not invoke another
+  user-invoked workflow automatically; then return to the reproduction. Use
+  `/sp-specify` only when the user explicitly chooses a formal spec-first path.
 - Apply the minimum code change needed to address the confirmed root cause when `execution_model: leader-inline`; when `execution_model: subagent-assisted`, delegate it through a validated subagent lane and integrate the returned evidence on the leader path.
 - For a confirmed UI target baseline, recapture the same real entry point,
   viewport/window, and state after the fix; compare it with the baseline and
   original references, record runtime diagnostics, and repair observable drift
   before claiming the UI symptom resolved.
-- If the fix cannot proceed safely, cannot be packetized for the selected execution path, or cannot be verified, persist `subagent-blocked`, `execution_surface: none`, and a concrete `blocked_reason` through a fresh `specify-runtime artifact patch` lease.
+- If the selected delegated fix cannot be packetized, repair the packet or
+  dispatch surface, use a safe leader-owned lane when eligible, or expand a
+  tracked internal Debug recovery lane and return. Persist `subagent-blocked` only as dispatch
+  evidence. Mark the Debug workflow blocked only when the fix or verification
+  needs a proven human/external boundary and no safe authorized fallback exists.
 - Fix the owning control-plane failure first. Do not treat a UI/status smoothing change as sufficient unless the closed loop is proven healthy end-to-end.
 - Classify the fix before verification:
   - include the classification in the in-memory `fix_scope` patch payload and persist it through `specify-runtime artifact patch`

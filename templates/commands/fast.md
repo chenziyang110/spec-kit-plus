@@ -4,13 +4,14 @@ workflow_contract:
   when_to_use: The work is genuinely local and low-risk enough to stay on the fast path.
   primary_objective: Consume relevant Learning and Project Cognition, complete the smallest safe low-risk change leader-direct, then run targeted verification and a lightweight review without opening the full planning workflow.
   primary_outputs: A tightly scoped direct change plus a concise report of what changed, what was verified and reviewed, and any remaining risk.
-  default_handoff: Upgrade immediately to /sp-quick if scope, coupling, or uncertainty expands.
+  default_handoff: Hand off an initially ineligible request to /sp-quick before edits; once Fast execution is active, repair agent-owned blockers inside Fast and resume its failed gate.
 ---
 
 {{spec-kit-include: ../command-partials/fast/shell.md}}
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 {{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
+{{spec-kit-include: ../command-partials/common/autonomous-blocker-recovery.md}}
 
 ## Project Learning Intake
 
@@ -57,8 +58,19 @@ Use `sp-fast` only when ALL of:
 - Task is clear in one sentence
 - Root cause known (if bug fix)
 
-If any check fails → upgrade to `/sp-quick`.
-If scope >10 files or crosses a module boundary → upgrade to `/sp-quick`.
+If an entry check fails before execution starts, hand the ineligible request to
+`/sp-quick`; do not force ordinary product work through Fast. These entry limits
+do not cap causally required recovery after an active Fast gate fails.
+
+## Recovery Continuity
+
+When an active Fast change hits a blocker, enter autonomous recovery mode inside
+Fast, preserve the evidence already gathered, and continue in the same
+invocation. Diagnose unknown causes with Debug-grade evidence discipline and
+expand the registered write scope only as far as the causal repair requires;
+do not invoke Quick or Debug automatically. Return to the failed verification
+after recovery. A newly discovered product decision uses an explicit workflow
+handoff, while only a genuine human/external boundary may end `blocked`.
 
 ## UI Fast Gate
 
@@ -98,7 +110,9 @@ Upgrade to `/sp-quick` immediately if:
 - The request introduces a new workflow, role boundary, or user-visible behavior that needs explicit acceptance criteria.
 - The change carries compatibility, migration, rollout, or neighboring-workflow risk.
 - The task changes architecture, APIs, long-lived templates, or planning assumptions.
-- The work started as a bug fix, but root-cause analysis is still unresolved, competing causes are still plausible, or the next safe step is diagnostic investigation rather than a truly local repair. In that case, route to `/sp-debug`.
+- Before Fast execution starts, a bug request with an unresolved root cause is
+  normally better suited to `/sp-debug`. If the uncertainty is discovered by an
+  active Fast failure, keep ownership and enter autonomous recovery mode.
 
 Do not bypass `/sp-quick` and require `/sp-specify` because work is large or consequential. `/sp-specify` is a separate formal specification path selected explicitly by the user.
 
@@ -106,7 +120,9 @@ Do not bypass `/sp-quick` and require `/sp-specify` because work is large or con
 
 1. **Scope gate**
    - Confirm the task fits the fast-path constraints above.
-   - If not, stop and redirect to the right workflow instead of forcing the task through `sp-fast`.
+   - If the requested product work is ineligible before execution, hand it to
+     `/sp-quick`. If only an active blocker expands the causal repair, use
+     Recovery Continuity instead of ending Fast.
 
 2. **Consume Project Learning**
    - Run the consume-only Learning intake above before Project Cognition or broad repository reads.
@@ -145,8 +161,14 @@ Do not bypass `/sp-quick` and require `/sp-specify` because work is large or con
    - If the task is behavior-changing rather than docs-only, write a failing targeted test or failing repro check before editing production code.
    - The direct execution notes must include that RED gate before production edits.
    - Do not use manual sanity checks as a substitute for red when behavior changes.
-   - If no reliable automated test surface exists for the affected behavior, stop and redirect to `/sp-quick` instead of hand-waving the verification gap.
-   - For bug fixes and regressions, record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `/sp-debug` instead of applying a quick symptom patch.
+   - If no reliable automated test surface exists for the affected behavior,
+     add the smallest viable harness as Fast-owned recovery work, register any
+     added write scope, and continue instead of hand-waving the verification gap.
+   - For bug fixes and regressions, record the current root-cause explanation
+     before implementation starts. If the root cause is not yet known, or if
+     multiple plausible causes are still in play, enter autonomous recovery
+     mode, prove the mechanism, and continue the requested fix instead of
+     applying a quick symptom patch or ending at routing advice.
    - Keep the change as small and local as possible.
    - If the Senior Consequence Analysis Gate stands down, record the stand-down reason before continuing in `sp-fast`.
    - Do not add planning artifacts to satisfy this gate on the fast path. If required consequence outputs are needed, upgrade instead of manufacturing durable artifacts in `sp-fast`.
@@ -160,7 +182,10 @@ Do not bypass `/sp-quick` and require `/sp-specify` because work is large or con
    - The same leader performs one inline Lightweight Review; use no review subagent and no worker packet.
    - Review the complete changed diff and confirm every edit stays inside the declared write scope, preserves unrelated work, and satisfies the requested acceptance.
    - Check the changed behavior surfaces for an obvious regression, missed consumer, security or consequence issue, and confirm the recorded verification actually exercises the change.
-   - Repair any in-scope defect, then rerun the affected targeted verification and review the resulting diff once more. If repair expands scope or needs independent lanes, stop and route to `/sp-quick`.
+   - Repair any in-scope defect, then rerun the affected targeted verification
+     and review the resulting diff once more. If a causal repair expands scope,
+     register the additional intent, repair it inside Fast, and continue. A new
+     unrelated product capability remains a separate `/sp-quick` handoff.
    - This Lightweight Review does not claim the independent system Review contract owned by `sp-review`; Fast produces only bounded self-review and targeted verification evidence.
 
 7. **Report**
@@ -184,4 +209,6 @@ Do not bypass `/sp-quick` and require `/sp-specify` because work is large or con
 - No tasks.md creation.
 - Use leader-direct execution only; create no worker packet and use no implementation or review subagent. If subagent lanes are needed, route to `/sp-quick`.
 - Do not add planning artifacts just to satisfy process formality.
-- If the task grows while working, stop and redirect to `/sp-quick`.
+- If ordinary product scope grows while working, hand off to `/sp-quick`.
+  Causally required blocker repair is not ordinary scope growth; own it through
+  Recovery Continuity and resume the Fast gate.

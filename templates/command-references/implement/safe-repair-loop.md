@@ -2,7 +2,10 @@ Trigger: when validation fails, review rejects work, blockers appear, or task-la
 
 Purpose: preserve safe repair ownership, blocker routing, tracker updates, and debug escalation behavior.
 
-Preserved Contract: repair stays evidence-bound and routes unresolved defects to debug instead of speculative implementation.
+Preserved Contract: repair stays evidence-bound; unknown technical mechanisms
+use a bounded Debug-grade lane inside Implement and return to the preserved task
+instead of triggering speculative implementation, a routing-only stop, or an
+automatic invocation of another user-invoked workflow.
 
 ## Task-local acceptance recovery
 
@@ -28,6 +31,16 @@ Preserved Contract: repair stays evidence-bound and routes unresolved defects to
   unblock_criteria: [observable condition that changes this from blocked to complete]
   implementation_can_continue: yes | no
   completion_impact: mandatory_for_completion | optional_cleanup | external_baseline_maintenance | follow_up_risk
+
+Before emitting that terminal shape, query and preserve the task lifecycle and
+failed gate through `specify-runtime implement`, create or expand the smallest
+recovery scope, and repair project-owned launchers, harnesses, dependencies,
+build/startup tooling, local services, or other supporting control planes.
+Unknown technical causes use the same evidence discipline as Debug inside the
+active Implement invocation and return to this task. A file outside the first
+packet is not user-owned; register its
+write intent before editing. Only a proven human/external boundary with no safe
+authorized agent action may remain terminal.
 
 ## Blockers
 - task: [task id]

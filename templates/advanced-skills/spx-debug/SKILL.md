@@ -43,6 +43,8 @@ Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/native-subagents.md` when evidence lanes are delegated.
 Read `references/project-cognition.md`, using cognition intent `debug`.
 Read `references/run-bootstrap.md`.
+Read `references/autonomous-blocker-recovery.md` before treating any
+investigation, harness, or verification failure as terminal.
 Read `references/human-confirmation.md`, then
 `references/investigation-contract.md`. Read
 `references/investigator-worker.md` only for delegated evidence. Create an
@@ -84,6 +86,14 @@ them. Distinguish the visible symptom from the failure mechanism. Once evidence
 supports a root cause, apply the minimum coherent fix only after the automated
 RED gate in the investigation contract. When logs are insufficient, add bounded
 instrumentation or request a precise user-log packet instead of guessing.
+
+Preserve the debug session if repair requires a harness, launcher, dependency,
+runner, generated tool, or other supporting control-plane change beyond the
+first fix scope. Expand the smallest registered causal scope and repair it
+inside the active Debug recovery lane; do not invoke another user-invoked
+workflow automatically. Then resume the original reproduction and verification
+path in the same invocation. Scope growth, unfamiliar technology, or unavailable
+delegation alone cannot close the session as blocked.
 
 Re-run the original reproduction and relevant surrounding verification.
 For a UI regression, reproduce and recapture the same real entry point,
