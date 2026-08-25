@@ -84,3 +84,7 @@ def test_repo_quick_skill_mirror_has_codex_subagent_dispatch_contract(
     assert "if exactly one unfinished quick task exists" in full_body
     assert "if multiple unfinished quick tasks exist" in full_body
     assert "ask the user which quick task to continue" in full_body
+    assert "specify-runtime quick preflight" in full_body
+    assert "empty work board" in full_body
+    assert "before the first `quick item-start`" in full_body
+    assert "do not poll" in full_body

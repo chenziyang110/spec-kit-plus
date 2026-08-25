@@ -397,6 +397,24 @@ def test_quick_template_defines_empty_call_recovery_and_lifecycle_management() -
     assert "archive" in content
 
 
+def test_quick_template_uses_event_driven_coordination_preflight() -> None:
+    content = read_command_with_references("quick").lower()
+
+    assert "specify-runtime quick preflight" in content
+    assert "unfinished quick tasks" in content
+    assert "work board" in content
+    assert "empty work board" in content
+    assert "does not mean" in content
+    assert "before the first `quick item-start`" in content
+    assert "after each join" in content
+    assert "before `work scope-add`" in content
+    assert "do not poll" in content
+    assert "write_overlap" in content
+    assert "unfinished_quick_untracked" in content
+    assert "hard blocker" in content
+    assert "advisory" in content
+
+
 def test_quick_template_blocks_resume_until_understanding_is_confirmed() -> None:
     content = read_command_with_references("quick").lower()
 
