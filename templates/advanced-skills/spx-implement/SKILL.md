@@ -108,6 +108,8 @@ same invocation. End the invocation only after successful Implement closeout
 and Review handoff, at a contract-defined cross-workflow handoff-and-stop
 boundary, or at a genuine blocker or human gate with no dependency-safe ready
 work; preserve the exact resume action in every blocked stop.
+Every cross-workflow route is a handoff-and-stop boundary; never invoke or
+continue the destination workflow inside the current Implement invocation.
 
 Execute the confirmed scope completely. Adapt stale implementation details to
 the live repository while preserving user intent and recording material plan

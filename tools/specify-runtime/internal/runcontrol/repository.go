@@ -3,6 +3,9 @@ package runcontrol
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -20,6 +23,8 @@ import (
 // boundary failure from an unavailable Git executable or a cancelled context.
 var ErrNotGitRepository = errors.New("not a git repository")
 
+const emptyGitTreeOID = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
 // Repository describes the paths shared by every worktree belonging to one
 // Git repository. Root is specific to the current worktree, while CommonDir
 // and DatabasePath are shared by the main and linked worktrees.
@@ -28,6 +33,12 @@ type Repository struct {
 	PrimaryRoot  string
 	CommonDir    string
 	DatabasePath string
+}
+
+type WorkspaceBaseline struct {
+	HeadCommit  string            `json:"head_commit"`
+	DirtyPaths  []string          `json:"dirty_paths"`
+	PathDigests map[string]string `json:"path_digests"`
 }
 
 // ResolveRepository discovers the current worktree root and the shared Git
@@ -155,6 +166,212 @@ func InspectWorkspaceChanges(ctx context.Context, workspaceRoot string) ([]strin
 	}
 	sort.Strings(paths)
 	return paths, nil
+}
+
+func CaptureWorkspaceBaseline(ctx context.Context, workspaceRoot string) (WorkspaceBaseline, error) {
+	headCommit, err := ReadHeadCommit(ctx, workspaceRoot)
+	if err != nil {
+		// An initialized but unborn repository has no HEAD yet. The canonical
+		// empty-tree object keeps later committed-path comparison deterministic.
+		headCommit = emptyGitTreeOID
+	}
+	dirtyPaths, err := InspectWorkspaceChanges(ctx, workspaceRoot)
+	if err != nil {
+		return WorkspaceBaseline{}, fmt.Errorf("capture workspace baseline paths: %w", err)
+	}
+	digests := make(map[string]string, len(dirtyPaths))
+	for _, path := range dirtyPaths {
+		digest, digestErr := workspacePathDigest(workspaceRoot, path)
+		if digestErr != nil {
+			return WorkspaceBaseline{}, fmt.Errorf("capture baseline digest for %q: %w", path, digestErr)
+		}
+		digests[path] = digest
+	}
+	return WorkspaceBaseline{HeadCommit: headCommit, DirtyPaths: dirtyPaths, PathDigests: digests}, nil
+}
+
+func EncodeWorkspaceBaseline(baseline WorkspaceBaseline) (string, error) {
+	if strings.TrimSpace(baseline.HeadCommit) == "" {
+		return "", fmt.Errorf("%w: workspace baseline head commit is required", ErrInvalidArgument)
+	}
+	if baseline.DirtyPaths == nil {
+		baseline.DirtyPaths = []string{}
+	}
+	if baseline.PathDigests == nil {
+		baseline.PathDigests = map[string]string{}
+	}
+	raw, err := json.Marshal(baseline)
+	if err != nil {
+		return "", fmt.Errorf("encode workspace baseline: %w", err)
+	}
+	return string(raw), nil
+}
+
+func InspectWorkspaceDelta(ctx context.Context, workspaceRoot, baselineJSON string) ([]string, error) {
+	var baseline WorkspaceBaseline
+	if err := json.Unmarshal([]byte(strings.TrimSpace(baselineJSON)), &baseline); err != nil {
+		return nil, fmt.Errorf("decode workspace baseline: %w", err)
+	}
+	if strings.TrimSpace(baseline.HeadCommit) == "" {
+		return nil, fmt.Errorf("%w: workspace baseline has no head commit", ErrInvalidArgument)
+	}
+	committed, err := inspectCommittedWorkspacePaths(ctx, workspaceRoot, baseline.HeadCommit)
+	if err != nil {
+		return nil, err
+	}
+	dirty, err := InspectWorkspaceChanges(ctx, workspaceRoot)
+	if err != nil {
+		return nil, err
+	}
+	type baselinePathState struct {
+		path   string
+		digest string
+	}
+	baselineByKey := make(map[string]baselinePathState, len(baseline.PathDigests))
+	for baselinePath, digest := range baseline.PathDigests {
+		pathValue, pathKey, normalizeErr := normalizeWorkPath(baselinePath, runtime.GOOS == "windows")
+		if normalizeErr != nil {
+			return nil, fmt.Errorf("normalize workspace baseline path %q: %w", baselinePath, normalizeErr)
+		}
+		baselineByKey[pathKey] = baselinePathState{path: pathValue, digest: digest}
+	}
+	seen := make(map[string]string, len(committed)+len(dirty)+len(baselineByKey))
+	for _, path := range committed {
+		_, key, normalizeErr := normalizeWorkPath(path, runtime.GOOS == "windows")
+		if normalizeErr != nil {
+			return nil, normalizeErr
+		}
+		seen[key] = path
+	}
+	currentDirtyKeys := make(map[string]struct{}, len(dirty))
+	for _, path := range dirty {
+		digest, digestErr := workspacePathDigest(workspaceRoot, path)
+		if digestErr != nil {
+			return nil, fmt.Errorf("inspect current digest for %q: %w", path, digestErr)
+		}
+		_, key, normalizeErr := normalizeWorkPath(path, runtime.GOOS == "windows")
+		if normalizeErr != nil {
+			return nil, normalizeErr
+		}
+		currentDirtyKeys[key] = struct{}{}
+		if baselineState, existed := baselineByKey[key]; existed && baselineState.digest == digest {
+			continue
+		}
+		seen[key] = path
+	}
+	// A path that was already dirty at announcement may disappear from Git
+	// status after deletion or restoration. Re-read those paths explicitly so
+	// the execution audit cannot mistake absence from current status for no-op.
+	for key, baselineState := range baselineByKey {
+		if _, stillDirty := currentDirtyKeys[key]; stillDirty {
+			continue
+		}
+		digest, digestErr := workspacePathDigest(workspaceRoot, baselineState.path)
+		if digestErr != nil {
+			return nil, fmt.Errorf("inspect current digest for baseline path %q: %w", baselineState.path, digestErr)
+		}
+		if digest != baselineState.digest {
+			seen[key] = baselineState.path
+		}
+	}
+	paths := make([]string, 0, len(seen))
+	for _, path := range seen {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+func inspectCommittedWorkspacePaths(ctx context.Context, workspaceRoot, baseCommit string) ([]string, error) {
+	if _, err := ReadHeadCommit(ctx, workspaceRoot); err != nil {
+		return []string{}, nil
+	}
+	output, err := runtimecmd.CommandOutputContext(
+		ctx,
+		workspaceRoot,
+		nil,
+		"git", "diff", "--name-status", "-z", "--find-renames", baseCommit+"..HEAD",
+	)
+	if err != nil {
+		if contextErr := ctx.Err(); contextErr != nil {
+			return nil, contextErr
+		}
+		return nil, fmt.Errorf("inspect committed workspace delta: %w", err)
+	}
+	fields := bytes.Split(output, []byte{0})
+	seen := make(map[string]string)
+	for index := 0; index < len(fields); {
+		status := string(fields[index])
+		index++
+		if status == "" {
+			continue
+		}
+		pathCount := 1
+		if strings.HasPrefix(status, "R") || strings.HasPrefix(status, "C") {
+			pathCount = 2
+		}
+		if index+pathCount > len(fields) {
+			return nil, fmt.Errorf("Git returned malformed committed path delta")
+		}
+		for count := 0; count < pathCount; count++ {
+			value, key, normalizeErr := normalizeWorkPath(filepath.ToSlash(string(fields[index])), runtime.GOOS == "windows")
+			index++
+			if normalizeErr != nil {
+				return nil, normalizeErr
+			}
+			seen[key] = value
+		}
+	}
+	paths := make([]string, 0, len(seen))
+	for _, path := range seen {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+func workspacePathDigest(workspaceRoot, relativePath string) (string, error) {
+	pathValue, _, err := normalizeWorkPath(relativePath, runtime.GOOS == "windows")
+	if err != nil {
+		return "", err
+	}
+	absoluteRoot, err := filepath.Abs(workspaceRoot)
+	if err != nil {
+		return "", err
+	}
+	absolutePath, err := filepath.Abs(filepath.Join(absoluteRoot, filepath.FromSlash(pathValue)))
+	if err != nil {
+		return "", err
+	}
+	rootPrefix := filepath.Clean(absoluteRoot) + string(os.PathSeparator)
+	if absolutePath != filepath.Clean(absoluteRoot) && !strings.HasPrefix(filepath.Clean(absolutePath), rootPrefix) {
+		return "", fmt.Errorf("%w: workspace digest path escapes root", ErrInvalidArgument)
+	}
+	info, err := os.Lstat(absolutePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return "missing", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	var payload []byte
+	switch {
+	case info.Mode()&os.ModeSymlink != 0:
+		target, readErr := os.Readlink(absolutePath)
+		if readErr != nil {
+			return "", readErr
+		}
+		payload = []byte("symlink\x00" + target)
+	case info.IsDir():
+		payload = []byte("directory")
+	default:
+		payload, err = os.ReadFile(absolutePath)
+		if err != nil {
+			return "", err
+		}
+	}
+	digest := sha256.Sum256(payload)
+	return hex.EncodeToString(digest[:]), nil
 }
 
 func ReadHeadCommit(ctx context.Context, workspaceRoot string) (string, error) {

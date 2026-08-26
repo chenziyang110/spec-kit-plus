@@ -158,6 +158,11 @@ func (store *Store) initialize(ctx context.Context) error {
 				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
 			}
 		}
+		if version < 13 {
+			if _, err := transaction.ExecContext(ctx, executionActivitySchemaSQL); err != nil {
+				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
+			}
+		}
 		if _, err := transaction.ExecContext(ctx, `
 			UPDATE metadata SET value = ? WHERE key = 'schema_version' AND value = ?
 		`, fmt.Sprint(schemaVersion), fmt.Sprint(version)); err != nil {

@@ -1177,7 +1177,13 @@ func defaultCapabilities() []string {
 		"evidence.smoothness-validate",
 		"evidence.visual-compare",
 		"evidence.verify",
+		"execution.announce",
+		"execution.checkpoint",
+		"execution.complete",
+		"execution.control",
+		"execution.guard",
 		"execution.overview",
+		"execution.show",
 		"hook.extension-plan",
 		"hook.validate-artifacts",
 		"hook.validate-commit",
@@ -1462,6 +1468,18 @@ func capabilitySummary(id string) string {
 		return "Read compact or full evidence metadata."
 	case "evidence.verify":
 		return "Verify evidence bytes and metadata against their digest."
+	case "execution.control":
+		return "Own the announced-to-completed Activity lifecycle, atomic file and semantic-resource guard, checkpoints, recovery, and actual-change completion audit."
+	case "execution.announce":
+		return "Announce one Activity, candidate file scope, semantic resources, and Git baseline before mutation."
+	case "execution.checkpoint":
+		return "Advance an Activity phase and atomically persist its lease, next action, and observed paths."
+	case "execution.guard":
+		return "Atomically claim confirmed file and semantic scope against one exact execution overview snapshot."
+	case "execution.show":
+		return "Read one registered Activity with its Work, write intents, semantic resources, and lifecycle receipts."
+	case "execution.complete":
+		return "Audit actual Git changes and passing validation before atomically completing Activity and Work."
 	case "execution.overview":
 		return "Join open task state, nonterminal Runs, live Work identities, write scope, and coordination anomalies into one repository view."
 	case "cognition.run":

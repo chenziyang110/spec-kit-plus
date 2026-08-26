@@ -899,6 +899,17 @@ func writeIntentDTO(intent runcontrol.WriteIntent) map[string]any {
 
 func workBoardErrorEnvelope(action string, err error) Envelope {
 	env := runControlErrorEnvelope(action, err)
+	switch {
+	case errors.Is(err, runcontrol.ErrExecutionGuardRequired):
+		env.Status = "blocked"
+		env.Data["error_code"] = "execution_guard_required"
+	case errors.Is(err, runcontrol.ErrExecutionCheckpointRequired):
+		env.Status = "blocked"
+		env.Data["error_code"] = "execution_checkpoint_required"
+	case errors.Is(err, runcontrol.ErrExecutionCompletionRequired):
+		env.Status = "blocked"
+		env.Data["error_code"] = "execution_completion_required"
+	}
 	var conflict *runcontrol.WorkIntentConflictError
 	if errors.As(err, &conflict) {
 		env.Status = "blocked"

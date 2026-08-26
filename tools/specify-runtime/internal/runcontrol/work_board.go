@@ -538,6 +538,11 @@ func (store *Store) AddWorkIntent(ctx context.Context, params AddWorkIntentParam
 	if err != nil {
 		return WorkItem{}, WriteIntent{}, err
 	}
+	if _, registered, readErr := readExecutionActivityByWorkTx(ctx, tx, work.WorkID); readErr != nil {
+		return WorkItem{}, WriteIntent{}, readErr
+	} else if registered {
+		return WorkItem{}, WriteIntent{}, fmt.Errorf("%w: Work %q", ErrExecutionGuardRequired, work.WorkID)
+	}
 	if err := requireWorkAuthority(work, params.ExpectedRevision, params.Fence, time.Now().UTC().UnixMilli()); err != nil {
 		return WorkItem{}, WriteIntent{}, err
 	}
@@ -651,6 +656,11 @@ func (store *Store) ClaimWorkIntents(ctx context.Context, params ClaimWorkIntent
 	work, err := readWorkTx(ctx, tx, params.WorkID)
 	if err != nil {
 		return WorkItem{}, nil, err
+	}
+	if _, registered, readErr := readExecutionActivityByWorkTx(ctx, tx, work.WorkID); readErr != nil {
+		return WorkItem{}, nil, readErr
+	} else if registered {
+		return WorkItem{}, nil, fmt.Errorf("%w: Work %q", ErrExecutionGuardRequired, work.WorkID)
 	}
 	if err := requireWorkAuthority(work, params.ExpectedRevision, params.Fence, time.Now().UTC().UnixMilli()); err != nil {
 		return WorkItem{}, nil, err
@@ -773,6 +783,11 @@ func (store *Store) CheckpointWork(ctx context.Context, params CheckpointWorkPar
 	if err != nil {
 		return WorkItem{}, err
 	}
+	if _, registered, readErr := readExecutionActivityByWorkTx(ctx, tx, work.WorkID); readErr != nil {
+		return WorkItem{}, readErr
+	} else if registered {
+		return WorkItem{}, fmt.Errorf("%w: Work %q", ErrExecutionCheckpointRequired, work.WorkID)
+	}
 	nowMS := time.Now().UTC().UnixMilli()
 	if err := requireWorkAuthority(work, params.ExpectedRevision, params.Fence, nowMS); err != nil {
 		return WorkItem{}, err
@@ -883,6 +898,13 @@ func (store *Store) TransitionWork(ctx context.Context, params TransitionWorkPar
 	if !canTransitionWork(work.Status, params.Target) {
 		return WorkItem{}, fmt.Errorf("%w: %s -> %s", ErrInvalidTransition, work.Status, params.Target)
 	}
+	_, executionRegistered, err := readExecutionActivityByWorkTx(ctx, tx, work.WorkID)
+	if err != nil {
+		return WorkItem{}, err
+	}
+	if executionRegistered && params.Target == WorkCompleted {
+		return WorkItem{}, fmt.Errorf("%w: Work %q", ErrExecutionCompletionRequired, work.WorkID)
+	}
 	if params.Target == WorkCompleted || params.Target == WorkAbandoned {
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE write_intents
@@ -890,6 +912,11 @@ func (store *Store) TransitionWork(ctx context.Context, params TransitionWorkPar
 			WHERE work_id = ? AND status IN (?, ?)
 		`, WriteIntentReleased, nowMS, nowMS, work.WorkID, WriteIntentActive, WriteIntentRecovery); err != nil {
 			return WorkItem{}, fmt.Errorf("release write intents for work %q: %w", work.WorkID, err)
+		}
+		if err := markExecutionResourcesForWorkTx(
+			ctx, tx, work.WorkID, WriteIntentReleased, false, nowMS,
+		); err != nil {
+			return WorkItem{}, err
 		}
 	}
 	result, err := tx.ExecContext(ctx, `
@@ -909,6 +936,25 @@ func (store *Store) TransitionWork(ctx context.Context, params TransitionWorkPar
 	work.LastReason = strings.TrimSpace(params.Reason)
 	work.Revision++
 	work.UpdatedAtMS = nowMS
+	if executionRegistered {
+		var executionPhase ExecutionPhase
+		var executionEvent string
+		switch params.Target {
+		case WorkAbandoned:
+			executionPhase, executionEvent = ExecutionPhaseAbandoned, "execution.abandoned"
+		case WorkBlocked:
+			executionPhase, executionEvent = ExecutionPhaseBlocked, "execution.blocked"
+		case WorkActive:
+			executionPhase, executionEvent = ExecutionPhaseSelected, "execution.resumed_from_block"
+		}
+		if executionEvent != "" {
+			if err := transitionExecutionActivityForWorkTx(
+				ctx, tx, work.WorkID, executionPhase, executionEvent, work.LastReason, nowMS,
+			); err != nil {
+				return WorkItem{}, err
+			}
+		}
+	}
 	if err := appendWorkEventTx(ctx, tx, work, "work.transitioned", work.LastReason); err != nil {
 		return WorkItem{}, err
 	}
@@ -968,6 +1014,11 @@ func (store *Store) InterruptWork(ctx context.Context, params InterruptWorkParam
 		return WorkItem{}, fmt.Errorf("mark interrupted write intents for work %q: %w", work.WorkID, err)
 	}
 	nowMS := time.Now().UTC().UnixMilli()
+	if err := markExecutionResourcesForWorkTx(
+		ctx, tx, work.WorkID, intentStatus, false, nowMS,
+	); err != nil {
+		return WorkItem{}, err
+	}
 	result, err := tx.ExecContext(ctx, `
 		UPDATE work_items
 		SET status = ?, next_action = ?, last_reason = ?, fence = fence + 1,
@@ -990,6 +1041,12 @@ func (store *Store) InterruptWork(ctx context.Context, params InterruptWorkParam
 	work.ObservedPaths = observed
 	work.ObservedPathsJSON = observedJSON
 	work.UpdatedAtMS = nowMS
+	if err := transitionExecutionActivityForWorkTx(
+		ctx, tx, work.WorkID, ExecutionPhaseInterrupted,
+		"execution.interrupted", work.LastReason, nowMS,
+	); err != nil {
+		return WorkItem{}, err
+	}
 	if err := appendWorkEventTx(ctx, tx, work, "work.interrupted", work.LastReason); err != nil {
 		return WorkItem{}, err
 	}
@@ -1060,6 +1117,11 @@ func (store *Store) ReconcileExpiredWork(ctx context.Context, params ReconcileWo
 		`, intentStatus, now.UnixMilli(), releasedAtMS, work.WorkID, WriteIntentActive); err != nil {
 			return nil, fmt.Errorf("reconcile write intents for work %q: %w", work.WorkID, err)
 		}
+		if err := markExecutionResourcesForWorkTx(
+			ctx, tx, work.WorkID, intentStatus, false, now.UnixMilli(),
+		); err != nil {
+			return nil, err
+		}
 		observed, observedJSON, err := normalizeWorkPathsJSON(relevantDirty)
 		if err != nil {
 			return nil, err
@@ -1087,6 +1149,12 @@ func (store *Store) ReconcileExpiredWork(ctx context.Context, params ReconcileWo
 		work.ObservedPaths = observed
 		work.ObservedPathsJSON = observedJSON
 		work.UpdatedAtMS = now.UnixMilli()
+		if err := transitionExecutionActivityForWorkTx(
+			ctx, tx, work.WorkID, ExecutionPhaseInterrupted,
+			"execution.interrupted", work.LastReason, now.UnixMilli(),
+		); err != nil {
+			return nil, err
+		}
 		if err := appendWorkEventTx(ctx, tx, work, "work.interrupted", work.LastReason); err != nil {
 			return nil, err
 		}
@@ -1190,6 +1258,25 @@ func (store *Store) ResumeWork(ctx context.Context, params ResumeWorkParams) (Wo
 	} else if len(conflicts) != 0 {
 		return WorkItem{}, &WorkIntentConflictError{Conflicts: conflicts}
 	}
+	executionActivity, executionRegistered, err := readExecutionActivityByWorkTx(ctx, tx, work.WorkID)
+	if err != nil {
+		return WorkItem{}, err
+	}
+	if executionRegistered {
+		resourceSpecs, readErr := executionResourceSpecsForResumeTx(ctx, tx, executionActivity)
+		if readErr != nil {
+			return WorkItem{}, readErr
+		}
+		resourceConflicts, conflictErr := findExecutionResourceConflictsTx(
+			ctx, tx, executionActivity.ActivityID, resourceSpecs,
+		)
+		if conflictErr != nil {
+			return WorkItem{}, conflictErr
+		}
+		if len(resourceConflicts) != 0 {
+			return WorkItem{}, &ExecutionResourceConflictError{Conflicts: resourceConflicts}
+		}
+	}
 	workspaceRoot := strings.TrimSpace(params.WorkspaceRoot)
 	if workspaceRoot == "" {
 		workspaceRoot = work.WorkspaceRoot
@@ -1207,6 +1294,11 @@ func (store *Store) ResumeWork(ctx context.Context, params ResumeWorkParams) (Wo
 		WHERE work_id = ?
 	`, WriteIntentActive, nowMS, work.WorkID); err != nil {
 		return WorkItem{}, fmt.Errorf("reactivate write intents for work %q: %w", work.WorkID, err)
+	}
+	if err := markExecutionResourcesForWorkTx(
+		ctx, tx, work.WorkID, WriteIntentActive, true, nowMS,
+	); err != nil {
+		return WorkItem{}, err
 	}
 	result, err := tx.ExecContext(ctx, `
 		UPDATE work_items
@@ -1236,6 +1328,14 @@ func (store *Store) ResumeWork(ctx context.Context, params ResumeWorkParams) (Wo
 	work.HeartbeatAtMS = nowMS
 	work.RecoveryHold = false
 	work.UpdatedAtMS = nowMS
+	if executionRegistered {
+		if err := transitionExecutionActivityForWorkTx(
+			ctx, tx, work.WorkID, ExecutionPhaseSelected,
+			"execution.resumed", "interrupted execution resumed under a new fence", nowMS,
+		); err != nil {
+			return WorkItem{}, err
+		}
+	}
 	if err := appendWorkEventTx(ctx, tx, work, "work.resumed", "interrupted work resumed under a new fence"); err != nil {
 		return WorkItem{}, err
 	}

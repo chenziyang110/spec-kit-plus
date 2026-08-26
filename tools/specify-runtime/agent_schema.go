@@ -219,6 +219,32 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "artifact.catalog":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime artifact catalog --format json"
+	case "execution.control":
+		capability["side_effect"] = "writes-unified-execution-lifecycle"
+		capability["command"] = []string{"specify-runtime", "execution"}
+		capability["usage"] = "specify-runtime execution announce ...; execution checkpoint ...; execution overview ...; execution guard ...; execution complete ..."
+		capability["input_contract"] = "Fast, Debug, Implement, and Quick share one durable Activity per Work. Announce candidate file scope and semantic resources before mutation; checkpoint selected progress; guard the complete confirmed scope against the exact overview revision and SHA-256; checkpoint validating; complete only with terminal task state, passing evidence, and an actual Git-delta audit. Guard and completion are atomic, recovery retains actionable state, and registered Activities cannot bypass these gates through legacy Work claim, checkpoint, or finish commands."
+		env.ShowArgv = []string{"specify-runtime", "execution", "help"}
+	case "execution.announce":
+		capability["side_effect"] = "announces-activity-and-candidate-authority"
+		capability["usage"] = "specify-runtime execution announce --workflow <fast|debug|implement|quick> --subject-id <id> --summary <text> --agent-id <id> --adapter-id <id> [--activity-id <id>] [--work-id <id>] [--task-ref <ref>] [--item-id <id>] [--source-ref <path>] [--planned-write-scope-json <array>] [--resources-json <array>] [--lease-seconds <seconds>] [--project-root <path>] --format json"
+		capability["input_contract"] = "creates one Activity and one-to-one Work atomically before mutation, captures the actual Git baseline, and advertises candidate file scope plus semantic resources without granting write authority"
+	case "execution.checkpoint":
+		capability["side_effect"] = "advances-activity-and-renews-work"
+		capability["usage"] = "specify-runtime execution checkpoint <activity-id> --expected-revision <work-revision> --fence <fence> --phase <selected|executing|validating|blocked> --next-action <text> --lease-seconds <seconds> [--observed-paths-json <array>] [--reason <text>] [--project-root <path>] --format json"
+		capability["input_contract"] = "atomically advances the lifecycle and updates the paired Work lease, heartbeat, next action, observed paths, reason, and revisions; terminal and interruption phases remain owned by their dedicated boundaries"
+	case "execution.guard":
+		capability["side_effect"] = "atomically-claims-execution-authority"
+		capability["usage"] = "specify-runtime execution guard <activity-id> --expected-revision <work-revision> --fence <fence> --expected-overview-revision <revision> --expected-overview-sha256 <sha256> --write-scope-json <array> --resources-json <array> --reason <text> [--project-root <path>] --format json"
+		capability["input_contract"] = "rebuilds and byte-compares the current overview, then in one transaction rejects duplicate task, file, or semantic ownership conflicts or promotes the entire confirmed set and advances selected -> claimed -> executing without partial authority"
+	case "execution.show":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime execution show <activity-id> [--project-root <path>] --format json"
+		capability["input_contract"] = "returns the paired Activity and Work revisions, fence, lifecycle phase, candidate or confirmed write scope, semantic resources, guard binding, and completion digest"
+	case "execution.complete":
+		capability["side_effect"] = "audits-and-releases-execution-authority"
+		capability["usage"] = "specify-runtime execution complete <activity-id> --expected-revision <work-revision> --fence <fence> --validation-json <array> --reason <text> [--project-root <path>] --format json"
+		capability["input_contract"] = "requires terminal Quick/Implement task state when registered, a live fence, and passing validation; derives actual changed paths from the announced Git baseline, rejects paths outside confirmed scope, records validating -> completed events and a completion digest, and releases all file and semantic authority atomically"
 	case "execution.overview":
 		capability["side_effect"] = "reconciles-work-board"
 		capability["usage"] = "specify-runtime execution overview [--current-work-id <work-id>] [--project-root <path>] --format json"

@@ -27,6 +27,11 @@ const (
 	ResourceTemp           ResourceType = "temp"
 	ResourceCache          ResourceType = "cache"
 	ResourceExternalEffect ResourceType = "external-effect"
+	ResourceCapability     ResourceType = "capability"
+	ResourceFeature        ResourceType = "feature"
+	ResourceAPI            ResourceType = "api"
+	ResourceUISurface      ResourceType = "ui-surface"
+	ResourceConfig         ResourceType = "config"
 )
 
 type ResourceClaimMode string

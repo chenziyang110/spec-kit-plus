@@ -22,9 +22,37 @@ list. A `block` signal stops ownership-dependent execution; a `warn` signal
 requires bounded recovery or an explicit sequencing decision; an `info` signal
 keeps other open work visible without creating a user gate. Refresh at event
 boundaries—after a parallel join, before selecting the next task or batch,
-before work scope-add, interrupted-work recovery, or material scope expansion.
-Do not poll on a timer. This overview supplies coordination context; only the
-claim receipt below grants mutation authority.
+before claim, before work scope-add on legacy managed Work,
+interrupted-work recovery, or material scope expansion. Use
+`--since-revision <last-coordination-revision>` for a compact event-boundary
+change feed. Do not poll on a timer. This overview supplies coordination
+context; only an execution guard or the managed claim receipt below grants
+mutation authority.
+
+For every unhosted Fast, Debug, Implement, or Quick task, create one durable
+Activity/Work identity with `specify-runtime execution announce` after choosing
+the exact task and before writing source files. Announce the complete candidate file
+scope plus applicable semantic resources such as feature, API, UI surface,
+schema, configuration, service, port, or external-effect ownership. Record the
+`selected` boundary with `specify-runtime execution checkpoint`, refresh
+`specify-runtime execution overview`, and pass that response's exact
+`coordination_revision` and `snapshot_sha256` to
+`specify-runtime execution guard` as `--expected-overview-revision` and
+`--expected-overview-sha256`. Guard atomically promotes the complete confirmed
+write scope and semantic resource set; any stale snapshot, duplicate task,
+file overlap, or semantic resource conflict blocks without a partial claim.
+Refresh and guard the whole amended set before expanding scope.
+
+The Activity lifecycle is `announced -> selected -> claimed -> executing ->
+validating -> completed`; guard owns the atomic claimed/executing boundary.
+Use `specify-runtime execution checkpoint` at meaningful event boundaries and
+again with phase `validating` before final verification. After workflow task
+state is terminal and fresh passing evidence exists, call
+`specify-runtime execution complete`; it derives actual changed paths from the
+announced Git baseline, rejects every path outside confirmed scope, stores the
+validation/completion digest, and releases file plus semantic ownership in one
+transaction. A registered Activity must not use legacy `work claim`, `work
+scope-add`, `work checkpoint`, or `work finish` to bypass these gates.
 
 For a host-managed modifying Run backed by a compiled worker task packet, pass
 the compile receipt's canonical values unchanged as
@@ -46,9 +74,10 @@ current revision with `specify-runtime work show`, then use
 `specify-runtime work block` when human or external action is required; the
 supervisor retains the blocked scope.
 
-Fast, Debug, Implement, and Quick share one claim-before-write gate. A managed
-Run with zero confirmed write scope is rejected before the Run is claimed or
-the child starts. Before source writes, the child must either call
+Fast, Debug, Implement, and Quick share one claim-before-write gate. An
+unhosted task uses the execution guard above. A managed Run with zero confirmed
+write scope is rejected before the Run is claimed or the child starts. Before
+source writes, the managed child must either call
 `specify-runtime work claim --task-ref <exact-task-ref> --write-scope-json
 <complete-json-array> --format json`, or receive the equivalent `work_claim`
 receipt from its runtime-owned `implement task-start` / `quick item-start`
@@ -67,9 +96,9 @@ root with the original feature description plus `--dry-run --json` (PowerShell:
 `FEATURE_DIR` as `feature_dir`; the dry run must not write, create a branch, or
 switch branches. Require the dry-run receipt's exact `BOOTSTRAP_CONTRACT` field
 to equal `spec-kit-feature-bootstrap-v1`. If it is absent or different, stop
-before any Run/Work registration, branch action, or feature write; use the
-trusted project Specify launcher to run `{{specify-subcmd:integration repair}}`,
-then repeat the dry run. Every later real script invocation must replay that dry-run
+before any Run/Work registration, branch action, or feature write; request the
+operator's human-only integration repair action, then repeat the dry run. Every
+later real script invocation must replay that dry-run
 `BRANCH_NAME` unchanged with `--resolved-feature-id <dry-run BRANCH_NAME>`
 (PowerShell: `-ResolvedFeatureId <dry-run BRANCH_NAME>`); never recompute its
 timestamp or automatic feature number.
@@ -98,16 +127,15 @@ the returned policy is `keep-current`, pass `--keep-current-branch` (PowerShell:
 is `default` because the board was idle does the existing business-branch
 behavior remain unchanged.
 
-For any other unhosted modifying workflow, reconcile and show the board, then
-register the exact workflow `--task-ref` before writing with
-`specify-runtime work begin`. Retain the returned Work id and fence, then call
-`specify-runtime work claim --current-work-id <data.work.work_id>
---current-work-fence <data.work.fence> --task-ref <same-exact-task-ref>
---write-scope-json <complete-json-array> --format json` before source writes.
-Do not proceed without its all-or-none `data.work_claim` receipt. Use
-`specify-runtime work checkpoint` for durable progress, `specify-runtime work
-block` when blocked, and `specify-runtime work finish` when writes are complete.
-The board is a SQLite CLI projection; do not edit it by hand. At process or
+For any other unhosted modifying workflow, use the execution
+announce/checkpoint/overview/guard/complete lifecycle above; its Activity is a
+one-to-one authoritative extension of Work, not a second owner. Use
+`specify-runtime work block` only to expose an active blocker; Activity phase
+and semantic resources follow that Work transition automatically. The board is
+a SQLite CLI projection; do not edit it by hand. Legacy non-Activity board
+clients retain `specify-runtime work begin`, `specify-runtime work checkpoint`,
+`specify-runtime work finish`, and `specify-runtime work abandon`; these are not
+completion shortcuts for registered Activities. At process or
 computer restart, reconcile and show before deciding what to do. Active
 same-task Work may still belong to another agent: do not take it over or resume
 it, and you must not interrupt another live agent. Only when the new session has
