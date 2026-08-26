@@ -314,6 +314,32 @@ func TestExecutionRecoverySignalCarriesActionableState(t *testing.T) {
 	}
 }
 
+func TestExecutionGuardUsesRegisteredWorkIdentityWhenIDsDiffer(t *testing.T) {
+	root := initRunCLIRepository(t)
+	code, payload := invokeRunCLI(t,
+		"execution", "announce",
+		"--project-root", root,
+		"--activity-id", "activity-distinct-id",
+		"--work-id", "work-distinct-id",
+		"--workflow", "debug",
+		"--subject-id", "distinct-id",
+		"--summary", "distinct execution and Work ids",
+		"--agent-id", "distinct-agent",
+		"--adapter-id", "codex",
+		"--planned-write-scope-json", `["src/distinct"]`,
+		"--format", "json",
+	)
+	if code != 0 || payload["status"] != "ok" {
+		t.Fatalf("announce distinct ids = code %d envelope %#v", code, payload)
+	}
+	announced := requireObject(t, requireObject(t, payload, "data"), "execution_activity")
+	overview := executionOverviewCLI(t, root, "work-distinct-id")
+	guarded := guardExecutionCLI(t, root, announced, overview, []string{"src/distinct"}, nil)
+	if guarded["work_id"] != "work-distinct-id" || guarded["activity_id"] != "activity-distinct-id" {
+		t.Fatalf("guarded distinct ids = %#v", guarded)
+	}
+}
+
 func announceExecutionCLI(
 	t *testing.T,
 	root string,
