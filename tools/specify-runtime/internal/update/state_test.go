@@ -390,6 +390,25 @@ func TestMarkDirtyRecordsDebtWhenPendingPredecessorValidationBlocks(t *testing.T
 	}
 }
 
+func TestCompactPredecessorRecoveryErrorsBoundsDefaultOutput(t *testing.T) {
+	values := make([]string, 0, predecessorRecoveryErrorLimit+2)
+	for index := 0; index < predecessorRecoveryErrorLimit+2; index++ {
+		values = append(values, fmt.Sprintf("error-%d-%s", index, strings.Repeat("identity", 80)))
+	}
+
+	compacted := compactPredecessorRecoveryErrors(values)
+
+	if len(compacted) != predecessorRecoveryErrorLimit+1 {
+		t.Fatalf("compacted = %#v, want capped errors plus one summary", compacted)
+	}
+	if len([]rune(compacted[0])) > predecessorRecoveryErrorRunes+3 {
+		t.Fatalf("first compacted error has %d runes, want bounded output", len([]rune(compacted[0])))
+	}
+	if !strings.Contains(compacted[len(compacted)-1], "additional validation errors") {
+		t.Fatalf("compacted summary = %q", compacted[len(compacted)-1])
+	}
+}
+
 func TestCommittedFinalizableUpdateRecoversThroughValidateAndCompleteRefreshAfterStatusLoss(t *testing.T) {
 	paths := testPaths(t)
 	writeUpdateMatchingScanPackage(t, paths)

@@ -131,6 +131,11 @@ const (
 
 var closureNodeBudget = 1000
 
+const (
+	predecessorRecoveryErrorLimit = 5
+	predecessorRecoveryErrorRunes = 240
+)
+
 var errNoUpdateRecord = errors.New("no project cognition update record")
 
 type ValidateBuildReceipt struct {
@@ -204,7 +209,6 @@ type PredecessorRecoveryValidation struct {
 	IdentityRepairability      any      `json:"identity_repairability,omitempty"`
 	IdentityMismatchCount      any      `json:"identity_mismatch_count,omitempty"`
 	IdentityMismatchCategories any      `json:"identity_mismatch_categories,omitempty"`
-	IdentityDiffs              any      `json:"identity_diffs,omitempty"`
 }
 
 type PredecessorRecoveryError struct {
@@ -229,11 +233,18 @@ func MarkDirty(paths rt.Paths, input DirtyInput) (rt.Status, error) {
 	}
 	defer releaseUpdateLock()
 
+	recoveryBlocked := false
 	if _, err := recoverPendingPredecessorLocked(paths); err != nil {
-		return rt.Status{}, err
+		var recoveryErr *PredecessorRecoveryError
+		if !errors.As(err, &recoveryErr) || recoveryErr.Recovery.BlockerCategory != "validate_build_blocked" {
+			return rt.Status{}, err
+		}
+		recoveryBlocked = true
 	}
-	if err := blockSplitBrainBaseline(paths); err != nil {
-		return rt.Status{}, err
+	if !recoveryBlocked {
+		if err := blockSplitBrainBaseline(paths); err != nil {
+			return rt.Status{}, err
+		}
 	}
 	if input.Reason == "" {
 		input.Reason = "manual"
@@ -359,6 +370,17 @@ func completeRefreshLocked(paths rt.Paths, basis string) (rt.Status, error) {
 		receipt.ActiveGenerationID != status.ActiveGenerationID || receipt.UpdateID != status.LastUpdateID || receipt.UpdateOutcome != status.LastUpdateOutcome {
 		return rt.Status{}, fmt.Errorf("complete refresh blocked: validate-build receipt does not match latest update %s/%s", status.LastUpdateID, status.LastUpdateOutcome)
 	}
+	status.LastFinalizedUpdateID = status.LastUpdateID
+	if deferredDirtyAfterPendingUpdate(status, latest) {
+		if basis == "" {
+			basis = "validated-predecessor-with-deferred-dirty"
+		}
+		status.LastRefreshBasis = basis
+		if err := rt.WriteStatus(paths, status); err != nil {
+			return rt.Status{}, err
+		}
+		return status, nil
+	}
 	status.Status = "ok"
 	status.Freshness = rt.ReadyFreshness
 	status.Readiness = rt.ReadyReadiness
@@ -371,7 +393,6 @@ func completeRefreshLocked(paths rt.Paths, basis string) (rt.Status, error) {
 	status.DirtyScopePaths = []string{}
 	status.StalePaths = []string{}
 	status.StaleReasons = []string{}
-	status.LastFinalizedUpdateID = status.LastUpdateID
 	if basis == "" {
 		basis = "validated-update"
 	}
@@ -505,6 +526,9 @@ func finalizationEligibleStatus(status rt.Status, latest updateRecordRef) bool {
 		len(status.DirtyReasons) == 0 && len(status.DirtyScopePaths) == 0 && len(status.StalePaths) == 0 && len(status.StaleReasons) == 0 {
 		return sameNormalizedPaths(status.LastRefreshChangedFilesBasis, latest.ChangedPaths)
 	}
+	if deferredDirtyAfterPendingUpdate(status, latest) {
+		return true
+	}
 	if status.Status != "stale" || status.Freshness != rt.StaleFreshness || status.Readiness != rt.ReviewReadiness ||
 		status.RecommendedNextAction != "review_project_cognition_update" || !status.GraphReady || !status.Dirty ||
 		status.DirtyOriginCommand != "specify-runtime cognition repair-status" || status.DirtyOriginFeatureDir != "" || status.DirtyOriginLaneID != "" {
@@ -518,6 +542,13 @@ func finalizationEligibleStatus(status rt.Status, latest updateRecordRef) bool {
 	}
 	return sameNormalizedPaths(status.DirtyScopePaths, latest.ChangedPaths) &&
 		sameNormalizedPaths(status.StalePaths, latest.ChangedPaths) &&
+		sameNormalizedPaths(status.LastRefreshChangedFilesBasis, latest.ChangedPaths)
+}
+
+func deferredDirtyAfterPendingUpdate(status rt.Status, latest updateRecordRef) bool {
+	return status.Status == "stale" && status.Freshness == rt.StaleFreshness && status.Readiness == rt.BlockedReadiness &&
+		status.RecommendedNextAction == "run_map_update" && status.GraphReady && status.Dirty && len(status.DirtyReasons) > 0 &&
+		status.DirtyOriginCommand != "specify-runtime cognition repair-status" &&
 		sameNormalizedPaths(status.LastRefreshChangedFilesBasis, latest.ChangedPaths)
 }
 
@@ -647,7 +678,7 @@ func recoverPendingPredecessorLocked(paths rt.Paths) (*PredecessorRecovery, erro
 	}
 	if gate.Status != "ok" || gate.Readiness != rt.ReadyReadiness || !gate.CompletionAllowed {
 		recovery.BlockerCategory = "validate_build_blocked"
-		recovery.Detail = strings.Join(gate.Errors, "; ")
+		recovery.Detail = strings.Join(compactPredecessorRecoveryErrors(gate.Errors), "; ")
 		recovery.RecommendedNextAction = predecessorRecoveryAction(gate)
 		return nil, &PredecessorRecoveryError{Recovery: *recovery}
 	}
@@ -672,13 +703,34 @@ func compactPredecessorRecoveryValidation(gate validation.GatePayload) *Predeces
 		Status:                     gate.Status,
 		Readiness:                  gate.Readiness,
 		ErrorClassification:        gate.ErrorClassification,
-		Errors:                     append([]string{}, gate.Errors...),
+		Errors:                     compactPredecessorRecoveryErrors(gate.Errors),
 		IdentityReconciliation:     gate.Details["identity_reconciliation"],
 		IdentityRepairability:      gate.Details["identity_repairability"],
 		IdentityMismatchCount:      gate.Details["identity_mismatch_count"],
 		IdentityMismatchCategories: gate.Details["identity_mismatch_categories"],
-		IdentityDiffs:              gate.Details["identity_diffs"],
 	}
+}
+
+func compactPredecessorRecoveryErrors(values []string) []string {
+	out := make([]string, 0, min(len(values), predecessorRecoveryErrorLimit))
+	for _, value := range values {
+		if len(out) == predecessorRecoveryErrorLimit {
+			break
+		}
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		runes := []rune(value)
+		if len(runes) > predecessorRecoveryErrorRunes {
+			value = string(runes[:predecessorRecoveryErrorRunes]) + "..."
+		}
+		out = append(out, value)
+	}
+	if remaining := len(values) - len(out); remaining > 0 {
+		out = append(out, fmt.Sprintf("... %d additional validation errors; run validate-build for full diagnostics", remaining))
+	}
+	return out
 }
 
 func predecessorRecoveryAction(gate validation.GatePayload) string {

@@ -167,6 +167,10 @@ func TestCognitionCloseoutApplyRecordsCurrentScopeWhenPredecessorRecoveryBlocks(
 	if recovery["attempted"] != true || recovery["outcome"] != "blocked" || recovery["update_id"] != pending.UpdateID {
 		t.Fatalf("predecessor_recovery = %#v, want blocked exact predecessor", recovery)
 	}
+	validation := requireObject(t, recovery, "validation")
+	if _, leaked := validation["identity_diffs"]; leaked {
+		t.Fatalf("predecessor validation leaked unbounded identity_diffs: %#v", validation)
+	}
 	receiptPath := filepath.Join(project, filepath.FromSlash(scopeDir), mutationCognitionReceiptFileName)
 	raw, err := os.ReadFile(receiptPath)
 	if err != nil {

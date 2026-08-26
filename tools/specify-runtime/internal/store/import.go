@@ -347,20 +347,41 @@ func (s *Store) ActiveIdentitySnapshot(ctx context.Context) (IdentitySnapshot, e
 	}); err != nil {
 		return snapshot, fmt.Errorf("read coverage identities: %w", err)
 	}
-	if err := scanSnapshotRows(ctx, s.db, `SELECT id, source_path, content_hash FROM evidence WHERE generation_id = ? AND source_kind = 'workflow_update'`, generationID, func(values []string) {
-		snapshot.WorkflowUpdateEvidence[values[0]+"|"+values[1]+"|"+values[2]] = true
+	workflowUpdateIDs := map[string]bool{}
+	if err := scanSnapshotRows(ctx, s.db, `SELECT id FROM updates WHERE generation_id = ?`, generationID, func(values []string) {
+		workflowUpdateIDs[values[0]] = true
+	}); err != nil {
+		return snapshot, fmt.Errorf("read workflow update record identities: %w", err)
+	}
+	if err := scanSnapshotRows(ctx, s.db, `SELECT id, source_path, content_hash, attrs_json FROM evidence WHERE generation_id = ? AND source_kind = 'workflow_update' AND extractor = 'specify-runtime cognition update'`, generationID, func(values []string) {
+		if workflowUpdateAttrsBoundToRecord(values[3], workflowUpdateIDs) {
+			snapshot.WorkflowUpdateEvidence[values[0]+"|"+values[1]+"|"+values[2]] = true
+		}
 	}); err != nil {
 		return snapshot, fmt.Errorf("read workflow update evidence identities: %w", err)
 	}
-	if err := scanSnapshotRows(ctx, s.db, `SELECT id FROM nodes WHERE generation_id = ? AND type = 'workflow_update'`, generationID, func(values []string) {
-		snapshot.WorkflowUpdateNodes[values[0]] = true
+	if err := scanSnapshotRows(ctx, s.db, `SELECT id, attrs_json FROM nodes WHERE generation_id = ? AND type = 'workflow_update'`, generationID, func(values []string) {
+		if workflowUpdateAttrsBoundToRecord(values[1], workflowUpdateIDs) {
+			snapshot.WorkflowUpdateNodes[values[0]] = true
+		}
 	}); err != nil {
 		return snapshot, fmt.Errorf("read workflow update node identities: %w", err)
 	}
-	if err := scanSnapshotRows(ctx, s.db, `SELECT p.path FROM path_index p JOIN evidence e ON e.generation_id = p.generation_id AND e.id = p.evidence_id WHERE p.generation_id = ? AND e.source_kind = 'workflow_update'`, generationID, func(values []string) {
-		snapshot.WorkflowUpdateCoveragePaths[values[0]] = true
+	if err := scanSnapshotRows(ctx, s.db, `SELECT p.path, e.attrs_json FROM path_index p JOIN evidence e ON e.generation_id = p.generation_id AND e.id = p.evidence_id WHERE p.generation_id = ? AND e.source_kind = 'workflow_update' AND e.extractor = 'specify-runtime cognition update'`, generationID, func(values []string) {
+		if workflowUpdateAttrsBoundToRecord(values[1], workflowUpdateIDs) {
+			snapshot.WorkflowUpdateCoveragePaths[values[0]] = true
+		}
 	}); err != nil {
 		return snapshot, fmt.Errorf("read workflow update coverage identities: %w", err)
+	}
+	if err := scanSnapshotRows(ctx, s.db, `SELECT e.id, e.source_path, e.content_hash, n.id, p.path, e.attrs_json, n.attrs_json FROM path_index p JOIN nodes n ON n.generation_id = p.generation_id AND n.id = p.node_id JOIN evidence e ON e.generation_id = p.generation_id AND e.id = p.evidence_id WHERE p.generation_id = ? AND n.type = 'workflow_update' AND e.source_kind = 'workflow_update' AND e.extractor = 'specify-runtime cognition update' AND p.relation = 'provisional_path' AND p.confidence IN ('weak', 'partial')`, generationID, func(values []string) {
+		if legacyWorkflowUpdateAttrsAgree(values[5], values[6]) {
+			snapshot.WorkflowUpdateEvidence[values[0]+"|"+values[1]+"|"+values[2]] = true
+			snapshot.WorkflowUpdateNodes[values[3]] = true
+			snapshot.WorkflowUpdateCoveragePaths[values[4]] = true
+		}
+	}); err != nil {
+		return snapshot, fmt.Errorf("read legacy workflow update identities: %w", err)
 	}
 
 	attrsJSON := "{}"
@@ -381,6 +402,29 @@ func (s *Store) ActiveIdentitySnapshot(ctx context.Context) (IdentitySnapshot, e
 		snapshot.MergeRecords = attrs.MergeRecords
 	}
 	return snapshot, nil
+}
+
+func workflowUpdateAttrsBoundToRecord(raw string, updateIDs map[string]bool) bool {
+	var attrs struct {
+		UpdateID string `json:"update_id"`
+	}
+	return json.Unmarshal([]byte(raw), &attrs) == nil && updateIDs[strings.TrimSpace(attrs.UpdateID)]
+}
+
+func legacyWorkflowUpdateAttrsAgree(evidenceRaw string, nodeRaw string) bool {
+	var evidenceAttrs struct {
+		UpdateID string `json:"update_id"`
+	}
+	var nodeAttrs struct {
+		Source   string `json:"source"`
+		UpdateID string `json:"update_id"`
+	}
+	if json.Unmarshal([]byte(evidenceRaw), &evidenceAttrs) != nil || json.Unmarshal([]byte(nodeRaw), &nodeAttrs) != nil {
+		return false
+	}
+	evidenceUpdateID := strings.TrimSpace(evidenceAttrs.UpdateID)
+	return evidenceUpdateID != "" && evidenceUpdateID == strings.TrimSpace(nodeAttrs.UpdateID) &&
+		strings.TrimSpace(nodeAttrs.Source) == "specify-runtime cognition update"
 }
 
 func nextGenerationSequence(ctx context.Context, tx *sql.Tx) (int, error) {
