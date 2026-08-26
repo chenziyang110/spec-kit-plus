@@ -209,11 +209,21 @@ func normalizeStatusSlices(status *Status) {
 	}
 	if status.DirtyDebts == nil {
 		status.DirtyDebts = []DebtRecord{}
-		if status.Dirty && (len(status.DirtyScopePaths) > 0 || len(status.DirtyReasons) > 0) {
+		if status.Dirty && (len(status.DirtyScopePaths) > 0 || len(status.StalePaths) > 0 || len(status.DirtyReasons) > 0) {
+			legacyPaths := append([]string{}, status.DirtyScopePaths...)
+			legacyPaths = append(legacyPaths, status.StalePaths...)
+			legacyPathSet := map[string]bool{}
+			for _, path := range legacyPaths {
+				path = filepath.ToSlash(strings.TrimSpace(path))
+				if path != "" {
+					legacyPathSet[path] = true
+				}
+			}
+			legacyPaths = sortedStatusKeys(legacyPathSet)
 			status.DirtyDebts = []DebtRecord{{
-				ID:               legacyDebtID(status.DirtyScopePaths, status.DirtyReasons),
+				ID:               legacyDebtID(legacyPaths, status.DirtyReasons),
 				Kind:             "legacy_dirty",
-				Paths:            append([]string{}, status.DirtyScopePaths...),
+				Paths:            legacyPaths,
 				Reason:           strings.Join(status.DirtyReasons, "; "),
 				OriginCommand:    status.DirtyOriginCommand,
 				OriginFeatureDir: status.DirtyOriginFeatureDir,
