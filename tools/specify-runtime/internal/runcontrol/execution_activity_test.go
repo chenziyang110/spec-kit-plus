@@ -2,6 +2,7 @@ package runcontrol
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -176,6 +177,60 @@ func TestExecutionCompletionAuditsActualPathsAndClosesAllAuthority(t *testing.T)
 		if resource.Status != WriteIntentReleased {
 			t.Fatalf("resource intent remains live = %#v", resource)
 		}
+	}
+}
+
+func TestExecutionEventsPreserveEveryLifecycleBoundaryAtomically(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.sqlite"))
+	announced := announceExecutionTestActivity(
+		t, store, "activity-lifecycle", "fast:lifecycle", "src/lifecycle", "feature", "lifecycle",
+	)
+	revision, err := store.CoordinationRevision(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	guarded, err := store.GuardExecution(ctx, GuardExecutionParams{
+		ActivityID:                   announced.Activity.ActivityID,
+		ExpectedWorkRevision:         announced.Work.Revision,
+		Fence:                        announced.Work.Fence,
+		ExpectedCoordinationRevision: revision,
+		OverviewSHA256:               strings.Repeat("e", 64),
+		WriteIntents: []WriteIntentSpec{{
+			Path: "src/lifecycle", Operation: WriteModify, Confidence: IntentConfirmed,
+		}},
+		Reason: "guard lifecycle",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CompleteExecution(ctx, CompleteExecutionParams{
+		ActivityID:           guarded.Activity.ActivityID,
+		ExpectedWorkRevision: guarded.Work.Revision,
+		Fence:                guarded.Work.Fence,
+		ChangedPaths:         []string{"src/lifecycle/main.go"},
+		ValidationJSON:       `[{"command":"go test ./...","result":"passed"}]`,
+		Reason:               "complete lifecycle",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	changes, err := store.ListCoordinationChanges(ctx, 0, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	phases := make([]string, 0)
+	for _, change := range changes {
+		if change.AggregateType != "execution_activity" || change.AggregateID != announced.Activity.ActivityID {
+			continue
+		}
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(change.PayloadJSON), &payload); err != nil {
+			t.Fatal(err)
+		}
+		phases = append(phases, strings.TrimSpace(payload["phase"].(string)))
+	}
+	if got := strings.Join(phases, ","); got != "announced,selected,claimed,executing,validating,completed" {
+		t.Fatalf("lifecycle event phases = %q", got)
 	}
 }
 
