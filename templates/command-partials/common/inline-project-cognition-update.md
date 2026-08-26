@@ -73,25 +73,30 @@ Shared closeout keys on the current scope separately from the project-wide state
 - `blocked`: report the runtime or validation blocker and the exact recovery command.
 - `recorded`: legacy recorded-only output; treat it as partial or blocked, never as clean completion.
 
-Before admitting the current update, shared apply automatically inspects the
-exact latest update. When runtime agreement reports `pending_finalization` for
-one direct predecessor whose outcome is `ready|no_op`, it reruns
-`validate-build`, writes the exact update/generation-bound receipt, and runs
-eligible `complete-refresh` under the shared update lock before retrying the
-current update. It must not scan older history, absorb unrelated debt, or
-finalize a failed/non-`query_ready` validation. Successful recovery is exposed
-as `predecessor_recovery`. If recovery blocks, no current graph update is
-committed; shared apply preserves current mutation accounting in the
-scope-owned `cognition-closeout.json` as truthful `mark-dirty` with exact
-`changed_paths`, returns the recovery evidence/action, and the active workflow
-uses the shared autonomous blocker-recovery contract to repair the bounded
-cause and resume this same closeout. Do not ask the user to invoke
-`{{invoke:map-update}}` for an agent-repairable predecessor.
+Shared apply writes a durable mutation intent before recovery and owns the whole
+tail under the same update lock: older-intent drain, status projection repair,
+one direct predecessor recovery, current update, validation, bound receipt,
+eligible finalization, and scope receipt. A crash or another mutation workflow
+cannot cross-bind updates; rerunning the same closeout resumes its intent, while
+another closeout drains older intents first. When runtime agreement reports
+`pending_finalization`, it recovers only the exact `ready|no_op` predecessor and
+never scans unrelated history or finalizes failed/non-`query_ready` validation.
+
+If predecessor recovery blocks, the runtime writes the non-closeable
+`predecessor_recovery_blocked` receipt with exact `changed_paths` and keeps the
+mutation intent. Keep the parent workflow active. For a bounded path-led
+identity blocker, run returned `specify-runtime cognition identity-repair plan`,
+then its digest-bound `specify-runtime cognition identity-repair apply`; after
+the repair, run `specify-runtime cognition closeout replay --scope-dir
+<feature-or-scope> --format json`. Only a successful replay replaces the blocked
+receipt. Do not use standalone `mark-dirty` to bypass a replayable closeout or
+ask the user to invoke `{{invoke:map-update}}` for an agent-repairable
+predecessor.
 
 Never run `update`, `validate-build`, `complete-refresh`, or `mutation-receipt` individually as a substitute for `closeout apply`. The runtime must not run `complete-refresh` after a scope-level `partial_refresh`, `needs_rebuild`, `blocked`, or legacy `recorded`; it preserves the truthful state and returned recovery action. A failed, blocked, stale, or non-`query_ready` validate-build result also must not run `complete-refresh`.
 
 Dirty fallback command shape: `{{specify-subcmd:specify-runtime cognition mark-dirty --reason "<reason>" --format json}}`.
-Use `{{specify-subcmd:specify-runtime cognition mark-dirty --reason "workflow-closeout-failed" --format json}}` only when inline update cannot complete: when the planner or update command is unavailable, cannot record useful update data, cannot identify workflow-owned scope, or cannot be trusted because verification/workflow completion is not trustworthy. Dirty only when inline update cannot complete.
+Use `{{specify-subcmd:specify-runtime cognition mark-dirty --reason "workflow-closeout-failed" --format json}}` only when no trustworthy mutation intent can be formed: the planner/runtime is unavailable, workflow-owned scope is unknown, or verification/workflow completion is untrustworthy. A persisted replay intent is not a dirty-fallback case.
 
 Greenfield / empty-graph minimum: when the baseline is `greenfield_empty` or compass returns no adoptable paths, agents must still record a terminal cognition outcome (`no_op` or `mark-dirty` with reason). Skipping because “there is no graph to update” is not compliant.
 
