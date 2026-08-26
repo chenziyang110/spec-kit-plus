@@ -128,15 +128,17 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		return closeoutApplyInputRejected(stdout, workflow, relScope, pathErr)
 	}
 	var (
-		updatePayload update.UpdatePayload
-		gate          validation.GatePayload
-		finalized     rt.Status
-		receipt       map[string]any
-		closeoutState string
-		intent        closeoutIntent
-		intentRef     string
-		resumed       bool
+		updatePayload   update.UpdatePayload
+		gate            validation.GatePayload
+		finalized       rt.Status
+		receipt         map[string]any
+		closeoutState   string
+		intent          closeoutIntent
+		intentRef       string
+		resumed         bool
+		replayedIntents []string
 	)
+	replayedIntents = []string{}
 	lockedErr := update.WithLockedRuntime(paths, func(runtime *update.LockedRuntime) error {
 		var err error
 		intent, intentRef, resumed, err = ensureCloseoutIntent(paths, workflow, relScope, reason, payloadJSON, deltaSession, input.CommitRange, changedPaths)
@@ -147,6 +149,20 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 			if err := closeoutApplyAfterIntentPersistHook(intent.ID); err != nil {
 				return &closeoutIntentPendingError{intent: intent, intentRef: intentRef, err: err}
 			}
+		}
+		pendingIntents, err := listCloseoutIntents(paths)
+		if err != nil {
+			return err
+		}
+		for _, pending := range pendingIntents {
+			if pending.ID == intent.ID {
+				continue
+			}
+			updateID, err := replayStoredCloseoutIntentLocked(runtime, paths, pending)
+			if err != nil {
+				return fmt.Errorf("replay older closeout intent %s: %w", pending.ID, err)
+			}
+			replayedIntents = append(replayedIntents, updateID)
 		}
 		input.CloseoutIntentID = intent.ID
 		updatePayload, err = runtime.RunUpdate(input)
@@ -251,6 +267,7 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 	}
 
 	result := closeoutApplyResult(workflow, relScope, updatePayload, resumed, intentRef)
+	result["replayed_intents"] = replayedIntents
 	result["receipt"] = receipt
 	result["closeout_state"] = closeoutState
 	result["allowed_close"] = receipt["allowed_close"]
@@ -265,6 +282,72 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 	env := NewEnvelope("ok", summary)
 	env.Data = result
 	return writeEnvelope(stdout, env)
+}
+
+func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Paths, intent closeoutIntent) (string, error) {
+	absScope, relScope, err := resolveCloseoutApplyScope(paths.Root, intent.Scope)
+	if err != nil {
+		return "", err
+	}
+	input := update.UpdateInput{
+		Workflow:         intent.Workflow,
+		Reason:           intent.Reason,
+		PayloadJSON:      intent.PayloadJSON,
+		DeltaSessionID:   intent.DeltaSessionID,
+		CommitRange:      intent.CommitRange,
+		CloseoutIntentID: intent.ID,
+	}
+	payload, err := runtime.RunUpdate(input)
+	if err != nil {
+		return "", err
+	}
+	intent.State = "pending_validation"
+	intent.UpdateID = payload.UpdateID
+	intent.UpdateOutcome = payload.ResultState
+	intent.ChangedBasis = append([]string{}, payload.LastRefreshChangedBasis...)
+	if status, statusErr := rt.ReadStatus(paths); statusErr == nil {
+		intent.ActiveGenerationID = status.ActiveGenerationID
+	}
+	if err := updateCloseoutIntent(paths, intent); err != nil {
+		return "", err
+	}
+
+	state := "partial"
+	switch payload.ResultState {
+	case update.ResultReady, update.ResultNoOp:
+		gate := validation.ValidateBuild(paths)
+		if err := runtime.RecordValidateBuildReceipt(gate.Status, gate.Gate, gate.Readiness); err != nil {
+			return "", err
+		}
+		if gate.Status != "ok" || gate.Readiness != rt.ReadyReadiness || !gate.CompletionAllowed {
+			return "", fmt.Errorf("validate-build blocked: %s", strings.Join(gate.Errors, "; "))
+		}
+		intent.State = "receipt_recorded"
+		if err := updateCloseoutIntent(paths, intent); err != nil {
+			return "", err
+		}
+		if _, err := runtime.CompleteRefresh("workflow-closeout-replay"); err != nil {
+			return "", err
+		}
+		state = normalizeMutationCognitionState(payload.ResultState)
+	case update.ResultPartialRefresh:
+		if payload.ScopeResultState == update.ResultReady || payload.ScopeResultState == update.ResultNoOp {
+			state = closeoutStateScopeReady
+		}
+	default:
+		return "", fmt.Errorf("non-closeable replay result %s", payload.ResultState)
+	}
+	receipt, err := recordMutationCognitionReceipt(absScope, intent.Workflow, relScope, state, closeoutApplyReceiptReason(state, payload), payload.UpdateID, closeoutApplyEvidence(payload))
+	if err != nil {
+		return "", err
+	}
+	if receipt["allowed_close"] != true {
+		return "", fmt.Errorf("replayed mutation receipt is not closeable: %v", receipt["blocked_reason"])
+	}
+	if err := removeCloseoutIntent(paths, intent); err != nil {
+		return "", err
+	}
+	return payload.UpdateID, nil
 }
 
 func closeoutApplyResult(workflow string, scope string, payload update.UpdatePayload, resumed bool, intentRef string) map[string]any {

@@ -873,6 +873,15 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		return UpdatePayload{}, err
 	}
 	defer st.Close()
+	if strings.TrimSpace(input.CloseoutIntentID) != "" {
+		resumed, found, err := resumeUpdateForCloseoutIntent(paths, st, input.CloseoutIntentID, statusRecovery, recovery)
+		if err != nil {
+			return UpdatePayload{}, err
+		}
+		if found {
+			return resumed, nil
+		}
+	}
 
 	lookupPaths := pathChangeLookupPaths(changed, input.PathChanges)
 	pathNodeIDs, err := st.NodeIDsForExactPaths(context.Background(), lookupPaths)
@@ -1049,6 +1058,94 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		PredecessorRecovery:     recovery,
 		StatusRecovery:          statusRecovery,
 	}, nil
+}
+
+type closeoutIntentUpdateRecord struct {
+	ID               string
+	ResultState      string
+	ChangedPaths     []string
+	ScopeResultState string
+}
+
+func resumeUpdateForCloseoutIntent(paths rt.Paths, st *store.Store, intentID string, statusRecovery *StatusRecovery, predecessorRecovery *PredecessorRecovery) (UpdatePayload, bool, error) {
+	generationID, err := st.ActiveGenerationID(context.Background())
+	if err != nil {
+		return UpdatePayload{}, false, err
+	}
+	rows, err := st.DB().QueryContext(context.Background(), `SELECT id, result_state, changed_paths_json, attrs_json FROM updates WHERE generation_id = ? ORDER BY completed_at, id`, generationID)
+	if err != nil {
+		return UpdatePayload{}, false, err
+	}
+	defer rows.Close()
+	matches := []closeoutIntentUpdateRecord{}
+	for rows.Next() {
+		var id, resultState, changedJSON, attrsJSON string
+		if err := rows.Scan(&id, &resultState, &changedJSON, &attrsJSON); err != nil {
+			return UpdatePayload{}, false, err
+		}
+		var attrs struct {
+			CloseoutIntentID string `json:"closeout_intent_id"`
+			ScopeResultState string `json:"scope_result_state"`
+		}
+		if json.Unmarshal([]byte(attrsJSON), &attrs) != nil || attrs.CloseoutIntentID != intentID {
+			continue
+		}
+		record := closeoutIntentUpdateRecord{ID: id, ResultState: resultState, ScopeResultState: attrs.ScopeResultState}
+		if err := json.Unmarshal([]byte(changedJSON), &record.ChangedPaths); err != nil {
+			return UpdatePayload{}, false, err
+		}
+		matches = append(matches, record)
+	}
+	if err := rows.Err(); err != nil {
+		return UpdatePayload{}, false, err
+	}
+	if len(matches) == 0 {
+		return UpdatePayload{}, false, nil
+	}
+	if len(matches) != 1 {
+		return UpdatePayload{}, false, fmt.Errorf("closeout intent %s is bound to %d update rows", intentID, len(matches))
+	}
+	record := matches[0]
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		return UpdatePayload{}, false, err
+	}
+	if status.LastUpdateID != record.ID || status.LastUpdateOutcome != record.ResultState {
+		return UpdatePayload{}, false, fmt.Errorf("closeout intent %s update %s/%s is no longer current (status has %s/%s)", intentID, record.ID, record.ResultState, status.LastUpdateID, status.LastUpdateOutcome)
+	}
+	scopeResultState := record.ScopeResultState
+	if strings.TrimSpace(scopeResultState) == "" {
+		scopeResultState = record.ResultState
+	}
+	return UpdatePayload{
+		Readiness:               status.Readiness,
+		RecommendedNextAction:   status.RecommendedNextAction,
+		UpdateID:                record.ID,
+		ResultState:             record.ResultState,
+		ScopeResultState:        scopeResultState,
+		GlobalFreshness:         status.Freshness,
+		GlobalReadiness:         status.Readiness,
+		GlobalDebtReasons:       []string{},
+		ScopePartialReasons:     []string{},
+		StatusUpdate:            statusUpdateFromStatus(status),
+		ChangedPaths:            normalizePaths(record.ChangedPaths),
+		PathChanges:             []changemodel.PathChange{},
+		IgnoredPaths:            []string{},
+		AffectedNodes:           []map[string]any{},
+		AffectedGraphClaims:     []string{},
+		MissingCoverage:         []string{},
+		AdoptedPaths:            []string{},
+		ReviewPaths:             []string{},
+		UnadoptablePaths:        []string{},
+		PartialRefreshReasons:   []string{},
+		KnownUnknowns:           []string{},
+		MinimalLiveReads:        []string{},
+		PathAdoption:            map[string]any{},
+		LastRefreshChangedBasis: append([]string{}, status.LastRefreshChangedFilesBasis...),
+		PredecessorRecovery:     predecessorRecovery,
+		StatusRecovery:          statusRecovery,
+		ResumedFromIntent:       true,
+	}, true, nil
 }
 
 func requireUpdateBaseline(paths rt.Paths) (rt.Status, error) {
