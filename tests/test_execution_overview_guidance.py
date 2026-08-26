@@ -39,3 +39,14 @@ def test_handbooks_define_one_execution_overview_as_the_global_view() -> None:
         assert "task state" in content
         assert "run" in content
         assert "work" in content
+
+
+def test_implement_treats_global_overview_as_context_not_target_authority() -> None:
+    for path in (
+        ROOT / "templates/commands/implement.md",
+        ROOT / "templates/advanced-skills/spx-implement/SKILL.md",
+    ):
+        content = path.read_text(encoding="utf-8").lower()
+        assert "execution overview" in content
+        assert "coordination context" in content
+        assert "task selection authority" in content
