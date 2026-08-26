@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -187,6 +188,9 @@ func TestCognitionCloseoutApplyRecordsCurrentScopeWhenPredecessorRecoveryBlocks(
 	if receipt["result_state"] != "blocked" {
 		t.Fatalf("receipt = %#v, want non-closeable predecessor recovery accounting", receipt)
 	}
+	if receipt["intent_id"] == "" || receipt["intent_ref"] != data["intent_ref"] || len(fmt.Sprint(receipt["intent_digest"])) != 64 {
+		t.Fatalf("receipt = %#v data=%#v, want exact replay intent binding", receipt, data)
+	}
 	changedPaths, ok := receipt["changed_paths"].([]any)
 	if !ok || len(changedPaths) != 1 || changedPaths[0] != "src/app.go" {
 		t.Fatalf("receipt changed_paths = %#v, want exact current scope", receipt["changed_paths"])
@@ -224,6 +228,28 @@ func TestCognitionCloseoutApplyRecordsCurrentScopeWhenPredecessorRecoveryBlocks(
 	}
 	if intents, err := listCloseoutIntents(paths); err != nil || len(intents) != 0 {
 		t.Fatalf("intents = %#v err=%v, want replay queue empty", intents, err)
+	}
+}
+
+func TestCognitionCloseoutApplyDefaultOutputIsCompact(t *testing.T) {
+	project, _, scopeDir := seedCloseoutApplyRuntime(t)
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"cognition", "closeout", "apply", "--project-root", project, "--workflow", "sp-implement",
+		"--scope-dir", scopeDir, "--payload-json", closeoutApplyPayloadJSON(t, true), "--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	data := requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data")
+	if _, leaked := data["update"]; leaked {
+		t.Fatalf("default closeout output leaked full update payload: %#v", data)
+	}
+	if _, leaked := data["validation"]; leaked {
+		t.Fatalf("default closeout output leaked full validation payload: %#v", data)
+	}
+	if data["changed_path_count"] != float64(1) || data["update_id"] == "" || data["allowed_close"] != true {
+		t.Fatalf("compact data = %#v, want ids/count/state/receipt summary", data)
 	}
 }
 
