@@ -80,11 +80,12 @@ eligible finalization, and scope receipt. A crash or another mutation workflow
 cannot cross-bind updates; rerunning the same closeout resumes its intent, while
 another closeout drains older intents first. When runtime agreement reports
 `pending_finalization`, it recovers only the exact `ready|no_op` predecessor and
-never scans unrelated history or finalizes failed/non-`query_ready` validation.
+must not scan older unrelated history or finalize failed/non-`query_ready` validation;
+the compact result remains `predecessor_recovery`.
 
 If predecessor recovery blocks, the runtime writes the non-closeable
 `predecessor_recovery_blocked` receipt with exact `changed_paths` and keeps the
-mutation intent. Keep the parent workflow active. For a bounded path-led
+mutation intent, so current mutation accounting remains durable. Keep the parent workflow active. For a bounded path-led
 identity blocker, run returned `specify-runtime cognition identity-repair plan`,
 then its digest-bound `specify-runtime cognition identity-repair apply`; after
 the repair, run `specify-runtime cognition closeout replay --scope-dir

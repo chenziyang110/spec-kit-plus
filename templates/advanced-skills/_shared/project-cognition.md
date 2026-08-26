@@ -227,11 +227,13 @@ Shared apply persists a mutation intent before recovery and holds the same updat
 across older-intent drain, status repair, one direct predecessor,
 the current update, validation, bound finalization, and the scope receipt.
 Reruns are idempotent and another closeout drains older intents first. It never
-cross-binds updates, scans unrelated history, or finalizes failed or
-non-`query_ready` validation.
+cross-binds updates, must not scan older unrelated history, or finalize failed or
+non-`query_ready` validation; the compact result remains
+`predecessor_recovery`, and an unfinished predecessor remains
+`pending_finalization`.
 
 Blocked predecessor recovery writes non-closeable
-`predecessor_recovery_blocked` with exact paths and keeps the intent. Keep the
+`predecessor_recovery_blocked` with exact paths and keeps the intent, so current mutation accounting remains durable. Keep the
 parent workflow active. For bounded path-led identity debt run returned
 `specify-runtime cognition identity-repair plan`, then its digest-bound
 `specify-runtime cognition identity-repair apply`; afterward run
