@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	changemodel "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/changes/model"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/delta"
@@ -160,7 +163,7 @@ func TestCognitionCloseoutApplyRecordsCurrentScopeWhenPredecessorRecoveryBlocks(
 		t.Fatalf("code = %d, want blocked exit 10; stderr=%s stdout=%s", code, stderr.String(), stdout.String())
 	}
 	data := requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data")
-	if data["closeout_status"] != "predecessor_recovery_blocked" || data["current_mutation_accounting"] != "recorded" || data["closeout_state"] != "mark-dirty" {
+	if data["closeout_status"] != "predecessor_recovery_blocked" || data["current_mutation_accounting"] != "recorded" || data["closeout_state"] != "predecessor_recovery_blocked" {
 		t.Fatalf("data = %#v, want exact current mutation recorded without laundering recovery", data)
 	}
 	recovery := requireObject(t, data, "predecessor_recovery")
@@ -180,8 +183,8 @@ func TestCognitionCloseoutApplyRecordsCurrentScopeWhenPredecessorRecoveryBlocks(
 	if err := json.Unmarshal(raw, &receipt); err != nil {
 		t.Fatal(err)
 	}
-	if receipt["result_state"] != "mark-dirty" {
-		t.Fatalf("receipt = %#v, want truthful mark-dirty accounting", receipt)
+	if receipt["result_state"] != "blocked" {
+		t.Fatalf("receipt = %#v, want non-closeable predecessor recovery accounting", receipt)
 	}
 	changedPaths, ok := receipt["changed_paths"].([]any)
 	if !ok || len(changedPaths) != 1 || changedPaths[0] != "src/app.go" {
@@ -193,6 +196,132 @@ func TestCognitionCloseoutApplyRecordsCurrentScopeWhenPredecessorRecoveryBlocks(
 	}
 	if status.LastUpdateID != pending.UpdateID || status.LastFinalizedUpdateID != "" {
 		t.Fatalf("status = %#v, blocked recovery must not commit or finalize the current update", status)
+	}
+	if err := requireMutationCognitionReceipt(filepath.Join(project, filepath.FromSlash(scopeDir)), "sp-implement"); err == nil || !strings.Contains(err.Error(), "not closeable") {
+		t.Fatalf("requireMutationCognitionReceipt error = %v, want predecessor-blocked receipt to reject terminal close", err)
+	}
+	intentRef, _ := data["intent_ref"].(string)
+	if intentRef == "" {
+		t.Fatalf("data = %#v, want durable replay intent", data)
+	}
+}
+
+func TestCognitionCloseoutApplySerializesConcurrentReadyCloseouts(t *testing.T) {
+	project, _, scopeA := seedCloseoutApplyRuntime(t)
+	scopeB := filepath.ToSlash(filepath.Join(".specify", "features", "002-closeout"))
+	if err := os.MkdirAll(filepath.Join(project, filepath.FromSlash(scopeB)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	firstReached := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	var once sync.Once
+	closeoutApplyAfterUpdateHook = func(updateID string) error {
+		once.Do(func() {
+			close(firstReached)
+			<-releaseFirst
+		})
+		return nil
+	}
+	t.Cleanup(func() { closeoutApplyAfterUpdateHook = nil })
+
+	type result struct {
+		code int
+		data map[string]any
+	}
+	run := func(scope string, out chan<- result) {
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"cognition", "closeout", "apply",
+			"--project-root", project,
+			"--workflow", "sp-implement",
+			"--scope-dir", scope,
+			"--payload-json", closeoutApplyPayloadJSON(t, true),
+			"--format", "json",
+		}, &stdout, &stderr, "test")
+		if code != 0 {
+			out <- result{code: code, data: map[string]any{"stderr": stderr.String(), "stdout": stdout.String()}}
+			return
+		}
+		out <- result{code: code, data: requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data")}
+	}
+
+	first := make(chan result, 1)
+	second := make(chan result, 1)
+	go run(scopeA, first)
+	select {
+	case <-firstReached:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first closeout did not reach the post-update hook")
+	}
+	go run(scopeB, second)
+	select {
+	case early := <-second:
+		close(releaseFirst)
+		t.Fatalf("second closeout bypassed the end-to-end closeout lock: %#v", early)
+	case <-time.After(250 * time.Millisecond):
+	}
+	close(releaseFirst)
+
+	firstResult := <-first
+	secondResult := <-second
+	for label, got := range map[string]result{"first": firstResult, "second": secondResult} {
+		if got.code != 0 || got.data["allowed_close"] != true {
+			t.Fatalf("%s closeout = %#v, want closeable success", label, got)
+		}
+		receipt := requireObject(t, got.data, "receipt")
+		if receipt["update_id"] != got.data["update_id"] {
+			t.Fatalf("%s receipt/update mismatch: receipt=%#v data=%#v", label, receipt, got.data)
+		}
+	}
+}
+
+func TestCognitionCloseoutApplyResumesIntentAfterCrashBeforeCurrentUpdate(t *testing.T) {
+	project, paths, scopeDir := seedCloseoutApplyRuntime(t)
+	closeoutApplyAfterIntentPersistHook = func(intentID string) error {
+		return errors.New("simulated crash after durable intent")
+	}
+	t.Cleanup(func() { closeoutApplyAfterIntentPersistHook = nil })
+
+	var firstOut, firstErr bytes.Buffer
+	firstCode := Run([]string{
+		"cognition", "closeout", "apply",
+		"--project-root", project,
+		"--workflow", "sp-implement",
+		"--scope-dir", scopeDir,
+		"--payload-json", closeoutApplyPayloadJSON(t, true),
+		"--format", "json",
+	}, &firstOut, &firstErr, "test")
+	if firstCode != 10 {
+		t.Fatalf("first code = %d, want blocked simulated crash; stderr=%s stdout=%s", firstCode, firstErr.String(), firstOut.String())
+	}
+	firstData := requireObject(t, decodeJSONObject(t, firstOut.Bytes()), "data")
+	if firstData["closeout_status"] != "closeout_intent_pending" {
+		t.Fatalf("first data = %#v, want durable pending intent", firstData)
+	}
+	if got := countCloseoutApplyUpdates(t, paths); got != 0 {
+		t.Fatalf("update count after pre-update crash = %d, want 0", got)
+	}
+	closeoutApplyAfterIntentPersistHook = nil
+
+	var secondOut, secondErr bytes.Buffer
+	secondCode := Run([]string{
+		"cognition", "closeout", "apply",
+		"--project-root", project,
+		"--workflow", "sp-implement",
+		"--scope-dir", scopeDir,
+		"--payload-json", closeoutApplyPayloadJSON(t, true),
+		"--format", "json",
+	}, &secondOut, &secondErr, "test")
+	if secondCode != 0 {
+		t.Fatalf("second code = %d; stderr=%s stdout=%s", secondCode, secondErr.String(), secondOut.String())
+	}
+	secondData := requireObject(t, decodeJSONObject(t, secondOut.Bytes()), "data")
+	if secondData["resumed_from_intent"] != true || secondData["allowed_close"] != true {
+		t.Fatalf("second data = %#v, want replayed closeable intent", secondData)
+	}
+	if got := countCloseoutApplyUpdates(t, paths); got != 1 {
+		t.Fatalf("update count after replay = %d, want exactly 1", got)
 	}
 }
 
@@ -520,6 +649,20 @@ func seedCloseoutApplyRuntime(t *testing.T) (string, rt.Paths, string) {
 		t.Fatal(err)
 	}
 	return project, paths, scopeDir
+}
+
+func countCloseoutApplyUpdates(t *testing.T, paths rt.Paths) int {
+	t.Helper()
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var count int
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT COUNT(*) FROM updates WHERE generation_id = 'GEN-closeout'`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	return count
 }
 
 func closeoutApplyPayloadJSON(t *testing.T, passing bool) string {

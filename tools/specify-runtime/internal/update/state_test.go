@@ -471,6 +471,76 @@ func TestCommittedFinalizableUpdateRecoversThroughValidateAndCompleteRefreshAfte
 	}
 }
 
+func TestRunUpdateAutomaticallyRepairsStatusMismatchBeforeCurrentUpdate(t *testing.T) {
+	paths := testPaths(t)
+	writeUpdateMatchingScanPackage(t, paths)
+	seedReadyRuntime(t, paths)
+	baselineStatus, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	predecessor, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/app.go"},
+		Reason:       "previous-workflow-finalize",
+		Workflow:     "sp-fast",
+		Verification: []VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.WriteStatus(paths, baselineStatus); err != nil {
+		t.Fatal(err)
+	}
+	if agreement := runtimegate.Check(paths); agreement.CauseCode != runtimegate.CauseStatusLatestUpdateMismatch {
+		t.Fatalf("agreement = %#v, want status/latest mismatch", agreement)
+	}
+
+	current, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/app.go"},
+		Reason:       "workflow-finalize",
+		Workflow:     "sp-implement",
+		Verification: []VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	})
+	if err != nil {
+		t.Fatalf("RunUpdate did not self-heal status mismatch: %v", err)
+	}
+	if current.StatusRecovery == nil || current.StatusRecovery.Outcome != "repaired" || current.PredecessorRecovery == nil || current.PredecessorRecovery.UpdateID != predecessor.UpdateID {
+		t.Fatalf("current = %#v, want status repair then exact predecessor recovery", current)
+	}
+}
+
+func TestRunUpdateClearsCoveredDirtyDebtDespiteDifferentReason(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	if _, err := MarkDirty(paths, DirtyInput{
+		Reason:        "workflow-closeout-failed",
+		OriginCommand: "sp-fast",
+		ScopePaths:    []string{"src/app.go"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/app.go"},
+		Reason:       "workflow-finalize",
+		Workflow:     "sp-implement",
+		Verification: []VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("payload = %#v, want covered dirty debt cleared independent of reason text", payload)
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Dirty || len(status.DirtyDebts) != 0 || len(status.DirtyReasons) != 0 || len(status.DirtyScopePaths) != 0 {
+		t.Fatalf("status = %#v, want covered path debt removed", status)
+	}
+}
+
 func TestConcurrentRunUpdateHonorsCrossProcessLockAndRecoversSerializedPredecessor(t *testing.T) {
 	paths := testPaths(t)
 	writeUpdateMatchingScanPackage(t, paths)
