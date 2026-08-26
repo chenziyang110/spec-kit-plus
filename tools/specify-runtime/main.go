@@ -735,6 +735,9 @@ func resolveValidateSpecFeatureDir(args []string) (string, error) {
 }
 
 func runCognition(args []string, stdout, stderr io.Writer, cliVersion string) int {
+	if len(args) >= 2 && strings.EqualFold(strings.TrimSpace(args[0]), "closeout") && strings.EqualFold(strings.TrimSpace(args[1]), "replay") {
+		return runCognitionCloseoutReplayCLI(args[2:], stdout)
+	}
 	if len(args) >= 2 && strings.EqualFold(strings.TrimSpace(args[0]), "closeout") && strings.EqualFold(strings.TrimSpace(args[1]), "apply") {
 		return runCognitionCloseoutApplyCLI(args[2:], stdout)
 	}

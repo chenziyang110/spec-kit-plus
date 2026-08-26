@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -125,6 +126,9 @@ func listCloseoutIntents(paths rt.Paths) ([]closeoutIntent, error) {
 		if err := json.Unmarshal(raw, &intent); err != nil {
 			return nil, err
 		}
+		if err := validateCloseoutIntent(intent); err != nil {
+			return nil, fmt.Errorf("invalid closeout intent %s: %w", entry.Name(), err)
+		}
 		intents = append(intents, intent)
 	}
 	sort.Slice(intents, func(i, j int) bool {
@@ -134,4 +138,65 @@ func listCloseoutIntents(paths rt.Paths) ([]closeoutIntent, error) {
 		return intents[i].RecordedAt < intents[j].RecordedAt
 	})
 	return intents, nil
+}
+
+func validateCloseoutIntent(intent closeoutIntent) error {
+	if intent.Version != closeoutIntentVersion || strings.TrimSpace(intent.ID) == "" {
+		return fmt.Errorf("unsupported or missing intent identity")
+	}
+	digest := closeoutIntentDigest(intent.Workflow, intent.Scope, intent.Reason, intent.PayloadJSON, intent.DeltaSessionID, intent.CommitRange)
+	if intent.InputDigest != digest || intent.ID != "intent-"+digest[:24] {
+		return fmt.Errorf("intent digest mismatch")
+	}
+	return nil
+}
+
+func runCognitionCloseoutReplayCLI(args []string, stdout io.Writer) int {
+	projectRoot := optionValue(args, "--project-root", ".")
+	paths, err := rt.ResolvePaths(projectRoot)
+	if err != nil {
+		return writeEnvelope(stdout, scriptDomainError("cognition", err))
+	}
+	scopeDir := firstNonEmpty(optionValue(args, "--scope-dir", ""), optionValue(args, "--feature-dir", ""), optionValue(args, "--workspace", ""))
+	absScope, relScope, err := resolveCloseoutApplyScope(paths.Root, scopeDir)
+	if err != nil {
+		return writeEnvelope(stdout, scriptDomainError("cognition", err))
+	}
+	receipt, err := loadMutationCognitionReceipt(absScope)
+	if err != nil {
+		return writeEnvelope(stdout, scriptDomainError("cognition", err))
+	}
+	if receipt == nil || normalizeMutationCognitionState(receipt.ResultState) != "blocked" {
+		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("closeout replay requires a blocked cognition-closeout.json for %s", relScope)))
+	}
+	intents, err := listCloseoutIntents(paths)
+	if err != nil {
+		return writeEnvelope(stdout, scriptDomainError("cognition", err))
+	}
+	matches := []closeoutIntent{}
+	for _, intent := range intents {
+		if intent.Scope == relScope {
+			matches = append(matches, intent)
+		}
+	}
+	if len(matches) != 1 {
+		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("closeout replay found %d intents for %s; expected exactly one", len(matches), relScope)))
+	}
+	intent := matches[0]
+	replayArgs := []string{
+		"--project-root", paths.Root,
+		"--workflow", intent.Workflow,
+		"--scope-dir", intent.Scope,
+		"--reason", intent.Reason,
+		"--format", "json",
+	}
+	if intent.PayloadJSON != "" {
+		replayArgs = append(replayArgs, "--payload-json", "-")
+		return runCognitionCloseoutApplyCLIWithInput(replayArgs, strings.NewReader(intent.PayloadJSON), stdout)
+	}
+	replayArgs = append(replayArgs, "--delta-session", intent.DeltaSessionID)
+	if intent.CommitRange != "" {
+		replayArgs = append(replayArgs, "--commit-range", intent.CommitRange)
+	}
+	return runCognitionCloseoutApplyCLIWithInput(replayArgs, strings.NewReader(""), stdout)
 }
