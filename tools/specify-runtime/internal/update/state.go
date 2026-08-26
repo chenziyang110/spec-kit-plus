@@ -433,6 +433,7 @@ func completeRefreshLocked(paths rt.Paths, basis string) (rt.Status, error) {
 	status.DirtyOriginFeatureDir = ""
 	status.DirtyOriginLaneID = ""
 	status.DirtyScopePaths = []string{}
+	status.DirtyDebts = []rt.DebtRecord{}
 	status.StalePaths = []string{}
 	status.StaleReasons = []string{}
 	if basis == "" {
@@ -557,7 +558,7 @@ func refreshEligibleOutcome(outcome string) bool {
 
 func cleanRefreshStatus(status rt.Status) bool {
 	return status.Status == "ok" && status.Freshness == rt.ReadyFreshness && status.Readiness == rt.ReadyReadiness && status.GraphReady &&
-		!status.Dirty && len(status.DirtyReasons) == 0 && len(status.DirtyScopePaths) == 0 && len(status.StalePaths) == 0 && len(status.StaleReasons) == 0
+		!status.Dirty && len(status.DirtyReasons) == 0 && len(status.DirtyScopePaths) == 0 && len(status.DirtyDebts) == 0 && len(status.StalePaths) == 0 && len(status.StaleReasons) == 0
 }
 
 func finalizationEligibleStatus(status rt.Status, latest updateRecordRef) bool {
@@ -1548,6 +1549,7 @@ func applyResultState(status rt.Status, scopeResultState string, resultState str
 			status.StaleReasons = subtractStrings(status.StaleReasons, []string{reason})
 			status.DirtyScopePaths = subtractStrings(status.DirtyScopePaths, changedPaths)
 			status.DirtyReasons = subtractStrings(status.DirtyReasons, []string{reason})
+			rt.ProjectDirtyDebts(&status)
 		} else {
 			status.DirtyDebts = appendDirtyDebt(status.DirtyDebts, rt.DebtRecord{
 				Kind:     "partial_refresh",
@@ -1619,14 +1621,14 @@ func clearCoveredDirtyDebts(values []rt.DebtRecord, changedPaths []string) []rt.
 			out = append(out, debt)
 			continue
 		}
-		allCovered := true
+		remaining := make([]string, 0, len(paths))
 		for _, path := range paths {
 			if !covered[path] {
-				allCovered = false
-				break
+				remaining = append(remaining, path)
 			}
 		}
-		if !allCovered {
+		if len(remaining) > 0 {
+			debt.Paths = remaining
 			out = append(out, debt)
 		}
 	}

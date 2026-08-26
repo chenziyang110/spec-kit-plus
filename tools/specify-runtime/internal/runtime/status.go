@@ -233,6 +233,59 @@ func normalizeStatusSlices(status *Status) {
 	if status.LastUpdatePartialReasons == nil {
 		status.LastUpdatePartialReasons = []string{}
 	}
+	ProjectDirtyDebts(status)
+}
+
+func ProjectDirtyDebts(status *Status) {
+	if status == nil || len(status.DirtyDebts) == 0 {
+		return
+	}
+	paths := map[string]bool{}
+	reasons := map[string]bool{}
+	for _, debt := range status.DirtyDebts {
+		for _, path := range debt.Paths {
+			path = filepath.ToSlash(strings.TrimSpace(path))
+			if path != "" {
+				paths[path] = true
+			}
+		}
+		reason := strings.TrimSpace(debt.Reason)
+		if reason == "" {
+			reason = strings.TrimSpace(debt.Kind)
+		}
+		if reason != "" {
+			reasons[reason] = true
+		}
+	}
+	status.DirtyScopePaths = sortedStatusKeys(paths)
+	status.DirtyReasons = sortedStatusKeys(reasons)
+	status.StalePaths = append([]string{}, status.DirtyScopePaths...)
+	status.StaleReasons = append([]string{}, status.DirtyReasons...)
+	status.Dirty = true
+	if first := status.DirtyDebts[0]; len(status.DirtyDebts) == 1 {
+		status.DirtyOriginCommand = first.OriginCommand
+		status.DirtyOriginFeatureDir = first.OriginFeatureDir
+		status.DirtyOriginLaneID = first.OriginLaneID
+	} else {
+		status.DirtyOriginCommand = ""
+		status.DirtyOriginFeatureDir = ""
+		status.DirtyOriginLaneID = ""
+	}
+	if status.Status == "ok" || status.Freshness == ReadyFreshness || status.Readiness == ReadyReadiness {
+		status.Status = "stale"
+		status.Freshness = StaleFreshness
+		status.Readiness = BlockedReadiness
+		status.RecommendedNextAction = "run_map_update"
+	}
+}
+
+func sortedStatusKeys(values map[string]bool) []string {
+	out := make([]string, 0, len(values))
+	for value := range values {
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func legacyDebtID(paths []string, reasons []string) string {
