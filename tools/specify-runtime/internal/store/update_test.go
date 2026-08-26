@@ -55,6 +55,47 @@ func TestRecordStructuredUpdatePersistsAffectedFields(t *testing.T) {
 	}
 }
 
+func TestActiveIdentitySnapshotAllowsWorkflowEvidenceForExistingPathUpdates(t *testing.T) {
+	st := openImportTestStore(t)
+	defer st.Close()
+	ctx := context.Background()
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-existing-path-update")); err != nil {
+		t.Fatal(err)
+	}
+	disposition := changemodel.DispositionAdoptable
+	if _, err := st.ApplyTypedUpdate(ctx, TypedUpdate{
+		Record: UpdateRecord{
+			ID:           "upd-existing-path",
+			Trigger:      "workflow-finalize",
+			ChangedPaths: []string{"src/app.go"},
+			ResultState:  "ready",
+		},
+		PathChanges: []changemodel.PathChange{{
+			Path:        "src/app.go",
+			Operation:   changemodel.OperationModify,
+			Disposition: &disposition,
+		}},
+		Workflow: "sp-fast",
+		Reason:   "workflow-finalize",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot, err := st.ActiveIdentitySnapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.WorkflowUpdateEvidence) != 1 {
+		t.Fatalf("WorkflowUpdateEvidence = %#v, want existing-path workflow evidence allowed", snapshot.WorkflowUpdateEvidence)
+	}
+	if !snapshot.WorkflowUpdateCoveragePaths["src/app.go"] {
+		t.Fatalf("WorkflowUpdateCoveragePaths = %#v, want refreshed existing path allowed", snapshot.WorkflowUpdateCoveragePaths)
+	}
+	if len(snapshot.WorkflowUpdateNodes) != 0 {
+		t.Fatalf("WorkflowUpdateNodes = %#v, existing capability node must remain scan-owned", snapshot.WorkflowUpdateNodes)
+	}
+}
+
 func TestAffectedClosureForPathsReturnsRelatedTypedClaims(t *testing.T) {
 	st := openImportTestStore(t)
 	defer st.Close()
