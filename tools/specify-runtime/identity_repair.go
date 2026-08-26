@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -72,34 +73,13 @@ func runCognitionIdentityRepairPlan(args []string, stdout io.Writer) int {
 	if err != nil {
 		return writeEnvelope(stdout, scriptDomainError("cognition", err))
 	}
-	for category, diff := range diffs {
-		if len(diff.UnexpectedDB) > 0 || (category != "coverage_path" && len(diff.MissingScan) > 0) {
-			return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("bounded automatic repair supports only missing coverage_path identities; category %s requires review", category)))
-		}
-	}
-	pkg, scanResult := scanartifacts.Load(paths, scanartifacts.ValidateOptions{RequireStatusJSON: false})
-	if scanResult.Status != "ok" {
-		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("scan package is not repairable: %s", strings.Join(scanResult.Errors, "; "))))
-	}
-	repairs := []identityPathRepair{}
-	for _, path := range diffs["coverage_path"].MissingScan {
-		candidates := []scanartifacts.NodeRow{}
-		for _, node := range pkg.Nodes {
-			if containsIdentityRepairPath(node.Paths, path) || containsIdentityRepairPath(node.CanonicalPaths, path) || containsIdentityRepairPath(node.CompatibilityPaths, path) {
-				candidates = append(candidates, node)
-			}
-		}
-		if len(candidates) != 1 || len(candidates[0].EvidenceIDs) == 0 {
-			return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("coverage path %s does not have one scan-backed node/evidence identity", path)))
-		}
-		repairs = append(repairs, identityPathRepair{
-			Path: path, NodeID: candidates[0].ID, EvidenceID: candidates[0].EvidenceIDs[0], Relation: "owns", Confidence: "partial",
-		})
+	repairs, err := identityPathRepairsFromGate(paths, gate, diffs)
+	if err != nil {
+		return writeEnvelope(stdout, scriptDomainError("cognition", err))
 	}
 	if len(repairs) == 0 {
 		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("identity repair plan has no supported repairs")))
 	}
-	sort.Slice(repairs, func(i, j int) bool { return repairs[i].Path < repairs[j].Path })
 	generationID := strings.TrimSpace(fmt.Sprint(gate.Details["active_generation_id"]))
 	planIDSum := sha256.Sum256([]byte(generationID + "\x00" + digest))
 	plan := identityRepairPlan{
@@ -147,9 +127,18 @@ func runCognitionIdentityRepairApply(args []string, stdout io.Writer) int {
 		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("identity repair plan is invalid")))
 	}
 	gate := validation.ValidateBuild(paths)
-	_, currentDigest, err := identityRepairDiffs(gate)
+	diffs, currentDigest, err := identityRepairDiffs(gate)
 	if err != nil || currentDigest != plan.ValidationDigest || strings.TrimSpace(fmt.Sprint(gate.Details["active_generation_id"])) != plan.GenerationID {
 		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("identity repair plan is stale; rerun plan")))
+	}
+	expectedRepairs, err := identityPathRepairsFromGate(paths, gate, diffs)
+	if err != nil {
+		return writeEnvelope(stdout, scriptDomainError("cognition", err))
+	}
+	expectedRaw, _ := json.Marshal(expectedRepairs)
+	actualRaw, _ := json.Marshal(plan.Repairs)
+	if !bytes.Equal(expectedRaw, actualRaw) {
+		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("identity repair plan contents do not match current scan-backed repair")))
 	}
 	if err := update.WithLockedRuntime(paths, func(_ *update.LockedRuntime) error {
 		st, err := store.OpenExisting(paths)
@@ -186,6 +175,35 @@ func identityRepairDiffs(gate validation.GatePayload) (map[string]identityRepair
 	}
 	digest := sha256.Sum256(raw)
 	return diffs, fmt.Sprintf("%x", digest[:]), nil
+}
+
+func identityPathRepairsFromGate(paths rt.Paths, gate validation.GatePayload, diffs map[string]identityRepairDiff) ([]identityPathRepair, error) {
+	for category, diff := range diffs {
+		if len(diff.UnexpectedDB) > 0 || (category != "coverage_path" && len(diff.MissingScan) > 0) {
+			return nil, fmt.Errorf("bounded automatic repair supports only missing coverage_path identities; category %s requires review", category)
+		}
+	}
+	pkg, scanResult := scanartifacts.Load(paths, scanartifacts.ValidateOptions{RequireStatusJSON: false})
+	if scanResult.Status != "ok" {
+		return nil, fmt.Errorf("scan package is not repairable: %s", strings.Join(scanResult.Errors, "; "))
+	}
+	repairs := []identityPathRepair{}
+	for _, path := range diffs["coverage_path"].MissingScan {
+		candidates := []scanartifacts.NodeRow{}
+		for _, node := range pkg.Nodes {
+			if containsIdentityRepairPath(node.Paths, path) || containsIdentityRepairPath(node.CanonicalPaths, path) || containsIdentityRepairPath(node.CompatibilityPaths, path) {
+				candidates = append(candidates, node)
+			}
+		}
+		if len(candidates) != 1 || len(candidates[0].EvidenceIDs) == 0 {
+			return nil, fmt.Errorf("coverage path %s does not have one scan-backed node/evidence identity", path)
+		}
+		repairs = append(repairs, identityPathRepair{
+			Path: path, NodeID: candidates[0].ID, EvidenceID: candidates[0].EvidenceIDs[0], Relation: "owns", Confidence: "partial",
+		})
+	}
+	sort.Slice(repairs, func(i, j int) bool { return repairs[i].Path < repairs[j].Path })
+	return repairs, nil
 }
 
 func resolveIdentityRepairPlanPath(paths rt.Paths, ref string) (string, error) {
