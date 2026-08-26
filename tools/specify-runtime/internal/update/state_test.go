@@ -319,6 +319,13 @@ func TestCompleteRefreshRequiresValidationReceiptForLatestReadyUpdate(t *testing
 	if payload.ResultState != ResultReady {
 		t.Fatalf("ResultState = %q, want ready", payload.ResultState)
 	}
+	status, readErr := rt.ReadStatus(paths)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if status.Status != "pending_finalization" || status.Freshness != rt.PartialRefreshFreshness || status.Readiness != rt.BlockedReadiness || status.RecommendedNextAction != runtimegate.FinalizeUpdateAction {
+		t.Fatalf("status = %#v, ready update must remain visibly pending until receipt-bound finalization", status)
+	}
 
 	_, err = CompleteRefresh(paths, "map-update")
 
@@ -392,7 +399,7 @@ func TestCommittedFinalizableUpdateRecoversThroughValidateAndCompleteRefreshAfte
 	}
 }
 
-func TestConcurrentRunUpdateHonorsCrossProcessLockAndCommitsOnePendingUpdate(t *testing.T) {
+func TestConcurrentRunUpdateHonorsCrossProcessLockAndRecoversSerializedPredecessor(t *testing.T) {
 	paths := testPaths(t)
 	seedReadyRuntime(t, paths)
 	releaseExternalLock, err := rt.AcquireUpdateLock(paths)
@@ -440,23 +447,22 @@ func TestConcurrentRunUpdateHonorsCrossProcessLockAndCommitsOnePendingUpdate(t *
 	first := <-results
 	second := <-results
 	successes := 0
-	blocked := 0
+	recovered := 0
 	for _, result := range []updateResult{first, second} {
 		if result.err == nil {
 			successes++
 			if result.payload.ResultState != ResultReady {
 				t.Fatalf("successful payload = %#v, want ready", result.payload)
 			}
-			continue
-		}
-		if strings.Contains(result.err.Error(), runtimegate.FinalizeUpdateAction) {
-			blocked++
+			if result.payload.PredecessorRecovery != nil && result.payload.PredecessorRecovery.Outcome == "finalized" {
+				recovered++
+			}
 			continue
 		}
 		t.Fatalf("concurrent RunUpdate returned unexpected error: %v", result.err)
 	}
-	if successes != 1 || blocked != 1 {
-		t.Fatalf("concurrent results successes/blocked = %d/%d, want 1/1", successes, blocked)
+	if successes != 2 || recovered != 1 {
+		t.Fatalf("concurrent results successes/recovered = %d/%d, want 2/1", successes, recovered)
 	}
 
 	st, err := store.OpenExisting(paths)
@@ -468,12 +474,12 @@ func TestConcurrentRunUpdateHonorsCrossProcessLockAndCommitsOnePendingUpdate(t *
 	if err := st.DB().QueryRowContext(context.Background(), `SELECT COUNT(*) FROM updates WHERE generation_id = 'GEN-db'`).Scan(&updateCount); err != nil {
 		t.Fatal(err)
 	}
-	if updateCount != 1 {
-		t.Fatalf("update count = %d, want exactly one committed update", updateCount)
+	if updateCount != 2 {
+		t.Fatalf("update count = %d, want two serialized committed updates", updateCount)
 	}
 	agreement := runtimegate.Check(paths)
 	if agreement.CauseCode != runtimegate.CauseUpdateFinalizationPending || agreement.StatusLatestUpdateID != agreement.DBLatestUpdateID {
-		t.Fatalf("agreement = %#v, want one matching pending update", agreement)
+		t.Fatalf("agreement = %#v, want latest serialized update pending finalization", agreement)
 	}
 }
 

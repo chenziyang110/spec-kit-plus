@@ -87,6 +87,111 @@ func TestCognitionCloseoutApplyFinalizesAndRecordsBoundReadyReceipt(t *testing.T
 	}
 }
 
+func TestCognitionCloseoutApplyRecoversPendingPredecessorBeforeCurrentUpdate(t *testing.T) {
+	project, paths, scopeDir := seedCloseoutApplyRuntime(t)
+	pending, err := update.RunUpdate(paths, update.UpdateInput{
+		ChangedPaths: []string{"src/app.go"},
+		Reason:       "previous-workflow-finalize",
+		Workflow:     "sp-fast",
+		Verification: []update.VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending.ResultState != update.ResultReady {
+		t.Fatalf("pending ResultState = %q, want ready", pending.ResultState)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"cognition", "closeout", "apply",
+		"--project-root", project,
+		"--workflow", "sp-implement",
+		"--scope-dir", scopeDir,
+		"--payload-json", closeoutApplyPayloadJSON(t, true),
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d; stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	data := requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data")
+	recovery := requireObject(t, data, "predecessor_recovery")
+	if recovery["attempted"] != true || recovery["outcome"] != "finalized" || recovery["update_id"] != pending.UpdateID {
+		t.Fatalf("predecessor_recovery = %#v, want exact pending update finalized", recovery)
+	}
+	currentUpdateID, _ := data["update_id"].(string)
+	if currentUpdateID == "" || currentUpdateID == pending.UpdateID {
+		t.Fatalf("update_id = %q, want a new current update after recovering %s", currentUpdateID, pending.UpdateID)
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.LastFinalizedUpdateID != currentUpdateID || status.LastUpdateID != currentUpdateID {
+		t.Fatalf("status = %#v, want current update finalized after predecessor recovery", status)
+	}
+}
+
+func TestCognitionCloseoutApplyRecordsCurrentScopeWhenPredecessorRecoveryBlocks(t *testing.T) {
+	project, paths, scopeDir := seedCloseoutApplyRuntime(t)
+	pending, err := update.RunUpdate(paths, update.UpdateInput{
+		ChangedPaths: []string{"src/app.go"},
+		Reason:       "previous-workflow-finalize",
+		Workflow:     "sp-fast",
+		Verification: []update.VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(paths.RuntimeDir, "workbench", "capability-ledger.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"cognition", "closeout", "apply",
+		"--project-root", project,
+		"--workflow", "sp-implement",
+		"--scope-dir", scopeDir,
+		"--payload-json", closeoutApplyPayloadJSON(t, true),
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 10 {
+		t.Fatalf("code = %d, want blocked exit 10; stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	data := requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data")
+	if data["closeout_status"] != "predecessor_recovery_blocked" || data["current_mutation_accounting"] != "recorded" || data["closeout_state"] != "mark-dirty" {
+		t.Fatalf("data = %#v, want exact current mutation recorded without laundering recovery", data)
+	}
+	recovery := requireObject(t, data, "predecessor_recovery")
+	if recovery["attempted"] != true || recovery["outcome"] != "blocked" || recovery["update_id"] != pending.UpdateID {
+		t.Fatalf("predecessor_recovery = %#v, want blocked exact predecessor", recovery)
+	}
+	receiptPath := filepath.Join(project, filepath.FromSlash(scopeDir), mutationCognitionReceiptFileName)
+	raw, err := os.ReadFile(receiptPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var receipt map[string]any
+	if err := json.Unmarshal(raw, &receipt); err != nil {
+		t.Fatal(err)
+	}
+	if receipt["result_state"] != "mark-dirty" {
+		t.Fatalf("receipt = %#v, want truthful mark-dirty accounting", receipt)
+	}
+	changedPaths, ok := receipt["changed_paths"].([]any)
+	if !ok || len(changedPaths) != 1 || changedPaths[0] != "src/app.go" {
+		t.Fatalf("receipt changed_paths = %#v, want exact current scope", receipt["changed_paths"])
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.LastUpdateID != pending.UpdateID || status.LastFinalizedUpdateID != "" {
+		t.Fatalf("status = %#v, blocked recovery must not commit or finalize the current update", status)
+	}
+}
+
 func TestCognitionCloseoutApplyAcceptsLargePayloadFromStdin(t *testing.T) {
 	project, _, scopeDir := seedCloseoutApplyRuntime(t)
 	payloadJSON := largeCloseoutApplyPayloadJSON(t)
