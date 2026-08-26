@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -70,6 +73,77 @@ func TestCognitionIdentityRepairPlanAndApplyFixBoundedMissingCoverage(t *testing
 	applyData := requireObject(t, decodeJSONObject(t, applyOut.Bytes()), "data")
 	if applyData["status"] != "repaired" || applyData["readiness"] != "query_ready" {
 		t.Fatalf("apply data = %#v, want repaired query-ready validation", applyData)
+	}
+}
+
+func TestCognitionIdentityRepairApplyRejectsTamperedRepairRowsBeforeMutation(t *testing.T) {
+	project, paths, _ := seedCloseoutApplyRuntime(t)
+	writeIdentityRepairScanPackage(t, paths.RuntimeDir)
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.AdoptWorkflowPath(context.Background(), store.WorkflowPathAdoption{
+		UpdateID: "upd-keep-path", Path: "src/keep.go", Workflow: "sp-map-update",
+		Verification: []map[string]string{{"command": "go test ./...", "result": "passed"}}, Reason: "keep-nonzero-path-index",
+	}); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `DELETE FROM path_index WHERE generation_id = 'GEN-closeout' AND path = 'src/app.go'`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	var planOut, planErr bytes.Buffer
+	if code := Run([]string{"cognition", "identity-repair", "plan", "--project-root", project, "--format", "json"}, &planOut, &planErr, "test"); code != 0 {
+		t.Fatalf("plan failed: %d stderr=%s stdout=%s", code, planErr.String(), planOut.String())
+	}
+	planData := requireObject(t, decodeJSONObject(t, planOut.Bytes()), "data")
+	planRef := planData["plan_ref"].(string)
+	planPath := filepath.Join(project, filepath.FromSlash(planRef))
+	raw, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var plan map[string]any
+	if err := json.Unmarshal(raw, &plan); err != nil {
+		t.Fatal(err)
+	}
+	repairs := plan["repairs"].([]any)
+	repairs[0].(map[string]any)["path"] = "src/forged.go"
+	tampered, err := json.MarshalIndent(plan, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tampered = append(tampered, '\n')
+	if err := os.WriteFile(planPath, tampered, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tamperedSHA := sha256.Sum256(tampered)
+
+	var applyOut, applyErr bytes.Buffer
+	applyCode := Run([]string{
+		"cognition", "identity-repair", "apply", "--project-root", project,
+		"--plan-ref", planRef, "--plan-sha256", fmt.Sprintf("%x", tamperedSHA[:]), "--format", "json",
+	}, &applyOut, &applyErr, "test")
+	if applyCode == 0 {
+		t.Fatalf("tampered apply unexpectedly succeeded: %s", applyOut.String())
+	}
+	st, err = store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var forgedCount int
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT COUNT(*) FROM path_index WHERE path = 'src/forged.go'`).Scan(&forgedCount); err != nil {
+		t.Fatal(err)
+	}
+	if forgedCount != 0 {
+		t.Fatalf("tampered identity repair mutated %d forged rows before rejection", forgedCount)
 	}
 }
 
