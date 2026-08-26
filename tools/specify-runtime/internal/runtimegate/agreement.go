@@ -416,17 +416,29 @@ func RepairStatusFromDBLocked(paths rt.Paths) (rt.Status, error) {
 		status.DirtyOriginCommand = "specify-runtime cognition repair-status"
 	}
 	if latestUpdateMismatch && baselineState == "fresh" {
-		status.Status = "stale"
-		status.Freshness = rt.StaleFreshness
-		status.Readiness = rt.ReviewReadiness
-		status.RecommendedNextAction = "review_project_cognition_update"
-		status.Dirty = true
-		status.DirtyReasons = appendUnique(status.DirtyReasons, LatestUpdateMismatchRepairReason)
-		status.StaleReasons = appendUnique(status.StaleReasons, LatestUpdateMismatchRepairReason)
-		status.DirtyOriginCommand = "specify-runtime cognition repair-status"
-		for _, path := range latestUpdate.ChangedPaths {
-			status.DirtyScopePaths = appendUnique(status.DirtyScopePaths, path)
-			status.StalePaths = appendUnique(status.StalePaths, path)
+		if latestUpdate.Outcome == "ready" || latestUpdate.Outcome == "no_op" {
+			status.DirtyDebts = trimCoveredStatusDebts(status.DirtyDebts, latestUpdate.ChangedPaths)
+		}
+		if len(status.DirtyDebts) > 0 {
+			status.Status = "stale"
+			status.Freshness = rt.StaleFreshness
+			status.Readiness = rt.BlockedReadiness
+			status.RecommendedNextAction = "run_map_update"
+			status.Dirty = true
+			rt.ProjectDirtyDebts(&status)
+		} else {
+			status.Status = "stale"
+			status.Freshness = rt.StaleFreshness
+			status.Readiness = rt.ReviewReadiness
+			status.RecommendedNextAction = "review_project_cognition_update"
+			status.Dirty = true
+			status.DirtyReasons = []string{LatestUpdateMismatchRepairReason}
+			status.StaleReasons = []string{LatestUpdateMismatchRepairReason}
+			status.DirtyOriginCommand = "specify-runtime cognition repair-status"
+			status.DirtyOriginFeatureDir = ""
+			status.DirtyOriginLaneID = ""
+			status.DirtyScopePaths = append([]string{}, latestUpdate.ChangedPaths...)
+			status.StalePaths = append([]string{}, latestUpdate.ChangedPaths...)
 		}
 	}
 	status.LastUpdateID = latestUpdate.ID
@@ -450,6 +462,35 @@ func RepairStatusFromDBLocked(paths rt.Paths) (rt.Status, error) {
 		))
 	}
 	return status, nil
+}
+
+func trimCoveredStatusDebts(values []rt.DebtRecord, changedPaths []string) []rt.DebtRecord {
+	covered := map[string]bool{}
+	for _, path := range changedPaths {
+		path = filepath.ToSlash(strings.TrimSpace(path))
+		if path != "" {
+			covered[path] = true
+		}
+	}
+	out := make([]rt.DebtRecord, 0, len(values))
+	for _, debt := range values {
+		if len(debt.Paths) == 0 {
+			out = append(out, debt)
+			continue
+		}
+		remaining := []string{}
+		for _, path := range debt.Paths {
+			path = filepath.ToSlash(strings.TrimSpace(path))
+			if path != "" && !covered[path] {
+				remaining = append(remaining, path)
+			}
+		}
+		if len(remaining) > 0 {
+			debt.Paths = remaining
+			out = append(out, debt)
+		}
+	}
+	return out
 }
 
 func updateOutcomeRequiresFinalization(outcome string) bool {

@@ -21,9 +21,10 @@ import (
 const closeoutStateScopeReady = "scope_ready"
 
 var (
-	closeoutApplyAfterIntentPersistHook func(string) error
-	closeoutApplyAfterUpdateHook        func(string) error
-	closeoutApplyAfterScopeReceiptHook  func(string) error
+	closeoutApplyAfterIntentPersistHook  func(string) error
+	closeoutApplyAfterUpdateHook         func(string) error
+	closeoutApplyAfterScopeReceiptHook   func(string) error
+	closeoutApplyBeforeCurrentUpdateHook func(string) error
 )
 
 type closeoutIntentPendingError struct {
@@ -168,7 +169,13 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 			}
 			replayedIntents = append(replayedIntents, updateID)
 		}
+		if closeoutApplyBeforeCurrentUpdateHook != nil {
+			if err := closeoutApplyBeforeCurrentUpdateHook(intent.ID); err != nil {
+				return err
+			}
+		}
 		input.CloseoutIntentID = intent.ID
+		input.ExpectedDeltaDigest = intent.DeltaDigest
 		updatePayload, err = runtime.RunUpdate(input)
 		if err != nil {
 			return err
@@ -319,12 +326,13 @@ func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Pa
 		return "", err
 	}
 	input := update.UpdateInput{
-		Workflow:         intent.Workflow,
-		Reason:           intent.Reason,
-		PayloadJSON:      intent.PayloadJSON,
-		DeltaSessionID:   intent.DeltaSessionID,
-		CommitRange:      intent.CommitRange,
-		CloseoutIntentID: intent.ID,
+		Workflow:            intent.Workflow,
+		Reason:              intent.Reason,
+		PayloadJSON:         intent.PayloadJSON,
+		DeltaSessionID:      intent.DeltaSessionID,
+		CommitRange:         intent.CommitRange,
+		CloseoutIntentID:    intent.ID,
+		ExpectedDeltaDigest: intent.DeltaDigest,
 	}
 	payload, err := runtime.RunUpdate(input)
 	if err != nil {

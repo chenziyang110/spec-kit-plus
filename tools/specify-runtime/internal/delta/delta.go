@@ -1,6 +1,7 @@
 package delta
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -343,6 +344,15 @@ func Load(runtimeDir string, sessionID string) (Bundle, error) {
 		return events[i].CreatedAt < events[j].CreatedAt
 	})
 	return Bundle{Session: session, Events: events}, nil
+}
+
+func Digest(bundle Bundle) (string, error) {
+	raw, err := json.Marshal(bundle)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(raw)
+	return fmt.Sprintf("%x", digest[:]), nil
 }
 
 func sessionDir(runtimeDir string, sessionID string) string {

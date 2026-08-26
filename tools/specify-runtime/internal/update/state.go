@@ -86,24 +86,25 @@ type PayloadFileInput struct {
 }
 
 type UpdateInput struct {
-	ChangedPaths      []string
-	PathChanges       []changemodel.PathChange
-	ScopePaths        []string
-	Reason            string
-	DeltaSessionID    string
-	CommitRange       string
-	PayloadFile       string
-	PayloadJSON       string
-	Workflow          string
-	BehaviorSurfaces  []string
-	GeneratedSurfaces []string
-	StateContracts    []string
-	Verification      []VerificationEvidence
-	KnownUnknowns     []string
-	ConfidenceNotes   []string
-	UserDecisions     []string
-	Boundary          UpdateBoundaryInput
-	CloseoutIntentID  string
+	ChangedPaths        []string
+	PathChanges         []changemodel.PathChange
+	ScopePaths          []string
+	Reason              string
+	DeltaSessionID      string
+	CommitRange         string
+	PayloadFile         string
+	PayloadJSON         string
+	Workflow            string
+	BehaviorSurfaces    []string
+	GeneratedSurfaces   []string
+	StateContracts      []string
+	Verification        []VerificationEvidence
+	KnownUnknowns       []string
+	ConfidenceNotes     []string
+	UserDecisions       []string
+	Boundary            UpdateBoundaryInput
+	CloseoutIntentID    string
+	ExpectedDeltaDigest string
 }
 
 type StatusUpdate struct {
@@ -1837,6 +1838,15 @@ func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, er
 	bundle, err := delta.Load(paths.RuntimeDir, input.DeltaSessionID)
 	if err != nil {
 		return UpdatePayload{}, err
+	}
+	if strings.TrimSpace(input.ExpectedDeltaDigest) != "" {
+		digest, err := delta.Digest(bundle)
+		if err != nil {
+			return UpdatePayload{}, err
+		}
+		if digest != strings.TrimSpace(input.ExpectedDeltaDigest) {
+			return UpdatePayload{}, fmt.Errorf("delta session digest changed after closeout intent validation")
+		}
 	}
 	input = applyDeltaBundleInput(input, bundle)
 	input.PathChanges, err = normalizePathChanges(input.PathChanges)

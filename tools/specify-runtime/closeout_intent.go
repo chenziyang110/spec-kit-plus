@@ -174,12 +174,7 @@ func closeoutDeltaDigest(paths rt.Paths, sessionID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	raw, err := json.Marshal(bundle)
-	if err != nil {
-		return "", err
-	}
-	digest := sha256.Sum256(raw)
-	return fmt.Sprintf("%x", digest[:]), nil
+	return delta.Digest(bundle)
 }
 
 func runCognitionCloseoutReplayCLI(args []string, stdout io.Writer) int {
