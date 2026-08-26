@@ -471,6 +471,51 @@ func TestCognitionCloseoutApplyDrainsOlderIntentBeforeDifferentCurrentScope(t *t
 	}
 }
 
+func TestCognitionCloseoutReplayPersistsScopeReceiptStateBeforeIntentRemoval(t *testing.T) {
+	project, paths, scopeA := seedCloseoutApplyRuntime(t)
+	scopeB := filepath.ToSlash(filepath.Join(".specify", "features", "002-closeout"))
+	if err := os.MkdirAll(filepath.Join(project, filepath.FromSlash(scopeB)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	closeoutApplyAfterIntentPersistHook = func(intentID string) error { return errors.New("queue scope A") }
+	var firstOut, firstErr bytes.Buffer
+	if code := Run([]string{
+		"cognition", "closeout", "apply", "--project-root", project, "--workflow", "sp-implement",
+		"--scope-dir", scopeA, "--payload-json", closeoutApplyPayloadJSON(t, true), "--format", "json",
+	}, &firstOut, &firstErr, "test"); code != 10 {
+		t.Fatalf("first code = %d stderr=%s stdout=%s", code, firstErr.String(), firstOut.String())
+	}
+	closeoutApplyAfterIntentPersistHook = nil
+	if _, err := update.MarkDirty(paths, update.DirtyInput{Reason: "older-global-debt", ScopePaths: []string{"src/other.go"}}); err != nil {
+		t.Fatal(err)
+	}
+	closeoutApplyAfterReplayedScopeReceiptHook = func(intentID string) error { return errors.New("crash after replayed scope receipt") }
+	t.Cleanup(func() { closeoutApplyAfterReplayedScopeReceiptHook = nil })
+	var secondOut, secondErr bytes.Buffer
+	if code := Run([]string{
+		"cognition", "closeout", "apply", "--project-root", project, "--workflow", "sp-implement",
+		"--scope-dir", scopeB, "--payload-json", closeoutApplyPayloadJSON(t, true), "--format", "json",
+	}, &secondOut, &secondErr, "test"); code != 10 {
+		t.Fatalf("second code = %d stderr=%s stdout=%s", code, secondErr.String(), secondOut.String())
+	}
+	intents, err := listCloseoutIntents(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, intent := range intents {
+		if intent.Scope == scopeA {
+			found = true
+			if intent.State != "scope_receipt_recorded" {
+				t.Fatalf("replayed scope intent state = %q, want scope_receipt_recorded", intent.State)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("replayed scope intent missing after simulated removal crash")
+	}
+}
+
 func TestCognitionCloseoutApplyPrunesCompletedIntentAfterLaterFinalizedUpdate(t *testing.T) {
 	project, paths, scopeA := seedCloseoutApplyRuntime(t)
 	scopeC := filepath.ToSlash(filepath.Join(".specify", "features", "003-closeout"))
