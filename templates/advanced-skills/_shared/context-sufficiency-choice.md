@@ -32,7 +32,15 @@ auto-select the answer.
 
 If full is selected, apply the normal workflow. If direct is selected, skip
 entry-time `learning start` and `cognition compass`; create no Quick/Debug run,
-workspace, session, checkpoint, plan, packet, or delegation state; perform only
+workspace, session, checkpoint, plan, packet, or delegation state.
+Before source writes, run `specify-runtime board reconcile` and `board show`, create
+one bounded Work item through `specify-runtime work begin` with exact
+`--task-ref quick:<direct-id>` or `--task-ref debug:<direct-id>`, confirmed
+scope, summary, agent, and adapter; retain its id and fence, then require the
+all-or-none
+`data.work_claim` receipt from `specify-runtime work claim --current-work-id
+<id> --current-work-fence <fence> --task-ref <same-task-ref>
+--write-scope-json <complete-json-array> --format json`. Then perform only
 the confirmed bounded edit; preserve unrelated work; run a failing test or
 executable reproduction before behavior edits and fresh verification after;
 and report exact paths, evidence, and residual risk. A stale patch anchor,

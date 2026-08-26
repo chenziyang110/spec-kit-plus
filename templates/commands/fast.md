@@ -33,6 +33,12 @@ Learning write surface can handle it later.
 
 [AGENT] `sp-fast` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
 
+[AGENT] Launch Fast with exact task identity `fast:<run-id>` and at least one
+confirmed planned write scope; zero confirmed scope blocks before the child
+starts. Inside the managed child, call `specify-runtime work claim --task-ref
+fast:<run-id> --write-scope-json <complete-json-array> --format json` and require
+its all-or-none `data.work_claim` receipt before the first source write.
+
 ## Detailed References
 
 Read [Reference index](references/INDEX.md) before applying shared semantic contracts.

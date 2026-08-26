@@ -25,6 +25,12 @@ Read `references/ui-quality-gate.md` for any user-visible UI change.
 
 `$spx-fast` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
 
+Launch it with exact task identity `fast:<run-id>` and confirmed planned write
+scope; zero confirmed scope blocks before the child starts. Inside the managed
+child, call `specify-runtime work claim --task-ref fast:<run-id>
+--write-scope-json <complete-json-array> --format json` and require its
+all-or-none `data.work_claim` receipt before the first source write.
+
 Use this leader-direct path only when the change is obvious, local, and normally
 touches no more than three files. It must not cross a shared contract, registry,
 dependency, migration, security boundary, or unresolved product decision. Route

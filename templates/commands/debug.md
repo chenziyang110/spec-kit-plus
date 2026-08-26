@@ -21,6 +21,15 @@ then execute only through `specify-runtime run supervise`; do not resume another
 workflow's run. The explicit user-selected context-direct branch is the sole
 exception and creates no run or debug session.
 
+[AGENT] Launch the full branch with task identity `debug:<session-slug>` and a
+confirmed initial scope; zero confirmed scope blocks before the child starts.
+Once the complete repair scope is proven, call `specify-runtime work claim
+--task-ref debug:<session-slug> --write-scope-json <complete-json-array>
+--format json` and require `data.work_claim` before the first source write. The
+context-direct exception still uses the shared context-direct Work registration
+and `work claim` gate before its bounded fix; it skips Debug state, not write
+coordination.
+
 ## Main Flow
 
 The steps below own only the full Debug branch. A user-selected context-direct

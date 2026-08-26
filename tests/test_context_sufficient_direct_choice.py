@@ -57,6 +57,10 @@ def test_context_direct_skips_only_entry_discovery_and_keeps_safety_gates() -> N
         "post-change project cognition closeout",
         "cognition mutation-receipt",
         "--scope-dir",
+        "specify-runtime work begin",
+        "specify-runtime work claim",
+        "before source writes",
+        "all-or-none",
         "does not waive",
     ):
         assert required in content
@@ -83,6 +87,10 @@ def test_advanced_quick_and_debug_read_shared_gate_first() -> None:
     assert "pre-intake context sufficiency gate" in shared
     assert "unknown means insufficient" in shared
     assert "post-change project cognition closeout" in shared
+    assert "specify-runtime work begin" in shared
+    assert "specify-runtime work claim" in shared
+    assert "before source writes" in shared
+    assert "all-or-none" in shared
 
     for skill_name in ("spx-quick", "spx-debug"):
         skill = _read(

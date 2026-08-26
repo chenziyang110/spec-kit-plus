@@ -18,6 +18,15 @@ Read `references/ui-quality-gate.md` when any ready task is UI-bearing.
 
 `$spx-implement` continues the same run created for the feature. Confirm the same run with `specify-runtime run show`, then execute implementation work only through `specify-runtime run supervise`.
 
+Leader supervision uses task identity `implement:<feature-id>`; packet workers
+use the runtime-derived `<feature-id>#<Txx>`. Every modifying launch carries
+confirmed scope. `implement task-start` requires that fenced Work identity,
+claims the task's complete `expected_write_scope` all-or-none, and returns
+`work_claim` before changing lifecycle state to `in_progress`. A legacy
+scope-empty task reuses the current Work's confirmed scope; a genuinely
+no-write task returns `claim_state: not_required` and must not later report
+changed files. Do not perform source writes without a claimed receipt.
+
 Resolve the task-bearing feature with the installed
 `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks
 --include-tasks` or PowerShell equivalent. Inspect the current diff, project

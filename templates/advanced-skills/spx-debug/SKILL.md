@@ -70,6 +70,14 @@ supervise`; do not resume another workflow's run. The explicit user-selected
 context-direct branch is the sole exception and creates no run or debug
 session.
 
+Launch the full branch with task identity `debug:<session-slug>` and confirmed
+initial scope; zero confirmed scope blocks before the child starts. Once the
+complete repair scope is proven, call `specify-runtime work claim --task-ref
+debug:<session-slug> --write-scope-json <complete-json-array> --format json`
+and require `data.work_claim` before the first source write. Context-direct
+still uses the shared Work registration and `work claim` gate before its
+bounded fix; it skips Debug state, not write coordination.
+
 Create or resume the session in its unconfirmed intake state. Render the Debug
 checkpoint from `references/human-confirmation.md` as readable headings and
 bullets; for an applicable UI symptom, fold its independent target-baseline

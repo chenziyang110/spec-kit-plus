@@ -76,6 +76,14 @@ When the user selects the context-direct option:
   Cognition navigation to reconfirm evidence already listed in the choice;
 - do not run full-workflow bootstrap and must not create Quick or Debug workflow state;
   create no confirmation artifacts, plans, packets, or subagent lanes;
+- before source writes, run `specify-runtime board reconcile` and `board show`,
+  create one bounded Work item through `specify-runtime work begin` with exact
+  `--task-ref quick:<direct-id>` or `--task-ref debug:<direct-id>`, the confirmed
+  scope, summary, agent, and adapter; retain its returned id and fence, and call
+  `specify-runtime work claim --current-work-id <id> --current-work-fence
+  <fence> --task-ref <same-task-ref> --write-scope-json <complete-json-array>
+  --format json`; the all-or-none `data.work_claim` receipt is mandatory even
+  though context-direct creates no Quick/Debug workflow state;
 - make only the confirmed bounded change and preserve unrelated work; a patch
   anchor mismatch or newly discovered consumer, consequence, ambiguity, or
   larger scope ends context-direct execution and resumes the matching full

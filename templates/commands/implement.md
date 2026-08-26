@@ -22,6 +22,16 @@ scripts:
 
 [AGENT] `sp-implement` continues the same run created for the feature. Confirm the same run with `specify-runtime run show`, then execute implementation work only through `specify-runtime run supervise`.
 
+[AGENT] Leader-owned supervision uses task identity `implement:<feature-id>`;
+packet-backed workers use the runtime-derived `<feature-id>#<Txx>`. Every
+modifying launch carries confirmed scope. `implement task-start` requires that
+same fenced Work identity, claims the task's complete `expected_write_scope`
+all-or-none, and returns `work_claim` before changing lifecycle state to
+`in_progress`. A legacy scope-empty task reuses the current Work's confirmed
+scope; a genuinely no-write task returns `claim_state: not_required` and must
+not later report changed files. Do not perform source writes without a claimed
+receipt.
+
 ## Feature Context Provenance Gate
 
 Accept `<feature-dir>` only from `{SCRIPT}`, an explicit user selection, or the

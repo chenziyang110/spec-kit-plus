@@ -31,6 +31,20 @@ current revision with `specify-runtime work show`, then use
 `specify-runtime work block` when human or external action is required; the
 supervisor retains the blocked scope.
 
+Fast, Debug, Implement, and Quick share one claim-before-write gate. A managed
+Run with zero confirmed write scope is rejected before the Run is claimed or
+the child starts. Before source writes, the child must either call
+`specify-runtime work claim --task-ref <exact-task-ref> --write-scope-json
+<complete-json-array> --format json`, or receive the equivalent `work_claim`
+receipt from its runtime-owned `implement task-start` / `quick item-start`
+boundary. Work id and fence default to `SPECIFY_WORK_ID` and
+`SPECIFY_WORK_FENCE`. The claim is all-or-none: missing identity, a foreign
+`task_ref`, stale fence, inactive Work, empty scope, or any overlap blocks
+without retaining a partial claim. A successful `data.work_claim` receipt is
+the authority to begin source mutation; an earlier board scan alone is not.
+Only a task/item boundary that explicitly declares no source write may return
+`claim_state: not_required`, and that lane must not later report changed files.
+
 Feature bootstrap has a read-only planning boundary. Before any feature write or
 branch action, run the exact installed `create-new-feature` script from the repo
 root with the original feature description plus `--dry-run --json` (PowerShell:
@@ -70,7 +84,12 @@ is `default` because the board was idle does the existing business-branch
 behavior remain unchanged.
 
 For any other unhosted modifying workflow, reconcile and show the board, then
-register before writing with `specify-runtime work begin`. Use
+register the exact workflow `--task-ref` before writing with
+`specify-runtime work begin`. Retain the returned Work id and fence, then call
+`specify-runtime work claim --current-work-id <data.work.work_id>
+--current-work-fence <data.work.fence> --task-ref <same-exact-task-ref>
+--write-scope-json <complete-json-array> --format json` before source writes.
+Do not proceed without its all-or-none `data.work_claim` receipt. Use
 `specify-runtime work checkpoint` for durable progress, `specify-runtime work
 block` when blocked, and `specify-runtime work finish` when writes are complete.
 The board is a SQLite CLI projection; do not edit it by hand. At process or
