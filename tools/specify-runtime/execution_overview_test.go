@@ -147,6 +147,29 @@ func TestExecutionOverviewIsPublishedAsOneSharedRuntimeCapability(t *testing.T) 
 	}
 }
 
+func TestExecutionOverviewWarnsAcrossWorkflowPlannedScopeOverlap(t *testing.T) {
+	root := initRunCLIRepository(t)
+	writeQuickCoordinationFixture(t, root, "260826-shared-plan", "Shared Quick plan", "planned", []string{"src/shared"})
+	writeExecutionOverviewImplementFixture(t, root, "feature-shared-plan", "T010", "pending", []string{"src/shared/worker.go"})
+
+	code, payload := invokeRunCLI(t, "execution", "overview", "--project-root", root, "--format", "json")
+	if code != 0 || payload["status"] != "ok" {
+		t.Fatalf("execution overview = code %d envelope %#v", code, payload)
+	}
+	data := requireObject(t, payload, "data")
+	if data["coordination_state"] != "attention" || data["warning_count"] != float64(1) {
+		t.Fatalf("planned overlap overview = %#v", data)
+	}
+	signals := requireObjectSlice(t, data, "signals")
+	overlap := quickCoordinationObjectByField(t, signals, "code", "planned_scope_overlap")
+	if overlap["left_activity_id"] != "implement:feature-shared-plan#T010" || overlap["right_activity_id"] != "quick:260826-shared-plan" {
+		t.Fatalf("planned overlap signal = %#v", overlap)
+	}
+	if overlap["left_path"] != "src/shared/worker.go" || overlap["right_path"] != "src/shared" {
+		t.Fatalf("planned overlap paths = %#v", overlap)
+	}
+}
+
 func createExecutionOverviewRun(t *testing.T, root, runID, kind, subjectType, subjectID string) {
 	t.Helper()
 	code, payload := invokeRunCLI(t,
