@@ -478,6 +478,44 @@ def test_shared_closeout_recovers_only_the_direct_pending_predecessor() -> None:
         assert "current mutation accounting" in content, surface
         assert "must not scan older" in content, surface
 
+
+def test_shared_closeout_contract_owns_atomic_intent_replay_and_identity_repair() -> None:
+    surfaces = (
+        ROOT
+        / "templates"
+        / "command-partials"
+        / "common"
+        / "inline-project-cognition-update.md",
+        ROOT
+        / "templates"
+        / "advanced-skills"
+        / "_shared"
+        / "project-cognition.md",
+        ROOT
+        / "templates"
+        / "passive-skills"
+        / "spec-kit-project-cognition-gate"
+        / "SKILL.md",
+    )
+
+    for surface in surfaces:
+        content = surface.read_text(encoding="utf-8")
+        assert "same update lock" in content, surface
+        assert "mutation intent" in content, surface
+        assert "`predecessor_recovery_blocked`" in content, surface
+        assert "cognition closeout replay" in content, surface
+        assert "cognition identity-repair plan" in content, surface
+        assert "cognition identity-repair apply" in content, surface
+
+    for surface in (
+        ROOT / "README.md",
+        ROOT / "PROJECT-HANDBOOK.md",
+        ROOT / "templates" / "project-handbook-template.md",
+    ):
+        content = surface.read_text(encoding="utf-8")
+        assert "mutation intent" in content, surface
+        assert "closeout replay" in content, surface
+
     for surface in (
         ROOT / "README.md",
         ROOT / "PROJECT-HANDBOOK.md",
