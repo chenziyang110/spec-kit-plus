@@ -531,6 +531,95 @@ func TestCognitionCloseoutApplyPrunesCompletedIntentAfterLaterFinalizedUpdate(t 
 	}
 }
 
+func TestCognitionCloseoutApplyPrunesCompletedScopeReadyIntent(t *testing.T) {
+	project, paths, scopeA := seedCloseoutApplyRuntime(t)
+	scopeC := filepath.ToSlash(filepath.Join(".specify", "features", "003-closeout"))
+	if err := os.MkdirAll(filepath.Join(project, filepath.FromSlash(scopeC)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := update.MarkDirty(paths, update.DirtyInput{Reason: "older-global-debt", ScopePaths: []string{"src/other.go"}}); err != nil {
+		t.Fatal(err)
+	}
+	crashOnce := true
+	closeoutApplyAfterScopeReceiptHook = func(intentID string) error {
+		if crashOnce {
+			crashOnce = false
+			return errors.New("simulated crash after scope-ready receipt")
+		}
+		return nil
+	}
+	t.Cleanup(func() { closeoutApplyAfterScopeReceiptHook = nil })
+	var firstOut, firstErr bytes.Buffer
+	firstCode := Run([]string{
+		"cognition", "closeout", "apply", "--project-root", project, "--workflow", "sp-implement",
+		"--scope-dir", scopeA, "--payload-json", closeoutApplyPayloadJSON(t, true), "--format", "json",
+	}, &firstOut, &firstErr, "test")
+	if firstCode != 10 {
+		t.Fatalf("first code = %d stderr=%s stdout=%s", firstCode, firstErr.String(), firstOut.String())
+	}
+	closeoutApplyAfterScopeReceiptHook = nil
+	if _, err := update.RunUpdate(paths, update.UpdateInput{
+		ChangedPaths: []string{"src/app.go"}, Reason: "later-partial-update", Workflow: "sp-fast",
+		Verification: []update.VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var thirdOut, thirdErr bytes.Buffer
+	thirdCode := Run([]string{
+		"cognition", "closeout", "apply", "--project-root", project, "--workflow", "sp-implement",
+		"--scope-dir", scopeC, "--payload-json", closeoutApplyPayloadJSON(t, true), "--format", "json",
+	}, &thirdOut, &thirdErr, "test")
+	if thirdCode != 0 {
+		t.Fatalf("third code = %d stderr=%s stdout=%s", thirdCode, thirdErr.String(), thirdOut.String())
+	}
+	if intents, err := listCloseoutIntents(paths); err != nil || len(intents) != 0 {
+		t.Fatalf("intents = %#v err=%v, want completed scope-ready intent pruned", intents, err)
+	}
+}
+
+func TestCognitionCloseoutReplayRejectsChangedDeltaSession(t *testing.T) {
+	project, paths, scopeDir := seedCloseoutApplyRuntime(t)
+	pending, err := update.RunUpdate(paths, update.UpdateInput{
+		ChangedPaths: []string{"src/app.go"}, Reason: "previous-workflow-finalize", Workflow: "sp-fast",
+		Verification: []update.VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	})
+	if err != nil || pending.UpdateID == "" {
+		t.Fatalf("pending = %#v err=%v", pending, err)
+	}
+	deltaSession := appendCloseoutApplyDelta(t, paths, "sp-implement")
+	capabilityLedger := filepath.Join(paths.RuntimeDir, "workbench", "capability-ledger.json")
+	if err := os.Remove(capabilityLedger); err != nil {
+		t.Fatal(err)
+	}
+	var blockedOut, blockedErr bytes.Buffer
+	blockedCode := Run([]string{
+		"cognition", "closeout", "apply", "--project-root", project, "--workflow", "sp-implement",
+		"--scope-dir", scopeDir, "--delta-session", deltaSession, "--format", "json",
+	}, &blockedOut, &blockedErr, "test")
+	if blockedCode != 10 {
+		t.Fatalf("blocked code = %d stderr=%s stdout=%s", blockedCode, blockedErr.String(), blockedOut.String())
+	}
+	if _, err := delta.Append(delta.AppendInput{
+		RuntimeDir: paths.RuntimeDir, SessionID: deltaSession, EventType: "late_mutation",
+		ChangedPaths: []string{"src/app.go"}, Verification: []string{`{"command":"go test ./...","result":"passed"}`},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(capabilityLedger, []byte("{\"rows\":[]}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var replayOut, replayErr bytes.Buffer
+	replayCode := Run([]string{
+		"cognition", "closeout", "replay", "--project-root", project, "--scope-dir", scopeDir, "--format", "json",
+	}, &replayOut, &replayErr, "test")
+	if replayCode == 0 {
+		t.Fatalf("changed delta replay unexpectedly succeeded: %s", replayOut.String())
+	}
+	if got := countCloseoutApplyUpdates(t, paths); got != 1 {
+		t.Fatalf("update count = %d, want no replay mutation after delta digest mismatch", got)
+	}
+}
+
 func TestCognitionCloseoutApplyAcceptsLargePayloadFromStdin(t *testing.T) {
 	project, _, scopeDir := seedCloseoutApplyRuntime(t)
 	payloadJSON := largeCloseoutApplyPayloadJSON(t)
