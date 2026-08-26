@@ -204,6 +204,26 @@ func TestCognitionCloseoutApplyRecordsCurrentScopeWhenPredecessorRecoveryBlocks(
 	if intentRef == "" {
 		t.Fatalf("data = %#v, want durable replay intent", data)
 	}
+	if err := os.WriteFile(filepath.Join(paths.RuntimeDir, "workbench", "capability-ledger.json"), []byte("{\"rows\":[]}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var replayOut, replayErr bytes.Buffer
+	replayCode := Run([]string{
+		"cognition", "closeout", "replay",
+		"--project-root", project,
+		"--scope-dir", scopeDir,
+		"--format", "json",
+	}, &replayOut, &replayErr, "test")
+	if replayCode != 0 {
+		t.Fatalf("replay code = %d; stderr=%s stdout=%s", replayCode, replayErr.String(), replayOut.String())
+	}
+	replayData := requireObject(t, decodeJSONObject(t, replayOut.Bytes()), "data")
+	if replayData["allowed_close"] != true || replayData["resumed_from_intent"] != true {
+		t.Fatalf("replay data = %#v, want same intent resumed to closeable completion", replayData)
+	}
+	if intents, err := listCloseoutIntents(paths); err != nil || len(intents) != 0 {
+		t.Fatalf("intents = %#v err=%v, want replay queue empty", intents, err)
+	}
 }
 
 func TestCognitionCloseoutApplySerializesConcurrentReadyCloseouts(t *testing.T) {
