@@ -379,6 +379,10 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "write_overlap" in skills["spx-quick"]
     assert "unfinished_quick_untracked" in skills["spx-quick"]
     assert "do not poll" in skills["spx-quick"]
+    assert "same_quick_active_owner" in skills["spx-quick"]
+    assert "--current-work-fence" in skills["spx-quick"]
+    assert "all-or-none" in skills["spx-quick"]
+    assert "workers inherit that quick-level work authority" in skills["spx-quick"]
 
     assert "spx-map-scan" in skills["spx-map-rebuild"]
     assert "spx-map-build" in skills["spx-map-rebuild"]

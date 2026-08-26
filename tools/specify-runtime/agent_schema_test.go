@@ -100,6 +100,23 @@ func TestAPIShowWorkBoardCapabilitiesPublishCoordinationContracts(t *testing.T) 
 	}
 }
 
+func TestAPIShowQuickItemStartPublishesAtomicWorkClaimContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "quick.item-start", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show quick.item-start exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	usage, _ := capability["usage"].(string)
+	contract, _ := capability["input_contract"].(string)
+	if !strings.Contains(usage, "--current-work-id") || !strings.Contains(usage, "--current-work-fence") ||
+		!strings.Contains(contract, "all-or-none") || !strings.Contains(contract, "task_ref") ||
+		!strings.Contains(contract, "before changing the item to in_progress") {
+		t.Fatalf("quick.item-start capability = %#v", capability)
+	}
+}
+
 func TestAPIShowRunPacketCapabilitiesRequireCompiledReceiptDigest(t *testing.T) {
 	for _, capabilityID := range []string{"run.launch", "run.supervise"} {
 		t.Run(capabilityID, func(t *testing.T) {

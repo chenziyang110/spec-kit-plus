@@ -415,6 +415,17 @@ def test_quick_template_uses_event_driven_coordination_preflight() -> None:
     assert "advisory" in content
 
 
+def test_quick_template_enforces_claim_before_item_start() -> None:
+    content = read_command_with_references("quick").lower()
+
+    assert "same_quick_active_owner" in content
+    assert "--current-work-fence" in content
+    assert "all-or-none" in content
+    assert "before changing the q item to `in_progress`" in content
+    assert "complete `write_scope`" in content
+    assert "workers inherit that quick-level work authority" in content
+
+
 def test_quick_coordination_preflight_is_documented_across_operator_surfaces() -> None:
     surfaces = (
         PROJECT_ROOT / "README.md",

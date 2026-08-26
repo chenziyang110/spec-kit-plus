@@ -262,6 +262,77 @@ func TestWorkBoardScopeExpansionIsAtomicAndReportsOwner(t *testing.T) {
 	}
 }
 
+func TestWorkBoardClaimIntentsIsAllOrNothing(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.sqlite"))
+	now := time.Now().UTC()
+	workspace := filepath.Join(t.TempDir(), "workspace")
+
+	_, _, err := store.BeginWork(ctx, BeginWorkParams{
+		WorkID: "work-owner", Summary: "owns shared config", AgentID: "agent-a", AdapterID: "codex",
+		WorkspaceRoot: workspace, BaseCommit: "base", LeaseUntil: now.Add(time.Hour),
+		WriteIntents: []WriteIntentSpec{{
+			Path: "src/shared", Operation: WriteModify, Reason: "shared source", Confidence: IntentConfirmed,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	requester, _, err := store.BeginWork(ctx, BeginWorkParams{
+		WorkID: "work-requester", Summary: "claims one Quick item", AgentID: "agent-b", AdapterID: "codex",
+		WorkspaceRoot: workspace, BaseCommit: "base", LeaseUntil: now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err = store.ClaimWorkIntents(ctx, ClaimWorkIntentsParams{
+		WorkID: requester.WorkID, ExpectedRevision: requester.Revision, Fence: requester.Fence,
+		Specs: []WriteIntentSpec{
+			{Path: "src/free.go", Operation: WriteModify, Reason: "free path", Confidence: IntentConfirmed},
+			{Path: "src/shared/conflict.go", Operation: WriteModify, Reason: "conflicting path", Confidence: IntentConfirmed},
+		},
+	})
+	if !errors.Is(err, ErrWorkIntentConflict) {
+		t.Fatalf("batch scope claim error = %v, want conflict", err)
+	}
+	loaded, intents, loadErr := store.GetWork(ctx, requester.WorkID)
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if loaded.Revision != requester.Revision || len(intents) != 0 {
+		t.Fatalf("failed batch claim partially mutated requester: work %#v intents %#v", loaded, intents)
+	}
+}
+
+func TestWorkBoardClaimIntentsCommitsOneRevisionForWholeBatch(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.sqlite"))
+	now := time.Now().UTC()
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	requester, _, err := store.BeginWork(ctx, BeginWorkParams{
+		WorkID: "work-requester", Summary: "claims one Quick item", AgentID: "agent-b", AdapterID: "codex",
+		WorkspaceRoot: workspace, BaseCommit: "base", LeaseUntil: now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	claimedWork, claimed, err := store.ClaimWorkIntents(ctx, ClaimWorkIntentsParams{
+		WorkID: requester.WorkID, ExpectedRevision: requester.Revision, Fence: requester.Fence,
+		Specs: []WriteIntentSpec{
+			{Path: "src/a.go", Operation: WriteModify, Reason: "Q1", Confidence: IntentConfirmed},
+			{Path: "src/b.go", Operation: WriteModify, Reason: "Q1", Confidence: IntentConfirmed},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimedWork.Revision != requester.Revision+1 || len(claimed) != 2 {
+		t.Fatalf("batch claim = work %#v intents %#v", claimedWork, claimed)
+	}
+}
+
 func TestWorkBoardScopeAddPromotesOwnCandidateAfterConflictCheck(t *testing.T) {
 	ctx := context.Background()
 	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.sqlite"))

@@ -94,6 +94,32 @@ func TestQuickPreflightBlocksOnlyOnConfirmedBoardOverlap(t *testing.T) {
 	}
 }
 
+func TestQuickPreflightBlocksSameQuickOwnerWithoutExactWorkIdentity(t *testing.T) {
+	root := initRunCLIRepository(t)
+	writeQuickCoordinationFixture(t, root, "260825-current", "Current upload work", "executing", []string{"src/shared/upload.go"})
+	beginQuickCoordinationWork(t, root, "work-current-owner", "quick:260825-current", "Live owner of current Quick", "src/shared")
+
+	code, payload := invokeRunCLI(t,
+		"quick", "preflight", "260825-current",
+		"--project-root", root,
+		"--format", "json",
+	)
+	if code != ExitCodeForStatus("blocked") || payload["status"] != "blocked" {
+		t.Fatalf("same-Quick owner preflight = code %d envelope %#v, want blocked", code, payload)
+	}
+	data := requireObject(t, payload, "data")
+	if data["coordination_state"] != "blocked" || data["recommended_action"] != "bind_or_wait_for_current_quick_owner" {
+		t.Fatalf("same-Quick owner decision = %#v", data)
+	}
+	signal := quickCoordinationObjectByField(t, requireObjectSlice(t, data, "signals"), "code", "same_quick_active_owner")
+	if signal["owner_work_id"] != "work-current-owner" || signal["level"] != "block" {
+		t.Fatalf("same-Quick owner signal = %#v", signal)
+	}
+	if data["conflict_count"] != float64(1) {
+		t.Fatalf("same-Quick owner conflicts = %#v", data["conflicts"])
+	}
+}
+
 func TestQuickPreflightDoesNotTreatAnEmptyBoardAsAnEmptyRepository(t *testing.T) {
 	root := initRunCLIRepository(t)
 	writeQuickCoordinationFixture(t, root, "260825-untracked", "Untracked quick", "blocked", nil)

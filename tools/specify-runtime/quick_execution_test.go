@@ -12,7 +12,7 @@ import (
 )
 
 func TestQuickItemStartBlockedByUnmetDepsAndPacketCompile(t *testing.T) {
-	root := t.TempDir()
+	root := initRunCLIRepository(t)
 	workspace := filepath.Join(root, ".planning", "quick", "260805-010-exec")
 	mustMkdirAllScriptDomainTest(t, workspace)
 	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), `---
@@ -70,6 +70,7 @@ project_cognition_refresh:
 	if env.Status != "ok" {
 		t.Fatalf("confirm: %v", env.Blockers)
 	}
+	bindQuickExecutionWork(t, root, "260805-010")
 
 	// Q2 cannot start before Q1 accepted
 	env = runScriptDomainEnvelope(t, runQuick, []string{
@@ -311,8 +312,167 @@ y
 	}
 }
 
+func TestQuickItemStartRequiresBoundWorkIdentityBeforeMutation(t *testing.T) {
+	root, workspace := stageConfirmedQuickExecutionTestWorkspace(t, "260826-requires-work", map[string]any{
+		"source": map[string]any{"kind": "prompt"},
+		"decision": map[string]any{
+			"goal":                "ship Q1",
+			"user_visible_result": "done",
+			"scope":               map[string]any{"include": []any{"a"}, "exclude": []any{"b"}},
+			"items": []any{map[string]any{
+				"id": "Q1", "deliverable": "one", "depends_on": []any{},
+				"acceptance": "ok", "write_scope": []any{"src/a.go"},
+			}},
+			"reconfirmation_trigger": "x",
+		},
+	})
+	t.Setenv("SPECIFY_WORK_ID", "")
+	t.Setenv("SPECIFY_WORK_FENCE", "")
+
+	env := runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "item-start", "260826-requires-work", "--item", "Q1",
+	})
+	if env.Status != "blocked" || !strings.Contains(fmt.Sprint(env.Blockers), "current Work identity") {
+		t.Fatalf("item-start without Work identity = %#v, want hard blocker", env)
+	}
+	doc, err := (quickService{projectRoot: root}).loadConfirmation(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.ToLower(quickStatusMap(doc)["Q1"].Status); got == "in_progress" {
+		t.Fatalf("missing identity mutated Q1 to %q", got)
+	}
+}
+
+func TestQuickItemStartClaimsScopeAndReturnsReceipt(t *testing.T) {
+	root, _ := stageConfirmedQuickExecutionTestWorkspace(t, "260826-claim", map[string]any{
+		"source": map[string]any{"kind": "prompt"},
+		"decision": map[string]any{
+			"goal":                "ship Q1",
+			"user_visible_result": "done",
+			"scope":               map[string]any{"include": []any{"a"}, "exclude": []any{"b"}},
+			"items": []any{map[string]any{
+				"id": "Q1", "deliverable": "one", "depends_on": []any{},
+				"acceptance": "ok", "write_scope": []any{"src/a.go", "src/b.go"},
+			}},
+			"reconfirmation_trigger": "x",
+		},
+	})
+	workID := os.Getenv("SPECIFY_WORK_ID")
+
+	env := runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "item-start", "260826-claim", "--item", "Q1",
+	})
+	if env.Status != "ok" {
+		t.Fatalf("item-start with bound Work identity: %v", env.Blockers)
+	}
+	claim, ok := env.Data["work_claim"].(map[string]any)
+	if !ok || claim["work_id"] != workID || fmt.Sprint(claim["write_scope"]) != "[src/a.go src/b.go]" {
+		t.Fatalf("work claim receipt = %#v", env.Data["work_claim"])
+	}
+
+	code, payload := invokeRunCLI(t, "work", "show", workID, "--project-root", root, "--format", "json")
+	if code != 0 || payload["status"] != "ok" {
+		t.Fatalf("work show = code %d envelope %#v", code, payload)
+	}
+	work := requireObject(t, requireObject(t, payload, "data"), "work")
+	if intents := requireObjectSlice(t, work, "write_intents"); len(intents) != 2 {
+		t.Fatalf("claimed write intents = %#v", intents)
+	}
+}
+
+func TestQuickItemStartClaimsAllScopesOrNoneOnConflict(t *testing.T) {
+	root, workspace := stageConfirmedQuickExecutionTestWorkspace(t, "260826-atomic", map[string]any{
+		"source": map[string]any{"kind": "prompt"},
+		"decision": map[string]any{
+			"goal":                "ship Q1",
+			"user_visible_result": "done",
+			"scope":               map[string]any{"include": []any{"a"}, "exclude": []any{"b"}},
+			"items": []any{map[string]any{
+				"id": "Q1", "deliverable": "one", "depends_on": []any{},
+				"acceptance": "ok", "write_scope": []any{"src/free.go", "src/shared/conflict.go"},
+			}},
+			"reconfirmation_trigger": "x",
+		},
+	})
+	workID := os.Getenv("SPECIFY_WORK_ID")
+	beginQuickCoordinationWork(t, root, "work-conflicting-owner", "quick:260826-other", "Own shared source", "src/shared")
+
+	env := runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "item-start", "260826-atomic", "--item", "Q1",
+	})
+	if env.Status != "blocked" || !strings.Contains(fmt.Sprint(env.Blockers), "write intent conflict") {
+		t.Fatalf("conflicting item-start = %#v, want hard conflict", env)
+	}
+	code, payload := invokeRunCLI(t, "work", "show", workID, "--project-root", root, "--format", "json")
+	if code != 0 || payload["status"] != "ok" {
+		t.Fatalf("work show = code %d envelope %#v", code, payload)
+	}
+	work := requireObject(t, requireObject(t, payload, "data"), "work")
+	if intents := requireObjectSlice(t, work, "write_intents"); len(intents) != 0 {
+		t.Fatalf("failed batch claim partially mutated Work scope: %#v", intents)
+	}
+	doc, err := (quickService{projectRoot: root}).loadConfirmation(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.ToLower(quickStatusMap(doc)["Q1"].Status); got == "in_progress" {
+		t.Fatalf("failed batch claim mutated Q1 to %q", got)
+	}
+}
+
+func TestQuickItemStartRejectsForeignTaskRefAndStaleFence(t *testing.T) {
+	t.Run("foreign task ref", func(t *testing.T) {
+		root, _ := stageConfirmedQuickExecutionTestWorkspace(t, "260826-foreign", quickExecutionSingleItemPayload("src/a.go"))
+		code, payload := invokeRunCLI(t,
+			"work", "begin", "--project-root", root,
+			"--work-id", "work-foreign", "--task-ref", "quick:260826-other",
+			"--summary", "Foreign Quick", "--agent-id", "foreign-agent", "--adapter-id", "codex",
+			"--workspace-root", root, "--lease-seconds", "1800", "--format", "json",
+		)
+		if code != 0 || payload["status"] != "ok" {
+			t.Fatalf("foreign work begin = code %d envelope %#v", code, payload)
+		}
+		t.Setenv("SPECIFY_WORK_ID", "work-foreign")
+		t.Setenv("SPECIFY_WORK_FENCE", "1")
+		env := runScriptDomainEnvelope(t, runQuick, []string{
+			"--project-root", root, "item-start", "260826-foreign", "--item", "Q1",
+		})
+		if env.Status != "blocked" || !strings.Contains(fmt.Sprint(env.Blockers), "task_ref") {
+			t.Fatalf("foreign task-ref start = %#v, want blocker", env)
+		}
+	})
+
+	t.Run("stale fence", func(t *testing.T) {
+		root, _ := stageConfirmedQuickExecutionTestWorkspace(t, "260826-stale", quickExecutionSingleItemPayload("src/a.go"))
+		t.Setenv("SPECIFY_WORK_FENCE", "2")
+		env := runScriptDomainEnvelope(t, runQuick, []string{
+			"--project-root", root, "item-start", "260826-stale", "--item", "Q1",
+		})
+		if env.Status != "blocked" || !strings.Contains(strings.ToLower(fmt.Sprint(env.Blockers)), "fence") {
+			t.Fatalf("stale-fence start = %#v, want blocker", env)
+		}
+	})
+}
+
+func quickExecutionSingleItemPayload(writeScope string) map[string]any {
+	return map[string]any{
+		"source": map[string]any{"kind": "prompt"},
+		"decision": map[string]any{
+			"goal":                "ship Q1",
+			"user_visible_result": "done",
+			"scope":               map[string]any{"include": []any{"a"}, "exclude": []any{"b"}},
+			"items": []any{map[string]any{
+				"id": "Q1", "deliverable": "one", "depends_on": []any{},
+				"acceptance": "ok", "write_scope": []any{writeScope},
+			}},
+			"reconfirmation_trigger": "x",
+		},
+	}
+}
+
 func TestQuickAllowInlineAndRejectDocsOnly(t *testing.T) {
-	root := t.TempDir()
+	root := initRunCLIRepository(t)
 	workspace := filepath.Join(root, ".planning", "quick", "260808-inline")
 	mustMkdirAllScriptDomainTest(t, workspace)
 	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), `---
@@ -354,6 +514,7 @@ y
 	_ = runScriptDomainEnvelope(t, runQuick, []string{
 		"--project-root", root, "checkpoint-confirm", "260808-inline", "--digest", digest,
 	})
+	bindQuickExecutionWork(t, root, "260808-inline")
 	env = runScriptDomainEnvelope(t, runQuick, []string{
 		"--project-root", root, "item-start", "260808-inline", "--item", "Q1",
 	})
@@ -402,7 +563,7 @@ y
 }
 
 func TestQuickItemAcceptRejectsOutOfScopeChangedFiles(t *testing.T) {
-	root := t.TempDir()
+	root := initRunCLIRepository(t)
 	workspace := filepath.Join(root, ".planning", "quick", "260808-scope")
 	mustMkdirAllScriptDomainTest(t, workspace)
 	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), `---
@@ -444,6 +605,7 @@ y
 	_ = runScriptDomainEnvelope(t, runQuick, []string{
 		"--project-root", root, "checkpoint-confirm", "260808-scope", "--digest", digest,
 	})
+	bindQuickExecutionWork(t, root, "260808-scope")
 	_ = runScriptDomainEnvelope(t, runQuick, []string{
 		"--project-root", root, "item-start", "260808-scope", "--item", "Q1",
 	})
@@ -734,7 +896,7 @@ func TestQuickItemAcceptAllowsNoChangedFilesWithoutWriteScope(t *testing.T) {
 
 func stageConfirmedQuickExecutionTestWorkspace(t *testing.T, quickID string, payload map[string]any) (string, string) {
 	t.Helper()
-	root := t.TempDir()
+	root := initRunCLIRepository(t)
 	workspace := filepath.Join(root, ".planning", "quick", quickID)
 	mustMkdirAllScriptDomainTest(t, workspace)
 	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), fmt.Sprintf(`---
@@ -770,7 +932,31 @@ y
 	if env.Status != "ok" {
 		t.Fatalf("confirm: %v", env.Blockers)
 	}
+	bindQuickExecutionWork(t, root, quickID)
 	return root, workspace
+}
+
+func bindQuickExecutionWork(t *testing.T, root, quickID string) string {
+	t.Helper()
+	workID := "work-" + strings.ReplaceAll(quickID, "/", "-")
+	code, payload := invokeRunCLI(t,
+		"work", "begin",
+		"--project-root", root,
+		"--work-id", workID,
+		"--task-ref", "quick:"+quickID,
+		"--summary", "Execute Quick "+quickID,
+		"--agent-id", workID+"-agent",
+		"--adapter-id", "codex",
+		"--workspace-root", root,
+		"--lease-seconds", "1800",
+		"--format", "json",
+	)
+	if code != 0 || payload["status"] != "ok" {
+		t.Fatalf("bind Quick work %s = code %d envelope %#v", quickID, code, payload)
+	}
+	t.Setenv("SPECIFY_WORK_ID", workID)
+	t.Setenv("SPECIFY_WORK_FENCE", "1")
+	return workID
 }
 
 func mustWriteQuickWorkerResult(t *testing.T, workspace, laneID string, payload map[string]any) {
