@@ -21,9 +21,14 @@ specify-runtime quick checkpoint-stage <quick-id> --input-json '<decision+delive
 specify-runtime quick checkpoint-confirm <quick-id> --digest <confirmation_digest> --format json
 specify-runtime quick checkpoint-show <quick-id> --view decision|delivery|pulse --format json
 specify-runtime quick packet-compile <quick-id> --item Qn --format json
-specify-runtime quick item-start <quick-id> --item Qn --format json
+specify-runtime quick item-start <quick-id> --item Qn [--current-work-id <work-id> --current-work-fence <fence>] --format json
 specify-runtime quick item-accept <quick-id> --item Qn --evidence '<acceptance proof>' --format json
 ```
+
+Managed Runs omit the bracketed item-start options because
+`SPECIFY_WORK_ID` and `SPECIFY_WORK_FENCE` are inherited. Unhosted execution
+passes both values from its `work begin` receipt; item-start claims the complete
+Q write scope before dispatch.
 
 `confirmation_digest` hashes decision fields only. Delivery Map, waves,
 batches, subagents, file splits, and test order never enter the digest and never

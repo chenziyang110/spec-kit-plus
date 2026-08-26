@@ -105,6 +105,19 @@ def test_advanced_quick_and_debug_use_the_same_human_confirmation_contract() -> 
         body = _read(f"templates/advanced-skills/{skill}/SKILL.md").lower()
         assert "references/human-confirmation.md" in body
 
+
+def test_quick_confirmation_cards_publish_item_start_work_identity() -> None:
+    contracts = (
+        _read("templates/command-partials/quick/checkpoint-card.md"),
+        _read("templates/advanced-skills/_shared/human-confirmation.md"),
+    )
+
+    for contract in contracts:
+        assert "--current-work-id <work-id>" in contract
+        assert "--current-work-fence <fence>" in contract
+        assert "SPECIFY_WORK_ID" in contract
+        assert "SPECIFY_WORK_FENCE" in contract
+
     surface_map = json.loads(_read("templates/advanced-skills/_shared/surface-map.json"))
     assert "_shared/human-confirmation.md" in surface_map["shared_references"]
 
