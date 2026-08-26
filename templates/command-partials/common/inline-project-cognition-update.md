@@ -98,6 +98,7 @@ Never run `update`, `validate-build`, `complete-refresh`, or `mutation-receipt` 
 
 Dirty fallback command shape: `{{specify-subcmd:specify-runtime cognition mark-dirty --reason "<reason>" --format json}}`.
 Use `{{specify-subcmd:specify-runtime cognition mark-dirty --reason "workflow-closeout-failed" --format json}}` only when no trustworthy mutation intent can be formed: the planner/runtime is unavailable, workflow-owned scope is unknown, or verification/workflow completion is untrustworthy. A persisted replay intent is not a dirty-fallback case.
+Dirty only when inline update cannot complete and no trustworthy mutation intent exists.
 
 Greenfield / empty-graph minimum: when the baseline is `greenfield_empty` or compass returns no adoptable paths, agents must still record a terminal cognition outcome (`no_op` or `mark-dirty` with reason). Skipping because “there is no graph to update” is not compliant.
 
