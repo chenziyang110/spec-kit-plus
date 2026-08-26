@@ -31,6 +31,34 @@ func TestReadStatusReturnsDefaultWhenMissing(t *testing.T) {
 	}
 }
 
+func TestStatusProjectsDirtyDebtsIntoLegacyFields(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = ReadyFreshness
+	status.Readiness = ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.DirtyDebts = []DebtRecord{{ID: "debt-1", Kind: "mark_dirty", Paths: []string{"src/app.go"}, Reason: "deferred"}}
+	if err := WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Dirty || got.Freshness == ReadyFreshness || got.Readiness == ReadyReadiness || len(got.DirtyScopePaths) != 1 || got.DirtyScopePaths[0] != "src/app.go" || len(got.DirtyReasons) != 1 || got.DirtyReasons[0] != "deferred" {
+		t.Fatalf("status = %#v, want debt projected into truthful legacy fields", got)
+	}
+}
+
 func TestReadStatusRejectsLegacyRuntime(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, ".specify", "project-cognition")

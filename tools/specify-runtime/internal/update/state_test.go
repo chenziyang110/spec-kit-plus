@@ -541,6 +541,48 @@ func TestRunUpdateClearsCoveredDirtyDebtDespiteDifferentReason(t *testing.T) {
 	}
 }
 
+func TestRunUpdateClearsMultiPathDirtyDebtAcrossSeparateUpdates(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntimeWithImports(t, paths,
+		[]store.EvidenceImport{
+			{ID: "E-app", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"},
+			{ID: "E-worker", SourceKind: "file", SourcePath: "src/worker.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-worker"},
+		},
+		[]store.NodeImport{
+			{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"}},
+			{ID: "N-worker", Type: "capability", Title: "Worker", Confidence: "verified", EvidenceIDs: []string{"E-worker"}},
+		},
+		[]store.PathIndexImport{
+			{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app"},
+			{ID: "P-worker", Path: "src/worker.go", NodeID: "N-worker", Relation: "owns", Confidence: "verified", EvidenceID: "E-worker"},
+		},
+	)
+	if _, err := MarkDirty(paths, DirtyInput{Reason: "two-path-debt", ScopePaths: []string{"src/app.go", "src/worker.go"}}); err != nil {
+		t.Fatal(err)
+	}
+	first, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/app.go"}, Reason: "workflow-finalize", Workflow: "sp-implement",
+		Verification: []VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	})
+	if err != nil || first.ResultState != ResultPartialRefresh {
+		t.Fatalf("first = %#v err=%v, want scope-ready partial with worker debt remaining", first, err)
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(status.DirtyDebts) != 1 || !reflect.DeepEqual(status.DirtyDebts[0].Paths, []string{"src/worker.go"}) {
+		t.Fatalf("dirty debts after first update = %#v, want only worker path", status.DirtyDebts)
+	}
+	second, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/worker.go"}, Reason: "workflow-finalize", Workflow: "sp-implement",
+		Verification: []VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	})
+	if err != nil || second.ResultState != ResultReady {
+		t.Fatalf("second = %#v err=%v, want final debt cleared", second, err)
+	}
+}
+
 func TestConcurrentRunUpdateHonorsCrossProcessLockAndRecoversSerializedPredecessor(t *testing.T) {
 	paths := testPaths(t)
 	writeUpdateMatchingScanPackage(t, paths)
