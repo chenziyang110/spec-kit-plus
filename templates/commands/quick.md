@@ -37,6 +37,10 @@ resequenced, or scope is safely narrowed. Treat `unfinished_quick_untracked`,
 focus, next action, and planned write scope, then resume/merge/sequence related
 work or record that it is unrelated and proceed. Unrelated unfinished work is
 visible context, not an automatic stop or a reason to ask the user.
+`same_quick_active_owner` is also a hard blocker: a matching `quick:<id>` task
+ref never proves that the owner is this process. Bind the exact current Work
+identity or wait for/recover the recorded owner; never infer self-ownership from
+the Quick id.
 
 Refresh this snapshot at events, not on a timer: at entry or resume, before the
 first `quick item-start`, after each join before selecting the next Q item or
@@ -45,6 +49,22 @@ scope expansion. Do not poll the two stores continuously. Register managed
 Quick work with `--work-task-ref quick:<id>` and unhosted work with `--task-ref
 quick:<id>`; use `quick:<id>#Qn` for separately registered Q workers so the
 preflight can correlate both views.
+
+`quick item-start` is the write boundary, not just a lifecycle marker. It
+requires the exact active Work id and fence (managed Runs receive
+`SPECIFY_WORK_ID` / `SPECIFY_WORK_FENCE`; unhosted callers pass
+`--current-work-id` / `--current-work-fence`). Before changing the Q item to `in_progress`
+or writing its packet, runtime claims the selected item's complete `write_scope`
+as confirmed Work Board intents in one all-or-none transaction.
+Missing identity, a foreign `task_ref`, stale fence, inactive Work, or any scope
+conflict blocks without changing Quick state. The successful response's
+`work_claim` receipt is the dispatch authority.
+
+The default ownership model is one Quick-level Work identity for the active
+batch. Spawned workers inherit that Quick-level Work authority and do not
+register overlapping child scopes. Use `quick:<id>#Qn` only when a host gives
+that Q worker an independent supervised Work identity and the Quick-level owner
+does not already hold the same source paths.
 
 ## Read-Only Test Design Projection Gate
 

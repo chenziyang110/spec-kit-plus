@@ -187,6 +187,13 @@ type AddWorkIntentParams struct {
 	Spec             WriteIntentSpec
 }
 
+type ClaimWorkIntentsParams struct {
+	WorkID           string
+	ExpectedRevision int64
+	Fence            int64
+	Specs            []WriteIntentSpec
+}
+
 type CheckpointWorkParams struct {
 	WorkID           string
 	ExpectedRevision int64
@@ -613,6 +620,137 @@ func (store *Store) AddWorkIntent(ctx context.Context, params AddWorkIntentParam
 		return WorkItem{}, WriteIntent{}, fmt.Errorf("commit work scope expansion: %w", err)
 	}
 	return work, intent, nil
+}
+
+// ClaimWorkIntents adds or promotes one complete scope batch under a single
+// Work revision. Conflicts are checked for the whole batch before any intent
+// is mutated, so callers never retain a partial claim after a rejected batch.
+func (store *Store) ClaimWorkIntents(ctx context.Context, params ClaimWorkIntentsParams) (WorkItem, []WriteIntent, error) {
+	if strings.TrimSpace(params.WorkID) == "" || params.ExpectedRevision < 1 || params.Fence < 1 {
+		return WorkItem{}, nil, fmt.Errorf("%w: work_id, expected_revision, and fence are required", ErrInvalidArgument)
+	}
+	normalized := make([]normalizedWriteIntentSpec, 0, len(params.Specs))
+	seen := make(map[string]struct{}, len(params.Specs))
+	for _, raw := range params.Specs {
+		spec, err := normalizeWriteIntentSpec(raw)
+		if err != nil {
+			return WorkItem{}, nil, err
+		}
+		if _, exists := seen[spec.pathKey]; exists {
+			return WorkItem{}, nil, fmt.Errorf("%w: duplicate write intent path %q", ErrInvalidArgument, spec.Path)
+		}
+		seen[spec.pathKey] = struct{}{}
+		normalized = append(normalized, spec)
+	}
+
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return WorkItem{}, nil, fmt.Errorf("begin work scope claim: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	work, err := readWorkTx(ctx, tx, params.WorkID)
+	if err != nil {
+		return WorkItem{}, nil, err
+	}
+	if err := requireWorkAuthority(work, params.ExpectedRevision, params.Fence, time.Now().UTC().UnixMilli()); err != nil {
+		return WorkItem{}, nil, err
+	}
+	if work.Status != WorkActive && work.Status != WorkBlocked {
+		return WorkItem{}, nil, fmt.Errorf("%w: cannot claim scope for %q work", ErrInvalidTransition, work.Status)
+	}
+	if len(normalized) == 0 {
+		return work, []WriteIntent{}, nil
+	}
+
+	type existingIntent struct {
+		intent WriteIntent
+		exists bool
+	}
+	existing := make([]existingIntent, len(normalized))
+	for index, spec := range normalized {
+		intent, exists, readErr := readWriteIntentByWorkPathTx(ctx, tx, work.WorkID, spec.pathKey)
+		if readErr != nil {
+			return WorkItem{}, nil, readErr
+		}
+		if exists {
+			if intent.Status == WriteIntentReleased {
+				return WorkItem{}, nil, fmt.Errorf("%w: cannot reactivate released write intent %q outside work resume", ErrInvalidTransition, spec.Path)
+			}
+			if intent.Confidence == IntentConfirmed && spec.Confidence == IntentCandidate {
+				return WorkItem{}, nil, fmt.Errorf("%w: cannot downgrade confirmed write intent %q to candidate", ErrInvalidTransition, spec.Path)
+			}
+		}
+		existing[index] = existingIntent{intent: intent, exists: exists}
+	}
+	if conflicts, conflictErr := findWorkIntentConflictsTx(ctx, tx, work.WorkID, normalized); conflictErr != nil {
+		return WorkItem{}, nil, conflictErr
+	} else if len(conflicts) != 0 {
+		return WorkItem{}, nil, &WorkIntentConflictError{Conflicts: conflicts}
+	}
+
+	nowMS := time.Now().UTC().UnixMilli()
+	claimed := make([]WriteIntent, 0, len(normalized))
+	claimedPaths := make([]string, 0, len(normalized))
+	for index, spec := range normalized {
+		intent := existing[index].intent
+		if existing[index].exists {
+			result, updateErr := tx.ExecContext(ctx, `
+				UPDATE write_intents
+				SET path = ?, operation = ?, reason = ?, confidence = ?, status = ?,
+				    revision = revision + 1, updated_at_ms = ?, released_at_ms = 0
+				WHERE intent_id = ? AND revision = ? AND status IN (?, ?)
+			`, spec.Path, spec.Operation, spec.Reason, spec.Confidence, WriteIntentActive,
+				nowMS, intent.IntentID, intent.Revision, WriteIntentActive, WriteIntentRecovery)
+			if updateErr != nil {
+				return WorkItem{}, nil, fmt.Errorf("update claimed write intent %q: %w", spec.Path, updateErr)
+			}
+			if err := requireOneCASRow(result, ErrRevisionConflict, "claim work scope"); err != nil {
+				return WorkItem{}, nil, err
+			}
+			intent.Path = spec.Path
+			intent.Operation = spec.Operation
+			intent.Reason = spec.Reason
+			intent.Confidence = spec.Confidence
+			intent.Status = WriteIntentActive
+			intent.Revision++
+			intent.UpdatedAtMS = nowMS
+			intent.ReleasedAtMS = 0
+		} else {
+			intentID, idErr := newWorkBoardID("intent")
+			if idErr != nil {
+				return WorkItem{}, nil, idErr
+			}
+			intent = WriteIntent{
+				IntentID: intentID, WorkID: work.WorkID, Path: spec.Path, PathKey: spec.pathKey,
+				Operation: spec.Operation, Reason: spec.Reason, Confidence: spec.Confidence,
+				Status: WriteIntentActive, Revision: 1, CreatedAtMS: nowMS, UpdatedAtMS: nowMS,
+			}
+			if err := insertWriteIntentTx(ctx, tx, intent); err != nil {
+				return WorkItem{}, nil, err
+			}
+		}
+		claimed = append(claimed, intent)
+		claimedPaths = append(claimedPaths, spec.Path)
+	}
+	result, err := tx.ExecContext(ctx, `
+		UPDATE work_items SET revision = revision + 1, updated_at_ms = ?
+		WHERE work_id = ? AND revision = ? AND fence = ?
+	`, nowMS, work.WorkID, work.Revision, work.Fence)
+	if err != nil {
+		return WorkItem{}, nil, fmt.Errorf("update work after scope claim: %w", err)
+	}
+	if err := requireOneCASRow(result, ErrRevisionConflict, "claim work scope"); err != nil {
+		return WorkItem{}, nil, err
+	}
+	work.Revision++
+	work.UpdatedAtMS = nowMS
+	if err := appendWorkEventTx(ctx, tx, work, "work.scope_claimed", strings.Join(claimedPaths, ", ")); err != nil {
+		return WorkItem{}, nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return WorkItem{}, nil, fmt.Errorf("commit work scope claim: %w", err)
+	}
+	return work, claimed, nil
 }
 
 func (store *Store) CheckpointWork(ctx context.Context, params CheckpointWorkParams) (WorkItem, error) {

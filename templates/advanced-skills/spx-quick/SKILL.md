@@ -138,6 +138,9 @@ Quick task is in progress. `write_overlap` is a hard blocker; an
 title, current focus, next action, and planned scope, then
 resume/merge/sequence related work or proceed with unrelated work without
 inventing a user gate.
+`same_quick_active_owner` is a hard blocker. A shared `quick:<id>` task ref is
+not proof of process identity; bind the exact live Work identity or wait for or
+recover the recorded owner.
 
 Run the preflight at entry or resume, before the first `quick item-start`, after
 each join before the next Q item or batch, and before `work scope-add`,
@@ -145,6 +148,18 @@ interrupted-work recovery, or material scope expansion. Do not poll between
 events. Use Work Board task refs `quick:<id>` for the Quick and
 `quick:<id>#Qn` for separately registered Q workers (`--work-task-ref` for a
 managed Run, `--task-ref` for unhosted work).
+
+Treat `quick item-start` as claim-before-start. It requires the active Work id
+and fence from `SPECIFY_WORK_ID` / `SPECIFY_WORK_FENCE`, or explicit
+`--current-work-id` / `--current-work-fence` for an unhosted caller. Before
+changing the Q item to `in_progress`, runtime claims its complete normalized
+`write_scope` all-or-none and returns `work_claim`; do not dispatch without that
+receipt. Missing identity, foreign `task_ref`, stale fence, inactive Work, or a
+scope conflict leaves Quick state unchanged. By default the Quick-level Work
+identity owns the active batch. Workers inherit that Quick-level Work authority
+without registering overlapping child scopes. Use `quick:<id>#Qn`
+only for a host-supervised independent Q owner when the Quick-level owner does
+not already hold those paths.
 
 Initialize or preserve the unconfirmed intake state, then stage a
 `quick-confirmation-v1` contract with

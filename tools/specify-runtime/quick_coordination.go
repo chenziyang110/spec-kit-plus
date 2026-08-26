@@ -108,7 +108,12 @@ func (service quickService) runPreflight(quickID string, args []string) (Envelop
 			work:        work,
 			intents:     intents,
 			linkedQuick: linkedQuick,
-			projection:  quickCoordinationWorkProjection(work, intents, linkedQuick, work.WorkID == currentWorkID),
+			projection: quickCoordinationWorkProjection(
+				work,
+				intents,
+				linkedQuick,
+				work.WorkID == currentWorkID && (currentQuickID == "" || linkedQuick == currentQuickID),
+			),
 		})
 	}
 	sort.Slice(boardEntries, func(i, j int) bool { return boardEntries[i].work.WorkID < boardEntries[j].work.WorkID })
@@ -162,6 +167,40 @@ func (service quickService) runPreflight(quickID string, args []string) (Envelop
 	}
 
 	signals := make([]map[string]any, 0)
+	hardIdentityBlock := false
+	sameQuickOwnerBlock := false
+	if currentQuickID != "" && currentWorkID != "" {
+		identityBound := false
+		for _, entry := range boardEntries {
+			if entry.work.WorkID == currentWorkID && entry.linkedQuick == currentQuickID && entry.work.Status == runcontrol.WorkActive {
+				identityBound = true
+				break
+			}
+		}
+		if !identityBound {
+			hardIdentityBlock = true
+			signals = append(signals, quickCoordinationSignal("block", "current_work_identity_invalid", "current Work identity is not an active owner of this Quick", map[string]any{
+				"quick_id": currentQuickID,
+				"work_id":  currentWorkID,
+			}))
+		}
+	}
+	if currentQuickID != "" {
+		for _, entry := range boardEntries {
+			if entry.linkedQuick != currentQuickID || entry.work.WorkID == currentWorkID {
+				continue
+			}
+			hardIdentityBlock = true
+			sameQuickOwnerBlock = true
+			signals = append(signals, quickCoordinationSignal("block", "same_quick_active_owner", "another active Work identity owns the current Quick", map[string]any{
+				"quick_id":       currentQuickID,
+				"owner_work_id":  entry.work.WorkID,
+				"owner_agent_id": entry.work.AgentID,
+				"owner_status":   entry.work.Status,
+				"owner_summary":  entry.work.Summary,
+			}))
+		}
+	}
 	for _, task := range quickProjections {
 		id := stringValue(task["id"])
 		if task["board_tracking"] == "untracked" {
@@ -234,9 +273,6 @@ func (service quickService) runPreflight(quickID string, args []string) (Envelop
 					continue
 				}
 				ownerQuick := quickCoordinationLinkedQuick(owner.Work.TaskRef, quickAliases)
-				if currentWorkID == "" && ownerQuick == currentQuickID {
-					continue
-				}
 				key := strings.Join([]string{requestedPath, owner.Intent.Path, owner.Work.WorkID}, "\x00")
 				if seenConflicts[key] {
 					continue
@@ -263,7 +299,14 @@ func (service quickService) runPreflight(quickID string, args []string) (Envelop
 
 	coordinationState := "clear"
 	recommendedAction := "proceed"
-	if len(conflicts) != 0 {
+	if hardIdentityBlock {
+		coordinationState = "blocked"
+		if sameQuickOwnerBlock {
+			recommendedAction = "bind_or_wait_for_current_quick_owner"
+		} else {
+			recommendedAction = "bind_current_work_identity"
+		}
+	} else if len(conflicts) != 0 {
 		coordinationState = "blocked"
 		recommendedAction = "resolve_write_overlap"
 	} else if currentQuickID != "" && len(linkedWorkByQuick[currentQuickID]) == 0 {
@@ -313,9 +356,9 @@ func (service quickService) runPreflight(quickID string, args []string) (Envelop
 	}
 	envelopeStatus := "ok"
 	envelopeSummary := "Quick coordination preflight loaded"
-	if len(conflicts) != 0 {
+	if hardIdentityBlock || len(conflicts) != 0 {
 		envelopeStatus = "blocked"
-		envelopeSummary = "Quick coordination is blocked by confirmed write overlap"
+		envelopeSummary = "Quick coordination is blocked until Work identity and scope ownership are safe"
 	}
 	env := NewEnvelope(envelopeStatus, envelopeSummary)
 	env.Data = data

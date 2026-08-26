@@ -10,7 +10,7 @@ import (
 )
 
 func TestQuickCloseRequiresCognitionReceiptForSourceScopes(t *testing.T) {
-	root := t.TempDir()
+	root := initRunCLIRepository(t)
 	workspace := filepath.Join(root, ".planning", "quick", "260806-cognition")
 	mustMkdirAllScriptDomainTest(t, workspace)
 	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), `---
@@ -69,6 +69,7 @@ project_cognition_refresh:
 	if env.Status != "ok" {
 		t.Fatalf("confirm failed: %v data=%#v", env.Blockers, env.Data)
 	}
+	bindQuickExecutionWork(t, root, "260806-cognition")
 	env = runScriptDomainEnvelope(t, runQuick, []string{
 		"--project-root", root, "item-start", "260806-cognition", "--item", "Q1",
 	})
@@ -142,7 +143,7 @@ project_cognition_refresh:
 }
 
 func TestQuickCloseSkipsCognitionWhenNoSourceWriteScope(t *testing.T) {
-	root := t.TempDir()
+	root := initRunCLIRepository(t)
 	workspace := filepath.Join(root, ".planning", "quick", "260806-docs")
 	mustMkdirAllScriptDomainTest(t, workspace)
 	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), `---
@@ -190,6 +191,7 @@ y
 	if env.Status != "ok" {
 		t.Fatalf("confirm: %v", env.Blockers)
 	}
+	bindQuickExecutionWork(t, root, "260806-docs")
 	env = runScriptDomainEnvelope(t, runQuick, []string{
 		"--project-root", root, "item-start", "260806-docs", "--item", "Q1",
 	})

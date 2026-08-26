@@ -291,6 +291,15 @@ The following flags are available and composable:
      batch, and before `work scope-add` or a material scope expansion. Resolve
      `write_overlap`; review advisory concurrent/untracked signals and continue
      automatically when the work is unrelated. Do not poll between events.
+   - Every `quick item-start` carries the exact active Work identity. Managed
+     execution uses `SPECIFY_WORK_ID` plus `SPECIFY_WORK_FENCE`; unhosted
+     execution passes `--current-work-id <id> --current-work-fence <fence>`.
+     Runtime verifies `task_ref` is `quick:<id>` or `quick:<id>#Qn`, then claims
+     the Q item's complete normalized `write_scope` all-or-none before changing
+     the Q item to `in_progress`. Do not dispatch without the returned
+     `work_claim` receipt. A Quick-level owner normally claims the active batch;
+     workers inherit that Quick-level Work authority and do not register
+     overlapping child scopes.
    - Execute the current quick-task lane or ready batch through the selected dispatch shape and execution surface.
    - For `one-subagent`, dispatch one subagent once the subagent-readiness bar is satisfied; otherwise finish compiling the missing contract before dispatch. If the contract cannot be made safe, record `subagent-blocked` and stop for escalation or recovery.
    - The first concrete execution action after understanding confirmation should normally be dispatching that subagent batch, not continuing local repository analysis.

@@ -110,6 +110,15 @@ run `specify-runtime quick preflight <quick-id> --format json` before the first
 advisory context and continue when their product intent and planned paths are
 unrelated. Do not poll between these events.
 
+Before `quick item-start`, bind the exact active Work id and fence. Managed
+execution reads `SPECIFY_WORK_ID` / `SPECIFY_WORK_FENCE`; unhosted execution
+passes `--current-work-id` / `--current-work-fence`. Runtime verifies the
+canonical `quick:<id>` or `quick:<id>#Qn` task ref and claims the selected Q
+item's complete normalized `write_scope` all-or-none before changing the Q item
+to `in_progress`. Dispatch only from the returned `work_claim` receipt. The
+default Quick-level owner claims the active batch and workers inherit that
+Quick-level Work authority rather than creating overlapping registrations.
+
 Execute confirmed work items in dependency order through the hard Q loop:
 `quick packet-compile --item Qn` → `quick item-start --item Qn`
 (`requires_worker: true`) → **spawn subagent** (no Leader write_scope Edit/Write

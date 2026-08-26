@@ -189,6 +189,8 @@ func runQuick(args []string, stdout io.Writer) int {
 		}
 		env.Data["close_usage"] = "specify-runtime quick close <id> resolved|blocked"
 		env.Data["preflight_usage"] = "specify-runtime quick preflight [<id>] [--current-work-id <work-id>] --format json"
+		env.Data["item_start_usage"] = "specify-runtime quick item-start <id> --item Qn [--current-work-id <work-id> --current-work-fence <fence>] --format json"
+		env.Data["item_start_requires"] = "active matching Work identity plus an all-or-none confirmed claim over the complete Q write_scope before in_progress"
 		env.Data["cognition_closeout_usage"] = "specify-runtime quick cognition-closeout <id> --result-state ready|no_op|mark-dirty|partial [--reason <text>] [--evidence-json <array>] [--update-id <id>] --format json"
 		env.Data["item_accept_usage"] = "specify-runtime quick item-accept <id> --item Qn --evidence <text> [--allow-inline --reason <spawn_failed:...>] --format json"
 		env.Data["item_accept_requires"] = "matching worker-results/<lane-id>.json from result submit, or prior allow-inline / --allow-inline after spawn/tool failure; docs-only is invalid"
@@ -380,6 +382,7 @@ func scriptOptionTakesValue(name string) bool {
 		"--review-digest",
 		"--expected-state-sha256",
 		"--current-work-id",
+		"--current-work-fence",
 		"--feature-dir",
 		"--surface",
 		"--record-id",

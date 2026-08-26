@@ -222,7 +222,11 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "quick.preflight":
 		capability["side_effect"] = "reconciles-work-board-and-refreshes-derived-quick-index"
 		capability["usage"] = "specify-runtime quick preflight [<quick-id>] [--current-work-id <work-id>] [--project-root <path>] --format json"
-		capability["input_contract"] = "returns one quick-coordination-v1 snapshot joining unfinished STATUS.md tasks to live or recovery-held Work Board items through canonical task_ref quick:<id>[#Qn]; only confirmed Work Board path overlap is a hard blocker, while untracked Quick tasks, board-only work, and unfinished Quick scope overlap are advisory attention signals; current-work-id defaults to SPECIFY_WORK_ID"
+		capability["input_contract"] = "returns one quick-coordination-v1 snapshot joining unfinished STATUS.md tasks to live or recovery-held Work Board items through canonical task_ref quick:<id>[#Qn]; confirmed Work Board path overlap and an unbound same-Quick owner are hard blockers, while untracked Quick tasks, board-only work, and unfinished Quick scope overlap are advisory attention signals; current-work-id defaults to SPECIFY_WORK_ID and self identity is never inferred from task_ref alone"
+	case "quick.item-start":
+		capability["side_effect"] = "claims-work-scope-and-starts-quick-item"
+		capability["usage"] = "specify-runtime quick item-start <quick-id> --item Qn [--current-work-id <work-id>] [--current-work-fence <fence>] [--project-root <path>] --format json"
+		capability["input_contract"] = "requires an active Work identity whose exact task_ref is quick:<id> or quick:<id>#Qn; current-work-id and current-work-fence default to SPECIFY_WORK_ID and SPECIFY_WORK_FENCE; atomically claims the item's complete normalized write_scope all-or-none before changing the item to in_progress or writing its packet, and returns a work_claim receipt; a conflict, missing identity, foreign task_ref, stale fence, or inactive Work blocks without mutating Quick execution state"
 	case "board.show":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime board show [--status active|blocked|interrupted|completed|abandoned] [--project-root <path>] --format json"

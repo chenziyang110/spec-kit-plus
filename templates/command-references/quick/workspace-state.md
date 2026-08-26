@@ -72,6 +72,10 @@ The generated scaffold initializes `understanding_confirmed: false`, `status: ga
 - A `write_overlap` signal is a hard blocker. Untracked or merely concurrent
   Quick tasks are advisory until repository evidence proves a write conflict or
   a shared product outcome that should be resumed, merged, or sequenced.
+- `same_quick_active_owner` is a hard blocker, including when the caller has no
+  current Work id. A matching Quick task ref identifies the task, not the
+  process that owns it; bind the exact live Work identity and fence, wait for
+  the owner, or follow the explicit interrupted-work recovery protocol.
 
 ## Lifecycle Commands
 
