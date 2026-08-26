@@ -96,6 +96,36 @@ func TestActiveIdentitySnapshotAllowsWorkflowEvidenceForExistingPathUpdates(t *t
 	}
 }
 
+func TestActiveIdentitySnapshotRejectsWorkflowEvidenceWithoutBackingUpdate(t *testing.T) {
+	st := openImportTestStore(t)
+	defer st.Close()
+	ctx := context.Background()
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-unbacked-workflow-evidence")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(ctx, `INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) VALUES('E-forged-workflow-update', 'GEN-unbacked-workflow-evidence', 'workflow_update', 'src/forged.go', '', '', 'test', '', '2026-08-26T00:00:00Z', '{"update_id":"upd-missing"}')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(ctx, `INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) VALUES('N-forged-workflow-update', 'GEN-unbacked-workflow-evidence', 'workflow_update', 'Forged', 'partial', '{"update_id":"upd-missing"}', '2026-08-26T00:00:00Z', '2026-08-26T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(ctx, `INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES('P-forged-workflow-update', 'GEN-unbacked-workflow-evidence', 'src/forged.go', 'N-forged-workflow-update', 'provisional_path', 'partial', 'E-forged-workflow-update', '2026-08-26T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot, err := st.ActiveIdentitySnapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := "E-forged-workflow-update|src/forged.go|"
+	if snapshot.WorkflowUpdateEvidence[identity] {
+		t.Fatalf("WorkflowUpdateEvidence = %#v, unbacked workflow evidence must remain an identity mismatch", snapshot.WorkflowUpdateEvidence)
+	}
+	if snapshot.WorkflowUpdateNodes["N-forged-workflow-update"] || snapshot.WorkflowUpdateCoveragePaths["src/forged.go"] {
+		t.Fatalf("workflow update allowlists = nodes:%#v paths:%#v, unbacked rows must remain identity mismatches", snapshot.WorkflowUpdateNodes, snapshot.WorkflowUpdateCoveragePaths)
+	}
+}
+
 func TestAffectedClosureForPathsReturnsRelatedTypedClaims(t *testing.T) {
 	st := openImportTestStore(t)
 	defer st.Close()

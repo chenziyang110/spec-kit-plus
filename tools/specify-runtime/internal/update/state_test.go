@@ -337,6 +337,59 @@ func TestCompleteRefreshRequiresValidationReceiptForLatestReadyUpdate(t *testing
 	}
 }
 
+func TestMarkDirtyRecordsDebtWhenPendingPredecessorValidationBlocks(t *testing.T) {
+	paths := testPaths(t)
+	writeUpdateMatchingScanPackage(t, paths)
+	seedReadyRuntime(t, paths)
+	pending, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/app.go"},
+		Reason:       "previous-workflow-finalize",
+		Workflow:     "sp-fast",
+		Verification: []VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	capabilityLedger := filepath.Join(paths.RuntimeDir, "workbench", "capability-ledger.json")
+	capabilityLedgerBody, err := os.ReadFile(capabilityLedger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(capabilityLedger); err != nil {
+		t.Fatal(err)
+	}
+
+	status, err := MarkDirty(paths, DirtyInput{
+		Reason:        "current-workflow-closeout-deferred",
+		OriginCommand: "sp-implement",
+		ScopePaths:    []string{"src/current.go"},
+	})
+	if err != nil {
+		t.Fatalf("MarkDirty returned error while predecessor validation was blocked: %v", err)
+	}
+	if !status.Dirty || status.LastUpdateID != pending.UpdateID || status.LastFinalizedUpdateID != "" || !containsString(status.DirtyScopePaths, "src/current.go") {
+		t.Fatalf("status = %#v, want current debt recorded without overwriting or finalizing predecessor", status)
+	}
+
+	if err := os.WriteFile(capabilityLedger, capabilityLedgerBody, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gate := validation.ValidateBuild(paths)
+	if gate.Status != "ok" || gate.Readiness != rt.ReadyReadiness {
+		t.Fatalf("ValidateBuild = %#v, want predecessor repairable after restoring validation input", gate)
+	}
+	if err := RecordValidateBuildReceipt(paths, gate.Status, gate.Gate, gate.Readiness); err != nil {
+		t.Fatal(err)
+	}
+	finalized, err := CompleteRefresh(paths, "validated-predecessor-with-deferred-dirty")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if finalized.LastFinalizedUpdateID != pending.UpdateID || !finalized.Dirty || !containsString(finalized.DirtyScopePaths, "src/current.go") || finalized.Readiness == rt.ReadyReadiness {
+		t.Fatalf("finalized = %#v, predecessor finalization must preserve newer dirty debt", finalized)
+	}
+}
+
 func TestCommittedFinalizableUpdateRecoversThroughValidateAndCompleteRefreshAfterStatusLoss(t *testing.T) {
 	paths := testPaths(t)
 	writeUpdateMatchingScanPackage(t, paths)
