@@ -346,7 +346,12 @@ func RepairStatusFromDB(paths rt.Paths) (rt.Status, error) {
 		return rt.Status{}, repairError(CauseRuntimeStateUnreadable, CauseOwnerRuntimeState, err)
 	}
 	defer releaseUpdateLock()
+	return RepairStatusFromDBLocked(paths)
+}
 
+// RepairStatusFromDBLocked repairs only status-owned projection fields while
+// the caller holds the project cognition update lock.
+func RepairStatusFromDBLocked(paths rt.Paths) (rt.Status, error) {
 	st, err := store.OpenExisting(paths)
 	if err != nil {
 		return rt.Status{}, repairError(CauseGraphStoreIncompatible, CauseOwnerGraphStore, fmt.Errorf("open graph store for status repair: %w", err))

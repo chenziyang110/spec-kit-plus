@@ -1,0 +1,137 @@
+package main
+
+import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
+)
+
+const closeoutIntentVersion = 1
+
+type closeoutIntent struct {
+	Version            int      `json:"version"`
+	ID                 string   `json:"id"`
+	State              string   `json:"state"`
+	Workflow           string   `json:"workflow"`
+	Scope              string   `json:"scope"`
+	Reason             string   `json:"reason"`
+	PayloadJSON        string   `json:"payload_json,omitempty"`
+	DeltaSessionID     string   `json:"delta_session_id,omitempty"`
+	CommitRange        string   `json:"commit_range,omitempty"`
+	InputDigest        string   `json:"input_digest"`
+	ChangedPaths       []string `json:"changed_paths"`
+	UpdateID           string   `json:"update_id,omitempty"`
+	UpdateOutcome      string   `json:"update_outcome,omitempty"`
+	ActiveGenerationID string   `json:"active_generation_id,omitempty"`
+	ChangedBasis       []string `json:"changed_basis,omitempty"`
+	RecordedAt         string   `json:"recorded_at"`
+}
+
+func ensureCloseoutIntent(paths rt.Paths, workflow string, scope string, reason string, payloadJSON string, deltaSession string, commitRange string, changedPaths []string) (closeoutIntent, string, bool, error) {
+	digest := closeoutIntentDigest(workflow, scope, reason, payloadJSON, deltaSession, commitRange)
+	intent := closeoutIntent{
+		Version:        closeoutIntentVersion,
+		ID:             "intent-" + digest[:24],
+		State:          "pending_update",
+		Workflow:       workflow,
+		Scope:          scope,
+		Reason:         reason,
+		PayloadJSON:    payloadJSON,
+		DeltaSessionID: deltaSession,
+		CommitRange:    commitRange,
+		InputDigest:    digest,
+		ChangedPaths:   normalizedCloseoutPaths(changedPaths),
+		RecordedAt:     time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	path := closeoutIntentPath(paths, intent.ID)
+	if raw, err := os.ReadFile(path); err == nil {
+		var existing closeoutIntent
+		if err := json.Unmarshal(raw, &existing); err != nil {
+			return closeoutIntent{}, "", false, fmt.Errorf("parse closeout intent %s: %w", filepath.ToSlash(path), err)
+		}
+		if existing.Version != closeoutIntentVersion || existing.InputDigest != digest || existing.Workflow != workflow || existing.Scope != scope {
+			return closeoutIntent{}, "", false, fmt.Errorf("closeout intent identity mismatch for %s", filepath.ToSlash(path))
+		}
+		return existing, closeoutIntentRef(paths, path), true, nil
+	} else if !os.IsNotExist(err) {
+		return closeoutIntent{}, "", false, fmt.Errorf("read closeout intent %s: %w", filepath.ToSlash(path), err)
+	}
+	if err := writeCloseoutIntent(path, intent); err != nil {
+		return closeoutIntent{}, "", false, err
+	}
+	return intent, closeoutIntentRef(paths, path), false, nil
+}
+
+func updateCloseoutIntent(paths rt.Paths, intent closeoutIntent) error {
+	return writeCloseoutIntent(closeoutIntentPath(paths, intent.ID), intent)
+}
+
+func removeCloseoutIntent(paths rt.Paths, intent closeoutIntent) error {
+	err := os.Remove(closeoutIntentPath(paths, intent.ID))
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove closeout intent %s: %w", intent.ID, err)
+	}
+	return nil
+}
+
+func closeoutIntentPath(paths rt.Paths, intentID string) string {
+	return filepath.Join(paths.RuntimeDir, "closeout-intents", intentID+".json")
+}
+
+func closeoutIntentRef(paths rt.Paths, path string) string {
+	if rel, err := filepath.Rel(paths.Root, path); err == nil {
+		return filepath.ToSlash(rel)
+	}
+	return filepath.ToSlash(path)
+}
+
+func closeoutIntentDigest(values ...string) string {
+	digest := sha256.Sum256([]byte(strings.Join(values, "\x00")))
+	return fmt.Sprintf("%x", digest[:])
+}
+
+func writeCloseoutIntent(path string, intent closeoutIntent) error {
+	intent.ChangedPaths = normalizedCloseoutPaths(intent.ChangedPaths)
+	intent.ChangedBasis = normalizedCloseoutPaths(intent.ChangedBasis)
+	return writeScriptJSONFile(path, intent)
+}
+
+func listCloseoutIntents(paths rt.Paths) ([]closeoutIntent, error) {
+	dir := filepath.Join(paths.RuntimeDir, "closeout-intents")
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return []closeoutIntent{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	intents := []closeoutIntent{}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		var intent closeoutIntent
+		if err := json.Unmarshal(raw, &intent); err != nil {
+			return nil, err
+		}
+		intents = append(intents, intent)
+	}
+	sort.Slice(intents, func(i, j int) bool {
+		if intents[i].RecordedAt == intents[j].RecordedAt {
+			return intents[i].ID < intents[j].ID
+		}
+		return intents[i].RecordedAt < intents[j].RecordedAt
+	})
+	return intents, nil
+}

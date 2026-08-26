@@ -2,6 +2,7 @@ package update
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -102,6 +103,7 @@ type UpdateInput struct {
 	ConfidenceNotes   []string
 	UserDecisions     []string
 	Boundary          UpdateBoundaryInput
+	CloseoutIntentID  string
 }
 
 type StatusUpdate struct {
@@ -186,6 +188,32 @@ type UpdatePayload struct {
 	LastRefreshChangedBasis []string                 `json:"last_refresh_changed_files_basis"`
 	Boundary                *boundary.Result         `json:"boundary,omitempty"`
 	PredecessorRecovery     *PredecessorRecovery     `json:"predecessor_recovery,omitempty"`
+	StatusRecovery          *StatusRecovery          `json:"status_recovery,omitempty"`
+	ResumedFromIntent       bool                     `json:"resumed_from_intent,omitempty"`
+}
+
+type StatusRecovery struct {
+	Attempted             bool   `json:"attempted"`
+	Outcome               string `json:"outcome"`
+	CauseCode             string `json:"cause_code"`
+	LatestUpdateID        string `json:"latest_update_id"`
+	LatestUpdateOutcome   string `json:"latest_update_outcome"`
+	RecommendedNextAction string `json:"recommended_next_action"`
+}
+
+// LockedRuntime exposes update operations only while WithLockedRuntime owns
+// the cross-process project cognition update lock.
+type LockedRuntime struct {
+	paths rt.Paths
+}
+
+func WithLockedRuntime(paths rt.Paths, operation func(*LockedRuntime) error) error {
+	releaseUpdateLock, err := rt.AcquireUpdateLock(paths)
+	if err != nil {
+		return err
+	}
+	defer releaseUpdateLock()
+	return operation(&LockedRuntime{paths: paths})
 }
 
 type PredecessorRecovery struct {
@@ -261,6 +289,15 @@ func MarkDirty(paths rt.Paths, input DirtyInput) (rt.Status, error) {
 		}
 		scope = append(scope, derived...)
 	}
+	normalizedScope := normalizePaths(scope)
+	status.DirtyDebts = appendDirtyDebt(status.DirtyDebts, rt.DebtRecord{
+		Kind:             "mark_dirty",
+		Paths:            normalizedScope,
+		Reason:           input.Reason,
+		OriginCommand:    input.OriginCommand,
+		OriginFeatureDir: input.OriginFeatureDir,
+		OriginLaneID:     input.OriginLaneID,
+	})
 	status.Dirty = true
 	status.Status = "stale"
 	status.Freshness = rt.StaleFreshness
@@ -270,7 +307,7 @@ func MarkDirty(paths rt.Paths, input DirtyInput) (rt.Status, error) {
 	status.DirtyOriginCommand = input.OriginCommand
 	status.DirtyOriginFeatureDir = input.OriginFeatureDir
 	status.DirtyOriginLaneID = input.OriginLaneID
-	status.DirtyScopePaths = appendUnique(status.DirtyScopePaths, normalizePaths(scope)...)
+	status.DirtyScopePaths = appendUnique(status.DirtyScopePaths, normalizedScope...)
 	status.StalePaths = appendUnique(status.StalePaths, status.DirtyScopePaths...)
 	status.StaleReasons = appendUnique(status.StaleReasons, input.Reason)
 	if status.BaselineKind == rt.BaselineKindGreenfieldEmpty && len(status.StalePaths) > 0 {
@@ -329,12 +366,17 @@ func recordGitRefreshBaseline(paths rt.Paths, status *rt.Status) {
 }
 
 func CompleteRefresh(paths rt.Paths, basis string) (rt.Status, error) {
-	releaseUpdateLock, err := rt.AcquireUpdateLock(paths)
-	if err != nil {
-		return rt.Status{}, err
-	}
-	defer releaseUpdateLock()
-	return completeRefreshLocked(paths, basis)
+	var status rt.Status
+	err := WithLockedRuntime(paths, func(runtime *LockedRuntime) error {
+		var err error
+		status, err = runtime.CompleteRefresh(basis)
+		return err
+	})
+	return status, err
+}
+
+func (runtime *LockedRuntime) CompleteRefresh(basis string) (rt.Status, error) {
+	return completeRefreshLocked(runtime.paths, basis)
 }
 
 func completeRefreshLocked(paths rt.Paths, basis string) (rt.Status, error) {
@@ -405,12 +447,13 @@ func completeRefreshLocked(paths rt.Paths, basis string) (rt.Status, error) {
 }
 
 func RecordValidateBuildReceipt(paths rt.Paths, gateStatus string, gate string, readiness string) error {
-	releaseUpdateLock, err := rt.AcquireUpdateLock(paths)
-	if err != nil {
-		return err
-	}
-	defer releaseUpdateLock()
-	return recordValidateBuildReceiptLocked(paths, gateStatus, gate, readiness)
+	return WithLockedRuntime(paths, func(runtime *LockedRuntime) error {
+		return runtime.RecordValidateBuildReceipt(gateStatus, gate, readiness)
+	})
+}
+
+func (runtime *LockedRuntime) RecordValidateBuildReceipt(gateStatus string, gate string, readiness string) error {
+	return recordValidateBuildReceiptLocked(runtime.paths, gateStatus, gate, readiness)
 }
 
 func recordValidateBuildReceiptLocked(paths rt.Paths, gateStatus string, gate string, readiness string) error {
@@ -591,12 +634,17 @@ func RefreshTopics(paths rt.Paths, topics []string, reason string) (rt.Status, e
 }
 
 func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
-	releaseUpdateLock, err := rt.AcquireUpdateLock(paths)
-	if err != nil {
-		return UpdatePayload{}, err
-	}
-	defer releaseUpdateLock()
+	var payload UpdatePayload
+	err := WithLockedRuntime(paths, func(runtime *LockedRuntime) error {
+		var err error
+		payload, err = runtime.RunUpdate(input)
+		return err
+	})
+	return payload, err
+}
 
+func (runtime *LockedRuntime) RunUpdate(input UpdateInput) (UpdatePayload, error) {
+	paths := runtime.paths
 	if input.PayloadFile != "" && input.PayloadJSON != "" {
 		return UpdatePayload{}, fmt.Errorf("provide at most one of payload file or inline payload JSON")
 	}
@@ -698,6 +746,27 @@ func recoverPendingPredecessorLocked(paths rt.Paths) (*PredecessorRecovery, erro
 	return recovery, nil
 }
 
+func recoverStatusMismatchLocked(paths rt.Paths) (*StatusRecovery, error) {
+	agreement, ok := runtimegate.CheckExisting(paths)
+	if !ok || agreement.CauseCode != runtimegate.CauseStatusLatestUpdateMismatch {
+		return nil, nil
+	}
+	recovery := &StatusRecovery{
+		Attempted:             true,
+		Outcome:               "blocked",
+		CauseCode:             string(agreement.CauseCode),
+		LatestUpdateID:        agreement.DBLatestUpdateID,
+		LatestUpdateOutcome:   agreement.DBLatestUpdateOutcome,
+		RecommendedNextAction: runtimegate.RepairStatusAction,
+	}
+	if _, err := runtimegate.RepairStatusFromDBLocked(paths); err != nil {
+		return nil, err
+	}
+	recovery.Outcome = "repaired"
+	recovery.RecommendedNextAction = runtimegate.FinalizeUpdateAction
+	return recovery, nil
+}
+
 func compactPredecessorRecoveryValidation(gate validation.GatePayload) *PredecessorRecoveryValidation {
 	return &PredecessorRecoveryValidation{
 		Status:                     gate.Status,
@@ -785,6 +854,10 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 	if err := validateVerificationEvidence(input.Verification); err != nil {
 		return UpdatePayload{}, err
 	}
+	statusRecovery, err := recoverStatusMismatchLocked(paths)
+	if err != nil {
+		return UpdatePayload{}, err
+	}
 	recovery, err := recoverPendingPredecessorLocked(paths)
 	if err != nil {
 		return UpdatePayload{}, err
@@ -842,6 +915,9 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		"boundary":           boundaryResult,
 		"closure_truncated":  closure.Truncated,
 		"scope_result_state": scopeResultState,
+	}
+	if strings.TrimSpace(input.CloseoutIntentID) != "" {
+		updateAttrs["closeout_intent_id"] = strings.TrimSpace(input.CloseoutIntentID)
 	}
 	if greenfieldRebuildRequired {
 		storePathChanges = nil
@@ -971,6 +1047,7 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		LastRefreshChangedBasis: append([]string{}, refreshScopePaths...),
 		Boundary:                boundaryResult,
 		PredecessorRecovery:     recovery,
+		StatusRecovery:          statusRecovery,
 	}, nil
 }
 
@@ -1261,6 +1338,9 @@ func constrainResultStateByBaseline(resultState string, status rt.Status, change
 }
 
 func baselineHasUnresolvedState(status rt.Status, changedPaths []string, reason string) bool {
+	if len(status.DirtyDebts) > 0 {
+		return len(clearCoveredDirtyDebts(status.DirtyDebts, changedPaths)) > 0
+	}
 	remainingStalePaths := subtractStrings(status.StalePaths, changedPaths)
 	remainingDirtyScope := subtractStrings(status.DirtyScopePaths, changedPaths)
 	remainingStaleReasons := subtractStrings(status.StaleReasons, []string{reason})
@@ -1351,6 +1431,7 @@ func applyResultState(status rt.Status, scopeResultState string, resultState str
 		status.DirtyOriginFeatureDir = ""
 		status.DirtyOriginLaneID = ""
 		status.DirtyScopePaths = []string{}
+		status.DirtyDebts = []rt.DebtRecord{}
 		status.StalePaths = subtractStrings(status.StalePaths, changedPaths)
 		status.StaleReasons = subtractStrings(status.StaleReasons, []string{reason})
 	case ResultNoOp:
@@ -1365,15 +1446,28 @@ func applyResultState(status rt.Status, scopeResultState string, resultState str
 		status.RecommendedNextAction = "review_project_cognition_update"
 		status.Dirty = true
 		if scopeResultState == ResultReady || scopeResultState == ResultNoOp {
+			status.DirtyDebts = clearCoveredDirtyDebts(status.DirtyDebts, changedPaths)
 			status.StalePaths = subtractStrings(status.StalePaths, changedPaths)
 			status.StaleReasons = subtractStrings(status.StaleReasons, []string{reason})
 			status.DirtyScopePaths = subtractStrings(status.DirtyScopePaths, changedPaths)
 			status.DirtyReasons = subtractStrings(status.DirtyReasons, []string{reason})
 		} else {
+			status.DirtyDebts = appendDirtyDebt(status.DirtyDebts, rt.DebtRecord{
+				Kind:     "partial_refresh",
+				Paths:    changedPaths,
+				Reason:   reason,
+				UpdateID: updateID,
+			})
 			status.StalePaths = appendUnique(status.StalePaths, changedPaths...)
 			status.StaleReasons = appendUnique(status.StaleReasons, reason)
 		}
 	case ResultNeedsRebuild:
+		status.DirtyDebts = appendDirtyDebt(status.DirtyDebts, rt.DebtRecord{
+			Kind:     "needs_rebuild",
+			Paths:    changedPaths,
+			Reason:   strings.Join(partialReasons, "; "),
+			UpdateID: updateID,
+		})
 		status.Status = "stale"
 		status.Freshness = rt.StaleFreshness
 		status.Readiness = rt.NeedsRebuildReadiness
@@ -1393,6 +1487,53 @@ func applyResultState(status rt.Status, scopeResultState string, resultState str
 		status.StaleReasons = appendUnique(status.StaleReasons, reason)
 	}
 	return status
+}
+
+func appendDirtyDebt(values []rt.DebtRecord, debt rt.DebtRecord) []rt.DebtRecord {
+	debt.Paths = normalizePaths(debt.Paths)
+	debt.Reason = strings.TrimSpace(debt.Reason)
+	if strings.TrimSpace(debt.ID) == "" {
+		digest := sha256.Sum256([]byte(strings.Join([]string{
+			debt.Kind,
+			debt.UpdateID,
+			debt.OriginCommand,
+			debt.OriginFeatureDir,
+			debt.OriginLaneID,
+			debt.Reason,
+			strings.Join(debt.Paths, "\x00"),
+		}, "\x01")))
+		debt.ID = fmt.Sprintf("debt-%x", digest[:10])
+	}
+	for index, existing := range values {
+		if existing.ID == debt.ID {
+			values[index] = debt
+			return values
+		}
+	}
+	return append(values, debt)
+}
+
+func clearCoveredDirtyDebts(values []rt.DebtRecord, changedPaths []string) []rt.DebtRecord {
+	covered := stringSet(normalizePaths(changedPaths))
+	out := make([]rt.DebtRecord, 0, len(values))
+	for _, debt := range values {
+		paths := normalizePaths(debt.Paths)
+		if len(paths) == 0 {
+			out = append(out, debt)
+			continue
+		}
+		allCovered := true
+		for _, path := range paths {
+			if !covered[path] {
+				allCovered = false
+				break
+			}
+		}
+		if !allCovered {
+			out = append(out, debt)
+		}
+	}
+	return out
 }
 
 func boundaryOutcome(result *boundary.Result) string {

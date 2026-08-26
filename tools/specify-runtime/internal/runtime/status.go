@@ -1,11 +1,14 @@
 package runtime
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -31,40 +34,52 @@ const (
 var ErrUnsupportedLegacy = errors.New("unsupported legacy project cognition runtime")
 
 type Status struct {
-	RuntimeFormat                string   `json:"runtime_format"`
-	RuntimeSchema                int      `json:"runtime_schema"`
-	Status                       string   `json:"status"`
-	Freshness                    string   `json:"freshness"`
-	Readiness                    string   `json:"readiness"`
-	RecommendedNextAction        string   `json:"recommended_next_action"`
-	StatusPath                   string   `json:"status_path"`
-	GraphStorePath               string   `json:"graph_store_path"`
-	GraphReady                   bool     `json:"graph_ready"`
-	ActiveGenerationID           string   `json:"active_generation_id,omitempty"`
-	BaselineKind                 string   `json:"baseline_kind,omitempty"`
-	QueryContractVersion         int      `json:"query_contract_version,omitempty"`
-	UpdateContractVersion        int      `json:"update_contract_version,omitempty"`
-	Dirty                        bool     `json:"dirty"`
-	DirtyReasons                 []string `json:"dirty_reasons"`
-	DirtyOriginCommand           string   `json:"dirty_origin_command"`
-	DirtyOriginFeatureDir        string   `json:"dirty_origin_feature_dir"`
-	DirtyOriginLaneID            string   `json:"dirty_origin_lane_id"`
-	DirtyScopePaths              []string `json:"dirty_scope_paths"`
-	StalePaths                   []string `json:"stale_paths"`
-	StaleReasons                 []string `json:"stale_reasons"`
-	LastRefreshReason            string   `json:"last_refresh_reason"`
-	LastRefreshBasis             string   `json:"last_refresh_basis"`
-	LastRefreshGitCommit         string   `json:"last_refresh_git_commit,omitempty"`
-	LastRefreshGitBranch         string   `json:"last_refresh_git_branch,omitempty"`
-	LastRefreshChangedFilesBasis []string `json:"last_refresh_changed_files_basis"`
-	LastUpdateID                 string   `json:"last_update_id"`
-	LastFinalizedUpdateID        string   `json:"last_finalized_update_id,omitempty"`
-	LastDeltaSessionID           string   `json:"last_delta_session_id"`
-	LastUpdateOutcome            string   `json:"last_update_outcome"`
-	LastUpdateScopeOutcome       string   `json:"last_update_scope_outcome,omitempty"`
-	LastUpdatePartialReasons     []string `json:"last_update_partial_reasons,omitempty"`
-	LastUpdateBoundary           string   `json:"last_update_boundary"`
-	UpdatedAt                    string   `json:"updated_at"`
+	RuntimeFormat                string       `json:"runtime_format"`
+	RuntimeSchema                int          `json:"runtime_schema"`
+	Status                       string       `json:"status"`
+	Freshness                    string       `json:"freshness"`
+	Readiness                    string       `json:"readiness"`
+	RecommendedNextAction        string       `json:"recommended_next_action"`
+	StatusPath                   string       `json:"status_path"`
+	GraphStorePath               string       `json:"graph_store_path"`
+	GraphReady                   bool         `json:"graph_ready"`
+	ActiveGenerationID           string       `json:"active_generation_id,omitempty"`
+	BaselineKind                 string       `json:"baseline_kind,omitempty"`
+	QueryContractVersion         int          `json:"query_contract_version,omitempty"`
+	UpdateContractVersion        int          `json:"update_contract_version,omitempty"`
+	Dirty                        bool         `json:"dirty"`
+	DirtyReasons                 []string     `json:"dirty_reasons"`
+	DirtyOriginCommand           string       `json:"dirty_origin_command"`
+	DirtyOriginFeatureDir        string       `json:"dirty_origin_feature_dir"`
+	DirtyOriginLaneID            string       `json:"dirty_origin_lane_id"`
+	DirtyScopePaths              []string     `json:"dirty_scope_paths"`
+	DirtyDebts                   []DebtRecord `json:"dirty_debts,omitempty"`
+	StalePaths                   []string     `json:"stale_paths"`
+	StaleReasons                 []string     `json:"stale_reasons"`
+	LastRefreshReason            string       `json:"last_refresh_reason"`
+	LastRefreshBasis             string       `json:"last_refresh_basis"`
+	LastRefreshGitCommit         string       `json:"last_refresh_git_commit,omitempty"`
+	LastRefreshGitBranch         string       `json:"last_refresh_git_branch,omitempty"`
+	LastRefreshChangedFilesBasis []string     `json:"last_refresh_changed_files_basis"`
+	LastUpdateID                 string       `json:"last_update_id"`
+	LastFinalizedUpdateID        string       `json:"last_finalized_update_id,omitempty"`
+	LastDeltaSessionID           string       `json:"last_delta_session_id"`
+	LastUpdateOutcome            string       `json:"last_update_outcome"`
+	LastUpdateScopeOutcome       string       `json:"last_update_scope_outcome,omitempty"`
+	LastUpdatePartialReasons     []string     `json:"last_update_partial_reasons,omitempty"`
+	LastUpdateBoundary           string       `json:"last_update_boundary"`
+	UpdatedAt                    string       `json:"updated_at"`
+}
+
+type DebtRecord struct {
+	ID               string   `json:"id"`
+	Kind             string   `json:"kind"`
+	Paths            []string `json:"paths,omitempty"`
+	Reason           string   `json:"reason,omitempty"`
+	UpdateID         string   `json:"update_id,omitempty"`
+	OriginCommand    string   `json:"origin_command,omitempty"`
+	OriginFeatureDir string   `json:"origin_feature_dir,omitempty"`
+	OriginLaneID     string   `json:"origin_lane_id,omitempty"`
 }
 
 type ErrorPayload struct {
@@ -88,6 +103,7 @@ func DefaultStatus(paths Paths) Status {
 		GraphStorePath:               ".specify/project-cognition/project-cognition.db",
 		DirtyReasons:                 []string{},
 		DirtyScopePaths:              []string{},
+		DirtyDebts:                   []DebtRecord{},
 		StalePaths:                   []string{},
 		StaleReasons:                 []string{},
 		LastRefreshChangedFilesBasis: []string{},
@@ -191,6 +207,20 @@ func normalizeStatusSlices(status *Status) {
 	if status.DirtyScopePaths == nil {
 		status.DirtyScopePaths = []string{}
 	}
+	if status.DirtyDebts == nil {
+		status.DirtyDebts = []DebtRecord{}
+		if status.Dirty && (len(status.DirtyScopePaths) > 0 || len(status.DirtyReasons) > 0) {
+			status.DirtyDebts = []DebtRecord{{
+				ID:               legacyDebtID(status.DirtyScopePaths, status.DirtyReasons),
+				Kind:             "legacy_dirty",
+				Paths:            append([]string{}, status.DirtyScopePaths...),
+				Reason:           strings.Join(status.DirtyReasons, "; "),
+				OriginCommand:    status.DirtyOriginCommand,
+				OriginFeatureDir: status.DirtyOriginFeatureDir,
+				OriginLaneID:     status.DirtyOriginLaneID,
+			}}
+		}
+	}
 	if status.StalePaths == nil {
 		status.StalePaths = []string{}
 	}
@@ -203,6 +233,14 @@ func normalizeStatusSlices(status *Status) {
 	if status.LastUpdatePartialReasons == nil {
 		status.LastUpdatePartialReasons = []string{}
 	}
+}
+
+func legacyDebtID(paths []string, reasons []string) string {
+	values := append([]string{}, paths...)
+	values = append(values, reasons...)
+	sort.Strings(values)
+	digest := sha256.Sum256([]byte(strings.Join(values, "\x00")))
+	return fmt.Sprintf("debt-legacy-%x", digest[:8])
 }
 
 func normalizeDerivedStatus(status *Status) {

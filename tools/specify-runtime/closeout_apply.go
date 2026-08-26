@@ -18,6 +18,30 @@ import (
 
 const closeoutStateScopeReady = "scope_ready"
 
+var (
+	closeoutApplyAfterIntentPersistHook func(string) error
+	closeoutApplyAfterUpdateHook        func(string) error
+)
+
+type closeoutIntentPendingError struct {
+	intent    closeoutIntent
+	intentRef string
+	err       error
+}
+
+func (err *closeoutIntentPendingError) Error() string {
+	return err.err.Error()
+}
+
+type closeoutStageError struct {
+	category string
+	detail   string
+}
+
+func (err *closeoutStageError) Error() string {
+	return err.category + ": " + err.detail
+}
+
 func runCognitionCloseoutApplyCLI(args []string, stdout io.Writer) int {
 	return runCognitionCloseoutApplyCLIWithInput(args, os.Stdin, stdout)
 }
@@ -99,94 +123,177 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		input.DeltaSessionID = strings.TrimSpace(deltaSession)
 		input.CommitRange = strings.TrimSpace(optionValue(args, "--commit-range", ""))
 	}
-	updatePayload, err := update.RunUpdate(paths, input)
-	if err != nil {
+	changedPaths, pathErr := closeoutApplyInputPaths(paths, payloadJSON, deltaSession)
+	if pathErr != nil {
+		return closeoutApplyInputRejected(stdout, workflow, relScope, pathErr)
+	}
+	var (
+		updatePayload update.UpdatePayload
+		gate          validation.GatePayload
+		finalized     rt.Status
+		receipt       map[string]any
+		closeoutState string
+		intent        closeoutIntent
+		intentRef     string
+		resumed       bool
+	)
+	lockedErr := update.WithLockedRuntime(paths, func(runtime *update.LockedRuntime) error {
+		var err error
+		intent, intentRef, resumed, err = ensureCloseoutIntent(paths, workflow, relScope, reason, payloadJSON, deltaSession, input.CommitRange, changedPaths)
+		if err != nil {
+			return err
+		}
+		if closeoutApplyAfterIntentPersistHook != nil {
+			if err := closeoutApplyAfterIntentPersistHook(intent.ID); err != nil {
+				return &closeoutIntentPendingError{intent: intent, intentRef: intentRef, err: err}
+			}
+		}
+		input.CloseoutIntentID = intent.ID
+		updatePayload, err = runtime.RunUpdate(input)
+		if err != nil {
+			return err
+		}
+		updatePayload.ResumedFromIntent = resumed
+		intent.State = "pending_validation"
+		intent.UpdateID = updatePayload.UpdateID
+		intent.UpdateOutcome = updatePayload.ResultState
+		intent.ChangedBasis = append([]string{}, updatePayload.LastRefreshChangedBasis...)
+		if status, statusErr := rt.ReadStatus(paths); statusErr == nil {
+			intent.ActiveGenerationID = status.ActiveGenerationID
+		}
+		if err := updateCloseoutIntent(paths, intent); err != nil {
+			return err
+		}
+		if closeoutApplyAfterUpdateHook != nil {
+			if err := closeoutApplyAfterUpdateHook(updatePayload.UpdateID); err != nil {
+				return err
+			}
+		}
+
+		switch updatePayload.ResultState {
+		case update.ResultReady, update.ResultNoOp:
+			gate = validation.ValidateBuild(paths)
+			if err := runtime.RecordValidateBuildReceipt(gate.Status, gate.Gate, gate.Readiness); err != nil {
+				return &closeoutStageError{category: "validate_build_receipt_failed", detail: err.Error()}
+			}
+			if gate.Status != "ok" || gate.Readiness != rt.ReadyReadiness || !gate.CompletionAllowed {
+				return &closeoutStageError{category: "validate_build_blocked", detail: strings.Join(gate.Errors, "; ")}
+			}
+			intent.State = "receipt_recorded"
+			if err := updateCloseoutIntent(paths, intent); err != nil {
+				return err
+			}
+			finalized, err = runtime.CompleteRefresh("workflow-closeout")
+			if err != nil {
+				return &closeoutStageError{category: "complete_refresh_failed", detail: err.Error()}
+			}
+			closeoutState = normalizeMutationCognitionState(updatePayload.ResultState)
+			receipt, err = recordMutationCognitionReceipt(absScope, workflow, relScope, closeoutState, closeoutApplyReceiptReason(closeoutState, updatePayload), updatePayload.UpdateID, closeoutApplyEvidence(updatePayload))
+			if err != nil {
+				return err
+			}
+			if receipt["allowed_close"] != true {
+				return &closeoutStageError{category: "mutation_receipt_not_closeable", detail: fmt.Sprint(receipt["blocked_reason"])}
+			}
+		case update.ResultPartialRefresh:
+			closeoutState = "partial"
+			if updatePayload.ScopeResultState == update.ResultReady || updatePayload.ScopeResultState == update.ResultNoOp {
+				closeoutState = closeoutStateScopeReady
+			}
+			receipt, err = recordMutationCognitionReceipt(absScope, workflow, relScope, closeoutState, closeoutApplyReceiptReason(closeoutState, updatePayload), updatePayload.UpdateID, closeoutApplyEvidence(updatePayload))
+			if err != nil {
+				return err
+			}
+			if receipt["allowed_close"] != true {
+				return &closeoutStageError{category: "partial_closeout_not_closeable", detail: fmt.Sprint(receipt["blocked_reason"])}
+			}
+		default:
+			return &closeoutStageError{category: "non_closeable_update_result", detail: updatePayload.ResultState}
+		}
+		return removeCloseoutIntent(paths, intent)
+	})
+
+	if lockedErr != nil {
+		var pendingErr *closeoutIntentPendingError
+		if errors.As(lockedErr, &pendingErr) {
+			env := NewEnvelope("blocked", "project cognition closeout intent is durable and pending replay")
+			env.Data = map[string]any{
+				"closeout_status":         "closeout_intent_pending",
+				"workflow":                workflow,
+				"scope":                   relScope,
+				"intent_ref":              pendingErr.intentRef,
+				"intent_id":               pendingErr.intent.ID,
+				"changed_paths":           pendingErr.intent.ChangedPaths,
+				"recommended_next_action": "rerun_same_closeout",
+			}
+			return writeEnvelope(stdout, env)
+		}
 		var recoveryErr *update.PredecessorRecoveryError
-		if errors.As(err, &recoveryErr) {
-			return closeoutApplyPredecessorRecoveryBlocked(stdout, paths, absScope, workflow, relScope, payloadJSON, deltaSession, recoveryErr)
+		if errors.As(lockedErr, &recoveryErr) {
+			return closeoutApplyPredecessorRecoveryBlocked(stdout, absScope, workflow, relScope, recoveryErr, intent, intentRef)
+		}
+		var stageErr *closeoutStageError
+		if errors.As(lockedErr, &stageErr) && updatePayload.UpdateID != "" {
+			result := closeoutApplyResult(workflow, relScope, updatePayload, resumed, intentRef)
+			result["validation"] = gate
+			return closeoutApplyBlockedAfterUpdate(stdout, absScope, workflow, relScope, updatePayload, result, stageErr.category, stageErr.detail)
 		}
 		env := NewEnvelope("blocked", "project cognition closeout update failed")
 		env.Data = map[string]any{
 			"closeout_status":         "update_failed",
 			"workflow":                workflow,
 			"scope":                   relScope,
-			"error":                   err.Error(),
-			"recommended_next_action": "repair_update_or_mark_dirty",
+			"error":                   lockedErr.Error(),
+			"intent_ref":              intentRef,
+			"recommended_next_action": "repair_update_or_replay_intent",
 		}
 		return writeEnvelope(stdout, env)
 	}
 
+	result := closeoutApplyResult(workflow, relScope, updatePayload, resumed, intentRef)
+	result["receipt"] = receipt
+	result["closeout_state"] = closeoutState
+	result["allowed_close"] = receipt["allowed_close"]
+	if gate.Gate != "" {
+		result["validation"] = gate
+		result["finalization"] = finalized
+	}
+	summary := "project cognition closeout updated and recorded"
+	if updatePayload.ResultState == update.ResultReady || updatePayload.ResultState == update.ResultNoOp {
+		summary = "project cognition closeout updated, validated, finalized, and recorded"
+	}
+	env := NewEnvelope("ok", summary)
+	env.Data = result
+	return writeEnvelope(stdout, env)
+}
+
+func closeoutApplyResult(workflow string, scope string, payload update.UpdatePayload, resumed bool, intentRef string) map[string]any {
 	result := map[string]any{
 		"closeout_status":       "recorded",
 		"workflow":              workflow,
-		"scope":                 relScope,
-		"update_id":             updatePayload.UpdateID,
-		"result_state":          updatePayload.ResultState,
-		"scope_result_state":    updatePayload.ScopeResultState,
-		"global_freshness":      updatePayload.GlobalFreshness,
-		"global_readiness":      updatePayload.GlobalReadiness,
-		"global_debt_reasons":   updatePayload.GlobalDebtReasons,
-		"scope_partial_reasons": updatePayload.ScopePartialReasons,
-		"update":                updatePayload,
+		"scope":                 scope,
+		"update_id":             payload.UpdateID,
+		"result_state":          payload.ResultState,
+		"scope_result_state":    payload.ScopeResultState,
+		"global_freshness":      payload.GlobalFreshness,
+		"global_readiness":      payload.GlobalReadiness,
+		"global_debt_reasons":   payload.GlobalDebtReasons,
+		"scope_partial_reasons": payload.ScopePartialReasons,
+		"update":                payload,
+		"resumed_from_intent":   resumed,
+		"intent_ref":            intentRef,
 	}
-	if updatePayload.PredecessorRecovery != nil {
-		result["predecessor_recovery"] = updatePayload.PredecessorRecovery
+	if payload.PredecessorRecovery != nil {
+		result["predecessor_recovery"] = payload.PredecessorRecovery
 	}
-
-	switch updatePayload.ResultState {
-	case update.ResultReady, update.ResultNoOp:
-		gate := validation.ValidateBuild(paths)
-		result["validation"] = gate
-		if err := update.RecordValidateBuildReceipt(paths, gate.Status, gate.Gate, gate.Readiness); err != nil {
-			return closeoutApplyBlockedAfterUpdate(stdout, absScope, workflow, relScope, updatePayload, result, "validate_build_receipt_failed", err.Error())
-		}
-		if gate.Status != "ok" || gate.Readiness != rt.ReadyReadiness || !gate.CompletionAllowed {
-			return closeoutApplyBlockedAfterUpdate(stdout, absScope, workflow, relScope, updatePayload, result, "validate_build_blocked", strings.Join(gate.Errors, "; "))
-		}
-		finalized, err := update.CompleteRefresh(paths, "workflow-closeout")
-		if err != nil {
-			return closeoutApplyBlockedAfterUpdate(stdout, absScope, workflow, relScope, updatePayload, result, "complete_refresh_failed", err.Error())
-		}
-		result["finalization"] = finalized
-		state := normalizeMutationCognitionState(updatePayload.ResultState)
-		receipt, err := recordMutationCognitionReceipt(absScope, workflow, relScope, state, closeoutApplyReceiptReason(state, updatePayload), updatePayload.UpdateID, closeoutApplyEvidence(updatePayload))
-		if err != nil {
-			return writeEnvelope(stdout, scriptDomainError("cognition", err))
-		}
-		result["receipt"] = receipt
-		result["closeout_state"] = state
-		result["allowed_close"] = receipt["allowed_close"]
-		env := NewEnvelope("ok", "project cognition closeout updated, validated, finalized, and recorded")
-		env.Data = result
-		return writeEnvelope(stdout, env)
-	case update.ResultPartialRefresh:
-		state := "partial"
-		if updatePayload.ScopeResultState == update.ResultReady || updatePayload.ScopeResultState == update.ResultNoOp {
-			state = closeoutStateScopeReady
-		}
-		receipt, err := recordMutationCognitionReceipt(absScope, workflow, relScope, state, closeoutApplyReceiptReason(state, updatePayload), updatePayload.UpdateID, closeoutApplyEvidence(updatePayload))
-		if err != nil {
-			return writeEnvelope(stdout, scriptDomainError("cognition", err))
-		}
-		result["receipt"] = receipt
-		result["closeout_state"] = state
-		result["allowed_close"] = receipt["allowed_close"]
-		if receipt["allowed_close"] == true {
-			env := NewEnvelope("ok", "workflow-owned cognition scope recorded while project-wide debt remains visible")
-			env.Data = result
-			return writeEnvelope(stdout, env)
-		}
-		result["recommended_next_action"] = "repair_closeout_partial_and_retry"
-		env := NewEnvelope("blocked", "project cognition partial closeout is not closeable")
-		env.Data = result
-		return writeEnvelope(stdout, env)
-	default:
-		return closeoutApplyBlockedAfterUpdate(stdout, absScope, workflow, relScope, updatePayload, result, "non_closeable_update_result", updatePayload.ResultState)
+	if payload.StatusRecovery != nil {
+		result["status_recovery"] = payload.StatusRecovery
 	}
+	return result
 }
 
-func closeoutApplyPredecessorRecoveryBlocked(stdout io.Writer, paths rt.Paths, absScope string, workflow string, relScope string, payloadJSON string, deltaSession string, recoveryErr *update.PredecessorRecoveryError) int {
-	changedPaths, pathErr := closeoutApplyInputPaths(paths, payloadJSON, deltaSession)
+func closeoutApplyPredecessorRecoveryBlocked(stdout io.Writer, absScope string, workflow string, relScope string, recoveryErr *update.PredecessorRecoveryError, intent closeoutIntent, intentRef string) int {
+	changedPaths := intent.ChangedPaths
 	recovery := recoveryErr.Recovery
 	reason := recoveryErr.Error()
 	evidence := []string{
@@ -194,19 +301,18 @@ func closeoutApplyPredecessorRecoveryBlocked(stdout io.Writer, paths rt.Paths, a
 		"predecessor_update_outcome=" + recovery.UpdateOutcome,
 		"recovery_action=" + recovery.RecommendedNextAction,
 	}
-	if pathErr != nil {
-		evidence = append(evidence, "current_scope_accounting_error="+pathErr.Error())
-	}
-	receipt, receiptErr := recordMutationCognitionReceiptWithPaths(absScope, workflow, relScope, "mark-dirty", reason, "", evidence, changedPaths)
+	receipt, receiptErr := recordMutationCognitionReceiptWithPaths(absScope, workflow, relScope, "blocked", reason, "", evidence, changedPaths)
 	data := map[string]any{
 		"closeout_status":             "predecessor_recovery_blocked",
 		"workflow":                    workflow,
 		"scope":                       relScope,
-		"closeout_state":              "mark-dirty",
+		"closeout_state":              "predecessor_recovery_blocked",
 		"predecessor_recovery":        recovery,
 		"mutation_performed":          false,
 		"current_mutation_accounting": "recorded",
 		"changed_paths":               changedPaths,
+		"intent_ref":                  intentRef,
+		"intent_id":                   intent.ID,
 		"recommended_next_action":     recovery.RecommendedNextAction,
 	}
 	if receiptErr != nil {
@@ -215,9 +321,6 @@ func closeoutApplyPredecessorRecoveryBlocked(stdout io.Writer, paths rt.Paths, a
 	} else {
 		data["receipt"] = receipt
 		data["allowed_close"] = receipt["allowed_close"]
-	}
-	if pathErr != nil {
-		data["path_accounting_error"] = pathErr.Error()
 	}
 	env := NewEnvelope("blocked", "project cognition predecessor recovery blocked; current mutation scope recorded without finalizing the graph")
 	env.Data = data
