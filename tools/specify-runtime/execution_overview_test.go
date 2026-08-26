@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -170,6 +171,28 @@ func TestExecutionOverviewWarnsAcrossWorkflowPlannedScopeOverlap(t *testing.T) {
 	}
 }
 
+func TestExecutionOverviewBlocksExecutingTaskWhoseScopeWasNotClaimed(t *testing.T) {
+	root := initRunCLIRepository(t)
+	writeQuickCoordinationFixture(t, root, "260826-unclaimed", "Unclaimed Quick", "executing", []string{"src/unclaimed"})
+	beginExecutionOverviewWorkWithConfidence(t, root, "work-unclaimed", "", "quick:260826-unclaimed", "Unclaimed Quick", "src/unclaimed", "candidate")
+
+	code, payload := invokeRunCLI(t,
+		"execution", "overview",
+		"--project-root", root,
+		"--current-work-id", "work-unclaimed",
+		"--format", "json",
+	)
+	if code != ExitCodeForStatus("blocked") || payload["status"] != "blocked" {
+		t.Fatalf("execution overview = code %d envelope %#v", code, payload)
+	}
+	data := requireObject(t, payload, "data")
+	signals := requireObjectSlice(t, data, "signals")
+	unclaimed := quickCoordinationObjectByField(t, signals, "code", "executing_task_scope_unclaimed")
+	if unclaimed["activity_id"] != "quick:260826-unclaimed" || fmt.Sprint(unclaimed["missing_paths"]) != "[src/unclaimed]" {
+		t.Fatalf("unclaimed scope signal = %#v", unclaimed)
+	}
+}
+
 func createExecutionOverviewRun(t *testing.T, root, runID, kind, subjectType, subjectID string) {
 	t.Helper()
 	code, payload := invokeRunCLI(t,
@@ -190,8 +213,13 @@ func createExecutionOverviewRun(t *testing.T, root, runID, kind, subjectType, su
 
 func beginExecutionOverviewWork(t *testing.T, root, workID, runID, taskRef, summary, path string) {
 	t.Helper()
+	beginExecutionOverviewWorkWithConfidence(t, root, workID, runID, taskRef, summary, path, "confirmed")
+}
+
+func beginExecutionOverviewWorkWithConfidence(t *testing.T, root, workID, runID, taskRef, summary, path, confidence string) {
+	t.Helper()
 	intents := marshalWorkBoardCLIJSON(t, []map[string]any{{
-		"path": path, "operation": "modify", "reason": summary, "confidence": "confirmed",
+		"path": path, "operation": "modify", "reason": summary, "confidence": confidence,
 	}})
 	args := []string{
 		"work", "begin",
