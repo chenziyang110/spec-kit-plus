@@ -206,6 +206,25 @@ func runImplementTaskStart(args []string) (map[string]any, error) {
 			return nil, err
 		}
 	}
+	featureID := strings.TrimSpace(anyString(index["feature_id"]))
+	if featureID == "" {
+		featureID = strings.TrimSpace(filepath.Base(filepath.Clean(feature)))
+	}
+	workClaim, err := claimCurrentWorkScope(currentWorkScopeClaimRequest{
+		ProjectRoot: root,
+		Args:        args,
+		AllowedTaskRef: []string{
+			"implement:" + featureID,
+			featureID + "#" + taskID,
+		},
+		WriteScope:                           anyStringSlice(task["expected_write_scope"]),
+		Reason:                               "claim-before-start for implement:" + featureID + "#" + taskID,
+		UseCurrentConfirmedScopeWhenEmpty:    true,
+		AllowDeclaredNoWriteWhenScopeIsEmpty: true,
+	})
+	if err != nil {
+		return nil, err
+	}
 	lifecycle["revision"] = revision
 	lifecycle["execution_mode"] = mode
 	lifecycle["packet_ref"] = nullableImplementTaskString(packetRef)
@@ -229,6 +248,7 @@ func runImplementTaskStart(args []string) (map[string]any, error) {
 	payload["task_id"] = taskID
 	payload["task_status"] = "in_progress"
 	payload["revision"] = revision
+	payload["work_claim"] = workClaim
 	return payload, nil
 }
 

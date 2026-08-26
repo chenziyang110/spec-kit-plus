@@ -305,6 +305,7 @@ REQUIRED_CAPABILITIES = (
     "work.abandon",
     "work.begin",
     "work.block",
+    "work.claim",
     "work.checkpoint",
     "work.finish",
     "work.interrupt",

@@ -1,17 +1,12 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
-	"time"
-
-	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runcontrol"
 )
 
 const quickWorkerPacketSchema = "quick-worker-packet-v1"
@@ -254,79 +249,16 @@ func (service quickService) startWorkItem(workspacePath, workspace, quickID, ite
 }
 
 func (service quickService) claimQuickWorkItem(quickID, itemID string, writeScope []string, args []string) (map[string]any, error) {
-	workID := strings.TrimSpace(optionValue(args, "--current-work-id", os.Getenv("SPECIFY_WORK_ID")))
-	fenceValue := strings.TrimSpace(optionValue(args, "--current-work-fence", os.Getenv("SPECIFY_WORK_FENCE")))
-	if workID == "" || fenceValue == "" {
-		return nil, fmt.Errorf("quick item-start requires current Work identity: set SPECIFY_WORK_ID and SPECIFY_WORK_FENCE or pass --current-work-id and --current-work-fence")
-	}
-	fence, err := strconv.ParseInt(fenceValue, 10, 64)
-	if err != nil || fence < 1 {
-		return nil, fmt.Errorf("quick item-start requires a positive current Work fence, got %q", fenceValue)
-	}
-
-	ctx := context.Background()
-	store, err := runcontrol.OpenForRepository(ctx, service.projectRoot)
-	if err != nil {
-		return nil, fmt.Errorf("open shared Work Board for quick item-start: %w", err)
-	}
-	defer func() { _ = store.Close() }()
-	if _, err := store.ReconcileRepositoryWork(ctx, time.Now().UTC()); err != nil {
-		return nil, fmt.Errorf("reconcile shared Work Board for quick item-start: %w", err)
-	}
-	work, _, err := store.GetWork(ctx, workID)
-	if err != nil {
-		return nil, fmt.Errorf("load current Work identity for quick item-start: %w", err)
-	}
-	if work.Fence != fence {
-		return nil, fmt.Errorf("current Work fence is stale: work %q holds fence %d, received %d", workID, work.Fence, fence)
-	}
-	if work.Status != runcontrol.WorkActive {
-		return nil, fmt.Errorf("current Work %q is %s; resume or unblock it before quick item-start", workID, work.Status)
-	}
 	leaderTaskRef := "quick:" + strings.TrimSpace(quickID)
 	itemTaskRef := leaderTaskRef + "#" + strings.TrimSpace(itemID)
-	if taskRef := strings.TrimSpace(work.TaskRef); taskRef != leaderTaskRef && taskRef != itemTaskRef {
-		return nil, fmt.Errorf("current Work task_ref %q does not match %q or %q", taskRef, leaderTaskRef, itemTaskRef)
-	}
-
-	seen := make(map[string]bool, len(writeScope))
-	normalizedScope := make([]string, 0, len(writeScope))
-	specs := make([]runcontrol.WriteIntentSpec, 0, len(writeScope))
-	for _, rawPath := range writeScope {
-		path := quickCoordinationWriteScopePath(rawPath)
-		if path == "" {
-			return nil, fmt.Errorf("quick item %s contains a blank write_scope path", itemID)
-		}
-		if seen[path] {
-			continue
-		}
-		seen[path] = true
-		normalizedScope = append(normalizedScope, path)
-		specs = append(specs, runcontrol.WriteIntentSpec{
-			Path:       path,
-			Operation:  runcontrol.WriteModify,
-			Reason:     "claim-before-start for " + itemTaskRef,
-			Confidence: runcontrol.IntentConfirmed,
-		})
-	}
-	claimedWork, claimedIntents, err := store.ClaimWorkIntents(ctx, runcontrol.ClaimWorkIntentsParams{
-		WorkID:           work.WorkID,
-		ExpectedRevision: work.Revision,
-		Fence:            fence,
-		Specs:            specs,
+	return claimCurrentWorkScope(currentWorkScopeClaimRequest{
+		ProjectRoot:                          service.projectRoot,
+		Args:                                 args,
+		AllowedTaskRef:                       []string{leaderTaskRef, itemTaskRef},
+		WriteScope:                           writeScope,
+		Reason:                               "claim-before-start for " + itemTaskRef,
+		AllowDeclaredNoWriteWhenScopeIsEmpty: true,
 	})
-	if err != nil {
-		return nil, fmt.Errorf("claim complete write_scope before quick item-start: %w", err)
-	}
-	return map[string]any{
-		"claim_state":          "claimed",
-		"work_id":              claimedWork.WorkID,
-		"work_fence":           claimedWork.Fence,
-		"work_revision":        claimedWork.Revision,
-		"task_ref":             claimedWork.TaskRef,
-		"write_scope":          normalizedScope,
-		"claimed_intent_count": len(claimedIntents),
-	}, nil
 }
 
 func (service quickService) allowInlineWorkItem(workspacePath, workspace, itemID, reason string) (*quickConfirmationDoc, error) {

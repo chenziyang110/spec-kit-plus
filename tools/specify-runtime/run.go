@@ -338,7 +338,10 @@ func writeRunSupervisionEnvelope(
 ) int {
 	if operationErr != nil {
 		env := workBoardErrorEnvelope("supervise run", operationErr)
-		if errors.Is(operationErr, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		if errors.Is(operationErr, runcontrol.ErrInvalidArgument) && strings.Contains(strings.ToLower(operationErr.Error()), "confirmed write scope") {
+			env.Status = "usage-error"
+			env.Summary = operationErr.Error()
+		} else if errors.Is(operationErr, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			env.Status = "blocked"
 			env.Summary = "runtime command timed out"
 			env.Data["operation"] = operation

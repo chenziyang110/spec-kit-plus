@@ -23,6 +23,30 @@ func TestInitialAttemptLeaseCoversSerializedLaunchOperations(t *testing.T) {
 	}
 }
 
+func TestModifyingExecutionRunKindsRequireConfirmedScopeBeforeClaim(t *testing.T) {
+	for _, kind := range []string{
+		"fast", "sp-fast", "spx-fast",
+		"debug", "sp-debug", "spx-debug",
+		"implement", "sp-implement", "spx-implement",
+		"quick", "sp-quick", "spx-quick",
+	} {
+		t.Run(kind, func(t *testing.T) {
+			if _, err := supervisedRunWriteIntents(Run{Kind: kind}, nil); !errors.Is(err, ErrInvalidArgument) {
+				t.Fatalf("unscoped %s run error = %v, want ErrInvalidArgument", kind, err)
+			}
+			intents, err := supervisedRunWriteIntents(Run{Kind: kind}, []WriteIntentSpec{{
+				Path: "src/owned.go", Operation: WriteModify, Confidence: IntentConfirmed,
+			}})
+			if err != nil || len(intents) != 1 || intents[0].Path != "src/owned.go" {
+				t.Fatalf("confirmed %s run intents = %#v err=%v", kind, intents, err)
+			}
+		})
+	}
+	if intents, err := supervisedRunWriteIntents(Run{Kind: "review"}, nil); err != nil || len(intents) != 0 {
+		t.Fatalf("non-modifying run gate = %#v err=%v", intents, err)
+	}
+}
+
 func TestSuperviseRunRejectsLivenessWindowsBelowSQLiteContention(t *testing.T) {
 	contentionWindow := time.Duration(sqliteBusyTimeoutMS) * time.Millisecond
 	valid := SuperviseRunParams{

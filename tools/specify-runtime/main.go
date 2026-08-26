@@ -1280,6 +1280,7 @@ func defaultCapabilities() []string {
 		"work.abandon",
 		"work.begin",
 		"work.block",
+		"work.claim",
 		"work.checkpoint",
 		"work.finish",
 		"work.interrupt",
@@ -1489,6 +1490,8 @@ func capabilitySummary(id string) string {
 		return "Run the shared mutation closeout sequence: bounded update, build validation, eligible finalization, and runtime-bound receipt."
 	case "implement.result-merge":
 		return "Merge a leader-submitted WorkerTaskResult with validation_results into task lifecycle state."
+	case "implement.task-start":
+		return "Atomically claim a task's expected write scope before starting its implementation lifecycle."
 	case "implement.task-reopen":
 		return "Reopen one non-acceptance-ready implemented task with revision guards and immutable audit history."
 	case "board.show":
@@ -1505,6 +1508,8 @@ func capabilitySummary(id string) string {
 		return "Register the exact feature directory before creation and return its branch policy."
 	case "work.begin":
 		return "Register one agent task and its planned write scope on the shared Work Board."
+	case "work.claim":
+		return "Atomically claim one modifying workflow's complete write scope before source writes."
 	case "work.scope-add":
 		return "Atomically expand a revision-bound task write scope after conflict checking."
 	case "work.checkpoint":

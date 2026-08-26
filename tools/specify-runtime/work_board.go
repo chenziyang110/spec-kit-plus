@@ -31,6 +31,8 @@ func runWork(args []string, stdout io.Writer) int {
 		return workBegin(args[1:], stdout)
 	case "show":
 		return workShow(args[1:], stdout)
+	case "claim":
+		return workClaim(args[1:], stdout)
 	case "scope-add":
 		return workScopeAdd(args[1:], stdout)
 	case "checkpoint":
@@ -75,7 +77,7 @@ func runBoard(args []string, stdout io.Writer) int {
 
 func writeWorkHelp(stdout io.Writer) int {
 	_, _ = fmt.Fprintln(stdout, "specify-runtime work commands:")
-	for _, command := range []string{"begin", "show", "scope-add", "checkpoint", "block", "finish", "abandon", "interrupt", "resume"} {
+	for _, command := range []string{"begin", "show", "claim", "scope-add", "checkpoint", "block", "finish", "abandon", "interrupt", "resume"} {
 		_, _ = fmt.Fprintf(stdout, "  %s\n", command)
 	}
 	return 0
@@ -185,6 +187,52 @@ func workShow(args []string, stdout io.Writer) int {
 	env := NewEnvelope("ok", "work loaded")
 	env.Data["work"] = workItemDTO(work, intents)
 	env.ShowArgv = workShowArgv(work.WorkID, parsed.option("--project-root", "."))
+	return writeEnvelope(stdout, env)
+}
+
+func workClaim(args []string, stdout io.Writer) int {
+	parsed, err := parseRunCommandArgs(args, 0,
+		"--project-root", "--current-work-id", "--current-work-fence", "--task-ref",
+		"--write-scope-json", "--reason", "--format",
+	)
+	if err != nil {
+		return writeEnvelope(stdout, workBoardUsageEnvelope(err.Error()))
+	}
+	if err := validateWorkBoardFormat(parsed); err != nil {
+		return writeEnvelope(stdout, workBoardUsageEnvelope(err.Error()))
+	}
+	taskRef := strings.TrimSpace(parsed.option("--task-ref", ""))
+	if taskRef == "" {
+		return writeEnvelope(stdout, workBoardUsageEnvelope("work claim requires --task-ref"))
+	}
+	rawScope, present := parsed.options["--write-scope-json"]
+	if !present {
+		return writeEnvelope(stdout, workBoardUsageEnvelope("work claim requires --write-scope-json"))
+	}
+	writeScope, err := parseStringListJSON(rawScope, "--write-scope-json")
+	if err != nil {
+		return writeEnvelope(stdout, workBoardUsageEnvelope(err.Error()))
+	}
+	projectRoot := parsed.option("--project-root", ".")
+	claim, err := claimCurrentWorkScope(currentWorkScopeClaimRequest{
+		ProjectRoot:    projectRoot,
+		Args:           args,
+		AllowedTaskRef: []string{taskRef},
+		WriteScope:     writeScope,
+		Reason:         parsed.option("--reason", "claim-before-write for "+taskRef),
+	})
+	if err != nil {
+		env := workBoardErrorEnvelope("claim work scope", err)
+		env.Status = "blocked"
+		env.Summary = "work scope claim blocked"
+		if workID := strings.TrimSpace(optionValue(args, "--current-work-id", os.Getenv("SPECIFY_WORK_ID"))); workID != "" {
+			env.ShowArgv = workShowArgv(workID, projectRoot)
+		}
+		return writeEnvelope(stdout, env)
+	}
+	env := NewEnvelope("ok", "complete write scope claimed all-or-none")
+	env.Data["work_claim"] = claim
+	env.ShowArgv = workShowArgv(anyString(claim["work_id"]), projectRoot)
 	return writeEnvelope(stdout, env)
 }
 

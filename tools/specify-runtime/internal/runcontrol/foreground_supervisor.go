@@ -129,6 +129,11 @@ func SuperviseRun(
 	if err != nil {
 		return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "load run", err)
 	}
+	writeIntents, err := supervisedRunWriteIntents(run, params.Work.WriteIntents)
+	if err != nil {
+		return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "validate modifying run write scope", err)
+	}
+	params.Work.WriteIntents = writeIntents
 	claimed, err := store.ClaimRun(lifecycleCtx, run.RunID, run.Revision)
 	if err != nil {
 		return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "claim run", err)
@@ -773,6 +778,22 @@ func automaticRunWriteIntents(run Run) []WriteIntentSpec {
 			Confidence: IntentConfirmed,
 		}}
 	}
+	if subjectType == "quick" {
+		if subjectID == "." || subjectID == ".." || strings.TrimSpace(run.SubjectID) != run.SubjectID ||
+			strings.ContainsAny(subjectID, `/\`) || strings.ContainsRune(subjectID, '\x00') {
+			return nil
+		}
+		quickPath := filepath.ToSlash(filepath.Join(".planning", "quick", subjectID))
+		if _, _, err := normalizeWorkPath(quickPath, runtime.GOOS == "windows"); err != nil {
+			return nil
+		}
+		return []WriteIntentSpec{{
+			Path:       quickPath,
+			Operation:  WriteModify,
+			Reason:     "automatic Quick workspace scope from managed Run subject",
+			Confidence: IntentConfirmed,
+		}}
+	}
 	pathLikeSubject := subjectType == "file" || subjectType == "path" ||
 		strings.ContainsAny(subjectID, `/\`)
 	if !pathLikeSubject {
@@ -787,6 +808,41 @@ func automaticRunWriteIntents(run Run) []WriteIntentSpec {
 		Reason:     "automatic write scope from managed Run subject",
 		Confidence: IntentConfirmed,
 	}}
+}
+
+func supervisedRunWriteIntents(run Run, requested []WriteIntentSpec) ([]WriteIntentSpec, error) {
+	writeIntents := append([]WriteIntentSpec(nil), requested...)
+	if len(writeIntents) == 0 {
+		writeIntents = automaticRunWriteIntents(run)
+	}
+	if !modifyingExecutionRunKind(run.Kind) {
+		return writeIntents, nil
+	}
+	confirmed := 0
+	for _, intent := range writeIntents {
+		if intent.Confidence == IntentConfirmed {
+			confirmed++
+		}
+	}
+	if confirmed == 0 {
+		return nil, fmt.Errorf("%w: modifying run kind %q has zero confirmed write scope; pass the complete scope before child launch", ErrInvalidArgument, run.Kind)
+	}
+	if confirmed != len(writeIntents) {
+		return nil, fmt.Errorf("%w: modifying run kind %q requires every launch write scope to be confirmed before child launch", ErrInvalidArgument, run.Kind)
+	}
+	return writeIntents, nil
+}
+
+func modifyingExecutionRunKind(kind string) bool {
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	kind = strings.TrimPrefix(kind, "spx-")
+	kind = strings.TrimPrefix(kind, "sp-")
+	switch kind {
+	case "fast", "debug", "implement", "quick":
+		return true
+	default:
+		return false
+	}
 }
 
 func supervisedRunEnvironment(
