@@ -208,7 +208,7 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 				return &closeoutStageError{category: "complete_refresh_failed", detail: err.Error()}
 			}
 			closeoutState = normalizeMutationCognitionState(updatePayload.ResultState)
-			receipt, err = recordMutationCognitionReceipt(absScope, workflow, relScope, closeoutState, closeoutApplyReceiptReason(closeoutState, updatePayload), updatePayload.UpdateID, closeoutApplyEvidence(updatePayload))
+			receipt, err = recordMutationCognitionReceiptBound(absScope, workflow, relScope, closeoutState, closeoutApplyReceiptReason(closeoutState, updatePayload), updatePayload.UpdateID, closeoutApplyEvidence(updatePayload), updatePayload.ChangedPaths, intent.ID, intentRef, intent.InputDigest)
 			if err != nil {
 				return err
 			}
@@ -220,7 +220,7 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 			if updatePayload.ScopeResultState == update.ResultReady || updatePayload.ScopeResultState == update.ResultNoOp {
 				closeoutState = closeoutStateScopeReady
 			}
-			receipt, err = recordMutationCognitionReceipt(absScope, workflow, relScope, closeoutState, closeoutApplyReceiptReason(closeoutState, updatePayload), updatePayload.UpdateID, closeoutApplyEvidence(updatePayload))
+			receipt, err = recordMutationCognitionReceiptBound(absScope, workflow, relScope, closeoutState, closeoutApplyReceiptReason(closeoutState, updatePayload), updatePayload.UpdateID, closeoutApplyEvidence(updatePayload), updatePayload.ChangedPaths, intent.ID, intentRef, intent.InputDigest)
 			if err != nil {
 				return err
 			}
@@ -229,6 +229,10 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 			}
 		default:
 			return &closeoutStageError{category: "non_closeable_update_result", detail: updatePayload.ResultState}
+		}
+		intent.State = "scope_receipt_recorded"
+		if err := updateCloseoutIntent(paths, intent); err != nil {
+			return err
 		}
 		if closeoutApplyAfterScopeReceiptHook != nil {
 			if err := closeoutApplyAfterScopeReceiptHook(intent.ID); err != nil {
@@ -362,7 +366,8 @@ func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Pa
 	default:
 		return "", fmt.Errorf("non-closeable replay result %s", payload.ResultState)
 	}
-	receipt, err := recordMutationCognitionReceipt(absScope, intent.Workflow, relScope, state, closeoutApplyReceiptReason(state, payload), payload.UpdateID, closeoutApplyEvidence(payload))
+	intentRef := closeoutIntentRef(paths, closeoutIntentPath(paths, intent.ID))
+	receipt, err := recordMutationCognitionReceiptBound(absScope, intent.Workflow, relScope, state, closeoutApplyReceiptReason(state, payload), payload.UpdateID, closeoutApplyEvidence(payload), payload.ChangedPaths, intent.ID, intentRef, intent.InputDigest)
 	if err != nil {
 		return "", err
 	}
@@ -376,7 +381,7 @@ func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Pa
 }
 
 func pruneCompletedCloseoutIntent(paths rt.Paths, intent closeoutIntent) (bool, error) {
-	if intent.State != "receipt_recorded" || intent.UpdateID == "" {
+	if (intent.State != "scope_receipt_recorded" && intent.State != "receipt_recorded") || intent.UpdateID == "" {
 		return false, nil
 	}
 	absScope, _, err := resolveCloseoutApplyScope(paths.Root, intent.Scope)
@@ -384,15 +389,16 @@ func pruneCompletedCloseoutIntent(paths rt.Paths, intent closeoutIntent) (bool, 
 		return false, err
 	}
 	receipt, err := loadMutationCognitionReceipt(absScope)
-	if err != nil || receipt == nil || receipt.UpdateID != intent.UpdateID {
+	intentRef := closeoutIntentRef(paths, closeoutIntentPath(paths, intent.ID))
+	if err != nil || receipt == nil || receipt.UpdateID != intent.UpdateID || receipt.IntentID != intent.ID || receipt.IntentRef != intentRef || receipt.IntentDigest != intent.InputDigest {
 		return false, err
 	}
 	state := normalizeMutationCognitionState(receipt.ResultState)
-	if state != "ready" && state != "no_op" {
+	if state != "ready" && state != "no_op" && state != "scope_ready" && state != "partial" {
 		return false, nil
 	}
 	status, err := rt.ReadStatus(paths)
-	if err != nil || status.LastFinalizedUpdateID == "" {
+	if err != nil {
 		return false, err
 	}
 	st, err := store.OpenExisting(paths)
@@ -404,14 +410,21 @@ func pruneCompletedCloseoutIntent(paths rt.Paths, intent closeoutIntent) (bool, 
 	if err != nil {
 		return false, err
 	}
-	var intentCompletedAt, finalizedCompletedAt string
+	comparisonUpdateID := status.LastFinalizedUpdateID
+	if state == "scope_ready" || state == "partial" {
+		comparisonUpdateID = status.LastUpdateID
+	}
+	if comparisonUpdateID == "" {
+		return false, nil
+	}
+	var intentCompletedAt, comparisonCompletedAt string
 	if err := st.DB().QueryRowContext(context.Background(), `SELECT completed_at FROM updates WHERE generation_id = ? AND id = ?`, generationID, intent.UpdateID).Scan(&intentCompletedAt); err != nil {
 		return false, nil
 	}
-	if err := st.DB().QueryRowContext(context.Background(), `SELECT completed_at FROM updates WHERE generation_id = ? AND id = ?`, generationID, status.LastFinalizedUpdateID).Scan(&finalizedCompletedAt); err != nil {
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT completed_at FROM updates WHERE generation_id = ? AND id = ?`, generationID, comparisonUpdateID).Scan(&comparisonCompletedAt); err != nil {
 		return false, nil
 	}
-	if finalizedCompletedAt < intentCompletedAt {
+	if comparisonCompletedAt < intentCompletedAt {
 		return false, nil
 	}
 	if err := removeCloseoutIntent(paths, intent); err != nil {

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/delta"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
@@ -25,6 +26,7 @@ type closeoutIntent struct {
 	Reason             string   `json:"reason"`
 	PayloadJSON        string   `json:"payload_json,omitempty"`
 	DeltaSessionID     string   `json:"delta_session_id,omitempty"`
+	DeltaDigest        string   `json:"delta_digest,omitempty"`
 	CommitRange        string   `json:"commit_range,omitempty"`
 	InputDigest        string   `json:"input_digest"`
 	ChangedPaths       []string `json:"changed_paths"`
@@ -36,7 +38,11 @@ type closeoutIntent struct {
 }
 
 func ensureCloseoutIntent(paths rt.Paths, workflow string, scope string, reason string, payloadJSON string, deltaSession string, commitRange string, changedPaths []string) (closeoutIntent, string, bool, error) {
-	digest := closeoutIntentDigest(workflow, scope, reason, payloadJSON, deltaSession, commitRange)
+	deltaDigest, err := closeoutDeltaDigest(paths, deltaSession)
+	if err != nil {
+		return closeoutIntent{}, "", false, err
+	}
+	digest := closeoutIntentDigest(workflow, scope, reason, payloadJSON, deltaSession, commitRange, deltaDigest)
 	intent := closeoutIntent{
 		Version:        closeoutIntentVersion,
 		ID:             "intent-" + digest[:24],
@@ -46,6 +52,7 @@ func ensureCloseoutIntent(paths rt.Paths, workflow string, scope string, reason 
 		Reason:         reason,
 		PayloadJSON:    payloadJSON,
 		DeltaSessionID: deltaSession,
+		DeltaDigest:    deltaDigest,
 		CommitRange:    commitRange,
 		InputDigest:    digest,
 		ChangedPaths:   normalizedCloseoutPaths(changedPaths),
@@ -57,7 +64,7 @@ func ensureCloseoutIntent(paths rt.Paths, workflow string, scope string, reason 
 		if err := json.Unmarshal(raw, &existing); err != nil {
 			return closeoutIntent{}, "", false, fmt.Errorf("parse closeout intent %s: %w", filepath.ToSlash(path), err)
 		}
-		if existing.Version != closeoutIntentVersion || existing.InputDigest != digest || existing.Workflow != workflow || existing.Scope != scope {
+		if err := validateCloseoutIntent(paths, existing); err != nil || existing.InputDigest != digest || existing.Workflow != workflow || existing.Scope != scope {
 			return closeoutIntent{}, "", false, fmt.Errorf("closeout intent identity mismatch for %s", filepath.ToSlash(path))
 		}
 		return existing, closeoutIntentRef(paths, path), true, nil
@@ -126,7 +133,7 @@ func listCloseoutIntents(paths rt.Paths) ([]closeoutIntent, error) {
 		if err := json.Unmarshal(raw, &intent); err != nil {
 			return nil, err
 		}
-		if err := validateCloseoutIntent(intent); err != nil {
+		if err := validateCloseoutIntent(paths, intent); err != nil {
 			return nil, fmt.Errorf("invalid closeout intent %s: %w", entry.Name(), err)
 		}
 		intents = append(intents, intent)
@@ -140,15 +147,39 @@ func listCloseoutIntents(paths rt.Paths) ([]closeoutIntent, error) {
 	return intents, nil
 }
 
-func validateCloseoutIntent(intent closeoutIntent) error {
+func validateCloseoutIntent(paths rt.Paths, intent closeoutIntent) error {
 	if intent.Version != closeoutIntentVersion || strings.TrimSpace(intent.ID) == "" {
 		return fmt.Errorf("unsupported or missing intent identity")
 	}
-	digest := closeoutIntentDigest(intent.Workflow, intent.Scope, intent.Reason, intent.PayloadJSON, intent.DeltaSessionID, intent.CommitRange)
+	deltaDigest, err := closeoutDeltaDigest(paths, intent.DeltaSessionID)
+	if err != nil {
+		return err
+	}
+	if deltaDigest != intent.DeltaDigest {
+		return fmt.Errorf("delta session digest changed")
+	}
+	digest := closeoutIntentDigest(intent.Workflow, intent.Scope, intent.Reason, intent.PayloadJSON, intent.DeltaSessionID, intent.CommitRange, intent.DeltaDigest)
 	if intent.InputDigest != digest || intent.ID != "intent-"+digest[:24] {
 		return fmt.Errorf("intent digest mismatch")
 	}
 	return nil
+}
+
+func closeoutDeltaDigest(paths rt.Paths, sessionID string) (string, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return "", nil
+	}
+	bundle, err := delta.Load(paths.RuntimeDir, sessionID)
+	if err != nil {
+		return "", err
+	}
+	raw, err := json.Marshal(bundle)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(raw)
+	return fmt.Sprintf("%x", digest[:]), nil
 }
 
 func runCognitionCloseoutReplayCLI(args []string, stdout io.Writer) int {
