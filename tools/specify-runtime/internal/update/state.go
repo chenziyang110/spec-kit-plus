@@ -20,6 +20,7 @@ import (
 	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/store"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/validation"
 )
 
 type DirtyInput struct {
@@ -179,6 +180,46 @@ type UpdatePayload struct {
 	PathAdoption            map[string]any           `json:"path_adoption"`
 	LastRefreshChangedBasis []string                 `json:"last_refresh_changed_files_basis"`
 	Boundary                *boundary.Result         `json:"boundary,omitempty"`
+	PredecessorRecovery     *PredecessorRecovery     `json:"predecessor_recovery,omitempty"`
+}
+
+type PredecessorRecovery struct {
+	Attempted             bool                           `json:"attempted"`
+	Outcome               string                         `json:"outcome"`
+	UpdateID              string                         `json:"update_id"`
+	UpdateOutcome         string                         `json:"update_outcome"`
+	ActiveGenerationID    string                         `json:"active_generation_id"`
+	Validation            *PredecessorRecoveryValidation `json:"validation,omitempty"`
+	BlockerCategory       string                         `json:"blocker_category,omitempty"`
+	Detail                string                         `json:"detail,omitempty"`
+	RecommendedNextAction string                         `json:"recommended_next_action"`
+}
+
+type PredecessorRecoveryValidation struct {
+	Status                     string   `json:"status"`
+	Readiness                  string   `json:"readiness"`
+	ErrorClassification        string   `json:"error_classification"`
+	Errors                     []string `json:"errors,omitempty"`
+	IdentityReconciliation     any      `json:"identity_reconciliation,omitempty"`
+	IdentityRepairability      any      `json:"identity_repairability,omitempty"`
+	IdentityMismatchCount      any      `json:"identity_mismatch_count,omitempty"`
+	IdentityMismatchCategories any      `json:"identity_mismatch_categories,omitempty"`
+	IdentityDiffs              any      `json:"identity_diffs,omitempty"`
+}
+
+type PredecessorRecoveryError struct {
+	Recovery PredecessorRecovery
+}
+
+func (err *PredecessorRecoveryError) Error() string {
+	if err == nil {
+		return "project cognition predecessor recovery blocked"
+	}
+	detail := strings.TrimSpace(err.Recovery.Detail)
+	if detail == "" {
+		detail = err.Recovery.BlockerCategory
+	}
+	return fmt.Sprintf("project cognition predecessor %s/%s recovery blocked: %s", err.Recovery.UpdateID, err.Recovery.UpdateOutcome, detail)
 }
 
 func MarkDirty(paths rt.Paths, input DirtyInput) (rt.Status, error) {
@@ -188,6 +229,9 @@ func MarkDirty(paths rt.Paths, input DirtyInput) (rt.Status, error) {
 	}
 	defer releaseUpdateLock()
 
+	if _, err := recoverPendingPredecessorLocked(paths); err != nil {
+		return rt.Status{}, err
+	}
 	if err := blockSplitBrainBaseline(paths); err != nil {
 		return rt.Status{}, err
 	}
@@ -345,7 +389,10 @@ func RecordValidateBuildReceipt(paths rt.Paths, gateStatus string, gate string, 
 		return err
 	}
 	defer releaseUpdateLock()
+	return recordValidateBuildReceiptLocked(paths, gateStatus, gate, readiness)
+}
 
+func recordValidateBuildReceiptLocked(paths rt.Paths, gateStatus string, gate string, readiness string) error {
 	receiptPath := filepath.Join(paths.RuntimeDir, validateBuildReceipt)
 	removeReceipt := func() error {
 		if err := os.Remove(receiptPath); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -453,6 +500,11 @@ func finalizationEligibleStatus(status rt.Status, latest updateRecordRef) bool {
 	if cleanRefreshStatus(status) {
 		return true
 	}
+	if status.Status == rt.PendingFinalizationStatus && status.Freshness == rt.PartialRefreshFreshness && status.Readiness == rt.BlockedReadiness &&
+		status.RecommendedNextAction == runtimegate.FinalizeUpdateAction && status.GraphReady && !status.Dirty &&
+		len(status.DirtyReasons) == 0 && len(status.DirtyScopePaths) == 0 && len(status.StalePaths) == 0 && len(status.StaleReasons) == 0 {
+		return sameNormalizedPaths(status.LastRefreshChangedFilesBasis, latest.ChangedPaths)
+	}
 	if status.Status != "stale" || status.Freshness != rt.StaleFreshness || status.Readiness != rt.ReviewReadiness ||
 		status.RecommendedNextAction != "review_project_cognition_update" || !status.GraphReady || !status.Dirty ||
 		status.DirtyOriginCommand != "specify-runtime cognition repair-status" || status.DirtyOriginFeatureDir != "" || status.DirtyOriginLaneID != "" {
@@ -514,9 +566,6 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	}
 	defer releaseUpdateLock()
 
-	if err := blockSplitBrainBaseline(paths); err != nil {
-		return UpdatePayload{}, err
-	}
 	if input.PayloadFile != "" && input.PayloadJSON != "" {
 		return UpdatePayload{}, fmt.Errorf("provide at most one of payload file or inline payload JSON")
 	}
@@ -576,6 +625,69 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	return runResolvedUpdate(paths, input, kept, ignored, nil)
 }
 
+func recoverPendingPredecessorLocked(paths rt.Paths) (*PredecessorRecovery, error) {
+	agreement, ok := runtimegate.CheckExisting(paths)
+	if !ok || agreement.CauseCode != runtimegate.CauseUpdateFinalizationPending {
+		return nil, nil
+	}
+	recovery := &PredecessorRecovery{
+		Attempted:             true,
+		Outcome:               "blocked",
+		UpdateID:              agreement.DBLatestUpdateID,
+		UpdateOutcome:         agreement.DBLatestUpdateOutcome,
+		ActiveGenerationID:    agreement.DBActiveGenerationID,
+		RecommendedNextAction: runtimegate.FinalizeUpdateAction,
+	}
+	gate := validation.ValidateBuild(paths)
+	recovery.Validation = compactPredecessorRecoveryValidation(gate)
+	if err := recordValidateBuildReceiptLocked(paths, gate.Status, gate.Gate, gate.Readiness); err != nil {
+		recovery.BlockerCategory = "validate_build_receipt_failed"
+		recovery.Detail = err.Error()
+		return nil, &PredecessorRecoveryError{Recovery: *recovery}
+	}
+	if gate.Status != "ok" || gate.Readiness != rt.ReadyReadiness || !gate.CompletionAllowed {
+		recovery.BlockerCategory = "validate_build_blocked"
+		recovery.Detail = strings.Join(gate.Errors, "; ")
+		recovery.RecommendedNextAction = predecessorRecoveryAction(gate)
+		return nil, &PredecessorRecoveryError{Recovery: *recovery}
+	}
+	if _, err := completeRefreshLocked(paths, "automatic-predecessor-recovery"); err != nil {
+		recovery.BlockerCategory = "complete_refresh_failed"
+		recovery.Detail = err.Error()
+		return nil, &PredecessorRecoveryError{Recovery: *recovery}
+	}
+	if finalAgreement := runtimegate.Check(paths); finalAgreement.Status != "ok" {
+		recovery.BlockerCategory = "post_recovery_agreement_blocked"
+		recovery.Detail = strings.Join(finalAgreement.Errors, "; ")
+		recovery.RecommendedNextAction = agreementAction(finalAgreement)
+		return nil, &PredecessorRecoveryError{Recovery: *recovery}
+	}
+	recovery.Outcome = "finalized"
+	recovery.RecommendedNextAction = "continue_current_update"
+	return recovery, nil
+}
+
+func compactPredecessorRecoveryValidation(gate validation.GatePayload) *PredecessorRecoveryValidation {
+	return &PredecessorRecoveryValidation{
+		Status:                     gate.Status,
+		Readiness:                  gate.Readiness,
+		ErrorClassification:        gate.ErrorClassification,
+		Errors:                     append([]string{}, gate.Errors...),
+		IdentityReconciliation:     gate.Details["identity_reconciliation"],
+		IdentityRepairability:      gate.Details["identity_repairability"],
+		IdentityMismatchCount:      gate.Details["identity_mismatch_count"],
+		IdentityMismatchCategories: gate.Details["identity_mismatch_categories"],
+		IdentityDiffs:              gate.Details["identity_diffs"],
+	}
+}
+
+func predecessorRecoveryAction(gate validation.GatePayload) string {
+	if action := strings.TrimSpace(fmt.Sprint(gate.Details["identity_recommended_next_action"])); action != "" && action != "none" && action != "<nil>" {
+		return action
+	}
+	return "repair_predecessor_validation_and_retry"
+}
+
 func filterPathChangesByWorkflowOwned(values []changemodel.PathChange, workflowOwned []string) ([]changemodel.PathChange, error) {
 	owned := stringSet(workflowOwned)
 	out := make([]changemodel.PathChange, 0, len(values))
@@ -619,6 +731,10 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 	}
 	input.Verification = normalizeVerificationEvidence(input.Verification)
 	if err := validateVerificationEvidence(input.Verification); err != nil {
+		return UpdatePayload{}, err
+	}
+	recovery, err := recoverPendingPredecessorLocked(paths)
+	if err != nil {
 		return UpdatePayload{}, err
 	}
 	baselineStatus, err := requireUpdateBaseline(paths)
@@ -802,6 +918,7 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		PathAdoption:            pathAdoption,
 		LastRefreshChangedBasis: append([]string{}, refreshScopePaths...),
 		Boundary:                boundaryResult,
+		PredecessorRecovery:     recovery,
 	}, nil
 }
 
@@ -1172,10 +1289,10 @@ func applyResultState(status rt.Status, scopeResultState string, resultState str
 	status.LastRefreshChangedFilesBasis = append([]string{}, changedPaths...)
 	switch resultState {
 	case ResultReady:
-		status.Status = "ok"
-		status.Freshness = rt.ReadyFreshness
-		status.Readiness = rt.ReadyReadiness
-		status.RecommendedNextAction = "use_project_cognition"
+		status.Status = rt.PendingFinalizationStatus
+		status.Freshness = rt.PartialRefreshFreshness
+		status.Readiness = rt.BlockedReadiness
+		status.RecommendedNextAction = runtimegate.FinalizeUpdateAction
 		status.Dirty = false
 		status.DirtyReasons = []string{}
 		status.DirtyOriginCommand = ""
@@ -1185,18 +1302,10 @@ func applyResultState(status rt.Status, scopeResultState string, resultState str
 		status.StalePaths = subtractStrings(status.StalePaths, changedPaths)
 		status.StaleReasons = subtractStrings(status.StaleReasons, []string{reason})
 	case ResultNoOp:
-		if status.Status == "" {
-			status.Status = "ok"
-		}
-		if status.Freshness == "" || status.Freshness == rt.MissingFreshness {
-			status.Freshness = rt.ReadyFreshness
-		}
-		if status.Readiness == "" {
-			status.Readiness = rt.ReadyReadiness
-		}
-		if status.RecommendedNextAction == "" {
-			status.RecommendedNextAction = "use_project_cognition"
-		}
+		status.Status = rt.PendingFinalizationStatus
+		status.Freshness = rt.PartialRefreshFreshness
+		status.Readiness = rt.BlockedReadiness
+		status.RecommendedNextAction = runtimegate.FinalizeUpdateAction
 	case ResultPartialRefresh:
 		status.Status = "stale"
 		status.Freshness = rt.PartialRefreshFreshness

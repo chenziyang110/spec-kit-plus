@@ -401,6 +401,7 @@ func TestCommittedFinalizableUpdateRecoversThroughValidateAndCompleteRefreshAfte
 
 func TestConcurrentRunUpdateHonorsCrossProcessLockAndRecoversSerializedPredecessor(t *testing.T) {
 	paths := testPaths(t)
+	writeUpdateMatchingScanPackage(t, paths)
 	seedReadyRuntime(t, paths)
 	releaseExternalLock, err := rt.AcquireUpdateLock(paths)
 	if err != nil {
@@ -781,8 +782,8 @@ func TestRunUpdateWithDeltaSessionAcceptsStructuredVerificationJSON(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if payload.ResultState != ResultReady || payload.Readiness != rt.ReadyReadiness {
-		t.Fatalf("payload = %#v, want ready from structured delta verification", payload)
+	if payload.ResultState != ResultReady || payload.Readiness != rt.BlockedReadiness || payload.StatusUpdate.Status != rt.PendingFinalizationStatus {
+		t.Fatalf("payload = %#v, want ready update visibly pending receipt-bound finalization", payload)
 	}
 }
 
@@ -2135,8 +2136,8 @@ func TestRunUpdatePayloadForIndexedPathReturnsReady(t *testing.T) {
 	if payload.ResultState != ResultReady {
 		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
 	}
-	if payload.Readiness != rt.ReadyReadiness {
-		t.Fatalf("Readiness = %q, want query_ready", payload.Readiness)
+	if payload.Readiness != rt.BlockedReadiness || payload.RecommendedNextAction != runtimegate.FinalizeUpdateAction {
+		t.Fatalf("payload readiness/action = %q/%q, want visible pending finalization", payload.Readiness, payload.RecommendedNextAction)
 	}
 	if len(payload.AffectedNodes) == 0 {
 		t.Fatalf("AffectedNodes = %#v, want indexed node", payload.AffectedNodes)
@@ -2145,7 +2146,7 @@ func TestRunUpdatePayloadForIndexedPathReturnsReady(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.Freshness != rt.ReadyFreshness || status.LastUpdateOutcome != ResultReady {
+	if status.Status != rt.PendingFinalizationStatus || status.Freshness != rt.PartialRefreshFreshness || status.Readiness != rt.BlockedReadiness || status.LastUpdateOutcome != ResultReady {
 		t.Fatalf("status = %#v", status)
 	}
 }

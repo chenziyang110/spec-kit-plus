@@ -223,6 +223,19 @@ A failed, stale, blocked, or non-`query_ready` validation also must not run
 `complete-refresh`. In every non-eligible branch, runtime must not run
 `complete-refresh`.
 
+Before admitting a new graph update, shared apply inspects only the exact latest
+update. For `pending_finalization`, it may recover one direct predecessor with
+outcome `ready|no_op` by rerunning build validation, writing the exact
+update/generation-bound receipt, and completing refresh under the shared lock.
+It must not scan older history, absorb unrelated debt, or finalize failed or
+non-`query_ready` validation. The result is `predecessor_recovery`. When that
+recovery blocks, runtime commits no current graph update and instead preserves
+current mutation accounting in the scope-owned closeout receipt as truthful
+`mark-dirty` with exact `changed_paths`. Keep the parent workflow active, use
+the returned recovery action through the shared autonomous blocker-recovery
+contract, and resume the same closeout; do not send an agent-repairable
+predecessor back to the user as a manual map-update request.
+
 Successful shared apply stamps the hard gate receipt itself before terminal
 close. Do not stamp a second receipt. Only `mark-dirty` fallback uses the
 standalone compatibility command:

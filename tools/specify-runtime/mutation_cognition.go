@@ -33,14 +33,15 @@ var mutationCognitionFeatureStages = map[string]string{
 }
 
 type mutationCognitionReceipt struct {
-	Version     int      `json:"version"`
-	Workflow    string   `json:"workflow"`
-	Scope       string   `json:"scope,omitempty"` // feature rel, quick workspace, or project
-	ResultState string   `json:"result_state"`
-	Reason      string   `json:"reason,omitempty"`
-	Evidence    []string `json:"evidence,omitempty"`
-	UpdateID    string   `json:"update_id,omitempty"`
-	RecordedAt  string   `json:"recorded_at"`
+	Version      int      `json:"version"`
+	Workflow     string   `json:"workflow"`
+	Scope        string   `json:"scope,omitempty"` // feature rel, quick workspace, or project
+	ResultState  string   `json:"result_state"`
+	Reason       string   `json:"reason,omitempty"`
+	Evidence     []string `json:"evidence,omitempty"`
+	ChangedPaths []string `json:"changed_paths,omitempty"`
+	UpdateID     string   `json:"update_id,omitempty"`
+	RecordedAt   string   `json:"recorded_at"`
 }
 
 func normalizeMutationCognitionState(raw string) string {
@@ -118,6 +119,10 @@ func loadMutationCognitionReceipt(scopeDir string) (*mutationCognitionReceipt, e
 }
 
 func recordMutationCognitionReceipt(scopeDir, workflow, scopeLabel, resultState, reason, updateID string, evidence []string) (map[string]any, error) {
+	return recordMutationCognitionReceiptWithPaths(scopeDir, workflow, scopeLabel, resultState, reason, updateID, evidence, nil)
+}
+
+func recordMutationCognitionReceiptWithPaths(scopeDir, workflow, scopeLabel, resultState, reason, updateID string, evidence []string, changedPaths []string) (map[string]any, error) {
 	canonical, err := normalizeMutationWorkflowID(workflow)
 	if err != nil {
 		return nil, err
@@ -130,14 +135,15 @@ func recordMutationCognitionReceipt(scopeDir, workflow, scopeLabel, resultState,
 		return nil, fmt.Errorf("result_state=%s requires --reason (greenfield/empty graph, no_op, or dirty fallback must be explicit so project cognition keeps improving)", state)
 	}
 	receipt := mutationCognitionReceipt{
-		Version:     mutationCognitionReceiptVersion,
-		Workflow:    canonical,
-		Scope:       scopeLabel,
-		ResultState: state,
-		Reason:      strings.TrimSpace(reason),
-		Evidence:    evidence,
-		UpdateID:    strings.TrimSpace(updateID),
-		RecordedAt:  nowUTCString(),
+		Version:      mutationCognitionReceiptVersion,
+		Workflow:     canonical,
+		Scope:        scopeLabel,
+		ResultState:  state,
+		Reason:       strings.TrimSpace(reason),
+		Evidence:     evidence,
+		ChangedPaths: normalizedCloseoutPaths(changedPaths),
+		UpdateID:     strings.TrimSpace(updateID),
+		RecordedAt:   nowUTCString(),
 	}
 	path, err := writeMutationCognitionReceipt(scopeDir, receipt)
 	if err != nil {
@@ -150,6 +156,7 @@ func recordMutationCognitionReceipt(scopeDir, workflow, scopeLabel, resultState,
 		"result_state":  state,
 		"reason":        receipt.Reason,
 		"evidence":      receipt.Evidence,
+		"changed_paths": receipt.ChangedPaths,
 		"update_id":     receipt.UpdateID,
 		"recorded_at":   receipt.RecordedAt,
 		"allowed_close": mutationCognitionReceiptAllowedClose(scopeDir, &receipt),

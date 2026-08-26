@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -100,6 +101,10 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 	}
 	updatePayload, err := update.RunUpdate(paths, input)
 	if err != nil {
+		var recoveryErr *update.PredecessorRecoveryError
+		if errors.As(err, &recoveryErr) {
+			return closeoutApplyPredecessorRecoveryBlocked(stdout, paths, absScope, workflow, relScope, payloadJSON, deltaSession, recoveryErr)
+		}
 		env := NewEnvelope("blocked", "project cognition closeout update failed")
 		env.Data = map[string]any{
 			"closeout_status":         "update_failed",
@@ -123,6 +128,9 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		"global_debt_reasons":   updatePayload.GlobalDebtReasons,
 		"scope_partial_reasons": updatePayload.ScopePartialReasons,
 		"update":                updatePayload,
+	}
+	if updatePayload.PredecessorRecovery != nil {
+		result["predecessor_recovery"] = updatePayload.PredecessorRecovery
 	}
 
 	switch updatePayload.ResultState {
@@ -175,6 +183,77 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 	default:
 		return closeoutApplyBlockedAfterUpdate(stdout, absScope, workflow, relScope, updatePayload, result, "non_closeable_update_result", updatePayload.ResultState)
 	}
+}
+
+func closeoutApplyPredecessorRecoveryBlocked(stdout io.Writer, paths rt.Paths, absScope string, workflow string, relScope string, payloadJSON string, deltaSession string, recoveryErr *update.PredecessorRecoveryError) int {
+	changedPaths, pathErr := closeoutApplyInputPaths(paths, payloadJSON, deltaSession)
+	recovery := recoveryErr.Recovery
+	reason := recoveryErr.Error()
+	evidence := []string{
+		"predecessor_update_id=" + recovery.UpdateID,
+		"predecessor_update_outcome=" + recovery.UpdateOutcome,
+		"recovery_action=" + recovery.RecommendedNextAction,
+	}
+	if pathErr != nil {
+		evidence = append(evidence, "current_scope_accounting_error="+pathErr.Error())
+	}
+	receipt, receiptErr := recordMutationCognitionReceiptWithPaths(absScope, workflow, relScope, "mark-dirty", reason, "", evidence, changedPaths)
+	data := map[string]any{
+		"closeout_status":             "predecessor_recovery_blocked",
+		"workflow":                    workflow,
+		"scope":                       relScope,
+		"closeout_state":              "mark-dirty",
+		"predecessor_recovery":        recovery,
+		"mutation_performed":          false,
+		"current_mutation_accounting": "recorded",
+		"changed_paths":               changedPaths,
+		"recommended_next_action":     recovery.RecommendedNextAction,
+	}
+	if receiptErr != nil {
+		data["current_mutation_accounting"] = "failed"
+		data["receipt_error"] = receiptErr.Error()
+	} else {
+		data["receipt"] = receipt
+		data["allowed_close"] = receipt["allowed_close"]
+	}
+	if pathErr != nil {
+		data["path_accounting_error"] = pathErr.Error()
+	}
+	env := NewEnvelope("blocked", "project cognition predecessor recovery blocked; current mutation scope recorded without finalizing the graph")
+	env.Data = data
+	env.Blockers = []any{map[string]any{
+		"category": "predecessor_recovery_blocked",
+		"owner":    "project_cognition",
+		"detail":   reason,
+	}}
+	return writeEnvelope(stdout, env)
+}
+
+func closeoutApplyInputPaths(paths rt.Paths, payloadJSON string, deltaSession string) ([]string, error) {
+	values := []string{}
+	if strings.TrimSpace(payloadJSON) != "" {
+		var payload update.PayloadFileInput
+		if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
+			return nil, fmt.Errorf("parse current closeout payload for mutation accounting: %w", err)
+		}
+		values = append(values, payload.ChangedPaths...)
+		values = append(values, payload.ScopePaths...)
+		for _, change := range payload.PathChanges {
+			values = append(values, change.Path, change.OldPath)
+		}
+		return normalizedCloseoutPaths(values), nil
+	}
+	bundle, err := delta.Load(paths.RuntimeDir, strings.TrimSpace(deltaSession))
+	if err != nil {
+		return nil, err
+	}
+	for _, event := range bundle.Events {
+		values = append(values, event.ChangedPaths...)
+		for _, change := range event.PathChanges {
+			values = append(values, change.Path, change.OldPath)
+		}
+	}
+	return normalizedCloseoutPaths(values), nil
 }
 
 func closeoutApplyInputRejected(stdout io.Writer, workflow string, scope string, err error) int {

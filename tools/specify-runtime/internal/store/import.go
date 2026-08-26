@@ -347,12 +347,20 @@ func (s *Store) ActiveIdentitySnapshot(ctx context.Context) (IdentitySnapshot, e
 	}); err != nil {
 		return snapshot, fmt.Errorf("read coverage identities: %w", err)
 	}
-	if err := scanSnapshotRows(ctx, s.db, `SELECT e.id, e.source_path, e.content_hash, n.id, p.path FROM path_index p JOIN nodes n ON n.generation_id = p.generation_id AND n.id = p.node_id JOIN evidence e ON e.generation_id = p.generation_id AND e.id = p.evidence_id WHERE p.generation_id = ? AND n.type = 'workflow_update' AND e.source_kind = 'workflow_update' AND p.relation = 'provisional_path' AND p.confidence IN ('weak', 'partial')`, generationID, func(values []string) {
+	if err := scanSnapshotRows(ctx, s.db, `SELECT id, source_path, content_hash FROM evidence WHERE generation_id = ? AND source_kind = 'workflow_update'`, generationID, func(values []string) {
 		snapshot.WorkflowUpdateEvidence[values[0]+"|"+values[1]+"|"+values[2]] = true
-		snapshot.WorkflowUpdateNodes[values[3]] = true
-		snapshot.WorkflowUpdateCoveragePaths[values[4]] = true
 	}); err != nil {
-		return snapshot, fmt.Errorf("read workflow update identities: %w", err)
+		return snapshot, fmt.Errorf("read workflow update evidence identities: %w", err)
+	}
+	if err := scanSnapshotRows(ctx, s.db, `SELECT id FROM nodes WHERE generation_id = ? AND type = 'workflow_update'`, generationID, func(values []string) {
+		snapshot.WorkflowUpdateNodes[values[0]] = true
+	}); err != nil {
+		return snapshot, fmt.Errorf("read workflow update node identities: %w", err)
+	}
+	if err := scanSnapshotRows(ctx, s.db, `SELECT p.path FROM path_index p JOIN evidence e ON e.generation_id = p.generation_id AND e.id = p.evidence_id WHERE p.generation_id = ? AND e.source_kind = 'workflow_update'`, generationID, func(values []string) {
+		snapshot.WorkflowUpdateCoveragePaths[values[0]] = true
+	}); err != nil {
+		return snapshot, fmt.Errorf("read workflow update coverage identities: %w", err)
 	}
 
 	attrsJSON := "{}"

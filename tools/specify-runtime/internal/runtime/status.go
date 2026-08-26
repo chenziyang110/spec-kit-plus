@@ -16,6 +16,7 @@ const (
 	MissingFreshness                       = "missing"
 	ReadyFreshness                         = "fresh"
 	PartialRefreshFreshness                = "partial_refresh"
+	PendingFinalizationStatus              = "pending_finalization"
 	StaleFreshness                         = "stale"
 	ReadyReadiness                         = "query_ready"
 	ReviewReadiness                        = "review"
