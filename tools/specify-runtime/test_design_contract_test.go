@@ -430,6 +430,7 @@ func TestTestDesignImplementContinuesAfterExecutionStartsButStillRejectsArtifact
 	if packetRef == "" {
 		t.Fatalf("T001 packet compile returned no packet_ref: %#v", compiled)
 	}
+	bindImplementTestWork(t, fixture.projectRoot, fixture.featureRel, []string{"src/approval.go"})
 	assertTaskRuntimeCommandOK(t, []string{
 		"implement", "task-start", "--feature-dir", fixture.featureRel, "--task-id", "T001",
 		"--execution-mode", "delegated", "--packet-ref", packetRef, "--format", "json",

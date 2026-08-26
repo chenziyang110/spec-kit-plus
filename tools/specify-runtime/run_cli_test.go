@@ -428,6 +428,51 @@ func TestRunCLISuperviseExecutesTokenizedChildInSandbox(t *testing.T) {
 	}
 }
 
+func TestRunCLISuperviseRejectsUnscopedModifyingWorkflowBeforeChildLaunch(t *testing.T) {
+	root := initRunCLIRepository(t)
+	gitRun(t, root, "config", "user.name", "Run CLI Test")
+	gitRun(t, root, "config", "user.email", "run-cli@example.invalid")
+	gitRun(t, root, "config", "commit.gpgsign", "false")
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("unscoped Fast run\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, root, "add", "README.md")
+	gitRun(t, root, "commit", "-m", "initial")
+	code, created := invokeRunCLI(t,
+		"run", "create",
+		"--project-root", root,
+		"--run-id", "run_cli_fast_without_scope",
+		"--kind", "fast",
+		"--subject-type", "task",
+		"--subject-id", "fast-without-scope",
+		"--target-ref", "HEAD",
+		"--intent-sha256", strings.Repeat("f", 64),
+		"--format", "json",
+	)
+	if code != 0 || created["status"] != "ok" {
+		t.Fatalf("create unscoped Fast run = code %d envelope %#v", code, created)
+	}
+	t.Setenv("SPECIFY_RUNTIME_CLI_FOREGROUND_HELPER", "1")
+	code, payload := invokeRunCLI(t,
+		"run", "supervise", "run_cli_fast_without_scope",
+		"--project-root", root,
+		"--adapter-id", "test-helper",
+		"--workspace-policy", "isolated",
+		"--format", "json",
+		"--",
+		os.Args[0], "-test.run=^TestRunCLIForegroundHelperProcess$", "--",
+		"must-not-run.txt", "unscoped",
+	)
+	if code != 2 || payload["status"] != "usage-error" ||
+		!strings.Contains(strings.ToLower(fmt.Sprint(payload["summary"])), "confirmed write scope") {
+		t.Fatalf("unscoped Fast supervise = code %d envelope %#v, want pre-launch usage error", code, payload)
+	}
+	code, shown := invokeRunCLI(t, "run", "show", "run_cli_fast_without_scope", "--project-root", root, "--format", "json")
+	if code != 0 || requireObject(t, requireObject(t, shown, "data"), "run")["status"] != "queued" {
+		t.Fatalf("unscoped Fast run changed state = code %d envelope %#v", code, shown)
+	}
+}
+
 func TestRunCLISuperviseBindsManagedRunEnvironment(t *testing.T) {
 	root := initRunCLIRepository(t)
 	gitRun(t, root, "config", "user.name", "Run CLI Test")

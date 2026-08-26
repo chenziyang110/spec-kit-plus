@@ -101,6 +101,7 @@ def _assert_shared_work_board_contract(content: str) -> None:
         "specify-runtime board show",
         "specify-runtime board branch-policy",
         "specify-runtime work begin",
+        "specify-runtime work claim",
         "specify-runtime work scope-add",
         "specify-runtime work checkpoint",
         "specify-runtime work block",
@@ -129,6 +130,11 @@ def _assert_shared_work_board_contract(content: str) -> None:
     assert "exact bytes" in lowered
     assert "before parsing" in lowered
     assert "SPECIFY_WORK_ID" in content
+    assert "SPECIFY_WORK_FENCE" in content
+    assert "--write-scope-json" in content
+    assert "all-or-none" in lowered
+    assert "zero confirmed write scope" in lowered
+    assert "before source writes" in lowered
     assert "SPECIFY_FEATURE_BRANCH_POLICY" in content
     assert "keep-current" in lowered
     assert "supervisor" in lowered
@@ -319,6 +325,30 @@ def test_implement_routes_compiled_packet_into_supervised_work_board_registratio
         assert "canonical `path`" in lowered
         assert "scope.write_scope" in content
         assert "do not reconstruct" in lowered or "do not rebuild" in lowered
+        assert "work_claim" in lowered
+        assert "before" in lowered and "in_progress" in lowered
+
+
+def test_fast_debug_implement_and_quick_share_the_same_claim_before_write_gate() -> None:
+    classic = {
+        name: _normalized(_read(f"templates/commands/{name}.md"))
+        for name in ("fast", "debug", "implement", "quick")
+    }
+    advanced = {
+        name: _normalized(_read(f"templates/advanced-skills/spx-{name}/SKILL.md"))
+        for name in ("fast", "debug", "implement", "quick")
+    }
+    for profile, surfaces in (("classic", classic), ("advanced", advanced)):
+        for workflow, content in surfaces.items():
+            assert "work claim" in content or "work_claim" in content, (
+                profile,
+                workflow,
+            )
+            assert "before" in content and (
+                "source write" in content or "in_progress" in content
+            ), (profile, workflow)
+    assert "context-direct" in classic["debug"] and "work claim" in classic["debug"]
+    assert "context-direct" in advanced["debug"] and "work claim" in advanced["debug"]
 
 
 @pytest.mark.parametrize("integration_key", SKILLS_INTEGRATION_SAMPLE_KEYS)

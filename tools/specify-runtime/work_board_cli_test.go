@@ -127,6 +127,104 @@ func TestWorkBoardCLIRegistersShowsConflictsAndReleasesScopes(t *testing.T) {
 	}
 }
 
+func TestWorkBoardCLIClaimRequiresIdentityAndClaimsCompleteScopeAllOrNone(t *testing.T) {
+	root := initRunCLIRepository(t)
+	code, claimant := invokeRunCLI(t,
+		"work", "begin",
+		"--project-root", root,
+		"--work-id", "work-cli-claimant",
+		"--task-ref", "fast:claimant",
+		"--summary", "Claim Fast write scope",
+		"--agent-id", "codex-a",
+		"--adapter-id", "codex",
+		"--lease-seconds", "1800",
+		"--format", "json",
+	)
+	if code != 0 || claimant["status"] != "ok" {
+		t.Fatalf("claimant work begin = code %d envelope %#v", code, claimant)
+	}
+
+	code, missingIdentity := invokeRunCLI(t,
+		"work", "claim",
+		"--project-root", root,
+		"--task-ref", "fast:claimant",
+		"--write-scope-json", `["src/fast.go"]`,
+		"--format", "json",
+	)
+	if code == 0 || missingIdentity["status"] != "blocked" {
+		t.Fatalf("claim without current identity = code %d envelope %#v, want blocked", code, missingIdentity)
+	}
+
+	ownerIntents := marshalWorkBoardCLIJSON(t, []map[string]any{{
+		"path": "src/shared.go", "operation": "modify", "confidence": "confirmed",
+	}})
+	code, owner := invokeRunCLI(t,
+		"work", "begin",
+		"--project-root", root,
+		"--work-id", "work-cli-owner",
+		"--task-ref", "debug:owner",
+		"--summary", "Own shared scope",
+		"--agent-id", "codex-b",
+		"--adapter-id", "codex",
+		"--lease-seconds", "1800",
+		"--intents-json", ownerIntents,
+		"--format", "json",
+	)
+	if code != 0 || owner["status"] != "ok" {
+		t.Fatalf("owner work begin = code %d envelope %#v", code, owner)
+	}
+
+	code, conflict := invokeRunCLI(t,
+		"work", "claim",
+		"--project-root", root,
+		"--current-work-id", "work-cli-claimant",
+		"--current-work-fence", "1",
+		"--task-ref", "fast:claimant",
+		"--write-scope-json", `["src/local.go","src/shared.go"]`,
+		"--format", "json",
+	)
+	if code != 10 || conflict["status"] != "blocked" {
+		t.Fatalf("conflicting complete claim = code %d envelope %#v, want blocked", code, conflict)
+	}
+	code, shown := invokeRunCLI(t, "work", "show", "work-cli-claimant", "--project-root", root, "--format", "json")
+	if code != 0 {
+		t.Fatalf("show claimant after conflict = code %d envelope %#v", code, shown)
+	}
+	unchanged := requireObject(t, requireObject(t, shown, "data"), "work")
+	if unchanged["revision"] != float64(1) || len(unchanged["write_intents"].([]any)) != 0 {
+		t.Fatalf("failed batch claim mutated claimant = %#v", unchanged)
+	}
+
+	code, finished := invokeRunCLI(t,
+		"work", "finish", "work-cli-owner",
+		"--project-root", root,
+		"--expected-revision", "1",
+		"--fence", "1",
+		"--reason", "release for retry",
+		"--format", "json",
+	)
+	if code != 0 || finished["status"] != "ok" {
+		t.Fatalf("finish owner = code %d envelope %#v", code, finished)
+	}
+	code, claimed := invokeRunCLI(t,
+		"work", "claim",
+		"--project-root", root,
+		"--current-work-id", "work-cli-claimant",
+		"--current-work-fence", "1",
+		"--task-ref", "fast:claimant",
+		"--write-scope-json", `["src/local.go","src/shared.go"]`,
+		"--format", "json",
+	)
+	if code != 0 || claimed["status"] != "ok" {
+		t.Fatalf("complete work claim = code %d envelope %#v", code, claimed)
+	}
+	receipt := requireObject(t, requireObject(t, claimed, "data"), "work_claim")
+	if receipt["schema"] != "work-scope-claim-v1" || receipt["task_ref"] != "fast:claimant" ||
+		receipt["claimed_intent_count"] != float64(2) || receipt["work_revision"] != float64(2) {
+		t.Fatalf("work claim receipt = %#v", receipt)
+	}
+}
+
 func TestWorkBoardCLIBranchPolicyKeepsCurrentOnlyForConcurrentWork(t *testing.T) {
 	root := initRunCLIRepository(t)
 	intentsJSON := marshalWorkBoardCLIJSON(t, []map[string]any{{

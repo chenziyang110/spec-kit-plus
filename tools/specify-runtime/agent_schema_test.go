@@ -74,6 +74,7 @@ func TestAPIShowWorkBoardCapabilitiesPublishCoordinationContracts(t *testing.T) 
 		"board.feature-bootstrap",
 		"work.begin",
 		"work.show",
+		"work.claim",
 		"work.scope-add",
 		"work.checkpoint",
 		"work.block",
@@ -97,6 +98,27 @@ func TestAPIShowWorkBoardCapabilitiesPublishCoordinationContracts(t *testing.T) 
 				}
 			}
 		})
+	}
+}
+
+func TestAPIShowWorkClaimPublishesSharedExecutionGate(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "work.claim", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show work.claim exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	capability := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "capability")
+	usage, _ := capability["usage"].(string)
+	contract, _ := capability["input_contract"].(string)
+	for _, phrase := range []string{"--current-work-id", "--current-work-fence", "--task-ref", "--write-scope-json"} {
+		if !strings.Contains(usage, phrase) {
+			t.Fatalf("work.claim usage = %q, missing %q", usage, phrase)
+		}
+	}
+	for _, phrase := range []string{"Fast", "Debug", "Implement", "Quick", "all-or-none", "before source writes"} {
+		if !strings.Contains(contract, phrase) {
+			t.Fatalf("work.claim input_contract = %q, missing %q", contract, phrase)
+		}
 	}
 }
 

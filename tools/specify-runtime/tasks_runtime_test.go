@@ -134,6 +134,16 @@ func TestUnifiedTaskControlPlaneOwnsAuthoringAndLifecycle(t *testing.T) {
 	if packetRef == "" {
 		t.Fatalf("missing packet ref: %#v", compiled)
 	}
+	t.Setenv("SPECIFY_WORK_ID", "")
+	t.Setenv("SPECIFY_WORK_FENCE", "")
+	exit, unclaimed := runTaskRuntimeCommand(t, []string{"implement", "task-start", "--feature-dir", featureRef, "--task-id", "T001", "--execution-mode", "delegated", "--packet-ref", packetRef, "--format", "json"})
+	if exit == 0 || unclaimed.Status != "blocked" || !strings.Contains(strings.ToLower(unclaimed.Summary), "work identity") {
+		t.Fatalf("task-start without Work identity = exit %d env=%#v, want blocked", exit, unclaimed)
+	}
+	if pathExists(filepath.Join(feature, "implementation-review", "tasks", "T001.json")) {
+		t.Fatal("blocked task-start mutated lifecycle state")
+	}
+	bindImplementTestWork(t, root, featureRef, []string{"src/runtime.go"})
 	assertTaskRuntimeCommandOK(t, []string{"implement", "task-start", "--feature-dir", featureRef, "--task-id", "T001", "--execution-mode", "delegated", "--packet-ref", packetRef, "--format", "json"})
 	incompleteResult := `{"task_id":"T001","status":"success","changed_files":["src/runtime.go"],"validation_results":[{"command":"go test ./...","status":"passed","output":"PASS"}],"blockers":[],"suggested_recovery_actions":[]}`
 	exit, rejected := runTaskRuntimeCommand(t, []string{"implement", "result-merge", "--feature-dir", featureRef, "--task-id", "T001", "--result-json", incompleteResult, "--format", "json"})
@@ -504,6 +514,7 @@ func TestImplementTaskReopenPreservesAuditAndRestoresOnlyTheStuckTask(t *testing
 	if exit != 0 || next.Status != "ok" || next.Data["task"].(map[string]any)["task_id"] != "T002" {
 		t.Fatalf("reopened task should be dependency-ready: exit=%d env=%#v", exit, next)
 	}
+	bindImplementTestWork(t, root, featureRef, []string{"src/t002.go"})
 	assertTaskRuntimeCommandOK(t, []string{"implement", "task-start", "--feature-dir", featureRef, "--task-id", "T002", "--execution-mode", "leader-direct", "--format", "json"})
 	corrected := `{"task_id":"T002","status":"success","changed_files":["src/t002.go"],"validation_results":[{"command":"required check","status":"passed"}],"blockers":[],"suggested_recovery_actions":[]}`
 	assertTaskRuntimeCommandOK(t, []string{"implement", "result-merge", "--feature-dir", featureRef, "--task-id", "T002", "--result-json", corrected, "--format", "json"})
@@ -963,6 +974,37 @@ func assertTaskRuntimeCommandOK(t *testing.T, args []string) map[string]any {
 		t.Fatalf("command %v failed: exit=%d env=%#v", args, exit, env)
 	}
 	return env.Data
+}
+
+func bindImplementTestWork(t *testing.T, root, featureRef string, writeScope []string) {
+	t.Helper()
+	requireGit(t)
+	gitRun(t, root, "init")
+	featureID := filepath.Base(filepath.Clean(filepath.FromSlash(featureRef)))
+	intents := make([]map[string]any, 0, len(writeScope))
+	for _, path := range writeScope {
+		intents = append(intents, map[string]any{
+			"path": path, "operation": "modify", "confidence": "confirmed",
+		})
+	}
+	code, payload := invokeRunCLI(t,
+		"work", "begin",
+		"--project-root", root,
+		"--work-id", "implement-test-work",
+		"--task-ref", "implement:"+featureID,
+		"--summary", "Implement test task",
+		"--agent-id", "test-agent",
+		"--adapter-id", "test",
+		"--lease-seconds", "1800",
+		"--intents-json", marshalWorkBoardCLIJSON(t, intents),
+		"--format", "json",
+	)
+	if code != 0 || payload["status"] != "ok" {
+		t.Fatalf("bind Implement test Work = code %d envelope %#v", code, payload)
+	}
+	work := requireObject(t, requireObject(t, payload, "data"), "work")
+	t.Setenv("SPECIFY_WORK_ID", work["work_id"].(string))
+	t.Setenv("SPECIFY_WORK_FENCE", fmt.Sprint(intFromAny(work["fence"])))
 }
 
 func runTaskRuntimeCommand(t *testing.T, args []string) (int, Envelope) {
