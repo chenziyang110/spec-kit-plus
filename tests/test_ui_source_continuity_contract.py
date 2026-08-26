@@ -24,6 +24,11 @@ def _valid_contract() -> dict[str, object]:
         "applicability": "required",
         "mode": "mixed",
         "reason": "Existing visual, runtime, and implementation sources govern the reconstruction.",
+        "coverage": {
+            "surface_ids": ["DH-SURFACE-DESKTOP-001"],
+            "interaction_ids": ["DH-INT-DESKTOP-001"],
+            "component_ids": ["DH-COMP-DESKTOP-001"],
+        },
         "authority_refs": [
             "evidence/main-window.png",
             "src/legacy/main_window.cpp",
@@ -128,6 +133,31 @@ def test_ui_source_continuity_rejects_character_icon_substitution() -> None:
     )
 
 
+def test_ui_source_continuity_ready_requires_bidirectional_coverage() -> None:
+    validate = getattr(
+        design_intelligence,
+        "validate_ui_source_continuity",
+        None,
+    )
+    assert callable(validate)
+
+    payload = _valid_contract()
+    coverage = payload["coverage"]
+    assert isinstance(coverage, dict)
+    coverage["interaction_ids"] = [
+        "DH-INT-DESKTOP-001",
+        "DH-INT-DESKTOP-UNBOUND",
+    ]
+    result = validate(payload, require_ready=True)
+
+    assert result.valid is False
+    assert any(
+        "coverage" in error.message.lower()
+        and "interaction" in error.message.lower()
+        for error in result.errors
+    )
+
+
 def test_professional_router_selects_source_grounded_reconstruction_specialist() -> None:
     module_globals: dict[str, object] = {}
     exec(
@@ -192,4 +222,3 @@ def test_design_and_quick_artifacts_persist_source_continuity() -> None:
     for relative in surfaces:
         content = _read(relative)
         assert "source_continuity" in content, relative
-

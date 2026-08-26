@@ -34,6 +34,11 @@ func sourceContinuityQuickInput() map[string]any {
 					"applicability": "required",
 					"mode":          "mixed",
 					"reason":        "Visual, runtime, and implementation sources govern the reconstruction.",
+					"coverage": map[string]any{
+						"surface_ids": []any{"main-workspace"},
+						"interaction_ids": []any{"export-action"},
+						"component_ids": []any{"export-button"},
+					},
 					"authority_refs": []any{
 						"main-window.png", "legacy/main_window.cpp",
 					},
@@ -41,19 +46,19 @@ func sourceContinuityQuickInput() map[string]any {
 						map[string]any{
 							"id": "SC-SURFACE-001", "surface_id": "main-workspace",
 							"source_refs": []any{"legacy/main_window.cpp"},
-							"discovery": "measured", "disposition": "adapt",
+							"discovery":   "measured", "disposition": "adapt",
 							"rationale": "Preserve the workspace while adapting platform chrome.",
 						},
 					},
 					"action_bindings": []any{
 						map[string]any{
 							"id": "SC-ACTION-001", "interaction_id": "export-action",
-							"source_refs": []any{"legacy/main_window.cpp#exportAction"},
-							"user_promise": "Export the current document.",
+							"source_refs":      []any{"legacy/main_window.cpp#exportAction"},
+							"user_promise":     "Export the current document.",
 							"business_outcome": "A selected file contains the current document.",
-							"side_effects": []any{"write one file"},
-							"final_state": "The exported path is visible and the workspace remains usable.",
-							"verification": "Run the source and target click path with the same document.",
+							"side_effects":     []any{"write one file"},
+							"final_state":      "The exported path is visible and the workspace remains usable.",
+							"verification":     "Run the source and target click path with the same document.",
 						},
 					},
 					"asset_bindings": []any{
@@ -85,7 +90,7 @@ func TestQuickSourceContinuityIsValidatedRenderedAndPacketized(t *testing.T) {
 	view := renderQuickDecisionView(doc)
 	for _, marker := range []string{
 		"来源连续性", "Export the current document", "A selected file contains the current document",
-		"forbid-character-substitution", "未解决缺口：无",
+		"forbid-character-substitution", "覆盖范围", "未解决缺口：无",
 	} {
 		if !strings.Contains(view, marker) {
 			t.Fatalf("source continuity decision view missing %q: %s", marker, view)
@@ -101,6 +106,23 @@ func TestQuickSourceContinuityIsValidatedRenderedAndPacketized(t *testing.T) {
 	ui := packet["ui_confirmation"].(map[string]any)
 	if len(mapValue(ui["source_continuity"])) == 0 {
 		t.Fatalf("worker packet lost source continuity: %#v", packet)
+	}
+}
+
+func TestQuickSourceContinuityRejectsIncompleteDeclaredCoverage(t *testing.T) {
+	input := sourceContinuityQuickInput()
+	ui := mapValue(mapValue(input["decision"])["ui_confirmation"])
+	continuity := mapValue(ui["source_continuity"])
+	coverage := mapValue(continuity["coverage"])
+	coverage["interaction_ids"] = []any{"export-action", "unbound-deep-action"}
+
+	doc, err := normalizeQuickConfirmationInput(input, "260826-004", nil, false)
+	if err != nil {
+		t.Fatalf("normalize incomplete coverage checkpoint: %v", err)
+	}
+	err = validateQuickConfirmation(doc)
+	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "coverage") {
+		t.Fatalf("incomplete source continuity coverage was not rejected: %v", err)
 	}
 }
 
@@ -129,3 +151,18 @@ func TestQuickSourceContinuityRejectsMissingActionsOpenGapsAndCharacterPlacehold
 	}
 }
 
+func TestQuickSourceContinuityRejectsUnsupportedRuntimeFields(t *testing.T) {
+	input := sourceContinuityQuickInput()
+	ui := mapValue(mapValue(input["decision"])["ui_confirmation"])
+	continuity := mapValue(ui["source_continuity"])
+	continuity["invented_contract_escape"] = true
+
+	doc, err := normalizeQuickConfirmationInput(input, "260826-003", nil, false)
+	if err != nil {
+		t.Fatalf("normalize unsupported source continuity checkpoint: %v", err)
+	}
+	err = validateQuickConfirmation(doc)
+	if err == nil || !strings.Contains(err.Error(), "unsupported fields") {
+		t.Fatalf("unsupported source continuity field was not rejected: %v", err)
+	}
+}
