@@ -183,6 +183,10 @@ func runCognitionCloseoutReplayCLI(args []string, stdout io.Writer) int {
 		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("closeout replay found %d intents for %s; expected exactly one", len(matches), relScope)))
 	}
 	intent := matches[0]
+	intentRef := closeoutIntentRef(paths, closeoutIntentPath(paths, intent.ID))
+	if receipt.IntentID != intent.ID || receipt.IntentRef != intentRef || receipt.IntentDigest != intent.InputDigest {
+		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("blocked closeout receipt does not bind the selected replay intent")))
+	}
 	replayArgs := []string{
 		"--project-root", paths.Root,
 		"--workflow", intent.Workflow,

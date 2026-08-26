@@ -57,6 +57,7 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		}
 		return writeEnvelope(stdout, env)
 	}
+	verbose := hasFlag(args, "--verbose")
 	workflowRaw := firstNonEmpty(optionValue(args, "--workflow", ""), optionValue(args, "--command", ""))
 	workflow, err := normalizeMutationWorkflowID(workflowRaw)
 	if err != nil {
@@ -258,8 +259,13 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		}
 		var stageErr *closeoutStageError
 		if errors.As(lockedErr, &stageErr) && updatePayload.UpdateID != "" {
-			result := closeoutApplyResult(workflow, relScope, updatePayload, resumed, intentRef)
-			result["validation"] = gate
+			result := closeoutApplyResult(workflow, relScope, updatePayload, resumed, intentRef, verbose)
+			if verbose {
+				result["validation"] = gate
+			} else {
+				result["validation_status"] = gate.Status
+				result["validation_readiness"] = gate.Readiness
+			}
 			return closeoutApplyBlockedAfterUpdate(stdout, absScope, workflow, relScope, updatePayload, result, stageErr.category, stageErr.detail)
 		}
 		env := NewEnvelope("blocked", "project cognition closeout update failed")
@@ -274,14 +280,18 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		return writeEnvelope(stdout, env)
 	}
 
-	result := closeoutApplyResult(workflow, relScope, updatePayload, resumed, intentRef)
+	result := closeoutApplyResult(workflow, relScope, updatePayload, resumed, intentRef, verbose)
 	result["replayed_intents"] = replayedIntents
 	result["receipt"] = receipt
 	result["closeout_state"] = closeoutState
 	result["allowed_close"] = receipt["allowed_close"]
-	if gate.Gate != "" {
+	if gate.Gate != "" && verbose {
 		result["validation"] = gate
 		result["finalization"] = finalized
+	} else if gate.Gate != "" {
+		result["validation_status"] = gate.Status
+		result["validation_readiness"] = gate.Readiness
+		result["finalized_update_id"] = finalized.LastFinalizedUpdateID
 	}
 	summary := "project cognition closeout updated and recorded"
 	if updatePayload.ResultState == update.ResultReady || updatePayload.ResultState == update.ResultNoOp {
@@ -410,7 +420,12 @@ func pruneCompletedCloseoutIntent(paths rt.Paths, intent closeoutIntent) (bool, 
 	return true, nil
 }
 
-func closeoutApplyResult(workflow string, scope string, payload update.UpdatePayload, resumed bool, intentRef string) map[string]any {
+func closeoutApplyResult(workflow string, scope string, payload update.UpdatePayload, resumed bool, intentRef string, verbose bool) map[string]any {
+	changedPaths := normalizedCloseoutPaths(payload.ChangedPaths)
+	compactPaths := changedPaths
+	if len(compactPaths) > 20 {
+		compactPaths = compactPaths[:20]
+	}
 	result := map[string]any{
 		"closeout_status":       "recorded",
 		"workflow":              workflow,
@@ -422,9 +437,13 @@ func closeoutApplyResult(workflow string, scope string, payload update.UpdatePay
 		"global_readiness":      payload.GlobalReadiness,
 		"global_debt_reasons":   payload.GlobalDebtReasons,
 		"scope_partial_reasons": payload.ScopePartialReasons,
-		"update":                payload,
+		"changed_path_count":    len(changedPaths),
+		"changed_paths":         compactPaths,
 		"resumed_from_intent":   resumed,
 		"intent_ref":            intentRef,
+	}
+	if verbose {
+		result["update"] = payload
 	}
 	if payload.PredecessorRecovery != nil {
 		result["predecessor_recovery"] = payload.PredecessorRecovery
@@ -444,7 +463,7 @@ func closeoutApplyPredecessorRecoveryBlocked(stdout io.Writer, absScope string, 
 		"predecessor_update_outcome=" + recovery.UpdateOutcome,
 		"recovery_action=" + recovery.RecommendedNextAction,
 	}
-	receipt, receiptErr := recordMutationCognitionReceiptWithPaths(absScope, workflow, relScope, "blocked", reason, "", evidence, changedPaths)
+	receipt, receiptErr := recordMutationCognitionReceiptBound(absScope, workflow, relScope, "blocked", reason, "", evidence, changedPaths, intent.ID, intentRef, intent.InputDigest)
 	data := map[string]any{
 		"closeout_status":             "predecessor_recovery_blocked",
 		"workflow":                    workflow,

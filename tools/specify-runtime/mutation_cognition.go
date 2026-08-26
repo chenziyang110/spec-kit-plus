@@ -40,6 +40,9 @@ type mutationCognitionReceipt struct {
 	Reason       string   `json:"reason,omitempty"`
 	Evidence     []string `json:"evidence,omitempty"`
 	ChangedPaths []string `json:"changed_paths,omitempty"`
+	IntentID     string   `json:"intent_id,omitempty"`
+	IntentRef    string   `json:"intent_ref,omitempty"`
+	IntentDigest string   `json:"intent_digest,omitempty"`
 	UpdateID     string   `json:"update_id,omitempty"`
 	RecordedAt   string   `json:"recorded_at"`
 }
@@ -123,6 +126,10 @@ func recordMutationCognitionReceipt(scopeDir, workflow, scopeLabel, resultState,
 }
 
 func recordMutationCognitionReceiptWithPaths(scopeDir, workflow, scopeLabel, resultState, reason, updateID string, evidence []string, changedPaths []string) (map[string]any, error) {
+	return recordMutationCognitionReceiptBound(scopeDir, workflow, scopeLabel, resultState, reason, updateID, evidence, changedPaths, "", "", "")
+}
+
+func recordMutationCognitionReceiptBound(scopeDir, workflow, scopeLabel, resultState, reason, updateID string, evidence []string, changedPaths []string, intentID string, intentRef string, intentDigest string) (map[string]any, error) {
 	canonical, err := normalizeMutationWorkflowID(workflow)
 	if err != nil {
 		return nil, err
@@ -142,6 +149,9 @@ func recordMutationCognitionReceiptWithPaths(scopeDir, workflow, scopeLabel, res
 		Reason:       strings.TrimSpace(reason),
 		Evidence:     evidence,
 		ChangedPaths: normalizedCloseoutPaths(changedPaths),
+		IntentID:     strings.TrimSpace(intentID),
+		IntentRef:    strings.TrimSpace(intentRef),
+		IntentDigest: strings.TrimSpace(intentDigest),
 		UpdateID:     strings.TrimSpace(updateID),
 		RecordedAt:   nowUTCString(),
 	}
@@ -157,6 +167,9 @@ func recordMutationCognitionReceiptWithPaths(scopeDir, workflow, scopeLabel, res
 		"reason":        receipt.Reason,
 		"evidence":      receipt.Evidence,
 		"changed_paths": receipt.ChangedPaths,
+		"intent_id":     receipt.IntentID,
+		"intent_ref":    receipt.IntentRef,
+		"intent_digest": receipt.IntentDigest,
 		"update_id":     receipt.UpdateID,
 		"recorded_at":   receipt.RecordedAt,
 		"allowed_close": mutationCognitionReceiptAllowedClose(scopeDir, &receipt),
