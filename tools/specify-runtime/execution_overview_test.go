@@ -131,6 +131,22 @@ func TestExecutionOverviewBlocksUnknownCurrentWorkIdentity(t *testing.T) {
 	}
 }
 
+func TestExecutionOverviewIsPublishedAsOneSharedRuntimeCapability(t *testing.T) {
+	code, payload := invokeRunCLI(t, "api", "show", "execution.overview", "--format", "json")
+	if code != 0 || payload["status"] != "ok" {
+		t.Fatalf("api show execution.overview = code %d envelope %#v", code, payload)
+	}
+	data := requireObject(t, payload, "data")
+	capability := requireObject(t, data, "capability")
+	if capability["id"] != "execution.overview" || capability["side_effect"] != "reconciles-work-board" {
+		t.Fatalf("execution overview capability = %#v", capability)
+	}
+	usage := stringValue(capability["usage"])
+	if !strings.Contains(usage, "specify-runtime execution overview") {
+		t.Fatalf("execution overview usage = %q", usage)
+	}
+}
+
 func createExecutionOverviewRun(t *testing.T, root, runID, kind, subjectType, subjectID string) {
 	t.Helper()
 	code, payload := invokeRunCLI(t,
