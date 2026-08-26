@@ -103,6 +103,20 @@ design_brief:
   redesign_mode: null
   anti_slop_locks: []
   reference_board_intents: []
+  source_continuity:
+    schema: spec-kit-ui-source-continuity-v1
+    applicability: not-assessed
+    mode: none
+    reason: null
+    coverage:
+      surface_ids: []
+      interaction_ids: []
+      component_ids: []
+    authority_refs: []
+    surface_bindings: []
+    action_bindings: []
+    asset_bindings: []
+    unresolved_gaps: []
   decisions: []
   approved_direction: null
   approved_visual_ref: null
@@ -193,6 +207,28 @@ belongs under `.specify/design/evidence/` and must validate with
 - Responsive rules (desktop/tablet/mobile or content breakpoints, stretch, overflow, resize thresholds):
 - Behavior / keyboard notes (mouse/pointer, keyboard, focus order, touch, shortcuts, async feedback):
 - Open assumptions that must not become silent approved truth:
+
+## Source Continuity
+
+Complete `source_continuity` whenever screenshots, HTML, a live or runnable
+product, source code, recordings, design exports, or prior implementation
+govern the requested UI. A reference proves only the dimensions it exposes:
+visual material alone cannot prove hidden surfaces, business outcomes, side
+effects, final states, or asset provenance.
+
+- Bind every discovered target surface to inspectable authority refs and mark
+  its discovery level plus preserve/adapt/replace/merge/split/retire disposition.
+- Declare complete coverage surface/interaction/component ID sets and require
+  exact equality with the surface/action/asset binding targets.
+- Bind every applicable interaction ID to its user promise, business outcome,
+  side effects, final state, and source-target verification route.
+- Bind icons, images, fonts, and other assets to semantic roles, provenance,
+  target strategy, exact target refs, and fallbacks. Character or emoji
+  substitution is forbidden unless the approved design intentionally uses a
+  text symbol and records `approved-text-symbol`.
+- Keep unexplored dialogs, menus, shortcuts, secondary states, and dynamically
+  revealed surfaces in `unresolved_gaps`; ready approval requires that list to
+  be empty or each item to become an explicit scoped disposition.
 
 ## Professional Contract Intake
 

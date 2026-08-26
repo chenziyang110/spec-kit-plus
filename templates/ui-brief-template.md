@@ -107,6 +107,13 @@ adoption; it does not authorize reinterpretation.
   `smoothness_acceptance_ids` and performance budgets for Web UI. Passing
   acceptance binds the CLI-owned Smoothness Lab report ref and SHA-256.
 - Real content and imagery plan:
+- Source continuity:
+  Copy the exact `source_continuity` contract when screenshots, HTML, live or
+  runnable UI, source code, recordings, or prior implementation govern the
+  feature. Preserve authority refs, surface/action/asset bindings, business
+  outcomes, final states, side effects, dispositions, target asset refs,
+  exact coverage surface/interaction/component ID equality,
+  `forbid-character-substitution`, and the empty unresolved-gap gate.
 - Data scenarios:
   Include `data_state_matrix` rows for empty, populated, partial, loading,
   error, unavailable, and permission-limited states as applicable.
@@ -181,6 +188,7 @@ adoption; it does not authorize reinterpretation.
 - Required packet fields: `design_change_id`, `design_change_ref`,
   `design_change_sha256`, `design_contract_ref`, selected `DS-*`/`DH-*` rows,
   `surface_catalog`, `scenario_matrix`, `interaction_matrix`, `editing_matrix`,
+  `source_continuity`,
   `data_state_matrix`, `accessibility_matrix`, `navigation_matrix`,
   `content_matrix`, `motion_contract`, `usability_validation`,
   component/responsive contracts,

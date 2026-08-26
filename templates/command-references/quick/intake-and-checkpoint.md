@@ -59,6 +59,28 @@ tampered, or foreign selected/required binding routes to independent
 `sp-test-design`; it does not require Plan completion. `not_selected` carries
 no fabricated binding.
 
+## Bounded UI Source-Continuity Preflight
+
+When screenshots, HTML/design exports, a live or runnable product, recordings,
+source code/resources/tests, or prior implementation govern an applicable UI
+task, the Decision Checkpoint needs a ready `source_continuity` contract. Before
+staging that checkpoint, permit only the bounded read-only discovery needed to
+complete it: enumerate source surfaces and hidden/deep entry points; trace each
+applicable touchpoint to its user promise, `business_outcome`, side effects and
+final state; inventory icon/image/font/media provenance and target strategy;
+declare complete coverage surface/interaction/component ID sets with exact
+binding-target equality; and record preserve/adapt/replace/merge/split/retire dispositions. This is
+decision intake, not implementation design: do not edit code, choose detailed
+construction, or run validation for an unconfirmed outcome.
+
+A screenshot or HTML source proves only visible structure. Inspect the minimum
+available runtime, implementation, requirements, and business sources needed
+for behavior and asset claims. Ask one user-owned decision only when evidence
+cannot resolve a material disposition. Do not stage `required` while
+`unresolved_gaps` remains non-empty, and do not claim `not-applicable` merely to
+bypass discovery. Use `forbid-character-substitution` for required assets unless
+an intentional text symbol is explicitly approved.
+
 Stage the user-owned decision first. The Quick projection basis is the
 runtime-owned `.planning/quick/<id>/confirmation.json` produced by
 `quick checkpoint-stage`, never the mutable `STATUS.md` that later receives the

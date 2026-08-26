@@ -64,6 +64,7 @@ var artifactScaffoldKinds = map[string]artifactScaffoldKind{
 			"foundation_strategy",
 			"anti_slop_locks",
 			"reference_board_intents",
+			"source_continuity",
 		},
 		EstimatedTokenSavings: 700,
 	},

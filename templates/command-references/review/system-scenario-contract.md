@@ -26,9 +26,38 @@ Do not expand into an unbounded audit of unrelated legacy behavior. Do not narro
 
 The coverage gate is zero uncovered: no required obligation, official entrypoint, changed consumer surface, or applicable runtime-discovered control may remain unmapped or unexecuted. All packets joined is a separate gate. A worker cannot declare coverage complete; only the Leader may reconcile the universe after independent audit results have joined.
 
+When prior screenshots/recordings, HTML/design exports, live source UI, source
+code/resources/tests, a runnable source product, requirements, or business
+rules govern reconstruction or migration, include the exact
+`source_continuity` contract in the Review Universe. Reconcile every source
+surface to one target binding with its confirmed `preserve`, `adapt`, `replace`,
+`merge`, `split`, or `retire` disposition. Reconcile every action binding to its
+exact `interaction_id`, `source_refs`, `user_promise`, `business_outcome`,
+`side_effects`, `final_state`, and `verification`; exercise feedback and
+recovery through the linked interaction/scenario rows. First require exact
+equality between coverage surface/interaction/component ID sets, the selected
+UI matrices, and binding targets; a missing ID is uncovered behavior, not a
+sampling choice. Neither visual
+resemblance nor a present handler is proof. Reconcile all `asset_bindings` by
+exact `component_id`, `semantic_role`, `source_refs`, `target_strategy`,
+`target_ref`, `provenance`, and `fallback`, and enforce
+`placeholder_policy: forbid-character-substitution` so Unicode, emoji, ASCII,
+or arbitrary glyphs cannot pass as replacement icons or images. Any applicable
+`unresolved_gaps` entry, newly discovered hidden surface, unexplained retirement,
+or source/target evidence conflict remains uncovered and blocks the affected
+continuity claim.
+
 ## Scenario Requirements
 
 Every mandatory scenario has a stable id, source acceptance refs, entrypoint, preconditions, safe test data, actions, observable expected results, required evidence, result, and exact resume point. Cover startup, reachability, interaction, state change/persistence, error or permission behavior, and cross-component integration when applicable.
+
+For each source-continuity action, run a matched scenario through the source and
+target official real entrypoints with equivalent safe data when the source is
+runnable. Compare reachability, event order, immediate/pending feedback,
+cancellation/retry/repeat behavior, side effects, `business_outcome`, and
+`final_state`; report visual fidelity and behavioral continuity as separate
+verdicts. If the source cannot run, use the strongest remaining inspectable
+authority, record attempted alternatives, and withhold runtime-parity claims.
 
 The only non-executed terminal result is `waived` for a current,
 hash-bound, human-confirmed `hardware_unavailable` exception. Its absent

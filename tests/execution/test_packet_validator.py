@@ -445,6 +445,64 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
         ],
         design_sources=["design-change.md", "ui-brief.md"],
         real_content_plan=[{"source_ref": "src/settings/schema.ts"}],
+        source_continuity={
+            "schema": "spec-kit-ui-source-continuity-v1",
+            "applicability": "required",
+            "mode": "implementation-backed",
+            "reason": "The existing settings implementation governs behavior and assets.",
+            "coverage": {
+                "surface_ids": ["SURFACE-001"],
+                "interaction_ids": ["INT-001", "INT-002"],
+                "component_ids": ["COMP-001"],
+            },
+            "authority_refs": ["src/settings/page.tsx", "src/settings/schema.ts"],
+            "surface_bindings": [
+                {
+                    "id": "SC-SURFACE-001",
+                    "surface_id": "SURFACE-001",
+                    "source_refs": ["src/settings/page.tsx"],
+                    "discovery": "measured",
+                    "disposition": "adapt",
+                    "rationale": "Preserve the settings job while adapting the approved surface.",
+                }
+            ],
+            "action_bindings": [
+                {
+                    "id": "SC-ACTION-001",
+                    "interaction_id": "INT-001",
+                    "source_refs": ["src/settings/page.tsx#save"],
+                    "user_promise": "Save the current preferences.",
+                    "business_outcome": "The current account preferences persist once.",
+                    "side_effects": ["write the current preferences once"],
+                    "final_state": "Saved values and confirmation remain visible.",
+                    "verification": "Run the source and target save click paths with equal input.",
+                },
+                {
+                    "id": "SC-ACTION-002",
+                    "interaction_id": "INT-002",
+                    "source_refs": ["src/settings/page.tsx#save"],
+                    "user_promise": "Save the current preferences by keyboard.",
+                    "business_outcome": "The current account preferences persist once.",
+                    "side_effects": ["write the current preferences once"],
+                    "final_state": "Saved values and confirmation remain visible.",
+                    "verification": "Run the source and target keyboard save paths with equal input.",
+                },
+            ],
+            "asset_bindings": [
+                {
+                    "id": "SC-ASSET-001",
+                    "component_id": "COMP-001",
+                    "semantic_role": "save status",
+                    "source_refs": ["src/settings/page.tsx"],
+                    "target_strategy": "preserve",
+                    "target_ref": "src/assets/status-save.svg",
+                    "provenance": "project-owned",
+                    "fallback": "Visible saved text and accessible name.",
+                    "placeholder_policy": "forbid-character-substitution",
+                }
+            ],
+            "unresolved_gaps": [],
+        },
         surface_catalog=[
             {
                 "id": "SURFACE-001",
@@ -788,6 +846,23 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
     )
     sample_packet.ui_contract.surface_catalog[0]["id"] = "DH-SURFACE-WEB-001"
     sample_packet.ui_contract.surface_catalog[0]["component_ids"] = ["DH-COMP-001"]
+    sample_packet.ui_contract.source_continuity["surface_bindings"][0][
+        "surface_id"
+    ] = "DH-SURFACE-WEB-001"
+    sample_packet.ui_contract.source_continuity["action_bindings"][0][
+        "interaction_id"
+    ] = "DH-INT-001"
+    sample_packet.ui_contract.source_continuity["action_bindings"][1][
+        "interaction_id"
+    ] = "DH-INT-002"
+    sample_packet.ui_contract.source_continuity["asset_bindings"][0][
+        "component_id"
+    ] = "DH-COMP-001"
+    sample_packet.ui_contract.source_continuity["coverage"] = {
+        "surface_ids": ["DH-SURFACE-WEB-001"],
+        "interaction_ids": ["DH-INT-001", "DH-INT-002"],
+        "component_ids": ["DH-COMP-001"],
+    }
     sample_packet.ui_contract.scenario_matrix[0].update(
         {
             "id": "DH-SCENARIO-WEB-001",
@@ -972,6 +1047,12 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
     sample_packet.ui_contract.interaction_matrix = [
         _interaction_contract("DH-INT-001", "keyboard")
     ]
+    sample_packet.ui_contract.source_continuity["action_bindings"] = [
+        sample_packet.ui_contract.source_continuity["action_bindings"][0]
+    ]
+    sample_packet.ui_contract.source_continuity["coverage"][
+        "interaction_ids"
+    ] = ["DH-INT-001"]
     sample_packet.ui_contract.interaction_matrix[0]["event_sequence"] = ""
     with pytest.raises(PacketValidationError, match="interaction_matrix"):
         validate_worker_task_packet(sample_packet)

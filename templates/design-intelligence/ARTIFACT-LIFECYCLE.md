@@ -16,6 +16,7 @@ It does not invent a new mainline command and does not replace
 | Change review workspace | `.specify/design/changes/<UD-ID>/{brief.md,previews/**,review.md}` | design only until registration |
 | DesignContext payload | `.specify/design/context/design-context.json` or a change-local referenced projection | discussion → design → explicitly bound consumers |
 | Evidence records | `.specify/design/evidence/*.json` or change-local referenced evidence | design reverse-engineering, discussion discovery |
+| UI source continuity | embedded in the active Design contract or Quick confirmation and projected unchanged into UI task contracts | design / quick → tasks / implement / review |
 | UI quality gate report | `.specify/design/gate-reports/*.json` | implement / review / accept (optional engine) |
 | Legacy auxiliary archive | `.specify/design/archive/<stamp>/` | explicit auxiliary-record supersede only |
 
@@ -31,6 +32,7 @@ It does not invent a new mainline command and does not replace
 4. **validate** — structural checks via Design Intelligence schemas:
    - DesignContext v1
    - Design Evidence v1
+   - UI Source Continuity v1
    - UI Quality Gate Report v1
 5. **supersede** — an approved change remains immutable at its canonical path;
    `index.json` records `superseded`/`superseded_by`. Only auxiliary context or

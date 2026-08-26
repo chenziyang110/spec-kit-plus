@@ -2840,6 +2840,7 @@ def _render_tasks_markdown(task_index: Mapping[str, Any], *, title: str) -> str:
                     f"| fidelity_level | {ui_contract.get('fidelity_level', 'none')} |",
                     f"| surface_catalog | {_render_compact_json(ui_contract.get('surface_catalog'))} |",
                     f"| scenario_matrix | {_render_compact_json(ui_contract.get('scenario_matrix'))} |",
+                    f"| source_continuity | {_render_compact_json(ui_contract.get('source_continuity'))} |",
                     f"| interaction_matrix | {_render_compact_json(ui_contract.get('interaction_matrix'))} |",
                     f"| editing_matrix | {_render_compact_json(ui_contract.get('editing_matrix'))} |",
                     f"| required_states | {_render_list(ui_contract.get('required_states'))} |",

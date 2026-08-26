@@ -19,6 +19,18 @@ Preserved Contract: UI reference work must preserve lane dispatch, static target
   authorized exact full-page overhaul may carry bounded style-delta surfaces,
   while `global-shell` and `shared-components` remain protected.
 - Detect screenshots, HTML/CSS mockups, UI framework snippets, design exports, UI reference URLs or existing UI pages, and matching-language such as "make it like this" as UI reference input.
+- Treat those inputs as dimension-limited evidence, never a complete product
+  contract. When a reference, live/runnable product, recording, source code, or
+  prior implementation governs the requested UI, build and validate
+  `source_continuity`: inspectable authority refs; complete surface discovery;
+  action bindings with `business_outcome`, side effects, final state, and
+  source-target verification; asset bindings with provenance and target refs;
+  and an empty `unresolved_gaps` gate. A screenshot or HTML file cannot prove
+  hidden surfaces or business behavior by itself.
+- Record icon/image/font/media semantics in `asset_bindings`. A raw character,
+  emoji, or Unicode glyph cannot satisfy a required icon; use
+  `forbid-character-substitution` unless the user explicitly approves an
+  intentional text symbol as `approved-text-symbol`.
 - For a chat-only binary attachment, pass the runtime image item directly when supported or import its runtime-provided local path with `specify-runtime evidence import --file <local-path> --scope ui-reference --source chat-attachment --provenance user-provided`; reference the returned `object_ref` and evidence record. Never copy or materialize a project file directly.
 - Give every reference its own use intent: `exact`, `preserve-structure`,
   `inspiration`, `extract-tokens`, or `do-not-copy`. Intent controls permitted
@@ -28,6 +40,10 @@ Preserved Contract: UI reference work must preserve lane dispatch, static target
 - For `approximate` and `high`, native subagents are required by default; if native subagents are unavailable, follow the decision from `choose_ui_reference_lane_dispatch` and proceed inline only when it returns a gated `leader-inline` fallback with explicit user approval recorded, otherwise block with the missing capability instead of guessing.
 - For `inspiration`, inline fallback may proceed only after `choose_ui_reference_lane_dispatch` returns a gated `leader-inline` soft-risk decision with safe lane and contract-ready state satisfied.
 - Dispatch the UI reference lane with registered artifact owners for notes/brief and `specify-runtime design ui-target` for optional `ui-target.html`.
+- Carry the exact validated `source_continuity` object from reference notes into
+  the UI brief, plan UI contract, every applicable task/worker packet, and
+  Review. Specify owns unresolved product meaning; implementation details do
+  not authorize inventing a business action.
 - This lane is a Specify-owned intake path, not a reason to rerun Specify after
   an unchanged planning-ready spec. A late design overlay uses
   `formal-post-specify` and returns to Plan; only requirements changes reopen

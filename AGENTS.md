@@ -293,6 +293,18 @@ present in a test project.
   worker packet cannot silently downgrade UI work to `not_applicable`. It also
   carries `design_change_id`, `design_change_ref`, `design_change_sha256`, and
   `design_contract_ref`; no stage may resolve an unbound "latest" change.
+- Reference-, live-product-, recording-, or implementation-grounded UI also
+  carries `spec-kit-ui-source-continuity-v1`. Authority refs bind exact source
+  surfaces; complete coverage surface/interaction/component ID sets must equal
+  their binding targets so sampled happy paths cannot close a larger UI;
+  surface bindings carry preserve/adapt/replace/merge/split/retire dispositions; action
+  bindings map interaction IDs to user promises, business outcomes, side
+  effects, final states, and source-target verification; asset bindings map
+  component IDs to semantics, provenance, target strategy/ref, fallback, and
+  `forbid-character-substitution`. Screenshots/HTML cannot prove hidden behavior;
+  `unresolved_gaps` blocks ready Design, Quick, task, worker, or Review claims.
+  Quick may perform a bounded read-only continuity preflight before its Decision
+  Checkpoint, then digest-binds and packetizes the same contract.
 - The single current UI contract separates work type, surface type, and platform. It preserves
   subject, audience, single job, visual/content/interaction theses, a signature
   element, an inspectable approved visual reference, per-reference use intent,

@@ -16,12 +16,6 @@ from specify_cli.execution.packet_schema import (
     worker_task_packet_from_json,
     worker_task_packet_payload,
 )
-
-
-def test_current_ui_contract_includes_stable_surface_and_scenario_graph() -> None:
-    from specify_cli.execution.packet_schema import UI_CONTRACT_FIELDS
-
-    assert {"surface_catalog", "scenario_matrix", "editing_matrix"} <= UI_CONTRACT_FIELDS
 from specify_cli.execution.result_schema import (
     RuleAcknowledgement,
     UIVerification,
@@ -30,6 +24,17 @@ from specify_cli.execution.result_schema import (
     worker_task_result_from_json,
     worker_task_result_payload,
 )
+
+
+def test_current_ui_contract_includes_stable_surface_and_scenario_graph() -> None:
+    from specify_cli.execution.packet_schema import UI_CONTRACT_FIELDS
+
+    assert {
+        "source_continuity",
+        "surface_catalog",
+        "scenario_matrix",
+        "editing_matrix",
+    } <= UI_CONTRACT_FIELDS
 
 
 def test_current_ui_packet_and_result_parsers_reject_obsolete_fields() -> None:

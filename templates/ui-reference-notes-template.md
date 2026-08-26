@@ -6,6 +6,19 @@
 - Type: screenshot | html | code | url | notes
 - Ownership: user-owned | project-owned | third-party | unknown
 
+## Source Authority And Continuity
+
+- Source-continuity applicability: not-assessed | not-applicable | required
+- Mode: none | reference-grounded | live-product | implementation-backed | mixed
+- Coverage surface IDs:
+- Coverage interaction IDs:
+- Coverage component IDs:
+- Governing visual refs:
+- Governing runtime refs:
+- Governing implementation refs:
+- Governing business/requirement refs:
+- Dimensions each source can and cannot prove:
+
 ## Fidelity Mode
 
 - Mode: approximate | high | inspiration
@@ -58,6 +71,24 @@
 - Primary interactions:
 - Secondary interactions:
 - Feedback behavior:
+- User promises and business outcomes:
+- State reads/writes and external side effects:
+- Final states, cancel/retry/duplicate behavior, and verification routes:
+
+## Surface Coverage
+
+- Discovered surfaces and entry points:
+- Dialogs, menus, shortcuts, secondary windows, overlays, and contextual actions:
+- Dynamically revealed or data/permission-dependent surfaces:
+- Preserve/adapt/replace/merge/split/retire dispositions:
+
+## Asset And Icon Coverage
+
+- Original icon/image/font/media refs and provenance:
+- Semantic roles and component ownership:
+- Preserve/library/owned/text-only/approved-exception target strategy:
+- Target refs and accessible fallbacks:
+- Placeholder policy: forbid-character-substitution | approved-text-symbol
 
 ## Responsive Facts
 
@@ -84,3 +115,4 @@
 - Missing reference states:
 - Ambiguous visual decisions:
 - Human review needs:
+- Unresolved source-continuity gaps that block implementation or final claims:

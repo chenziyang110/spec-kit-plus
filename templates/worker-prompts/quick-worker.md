@@ -18,6 +18,14 @@ Use this template when the quick-task leader dispatches a bounded execution lane
 - When the lane is shaped by a PNG, screenshot, mockup, design export, or other reference image, provide the original visual input as a runtime image item/local_image when supported and as a stable project-relative path when available. Do not provide only a prose summary of the image.
 - State the expected fidelity mode (`approximate`, `high`, or `inspiration`) and the image-derived constraints the worker must preserve.
 - For UI work, provide the confirmed UI Confirmation exactly as approved, including its source material, boundaries, states, and acceptance evidence. The worker must not redesign the confirmed direction.
+- When reconstruction, migration, adaptation, or completion is source-grounded,
+  provide the confirmed `source_continuity` subset and the original accessible
+  screenshot/HTML/live/source/runtime/business authority refs. Include exact
+  surface and action bindings, `business_outcome` / `final_state`,
+  `asset_bindings`, and any `unresolved_gaps`. The declared coverage surface,
+  interaction, and component ID sets must exactly match the supplied binding
+  targets and task UI contract; report a blocker rather than silently skipping
+  an ID. Do not hand the worker a prose summary in place of inspectable evidence.
 
 ## Worker Contract
 
@@ -30,6 +38,23 @@ Use this template when the quick-task leader dispatches a bounded execution lane
 - Return enough structured detail for the leader to patch `STATUS.md` through `specify-runtime artifact patch`; never edit it yourself.
 - If reference images are provided, inspect the original image input before making layout, spacing, color, hierarchy, or asset decisions. If the original image is missing or inaccessible, return a blocker instead of implementing from the leader's text summary alone.
 - Treat the confirmed UI Confirmation as an implementation constraint. Preserve original references and their intents; if code or runtime evidence conflicts with the confirmed UI direction, stop and return the conflict rather than silently adapting the design.
+- For a source-continuity lane, implement only its assigned source-target
+  bindings. Preserve the confirmed `preserve`/`adapt`/`replace`/`merge`/`split`/
+  `retire` disposition; do not silently omit a deep surface or retire an
+  unexplored one. Implement each assigned `action_bindings` row's exact
+  `interaction_id`, `source_refs`, `user_promise`, `business_outcome`,
+  `side_effects`, `final_state`, and `verification`; exercise linked
+  interaction/scenario feedback and recovery. A clickable shell or present
+  handler is not completion.
+- Implement exact `asset_bindings` fields: `component_id`, `semantic_role`,
+  `source_refs`, `target_strategy`, `target_ref`, `provenance`, `fallback`, and
+  placeholder policy. Obey
+  `placeholder_policy: forbid-character-substitution`: never use Unicode,
+  emoji, ASCII, or arbitrary text glyphs as substitutes for missing icons or
+  images. Return a blocker or owned replacement request instead.
+- If runtime/source inspection discovers a missing surface, action, outcome,
+  state, asset, or evidence conflict, return it as `unresolved_gaps` and stop
+  the affected claim rather than guessing beyond the confirmed packet.
 - If this lane is a bug fix, do not hide the symptom with a surface-only or symptom-only change when the root cause is still unknown. Return a blocker or a narrower diagnostic split and route the investigation toward `/sp-debug`.
 - `STATUS.md` remains leader-owned; the worker must not become the resume authority.
 - In plain terms: `STATUS.md` remains leader-owned even when delegated execution succeeds.
@@ -43,6 +68,9 @@ Use this template when the quick-task leader dispatches a bounded execution lane
 - Verification run
 - Files or surfaces touched
 - Reference images viewed, or the blocker explaining why an image could not be inspected
+- Source-continuity authority refs inspected; surface/action/asset bindings
+  completed; source-target real-entrypoint scenarios run; observed
+  `business_outcome` and `final_state`; and remaining `unresolved_gaps`
 - Recommended next action
 - Blocker or concern
 - When structured delegated results are available, return a `WorkerTaskResult`-style payload so the leader can merge execution state without reinterpreting prose.

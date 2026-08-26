@@ -119,6 +119,20 @@ design_change:
     imagery_rules: []
   decisions: []
   verification:
+    source_continuity:
+      schema: spec-kit-ui-source-continuity-v1
+      applicability: not-assessed
+      mode: none
+      reason: null
+      coverage:
+        surface_ids: []
+        interaction_ids: []
+        component_ids: []
+      authority_refs: []
+      surface_bindings: []
+      action_bindings: []
+      asset_bindings: []
+      unresolved_gaps: []
     required_viewports: []
     required_states: []
     surface_catalog: []
@@ -212,6 +226,16 @@ Iconography names its approved source, visual family, sizing, stroke/fill
 rules, optical alignment, semantic meaning, and text or non-visual fallback.
 
 ## Interaction And State Scenarios
+
+When the change reconstructs or adapts an existing/reference-grounded UI,
+freeze `verification.source_continuity` before these scenarios. It binds the
+complete coverage surface, interaction, and component ID sets below to
+inspectable source authority and requires exact binding-target equality,
+business outcomes, final states, side effects, asset provenance, target
+strategies, and source-target verification. A screenshot or HTML reference is
+not behavioral evidence. Raw characters, emoji, or Unicode glyphs cannot stand
+in for a required icon unless the approved contract explicitly records an
+`approved-text-symbol` exception.
 
 Keep these in `verification.interaction_matrix`, `verification.editing_matrix`,
 and `verification.data_state_matrix`, not only in prose.

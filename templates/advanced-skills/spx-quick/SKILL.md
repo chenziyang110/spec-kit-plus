@@ -168,6 +168,12 @@ Initialize or preserve the unconfirmed intake state, then stage a
 `{{specify-subcmd:specify-runtime quick checkpoint-stage <id> --input-json '<decision+delivery>' --format json}}`
 and render the runtime Decision Checkpoint from
 `references/human-confirmation.md`. Use its human-first heading/bullet view;
+for reference/live/source-grounded UI, first perform only the bounded read-only
+`source_continuity` intake needed to enumerate surfaces, bind touchpoints to
+`business_outcome`/side effects/final state, bind assets and dispositions, and
+declare complete coverage surface/interaction/component ID sets that exactly
+equal their binding targets before closing `unresolved_gaps`. This preflight authorizes no code edit or construction
+plan and never treats a screenshot/HTML artifact as behavioral proof. Then
 show Delivery Map only after confirmation, on request, or for inherited state.
 For applicable UI work, include `decision.ui_confirmation` and fold its readable
 `界面方向` proposal into the same checkpoint. When Quick will adopt a
@@ -252,7 +258,46 @@ visual review. Do not jump straight to code or CSS. Patch design sources,
 affected states/viewports, visual acceptance, direction source/signature,
 reference intents, real content/image sources, and the structure/visual/runtime
 evidence triad into the quick-status artifact via leased
-`specify-runtime artifact patch`. Run
+`specify-runtime artifact patch`.
+
+For reconstruction, migration, adaptation, or completion governed by an
+existing screenshot/recording, HTML/design export, live source UI, source
+code/resources/tests, runnable product, requirements, or business rules, build
+a structured `source_continuity` contract before dispatch and stage its
+applicable subset as `decision.ui_confirmation.source_continuity` so confirmation binds the
+promise. Include `schema: spec-kit-ui-source-continuity-v1`, `applicability`,
+`mode`, `reason`, complete `coverage.surface_ids` / `interaction_ids` /
+`component_ids` sets with exact binding-target equality, and stable
+`authority_refs`. Preserve the digest-bound contract or exact ref in `STATUS.md`, the
+task-local `PLAN.md` when needed, and every affected worker packet. Treat the
+sources as complementary bounded authorities: discover deep surfaces, alternate
+entries, and applicable empty/populated/loading/error/permission/offline/
+pending/cancel/repeat/restored states rather than extrapolating from the first
+screen. Map each surface with exactly one `preserve`, `adapt`, `replace`,
+`merge`, `split`, or `retire` disposition. Record every actionable control in
+`action_bindings` with exact `interaction_id`, `source_refs`, `user_promise`,
+`business_outcome`, `side_effects`, `final_state`, and `verification`; linked
+interaction/scenario rows own event order, feedback, and recovery. Code
+presence is not proof.
+Carry `asset_bindings` for icons, imagery, fonts, and other identity resources,
+using exact `component_id`, `semantic_role`, `source_refs`, `target_strategy`,
+`target_ref`, `provenance`, and `fallback`. Enforce
+`placeholder_policy: forbid-character-substitution`; Unicode, emoji, ASCII, or
+arbitrary glyphs cannot substitute for missing icons or images. Keep unknown
+surfaces/actions/outcomes/states/assets and source conflicts in
+`unresolved_gaps` strings naming owner, next discovery action, and blocking effect; never
+hide an unexplored gap as retirement.
+
+Quick remains the direct-delivery owner. Source depth, migration breadth, and
+multi-surface acceptance expand task-local planning, Q items, and evidence;
+they do not force `$spx-specify`. Escalate only a genuinely new or unresolved
+visual direction to `$spx-design`, then resume the same Quick workspace after
+approval. Close only after matched safe scenarios run through source and target
+real entrypoints when available and separately prove visual fidelity plus each
+promised `business_outcome` and `final_state`. If the source cannot run, use the
+strongest remaining authority and explicitly withhold the parity claim.
+
+Run
 `specify-runtime design resolve --scope <exact-surface> --format json` and query
 `.specify/design/index.json` through `specify-runtime artifact show` only for
 detail. Resolution is discovery only. Each Quick `STATUS.md` has one singular

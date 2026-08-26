@@ -72,6 +72,23 @@ def _configure_direction_taste(manifest: dict[str, object]) -> None:
     direction["aesthetic_family"] = "minimal-product-linear"
 
 
+def _configure_source_continuity(manifest: dict[str, object]) -> None:
+    handoff = manifest.get("handoff")
+    assert isinstance(handoff, dict)
+    handoff["source_continuity"] = {
+        "schema": "spec-kit-ui-source-continuity-v1",
+        "applicability": "not-applicable",
+        "mode": "none",
+        "reason": "This fixture exercises greenfield preview behavior.",
+        "coverage": {"surface_ids": [], "interaction_ids": [], "component_ids": []},
+        "authority_refs": [],
+        "surface_bindings": [],
+        "action_bindings": [],
+        "asset_bindings": [],
+        "unresolved_gaps": [],
+    }
+
+
 def _author_preview_content(content: str) -> str:
     """Replace the intentionally unfinished visual seed for ready fixtures."""
 
@@ -108,6 +125,7 @@ def _candidate_preview() -> str:
     content = re.sub(r"__[A-Z0-9_]+__", "Configured design content", content)
     manifest = _preview_manifest(content)
     _configure_direction_taste(manifest)
+    _configure_source_continuity(manifest)
     return _replace_preview_manifest(content, manifest)
 
 
@@ -877,6 +895,7 @@ def test_design_verification_must_match_immutable_professional_handoff() -> None
     verification = {
         field: json.loads(json.dumps(handoff[field]))
         for field in (
+            "source_continuity",
             "surface_catalog",
             "scenario_matrix",
             "interaction_matrix",
@@ -1259,6 +1278,7 @@ def test_approved_handoff_preserves_profile_specific_motion_contract(
     )
     manifest = json.loads(configured)
     _configure_direction_taste(manifest)
+    _configure_source_continuity(manifest)
     expected_motion = json.loads(json.dumps(manifest["handoff"]["motion_contract"]))
     manifest_path.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2),

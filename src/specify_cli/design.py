@@ -18,6 +18,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined, TemplateError
 from jsonschema import Draft202012Validator
 
 from .atomic_io import atomic_write_text, interprocess_lock
+from .design_intelligence import validate_ui_source_continuity
 
 
 FRONT_MATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n?(.*)\Z", re.DOTALL)
@@ -101,6 +102,7 @@ DESIGN_PROFESSIONAL_MATRIX_FIELDS = (
 )
 DESIGN_EXPERIENCE_GRAPH_FIELDS = ("surface_catalog", "scenario_matrix")
 DESIGN_PROFESSIONAL_FIELDS = (
+    "source_continuity",
     *DESIGN_EXPERIENCE_GRAPH_FIELDS,
     *DESIGN_PROFESSIONAL_MATRIX_FIELDS,
     "motion_contract",
@@ -1950,6 +1952,21 @@ def _validate_quick_confirmation_document(
                     "ui_confirmation.acceptance_evidence is required when "
                     "UI confirmation is present"
                 )
+            continuity_result = validate_ui_source_continuity(
+                ui_confirmation.get("source_continuity"),
+                require_ready=True,
+            )
+            if not continuity_result.valid:
+                details = "; ".join(
+                    f"{error.path}: {error.message}"
+                    for error in continuity_result.errors
+                )
+                raise DesignLintError(
+                    "quick design adoption confirmation is invalid: "
+                    "ui_confirmation.source_continuity is required and must "
+                    "be ready: "
+                    + details
+                )
     return decision
 
 
@@ -3287,6 +3304,7 @@ def _capability_model_diagnostics(
             "manifest.capability_model",
         )
         return diagnostics
+
     if model.get("schema") != DESIGN_CAPABILITY_MODEL_SCHEMA:
         _add_diagnostic(
             diagnostics,
@@ -4464,6 +4482,18 @@ def _preview_manifest_diagnostics(
         )
         return diagnostics
 
+    continuity_result = validate_ui_source_continuity(
+        handoff.get("source_continuity"),
+        require_ready=ready,
+    )
+    for error in continuity_result.errors:
+        _add_diagnostic(
+            diagnostics,
+            "preview-source-continuity-invalid",
+            error.message,
+            "manifest.handoff.source_continuity" + error.path.removeprefix("$"),
+        )
+
     component_contracts = handoff.get("component_contracts")
     surface_catalog = handoff.get("surface_catalog")
     scenario_matrix = handoff.get("scenario_matrix")
@@ -4472,6 +4502,44 @@ def _preview_manifest_diagnostics(
     professional_matrices = {
         field: handoff.get(field) for field in DESIGN_PROFESSIONAL_MATRIX_FIELDS
     }
+    continuity = handoff.get("source_continuity")
+    if (
+        ready
+        and isinstance(continuity, dict)
+        and continuity.get("applicability") == "required"
+    ):
+        coverage = continuity.get("coverage")
+        coverage = coverage if isinstance(coverage, dict) else {}
+        actual_coverage = {
+            "surface_ids": {
+                str(row.get("id") or "").strip()
+                for row in surface_catalog or []
+                if isinstance(row, dict) and str(row.get("id") or "").strip()
+            },
+            "interaction_ids": {
+                str(row.get("id") or "").strip()
+                for row in handoff.get("interaction_matrix") or []
+                if isinstance(row, dict) and str(row.get("id") or "").strip()
+            },
+            "component_ids": {
+                str(row.get("id") or "").strip()
+                for row in component_contracts or []
+                if isinstance(row, dict) and str(row.get("id") or "").strip()
+            },
+        }
+        for field, actual_ids in actual_coverage.items():
+            declared_ids = {
+                str(value).strip()
+                for value in coverage.get(field) or []
+                if isinstance(value, str) and value.strip()
+            }
+            if declared_ids != actual_ids:
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-source-continuity-coverage-mismatch",
+                    f"source_continuity.coverage.{field} must exactly cover the handoff IDs",
+                    f"manifest.handoff.source_continuity.coverage.{field}",
+                )
     for field, entries in (
         ("surface_catalog", surface_catalog),
         ("scenario_matrix", scenario_matrix),
@@ -7325,6 +7393,27 @@ def _validate_design_system(document: DesignDocument, diagnostics: list[DesignDi
         )
     if schema == DESIGN_CHANGE_SCHEMA:
         _validate_design_change_metadata(design_system, diagnostics)
+        verification = design_system.get("verification")
+        if not isinstance(verification, dict):
+            _add_diagnostic(
+                diagnostics,
+                "missing-source-continuity",
+                "design_change.verification must contain source_continuity",
+                "design_change.verification.source_continuity",
+            )
+        else:
+            continuity_result = validate_ui_source_continuity(
+                verification.get("source_continuity"),
+                require_ready=False,
+            )
+            for error in continuity_result.errors:
+                _add_diagnostic(
+                    diagnostics,
+                    "invalid-source-continuity",
+                    error.message,
+                    "design_change.verification.source_continuity"
+                    + error.path.removeprefix("$"),
+                )
 
     _validate_professional_skill_route(design_system, diagnostics, ready=False)
     _validate_style_authority(design_system, diagnostics, ready=False)
@@ -8795,6 +8884,18 @@ def _validate_design_readiness(document: DesignDocument, diagnostics: list[Desig
             "design_system.verification",
         )
     else:
+        continuity_result = validate_ui_source_continuity(
+            verification.get("source_continuity"),
+            require_ready=True,
+        )
+        for error in continuity_result.errors:
+            _add_diagnostic(
+                diagnostics,
+                "invalid-source-continuity",
+                error.message,
+                "design_system.verification.source_continuity"
+                + error.path.removeprefix("$"),
+            )
         for field in ("required_viewports", "required_states"):
             values = verification.get(field)
             if not isinstance(values, list) or not values:

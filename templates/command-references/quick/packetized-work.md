@@ -155,6 +155,44 @@ The following flags are available and composable:
   `must preserve`/`may adapt` boundaries but must not redesign the confirmed
   proposal; any conflict returns to the leader as a checkpoint amendment or
   workflow escalation.
+- For reconstruction, migration, adaptation, or completion governed by an
+  existing screenshot/recording, HTML/design export, live source UI, source
+  code/resources/tests, runnable product, requirements, or business rules,
+  build and confirm a structured `source_continuity` contract before dispatch.
+  It carries `schema: spec-kit-ui-source-continuity-v1`, `applicability`,
+  `mode`, `reason`, complete `coverage.surface_ids` / `interaction_ids` /
+  `component_ids`, and stable `authority_refs` before the binding arrays. Each
+  coverage set must exactly equal its binding targets; one sampled button or
+  surface cannot satisfy a larger discovered universe.
+  Stage its applicable subset in `decision.ui_confirmation.source_continuity`, then preserve the
+  digest-bound contract or exact ref in `STATUS.md`, task-local `PLAN.md` when
+  needed, and every affected worker packet. Treat inputs as complementary
+  bounded authorities: inspect deep surfaces and states beyond the starting
+  screen, and never infer behavior from pixels or reachability from dormant
+  source alone.
+  - Map every in-scope source and target surface with one evidence-backed
+    disposition: `preserve`, `adapt`, `replace`, `merge`, `split`, or `retire`.
+  - Record each actionable control in `action_bindings` with exact
+    `interaction_id`, `source_refs`, `user_promise`, `business_outcome`,
+    `side_effects`, `final_state`, and `verification`; linked interaction and
+    scenario rows own event order, feedback, and recovery. A present handler,
+    component, command, or API is not acceptance evidence.
+  - Carry `asset_bindings` for icons, imagery, fonts, and other identity-bearing
+    resources using exact `component_id`, `semantic_role`, `source_refs`,
+    `target_strategy`, `target_ref`, `provenance`, and `fallback`. Require
+    `placeholder_policy: forbid-character-substitution`; Unicode, emoji, ASCII,
+    or arbitrary glyphs cannot stand in for a missing icon or image.
+  - Keep unknown surfaces/actions/outcomes/states/assets and source conflicts in
+    `unresolved_gaps` strings naming owner, next discovery action, and blocking effect.
+    Do not disguise unexplored work as `retire` or a cosmetic exception.
+  Quick remains the direct-delivery owner: source depth, migration breadth, and
+  multiple surfaces expand its task-local plan, Q items, and evidence rather
+  than forcing `sp-specify`. Route only a genuinely new or unresolved visual
+  direction to `sp-design`; after approval, resume the same Quick workspace.
+  Close only after matched safe scenarios run through source and target real
+  entrypoints when available and separately prove visual fidelity plus each
+  promised `business_outcome` and `final_state`. If the source cannot run,
+  record the strongest substitute authority and withhold the parity claim.
 - Treat a user-provided PNG, screenshot, mockup, design export, reference image, or "make it like this" UI request as a first-class worker input when it shapes the quick task.
 - Before dispatch, record the image inputs in the quick-task context and include them in the `WorkerTaskPacket` or equivalent lane contract as `image_inputs` or UI reference inputs with stable project-relative paths when available.
 - If the image exists only as a chat attachment, either pass it to the subagent as a runtime image item/local_image when supported or import the runtime-provided local attachment through `specify-runtime evidence import --file <local-path> --scope ui-reference --source chat-attachment --provenance user-provided`, then pass the returned content-addressed `object_ref` and evidence record. Never copy or materialize a project file directly. Do not rely on inherited chat context, `fork_context`, or a prose summary as the only handoff.

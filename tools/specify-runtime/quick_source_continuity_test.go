@@ -35,9 +35,9 @@ func sourceContinuityQuickInput() map[string]any {
 					"mode":          "mixed",
 					"reason":        "Visual, runtime, and implementation sources govern the reconstruction.",
 					"coverage": map[string]any{
-						"surface_ids": []any{"main-workspace"},
+						"surface_ids":     []any{"main-workspace"},
 						"interaction_ids": []any{"export-action"},
-						"component_ids": []any{"export-button"},
+						"component_ids":   []any{"export-button"},
 					},
 					"authority_refs": []any{
 						"main-window.png", "legacy/main_window.cpp",

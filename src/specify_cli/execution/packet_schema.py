@@ -125,6 +125,7 @@ class UIContract:
     reference_intents: list[dict[str, str]] = field(default_factory=list)
     real_content_plan: list[dict[str, object]] = field(default_factory=list)
     image_plan: list[dict[str, str]] = field(default_factory=list)
+    source_continuity: dict[str, object] = field(default_factory=dict)
     surface_catalog: list[dict[str, object]] = field(default_factory=list)
     scenario_matrix: list[dict[str, object]] = field(default_factory=list)
     interaction_matrix: list[dict[str, object]] = field(default_factory=list)

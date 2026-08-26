@@ -83,7 +83,8 @@ Read [Reference index](references/INDEX.md) before applying detailed contracts.
 
 ## Professional UI Contract Continuity
 
-Every UI task carries its applicable exact subset of `surface_catalog`,
+Every UI task carries the exact `source_continuity` contract when source-grounded,
+plus its applicable exact subset of `surface_catalog`,
 `scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
 `accessibility_matrix`, `navigation_matrix`, `content_matrix`,
 `motion_contract`, and `usability_validation`, including the exact

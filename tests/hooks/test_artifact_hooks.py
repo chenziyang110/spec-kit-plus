@@ -1701,6 +1701,76 @@ def test_ui_contract_rejects_reauthored_handoff_ids(tmp_path: Path) -> None:
     assert any("handoff_contract_ids" in error for error in errors)
 
 
+def _ui_source_continuity_fixture() -> dict[str, object]:
+    return {
+        "schema": "spec-kit-ui-source-continuity-v1",
+        "applicability": "required",
+        "mode": "implementation-backed",
+        "reason": "The existing settings implementation governs behavior and assets.",
+        "coverage": {
+            "surface_ids": ["SURFACE-001"],
+            "interaction_ids": ["INT-001"],
+            "component_ids": ["COMP-001"],
+        },
+        "authority_refs": ["src/settings/page.tsx", "src/settings/schema.ts"],
+        "surface_bindings": [
+            {
+                "id": "SC-SURFACE-001",
+                "surface_id": "SURFACE-001",
+                "source_refs": ["src/settings/page.tsx"],
+                "discovery": "measured",
+                "disposition": "adapt",
+                "rationale": "Preserve the settings job while adapting the approved surface.",
+            }
+        ],
+        "action_bindings": [
+            {
+                "id": "SC-ACTION-001",
+                "interaction_id": "INT-001",
+                "source_refs": ["src/settings/page.tsx#save"],
+                "user_promise": "Save the current preferences.",
+                "business_outcome": "The preferences persist once.",
+                "side_effects": ["write the current preferences once"],
+                "final_state": "Saved values and confirmation remain visible.",
+                "verification": "Run source and target save paths with equal input.",
+            }
+        ],
+        "asset_bindings": [
+            {
+                "id": "SC-ASSET-001",
+                "component_id": "COMP-001",
+                "semantic_role": "save status",
+                "source_refs": ["src/settings/page.tsx"],
+                "target_strategy": "preserve",
+                "target_ref": "src/assets/status-save.svg",
+                "provenance": "project-owned",
+                "fallback": "Visible saved text and accessible name.",
+                "placeholder_policy": "forbid-character-substitution",
+            }
+        ],
+        "unresolved_gaps": [],
+    }
+
+
+def _not_applicable_ui_source_continuity_fixture() -> dict[str, object]:
+    return {
+        "schema": "spec-kit-ui-source-continuity-v1",
+        "applicability": "not-applicable",
+        "mode": "none",
+        "reason": "Drifted source-continuity disposition.",
+        "coverage": {
+            "surface_ids": [],
+            "interaction_ids": [],
+            "component_ids": [],
+        },
+        "authority_refs": [],
+        "surface_bindings": [],
+        "action_bindings": [],
+        "asset_bindings": [],
+        "unresolved_gaps": [],
+    }
+
+
 def test_current_ui_direction_contract_continues_from_spec_to_task_index(
     tmp_path: Path,
 ) -> None:
@@ -1760,6 +1830,7 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
             }
         ],
         "image_plan": [],
+        "source_continuity": _ui_source_continuity_fixture(),
         "surface_catalog": [
             {
                 "id": "SURFACE-001",
@@ -2216,6 +2287,7 @@ def _write_ui_continuity_fixture(
             }
         ],
         "image_plan": [],
+        "source_continuity": _ui_source_continuity_fixture(),
         "surface_catalog": [
             {
                 "id": "SURFACE-001",
@@ -2577,6 +2649,7 @@ def test_task_ui_contract_surface_entrypoint_must_bind_official_entrypoint(
         ("accessibility_matrix", []),
         ("navigation_matrix", []),
         ("content_matrix", []),
+        ("source_continuity", _not_applicable_ui_source_continuity_fixture()),
         (
             "usability_validation",
             {
@@ -2620,6 +2693,7 @@ def test_plan_ui_contract_rejects_specification_constraint_drift(
         ("accessibility_matrix", []),
         ("navigation_matrix", []),
         ("content_matrix", []),
+        ("source_continuity", _not_applicable_ui_source_continuity_fixture()),
         (
             "usability_validation",
             {

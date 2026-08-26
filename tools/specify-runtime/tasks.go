@@ -1721,6 +1721,7 @@ func renderTaskControlMarkdown(payload map[string]any, title string) (string, er
 				"| fidelity_level | "+defaultString(anyString(ui["fidelity_level"]), "none")+" |",
 				"| surface_catalog | "+taskControlRenderValue(ui["surface_catalog"])+" |",
 				"| scenario_matrix | "+taskControlRenderValue(ui["scenario_matrix"])+" |",
+				"| source_continuity | "+taskControlRenderValue(ui["source_continuity"])+" |",
 				"| interaction_matrix | "+taskControlRenderValue(ui["interaction_matrix"])+" |",
 				"| editing_matrix | "+taskControlRenderValue(ui["editing_matrix"])+" |",
 				"| required_states | "+taskControlRenderList(ui["required_states"])+" |",

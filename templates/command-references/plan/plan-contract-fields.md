@@ -19,7 +19,7 @@ Scaffold `plan-contract.json` through its artifact CLI owner, then fill targeted
 - global constraints and allowed optimization scope;
 - exact canonical acceptance refs for every specification criterion, followed by task-relevant `MP-*`, `CA-###`, UI/fidelity, and evidence refs;
 - for UI work, the current work/surface/platform types, direction core, approved visual,
-  exact `style_authority`, reference intents, real content/image plans, `surface_catalog`, bounded
+  exact `style_authority`, reference intents, real content/image plans, `source_continuity`, `surface_catalog`, bounded
   `scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`, component
   interaction/data scenarios, continuous
   stretch/overflow behavior, and risk-based input × data × size

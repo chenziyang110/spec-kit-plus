@@ -733,7 +733,8 @@ when the `classic` profile is selected.
   the shared `spec-kit-ui-source-continuity-v1` contract. It binds inspectable
   authority refs to discovered surfaces, user promises and business outcomes,
   side effects and final states, and icon/image/font/media provenance plus
-  target strategy. Screenshots and HTML prove only the dimensions they expose;
+  target strategy. Complete coverage surface/interaction/component ID sets
+  must exactly equal their binding targets. Screenshots and HTML prove only the dimensions they expose;
   unresolved hidden surfaces or behavior stay explicit gaps. Required assets
   default to `forbid-character-substitution`, so character/emoji placeholders
   cannot satisfy icon delivery. Design freezes this contract in its immutable

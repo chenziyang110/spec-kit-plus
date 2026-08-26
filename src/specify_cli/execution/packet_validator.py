@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from specify_cli.design_intelligence import validate_ui_source_continuity
+
 from .packet_schema import UI_CONTRACT_FIELDS, UIContract, WorkerTaskPacket
 
 
@@ -1020,6 +1022,18 @@ def validate_ui_contract(contract: UIContract) -> None:
             raise PacketValidationError(
                 "DP1", "UI contract image_plan entries require ref and role"
             )
+    continuity_result = validate_ui_source_continuity(
+        contract.source_continuity,
+        require_ready=True,
+    )
+    if not continuity_result.valid:
+        details = "; ".join(
+            f"{error.path}: {error.message}" for error in continuity_result.errors
+        )
+        raise PacketValidationError(
+            "DP1",
+            "UI contract source_continuity is invalid: " + details,
+        )
     decision_id_set = set(contract.design_decision_ids)
     handoff_id_set = set(contract.handoff_contract_ids)
     if not contract.interaction_matrix or any(
@@ -1095,6 +1109,70 @@ def validate_ui_contract(contract: UIContract) -> None:
             "DP1",
             "UI contract surface_catalog entries require stable identity, profile, source/specimen/component coverage, and known references",
         )
+    if contract.source_continuity.get("applicability") == "required":
+        surface_ids = {
+            str(item.get("id") or "").strip()
+            for item in contract.surface_catalog
+            if isinstance(item, dict)
+        }
+        interaction_ids = {
+            str(item.get("id") or "").strip()
+            for item in contract.interaction_matrix
+            if isinstance(item, dict)
+        }
+        coverage = contract.source_continuity.get("coverage")
+        if not isinstance(coverage, dict):
+            raise PacketValidationError(
+                "DP1",
+                "UI contract source_continuity requires a coverage object",
+            )
+        declared_coverage = {
+            "surface_ids": {
+                str(item).strip()
+                for item in coverage.get("surface_ids") or []
+                if isinstance(item, str) and item.strip()
+            },
+            "interaction_ids": {
+                str(item).strip()
+                for item in coverage.get("interaction_ids") or []
+                if isinstance(item, str) and item.strip()
+            },
+            "component_ids": {
+                str(item).strip()
+                for item in coverage.get("component_ids") or []
+                if isinstance(item, str) and item.strip()
+            },
+        }
+        actual_coverage = {
+            "surface_ids": surface_ids,
+            "interaction_ids": interaction_ids,
+            "component_ids": component_ids,
+        }
+        for field, actual_ids in actual_coverage.items():
+            if declared_coverage[field] != actual_ids:
+                raise PacketValidationError(
+                    "DP1",
+                    "UI contract source_continuity coverage."
+                    f"{field} must exactly cover the selected UI contract IDs",
+                )
+        for row in contract.source_continuity.get("surface_bindings") or []:
+            if not isinstance(row, dict) or str(row.get("surface_id") or "").strip() not in surface_ids:
+                raise PacketValidationError(
+                    "DP1",
+                    "UI contract source_continuity surface_bindings must reference selected surface_catalog IDs",
+                )
+        for row in contract.source_continuity.get("action_bindings") or []:
+            if not isinstance(row, dict) or str(row.get("interaction_id") or "").strip() not in interaction_ids:
+                raise PacketValidationError(
+                    "DP1",
+                    "UI contract source_continuity action_bindings must reference selected interaction_matrix IDs",
+                )
+        for row in contract.source_continuity.get("asset_bindings") or []:
+            if not isinstance(row, dict) or str(row.get("component_id") or "").strip() not in component_ids:
+                raise PacketValidationError(
+                    "DP1",
+                    "UI contract source_continuity asset_bindings must reference selected component_contracts IDs",
+                )
     if not contract.responsive_matrix or any(
         not _valid_responsive_contract(item, decision_id_set, handoff_id_set)
         for item in contract.responsive_matrix

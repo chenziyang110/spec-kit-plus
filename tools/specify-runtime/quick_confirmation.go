@@ -10,12 +10,18 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 const quickConfirmationSchema = "quick-confirmation-v1"
 const quickConfirmationFileName = "confirmation.json"
 
 var quickWorkItemIDPattern = regexp.MustCompile(`^Q[1-9][0-9]*$`)
+var quickCharacterRefPrefixPattern = regexp.MustCompile(`(?i)^(?:char(?:acter)?|emoji|glyph|symbol|text|unicode)\s*:`)
+var quickHTMLCharacterRefPattern = regexp.MustCompile(`(?i)^&#(?:x[0-9a-f]+|[0-9]+);?$`)
+var quickUnicodeCharacterRefPattern = regexp.MustCompile(`(?i)^(?:u\+|\\u)[0-9a-f]{4,8}$`)
+var quickTemplatePlaceholderRefPattern = regexp.MustCompile(`(?:\{\{[^{}]+\}\}|\$\{[^{}]+\}|<[^<>]+>)`)
+var quickPlaceholderTokenSplitPattern = regexp.MustCompile(`[^a-z0-9]+`)
 
 type quickConfirmationDoc struct {
 	Schema             string                     `json:"schema"`
@@ -690,9 +696,347 @@ func validateQuickConfirmation(doc *quickConfirmationDoc) error {
 					return fmt.Errorf("ui_confirmation.%s is required when UI confirmation is present", field)
 				}
 			}
+			raw, exists := ui["source_continuity"]
+			if !exists {
+				return fmt.Errorf("ui_confirmation.source_continuity is required when UI confirmation is applicable")
+			}
+			continuity := mapValue(raw)
+			if continuity == nil {
+				return fmt.Errorf("ui_confirmation.source_continuity must be an object")
+			}
+			if err := validateQuickSourceContinuity(continuity); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+func validateQuickSourceContinuity(continuity map[string]any) error {
+	const path = "ui_confirmation.source_continuity"
+	if err := validateQuickContinuityKnownFields(
+		continuity,
+		path,
+		"schema", "applicability", "mode", "reason", "coverage", "authority_refs",
+		"surface_bindings", "action_bindings", "asset_bindings", "unresolved_gaps",
+	); err != nil {
+		return err
+	}
+	if stringValue(continuity["schema"]) != "spec-kit-ui-source-continuity-v1" {
+		return fmt.Errorf("%s.schema must be spec-kit-ui-source-continuity-v1", path)
+	}
+	applicability := strings.TrimSpace(stringValue(continuity["applicability"]))
+	mode := strings.TrimSpace(stringValue(continuity["mode"]))
+	if !quickContains([]string{"not-assessed", "not-applicable", "required"}, applicability) {
+		return fmt.Errorf("%s.applicability must be not-assessed, not-applicable, or required", path)
+	}
+	if !quickContains([]string{"none", "reference-grounded", "live-product", "implementation-backed", "mixed"}, mode) {
+		return fmt.Errorf("%s.mode is unsupported", path)
+	}
+	if strings.TrimSpace(stringValue(continuity["reason"])) == "" {
+		return fmt.Errorf("%s.reason is required", path)
+	}
+	coverage := mapValue(continuity["coverage"])
+	if coverage == nil {
+		return fmt.Errorf("%s.coverage must be an object", path)
+	}
+	if err := validateQuickContinuityKnownFields(coverage, path+".coverage", "surface_ids", "interaction_ids", "component_ids"); err != nil {
+		return err
+	}
+	coverageSurfaces, coverageSurfacesOK := quickContinuityStringList(coverage["surface_ids"])
+	coverageInteractions, coverageInteractionsOK := quickContinuityStringList(coverage["interaction_ids"])
+	coverageComponents, coverageComponentsOK := quickContinuityStringList(coverage["component_ids"])
+	if applicability == "not-assessed" {
+		return fmt.Errorf("%s.applicability must be assessed before confirmation or ready delivery", path)
+	}
+
+	authorityRefs, authorityRefsOK := quickContinuityStringList(continuity["authority_refs"])
+	surfaces, surfacesOK := quickContinuityRows(continuity["surface_bindings"])
+	actions, actionsOK := quickContinuityRows(continuity["action_bindings"])
+	assets, assetsOK := quickContinuityRows(continuity["asset_bindings"])
+	gaps, gapsOK := quickContinuityStringList(continuity["unresolved_gaps"])
+	if !coverageSurfacesOK || !coverageInteractionsOK || !coverageComponentsOK || !authorityRefsOK || !surfacesOK || !actionsOK || !assetsOK || !gapsOK {
+		return fmt.Errorf("%s refs, bindings, and unresolved_gaps must use the declared array shapes", path)
+	}
+
+	if applicability == "not-applicable" {
+		if mode != "none" {
+			return fmt.Errorf("%s.mode must be none when applicability is not-applicable", path)
+		}
+		if len(coverageSurfaces)+len(coverageInteractions)+len(coverageComponents)+len(authorityRefs)+len(surfaces)+len(actions)+len(assets)+len(gaps) != 0 {
+			return fmt.Errorf("%s must not carry sources, bindings, or unresolved gaps when not-applicable", path)
+		}
+		return nil
+	}
+
+	if mode == "none" {
+		return fmt.Errorf("%s.mode must identify the governing source mode when required", path)
+	}
+	if len(authorityRefs) == 0 {
+		return fmt.Errorf("%s.authority_refs must not be empty when required", path)
+	}
+	if len(coverageSurfaces) == 0 || len(coverageInteractions) == 0 || len(coverageComponents) == 0 {
+		return fmt.Errorf("%s.coverage surface_ids, interaction_ids, and component_ids must all be non-empty when required", path)
+	}
+	if len(surfaces) == 0 {
+		return fmt.Errorf("%s.surface_bindings must not be empty when required", path)
+	}
+	if len(actions) == 0 {
+		return fmt.Errorf("%s.action_bindings must not be empty when required", path)
+	}
+	if len(assets) == 0 {
+		return fmt.Errorf("%s.asset_bindings must not be empty when required", path)
+	}
+	if len(gaps) != 0 {
+		return fmt.Errorf("%s.unresolved_gaps must be empty before Quick confirmation", path)
+	}
+
+	seenBindingIDs := map[string]string{}
+	for index, row := range surfaces {
+		rowPath := fmt.Sprintf("%s.surface_bindings[%d]", path, index)
+		if err := validateQuickContinuityKnownFields(row, rowPath, "id", "surface_id", "source_refs", "discovery", "disposition", "rationale"); err != nil {
+			return err
+		}
+		if err := validateQuickContinuityStrings(row, rowPath, "id", "surface_id", "discovery", "disposition", "rationale"); err != nil {
+			return err
+		}
+		if err := validateQuickContinuityBindingID(row, rowPath, seenBindingIDs); err != nil {
+			return err
+		}
+		discovery := strings.TrimSpace(stringValue(row["discovery"]))
+		if !quickContains([]string{"measured", "inferred", "assumption"}, discovery) {
+			return fmt.Errorf("%s.discovery is unsupported", rowPath)
+		}
+		disposition := strings.TrimSpace(stringValue(row["disposition"]))
+		if !quickContains([]string{"preserve", "adapt", "replace", "merge", "split", "retire"}, disposition) {
+			return fmt.Errorf("%s.disposition is unsupported", rowPath)
+		}
+		refs, ok := quickContinuityStringList(row["source_refs"])
+		if !ok || len(refs) == 0 {
+			return fmt.Errorf("%s.source_refs must not be empty", rowPath)
+		}
+	}
+	for index, row := range actions {
+		rowPath := fmt.Sprintf("%s.action_bindings[%d]", path, index)
+		if err := validateQuickContinuityKnownFields(row, rowPath, "id", "interaction_id", "source_refs", "user_promise", "business_outcome", "side_effects", "final_state", "verification"); err != nil {
+			return err
+		}
+		if err := validateQuickContinuityStrings(row, rowPath, "id", "interaction_id", "user_promise", "business_outcome", "final_state", "verification"); err != nil {
+			return err
+		}
+		if err := validateQuickContinuityBindingID(row, rowPath, seenBindingIDs); err != nil {
+			return err
+		}
+		refs, refsOK := quickContinuityStringList(row["source_refs"])
+		if !refsOK || len(refs) == 0 {
+			return fmt.Errorf("%s.source_refs must not be empty", rowPath)
+		}
+		if _, ok := quickContinuityStringList(row["side_effects"]); !ok {
+			return fmt.Errorf("%s.side_effects must be an array", rowPath)
+		}
+	}
+	for index, row := range assets {
+		rowPath := fmt.Sprintf("%s.asset_bindings[%d]", path, index)
+		if err := validateQuickContinuityKnownFields(row, rowPath, "id", "component_id", "semantic_role", "source_refs", "target_strategy", "target_ref", "provenance", "fallback", "placeholder_policy"); err != nil {
+			return err
+		}
+		if err := validateQuickContinuityStrings(row, rowPath, "id", "component_id", "semantic_role", "target_ref", "provenance", "fallback"); err != nil {
+			return err
+		}
+		if err := validateQuickContinuityBindingID(row, rowPath, seenBindingIDs); err != nil {
+			return err
+		}
+		refs, ok := quickContinuityStringList(row["source_refs"])
+		if !ok || len(refs) == 0 {
+			return fmt.Errorf("%s.source_refs must not be empty", rowPath)
+		}
+		strategy := strings.TrimSpace(stringValue(row["target_strategy"]))
+		if !quickContains([]string{"preserve", "map-library", "owned", "text-only", "approved-exception"}, strategy) {
+			return fmt.Errorf("%s.target_strategy is unsupported", rowPath)
+		}
+		policy := strings.TrimSpace(stringValue(row["placeholder_policy"]))
+		if !quickContains([]string{"forbid-character-substitution", "approved-text-symbol"}, policy) {
+			return fmt.Errorf("%s.placeholder_policy must forbid character substitution or record an approved text symbol", rowPath)
+		}
+		targetRef := strings.TrimSpace(stringValue(row["target_ref"]))
+		if quickLooksLikeTemporaryPlaceholder(targetRef) {
+			return fmt.Errorf("%s.target_ref must identify a final asset, not a temporary placeholder", rowPath)
+		}
+		if policy == "approved-text-symbol" {
+			if strategy != "approved-exception" || !quickLooksLikeCharacterReference(targetRef) {
+				return fmt.Errorf("%s approved-text-symbol requires target_strategy approved-exception and an intentional character or text symbol target_ref", rowPath)
+			}
+		} else if strategy == "approved-exception" {
+			return fmt.Errorf("%s target_strategy approved-exception requires placeholder_policy approved-text-symbol", rowPath)
+		} else if quickLooksLikeCharacterReference(targetRef) {
+			return fmt.Errorf("%s forbids character placeholder target_ref %q", rowPath, targetRef)
+		}
+	}
+	if err := validateQuickContinuityCoverage(path+".coverage.surface_ids", coverageSurfaces, surfaces, "surface_id"); err != nil {
+		return err
+	}
+	if err := validateQuickContinuityCoverage(path+".coverage.interaction_ids", coverageInteractions, actions, "interaction_id"); err != nil {
+		return err
+	}
+	if err := validateQuickContinuityCoverage(path+".coverage.component_ids", coverageComponents, assets, "component_id"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateQuickContinuityCoverage(path string, declared []string, bindings []map[string]any, bindingField string) error {
+	declaredSet := map[string]bool{}
+	for _, id := range declared {
+		if declaredSet[id] {
+			return fmt.Errorf("%s contains duplicate ID %s", path, id)
+		}
+		declaredSet[id] = true
+	}
+	boundSet := map[string]bool{}
+	for _, row := range bindings {
+		boundSet[strings.TrimSpace(stringValue(row[bindingField]))] = true
+	}
+	missing := []string{}
+	outside := []string{}
+	for id := range declaredSet {
+		if !boundSet[id] {
+			missing = append(missing, id)
+		}
+	}
+	for id := range boundSet {
+		if !declaredSet[id] {
+			outside = append(outside, id)
+		}
+	}
+	if len(missing) == 0 && len(outside) == 0 {
+		return nil
+	}
+	sort.Strings(missing)
+	sort.Strings(outside)
+	return fmt.Errorf("%s coverage must exactly match %s bindings; unbound=%s outside=%s", path, bindingField, strings.Join(missing, ","), strings.Join(outside, ","))
+}
+
+func validateQuickContinuityKnownFields(row map[string]any, path string, fields ...string) error {
+	allowed := make(map[string]bool, len(fields))
+	for _, field := range fields {
+		allowed[field] = true
+	}
+	unknown := make([]string, 0)
+	for field := range row {
+		if !allowed[field] {
+			unknown = append(unknown, field)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	sort.Strings(unknown)
+	return fmt.Errorf("%s contains unsupported fields: %s", path, strings.Join(unknown, ", "))
+}
+
+func quickContinuityRows(value any) ([]map[string]any, bool) {
+	switch typed := value.(type) {
+	case []any:
+		rows := make([]map[string]any, 0, len(typed))
+		for _, raw := range typed {
+			row := mapValue(raw)
+			if row == nil {
+				return nil, false
+			}
+			rows = append(rows, row)
+		}
+		return rows, true
+	case []map[string]any:
+		return typed, true
+	default:
+		return nil, false
+	}
+}
+
+func quickContinuityStringList(value any) ([]string, bool) {
+	switch typed := value.(type) {
+	case []any:
+		values := make([]string, 0, len(typed))
+		for _, raw := range typed {
+			value := strings.TrimSpace(stringValue(raw))
+			if value == "" {
+				return nil, false
+			}
+			values = append(values, value)
+		}
+		return values, true
+	case []string:
+		values := make([]string, 0, len(typed))
+		for _, raw := range typed {
+			value := strings.TrimSpace(raw)
+			if value == "" {
+				return nil, false
+			}
+			values = append(values, value)
+		}
+		return values, true
+	default:
+		return nil, false
+	}
+}
+
+func validateQuickContinuityStrings(row map[string]any, path string, fields ...string) error {
+	for _, field := range fields {
+		if strings.TrimSpace(stringValue(row[field])) == "" {
+			return fmt.Errorf("%s.%s is required", path, field)
+		}
+	}
+	return nil
+}
+
+func validateQuickContinuityBindingID(row map[string]any, path string, seen map[string]string) error {
+	id := strings.TrimSpace(stringValue(row["id"]))
+	if firstPath, exists := seen[id]; exists {
+		return fmt.Errorf("%s.id duplicates %s; source_continuity binding IDs must be globally unique", path, firstPath)
+	}
+	seen[id] = path + ".id"
+	return nil
+}
+
+func quickLooksLikeCharacterReference(targetRef string) bool {
+	value := strings.TrimSpace(targetRef)
+	if quickCharacterRefPrefixPattern.MatchString(value) || quickHTMLCharacterRefPattern.MatchString(value) || quickUnicodeCharacterRefPattern.MatchString(value) {
+		return true
+	}
+	if strings.ContainsAny(value, `/\.`) {
+		return false
+	}
+	runes := []rune(value)
+	if len(runes) == 1 {
+		return true
+	}
+	if len(runes) > 4 {
+		return false
+	}
+	for _, character := range runes {
+		if unicode.IsPunct(character) || unicode.IsSymbol(character) {
+			return true
+		}
+	}
+	return false
+}
+
+func quickLooksLikeTemporaryPlaceholder(targetRef string) bool {
+	value := strings.ToLower(strings.TrimSpace(targetRef))
+	if quickTemplatePlaceholderRefPattern.MatchString(value) || value == "?" || value == "n/a" || value == "none" || value == "null" || value == "unknown" {
+		return true
+	}
+	placeholderTokens := map[string]bool{
+		"dummy": true, "example": true, "fake": true, "mock": true, "pending": true,
+		"placeholder": true, "replace": true, "sample": true, "tbd": true, "temp": true,
+		"temporary": true, "todo": true, "unresolved": true,
+	}
+	for _, token := range quickPlaceholderTokenSplitPattern.Split(value, -1) {
+		if placeholderTokens[token] {
+			return true
+		}
+	}
+	return strings.Contains(value, "replace-me") || strings.Contains(value, "replace_me")
 }
 
 func validateQuickDeltaMetadata(doc *quickConfirmationDoc) error {
@@ -730,6 +1074,11 @@ func validateQuickChangedDecisionFields(doc *quickConfirmationDoc) error {
 			"design_change_sha256": true, "design_contract_ref": true,
 		},
 		"design_boundaries": {"must_preserve": true, "may_adapt": true, "must_not": true},
+		"source_continuity": {
+			"schema": true, "applicability": true, "mode": true, "reason": true,
+			"coverage": true, "authority_refs": true, "surface_bindings": true, "action_bindings": true,
+			"asset_bindings": true, "unresolved_gaps": true,
+		},
 	}
 	itemIDs := map[string]bool{}
 	for _, item := range doc.Decision.Items {
@@ -757,7 +1106,9 @@ func validateQuickChangedDecisionFields(doc *quickConfirmationDoc) error {
 			}
 		case "ui_confirmation":
 			valid = len(parts) == 1 || len(parts) == 2 && (uiFields[parts[1]] || uiNestedFields[parts[1]] != nil)
-			if len(parts) == 3 {
+			if len(parts) >= 3 && parts[1] == "source_continuity" {
+				valid = validateQuickSourceContinuityDeltaPath(doc.Decision.UIConfirmation, parts[2:])
+			} else if len(parts) == 3 {
 				valid = uiNestedFields[parts[1]][parts[2]]
 			}
 		}
@@ -766,6 +1117,60 @@ func validateQuickChangedDecisionFields(doc *quickConfirmationDoc) error {
 		}
 	}
 	return nil
+}
+
+func validateQuickSourceContinuityDeltaPath(ui map[string]any, parts []string) bool {
+	fields := map[string]bool{
+		"schema": true, "applicability": true, "mode": true, "reason": true,
+		"coverage": true, "authority_refs": true, "surface_bindings": true, "action_bindings": true,
+		"asset_bindings": true, "unresolved_gaps": true,
+	}
+	if len(parts) == 0 || !fields[parts[0]] {
+		return len(parts) == 0
+	}
+	if len(parts) == 1 {
+		return true
+	}
+	if parts[0] == "coverage" {
+		return len(parts) == 2 && map[string]bool{
+			"surface_ids": true, "interaction_ids": true, "component_ids": true,
+		}[parts[1]]
+	}
+	rowFields := map[string]map[string]bool{
+		"surface_bindings": {
+			"id": true, "surface_id": true, "source_refs": true, "discovery": true,
+			"disposition": true, "rationale": true,
+		},
+		"action_bindings": {
+			"id": true, "interaction_id": true, "source_refs": true, "user_promise": true,
+			"business_outcome": true, "side_effects": true, "final_state": true, "verification": true,
+		},
+		"asset_bindings": {
+			"id": true, "component_id": true, "semantic_role": true, "source_refs": true,
+			"target_strategy": true, "target_ref": true, "provenance": true, "fallback": true,
+			"placeholder_policy": true,
+		},
+	}
+	allowedFields := rowFields[parts[0]]
+	if allowedFields == nil || len(parts) > 3 {
+		return false
+	}
+	continuity := mapValue(ui["source_continuity"])
+	rows, ok := quickContinuityRows(continuity[parts[0]])
+	if !ok {
+		return false
+	}
+	rowExists := false
+	for _, row := range rows {
+		if stringValue(row["id"]) == parts[1] {
+			rowExists = true
+			break
+		}
+	}
+	if !rowExists {
+		return false
+	}
+	return len(parts) == 2 || allowedFields[parts[2]]
 }
 
 func validateQuickDependencyDAG(items []quickConfirmationItem) error {

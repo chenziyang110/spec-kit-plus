@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 import specify_cli.design_intelligence as design_intelligence
 
 
@@ -158,6 +160,124 @@ def test_ui_source_continuity_ready_requires_bidirectional_coverage() -> None:
     )
 
 
+def test_ui_source_continuity_draft_and_not_applicable_lifecycle() -> None:
+    validate = design_intelligence.validate_ui_source_continuity
+    draft = _valid_contract()
+    draft.update(
+        {
+            "applicability": "not-assessed",
+            "mode": "none",
+            "reason": None,
+            "coverage": {
+                "surface_ids": [],
+                "interaction_ids": [],
+                "component_ids": [],
+            },
+            "authority_refs": [],
+            "surface_bindings": [],
+            "action_bindings": [],
+            "asset_bindings": [],
+            "unresolved_gaps": [],
+        }
+    )
+    draft_result = validate(draft)
+    assert draft_result.ok is True
+    assert validate(draft, require_ready=True).valid is False
+
+    not_applicable = dict(draft)
+    not_applicable.update(
+        {
+            "applicability": "not-applicable",
+            "reason": "No prior UI or reference governs this greenfield scope.",
+        }
+    )
+    assert validate(not_applicable, require_ready=True).valid is True
+
+    not_applicable["mode"] = "mixed"
+    not_applicable["reason"] = ""
+    not_applicable["authority_refs"] = ["unexpected-source"]
+    coverage = not_applicable["coverage"]
+    assert isinstance(coverage, dict)
+    coverage["surface_ids"] = ["unexpected-surface"]
+    invalid = validate(not_applicable, require_ready=True)
+    assert invalid.valid is False
+    assert any("not-applicable" in error.message for error in invalid.errors)
+
+
+def test_ui_source_continuity_rejects_duplicate_binding_ids_and_wrong_draft_mode() -> None:
+    validate = design_intelligence.validate_ui_source_continuity
+    payload = _valid_contract()
+    action = payload["action_bindings"][0]
+    surface = payload["surface_bindings"][0]
+    assert isinstance(action, dict) and isinstance(surface, dict)
+    action["id"] = surface["id"]
+    duplicate = validate(payload, require_ready=True)
+    assert any("duplicates" in error.message for error in duplicate.errors)
+
+    payload = _valid_contract()
+    payload["mode"] = "none"
+    wrong_mode = validate(payload)
+    assert any("source-backed mode" in error.message for error in wrong_mode.errors)
+
+
+def test_ui_source_continuity_approved_text_symbol_requires_exact_exception_pair() -> None:
+    validate = design_intelligence.validate_ui_source_continuity
+    payload = _valid_contract()
+    asset = payload["asset_bindings"][0]
+    assert isinstance(asset, dict)
+    asset.update(
+        {
+            "target_strategy": "approved-exception",
+            "placeholder_policy": "approved-text-symbol",
+            "target_ref": "text:→",
+        }
+    )
+    assert validate(payload, require_ready=True).valid is True
+
+    asset["target_strategy"] = "preserve"
+    invalid_strategy = validate(payload, require_ready=True)
+    assert any("approved-exception" in error.message for error in invalid_strategy.errors)
+
+    asset["target_strategy"] = "approved-exception"
+    asset["placeholder_policy"] = "forbid-character-substitution"
+    invalid_policy = validate(payload, require_ready=True)
+    assert any("approved-text-symbol" in error.message for error in invalid_policy.errors)
+
+    asset["placeholder_policy"] = "approved-text-symbol"
+    asset["target_ref"] = "src/assets/export.svg"
+    invalid_target = validate(payload, require_ready=True)
+    assert any("intentional character" in error.message for error in invalid_target.errors)
+
+
+@pytest.mark.parametrize(
+    "target_ref",
+    ["unknown", "__ICON_TODO__", "emoji:★", "&#9733;", "U+2605", "★"],
+)
+def test_ui_source_continuity_rejects_placeholder_and_character_target_refs(
+    target_ref: str,
+) -> None:
+    payload = _valid_contract()
+    asset = payload["asset_bindings"][0]
+    assert isinstance(asset, dict)
+    asset["target_ref"] = target_ref
+    result = design_intelligence.validate_ui_source_continuity(
+        payload,
+        require_ready=True,
+    )
+    assert result.valid is False
+    assert any(
+        "placeholder" in error.message.lower()
+        or "character" in error.message.lower()
+        for error in result.errors
+    )
+
+
+def test_ui_source_continuity_rejects_non_object_payload() -> None:
+    result = design_intelligence.validate_ui_source_continuity([], require_ready=True)
+    assert result.valid is False
+    assert result.errors[0].path == "$"
+
+
 def test_professional_router_selects_source_grounded_reconstruction_specialist() -> None:
     module_globals: dict[str, object] = {}
     exec(
@@ -222,3 +342,19 @@ def test_design_and_quick_artifacts_persist_source_continuity() -> None:
     for relative in surfaces:
         content = _read(relative)
         assert "source_continuity" in content, relative
+
+
+def test_spx_task_asset_uses_object_shaped_source_continuity_bindings() -> None:
+    payload = json.loads(
+        _read("templates/advanced-skills/spx-tasks/assets/ui-task-index-entry.json")
+    )
+    continuity = payload["ui_contract"]["source_continuity"]
+
+    assert set(continuity["coverage"]) == {
+        "surface_ids",
+        "interaction_ids",
+        "component_ids",
+    }
+    for field in ("surface_bindings", "action_bindings", "asset_bindings"):
+        assert continuity[field]
+        assert isinstance(continuity[field][0], dict), field

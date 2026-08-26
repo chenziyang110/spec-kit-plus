@@ -40,6 +40,7 @@
 | real_content_plan | [{{task_content_source_and_states}}] |
 | image_plan | [{{task_image_ref_role_and_behavior_or_none}}] |
 | surface_catalog | {{exact_selected_surface_rows_with_source_specimen_component_and_decision_refs}} |
+| source_continuity | {{exact_source_continuity_authority_surface_action_asset_bindings_and_empty_unresolved_gaps}} |
 | scenario_matrix | {{exact_selected_bounded_risk_scenarios_with_surface_contract_refs_including_editing_ids_interaction_script_start_state_ordered_steps_and_selected_data_state_branches_for_success_failure_timeout_cancel_retry_duplicate_out_of_order_plus_focus_announcement_completion_recovery}} |
 | interaction_matrix | [{{task_interaction_surface_input_trigger_event_sequence_immediate_feedback_focus_repeat_cancellation_pending_rows}}] |
 | editing_matrix | [{{task_editing_input_methods_composition_paste_autofill_selection_caret_formatting_validation_dirty_persistence_undo_redo_conflict_read_only_disabled_and_submission_rows}}] |

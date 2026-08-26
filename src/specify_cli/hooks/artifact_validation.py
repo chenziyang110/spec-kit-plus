@@ -9,6 +9,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from specify_cli.design_intelligence import validate_ui_source_continuity
 from specify_cli.execution.implementation_review import task_review_is_accepted
 from specify_cli.execution.packet_schema import UI_CONTRACT_FIELDS
 from specify_cli.execution.ui_validation import (
@@ -4143,6 +4144,14 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
         for item in image_plan
     ):
         errors.append(f"{label}.image_plan entries require ref and role")
+    continuity_result = validate_ui_source_continuity(
+        contract.get("source_continuity"),
+        require_ready=True,
+    )
+    errors.extend(
+        f"{label}.source_continuity{error.path.removeprefix('$')}: {error.message}"
+        for error in continuity_result.errors
+    )
     color_modes = contract.get("color_modes")
     if not isinstance(color_modes, list) or not any(
         isinstance(item, str) and item.strip() for item in color_modes
@@ -4412,6 +4421,29 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
         errors.append(
             f"{label}.{fidelity_field} must be approximate, high, or inspiration for active UI work"
         )
+    continuity = contract.get("source_continuity")
+    if isinstance(continuity, dict) and continuity.get("applicability") == "required":
+        coverage = continuity.get("coverage")
+        coverage = coverage if isinstance(coverage, dict) else {}
+        actual_coverage = {
+            "surface_ids": surface_ids,
+            "interaction_ids": {
+                str(item.get("id") or "").strip()
+                for item in interaction_matrix or []
+                if isinstance(item, dict) and str(item.get("id") or "").strip()
+            },
+            "component_ids": component_ids,
+        }
+        for field, actual_ids in actual_coverage.items():
+            declared_ids = {
+                str(item).strip()
+                for item in coverage.get(field) or []
+                if isinstance(item, str) and item.strip()
+            }
+            if declared_ids != actual_ids:
+                errors.append(
+                    f"{label}.source_continuity.coverage.{field} must exactly cover the selected UI contract IDs"
+                )
     return errors
 
 
@@ -4681,6 +4713,7 @@ def _validate_plan_ui_contract(feature_dir: Path) -> list[str]:
             "ui_work_type",
             "surface_type",
             "fidelity_mode",
+            "source_continuity",
             *UI_DESIGN_CHANGE_BINDING_FIELDS,
             *UI_CONTRACT_SCALAR_FIELDS,
             *UI_CONTRACT_LIST_FIELDS,
@@ -4696,6 +4729,80 @@ def _validate_plan_ui_contract(feature_dir: Path) -> list[str]:
                     f"{label} ui_design_contract.{field} must preserve the specification UI contract"
                 )
     return errors
+
+
+def _ui_source_continuity_coverage(
+    continuity: object,
+) -> dict[str, set[str]]:
+    if not isinstance(continuity, dict):
+        return {field: set() for field in ("surface_ids", "interaction_ids", "component_ids")}
+    coverage = continuity.get("coverage")
+    coverage = coverage if isinstance(coverage, dict) else {}
+    return {
+        field: {
+            str(item).strip()
+            for item in coverage.get(field) or []
+            if isinstance(item, str) and item.strip()
+        }
+        for field in ("surface_ids", "interaction_ids", "component_ids")
+    }
+
+
+def _validate_task_source_continuity_subset(
+    plan_continuity: object,
+    task_continuity: object,
+    label: str,
+) -> tuple[list[str], dict[str, set[str]]]:
+    errors: list[str] = []
+    empty = _ui_source_continuity_coverage(None)
+    if not isinstance(plan_continuity, dict) or not isinstance(task_continuity, dict):
+        return [f"{label} source_continuity must preserve the plan contract"], empty
+    if plan_continuity.get("applicability") != "required":
+        if task_continuity != plan_continuity:
+            errors.append(f"{label} source_continuity must preserve plan source_continuity")
+        return errors, _ui_source_continuity_coverage(task_continuity)
+
+    for field in ("schema", "applicability", "mode", "reason"):
+        if task_continuity.get(field) != plan_continuity.get(field):
+            errors.append(f"{label} source_continuity.{field} must preserve the plan")
+    plan_authority = {
+        str(item).strip()
+        for item in plan_continuity.get("authority_refs") or []
+        if isinstance(item, str) and item.strip()
+    }
+    task_authority = {
+        str(item).strip()
+        for item in task_continuity.get("authority_refs") or []
+        if isinstance(item, str) and item.strip()
+    }
+    if not task_authority or not task_authority <= plan_authority:
+        errors.append(f"{label} source_continuity.authority_refs must be a non-empty plan subset")
+
+    plan_coverage = _ui_source_continuity_coverage(plan_continuity)
+    task_coverage = _ui_source_continuity_coverage(task_continuity)
+    for field, task_ids in task_coverage.items():
+        if not task_ids or not task_ids <= plan_coverage[field]:
+            errors.append(f"{label} source_continuity.coverage.{field} must be a non-empty plan subset")
+
+    for field in ("surface_bindings", "action_bindings", "asset_bindings"):
+        plan_rows = {
+            str(row.get("id") or "").strip(): row
+            for row in plan_continuity.get(field) or []
+            if isinstance(row, dict) and str(row.get("id") or "").strip()
+        }
+        task_rows = task_continuity.get(field)
+        task_rows = task_rows if isinstance(task_rows, list) else []
+        for index, row in enumerate(task_rows):
+            if not isinstance(row, dict):
+                continue
+            row_id = str(row.get("id") or "").strip()
+            if row_id not in plan_rows or row != plan_rows[row_id]:
+                errors.append(
+                    f"{label} source_continuity.{field}[{index}] must exactly preserve a plan binding row"
+                )
+    if task_continuity.get("unresolved_gaps") != []:
+        errors.append(f"{label} source_continuity.unresolved_gaps must remain empty")
+    return errors, task_coverage
 
 
 def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
@@ -4775,6 +4882,10 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
         covered_component_contracts: set[Any] = set()
         covered_responsive_matrix: set[Any] = set()
         covered_visual_acceptance_matrix: set[Any] = set()
+        covered_source_continuity = {
+            field: set()
+            for field in ("surface_ids", "interaction_ids", "component_ids")
+        }
         for task_id, task_entry in task_index_ui_contracts(feature_dir).items():
             task_contract = task_entry.get("ui_contract")
             if not isinstance(task_contract, dict):
@@ -4797,6 +4908,16 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
                     f"task-index.json UI task {task_id} ui_contract",
                 )
             )
+            continuity_errors, task_source_coverage = (
+                _validate_task_source_continuity_subset(
+                    plan_contract.get("source_continuity"),
+                    task_contract.get("source_continuity"),
+                    f"task-index.json UI task {task_id}",
+                )
+            )
+            errors.extend(continuity_errors)
+            for field, values in task_source_coverage.items():
+                covered_source_continuity[field].update(values)
             surface_entrypoint_ids = [
                 str(surface.get("entrypoint_id") or "").strip()
                 for surface in task_contract.get("surface_catalog") or []
@@ -4969,6 +5090,14 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
             missing = expected_set - covered
             if missing:
                 errors.append(f"task-index.json UI tasks must cover plan {field}")
+        plan_source_coverage = _ui_source_continuity_coverage(
+            plan_contract.get("source_continuity")
+        )
+        for field, expected in plan_source_coverage.items():
+            if expected - covered_source_continuity[field]:
+                errors.append(
+                    f"task-index.json UI tasks must cover plan source_continuity.coverage.{field}"
+                )
     return errors
 
 

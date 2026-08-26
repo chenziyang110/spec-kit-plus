@@ -460,6 +460,18 @@
   ],
   "handoff": {
     "reproduction_mode": "exact",
+    "source_continuity": {
+      "schema": "spec-kit-ui-source-continuity-v1",
+      "applicability": "required",
+      "mode": "implementation-backed",
+      "reason": "The existing product implementation and real entrypoint govern the bounded reconstruction.",
+      "coverage": {"surface_ids": ["DH-SURFACE-WEB-001"], "interaction_ids": ["DH-INT-WEB-POINTER-001", "DH-INT-WEB-KEYBOARD-001"], "component_ids": ["DH-COMP-WEB-001"]},
+      "authority_refs": ["core"],
+      "surface_bindings": [{"id": "SC-SURFACE-001", "surface_id": "DH-SURFACE-WEB-001", "source_refs": ["core"], "discovery": "measured", "disposition": "adapt", "rationale": "Preserve the operational surface while adapting within the approved scope."}],
+      "action_bindings": [{"id": "SC-ACTION-001", "interaction_id": "DH-INT-WEB-POINTER-001", "source_refs": ["core"], "user_promise": "Complete the primary operational action.", "business_outcome": "The selected operation reaches its committed business state.", "side_effects": ["persist the intended operation once"], "final_state": "The resulting state and recovery options remain visible and usable.", "verification": "Run the source and target click path with equivalent data."}, {"id": "SC-ACTION-002", "interaction_id": "DH-INT-WEB-KEYBOARD-001", "source_refs": ["core"], "user_promise": "Complete the same operational action from the keyboard.", "business_outcome": "The selected operation reaches its committed business state.", "side_effects": ["persist the intended operation once"], "final_state": "The resulting state and recovery options remain visible and usable.", "verification": "Run the source and target keyboard path with equivalent data."}],
+      "asset_bindings": [{"id": "SC-ASSET-001", "component_id": "DH-COMP-WEB-001", "semantic_role": "primary action iconography", "source_refs": ["core"], "target_strategy": "preserve", "target_ref": "product-icon-set", "provenance": "project-owned", "fallback": "Visible text label and accessible name.", "placeholder_policy": "forbid-character-substitution"}],
+      "unresolved_gaps": []
+    },
     "component_contracts": [
       {
         "id": "DH-COMP-WEB-001",

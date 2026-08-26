@@ -429,6 +429,7 @@ func TestDesignImageApproveFreezesImageManifestPromptAndCapabilities(t *testing.
 		t.Fatalf("preview-manifest failed: %d %s", exit, stdout.String())
 	}
 	configured := regexp.MustCompile(`__[A-Z0-9_]+__`).ReplaceAllString(readFile(t, manifestPath), "Configured design content")
+	configured = strings.Replace(configured, `"applicability": "not-assessed"`, `"applicability": "not-applicable"`, 1)
 	configured = strings.Replace(configured, `"configured": false`, `"configured": true`, 1)
 	configured = strings.Replace(configured, `"status": "scaffold"`, `"status": "candidate"`, 1)
 	configured = strings.Replace(configured, `"variance": null`, `"variance": 5`, 1)
@@ -559,6 +560,7 @@ func TestDesignImageApproveSupportsDeclaredRasterFormats(t *testing.T) {
 				t.Fatalf("preview-manifest failed: %d %s", exit, stdout.String())
 			}
 			configured := regexp.MustCompile(`__[A-Z0-9_]+__`).ReplaceAllString(readFile(t, manifestPath), "Configured design content")
+			configured = strings.Replace(configured, `"applicability": "not-assessed"`, `"applicability": "not-applicable"`, 1)
 			configured = strings.Replace(configured, `"configured": false`, `"configured": true`, 1)
 			configured = strings.Replace(configured, `"status": "scaffold"`, `"status": "candidate"`, 1)
 			configured = strings.Replace(configured, `"variance": null`, `"variance": 5`, 1)
@@ -642,6 +644,7 @@ func TestDesignPreviewManifestRendersDeterministicCandidate(t *testing.T) {
 		t.Fatalf("preview-manifest failed: %d %s", exit, stdout.String())
 	}
 	configured := regexp.MustCompile(`__[A-Z0-9_]+__`).ReplaceAllString(readFile(t, manifest), "Configured design content")
+	configured = strings.Replace(configured, `"applicability": "not-assessed"`, `"applicability": "not-applicable"`, 1)
 	configured = strings.Replace(configured, `"variance": null`, `"variance": 5`, 1)
 	configured = strings.Replace(configured, `"motion": null`, `"motion": 3`, 1)
 	configured = strings.Replace(configured, `"density": null`, `"density": 7`, 1)
@@ -667,6 +670,79 @@ func TestDesignPreviewManifestRendersDeterministicCandidate(t *testing.T) {
 	stdout.Reset()
 	if exit := runDesign([]string{"preview-lint", preview, "--level", "ready"}, &stdout); exit != 0 {
 		t.Fatalf("authored candidate should lint: %d %s", exit, stdout.String())
+	}
+}
+
+func TestDesignPreviewReadyRejectsIncompleteSourceContinuityCoverage(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	preview := filepath.Join(".specify", "design", "previews", "round-coverage.html")
+	templatePath, err := locateTemplate("design-preview-template.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(templatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(preview), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(preview, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	configurePreviewCandidate(t, preview)
+	content := readFile(t, preview)
+	manifest, err := parseJSONObject(parseHTMLSummary(content).PreviewManifestText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handoff := manifest["handoff"].(map[string]any)
+	surface := handoff["surface_catalog"].([]any)[0].(map[string]any)
+	interaction := handoff["interaction_matrix"].([]any)[0].(map[string]any)
+	component := handoff["component_contracts"].([]any)[0].(map[string]any)
+	handoff["source_continuity"] = map[string]any{
+		"schema": "spec-kit-ui-source-continuity-v1", "applicability": "required",
+		"mode": "implementation-backed", "reason": "Only a sampled action was mapped.",
+		"coverage": map[string]any{
+			"surface_ids": []any{surface["id"]}, "interaction_ids": []any{interaction["id"]},
+			"component_ids": []any{component["id"]},
+		},
+		"authority_refs": []any{"src/source-ui"},
+		"surface_bindings": []any{map[string]any{
+			"id": "SC-SURFACE-001", "surface_id": surface["id"], "source_refs": []any{"src/source-ui"},
+			"discovery": "measured", "disposition": "adapt", "rationale": "Preserve the source surface.",
+		}},
+		"action_bindings": []any{map[string]any{
+			"id": "SC-ACTION-001", "interaction_id": interaction["id"], "source_refs": []any{"src/source-ui#action"},
+			"user_promise": "Complete the action.", "business_outcome": "The result persists.", "side_effects": []any{},
+			"final_state": "The result remains visible.", "verification": "Run source and target paths.",
+		}},
+		"asset_bindings": []any{map[string]any{
+			"id": "SC-ASSET-001", "component_id": component["id"], "semantic_role": "primary control",
+			"source_refs": []any{"src/source-ui#asset"}, "target_strategy": "preserve", "target_ref": "src/assets/control.svg",
+			"provenance": "project-owned", "fallback": "Visible text label.", "placeholder_policy": "forbid-character-substitution",
+		}},
+		"unresolved_gaps": []any{},
+	}
+	updated, err := replaceEmbeddedJSON(content, designPreviewManifestID, manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(preview, []byte(updated), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	diagnostics := lintDesignPreviewFile(preview, "ready")
+	found := false
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Code == "preview-source-continuity-coverage-mismatch" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("incomplete source continuity coverage unexpectedly passed: %#v", diagnostics)
 	}
 }
 
@@ -998,6 +1074,7 @@ func TestDesignApprovedHandoffPreservesProfileSpecificMotion(t *testing.T) {
 		t.Fatalf("preview-manifest failed: %d %s", exit, stdout.String())
 	}
 	configured := regexp.MustCompile(`__[A-Z0-9_]+__`).ReplaceAllString(readFile(t, manifestPath), "Configured design content")
+	configured = strings.Replace(configured, `"applicability": "not-assessed"`, `"applicability": "not-applicable"`, 1)
 	configured = strings.Replace(configured, `"variance": null`, `"variance": 5`, 1)
 	configured = strings.Replace(configured, `"motion": null`, `"motion": 3`, 1)
 	configured = strings.Replace(configured, `"density": null`, `"density": 7`, 1)
@@ -2162,6 +2239,7 @@ func quickAdoptionTestDecision(designDigest, contractPath, boundChange string) q
 			"user_and_primary_job": "Operators inspect an order",
 			"target_experience":    "A clear, efficient order detail",
 			"acceptance_evidence":  []any{"Bound UI capture"},
+			"source_continuity":    quickNotApplicableSourceContinuity(),
 			"design_binding": map[string]any{
 				"scope":                "web:orders/detail",
 				"design_change_id":     boundChange,
@@ -2203,7 +2281,7 @@ func TestQuickAdoptionDigestCrossLanguageVector(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const expected = "d6ddb1756e49e4e64be11ed6753071ecf39c19f5253f8c7485f8a5debab4dafd"
+	const expected = "a7edcb09bd31b39c0d753130bd1eb9248d16ab844196377a195124685b36444e"
 	if digest != expected {
 		t.Fatalf("cross-language quick confirmation digest = %s, want %s", digest, expected)
 	}
@@ -2255,6 +2333,7 @@ func quickAdoptionDigestVectorDecision() quickConfirmationDecision {
 			"user_and_primary_job": "运营 & 检查",
 			"target_experience":    "快速 > 清晰",
 			"acceptance_evidence":  []any{"截图\u2028完成"},
+			"source_continuity":    quickNotApplicableSourceContinuity(),
 			"design_binding": map[string]any{
 				"scope":                "web:订单/detail",
 				"design_change_id":     "UD-0042",
@@ -2436,7 +2515,7 @@ func writeReadyDesignChangeRuntime(t *testing.T, designPath, changeID string, sc
 	verificationMarker := "  verification:\n    required_viewports:\n      - \"390\"\n"
 	verificationBlock := verificationMarker
 	for _, field := range []string{
-		"surface_catalog", "scenario_matrix",
+		"source_continuity", "surface_catalog", "scenario_matrix",
 		"interaction_matrix", "editing_matrix", "data_state_matrix", "accessibility_matrix",
 		"navigation_matrix", "content_matrix", "motion_contract", "usability_validation",
 	} {
@@ -2486,6 +2565,7 @@ func configurePreviewCandidate(t *testing.T, path string) {
 	content = strings.Replace(content, `"status": "scaffold",
     "approved_direction": null`, `"status": "candidate",
     "approved_direction": null`, 1)
+	content = strings.Replace(content, `"applicability": "not-assessed"`, `"applicability": "not-applicable"`, 1)
 	content = regexp.MustCompile(`__[A-Z0-9_]+__`).ReplaceAllString(content, "Configured design content")
 	content = strings.Replace(content, `"variance": null`, `"variance": 5`, 1)
 	content = strings.Replace(content, `"motion": null`, `"motion": 3`, 1)

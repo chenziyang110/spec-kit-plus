@@ -460,6 +460,18 @@
   ],
   "handoff": {
     "reproduction_mode": "exact",
+    "source_continuity": {
+      "schema": "spec-kit-ui-source-continuity-v1",
+      "applicability": "required",
+      "mode": "live-product",
+      "reason": "The inspected product surface and interaction evidence govern the bounded reconstruction.",
+      "coverage": {"surface_ids": ["DH-SURFACE-WEB-001"], "interaction_ids": ["DH-INT-WEB-POINTER-001", "DH-INT-WEB-KEYBOARD-001"], "component_ids": ["DH-COMP-WEB-001"]},
+      "authority_refs": ["core"],
+      "surface_bindings": [{"id": "SC-SURFACE-001", "surface_id": "DH-SURFACE-WEB-001", "source_refs": ["core"], "discovery": "measured", "disposition": "adapt", "rationale": "Preserve the consumer journey while adapting the approved visual surface."}],
+      "action_bindings": [{"id": "SC-ACTION-001", "interaction_id": "DH-INT-WEB-POINTER-001", "source_refs": ["core"], "user_promise": "Complete the primary consumer action.", "business_outcome": "The requested action reaches its visible committed state.", "side_effects": ["apply the intended change once"], "final_state": "The completed state and next action remain visible and usable.", "verification": "Run the source and target journey with equivalent content."}, {"id": "SC-ACTION-002", "interaction_id": "DH-INT-WEB-KEYBOARD-001", "source_refs": ["core"], "user_promise": "Complete the same consumer action from the keyboard.", "business_outcome": "The requested action reaches its visible committed state.", "side_effects": ["apply the intended change once"], "final_state": "The completed state and next action remain visible and usable.", "verification": "Run the source and target keyboard journey with equivalent content."}],
+      "asset_bindings": [{"id": "SC-ASSET-001", "component_id": "DH-COMP-WEB-001", "semantic_role": "primary action iconography", "source_refs": ["core"], "target_strategy": "preserve", "target_ref": "product-icon-set", "provenance": "project-owned", "fallback": "Visible text label and accessible name.", "placeholder_policy": "forbid-character-substitution"}],
+      "unresolved_gaps": []
+    },
     "component_contracts": [
       {
         "id": "DH-COMP-WEB-001",

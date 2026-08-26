@@ -114,6 +114,7 @@ def test_task_markdown_projects_professional_ui_contract_without_breaking_table(
         "navigation_matrix",
         "content_matrix",
         "editing_matrix",
+        "source_continuity",
         "motion_contract",
         "usability_validation",
     ):
@@ -308,6 +309,57 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                                 }
                             ],
                             "image_plan": [],
+                            "source_continuity": {
+                                "schema": "spec-kit-ui-source-continuity-v1",
+                                "applicability": "required",
+                                "mode": "implementation-backed",
+                                "reason": "The existing settings implementation governs behavior and assets.",
+                                "coverage": {
+                                    "surface_ids": ["DH-SURFACE-WEB-001"],
+                                    "interaction_ids": ["DH-INT-001", "DH-INT-002"],
+                                    "component_ids": ["DH-COMP-001"],
+                                },
+                                "authority_refs": ["src/ui/settings.tsx"],
+                                "surface_bindings": [{
+                                    "id": "SC-SURFACE-001",
+                                    "surface_id": "DH-SURFACE-WEB-001",
+                                    "source_refs": ["src/ui/settings.tsx"],
+                                    "discovery": "measured",
+                                    "disposition": "adapt",
+                                    "rationale": "Preserve the settings job while adapting the approved surface.",
+                                }],
+                                "action_bindings": [{
+                                    "id": "SC-ACTION-001",
+                                    "interaction_id": "DH-INT-001",
+                                    "source_refs": ["src/ui/settings.tsx#save"],
+                                    "user_promise": "Save the current preferences.",
+                                    "business_outcome": "The current preferences persist once.",
+                                    "side_effects": ["write current preferences once"],
+                                    "final_state": "Saved values and confirmation remain visible.",
+                                    "verification": "Run source and target save paths with equal input.",
+                                }, {
+                                    "id": "SC-ACTION-002",
+                                    "interaction_id": "DH-INT-002",
+                                    "source_refs": ["src/ui/settings.tsx#save"],
+                                    "user_promise": "Save the current preferences by keyboard.",
+                                    "business_outcome": "The current preferences persist once.",
+                                    "side_effects": ["write current preferences once"],
+                                    "final_state": "Saved values and confirmation remain visible.",
+                                    "verification": "Run the source and target keyboard save paths with equal input.",
+                                }],
+                                "asset_bindings": [{
+                                    "id": "SC-ASSET-001",
+                                    "component_id": "DH-COMP-001",
+                                    "semantic_role": "save status",
+                                    "source_refs": ["src/ui/settings.tsx"],
+                                    "target_strategy": "preserve",
+                                    "target_ref": "src/assets/status-save.svg",
+                                    "provenance": "project-owned",
+                                    "fallback": "Visible saved text and accessible name.",
+                                    "placeholder_policy": "forbid-character-substitution",
+                                }],
+                                "unresolved_gaps": [],
+                            },
                             "surface_catalog": [
                                 {
                                     "id": "DH-SURFACE-WEB-001",
@@ -696,6 +748,12 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
         packet.ui_contract.real_content_plan[0]["source_ref"]
         == "src/settings/schema.ts"
     )
+    assert packet.ui_contract.source_continuity["action_bindings"][0][
+        "business_outcome"
+    ] == "The current preferences persist once."
+    assert packet.ui_contract.source_continuity["asset_bindings"][0][
+        "placeholder_policy"
+    ] == "forbid-character-substitution"
     assert packet.ui_contract.interaction_matrix[0]["input"] == "mouse"
     assert packet.ui_contract.editing_matrix[0]["composition_behavior"]
     assert packet.ui_contract.data_state_matrix[0]["state"] == "loading"

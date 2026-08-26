@@ -38,6 +38,21 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PREVIEW_TEMPLATE = REPO_ROOT / "templates" / "design-preview-template.html"
 
 
+def _not_applicable_source_continuity() -> dict[str, object]:
+    return {
+        "schema": "spec-kit-ui-source-continuity-v1",
+        "applicability": "not-applicable",
+        "mode": "none",
+        "reason": "This test does not exercise source-grounded reconstruction.",
+        "coverage": {"surface_ids": [], "interaction_ids": [], "component_ids": []},
+        "authority_refs": [],
+        "surface_bindings": [],
+        "action_bindings": [],
+        "asset_bindings": [],
+        "unresolved_gaps": [],
+    }
+
+
 def _valid_quick_confirmation_document() -> dict[str, object]:
     return {
         "schema": "quick-confirmation-v1",
@@ -71,6 +86,7 @@ def _valid_quick_confirmation_document() -> dict[str, object]:
                 "user_and_primary_job": "An operator reviews an order",
                 "target_experience": "A clear order detail",
                 "acceptance_evidence": ["Bound visual capture"],
+                "source_continuity": _not_applicable_source_continuity(),
             },
         },
         "delivery": {
@@ -252,6 +268,7 @@ design_system:
       source_ref: .specify/design/previews/round-01.html#direction-main
       verification: content evidence and visual capture
   verification:
+    source_continuity: SOURCE_CONTINUITY
     required_viewports:
       - "390"
       - "1024"
@@ -381,6 +398,7 @@ def _configured_preview() -> str:
         "inference_reason": "Project intake: dense workspace hierarchy for operators",
     }
     direction["aesthetic_family"] = "minimal-product-linear"
+    manifest["handoff"]["source_continuity"] = _not_applicable_source_continuity()
     rendered = json.dumps(manifest, ensure_ascii=False, indent=2)
     pattern = re.compile(
         r'(<script\b(?=[^>]*\bid="design-preview-manifest")[^>]*>).*?(</script>)',
@@ -430,6 +448,7 @@ def _bind_approved_contract(
             + f"\n    inspection_owner: {approval['inspection_owner']}",
         )
     for field in (
+        "source_continuity",
         "surface_catalog",
         "scenario_matrix",
         "interaction_matrix",
@@ -1408,6 +1427,7 @@ def test_quick_design_adoption_requires_confirmed_exact_status_binding(
                 "user_and_primary_job": "Operators inspect an order",
                 "target_experience": "A clear, efficient order detail",
                 "acceptance_evidence": ["Bound UI capture"],
+                "source_continuity": _not_applicable_source_continuity(),
                 "design_binding": {
                     "scope": "web:orders/detail",
                     "design_change_id": bound_change,
@@ -1671,6 +1691,7 @@ def test_quick_confirmation_digest_matches_go_cross_language_vector() -> None:
             "user_and_primary_job": "运营 & 检查",
             "target_experience": "快速 > 清晰",
             "acceptance_evidence": ["截图\u2028完成"],
+            "source_continuity": _not_applicable_source_continuity(),
             "design_binding": {
                 "scope": "web:订单/detail",
                 "design_change_id": "UD-0042",
@@ -1681,7 +1702,7 @@ def test_quick_confirmation_digest_matches_go_cross_language_vector() -> None:
         },
         "user_corrections": ["excluded from digest"],
     }
-    expected = "d6ddb1756e49e4e64be11ed6753071ecf39c19f5253f8c7485f8a5debab4dafd"
+    expected = "a7edcb09bd31b39c0d753130bd1eb9248d16ab844196377a195124685b36444e"
     assert _quick_confirmation_digest(decision) == expected
 
     changed_write_scope = json.loads(json.dumps(decision, ensure_ascii=False))

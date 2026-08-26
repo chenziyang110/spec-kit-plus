@@ -2776,6 +2776,12 @@ func validateDesignSystem(doc designDocument, diagnostics *[]designDiagnostic) {
 	}
 	if schema == designChangeSchema {
 		validateDesignChangeMetadata(ds, diagnostics)
+		verification, ok := ds["verification"].(map[string]any)
+		if !ok {
+			addDesignDiagnostic(diagnostics, "missing-source-continuity", "design_change.verification must contain source_continuity", "design_change.verification.source_continuity")
+		} else if err := validateDesignSourceContinuity(verification["source_continuity"], "design_change.verification.source_continuity", false); err != nil {
+			addDesignDiagnostic(diagnostics, "invalid-source-continuity", err.Error(), "design_change.verification.source_continuity")
+		}
 	}
 	validateProfessionalSkillRoute(ds, diagnostics, false)
 	validateStyleAuthority(ds, diagnostics, false)
@@ -3000,6 +3006,107 @@ func validateTokenReferences(doc designDocument, diagnostics *[]designDiagnostic
 	}
 }
 
+func validateDesignSourceContinuity(value any, path string, ready bool) error {
+	continuity, ok := value.(map[string]any)
+	if !ok {
+		return fmt.Errorf("%s must be an object", path)
+	}
+	if ready {
+		if err := validateQuickSourceContinuity(continuity); err != nil {
+			return errors.New(strings.Replace(err.Error(), "ui_confirmation.source_continuity", path, 1))
+		}
+		return nil
+	}
+	if err := validateQuickContinuityKnownFields(
+		continuity,
+		path,
+		"schema", "applicability", "mode", "reason", "coverage", "authority_refs",
+		"surface_bindings", "action_bindings", "asset_bindings", "unresolved_gaps",
+	); err != nil {
+		return err
+	}
+	if stringValue(continuity["schema"]) != "spec-kit-ui-source-continuity-v1" {
+		return fmt.Errorf("%s.schema must be spec-kit-ui-source-continuity-v1", path)
+	}
+	if _, exists := continuity["reason"]; !exists {
+		return fmt.Errorf("%s.reason is required", path)
+	}
+	coverage := mapValue(continuity["coverage"])
+	if coverage == nil {
+		return fmt.Errorf("%s.coverage must be an object", path)
+	}
+	if err := validateQuickContinuityKnownFields(coverage, path+".coverage", "surface_ids", "interaction_ids", "component_ids"); err != nil {
+		return err
+	}
+	coverageSurfaces, coverageSurfacesOK := quickContinuityStringList(coverage["surface_ids"])
+	coverageInteractions, coverageInteractionsOK := quickContinuityStringList(coverage["interaction_ids"])
+	coverageComponents, coverageComponentsOK := quickContinuityStringList(coverage["component_ids"])
+	applicability := strings.TrimSpace(stringValue(continuity["applicability"]))
+	mode := strings.TrimSpace(stringValue(continuity["mode"]))
+	if !quickContains([]string{"not-assessed", "not-applicable", "required"}, applicability) {
+		return fmt.Errorf("%s.applicability is unsupported", path)
+	}
+	if !quickContains([]string{"none", "reference-grounded", "live-product", "implementation-backed", "mixed"}, mode) {
+		return fmt.Errorf("%s.mode is unsupported", path)
+	}
+	authorityRefs, authorityOK := quickContinuityStringList(continuity["authority_refs"])
+	surfaces, surfacesOK := quickContinuityRows(continuity["surface_bindings"])
+	actions, actionsOK := quickContinuityRows(continuity["action_bindings"])
+	assets, assetsOK := quickContinuityRows(continuity["asset_bindings"])
+	gaps, gapsOK := quickContinuityStringList(continuity["unresolved_gaps"])
+	if !coverageSurfacesOK || !coverageInteractionsOK || !coverageComponentsOK || !authorityOK || !surfacesOK || !actionsOK || !assetsOK || !gapsOK {
+		return fmt.Errorf("%s refs, bindings, and unresolved_gaps must use the declared array shapes", path)
+	}
+	if applicability == "required" && mode == "none" {
+		return fmt.Errorf("%s.mode must identify the governing source mode when required", path)
+	}
+	if applicability != "required" {
+		if mode != "none" {
+			return fmt.Errorf("%s.mode must be none when source continuity is not required", path)
+		}
+		if len(coverageSurfaces)+len(coverageInteractions)+len(coverageComponents)+len(authorityRefs)+len(surfaces)+len(actions)+len(assets)+len(gaps) != 0 {
+			return fmt.Errorf("%s must keep source arrays empty when source continuity is not required", path)
+		}
+		if applicability == "not-applicable" && strings.TrimSpace(stringValue(continuity["reason"])) == "" {
+			return fmt.Errorf("%s.reason is required when not-applicable", path)
+		}
+	}
+	return nil
+}
+
+func validateDesignHandoffSourceContinuityCoverage(handoff map[string]any, path string) error {
+	continuity := mapValue(handoff["source_continuity"])
+	if continuity == nil || strings.TrimSpace(stringValue(continuity["applicability"])) != "required" {
+		return nil
+	}
+	coverage := mapValue(continuity["coverage"])
+	if coverage == nil {
+		return fmt.Errorf("%s.coverage must be an object", path)
+	}
+	checks := []struct {
+		field      string
+		collection string
+	}{
+		{field: "surface_ids", collection: "surface_catalog"},
+		{field: "interaction_ids", collection: "interaction_matrix"},
+		{field: "component_ids", collection: "component_contracts"},
+	}
+	for _, check := range checks {
+		declared, ok := quickContinuityStringList(coverage[check.field])
+		if !ok {
+			return fmt.Errorf("%s.coverage.%s must be an array", path, check.field)
+		}
+		rows, ok := quickContinuityRows(handoff[check.collection])
+		if !ok {
+			return fmt.Errorf("%s cannot verify %s against %s", path, check.field, check.collection)
+		}
+		if err := validateQuickContinuityCoverage(path+".coverage."+check.field, declared, rows, "id"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func validateDesignReadiness(doc designDocument, diagnostics *[]designDiagnostic) {
 	ds := doc.DesignSystem
 	validateProfessionalSkillRoute(ds, diagnostics, true)
@@ -3078,6 +3185,13 @@ func validateDesignReadiness(doc designDocument, diagnostics *[]designDiagnostic
 		if !ok {
 			addDesignDiagnostic(diagnostics, "missing-design-professional-contract", "design_change.verification must carry the professional UI contract", "design_change.verification")
 		} else {
+			if err := validateDesignSourceContinuity(
+				verification["source_continuity"],
+				"design_change.verification.source_continuity",
+				true,
+			); err != nil {
+				addDesignDiagnostic(diagnostics, "invalid-source-continuity", err.Error(), "design_change.verification.source_continuity")
+			}
 			var handoffIDs []string
 			if ok {
 				if approval, approvalOK := ds["approval"].(map[string]any); approvalOK {
@@ -3183,7 +3297,7 @@ func validateDesignProfessionalVerification(verification map[string]any, decisio
 	}
 	if immutableHandoff != nil {
 		allFields := append(append([]string{}, graphFields...), fields...)
-		for _, field := range append(allFields, "motion_contract", "usability_validation") {
+		for _, field := range append(allFields, "source_continuity", "motion_contract", "usability_validation") {
 			if canonicalJSONSHA256(verification[field]) != canonicalJSONSHA256(immutableHandoff[field]) {
 				addDesignDiagnostic(diagnostics, "design-professional-contract-drift", "verification."+field+" must exactly match the immutable approved handoff", "design_change.verification."+field)
 			}
@@ -3848,6 +3962,19 @@ func previewHandoffDiagnostics(manifest map[string]any, ready bool) []designDiag
 	mode := strings.TrimSpace(fmt.Sprint(handoff["reproduction_mode"]))
 	if mode != "exact" && mode != "platform-adapted" {
 		addDesignDiagnostic(&diagnostics, "preview-invalid-reproduction-mode", "handoff reproduction_mode must be exact or platform-adapted", "manifest.handoff.reproduction_mode")
+	}
+	if _, ok := handoff["source_continuity"].(map[string]any); !ok {
+		addDesignDiagnostic(&diagnostics, "preview-source-continuity-invalid", "manifest.handoff.source_continuity must be an object", "manifest.handoff.source_continuity")
+	} else if ready {
+		if err := validateDesignSourceContinuity(
+			handoff["source_continuity"],
+			"manifest.handoff.source_continuity",
+			true,
+		); err != nil {
+			addDesignDiagnostic(&diagnostics, "preview-source-continuity-invalid", err.Error(), "manifest.handoff.source_continuity")
+		} else if err := validateDesignHandoffSourceContinuityCoverage(handoff, "manifest.handoff.source_continuity"); err != nil {
+			addDesignDiagnostic(&diagnostics, "preview-source-continuity-coverage-mismatch", err.Error(), "manifest.handoff.source_continuity.coverage")
+		}
 	}
 	components, componentsOK := handoff["component_contracts"].([]any)
 	surfaces, surfacesOK := handoff["surface_catalog"].([]any)

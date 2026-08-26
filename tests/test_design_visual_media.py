@@ -66,6 +66,18 @@ def _candidate_manifest() -> dict[str, object]:
         "inference_reason": "Dense operator workflow",
     }
     direction["aesthetic_family"] = "minimal-product-linear"
+    manifest["handoff"]["source_continuity"] = {
+        "schema": "spec-kit-ui-source-continuity-v1",
+        "applicability": "not-applicable",
+        "mode": "none",
+        "reason": "This fixture exercises greenfield image review behavior.",
+        "coverage": {"surface_ids": [], "interaction_ids": [], "component_ids": []},
+        "authority_refs": [],
+        "surface_bindings": [],
+        "action_bindings": [],
+        "asset_bindings": [],
+        "unresolved_gaps": [],
+    }
     rendered = json.dumps(manifest)
     rendered = re.sub(r"__[A-Z0-9_]+__", "Configured design content", rendered)
     return json.loads(rendered)

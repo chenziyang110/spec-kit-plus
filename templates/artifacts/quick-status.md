@@ -117,6 +117,27 @@ ui_confirmation:
     design_change_ref: ""
     design_change_sha256: ""
     design_contract_ref: ""
+  # Required whenever ui_confirmation.applicable is true; use not-applicable/none with a reason when no source governs the UI.
+  # Use required for reconstruction or migration governed by screenshots, HTML, a live product, or implementation sources.
+  # A required contract cannot be confirmed until authority/surface/action/asset bindings are nonempty and unresolved_gaps is empty.
+  source_continuity:
+    schema: spec-kit-ui-source-continuity-v1
+    applicability: not-assessed
+    mode: none
+    reason: ""
+    coverage:
+      surface_ids: []
+      interaction_ids: []
+      component_ids: []
+    authority_refs: []
+    # row: { id, surface_id, source_refs, discovery, disposition, rationale }
+    surface_bindings: []
+    # row: { id, interaction_id, source_refs, user_promise, business_outcome, side_effects, final_state, verification }
+    action_bindings: []
+    # row: { id, component_id, semantic_role, source_refs, target_strategy, target_ref, provenance, fallback, placeholder_policy }
+    # placeholder_policy: forbid-character-substitution | approved-text-symbol
+    asset_bindings: []
+    unresolved_gaps: []
   confirmation_purpose: ""
   user_and_primary_job: ""
   design_basis_and_source_material: []

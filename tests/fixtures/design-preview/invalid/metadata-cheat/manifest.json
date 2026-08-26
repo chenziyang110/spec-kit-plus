@@ -460,6 +460,7 @@
   ],
   "handoff": {
     "reproduction_mode": "exact",
+    "source_continuity": {"schema": "spec-kit-ui-source-continuity-v1", "applicability": "not-applicable", "mode": "none", "reason": "This fixture does not exercise source-grounded reconstruction.", "coverage": {"surface_ids": [], "interaction_ids": [], "component_ids": []}, "authority_refs": [], "surface_bindings": [], "action_bindings": [], "asset_bindings": [], "unresolved_gaps": []},
     "component_contracts": [
       {
         "id": "DH-COMP-WEB-001",

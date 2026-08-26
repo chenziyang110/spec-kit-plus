@@ -118,11 +118,37 @@ and never require a colon subskill or explicit mode argument.
    `evidence-backed-inference`) with rationale when not measured and source or
    source_gap when inferred. Do not treat screenshot similarity as measured
    truth.
-6. Use project cognition to locate likely UI entry points, token/theme owners,
+6. **Source Continuity (when reconstructing, migrating, adapting, or completing
+   an interface from prior evidence):** treat screenshots, HTML/design exports,
+   live source surfaces, source code/resources/tests, runnable source products,
+   and business rules as complementary authorities rather than assuming one
+   screenshot proves the product. Load the routed
+   `specialist-source-grounded-reconstruction` reference and patch a structured
+   `source_continuity` contract with
+   `schema: spec-kit-ui-source-continuity-v1`, `applicability`, `mode`, `reason`,
+   the complete `coverage.surface_ids` / `interaction_ids` / `component_ids`
+   universe, and `authority_refs` into the brief and final
+   `design_change.verification.source_continuity`. Discover
+   deep surfaces and states; map each surface with one of `preserve`, `adapt`,
+   `replace`, `merge`, `split`, or `retire`; trace every actionable control to
+   an `action_bindings` row with `interaction_id`, `source_refs`,
+   `user_promise`, `business_outcome`, `side_effects`, `final_state`, and
+   `verification`; linked interaction/scenario rows own feedback and recovery.
+   Record icons, images, fonts, and other resources in `asset_bindings` using
+   the schema's semantic role, source refs, target strategy/ref, provenance,
+   fallback, and placeholder policy. Every icon binding
+   uses `placeholder_policy: forbid-character-substitution`; a glyph, emoji, or
+   ASCII character is not a substitute asset. Keep unknown surfaces, actions,
+   outcomes, states, assets, and evidence conflicts in `unresolved_gaps` with an
+   owner and next discovery action. An applicable ready contract cannot hide a
+   material gap by calling it retired. This command discovers and approves the
+   continuity contract only; it does not implement the target or claim runtime
+   parity.
+7. Use project cognition to locate likely UI entry points, token/theme owners,
    reusable component owners, responsive/state patterns, visual or accessibility
    tests, and design assets; verify every selected route in live files before it
    becomes design evidence.
-7. Resolve `style_authority` from live evidence before professional skill
+8. Resolve `style_authority` from live evidence before professional skill
    routing. Feature, component, and partial functional-page work inside an
    existing product uses `inherit-existing`, records exact live UI
    `source_refs`, protects `global-shell` and `shared-components`, permits no
@@ -132,20 +158,20 @@ and never require a colon subskill or explicit mode argument.
    surface and the approval checkpoint as `authorization_source`. Adding or
    refactoring one function page does not authorize a new product-wide style.
    Use `greenfield` only when no governing live UI language exists.
-8. Classify the experience separately by work type, surface type (`landing`,
+9. Classify the experience separately by work type, surface type (`landing`,
    `product-workspace`, `hybrid`, or `existing-pattern-maintenance`), and one or
    more capability profiles. Read the deterministic catalog with
    `{{specify-subcmd:specify-runtime design profiles}}`; supported profiles are
    `web`, `mobile`, `desktop`, `cli`, `tui`, `content`, and `no-ui`. A hybrid
    product selects multiple visual profiles rather than collapsing them into a
    single project-type enum.
-9. If and only if `no-ui` is supported by current repository evidence, record
+10. If and only if `no-ui` is supported by current repository evidence, record
    `design_system_status: not-applicable` with that evidence and exit this
    visual workflow. Do not generate a concept, image, HTML, approval, handoff,
    `ui-target`, or visual comparison, and never combine `no-ui` with a visual
    profile.
-10. If references are supplied as URLs, screenshots, text notes, existing design files, or imported summaries, assign each an explicit intent: `exact`, `preserve-structure`, `inspiration`, `extract-tokens`, or `do-not-copy`.
-11. When built-in presets help, read shipped files under
+11. If references are supplied as URLs, screenshots, text notes, existing design files, or imported summaries, assign each an explicit intent: `exact`, `preserve-structure`, `inspiration`, `extract-tokens`, or `do-not-copy`.
+12. When built-in presets help, read shipped files under
    `.specify/templates/design-library/` or `templates/design-library/`
    (including aesthetic seeds and `anti-slop-policy.md`) and treat them as
    inspiration only—never as approved product direction or a substitute for
@@ -396,7 +422,11 @@ unrelated visual systems for one review round.
   visual/manifest/handoff SHA-256 values, conditional image-prompt digest, immutable handoff ref, approved
   decision IDs, and approved handoff contract IDs. Record
   `product_context`, `direction_contract`, color modes, responsive/content
-  contracts, decisions, and verification matrices. Remove unresolved
+  contracts, decisions, and verification matrices. When source continuity
+  applies, preserve its exact authority refs, surface/action dispositions,
+  `business_outcome` and `final_state` promises, `asset_bindings`, and
+  `unresolved_gaps`; never collapse them into a screenshot-fidelity note.
+  Remove unresolved
   placeholders and generic starter choices that are not justified by those
   sources.
 
@@ -435,6 +465,12 @@ The change-local `design-change.md` must contain:
 - color-mode contracts, including required accessibility modes
 - component required states, token references, and design decision references
 - responsive breakpoints/adaptations and real-content/imagery rules
+- applicable structured `source_continuity`: exact bidirectional coverage IDs,
+  authority refs; surface bindings
+  with `preserve`/`adapt`/`replace`/`merge`/`split`/`retire` disposition;
+  action bindings through `business_outcome` and `final_state`;
+  `asset_bindings` with provenance, target refs, accessibility fallback, and
+  `forbid-character-substitution`; and ready-safe `unresolved_gaps`
 - canonical design decisions with verification methods
 - required viewport/state evidence, visual tolerance, and accepted deviations
 - accessibility intent for contrast, focus, keyboard, reduced motion, touch,
@@ -481,6 +517,9 @@ Before closeout:
    - approved handoff contract IDs
    - requested revisions from rejected rounds
    - platforms covered
+   - applicable `source_continuity`, source-evidence coverage, unresolved-gap
+     disposition, and the source-target real-entrypoint scenarios that
+     downstream Quick/Implement/Review must execute
    - design-system risks
    - lint result
    - recommended next workflow
@@ -520,13 +559,21 @@ new approval.
 - Do not let downstream workflows treat an unaudited, unregistered, or
   contradictory change as locked input. A new approval must never silently
   retarget an existing Feature or Quick workspace.
+- Do not treat visual resemblance, a present handler, or a compiled target as
+  source continuity. Design records the source-target verification contract;
+  Quick/Implement/Review must exercise the real entrypoints and prove each
+  mapped `business_outcome` and `final_state` after implementation.
 
 ## Professional UI Contract Continuity
 
 For substantive UI, approve complete `interaction_matrix`, `editing_matrix`,
 `data_state_matrix`, `accessibility_matrix`, `navigation_matrix`,
 `content_matrix`, `motion_contract`, and `usability_validation` values under
-`design_change.verification`, plus the component governance fields. Bind routed
+`design_change.verification`, plus the component governance fields. Bind
+`source_continuity` when prior visual, structural, source-code, runtime, or
+business evidence governs reconstruction: preserve `asset_bindings`, block
+unowned `unresolved_gaps`, and enforce `forbid-character-substitution` for icon
+and image mappings. Bind routed
 the exact nested adoption row into every affected `component_contracts` row,
 preserve each `surface_catalog[].entrypoint_id` as the exact official
 real-entrypoint binding,

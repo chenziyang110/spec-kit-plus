@@ -93,9 +93,19 @@ When a feature target materially reduces ambiguity, scaffold it with
 embedded manifest and candidate status, and require
 `{{specify-subcmd:specify-runtime design ui-target-lint <FEATURE_DIR>/ui-target.html --level ready}}`.
 
+Reference-, live-product-, recording-, or implementation-grounded UI also
+requires `source_continuity`. Bind each discovered surface to authority refs and
+a preserve/adapt/replace/merge/split/retire disposition; bind each interaction
+to the user promise, `business_outcome`, side effects, final state, and
+source-target verification; bind icons/images/fonts/media through
+`asset_bindings` with provenance, exact target refs, accessible fallback, and
+`forbid-character-substitution`. A screenshot/HTML source proves appearance,
+not hidden surfaces or business behavior. `unresolved_gaps` must be empty before
+planning-ready handoff.
+
 ## Professional UI contract continuity
 
-For UI-bearing scope, bind exact applicable `surface_catalog`,
+For UI-bearing scope, bind exact applicable `source_continuity`, `surface_catalog`,
 `scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
 `accessibility_matrix`, `navigation_matrix`, `content_matrix`,
 `motion_contract`, and `usability_validation` values—including its exact

@@ -147,6 +147,52 @@ implement/review require system model + anti-slop + visual validation loop.
 - The agent must not claim a UI visually matches a reference without agent
   visual comparison or human approval.
 
+## Source Continuity Gate
+
+- When an interface is reconstructed, migrated, adapted, or completed from a
+  prior product or reference, route
+  `specialist-source-grounded-reconstruction` and preserve a structured
+  `source_continuity` contract. This is platform- and technology-neutral.
+- Declare complete coverage surface/interaction/component ID sets and require
+  exact equality with the surface/action/asset binding targets; partial samples
+  cannot close a larger discovered UI universe.
+- Treat screenshots/recordings, HTML/design exports, live source surfaces,
+  source code/resources/tests, runnable source products, requirements, and
+  business rules as complementary bounded authorities. Pixels do not prove
+  hidden surfaces or behavior; source presence does not prove runtime
+  reachability.
+- Discover deep surfaces, alternate entries, menus/dialogs, shortcuts, dynamic
+  views, and applicable empty/populated/loading/error/permission/offline/
+  pending/cancel/repeat/restored states. Map each in-scope source-target surface
+  with one evidence-backed disposition: `preserve`, `adapt`, `replace`,
+  `merge`, `split`, or `retire`; do not call unexplored scope retired.
+- Record every actionable control in `action_bindings` with exact
+  `interaction_id`, `source_refs`, `user_promise`, `business_outcome`,
+  `side_effects`, `final_state`, and `verification`; linked interaction and
+  scenario rows own event order, feedback, and recovery. A clickable component,
+  handler, command, or API route is not end-to-end proof.
+- Preserve `asset_bindings` for icons, images, fonts, sounds, and other
+  identity-bearing resources with exact `component_id`, `semantic_role`,
+  `source_refs`, `target_strategy`, `target_ref`, `provenance`, and `fallback`.
+  Require
+  `placeholder_policy: forbid-character-substitution`; Unicode, emoji, ASCII,
+  and arbitrary text glyphs are not replacement icons or images.
+- Preserve `unresolved_gaps` as strings naming affected scope, owner, next
+  discovery action, and blocking effect. Ready continuity truth has no open gap that can hide a
+  surface, promised action, business outcome, final state, asset, or unsafe
+  evidence conflict.
+- `sp-design` remains design-only: it may discover and approve the continuity
+  contract but must not implement target code or claim runtime parity. Quick
+  may own the complete direct-delivery reconstruction when its confirmed
+  checkpoint binds the applicable continuity subset; depth and surface count
+  expand Quick planning and evidence rather than forcing formal specification.
+  Escalate only a genuinely new or unresolved visual direction to Design.
+- Review runs matched safe scenarios through source and target real entrypoints
+  when the source is runnable and separately verifies visual fidelity,
+  reachability, feedback, side effects, `business_outcome`, and `final_state`.
+  If the source cannot run, record the strongest substitute authority and
+  withhold the parity claim.
+
 ## Platform Rules
 
 - Web work must respect responsive layout, semantic markup, keyboard operation,

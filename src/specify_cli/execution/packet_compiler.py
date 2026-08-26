@@ -363,6 +363,7 @@ def _ui_contract_from_task_entry(
         reference_intents=_unique_dicts(_dict_list(payload.get("reference_intents"))),
         real_content_plan=_unique_dicts(_dict_list(payload.get("real_content_plan"))),
         image_plan=_unique_dicts(_dict_list(payload.get("image_plan"))),
+        source_continuity=_mapping_dict(payload, "source_continuity"),
         surface_catalog=_unique_dicts(_dict_list(payload.get("surface_catalog"))),
         scenario_matrix=_unique_dicts(_dict_list(payload.get("scenario_matrix"))),
         interaction_matrix=_unique_dicts(_dict_list(payload.get("interaction_matrix"))),

@@ -40,6 +40,11 @@ content is not an adequate acceptance basis.
     `design_change_ref`, `design_change_sha256`, and `design_contract_ref`]
   - 交互与适配：[input, focus, feedback, state, recovery, responsive, and
     accessibility expectations]
+  - 来源连续性：[when reference/live/source grounded: authority refs; surface
+    / interaction / component coverage IDs with exact binding equality; surface
+    dispositions; user promise → `business_outcome` → side effects → final
+    state; asset target refs/provenance/fallback with
+    `forbid-character-substitution`; `unresolved_gaps: []`]
   - 验收方式：[real entry point, risk-based matrix, structure snapshot, visual
     capture, runtime diagnostics, comparison or explicit human review]
 ```

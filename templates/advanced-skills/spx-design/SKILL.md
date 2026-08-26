@@ -25,6 +25,29 @@ delivery. Distinguish
 observed product language from new design decisions; do not invent a parallel
 system when an established one can be extended.
 
+When the target reconstructs, migrates, adapts, or completes an interface from
+prior evidence, make `source_continuity` required. Treat screenshots and
+recordings, HTML/design exports, live source surfaces, source code/resources/
+tests, runnable source products, and business rules as complementary bounded
+authorities; no single visual proves hidden surfaces or behavior. Ensure the
+professional router selects and loads
+`specialist-source-grounded-reconstruction`. Persist
+`schema: spec-kit-ui-source-continuity-v1`, `applicability`, `mode`, `reason`,
+and `authority_refs`. Discover the complete in-scope
+surface/state graph and persist `surface_bindings` with exactly one disposition
+per mapping: `preserve`, `adapt`, `replace`, `merge`, `split`, or `retire`.
+Persist `action_bindings` with `interaction_id`, `source_refs`, `user_promise`,
+`business_outcome`, `side_effects`, `final_state`, and `verification`; linked
+interaction/scenario rows own event order, feedback, and recovery. Persist
+`asset_bindings` for icons, imagery, fonts, and other identity-bearing resources
+with `component_id`, `semantic_role`, `source_refs`, `target_strategy`,
+`target_ref`, `provenance`, `fallback`, and
+`placeholder_policy: forbid-character-substitution`; Unicode, emoji, ASCII, or
+arbitrary text glyphs cannot stand in for a missing asset. Keep unknown
+surfaces, behavior, outcomes, states, assets, and evidence conflicts in
+`unresolved_gaps` with owners and exact discovery actions. A ready contract has
+no material unresolved gap disguised as `retire` or a cosmetic exception.
+
 Determine `delivery_context` before authoring: `design-first` when no
 planning-ready feature spec exists, `post-specify` when an exact planning-ready
 feature spec contract already owns requirements/scope/acceptance, or
@@ -189,7 +212,11 @@ Complete `<change-dir>/design-change.md` from the approved round. Use
 decisions that constrain downstream UI work: principles, foundations, tokens,
 component and interaction rules, responsive/accessibility behavior, reference
 fidelity, and required visual evidence. Make exceptions explicit and
-verifiable.
+verifiable. When applicable, preserve the structured
+`design_change.verification.source_continuity` exact bidirectional coverage
+surface/interaction/component ID sets, authority refs, surface dispositions, action promises, `business_outcome` /
+`final_state`, `asset_bindings`, and ready-safe `unresolved_gaps` in the
+approved contract rather than reducing them to reference-fidelity prose.
 
 Set `design_change.status: approved`, record the selected direction and
 product/repository source refs plus `approval.visual_refs`, review round,
@@ -234,4 +261,8 @@ workflow only after an audit pass proves its existing binding remains exact. A
 new approval never silently retargets active delivery. The change-level preview owns decisions declared for its scope; the later
 feature-level `ui-target.html` owns one feature's concrete composition. This
 invocation authorizes only this workflow stage; do not invoke another workflow
-in this run.
+in this run. For source-grounded work, Design records the matched source-target
+real-entrypoint verification scenarios but does not implement the target or
+claim runtime parity. Quick/Implement/Review must later run both real
+entrypoints when available and separately prove visual fidelity plus each
+mapped action's feedback, side effects, `business_outcome`, and `final_state`.

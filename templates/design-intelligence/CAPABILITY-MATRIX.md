@@ -8,6 +8,7 @@ a compact SPX surface; Classic installs the full partial bundle.
 | Taste / DNA / dials | `command-partials/common/design-intelligence.md` + design brief | `_shared/ui-quality-gate.md` + design brief | change-local design brief + exact registered `design-change.md` |
 | DesignContext v1 | schema + validator | same schema; SPX points to it | `templates/design-intelligence/schema/design-context.schema.json` |
 | Evidence model v1 | evidence-rules partial + schema | ui-quality-gate pointer + schema | `design-evidence.schema.json` + `validate_design_evidence` |
+| UI Source Continuity v1 | Design/Quick source-grounding gate | same shared contract | `ui-source-continuity.schema.json` + `validate_ui_source_continuity` |
 | UI System Model | stage hooks in DI partials | stage hooks in ui-quality-gate | Evidence → System → Implementation pipeline |
 | Stage hooks (discussion…review) | `design-intelligence/stage-hooks.md` | ui-quality-gate Stage hooks | same contracts, different packaging |
 | Anti-slop | design-library + brief locks | same library + compact gate | `design-library/anti-slop-policy.md` |

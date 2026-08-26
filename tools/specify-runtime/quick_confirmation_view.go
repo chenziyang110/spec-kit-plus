@@ -210,6 +210,13 @@ func renderQuickUIDecision(b *strings.Builder, doc *quickConfirmationDoc) {
 	if quickDecisionFieldSelected(doc, "ui_confirmation.acceptance_evidence") {
 		appendQuickLabeledBullet(b, "验收方式", joinOrDash(quickStringSlice(ui["acceptance_evidence"])))
 	}
+	if quickDecisionFieldSelected(doc, "ui_confirmation.source_continuity") {
+		if continuity := mapValue(ui["source_continuity"]); len(continuity) > 0 {
+			renderQuickSourceContinuity(b, doc, continuity)
+		} else if quickUsesDeltaFieldFilter(doc) {
+			appendQuickLabeledBullet(b, "来源连续性", "无")
+		}
+	}
 
 	if quickDecisionFieldSelected(doc, "ui_confirmation.design_binding") {
 		if binding := mapValue(ui["design_binding"]); len(binding) > 0 {
@@ -226,6 +233,71 @@ func renderQuickUIDecision(b *strings.Builder, doc *quickConfirmationDoc) {
 		}
 	}
 	b.WriteString("\n")
+}
+
+func renderQuickSourceContinuity(b *strings.Builder, doc *quickConfirmationDoc, continuity map[string]any) {
+	b.WriteString("\n#### 来源连续性\n\n")
+	if quickDecisionFieldSelected(doc, "ui_confirmation.source_continuity.mode") || quickDecisionFieldSelected(doc, "ui_confirmation.source_continuity.reason") {
+		mode := strings.TrimSpace(stringValue(continuity["mode"]))
+		reason := strings.TrimSpace(stringValue(continuity["reason"]))
+		appendQuickLabeledBullet(b, "来源模式", strings.Trim(strings.Join([]string{mode, reason}, "；"), "；"))
+	}
+	if quickDecisionFieldSelected(doc, "ui_confirmation.source_continuity.authority_refs") {
+		appendQuickLabeledBullet(b, "权威依据", joinOrDash(quickStringSlice(continuity["authority_refs"])))
+	}
+	if quickDecisionFieldSelected(doc, "ui_confirmation.source_continuity.coverage") {
+		coverage := mapValue(continuity["coverage"])
+		appendQuickLabeledBullet(
+			b,
+			"覆盖范围",
+			"surface="+joinOrDash(quickStringSlice(coverage["surface_ids"]))+
+				"；interaction="+joinOrDash(quickStringSlice(coverage["interaction_ids"]))+
+				"；component="+joinOrDash(quickStringSlice(coverage["component_ids"])),
+		)
+	}
+	if quickDecisionFieldSelected(doc, "ui_confirmation.source_continuity.surface_bindings") {
+		for _, surface := range listValue(continuity["surface_bindings"]) {
+			row := mapValue(surface)
+			rowPath := "ui_confirmation.source_continuity.surface_bindings." + stringValue(row["id"])
+			if !quickDecisionFieldSelected(doc, rowPath) {
+				continue
+			}
+			value := fmt.Sprintf("%s（%s；%s）", stringValue(row["surface_id"]), stringValue(row["discovery"]), stringValue(row["disposition"]))
+			appendQuickLabeledBullet(b, "界面表面", value)
+		}
+	}
+	if quickDecisionFieldSelected(doc, "ui_confirmation.source_continuity.action_bindings") {
+		for _, action := range listValue(continuity["action_bindings"]) {
+			row := mapValue(action)
+			rowPath := "ui_confirmation.source_continuity.action_bindings." + stringValue(row["id"])
+			if !quickDecisionFieldSelected(doc, rowPath) {
+				continue
+			}
+			value := fmt.Sprintf("%s；业务结果：%s", stringValue(row["user_promise"]), stringValue(row["business_outcome"]))
+			appendQuickLabeledBullet(b, "业务动作", value)
+		}
+	}
+	if quickDecisionFieldSelected(doc, "ui_confirmation.source_continuity.asset_bindings") {
+		for _, asset := range listValue(continuity["asset_bindings"]) {
+			row := mapValue(asset)
+			rowPath := "ui_confirmation.source_continuity.asset_bindings." + stringValue(row["id"])
+			if !quickDecisionFieldSelected(doc, rowPath) {
+				continue
+			}
+			value := fmt.Sprintf("%s → %s（%s；%s）", stringValue(row["semantic_role"]), stringValue(row["target_ref"]), stringValue(row["target_strategy"]), stringValue(row["placeholder_policy"]))
+			appendQuickLabeledBullet(b, "资产", value)
+		}
+	}
+	if quickDecisionFieldSelected(doc, "ui_confirmation.source_continuity.unresolved_gaps") {
+		gaps := quickStringSlice(continuity["unresolved_gaps"])
+		if len(gaps) == 0 {
+			b.WriteString("- 未解决缺口：无\n")
+		} else {
+			b.WriteString("- 未解决缺口：")
+			b.WriteString(strings.Join(gaps, "；"))
+			b.WriteString("\n")
+		}
+	}
 }
 
 func renderQuickDeliveryView(doc *quickConfirmationDoc) string {

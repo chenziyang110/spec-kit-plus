@@ -35,6 +35,48 @@
     "reference_intents": [{"ref": "{{reference_ref}}", "intent": "{{reference_intent}}"}],
     "real_content_plan": [{"source_ref": "{{content_source_ref}}", "applies_to_states": ["{{content_state}}"]}],
     "image_plan": [],
+    "source_continuity": {
+      "schema": "spec-kit-ui-source-continuity-v1",
+      "applicability": "{{required_or_not-applicable}}",
+      "mode": "{{none_reference-grounded_live-product_implementation-backed_or_mixed}}",
+      "reason": "{{source_continuity_reason}}",
+      "coverage": {
+        "surface_ids": ["{{selected_handoff_surface_id}}"],
+        "interaction_ids": ["{{selected_handoff_interaction_id}}"],
+        "component_ids": ["{{selected_handoff_component_id}}"]
+      },
+      "authority_refs": ["{{exact_source_authority_ref}}"],
+      "surface_bindings": [{
+        "id": "SC-SURFACE-001",
+        "surface_id": "{{selected_handoff_surface_id}}",
+        "source_refs": ["{{exact_source_surface_ref}}"],
+        "discovery": "{{measured_inferred_or_assumption}}",
+        "disposition": "{{preserve_adapt_replace_merge_split_or_retire}}",
+        "rationale": "{{source_surface_disposition_rationale}}"
+      }],
+      "action_bindings": [{
+        "id": "SC-ACTION-001",
+        "interaction_id": "{{selected_handoff_interaction_id}}",
+        "source_refs": ["{{exact_source_action_ref}}"],
+        "user_promise": "{{source_action_user_promise}}",
+        "business_outcome": "{{source_action_business_outcome}}",
+        "side_effects": ["{{source_action_side_effect_or_explicit_none}}"],
+        "final_state": "{{source_action_final_state}}",
+        "verification": "{{source_target_action_verification}}"
+      }],
+      "asset_bindings": [{
+        "id": "SC-ASSET-001",
+        "component_id": "{{selected_handoff_component_id}}",
+        "semantic_role": "{{source_asset_semantic_role}}",
+        "source_refs": ["{{exact_source_asset_ref}}"],
+        "target_strategy": "{{preserve_map-library_owned_text-only_or_approved-exception}}",
+        "target_ref": "{{exact_target_asset_or_component_ref}}",
+        "provenance": "{{source_asset_provenance}}",
+        "fallback": "{{accessible_asset_fallback}}",
+        "placeholder_policy": "forbid-character-substitution"
+      }],
+      "unresolved_gaps": []
+    },
     "surface_catalog": [{
       "id": "{{selected_handoff_surface_id}}",
       "profile_id": "{{copy_exact_surface_profile_id}}",

@@ -780,6 +780,18 @@
       "source_ids": ["anthropic-frontend-design", "ui-ux-pro-max", "spec-kit-plus-owned"]
     },
     {
+      "id": "specialist-source-grounded-reconstruction",
+      "kind": "specialist",
+      "name": "Source-Grounded Reconstruction",
+      "summary": "Reconstruct or migrate an interface from visual, structural, source-code, and runnable-product evidence without losing surfaces, behavior, outcomes, or assets.",
+      "triggers": {
+        "phrases": ["根据截图", "截图重建", "现有 HTML", "HTML 重建", "可运行旧软件", "旧软件迁移", "源码重建", "源码迁移", "界面迁移", "按钮业务结果", "深层界面", "图标资源", "source-grounded reconstruction", "source to target", "legacy UI migration", "runnable legacy app", "behavioral parity", "reference implementation"],
+        "negative_phrases": []
+      },
+      "ref": "ui-professional-skills/specialists/source-grounded-reconstruction.md",
+      "source_ids": ["openai-product-design", "spec-kit-plus-owned"]
+    },
+    {
       "id": "specialist-forms-conversion",
       "kind": "specialist",
       "name": "Forms and Conversion",

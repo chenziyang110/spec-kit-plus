@@ -93,6 +93,56 @@ values, immutable handoff ref, approved `DS-*` decision IDs, and applicable
 `DH-*` handoff contract IDs.
 Do not replace them with a prose summary or the later feature target.
 
+## Source continuity gate
+
+When an interface is reconstructed, migrated, adapted, or completed from one or
+more prior products or references, preserve a structured `source_continuity`
+contract. This is technology-neutral and may combine screenshot/recording,
+HTML/design export, live source UI, source code/resources/tests, runnable source
+runtime, requirements, and business evidence. Assign each input a bounded
+authority role: pixels do not prove hidden surfaces or behavior, source does
+not prove reachability, and a compiled target does not prove the user promise.
+Preserve `schema: spec-kit-ui-source-continuity-v1`, `applicability`, `mode`,
+`reason`, the complete `coverage.surface_ids` / `interaction_ids` /
+`component_ids` universe, and stable `authority_refs` before the binding
+arrays. Each coverage set must exactly equal its binding targets; a sampled
+subset cannot close a larger discovered scope.
+
+- Discover the in-scope surface/state graph beyond the starting screen,
+  including deep routes, menus, dialogs, alternate triggers, shortcuts,
+  dynamic views, error/recovery paths, permissions, pending/cancel/repeat, and
+  persistence where applicable.
+- Preserve `surface_bindings` with one explicit source-target disposition per
+  row: `preserve`, `adapt`, `replace`, `merge`, `split`, or `retire`. Retirement
+  requires evidence and intent; it is not a label for unexplored scope.
+- Preserve `action_bindings` from user input and source route through the domain
+  operation as exact `interaction_id`, `source_refs`, `user_promise`,
+  `business_outcome`, `side_effects`, `final_state`, and `verification` fields.
+  Linked interaction/scenario rows own feedback and recovery. A component or
+  handler existing is not end-to-end proof.
+- Preserve `asset_bindings` for icons, imagery, fonts, sounds, and other
+  identity-bearing resources using exact `component_id`, `semantic_role`,
+  `source_refs`, `target_strategy`, `target_ref`, `provenance`, `fallback`, and
+  `placeholder_policy: forbid-character-substitution`. Unicode, emoji, ASCII,
+  or arbitrary characters cannot substitute for missing icons or images.
+- Preserve `unresolved_gaps` as strings that name category, affected scope,
+  owner, exact next discovery action, and blocking effect. Ready source-continuity truth has no
+  open gap capable of hiding a surface, promised action, business outcome,
+  final state, asset, or unsafe evidence conflict.
+
+Design may discover and approve this contract but remains design-only and must
+not write target code or claim runtime parity. Quick may own full direct
+delivery when its confirmed checkpoint binds the applicable continuity subset;
+source depth, migration breadth, and surface count increase task-local planning,
+lanes, and evidence rather than forcing a formal-spec handoff. Escalate to
+Design only when a new or unresolved visual direction needs approval. Every
+implementation packet receives its exact surface/action/asset bindings. Review
+runs matched scenarios through source and target real entrypoints when the
+source is runnable, with equivalent safe data, and separately verifies visual
+fidelity, reachability, feedback, side effects, `business_outcome`, and
+`final_state`. If the source cannot run, use the strongest remaining authority
+and explicitly withhold the parity claim.
+
 ## Delivery chain
 
 For substantive UI work preserve one contract through the workflow:

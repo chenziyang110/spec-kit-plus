@@ -27,4 +27,11 @@ Preserved Contract: leader-direct tasks stay compact; delegated packets carry ob
   plan cognition routes as compact `context_nav` instead of raw graph output.
   `inherit-existing` is a worker guard, not optional advice; page-overhaul
   authorization stays bounded to its exact allowed surfaces.
+- When screenshots, HTML, a live/runnable product, source code, recordings, or
+  prior implementation govern the UI, copy the exact `source_continuity`
+  contract. Its authority refs and surface/action/asset bindings preserve
+  business outcomes, side effects, final states, source-target verification,
+  exact coverage surface/interaction/component ID equality, and
+  `forbid-character-substitution`; any `unresolved_gaps` keeps the packet
+  non-ready.
 - If live evidence invalidates a predicted path or dependency, repair the task graph or stop/reopen; do not hide drift by expanding worker scope silently.

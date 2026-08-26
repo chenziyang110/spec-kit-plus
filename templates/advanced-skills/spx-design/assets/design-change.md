@@ -119,6 +119,20 @@ design_change:
     imagery_rules: []
   decisions: []
   verification:
+    source_continuity:
+      schema: spec-kit-ui-source-continuity-v1
+      applicability: not-assessed
+      mode: none
+      reason: null
+      coverage:
+        surface_ids: []
+        interaction_ids: []
+        component_ids: []
+      authority_refs: []
+      surface_bindings: []
+      action_bindings: []
+      asset_bindings: []
+      unresolved_gaps: []
     required_viewports: []
     required_states: []
     surface_catalog: []

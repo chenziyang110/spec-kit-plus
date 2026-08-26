@@ -113,6 +113,240 @@
               },
               "additionalProperties": false
             },
+            "source_continuity": {
+              "type": "object",
+              "required": [
+                "schema",
+                "applicability",
+                "mode",
+                "reason",
+                "coverage",
+                "authority_refs",
+                "surface_bindings",
+                "action_bindings",
+                "asset_bindings",
+                "unresolved_gaps"
+              ],
+              "properties": {
+                "schema": { "const": "spec-kit-ui-source-continuity-v1" },
+                "applicability": {
+                  "type": "string",
+                  "enum": ["not-assessed", "not-applicable", "required"]
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": ["none", "reference-grounded", "live-product", "implementation-backed", "mixed"]
+                },
+                "reason": {
+                  "oneOf": [
+                    { "type": "string", "minLength": 1, "pattern": "\\S" },
+                    { "type": "null" }
+                  ]
+                },
+                "coverage": {
+                  "type": "object",
+                  "required": ["surface_ids", "interaction_ids", "component_ids"],
+                  "properties": {
+                    "surface_ids": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+                    "interaction_ids": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+                    "component_ids": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+                  },
+                  "additionalProperties": false
+                },
+                "authority_refs": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": { "type": "string", "minLength": 1 }
+                },
+                "surface_bindings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "surface_id", "source_refs", "discovery", "disposition", "rationale"],
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1 },
+                      "surface_id": { "type": "string", "minLength": 1 },
+                      "source_refs": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "items": { "type": "string", "minLength": 1 }
+                      },
+                      "discovery": { "type": "string", "enum": ["measured", "inferred", "assumption"] },
+                      "disposition": { "type": "string", "enum": ["preserve", "adapt", "replace", "merge", "split", "retire"] },
+                      "rationale": { "type": "string", "minLength": 1 }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "action_bindings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "interaction_id", "source_refs", "user_promise", "business_outcome", "side_effects", "final_state", "verification"],
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1 },
+                      "interaction_id": { "type": "string", "minLength": 1 },
+                      "source_refs": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "items": { "type": "string", "minLength": 1 }
+                      },
+                      "user_promise": { "type": "string", "minLength": 1 },
+                      "business_outcome": { "type": "string", "minLength": 1 },
+                      "side_effects": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": { "type": "string", "minLength": 1 }
+                      },
+                      "final_state": { "type": "string", "minLength": 1 },
+                      "verification": { "type": "string", "minLength": 1 }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "asset_bindings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "component_id", "semantic_role", "source_refs", "target_strategy", "target_ref", "provenance", "fallback", "placeholder_policy"],
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1 },
+                      "component_id": { "type": "string", "minLength": 1 },
+                      "semantic_role": { "type": "string", "minLength": 1 },
+                      "source_refs": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "items": { "type": "string", "minLength": 1 }
+                      },
+                      "target_strategy": {
+                        "type": "string",
+                        "enum": ["preserve", "map-library", "owned", "text-only", "approved-exception"]
+                      },
+                      "target_ref": { "type": "string", "minLength": 1 },
+                      "provenance": { "type": "string", "minLength": 1 },
+                      "fallback": { "type": "string", "minLength": 1 },
+                      "placeholder_policy": {
+                        "type": "string",
+                        "enum": ["forbid-character-substitution", "approved-text-symbol"]
+                      }
+                    },
+                    "allOf": [
+                      {
+                        "if": {
+                          "properties": { "placeholder_policy": { "const": "approved-text-symbol" } },
+                          "required": ["placeholder_policy"]
+                        },
+                        "then": {
+                          "properties": {
+                            "target_strategy": { "const": "approved-exception" },
+                            "target_ref": {
+                              "anyOf": [
+                                { "pattern": "^(?:[Cc][Hh][Aa][Rr](?:[Aa][Cc][Tt][Ee][Rr])?|[Ee][Mm][Oo][Jj][Ii]|[Gg][Ll][Yy][Pp][Hh]|[Ss][Yy][Mm][Bb][Oo][Ll]|[Tt][Ee][Xx][Tt]|[Uu][Nn][Ii][Cc][Oo][Dd][Ee])\\s*:\\s*\\S" },
+                                { "pattern": "^&#(?:[Xx][0-9A-Fa-f]+|[0-9]+);?$" },
+                                { "pattern": "^(?:[Uu]\\+|\\\\[Uu])[0-9A-Fa-f]{4,8}$" },
+                                { "maxLength": 4, "pattern": "[^A-Za-z0-9\\s]" }
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "if": {
+                          "properties": { "target_strategy": { "const": "approved-exception" } },
+                          "required": ["target_strategy"]
+                        },
+                        "then": {
+                          "properties": {
+                            "placeholder_policy": { "const": "approved-text-symbol" }
+                          }
+                        }
+                      },
+                      {
+                        "if": {
+                          "properties": { "placeholder_policy": { "const": "forbid-character-substitution" } },
+                          "required": ["placeholder_policy"]
+                        },
+                        "then": {
+                          "properties": {
+                            "target_ref": {
+                              "allOf": [
+                                { "not": { "pattern": "^[Tt][Ee][Xx][Tt]:" } },
+                                { "not": { "pattern": "^\\s*.\\s*$" } }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "unresolved_gaps": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": { "type": "string", "minLength": 1 }
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": { "applicability": { "const": "required" } },
+                    "required": ["applicability"]
+                  },
+                  "then": {
+                    "properties": {
+                      "mode": { "not": { "const": "none" } },
+                      "reason": { "type": "string", "minLength": 1, "pattern": "\\S" },
+                      "coverage": { "properties": { "surface_ids": { "minItems": 1 }, "interaction_ids": { "minItems": 1 }, "component_ids": { "minItems": 1 } } },
+                      "authority_refs": { "minItems": 1 },
+                      "surface_bindings": { "minItems": 1 },
+                      "action_bindings": { "minItems": 1 },
+                      "asset_bindings": { "minItems": 1 },
+                      "unresolved_gaps": { "maxItems": 0 }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": { "applicability": { "const": "not-applicable" } },
+                    "required": ["applicability"]
+                  },
+                  "then": {
+                    "properties": {
+                      "mode": { "const": "none" },
+                      "reason": { "type": "string", "minLength": 1, "pattern": "\\S" },
+                      "coverage": { "properties": { "surface_ids": { "maxItems": 0 }, "interaction_ids": { "maxItems": 0 }, "component_ids": { "maxItems": 0 } } },
+                      "authority_refs": { "maxItems": 0 },
+                      "surface_bindings": { "maxItems": 0 },
+                      "action_bindings": { "maxItems": 0 },
+                      "asset_bindings": { "maxItems": 0 },
+                      "unresolved_gaps": { "maxItems": 0 }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": { "applicability": { "const": "not-assessed" } },
+                    "required": ["applicability"]
+                  },
+                  "then": {
+                    "properties": {
+                      "mode": { "const": "none" },
+                      "coverage": { "properties": { "surface_ids": { "maxItems": 0 }, "interaction_ids": { "maxItems": 0 }, "component_ids": { "maxItems": 0 } } },
+                      "authority_refs": { "maxItems": 0 },
+                      "surface_bindings": { "maxItems": 0 },
+                      "action_bindings": { "maxItems": 0 },
+                      "asset_bindings": { "maxItems": 0 },
+                      "unresolved_gaps": { "maxItems": 0 }
+                    }
+                  }
+                }
+              ],
+              "additionalProperties": false
+            },
             "confirmation_purpose": { "type": "string" },
             "user_and_primary_job": { "type": "string" },
             "design_basis_and_source_material": {
@@ -140,6 +374,15 @@
             },
             "confirmation_digest": { "type": "string" }
           },
+          "allOf": [
+            {
+              "if": {
+                "properties": { "applicable": { "const": true } },
+                "required": ["applicable"]
+              },
+              "then": { "required": ["source_continuity"] }
+            }
+          ],
           "additionalProperties": false
         },
         "user_corrections": { "type": "array", "items": { "type": "string" } }

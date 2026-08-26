@@ -353,6 +353,101 @@
         "adoption": {"$ref": "#/$defs/componentAdoption"}
       }
     },
+    "sourceContinuitySurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "surface_id", "source_refs", "discovery", "disposition", "rationale"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^SC-SURFACE-[0-9]{3,}$"},
+        "surface_id": {"type": "string", "minLength": 1},
+        "source_refs": {"$ref": "#/$defs/nonEmptyStrings"},
+        "discovery": {"enum": ["measured", "inferred", "assumption"]},
+        "disposition": {"enum": ["preserve", "adapt", "replace", "merge", "split", "retire"]},
+        "rationale": {"type": "string", "minLength": 1}
+      }
+    },
+    "sourceContinuityAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "interaction_id", "source_refs", "user_promise", "business_outcome", "side_effects", "final_state", "verification"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^SC-ACTION-[0-9]{3,}$"},
+        "interaction_id": {"type": "string", "minLength": 1},
+        "source_refs": {"$ref": "#/$defs/nonEmptyStrings"},
+        "user_promise": {"type": "string", "minLength": 1},
+        "business_outcome": {"type": "string", "minLength": 1},
+        "side_effects": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "final_state": {"type": "string", "minLength": 1},
+        "verification": {"type": "string", "minLength": 1}
+      }
+    },
+    "sourceContinuityAsset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "component_id", "semantic_role", "source_refs", "target_strategy", "target_ref", "provenance", "fallback", "placeholder_policy"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^SC-ASSET-[0-9]{3,}$"},
+        "component_id": {"type": "string", "minLength": 1},
+        "semantic_role": {"type": "string", "minLength": 1},
+        "source_refs": {"$ref": "#/$defs/nonEmptyStrings"},
+        "target_strategy": {"enum": ["preserve", "map-library", "owned", "text-only", "approved-exception"]},
+        "target_ref": {"type": "string", "minLength": 1},
+        "provenance": {"type": "string", "minLength": 1},
+        "fallback": {"type": "string", "minLength": 1},
+        "placeholder_policy": {"enum": ["forbid-character-substitution", "approved-text-symbol"]}
+      }
+    },
+    "sourceContinuityCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surface_ids", "interaction_ids", "component_ids"],
+      "properties": {
+        "surface_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "interaction_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "component_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "sourceContinuity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "applicability", "mode", "reason", "coverage", "authority_refs", "surface_bindings", "action_bindings", "asset_bindings", "unresolved_gaps"],
+      "properties": {
+        "schema": {"const": "spec-kit-ui-source-continuity-v1"},
+        "applicability": {"enum": ["required", "not-applicable"]},
+        "mode": {"enum": ["none", "reference-grounded", "live-product", "implementation-backed", "mixed"]},
+        "reason": {"type": "string", "minLength": 1},
+        "coverage": {"$ref": "#/$defs/sourceContinuityCoverage"},
+        "authority_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "surface_bindings": {"type": "array", "items": {"$ref": "#/$defs/sourceContinuitySurface"}},
+        "action_bindings": {"type": "array", "items": {"$ref": "#/$defs/sourceContinuityAction"}},
+        "asset_bindings": {"type": "array", "items": {"$ref": "#/$defs/sourceContinuityAsset"}},
+        "unresolved_gaps": {"type": "array", "maxItems": 0, "items": {"type": "string", "minLength": 1}}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"applicability": {"const": "required"}}, "required": ["applicability"]},
+          "then": {"properties": {
+            "mode": {"not": {"const": "none"}},
+              "authority_refs": {"minItems": 1},
+              "coverage": {"properties": {"surface_ids": {"minItems": 1}, "interaction_ids": {"minItems": 1}, "component_ids": {"minItems": 1}}},
+            "surface_bindings": {"minItems": 1},
+            "action_bindings": {"minItems": 1},
+            "asset_bindings": {"minItems": 1}
+          }}
+        },
+        {
+          "if": {"properties": {"applicability": {"const": "not-applicable"}}, "required": ["applicability"]},
+          "then": {"properties": {
+            "mode": {"const": "none"},
+            "authority_refs": {"maxItems": 0},
+            "coverage": {"properties": {"surface_ids": {"maxItems": 0}, "interaction_ids": {"maxItems": 0}, "component_ids": {"maxItems": 0}}},
+            "surface_bindings": {"maxItems": 0},
+            "action_bindings": {"maxItems": 0},
+            "asset_bindings": {"maxItems": 0}
+          }}
+        }
+      ]
+    },
     "surfaceContract": {
       "type": "object",
       "additionalProperties": false,
@@ -542,9 +637,10 @@
     "reproduction": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reproduction_mode", "capability_model", "surface_catalog", "scenario_matrix", "component_contracts", "interaction_matrix", "editing_matrix", "data_state_matrix", "accessibility_matrix", "navigation_matrix", "content_matrix", "responsive_matrix", "motion_contract", "usability_validation", "visual_acceptance_matrix", "comparison_tolerance", "accepted_deviations", "contract_ids"],
+      "required": ["reproduction_mode", "source_continuity", "capability_model", "surface_catalog", "scenario_matrix", "component_contracts", "interaction_matrix", "editing_matrix", "data_state_matrix", "accessibility_matrix", "navigation_matrix", "content_matrix", "responsive_matrix", "motion_contract", "usability_validation", "visual_acceptance_matrix", "comparison_tolerance", "accepted_deviations", "contract_ids"],
       "properties": {
         "reproduction_mode": {"enum": ["exact", "platform-adapted"]},
+        "source_continuity": {"$ref": "#/$defs/sourceContinuity"},
         "capability_model": {"$ref": "#/$defs/capabilityModel"},
         "surface_catalog": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/surfaceContract"}},
         "scenario_matrix": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/scenarioContract"}},

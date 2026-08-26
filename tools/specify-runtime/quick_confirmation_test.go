@@ -8,6 +8,16 @@ import (
 	"testing"
 )
 
+func quickNotApplicableSourceContinuity() map[string]any {
+	return map[string]any{
+		"schema": "spec-kit-ui-source-continuity-v1", "applicability": "not-applicable",
+		"mode": "none", "reason": "This test does not exercise source-grounded reconstruction.",
+		"coverage":       map[string]any{"surface_ids": []any{}, "interaction_ids": []any{}, "component_ids": []any{}},
+		"authority_refs": []any{}, "surface_bindings": []any{}, "action_bindings": []any{},
+		"asset_bindings": []any{}, "unresolved_gaps": []any{},
+	}
+}
+
 func TestQuickCheckpointStageConfirmShow(t *testing.T) {
 	root := t.TempDir()
 	workspace := filepath.Join(root, ".planning", "quick", "260805-001-prompt-modes")
@@ -66,6 +76,7 @@ active_lane: ""
 					"must_not":      []any{"引入第二套视觉体系"},
 				},
 				"acceptance_evidence": []any{"真实入口视觉检查"},
+				"source_continuity":   quickNotApplicableSourceContinuity(),
 				"design_binding": map[string]any{
 					"scope":                "prompt-detail",
 					"design_change_id":     "UD-1234",
@@ -252,6 +263,7 @@ placeholder
 				"structure_and_visible_change":      "未变化的可见变化",
 				"interaction_states_and_adaptation": []any{"未变化的交互"},
 				"acceptance_evidence":               []any{"未变化的证据"},
+				"source_continuity":                 quickNotApplicableSourceContinuity(),
 			},
 		},
 	}
