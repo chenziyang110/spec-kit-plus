@@ -325,6 +325,105 @@ func TestCognitionCloseoutApplyResumesIntentAfterCrashBeforeCurrentUpdate(t *tes
 	}
 }
 
+func TestCognitionCloseoutApplyResumesIntentAfterCrashAfterCurrentUpdate(t *testing.T) {
+	project, paths, scopeDir := seedCloseoutApplyRuntime(t)
+	crashOnce := true
+	closeoutApplyAfterUpdateHook = func(updateID string) error {
+		if crashOnce {
+			crashOnce = false
+			return errors.New("simulated crash after current update")
+		}
+		return nil
+	}
+	t.Cleanup(func() { closeoutApplyAfterUpdateHook = nil })
+
+	var firstOut, firstErr bytes.Buffer
+	firstCode := Run([]string{
+		"cognition", "closeout", "apply",
+		"--project-root", project,
+		"--workflow", "sp-implement",
+		"--scope-dir", scopeDir,
+		"--payload-json", closeoutApplyPayloadJSON(t, true),
+		"--format", "json",
+	}, &firstOut, &firstErr, "test")
+	if firstCode != 10 || countCloseoutApplyUpdates(t, paths) != 1 {
+		t.Fatalf("first closeout code/update-count = %d/%d; stderr=%s stdout=%s", firstCode, countCloseoutApplyUpdates(t, paths), firstErr.String(), firstOut.String())
+	}
+	intents, err := listCloseoutIntents(paths)
+	if err != nil || len(intents) != 1 || intents[0].UpdateID == "" {
+		t.Fatalf("intents = %#v err=%v, want one update-bound intent", intents, err)
+	}
+	wantUpdateID := intents[0].UpdateID
+	closeoutApplyAfterUpdateHook = nil
+
+	var secondOut, secondErr bytes.Buffer
+	secondCode := Run([]string{
+		"cognition", "closeout", "apply",
+		"--project-root", project,
+		"--workflow", "sp-implement",
+		"--scope-dir", scopeDir,
+		"--payload-json", closeoutApplyPayloadJSON(t, true),
+		"--format", "json",
+	}, &secondOut, &secondErr, "test")
+	if secondCode != 0 {
+		t.Fatalf("second code = %d; stderr=%s stdout=%s", secondCode, secondErr.String(), secondOut.String())
+	}
+	data := requireObject(t, decodeJSONObject(t, secondOut.Bytes()), "data")
+	if data["update_id"] != wantUpdateID || data["resumed_from_intent"] != true || countCloseoutApplyUpdates(t, paths) != 1 {
+		t.Fatalf("data=%#v update-count=%d, want same update %s resumed", data, countCloseoutApplyUpdates(t, paths), wantUpdateID)
+	}
+}
+
+func TestCognitionCloseoutApplyDrainsOlderIntentBeforeDifferentCurrentScope(t *testing.T) {
+	project, paths, scopeA := seedCloseoutApplyRuntime(t)
+	scopeB := filepath.ToSlash(filepath.Join(".specify", "features", "002-closeout"))
+	if err := os.MkdirAll(filepath.Join(project, filepath.FromSlash(scopeB)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	closeoutApplyAfterIntentPersistHook = func(intentID string) error {
+		return errors.New("leave first scope queued")
+	}
+
+	var firstOut, firstErr bytes.Buffer
+	firstCode := Run([]string{
+		"cognition", "closeout", "apply",
+		"--project-root", project,
+		"--workflow", "sp-implement",
+		"--scope-dir", scopeA,
+		"--payload-json", closeoutApplyPayloadJSON(t, true),
+		"--format", "json",
+	}, &firstOut, &firstErr, "test")
+	if firstCode != 10 {
+		t.Fatalf("first code = %d; stderr=%s stdout=%s", firstCode, firstErr.String(), firstOut.String())
+	}
+	closeoutApplyAfterIntentPersistHook = nil
+
+	var secondOut, secondErr bytes.Buffer
+	secondCode := Run([]string{
+		"cognition", "closeout", "apply",
+		"--project-root", project,
+		"--workflow", "sp-implement",
+		"--scope-dir", scopeB,
+		"--payload-json", closeoutApplyPayloadJSON(t, true),
+		"--format", "json",
+	}, &secondOut, &secondErr, "test")
+	if secondCode != 0 {
+		t.Fatalf("second code = %d; stderr=%s stdout=%s", secondCode, secondErr.String(), secondOut.String())
+	}
+	data := requireObject(t, decodeJSONObject(t, secondOut.Bytes()), "data")
+	replayed, ok := data["replayed_intents"].([]any)
+	if !ok || len(replayed) != 1 || countCloseoutApplyUpdates(t, paths) != 2 {
+		t.Fatalf("data=%#v update-count=%d, want one older intent drained then current update", data, countCloseoutApplyUpdates(t, paths))
+	}
+	if _, err := os.Stat(filepath.Join(project, filepath.FromSlash(scopeA), mutationCognitionReceiptFileName)); err != nil {
+		t.Fatalf("older scope receipt missing after automatic drain: %v", err)
+	}
+	intents, err := listCloseoutIntents(paths)
+	if err != nil || len(intents) != 0 {
+		t.Fatalf("intents = %#v err=%v, want queue drained", intents, err)
+	}
+}
+
 func TestCognitionCloseoutApplyAcceptsLargePayloadFromStdin(t *testing.T) {
 	project, _, scopeDir := seedCloseoutApplyRuntime(t)
 	payloadJSON := largeCloseoutApplyPayloadJSON(t)
