@@ -138,6 +138,46 @@ type IdentitySnapshot struct {
 	MergeRecords                []MergeRecord   `json:"merge_records"`
 }
 
+func (s *Store) RestorePathCoverage(ctx context.Context, path string, nodeID string, evidenceID string, relation string, confidence string) error {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil {
+		return err
+	}
+	if generationID == "" {
+		return fmt.Errorf("project-cognition.db has no active generation")
+	}
+	path = strings.TrimSpace(path)
+	nodeID = strings.TrimSpace(nodeID)
+	evidenceID = strings.TrimSpace(evidenceID)
+	if path == "" || nodeID == "" || evidenceID == "" {
+		return fmt.Errorf("path, node id, and evidence id are required")
+	}
+	var nodeCount, evidenceCount, pathCount int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM nodes WHERE generation_id = ? AND id = ?`, generationID, nodeID).Scan(&nodeCount); err != nil {
+		return err
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM evidence WHERE generation_id = ? AND id = ?`, generationID, evidenceID).Scan(&evidenceCount); err != nil {
+		return err
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM path_index WHERE generation_id = ? AND path = ?`, generationID, path).Scan(&pathCount); err != nil {
+		return err
+	}
+	if nodeCount != 1 || evidenceCount != 1 {
+		return fmt.Errorf("cannot restore %s: node/evidence identity is unavailable", path)
+	}
+	if pathCount != 0 {
+		return fmt.Errorf("cannot restore %s: active path coverage already exists", path)
+	}
+	relation = defaultString(strings.TrimSpace(relation), "owns")
+	confidence = defaultString(strings.TrimSpace(confidence), "partial")
+	pathID := "P-repair-" + stableIDPart(generationID+"-"+path+"-"+nodeID)
+	_, err = s.db.ExecContext(ctx, `INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, pathID, generationID, path, nodeID, relation, confidence, evidenceID, time.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return fmt.Errorf("restore path coverage %s: %w", path, err)
+	}
+	return nil
+}
+
 func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string, error) {
 	input.GenerationID = strings.TrimSpace(input.GenerationID)
 	if input.GenerationID == "" {
