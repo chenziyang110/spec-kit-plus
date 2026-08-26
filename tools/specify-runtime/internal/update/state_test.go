@@ -509,6 +509,39 @@ func TestRunUpdateAutomaticallyRepairsStatusMismatchBeforeCurrentUpdate(t *testi
 	}
 }
 
+func TestRunUpdateRepairsStatusMismatchAfterReadyUpdateClearedDirtyDebt(t *testing.T) {
+	paths := testPaths(t)
+	writeUpdateMatchingScanPackage(t, paths)
+	seedReadyRuntime(t, paths)
+	if _, err := MarkDirty(paths, DirtyInput{Reason: "old-debt", ScopePaths: []string{"src/app.go"}}); err != nil {
+		t.Fatal(err)
+	}
+	dirtyStatus, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	predecessor, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/app.go"}, Reason: "clear-old-debt", Workflow: "sp-fast",
+		Verification: []VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	})
+	if err != nil || predecessor.ResultState != ResultReady {
+		t.Fatalf("predecessor = %#v err=%v, want ready debt-clearing update", predecessor, err)
+	}
+	if err := rt.WriteStatus(paths, dirtyStatus); err != nil {
+		t.Fatal(err)
+	}
+	current, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/app.go"}, Reason: "workflow-finalize", Workflow: "sp-implement",
+		Verification: []VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	})
+	if err != nil {
+		t.Fatalf("RunUpdate stranded ready predecessor after status loss: %v", err)
+	}
+	if current.StatusRecovery == nil || current.PredecessorRecovery == nil || current.PredecessorRecovery.UpdateID != predecessor.UpdateID {
+		t.Fatalf("current = %#v, want status repair, predecessor finalization, and current update", current)
+	}
+}
+
 func TestRunUpdateClearsCoveredDirtyDebtDespiteDifferentReason(t *testing.T) {
 	paths := testPaths(t)
 	seedReadyRuntime(t, paths)

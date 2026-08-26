@@ -620,6 +620,30 @@ func TestCognitionCloseoutReplayRejectsChangedDeltaSession(t *testing.T) {
 	}
 }
 
+func TestCognitionCloseoutApplyRejectsDeltaChangedAfterIntentValidation(t *testing.T) {
+	project, paths, scopeDir := seedCloseoutApplyRuntime(t)
+	deltaSession := appendCloseoutApplyDelta(t, paths, "sp-implement")
+	closeoutApplyBeforeCurrentUpdateHook = func(intentID string) error {
+		_, err := delta.Append(delta.AppendInput{
+			RuntimeDir: paths.RuntimeDir, SessionID: deltaSession, EventType: "late_after_validation",
+			ChangedPaths: []string{"src/app.go"}, Verification: []string{`{"command":"go test ./...","result":"passed"}`},
+		})
+		return err
+	}
+	t.Cleanup(func() { closeoutApplyBeforeCurrentUpdateHook = nil })
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"cognition", "closeout", "apply", "--project-root", project, "--workflow", "sp-implement",
+		"--scope-dir", scopeDir, "--delta-session", deltaSession, "--format", "json",
+	}, &stdout, &stderr, "test")
+	if code == 0 {
+		t.Fatalf("delta changed after intent validation unexpectedly succeeded: %s", stdout.String())
+	}
+	if got := countCloseoutApplyUpdates(t, paths); got != 0 {
+		t.Fatalf("update count = %d, want delta digest mismatch rejected before mutation", got)
+	}
+}
+
 func TestCognitionCloseoutApplyAcceptsLargePayloadFromStdin(t *testing.T) {
 	project, _, scopeDir := seedCloseoutApplyRuntime(t)
 	payloadJSON := largeCloseoutApplyPayloadJSON(t)
