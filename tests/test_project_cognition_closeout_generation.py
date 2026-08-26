@@ -451,6 +451,43 @@ def test_shared_closeout_transport_keeps_completed_payload_off_process_argv() ->
         assert "--payload-json '<inline-json>'" not in content, surface
 
 
+def test_shared_closeout_recovers_only_the_direct_pending_predecessor() -> None:
+    contract_surfaces = (
+        ROOT
+        / "templates"
+        / "command-partials"
+        / "common"
+        / "inline-project-cognition-update.md",
+        ROOT
+        / "templates"
+        / "advanced-skills"
+        / "_shared"
+        / "project-cognition.md",
+        ROOT
+        / "templates"
+        / "passive-skills"
+        / "spec-kit-project-cognition-gate"
+        / "SKILL.md",
+    )
+
+    for surface in contract_surfaces:
+        content = surface.read_text(encoding="utf-8")
+        assert "`pending_finalization`" in content, surface
+        assert "one direct predecessor" in content, surface
+        assert "`predecessor_recovery`" in content, surface
+        assert "current mutation accounting" in content, surface
+        assert "must not scan older" in content, surface
+
+    for surface in (
+        ROOT / "README.md",
+        ROOT / "PROJECT-HANDBOOK.md",
+        ROOT / "templates" / "project-handbook-template.md",
+    ):
+        content = surface.read_text(encoding="utf-8")
+        assert "one direct predecessor" in content, surface
+        assert "pending_finalization" in content, surface
+
+
 def test_greenfield_with_project_code_uses_structured_rebuild_recovery() -> None:
     surfaces = (
         ROOT
