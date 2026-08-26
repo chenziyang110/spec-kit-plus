@@ -59,6 +59,8 @@ def test_context_direct_skips_only_entry_discovery_and_keeps_safety_gates() -> N
         "--scope-dir",
         "specify-runtime work begin",
         "specify-runtime work claim",
+        "specify-runtime execution overview",
+        "execution-overview-v1",
         "before source writes",
         "all-or-none",
         "does not waive",
@@ -89,6 +91,8 @@ def test_advanced_quick_and_debug_read_shared_gate_first() -> None:
     assert "post-change project cognition closeout" in shared
     assert "specify-runtime work begin" in shared
     assert "specify-runtime work claim" in shared
+    assert "specify-runtime execution overview" in shared
+    assert "execution-overview-v1" in shared
     assert "before source writes" in shared
     assert "all-or-none" in shared
 
