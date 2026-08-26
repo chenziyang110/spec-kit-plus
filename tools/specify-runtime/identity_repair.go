@@ -126,38 +126,43 @@ func runCognitionIdentityRepairApply(args []string, stdout io.Writer) int {
 	if err := json.Unmarshal(raw, &plan); err != nil || plan.Version != identityRepairPlanVersion || len(plan.Repairs) == 0 {
 		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("identity repair plan is invalid")))
 	}
-	gate := validation.ValidateBuild(paths)
-	diffs, currentDigest, err := identityRepairDiffs(gate)
-	if err != nil || currentDigest != plan.ValidationDigest || strings.TrimSpace(fmt.Sprint(gate.Details["active_generation_id"])) != plan.GenerationID {
-		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("identity repair plan is stale; rerun plan")))
-	}
-	expectedRepairs, err := identityPathRepairsFromGate(paths, gate, diffs)
-	if err != nil {
-		return writeEnvelope(stdout, scriptDomainError("cognition", err))
-	}
-	expectedRaw, _ := json.Marshal(expectedRepairs)
-	actualRaw, _ := json.Marshal(plan.Repairs)
-	if !bytes.Equal(expectedRaw, actualRaw) {
-		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("identity repair plan contents do not match current scan-backed repair")))
-	}
+	var after validation.GatePayload
 	if err := update.WithLockedRuntime(paths, func(_ *update.LockedRuntime) error {
+		gate := validation.ValidateBuild(paths)
+		diffs, currentDigest, err := identityRepairDiffs(gate)
+		if err != nil || currentDigest != plan.ValidationDigest || strings.TrimSpace(fmt.Sprint(gate.Details["active_generation_id"])) != plan.GenerationID {
+			return fmt.Errorf("identity repair plan is stale; rerun plan")
+		}
+		expectedRepairs, err := identityPathRepairsFromGate(paths, gate, diffs)
+		if err != nil {
+			return err
+		}
+		expectedRaw, _ := json.Marshal(expectedRepairs)
+		actualRaw, _ := json.Marshal(plan.Repairs)
+		if !bytes.Equal(expectedRaw, actualRaw) {
+			return fmt.Errorf("identity repair plan contents do not match current scan-backed repair")
+		}
 		st, err := store.OpenExisting(paths)
 		if err != nil {
 			return err
 		}
 		defer st.Close()
+		repairs := make([]store.PathCoverageRestore, 0, len(plan.Repairs))
 		for _, repair := range plan.Repairs {
-			if err := st.RestorePathCoverage(context.Background(), repair.Path, repair.NodeID, repair.EvidenceID, repair.Relation, repair.Confidence); err != nil {
-				return err
-			}
+			repairs = append(repairs, store.PathCoverageRestore{
+				Path: repair.Path, NodeID: repair.NodeID, EvidenceID: repair.EvidenceID, Relation: repair.Relation, Confidence: repair.Confidence,
+			})
+		}
+		if err := st.RestorePathCoverageBatch(context.Background(), plan.GenerationID, repairs); err != nil {
+			return err
+		}
+		after = validation.ValidateBuild(paths)
+		if after.Status != "ok" || after.Readiness != rt.ReadyReadiness {
+			return fmt.Errorf("identity repair did not restore query readiness: %s", strings.Join(after.Errors, "; "))
 		}
 		return nil
 	}); err != nil {
 		return writeEnvelope(stdout, scriptDomainError("cognition", err))
-	}
-	after := validation.ValidateBuild(paths)
-	if after.Status != "ok" || after.Readiness != rt.ReadyReadiness {
-		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("identity repair did not restore query readiness: %s", strings.Join(after.Errors, "; "))))
 	}
 	env := NewEnvelope("ok", "bounded project cognition identity repair applied")
 	env.Data = map[string]any{"status": "repaired", "readiness": after.Readiness, "repair_count": len(plan.Repairs), "plan_ref": closeoutIntentRef(paths, planPath)}

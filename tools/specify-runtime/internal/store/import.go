@@ -138,43 +138,80 @@ type IdentitySnapshot struct {
 	MergeRecords                []MergeRecord   `json:"merge_records"`
 }
 
+type PathCoverageRestore struct {
+	Path       string
+	NodeID     string
+	EvidenceID string
+	Relation   string
+	Confidence string
+}
+
 func (s *Store) RestorePathCoverage(ctx context.Context, path string, nodeID string, evidenceID string, relation string, confidence string) error {
 	generationID, err := s.ActiveGenerationID(ctx)
 	if err != nil {
 		return err
 	}
-	if generationID == "" {
-		return fmt.Errorf("project-cognition.db has no active generation")
+	return s.RestorePathCoverageBatch(ctx, generationID, []PathCoverageRestore{{
+		Path: path, NodeID: nodeID, EvidenceID: evidenceID, Relation: relation, Confidence: confidence,
+	}})
+}
+
+func (s *Store) RestorePathCoverageBatch(ctx context.Context, expectedGenerationID string, repairs []PathCoverageRestore) error {
+	if strings.TrimSpace(expectedGenerationID) == "" || len(repairs) == 0 {
+		return fmt.Errorf("expected generation and at least one path repair are required")
 	}
-	path = strings.TrimSpace(path)
-	nodeID = strings.TrimSpace(nodeID)
-	evidenceID = strings.TrimSpace(evidenceID)
-	if path == "" || nodeID == "" || evidenceID == "" {
-		return fmt.Errorf("path, node id, and evidence id are required")
-	}
-	var nodeCount, evidenceCount, pathCount int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM nodes WHERE generation_id = ? AND id = ?`, generationID, nodeID).Scan(&nodeCount); err != nil {
-		return err
-	}
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM evidence WHERE generation_id = ? AND id = ?`, generationID, evidenceID).Scan(&evidenceCount); err != nil {
-		return err
-	}
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM path_index WHERE generation_id = ? AND path = ?`, generationID, path).Scan(&pathCount); err != nil {
-		return err
-	}
-	if nodeCount != 1 || evidenceCount != 1 {
-		return fmt.Errorf("cannot restore %s: node/evidence identity is unavailable", path)
-	}
-	if pathCount != 0 {
-		return fmt.Errorf("cannot restore %s: active path coverage already exists", path)
-	}
-	relation = defaultString(strings.TrimSpace(relation), "owns")
-	confidence = defaultString(strings.TrimSpace(confidence), "partial")
-	pathID := "P-repair-" + stableIDPart(generationID+"-"+path+"-"+nodeID)
-	_, err = s.db.ExecContext(ctx, `INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, pathID, generationID, path, nodeID, relation, confidence, evidenceID, time.Now().UTC().Format(time.RFC3339))
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("restore path coverage %s: %w", path, err)
+		return err
 	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	activeGenerationID, err := activeGenerationIDTx(ctx, tx)
+	if err != nil {
+		return err
+	}
+	if activeGenerationID != expectedGenerationID {
+		return fmt.Errorf("identity repair generation changed: expected %s, active %s", expectedGenerationID, activeGenerationID)
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, repair := range repairs {
+		path := strings.TrimSpace(repair.Path)
+		nodeID := strings.TrimSpace(repair.NodeID)
+		evidenceID := strings.TrimSpace(repair.EvidenceID)
+		if path == "" || nodeID == "" || evidenceID == "" {
+			return fmt.Errorf("path, node id, and evidence id are required")
+		}
+		var nodeCount, evidenceCount, pathCount int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM nodes WHERE generation_id = ? AND id = ?`, activeGenerationID, nodeID).Scan(&nodeCount); err != nil {
+			return err
+		}
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM evidence WHERE generation_id = ? AND id = ?`, activeGenerationID, evidenceID).Scan(&evidenceCount); err != nil {
+			return err
+		}
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM path_index WHERE generation_id = ? AND path = ?`, activeGenerationID, path).Scan(&pathCount); err != nil {
+			return err
+		}
+		if nodeCount != 1 || evidenceCount != 1 {
+			return fmt.Errorf("cannot restore %s: node/evidence identity is unavailable", path)
+		}
+		if pathCount != 0 {
+			return fmt.Errorf("cannot restore %s: active path coverage already exists", path)
+		}
+		relation := defaultString(strings.TrimSpace(repair.Relation), "owns")
+		confidence := defaultString(strings.TrimSpace(repair.Confidence), "partial")
+		pathID := "P-repair-" + stableIDPart(activeGenerationID+"-"+path+"-"+nodeID)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, pathID, activeGenerationID, path, nodeID, relation, confidence, evidenceID, now); err != nil {
+			return fmt.Errorf("restore path coverage %s: %w", path, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	committed = true
 	return nil
 }
 

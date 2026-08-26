@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/delta"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/store"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/update"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/validation"
 )
@@ -21,6 +23,7 @@ const closeoutStateScopeReady = "scope_ready"
 var (
 	closeoutApplyAfterIntentPersistHook func(string) error
 	closeoutApplyAfterUpdateHook        func(string) error
+	closeoutApplyAfterScopeReceiptHook  func(string) error
 )
 
 type closeoutIntentPendingError struct {
@@ -226,6 +229,11 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		default:
 			return &closeoutStageError{category: "non_closeable_update_result", detail: updatePayload.ResultState}
 		}
+		if closeoutApplyAfterScopeReceiptHook != nil {
+			if err := closeoutApplyAfterScopeReceiptHook(intent.ID); err != nil {
+				return err
+			}
+		}
 		return removeCloseoutIntent(paths, intent)
 	})
 
@@ -285,6 +293,13 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 }
 
 func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Paths, intent closeoutIntent) (string, error) {
+	pruned, err := pruneCompletedCloseoutIntent(paths, intent)
+	if err != nil {
+		return "", err
+	}
+	if pruned {
+		return intent.UpdateID, nil
+	}
 	absScope, relScope, err := resolveCloseoutApplyScope(paths.Root, intent.Scope)
 	if err != nil {
 		return "", err
@@ -348,6 +363,51 @@ func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Pa
 		return "", err
 	}
 	return payload.UpdateID, nil
+}
+
+func pruneCompletedCloseoutIntent(paths rt.Paths, intent closeoutIntent) (bool, error) {
+	if intent.State != "receipt_recorded" || intent.UpdateID == "" {
+		return false, nil
+	}
+	absScope, _, err := resolveCloseoutApplyScope(paths.Root, intent.Scope)
+	if err != nil {
+		return false, err
+	}
+	receipt, err := loadMutationCognitionReceipt(absScope)
+	if err != nil || receipt == nil || receipt.UpdateID != intent.UpdateID {
+		return false, err
+	}
+	state := normalizeMutationCognitionState(receipt.ResultState)
+	if state != "ready" && state != "no_op" {
+		return false, nil
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil || status.LastFinalizedUpdateID == "" {
+		return false, err
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		return false, err
+	}
+	defer st.Close()
+	generationID, err := st.ActiveGenerationID(context.Background())
+	if err != nil {
+		return false, err
+	}
+	var intentCompletedAt, finalizedCompletedAt string
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT completed_at FROM updates WHERE generation_id = ? AND id = ?`, generationID, intent.UpdateID).Scan(&intentCompletedAt); err != nil {
+		return false, nil
+	}
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT completed_at FROM updates WHERE generation_id = ? AND id = ?`, generationID, status.LastFinalizedUpdateID).Scan(&finalizedCompletedAt); err != nil {
+		return false, nil
+	}
+	if finalizedCompletedAt < intentCompletedAt {
+		return false, nil
+	}
+	if err := removeCloseoutIntent(paths, intent); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func closeoutApplyResult(workflow string, scope string, payload update.UpdatePayload, resumed bool, intentRef string) map[string]any {
