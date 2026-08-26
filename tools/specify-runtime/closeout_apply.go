@@ -21,10 +21,11 @@ import (
 const closeoutStateScopeReady = "scope_ready"
 
 var (
-	closeoutApplyAfterIntentPersistHook  func(string) error
-	closeoutApplyAfterUpdateHook         func(string) error
-	closeoutApplyAfterScopeReceiptHook   func(string) error
-	closeoutApplyBeforeCurrentUpdateHook func(string) error
+	closeoutApplyAfterIntentPersistHook        func(string) error
+	closeoutApplyAfterUpdateHook               func(string) error
+	closeoutApplyAfterScopeReceiptHook         func(string) error
+	closeoutApplyBeforeCurrentUpdateHook       func(string) error
+	closeoutApplyAfterReplayedScopeReceiptHook func(string) error
 )
 
 type closeoutIntentPendingError struct {
@@ -381,6 +382,15 @@ func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Pa
 	}
 	if receipt["allowed_close"] != true {
 		return "", fmt.Errorf("replayed mutation receipt is not closeable: %v", receipt["blocked_reason"])
+	}
+	intent.State = "scope_receipt_recorded"
+	if err := updateCloseoutIntent(paths, intent); err != nil {
+		return "", err
+	}
+	if closeoutApplyAfterReplayedScopeReceiptHook != nil {
+		if err := closeoutApplyAfterReplayedScopeReceiptHook(intent.ID); err != nil {
+			return "", err
+		}
 	}
 	if err := removeCloseoutIntent(paths, intent); err != nil {
 		return "", err
