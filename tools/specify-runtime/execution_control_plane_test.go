@@ -109,6 +109,74 @@ func TestExecutionGuardAndCompleteEnforceOneAuditedLifecycle(t *testing.T) {
 	}
 }
 
+func TestExecutionCompleteRejectsMissingImplementTaskSource(t *testing.T) {
+	root := initRunCLIRepository(t)
+	featureID := "feature-missing-task"
+	taskID := "T001"
+	taskIndexPath := filepath.Join(root, ".specify", "features", featureID, "task-index.json")
+	taskIndexScope := filepath.ToSlash(filepath.Join(".specify", "features", featureID, "task-index.json"))
+	writeExecutionOverviewImplementFixture(t, root, featureID, taskID, "pending", []string{"src/missing-task", taskIndexScope})
+
+	announced := announceExecutionCLI(
+		t, root, "activity-missing-implement-task", "implement", featureID, taskID,
+		[]string{"src/missing-task", taskIndexScope}, nil,
+	)
+	overview := executionOverviewCLI(t, root, "activity-missing-implement-task")
+	guarded := guardExecutionCLI(t, root, announced, overview, []string{"src/missing-task", taskIndexScope}, nil)
+	mustWriteScriptDomainTest(t, taskIndexPath, `{"version":2,"status":"ready","feature_id":"feature-missing-task","tasks":[]}`+"\n")
+
+	code, payload := invokeRunCLI(t,
+		"execution", "complete", "activity-missing-implement-task",
+		"--project-root", root,
+		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
+		"--fence", executionJSONNumberString(guarded["fence"]),
+		"--validation-json", `[{"command":"go test ./...","result":"passed"}]`,
+		"--reason", "reject disappeared task source",
+		"--format", "json",
+	)
+	if code != ExitCodeForStatus("blocked") || payload["status"] != "blocked" {
+		t.Fatalf("missing task completion = code %d envelope %#v", code, payload)
+	}
+	blockers := requireObjectSlice(t, payload, "blockers")
+	if blockers[0]["code"] != "task_source_missing" || blockers[0]["workflow"] != "implement" {
+		t.Fatalf("missing implement task blocker = %#v", blockers)
+	}
+}
+
+func TestExecutionCompleteRejectsMissingQuickTaskSource(t *testing.T) {
+	root := initRunCLIRepository(t)
+	quickID := "260826-missing-task"
+	writeQuickCoordinationFixture(t, root, quickID, "Missing Quick task", "planned", []string{"src/missing-quick"})
+	statusScope := filepath.ToSlash(filepath.Join(".planning", "quick", quickID+"-fixture", "STATUS.md"))
+
+	announced := announceExecutionCLI(
+		t, root, "activity-missing-quick-task", "quick", quickID, "",
+		[]string{"src/missing-quick", statusScope}, nil,
+	)
+	overview := executionOverviewCLI(t, root, "activity-missing-quick-task")
+	guarded := guardExecutionCLI(t, root, announced, overview, []string{"src/missing-quick", statusScope}, nil)
+	if err := os.Remove(filepath.Join(root, filepath.FromSlash(statusScope))); err != nil {
+		t.Fatal(err)
+	}
+
+	code, payload := invokeRunCLI(t,
+		"execution", "complete", "activity-missing-quick-task",
+		"--project-root", root,
+		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
+		"--fence", executionJSONNumberString(guarded["fence"]),
+		"--validation-json", `[{"command":"go test ./...","result":"passed"}]`,
+		"--reason", "reject disappeared Quick task",
+		"--format", "json",
+	)
+	if code != ExitCodeForStatus("blocked") || payload["status"] != "blocked" {
+		t.Fatalf("missing Quick completion = code %d envelope %#v", code, payload)
+	}
+	blockers := requireObjectSlice(t, payload, "blockers")
+	if blockers[0]["code"] != "task_source_missing" || blockers[0]["workflow"] != "quick" {
+		t.Fatalf("missing Quick task blocker = %#v", blockers)
+	}
+}
+
 func TestExecutionGuardRejectsOverviewChangedAfterObservation(t *testing.T) {
 	root := initRunCLIRepository(t)
 	announced := announceExecutionCLI(t, root, "activity-stale-cli", "debug", "stale-cli", "", []string{"src/stale"}, nil)

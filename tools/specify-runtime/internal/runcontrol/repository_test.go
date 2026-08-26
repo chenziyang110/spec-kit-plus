@@ -144,6 +144,34 @@ func TestInspectWorkspaceChangesIncludesBothSidesOfRename(t *testing.T) {
 	}
 }
 
+func TestInspectWorkspaceDeltaDetectsDeletedPreexistingUntrackedPath(t *testing.T) {
+	mainRoot, _ := createLinkedRepository(t)
+	relativePath := "preexisting-untracked.txt"
+	absolutePath := filepath.Join(mainRoot, relativePath)
+	if err := os.WriteFile(absolutePath, []byte("user work before activity\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	baseline, err := CaptureWorkspaceBaseline(context.Background(), mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baselineJSON, err := EncodeWorkspaceBaseline(baseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(absolutePath); err != nil {
+		t.Fatal(err)
+	}
+
+	paths, err := InspectWorkspaceDelta(context.Background(), mainRoot, baselineJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != 1 || paths[0] != relativePath {
+		t.Fatalf("workspace delta = %#v, want deleted preexisting path", paths)
+	}
+}
+
 func createLinkedRepository(t *testing.T) (string, string) {
 	t.Helper()
 	gitPath := ensureGitAvailable(t)
