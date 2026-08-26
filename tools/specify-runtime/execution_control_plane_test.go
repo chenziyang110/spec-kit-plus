@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestExecutionAnnounceMakesFastVisibleBeforeClaim(t *testing.T) {
@@ -187,6 +188,129 @@ func TestExecutionOverviewReturnsChangesSinceRevision(t *testing.T) {
 	changes := requireObjectSlice(t, data, "changes")
 	if len(changes) == 0 || data["changed_since_revision"] != true {
 		t.Fatalf("change feed = %#v", data)
+	}
+}
+
+func TestExecutionCheckpointAdvancesSelectedAndValidatingPhases(t *testing.T) {
+	root := initRunCLIRepository(t)
+	announced := announceExecutionCLI(t, root, "activity-checkpoint", "debug", "checkpoint", "", []string{"src/checkpoint"}, nil)
+	code, selectedPayload := invokeRunCLI(t,
+		"execution", "checkpoint", "activity-checkpoint",
+		"--project-root", root,
+		"--expected-revision", executionJSONNumberString(announced["work_revision"]),
+		"--fence", executionJSONNumberString(announced["fence"]),
+		"--phase", "selected",
+		"--next-action", "claim selected task",
+		"--lease-seconds", "1900",
+		"--format", "json",
+	)
+	if code != 0 || selectedPayload["status"] != "ok" {
+		t.Fatalf("execution checkpoint selected = code %d envelope %#v", code, selectedPayload)
+	}
+	selected := requireObject(t, requireObject(t, selectedPayload, "data"), "execution_activity")
+	if selected["phase"] != "selected" {
+		t.Fatalf("selected activity = %#v", selected)
+	}
+	overview := executionOverviewCLI(t, root, "activity-checkpoint")
+	guarded := guardExecutionCLI(t, root, selected, overview, []string{"src/checkpoint"}, nil)
+	code, validatingPayload := invokeRunCLI(t,
+		"execution", "checkpoint", "activity-checkpoint",
+		"--project-root", root,
+		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
+		"--fence", executionJSONNumberString(guarded["fence"]),
+		"--phase", "validating",
+		"--next-action", "run integrated verification",
+		"--lease-seconds", "2000",
+		"--format", "json",
+	)
+	if code != 0 || validatingPayload["status"] != "ok" {
+		t.Fatalf("execution checkpoint validating = code %d envelope %#v", code, validatingPayload)
+	}
+	validating := requireObject(t, requireObject(t, validatingPayload, "data"), "execution_activity")
+	if validating["phase"] != "validating" || validating["next_action"] != "run integrated verification" {
+		t.Fatalf("validating activity = %#v", validating)
+	}
+}
+
+func TestLegacyWorkFinishCannotBypassExecutionCompletionAudit(t *testing.T) {
+	root := initRunCLIRepository(t)
+	announced := announceExecutionCLI(t, root, "activity-no-bypass", "fast", "no-bypass", "", []string{"src/no-bypass"}, nil)
+	code, payload := invokeRunCLI(t,
+		"work", "finish", "activity-no-bypass",
+		"--project-root", root,
+		"--expected-revision", executionJSONNumberString(announced["work_revision"]),
+		"--fence", executionJSONNumberString(announced["fence"]),
+		"--reason", "skip execution audit",
+		"--format", "json",
+	)
+	if code != ExitCodeForStatus("blocked") || payload["status"] != "blocked" {
+		t.Fatalf("legacy finish bypass = code %d envelope %#v", code, payload)
+	}
+	data := requireObject(t, payload, "data")
+	if data["error_code"] != "execution_completion_required" {
+		t.Fatalf("legacy finish blocker = %#v", payload)
+	}
+}
+
+func TestExecutionOverviewWarnsCandidateSemanticResourceOverlap(t *testing.T) {
+	root := initRunCLIRepository(t)
+	resource := []map[string]any{{
+		"type": "api", "key": "/v1/shared", "mode": "exclusive", "confidence": "candidate",
+	}}
+	_ = announceExecutionCLI(t, root, "activity-plan-a", "fast", "plan-a", "", []string{"src/a"}, resource)
+	_ = announceExecutionCLI(t, root, "activity-plan-b", "debug", "plan-b", "", []string{"src/b"}, resource)
+
+	code, payload := invokeRunCLI(t, "execution", "overview", "--project-root", root, "--format", "json")
+	if code != 0 || payload["status"] != "ok" {
+		t.Fatalf("semantic planned overview = code %d envelope %#v", code, payload)
+	}
+	data := requireObject(t, payload, "data")
+	if data["coordination_state"] != "attention" {
+		t.Fatalf("semantic planned state = %#v", data)
+	}
+	signal := quickCoordinationObjectByField(t, requireObjectSlice(t, data, "signals"), "code", "planned_resource_overlap")
+	if signal["resource_type"] != "api" || signal["resource_key"] != "/v1/shared" {
+		t.Fatalf("semantic planned overlap = %#v", signal)
+	}
+}
+
+func TestExecutionRecoverySignalCarriesActionableState(t *testing.T) {
+	root := initRunCLIRepository(t)
+	code, announcedPayload := invokeRunCLI(t,
+		"execution", "announce",
+		"--project-root", root,
+		"--activity-id", "activity-recovery",
+		"--workflow", "fast",
+		"--subject-id", "recovery",
+		"--summary", "recovery activity",
+		"--agent-id", "recovery-agent",
+		"--adapter-id", "codex",
+		"--lease-seconds", "1",
+		"--planned-write-scope-json", `["src/recovery"]`,
+		"--resources-json", `[{"type":"feature","key":"recovery","mode":"exclusive","confidence":"candidate"}]`,
+		"--format", "json",
+	)
+	if code != 0 || announcedPayload["status"] != "ok" {
+		t.Fatalf("announce recovery activity = code %d envelope %#v", code, announcedPayload)
+	}
+	mustWriteScriptDomainTest(t, filepath.Join(root, "src", "recovery", "main.go"), "package recovery\n")
+	time.Sleep(1200 * time.Millisecond)
+
+	code, payload := invokeRunCLI(t, "execution", "overview", "--project-root", root, "--format", "json")
+	if code != 0 || payload["status"] != "ok" {
+		t.Fatalf("recovery overview = code %d envelope %#v", code, payload)
+	}
+	data := requireObject(t, payload, "data")
+	signal := quickCoordinationObjectByField(t, requireObjectSlice(t, data, "signals"), "code", "work_recovery_hold")
+	if signal["recovery_action"] != "resume_or_abandon_after_inspection" || len(stringValue(signal["recovery_sha256"])) != 64 {
+		t.Fatalf("recovery signal = %#v", signal)
+	}
+	if strings.Join(anyStringSlice(signal["observed_paths"]), ",") != "src/recovery/main.go" || executionInt64(signal["last_heartbeat_at_ms"]) < 1 {
+		t.Fatalf("recovery evidence = %#v", signal)
+	}
+	activity := executionOverviewActivity(t, requireObjectSlice(t, data, "activities"), "fast", "recovery", "")
+	if activity["lifecycle_phase"] != "interrupted" {
+		t.Fatalf("interrupted lifecycle = %#v", activity)
 	}
 }
 
