@@ -219,10 +219,14 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "artifact.catalog":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime artifact catalog --format json"
+	case "execution.overview":
+		capability["side_effect"] = "reconciles-work-board"
+		capability["usage"] = "specify-runtime execution overview [--current-work-id <work-id>] [--project-root <path>] --format json"
+		capability["input_contract"] = "returns one execution-overview-v1 snapshot joining open Quick and Implement task state with every nonterminal Fast, Debug, Implement, or Quick Run and every live or recovery-held Work identity; activities correlate task, Run, Work, planned scope, and confirmed scope; duplicate owners, invalid current identity, and an executing task whose planned scope is not covered by confirmed Work scope block; executing tasks without Work, broken Run/Work links, recovery holds, unreadable task sources, and cross-workflow planned-scope overlap warn; other open untracked tasks remain visible context; current-work-id defaults to SPECIFY_WORK_ID"
 	case "quick.preflight":
 		capability["side_effect"] = "reconciles-work-board-and-refreshes-derived-quick-index"
 		capability["usage"] = "specify-runtime quick preflight [<quick-id>] [--current-work-id <work-id>] [--project-root <path>] --format json"
-		capability["input_contract"] = "returns one quick-coordination-v1 snapshot joining unfinished STATUS.md tasks to live or recovery-held Work Board items through canonical task_ref quick:<id>[#Qn]; confirmed Work Board path overlap and an unbound same-Quick owner are hard blockers, while untracked Quick tasks, board-only work, and unfinished Quick scope overlap are advisory attention signals; current-work-id defaults to SPECIFY_WORK_ID and self identity is never inferred from task_ref alone"
+		capability["input_contract"] = "Quick-scoped compatibility view for legacy fields and signals; global Fast, Debug, Implement, and Quick coordination uses execution.overview. Returns one quick-coordination-v1 snapshot joining unfinished STATUS.md tasks to live or recovery-held Work Board items through canonical task_ref quick:<id>[#Qn]; confirmed Work Board path overlap and an unbound same-Quick owner are hard blockers, while untracked Quick tasks, board-only work, and unfinished Quick scope overlap are advisory attention signals; current-work-id defaults to SPECIFY_WORK_ID and self identity is never inferred from task_ref alone"
 	case "quick.item-start":
 		capability["side_effect"] = "claims-work-scope-and-starts-quick-item"
 		capability["usage"] = "specify-runtime quick item-start <quick-id> --item Qn [--current-work-id <work-id>] [--current-work-fence <fence>] [--project-root <path>] --format json"

@@ -127,13 +127,15 @@ and fill only the returned semantic anchors. Resume an existing
 Keep state compact and ask the user only for decisions the repository cannot
 supply.
 
-For full-branch coordination, prefer the combined
+For full-branch coordination, use
+`{{specify-subcmd:specify-runtime execution overview --format json}}` as the
+primary global view. Its `execution-overview-v1` snapshot joins Fast, Debug,
+Implement, and Quick task, Run, Work, and scope state. The older
 `{{specify-subcmd:specify-runtime quick preflight [<quick-id>] --format json}}`
-snapshot over separately interpreting `quick list` and `board show`. It
-reconciles expired leases and joins unfinished Quick tasks to live or
-recovery-held Work Board items. An empty Work Board does not mean no other
-Quick task is in progress. `write_overlap` is a hard blocker; an
-`unfinished_quick_untracked`, `unfinished_quick_scope_overlap`,
+remains a compatibility view for Quick-specific fields and signals, not the
+global concurrency authority. An empty Work Board does not mean no other task
+is in progress. In that compatibility view, `write_overlap` is a hard blocker;
+an `unfinished_quick_untracked`, `unfinished_quick_scope_overlap`,
 `other_unfinished_quick`, or `board_only_work` signal is advisory. Compare
 title, current focus, next action, and planned scope, then
 resume/merge/sequence related work or proceed with unrelated work without
@@ -142,7 +144,7 @@ inventing a user gate.
 not proof of process identity; bind the exact live Work identity or wait for or
 recover the recorded owner.
 
-Run the preflight at entry or resume, before the first `quick item-start`, after
+Refresh the unified overview at entry or resume, before the first `quick item-start`, after
 each join before the next Q item or batch, and before `work scope-add`,
 interrupted-work recovery, or material scope expansion. Do not poll between
 events. Use Work Board task refs `quick:<id>` for the Quick and

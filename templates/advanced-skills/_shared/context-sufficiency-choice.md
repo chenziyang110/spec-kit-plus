@@ -33,8 +33,12 @@ auto-select the answer.
 If full is selected, apply the normal workflow. If direct is selected, skip
 entry-time `learning start` and `cognition compass`; create no Quick/Debug run,
 workspace, session, checkpoint, plan, packet, or delegation state.
-Before source writes, run `specify-runtime board reconcile` and `board show`, create
-one bounded Work item through `specify-runtime work begin` with exact
+Before source writes, run `specify-runtime execution overview --format json`
+and inspect its `execution-overview-v1` activities and signals across Fast,
+Debug, Implement, and Quick. It reconciles expired Work; do not infer
+concurrency from a separate empty board snapshot. Resolve any `block` signal
+and review any `warn` signal, then create one bounded Work item through
+`specify-runtime work begin` with exact
 `--task-ref quick:<direct-id>` or `--task-ref debug:<direct-id>`, confirmed
 scope, summary, agent, and adapter; retain its id and fence, then require the
 all-or-none

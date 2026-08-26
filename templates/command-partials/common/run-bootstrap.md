@@ -11,6 +11,21 @@ is pristine; every overlap and every idle-but-dirty launch is isolated. Overlaps
 inherit the primary Run's pre-launch Snapshot. Never change cwd or select
 another Run's workspace yourself.
 
+Fast, Debug, Implement, and Quick use one global concurrency view. At entry or
+resume, before choosing new work versus an existing task, call
+`specify-runtime execution overview --format json`; pass the exact current Work
+id when one exists. Its `execution-overview-v1` activity rows correlate open
+task state, nonterminal Run identity, live or recovery-held Work identity,
+planned scope, and confirmed scope. Read `activities` and `signals` instead of
+inferring global activity from an empty Work Board or from one workflow's task
+list. A `block` signal stops ownership-dependent execution; a `warn` signal
+requires bounded recovery or an explicit sequencing decision; an `info` signal
+keeps other open work visible without creating a user gate. Refresh at event
+boundaries—after a parallel join, before selecting the next task or batch,
+before work scope-add, interrupted-work recovery, or material scope expansion.
+Do not poll on a timer. This overview supplies coordination context; only the
+claim receipt below grants mutation authority.
+
 For a host-managed modifying Run backed by a compiled worker task packet, pass
 the compile receipt's canonical values unchanged as
 `--work-packet-file <receipt.path> --work-packet-sha256 <receipt.sha256>` on

@@ -60,6 +60,8 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, cl
 		return runResultCommand(args[1:], stdout)
 	case "run":
 		return runRunContext(ctx, args[1:], stdout, stderr)
+	case "execution":
+		return runExecution(args[1:], stdout)
 	case "work":
 		return runWork(args[1:], stdout)
 	case "board":
@@ -129,6 +131,7 @@ func writeHelp(stdout io.Writer) int {
 		"test-design",
 		"doctor",
 		"evidence",
+		"execution",
 		"hook",
 		"tasks",
 		"implement",
@@ -1174,6 +1177,7 @@ func defaultCapabilities() []string {
 		"evidence.smoothness-validate",
 		"evidence.visual-compare",
 		"evidence.verify",
+		"execution.overview",
 		"hook.extension-plan",
 		"hook.validate-artifacts",
 		"hook.validate-commit",
@@ -1458,6 +1462,8 @@ func capabilitySummary(id string) string {
 		return "Read compact or full evidence metadata."
 	case "evidence.verify":
 		return "Verify evidence bytes and metadata against their digest."
+	case "execution.overview":
+		return "Join open task state, nonterminal Runs, live Work identities, write scope, and coordination anomalies into one repository view."
 	case "cognition.run":
 		return "Run the namespaced project cognition command surface."
 	case "cognition.archive-incompatible-store":
@@ -1497,7 +1503,7 @@ func capabilitySummary(id string) string {
 	case "board.show":
 		return "List the durable repository Work Board with task ownership and declared write intents."
 	case "quick.preflight":
-		return "Reconcile and combine unfinished Quick tasks with live Work Board ownership and overlap signals."
+		return "Provide the Quick-scoped compatibility view over unfinished tasks, Work ownership, and legacy overlap signals."
 	case "board.owner":
 		return "Find active or recovery-held work whose declared write scope overlaps one path."
 	case "board.reconcile":

@@ -77,6 +77,10 @@ type CreateRunParams struct {
 	IntentSHA256 string
 }
 
+type ListRunsParams struct {
+	Statuses []RunStatus
+}
+
 type ExecutionMode string
 
 const (

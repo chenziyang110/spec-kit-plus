@@ -199,6 +199,7 @@ REQUIRED_CAPABILITIES = (
     "evidence.smoothness-validate",
     "evidence.visual-compare",
     "evidence.verify",
+    "execution.overview",
     "hook.extension-plan",
     "hook.validate-artifacts",
     "hook.validate-commit",

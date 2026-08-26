@@ -27,6 +27,13 @@ scope-empty task reuses the current Work's confirmed scope; a genuinely
 no-write task returns `claim_state: not_required` and must not later report
 changed files. Do not perform source writes without a claimed receipt.
 
+The shared `specify-runtime execution overview` is coordination context only:
+it may reveal that other Implement tasks exist, but it is not
+task selection authority or feature selection authority. Do not choose,
+resume, or bind a feature from an overview activity row. Resolve the owning feature through the
+provenance gate below, then use the matching overview row only to sequence work
+and verify Run/Work ownership.
+
 Resolve the task-bearing feature with the installed
 `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks
 --include-tasks` or PowerShell equivalent. Inspect the current diff, project

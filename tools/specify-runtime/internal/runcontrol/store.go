@@ -401,6 +401,75 @@ func (store *Store) GetRun(ctx context.Context, runID string) (Run, error) {
 	return readRunTx(ctx, store.db, runID)
 }
 
+func (store *Store) ListRuns(ctx context.Context, params ListRunsParams) ([]Run, error) {
+	return listRuns(ctx, store.db, params)
+}
+
+type runRowsQuerier interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+func listRuns(ctx context.Context, querier runRowsQuerier, params ListRunsParams) ([]Run, error) {
+	query := `
+		SELECT run_id, kind, subject_type, subject_id, target_ref, intent_sha256,
+		       owner_epoch, status, revision, current_fence, created_at_ms, updated_at_ms
+		FROM runs
+	`
+	queryArgs := make([]any, 0, len(params.Statuses))
+	if len(params.Statuses) > 0 {
+		placeholders := make([]string, 0, len(params.Statuses))
+		for _, status := range params.Statuses {
+			if !validRunStatus(status) {
+				return nil, fmt.Errorf("%w: unsupported run status %q", ErrInvalidArgument, status)
+			}
+			placeholders = append(placeholders, "?")
+			queryArgs = append(queryArgs, status)
+		}
+		query += " WHERE status IN (" + strings.Join(placeholders, ", ") + ")"
+	}
+	query += " ORDER BY updated_at_ms DESC, run_id"
+
+	rows, err := querier.QueryContext(ctx, query, queryArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("list runs: %w", err)
+	}
+	defer rows.Close()
+	runs := make([]Run, 0)
+	for rows.Next() {
+		var run Run
+		if err := rows.Scan(
+			&run.RunID,
+			&run.Kind,
+			&run.SubjectType,
+			&run.SubjectID,
+			&run.TargetRef,
+			&run.IntentSHA256,
+			&run.OwnerEpoch,
+			&run.Status,
+			&run.Revision,
+			&run.CurrentFence,
+			&run.CreatedAtMS,
+			&run.UpdatedAtMS,
+		); err != nil {
+			return nil, fmt.Errorf("scan run: %w", err)
+		}
+		runs = append(runs, run)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate runs: %w", err)
+	}
+	return runs, nil
+}
+
+func validRunStatus(status RunStatus) bool {
+	switch status {
+	case RunQueued, RunAllocating, RunReady, RunActive, RunParked, RunInterrupted, RunSealed, RunCancelled, RunFailed:
+		return true
+	default:
+		return false
+	}
+}
+
 func (store *Store) TransitionRun(ctx context.Context, runID string, expectedRevision int64, target RunStatus, reason string) (Run, error) {
 	if strings.TrimSpace(runID) == "" || expectedRevision < 1 {
 		return Run{}, fmt.Errorf("%w: run id and positive expected revision are required", ErrInvalidArgument)

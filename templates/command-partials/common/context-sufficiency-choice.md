@@ -76,8 +76,12 @@ When the user selects the context-direct option:
   Cognition navigation to reconfirm evidence already listed in the choice;
 - do not run full-workflow bootstrap and must not create Quick or Debug workflow state;
   create no confirmation artifacts, plans, packets, or subagent lanes;
-- before source writes, run `specify-runtime board reconcile` and `board show`,
-  create one bounded Work item through `specify-runtime work begin` with exact
+- before source writes, run `specify-runtime execution overview --format json`
+  and inspect its `execution-overview-v1` activities and signals across Fast,
+  Debug, Implement, and Quick; this command reconciles expired Work, so do not
+  infer concurrency from a separate empty board snapshot; resolve any `block`
+  signal and review any `warn` signal, then create one bounded Work item through
+  `specify-runtime work begin` with exact
   `--task-ref quick:<direct-id>` or `--task-ref debug:<direct-id>`, the confirmed
   scope, summary, agent, and adapter; retain its returned id and fence, and call
   `specify-runtime work claim --current-work-id <id> --current-work-fence

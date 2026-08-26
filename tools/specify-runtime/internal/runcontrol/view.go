@@ -93,6 +93,10 @@ func (view *View) GetRun(ctx context.Context, runID string) (Run, error) {
 	return readRunTx(ctx, view.db, runID)
 }
 
+func (view *View) ListRuns(ctx context.Context, params ListRunsParams) ([]Run, error) {
+	return listRuns(ctx, view.db, params)
+}
+
 func (view *View) ListRunEvents(ctx context.Context, runID string) ([]Event, error) {
 	if strings.TrimSpace(runID) == "" {
 		return nil, fmt.Errorf("%w: run id is required", ErrInvalidArgument)
