@@ -17,6 +17,7 @@ import (
 	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/store"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/update"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/validation"
 )
 
 func TestCognitionCloseoutApplyRejectsMissingPassingEvidenceBeforeMutation(t *testing.T) {
@@ -441,6 +442,66 @@ func TestCognitionCloseoutApplyDrainsOlderIntentBeforeDifferentCurrentScope(t *t
 	intents, err := listCloseoutIntents(paths)
 	if err != nil || len(intents) != 0 {
 		t.Fatalf("intents = %#v err=%v, want queue drained", intents, err)
+	}
+}
+
+func TestCognitionCloseoutApplyPrunesCompletedIntentAfterLaterFinalizedUpdate(t *testing.T) {
+	project, paths, scopeA := seedCloseoutApplyRuntime(t)
+	scopeC := filepath.ToSlash(filepath.Join(".specify", "features", "003-closeout"))
+	if err := os.MkdirAll(filepath.Join(project, filepath.FromSlash(scopeC)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	crashOnce := true
+	closeoutApplyAfterScopeReceiptHook = func(intentID string) error {
+		if crashOnce {
+			crashOnce = false
+			return errors.New("simulated crash after finalized scope receipt")
+		}
+		return nil
+	}
+	t.Cleanup(func() { closeoutApplyAfterScopeReceiptHook = nil })
+
+	var firstOut, firstErr bytes.Buffer
+	firstCode := Run([]string{
+		"cognition", "closeout", "apply", "--project-root", project, "--workflow", "sp-implement",
+		"--scope-dir", scopeA, "--payload-json", closeoutApplyPayloadJSON(t, true), "--format", "json",
+	}, &firstOut, &firstErr, "test")
+	if firstCode != 10 || countCloseoutApplyUpdates(t, paths) != 1 {
+		t.Fatalf("first closeout = %d updates=%d stderr=%s stdout=%s", firstCode, countCloseoutApplyUpdates(t, paths), firstErr.String(), firstOut.String())
+	}
+	closeoutApplyAfterScopeReceiptHook = nil
+
+	second, err := update.RunUpdate(paths, update.UpdateInput{
+		ChangedPaths: []string{"src/app.go"}, Reason: "later-direct-update", Workflow: "sp-fast",
+		Verification: []update.VerificationEvidence{{Command: "go test ./...", Result: "passed"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gate := validation.ValidateBuild(paths)
+	if err := update.RecordValidateBuildReceipt(paths, gate.Status, gate.Gate, gate.Readiness); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := update.CompleteRefresh(paths, "later-direct-update"); err != nil {
+		t.Fatal(err)
+	}
+	if second.UpdateID == "" {
+		t.Fatal("later update id is empty")
+	}
+
+	var thirdOut, thirdErr bytes.Buffer
+	thirdCode := Run([]string{
+		"cognition", "closeout", "apply", "--project-root", project, "--workflow", "sp-implement",
+		"--scope-dir", scopeC, "--payload-json", closeoutApplyPayloadJSON(t, true), "--format", "json",
+	}, &thirdOut, &thirdErr, "test")
+	if thirdCode != 0 {
+		t.Fatalf("third closeout = %d stderr=%s stdout=%s", thirdCode, thirdErr.String(), thirdOut.String())
+	}
+	if got := countCloseoutApplyUpdates(t, paths); got != 3 {
+		t.Fatalf("update count = %d, want A + later update + current only", got)
+	}
+	if intents, err := listCloseoutIntents(paths); err != nil || len(intents) != 0 {
+		t.Fatalf("intents = %#v err=%v, want completed stale intent pruned", intents, err)
 	}
 }
 

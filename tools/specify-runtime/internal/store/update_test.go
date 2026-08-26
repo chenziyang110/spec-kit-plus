@@ -126,6 +126,34 @@ func TestActiveIdentitySnapshotRejectsWorkflowEvidenceWithoutBackingUpdate(t *te
 	}
 }
 
+func TestRestorePathCoverageBatchRollsBackAndChecksGeneration(t *testing.T) {
+	st := openImportTestStore(t)
+	defer st.Close()
+	ctx := context.Background()
+	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-repair-batch")); err != nil {
+		t.Fatal(err)
+	}
+	err := st.RestorePathCoverageBatch(ctx, "GEN-repair-batch", []PathCoverageRestore{
+		{Path: "src/first.go", NodeID: "N-app", EvidenceID: "E-001", Relation: "owns", Confidence: "partial"},
+		{Path: "src/second.go", NodeID: "N-missing", EvidenceID: "E-001", Relation: "owns", Confidence: "partial"},
+	})
+	if err == nil {
+		t.Fatal("RestorePathCoverageBatch succeeded with an invalid second repair")
+	}
+	var firstCount int
+	if err := st.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM path_index WHERE path = 'src/first.go'`).Scan(&firstCount); err != nil {
+		t.Fatal(err)
+	}
+	if firstCount != 0 {
+		t.Fatalf("first repair count = %d, want transaction rollback", firstCount)
+	}
+	if err := st.RestorePathCoverageBatch(ctx, "GEN-wrong", []PathCoverageRestore{{
+		Path: "src/third.go", NodeID: "N-app", EvidenceID: "E-001", Relation: "owns", Confidence: "partial",
+	}}); err == nil {
+		t.Fatal("RestorePathCoverageBatch accepted a stale generation")
+	}
+}
+
 func TestAffectedClosureForPathsReturnsRelatedTypedClaims(t *testing.T) {
 	st := openImportTestStore(t)
 	defer st.Close()
