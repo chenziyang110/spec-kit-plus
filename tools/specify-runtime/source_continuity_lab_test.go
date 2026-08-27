@@ -295,6 +295,10 @@ func TestSourceContinuityAdapterPlanComposesGenericAdapters(t *testing.T) {
 	if plan["schema"] != "spec-kit-source-continuity-adapter-plan-v1" || plan["status"] != "ready" || plan["subject_id"] != sourceContinuityLabTaskID {
 		t.Fatalf("adapter plan = %#v", plan)
 	}
+	selection := requireObjectValue(t, plan["selection"])
+	if selection["mode"] != "explicit" {
+		t.Fatalf("explicit adapter plan selection = %#v", selection)
+	}
 	if len(listValue(plan["required_lanes"])) != 10 || len(listValue(plan["assignments"])) != 10 || len(listValue(plan["adapters"])) != 3 {
 		t.Fatalf("adapter plan coverage = %#v", plan)
 	}

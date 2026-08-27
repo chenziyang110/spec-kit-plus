@@ -53,3 +53,41 @@ func TestAPISchemaConstrainsSourceContinuityAdapterPlanActionSpace(t *testing.T)
 		}
 	}
 }
+
+func TestAPIPublishesSourceContinuityAdapterCatalogAndProbe(t *testing.T) {
+	for _, capabilityID := range []string{
+		"evidence.source-continuity-adapter-catalog",
+		"evidence.source-continuity-adapter-probe",
+	} {
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"api", "show", capabilityID, "--format", "json"}, &stdout, &stderr, "test")
+		if code != 0 {
+			t.Fatalf("api show %s exit=%d stdout=%s stderr=%s", capabilityID, code, stdout.String(), stderr.String())
+		}
+		capability := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "capability")
+		for _, field := range []string{"usage", "side_effect", "input_contract"} {
+			if value, ok := capability[field].(string); !ok || strings.TrimSpace(value) == "" {
+				t.Fatalf("%s capability.%s = %#v", capabilityID, field, capability[field])
+			}
+		}
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "schema", "source-continuity-adapter-probe-input", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api schema adapter probe exit=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	schema := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "schema")
+	if schema["additionalProperties"] != false {
+		t.Fatalf("adapter probe schema must be closed: %#v", schema)
+	}
+	properties := requireObject(t, schema, "properties")
+	bindings := requireObject(t, properties, "bindings")
+	items := requireObject(t, bindings, "items")
+	itemProperties := requireObject(t, items, "properties")
+	for _, forbidden := range []string{"actions", "capabilities", "evidence_kinds", "write_policy", "network_policy", "command", "argv", "env"} {
+		if _, exists := itemProperties[forbidden]; exists {
+			t.Fatalf("probe binding must not author provider contract field %q", forbidden)
+		}
+	}
+}
