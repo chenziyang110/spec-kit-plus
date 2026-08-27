@@ -128,6 +128,7 @@ func (service evidenceService) sourceContinuityValidate(args []string, raw map[s
 		return evidenceBlockedError("source continuity manifest is unavailable", err)
 	}
 	diagnostics, metrics := validateSourceContinuityLabResult(taskID, manifest, optionalFileSHA256(manifestPath), raw)
+	diagnostics = append(diagnostics, validateSourceContinuityLabEvidenceRecords(root, raw["evidence_refs"])...)
 	source, sourceOK := manifest["source"].(map[string]any)
 	indexPath := filepath.Join(feature, "task-index.json")
 	index, indexErr := readImplementJSONMap(indexPath)
@@ -330,6 +331,7 @@ func (service evidenceService) sourceContinuityQuickValidate(args []string, quic
 		return evidenceBlockedError("quick source continuity manifest is unavailable", err)
 	}
 	diagnostics, metrics := validateSourceContinuityLabResult(context.itemID, manifest, optionalFileSHA256(manifestPath), raw)
+	diagnostics = append(diagnostics, validateSourceContinuityLabEvidenceRecords(context.root, raw["evidence_refs"])...)
 	source, sourceOK := manifest["source"].(map[string]any)
 	targetSnapshot, snapshotErr := sourceContinuityLabTargetSnapshot(context.root, context.item.WriteScope)
 	if !sourceOK || snapshotErr != nil || strings.TrimSpace(anyString(source["confirmation_digest"])) != context.doc.ConfirmationDigest || strings.TrimSpace(anyString(source["target_snapshot_sha256"])) != targetSnapshot || !reflect.DeepEqual(manifest["source_continuity"], context.continuity) || anyString(manifest["source_continuity_sha256"]) != sourceContinuityLabContractSHA(context.continuity) {
@@ -491,12 +493,12 @@ func validateSourceContinuityLabAdapter(value any) []string {
 	return missing
 }
 
-func validateSourceContinuityLabEvidence(value any) (map[string]bool, []string) {
+func validateSourceContinuityLabEvidence(value any) (map[string]string, []string) {
 	rows, ok := value.([]any)
 	if !ok {
-		return map[string]bool{}, []string{"invalid-evidence-refs"}
+		return map[string]string{}, []string{"invalid-evidence-refs"}
 	}
-	refs := map[string]bool{}
+	refs := map[string]string{}
 	covered := map[string]bool{}
 	diagnostics := []string{}
 	for _, value := range rows {
@@ -512,7 +514,11 @@ func validateSourceContinuityLabEvidence(value any) (map[string]bool, []string) 
 			diagnostics = append(diagnostics, "invalid-evidence-ref")
 			continue
 		}
-		refs[ref] = true
+		if existing := refs[ref]; existing != "" && existing != side {
+			diagnostics = append(diagnostics, "evidence-ref-side-conflict")
+		} else {
+			refs[ref] = side
+		}
 		covered[side+":"+kind] = true
 	}
 	for _, side := range []string{"source", "target"} {
@@ -523,6 +529,32 @@ func validateSourceContinuityLabEvidence(value any) (map[string]bool, []string) 
 		}
 	}
 	return refs, diagnostics
+}
+
+func validateSourceContinuityLabEvidenceRecords(root string, value any) []string {
+	rows, ok := value.([]any)
+	if !ok {
+		return []string{"invalid-evidence-refs"}
+	}
+	service := evidenceService{projectRoot: root}
+	diagnostics := []string{}
+	for _, value := range rows {
+		row, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		ref := filepath.ToSlash(strings.TrimSpace(anyString(row["ref"])))
+		if ref == "" || !strings.HasPrefix(ref, ".specify/evidence/records/") {
+			diagnostics = append(diagnostics, "unverified-evidence-ref:"+ref)
+			continue
+		}
+		env := service.verify(ref)
+		record, err := service.readRecord(ref)
+		if err != nil || env.Status != "ok" || record.Status != "ready" || record.SHA256 == "" || record.ObjectRef == "" || strings.TrimSpace(record.Source) == "" || strings.TrimSpace(record.Provenance) == "" {
+			diagnostics = append(diagnostics, "unverified-evidence-ref:"+ref)
+		}
+	}
+	return diagnostics
 }
 
 func validateSourceContinuityLabDiscovery(value any, expectedSurfaces, expectedActions, expectedAssets []string) (int, []string) {
@@ -600,7 +632,7 @@ func validateSourceContinuityLabSurfaces(value any, expected []string) (int, []s
 	return passed, diagnostics
 }
 
-func validateSourceContinuityLabActions(value any, expected []string, bindingValue any, evidenceRefs map[string]bool) (int, int, []string) {
+func validateSourceContinuityLabActions(value any, expected []string, bindingValue any, evidenceRefs map[string]string) (int, int, []string) {
 	rows, ok := value.([]any)
 	if !ok {
 		return 0, 0, []string{"invalid-action-results"}
@@ -626,7 +658,7 @@ func validateSourceContinuityLabActions(value any, expected []string, bindingVal
 		}
 		id := strings.TrimSpace(anyString(row["interaction_id"]))
 		ids = append(ids, id)
-		if !evidenceRefs[strings.TrimSpace(anyString(row["source_evidence_ref"]))] || !evidenceRefs[strings.TrimSpace(anyString(row["target_evidence_ref"]))] {
+		if evidenceRefs[strings.TrimSpace(anyString(row["source_evidence_ref"]))] != "source" || evidenceRefs[strings.TrimSpace(anyString(row["target_evidence_ref"]))] != "target" {
 			diagnostics = append(diagnostics, "action-evidence-unbound:"+id)
 		}
 		if !sourceContinuityLabExactIDs(sourceContinuityLabStringList(row["observed_side_effects"]), expectedEffects[id]) {
@@ -656,7 +688,7 @@ func validateSourceContinuityLabActions(value any, expected []string, bindingVal
 	return passed, outcomes, diagnostics
 }
 
-func validateSourceContinuityLabAssets(value any, expected []string, bindingValue any, evidenceRefs map[string]bool) (int, []string) {
+func validateSourceContinuityLabAssets(value any, expected []string, bindingValue any, evidenceRefs map[string]string) (int, []string) {
 	rows, ok := value.([]any)
 	if !ok {
 		return 0, []string{"invalid-asset-results"}
@@ -681,7 +713,7 @@ func validateSourceContinuityLabAssets(value any, expected []string, bindingValu
 		}
 		id := strings.TrimSpace(anyString(row["component_id"]))
 		ids = append(ids, id)
-		if !evidenceRefs[strings.TrimSpace(anyString(row["source_evidence_ref"]))] || !evidenceRefs[strings.TrimSpace(anyString(row["target_evidence_ref"]))] {
+		if evidenceRefs[strings.TrimSpace(anyString(row["source_evidence_ref"]))] != "source" || evidenceRefs[strings.TrimSpace(anyString(row["target_evidence_ref"]))] != "target" {
 			diagnostics = append(diagnostics, "asset-evidence-unbound:"+id)
 		}
 		characterViolation := boolValue(row["character_substitution"]) && policies[id] == "forbid-character-substitution"
@@ -799,6 +831,9 @@ func validatePersistedQuickSourceContinuityLabReport(workspacePath string, doc *
 		"verdict": report["verdict"], "reviewer": report["reviewer"],
 	}
 	diagnostics, metrics := validateSourceContinuityLabResult(itemID, manifest, taskControlSHA256(manifestRaw), validationInput)
+	if rootErr == nil {
+		diagnostics = append(diagnostics, validateSourceContinuityLabEvidenceRecords(projectRoot, report["evidence_refs"])...)
+	}
 	if rootErr != nil || snapshotErr != nil {
 		return errors.New("source continuity lab target snapshot is unavailable")
 	}
@@ -884,6 +919,9 @@ func validatePersistedSourceContinuityLabReport(feature string, task map[string]
 	currentIndexSHA := optionalFileSHA256(indexPath)
 	projectRoot, rootErr := sourceContinuityLabProjectRoot(feature)
 	targetSnapshot, snapshotErr := sourceContinuityLabTargetSnapshot(projectRoot, sourceContinuityLabTaskWriteScope(currentTask))
+	if rootErr == nil {
+		diagnostics = append(diagnostics, validateSourceContinuityLabEvidenceRecords(projectRoot, report["evidence_refs"])...)
+	}
 	if rootErr != nil || snapshotErr != nil || strings.TrimSpace(anyString(manifestSource["task_index_ref"])) != "task-index.json" || strings.TrimSpace(anyString(manifestSource["task_index_sha256"])) != currentIndexSHA || strings.TrimSpace(anyString(reportSource["task_index_sha256"])) != currentIndexSHA || strings.TrimSpace(anyString(manifestSource["target_snapshot_sha256"])) != targetSnapshot || strings.TrimSpace(anyString(reportSource["target_snapshot_sha256"])) != targetSnapshot {
 		diagnostics = append(diagnostics, "stale-manifest")
 	}

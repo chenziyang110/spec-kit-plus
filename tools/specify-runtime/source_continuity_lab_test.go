@@ -26,6 +26,7 @@ func TestSourceContinuityLabMaterializesManifestAndPassingReport(t *testing.T) {
 	}
 
 	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	bindSourceContinuityLabEvidence(t, root, observation)
 	raw, err := json.Marshal(observation)
 	if err != nil {
 		t.Fatal(err)
@@ -71,6 +72,7 @@ func TestSourceContinuityLabRejectsShallowTargetAndCharacterIcon(t *testing.T) {
 	root, featureRef, _ := sourceContinuityLabProject(t)
 	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
 	observation := readSourceContinuityLabObservation(t, "shallow-target-observation.json", manifestSHA)
+	bindSourceContinuityLabEvidence(t, root, observation)
 	raw, err := json.Marshal(observation)
 	if err != nil {
 		t.Fatal(err)
@@ -102,6 +104,7 @@ func TestSourceContinuityLabRejectsAdapterDiscoveredCandidateOutsideContract(t *
 	root, featureRef, _ := sourceContinuityLabProject(t)
 	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
 	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	bindSourceContinuityLabEvidence(t, root, observation)
 	discovery := requireObjectValue(t, observation["discovery"])
 	discovery["unexpected_candidates"] = []any{map[string]any{
 		"id": "legacy-system-tray", "kind": "surface",
@@ -129,6 +132,7 @@ func TestSourceContinuityLabRejectsIncompleteAdapterAndEvidence(t *testing.T) {
 	root, featureRef, _ := sourceContinuityLabProject(t)
 	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
 	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	bindSourceContinuityLabEvidence(t, root, observation)
 	adapter := requireObjectValue(t, observation["adapter"])
 	adapter["capabilities"] = []any{"surface-enumeration"}
 	observation["evidence_refs"] = []any{}
@@ -230,6 +234,7 @@ func TestSourceContinuityLabUIVerificationIsNormalizedAndRequiredForAcceptance(t
 
 	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
 	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	bindSourceContinuityLabEvidence(t, root, observation)
 	raw, err := json.Marshal(observation)
 	if err != nil {
 		t.Fatal(err)
@@ -300,6 +305,7 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 	manifestRef := anyString(manifestEnv.Data["manifest_ref"])
 	manifestSHA := anyString(manifestEnv.Data["manifest_sha256"])
 	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	bindSourceContinuityLabEvidence(t, root, observation)
 	raw, err := json.Marshal(observation)
 	if err != nil {
 		t.Fatal(err)
@@ -341,6 +347,7 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 	manifestRef = anyString(manifestEnv.Data["manifest_ref"])
 	manifestSHA = anyString(manifestEnv.Data["manifest_sha256"])
 	observation = readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	bindSourceContinuityLabEvidence(t, root, observation)
 	raw, err = json.Marshal(observation)
 	if err != nil {
 		t.Fatal(err)
@@ -487,4 +494,38 @@ func readSourceContinuityLabObservation(t *testing.T, name, manifestSHA string) 
 	}
 	payload["manifest_sha256"] = manifestSHA
 	return payload
+}
+
+func bindSourceContinuityLabEvidence(t *testing.T, root string, observation map[string]any) {
+	t.Helper()
+	refMap := map[string]string{}
+	for _, value := range listValue(observation["evidence_refs"]) {
+		row := requireObjectValue(t, value)
+		oldRef := anyString(row["ref"])
+		side := anyString(row["side"])
+		kind := anyString(row["kind"])
+		code, payload := runEvidenceCommand(t, root, []string{
+			"register", "--project-root", root,
+			"--content", side + ":" + kind + ":fixture\n",
+			"--scope", "review", "--source", "source-continuity-lab-" + side + "-" + kind,
+			"--provenance", "test-fixture", "--mime", "text/plain",
+		})
+		if code != 0 {
+			t.Fatalf("register source continuity evidence: %#v", payload)
+		}
+		data := requireEvidenceObject(t, payload, "data")
+		newRef := evidenceTestString(data["record_ref"])
+		row["ref"] = newRef
+		refMap[oldRef] = newRef
+	}
+	for _, field := range []string{"action_results", "asset_results"} {
+		for _, value := range listValue(observation[field]) {
+			row := requireObjectValue(t, value)
+			for _, refField := range []string{"source_evidence_ref", "target_evidence_ref"} {
+				if replacement := refMap[anyString(row[refField])]; replacement != "" {
+					row[refField] = replacement
+				}
+			}
+		}
+	}
 }
