@@ -193,6 +193,16 @@ The following flags are available and composable:
   entrypoints when available and separately prove visual fidelity plus each
   promised `business_outcome` and `final_state`. If the source cannot run,
   record the strongest substitute authority and withhold the parity claim.
+  Before accepting each applicable Q item, call `specify-runtime evidence
+  source-continuity-manifest --quick-id <quick-id> --item-id Qn --format json`,
+  run the source/target adapter against the confirmed contract, and submit only
+  observations through `specify-runtime evidence source-continuity-validate
+  --quick-id <quick-id> --item-id Qn --manifest <manifest-ref> --input-json
+  '<observed-result-json>' --format json`. Put the returned exact coverage,
+  `source_continuity_lab_report_ref`, and SHA-256 in the Q worker result.
+  `item-accept` rebinds the report to the current `confirmation.json` bytes and
+  confirmation digest; stale or handwritten proof, unbound candidates, dead
+  actions, outcome drift, and character icons block the item.
 - Treat a user-provided PNG, screenshot, mockup, design export, reference image, or "make it like this" UI request as a first-class worker input when it shapes the quick task.
 - Before dispatch, record the image inputs in the quick-task context and include them in the `WorkerTaskPacket` or equivalent lane contract as `image_inputs` or UI reference inputs with stable project-relative paths when available.
 - If the image exists only as a chat attachment, either pass it to the subagent as a runtime image item/local_image when supported or import the runtime-provided local attachment through `specify-runtime evidence import --file <local-path> --scope ui-reference --source chat-attachment --provenance user-provided`, then pass the returned content-addressed `object_ref` and evidence record. Never copy or materialize a project file directly. Do not rely on inherited chat context, `fork_context`, or a prose summary as the only handoff.

@@ -740,7 +740,13 @@ when the `classic` profile is selected.
   cannot satisfy icon delivery. Design freezes this contract in its immutable
   handoff; Quick performs a bounded read-only preflight, confirms the same
   contract, and passes it unchanged into worker packets and real-entrypoint
-  source-target Review.
+  source-target Review. Source Continuity Lab turns that contract into executable
+  proof: `evidence source-continuity-manifest` derives the immutable denominator
+  for a formal task or Quick Q item, and `evidence source-continuity-validate`
+  accepts independent source/target observations before atomically publishing a
+  hashed report. Formal task acceptance and Quick `item-accept` revalidate the
+  report, exact three-axis coverage, current task-index or confirmation digest,
+  business outcomes/side effects/final states, and asset fidelity.
 
   The shared **UI Professional Skill** pack adds progressive disclosure to this
   studio loop. Its compact router selects one product domain, at most one visual

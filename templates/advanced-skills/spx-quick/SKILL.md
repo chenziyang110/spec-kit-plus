@@ -297,6 +297,15 @@ real entrypoints when available and separately prove visual fidelity plus each
 promised `business_outcome` and `final_state`. If the source cannot run, use the
 strongest remaining authority and explicitly withhold the parity claim.
 
+Before `item-accept` for each applicable Q item, generate the confirmed
+denominator with `specify-runtime evidence source-continuity-manifest --quick-id
+<quick-id> --item-id Qn`, execute source and target through an independent
+adapter, then submit observations through `specify-runtime evidence
+source-continuity-validate --quick-id <quick-id> --item-id Qn --manifest
+<manifest-ref> --input-json '<observed-result-json>'`. Return the exact coverage,
+`source_continuity_lab_report_ref`, and SHA-256 in `ui_verification`; Quick
+acceptance revalidates them against the current confirmation bytes and digest.
+
 Run
 `specify-runtime design resolve --scope <exact-surface> --format json` and query
 `.specify/design/index.json` through `specify-runtime artifact show` only for

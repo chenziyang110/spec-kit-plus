@@ -57,7 +57,18 @@ runnable. Compare reachability, event order, immediate/pending feedback,
 cancellation/retry/repeat behavior, side effects, `business_outcome`, and
 `final_state`; report visual fidelity and behavioral continuity as separate
 verdicts. If the source cannot run, use the strongest remaining inspectable
-authority, record attempted alternatives, and withhold runtime-parity claims.
+  authority, record attempted alternatives, and withhold runtime-parity claims.
+
+For every task whose `source_continuity.applicability` is `required`, generate
+the task-bound denominator with `specify-runtime evidence
+source-continuity-manifest --feature-dir <feature-dir> --task-id <Txxx>` and
+submit matched source/target observations with `specify-runtime evidence
+source-continuity-validate --feature-dir <feature-dir> --task-id <Txxx>
+--manifest <manifest-ref> --input-json '<observed-result-json>'`. Review may
+claim behavioral continuity only when `ui_verification` binds the returned exact
+coverage, `source_continuity_lab_report_ref`, and SHA-256. A newly discovered
+unbound candidate, dead target action, side-effect/final-state mismatch, asset
+fidelity failure, stale manifest, or character substitution blocks PASS.
 
 The only non-executed terminal result is `waived` for a current,
 hash-bound, human-confirmed `hardware_unavailable` exception. Its absent

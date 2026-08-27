@@ -93,6 +93,15 @@ Use this template when the leader dispatches a concrete implementation lane for 
   channels. The task surface must bind one exact official `entrypoint_id`;
   report missing or ambiguous bindings instead of choosing another entrypoint.
   Never handwrite or shorten the runtime-owned manifest/report.
+- When `source_continuity.applicability` is `required`, use
+  `specify-runtime evidence source-continuity-manifest --feature-dir
+  <feature-dir> --task-id <Txxx>` and submit independent source/target adapter
+  observations with `specify-runtime evidence source-continuity-validate
+  --feature-dir <feature-dir> --task-id <Txxx> --manifest <manifest-ref>
+  --input-json '<observed-result-json>'`. Return exact three-axis coverage,
+  `source_continuity_lab_report_ref`, and SHA-256 in `ui_verification`. A dead
+  action, unbound source candidate, side-effect/final-state mismatch, asset
+  fidelity failure, or character substitution is BLOCKED, not DONE.
 - When the Leader performs a passing comparison, return compact observed matrix differences and typed evidence refs for `specify-runtime evidence visual-compare`; do not read the stable template or author the report. The runtime derives approved bindings, exact decision/contract coverage, tolerance, deviations, path, and digest from the task contract. A screenshot path without this CLI-owned comparison record is not a fidelity pass.
 - Report back in this exact status family: `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`.
 - Prefer `DONE_WITH_CONCERNS` over silent guessing when the work is complete but confidence is mixed.

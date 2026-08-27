@@ -181,6 +181,13 @@ implement/review require system model + anti-slop + visual validation loop.
   discovery action, and blocking effect. Ready continuity truth has no open gap that can hide a
   surface, promised action, business outcome, final state, asset, or unsafe
   evidence conflict.
+- Prove executable delivery with Source Continuity Lab. Formal tasks call
+  `specify-runtime evidence source-continuity-manifest --feature-dir
+  <feature-dir> --task-id <Txxx>`; Quick calls it with `--quick-id <quick-id>
+  --item-id Qn`. Submit independent source/target observations through
+  `specify-runtime evidence source-continuity-validate`, then bind exact coverage,
+  `source_continuity_lab_report_ref`, and SHA-256 in `ui_verification`. The
+  runtime-owned report, not self-declared coverage or screenshots, owns PASS.
 - `sp-design` remains design-only: it may discover and approve the continuity
   contract but must not implement target code or claim runtime parity. Quick
   may own the complete direct-delivery reconstruction when its confirmed

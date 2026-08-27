@@ -367,6 +367,13 @@
       "safe_instruction_patterns": ["evidence smoothness-manifest", "evidence smoothness-validate", "artifact show", "artifact list", "runtime derives", "runtime-owned", "cli-owned"]
     },
     {
+      "id": "source_continuity_lab",
+      "path_patterns": ["**/implementation-review/source-continuity/source-continuity-manifest-*.json", "**/implementation-review/source-continuity/source-continuity-lab-*.json", ".planning/quick/**/source-continuity/source-continuity-manifest-*.json", ".planning/quick/**/source-continuity/source-continuity-lab-*.json"],
+      "owner_cli": ["specify-runtime evidence source-continuity-manifest", "specify-runtime evidence source-continuity-validate", "specify-runtime artifact show", "specify-runtime artifact list"],
+      "path_hints": ["source-continuity-manifest", "source-continuity-lab", "source_continuity_lab_report_ref", "source continuity lab report"],
+      "safe_instruction_patterns": ["evidence source-continuity-manifest", "evidence source-continuity-validate", "artifact show", "artifact list", "runtime derives", "runtime-owned", "cli-owned"]
+    },
+    {
       "id": "review_state",
       "path_patterns": ["**/review-state.json"],
       "owner_cli": ["specify-runtime review", "specify-runtime artifact patch"],

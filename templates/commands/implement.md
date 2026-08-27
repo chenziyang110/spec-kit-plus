@@ -138,7 +138,20 @@ projection.
    `entrypoint_id`; missing, unknown, or ambiguous entrypoint bindings block
    the lab. Task acceptance revalidates the canonical manifest, current
    task-index digest, typed evidence triad, full scenario set, and performance
-   budgets, so a handwritten or minimal report cannot pass. Query the packet's must-read immutable handoff through
+    budgets, so a handwritten or minimal report cannot pass. When
+    `ui_contract.source_continuity.applicability` is `required`, call
+    `specify-runtime evidence source-continuity-manifest --feature-dir
+    <feature-dir> --task-id <Txxx> --format json`, run an adapter that
+    independently enumerates source surfaces/actions/assets and observes source
+    and target actions, side effects, final states, and rendered assets, then
+    submit only observations through `specify-runtime evidence
+    source-continuity-validate --feature-dir <feature-dir> --task-id <Txxx>
+    --manifest <manifest-ref> --input-json '<observed-result-json>' --format
+    json`. Merge the returned exact coverage,
+    `source_continuity_lab_report_ref`, and SHA-256 into `ui_verification`.
+    Acceptance revalidates the task-index, manifest, report, metrics, evidence,
+    and character-substitution gate; never handwrite the report or treat the
+    contract's self-consistency as discovery proof. Query the packet's must-read immutable handoff through
    `specify-runtime artifact show` before UI work and resolve selected rows and
    implementation bindings from it; a missing file, digest mismatch, unknown ID,
    or copied-row mismatch blocks implementation rather than authorizing

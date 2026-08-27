@@ -151,11 +151,11 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["input_contract"] = "agent supplies one passing observation per expected smoothness id plus measured performance metrics; runtime enforces exact coverage and task-bound budgets, then returns the canonical report ref and byte digest"
 	case "evidence.source-continuity-manifest":
 		capability["side_effect"] = "writes-derived-source-continuity-manifest"
-		capability["usage"] = "specify-runtime evidence source-continuity-manifest --feature-dir <feature-dir> --task-id <Txxx> --format json"
-		capability["input_contract"] = "derives the exact surface/action/asset universe from the ready task source_continuity contract and binds the current task-index digest"
+		capability["usage"] = "specify-runtime evidence source-continuity-manifest (--feature-dir <feature-dir> --task-id <Txxx> | --quick-id <quick-id> --item-id <Qn>) --format json"
+		capability["input_contract"] = "derives the exact surface/action/asset universe from the immutable source_continuity contract and binds either the current task-index digest or confirmed Quick confirmation bytes/digest"
 	case "evidence.source-continuity-validate":
 		capability["side_effect"] = "writes-derived-source-continuity-report"
-		capability["usage"] = "specify-runtime evidence source-continuity-validate --feature-dir <feature-dir> --task-id <Txxx> --manifest <manifest-ref> --input-json <observed-source-continuity> --format json"
+		capability["usage"] = "specify-runtime evidence source-continuity-validate (--feature-dir <feature-dir> --task-id <Txxx> | --quick-id <quick-id> --item-id <Qn>) --manifest <manifest-ref> --input-json <observed-source-continuity> --format json"
 		capability["input_contract"] = "accepts adapter-owned observations only; requires exact discovery and target coverage, matched business outcomes/side effects/final states, source+target evidence, and semantic/provenance/render asset fidelity"
 	case "design.change":
 		capability["side_effect"] = "creates-design-change-workspace-and-index-record"

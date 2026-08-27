@@ -119,7 +119,16 @@ or unsaved-input behavior remains uncovered. A
 passing comparison calls `specify-runtime evidence visual-compare` with compact observed matrix/evidence input; the runtime derives and atomically owns the task-bound `spec-kit-visual-comparison-v1` report, approved preview/manifest/handoff bindings, exact `DS-*`/`DH-*` coverage, tolerance, deviations, path, and digest. Passing unit
 tests, existing files, synthetic-only checks, or an isolated component do
 not prove the product works. Group capture by integrated surface and source
-fingerprint; do not run the full viewport/state capture loop per Txx.
+fingerprint; do not run the full viewport/state capture loop per Txx. Required
+source-grounded tasks additionally run `specify-runtime evidence
+source-continuity-manifest --feature-dir <feature-dir> --task-id <Txxx>` and
+submit independent source/target discovery, action, side-effect, final-state,
+and asset observations through `specify-runtime evidence
+source-continuity-validate --feature-dir <feature-dir> --task-id <Txxx>
+--manifest <manifest-ref> --input-json '<observed-result-json>'`. Bind the
+runtime-owned `source_continuity_lab_report_ref`, SHA-256, and exact three-axis
+coverage in `ui_verification`; self-declared coverage, a handwritten report, or
+visual similarity cannot replace this behavioral parity gate.
 
 Compile the Review Universe from authoritative obligations, handoff scenarios,
 changed consumer surfaces, runtime-discovered controls/registrations, and
