@@ -250,6 +250,64 @@ func TestSourceContinuityAdapterProbeSupportsQuickAndPreferredBinding(t *testing
 	}
 }
 
+func TestSourceContinuityAdapterCandidateRankingAndPolicyBoundaries(t *testing.T) {
+	runtimeManaged := map[string]any{"id": "z-runtime", "execution_mode": "runtime-managed"}
+	agentTool := map[string]any{"id": "a-agent", "execution_mode": "agent-tool"}
+	if !sourceContinuityAdapterCandidateLess(runtimeManaged, agentTool, map[string]int{}) {
+		t.Fatal("runtime-managed binding should win without an explicit preference")
+	}
+	if !sourceContinuityAdapterCandidateLess(agentTool, runtimeManaged, map[string]int{"a-agent": 0}) {
+		t.Fatal("explicit preferred binding should outrank execution-mode priority")
+	}
+	left := map[string]any{"id": "a-binding", "execution_mode": "agent-tool"}
+	right := map[string]any{"id": "b-binding", "execution_mode": "agent-tool"}
+	if !sourceContinuityAdapterCandidateLess(left, right, map[string]int{"a-binding": 0, "b-binding": 1}) {
+		t.Fatal("preferred binding order should be deterministic")
+	}
+	if !sourceContinuityAdapterCandidateLess(left, right, map[string]int{}) {
+		t.Fatal("binding id should break equal-mode ties deterministically")
+	}
+	if sourceContinuityAdapterWritePolicyRank("read-only") != 0 || sourceContinuityAdapterWritePolicyRank("evidence-store-only") != 1 || sourceContinuityAdapterWritePolicyRank("isolated-test-data") != 2 {
+		t.Fatal("write policy rank must preserve least-to-most privilege ordering")
+	}
+}
+
+func TestSourceContinuityAdapterProbeSelectionRejectsTampering(t *testing.T) {
+	root, featureRef, feature := sourceContinuityLabProject(t)
+	manifestRef, _ := materializeSourceContinuityLabManifest(t, root, featureRef)
+	raw, err := json.Marshal(sourceContinuityAdapterProbeInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-adapter-probe", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+	})
+	if exit != 0 || env.Status != "ok" {
+		t.Fatalf("adapter probe failed: exit=%d env=%#v", exit, env)
+	}
+	probePath := filepath.Join(feature, filepath.FromSlash(anyString(env.Data["adapter_probe_ref"])))
+	probeRaw, err := os.ReadFile(probePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(probePath, append(probeRaw, ' '), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadSourceContinuityAdapterPlan(
+		feature,
+		sourceContinuityLabTaskID,
+		anyString(env.Data["adapter_plan_ref"]),
+		anyString(env.Data["adapter_plan_sha256"]),
+		manifestRef,
+		optionalFileSHA256(filepath.Join(feature, filepath.FromSlash(manifestRef))),
+		false,
+	); err == nil || !strings.Contains(err.Error(), "stale-adapter-probe") {
+		t.Fatalf("tampered probe unexpectedly validated: %v", err)
+	}
+}
+
 func sourceContinuityAdapterProbeInput() map[string]any {
 	return map[string]any{
 		"schema": "spec-kit-source-continuity-adapter-probe-input-v1",
