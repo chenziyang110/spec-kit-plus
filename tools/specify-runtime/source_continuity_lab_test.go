@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -170,6 +171,71 @@ func TestSourceContinuityLabUIVerificationIsNormalizedAndRequiredForAcceptance(t
 	normalized["source_continuity_lab_report_sha256"] = strings.Repeat("0", 64)
 	if err := validateImplementTaskUIAcceptance(feature, task, lifecycle); err == nil || !strings.Contains(strings.ToLower(err.Error()), "sha-256") {
 		t.Fatalf("tampered source continuity report should block acceptance: %v", err)
+	}
+}
+
+func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t *testing.T) {
+	quickID := "260827-source-continuity"
+	input := sourceContinuityQuickInput()
+	decision := requireObjectValue(t, input["decision"])
+	ui := requireObjectValue(t, decision["ui_confirmation"])
+	ui["source_continuity"] = sourceContinuityLabContract()
+	root, workspace := stageConfirmedQuickExecutionTestWorkspace(t, quickID, input)
+
+	env := runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "item-start", quickID, "--item", "Q1",
+	})
+	if env.Status != "ok" {
+		t.Fatalf("quick item start: %#v", env)
+	}
+	mustWriteQuickWorkerResult(t, workspace, "Q1", map[string]any{
+		"task_id": "Q1", "status": "success", "summary": "implemented source-grounded UI",
+	})
+	env = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "item-accept", quickID, "--item", "Q1", "--evidence", "target runs",
+	})
+	if env.Status != "blocked" || !strings.Contains(fmt.Sprint(env.Blockers), "source continuity lab report") {
+		t.Fatalf("quick item without lab report should block: %#v", env)
+	}
+
+	exit, manifestEnv := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-manifest", "--project-root", root,
+		"--quick-id", quickID, "--item-id", "Q1", "--format", "json",
+	})
+	if exit != 0 || manifestEnv.Status != "ok" {
+		t.Fatalf("quick source continuity manifest failed: exit=%d env=%#v", exit, manifestEnv)
+	}
+	manifestRef := anyString(manifestEnv.Data["manifest_ref"])
+	manifestSHA := anyString(manifestEnv.Data["manifest_sha256"])
+	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	raw, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, reportEnv := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-validate", "--project-root", root,
+		"--quick-id", quickID, "--item-id", "Q1", "--manifest", manifestRef,
+		"--input-json", string(raw), "--format", "json",
+	})
+	if exit != 0 || reportEnv.Status != "ok" {
+		t.Fatalf("quick source continuity validation failed: exit=%d env=%#v", exit, reportEnv)
+	}
+	patch := requireObjectValue(t, reportEnv.Data["ui_verification_patch"])
+	mustWriteQuickWorkerResult(t, workspace, "Q1", map[string]any{
+		"task_id": "Q1", "status": "success", "summary": "implemented source-grounded UI",
+		"ui_verification": patch,
+	})
+	env = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "item-accept", quickID, "--item", "Q1", "--evidence", "source continuity lab passed",
+	})
+	if env.Status != "ok" {
+		t.Fatalf("quick item with lab report should pass: %#v", env)
+	}
+	reportRef := anyString(reportEnv.Data["report_ref"])
+	canonical := filepath.ToSlash(filepath.Join(".planning", "quick", quickID, reportRef))
+	metadata, ok := LookupArtifactType(canonical)
+	if !ok || metadata.TypeID != "quick-source-continuity-lab" {
+		t.Fatalf("quick lab artifact owner = %#v ok=%t", metadata, ok)
 	}
 }
 
