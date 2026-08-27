@@ -43,6 +43,31 @@ def _write_bytes_with_retry(path: Path, content: bytes) -> None:
             time.sleep(_FILE_WRITE_RETRY_DELAYS_SECONDS[attempt])
 
 
+_TRANSIENT_FILE_ACCESS_ERRNOS = frozenset(
+    {errno.EACCES, errno.EBUSY, errno.EINVAL, errno.EPERM}
+)
+_TRANSIENT_FILE_ACCESS_WINERRORS = frozenset({32, 33})
+_FILE_WRITE_RETRY_DELAYS_SECONDS = (0.05, 0.1, 0.2, 0.4)
+
+
+def _write_bytes_with_retry(path: Path, content: bytes) -> None:
+    """Write bytes, tolerating brief file-watcher locks on generated files."""
+
+    for attempt in range(len(_FILE_WRITE_RETRY_DELAYS_SECONDS) + 1):
+        try:
+            path.write_bytes(content)
+            return
+        except OSError as exc:
+            transient = (
+                exc.errno in _TRANSIENT_FILE_ACCESS_ERRNOS
+                or getattr(exc, "winerror", None)
+                in _TRANSIENT_FILE_ACCESS_WINERRORS
+            )
+            if not transient or attempt == len(_FILE_WRITE_RETRY_DELAYS_SECONDS):
+                raise
+            time.sleep(_FILE_WRITE_RETRY_DELAYS_SECONDS[attempt])
+
+
 def _sha256(path: Path) -> str:
     """Return the hex SHA-256 digest of *path*."""
     h = hashlib.sha256()

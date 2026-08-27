@@ -95,6 +95,8 @@ owns update, validation, eligible finalization, and receipt; only an update
 failure uses mark-dirty plus a standalone dirty receipt. Apply the gate in
 `references/project-cognition.md` before any clean claim. Report the outcome,
 changed paths, exact verification, Lightweight Review evidence, and residual
-risk. An explicit user-selected replacement workflow remains a handoff; an
-autonomous repair under `references/autonomous-blocker-recovery.md` stays inside
-Fast and must continue to the recorded failed gate.
+risk. This invocation authorizes only this workflow stage. An explicit
+user-selected replacement workflow remains a handoff; do not invoke another
+workflow in this run. An autonomous repair under
+`references/autonomous-blocker-recovery.md` remains internal to Fast and must
+continue to the recorded failed gate.

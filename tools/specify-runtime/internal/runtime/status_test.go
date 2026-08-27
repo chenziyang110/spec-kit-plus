@@ -122,6 +122,9 @@ func TestReadStatusRejectsNonCurrentRuntimeSchema(t *testing.T) {
 
 func TestReadStatusRejectsMissingCurrentGraphStorePath(t *testing.T) {
 	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	paths, err := ResolvePaths(root)
 	if err != nil {
 		t.Fatal(err)

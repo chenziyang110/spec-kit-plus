@@ -7,7 +7,8 @@ its supervised child. Older runtimes that do not expose `run.launch` fall back
 to `specify-runtime run create` followed by `specify-runtime run supervise`.
 Use `specify-runtime run show` to confirm an existing active Run identity before
 reusing it, then resume that existing Run through `specify-runtime run supervise`.
-Launch repository work only through these Run Control entrypoints
+Launch repository work only through these Run Control entrypoints; they are
+control-plane intent only
 so the runtime forces child cwd, binds the managed workspace, and seals an
 immutable Result. With `--workspace-policy auto`, the runtime may route exactly
 one non-overlapping modifying Run to the primary workspace only when its checkout
@@ -101,8 +102,9 @@ root with the original feature description plus `--dry-run --json` (PowerShell:
 switch branches. Require the dry-run receipt's exact `BOOTSTRAP_CONTRACT` field
 to equal `spec-kit-feature-bootstrap-v1`. If it is absent or different, stop
 before any Run/Work registration, branch action, or feature write; request the
-operator's human-only integration repair action, then repeat the dry run. Every
-later real script invocation must replay that dry-run
+operator's human-only integration repair action through the trusted project
+Specify launcher (`{{specify-subcmd:integration repair}}`), then repeat the dry
+run. Every later real script invocation must replay that dry-run
 `BRANCH_NAME` unchanged with `--resolved-feature-id <dry-run BRANCH_NAME>`
 (PowerShell: `-ResolvedFeatureId <dry-run BRANCH_NAME>`); never recompute its
 timestamp or automatic feature number.

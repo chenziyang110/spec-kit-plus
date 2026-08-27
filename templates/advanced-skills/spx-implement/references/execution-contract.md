@@ -204,11 +204,12 @@ truth gap, park Implement and emit an explicit handoff to the owning workflow;
 stop rather than silently changing that truth. A new behavior/test with no requirement,
 acceptance, or CA ref is not an implementation-only repair.
 
-Distinguish terminal delivery handoffs from internal recovery. Unknown technical
-root causes stay inside Implement's Debug-grade evidence lane and return to the
-failed gate in the same invocation. Missing/invalid design or upstream truth,
-a user-selected durable-team switch, and successful handoff to `$spx-review`
-remain explicit handoff-and-stop boundaries.
+Every cross-workflow route is a handoff-and-stop boundary. Internal recovery is
+not a cross-workflow route: unknown technical root causes stay inside
+Implement's Debug-grade evidence lane and return to the failed gate in the same
+invocation. Missing/invalid design or upstream truth, a user-selected
+durable-team switch, and successful handoff to `$spx-review` remain explicit
+handoff-and-stop boundaries.
 
 Before completion, run
 `{{specify-subcmd:specify-runtime implement closeout --feature-dir <feature-dir> --format json}}`

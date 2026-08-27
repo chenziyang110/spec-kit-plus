@@ -199,6 +199,21 @@ def test_runtime_fallback_release_smokes_namespaced_cognition_commands():
     )
 
 
+def test_release_workflows_accept_scan_formats_help_exit_code():
+    workflows = (
+        ROOT / ".github" / "workflows" / "release.yml",
+        ROOT / ".github" / "workflows" / "release-specify-runtime.yml",
+    )
+
+    for workflow in workflows:
+        content = workflow.read_text(encoding="utf-8")
+
+        assert 'scan_formats_help="$(' in content
+        assert "cognition scan-formats --help 2>&1 || true)" in content
+        assert 'grep -q -- "-scan-set" <<<"$scan_formats_help"' in content
+        assert "cognition scan-formats --help >/dev/null" not in content
+
+
 def test_runtime_installers_require_artifact_and_workflow_capabilities() -> None:
     shell = (ROOT / "tools" / "specify-runtime" / "install.sh").read_text(
         encoding="utf-8"
