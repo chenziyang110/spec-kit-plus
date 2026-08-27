@@ -135,6 +135,14 @@ def _adapter_plan(
             "target_snapshot_sha256": target_snapshot_sha256,
             "task_index_sha256": task_index_sha256,
         },
+        "selection": {
+            "mode": "explicit",
+            "registry_schema": "",
+            "registry_sha256": "",
+            "probe_ref": "",
+            "probe_sha256": "",
+            "inventory_sha256": "",
+        },
         "required_lanes": [
             f"{side}.{capability}"
             for side in ("source", "target")
@@ -447,6 +455,64 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
         feature_dir, lifecycle, "implementation-review/tasks/T001.json"
     )
     assert not any("source continuity" in error.lower() for error in errors), errors
+
+    probe_ref = (
+        "implementation-review/source-continuity/"
+        "source-continuity-adapter-probe-T001.json"
+    )
+    registry_sha256 = "a" * 64
+    inventory_sha256 = "b" * 64
+    probe = {
+        "schema": "spec-kit-source-continuity-adapter-probe-v1",
+        "subject_id": "T001",
+        "status": "ready",
+        "binding": adapter_plan["binding"],
+        "registry_schema": "spec-kit-source-continuity-adapter-registry-v1",
+        "registry_sha256": registry_sha256,
+        "inventory_sha256": inventory_sha256,
+        "adapters": adapter_plan["adapters"],
+        "assignments": adapter_plan["assignments"],
+        "unavailable_bindings": [],
+        "unselected_bindings": [],
+        "unresolved_gaps": [],
+    }
+    probe_bytes = _canonical_bytes(probe)
+    probe_path = feature_dir / probe_ref
+    probe_path.write_bytes(probe_bytes)
+    adapter_plan["selection"] = {
+        "mode": "registry-probe",
+        "registry_schema": "spec-kit-source-continuity-adapter-registry-v1",
+        "registry_sha256": registry_sha256,
+        "probe_ref": probe_ref,
+        "probe_sha256": hashlib.sha256(probe_bytes).hexdigest(),
+        "inventory_sha256": inventory_sha256,
+    }
+    adapter_plan_bytes = _canonical_bytes(adapter_plan)
+    adapter_plan_path.write_bytes(adapter_plan_bytes)
+    adapter_plan_sha256 = hashlib.sha256(adapter_plan_bytes).hexdigest()
+    report["adapter_plan_sha256"] = adapter_plan_sha256
+    report["adapter"]["id"] = f"adapter-plan:{adapter_plan_sha256[:12]}"
+    report_bytes = _canonical_bytes(report)
+    report_path.write_bytes(report_bytes)
+    lifecycle["ui_verification"].update(
+        {
+            "source_continuity_adapter_plan_sha256": adapter_plan_sha256,
+            "source_continuity_lab_report_sha256": hashlib.sha256(
+                report_bytes
+            ).hexdigest(),
+        }
+    )
+    errors = validate_lifecycle_ui_verification(
+        feature_dir, lifecycle, "implementation-review/tasks/T001.json"
+    )
+    assert not any("source continuity" in error.lower() for error in errors), errors
+
+    probe_path.write_bytes(probe_bytes + b" ")
+    errors = validate_lifecycle_ui_verification(
+        feature_dir, lifecycle, "implementation-review/tasks/T001.json"
+    )
+    assert any("adapter probe" in error.lower() for error in errors)
+    probe_path.write_bytes(probe_bytes)
 
     target_runtime = next(
         row
