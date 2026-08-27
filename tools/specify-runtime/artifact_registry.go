@@ -184,6 +184,7 @@ var artifactTypePatterns = []artifactTypePattern{
 		},
 	},
 	newFeatureWorkspaceNestedPattern("implementation-review/smoothness/", ".json", ArtifactTypeMetadata{TypeID: "feature-smoothness-lab", Owner: "specify-runtime evidence smoothness-manifest / smoothness-validate", Role: "canonical", Schema: "json/smoothness-lab", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newFeatureWorkspaceNestedPattern("implementation-review/source-continuity/", ".json", ArtifactTypeMetadata{TypeID: "feature-source-continuity-lab", Owner: "specify-runtime evidence source-continuity-manifest / source-continuity-validate", Role: "canonical", Schema: "json/source-continuity-lab", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newFeatureArtifactPattern("spec.md", ArtifactTypeMetadata{
 		TypeID:         "feature-spec",
 		Owner:          "specify-runtime artifact",

@@ -1184,6 +1184,8 @@ func defaultCapabilities() []string {
 		"evidence.show",
 		"evidence.smoothness-manifest",
 		"evidence.smoothness-validate",
+		"evidence.source-continuity-manifest",
+		"evidence.source-continuity-validate",
 		"evidence.visual-compare",
 		"evidence.verify",
 		"execution.announce",
@@ -1373,6 +1375,10 @@ func capabilitySummary(id string) string {
 		return "Materialize a task-bound Smoothness Lab manifest from the current immutable task contract."
 	case "evidence.smoothness-validate":
 		return "Validate Smoothness Lab observations and materialize a passing task-bound report."
+	case "evidence.source-continuity-manifest":
+		return "Materialize a task-bound Source Continuity Lab manifest from the current immutable UI contract."
+	case "evidence.source-continuity-validate":
+		return "Validate adapter observations for source discovery, target reachability, business outcomes, side effects, final states, and asset fidelity."
 	case "design.change":
 		return "Create a scoped UI design-change workspace and draft index record."
 	case "design.iterate":

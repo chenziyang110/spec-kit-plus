@@ -148,7 +148,7 @@ func sourceContinuityLabContract() map[string]any {
 		"schema": "spec-kit-ui-source-continuity-v1", "applicability": "required", "mode": "mixed",
 		"reason": "A runnable legacy product, source code, and assets govern the migration.",
 		"coverage": map[string]any{
-			"surface_ids": []any{"DH-SURFACE-MAIN-001", "DH-SURFACE-DEEP-001"},
+			"surface_ids":     []any{"DH-SURFACE-MAIN-001", "DH-SURFACE-DEEP-001"},
 			"interaction_ids": []any{"DH-INT-OPEN-DEEP-001", "DH-INT-EXPORT-001", "DH-INT-SHORTCUT-001"},
 			"component_ids":   []any{"DH-COMP-EXPORT-ICON-001"},
 		},
@@ -197,4 +197,3 @@ func readSourceContinuityLabObservation(t *testing.T, name, manifestSHA string) 
 	payload["manifest_sha256"] = manifestSHA
 	return payload
 }
-

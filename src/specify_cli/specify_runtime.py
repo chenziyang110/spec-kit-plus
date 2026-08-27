@@ -197,6 +197,8 @@ REQUIRED_CAPABILITIES = (
     "evidence.show",
     "evidence.smoothness-manifest",
     "evidence.smoothness-validate",
+    "evidence.source-continuity-manifest",
+    "evidence.source-continuity-validate",
     "evidence.visual-compare",
     "evidence.verify",
     "execution.announce",
