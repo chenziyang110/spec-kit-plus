@@ -285,6 +285,7 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 	}
 	mustWriteQuickWorkerResult(t, workspace, "Q1", map[string]any{
 		"task_id": "Q1", "status": "success", "summary": "implemented source-grounded UI",
+		"changed_files": []any{"src/after-report.txt"},
 		"ui_verification": map[string]any{
 			"covered_source_continuity_surface_ids":     []any{"DH-SURFACE-MAIN-001", "DH-SURFACE-DEEP-001"},
 			"covered_source_continuity_interaction_ids": []any{"DH-INT-OPEN-DEEP-001", "DH-INT-EXPORT-001", "DH-INT-SHORTCUT-001"},
@@ -331,6 +332,7 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 	}
 	mustWriteQuickWorkerResult(t, workspace, "Q1", map[string]any{
 		"task_id": "Q1", "status": "success", "summary": "implemented source-grounded UI",
+		"changed_files":   []any{"src/after-report.txt"},
 		"ui_verification": patch,
 	})
 	env = runScriptDomainEnvelope(t, runQuick, []string{
@@ -366,6 +368,7 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 	patch = requireObjectValue(t, reportEnv.Data["ui_verification_patch"])
 	mustWriteQuickWorkerResult(t, workspace, "Q1", map[string]any{
 		"task_id": "Q1", "status": "success", "summary": "implemented source-grounded UI",
+		"changed_files":   []any{"src/after-report.txt"},
 		"ui_verification": patch,
 	})
 	env = runScriptDomainEnvelope(t, runQuick, []string{
