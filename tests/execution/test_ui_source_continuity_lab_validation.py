@@ -191,4 +191,3 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
         feature_dir, lifecycle, "implementation-review/tasks/T001.json"
     )
     assert any("source continuity lab report sha-256" in error.lower() for error in errors)
-
