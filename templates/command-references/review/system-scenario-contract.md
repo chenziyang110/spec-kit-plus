@@ -61,12 +61,15 @@ verdicts. If the source cannot run, use the strongest remaining inspectable
 
 For every task whose `source_continuity.applicability` is `required`, generate
 the task-bound denominator with `specify-runtime evidence
-source-continuity-manifest --feature-dir <feature-dir> --task-id <Txxx>` and
-materialize a technology-neutral capability route with `specify-runtime
-evidence source-continuity-adapter-plan --feature-dir <feature-dir> --task-id
-<Txxx> --manifest <manifest-ref> --input-json '<adapter-plan-input>'`. The plan
-may compose adapters but exposes only symbolic tool refs, bounded actions,
-declared permissions, and typed evidence. Evidence records use provenance
+source-continuity-manifest --feature-dir <feature-dir> --task-id <Txxx>`, read
+`specify-runtime evidence source-continuity-adapter-catalog --format json`, and
+submit only observed tool bindings to `specify-runtime evidence
+source-continuity-adapter-probe --feature-dir <feature-dir> --task-id <Txxx>
+--manifest <manifest-ref> --input-json '<available-tool-bindings>'`. The runtime
+owns provider capabilities, bounded actions, permissions, evidence kinds,
+deterministic ten-lane selection, the probe report, and the Plan. The explicit
+`source-continuity-adapter-plan` command is only a compatibility fallback for a
+verified tool the registry cannot represent. Evidence records use provenance
 `adapter:<adapter_id>` and observation rows name that adapter. Submit matched
 source/target observations with `specify-runtime evidence
 source-continuity-validate --feature-dir <feature-dir> --task-id <Txxx>

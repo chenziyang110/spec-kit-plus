@@ -184,10 +184,13 @@ implement/review require system model + anti-slop + visual validation loop.
 - Prove executable delivery with Source Continuity Lab. Formal tasks call
   `specify-runtime evidence source-continuity-manifest --feature-dir
   <feature-dir> --task-id <Txxx>`; Quick calls it with `--quick-id <quick-id>
-  --item-id Qn`. Materialize a technology-neutral execution route with
-  `specify-runtime evidence source-continuity-adapter-plan`: compose one or
-  more adapters across all ten capability lanes, but expose only symbolic tool
-  refs, declared permissions, typed evidence, and bounded actions. Bind every
+  --item-id Qn`. Read the technology-neutral provider packs with
+  `specify-runtime evidence source-continuity-adapter-catalog`, then pass only
+  observed tool bindings to `specify-runtime evidence
+  source-continuity-adapter-probe`; the runtime owns capabilities, bounded
+  actions, permissions, evidence kinds, ten-lane selection, gaps, probe report,
+  and Plan. Use `source-continuity-adapter-plan` only as an explicit fallback
+  for a verified tool the registry cannot express. Bind every
   evidence record/row to `adapter:<adapter_id>` and the returned plan, then
   submit independent source/target observations through `specify-runtime
   evidence source-continuity-validate --adapter-plan <adapter-plan-ref>`.

@@ -194,11 +194,14 @@ budgets, so never handwrite or reduce the report. For a passing comparison, call
 `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json` with only the observed entrypoint/revision, typed evidence refs, matrix differences, explicit verdict, and reviewer. The runtime derives the approved preview/manifest/handoff bindings, exact `DS-*`/`DH-*` coverage, tolerance, deviations, canonical report, and byte digest from the task contract. Never read the stable template or author/patch the report. Record behavior checks separately from
 visual/interaction acceptance. When `source_continuity.applicability: required`,
 run `specify-runtime evidence source-continuity-manifest --feature-dir
-<feature-dir> --task-id <Txxx>`, then call `specify-runtime evidence
-source-continuity-adapter-plan --feature-dir <feature-dir> --task-id <Txxx>
---manifest <manifest-ref> --input-json '<adapter-plan-input>'`. Compose generic
-adapters across all ten source/target capability lanes; allow only symbolic
-tool refs, bounded actions, declared permissions, and typed evidence. Register
+<feature-dir> --task-id <Txxx>`, read `specify-runtime evidence
+source-continuity-adapter-catalog`, then pass only observed tool bindings to
+`specify-runtime evidence source-continuity-adapter-probe --feature-dir
+<feature-dir> --task-id <Txxx> --manifest <manifest-ref> --input-json
+'<available-tool-bindings>'`. The runtime owns capabilities, bounded actions,
+permissions, typed evidence, deterministic ten-lane selection, probe report,
+and Plan. Use `source-continuity-adapter-plan` only as an explicit fallback for
+a verified tool the registry cannot express. Register
 captures with provenance `adapter:<adapter_id>`, bind each evidence row and the
 observation to the returned plan, then submit observations through
 `specify-runtime evidence

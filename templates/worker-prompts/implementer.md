@@ -95,11 +95,14 @@ Use this template when the leader dispatches a concrete implementation lane for 
   Never handwrite or shorten the runtime-owned manifest/report.
 - When `source_continuity.applicability` is `required`, use
   `specify-runtime evidence source-continuity-manifest --feature-dir
-  <feature-dir> --task-id <Txxx>`, then call `specify-runtime evidence
-  source-continuity-adapter-plan --feature-dir <feature-dir> --task-id <Txxx>
-  --manifest <manifest-ref> --input-json '<adapter-plan-input>'`. Compose a
-  technology-neutral route across all ten lanes using only symbolic tool refs,
-  bounded actions, declared permissions, and typed evidence. Register evidence
+  <feature-dir> --task-id <Txxx>`, read `specify-runtime evidence
+  source-continuity-adapter-catalog`, then pass only observed tool bindings to
+  `specify-runtime evidence source-continuity-adapter-probe --feature-dir
+  <feature-dir> --task-id <Txxx> --manifest <manifest-ref> --input-json
+  '<available-tool-bindings>'`. The runtime owns capabilities, actions,
+  permissions, evidence kinds, ten-lane selection, probe report, and Plan. Use
+  `source-continuity-adapter-plan` only as an explicit fallback for a verified
+  tool the registry cannot express. Register evidence
   with provenance `adapter:<adapter_id>`, bind each observation row to its
   adapter and the returned plan, then call `specify-runtime evidence
   source-continuity-validate

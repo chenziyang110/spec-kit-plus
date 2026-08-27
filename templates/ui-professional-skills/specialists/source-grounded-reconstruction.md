@@ -125,13 +125,14 @@ approved.
 - Implementation packets receive the exact applicable surface, action, and
   asset bindings; workers do not rediscover or silently weaken them.
 - Execution remains technology-neutral. After the runtime derives the
-  task/Q-bound continuity manifest, materialize `source-continuity-adapter-plan`
-  from the capabilities actually available: one or more generic adapters cover
-  source/target surface enumeration, action execution, side-effect observation,
-  asset inspection, and visual capture. The plan permits only symbolic tool
-  refs, declared execution/write/network policies, typed evidence, and bounded
-  actions; it never embeds platform scripts, command/argv/env/install fields,
-  or an uncovered lane. Evidence provenance and observation rows bind the exact
+  task/Q-bound continuity manifest, read `source-continuity-adapter-catalog`
+  and pass only observed tool bindings to `source-continuity-adapter-probe`.
+  The embedded provider packs own capabilities, actions, evidence kinds, and
+  permissions; the probe owns deterministic source/target routing, gaps, and
+  the immutable Plan. `source-continuity-adapter-plan` remains an explicit
+  fallback only for a verified tool the registry cannot express. Neither path
+  permits platform scripts, command/argv/env/install fields, or an uncovered
+  lane. Evidence provenance and observation rows bind the exact
   `adapter_id`; the report and worker result bind the immutable plan ref/digest.
 - Review runs both source and target real entrypoints when the source is
   runnable, executes matched scenarios with equivalent safe data, and compares

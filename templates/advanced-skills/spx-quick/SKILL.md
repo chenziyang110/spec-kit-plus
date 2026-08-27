@@ -306,11 +306,14 @@ strongest remaining authority and explicitly withhold the parity claim.
 
 Before `item-accept` for each applicable Q item, generate the confirmed
 denominator with `specify-runtime evidence source-continuity-manifest --quick-id
-<quick-id> --item-id Qn`, then call `specify-runtime evidence
-source-continuity-adapter-plan --quick-id <quick-id> --item-id Qn --manifest
-<manifest-ref> --input-json '<adapter-plan-input>'`. Compose a technology-neutral
-route across all ten source/target lanes with symbolic tool refs, bounded
-actions, declared permissions, and typed evidence only. Register each capture
+<quick-id> --item-id Qn`, read `specify-runtime evidence
+source-continuity-adapter-catalog`, then pass only observed tool bindings to
+`specify-runtime evidence source-continuity-adapter-probe --quick-id <quick-id>
+--item-id Qn --manifest <manifest-ref> --input-json
+'<available-tool-bindings>'`. The runtime owns provider capabilities, bounded
+actions, permissions, evidence kinds, deterministic ten-lane selection, probe
+report, and Plan. Use `source-continuity-adapter-plan` only as an explicit
+fallback for a verified tool the registry cannot express. Register each capture
 with provenance `adapter:<adapter_id>`, bind its row and observation to the
 returned plan, then submit observations through `specify-runtime evidence
 source-continuity-validate --quick-id <quick-id> --item-id Qn --manifest

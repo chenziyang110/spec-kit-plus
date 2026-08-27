@@ -742,12 +742,16 @@ when the `classic` profile is selected.
   contract, and passes it unchanged into worker packets and real-entrypoint
   source-target Review. Source Continuity Lab turns that contract into executable
   proof: `evidence source-continuity-manifest` derives the immutable denominator
-  for a formal task or Quick Q item. `evidence source-continuity-adapter-plan`
-  then composes one or more technology-neutral adapters across the ten
-  source/target capability lanes. Its safe action space contains symbolic tool
-  refs, declared permissions, typed evidence, and bounded actions only; it
-  rejects platform scripts, command/argv/env/install fields, uncovered lanes,
-  and unresolved gaps. Evidence records and rows bind exact `adapter_id`
+  for a formal task or Quick Q item. `evidence
+  source-continuity-adapter-catalog` exposes the embedded generic provider
+  packs, and `evidence source-continuity-adapter-probe` accepts only observed
+  tool bindings while the runtime owns capabilities, bounded actions,
+  permissions, evidence kinds, deterministic ten-lane routing, recoverable
+  gaps, the probe report, and the Plan. Explicit `evidence
+  source-continuity-adapter-plan` is a compatibility fallback only for verified
+  tools the registry cannot express. Both paths reject platform scripts,
+  command/argv/env/install fields, uncovered lanes, and unresolved gaps.
+  Evidence records and rows bind exact `adapter_id`
   provenance, and `evidence source-continuity-validate` verifies those bindings
   before atomically publishing a hashed report. Formal task acceptance and Quick
   `item-accept` revalidate the plan and report digests, exact three-axis coverage,

@@ -46,7 +46,7 @@ func TestSourceContinuityAdapterCatalogIsGenericAndDeterministic(t *testing.T) {
 
 func TestSourceContinuityAdapterProbeMaterializesFormalPlan(t *testing.T) {
 	root, featureRef, feature := sourceContinuityLabProject(t)
-	manifestRef, _ := materializeSourceContinuityLabManifest(t, root, featureRef)
+	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
 	raw, err := json.Marshal(sourceContinuityAdapterProbeInput())
 	if err != nil {
 		t.Fatal(err)
@@ -82,6 +82,38 @@ func TestSourceContinuityAdapterProbeMaterializesFormalPlan(t *testing.T) {
 	composite := requireObjectValue(t, binding["adapter"])
 	if !strings.HasPrefix(anyString(composite["id"]), "adapter-plan:") || len(listValue(composite["capabilities"])) != 5 {
 		t.Fatalf("adapter probe binding = %#v", binding)
+	}
+
+	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	bindSourceContinuityAdapterPlanToObservation(observation, planRef, anyString(env.Data["adapter_plan_sha256"]), composite)
+	adapterByEvidence := map[string]string{}
+	for _, value := range listValue(plan["assignments"]) {
+		assignment := requireObjectValue(t, value)
+		side := anyString(assignment["side"])
+		capability := anyString(assignment["capability"])
+		kind := sourceContinuityAdapterCapabilityEvidence[capability]
+		key := side + ":" + kind
+		if adapterByEvidence[key] == "" {
+			adapterByEvidence[key] = anyString(assignment["adapter_id"])
+		}
+	}
+	for _, value := range listValue(observation["evidence_refs"]) {
+		row := requireObjectValue(t, value)
+		row["adapter_id"] = adapterByEvidence[anyString(row["side"])+":"+anyString(row["kind"])]
+	}
+	bindSourceContinuityLabEvidence(t, root, observation)
+	observedRaw, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, reportEnv := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-validate", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--adapter-plan", planRef,
+		"--input-json", string(observedRaw), "--format", "json",
+	})
+	if exit != 0 || reportEnv.Status != "ok" {
+		t.Fatalf("registry-probed plan did not validate observations: exit=%d env=%#v", exit, reportEnv)
 	}
 }
 

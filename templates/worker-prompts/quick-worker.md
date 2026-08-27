@@ -57,11 +57,14 @@ Use this template when the quick-task leader dispatches a bounded execution lane
   the affected claim rather than guessing beyond the confirmed packet.
 - Before returning success for a source-continuity Q item, run
   `specify-runtime evidence source-continuity-manifest --quick-id <quick-id>
-  --item-id Qn`, then call `specify-runtime evidence
-  source-continuity-adapter-plan --quick-id <quick-id> --item-id Qn --manifest
-  <manifest-ref> --input-json '<adapter-plan-input>'`. Compose technology-neutral
-  adapters over all ten lanes with symbolic tool refs, bounded actions,
-  declared permissions, and typed evidence only. Register captures with
+  --item-id Qn`, read `specify-runtime evidence
+  source-continuity-adapter-catalog`, then pass only observed tool bindings to
+  `specify-runtime evidence source-continuity-adapter-probe --quick-id
+  <quick-id> --item-id Qn --manifest <manifest-ref> --input-json
+  '<available-tool-bindings>'`. The runtime owns capabilities, actions,
+  permissions, evidence kinds, ten-lane selection, probe report, and Plan. Use
+  `source-continuity-adapter-plan` only as an explicit fallback for a verified
+  tool the registry cannot express. Register captures with
   provenance `adapter:<adapter_id>`, bind evidence rows and the observation to
   the returned plan, and submit them with `specify-runtime evidence
   source-continuity-validate --quick-id <quick-id> --item-id Qn --manifest

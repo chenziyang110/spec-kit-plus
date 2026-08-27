@@ -195,12 +195,15 @@ The following flags are available and composable:
   record the strongest substitute authority and withhold the parity claim.
   Before accepting each applicable Q item, call `specify-runtime evidence
   source-continuity-manifest --quick-id <quick-id> --item-id Qn --format json`,
-  then materialize the technology-neutral route with `specify-runtime evidence
-  source-continuity-adapter-plan --quick-id <quick-id> --item-id Qn --manifest
-  <manifest-ref> --input-json '<adapter-plan-input>' --format json`. Compose one
-  or more adapters across all ten source/target lanes using only symbolic tool
-  refs, bounded actions, declared permissions, and typed evidence; command/argv/
-  env/install fields and unresolved lanes are invalid. Register evidence with
+  read provider IDs with `specify-runtime evidence
+  source-continuity-adapter-catalog --format json`, then pass only observed tool
+  bindings to `specify-runtime evidence source-continuity-adapter-probe
+  --quick-id <quick-id> --item-id Qn --manifest <manifest-ref> --input-json
+  '<available-tool-bindings>' --format json`. The runtime owns provider
+  capabilities, bounded actions, permissions, typed evidence, deterministic
+  ten-lane routing, the probe report, and the Plan. Use
+  `source-continuity-adapter-plan` only as an explicit fallback for a verified
+  tool the catalog cannot express. Register evidence with
   provenance `adapter:<adapter_id>`, bind its row and the observation to the
   returned plan, then submit only observations through `specify-runtime
   evidence source-continuity-validate --quick-id <quick-id> --item-id Qn

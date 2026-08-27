@@ -111,13 +111,15 @@ subset cannot close a larger discovered scope.
 Executable delivery proves this contract through Source Continuity Lab. For a
 formal task run `specify-runtime evidence source-continuity-manifest
 --feature-dir <feature-dir> --task-id <Txxx>`; for Quick use `--quick-id
-<quick-id> --item-id Qn`. Next call `specify-runtime evidence
-source-continuity-adapter-plan` with that manifest and a technology-neutral
-capability route: one or more adapters must cover all ten source/target lanes,
-while descriptors contain only symbolic `tool_ref`, declared execution/write/
-network policy, typed evidence, and the bounded action enum. Platform-specific
-scripts, command/argv/env/install fields, uncovered lanes, and unresolved gaps
-are invalid. Evidence records use provenance `adapter:<adapter_id>`; each
+<quick-id> --item-id Qn`. Read the embedded provider packs with
+`specify-runtime evidence source-continuity-adapter-catalog`, then declare only
+the observed provider IDs, symbolic tool refs, roles, execution mode, and
+availability to `specify-runtime evidence source-continuity-adapter-probe`.
+The runtime owns capabilities, actions, evidence kinds, write/network policy,
+deterministic ten-lane routing, recovery gaps, the probe report, and the Plan.
+Use `source-continuity-adapter-plan` only as an explicit fallback for a verified
+tool the registry cannot yet express; it retains the same bounded action space.
+Evidence records use provenance `adapter:<adapter_id>`; each
 observation row names its adapter and binds the returned plan ref/digest plus
 composite adapter. After independent source/target discovery and matched
 execution, submit observations through `specify-runtime evidence

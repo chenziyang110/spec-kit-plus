@@ -121,12 +121,15 @@ tests, existing files, synthetic-only checks, or an isolated component do
 not prove the product works. Group capture by integrated surface and source
 fingerprint; do not run the full viewport/state capture loop per Txx. Required
 source-grounded tasks additionally run `specify-runtime evidence
-source-continuity-manifest --feature-dir <feature-dir> --task-id <Txxx>` and
-materialize the generic capability route with `specify-runtime evidence
-source-continuity-adapter-plan --feature-dir <feature-dir> --task-id <Txxx>
---manifest <manifest-ref> --input-json '<adapter-plan-input>'`. Require all ten
-source/target lanes, bounded actions, symbolic tool refs, declared permissions,
-typed evidence, and `adapter:<adapter_id>` provenance. Submit independent
+source-continuity-manifest --feature-dir <feature-dir> --task-id <Txxx>`, read
+`specify-runtime evidence source-continuity-adapter-catalog`, and pass only
+observed tool bindings to `specify-runtime evidence
+source-continuity-adapter-probe --feature-dir <feature-dir> --task-id <Txxx>
+--manifest <manifest-ref> --input-json '<available-tool-bindings>'`. Require the
+runtime-owned ten-lane selection, bounded actions, permissions, typed evidence,
+probe/registry digests, and `adapter:<adapter_id>` provenance. Use
+`source-continuity-adapter-plan` only as an explicit fallback for a verified
+tool the registry cannot express. Submit independent
 source/target discovery, action, side-effect, final-state, and asset
 observations through `specify-runtime evidence
 source-continuity-validate --feature-dir <feature-dir> --task-id <Txxx>
