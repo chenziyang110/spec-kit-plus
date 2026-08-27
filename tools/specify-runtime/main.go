@@ -1073,6 +1073,7 @@ func defaultCapabilities() []string {
 		"cognition.claim-reconcile.apply",
 		"cognition.claim-reconcile.prepare",
 		"cognition.clear-dirty",
+		"cognition.closeout",
 		"cognition.closeout.apply",
 		"cognition.closeout.replay",
 		"cognition.closeout-plan",
@@ -1087,6 +1088,7 @@ func defaultCapabilities() []string {
 		"cognition.expand",
 		"cognition.generate-ignore",
 		"cognition.init-empty",
+		"cognition.identity-repair",
 		"cognition.identity-repair.apply",
 		"cognition.identity-repair.plan",
 		"cognition.lexicon",
@@ -1527,10 +1529,14 @@ func capabilitySummary(id string) string {
 		return "Record a durable project-cognition mutation closeout receipt required before implement/quick/review terminal close."
 	case "cognition.closeout.apply":
 		return "Run the shared mutation closeout sequence: bounded update, build validation, eligible finalization, and runtime-bound receipt."
+	case "cognition.closeout":
+		return "Operate the shared project-cognition closeout namespace, including digest-bound replay."
 	case "cognition.closeout.replay":
 		return "Replay one digest-bound blocked closeout intent through the shared atomic closeout sequence."
 	case "cognition.identity-repair.plan":
 		return "Prepare a digest-bound bounded path identity repair from current validation evidence."
+	case "cognition.identity-repair":
+		return "Operate the bounded project-cognition identity-repair plan/apply namespace."
 	case "cognition.identity-repair.apply":
 		return "Apply a current-evidence-bound path identity repair and revalidate query readiness."
 	case "implement.result-merge":
