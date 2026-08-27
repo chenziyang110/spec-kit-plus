@@ -17,6 +17,9 @@ func runAPISchema(args []string, stdout io.Writer) int {
 	case "workflow-block-input":
 		schema = workflowBlockInputSchema()
 		capabilityID = "workflow.block"
+	case "source-continuity-adapter-plan-input":
+		schema = sourceContinuityAdapterPlanInputSchema()
+		capabilityID = "evidence.source-continuity-adapter-plan"
 	case "artifact-scaffold-input":
 		schema = artifactScaffoldInputSchema()
 		capabilityID = "artifact.scaffold"
@@ -153,6 +156,12 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "writes-derived-source-continuity-manifest"
 		capability["usage"] = "specify-runtime evidence source-continuity-manifest (--feature-dir <feature-dir> --task-id <Txxx> | --quick-id <quick-id> --item-id <Qn>) --format json"
 		capability["input_contract"] = "derives the exact surface/action/asset universe from the immutable source_continuity contract and binds either the current task-index digest or the digest-protected Quick decision"
+	case "evidence.source-continuity-adapter-plan":
+		capability["input_schema"] = "source-continuity-adapter-plan-input"
+		capability["side_effect"] = "writes-derived-source-continuity-adapter-plan"
+		capability["usage"] = "specify-runtime evidence source-continuity-adapter-plan (--feature-dir <feature-dir> --task-id <Txxx> | --quick-id <quick-id> --item-id <Qn>) --manifest <manifest-ref> --input-json <adapter-plan-input> --format json"
+		capability["input_contract"] = "composes one or more generic adapters across all source/target capability lanes; descriptors expose only symbolic tool refs, declared permissions, typed evidence, and the bounded action enum; command, argv, env, install, unresolved gaps, and uncovered lanes are rejected"
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "source-continuity-adapter-plan-input", "--format", "json"}
 	case "evidence.source-continuity-validate":
 		capability["side_effect"] = "writes-derived-source-continuity-report"
 		capability["usage"] = "specify-runtime evidence source-continuity-validate (--feature-dir <feature-dir> --task-id <Txxx> | --quick-id <quick-id> --item-id <Qn>) --manifest <manifest-ref> --input-json <observed-source-continuity> --format json"
@@ -509,6 +518,62 @@ func artifactPatchInputSchema() map[string]any {
 			map[string]any{"required": []string{"heading", "new_heading"}},
 			map[string]any{"required": []string{"preamble"}},
 			map[string]any{"required": []string{"append_value"}},
+		},
+	}
+}
+
+func sourceContinuityAdapterPlanInputSchema() map[string]any {
+	stringArray := func(values []any, minItems int) map[string]any {
+		return map[string]any{
+			"type": "array", "minItems": minItems, "uniqueItems": true,
+			"items": map[string]any{"type": "string", "enum": values},
+		}
+	}
+	capabilities := []any{"surface-enumeration", "action-execution", "side-effect-observation", "asset-inspection", "visual-capture"}
+	actions := []any{"enumerate-surfaces", "enumerate-actions", "enumerate-assets", "activate-action", "observe-side-effects", "capture-structure", "capture-visual", "capture-runtime", "prepare-isolated-test-data"}
+	evidenceKinds := []any{"structure_snapshot", "visual_capture", "runtime_diagnostics"}
+	adapter := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"required": []string{
+			"id", "version", "roles", "capabilities", "actions", "evidence_kinds",
+			"execution_mode", "tool_ref", "write_policy", "network_policy",
+		},
+		"properties": map[string]any{
+			"id":             map[string]any{"type": "string", "pattern": `^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$`},
+			"version":        map[string]any{"type": "string", "minLength": 1},
+			"roles":          stringArray([]any{"source", "target"}, 1),
+			"capabilities":   stringArray(capabilities, 1),
+			"actions":        stringArray(actions, 1),
+			"evidence_kinds": stringArray(evidenceKinds, 1),
+			"execution_mode": map[string]any{"type": "string", "enum": []any{"runtime-managed", "agent-tool", "app-connector", "external-runner", "manual-attested"}},
+			"tool_ref":       map[string]any{"type": "string", "pattern": `^[a-z][a-z0-9+.-]*://\S+$`},
+			"write_policy":   map[string]any{"type": "string", "enum": []any{"read-only", "evidence-store-only", "isolated-test-data"}},
+			"network_policy": map[string]any{"type": "string", "enum": []any{"denied", "declared-read-only"}},
+		},
+	}
+	assignment := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"side", "capability", "adapter_id", "selection_reason"},
+		"properties": map[string]any{
+			"side":             map[string]any{"type": "string", "enum": []any{"source", "target"}},
+			"capability":       map[string]any{"type": "string", "enum": capabilities},
+			"adapter_id":       map[string]any{"type": "string", "pattern": `^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$`},
+			"selection_reason": map[string]any{"type": "string", "minLength": 1},
+		},
+	}
+	return map[string]any{
+		"$schema":              "https://json-schema.org/draft/2020-12/schema",
+		"$id":                  "specify://schemas/source-continuity-adapter-plan-input/v1",
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"schema", "adapters", "assignments", "unresolved_gaps"},
+		"properties": map[string]any{
+			"schema":          map[string]any{"const": sourceContinuityAdapterInputSchema},
+			"adapters":        map[string]any{"type": "array", "minItems": 1, "items": adapter},
+			"assignments":     map[string]any{"type": "array", "minItems": 10, "maxItems": 10, "items": assignment},
+			"unresolved_gaps": map[string]any{"type": "array", "maxItems": 0},
 		},
 	}
 }
