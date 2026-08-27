@@ -89,6 +89,21 @@ def test_required_runtime_contract_includes_smoothness_evidence(
     assert capability in runtime.REQUIRED_CAPABILITIES
 
 
+@pytest.mark.parametrize(
+    "capability",
+    (
+        "evidence.source-continuity-manifest",
+        "evidence.source-continuity-validate",
+    ),
+)
+def test_required_runtime_contract_includes_source_continuity_lab(
+    capability: str,
+) -> None:
+    runtime = _load_runtime()
+
+    assert capability in runtime.REQUIRED_CAPABILITIES
+
+
 def test_runtime_resolver_prefers_project_fixed_launcher(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

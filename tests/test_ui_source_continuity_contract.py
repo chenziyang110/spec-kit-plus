@@ -358,3 +358,40 @@ def test_spx_task_asset_uses_object_shaped_source_continuity_bindings() -> None:
     for field in ("surface_bindings", "action_bindings", "asset_bindings"):
         assert continuity[field]
         assert isinstance(continuity[field][0], dict), field
+
+
+def test_source_continuity_lab_is_executable_across_formal_quick_and_review() -> None:
+    surfaces = (
+        "templates/commands/implement.md",
+        "templates/command-references/quick/packetized-work.md",
+        "templates/command-references/review/system-scenario-contract.md",
+        "templates/advanced-skills/spx-implement/SKILL.md",
+        "templates/advanced-skills/spx-quick/SKILL.md",
+        "templates/advanced-skills/spx-review/SKILL.md",
+        "templates/advanced-skills/_shared/ui-quality-gate.md",
+        "templates/worker-prompts/implementer.md",
+        "templates/worker-prompts/quick-worker.md",
+    )
+    for relative in surfaces:
+        content = _read(relative)
+        assert "source-continuity-manifest" in content, relative
+        assert "source-continuity-validate" in content, relative
+        assert "source_continuity_lab_report_ref" in content, relative
+
+    lifecycle = json.loads(_read("templates/task-lifecycle-template.json"))
+    verification = lifecycle["ui_verification"]
+    for field in (
+        "source_continuity_lab_report_ref",
+        "source_continuity_lab_report_sha256",
+        "covered_source_continuity_surface_ids",
+        "covered_source_continuity_interaction_ids",
+        "covered_source_continuity_component_ids",
+    ):
+        assert field in verification
+
+    registry = json.loads(_read("templates/workflow-artifact-registry.json"))
+    lab = next(
+        item for item in registry["artifacts"] if item["id"] == "source_continuity_lab"
+    )
+    assert "specify-runtime evidence source-continuity-manifest" in lab["owner_cli"]
+    assert "specify-runtime evidence source-continuity-validate" in lab["owner_cli"]
