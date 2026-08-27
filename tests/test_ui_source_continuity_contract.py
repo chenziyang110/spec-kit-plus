@@ -375,14 +375,27 @@ def test_source_continuity_lab_is_executable_across_formal_quick_and_review() ->
     for relative in surfaces:
         content = _read(relative)
         assert "source-continuity-manifest" in content, relative
+        assert "source-continuity-adapter-plan" in content, relative
         assert "source-continuity-validate" in content, relative
         assert "source_continuity_lab_report_ref" in content, relative
+        assert "source_continuity_adapter_plan_ref" in content, relative
+
+    for relative in (
+        "templates/passive-skills/spec-kit-ui-design/SKILL.md",
+        "templates/ui-professional-skills/specialists/source-grounded-reconstruction.md",
+        "templates/advanced-skills/_shared/ui-quality-gate.md",
+    ):
+        content = _read(relative)
+        assert "source-continuity-adapter-plan" in content, relative
+        assert "technology-neutral" in content, relative
 
     lifecycle = json.loads(_read("templates/task-lifecycle-template.json"))
     verification = lifecycle["ui_verification"]
     for field in (
         "source_continuity_lab_report_ref",
         "source_continuity_lab_report_sha256",
+        "source_continuity_adapter_plan_ref",
+        "source_continuity_adapter_plan_sha256",
         "covered_source_continuity_surface_ids",
         "covered_source_continuity_interaction_ids",
         "covered_source_continuity_component_ids",
@@ -394,4 +407,5 @@ def test_source_continuity_lab_is_executable_across_formal_quick_and_review() ->
         item for item in registry["artifacts"] if item["id"] == "source_continuity_lab"
     )
     assert "specify-runtime evidence source-continuity-manifest" in lab["owner_cli"]
+    assert "specify-runtime evidence source-continuity-adapter-plan" in lab["owner_cli"]
     assert "specify-runtime evidence source-continuity-validate" in lab["owner_cli"]
