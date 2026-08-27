@@ -69,7 +69,7 @@ func (service evidenceService) sourceContinuityAdapterCatalog() Envelope {
 		"registry_sha256": digest,
 		"providers":       cloneJSONValue(payload["providers"]),
 	}
-	env.NextArgv = []string{"specify-runtime", "evidence", "source-continuity-adapter-probe", "--help"}
+	env.NextArgv = []string{"specify-runtime", "api", "show", "evidence.source-continuity-adapter-probe", "--format", "json"}
 	return env
 }
 
@@ -319,7 +319,7 @@ func routeSourceContinuityAdapters(raw map[string]any, registry *sourceContinuit
 	}
 	allowManual, manualOK := policy["allow_manual_attested"].(bool)
 	preferred := sourceContinuityLabStringList(policy["preferred_binding_ids"])
-	if !manualOK || len(preferred) != len(sourceContinuityAdapterStringSet(preferred)) {
+	if !manualOK || len(preferred) > 32 || len(preferred) != len(sourceContinuityAdapterStringSet(preferred)) {
 		result.diagnostics = append(result.diagnostics, "invalid-adapter-probe-policy")
 	}
 	providerByID := map[string]sourceContinuityAdapterProvider{}
@@ -327,7 +327,7 @@ func routeSourceContinuityAdapters(raw map[string]any, registry *sourceContinuit
 		providerByID[provider.ID] = provider
 	}
 	bindings, bindingsOK := raw["bindings"].([]any)
-	if !bindingsOK || len(bindings) == 0 {
+	if !bindingsOK || len(bindings) == 0 || len(bindings) > 32 {
 		result.diagnostics = append(result.diagnostics, "adapter-probe-requires-bindings")
 		bindings = []any{}
 	}
@@ -350,9 +350,10 @@ func routeSourceContinuityAdapters(raw map[string]any, registry *sourceContinuit
 		executionMode := strings.TrimSpace(anyString(binding["execution_mode"]))
 		available, availableOK := binding["available"].(bool)
 		unavailableReason := strings.TrimSpace(anyString(binding["unavailable_reason"]))
-		if !sourceContinuityAdapterIDPattern.MatchString(id) || seenIDs[id] || len(providerIDs) == 0 || len(providerIDs) != len(sourceContinuityAdapterStringSet(providerIDs)) ||
+		allowedUnavailableReasons := map[string]bool{"tool-missing": true, "permission-denied": true, "source-unavailable": true, "unsupported-mode": true, "manual-attestation-unavailable": true}
+		if !sourceContinuityAdapterIDPattern.MatchString(id) || len(id) > 128 || seenIDs[id] || len(providerIDs) == 0 || len(providerIDs) > len(registry.Providers) || len(providerIDs) != len(sourceContinuityAdapterStringSet(providerIDs)) ||
 			!sourceContinuityAdapterAllowedValues(roles, map[string]bool{"source": true, "target": true}) || len(roles) == 0 ||
-			!sourceContinuityAdapterToolRefPattern.MatchString(toolRef) || !availableOK || (available && unavailableReason != "") || (!available && unavailableReason == "") {
+			!sourceContinuityAdapterToolRefPattern.MatchString(toolRef) || len(toolRef) > 512 || !availableOK || (available && unavailableReason != "") || (!available && !allowedUnavailableReasons[unavailableReason]) {
 			result.diagnostics = append(result.diagnostics, "invalid-adapter-probe-binding:"+id)
 			continue
 		}

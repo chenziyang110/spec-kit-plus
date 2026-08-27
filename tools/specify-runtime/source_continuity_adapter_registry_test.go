@@ -154,6 +154,35 @@ func TestSourceContinuityAdapterProbeReportsRecoverableCoverageGaps(t *testing.T
 	}
 }
 
+func TestSourceContinuityAdapterProbeRejectsProviderContractInjection(t *testing.T) {
+	root, featureRef, _ := sourceContinuityLabProject(t)
+	manifestRef, _ := materializeSourceContinuityLabManifest(t, root, featureRef)
+	input := sourceContinuityAdapterProbeInput()
+	bindings := listValue(input["bindings"])
+	first := requireObjectValue(t, bindings[0])
+	first["actions"] = []any{"shell-exec"}
+	second := requireObjectValue(t, bindings[1])
+	second["provider_ids"] = []any{"unknown-provider"}
+	raw, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-adapter-probe", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+	})
+	if exit != 2 || env.Status != "error" {
+		t.Fatalf("provider contract injection unexpectedly passed: exit=%d env=%#v", exit, env)
+	}
+	diagnostics := strings.Join(anyStringSlice(env.Data["diagnostics"]), "\n")
+	for _, marker := range []string{"invalid-adapter-probe-binding", "unknown-adapter-provider:unknown-provider"} {
+		if !strings.Contains(diagnostics, marker) {
+			t.Fatalf("provider injection diagnostics missing %q: %s", marker, diagnostics)
+		}
+	}
+}
+
 func TestSourceContinuityAdapterProbeSupportsQuickAndPreferredBinding(t *testing.T) {
 	quickID := "260828-adapter-probe"
 	input := sourceContinuityQuickInput()

@@ -631,19 +631,19 @@ func sourceContinuityAdapterProbeInputJSONSchema() map[string]any {
 		"additionalProperties": false,
 		"required":             []string{"id", "provider_ids", "roles", "tool_ref", "execution_mode", "available", "unavailable_reason"},
 		"properties": map[string]any{
-			"id": nonEmptyString,
+			"id": map[string]any{"type": "string", "minLength": 1, "maxLength": 128},
 			"provider_ids": map[string]any{
-				"type": "array", "minItems": 1, "uniqueItems": true,
+				"type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true,
 				"items": nonEmptyString,
 			},
 			"roles": map[string]any{
 				"type": "array", "minItems": 1, "uniqueItems": true,
 				"items": map[string]any{"type": "string", "enum": []any{"source", "target"}},
 			},
-			"tool_ref":           map[string]any{"type": "string", "pattern": `^[a-z][a-z0-9+.-]*://\S+$`},
+			"tool_ref":           map[string]any{"type": "string", "maxLength": 512, "pattern": `^[a-z][a-z0-9+.-]*://\S+$`},
 			"execution_mode":     map[string]any{"type": "string", "enum": []any{"runtime-managed", "agent-tool", "app-connector", "external-runner", "manual-attested"}},
 			"available":          map[string]any{"type": "boolean"},
-			"unavailable_reason": map[string]any{"type": "string"},
+			"unavailable_reason": map[string]any{"type": "string", "enum": []any{"", "tool-missing", "permission-denied", "source-unavailable", "unsupported-mode", "manual-attestation-unavailable"}},
 		},
 	}
 	policy := map[string]any{
@@ -653,7 +653,7 @@ func sourceContinuityAdapterProbeInputJSONSchema() map[string]any {
 		"properties": map[string]any{
 			"allow_manual_attested": map[string]any{"type": "boolean"},
 			"preferred_binding_ids": map[string]any{
-				"type": "array", "uniqueItems": true, "items": nonEmptyString,
+				"type": "array", "maxItems": 32, "uniqueItems": true, "items": nonEmptyString,
 			},
 		},
 	}
@@ -665,7 +665,7 @@ func sourceContinuityAdapterProbeInputJSONSchema() map[string]any {
 		"required":             []string{"schema", "bindings", "policy"},
 		"properties": map[string]any{
 			"schema":   map[string]any{"const": sourceContinuityAdapterProbeInputSchema},
-			"bindings": map[string]any{"type": "array", "minItems": 1, "items": binding},
+			"bindings": map[string]any{"type": "array", "minItems": 1, "maxItems": 32, "items": binding},
 			"policy":   policy,
 		},
 	}
