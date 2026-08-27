@@ -124,6 +124,51 @@ func TestSourceContinuityLabRejectsAdapterDiscoveredCandidateOutsideContract(t *
 	}
 }
 
+func TestSourceContinuityLabUIVerificationIsNormalizedAndRequiredForAcceptance(t *testing.T) {
+	root, featureRef, feature := sourceContinuityLabProject(t)
+	index := readImplementJSONFile(t, filepath.Join(feature, "task-index.json"))
+	_, task, err := findImplementTask(index, sourceContinuityLabTaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycle := map[string]any{"ui_verification": map[string]any{}}
+	if err := validateImplementTaskUIAcceptance(feature, task, lifecycle); err == nil || !strings.Contains(err.Error(), "source continuity lab report") {
+		t.Fatalf("missing source continuity lab report should block acceptance: %v", err)
+	}
+
+	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
+	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	raw, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-validate", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+	})
+	if exit != 0 || env.Status != "ok" {
+		t.Fatalf("source continuity validation failed: exit=%d env=%#v", exit, env)
+	}
+	patch := requireObjectValue(t, env.Data["ui_verification_patch"])
+	normalized, err := normalizeUIVerification(patch)
+	if err != nil {
+		t.Fatalf("normalize source continuity ui verification: %v", err)
+	}
+	if normalized["source_continuity_lab_report_ref"] != env.Data["report_ref"] || normalized["source_continuity_lab_report_sha256"] != env.Data["report_sha256"] {
+		t.Fatalf("normalized source continuity verification = %#v", normalized)
+	}
+	lifecycle["ui_verification"] = normalized
+	if err := validateImplementTaskUIAcceptance(feature, task, lifecycle); err != nil {
+		t.Fatalf("passing source continuity lab report should satisfy acceptance: %v", err)
+	}
+
+	normalized["source_continuity_lab_report_sha256"] = strings.Repeat("0", 64)
+	if err := validateImplementTaskUIAcceptance(feature, task, lifecycle); err == nil || !strings.Contains(strings.ToLower(err.Error()), "sha-256") {
+		t.Fatalf("tampered source continuity report should block acceptance: %v", err)
+	}
+}
+
 func sourceContinuityLabProject(t *testing.T) (string, string, string) {
 	t.Helper()
 	root := t.TempDir()
@@ -136,8 +181,11 @@ func sourceContinuityLabProject(t *testing.T) (string, string, string) {
 		"version": 2,
 		"status":  "ready",
 		"tasks": []any{map[string]any{
-			"id":          sourceContinuityLabTaskID,
-			"ui_contract": map[string]any{"fidelity_level": "high", "source_continuity": sourceContinuityLabContract()},
+			"id": sourceContinuityLabTaskID,
+			"ui_contract": map[string]any{
+				"fidelity_level": "high", "source_continuity": sourceContinuityLabContract(),
+				"usability_validation": map[string]any{"smoothness_acceptance_ids": []any{}},
+			},
 		}},
 	})
 	return root, featureRef, feature
