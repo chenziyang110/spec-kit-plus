@@ -1,0 +1,200 @@
+package main
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+const sourceContinuityLabTaskID = "T901"
+
+func TestSourceContinuityLabMaterializesManifestAndPassingReport(t *testing.T) {
+	root, featureRef, feature := sourceContinuityLabProject(t)
+	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
+
+	manifest := readImplementJSONFile(t, filepath.Join(feature, filepath.FromSlash(manifestRef)))
+	if manifest["schema"] != "spec-kit-source-continuity-lab-manifest-v1" || manifest["task_id"] != sourceContinuityLabTaskID {
+		t.Fatalf("source continuity manifest = %#v", manifest)
+	}
+	contract := requireObjectValue(t, manifest["source_continuity"])
+	coverage := requireObjectValue(t, contract["coverage"])
+	if len(listValue(coverage["surface_ids"])) != 2 || len(listValue(coverage["interaction_ids"])) != 3 || len(listValue(coverage["component_ids"])) != 1 {
+		t.Fatalf("manifest coverage = %#v", coverage)
+	}
+
+	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	raw, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-validate", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+	})
+	if exit != 0 || env.Status != "ok" {
+		t.Fatalf("source continuity validation failed: exit=%d env=%#v", exit, env)
+	}
+	reportRef := anyString(env.Data["report_ref"])
+	reportPath := filepath.Join(feature, filepath.FromSlash(reportRef))
+	report := readImplementJSONFile(t, reportPath)
+	if report["schema"] != "spec-kit-source-continuity-lab-report-v1" || report["verdict"] != "passed" {
+		t.Fatalf("source continuity report = %#v", report)
+	}
+	metrics := requireObjectValue(t, report["metrics"])
+	for _, field := range []string{"source_discovery_coverage", "target_surface_reachability", "action_operability", "business_outcome_parity", "asset_fidelity"} {
+		if metrics[field] != float64(1) {
+			t.Fatalf("report metric %s = %#v, want 1", field, metrics[field])
+		}
+	}
+	if env.Data["report_sha256"] != optionalFileSHA256(reportPath) {
+		t.Fatalf("report digest = %#v", env.Data)
+	}
+	patch := requireObjectValue(t, env.Data["ui_verification_patch"])
+	if patch["source_continuity_lab_report_ref"] != reportRef || patch["source_continuity_lab_report_sha256"] != env.Data["report_sha256"] {
+		t.Fatalf("ui verification patch = %#v", patch)
+	}
+
+	exit, generic := runTaskRuntimeCommand(t, []string{
+		"artifact", "prepare", "--project-root", root,
+		"--path", sourceContinuityLabCanonicalPath(root, feature, reportRef), "--format", "json",
+	})
+	if exit != 2 || generic.Data["owner"] != "specify-runtime evidence source-continuity-manifest / source-continuity-validate" {
+		t.Fatalf("generic report mutation should block: exit=%d env=%#v", exit, generic)
+	}
+}
+
+func TestSourceContinuityLabRejectsShallowTargetAndCharacterIcon(t *testing.T) {
+	root, featureRef, _ := sourceContinuityLabProject(t)
+	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
+	observation := readSourceContinuityLabObservation(t, "shallow-target-observation.json", manifestSHA)
+	raw, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-validate", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+	})
+	if exit != 2 || env.Status != "error" {
+		t.Fatalf("shallow target unexpectedly passed: exit=%d env=%#v", exit, env)
+	}
+	diagnostics := strings.Join(anyStringSlice(env.Data["diagnostics"]), "\n")
+	for _, code := range []string{
+		"target-surface-unreachable",
+		"action-coverage-mismatch",
+		"target-action-unreachable",
+		"business-outcome-mismatch",
+		"asset-character-substitution",
+		"asset-fidelity-mismatch",
+	} {
+		if !strings.Contains(diagnostics, code) {
+			t.Fatalf("diagnostics missing %q: %s", code, diagnostics)
+		}
+	}
+}
+
+func TestSourceContinuityLabRejectsAdapterDiscoveredCandidateOutsideContract(t *testing.T) {
+	root, featureRef, _ := sourceContinuityLabProject(t)
+	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
+	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	discovery := requireObjectValue(t, observation["discovery"])
+	discovery["unexpected_candidates"] = []any{map[string]any{
+		"id": "legacy-system-tray", "kind": "surface",
+		"source_ref": "legacy/runtime#system-tray", "reason": "Runtime adapter discovered an undeclared tray menu.",
+	}}
+	raw, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-validate", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+	})
+	if exit != 2 || env.Status != "error" {
+		t.Fatalf("unbound discovery unexpectedly passed: exit=%d env=%#v", exit, env)
+	}
+	diagnostics := strings.Join(anyStringSlice(env.Data["diagnostics"]), "\n")
+	if !strings.Contains(diagnostics, "unbound-source-candidate") {
+		t.Fatalf("unexpected discovery diagnostics = %s", diagnostics)
+	}
+}
+
+func sourceContinuityLabProject(t *testing.T) (string, string, string) {
+	t.Helper()
+	root := t.TempDir()
+	featureRef := filepath.ToSlash(filepath.Join(".specify", "features", "009-source-continuity-lab"))
+	feature := filepath.Join(root, filepath.FromSlash(featureRef))
+	if err := os.MkdirAll(feature, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskRuntimeFixture(t, filepath.Join(feature, "task-index.json"), map[string]any{
+		"version": 2,
+		"status":  "ready",
+		"tasks": []any{map[string]any{
+			"id":          sourceContinuityLabTaskID,
+			"ui_contract": map[string]any{"fidelity_level": "high", "source_continuity": sourceContinuityLabContract()},
+		}},
+	})
+	return root, featureRef, feature
+}
+
+func sourceContinuityLabContract() map[string]any {
+	return map[string]any{
+		"schema": "spec-kit-ui-source-continuity-v1", "applicability": "required", "mode": "mixed",
+		"reason": "A runnable legacy product, source code, and assets govern the migration.",
+		"coverage": map[string]any{
+			"surface_ids": []any{"DH-SURFACE-MAIN-001", "DH-SURFACE-DEEP-001"},
+			"interaction_ids": []any{"DH-INT-OPEN-DEEP-001", "DH-INT-EXPORT-001", "DH-INT-SHORTCUT-001"},
+			"component_ids":   []any{"DH-COMP-EXPORT-ICON-001"},
+		},
+		"authority_refs": []any{"evidence://legacy/runtime", "evidence://legacy/source", "evidence://legacy/assets"},
+		"surface_bindings": []any{
+			map[string]any{"id": "SC-SURFACE-MAIN-001", "surface_id": "DH-SURFACE-MAIN-001", "source_refs": []any{"legacy/main-window"}, "discovery": "measured", "disposition": "adapt", "rationale": "Preserve the primary workspace."},
+			map[string]any{"id": "SC-SURFACE-DEEP-001", "surface_id": "DH-SURFACE-DEEP-001", "source_refs": []any{"legacy/export-dialog"}, "discovery": "measured", "disposition": "preserve", "rationale": "Preserve the deep export dialog."},
+		},
+		"action_bindings": []any{
+			map[string]any{"id": "SC-ACTION-OPEN-DEEP-001", "interaction_id": "DH-INT-OPEN-DEEP-001", "source_refs": []any{"legacy/menu#export"}, "user_promise": "Open export options.", "business_outcome": "The export dialog is available.", "side_effects": []any{}, "final_state": "The export dialog owns focus.", "verification": "Run the menu path in source and target."},
+			map[string]any{"id": "SC-ACTION-EXPORT-001", "interaction_id": "DH-INT-EXPORT-001", "source_refs": []any{"legacy/exportAction"}, "user_promise": "Export the active document.", "business_outcome": "The selected file contains the current document.", "side_effects": []any{"write one export file", "remember the export directory"}, "final_state": "The exported path is visible and the workspace remains usable.", "verification": "Run source and target with equivalent safe data."},
+			map[string]any{"id": "SC-ACTION-SHORTCUT-001", "interaction_id": "DH-INT-SHORTCUT-001", "source_refs": []any{"legacy/shortcut#Ctrl+E"}, "user_promise": "Open export from the keyboard.", "business_outcome": "The export dialog is available without pointer input.", "side_effects": []any{}, "final_state": "The export dialog owns focus.", "verification": "Run Ctrl+E in source and target."},
+		},
+		"asset_bindings": []any{map[string]any{
+			"id": "SC-ASSET-EXPORT-001", "component_id": "DH-COMP-EXPORT-ICON-001", "semantic_role": "export action",
+			"source_refs": []any{"legacy/assets/export.svg"}, "target_strategy": "preserve", "target_ref": "src/assets/export.svg",
+			"provenance": "project-owned", "fallback": "Visible Export label and accessible name.", "placeholder_policy": "forbid-character-substitution",
+		}},
+		"unresolved_gaps": []any{},
+	}
+}
+
+func materializeSourceContinuityLabManifest(t *testing.T, root, featureRef string) (string, string) {
+	t.Helper()
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-manifest", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID, "--format", "json",
+	})
+	if exit != 0 || env.Status != "ok" {
+		t.Fatalf("source continuity manifest failed: exit=%d env=%#v", exit, env)
+	}
+	return anyString(env.Data["manifest_ref"]), anyString(env.Data["manifest_sha256"])
+}
+
+func readSourceContinuityLabObservation(t *testing.T, name, manifestSHA string) map[string]any {
+	t.Helper()
+	path := filepath.Join("..", "..", "tests", "fixtures", "source-continuity-lab", name)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatal(err)
+	}
+	payload["manifest_sha256"] = manifestSHA
+	return payload
+}
+

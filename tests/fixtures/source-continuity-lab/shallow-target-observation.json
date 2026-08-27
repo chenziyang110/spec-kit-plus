@@ -1,0 +1,44 @@
+{
+  "schema": "spec-kit-source-continuity-lab-result-v1",
+  "manifest_sha256": "runtime-filled",
+  "source_revision": "legacy:qt-demo@abc123",
+  "target_revision": "target:tauri-demo@shallow",
+  "adapter": {
+    "id": "fixture-composite-adapter",
+    "version": "1.0.0",
+    "capabilities": [
+      "surface-enumeration",
+      "action-execution",
+      "side-effect-observation",
+      "asset-inspection",
+      "visual-capture"
+    ]
+  },
+  "evidence_refs": [
+    {"side": "source", "kind": "structure_snapshot", "ref": "evidence://source/structure"},
+    {"side": "source", "kind": "visual_capture", "ref": "evidence://source/visual"},
+    {"side": "source", "kind": "runtime_diagnostics", "ref": "evidence://source/runtime"},
+    {"side": "target", "kind": "structure_snapshot", "ref": "evidence://target/structure"},
+    {"side": "target", "kind": "visual_capture", "ref": "evidence://target/visual"},
+    {"side": "target", "kind": "runtime_diagnostics", "ref": "evidence://target/runtime"}
+  ],
+  "discovery": {
+    "surface_binding_ids": ["SC-SURFACE-MAIN-001", "SC-SURFACE-DEEP-001"],
+    "action_binding_ids": ["SC-ACTION-OPEN-DEEP-001", "SC-ACTION-EXPORT-001", "SC-ACTION-SHORTCUT-001"],
+    "asset_binding_ids": ["SC-ASSET-EXPORT-001"],
+    "unexpected_candidates": []
+  },
+  "surface_results": [
+    {"surface_id": "DH-SURFACE-MAIN-001", "source_reachable": true, "target_reachable": true, "disposition_verified": true, "verdict": "passed"},
+    {"surface_id": "DH-SURFACE-DEEP-001", "source_reachable": true, "target_reachable": false, "disposition_verified": false, "verdict": "failed"}
+  ],
+  "action_results": [
+    {"interaction_id": "DH-INT-OPEN-DEEP-001", "source_reachable": true, "target_reachable": false, "source_evidence_ref": "evidence://source/runtime", "target_evidence_ref": "evidence://target/runtime", "observed_side_effects": [], "business_outcome_verified": false, "final_state_verified": false, "verdict": "failed"},
+    {"interaction_id": "DH-INT-EXPORT-001", "source_reachable": true, "target_reachable": false, "source_evidence_ref": "evidence://source/runtime", "target_evidence_ref": "evidence://target/runtime", "observed_side_effects": [], "business_outcome_verified": false, "final_state_verified": false, "verdict": "failed"}
+  ],
+  "asset_results": [
+    {"component_id": "DH-COMP-EXPORT-ICON-001", "source_evidence_ref": "evidence://source/visual", "target_evidence_ref": "evidence://target/visual", "semantic_match": false, "provenance_match": false, "render_match": false, "character_substitution": true, "verdict": "failed"}
+  ],
+  "verdict": "failed",
+  "reviewer": "agent:source-continuity-lab"
+}
