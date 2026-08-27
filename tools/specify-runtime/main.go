@@ -193,13 +193,19 @@ func runAPI(args []string, stdout, stderr io.Writer, cliVersion string) int {
 		env.Data["source_revision"] = info.SourceRevision
 		env.Data["dirty"] = info.Dirty
 		env.Data["capability_ids"] = defaultCapabilities()
+		env.Data["capability_set_sha256"] = capabilitySetSHA256()
 		return writeEnvelope(stdout, env)
 	case "list":
 		env := NewEnvelope("ok", "capability list")
+		env.Data["capability_set_sha256"] = capabilitySetSHA256()
 		for _, card := range defaultCapabilityCards() {
 			env.Items = append(env.Items, card)
 		}
 		return writeEnvelope(stdout, env)
+	case "ensure":
+		return runAPIEnsure(args[1:], stdout, cliVersion)
+	case "pack":
+		return runAPIPack(args[1:], stdout, cliVersion)
 	case "schema":
 		return runAPISchema(args[1:], stdout)
 	case "show":
@@ -260,6 +266,15 @@ func runArtifact(args []string, stdout io.Writer) int {
 			Limit:      limit,
 		})
 		return writeEnvelope(stdout, env)
+	case "show-many":
+		if env, ok := validateArtifactOptions(args, "--format", "--input-json", "--project-root"); !ok {
+			return writeEnvelope(stdout, env)
+		}
+		request, env, ok := decodeArtifactShowManyCLI(args, projectRoot)
+		if !ok {
+			return writeEnvelope(stdout, env)
+		}
+		return writeEnvelope(stdout, service.ShowMany(request))
 	case "prepare":
 		if env, ok := validateArtifactOptions(args, "--feature", "--format", "--kind", "--path", "--project-root"); !ok {
 			return writeEnvelope(stdout, env)
@@ -407,6 +422,15 @@ func runArtifact(args []string, stdout io.Writer) int {
 			}
 		}
 		return writeEnvelope(stdout, service.Patch(request))
+	case "patch-batch":
+		if env, ok := validateArtifactOptions(args, "--format", "--input-json", "--lease", "--project-root"); !ok {
+			return writeEnvelope(stdout, env)
+		}
+		request, env, ok := decodeArtifactPatchBatchCLI(args, projectRoot)
+		if !ok {
+			return writeEnvelope(stdout, env)
+		}
+		return writeEnvelope(stdout, service.PatchBatch(request))
 	case "show":
 		if env, ok := validateArtifactOptions(args, "--feature", "--format", "--json-pointer", "--kind", "--limit", "--path", "--project-root", "--section", "--view"); !ok {
 			return writeEnvelope(stdout, env)
@@ -447,7 +471,7 @@ func writeArtifactHelp(stdout io.Writer, subcommand string) int {
 	switch subcommand {
 	case "":
 		_, _ = fmt.Fprintln(stdout, "specify-runtime artifact commands:")
-		for _, command := range []string{"catalog", "checklist", "delete", "list", "patch", "prepare", "prune", "registry", "restore", "scaffold", "show", "submit"} {
+		for _, command := range []string{"catalog", "checklist", "delete", "list", "patch", "patch-batch", "prepare", "prune", "registry", "restore", "scaffold", "show", "show-many", "submit"} {
 			_, _ = fmt.Fprintf(stdout, "  %s\n", command)
 		}
 	case "scaffold":
@@ -465,6 +489,12 @@ func writeArtifactHelp(stdout io.Writer, subcommand string) int {
 	case "patch":
 		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact patch --lease <id> (--json-pointer <pointer> --value-json <json> | --section <heading> --content <text> | --frontmatter-json <object> | --heading <current> --new-heading <replacement> | --preamble <text> | --append-json <json>)")
 		_, _ = fmt.Fprintln(stdout, "  Markdown --section must match an exact existing heading from artifact show (scaffold headings), not a free-form title.")
+	case "patch-batch":
+		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact patch-batch --lease <id> --input-json <object|@path|-> [--format json]")
+		_, _ = fmt.Fprintln(stdout, "  Applies 1..32 JSON-pointer, Markdown-section, or frontmatter operations to one leased artifact and writes only when every operation validates.")
+	case "show-many":
+		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact show-many --input-json <object|@path|-> [--format json]")
+		_, _ = fmt.Fprintln(stdout, "  Executes 1..16 bounded artifact queries and returns independent per-query status in one envelope.")
 	case "submit":
 		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact submit --lease <id> --content <inline-payload> [--format json]")
 		_, _ = fmt.Fprintln(stdout, "  --recovery-file is reserved for a runtime-created human acceptance repair backup bound by its sibling journal.")
@@ -540,7 +570,7 @@ func runWorkflow(args []string, stdout io.Writer) int {
 	}
 	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
 		_, _ = fmt.Fprintln(stdout, "specify-runtime workflow commands:")
-		for _, command := range []string{"show", "enter", "next", "complete-stage", "transition", "reopen", "block", "resolve", "closeout"} {
+		for _, command := range []string{"show", "ensure", "enter", "next", "complete-stage", "transition", "reopen", "block", "resolve", "closeout"} {
 			_, _ = fmt.Fprintf(stdout, "  %s\n", command)
 		}
 		return 0
@@ -550,6 +580,12 @@ func runWorkflow(args []string, stdout io.Writer) int {
 	switch args[0] {
 	case "show":
 		return writeEnvelope(stdout, service.Show(WorkflowShowRequest{FeatureDir: optionValue(args, "--feature-dir", "")}))
+	case "ensure":
+		return writeEnvelope(stdout, service.Ensure(WorkflowEnterRequest{
+			FeatureDir: optionValue(args, "--feature-dir", ""),
+			Command:    optionValue(args, "--command", "specify"),
+			Summary:    optionValue(args, "--summary", ""),
+		}))
 	case "enter":
 		revision, env, ok := workflowRevisionOption(args, "--expected-revision", false, 0)
 		if !ok {
@@ -1047,7 +1083,9 @@ func bindRuntimeArgvValue(value any, executable string) any {
 func defaultCapabilities() []string {
 	capabilities := []string{
 		"api.handshake",
+		"api.ensure",
 		"api.list",
+		"api.pack",
 		"api.schema",
 		"api.show",
 		"artifact.catalog",
@@ -1055,12 +1093,14 @@ func defaultCapabilities() []string {
 		"artifact.delete",
 		"artifact.list",
 		"artifact.patch",
+		"artifact.patch-batch",
 		"artifact.prepare",
 		"artifact.prune",
 		"artifact.registry",
 		"artifact.restore",
 		"artifact.scaffold",
 		"artifact.show",
+		"artifact.show-many",
 		"board.owner",
 		"board.branch-policy",
 		"board.feature-bootstrap",
@@ -1296,6 +1336,7 @@ func defaultCapabilities() []string {
 		"workflow.closeout",
 		"workflow.complete-stage",
 		"workflow.enter",
+		"workflow.ensure",
 		"workflow.next",
 		"workflow.reopen",
 		"workflow.resolve",
@@ -1332,8 +1373,12 @@ func capabilitySummary(id string) string {
 	switch id {
 	case "api.handshake":
 		return "Publish runtime protocol, version, and capability ids."
+	case "api.ensure":
+		return "Check whether one compact capability requirement set is present on this runtime."
 	case "api.list":
 		return "List compact capability cards for agent discovery."
+	case "api.pack":
+		return "Return a bounded compact descriptor pack for selected capabilities."
 	case "artifact.prepare":
 		return "Create a one-use lease for a canonical workflow artifact."
 	case "artifact.checklist":
@@ -1350,8 +1395,12 @@ func capabilitySummary(id string) string {
 		return "Write inline leased artifact content atomically; file-backed input is limited to a journal-bound runtime recovery backup."
 	case "artifact.patch":
 		return "Patch one leased JSON pointer, Markdown section, frontmatter object, heading, or preamble atomically."
+	case "artifact.patch-batch":
+		return "Patch one leased artifact with a bounded atomic batch of JSON-pointer, Markdown-section, or frontmatter operations."
 	case "artifact.list":
 		return "List registered artifact instances without returning full content."
+	case "artifact.show-many":
+		return "Execute multiple bounded artifact reads in one compact envelope."
 	case "discussion.bind-consumer":
 		return "Bind a ready discussion digest into a runtime-owned feature compatibility pointer."
 	case "discussion.resolve":
@@ -1512,6 +1561,8 @@ func capabilitySummary(id string) string {
 		return "Validate core specification artifacts."
 	case "workflow.show":
 		return "Read the current typed workflow state."
+	case "workflow.ensure":
+		return "Show the typed workflow state or create it idempotently when absent."
 	case "workflow.enter":
 		return "Create the typed workflow state at discussion or specify."
 	case "workflow.next":

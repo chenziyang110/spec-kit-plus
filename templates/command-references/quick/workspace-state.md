@@ -28,10 +28,10 @@ Preserved Contract: STATUS.md remains the source of truth and quick-task workspa
   - retry attempts
   - blocker reason
   - blockers, if any
-- Patch `STATUS.md` only through leased `specify-runtime artifact patch` calls at material phase transitions.
+- At each material phase transition, aggregate multiple same-checkpoint `STATUS.md` targets and prefer one prepared lease plus `specify-runtime artifact patch-batch`; older runtimes fall back to leased `specify-runtime artifact patch` calls.
 - Each `work_item_status` value must be one of `pending`, `ready`, `in_progress`, `blocked`, or `accepted`. Only `accepted` satisfies a dependency; implementation completion without the item's required acceptance evidence does not unlock its dependents.
 - After the constitution gate, `STATUS.md` initialization is the next hard gate. Do not perform substantial repository analysis, implementation design, or code reading beyond scope-lock context until the workspace exists and the first lane is recorded.
-- When the quick task completes, create an absent `SUMMARY.md` with `specify-runtime artifact scaffold --kind quick-summary --path .planning/quick/<id>-<slug>/SUMMARY.md`, or query the existing digest with `artifact show`; patch only its named terminal sections through a fresh lease per section. Never submit or reconstruct the whole summary.
+- When the quick task completes, create an absent `SUMMARY.md` with `specify-runtime artifact scaffold --kind quick-summary --path .planning/quick/<id>-<slug>/SUMMARY.md`, or query the existing digest with `artifact show`; patch its named terminal sections in one same-checkpoint `artifact patch-batch`. Older runtimes fall back to a fresh `artifact patch` lease per section. Never submit or reconstruct the whole summary.
 - Close through `specify-runtime quick close`, and use `specify-runtime quick archive` when the local convention prefers archived resolved state. Never move or rename the workspace directly.
 
 ## STATUS.md Scaffold

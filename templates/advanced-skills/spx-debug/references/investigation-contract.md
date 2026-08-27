@@ -2,8 +2,11 @@
 
 Create an absent session with `specify-runtime artifact scaffold --kind
 debug-session --path .planning/debug/<slug>.md`, or resume it through targeted
-`artifact show`, on every invocation. Patch only named sections/frontmatter
-through fresh leases; never emit or submit the whole session. It is the durable source of truth for intake, evidence, transitions, human
+`artifact show`, on every invocation. Aggregate same-checkpoint debug-session
+frontmatter/section updates in memory and, when `api list` exposes
+`artifact.patch-batch`, prefer one fresh lease plus one `artifact patch-batch`;
+older runtimes fall back to one leased `artifact patch` per target update.
+Never emit or submit the whole session. It is the durable source of truth for intake, evidence, transitions, human
 verification, interruption, and recovery. Keep the visible symptom, failure
 mechanism, and fix claim separate.
 

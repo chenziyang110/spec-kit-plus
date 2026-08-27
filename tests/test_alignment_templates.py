@@ -5973,6 +5973,7 @@ def test_ui_reference_artifact_templates_define_strict_formats() -> None:
 
     assert _h2_headings(notes) == [
         "## Reference Inputs",
+        "## Source Authority And Continuity",
         "## Fidelity Mode",
         "## Ownership And Reuse Constraints",
         "## Visual Facts",
@@ -5981,6 +5982,8 @@ def test_ui_reference_artifact_templates_define_strict_formats() -> None:
         "## Component Facts",
         "## State Facts",
         "## Interaction Facts",
+        "## Surface Coverage",
+        "## Asset And Icon Coverage",
         "## Responsive Facts",
         "## Must Preserve Candidates",
         "## Adaptation Candidates",

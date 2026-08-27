@@ -4,7 +4,7 @@ Purpose: preserve one-active-hypothesis discipline, candidate queue, causal spre
 
 Preserved Contract: root cause must be falsifiable, evidence-backed, and recorded before fix work.
 
-Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the bounded change in memory, run `specify-runtime artifact prepare --path .planning/debug/[slug].md`, then apply it with `specify-runtime artifact patch --lease <lease-id>` using `--frontmatter-json` or `--section`. Every state-oriented `record`, `set`, `populate`, `append`, or `write` instruction below means `SESSION PATCH`; never edit the Markdown file directly.
+Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the bounded same-checkpoint delta in memory. When one semantic boundary updates multiple debug-session frontmatter fields or sections and `api list` exposes `artifact.patch-batch`, prefer one `specify-runtime artifact prepare --path .planning/debug/[slug].md` plus one `specify-runtime artifact patch-batch --lease <lease-id>` that aggregates those updates. For a single target update, or on older runtimes, fall back to one leased `specify-runtime artifact patch` using `--frontmatter-json` or `--section`. Every state-oriented `record`, `set`, `populate`, `append`, or `write` instruction below means `SESSION PATCH`; never edit the Markdown file directly.
 
 ## Hypothesis And Root Cause
 

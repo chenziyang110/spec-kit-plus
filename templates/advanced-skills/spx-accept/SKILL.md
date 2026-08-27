@@ -34,7 +34,11 @@ missing, blocked, stale, or not approved, hand off to `$spx-review` and stop;
 do not bypass Review by routing directly to `$spx-implement`. Transition from the validated `review`
 stage into `accept` through the workflow runtime. Only then run
 `{{specify-subcmd:specify-runtime accept prepare --feature-dir <feature-dir> --format json}}`
-to create or freshness-check `human-acceptance.json`; record human session actions only through leased JSON-pointer `artifact patch` calls.
+to create or freshness-check `human-acceptance.json`; after one human response,
+aggregate multiple same-checkpoint acceptance-owned JSON-pointer deltas and
+prefer one prepared lease plus `artifact patch-batch`. Older runtimes fall back
+to leased JSON-pointer `artifact patch` calls. Never batch across separate human
+confirmation boundaries.
 
 Treat the human as returning later with no useful chat memory. Query the summary,
 frozen Human Acceptance Universe, and real-entrypoint evidence through targeted
@@ -86,8 +90,10 @@ never counts as human PASS.
 
 This workflow owns human product acceptance, not code review. It may mutate only
 `human-acceptance.json` through launcher-bound `specify-runtime accept` subcommands and acceptance-owned rich
-`workflow-state.md` fields through targeted `artifact show` plus a fresh leased
-`artifact patch` per changed section. It never submits or reconstructs the
+`workflow-state.md` fields through targeted `artifact show`; aggregate multiple
+same-checkpoint section deltas into one prepared lease plus `artifact patch-batch`.
+Older runtimes fall back to a fresh leased `artifact patch` per changed section.
+It never submits or reconstructs the
 whole state document and never authors the compact `workflow.json` phase lock; only
 `specify-runtime workflow` may change it. Do not edit
 production source, tests, requirements, planning/task artifacts, or

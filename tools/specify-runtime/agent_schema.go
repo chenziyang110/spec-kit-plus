@@ -20,6 +20,12 @@ func runAPISchema(args []string, stdout io.Writer) int {
 	case "source-continuity-adapter-plan-input":
 		schema = sourceContinuityAdapterPlanInputSchema()
 		capabilityID = "evidence.source-continuity-adapter-plan"
+	case "artifact-show-many-input":
+		schema = artifactShowManyInputSchema()
+		capabilityID = "artifact.show-many"
+	case "artifact-patch-batch-input":
+		schema = artifactPatchBatchInputSchema()
+		capabilityID = "artifact.patch-batch"
 	case "artifact-scaffold-input":
 		schema = artifactScaffoldInputSchema()
 		capabilityID = "artifact.scaffold"
@@ -66,11 +72,23 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	}
 	env = NewEnvelope("ok", fmt.Sprintf("Capability %s expanded.", capabilityID))
 	switch capabilityID {
+	case "api.ensure":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime api ensure (--capabilities <csv> | --requires-json <object|@path|->) [--project-root <path>] --format json"
+		capability["input_contract"] = "accept exactly one capability selector: a compact CSV list or a JSON object with capabilities[]. Returns present and missing ids, capability_set_sha256, and compact runtime identity; duplicate or empty ids are rejected"
+	case "api.pack":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime api pack (--capabilities <csv> | --requires-json <object|@path|->) [--include-schema] [--project-root <path>] --format json"
+		capability["input_contract"] = "accepts exactly one bounded unique capability selector and returns compact usage, side_effect, input_contract, and schema_ref or embedded schema per selected capability; oversized or unknown requests are rejected"
 	case "workflow.block":
 		capability["summary"] = "Record a resumable blocker and novice human action guide."
 		capability["input_schema"] = "workflow-block-input"
 		capability["side_effect"] = "writes-workflow"
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "workflow-block-input", "--format", "json"}
+	case "workflow.ensure":
+		capability["side_effect"] = "shows-or-creates-workflow"
+		capability["usage"] = "specify-runtime workflow ensure --feature-dir <feature-dir> [--command <discussion|specify>] [--summary <text>] --format json"
+		capability["input_contract"] = "returns the current typed workflow state when it already exists; otherwise creates the initial state idempotently without advancing an existing revision"
 	case "artifact.scaffold":
 		capability["input_schema"] = "artifact-scaffold-input"
 		capability["side_effect"] = "creates-artifact"
@@ -88,10 +106,22 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["usage"] = "specify-runtime artifact patch --lease <id> (--json-pointer <pointer> --value-json <json> | --section <heading> --content <text> | --frontmatter-json <object> | --heading <current> --new-heading <replacement> | --preamble <text> | --append-json <json>)"
 		capability["input_contract"] = "--section accepts bare heading text or markdown markers (\"Source Design Change\" or \"## Source Design Change\"); for Windows path content prefer forward slashes or raw strings so \\a is not treated as a bell escape"
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "artifact-patch-input", "--format", "json"}
+	case "artifact.patch-batch":
+		capability["input_schema"] = "artifact-patch-batch-input"
+		capability["side_effect"] = "patches-artifact"
+		capability["usage"] = "specify-runtime artifact patch-batch --lease <id> --input-json <object|@path|-> [--project-root <path>] --format json"
+		capability["input_contract"] = "input-json must be an object with operations[]. Each operation is exactly one of {json_pointer,value}, {section,content}, or {frontmatter}. One lease covers 1..32 operations and writes only when the entire batch validates without target conflicts."
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "artifact-patch-batch-input", "--format", "json"}
 	case "artifact.submit":
 		capability["side_effect"] = "writes-artifact"
 		capability["usage"] = "specify-runtime artifact submit --lease <id> --content <inline-payload> --format json"
 		capability["file_input"] = "recovery-only: --recovery-file accepts only the runtime-created human acceptance repair backup bound by its sibling journal"
+	case "artifact.show-many":
+		capability["input_schema"] = "artifact-show-many-input"
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime artifact show-many --input-json <object|@path|-> [--project-root <path>] --format json"
+		capability["input_contract"] = "input-json must be an object with queries[] ArtifactShowRequest entries. Each query may select feature/kind or path plus optional view, json_pointer, section, and limit. The batch accepts 1..16 queries and returns per-query status in one bounded envelope."
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "artifact-show-many-input", "--format", "json"}
 	case "evidence.register":
 		capability["side_effect"] = "writes-content-addressed-evidence"
 		capability["usage"] = "specify-runtime evidence register (--content <inline-payload> | --object <existing-object-ref>) --scope <scope> [metadata options]"
@@ -574,6 +604,73 @@ func sourceContinuityAdapterPlanInputSchema() map[string]any {
 			"adapters":        map[string]any{"type": "array", "minItems": 1, "items": adapter},
 			"assignments":     map[string]any{"type": "array", "minItems": 10, "maxItems": 10, "items": assignment},
 			"unresolved_gaps": map[string]any{"type": "array", "maxItems": 0},
+		},
+	}
+}
+
+func artifactShowManyInputSchema() map[string]any {
+	nonEmptyString := map[string]any{"type": "string", "minLength": 1}
+	showRequest := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"feature":      nonEmptyString,
+			"kind":         nonEmptyString,
+			"path":         nonEmptyString,
+			"view":         map[string]any{"type": "string", "enum": []any{"summary", "full"}},
+			"json_pointer": nonEmptyString,
+			"section":      nonEmptyString,
+			"limit":        map[string]any{"type": "integer", "minimum": 1},
+		},
+	}
+	return map[string]any{
+		"$schema":              "https://json-schema.org/draft/2020-12/schema",
+		"$id":                  "specify://schemas/artifact-show-many-input/v1",
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"queries"},
+		"properties": map[string]any{
+			"queries": map[string]any{
+				"type":     "array",
+				"minItems": 1,
+				"maxItems": maxArtifactShowManyQueries,
+				"items":    showRequest,
+			},
+		},
+	}
+}
+
+func artifactPatchBatchInputSchema() map[string]any {
+	nonEmptyString := map[string]any{"type": "string", "minLength": 1}
+	operation := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"json_pointer": nonEmptyString,
+			"value":        map[string]any{},
+			"section":      nonEmptyString,
+			"content":      map[string]any{"type": "string"},
+			"frontmatter":  map[string]any{"type": "object", "minProperties": 1},
+		},
+		"oneOf": []any{
+			map[string]any{"required": []string{"json_pointer", "value"}},
+			map[string]any{"required": []string{"section", "content"}},
+			map[string]any{"required": []string{"frontmatter"}},
+		},
+	}
+	return map[string]any{
+		"$schema":              "https://json-schema.org/draft/2020-12/schema",
+		"$id":                  "specify://schemas/artifact-patch-batch-input/v1",
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"operations"},
+		"properties": map[string]any{
+			"operations": map[string]any{
+				"type":     "array",
+				"minItems": 1,
+				"maxItems": maxArtifactPatchBatchOperations,
+				"items":    operation,
+			},
 		},
 	}
 }

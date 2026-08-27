@@ -1152,6 +1152,68 @@ func TestArtifactScaffoldCreatesRegisteredStableWorkflowArtifacts(t *testing.T) 
 	}
 }
 
+func TestArtifactScaffoldDebugSessionPreservesPatchableSectionsAndFrontmatter(t *testing.T) {
+	projectRoot := t.TempDir()
+	installScaffoldTemplate(t, projectRoot, "artifacts/debug-session.md")
+	result := NewArtifactService(projectRoot).Scaffold(ArtifactScaffoldRequest{
+		Kind: "debug-session",
+		Path: ".planning/debug/session-a.md",
+	})
+	if result.Status != "ok" {
+		t.Fatalf("debug-session scaffold = %#v, want ok", result)
+	}
+	raw, err := os.ReadFile(filepath.Join(projectRoot, ".planning", "debug", "session-a.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(raw)
+	for _, want := range []string{
+		"status: intake",
+		"understanding_confirmed: false",
+		"human_verification: not_requested",
+		"## Debug Understanding Checkpoint",
+		"## Causal Map",
+		"## Transition Memo",
+		"## Investigation Contract",
+		"## Log Investigation Plan",
+		"## Truth Ownership",
+		"## Control State",
+		"## Observation State",
+		"## Closed Loop",
+		"## Execution Intent",
+		"## Eliminated",
+		"## Evidence",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("debug-session scaffold missing %q:\n%s", want, content)
+		}
+	}
+}
+
+func TestArtifactScaffoldRejectsDebugSessionTemplateMissingPatchableHeading(t *testing.T) {
+	projectRoot := t.TempDir()
+	installScaffoldTemplate(t, projectRoot, "artifacts/debug-session.md")
+	path := filepath.Join(projectRoot, ".specify", "templates", "artifacts", "debug-session.md")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw = bytes.Replace(raw, []byte("## Execution Intent"), []byte("## Execution Notes"), 1)
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result := NewArtifactService(projectRoot).Scaffold(ArtifactScaffoldRequest{
+		Kind: "debug-session",
+		Path: ".planning/debug/session-a.md",
+	})
+	if result.Status != "invalid" {
+		t.Fatalf("debug-session scaffold = %#v, want invalid", result)
+	}
+	if !strings.Contains(fmt.Sprint(result.Blockers), "Execution Intent") {
+		t.Fatalf("debug-session scaffold blockers = %#v, want missing heading detail", result.Blockers)
+	}
+}
+
 func TestArtifactScaffoldRejectsUnsafePathsAndVariables(t *testing.T) {
 	projectRoot := t.TempDir()
 	installScaffoldTemplate(t, projectRoot, "artifacts/quick-status.md")

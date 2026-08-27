@@ -53,9 +53,11 @@ shared state, downstream consumers, compatibility, security-sensitive behavior,
 or multiple plausible product behaviors.
 Read `references/ui-quality-gate.md` for any user-visible UI change.
 
-The full `$spx-quick` branch always starts a new run. Record that new run with
-`specify-runtime run create`, then execute only through `specify-runtime run
-supervise`; do not resume another workflow's run. The explicit user-selected
+The full `$spx-quick` branch always starts a new Run. When its exact metadata and
+child argv are ready, use `specify-runtime run launch` as the single call that
+records and supervises it; do not resume another workflow's Run. Older runtimes
+without `run.launch` fall back to `specify-runtime run create` followed by
+`specify-runtime run supervise`. The explicit user-selected
 context-direct branch is the sole exception and creates no run or Quick
 workspace.
 
@@ -166,7 +168,12 @@ not already hold those paths.
 Initialize or preserve the unconfirmed intake state, then stage a
 `quick-confirmation-v1` contract with
 `{{specify-subcmd:specify-runtime quick checkpoint-stage <id> --input-json '<decision+delivery>' --format json}}`
-and render the runtime Decision Checkpoint from
+and render the runtime Decision Checkpoint from the returned `views.decision`
+in that response instead of immediately re-querying it through
+`checkpoint-show`. Use the confirmation response's returned `views.delivery`
+for the initial Delivery Map, and reserve
+`{{specify-subcmd:specify-runtime quick checkpoint-show <id> --view pulse --format json}}`
+for later pulse refreshes. Render the checkpoint from
 `references/human-confirmation.md`. Use its human-first heading/bullet view;
 for reference/live/source-grounded UI, first perform only the bounded read-only
 `source_continuity` intake needed to enumerate surfaces, bind touchpoints to
@@ -354,7 +361,7 @@ direction to `$spx-design`. Keep multi-surface or acceptance-heavy UI in Quick
 and expand its task-local plan, batches, viewport/state matrix, and evidence;
 do not shrink the UI outcome.
 
-Patch `STATUS.md` at meaningful transitions through leased `specify-runtime artifact patch` calls. Create an absent `SUMMARY.md` with `artifact scaffold --kind quick-summary`, query it on resume, and patch only its named terminal sections through fresh leases; never submit or reconstruct the whole summary.
+Patch `STATUS.md` at meaningful transitions. For multiple same-checkpoint targets in one artifact, aggregate the delta in memory and prefer one prepared lease plus `specify-runtime artifact patch-batch`; older runtimes fall back to leased `specify-runtime artifact patch` calls. Create an absent `SUMMARY.md` with `artifact scaffold --kind quick-summary`, query it on resume, and batch only its named terminal sections; never submit or reconstruct the whole summary.
 
 **Terminal order is mandatory (do not reverse):**
 

@@ -31,7 +31,7 @@ Learning write surface can handle it later.
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
-[AGENT] `sp-fast` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
+[AGENT] `sp-fast` always starts a new Run. When its exact metadata and child argv are ready, use `specify-runtime run launch` as the single call that records and supervises it; do not resume another workflow's Run. Older runtimes without `run.launch` fall back to `specify-runtime run create` followed by `specify-runtime run supervise`.
 
 [AGENT] Launch Fast with exact task identity `fast:<run-id>` and at least one
 confirmed planned write scope; zero confirmed scope blocks before the child

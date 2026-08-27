@@ -246,10 +246,15 @@ jobs:
           grep -q '"discussion.init"' <<<"$handshake_json"
           grep -q '"learning.start"' <<<"$handshake_json"
           grep -q '"sp-teams.submit-result"' <<<"$handshake_json"
+          grep -q '"api.ensure"' <<<"$handshake_json"
+          grep -q '"api.pack"' <<<"$handshake_json"
+          grep -q '"artifact.show-many"' <<<"$handshake_json"
+          grep -q '"artifact.patch-batch"' <<<"$handshake_json"
+          grep -q '"workflow.ensure"' <<<"$handshake_json"
           ./dist/release-tools/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"quick-status"'
           ./dist/release-tools/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"plan-contract"'
           workflow_help="$(./dist/release-tools/specify-runtime-linux-amd64 workflow --help 2>&1)"
-          for command in show enter next complete-stage transition reopen block resolve closeout; do
+          for command in show ensure enter next complete-stage transition reopen block resolve closeout; do
             grep -q "$command" <<<"$workflow_help"
           done
           ./dist/release-tools/specify-runtime-linux-amd64 cognition scan-prepare --help 2>&1 | grep -q -- "-force"

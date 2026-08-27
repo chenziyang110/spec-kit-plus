@@ -44,6 +44,7 @@ def test_required_runtime_contract_uses_the_current_workflow_surface() -> None:
     }
     assert workflow_capabilities == {
         "workflow.show",
+        "workflow.ensure",
         "workflow.enter",
         "workflow.next",
         "workflow.complete-stage",

@@ -1,5 +1,8 @@
 """Tests for CursorAgentIntegration."""
 
+import errno
+from pathlib import Path
+
 from tests.template_utils import assert_quick_checkpoint_card_shape
 
 
@@ -56,6 +59,53 @@ def test_cursor_skills_init_installs_command_and_passive_skills(tmp_path):
         ).lower()
         assert "codex native subagents" not in content, skill_name
         assert "sp-teams submit-result" not in content, skill_name
+
+
+def test_cursor_init_here_retries_transient_implement_rewrite(
+    tmp_path, monkeypatch
+):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    target = tmp_path / "existing-cursor-project"
+    target.mkdir()
+    (target / "existing.txt").write_text("keep\n", encoding="utf-8")
+    implement_skill = target / ".cursor" / "skills" / "sp-implement" / "SKILL.md"
+    real_write_bytes = Path.write_bytes
+    attempts = 0
+
+    def interrupt_first_rewrite(path, data):
+        nonlocal attempts
+        if path == implement_skill:
+            attempts += 1
+            if attempts == 2:
+                raise OSError(errno.EINVAL, "Invalid argument", str(path))
+        return real_write_bytes(path, data)
+
+    monkeypatch.setattr(Path, "write_bytes", interrupt_first_rewrite)
+    monkeypatch.chdir(target)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "init",
+            ".",
+            "--ai",
+            "cursor-agent",
+            "--script",
+            "ps",
+            "--no-git",
+            "--ignore-agent-tools",
+            "--force",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert attempts >= 3
+    assert (target / "existing.txt").read_text(encoding="utf-8") == "keep\n"
+    content = implement_skill.read_text(encoding="utf-8")
+    assert "## Cursor Project Cognition Closeout Advisory" in content
+    assert "## Cursor Adaptive Execution" in content
 
 
 def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_path):

@@ -46,6 +46,10 @@ func TestStatusProjectsDirtyDebtsIntoLegacyFields(t *testing.T) {
 	status.Readiness = ReadyReadiness
 	status.RecommendedNextAction = "use_project_cognition"
 	status.GraphReady = true
+	status.DirtyScopePaths = []string{"templates/legacy"}
+	status.DirtyReasons = []string{"project structure changed"}
+	status.StalePaths = []string{"docs/stale.md"}
+	status.StaleReasons = []string{"affected closure cannot be bounded safely"}
 	status.DirtyDebts = []DebtRecord{{ID: "debt-1", Kind: "mark_dirty", Paths: []string{"src/app.go"}, Reason: "deferred"}}
 	if err := WriteStatus(paths, status); err != nil {
 		t.Fatal(err)
@@ -54,7 +58,11 @@ func TestStatusProjectsDirtyDebtsIntoLegacyFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.Dirty || got.Freshness == ReadyFreshness || got.Readiness == ReadyReadiness || len(got.DirtyScopePaths) != 1 || got.DirtyScopePaths[0] != "src/app.go" || len(got.DirtyReasons) != 1 || got.DirtyReasons[0] != "deferred" {
+	if !got.Dirty || got.Freshness == ReadyFreshness || got.Readiness == ReadyReadiness ||
+		strings.Join(got.DirtyScopePaths, ",") != "docs/stale.md,src/app.go,templates/legacy" ||
+		strings.Join(got.StalePaths, ",") != "docs/stale.md,src/app.go,templates/legacy" ||
+		strings.Join(got.DirtyReasons, ",") != "affected closure cannot be bounded safely,deferred,project structure changed" ||
+		strings.Join(got.StaleReasons, ",") != "affected closure cannot be bounded safely,deferred,project structure changed" {
 		t.Fatalf("status = %#v, want debt projected into truthful legacy fields", got)
 	}
 }

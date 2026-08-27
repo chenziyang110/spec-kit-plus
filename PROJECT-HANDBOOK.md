@@ -541,6 +541,12 @@ Review contract.
 - `BUILD-HANDBOOK.md` - compatibility/export build/change view
 - `templates/project-map/**` is retained only for legacy compatibility review and must not be installed or required by new generated projects.
 
+## Agent-facing CLI Efficiency
+
+- Verify only the bounded operation set with `specify-runtime api ensure`, reuse its `capability_set_sha256` for the unchanged workflow invocation, and use `api pack --include-schema` only for selected contracts. Older runtimes fall back once to `api list`.
+- Read multiple registered artifact targets through bounded `artifact show-many`. Apply multiple same-checkpoint targets in one artifact through one prepared lease plus `artifact patch-batch`; all operations validate before one atomic write, and any failure writes nothing. Specialized owners and legacy single-operation fallbacks remain valid.
+- New Runs prefer the single-call `run launch` boundary once metadata and child argv are ready. Existing Runs continue through `run show` plus `run supervise`. Initial feature workflow state uses idempotent `workflow ensure`, with `workflow show` plus conditional `workflow enter` as the old-runtime fallback.
+
 ## Update Triggers
 
 - CLI command registration, generated workflow names, integration directories, packet/result schemas, hook events, testing workflow state, project-map compatibility/export rules, extension/preset schemas, packaging force-includes, or Codex team runtime installation assumptions change.

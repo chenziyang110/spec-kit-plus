@@ -1,5 +1,6 @@
 """Tests for IntegrationOption, IntegrationBase, MarkdownIntegration, and primitives."""
 
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -287,6 +288,31 @@ class TestBasePrimitives:
         assert result == dest
         assert dest.read_text(encoding="utf-8") == "content"
         assert "sub/f.txt" in m.files
+
+    def test_write_file_and_record_hashes_written_bytes_without_reopening(
+        self, tmp_path, monkeypatch
+    ):
+        def reject_manifest_reopen(path):
+            raise OSError(22, "Invalid argument", str(path))
+
+        monkeypatch.setattr(
+            "specify_cli.integrations.manifest._sha256",
+            reject_manifest_reopen,
+        )
+        manifest = IntegrationManifest("test", tmp_path)
+        dest = tmp_path / "sub" / "watched.md"
+
+        result = IntegrationBase.write_file_and_record(
+            "first\r\nsecond\r\n",
+            dest,
+            tmp_path,
+            manifest,
+        )
+
+        expected = b"first\nsecond\n"
+        assert result == dest
+        assert dest.read_bytes() == expected
+        assert manifest.files["sub/watched.md"] == hashlib.sha256(expected).hexdigest()
 
     def test_setup_copies_shared_templates(self, tmp_path):
         i = StubIntegration()

@@ -151,11 +151,20 @@ judgment in an established Spec Kit Plus repository:
 
 ## Command Surface Discipline
 
-- Treat the live `{{specify-subcmd:specify-runtime api list --format json}}`
-  output as the authoritative agent-facing runtime surface.
-- Before running a runtime operation while satisfying this gate, verify its
-  capability ID is present there. Never fall back to Python `specify`, `uvx`,
-  or a user-level binary from an agent workflow.
+- Treat the live runtime capability set as authoritative. On current runtimes,
+  verify the exact bounded operation set once with
+  `{{specify-subcmd:specify-runtime api ensure --capabilities <comma-separated-capability-ids> --format json}}`,
+  retain its `capability_set_sha256`, and reuse that proof for the unchanged
+  runtime identity during this workflow invocation. Do not repeat capability
+  discovery before every operation. Use
+  `{{specify-subcmd:specify-runtime api pack --capabilities <comma-separated-capability-ids> --include-schema --format json}}`
+  only when selected usage/schema details are actually needed.
+- Older runtimes without `api.ensure` fall back once to
+  `{{specify-subcmd:specify-runtime api list --format json}}`; do not repeat the
+  full list while the runtime identity is unchanged. Before running an
+  operation, require its capability ID from that bounded or fallback proof.
+  Never fall back to Python `specify`, `uvx`, or a user-level binary from an
+  agent workflow.
 - Do not invent, paraphrase, or normalize unsupported runtime operations.
 - Feature creation remains `{{invoke:specify}}` plus the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`, not a separate branch-creation command. Default feature workspace names use `YYYY-MM-DD-<slug>`; numeric prefixes are legacy and require the script's explicit numeric option.
 

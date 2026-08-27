@@ -99,8 +99,10 @@ Resume the stored route before reclassification. The `allowed_writes` are only
 `.specify/memory/project-rules.md` when they truly become project defaults.
 
 Use the scaffolded `<change-dir>/brief.md`, then refine only affected
-frontmatter fields and named sections through leased
-`artifact patch` calls. The runtime expands the installed template; never read
+frontmatter fields and named sections at each authorized same-checkpoint boundary
+through one prepared lease plus `artifact patch-batch`; older runtimes fall back
+to leased `artifact patch` calls. Never batch across an unanswered user question.
+The runtime expands the installed template; never read
 and reproduce its stable boilerplate in memory. Infer repository evidence first, then ask one
 high-impact design question at a time when the answer can change hierarchy,
 density, component anatomy, motion, responsive/accessibility behavior,
@@ -244,7 +246,9 @@ If `<change-dir>/review.md` is absent, create its fixed shape with
 otherwise query it through `artifact show`. Patch only its named sections with
 the mode, inputs, approved direction, visual and handoff references, hashes,
 decision and handoff contract IDs, covered platforms, risks, lint/export
-results, and one recommended next workflow, using a fresh lease per section.
+results, and one recommended next workflow, using one same-checkpoint
+`artifact patch-batch`; older runtimes fall back to a fresh `artifact patch`
+lease per section.
 Never submit or reconstruct the whole review document. Ask the user to review the CLI-exported `design-change.md` before
 recording the final design handoff; approval of an earlier
 direction artifact does not silently approve a drifted final contract.

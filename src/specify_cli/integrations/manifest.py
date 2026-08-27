@@ -8,13 +8,39 @@ reported to the caller.
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
 import stat
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+_TRANSIENT_FILE_ACCESS_ERRNOS = frozenset(
+    {errno.EACCES, errno.EBUSY, errno.EINVAL, errno.EPERM}
+)
+_TRANSIENT_FILE_ACCESS_WINERRORS = frozenset({32, 33})
+_FILE_WRITE_RETRY_DELAYS_SECONDS = (0.05, 0.1, 0.2, 0.4)
+
+
+def _write_bytes_with_retry(path: Path, content: bytes) -> None:
+    """Write bytes, tolerating brief file-watcher locks on generated files."""
+
+    for attempt in range(len(_FILE_WRITE_RETRY_DELAYS_SECONDS) + 1):
+        try:
+            path.write_bytes(content)
+            return
+        except OSError as exc:
+            transient = (
+                exc.errno in _TRANSIENT_FILE_ACCESS_ERRNOS
+                or getattr(exc, "winerror", None)
+                in _TRANSIENT_FILE_ACCESS_WINERRORS
+            )
+            if not transient or attempt == len(_FILE_WRITE_RETRY_DELAYS_SECONDS):
+                raise
+            time.sleep(_FILE_WRITE_RETRY_DELAYS_SECONDS[attempt])
 
 
 def _sha256(path: Path) -> str:
@@ -129,7 +155,7 @@ class IntegrationManifest:
 
         if isinstance(content, str):
             content = content.encode("utf-8")
-        abs_path.write_bytes(content)
+        _write_bytes_with_retry(abs_path, content)
 
         normalized = abs_path.relative_to(self.project_root).as_posix()
         self._files[normalized] = hashlib.sha256(content).hexdigest()

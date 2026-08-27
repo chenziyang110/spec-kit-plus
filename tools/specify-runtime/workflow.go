@@ -119,6 +119,82 @@ func NewWorkflowService(projectRoot string) *WorkflowService {
 	return &WorkflowService{projectRoot: projectRoot}
 }
 
+// Ensure returns the current workflow state when it already exists, or creates
+// the initial state when it does not. It intentionally does not advance an
+// existing revision, making the common show-then-enter sequence one idempotent
+// runtime operation.
+func (service *WorkflowService) Ensure(request WorkflowEnterRequest) Envelope {
+	feature, err := service.resolveFeature(request.FeatureDir, request.FeatureID)
+	if err != nil {
+		return workflowInvalid("workflow feature directory is invalid", "invalid-feature-dir", err)
+	}
+	command := strings.ToLower(strings.TrimSpace(request.Command))
+	if command == "" {
+		command = "specify"
+	}
+	if command != "discussion" && command != "specify" {
+		return workflowInvalid("workflow entry stage is invalid", "invalid-entry-stage", fmt.Errorf("entry command must be discussion or specify"))
+	}
+	if request.ExpectedRevision != 0 {
+		return workflowRevisionConflict(feature, request.ExpectedRevision, 0)
+	}
+
+	release, env, ok := service.acquireWorkflowLock(feature)
+	if !ok {
+		return env
+	}
+	defer release()
+
+	state, err := service.readState(feature)
+	if err == nil {
+		env = NewEnvelope("ok", "workflow state reused")
+		addWorkflowStateData(&env, state)
+		env.Data["ensure_state"] = "reused"
+		env.ShowArgv = workflowShowArgv(feature)
+		if state.Status == "blocked" {
+			env.Status = "blocked"
+			env.Summary = state.Summary
+			env.Blockers = append(env.Blockers, cloneMap(state.Blocker))
+			env.Data["resolution_action"] = workflowResolutionAction(feature, state.Revision)
+			return env
+		}
+		if !isTerminalWorkflowState(state) {
+			env.NextArgv = workflowNextArgv(feature)
+		}
+		return env
+	}
+	if !os.IsNotExist(err) {
+		return service.stateReadFailure(feature, err)
+	}
+
+	summary := strings.TrimSpace(request.Summary)
+	if summary == "" {
+		summary = fmt.Sprintf("Entered workflow at %s.", command)
+	}
+	state = workflowState{
+		SchemaVersion:          workflowStateSchemaVersion,
+		FeatureID:              feature.ID,
+		Revision:               1,
+		Stage:                  command,
+		Status:                 "active",
+		Summary:                summary,
+		Blocker:                nil,
+		LastResolutionEvidence: []string{},
+		LastReopen:             nil,
+		LastBlockerResolution:  nil,
+		AcceptanceSHA256:       nil,
+	}
+	if err := service.writeState(feature, state); err != nil {
+		return workflowError("failed to write workflow state", err)
+	}
+	env = NewEnvelope("ok", "workflow entered")
+	addWorkflowStateData(&env, state)
+	env.Data["ensure_state"] = "created"
+	env.ShowArgv = workflowShowArgv(feature)
+	env.NextArgv = workflowCompleteArgv(feature, state.Revision)
+	return env
+}
+
 func (service *WorkflowService) Enter(request WorkflowEnterRequest) Envelope {
 	feature, err := service.resolveFeature(request.FeatureDir, request.FeatureID)
 	if err != nil {

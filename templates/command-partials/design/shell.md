@@ -41,7 +41,9 @@ Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep
   - `forbidden_actions: edit source code, edit tests, write CSS/theme implementation files, create UI components, create feature specs, create plan artifacts, create task artifacts`
 - Persist `active_command`, `phase_mode`, `current_stage`, the one
   `active_question`, `feedback_history`, and `prototype_rounds` inside
-  `<change-dir>/brief.md` through leased `artifact patch` calls. Advance stages
+  `<change-dir>/brief.md` at each authorized same-checkpoint boundary through one
+  prepared lease plus `artifact patch-batch`; older runtimes fall back to leased
+  `artifact patch` calls. Never batch across unanswered user questions. Advance stages
   only after their observable exit condition is met:
   `context-intake -> discovery -> concept-brief -> prototype-authoring ->
   visual-review -> revision|approval -> contract-export -> registered`.
@@ -504,7 +506,8 @@ Before closeout:
 2. If `<change-dir>/review.md` is absent, create its fixed shape with
    `specify-runtime artifact scaffold --kind design-review --path <change-dir>/review.md`.
    Otherwise query it through `artifact show`. Patch only these named semantic
-   sections through a fresh lease per section; never submit or reconstruct the
+   sections through one same-checkpoint `artifact patch-batch`; older runtimes
+   fall back to a fresh `artifact patch` lease per section. Never submit or reconstruct the
    whole review document:
    - selected task type and input strategy
    - inputs read

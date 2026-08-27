@@ -38,7 +38,7 @@ PATH. Agent workflow helpers use only the relative project-local
 `.specify/bin/specify-runtime` (`.exe` on Windows) recorded by
 `runtime_launcher`. `SPECIFY_RUNTIME_BIN` and PATH may seed human init/upgrade,
 but are never rendered into agent commands.
-That runtime also owns fixed Agent artifact reads and writes: `artifact show` is progressive, `artifact prepare` -> `artifact submit` is lease-bound, and `artifact scaffold` emits registered create-only boilerplate for `plan-contract` and `quick-status`.
+That runtime also owns fixed Agent artifact reads and writes: `artifact show` is progressive, `artifact show-many` batches bounded reads, one prepared lease plus `artifact patch-batch` atomically applies same-artifact checkpoint updates, and `artifact scaffold` emits registered create-only boilerplate for `plan-contract` and `quick-status`. Legacy `artifact prepare` -> `artifact submit|patch` remains supported.
 The generated project navigation section below covers empty-project cognition
 bootstrap behavior and brownfield first-baseline routing.
 

@@ -13,10 +13,12 @@ clarification, research, analysis, and profile-specific details; it is never req
 runtime must not overwrite or treat it as revision authority. Read
 `workflow-state.md` only through `specify-runtime artifact show`; mutate it only
 through an authorized `artifact prepare` / `artifact submit` lease. After resolving
-`FEATURE_DIR`, run
-`{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`.
-If state is missing at the first feature stage, enter with
-`{{specify-subcmd:specify-runtime workflow enter --command specify --feature-dir <feature-dir> --format json}}`.
+`FEATURE_DIR`, if `api list` exposes `workflow.ensure`, run
+`{{specify-subcmd:specify-runtime workflow ensure --command specify --feature-dir <feature-dir> --format json}}`
+as the idempotent show-or-enter path. Older runtimes fall back to
+`{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`,
+then `{{specify-subcmd:specify-runtime workflow enter --command specify --feature-dir <feature-dir> --format json}}`
+only when the first-stage state is missing.
 When entering any later required stage, run
 `{{specify-subcmd:specify-runtime workflow transition --to <this-stage> --feature-dir <feature-dir> --expected-revision <revision> --format json}}`
 before writing its artifacts. This transition validates the completed

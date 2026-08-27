@@ -157,7 +157,7 @@ Generated helper scripts use the project-relative `runtime_launcher` in
 `.specify/config.json`. `SPECIFY_RUNTIME_BIN` and PATH are considered only by
 human bootstrap, upgrade, or repair while provisioning that local entrypoint.
 
-The same binary owns canonical Agent artifact access. Use `specify-runtime artifact catalog` to inspect deterministic scaffold kinds, `specify-runtime artifact scaffold --kind <kind> --path <project-relative-path> --vars <compact-json>` for create-only stable boilerplate, and the `artifact show` or `artifact prepare` -> `artifact submit` path for progressive reads and leased writes.
+The same binary owns canonical Agent artifact access. Use `specify-runtime artifact catalog` to inspect deterministic scaffold kinds, `specify-runtime artifact scaffold --kind <kind> --path <project-relative-path> --vars <compact-json>` for create-only stable boilerplate, `artifact show-many` for bounded multi-target reads, and one prepared lease plus `artifact patch-batch` for atomic same-artifact multi-target updates. Legacy `artifact show` and `artifact prepare` -> `artifact submit|patch` paths remain supported.
 
 ## Verification
 

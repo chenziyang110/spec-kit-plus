@@ -98,10 +98,10 @@ query, and any bounded `minimal_live_reads`, stage a structured
 
 ```text
 {{specify-subcmd:specify-runtime quick checkpoint-stage <quick-id> --input-json '<decision+delivery>' --format json}}
-{{specify-subcmd:specify-runtime quick checkpoint-show <quick-id> --view decision --format json}}
 ```
 
-Present the runtime Decision Checkpoint human view. It uses short headings and
+Present the runtime Decision Checkpoint human view from the staged response's
+returned `views.decision`. It uses short headings and
 bullets rather than a dense table, but still shows all user-owned decisions:
 goal, user-visible result, scope, ordered
 `Q1`/`Q2`/... deliverables and product-level dependencies, independent acceptance
@@ -133,10 +133,10 @@ For staged checkpoints, wait for user confirmation, then bind it with:
 
 ```text
 {{specify-subcmd:specify-runtime quick checkpoint-confirm <quick-id> --digest <confirmation_digest> --format json}}
-{{specify-subcmd:specify-runtime quick checkpoint-show <quick-id> --view delivery --format json}}
 ```
 
-The Delivery Map shows waves, parallelism, join points, and integration gates
+After confirmation, use the confirmation response's returned `views.delivery`
+for the Delivery Map. The Delivery Map shows waves, parallelism, join points, and integration gates
 for awareness only. Show it after confirmation, on explicit request, or
 immediately for inherited confirmation; do not place it between a staged
 decision and the reply prompt.

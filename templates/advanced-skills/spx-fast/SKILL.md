@@ -23,7 +23,7 @@ consumers, compatibility, security-sensitive behavior, or multiple plausible
 product behaviors.
 Read `references/ui-quality-gate.md` for any user-visible UI change.
 
-`$spx-fast` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
+`$spx-fast` always starts a new Run. When its exact metadata and child argv are ready, use `specify-runtime run launch` as the single call that records and supervises it; do not resume another workflow's Run. Older runtimes without `run.launch` fall back to `specify-runtime run create` followed by `specify-runtime run supervise`.
 
 Launch it with exact task identity `fast:<run-id>` and confirmed planned write
 scope; zero confirmed scope blocks before the child starts. Inside the managed

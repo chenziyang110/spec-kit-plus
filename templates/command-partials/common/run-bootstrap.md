@@ -1,9 +1,13 @@
 ## Run Bootstrap
 
 Run Control owns process-tree launch and resume boundaries for workflow work.
-Use `specify-runtime run create` only to record control-plane intent only for a new
-run. Use `specify-runtime run show` to confirm the active run identity before
-reusing it. Launch repository work only through `specify-runtime run supervise`
+For a new Run whose identity, scope, adapter, and child argv are ready, use
+`specify-runtime run launch` as the single call that records the Run and starts
+its supervised child. Older runtimes that do not expose `run.launch` fall back
+to `specify-runtime run create` followed by `specify-runtime run supervise`.
+Use `specify-runtime run show` to confirm an existing active Run identity before
+reusing it, then resume that existing Run through `specify-runtime run supervise`.
+Launch repository work only through these Run Control entrypoints
 so the runtime forces child cwd, binds the managed workspace, and seals an
 immutable Result. With `--workspace-policy auto`, the runtime may route exactly
 one non-overlapping modifying Run to the primary workspace only when its checkout

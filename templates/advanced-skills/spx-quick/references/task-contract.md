@@ -36,9 +36,12 @@ runtime-owned `.planning/quick/<id>/confirmation.json` produced by
 
 The user-facing checkpoint is the runtime-owned Decision Checkpoint in
 `references/human-confirmation.md`, followed conditionally by its UI card.
-Stage it with `specify-runtime quick checkpoint-stage`, show
-`--view decision|delivery|pulse`, and bind approval with
-`quick checkpoint-confirm --digest`. Store user-owned decisions—including
+Stage it with `specify-runtime quick checkpoint-stage`, render the staged
+response's returned `views.decision`, bind approval with
+`quick checkpoint-confirm --digest`, then use the confirmation response's
+returned `views.delivery` for the initial Delivery Map. Reserve
+`checkpoint-show --view pulse` for later pulse refreshes or explicit rerender.
+Store user-owned decisions—including
 ordered work items, dependencies, and work-item acceptance—and
 `ui_confirmation` separately from Delivery Map / `agent_execution_plan`. One
 reply confirms both cards when UI applies. The confirmed order is

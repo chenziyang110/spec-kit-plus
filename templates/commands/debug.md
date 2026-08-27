@@ -16,9 +16,11 @@ workflow_contract:
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
 [AGENT] Apply the Pre-Intake Context Sufficiency Gate first. The full Debug
-branch always starts a new run: record it with `specify-runtime run create`,
-then execute only through `specify-runtime run supervise`; do not resume another
-workflow's run. The explicit user-selected context-direct branch is the sole
+branch always starts a new Run: when its exact metadata and child argv are ready,
+use `specify-runtime run launch` as the single call that records and supervises
+it; do not resume another workflow's Run. Older runtimes without `run.launch`
+fall back to `specify-runtime run create` followed by `specify-runtime run
+supervise`. The explicit user-selected context-direct branch is the sole
 exception and creates no run or debug session.
 
 [AGENT] Launch the full branch with task identity `debug:<session-slug>` and a

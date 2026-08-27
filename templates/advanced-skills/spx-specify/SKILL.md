@@ -16,9 +16,10 @@ UI-bearing feature, with or without supplied references. Read
 `references/consequence-gate.md` only on its triggers.
 
 `$spx-specify` first performs the read-only feature dry run below, then starts a
-new feature Run with that identity. Record it with `specify-runtime run create`;
-execute the real feature creation and later artifact work only through
-`specify-runtime run supervise`.
+new feature Run with that identity. When its exact metadata and real
+feature-creation child argv are ready, use `specify-runtime run launch` as the
+single call that records and supervises it. Older runtimes without `run.launch`
+fall back to `specify-runtime run create` followed by `specify-runtime run supervise`.
 
 Inspect project rules, relevant live behavior, a supplied feature PRD, and any
 confirmed discussion context. Clarify only decisions that materially change scope, behavior,

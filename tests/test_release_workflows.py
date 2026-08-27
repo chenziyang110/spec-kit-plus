@@ -61,9 +61,17 @@ def test_release_workflow_uploads_unified_runtime_binaries():
     )
     assert "workflow --help 2>&1" in content
     assert (
-        "show enter next complete-stage transition reopen block resolve closeout"
+        "show ensure enter next complete-stage transition reopen block resolve closeout"
         in content
     )
+    for capability in (
+        '"api.ensure"',
+        '"api.pack"',
+        '"artifact.show-many"',
+        '"artifact.patch-batch"',
+        '"workflow.ensure"',
+    ):
+        assert capability in content
     assert 'cognition scan-prepare --help 2>&1 | grep -q -- "-force"' in content
     assert 'cognition scan-formats --help' in content
     assert (
@@ -186,7 +194,7 @@ def test_runtime_fallback_release_smokes_namespaced_cognition_commands():
     )
     assert "workflow --help 2>&1" in content
     assert (
-        "show enter next complete-stage transition reopen block resolve closeout"
+        "show ensure enter next complete-stage transition reopen block resolve closeout"
         in content
     )
 
@@ -200,18 +208,23 @@ def test_runtime_installers_require_artifact_and_workflow_capabilities() -> None
     )
 
     for capability in (
+        "api.ensure",
+        "api.pack",
         "artifact.checklist",
         "artifact.delete",
         "artifact.list",
         "artifact.patch",
+        "artifact.patch-batch",
         "artifact.restore",
         "artifact.scaffold",
+        "artifact.show-many",
         "artifact.submit",
         "cognition.archive-incompatible-store",
         "cognition.run",
         "cognition.scan-packet",
         "implement.task-reopen",
         "workflow.show",
+        "workflow.ensure",
         "workflow.enter",
         "workflow.next",
         "workflow.complete-stage",

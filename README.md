@@ -927,9 +927,12 @@ not invent unsupported names such as `specify create-feature`.
 
 ### Agent-facing CLI discovery and workflow guard
 
-Agents should start with `specify-runtime api handshake --format json` and use
-`specify-runtime api list --format json` to discover the compact unified-runtime
-surface. The remaining Python domain commands stay progressively discoverable:
+Agents should start with `specify-runtime api handshake --format json`, verify
+the bounded workflow operation set with `specify-runtime api ensure`, and reuse
+the returned `capability_set_sha256` while the runtime identity is unchanged.
+`specify-runtime api pack --include-schema` expands only selected capability
+contracts in one call. Older runtimes fall back once to
+`specify-runtime api list --format json`. The remaining Python domain commands stay progressively discoverable:
 `specify api commands --format json` inventories live Typer operations as
 summary cards. Expand only a selected operation with
 `specify api command <dot-separated-id> --format json`, or expand one Python
@@ -938,7 +941,12 @@ keeps help text and parameters out of context until they are needed.
 
 Feature phase order lives in CLI-owned `FEATURE_DIR/workflow.json`;
 rich `workflow-state.md` remains workflow-owned evidence and Learning state.
-Feature stages use `specify-runtime workflow show|enter|next|complete-stage|transition|reopen|block|resolve|closeout`.
+Feature stages use `specify-runtime workflow ensure|show|enter|next|complete-stage|transition|reopen|block|resolve|closeout`; `ensure` is the idempotent first-stage show-or-enter operation.
+For registered Agent artifacts, `artifact show-many` executes bounded multi-target
+reads in one envelope, while one prepared lease plus `artifact patch-batch`
+applies multiple same-checkpoint section/frontmatter/JSON-pointer operations
+with final validation and one atomic write. Legacy single-operation commands and
+specialized artifact owners remain supported.
 After an active stage's artifacts pass, its owner runs `specify-runtime workflow complete-stage`
 with the current revision. The destination stage then runs the exact returned
 `specify-runtime workflow transition --to <stage>` argv. Only completed `accept` is

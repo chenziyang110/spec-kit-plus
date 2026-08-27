@@ -65,7 +65,7 @@ func isShortRuntimeQuery(args []string) bool {
 		return false
 	}
 	switch strings.ToLower(strings.TrimSpace(args[1])) {
-	case "catalog", "checkpoint-show", "handshake", "item-status", "list", "registry", "resume", "schema", "show", "status":
+	case "catalog", "checkpoint-show", "handshake", "item-status", "list", "registry", "resume", "schema", "show", "show-many", "status":
 		return true
 	default:
 		return false

@@ -16,9 +16,11 @@ workflow_contract:
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
 [AGENT] Apply the Pre-Intake Context Sufficiency Gate first. The full Quick
-branch always starts a new run: record it with `specify-runtime run create`,
-then execute only through `specify-runtime run supervise`; do not resume another
-workflow's run. The explicit user-selected context-direct branch is the sole
+branch always starts a new Run: when its exact metadata and child argv are ready,
+use `specify-runtime run launch` as the single call that records and supervises
+it; do not resume another workflow's Run. Older runtimes without `run.launch`
+fall back to `specify-runtime run create` followed by `specify-runtime run
+supervise`. The explicit user-selected context-direct branch is the sole
 exception and creates no run or Quick workspace.
 
 ## Coordination Preflight
@@ -127,7 +129,7 @@ branch follows the pre-intake gate, performs the bounded edit and verification,
 runs exact-path mutation closeout, and does not enter this flow.
 
 1. Accept non-trivial direct-delivery work of any size whose outcome can be confirmed at the Quick Checkpoint. Scale the quick workspace instead of routing to `{{invoke:specify}}` because work is large, cross-cutting, multi-capability, migration-heavy, or acceptance-heavy; investigate unknown failure mechanisms through Quick's internal evidence-driven recovery lane.
-2. Create `.planning/quick/<id>-<slug>/STATUS.md` only with `artifact scaffold --kind quick-status`; resume via `artifact show`, and mutate frontmatter/sections only through leased `artifact patch` calls.
+2. Create `.planning/quick/<id>-<slug>/STATUS.md` only with `artifact scaffold --kind quick-status`; resume via `artifact show`. At one same-checkpoint transition, aggregate every STATUS frontmatter/section delta in memory and prefer one prepared lease plus `artifact patch-batch`; older runtimes fall back to one leased `artifact patch` per changed target.
 3. Consume eligible discussion handoff or quick-task context without silently changing the confirmed scope. Resolve discussion intake with `specify-runtime discussion resolve --intent sp-quick [--slug <slug>] --format json`; if multiple candidates are returned, stop for an explicit slug and never guess or select latest. Map the resolver's exact `discussion_slug` into `STATUS.md` as `source_discussion_slug`, require `source_contract`, resolver-returned `review_digest`, resolver-returned `state_sha256`, and resolver-returned `recommended_consumer` to match the consumed contract pointer, persist those five fields in `STATUS.md` only through a leased `specify-runtime artifact patch`, and verify the binding before `specify-runtime discussion mark-consumed`. Record consequence coverage, planning depth, any user-owned checkpoint amendment, and the exact `not_selected|selected|required` Test Design gate. Verify a selected/required projection before it shapes any Q item.
 4. Use `choose_subagent_dispatch(command_name="quick", snapshot, workload_shape)` and packetized contracts for every substantive Q item. Default `one-subagent` when Q items share write scope or depend serially; `parallel-subagents` only for isolated write sets. Parallel write-conflict is not leader-inline permission.
 5. Execute the **Hard Q Loop** for each Q item; patch `STATUS.md` through the artifact CLI at phase transitions; validate changed surfaces.

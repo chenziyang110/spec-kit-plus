@@ -370,13 +370,19 @@ The following flags are available and composable:
    - Continue automatically until the quick task is complete or a concrete blocker prevents further safe progress.
    - If execution hits friction, attempt the smallest safe recovery step before declaring the task blocked.
 
+At a same-checkpoint join, block, or terminal transition, aggregate all STATUS
+and SUMMARY section/frontmatter deltas and prefer one prepared lease plus
+`specify-runtime artifact patch-batch`. Older runtimes fall back to the named
+leased `artifact patch` calls below; do not reduce the durable transition
+boundaries themselves.
+
 6. **Validation**
    - If `--validate` or `--full` is present, perform plan checking and post-execution verification.
    - Otherwise still verify the change with the smallest meaningful executable check.
    - Do not reduce verification because the workflow is named quick; match verification depth to the complete changed surface and risk.
 
 7. **Summary**
-   - Build only the terminal semantic values in memory for what changed, how it was verified, and which surfaces were left unverified. If `.planning/quick/<id>-<slug>/SUMMARY.md` is absent, create its fixed shape with `specify-runtime artifact scaffold --kind quick-summary --path .planning/quick/<id>-<slug>/SUMMARY.md`; otherwise query it with `artifact show`. Patch `Outcome`, `Changed Paths`, `Verification`, `Skipped Or Failed Checks`, `Residual Risk`, and `Recovery State` through a fresh lease per section; never submit or reconstruct the whole summary.
+   - Build only the terminal semantic values in memory for what changed, how it was verified, and which surfaces were left unverified. If `.planning/quick/<id>-<slug>/SUMMARY.md` is absent, create its fixed shape with `specify-runtime artifact scaffold --kind quick-summary --path .planning/quick/<id>-<slug>/SUMMARY.md`; otherwise query it with `artifact show`. Patch `Outcome`, `Changed Paths`, `Verification`, `Skipped Or Failed Checks`, `Residual Risk`, and `Recovery State` through one same-checkpoint `artifact patch-batch`; older runtimes fall back to a fresh `artifact patch` lease per section. Never submit or reconstruct the whole summary.
    - Separate `verified` coverage from `not checked` coverage so readers can tell what was actually proven versus what is only expected to be safe.
    - For each declared surface, give the terminal status conclusion: `confirmed correct`, `fixed in this quick task`, or `not checked in this pass (with reason)`.
-   - Patch the final `STATUS.md` through a fresh `specify-runtime artifact patch` lease so it points to the summary, records the terminal state, and makes a future resume decision obvious.
+   - Patch the final `STATUS.md` terminal targets through one same-checkpoint `specify-runtime artifact patch-batch`; older runtimes fall back to a fresh `artifact patch` lease so it points to the summary, records the terminal state, and makes a future resume decision obvious.

@@ -35,6 +35,32 @@ func TestAPISchemaExpandsWorkflowBlockInputContract(t *testing.T) {
 	}
 }
 
+func TestAPISchemaExpandsArtifactBatchInputContracts(t *testing.T) {
+	for _, schemaID := range []string{"artifact-show-many-input", "artifact-patch-batch-input"} {
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"api", "schema", schemaID, "--format", "json"}, &stdout, &stderr, "test")
+		if code != 0 {
+			t.Fatalf("api schema %s exit code = %d; stdout=%s stderr=%s", schemaID, code, stdout.String(), stderr.String())
+		}
+		payload := decodeJSONObject(t, stdout.Bytes())
+		data := requireObject(t, payload, "data")
+		schema := requireObject(t, data, "schema")
+		properties := requireObject(t, schema, "properties")
+		switch schemaID {
+		case "artifact-show-many-input":
+			queries := requireObject(t, properties, "queries")
+			if queries["type"] != "array" {
+				t.Fatalf("%s queries = %#v", schemaID, queries)
+			}
+		case "artifact-patch-batch-input":
+			operations := requireObject(t, properties, "operations")
+			if operations["type"] != "array" {
+				t.Fatalf("%s operations = %#v", schemaID, operations)
+			}
+		}
+	}
+}
+
 func TestAPISchemaRejectsUnknownSchema(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"api", "schema", "missing", "--format", "json"}, &stdout, &stderr, "test")
@@ -61,6 +87,95 @@ func TestAPIShowExpandsEveryAdvertisedCapability(t *testing.T) {
 				t.Fatalf("api show %s capability = %#v", capabilityID, capability)
 			}
 		})
+	}
+}
+
+func TestAPIShowArtifactBatchCapabilitiesPublishContracts(t *testing.T) {
+	for _, capabilityID := range []string{"artifact.show-many", "artifact.patch-batch"} {
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"api", "show", capabilityID, "--format", "json"}, &stdout, &stderr, "test")
+		if code != 0 {
+			t.Fatalf("api show %s exit code = %d; stdout=%s stderr=%s", capabilityID, code, stdout.String(), stderr.String())
+		}
+		payload := decodeJSONObject(t, stdout.Bytes())
+		capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+		for _, field := range []string{"summary", "usage", "side_effect", "input_contract", "input_schema"} {
+			value, ok := capability[field].(string)
+			if !ok || strings.TrimSpace(value) == "" {
+				t.Fatalf("api show %s capability.%s = %#v", capabilityID, field, capability[field])
+			}
+		}
+	}
+}
+
+func TestAPIPackReturnsCompactCapabilityDescriptors(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "pack", "--capabilities", "artifact.patch,workflow.block", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api pack exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	data := requireObject(t, payload, "data")
+	if digest, ok := data["capability_set_sha256"].(string); !ok || len(digest) != 64 {
+		t.Fatalf("api pack capability_set_sha256 = %#v", data["capability_set_sha256"])
+	}
+	items, ok := payload["items"].([]any)
+	if !ok || len(items) != 2 {
+		t.Fatalf("api pack items = %#v, want 2 entries", payload["items"])
+	}
+	first := requireObjectValue(t, items[0])
+	if first["id"] != "artifact.patch" {
+		t.Fatalf("api pack first item = %#v", first)
+	}
+	if _, ok := first["usage"].(string); !ok {
+		t.Fatalf("api pack first item missing usage: %#v", first)
+	}
+	if first["schema_ref"] != "artifact-patch-input" {
+		t.Fatalf("api pack first item schema_ref = %#v", first["schema_ref"])
+	}
+	if _, exists := first["schema"]; exists {
+		t.Fatalf("api pack first item unexpectedly embedded schema: %#v", first)
+	}
+}
+
+func TestAPIPackIncludesEmbeddedSchemaWhenRequested(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "pack", "--capabilities", "workflow.block", "--include-schema", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api pack --include-schema exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	items, ok := payload["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("api pack items = %#v", payload["items"])
+	}
+	item := requireObjectValue(t, items[0])
+	if item["schema_ref"] != "workflow-block-input" {
+		t.Fatalf("api pack schema_ref = %#v", item["schema_ref"])
+	}
+	schema := requireObject(t, item, "schema")
+	properties := requireObject(t, schema, "properties")
+	if _, ok := properties["cause"]; !ok {
+		t.Fatalf("api pack embedded schema = %#v", schema)
+	}
+	required, ok := schema["required"].([]any)
+	if !ok || len(required) == 0 {
+		t.Fatalf("api pack embedded schema required = %#v", schema["required"])
+	}
+}
+
+func TestAPIPackRejectsUnknownDuplicateAndEmptyInput(t *testing.T) {
+	for _, args := range [][]string{
+		{"api", "pack", "--capabilities", "missing.capability", "--format", "json"},
+		{"api", "pack", "--capabilities", "api.show,api.show", "--format", "json"},
+		{"api", "pack", "--capabilities", "", "--format", "json"},
+		{"api", "pack", "--format", "json"},
+	} {
+		var stdout, stderr bytes.Buffer
+		code := Run(args, &stdout, &stderr, "test")
+		if code != 2 {
+			t.Fatalf("%v exit code = %d, want 2; stdout=%s stderr=%s", args, code, stdout.String(), stderr.String())
+		}
 	}
 }
 

@@ -128,6 +128,9 @@ func TestAPIHandshakePublishesProtocolVersionAndCapabilities(t *testing.T) {
 	if _, ok := data["dirty"].(bool); !ok {
 		t.Fatalf("handshake data.dirty = %#v, want boolean", data["dirty"])
 	}
+	if digest, ok := data["capability_set_sha256"].(string); !ok || len(digest) != 64 {
+		t.Fatalf("handshake data.capability_set_sha256 = %#v, want sha256 hex", data["capability_set_sha256"])
+	}
 	capabilities := requireStringArray(t, data, "capability_ids")
 	seenCapabilities := map[string]bool{}
 	for _, capability := range capabilities {
@@ -137,7 +140,7 @@ func TestAPIHandshakePublishesProtocolVersionAndCapabilities(t *testing.T) {
 		seenCapabilities[capability] = true
 	}
 	for _, capability := range []string{
-		"api.handshake", "api.list", "artifact.catalog", "artifact.checklist", "artifact.delete", "artifact.restore", "artifact.scaffold", "cognition.archive-incompatible-store", "cognition.run", "cognition.scan-packet", "validate.spec",
+		"api.handshake", "api.list", "artifact.catalog", "artifact.checklist", "artifact.delete", "artifact.patch-batch", "artifact.restore", "artifact.scaffold", "artifact.show-many", "cognition.archive-incompatible-store", "cognition.run", "cognition.scan-packet", "validate.spec",
 		"workflow.show", "workflow.enter", "workflow.next", "workflow.complete-stage", "workflow.transition",
 		"workflow.reopen", "workflow.block", "workflow.resolve", "workflow.closeout",
 	} {
@@ -162,6 +165,10 @@ func TestAPIListReturnsCompactCapabilityCards(t *testing.T) {
 	}
 	payload := decodeJSONObject(t, stdout.Bytes())
 	requireUnifiedEnvelope(t, payload)
+	data := requireObject(t, payload, "data")
+	if digest, ok := data["capability_set_sha256"].(string); !ok || len(digest) != 64 {
+		t.Fatalf("api list capability_set_sha256 = %#v, want sha256 hex", data["capability_set_sha256"])
+	}
 	items, ok := payload["items"].([]any)
 	if !ok || len(items) == 0 {
 		t.Fatalf("api list items = %#v, want non-empty array", payload["items"])
@@ -186,7 +193,7 @@ func TestAPIListReturnsCompactCapabilityCards(t *testing.T) {
 		t.Fatalf("api list contains duplicate capability cards: %d unique of %d", len(seen), len(items))
 	}
 	for _, capability := range []string{
-		"api.handshake", "api.list", "artifact.catalog", "artifact.checklist", "artifact.delete", "artifact.restore", "artifact.scaffold", "validate.spec",
+		"api.handshake", "api.list", "artifact.catalog", "artifact.checklist", "artifact.delete", "artifact.patch-batch", "artifact.restore", "artifact.scaffold", "artifact.show-many", "validate.spec",
 		"workflow.show", "workflow.enter", "workflow.next", "workflow.complete-stage", "workflow.transition",
 		"workflow.reopen", "workflow.block", "workflow.resolve", "workflow.closeout",
 	} {
@@ -222,6 +229,69 @@ func TestAPIListEnumeratesConcreteGeneratedRuntimeVerbs(t *testing.T) {
 	for _, capability := range generatedRuntimeVerbCapabilities() {
 		if !seen[capability] {
 			t.Fatalf("api list ids missing concrete generated runtime capability %q; ids=%#v", capability, sortedCapabilityIDs(seen))
+		}
+	}
+}
+
+func TestAPIEnsureReportsPresentAndMissingCapabilities(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := Run([]string{"api", "ensure", "--capabilities", "api.show,workflow.show,missing.capability", "--format", "json"}, &stdout, &stderr, "v9.9.9")
+
+	if code != 10 {
+		t.Fatalf("api ensure exit code = %d, want 10; stderr=%q stdout=%q", code, stderr.String(), stdout.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	if payload["status"] != "blocked" {
+		t.Fatalf("api ensure status = %#v, want blocked", payload["status"])
+	}
+	data := requireObject(t, payload, "data")
+	present := requireStringArray(t, data, "present")
+	missing := requireStringArray(t, data, "missing")
+	if !containsString(present, "api.show") || !containsString(present, "workflow.show") {
+		t.Fatalf("api ensure present = %#v", present)
+	}
+	if len(missing) != 1 || missing[0] != "missing.capability" {
+		t.Fatalf("api ensure missing = %#v", missing)
+	}
+	if digest, ok := data["capability_set_sha256"].(string); !ok || len(digest) != 64 {
+		t.Fatalf("api ensure capability_set_sha256 = %#v", data["capability_set_sha256"])
+	}
+	runtimeIdentity := requireObject(t, data, "runtime")
+	if runtimeIdentity["protocol_version"] != protocolVersion {
+		t.Fatalf("api ensure runtime = %#v", runtimeIdentity)
+	}
+}
+
+func TestAPIEnsureAcceptsRequiresJSONAtPath(t *testing.T) {
+	root := t.TempDir()
+	payloadPath := filepath.Join(root, "requires.json")
+	if err := os.WriteFile(payloadPath, []byte(`{"capabilities":["api.show","api.schema"]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+
+	code := Run([]string{"api", "ensure", "--project-root", root, "--requires-json", "@requires.json", "--format", "json"}, &stdout, &stderr, "v9.9.9")
+
+	if code != 0 {
+		t.Fatalf("api ensure @path exit code = %d, want 0; stderr=%q stdout=%q", code, stderr.String(), stdout.String())
+	}
+	data := requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data")
+	if missing := requireStringArray(t, data, "missing"); len(missing) != 0 {
+		t.Fatalf("api ensure missing = %#v, want empty", missing)
+	}
+}
+
+func TestAPIEnsureRejectsDuplicateAndEmptyInput(t *testing.T) {
+	for _, args := range [][]string{
+		{"api", "ensure", "--capabilities", "api.show,api.show", "--format", "json"},
+		{"api", "ensure", "--capabilities", "", "--format", "json"},
+		{"api", "ensure", "--format", "json"},
+	} {
+		var stdout, stderr bytes.Buffer
+		code := Run(args, &stdout, &stderr, "v9.9.9")
+		if code != 2 {
+			t.Fatalf("%v exit code = %d, want 2; stderr=%q stdout=%q", args, code, stderr.String(), stdout.String())
 		}
 	}
 }

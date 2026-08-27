@@ -252,6 +252,18 @@ func ProjectDirtyDebts(status *Status) {
 	}
 	paths := map[string]bool{}
 	reasons := map[string]bool{}
+	for _, path := range append(append([]string{}, status.DirtyScopePaths...), status.StalePaths...) {
+		path = filepath.ToSlash(strings.TrimSpace(path))
+		if path != "" {
+			paths[path] = true
+		}
+	}
+	for _, reason := range append(append([]string{}, status.DirtyReasons...), status.StaleReasons...) {
+		reason = strings.TrimSpace(reason)
+		if reason != "" {
+			reasons[reason] = true
+		}
+	}
 	for _, debt := range status.DirtyDebts {
 		for _, path := range debt.Paths {
 			path = filepath.ToSlash(strings.TrimSpace(path))

@@ -9,10 +9,11 @@ import (
 	"testing"
 )
 
-func TestWorkflowCLIRecognizesExactlyNineCurrentSubcommands(t *testing.T) {
+func TestWorkflowCLIRecognizesExactlyTenCurrentSubcommands(t *testing.T) {
 	projectRoot, _, featureRel := newWorkflowFeature(t, "001-cli")
 	current := map[string][]string{
 		"show":           {"workflow", "show", "--feature-dir", featureRel},
+		"ensure":         {"workflow", "ensure", "--feature-dir", featureRel, "--command", "specify"},
 		"enter":          {"workflow", "enter", "--feature-dir", featureRel, "--command", "specify"},
 		"next":           {"workflow", "next", "--feature-dir", featureRel},
 		"complete-stage": {"workflow", "complete-stage", "--feature-dir", featureRel, "--expected-revision", "1"},
@@ -54,7 +55,7 @@ func TestWorkflowCLIHelpListsCurrentCommandsOnly(t *testing.T) {
 		t.Fatalf("workflow help code = %d", code)
 	}
 	output := stdout.String()
-	for _, command := range []string{"show", "enter", "next", "complete-stage", "transition", "reopen", "block", "resolve", "closeout"} {
+	for _, command := range []string{"show", "ensure", "enter", "next", "complete-stage", "transition", "reopen", "block", "resolve", "closeout"} {
 		if !strings.Contains(output, "  "+command+"\n") {
 			t.Fatalf("workflow help missing %q: %q", command, output)
 		}
@@ -63,6 +64,41 @@ func TestWorkflowCLIHelpListsCurrentCommandsOnly(t *testing.T) {
 		if strings.Contains(output, retired) {
 			t.Fatalf("workflow help retained %q: %q", retired, output)
 		}
+	}
+}
+
+func TestWorkflowEnsureCreatesOnceAndReusesCurrentState(t *testing.T) {
+	projectRoot, _, featureRel := newWorkflowFeature(t, "003-cli-ensure")
+
+	created := runWorkflowCLI(t, projectRoot, "ensure", "--feature-dir", featureRel, "--command", "specify")
+	if created["status"] != "ok" {
+		t.Fatalf("first ensure = %#v, want ok", created)
+	}
+	createdData := requireObject(t, created, "data")
+	if createdData["ensure_state"] != "created" || createdData["revision"] != float64(1) {
+		t.Fatalf("first ensure data = %#v, want created revision 1", createdData)
+	}
+
+	workflowPath := filepath.Join(projectRoot, filepath.FromSlash(featureRel), "workflow.json")
+	before, err := os.ReadFile(workflowPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reused := runWorkflowCLI(t, projectRoot, "ensure", "--feature-dir", featureRel, "--command", "specify")
+	if reused["status"] != "ok" {
+		t.Fatalf("second ensure = %#v, want ok", reused)
+	}
+	reusedData := requireObject(t, reused, "data")
+	if reusedData["ensure_state"] != "reused" || reusedData["revision"] != float64(1) {
+		t.Fatalf("second ensure data = %#v, want reused revision 1", reusedData)
+	}
+	after, err := os.ReadFile(workflowPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatalf("reused ensure rewrote workflow state\nbefore=%s\nafter=%s", before, after)
 	}
 }
 
