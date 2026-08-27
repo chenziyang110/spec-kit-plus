@@ -60,6 +60,9 @@ func TestSourceContinuityLabMaterializesManifestAndPassingReport(t *testing.T) {
 	if patch["source_continuity_lab_report_ref"] != reportRef || patch["source_continuity_lab_report_sha256"] != env.Data["report_sha256"] {
 		t.Fatalf("ui verification patch = %#v", patch)
 	}
+	if patch["source_continuity_adapter_plan_ref"] != planRef || patch["source_continuity_adapter_plan_sha256"] != observation["adapter_plan_sha256"] {
+		t.Fatalf("ui verification adapter plan binding = %#v", patch)
+	}
 
 	exit, generic := runTaskRuntimeCommand(t, []string{
 		"artifact", "prepare", "--project-root", root,
@@ -445,6 +448,9 @@ func TestSourceContinuityLabUIVerificationIsNormalizedAndRequiredForAcceptance(t
 	}
 	if normalized["source_continuity_lab_report_ref"] != env.Data["report_ref"] || normalized["source_continuity_lab_report_sha256"] != env.Data["report_sha256"] {
 		t.Fatalf("normalized source continuity verification = %#v", normalized)
+	}
+	if normalized["source_continuity_adapter_plan_ref"] != planRef || normalized["source_continuity_adapter_plan_sha256"] != observation["adapter_plan_sha256"] {
+		t.Fatalf("normalized source continuity adapter plan = %#v", normalized)
 	}
 	lifecycle["ui_verification"] = normalized
 	if err := validateImplementTaskUIAcceptance(feature, task, lifecycle); err != nil {
