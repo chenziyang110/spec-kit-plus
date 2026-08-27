@@ -488,6 +488,12 @@ func TestSourceContinuityLabUIVerificationIsNormalizedAndRequiredForAcceptance(t
 		t.Fatalf("passing source continuity lab report should satisfy acceptance: %v", err)
 	}
 
+	normalized["source_continuity_adapter_plan_sha256"] = strings.Repeat("0", 64)
+	if err := validateImplementTaskUIAcceptance(feature, task, lifecycle); err == nil || !strings.Contains(strings.ToLower(err.Error()), "adapter plan") {
+		t.Fatalf("tampered source continuity adapter plan should block acceptance: %v", err)
+	}
+	normalized["source_continuity_adapter_plan_sha256"] = observation["adapter_plan_sha256"]
+
 	normalized["source_continuity_lab_report_sha256"] = strings.Repeat("0", 64)
 	if err := validateImplementTaskUIAcceptance(feature, task, lifecycle); err == nil || !strings.Contains(strings.ToLower(err.Error()), "sha-256") {
 		t.Fatalf("tampered source continuity report should block acceptance: %v", err)
@@ -596,6 +602,20 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 		t.Fatalf("refresh quick source continuity report failed: exit=%d env=%#v", exit, reportEnv)
 	}
 	patch = requireObjectValue(t, reportEnv.Data["ui_verification_patch"])
+	missingPlanPatch := cloneJSONValue(patch).(map[string]any)
+	delete(missingPlanPatch, "source_continuity_adapter_plan_ref")
+	delete(missingPlanPatch, "source_continuity_adapter_plan_sha256")
+	mustWriteQuickWorkerResult(t, workspace, "Q1", map[string]any{
+		"task_id": "Q1", "status": "success", "summary": "implemented source-grounded UI",
+		"changed_files":   []any{"src/after-report.txt"},
+		"ui_verification": missingPlanPatch,
+	})
+	env = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "item-accept", quickID, "--item", "Q1", "--evidence", "source continuity lab passed",
+	})
+	if env.Status != "blocked" || !strings.Contains(strings.ToLower(fmt.Sprint(env.Blockers)), "adapter plan") {
+		t.Fatalf("quick item without adapter plan binding should block: %#v", env)
+	}
 	mustWriteQuickWorkerResult(t, workspace, "Q1", map[string]any{
 		"task_id": "Q1", "status": "success", "summary": "implemented source-grounded UI",
 		"changed_files":   []any{"src/after-report.txt"},
