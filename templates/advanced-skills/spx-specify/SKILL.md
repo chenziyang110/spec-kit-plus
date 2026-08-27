@@ -35,7 +35,7 @@ Require the dry-run receipt's exact `BOOTSTRAP_CONTRACT` field to equal
 `spec-kit-feature-bootstrap-v1`. If it is absent or different, stop before the
 managed or unhosted registration paths and before any branch action or feature
 write; request the operator's human-only integration repair action through the
-trusted project Specify launcher (`{{specify-subcmd:integration repair}}`), then
+exact trusted project Specify launcher command named by the dry-run diagnostic, then
 repeat the dry run.
 Every real script invocation must replay the dry-run `BRANCH_NAME` unchanged
 with `--resolved-feature-id <dry-run BRANCH_NAME>` or PowerShell

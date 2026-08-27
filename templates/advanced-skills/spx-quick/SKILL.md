@@ -361,7 +361,7 @@ direction to `$spx-design`. Keep multi-surface or acceptance-heavy UI in Quick
 and expand its task-local plan, batches, viewport/state matrix, and evidence;
 do not shrink the UI outcome.
 
-Patch `STATUS.md` at meaningful transitions. For multiple same-checkpoint targets in one artifact, aggregate the delta in memory and prefer one prepared lease plus `specify-runtime artifact patch-batch`; older runtimes fall back to leased `specify-runtime artifact patch` calls. Create an absent `SUMMARY.md` with `artifact scaffold --kind quick-summary`, query it on resume, and batch only its named terminal sections; never submit or reconstruct the whole summary.
+Record meaningful transition updates in `STATUS.md` only through its artifact owner. For multiple same-checkpoint targets in one artifact, aggregate the delta in memory and prefer one prepared lease plus `specify-runtime artifact patch-batch`; older runtimes fall back to leased `specify-runtime artifact patch` calls. Create an absent `SUMMARY.md` with `artifact scaffold --kind quick-summary`, query it on resume, and batch only its named terminal sections; never submit or reconstruct the whole summary.
 
 **Terminal order is mandatory (do not reverse):**
 

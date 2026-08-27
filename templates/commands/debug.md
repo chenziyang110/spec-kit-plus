@@ -47,13 +47,14 @@ of cognition freshness or mutation closeout.
 4. Investigate one active hypothesis at a time, record eliminated alternatives, confirm root cause, and reject surface-only fixes.
 5. Apply the minimum safe fix through the selected execution model, verify with reproduction and tests, review related risks, patch the debug session only through leased `specify-runtime artifact patch` calls, and close only as resolved or blocked.
 
-Preserve the debug session whenever its repair needs a harness, launcher,
-dependency, runner, or other supporting control-plane change beyond the first
-fix scope. Expand the registered causal scope and repair that control plane
-inside the active Debug recovery lane; do not invoke another user-invoked
-workflow automatically. Verify it, then resume the original reproduction and
-verification path in the same invocation. Unfamiliarity, scope growth, or
-unavailable delegation does not by itself justify a blocked Debug close.
+If no reliable automated test surface exists, build the smallest viable test
+harness. If that expands beyond the first debug fix lane, preserve the debug
+session, expand the registered causal scope, and
+repair the harness inside the active Debug recovery lane.
+Do not invoke another user-invoked workflow automatically. Verify it, then return to the reproduction and resume the original reproduction and verification path in the same invocation.
+Use `/sp-specify` only when the user explicitly chooses a formal spec-first path. Unfamiliarity, scope
+growth, or unavailable delegation does not by itself justify a blocked Debug
+close.
 
 ## Detailed References
 

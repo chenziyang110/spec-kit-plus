@@ -47,9 +47,12 @@ updated: "2026-07-24T00:00:00Z"
 		t.Fatalf("unexpected task payload: %#v", task)
 	}
 
-	env = runScriptDomainEnvelope(t, runQuick, []string{"--project-root", root, "close", "260724-001", "resolved"})
+	env = runScriptDomainEnvelope(t, runQuick, []string{"--project-root", root, "close", "260724-001", "blocked"})
+	if env.Status != "ok" {
+		t.Fatalf("close status = %s, blockers=%v", env.Status, env.Blockers)
+	}
 	task = env.Data["task"].(map[string]any)
-	if task["status"] != "resolved" || task["closed_at"] == "" {
+	if task["status"] != "blocked" || task["closed_at"] == "" {
 		t.Fatalf("close did not update task: %#v", task)
 	}
 

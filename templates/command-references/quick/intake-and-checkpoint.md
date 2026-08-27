@@ -184,8 +184,8 @@ re-staging a delta Decision Checkpoint through `quick checkpoint-stage` with
 `source.kind=delta`, `source.semantic_delta=true`, `source.delta_summary`, and
 exact `source.changed_decision_fields`. Keep the complete decision in the
 staged contract so the new digest covers the full resulting truth; the field
-list is display-only and does not enter that digest. Present only the named
-changed rows or decisions plus one concise `Unchanged` statement; do not repeat
+list is display-only and does not enter that digest. Present only the changed
+rows or decisions named by that list plus one concise `Unchanged` statement; do not repeat
 the full initial Quick Checkpoint. Ask the user to confirm or revise that delta, then
 `checkpoint-confirm` the new digest before resuming. If the user already
 explicitly approved the exact delta in the message that supplied it, confirm

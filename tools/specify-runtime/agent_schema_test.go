@@ -86,6 +86,12 @@ func TestAPIShowExpandsEveryAdvertisedCapability(t *testing.T) {
 			if capability["id"] != capabilityID {
 				t.Fatalf("api show %s capability = %#v", capabilityID, capability)
 			}
+			for _, field := range []string{"summary", "usage", "side_effect", "input_contract"} {
+				value, ok := capability[field].(string)
+				if !ok || strings.TrimSpace(value) == "" {
+					t.Fatalf("api show %s capability.%s = %#v", capabilityID, field, capability[field])
+				}
+			}
 		})
 	}
 }

@@ -305,6 +305,10 @@ def test_runtime_runner_uses_unified_namespaced_argv(
             ["artifact", "show", "--path", "spec.md", "--format", "json"],
             35.0,
         ),
+        (
+            ["artifact", "show-many", "--input-json", '{"queries":[]}', "--format", "json"],
+            35.0,
+        ),
         (["validate", "spec", "--feature-dir", ".", "--format", "json"], 305.0),
         (
             ["run", "launch", "--adapter-id", "codex", "--", "codex", "exec"],

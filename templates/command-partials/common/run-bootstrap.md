@@ -102,8 +102,8 @@ root with the original feature description plus `--dry-run --json` (PowerShell:
 switch branches. Require the dry-run receipt's exact `BOOTSTRAP_CONTRACT` field
 to equal `spec-kit-feature-bootstrap-v1`. If it is absent or different, stop
 before any Run/Work registration, branch action, or feature write; request the
-operator's human-only integration repair action through the trusted project
-Specify launcher (`{{specify-subcmd:integration repair}}`), then repeat the dry
+operator's human-only integration repair action through the exact trusted
+project Specify launcher command named by the dry-run diagnostic, then repeat the dry
 run. Every later real script invocation must replay that dry-run
 `BRANCH_NAME` unchanged with `--resolved-feature-id <dry-run BRANCH_NAME>`
 (PowerShell: `-ResolvedFeatureId <dry-run BRANCH_NAME>`); never recompute its

@@ -59,10 +59,10 @@ func TestStatusProjectsDirtyDebtsIntoLegacyFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !got.Dirty || got.Freshness == ReadyFreshness || got.Readiness == ReadyReadiness ||
-		strings.Join(got.DirtyScopePaths, ",") != "docs/stale.md,src/app.go,templates/legacy" ||
-		strings.Join(got.StalePaths, ",") != "docs/stale.md,src/app.go,templates/legacy" ||
-		strings.Join(got.DirtyReasons, ",") != "affected closure cannot be bounded safely,deferred,project structure changed" ||
-		strings.Join(got.StaleReasons, ",") != "affected closure cannot be bounded safely,deferred,project structure changed" {
+		strings.Join(got.DirtyScopePaths, ",") != "docs/stale.md,templates/legacy,src/app.go" ||
+		strings.Join(got.StalePaths, ",") != "docs/stale.md,templates/legacy,src/app.go" ||
+		strings.Join(got.DirtyReasons, ",") != "affected closure cannot be bounded safely,project structure changed,deferred" ||
+		strings.Join(got.StaleReasons, ",") != "affected closure cannot be bounded safely,project structure changed,deferred" {
 		t.Fatalf("status = %#v, want debt projected into truthful legacy fields", got)
 	}
 }

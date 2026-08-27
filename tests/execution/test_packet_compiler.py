@@ -848,6 +848,8 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
             smoothness_lab_report_sha256="e" * 64,
             source_continuity_lab_report_ref="implementation-review/source-continuity/source-continuity-lab-T021.json",
             source_continuity_lab_report_sha256="f" * 64,
+            source_continuity_adapter_plan_ref="implementation-review/source-continuity/source-continuity-adapter-plan-T021.json",
+            source_continuity_adapter_plan_sha256="a" * 64,
             implementation_capture_refs=["artifacts/ui/settings.png"],
             covered_decision_ids=list(packet.ui_contract.design_decision_ids),
             covered_handoff_contract_ids=list(packet.ui_contract.handoff_contract_ids),

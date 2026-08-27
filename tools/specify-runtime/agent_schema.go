@@ -66,9 +66,12 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	parts := strings.Split(capabilityID, ".")
 	command := append([]string{"specify-runtime"}, parts...)
 	capability := map[string]any{
-		"id":      capabilityID,
-		"summary": capabilitySummary(capabilityID),
-		"command": command,
+		"id":             capabilityID,
+		"summary":        capabilitySummary(capabilityID),
+		"command":        command,
+		"usage":          strings.Join(command, " ") + " --help",
+		"side_effect":    "may-write",
+		"input_contract": "inspect the command-specific help before invoking; pass only documented arguments and request the JSON envelope when supported",
 	}
 	env = NewEnvelope("ok", fmt.Sprintf("Capability %s expanded.", capabilityID))
 	switch capabilityID {

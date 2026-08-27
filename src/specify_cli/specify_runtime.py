@@ -378,6 +378,7 @@ def _is_short_runtime_query(args: Sequence[str]) -> bool:
         "resume",
         "schema",
         "show",
+        "show-many",
         "status",
     }
 

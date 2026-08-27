@@ -250,37 +250,48 @@ func ProjectDirtyDebts(status *Status) {
 	if status == nil || len(status.DirtyDebts) == 0 {
 		return
 	}
-	paths := map[string]bool{}
-	reasons := map[string]bool{}
-	for _, path := range append(append([]string{}, status.DirtyScopePaths...), status.StalePaths...) {
+	paths := []string{}
+	pathSet := map[string]bool{}
+	appendPath := func(path string) {
 		path = filepath.ToSlash(strings.TrimSpace(path))
-		if path != "" {
-			paths[path] = true
+		if path != "" && !pathSet[path] {
+			pathSet[path] = true
+			paths = append(paths, path)
 		}
 	}
-	for _, reason := range append(append([]string{}, status.DirtyReasons...), status.StaleReasons...) {
+	for _, path := range status.StalePaths {
+		appendPath(path)
+	}
+	for _, path := range status.DirtyScopePaths {
+		appendPath(path)
+	}
+	reasons := []string{}
+	reasonSet := map[string]bool{}
+	appendReason := func(reason string) {
 		reason = strings.TrimSpace(reason)
-		if reason != "" {
-			reasons[reason] = true
+		if reason != "" && !reasonSet[reason] {
+			reasonSet[reason] = true
+			reasons = append(reasons, reason)
 		}
+	}
+	for _, reason := range status.StaleReasons {
+		appendReason(reason)
+	}
+	for _, reason := range status.DirtyReasons {
+		appendReason(reason)
 	}
 	for _, debt := range status.DirtyDebts {
 		for _, path := range debt.Paths {
-			path = filepath.ToSlash(strings.TrimSpace(path))
-			if path != "" {
-				paths[path] = true
-			}
+			appendPath(path)
 		}
 		reason := strings.TrimSpace(debt.Reason)
 		if reason == "" {
 			reason = strings.TrimSpace(debt.Kind)
 		}
-		if reason != "" {
-			reasons[reason] = true
-		}
+		appendReason(reason)
 	}
-	status.DirtyScopePaths = sortedStatusKeys(paths)
-	status.DirtyReasons = sortedStatusKeys(reasons)
+	status.DirtyScopePaths = append([]string{}, paths...)
+	status.DirtyReasons = append([]string{}, reasons...)
 	status.StalePaths = append([]string{}, status.DirtyScopePaths...)
 	status.StaleReasons = append([]string{}, status.DirtyReasons...)
 	status.Dirty = true
