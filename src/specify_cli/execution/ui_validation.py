@@ -338,6 +338,7 @@ def _source_continuity_adapter_plan_errors(
         "subject_id",
         "status",
         "binding",
+        "selection",
         "required_lanes",
         "adapters",
         "assignments",
@@ -385,6 +386,12 @@ def _source_continuity_adapter_plan_errors(
         "task_index_sha256": task_index_sha256,
     }:
         errors.append("adapter-plan-stale-binding")
+
+    errors.extend(
+        _source_continuity_adapter_selection_errors(
+            feature_dir, task_id, plan, adapter_plan_sha256
+        )
+    )
 
     adapters = _source_continuity_rows(plan.get("adapters"))
     adapter_by_id: dict[str, dict[str, Any]] = {}
@@ -492,6 +499,90 @@ def _source_continuity_adapter_plan_errors(
     if seen_lanes != required_lanes:
         errors.append("adapter-plan-lane-coverage-mismatch")
     return sorted(set(errors)), plan
+
+
+def _source_continuity_adapter_selection_errors(
+    feature_dir: Path,
+    task_id: str,
+    plan: dict[str, Any],
+    adapter_plan_sha256: str,
+) -> list[str]:
+    selection = plan.get("selection")
+    expected_fields = {
+        "mode",
+        "registry_schema",
+        "registry_sha256",
+        "probe_ref",
+        "probe_sha256",
+        "inventory_sha256",
+    }
+    if not isinstance(selection, dict) or set(selection) != expected_fields:
+        return ["adapter-selection-invalid-fields"]
+    mode = str(selection.get("mode") or "").strip()
+    if mode == "explicit":
+        if any(str(selection.get(field) or "").strip() for field in expected_fields - {"mode"}):
+            return ["adapter-selection-invalid-explicit-binding"]
+        return []
+    if mode != "registry-probe":
+        return ["adapter-selection-invalid-mode"]
+    registry_sha256 = str(selection.get("registry_sha256") or "").strip()
+    probe_ref = str(selection.get("probe_ref") or "").strip().replace("\\", "/")
+    probe_sha256 = str(selection.get("probe_sha256") or "").strip()
+    inventory_sha256 = str(selection.get("inventory_sha256") or "").strip()
+    canonical_probe_ref = (
+        "implementation-review/source-continuity/"
+        f"source-continuity-adapter-probe-{task_id}.json"
+    )
+    if (
+        selection.get("registry_schema")
+        != "spec-kit-source-continuity-adapter-registry-v1"
+        or not re.fullmatch(r"[0-9a-f]{64}", registry_sha256)
+        or probe_ref != canonical_probe_ref
+        or not re.fullmatch(r"[0-9a-f]{64}", probe_sha256)
+        or not re.fullmatch(r"[0-9a-f]{64}", inventory_sha256)
+    ):
+        return ["adapter-selection-invalid-registry-binding"]
+    probe_path = resolve_feature_artifact_ref(feature_dir, probe_ref)
+    if probe_path is None:
+        return ["adapter-probe-missing"]
+    try:
+        probe_bytes = probe_path.read_bytes()
+        probe = json.loads(probe_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return ["adapter-probe-invalid-json"]
+    if hashlib.sha256(probe_bytes).hexdigest() != probe_sha256:
+        return ["adapter-probe-sha256-mismatch"]
+    if not isinstance(probe, dict) or set(probe) != {
+        "schema",
+        "subject_id",
+        "status",
+        "binding",
+        "registry_schema",
+        "registry_sha256",
+        "inventory_sha256",
+        "adapters",
+        "assignments",
+        "unavailable_bindings",
+        "unselected_bindings",
+        "unresolved_gaps",
+    }:
+        return ["adapter-probe-invalid-fields"]
+    if (
+        probe.get("schema") != "spec-kit-source-continuity-adapter-probe-v1"
+        or str(probe.get("subject_id") or "").strip().upper() != task_id
+        or probe.get("status") != "ready"
+        or probe.get("binding") != plan.get("binding")
+        or probe.get("registry_schema") != selection.get("registry_schema")
+        or probe.get("registry_sha256") != registry_sha256
+        or probe.get("inventory_sha256") != inventory_sha256
+        or probe.get("adapters") != plan.get("adapters")
+        or probe.get("assignments") != plan.get("assignments")
+        or probe.get("unresolved_gaps") != []
+    ):
+        return ["adapter-probe-stale-binding"]
+    if not adapter_plan_sha256:
+        return ["adapter-plan-sha256-missing"]
+    return []
 
 
 def _source_continuity_lab_semantic_errors(

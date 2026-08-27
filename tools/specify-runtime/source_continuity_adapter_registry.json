@@ -1,0 +1,35 @@
+{
+  "schema": "spec-kit-source-continuity-adapter-registry-v1",
+  "providers": [
+    {
+      "id": "structure-observer",
+      "version": "1",
+      "capabilities": ["surface-enumeration"],
+      "actions": ["enumerate-surfaces", "capture-structure"],
+      "evidence_kinds": ["structure_snapshot"],
+      "allowed_execution_modes": ["runtime-managed", "agent-tool", "app-connector", "external-runner", "manual-attested"],
+      "write_policy": "read-only",
+      "network_policy": "denied"
+    },
+    {
+      "id": "behavior-driver",
+      "version": "1",
+      "capabilities": ["action-execution", "side-effect-observation"],
+      "actions": ["enumerate-actions", "activate-action", "observe-side-effects", "capture-runtime", "prepare-isolated-test-data"],
+      "evidence_kinds": ["runtime_diagnostics"],
+      "allowed_execution_modes": ["runtime-managed", "agent-tool", "app-connector", "external-runner", "manual-attested"],
+      "write_policy": "isolated-test-data",
+      "network_policy": "declared-read-only"
+    },
+    {
+      "id": "visual-asset-observer",
+      "version": "1",
+      "capabilities": ["asset-inspection", "visual-capture"],
+      "actions": ["enumerate-assets", "capture-visual"],
+      "evidence_kinds": ["visual_capture"],
+      "allowed_execution_modes": ["runtime-managed", "agent-tool", "app-connector", "external-runner", "manual-attested"],
+      "write_policy": "read-only",
+      "network_policy": "denied"
+    }
+  ]
+}

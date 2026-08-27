@@ -20,6 +20,9 @@ func runAPISchema(args []string, stdout io.Writer) int {
 	case "source-continuity-adapter-plan-input":
 		schema = sourceContinuityAdapterPlanInputSchema()
 		capabilityID = "evidence.source-continuity-adapter-plan"
+	case "source-continuity-adapter-probe-input":
+		schema = sourceContinuityAdapterProbeInputJSONSchema()
+		capabilityID = "evidence.source-continuity-adapter-probe"
 	case "artifact-show-many-input":
 		schema = artifactShowManyInputSchema()
 		capabilityID = "artifact.show-many"
@@ -189,6 +192,16 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "writes-derived-source-continuity-manifest"
 		capability["usage"] = "specify-runtime evidence source-continuity-manifest (--feature-dir <feature-dir> --task-id <Txxx> | --quick-id <quick-id> --item-id <Qn>) --format json"
 		capability["input_contract"] = "derives the exact surface/action/asset universe from the immutable source_continuity contract and binds either the current task-index digest or the digest-protected Quick decision"
+	case "evidence.source-continuity-adapter-catalog":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime evidence source-continuity-adapter-catalog --format json"
+		capability["input_contract"] = "returns the embedded technology-neutral provider packs, their capabilities/actions/evidence/policies, and a deterministic registry_sha256; it does not inspect the project or install tools"
+	case "evidence.source-continuity-adapter-probe":
+		capability["input_schema"] = "source-continuity-adapter-probe-input"
+		capability["side_effect"] = "writes-derived-source-continuity-adapter-probe-and-plan"
+		capability["usage"] = "specify-runtime evidence source-continuity-adapter-probe (--feature-dir <feature-dir> --task-id <Txxx> | --quick-id <quick-id> --item-id <Qn>) --manifest <manifest-ref> --input-json <available-tool-bindings> --format json"
+		capability["input_contract"] = "agent declares only observed provider ids, symbolic tool refs, roles, execution mode, and availability; runtime owns capabilities, actions, evidence kinds, write/network policy, deterministic lane selection, gap recovery, probe report, and Adapter Plan"
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "source-continuity-adapter-probe-input", "--format", "json"}
 	case "evidence.source-continuity-adapter-plan":
 		capability["input_schema"] = "source-continuity-adapter-plan-input"
 		capability["side_effect"] = "writes-derived-source-continuity-adapter-plan"
@@ -607,6 +620,53 @@ func sourceContinuityAdapterPlanInputSchema() map[string]any {
 			"adapters":        map[string]any{"type": "array", "minItems": 1, "items": adapter},
 			"assignments":     map[string]any{"type": "array", "minItems": 10, "maxItems": 10, "items": assignment},
 			"unresolved_gaps": map[string]any{"type": "array", "maxItems": 0},
+		},
+	}
+}
+
+func sourceContinuityAdapterProbeInputJSONSchema() map[string]any {
+	nonEmptyString := map[string]any{"type": "string", "minLength": 1}
+	binding := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"id", "provider_ids", "roles", "tool_ref", "execution_mode", "available", "unavailable_reason"},
+		"properties": map[string]any{
+			"id": nonEmptyString,
+			"provider_ids": map[string]any{
+				"type": "array", "minItems": 1, "uniqueItems": true,
+				"items": nonEmptyString,
+			},
+			"roles": map[string]any{
+				"type": "array", "minItems": 1, "uniqueItems": true,
+				"items": map[string]any{"type": "string", "enum": []any{"source", "target"}},
+			},
+			"tool_ref":           map[string]any{"type": "string", "pattern": `^[a-z][a-z0-9+.-]*://\S+$`},
+			"execution_mode":     map[string]any{"type": "string", "enum": []any{"runtime-managed", "agent-tool", "app-connector", "external-runner", "manual-attested"}},
+			"available":          map[string]any{"type": "boolean"},
+			"unavailable_reason": map[string]any{"type": "string"},
+		},
+	}
+	policy := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"allow_manual_attested", "preferred_binding_ids"},
+		"properties": map[string]any{
+			"allow_manual_attested": map[string]any{"type": "boolean"},
+			"preferred_binding_ids": map[string]any{
+				"type": "array", "uniqueItems": true, "items": nonEmptyString,
+			},
+		},
+	}
+	return map[string]any{
+		"$schema":              "https://json-schema.org/draft/2020-12/schema",
+		"$id":                  "specify://schemas/source-continuity-adapter-probe-input/v1",
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"schema", "bindings", "policy"},
+		"properties": map[string]any{
+			"schema":   map[string]any{"const": sourceContinuityAdapterProbeInputSchema},
+			"bindings": map[string]any{"type": "array", "minItems": 1, "items": binding},
+			"policy":   policy,
 		},
 	}
 }

@@ -68,7 +68,7 @@ func TestSourceContinuityLabMaterializesManifestAndPassingReport(t *testing.T) {
 		"artifact", "prepare", "--project-root", root,
 		"--path", sourceContinuityLabCanonicalPath(root, feature, reportRef), "--format", "json",
 	})
-	if exit != 2 || generic.Data["owner"] != "specify-runtime evidence source-continuity-manifest / source-continuity-adapter-plan / source-continuity-validate" {
+	if exit != 2 || generic.Data["owner"] != "specify-runtime evidence source-continuity-manifest / source-continuity-adapter-probe / source-continuity-adapter-plan / source-continuity-validate" {
 		t.Fatalf("generic report mutation should block: exit=%d env=%#v", exit, generic)
 	}
 }

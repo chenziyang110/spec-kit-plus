@@ -110,6 +110,18 @@ func runEvidence(args []string, stdout io.Writer) int {
 		return writeEvidenceEnvelope(stdout, env)
 	case "source-continuity-manifest":
 		return writeEvidenceEnvelope(stdout, service.sourceContinuityManifest(args))
+	case "source-continuity-adapter-catalog":
+		return writeEvidenceEnvelope(stdout, service.sourceContinuityAdapterCatalog())
+	case "source-continuity-adapter-probe":
+		input, err := readAgentJSONObject(args, projectRoot, "evidence source-continuity-adapter-probe")
+		if err != nil {
+			return writeEvidenceEnvelope(stdout, evidenceUsageError(err.Error()))
+		}
+		env := service.sourceContinuityAdapterProbe(args, input)
+		if env.Status == "error" {
+			return writeEvidenceEnvelopeWithExit(stdout, env, 2)
+		}
+		return writeEvidenceEnvelope(stdout, env)
 	case "source-continuity-adapter-plan":
 		input, err := readAgentJSONObject(args, projectRoot, "evidence source-continuity-adapter-plan")
 		if err != nil {

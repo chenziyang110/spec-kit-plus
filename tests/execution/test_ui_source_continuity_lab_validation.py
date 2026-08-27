@@ -511,7 +511,7 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
     errors = validate_lifecycle_ui_verification(
         feature_dir, lifecycle, "implementation-review/tasks/T001.json"
     )
-    assert any("adapter probe" in error.lower() for error in errors)
+    assert any("adapter-probe" in error.lower() for error in errors), errors
     probe_path.write_bytes(probe_bytes)
 
     target_runtime = next(

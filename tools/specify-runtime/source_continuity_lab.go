@@ -319,24 +319,97 @@ func (service evidenceService) materializeSourceContinuityAdapterPlan(
 	manifest, raw map[string]any,
 	quick bool,
 ) Envelope {
-	adapters, assignments, diagnostics := validateSourceContinuityAdapterPlanInput(raw)
+	artifact, diagnostics, err := buildSourceContinuityAdapterPlanArtifact(
+		root, container, subjectID, mode, manifestRef, manifestPath, manifest, raw,
+		explicitSourceContinuityAdapterSelection(), quick,
+	)
 	if len(diagnostics) > 0 {
-		diagnostics = uniqueSourceContinuityLabDiagnostics(diagnostics)
 		env := NewEnvelope("error", strings.Join(diagnostics, "; "))
 		env.Data = map[string]any{"subject_id": subjectID, "diagnostics": stringsToAny(diagnostics)}
 		return env
+	}
+	if err != nil {
+		return evidenceBlockedError("adapter plan cannot be materialized", err)
+	}
+	receipt, err := applyFileTransaction(root, "source-continuity-adapter-plan", []fileTransactionUpdate{{Path: artifact.path, Content: artifact.rendered, Perm: 0o644}})
+	if err != nil {
+		return evidenceBlockedError("adapter plan could not be written atomically", err)
+	}
+	return sourceContinuityAdapterPlanEnvelope(artifact, receipt.ReceiptRef)
+}
+
+type sourceContinuityAdapterPlanArtifact struct {
+	plan          map[string]any
+	rendered      []byte
+	ref           string
+	path          string
+	canonicalPath string
+	sha256        string
+	planID        string
+}
+
+func buildSourceContinuityAdapterPlanArtifact(
+	root, container, subjectID, mode, manifestRef, manifestPath string,
+	manifest, raw, selection map[string]any,
+	quick bool,
+) (*sourceContinuityAdapterPlanArtifact, []string, error) {
+	adapters, assignments, diagnostics := validateSourceContinuityAdapterPlanInput(raw)
+	diagnostics = append(diagnostics, validateSourceContinuityAdapterSelection(selection)...)
+	if len(diagnostics) > 0 {
+		return nil, uniqueSourceContinuityLabDiagnostics(diagnostics), nil
 	}
 	manifestSHA := optionalFileSHA256(manifestPath)
 	seedRaw, err := marshalReviewAcceptJSON(map[string]any{
 		"manifest_sha256": manifestSHA,
 		"adapters":        adapters,
 		"assignments":     assignments,
+		"selection":       selection,
 	})
 	if err != nil {
-		return evidenceBlockedError("adapter plan identity cannot be derived", err)
+		return nil, nil, fmt.Errorf("adapter plan identity cannot be derived: %w", err)
 	}
 	seed := sha256.Sum256(seedRaw)
 	planID := "SCAP-" + hex.EncodeToString(seed[:])[:12]
+	binding := sourceContinuityAdapterManifestBinding(subjectID, mode, manifestRef, manifestSHA, manifest)
+	plan := map[string]any{
+		"schema":           sourceContinuityAdapterPlanSchema,
+		"adapter_protocol": sourceContinuityAdapterProtocol,
+		"plan_id":          planID,
+		"subject_id":       subjectID,
+		"status":           "ready",
+		"binding":          binding,
+		"selection":        cloneJSONValue(selection),
+		"required_lanes":   stringsToAny(sourceContinuityAdapterRequiredLanes()),
+		"adapters":         cloneJSONValue(adapters),
+		"assignments":      cloneJSONValue(assignments),
+		"unresolved_gaps":  []any{},
+	}
+	rendered, err := marshalReviewAcceptJSON(plan)
+	if err != nil {
+		return nil, nil, fmt.Errorf("adapter plan cannot be rendered: %w", err)
+	}
+	planRef := sourceContinuityAdapterPlanRef(subjectID)
+	if quick {
+		planRef = sourceContinuityAdapterQuickPlanRef(subjectID)
+	}
+	canonicalPath := sourceContinuityLabCanonicalPath(root, container, planRef)
+	if quick {
+		err = validateQuickSourceContinuityLabArtifactOwner(canonicalPath)
+	} else {
+		err = validateSourceContinuityLabArtifactOwner(canonicalPath)
+	}
+	if err != nil {
+		return nil, nil, fmt.Errorf("adapter plan path is not owned by its specialized CLI: %w", err)
+	}
+	planPath := filepath.Join(container, filepath.FromSlash(planRef))
+	planSHA := fileContentSHA256(rendered)
+	return &sourceContinuityAdapterPlanArtifact{
+		plan: plan, rendered: rendered, ref: planRef, path: planPath,
+		canonicalPath: canonicalPath, sha256: planSHA, planID: planID,
+	}, nil, nil
+}
+
+func sourceContinuityAdapterManifestBinding(subjectID, mode, manifestRef, manifestSHA string, manifest map[string]any) map[string]any {
 	manifestSource, _ := manifest["source"].(map[string]any)
 	binding := map[string]any{
 		"mode":                     mode,
@@ -351,61 +424,66 @@ func (service evidenceService) materializeSourceContinuityAdapterPlan(
 	} else {
 		binding["task_index_sha256"] = anyString(manifestSource["task_index_sha256"])
 	}
-	plan := map[string]any{
-		"schema":           sourceContinuityAdapterPlanSchema,
-		"adapter_protocol": sourceContinuityAdapterProtocol,
-		"plan_id":          planID,
-		"subject_id":       subjectID,
-		"status":           "ready",
-		"binding":          binding,
-		"required_lanes":   stringsToAny(sourceContinuityAdapterRequiredLanes()),
-		"adapters":         cloneJSONValue(adapters),
-		"assignments":      cloneJSONValue(assignments),
-		"unresolved_gaps":  []any{},
-	}
-	rendered, err := marshalReviewAcceptJSON(plan)
-	if err != nil {
-		return evidenceBlockedError("adapter plan cannot be rendered", err)
-	}
-	planRef := sourceContinuityAdapterPlanRef(subjectID)
-	if quick {
-		planRef = sourceContinuityAdapterQuickPlanRef(subjectID)
-	}
-	canonicalPath := sourceContinuityLabCanonicalPath(root, container, planRef)
-	if quick {
-		err = validateQuickSourceContinuityLabArtifactOwner(canonicalPath)
-	} else {
-		err = validateSourceContinuityLabArtifactOwner(canonicalPath)
-	}
-	if err != nil {
-		return evidenceBlockedError("adapter plan path is not owned by its specialized CLI", err)
-	}
-	planPath := filepath.Join(container, filepath.FromSlash(planRef))
-	receipt, err := applyFileTransaction(root, "source-continuity-adapter-plan", []fileTransactionUpdate{{Path: planPath, Content: rendered, Perm: 0o644}})
-	if err != nil {
-		return evidenceBlockedError("adapter plan could not be written atomically", err)
-	}
-	planSHA := fileContentSHA256(rendered)
+	return binding
+}
+
+func sourceContinuityAdapterPlanEnvelope(artifact *sourceContinuityAdapterPlanArtifact, receiptRef string) Envelope {
 	env := NewEnvelope("ok", "source continuity adapter plan materialized")
 	env.Data = map[string]any{
-		"subject_id":              subjectID,
-		"adapter_plan_ref":        planRef,
-		"adapter_plan_sha256":     planSHA,
-		"plan_id":                 planID,
+		"subject_id":              anyString(artifact.plan["subject_id"]),
+		"adapter_plan_ref":        artifact.ref,
+		"adapter_plan_sha256":     artifact.sha256,
+		"plan_id":                 artifact.planID,
 		"required_lanes":          stringsToAny(sourceContinuityAdapterRequiredLanes()),
-		"transaction_receipt_ref": receipt.ReceiptRef,
+		"transaction_receipt_ref": receiptRef,
 		"adapter_binding": map[string]any{
-			"adapter_plan_ref":    planRef,
-			"adapter_plan_sha256": planSHA,
+			"adapter_plan_ref":    artifact.ref,
+			"adapter_plan_sha256": artifact.sha256,
 			"adapter": map[string]any{
-				"id":           "adapter-plan:" + planSHA[:12],
+				"id":           "adapter-plan:" + artifact.sha256[:12],
 				"version":      "1",
 				"capabilities": stringsToAny(sourceContinuityLabCapabilities),
 			},
 		},
 	}
-	env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--path", canonicalPath, "--view", "summary", "--format", "json"}
+	env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--path", artifact.canonicalPath, "--view", "summary", "--format", "json"}
 	return env
+}
+
+func explicitSourceContinuityAdapterSelection() map[string]any {
+	return map[string]any{
+		"mode": "explicit", "registry_schema": "", "registry_sha256": "",
+		"probe_ref": "", "probe_sha256": "", "inventory_sha256": "",
+	}
+}
+
+func validateSourceContinuityAdapterSelection(value map[string]any) []string {
+	if exactVisualComparisonFields(value, map[string]bool{
+		"mode": true, "registry_schema": true, "registry_sha256": true,
+		"probe_ref": true, "probe_sha256": true, "inventory_sha256": true,
+	}, "source continuity adapter selection") != nil {
+		return []string{"invalid-adapter-selection"}
+	}
+	mode := strings.TrimSpace(anyString(value["mode"]))
+	switch mode {
+	case "explicit":
+		for _, field := range []string{"registry_schema", "registry_sha256", "probe_ref", "probe_sha256", "inventory_sha256"} {
+			if strings.TrimSpace(anyString(value[field])) != "" {
+				return []string{"invalid-explicit-adapter-selection"}
+			}
+		}
+	case "registry-probe":
+		if value["registry_schema"] != sourceContinuityAdapterRegistrySchema ||
+			!reviewSHA256RE.MatchString(strings.TrimSpace(anyString(value["registry_sha256"]))) ||
+			strings.TrimSpace(anyString(value["probe_ref"])) == "" ||
+			!reviewSHA256RE.MatchString(strings.TrimSpace(anyString(value["probe_sha256"]))) ||
+			!reviewSHA256RE.MatchString(strings.TrimSpace(anyString(value["inventory_sha256"]))) {
+			return []string{"invalid-registry-adapter-selection"}
+		}
+	default:
+		return []string{"invalid-adapter-selection-mode"}
+	}
+	return nil
 }
 
 func validateSourceContinuityAdapterPlanInput(raw map[string]any) ([]any, []any, []string) {
@@ -612,7 +690,15 @@ func loadSourceContinuityAdapterPlan(container, subjectID, ref, sha, manifestRef
 	if err := json.Unmarshal(raw, &plan); err != nil {
 		return nil, errors.New("adapter plan must contain a JSON object")
 	}
+	if exactVisualComparisonFields(plan, map[string]bool{
+		"schema": true, "adapter_protocol": true, "plan_id": true, "subject_id": true,
+		"status": true, "binding": true, "selection": true, "required_lanes": true,
+		"adapters": true, "assignments": true, "unresolved_gaps": true,
+	}, "source continuity adapter plan") != nil {
+		return nil, errors.New("adapter plan contains unsupported fields")
+	}
 	binding, _ := plan["binding"].(map[string]any)
+	selection, selectionOK := plan["selection"].(map[string]any)
 	input := map[string]any{
 		"schema":          sourceContinuityAdapterInputSchema,
 		"adapters":        plan["adapters"],
@@ -620,6 +706,14 @@ func loadSourceContinuityAdapterPlan(container, subjectID, ref, sha, manifestRef
 		"unresolved_gaps": plan["unresolved_gaps"],
 	}
 	_, _, diagnostics := validateSourceContinuityAdapterPlanInput(input)
+	if !selectionOK {
+		diagnostics = append(diagnostics, "invalid-adapter-selection")
+	} else {
+		diagnostics = append(diagnostics, validateSourceContinuityAdapterSelection(selection)...)
+		if anyString(selection["mode"]) == "registry-probe" {
+			diagnostics = append(diagnostics, validateSourceContinuityAdapterProbeSelection(container, subjectID, manifestRef, manifestSHA, selection, plan, quick)...)
+		}
+	}
 	lanes := sourceContinuityLabStringList(plan["required_lanes"])
 	if plan["schema"] != sourceContinuityAdapterPlanSchema || plan["adapter_protocol"] != sourceContinuityAdapterProtocol || plan["status"] != "ready" || anyString(plan["subject_id"]) != subjectID || !sourceContinuityLabExactIDs(lanes, sourceContinuityAdapterRequiredLanes()) || anyString(binding["manifest_ref"]) != manifestRef || anyString(binding["manifest_sha256"]) != manifestSHA {
 		diagnostics = append(diagnostics, "stale-adapter-plan")
@@ -1305,7 +1399,7 @@ func sourceContinuityLabCanonicalPath(root, feature, ref string) string {
 
 func validateSourceContinuityLabArtifactOwner(canonicalPath string) error {
 	metadata, ok := LookupArtifactType(canonicalPath)
-	wantOwner := "specify-runtime evidence source-continuity-manifest / source-continuity-adapter-plan / source-continuity-validate"
+	wantOwner := "specify-runtime evidence source-continuity-manifest / source-continuity-adapter-probe / source-continuity-adapter-plan / source-continuity-validate"
 	if !ok || metadata.TypeID != "feature-source-continuity-lab" || metadata.Owner != wantOwner {
 		return errors.New(canonicalPath)
 	}
@@ -1314,7 +1408,7 @@ func validateSourceContinuityLabArtifactOwner(canonicalPath string) error {
 
 func validateQuickSourceContinuityLabArtifactOwner(canonicalPath string) error {
 	metadata, ok := LookupArtifactType(canonicalPath)
-	wantOwner := "specify-runtime evidence source-continuity-manifest / source-continuity-adapter-plan / source-continuity-validate"
+	wantOwner := "specify-runtime evidence source-continuity-manifest / source-continuity-adapter-probe / source-continuity-adapter-plan / source-continuity-validate"
 	if !ok || metadata.TypeID != "quick-source-continuity-lab" || metadata.Owner != wantOwner {
 		return errors.New(canonicalPath)
 	}
