@@ -93,6 +93,7 @@ def test_required_runtime_contract_includes_smoothness_evidence(
     "capability",
     (
         "evidence.source-continuity-manifest",
+        "evidence.source-continuity-adapter-plan",
         "evidence.source-continuity-validate",
     ),
 )
