@@ -216,6 +216,54 @@ func TestSourceContinuityLabHelperBoundaries(t *testing.T) {
 	}
 }
 
+func TestSourceContinuityLabTargetSnapshotHandlesBroadAndGlobScopes(t *testing.T) {
+	root := t.TempDir()
+	productPath := filepath.Join(root, "src", "app.ts")
+	runtimePath := filepath.Join(root, ".planning", "quick", "state.json")
+	if err := os.MkdirAll(filepath.Dir(productPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(runtimePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(productPath, []byte("v1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(runtimePath, []byte("runtime-v1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	broadBefore, err := sourceContinuityLabTargetSnapshot(root, []string{"."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(runtimePath, []byte("runtime-v2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	broadAfterRuntime, err := sourceContinuityLabTargetSnapshot(root, []string{"."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if broadBefore != broadAfterRuntime {
+		t.Fatal("runtime-owned state must not invalidate the target snapshot")
+	}
+	if err := os.WriteFile(productPath, []byte("v2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	broadAfterProduct, err := sourceContinuityLabTargetSnapshot(root, []string{"."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if broadAfterProduct == broadBefore {
+		t.Fatal("product changes must invalidate the target snapshot")
+	}
+	if _, err := sourceContinuityLabTargetSnapshot(root, []string{"src/*"}); err != nil {
+		t.Fatalf("single-star write scope must resolve to its real directory: %v", err)
+	}
+	if _, err := sourceContinuityLabTargetSnapshot(root, []string{".planning/**"}); err == nil {
+		t.Fatal("runtime-owned write scope must be rejected")
+	}
+}
+
 func TestSourceContinuityLabUIVerificationIsNormalizedAndRequiredForAcceptance(t *testing.T) {
 	root, featureRef, feature := sourceContinuityLabProject(t)
 	index := readImplementJSONFile(t, filepath.Join(feature, "task-index.json"))
