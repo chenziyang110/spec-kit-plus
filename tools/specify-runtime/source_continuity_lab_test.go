@@ -390,6 +390,37 @@ func TestSourceContinuityLabBindsEvidenceToAdapterPlan(t *testing.T) {
 	}
 }
 
+func TestSourceContinuityLabRejectsEvidenceKindLaundering(t *testing.T) {
+	root, featureRef, _ := sourceContinuityLabProject(t)
+	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
+	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	planRef := prepareFeatureSourceContinuityAdapterPlan(t, root, featureRef, manifestRef, observation)
+	bindSourceContinuityLabEvidence(t, root, observation)
+
+	var sourceStructureRef string
+	for _, value := range listValue(observation["evidence_refs"]) {
+		row := requireObjectValue(t, value)
+		if row["side"] == "source" && row["kind"] == "structure_snapshot" {
+			sourceStructureRef = anyString(row["ref"])
+		}
+	}
+	action := requireObjectValue(t, listValue(observation["action_results"])[0])
+	action["source_evidence_ref"] = sourceStructureRef
+	raw, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-validate", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--adapter-plan", planRef,
+		"--input-json", string(raw), "--format", "json",
+	})
+	if exit != 2 || !strings.Contains(strings.Join(anyStringSlice(env.Data["diagnostics"]), "\n"), "action-evidence-kind-mismatch") {
+		t.Fatalf("evidence kind laundering unexpectedly passed: exit=%d env=%#v", exit, env)
+	}
+}
+
 func TestSourceContinuityLabRejectsMissingAdapterPlan(t *testing.T) {
 	root, featureRef, _ := sourceContinuityLabProject(t)
 	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)

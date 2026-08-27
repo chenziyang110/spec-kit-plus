@@ -470,6 +470,28 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
         hashlib.sha256(report_bytes).hexdigest()
     )
 
+    action_result = report["action_results"][0]
+    action_result["source_evidence_ref"] = evidence_refs[
+        ("source", "structure_snapshot")
+    ]
+    report_bytes = _canonical_bytes(report)
+    report_path.write_bytes(report_bytes)
+    lifecycle["ui_verification"]["source_continuity_lab_report_sha256"] = (
+        hashlib.sha256(report_bytes).hexdigest()
+    )
+    errors = validate_lifecycle_ui_verification(
+        feature_dir, lifecycle, "implementation-review/tasks/T001.json"
+    )
+    assert any("action-evidence-kind-mismatch" in error for error in errors)
+    action_result["source_evidence_ref"] = evidence_refs[
+        ("source", "runtime_diagnostics")
+    ]
+    report_bytes = _canonical_bytes(report)
+    report_path.write_bytes(report_bytes)
+    lifecycle["ui_verification"]["source_continuity_lab_report_sha256"] = (
+        hashlib.sha256(report_bytes).hexdigest()
+    )
+
     source_file.write_text("export const ready = false;\n", encoding="utf-8")
     errors = validate_lifecycle_ui_verification(
         feature_dir, lifecycle, "implementation-review/tasks/T001.json"
