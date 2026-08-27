@@ -742,11 +742,17 @@ when the `classic` profile is selected.
   contract, and passes it unchanged into worker packets and real-entrypoint
   source-target Review. Source Continuity Lab turns that contract into executable
   proof: `evidence source-continuity-manifest` derives the immutable denominator
-  for a formal task or Quick Q item, and `evidence source-continuity-validate`
-  accepts independent source/target observations before atomically publishing a
-  hashed report. Formal task acceptance and Quick `item-accept` revalidate the
-  report, exact three-axis coverage, current task-index or confirmation digest,
-  business outcomes/side effects/final states, and asset fidelity.
+  for a formal task or Quick Q item. `evidence source-continuity-adapter-plan`
+  then composes one or more technology-neutral adapters across the ten
+  source/target capability lanes. Its safe action space contains symbolic tool
+  refs, declared permissions, typed evidence, and bounded actions only; it
+  rejects platform scripts, command/argv/env/install fields, uncovered lanes,
+  and unresolved gaps. Evidence records and rows bind exact `adapter_id`
+  provenance, and `evidence source-continuity-validate` verifies those bindings
+  before atomically publishing a hashed report. Formal task acceptance and Quick
+  `item-accept` revalidate the plan and report digests, exact three-axis coverage,
+  current task-index or confirmation digest, business outcomes/side effects/
+  final states, evidence types, and asset fidelity.
 
   The shared **UI Professional Skill** pack adds progressive disclosure to this
   studio loop. Its compact router selects one product domain, at most one visual
