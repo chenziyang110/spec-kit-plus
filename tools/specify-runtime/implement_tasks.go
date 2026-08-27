@@ -1323,7 +1323,15 @@ func validateImplementTaskUIAcceptance(feature string, task, lifecycle map[strin
 		}
 		reportRef := filepath.ToSlash(strings.TrimSpace(anyString(verification["source_continuity_lab_report_ref"])))
 		reportSHA256 := strings.TrimSpace(anyString(verification["source_continuity_lab_report_sha256"]))
-		if err := validatePersistedSourceContinuityLabReport(feature, task, reportRef, reportSHA256); err != nil {
+		if reportRef == "" || reportSHA256 == "" {
+			return fmt.Errorf("ui_verification source continuity lab report ref and SHA-256 digest are required")
+		}
+		adapterPlanRef := filepath.ToSlash(strings.TrimSpace(anyString(verification["source_continuity_adapter_plan_ref"])))
+		adapterPlanSHA256 := strings.TrimSpace(anyString(verification["source_continuity_adapter_plan_sha256"]))
+		if adapterPlanRef == "" || adapterPlanSHA256 == "" {
+			return fmt.Errorf("ui_verification source continuity adapter plan ref and SHA-256 digest are required")
+		}
+		if err := validatePersistedSourceContinuityLabReport(feature, task, reportRef, reportSHA256, adapterPlanRef, adapterPlanSHA256); err != nil {
 			return fmt.Errorf("ui_verification %w", err)
 		}
 	}

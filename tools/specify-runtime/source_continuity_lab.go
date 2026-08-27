@@ -1321,7 +1321,7 @@ func validateQuickSourceContinuityLabArtifactOwner(canonicalPath string) error {
 	return nil
 }
 
-func validatePersistedQuickSourceContinuityLabReport(workspacePath string, doc *quickConfirmationDoc, itemID, reportRef, reportSHA256 string) error {
+func validatePersistedQuickSourceContinuityLabReport(workspacePath string, doc *quickConfirmationDoc, itemID, reportRef, reportSHA256, expectedAdapterPlanRef, expectedAdapterPlanSHA string) error {
 	if reportRef != sourceContinuityLabQuickReportRef(itemID) {
 		return errors.New("source continuity lab report must use the runtime-owned canonical quick item path")
 	}
@@ -1370,6 +1370,9 @@ func validatePersistedQuickSourceContinuityLabReport(workspacePath string, doc *
 	reportSource, _ := report["source"].(map[string]any)
 	adapterPlanRef := filepath.ToSlash(strings.TrimSpace(anyString(report["adapter_plan_ref"])))
 	adapterPlanSHA := strings.TrimSpace(anyString(report["adapter_plan_sha256"]))
+	if adapterPlanRef != expectedAdapterPlanRef || adapterPlanSHA != expectedAdapterPlanSHA {
+		return errors.New("source continuity adapter plan verification binding is stale")
+	}
 	adapterPlan, adapterPlanErr := loadSourceContinuityAdapterPlan(workspacePath, itemID, adapterPlanRef, adapterPlanSHA, manifestRef, taskControlSHA256(manifestRaw), true)
 	validationInput := map[string]any{
 		"schema": reportSource["result_schema"], "manifest_sha256": report["manifest_sha256"],
@@ -1411,7 +1414,7 @@ func validatePersistedQuickSourceContinuityLabReport(workspacePath string, doc *
 	return nil
 }
 
-func validatePersistedSourceContinuityLabReport(feature string, task map[string]any, reportRef, reportSHA256 string) error {
+func validatePersistedSourceContinuityLabReport(feature string, task map[string]any, reportRef, reportSHA256, expectedAdapterPlanRef, expectedAdapterPlanSHA string) error {
 	taskID := strings.ToUpper(strings.TrimSpace(anyString(task["id"])))
 	if reportRef != sourceContinuityLabReportRef(taskID) {
 		return errors.New("source continuity lab report must use the runtime-owned canonical task path")
@@ -1464,6 +1467,9 @@ func validatePersistedSourceContinuityLabReport(feature string, task map[string]
 	reportSource, _ := report["source"].(map[string]any)
 	adapterPlanRef := filepath.ToSlash(strings.TrimSpace(anyString(report["adapter_plan_ref"])))
 	adapterPlanSHA := strings.TrimSpace(anyString(report["adapter_plan_sha256"]))
+	if adapterPlanRef != expectedAdapterPlanRef || adapterPlanSHA != expectedAdapterPlanSHA {
+		return errors.New("source continuity adapter plan verification binding is stale")
+	}
 	adapterPlan, adapterPlanErr := loadSourceContinuityAdapterPlan(feature, taskID, adapterPlanRef, adapterPlanSHA, manifestRef, taskControlSHA256(manifestRaw), false)
 	validationInput := map[string]any{
 		"schema": reportSource["result_schema"], "manifest_sha256": report["manifest_sha256"],

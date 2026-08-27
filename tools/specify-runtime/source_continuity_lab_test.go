@@ -638,6 +638,8 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 		"Q1",
 		anyString(reportEnv.Data["report_ref"]),
 		anyString(reportEnv.Data["report_sha256"]),
+		anyString(patch["source_continuity_adapter_plan_ref"]),
+		anyString(patch["source_continuity_adapter_plan_sha256"]),
 	); err != nil {
 		t.Fatalf("accepted Q item must preserve a revalidatable continuity report: %v", err)
 	}
