@@ -9,15 +9,50 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 )
 
 const (
-	sourceContinuityLabManifestSchema = "spec-kit-source-continuity-lab-manifest-v1"
-	sourceContinuityLabResultSchema   = "spec-kit-source-continuity-lab-result-v1"
-	sourceContinuityLabReportSchema   = "spec-kit-source-continuity-lab-report-v1"
+	sourceContinuityLabManifestSchema  = "spec-kit-source-continuity-lab-manifest-v1"
+	sourceContinuityLabResultSchema    = "spec-kit-source-continuity-lab-result-v1"
+	sourceContinuityLabReportSchema    = "spec-kit-source-continuity-lab-report-v1"
+	sourceContinuityAdapterProtocol    = "spec-kit-source-continuity-adapter-v1"
+	sourceContinuityAdapterInputSchema = "spec-kit-source-continuity-adapter-plan-input-v1"
+	sourceContinuityAdapterPlanSchema  = "spec-kit-source-continuity-adapter-plan-v1"
 )
+
+var sourceContinuityAdapterIDPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$`)
+var sourceContinuityAdapterToolRefPattern = regexp.MustCompile(`^[a-z][a-z0-9+.-]*://[^\s]+$`)
+
+var sourceContinuityAdapterActions = map[string]bool{
+	"enumerate-surfaces":         true,
+	"enumerate-actions":          true,
+	"enumerate-assets":           true,
+	"activate-action":            true,
+	"observe-side-effects":       true,
+	"capture-structure":          true,
+	"capture-visual":             true,
+	"capture-runtime":            true,
+	"prepare-isolated-test-data": true,
+}
+
+var sourceContinuityAdapterCapabilityActions = map[string][]string{
+	"surface-enumeration":     {"enumerate-surfaces", "capture-structure"},
+	"action-execution":        {"enumerate-actions", "activate-action", "capture-runtime"},
+	"side-effect-observation": {"observe-side-effects", "capture-runtime"},
+	"asset-inspection":        {"enumerate-assets", "capture-visual"},
+	"visual-capture":          {"capture-visual"},
+}
+
+var sourceContinuityAdapterCapabilityEvidence = map[string]string{
+	"surface-enumeration":     "structure_snapshot",
+	"action-execution":        "runtime_diagnostics",
+	"side-effect-observation": "runtime_diagnostics",
+	"asset-inspection":        "visual_capture",
+	"visual-capture":          "visual_capture",
+}
 
 var sourceContinuityLabCapabilities = []string{
 	"surface-enumeration",
@@ -187,6 +222,354 @@ func (service evidenceService) sourceContinuityValidate(args []string, raw map[s
 	}
 	env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--path", canonicalPath, "--view", "summary", "--format", "json"}
 	return env
+}
+
+func (service evidenceService) sourceContinuityAdapterPlan(args []string, raw map[string]any) Envelope {
+	if quickID := strings.TrimSpace(optionValue(args, "--quick-id", "")); quickID != "" {
+		context, err := service.sourceContinuityQuickContext(args, quickID)
+		if err != nil {
+			return evidenceUsageError(err.Error())
+		}
+		manifestRef := filepath.ToSlash(strings.TrimSpace(optionValue(args, "--manifest", "")))
+		if manifestRef != sourceContinuityLabQuickManifestRef(context.itemID) {
+			return evidenceUsageError("quick adapter plan must bind the canonical item manifest")
+		}
+		manifestPath, err := secureFeatureRelativePath(context.workspacePath, manifestRef)
+		if err != nil {
+			return evidenceUsageError("quick source continuity manifest path is unsafe")
+		}
+		manifest, err := readImplementJSONMap(manifestPath)
+		if err != nil {
+			return evidenceBlockedError("quick source continuity manifest is unavailable", err)
+		}
+		if err := validateCurrentQuickSourceContinuityManifest(context, manifest); err != nil {
+			return evidenceBlockedError("quick source continuity manifest is stale", err)
+		}
+		return service.materializeSourceContinuityAdapterPlan(
+			context.root,
+			context.workspacePath,
+			context.itemID,
+			"quick",
+			manifestRef,
+			manifestPath,
+			manifest,
+			raw,
+			true,
+		)
+	}
+
+	root, feature, err := taskControlFeature(args)
+	if err != nil {
+		return evidenceUsageError(err.Error())
+	}
+	taskID, err := normalizeTaskControlID(optionValue(args, "--task-id", ""))
+	if err != nil {
+		return evidenceUsageError(err.Error())
+	}
+	manifestRef := filepath.ToSlash(strings.TrimSpace(optionValue(args, "--manifest", "")))
+	if manifestRef != sourceContinuityLabManifestRef(taskID) {
+		return evidenceUsageError("adapter plan must bind the canonical task manifest")
+	}
+	manifestPath, err := secureFeatureRelativePath(feature, manifestRef)
+	if err != nil {
+		return evidenceUsageError("source continuity manifest path is unsafe")
+	}
+	manifest, err := readImplementJSONMap(manifestPath)
+	if err != nil {
+		return evidenceBlockedError("source continuity manifest is unavailable", err)
+	}
+	if err := validateCurrentFeatureSourceContinuityManifest(root, feature, taskID, manifest); err != nil {
+		return evidenceBlockedError("source continuity manifest is stale", err)
+	}
+	return service.materializeSourceContinuityAdapterPlan(
+		root,
+		feature,
+		taskID,
+		"formal",
+		manifestRef,
+		manifestPath,
+		manifest,
+		raw,
+		false,
+	)
+}
+
+func (service evidenceService) materializeSourceContinuityAdapterPlan(
+	root, container, subjectID, mode, manifestRef, manifestPath string,
+	manifest, raw map[string]any,
+	quick bool,
+) Envelope {
+	adapters, assignments, diagnostics := validateSourceContinuityAdapterPlanInput(raw)
+	if len(diagnostics) > 0 {
+		diagnostics = uniqueSourceContinuityLabDiagnostics(diagnostics)
+		env := NewEnvelope("error", strings.Join(diagnostics, "; "))
+		env.Data = map[string]any{"subject_id": subjectID, "diagnostics": stringsToAny(diagnostics)}
+		return env
+	}
+	manifestSHA := optionalFileSHA256(manifestPath)
+	seedRaw, err := marshalReviewAcceptJSON(map[string]any{
+		"manifest_sha256": manifestSHA,
+		"adapters":        adapters,
+		"assignments":     assignments,
+	})
+	if err != nil {
+		return evidenceBlockedError("adapter plan identity cannot be derived", err)
+	}
+	seed := sha256.Sum256(seedRaw)
+	planID := "SCAP-" + hex.EncodeToString(seed[:])[:12]
+	manifestSource, _ := manifest["source"].(map[string]any)
+	binding := map[string]any{
+		"mode":                     mode,
+		"subject_id":               subjectID,
+		"manifest_ref":             manifestRef,
+		"manifest_sha256":          manifestSHA,
+		"source_continuity_sha256": anyString(manifest["source_continuity_sha256"]),
+		"target_snapshot_sha256":   anyString(manifestSource["target_snapshot_sha256"]),
+	}
+	if mode == "quick" {
+		binding["confirmation_digest"] = anyString(manifestSource["confirmation_digest"])
+	} else {
+		binding["task_index_sha256"] = anyString(manifestSource["task_index_sha256"])
+	}
+	plan := map[string]any{
+		"schema":           sourceContinuityAdapterPlanSchema,
+		"adapter_protocol": sourceContinuityAdapterProtocol,
+		"plan_id":          planID,
+		"subject_id":       subjectID,
+		"status":           "ready",
+		"binding":          binding,
+		"required_lanes":   stringsToAny(sourceContinuityAdapterRequiredLanes()),
+		"adapters":         cloneJSONValue(adapters),
+		"assignments":      cloneJSONValue(assignments),
+		"unresolved_gaps":  []any{},
+	}
+	rendered, err := marshalReviewAcceptJSON(plan)
+	if err != nil {
+		return evidenceBlockedError("adapter plan cannot be rendered", err)
+	}
+	planRef := sourceContinuityAdapterPlanRef(subjectID)
+	if quick {
+		planRef = sourceContinuityAdapterQuickPlanRef(subjectID)
+	}
+	canonicalPath := sourceContinuityLabCanonicalPath(root, container, planRef)
+	if quick {
+		err = validateQuickSourceContinuityLabArtifactOwner(canonicalPath)
+	} else {
+		err = validateSourceContinuityLabArtifactOwner(canonicalPath)
+	}
+	if err != nil {
+		return evidenceBlockedError("adapter plan path is not owned by its specialized CLI", err)
+	}
+	planPath := filepath.Join(container, filepath.FromSlash(planRef))
+	receipt, err := applyFileTransaction(root, "source-continuity-adapter-plan", []fileTransactionUpdate{{Path: planPath, Content: rendered, Perm: 0o644}})
+	if err != nil {
+		return evidenceBlockedError("adapter plan could not be written atomically", err)
+	}
+	planSHA := fileContentSHA256(rendered)
+	env := NewEnvelope("ok", "source continuity adapter plan materialized")
+	env.Data = map[string]any{
+		"subject_id":              subjectID,
+		"adapter_plan_ref":        planRef,
+		"adapter_plan_sha256":     planSHA,
+		"plan_id":                 planID,
+		"required_lanes":          stringsToAny(sourceContinuityAdapterRequiredLanes()),
+		"transaction_receipt_ref": receipt.ReceiptRef,
+		"adapter_binding": map[string]any{
+			"adapter_plan_ref":    planRef,
+			"adapter_plan_sha256": planSHA,
+			"adapter": map[string]any{
+				"id":           "adapter-plan:" + planSHA[:12],
+				"version":      "1",
+				"capabilities": stringsToAny(sourceContinuityLabCapabilities),
+			},
+		},
+	}
+	env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--path", canonicalPath, "--view", "summary", "--format", "json"}
+	return env
+}
+
+func validateSourceContinuityAdapterPlanInput(raw map[string]any) ([]any, []any, []string) {
+	diagnostics := []string{}
+	if err := exactVisualComparisonFields(raw, map[string]bool{
+		"schema": true, "adapters": true, "assignments": true, "unresolved_gaps": true,
+	}, "source continuity adapter plan input"); err != nil {
+		diagnostics = append(diagnostics, "invalid-adapter-plan-fields")
+	}
+	if raw["schema"] != sourceContinuityAdapterInputSchema {
+		diagnostics = append(diagnostics, "invalid-adapter-plan-schema")
+	}
+	gaps, gapsOK := raw["unresolved_gaps"].([]any)
+	if !gapsOK || len(gaps) > 0 {
+		diagnostics = append(diagnostics, "adapter-plan-unresolved-gap")
+	}
+	adapters, adaptersOK := raw["adapters"].([]any)
+	if !adaptersOK || len(adapters) == 0 {
+		diagnostics = append(diagnostics, "adapter-plan-requires-adapters")
+		adapters = []any{}
+	}
+	adapterByID := map[string]map[string]any{}
+	for _, value := range adapters {
+		adapter, ok := value.(map[string]any)
+		if !ok || exactVisualComparisonFields(adapter, map[string]bool{
+			"id": true, "version": true, "roles": true, "capabilities": true,
+			"actions": true, "evidence_kinds": true, "execution_mode": true,
+			"tool_ref": true, "write_policy": true, "network_policy": true,
+		}, "source continuity adapter") != nil {
+			diagnostics = append(diagnostics, "invalid-adapter-fields")
+			continue
+		}
+		id := strings.TrimSpace(anyString(adapter["id"]))
+		version := strings.TrimSpace(anyString(adapter["version"]))
+		toolRef := strings.TrimSpace(anyString(adapter["tool_ref"]))
+		if !sourceContinuityAdapterIDPattern.MatchString(id) || version == "" || !sourceContinuityAdapterToolRefPattern.MatchString(toolRef) {
+			diagnostics = append(diagnostics, "invalid-adapter-identity")
+		}
+		if _, duplicate := adapterByID[id]; duplicate {
+			diagnostics = append(diagnostics, "duplicate-adapter-id:"+id)
+		}
+		adapterByID[id] = adapter
+		roles := sourceContinuityLabStringList(adapter["roles"])
+		capabilities := sourceContinuityLabStringList(adapter["capabilities"])
+		actions := sourceContinuityLabStringList(adapter["actions"])
+		evidenceKinds := sourceContinuityLabStringList(adapter["evidence_kinds"])
+		if !sourceContinuityAdapterAllowedValues(roles, map[string]bool{"source": true, "target": true}) || len(roles) == 0 {
+			diagnostics = append(diagnostics, "invalid-adapter-role:"+id)
+		}
+		if !sourceContinuityAdapterAllowedValues(capabilities, visualComparisonStringSet(sourceContinuityLabCapabilities)) || len(capabilities) == 0 {
+			diagnostics = append(diagnostics, "invalid-adapter-capability:"+id)
+		}
+		if !sourceContinuityAdapterAllowedValues(actions, sourceContinuityAdapterActions) {
+			diagnostics = append(diagnostics, "unsupported-adapter-action:"+id)
+		}
+		if !sourceContinuityAdapterAllowedValues(evidenceKinds, map[string]bool{"structure_snapshot": true, "visual_capture": true, "runtime_diagnostics": true}) {
+			diagnostics = append(diagnostics, "invalid-adapter-evidence-kind:"+id)
+		}
+		if !quickContains([]string{"runtime-managed", "agent-tool", "app-connector", "external-runner", "manual-attested"}, anyString(adapter["execution_mode"])) {
+			diagnostics = append(diagnostics, "invalid-adapter-execution-mode:"+id)
+		}
+		writePolicy := anyString(adapter["write_policy"])
+		if !quickContains([]string{"read-only", "evidence-store-only", "isolated-test-data"}, writePolicy) {
+			diagnostics = append(diagnostics, "invalid-adapter-write-policy:"+id)
+		}
+		if !quickContains([]string{"denied", "declared-read-only"}, anyString(adapter["network_policy"])) {
+			diagnostics = append(diagnostics, "invalid-adapter-network-policy:"+id)
+		}
+		actionSet := sourceContinuityAdapterStringSet(actions)
+		evidenceSet := sourceContinuityAdapterStringSet(evidenceKinds)
+		for _, capability := range capabilities {
+			for _, action := range sourceContinuityAdapterCapabilityActions[capability] {
+				if !actionSet[action] {
+					diagnostics = append(diagnostics, "adapter-capability-contract-mismatch:"+id+":"+capability)
+				}
+			}
+			if !evidenceSet[sourceContinuityAdapterCapabilityEvidence[capability]] {
+				diagnostics = append(diagnostics, "adapter-capability-contract-mismatch:"+id+":"+capability)
+			}
+		}
+	}
+	assignments, assignmentsOK := raw["assignments"].([]any)
+	if !assignmentsOK {
+		diagnostics = append(diagnostics, "adapter-plan-requires-assignments")
+		assignments = []any{}
+	}
+	seenLanes := map[string]bool{}
+	for _, value := range assignments {
+		assignment, ok := value.(map[string]any)
+		if !ok || exactVisualComparisonFields(assignment, map[string]bool{
+			"side": true, "capability": true, "adapter_id": true, "selection_reason": true,
+		}, "source continuity adapter assignment") != nil {
+			diagnostics = append(diagnostics, "invalid-adapter-assignment")
+			continue
+		}
+		side := strings.TrimSpace(anyString(assignment["side"]))
+		capability := strings.TrimSpace(anyString(assignment["capability"]))
+		adapterID := strings.TrimSpace(anyString(assignment["adapter_id"]))
+		lane := side + "." + capability
+		if seenLanes[lane] {
+			diagnostics = append(diagnostics, "duplicate-adapter-lane:"+lane)
+		}
+		seenLanes[lane] = true
+		adapter := adapterByID[adapterID]
+		if adapter == nil || !sourceContinuityAdapterStringSet(sourceContinuityLabStringList(adapter["roles"]))[side] || !sourceContinuityAdapterStringSet(sourceContinuityLabStringList(adapter["capabilities"]))[capability] {
+			diagnostics = append(diagnostics, "adapter-assignment-mismatch:"+lane)
+		}
+		if strings.TrimSpace(anyString(assignment["selection_reason"])) == "" {
+			diagnostics = append(diagnostics, "adapter-assignment-reason-missing:"+lane)
+		}
+	}
+	for _, lane := range sourceContinuityAdapterRequiredLanes() {
+		if !seenLanes[lane] {
+			diagnostics = append(diagnostics, "missing-adapter-lane:"+lane)
+		}
+	}
+	return adapters, assignments, uniqueSourceContinuityLabDiagnostics(diagnostics)
+}
+
+func sourceContinuityAdapterRequiredLanes() []string {
+	lanes := []string{}
+	for _, side := range []string{"source", "target"} {
+		for _, capability := range sourceContinuityLabCapabilities {
+			lanes = append(lanes, side+"."+capability)
+		}
+	}
+	return lanes
+}
+
+func sourceContinuityAdapterAllowedValues(values []string, allowed map[string]bool) bool {
+	if len(values) != len(sourceContinuityAdapterStringSet(values)) {
+		return false
+	}
+	for _, value := range values {
+		if !allowed[value] {
+			return false
+		}
+	}
+	return true
+}
+
+func sourceContinuityAdapterStringSet(values []string) map[string]bool {
+	result := map[string]bool{}
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			result[value] = true
+		}
+	}
+	return result
+}
+
+func validateCurrentFeatureSourceContinuityManifest(root, feature, taskID string, manifest map[string]any) error {
+	indexPath := filepath.Join(feature, "task-index.json")
+	index, err := readImplementJSONMap(indexPath)
+	if err != nil {
+		return err
+	}
+	_, task, err := findImplementTask(index, taskID)
+	if err != nil {
+		return err
+	}
+	ui, _ := task["ui_contract"].(map[string]any)
+	continuity, _ := ui["source_continuity"].(map[string]any)
+	source, _ := manifest["source"].(map[string]any)
+	targetSnapshot, err := sourceContinuityLabTargetSnapshot(root, sourceContinuityLabTaskWriteScope(task))
+	if err != nil {
+		return err
+	}
+	if manifest["schema"] != sourceContinuityLabManifestSchema || anyString(manifest["task_id"]) != taskID || !reflect.DeepEqual(manifest["source_continuity"], continuity) || anyString(manifest["source_continuity_sha256"]) != sourceContinuityLabContractSHA(continuity) || anyString(source["task_index_sha256"]) != optionalFileSHA256(indexPath) || anyString(source["target_snapshot_sha256"]) != targetSnapshot {
+		return errors.New("source continuity manifest no longer matches the current task contract")
+	}
+	return nil
+}
+
+func validateCurrentQuickSourceContinuityManifest(context *sourceContinuityQuickContext, manifest map[string]any) error {
+	source, _ := manifest["source"].(map[string]any)
+	targetSnapshot, err := sourceContinuityLabTargetSnapshot(context.root, context.item.WriteScope)
+	if err != nil {
+		return err
+	}
+	if manifest["schema"] != sourceContinuityLabManifestSchema || anyString(manifest["task_id"]) != context.itemID || !reflect.DeepEqual(manifest["source_continuity"], context.continuity) || anyString(manifest["source_continuity_sha256"]) != sourceContinuityLabContractSHA(context.continuity) || anyString(source["confirmation_digest"]) != context.doc.ConfirmationDigest || anyString(source["target_snapshot_sha256"]) != targetSnapshot {
+		return errors.New("source continuity manifest no longer matches the current quick decision")
+	}
+	return nil
 }
 
 func sourceContinuityLabNotApplicable(taskID, reason string) Envelope {
@@ -742,12 +1125,20 @@ func sourceContinuityLabReportRef(taskID string) string {
 	return "implementation-review/source-continuity/source-continuity-lab-" + taskID + ".json"
 }
 
+func sourceContinuityAdapterPlanRef(taskID string) string {
+	return "implementation-review/source-continuity/source-continuity-adapter-plan-" + taskID + ".json"
+}
+
 func sourceContinuityLabQuickManifestRef(itemID string) string {
 	return "source-continuity/source-continuity-manifest-" + itemID + ".json"
 }
 
 func sourceContinuityLabQuickReportRef(itemID string) string {
 	return "source-continuity/source-continuity-lab-" + itemID + ".json"
+}
+
+func sourceContinuityAdapterQuickPlanRef(itemID string) string {
+	return "source-continuity/source-continuity-adapter-plan-" + itemID + ".json"
 }
 
 func sourceContinuityLabCanonicalPath(root, feature, ref string) string {

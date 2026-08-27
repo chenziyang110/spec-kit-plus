@@ -618,7 +618,7 @@ func sourceContinuityAdapterPlanInput() map[string]any {
 			"capabilities":   []any{"asset-inspection", "visual-capture"},
 			"actions":        []any{"enumerate-assets", "capture-visual"},
 			"evidence_kinds": []any{"visual_capture"},
-			"execution_mode": "human-guided", "tool_ref": "guide://asset-inspection",
+			"execution_mode": "manual-attested", "tool_ref": "guide://asset-inspection",
 			"write_policy": "read-only", "network_policy": "denied",
 		},
 	}
