@@ -152,6 +152,28 @@ func TestSourceContinuityLabRejectsIncompleteAdapterAndEvidence(t *testing.T) {
 	}
 }
 
+func TestSourceContinuityLabRejectsUnregisteredEvidenceReferences(t *testing.T) {
+	root, featureRef, _ := sourceContinuityLabProject(t)
+	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
+	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	raw, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-validate", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+	})
+	if exit != 2 || env.Status != "error" {
+		t.Fatalf("unregistered evidence references unexpectedly passed: exit=%d env=%#v", exit, env)
+	}
+	diagnostics := strings.Join(anyStringSlice(env.Data["diagnostics"]), "\n")
+	if !strings.Contains(diagnostics, "unverified-evidence-ref") {
+		t.Fatalf("unregistered evidence diagnostics = %s", diagnostics)
+	}
+}
+
 func TestSourceContinuityLabManifestReportsNotApplicableTask(t *testing.T) {
 	root := t.TempDir()
 	featureRef := filepath.ToSlash(filepath.Join(".specify", "features", "010-no-source-continuity"))
