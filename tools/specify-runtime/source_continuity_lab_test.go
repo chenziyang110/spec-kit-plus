@@ -125,6 +125,71 @@ func TestSourceContinuityLabRejectsAdapterDiscoveredCandidateOutsideContract(t *
 	}
 }
 
+func TestSourceContinuityLabRejectsIncompleteAdapterAndEvidence(t *testing.T) {
+	root, featureRef, _ := sourceContinuityLabProject(t)
+	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
+	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	adapter := requireObjectValue(t, observation["adapter"])
+	adapter["capabilities"] = []any{"surface-enumeration"}
+	observation["evidence_refs"] = []any{}
+	raw, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-validate", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+	})
+	if exit != 2 || env.Status != "error" {
+		t.Fatalf("incomplete adapter unexpectedly passed: exit=%d env=%#v", exit, env)
+	}
+	diagnostics := strings.Join(anyStringSlice(env.Data["diagnostics"]), "\n")
+	for _, marker := range []string{"missing-adapter-capability", "missing-source-structure-snapshot", "missing-target-runtime-diagnostics", "action-evidence-unbound", "asset-evidence-unbound"} {
+		if !strings.Contains(diagnostics, marker) {
+			t.Fatalf("incomplete adapter diagnostics missing %q: %s", marker, diagnostics)
+		}
+	}
+}
+
+func TestSourceContinuityLabManifestReportsNotApplicableTask(t *testing.T) {
+	root := t.TempDir()
+	featureRef := filepath.ToSlash(filepath.Join(".specify", "features", "010-no-source-continuity"))
+	feature := filepath.Join(root, filepath.FromSlash(featureRef))
+	if err := os.MkdirAll(feature, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskRuntimeFixture(t, filepath.Join(feature, "task-index.json"), map[string]any{
+		"version": 2, "status": "ready",
+		"tasks": []any{map[string]any{"id": "T902", "ui_contract": map[string]any{"fidelity_level": "none"}}},
+	})
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-manifest", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", "T902", "--format", "json",
+	})
+	if exit != 0 || env.Status != "ok" || env.Data["applicable"] != false || env.Data["status"] != "not-applicable" {
+		t.Fatalf("not-applicable source continuity manifest = exit %d env %#v", exit, env)
+	}
+}
+
+func TestSourceContinuityLabHelperBoundaries(t *testing.T) {
+	if sourceContinuityLabRatio(0, 0) != 1 {
+		t.Fatal("empty continuity universe must be complete")
+	}
+	if values := sourceContinuityLabStringList("not-an-array"); len(values) != 0 {
+		t.Fatalf("malformed continuity list = %#v", values)
+	}
+	if object := requireSourceContinuityLabObject(map[string]any{}, "missing"); len(object) != 0 {
+		t.Fatalf("missing continuity object = %#v", object)
+	}
+	if err := validateSourceContinuityLabArtifactOwner("not/a/registered/path.json"); err == nil {
+		t.Fatal("unregistered feature lab path should fail ownership")
+	}
+	if err := validateQuickSourceContinuityLabArtifactOwner("not/a/registered/path.json"); err == nil {
+		t.Fatal("unregistered quick lab path should fail ownership")
+	}
+}
+
 func TestSourceContinuityLabUIVerificationIsNormalizedAndRequiredForAcceptance(t *testing.T) {
 	root, featureRef, feature := sourceContinuityLabProject(t)
 	index := readImplementJSONFile(t, filepath.Join(feature, "task-index.json"))

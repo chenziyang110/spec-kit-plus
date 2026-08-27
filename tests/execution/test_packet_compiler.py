@@ -846,11 +846,22 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
             comparison_report_sha256="c" * 64,
             smoothness_lab_report_ref="implementation-review/smoothness/smoothness-lab-T021.json",
             smoothness_lab_report_sha256="e" * 64,
+            source_continuity_lab_report_ref="implementation-review/source-continuity/source-continuity-lab-T021.json",
+            source_continuity_lab_report_sha256="f" * 64,
             implementation_capture_refs=["artifacts/ui/settings.png"],
             covered_decision_ids=list(packet.ui_contract.design_decision_ids),
             covered_handoff_contract_ids=list(packet.ui_contract.handoff_contract_ids),
             covered_smoothness_acceptance_ids=list(
                 packet.ui_contract.usability_validation["smoothness_acceptance_ids"]
+            ),
+            covered_source_continuity_surface_ids=list(
+                packet.ui_contract.source_continuity["coverage"]["surface_ids"]
+            ),
+            covered_source_continuity_interaction_ids=list(
+                packet.ui_contract.source_continuity["coverage"]["interaction_ids"]
+            ),
+            covered_source_continuity_component_ids=list(
+                packet.ui_contract.source_continuity["coverage"]["component_ids"]
             ),
             comparison_tolerance=COMPARISON_TOLERANCE,
         ),
