@@ -270,6 +270,9 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 	quickID := "260827-source-continuity"
 	input := sourceContinuityQuickInput()
 	decision := requireObjectValue(t, input["decision"])
+	items := listValue(decision["items"])
+	firstItem := requireObjectValue(t, items[0])
+	firstItem["write_scope"] = []any{"src/**"}
 	ui := requireObjectValue(t, decision["ui_confirmation"])
 	ui["source_continuity"] = sourceContinuityLabContract()
 	root, workspace := stageConfirmedQuickExecutionTestWorkspace(t, quickID, input)

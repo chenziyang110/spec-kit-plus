@@ -550,7 +550,7 @@ func validateSourceContinuityLabEvidenceRecords(root string, value any) []string
 		}
 		env := service.verify(ref)
 		record, err := service.readRecord(ref)
-		if err != nil || env.Status != "ok" || record.Status != "ready" || record.SHA256 == "" || record.ObjectRef == "" || strings.TrimSpace(record.Source) == "" || strings.TrimSpace(record.Provenance) == "" {
+		if err != nil || env.Status != "ok" || record.SchemaVersion != evidenceSchemaVersion || filepath.ToSlash(record.RecordRef) != ref || record.Status != "ready" || record.SHA256 == "" || record.ObjectRef == "" || strings.TrimSpace(record.Source) == "" || strings.TrimSpace(record.Provenance) == "" {
 			diagnostics = append(diagnostics, "unverified-evidence-ref:"+ref)
 		}
 	}
@@ -1011,13 +1011,13 @@ func sourceContinuityLabTargetSnapshot(root string, declared []string) (string, 
 		}
 		return nil
 	}
-	walk := func(start string, bounded bool) error {
+	walk := func(start string, _ bool) error {
 		return filepath.WalkDir(start, func(path string, entry os.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
 			}
 			if entry.IsDir() {
-				if path != start && !bounded && sourceContinuityLabIgnoredSnapshotDir(entry.Name()) {
+				if path != start && sourceContinuityLabIgnoredSnapshotDir(entry.Name()) {
 					return filepath.SkipDir
 				}
 				return nil
@@ -1031,7 +1031,18 @@ func sourceContinuityLabTargetSnapshot(root string, declared []string) (string, 
 	}
 	if len(declared) > 0 {
 		for _, raw := range declared {
-			path, err := secureProjectPath(rootAbs, filepath.ToSlash(strings.TrimSpace(raw)))
+			normalized := filepath.ToSlash(strings.TrimSpace(raw))
+			if strings.HasSuffix(normalized, "/**") {
+				normalized = strings.TrimSuffix(normalized, "/**")
+			} else if strings.HasSuffix(normalized, "/*") {
+				normalized = strings.TrimSuffix(normalized, "/*")
+			}
+			normalized = strings.TrimSuffix(normalized, "/")
+			firstSegment := strings.ToLower(strings.Split(strings.TrimPrefix(normalized, "./"), "/")[0])
+			if firstSegment == ".specify" || firstSegment == ".planning" {
+				return "", errors.New("source continuity target scope cannot be runtime-owned")
+			}
+			path, err := secureProjectPath(rootAbs, normalized)
 			if err != nil {
 				return "", err
 			}

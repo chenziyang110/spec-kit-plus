@@ -4,11 +4,20 @@ import hashlib
 import json
 from pathlib import Path
 
-from specify_cli.execution.ui_validation import validate_lifecycle_ui_verification
+from specify_cli.execution.ui_validation import (
+    _source_continuity_target_snapshot,
+    validate_lifecycle_ui_verification,
+)
 
 
 def _canonical_bytes(payload: dict[str, object]) -> bytes:
     return (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
+
+
+def _runtime_bytes(payload: dict[str, object]) -> bytes:
+    return (
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    ).encode()
 
 
 def _write_evidence_record(project_root: Path, label: str) -> str:
@@ -98,6 +107,9 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
 ) -> None:
     feature_dir = tmp_path / "specs" / "001-source-continuity"
     feature_dir.mkdir(parents=True)
+    source_file = tmp_path / "src" / "app.ts"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("export const ready = true;\n", encoding="utf-8")
     continuity = _source_continuity()
     task_index = {
         "version": 2,
@@ -105,6 +117,7 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
         "tasks": [
             {
                 "id": "T001",
+                "scope": {"write_scope": ["src/**"]},
                 "ui_contract": {
                     "source_continuity": continuity,
                     "usability_validation": {"smoothness_acceptance_ids": []},
@@ -131,6 +144,9 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
     )
     assert any("source continuity lab report" in error.lower() for error in errors)
 
+    target_snapshot = _source_continuity_target_snapshot(tmp_path, ["src/**"])
+    assert target_snapshot is not None
+
     manifest_ref = (
         "implementation-review/source-continuity/"
         "source-continuity-manifest-T001.json"
@@ -140,7 +156,7 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
         "task_id": "T001",
         "source_continuity_schema": "spec-kit-ui-source-continuity-v1",
         "source_continuity_sha256": hashlib.sha256(
-            _canonical_bytes(continuity)
+            _runtime_bytes(continuity)
         ).hexdigest(),
         "source_continuity": continuity,
         "required_adapter_capabilities": [
@@ -159,6 +175,7 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
             "task_index_ref": "task-index.json",
             "task_index_sha256": hashlib.sha256(task_index_bytes).hexdigest(),
             "feature_ref": "specs/001-source-continuity",
+            "target_snapshot_sha256": target_snapshot,
         },
     }
     manifest_bytes = _canonical_bytes(manifest)
@@ -195,6 +212,7 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
         "source": {
             "result_schema": "spec-kit-source-continuity-lab-result-v1",
             "task_index_sha256": hashlib.sha256(task_index_bytes).hexdigest(),
+            "target_snapshot_sha256": target_snapshot,
         },
     }
     report_bytes = _canonical_bytes(report)
@@ -298,7 +316,14 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
     errors = validate_lifecycle_ui_verification(
         feature_dir, lifecycle, "implementation-review/tasks/T001.json"
     )
-    assert not any("source continuity" in error.lower() for error in errors)
+    assert not any("source continuity" in error.lower() for error in errors), errors
+
+    source_file.write_text("export const ready = false;\n", encoding="utf-8")
+    errors = validate_lifecycle_ui_verification(
+        feature_dir, lifecycle, "implementation-review/tasks/T001.json"
+    )
+    assert any("target snapshot" in error.lower() for error in errors)
+    source_file.write_text("export const ready = true;\n", encoding="utf-8")
 
     lifecycle["ui_verification"]["source_continuity_lab_report_sha256"] = "0" * 64
     errors = validate_lifecycle_ui_verification(

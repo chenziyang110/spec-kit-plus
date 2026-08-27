@@ -109,6 +109,98 @@ def _source_continuity_project_root(feature_dir: Path) -> Path:
     return feature_dir.parent
 
 
+def _source_continuity_contract_sha(value: dict[str, Any]) -> str:
+    raw = (
+        json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _source_continuity_write_scope(task: dict[str, Any]) -> list[str]:
+    values: list[str] = []
+    for candidate in (task.get("write_scope"), (task.get("scope") or {}).get("write_scope") if isinstance(task.get("scope"), dict) else None):
+        if isinstance(candidate, list):
+            values.extend(
+                item.strip()
+                for item in candidate
+                if isinstance(item, str) and item.strip()
+            )
+    return list(dict.fromkeys(values))
+
+
+def _source_continuity_ignored_snapshot_dir(name: str) -> bool:
+    normalized = name.strip().lower()
+    return normalized in {
+        ".git",
+        ".specify",
+        ".planning",
+        ".venv",
+        "node_modules",
+        "__pycache__",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".mypy_cache",
+    } or normalized.startswith((".codex-", "pytest-", "test-tmp", "test-run-"))
+
+
+def _source_continuity_target_snapshot(
+    project_root: Path, declared: list[str]
+) -> str | None:
+    paths: set[Path] = set()
+    try:
+        if declared:
+            for raw in declared:
+                normalized = raw.replace("\\", "/").strip()
+                if normalized.endswith("/**"):
+                    normalized = normalized[:-3]
+                elif normalized.endswith("/*"):
+                    normalized = normalized[:-2]
+                normalized = normalized.rstrip("/")
+                first_segment = normalized.removeprefix("./").split("/", 1)[0].lower()
+                if first_segment in {".specify", ".planning"}:
+                    return None
+                target = (project_root / Path(normalized)).resolve()
+                target.relative_to(project_root.resolve())
+                if target.is_dir():
+                    paths.update(
+                        path
+                        for path in target.rglob("*")
+                        if path.is_file()
+                        and not any(
+                            _source_continuity_ignored_snapshot_dir(part)
+                            for part in path.relative_to(project_root).parts[:-1]
+                        )
+                    )
+                else:
+                    paths.add(target)
+        else:
+            for path in project_root.rglob("*"):
+                relative = path.relative_to(project_root)
+                if any(_source_continuity_ignored_snapshot_dir(part) for part in relative.parts[:-1]):
+                    continue
+                if path.is_file():
+                    paths.add(path)
+    except (OSError, ValueError):
+        return None
+    digest = hashlib.sha256()
+    digest.update(b"source-continuity-target-snapshot-v1\n")
+    for path in sorted(paths, key=lambda item: item.as_posix()):
+        try:
+            relative = path.relative_to(project_root).as_posix()
+        except ValueError:
+            return None
+        digest.update(f"PATH\n{relative}\n".encode())
+        try:
+            digest.update(path.read_bytes())
+        except FileNotFoundError:
+            digest.update(b"MISSING\n")
+            continue
+        except OSError:
+            return None
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
 def _source_continuity_evidence_record_valid(project_root: Path, ref: str) -> bool:
     normalized = ref.strip().replace("\\", "/")
     if not normalized.startswith(".specify/evidence/records/"):
@@ -437,7 +529,15 @@ def _validate_source_continuity_lab_report(
 
     expected_coverage = _source_continuity_coverage(source_continuity)
     report_coverage = _source_continuity_coverage({"coverage": report.get("coverage")})
+    canonical_report_ref = (
+        "implementation-review/source-continuity/"
+        f"source-continuity-lab-{task_id}.json"
+    )
     manifest_ref = str(report.get("manifest_ref") or "").strip()
+    canonical_manifest_ref = (
+        "implementation-review/source-continuity/"
+        f"source-continuity-manifest-{task_id}.json"
+    )
     manifest_sha256 = str(report.get("manifest_sha256") or "").strip()
     manifest_path = (
         resolve_feature_artifact_ref(feature_dir, manifest_ref)
@@ -459,13 +559,34 @@ def _validate_source_continuity_lab_report(
 
     task_index_path = feature_dir / "task-index.json"
     try:
-        task_index_sha256 = hashlib.sha256(task_index_path.read_bytes()).hexdigest()
-    except OSError:
+        task_index_bytes = task_index_path.read_bytes()
+        task_index_sha256 = hashlib.sha256(task_index_bytes).hexdigest()
+        task_index = json.loads(task_index_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         task_index_sha256 = ""
+        task_index = None
+    current_task = next(
+        (
+            item
+            for item in (task_index or {}).get("tasks", [])
+            if isinstance(item, dict)
+            and str(item.get("id") or "").strip().upper() == task_id
+        ),
+        None,
+    )
+    project_root = _source_continuity_project_root(feature_dir)
+    target_snapshot = (
+        _source_continuity_target_snapshot(
+            project_root, _source_continuity_write_scope(current_task)
+        )
+        if isinstance(current_task, dict)
+        else None
+    )
     manifest_source = manifest.get("source") if isinstance(manifest, dict) else None
     report_source = report.get("source")
     if (
         report.get("schema") != "spec-kit-source-continuity-lab-report-v1"
+        or report_ref != canonical_report_ref
         or str(report.get("task_id") or "").strip().upper() != task_id
         or str(report.get("verdict") or "").strip().lower() != "passed"
         or expected_coverage is None
@@ -474,17 +595,22 @@ def _validate_source_continuity_lab_report(
         or manifest.get("schema")
         != "spec-kit-source-continuity-lab-manifest-v1"
         or str(manifest.get("task_id") or "").strip().upper() != task_id
+        or manifest_ref != canonical_manifest_ref
         or manifest.get("source_continuity") != source_continuity
+        or manifest.get("source_continuity_sha256")
+        != _source_continuity_contract_sha(source_continuity)
         or not isinstance(manifest_source, dict)
         or manifest_source.get("task_index_ref") != "task-index.json"
         or manifest_source.get("task_index_sha256") != task_index_sha256
+        or manifest_source.get("target_snapshot_sha256") != target_snapshot
         or not isinstance(report_source, dict)
         or report_source.get("result_schema")
         != "spec-kit-source-continuity-lab-result-v1"
         or report_source.get("task_index_sha256") != task_index_sha256
+        or report_source.get("target_snapshot_sha256") != target_snapshot
     ):
         errors.append(
-            f"{relative} source continuity lab report must preserve the current task contract and task-index digest"
+            f"{relative} source continuity lab report must preserve the canonical path, current task contract, target snapshot, and task-index digest"
         )
     metrics = report.get("metrics")
     if not isinstance(metrics, dict) or any(
