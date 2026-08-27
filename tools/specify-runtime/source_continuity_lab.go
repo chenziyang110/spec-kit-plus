@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -509,6 +512,83 @@ func validateSourceContinuityLabArtifactOwner(canonicalPath string) error {
 	wantOwner := "specify-runtime evidence source-continuity-manifest / source-continuity-validate"
 	if !ok || metadata.TypeID != "feature-source-continuity-lab" || metadata.Owner != wantOwner {
 		return errors.New(canonicalPath)
+	}
+	return nil
+}
+
+func validatePersistedSourceContinuityLabReport(feature string, task map[string]any, reportRef, reportSHA256 string) error {
+	taskID := strings.ToUpper(strings.TrimSpace(anyString(task["id"])))
+	if reportRef != sourceContinuityLabReportRef(taskID) {
+		return errors.New("source continuity lab report must use the runtime-owned canonical task path")
+	}
+	reportPath, err := secureFeatureRelativePath(feature, reportRef)
+	if err != nil {
+		return errors.New("source continuity lab report path is unsafe")
+	}
+	reportRaw, err := os.ReadFile(reportPath)
+	if err != nil || taskControlSHA256(reportRaw) != reportSHA256 {
+		return errors.New("source continuity lab report SHA-256 must bind the report")
+	}
+	var report map[string]any
+	if err := json.Unmarshal(reportRaw, &report); err != nil {
+		return errors.New("source continuity lab report must contain a JSON object")
+	}
+	if report["schema"] != sourceContinuityLabReportSchema || strings.ToUpper(strings.TrimSpace(anyString(report["task_id"]))) != taskID || strings.ToLower(strings.TrimSpace(anyString(report["verdict"]))) != "passed" {
+		return errors.New("source continuity lab report identity or verdict is invalid")
+	}
+	manifestRef := filepath.ToSlash(strings.TrimSpace(anyString(report["manifest_ref"])))
+	if manifestRef != sourceContinuityLabManifestRef(taskID) {
+		return errors.New("source continuity lab report must bind the runtime-owned task manifest")
+	}
+	manifestPath, err := secureFeatureRelativePath(feature, manifestRef)
+	if err != nil {
+		return errors.New("source continuity lab manifest path is unsafe")
+	}
+	manifestRaw, err := os.ReadFile(manifestPath)
+	if err != nil || taskControlSHA256(manifestRaw) != strings.TrimSpace(anyString(report["manifest_sha256"])) {
+		return errors.New("source continuity lab report manifest SHA-256 must bind the manifest")
+	}
+	var manifest map[string]any
+	if err := json.Unmarshal(manifestRaw, &manifest); err != nil {
+		return errors.New("source continuity lab manifest must contain a JSON object")
+	}
+	indexPath := filepath.Join(feature, "task-index.json")
+	index, err := readImplementJSONMap(indexPath)
+	if err != nil {
+		return errors.New("source continuity lab report requires the current task index")
+	}
+	_, currentTask, err := findImplementTask(index, taskID)
+	if err != nil {
+		return errors.New("source continuity lab report requires the current task contract")
+	}
+	currentUI, _ := currentTask["ui_contract"].(map[string]any)
+	currentContinuity, _ := currentUI["source_continuity"].(map[string]any)
+	if !reflect.DeepEqual(manifest["source_continuity"], currentContinuity) {
+		return errors.New("source continuity lab manifest contract binding is stale")
+	}
+	reportSource, _ := report["source"].(map[string]any)
+	validationInput := map[string]any{
+		"schema": reportSource["result_schema"], "manifest_sha256": report["manifest_sha256"],
+		"source_revision": report["source_revision"], "target_revision": report["target_revision"],
+		"adapter": report["adapter"], "evidence_refs": report["evidence_refs"], "discovery": report["discovery"],
+		"surface_results": report["surface_results"], "action_results": report["action_results"], "asset_results": report["asset_results"],
+		"verdict": report["verdict"], "reviewer": report["reviewer"],
+	}
+	diagnostics, metrics := validateSourceContinuityLabResult(taskID, manifest, taskControlSHA256(manifestRaw), validationInput)
+	manifestSource, _ := manifest["source"].(map[string]any)
+	currentIndexSHA := optionalFileSHA256(indexPath)
+	if strings.TrimSpace(anyString(manifestSource["task_index_ref"])) != "task-index.json" || strings.TrimSpace(anyString(manifestSource["task_index_sha256"])) != currentIndexSHA || strings.TrimSpace(anyString(reportSource["task_index_sha256"])) != currentIndexSHA {
+		diagnostics = append(diagnostics, "stale-manifest")
+	}
+	if !reflect.DeepEqual(report["metrics"], metrics) {
+		diagnostics = append(diagnostics, "metrics-mismatch")
+	}
+	if !reflect.DeepEqual(report["coverage"], currentContinuity["coverage"]) {
+		diagnostics = append(diagnostics, "coverage-mismatch")
+	}
+	diagnostics = uniqueSourceContinuityLabDiagnostics(diagnostics)
+	if len(diagnostics) > 0 {
+		return fmt.Errorf("source continuity lab report is invalid: %s", strings.Join(diagnostics, ", "))
 	}
 	return nil
 }

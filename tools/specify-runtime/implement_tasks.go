@@ -951,7 +951,9 @@ func resetImplementTaskUIVerification(value any) map[string]any {
 		"human_review_ref": "",
 		"evidence":         []any{}, "comparison_report_ref": "", "comparison_report_sha256": "",
 		"smoothness_lab_report_ref": "", "smoothness_lab_report_sha256": "",
+		"source_continuity_lab_report_ref": "", "source_continuity_lab_report_sha256": "",
 		"implementation_capture_refs": []any{}, "structural_differences": []any{}, "visual_differences": []any{},
+		"covered_source_continuity_surface_ids": []any{}, "covered_source_continuity_interaction_ids": []any{}, "covered_source_continuity_component_ids": []any{},
 	}
 }
 
@@ -1296,11 +1298,38 @@ func validateImplementTaskUIAcceptance(feature string, task, lifecycle map[strin
 	if !ok {
 		return nil
 	}
+	verification, hasVerification := lifecycle["ui_verification"].(map[string]any)
+	sourceContinuity, sourceContinuityApplies := uiContract["source_continuity"].(map[string]any)
+	if sourceContinuityApplies && strings.TrimSpace(anyString(sourceContinuity["applicability"])) == "required" {
+		if !hasVerification {
+			return fmt.Errorf("source continuity lab report requires ui_verification")
+		}
+		coverage, _ := sourceContinuity["coverage"].(map[string]any)
+		for _, item := range []struct {
+			contractField     string
+			verificationField string
+			label             string
+		}{
+			{"surface_ids", "covered_source_continuity_surface_ids", "surface"},
+			{"interaction_ids", "covered_source_continuity_interaction_ids", "interaction"},
+			{"component_ids", "covered_source_continuity_component_ids", "component"},
+		} {
+			expected := anyStringSlice(coverage[item.contractField])
+			covered := anyStringSlice(verification[item.verificationField])
+			if !sourceContinuityLabExactIDs(covered, expected) {
+				return fmt.Errorf("ui_verification source continuity %s coverage must exactly cover the task contract", item.label)
+			}
+		}
+		reportRef := filepath.ToSlash(strings.TrimSpace(anyString(verification["source_continuity_lab_report_ref"])))
+		reportSHA256 := strings.TrimSpace(anyString(verification["source_continuity_lab_report_sha256"]))
+		if err := validatePersistedSourceContinuityLabReport(feature, task, reportRef, reportSHA256); err != nil {
+			return fmt.Errorf("ui_verification %w", err)
+		}
+	}
 	usability, ok := uiContract["usability_validation"].(map[string]any)
 	if !ok {
 		return nil
 	}
-	verification, hasVerification := lifecycle["ui_verification"].(map[string]any)
 	expectedSmoothness := anyStringSlice(usability["smoothness_acceptance_ids"])
 	if len(expectedSmoothness) > 0 {
 		coveredSmoothness := []string{}

@@ -131,7 +131,11 @@ func TestSourceContinuityLabUIVerificationIsNormalizedAndRequiredForAcceptance(t
 	if err != nil {
 		t.Fatal(err)
 	}
-	lifecycle := map[string]any{"ui_verification": map[string]any{}}
+	lifecycle := map[string]any{"ui_verification": map[string]any{
+		"covered_source_continuity_surface_ids":     []any{"DH-SURFACE-MAIN-001", "DH-SURFACE-DEEP-001"},
+		"covered_source_continuity_interaction_ids": []any{"DH-INT-OPEN-DEEP-001", "DH-INT-EXPORT-001", "DH-INT-SHORTCUT-001"},
+		"covered_source_continuity_component_ids":   []any{"DH-COMP-EXPORT-ICON-001"},
+	}}
 	if err := validateImplementTaskUIAcceptance(feature, task, lifecycle); err == nil || !strings.Contains(err.Error(), "source continuity lab report") {
 		t.Fatalf("missing source continuity lab report should block acceptance: %v", err)
 	}
