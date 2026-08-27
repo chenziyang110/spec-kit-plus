@@ -902,6 +902,14 @@ def test_validate_worker_task_result_requires_source_continuity_lab_report(
         "implementation-review/source-continuity/source-continuity-lab-T017.json"
     )
     result.ui_verification.source_continuity_lab_report_sha256 = "e" * 64
+    with pytest.raises(PacketValidationError, match="source continuity adapter plan"):
+        validate_worker_task_result(result, sample_packet)
+
+    result.ui_verification.source_continuity_adapter_plan_ref = (
+        "implementation-review/source-continuity/"
+        "source-continuity-adapter-plan-T017.json"
+    )
+    result.ui_verification.source_continuity_adapter_plan_sha256 = "d" * 64
     assert validate_worker_task_result(result, sample_packet) is result
 
     result.ui_verification.covered_source_continuity_interaction_ids = []
