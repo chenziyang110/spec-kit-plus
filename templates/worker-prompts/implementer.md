@@ -95,11 +95,18 @@ Use this template when the leader dispatches a concrete implementation lane for 
   Never handwrite or shorten the runtime-owned manifest/report.
 - When `source_continuity.applicability` is `required`, use
   `specify-runtime evidence source-continuity-manifest --feature-dir
-  <feature-dir> --task-id <Txxx>` and submit independent source/target adapter
-  observations with `specify-runtime evidence source-continuity-validate
+  <feature-dir> --task-id <Txxx>`, then call `specify-runtime evidence
+  source-continuity-adapter-plan --feature-dir <feature-dir> --task-id <Txxx>
+  --manifest <manifest-ref> --input-json '<adapter-plan-input>'`. Compose a
+  technology-neutral route across all ten lanes using only symbolic tool refs,
+  bounded actions, declared permissions, and typed evidence. Register evidence
+  with provenance `adapter:<adapter_id>`, bind each observation row to its
+  adapter and the returned plan, then call `specify-runtime evidence
+  source-continuity-validate
   --feature-dir <feature-dir> --task-id <Txxx> --manifest <manifest-ref>
-  --input-json '<observed-result-json>'`. Return exact three-axis coverage,
-  `source_continuity_lab_report_ref`, and SHA-256 in `ui_verification`. A dead
+  --adapter-plan <adapter-plan-ref> --input-json '<observed-result-json>'`.
+  Return exact three-axis coverage, `source_continuity_adapter_plan_ref`/
+  SHA-256 and `source_continuity_lab_report_ref`/SHA-256 in `ui_verification`. A dead
   action, unbound source candidate, side-effect/final-state mismatch, asset
   fidelity failure, or character substitution is BLOCKED, not DONE.
 - When the Leader performs a passing comparison, return compact observed matrix differences and typed evidence refs for `specify-runtime evidence visual-compare`; do not read the stable template or author the report. The runtime derives approved bindings, exact decision/contract coverage, tolerance, deviations, path, and digest from the task contract. A screenshot path without this CLI-owned comparison record is not a fidelity pass.

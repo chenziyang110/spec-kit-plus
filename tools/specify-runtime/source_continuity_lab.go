@@ -1305,7 +1305,7 @@ func sourceContinuityLabCanonicalPath(root, feature, ref string) string {
 
 func validateSourceContinuityLabArtifactOwner(canonicalPath string) error {
 	metadata, ok := LookupArtifactType(canonicalPath)
-	wantOwner := "specify-runtime evidence source-continuity-manifest / source-continuity-validate"
+	wantOwner := "specify-runtime evidence source-continuity-manifest / source-continuity-adapter-plan / source-continuity-validate"
 	if !ok || metadata.TypeID != "feature-source-continuity-lab" || metadata.Owner != wantOwner {
 		return errors.New(canonicalPath)
 	}
@@ -1314,7 +1314,7 @@ func validateSourceContinuityLabArtifactOwner(canonicalPath string) error {
 
 func validateQuickSourceContinuityLabArtifactOwner(canonicalPath string) error {
 	metadata, ok := LookupArtifactType(canonicalPath)
-	wantOwner := "specify-runtime evidence source-continuity-manifest / source-continuity-validate"
+	wantOwner := "specify-runtime evidence source-continuity-manifest / source-continuity-adapter-plan / source-continuity-validate"
 	if !ok || metadata.TypeID != "quick-source-continuity-lab" || metadata.Owner != wantOwner {
 		return errors.New(canonicalPath)
 	}

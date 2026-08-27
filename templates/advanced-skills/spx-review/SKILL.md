@@ -122,11 +122,18 @@ not prove the product works. Group capture by integrated surface and source
 fingerprint; do not run the full viewport/state capture loop per Txx. Required
 source-grounded tasks additionally run `specify-runtime evidence
 source-continuity-manifest --feature-dir <feature-dir> --task-id <Txxx>` and
-submit independent source/target discovery, action, side-effect, final-state,
-and asset observations through `specify-runtime evidence
+materialize the generic capability route with `specify-runtime evidence
+source-continuity-adapter-plan --feature-dir <feature-dir> --task-id <Txxx>
+--manifest <manifest-ref> --input-json '<adapter-plan-input>'`. Require all ten
+source/target lanes, bounded actions, symbolic tool refs, declared permissions,
+typed evidence, and `adapter:<adapter_id>` provenance. Submit independent
+source/target discovery, action, side-effect, final-state, and asset
+observations through `specify-runtime evidence
 source-continuity-validate --feature-dir <feature-dir> --task-id <Txxx>
---manifest <manifest-ref> --input-json '<observed-result-json>'`. Bind the
-runtime-owned `source_continuity_lab_report_ref`, SHA-256, and exact three-axis
+--manifest <manifest-ref> --adapter-plan <adapter-plan-ref> --input-json
+'<observed-result-json>'`. Bind the runtime-owned
+`source_continuity_adapter_plan_ref`/SHA-256,
+`source_continuity_lab_report_ref`/SHA-256, and exact three-axis
 coverage in `ui_verification`; self-declared coverage, a handwritten report, or
 visual similarity cannot replace this behavioral parity gate.
 

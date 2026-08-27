@@ -62,11 +62,19 @@ verdicts. If the source cannot run, use the strongest remaining inspectable
 For every task whose `source_continuity.applicability` is `required`, generate
 the task-bound denominator with `specify-runtime evidence
 source-continuity-manifest --feature-dir <feature-dir> --task-id <Txxx>` and
-submit matched source/target observations with `specify-runtime evidence
+materialize a technology-neutral capability route with `specify-runtime
+evidence source-continuity-adapter-plan --feature-dir <feature-dir> --task-id
+<Txxx> --manifest <manifest-ref> --input-json '<adapter-plan-input>'`. The plan
+may compose adapters but exposes only symbolic tool refs, bounded actions,
+declared permissions, and typed evidence. Evidence records use provenance
+`adapter:<adapter_id>` and observation rows name that adapter. Submit matched
+source/target observations with `specify-runtime evidence
 source-continuity-validate --feature-dir <feature-dir> --task-id <Txxx>
---manifest <manifest-ref> --input-json '<observed-result-json>'`. Review may
-claim behavioral continuity only when `ui_verification` binds the returned exact
-coverage, `source_continuity_lab_report_ref`, and SHA-256. A newly discovered
+--manifest <manifest-ref> --adapter-plan <adapter-plan-ref> --input-json
+'<observed-result-json>'`. Review may claim behavioral continuity only when
+`ui_verification` binds the returned exact coverage,
+`source_continuity_adapter_plan_ref`/SHA-256 and
+`source_continuity_lab_report_ref`/SHA-256. A newly discovered
 unbound candidate, dead target action, side-effect/final-state mismatch, asset
 fidelity failure, stale manifest, or character substitution blocks PASS.
 

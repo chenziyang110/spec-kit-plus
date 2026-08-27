@@ -184,9 +184,15 @@ implement/review require system model + anti-slop + visual validation loop.
 - Prove executable delivery with Source Continuity Lab. Formal tasks call
   `specify-runtime evidence source-continuity-manifest --feature-dir
   <feature-dir> --task-id <Txxx>`; Quick calls it with `--quick-id <quick-id>
-  --item-id Qn`. Submit independent source/target observations through
-  `specify-runtime evidence source-continuity-validate`, then bind exact coverage,
-  `source_continuity_lab_report_ref`, and SHA-256 in `ui_verification`. The
+  --item-id Qn`. Materialize a technology-neutral execution route with
+  `specify-runtime evidence source-continuity-adapter-plan`: compose one or
+  more adapters across all ten capability lanes, but expose only symbolic tool
+  refs, declared permissions, typed evidence, and bounded actions. Bind every
+  evidence record/row to `adapter:<adapter_id>` and the returned plan, then
+  submit independent source/target observations through `specify-runtime
+  evidence source-continuity-validate --adapter-plan <adapter-plan-ref>`.
+  Bind exact coverage, `source_continuity_adapter_plan_ref`/SHA-256 and
+  `source_continuity_lab_report_ref`/SHA-256 in `ui_verification`. The
   runtime-owned report, not self-declared coverage or screenshots, owns PASS.
 - `sp-design` remains design-only: it may discover and approve the continuity
   contract but must not implement target code or claim runtime parity. Quick

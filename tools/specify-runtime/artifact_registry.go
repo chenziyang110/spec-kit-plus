@@ -184,7 +184,7 @@ var artifactTypePatterns = []artifactTypePattern{
 		},
 	},
 	newFeatureWorkspaceNestedPattern("implementation-review/smoothness/", ".json", ArtifactTypeMetadata{TypeID: "feature-smoothness-lab", Owner: "specify-runtime evidence smoothness-manifest / smoothness-validate", Role: "canonical", Schema: "json/smoothness-lab", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
-	newFeatureWorkspaceNestedPattern("implementation-review/source-continuity/", ".json", ArtifactTypeMetadata{TypeID: "feature-source-continuity-lab", Owner: "specify-runtime evidence source-continuity-manifest / source-continuity-validate", Role: "canonical", Schema: "json/source-continuity-lab", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newFeatureWorkspaceNestedPattern("implementation-review/source-continuity/", ".json", ArtifactTypeMetadata{TypeID: "feature-source-continuity-lab", Owner: "specify-runtime evidence source-continuity-manifest / source-continuity-adapter-plan / source-continuity-validate", Role: "canonical", Schema: "json/source-continuity-lab", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newFeatureArtifactPattern("spec.md", ArtifactTypeMetadata{
 		TypeID:         "feature-spec",
 		Owner:          "specify-runtime artifact",
@@ -310,7 +310,7 @@ var artifactTypePatterns = []artifactTypePattern{
 		},
 	},
 	{
-		metadata: ArtifactTypeMetadata{TypeID: "quick-source-continuity-lab", Owner: "specify-runtime evidence source-continuity-manifest / source-continuity-validate", Role: "canonical", Schema: "json/source-continuity-lab", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		metadata: ArtifactTypeMetadata{TypeID: "quick-source-continuity-lab", Owner: "specify-runtime evidence source-continuity-manifest / source-continuity-adapter-plan / source-continuity-validate", Role: "canonical", Schema: "json/source-continuity-lab", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
 		match: func(path string) bool {
 			return strings.HasPrefix(path, ".planning/quick/") && strings.Contains(path, "/source-continuity/") && strings.HasSuffix(path, ".json")
 		},

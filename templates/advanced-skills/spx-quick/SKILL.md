@@ -299,11 +299,18 @@ strongest remaining authority and explicitly withhold the parity claim.
 
 Before `item-accept` for each applicable Q item, generate the confirmed
 denominator with `specify-runtime evidence source-continuity-manifest --quick-id
-<quick-id> --item-id Qn`, execute source and target through an independent
-adapter, then submit observations through `specify-runtime evidence
+<quick-id> --item-id Qn`, then call `specify-runtime evidence
+source-continuity-adapter-plan --quick-id <quick-id> --item-id Qn --manifest
+<manifest-ref> --input-json '<adapter-plan-input>'`. Compose a technology-neutral
+route across all ten source/target lanes with symbolic tool refs, bounded
+actions, declared permissions, and typed evidence only. Register each capture
+with provenance `adapter:<adapter_id>`, bind its row and observation to the
+returned plan, then submit observations through `specify-runtime evidence
 source-continuity-validate --quick-id <quick-id> --item-id Qn --manifest
-<manifest-ref> --input-json '<observed-result-json>'`. Return the exact coverage,
-`source_continuity_lab_report_ref`, and SHA-256 in `ui_verification`; Quick
+<manifest-ref> --adapter-plan <adapter-plan-ref> --input-json
+'<observed-result-json>'`. Return the exact coverage,
+`source_continuity_adapter_plan_ref`/SHA-256 and
+`source_continuity_lab_report_ref`/SHA-256 in `ui_verification`; Quick
 acceptance revalidates them against the current digest-protected confirmation decision.
 
 Run

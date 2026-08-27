@@ -195,11 +195,19 @@ The following flags are available and composable:
   record the strongest substitute authority and withhold the parity claim.
   Before accepting each applicable Q item, call `specify-runtime evidence
   source-continuity-manifest --quick-id <quick-id> --item-id Qn --format json`,
-  run the source/target adapter against the confirmed contract, and submit only
-  observations through `specify-runtime evidence source-continuity-validate
-  --quick-id <quick-id> --item-id Qn --manifest <manifest-ref> --input-json
+  then materialize the technology-neutral route with `specify-runtime evidence
+  source-continuity-adapter-plan --quick-id <quick-id> --item-id Qn --manifest
+  <manifest-ref> --input-json '<adapter-plan-input>' --format json`. Compose one
+  or more adapters across all ten source/target lanes using only symbolic tool
+  refs, bounded actions, declared permissions, and typed evidence; command/argv/
+  env/install fields and unresolved lanes are invalid. Register evidence with
+  provenance `adapter:<adapter_id>`, bind its row and the observation to the
+  returned plan, then submit only observations through `specify-runtime
+  evidence source-continuity-validate --quick-id <quick-id> --item-id Qn
+  --manifest <manifest-ref> --adapter-plan <adapter-plan-ref> --input-json
   '<observed-result-json>' --format json`. Put the returned exact coverage,
-  `source_continuity_lab_report_ref`, and SHA-256 in the Q worker result.
+  `source_continuity_adapter_plan_ref`/SHA-256 and
+  `source_continuity_lab_report_ref`/SHA-256 in the Q worker result.
   `item-accept` rebinds the report to the digest-protected decision in the
   current `confirmation.json`; stale or handwritten proof, unbound candidates, dead
   actions, outcome drift, and character icons block the item.

@@ -57,11 +57,18 @@ Use this template when the quick-task leader dispatches a bounded execution lane
   the affected claim rather than guessing beyond the confirmed packet.
 - Before returning success for a source-continuity Q item, run
   `specify-runtime evidence source-continuity-manifest --quick-id <quick-id>
-  --item-id Qn`, execute independent source/target observations, and submit them
-  with `specify-runtime evidence source-continuity-validate --quick-id
-  <quick-id> --item-id Qn --manifest <manifest-ref> --input-json
+  --item-id Qn`, then call `specify-runtime evidence
+  source-continuity-adapter-plan --quick-id <quick-id> --item-id Qn --manifest
+  <manifest-ref> --input-json '<adapter-plan-input>'`. Compose technology-neutral
+  adapters over all ten lanes with symbolic tool refs, bounded actions,
+  declared permissions, and typed evidence only. Register captures with
+  provenance `adapter:<adapter_id>`, bind evidence rows and the observation to
+  the returned plan, and submit them with `specify-runtime evidence
+  source-continuity-validate --quick-id <quick-id> --item-id Qn --manifest
+  <manifest-ref> --adapter-plan <adapter-plan-ref> --input-json
   '<observed-result-json>'`. Include the returned exact coverage,
-  `source_continuity_lab_report_ref`, and SHA-256 under `ui_verification`;
+  `source_continuity_adapter_plan_ref`/SHA-256 and
+  `source_continuity_lab_report_ref`/SHA-256 under `ui_verification`;
   `item-accept` rejects stale, incomplete, or handwritten proof.
 - If this lane is a bug fix, do not hide the symptom with a surface-only or symptom-only change when the root cause is still unknown. Return a blocker or a narrower diagnostic split and route the investigation toward `/sp-debug`.
 - `STATUS.md` remains leader-owned; the worker must not become the resume authority.

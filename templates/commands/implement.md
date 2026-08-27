@@ -141,14 +141,23 @@ projection.
     budgets, so a handwritten or minimal report cannot pass. When
     `ui_contract.source_continuity.applicability` is `required`, call
     `specify-runtime evidence source-continuity-manifest --feature-dir
-    <feature-dir> --task-id <Txxx> --format json`, run an adapter that
-    independently enumerates source surfaces/actions/assets and observes source
-    and target actions, side effects, final states, and rendered assets, then
-    submit only observations through `specify-runtime evidence
+    <feature-dir> --task-id <Txxx> --format json`, then compose the
+    technology-neutral capability route with `specify-runtime evidence
+    source-continuity-adapter-plan --feature-dir <feature-dir> --task-id <Txxx>
+    --manifest <manifest-ref> --input-json '<adapter-plan-input>' --format
+    json`. One or more adapters may cover the ten source/target capability
+    lanes, but only symbolic `tool_ref` values, declared permissions, typed
+    evidence, and the bounded action enum are allowed; platform scripts,
+    command/argv/env/install fields, uncovered lanes, and unresolved gaps are
+    rejected. Register each capture with provenance `adapter:<adapter_id>`, put
+    that `adapter_id` on its evidence row, bind the returned plan ref/digest and
+    composite adapter in the observation, then submit only observations through
+    `specify-runtime evidence
     source-continuity-validate --feature-dir <feature-dir> --task-id <Txxx>
-    --manifest <manifest-ref> --input-json '<observed-result-json>' --format
-    json`. Merge the returned exact coverage,
-    `source_continuity_lab_report_ref`, and SHA-256 into `ui_verification`.
+    --manifest <manifest-ref> --adapter-plan <adapter-plan-ref> --input-json
+    '<observed-result-json>' --format json`. Merge the returned exact coverage,
+    `source_continuity_adapter_plan_ref`/SHA-256 and
+    `source_continuity_lab_report_ref`/SHA-256 into `ui_verification`.
     Acceptance revalidates the task-index, manifest, report, metrics, evidence,
     and character-substitution gate; never handwrite the report or treat the
     contract's self-consistency as discovery proof. Query the packet's must-read immutable handoff through

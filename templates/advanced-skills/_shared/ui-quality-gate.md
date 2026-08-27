@@ -111,11 +111,20 @@ subset cannot close a larger discovered scope.
 Executable delivery proves this contract through Source Continuity Lab. For a
 formal task run `specify-runtime evidence source-continuity-manifest
 --feature-dir <feature-dir> --task-id <Txxx>`; for Quick use `--quick-id
-<quick-id> --item-id Qn`. After independent source/target discovery and matched
+<quick-id> --item-id Qn`. Next call `specify-runtime evidence
+source-continuity-adapter-plan` with that manifest and a technology-neutral
+capability route: one or more adapters must cover all ten source/target lanes,
+while descriptors contain only symbolic `tool_ref`, declared execution/write/
+network policy, typed evidence, and the bounded action enum. Platform-specific
+scripts, command/argv/env/install fields, uncovered lanes, and unresolved gaps
+are invalid. Evidence records use provenance `adapter:<adapter_id>`; each
+observation row names its adapter and binds the returned plan ref/digest plus
+composite adapter. After independent source/target discovery and matched
 execution, submit observations through `specify-runtime evidence
-source-continuity-validate` with the same binding and `--manifest
-<manifest-ref>`. Carry the returned exact coverage,
-`source_continuity_lab_report_ref`, and SHA-256 into `ui_verification`. The
+source-continuity-validate` with `--manifest <manifest-ref> --adapter-plan
+<adapter-plan-ref>`. Carry the returned exact coverage,
+`source_continuity_adapter_plan_ref`/SHA-256 and
+`source_continuity_lab_report_ref`/SHA-256 into `ui_verification`. The
 runtime-owned report, not the Agent-authored coverage list, owns the PASS claim.
 
 - Discover the in-scope surface/state graph beyond the starting screen,

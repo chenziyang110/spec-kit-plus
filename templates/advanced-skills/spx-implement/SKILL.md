@@ -194,11 +194,19 @@ budgets, so never handwrite or reduce the report. For a passing comparison, call
 `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json` with only the observed entrypoint/revision, typed evidence refs, matrix differences, explicit verdict, and reviewer. The runtime derives the approved preview/manifest/handoff bindings, exact `DS-*`/`DH-*` coverage, tolerance, deviations, canonical report, and byte digest from the task contract. Never read the stable template or author/patch the report. Record behavior checks separately from
 visual/interaction acceptance. When `source_continuity.applicability: required`,
 run `specify-runtime evidence source-continuity-manifest --feature-dir
-<feature-dir> --task-id <Txxx>`, execute an independent source/target adapter,
-then submit observations through `specify-runtime evidence
+<feature-dir> --task-id <Txxx>`, then call `specify-runtime evidence
+source-continuity-adapter-plan --feature-dir <feature-dir> --task-id <Txxx>
+--manifest <manifest-ref> --input-json '<adapter-plan-input>'`. Compose generic
+adapters across all ten source/target capability lanes; allow only symbolic
+tool refs, bounded actions, declared permissions, and typed evidence. Register
+captures with provenance `adapter:<adapter_id>`, bind each evidence row and the
+observation to the returned plan, then submit observations through
+`specify-runtime evidence
 source-continuity-validate --feature-dir <feature-dir> --task-id <Txxx>
---manifest <manifest-ref> --input-json '<observed-result-json>'`. Bind the exact
-three-axis coverage, `source_continuity_lab_report_ref`, and SHA-256 in
+--manifest <manifest-ref> --adapter-plan <adapter-plan-ref> --input-json
+'<observed-result-json>'`. Bind the exact three-axis coverage,
+`source_continuity_adapter_plan_ref`/SHA-256 and
+`source_continuity_lab_report_ref`/SHA-256 in
 `ui_verification`; unbound discovery candidates, dead actions, outcome drift,
 stale manifests, and character-substituted assets block acceptance. Missing or bootstrap design sources hand off to
 `$spx-design` and stop; unavailable comparison remains `pending-human-review`,
