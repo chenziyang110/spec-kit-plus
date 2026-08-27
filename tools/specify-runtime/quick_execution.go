@@ -354,6 +354,9 @@ func (service quickService) acceptWorkItem(workspacePath, workspace, itemID stri
 	// Idempotent re-accept returns stored proof.
 	if strings.ToLower(statusByID[itemID].Status) == "accepted" {
 		row := statusByID[itemID]
+		if err := revalidateAcceptedQuickSourceContinuity(workspacePath, itemID, doc, row); err != nil {
+			return nil, nil, fmt.Errorf("worker_result_required: %w", err)
+		}
 		proof := &quickWorkerAcceptProof{
 			Mode:         firstNonEmpty(row.ExecutionMode, "worker"),
 			LaneID:       row.WorkerLaneID,
@@ -552,6 +555,21 @@ func validateQuickSourceContinuityAcceptance(workspacePath, itemID string, doc *
 		return errors.New("source continuity lab report ref and SHA-256 digest are required")
 	}
 	return validatePersistedQuickSourceContinuityLabReport(workspacePath, doc, itemID, reportRef, reportSHA)
+}
+
+func revalidateAcceptedQuickSourceContinuity(workspacePath, itemID string, doc *quickConfirmationDoc, row quickWorkItemStatus) error {
+	mode := strings.ToLower(strings.TrimSpace(row.ExecutionMode))
+	if mode == "leader-inline" {
+		return validateQuickSourceContinuityAcceptance(workspacePath, itemID, doc, nil)
+	}
+	if mode != "worker" {
+		return fmt.Errorf("source continuity lab report requires an audited worker or inline execution mode")
+	}
+	result, _, _, err := findQuickWorkerResult(workspacePath, itemID)
+	if err != nil {
+		return fmt.Errorf("source continuity lab report requires the accepted worker result: %w", err)
+	}
+	return validateQuickSourceContinuityAcceptance(workspacePath, itemID, doc, result)
 }
 
 func normalizeQuickInlineReason(reason string) (string, error) {
@@ -964,11 +982,7 @@ func (service quickService) validateCloseAgainstConfirmation(workspacePath, stat
 	}
 	doc, err := service.loadConfirmation(workspacePath)
 	if err != nil {
-		// Legacy workspaces without confirmation.json may still close.
-		if strings.Contains(err.Error(), "not found") {
-			return nil
-		}
-		return err
+		return fmt.Errorf("cannot close as resolved without a valid confirmation.json: %w", err)
 	}
 	if !allQuickItemsAccepted(doc) {
 		pending := []string{}
@@ -998,6 +1012,9 @@ func (service quickService) validateCloseAgainstConfirmation(workspacePath, stat
 		default:
 			// Pre-gate legacy accepts may lack mode; refuse close to force re-accept under new gate.
 			missing = append(missing, item.ID+"(execution_mode_missing)")
+		}
+		if err := revalidateAcceptedQuickSourceContinuity(workspacePath, item.ID, doc, row); err != nil {
+			missing = append(missing, item.ID+"(source_continuity_lab_invalid: "+err.Error()+")")
 		}
 	}
 	if len(missing) > 0 {

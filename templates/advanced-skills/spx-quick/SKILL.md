@@ -304,7 +304,7 @@ adapter, then submit observations through `specify-runtime evidence
 source-continuity-validate --quick-id <quick-id> --item-id Qn --manifest
 <manifest-ref> --input-json '<observed-result-json>'`. Return the exact coverage,
 `source_continuity_lab_report_ref`, and SHA-256 in `ui_verification`; Quick
-acceptance revalidates them against the current confirmation bytes and digest.
+acceptance revalidates them against the current digest-protected confirmation decision.
 
 Run
 `specify-runtime design resolve --scope <exact-surface> --format json` and query

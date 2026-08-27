@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -70,7 +72,7 @@ func (service evidenceService) sourceContinuityManifest(args []string) Envelope 
 	if err := validateDesignSourceContinuity(continuity, "ui_contract.source_continuity", true); err != nil {
 		return evidenceUsageError(err.Error())
 	}
-	manifest, err := buildSourceContinuityLabManifest(root, feature, taskID, indexPath, continuity)
+	manifest, err := buildSourceContinuityLabManifest(root, feature, taskID, indexPath, task, continuity)
 	if err != nil {
 		return evidenceUsageError(err.Error())
 	}
@@ -127,7 +129,13 @@ func (service evidenceService) sourceContinuityValidate(args []string, raw map[s
 	}
 	diagnostics, metrics := validateSourceContinuityLabResult(taskID, manifest, optionalFileSHA256(manifestPath), raw)
 	source, sourceOK := manifest["source"].(map[string]any)
-	if !sourceOK || strings.TrimSpace(anyString(source["task_index_sha256"])) != optionalFileSHA256(filepath.Join(feature, "task-index.json")) {
+	indexPath := filepath.Join(feature, "task-index.json")
+	index, indexErr := readImplementJSONMap(indexPath)
+	_, currentTask, taskErr := findImplementTask(index, taskID)
+	currentUI, _ := currentTask["ui_contract"].(map[string]any)
+	currentContinuity, _ := currentUI["source_continuity"].(map[string]any)
+	targetSnapshot, snapshotErr := sourceContinuityLabTargetSnapshot(root, sourceContinuityLabTaskWriteScope(currentTask))
+	if !sourceOK || indexErr != nil || taskErr != nil || snapshotErr != nil || strings.TrimSpace(anyString(source["task_index_sha256"])) != optionalFileSHA256(indexPath) || strings.TrimSpace(anyString(source["target_snapshot_sha256"])) != targetSnapshot || !reflect.DeepEqual(manifest["source_continuity"], currentContinuity) || anyString(manifest["source_continuity_sha256"]) != sourceContinuityLabContractSHA(currentContinuity) {
 		diagnostics = append(diagnostics, "stale-manifest")
 	}
 	diagnostics = uniqueSourceContinuityLabDiagnostics(diagnostics)
@@ -145,7 +153,7 @@ func (service evidenceService) sourceContinuityValidate(args []string, raw map[s
 		"action_results": cloneJSONValue(raw["action_results"]), "asset_results": cloneJSONValue(raw["asset_results"]),
 		"coverage": cloneJSONValue(requireSourceContinuityLabObject(manifest, "source_continuity")["coverage"]),
 		"metrics":  metrics, "reviewer": anyString(raw["reviewer"]),
-		"source": map[string]any{"result_schema": sourceContinuityLabResultSchema, "task_index_sha256": anyString(source["task_index_sha256"])},
+		"source": map[string]any{"result_schema": sourceContinuityLabResultSchema, "task_index_sha256": anyString(source["task_index_sha256"]), "target_snapshot_sha256": targetSnapshot},
 	}
 	rendered, err := marshalReviewAcceptJSON(report)
 	if err != nil {
@@ -194,6 +202,7 @@ type sourceContinuityQuickContext struct {
 	confirmationPath string
 	doc              *quickConfirmationDoc
 	continuity       map[string]any
+	item             quickConfirmationItem
 }
 
 func (service evidenceService) sourceContinuityQuickContext(args []string, quickID string) (*sourceContinuityQuickContext, error) {
@@ -227,8 +236,12 @@ func (service evidenceService) sourceContinuityQuickContext(args []string, quick
 	if itemID == "" {
 		return nil, errors.New("source continuity quick lab requires --item-id Qn")
 	}
-	if _, ok := findQuickItem(doc, itemID); !ok {
+	item, ok := findQuickItem(doc, itemID)
+	if !ok {
 		return nil, fmt.Errorf("unknown quick work item %s", itemID)
+	}
+	if strings.ToLower(strings.TrimSpace(quickStatusMap(doc)[itemID].Status)) != "in_progress" {
+		return nil, fmt.Errorf("quick work item %s must be in_progress before source continuity evidence is generated", itemID)
 	}
 	continuity, ok := doc.Decision.UIConfirmation["source_continuity"].(map[string]any)
 	if !ok || strings.TrimSpace(anyString(continuity["applicability"])) != "required" {
@@ -240,7 +253,7 @@ func (service evidenceService) sourceContinuityQuickContext(args []string, quick
 	return &sourceContinuityQuickContext{
 		root: root, workspace: workspace, workspacePath: workspacePath, itemID: itemID,
 		confirmationPath: filepath.Join(workspacePath, quickConfirmationFileName), doc: doc,
-		continuity: continuity,
+		continuity: continuity, item: item,
 	}, nil
 }
 
@@ -257,6 +270,10 @@ func (service evidenceService) sourceContinuityQuickManifest(args []string, quic
 	if err != nil {
 		return evidenceBlockedError("quick confirmation path is invalid", err)
 	}
+	targetSnapshot, err := sourceContinuityLabTargetSnapshot(context.root, context.item.WriteScope)
+	if err != nil {
+		return evidenceBlockedError("quick source continuity target snapshot is unavailable", err)
+	}
 	manifest := map[string]any{
 		"schema": sourceContinuityLabManifestSchema, "task_id": context.itemID,
 		"source_continuity_schema":      anyString(context.continuity["schema"]),
@@ -265,10 +282,10 @@ func (service evidenceService) sourceContinuityQuickManifest(args []string, quic
 		"required_adapter_capabilities": stringsToAny(sourceContinuityLabCapabilities),
 		"required_evidence":             stringsToAny(sourceContinuityLabEvidenceKinds),
 		"source": map[string]any{
-			"confirmation_ref":    filepath.ToSlash(confirmationRef),
-			"confirmation_sha256": optionalFileSHA256(context.confirmationPath),
-			"confirmation_digest": context.doc.ConfirmationDigest,
-			"quick_id":            quickID, "item_id": context.itemID,
+			"confirmation_ref":       filepath.ToSlash(confirmationRef),
+			"confirmation_digest":    context.doc.ConfirmationDigest,
+			"target_snapshot_sha256": targetSnapshot,
+			"quick_id":               quickID, "item_id": context.itemID,
 		},
 	}
 	rendered, err := marshalReviewAcceptJSON(manifest)
@@ -314,7 +331,8 @@ func (service evidenceService) sourceContinuityQuickValidate(args []string, quic
 	}
 	diagnostics, metrics := validateSourceContinuityLabResult(context.itemID, manifest, optionalFileSHA256(manifestPath), raw)
 	source, sourceOK := manifest["source"].(map[string]any)
-	if !sourceOK || strings.TrimSpace(anyString(source["confirmation_sha256"])) != optionalFileSHA256(context.confirmationPath) || strings.TrimSpace(anyString(source["confirmation_digest"])) != context.doc.ConfirmationDigest {
+	targetSnapshot, snapshotErr := sourceContinuityLabTargetSnapshot(context.root, context.item.WriteScope)
+	if !sourceOK || snapshotErr != nil || strings.TrimSpace(anyString(source["confirmation_digest"])) != context.doc.ConfirmationDigest || strings.TrimSpace(anyString(source["target_snapshot_sha256"])) != targetSnapshot || !reflect.DeepEqual(manifest["source_continuity"], context.continuity) || anyString(manifest["source_continuity_sha256"]) != sourceContinuityLabContractSHA(context.continuity) {
 		diagnostics = append(diagnostics, "stale-manifest")
 	}
 	diagnostics = uniqueSourceContinuityLabDiagnostics(diagnostics)
@@ -332,10 +350,10 @@ func (service evidenceService) sourceContinuityQuickValidate(args []string, quic
 		"action_results": cloneJSONValue(raw["action_results"]), "asset_results": cloneJSONValue(raw["asset_results"]),
 		"coverage": cloneJSONValue(context.continuity["coverage"]), "metrics": metrics, "reviewer": anyString(raw["reviewer"]),
 		"source": map[string]any{
-			"result_schema":       sourceContinuityLabResultSchema,
-			"confirmation_sha256": optionalFileSHA256(context.confirmationPath),
-			"confirmation_digest": context.doc.ConfirmationDigest,
-			"quick_id":            quickID, "item_id": context.itemID,
+			"result_schema":          sourceContinuityLabResultSchema,
+			"confirmation_digest":    context.doc.ConfirmationDigest,
+			"target_snapshot_sha256": targetSnapshot,
+			"quick_id":               quickID, "item_id": context.itemID,
 		},
 	}
 	rendered, err := marshalReviewAcceptJSON(report)
@@ -369,7 +387,7 @@ func (service evidenceService) sourceContinuityQuickValidate(args []string, quic
 	return env
 }
 
-func buildSourceContinuityLabManifest(root, feature, taskID, indexPath string, continuity map[string]any) (map[string]any, error) {
+func buildSourceContinuityLabManifest(root, feature, taskID, indexPath string, task, continuity map[string]any) (map[string]any, error) {
 	contractRaw, err := marshalReviewAcceptJSON(continuity)
 	if err != nil {
 		return nil, errors.New("source continuity contract cannot be canonicalized")
@@ -377,6 +395,10 @@ func buildSourceContinuityLabManifest(root, feature, taskID, indexPath string, c
 	projectRelativeFeature, err := filepath.Rel(root, feature)
 	if err != nil {
 		return nil, errors.New("source continuity feature path is invalid")
+	}
+	targetSnapshot, err := sourceContinuityLabTargetSnapshot(root, sourceContinuityLabTaskWriteScope(task))
+	if err != nil {
+		return nil, errors.New("source continuity target snapshot is unavailable")
 	}
 	return map[string]any{
 		"schema": sourceContinuityLabManifestSchema, "task_id": taskID,
@@ -387,7 +409,7 @@ func buildSourceContinuityLabManifest(root, feature, taskID, indexPath string, c
 		"required_evidence":             stringsToAny(sourceContinuityLabEvidenceKinds),
 		"source": map[string]any{
 			"task_index_ref": "task-index.json", "task_index_sha256": optionalFileSHA256(indexPath),
-			"feature_ref": filepath.ToSlash(projectRelativeFeature),
+			"feature_ref": filepath.ToSlash(projectRelativeFeature), "target_snapshot_sha256": targetSnapshot,
 		},
 	}, nil
 }
@@ -758,10 +780,15 @@ func validatePersistedQuickSourceContinuityLabReport(workspacePath string, doc *
 		return errors.New("source continuity lab manifest must contain a JSON object")
 	}
 	continuity, _ := doc.Decision.UIConfirmation["source_continuity"].(map[string]any)
-	if !reflect.DeepEqual(manifest["source_continuity"], continuity) {
+	if !reflect.DeepEqual(manifest["source_continuity"], continuity) || anyString(manifest["source_continuity_sha256"]) != sourceContinuityLabContractSHA(continuity) {
 		return errors.New("source continuity lab manifest contract binding is stale")
 	}
-	confirmationPath := filepath.Join(workspacePath, quickConfirmationFileName)
+	item, ok := findQuickItem(doc, itemID)
+	if !ok {
+		return errors.New("source continuity lab report requires the current quick item")
+	}
+	projectRoot, rootErr := sourceContinuityLabProjectRoot(workspacePath)
+	targetSnapshot, snapshotErr := sourceContinuityLabTargetSnapshot(projectRoot, item.WriteScope)
 	manifestSource, _ := manifest["source"].(map[string]any)
 	reportSource, _ := report["source"].(map[string]any)
 	validationInput := map[string]any{
@@ -772,8 +799,13 @@ func validatePersistedQuickSourceContinuityLabReport(workspacePath string, doc *
 		"verdict": report["verdict"], "reviewer": report["reviewer"],
 	}
 	diagnostics, metrics := validateSourceContinuityLabResult(itemID, manifest, taskControlSHA256(manifestRaw), validationInput)
-	confirmationSHA := optionalFileSHA256(confirmationPath)
-	if anyString(manifestSource["confirmation_sha256"]) != confirmationSHA || anyString(manifestSource["confirmation_digest"]) != doc.ConfirmationDigest || anyString(reportSource["confirmation_sha256"]) != confirmationSHA || anyString(reportSource["confirmation_digest"]) != doc.ConfirmationDigest {
+	if rootErr != nil || snapshotErr != nil {
+		return errors.New("source continuity lab target snapshot is unavailable")
+	}
+	if anyString(manifestSource["target_snapshot_sha256"]) != targetSnapshot || anyString(reportSource["target_snapshot_sha256"]) != targetSnapshot {
+		return errors.New("source continuity lab target snapshot changed after the report was generated")
+	}
+	if anyString(manifestSource["confirmation_digest"]) != doc.ConfirmationDigest || anyString(reportSource["confirmation_digest"]) != doc.ConfirmationDigest {
 		diagnostics = append(diagnostics, "stale-manifest")
 	}
 	if !reflect.DeepEqual(report["metrics"], metrics) {
@@ -836,7 +868,7 @@ func validatePersistedSourceContinuityLabReport(feature string, task map[string]
 	}
 	currentUI, _ := currentTask["ui_contract"].(map[string]any)
 	currentContinuity, _ := currentUI["source_continuity"].(map[string]any)
-	if !reflect.DeepEqual(manifest["source_continuity"], currentContinuity) {
+	if !reflect.DeepEqual(manifest["source_continuity"], currentContinuity) || anyString(manifest["source_continuity_sha256"]) != sourceContinuityLabContractSHA(currentContinuity) {
 		return errors.New("source continuity lab manifest contract binding is stale")
 	}
 	reportSource, _ := report["source"].(map[string]any)
@@ -850,7 +882,9 @@ func validatePersistedSourceContinuityLabReport(feature string, task map[string]
 	diagnostics, metrics := validateSourceContinuityLabResult(taskID, manifest, taskControlSHA256(manifestRaw), validationInput)
 	manifestSource, _ := manifest["source"].(map[string]any)
 	currentIndexSHA := optionalFileSHA256(indexPath)
-	if strings.TrimSpace(anyString(manifestSource["task_index_ref"])) != "task-index.json" || strings.TrimSpace(anyString(manifestSource["task_index_sha256"])) != currentIndexSHA || strings.TrimSpace(anyString(reportSource["task_index_sha256"])) != currentIndexSHA {
+	projectRoot, rootErr := sourceContinuityLabProjectRoot(feature)
+	targetSnapshot, snapshotErr := sourceContinuityLabTargetSnapshot(projectRoot, sourceContinuityLabTaskWriteScope(currentTask))
+	if rootErr != nil || snapshotErr != nil || strings.TrimSpace(anyString(manifestSource["task_index_ref"])) != "task-index.json" || strings.TrimSpace(anyString(manifestSource["task_index_sha256"])) != currentIndexSHA || strings.TrimSpace(anyString(reportSource["task_index_sha256"])) != currentIndexSHA || strings.TrimSpace(anyString(manifestSource["target_snapshot_sha256"])) != targetSnapshot || strings.TrimSpace(anyString(reportSource["target_snapshot_sha256"])) != targetSnapshot {
 		diagnostics = append(diagnostics, "stale-manifest")
 	}
 	if !reflect.DeepEqual(report["metrics"], metrics) {
@@ -875,6 +909,140 @@ func sourceContinuityLabBindingIDs(value any) []string {
 		}
 	}
 	return ids
+}
+
+func sourceContinuityLabContractSHA(continuity map[string]any) string {
+	raw, err := marshalReviewAcceptJSON(continuity)
+	if err != nil {
+		return ""
+	}
+	return fileContentSHA256(raw)
+}
+
+func sourceContinuityLabTaskWriteScope(task map[string]any) []string {
+	values := anyStringSlice(task["write_scope"])
+	if scope, ok := task["scope"].(map[string]any); ok {
+		values = append(values, anyStringSlice(scope["write_scope"])...)
+	}
+	seen := map[string]bool{}
+	result := []string{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" && !seen[value] {
+			seen[value] = true
+			result = append(result, value)
+		}
+	}
+	return result
+}
+
+func sourceContinuityLabProjectRoot(path string) (string, error) {
+	current, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	for {
+		base := strings.ToLower(filepath.Base(current))
+		if base == ".specify" || base == ".planning" || base == "specs" {
+			return filepath.Dir(current), nil
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", errors.New("source continuity project root is not discoverable")
+		}
+		current = parent
+	}
+}
+
+func sourceContinuityLabTargetSnapshot(root string, declared []string) (string, error) {
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return "", err
+	}
+	paths := []string{}
+	seen := map[string]bool{}
+	addFile := func(path string) error {
+		rel, err := filepath.Rel(rootAbs, path)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return errors.New("source continuity snapshot path escapes project root")
+		}
+		rel = filepath.ToSlash(rel)
+		if !seen[rel] {
+			seen[rel] = true
+			paths = append(paths, rel)
+		}
+		return nil
+	}
+	walk := func(start string, bounded bool) error {
+		return filepath.WalkDir(start, func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() {
+				if path != start && !bounded && sourceContinuityLabIgnoredSnapshotDir(entry.Name()) {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			info, err := entry.Info()
+			if err != nil || !info.Mode().IsRegular() {
+				return err
+			}
+			return addFile(path)
+		})
+	}
+	if len(declared) > 0 {
+		for _, raw := range declared {
+			path, err := secureProjectPath(rootAbs, filepath.ToSlash(strings.TrimSpace(raw)))
+			if err != nil {
+				return "", err
+			}
+			info, err := os.Stat(path)
+			if os.IsNotExist(err) {
+				if err := addFile(path); err != nil {
+					return "", err
+				}
+				continue
+			}
+			if err != nil {
+				return "", err
+			}
+			if info.IsDir() {
+				if err := walk(path, true); err != nil {
+					return "", err
+				}
+			} else if err := addFile(path); err != nil {
+				return "", err
+			}
+		}
+	} else if err := walk(rootAbs, false); err != nil {
+		return "", err
+	}
+	sort.Strings(paths)
+	digest := sha256.New()
+	digest.Write([]byte("source-continuity-target-snapshot-v1\n"))
+	for _, rel := range paths {
+		digest.Write([]byte("PATH\n" + rel + "\n"))
+		raw, err := os.ReadFile(filepath.Join(rootAbs, filepath.FromSlash(rel)))
+		if os.IsNotExist(err) {
+			digest.Write([]byte("MISSING\n"))
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		digest.Write(raw)
+		digest.Write([]byte("\n"))
+	}
+	return hex.EncodeToString(digest.Sum(nil)), nil
+}
+
+func sourceContinuityLabIgnoredSnapshotDir(name string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(name))
+	if normalized == ".git" || normalized == ".specify" || normalized == ".planning" || normalized == ".venv" || normalized == "node_modules" || normalized == "__pycache__" || normalized == ".pytest_cache" || normalized == ".ruff_cache" || normalized == ".mypy_cache" {
+		return true
+	}
+	return strings.HasPrefix(normalized, ".codex-") || strings.HasPrefix(normalized, "pytest-") || strings.HasPrefix(normalized, "test-tmp") || strings.HasPrefix(normalized, "test-run-")
 }
 
 func sourceContinuityLabStringList(value any) []string {

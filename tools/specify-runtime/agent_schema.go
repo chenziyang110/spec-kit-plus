@@ -152,7 +152,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "evidence.source-continuity-manifest":
 		capability["side_effect"] = "writes-derived-source-continuity-manifest"
 		capability["usage"] = "specify-runtime evidence source-continuity-manifest (--feature-dir <feature-dir> --task-id <Txxx> | --quick-id <quick-id> --item-id <Qn>) --format json"
-		capability["input_contract"] = "derives the exact surface/action/asset universe from the immutable source_continuity contract and binds either the current task-index digest or confirmed Quick confirmation bytes/digest"
+		capability["input_contract"] = "derives the exact surface/action/asset universe from the immutable source_continuity contract and binds either the current task-index digest or the digest-protected Quick decision"
 	case "evidence.source-continuity-validate":
 		capability["side_effect"] = "writes-derived-source-continuity-report"
 		capability["usage"] = "specify-runtime evidence source-continuity-validate (--feature-dir <feature-dir> --task-id <Txxx> | --quick-id <quick-id> --item-id <Qn>) --manifest <manifest-ref> --input-json <observed-source-continuity> --format json"

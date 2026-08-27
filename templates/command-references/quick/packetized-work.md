@@ -200,8 +200,8 @@ The following flags are available and composable:
   --quick-id <quick-id> --item-id Qn --manifest <manifest-ref> --input-json
   '<observed-result-json>' --format json`. Put the returned exact coverage,
   `source_continuity_lab_report_ref`, and SHA-256 in the Q worker result.
-  `item-accept` rebinds the report to the current `confirmation.json` bytes and
-  confirmation digest; stale or handwritten proof, unbound candidates, dead
+  `item-accept` rebinds the report to the digest-protected decision in the
+  current `confirmation.json`; stale or handwritten proof, unbound candidates, dead
   actions, outcome drift, and character icons block the item.
 - Treat a user-provided PNG, screenshot, mockup, design export, reference image, or "make it like this" UI request as a first-class worker input when it shapes the quick task.
 - Before dispatch, record the image inputs in the quick-task context and include them in the `WorkerTaskPacket` or equivalent lane contract as `image_inputs` or UI reference inputs with stable project-relative paths when available.
