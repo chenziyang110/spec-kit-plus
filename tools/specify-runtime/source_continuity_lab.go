@@ -73,6 +73,7 @@ var sourceContinuityLabInputFields = map[string]bool{
 	"target_revision": true, "adapter": true, "evidence_refs": true,
 	"discovery": true, "surface_results": true, "action_results": true,
 	"asset_results": true, "verdict": true, "reviewer": true,
+	"adapter_plan_ref": true, "adapter_plan_sha256": true,
 }
 
 func (service evidenceService) sourceContinuityManifest(args []string) Envelope {
@@ -174,6 +175,19 @@ func (service evidenceService) sourceContinuityValidate(args []string, raw map[s
 	if !sourceOK || indexErr != nil || taskErr != nil || snapshotErr != nil || strings.TrimSpace(anyString(source["task_index_sha256"])) != optionalFileSHA256(indexPath) || strings.TrimSpace(anyString(source["target_snapshot_sha256"])) != targetSnapshot || !reflect.DeepEqual(manifest["source_continuity"], currentContinuity) || anyString(manifest["source_continuity_sha256"]) != sourceContinuityLabContractSHA(currentContinuity) {
 		diagnostics = append(diagnostics, "stale-manifest")
 	}
+	adapterPlanRef := filepath.ToSlash(strings.TrimSpace(optionValue(args, "--adapter-plan", "")))
+	adapterPlanSHA := strings.TrimSpace(anyString(raw["adapter_plan_sha256"]))
+	var adapterPlan map[string]any
+	if adapterPlanRef == "" || anyString(raw["adapter_plan_ref"]) == "" || adapterPlanSHA == "" {
+		diagnostics = append(diagnostics, "missing-adapter-plan")
+	} else {
+		adapterPlan, err = loadSourceContinuityAdapterPlan(feature, taskID, adapterPlanRef, adapterPlanSHA, manifestRef, optionalFileSHA256(manifestPath), false)
+		if err != nil {
+			diagnostics = append(diagnostics, "stale-adapter-plan")
+		} else {
+			diagnostics = append(diagnostics, validateSourceContinuityAdapterObservation(adapterPlan, adapterPlanRef, adapterPlanSHA, raw)...)
+		}
+	}
 	diagnostics = uniqueSourceContinuityLabDiagnostics(diagnostics)
 	if len(diagnostics) > 0 {
 		env := NewEnvelope("error", strings.Join(diagnostics, "; "))
@@ -190,6 +204,10 @@ func (service evidenceService) sourceContinuityValidate(args []string, raw map[s
 		"coverage": cloneJSONValue(requireSourceContinuityLabObject(manifest, "source_continuity")["coverage"]),
 		"metrics":  metrics, "reviewer": anyString(raw["reviewer"]),
 		"source": map[string]any{"result_schema": sourceContinuityLabResultSchema, "task_index_sha256": anyString(source["task_index_sha256"]), "target_snapshot_sha256": targetSnapshot},
+	}
+	if adapterPlan != nil {
+		report["adapter_plan_ref"] = adapterPlanRef
+		report["adapter_plan_sha256"] = adapterPlanSHA
 	}
 	rendered, err := marshalReviewAcceptJSON(report)
 	if err != nil {
@@ -572,6 +590,96 @@ func validateCurrentQuickSourceContinuityManifest(context *sourceContinuityQuick
 	return nil
 }
 
+func loadSourceContinuityAdapterPlan(container, subjectID, ref, sha, manifestRef, manifestSHA string, quick bool) (map[string]any, error) {
+	expectedRef := sourceContinuityAdapterPlanRef(subjectID)
+	if quick {
+		expectedRef = sourceContinuityAdapterQuickPlanRef(subjectID)
+	}
+	if filepath.ToSlash(strings.TrimSpace(ref)) != expectedRef || !reviewSHA256RE.MatchString(strings.TrimSpace(sha)) {
+		return nil, errors.New("adapter plan ref and SHA-256 must use the canonical subject binding")
+	}
+	path, err := secureFeatureRelativePath(container, expectedRef)
+	if err != nil {
+		return nil, errors.New("adapter plan path is unsafe")
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil || taskControlSHA256(raw) != sha {
+		return nil, errors.New("adapter plan SHA-256 must bind the canonical plan")
+	}
+	var plan map[string]any
+	if err := json.Unmarshal(raw, &plan); err != nil {
+		return nil, errors.New("adapter plan must contain a JSON object")
+	}
+	binding, _ := plan["binding"].(map[string]any)
+	input := map[string]any{
+		"schema":          sourceContinuityAdapterInputSchema,
+		"adapters":        plan["adapters"],
+		"assignments":     plan["assignments"],
+		"unresolved_gaps": plan["unresolved_gaps"],
+	}
+	_, _, diagnostics := validateSourceContinuityAdapterPlanInput(input)
+	lanes := sourceContinuityLabStringList(plan["required_lanes"])
+	if plan["schema"] != sourceContinuityAdapterPlanSchema || plan["adapter_protocol"] != sourceContinuityAdapterProtocol || plan["status"] != "ready" || anyString(plan["subject_id"]) != subjectID || !sourceContinuityLabExactIDs(lanes, sourceContinuityAdapterRequiredLanes()) || anyString(binding["manifest_ref"]) != manifestRef || anyString(binding["manifest_sha256"]) != manifestSHA {
+		diagnostics = append(diagnostics, "stale-adapter-plan")
+	}
+	if len(diagnostics) > 0 {
+		return nil, fmt.Errorf("adapter plan is invalid: %s", strings.Join(uniqueSourceContinuityLabDiagnostics(diagnostics), ", "))
+	}
+	return plan, nil
+}
+
+func validateSourceContinuityAdapterObservation(plan map[string]any, planRef, planSHA string, raw map[string]any) []string {
+	diagnostics := []string{}
+	if anyString(raw["adapter_plan_ref"]) != planRef || anyString(raw["adapter_plan_sha256"]) != planSHA {
+		diagnostics = append(diagnostics, "stale-adapter-plan")
+	}
+	expectedComposite := map[string]any{
+		"id":           "adapter-plan:" + planSHA[:12],
+		"version":      "1",
+		"capabilities": stringsToAny(sourceContinuityLabCapabilities),
+	}
+	if !reflect.DeepEqual(raw["adapter"], expectedComposite) {
+		diagnostics = append(diagnostics, "adapter-plan-composite-mismatch")
+	}
+	adapterByID := map[string]map[string]any{}
+	for _, value := range listValue(plan["adapters"]) {
+		adapter, ok := value.(map[string]any)
+		if ok {
+			adapterByID[anyString(adapter["id"])] = adapter
+		}
+	}
+	observed := map[string]bool{}
+	for _, value := range listValue(raw["evidence_refs"]) {
+		row, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		adapterID := strings.TrimSpace(anyString(row["adapter_id"]))
+		side := strings.TrimSpace(anyString(row["side"]))
+		kind := strings.TrimSpace(anyString(row["kind"]))
+		adapter := adapterByID[adapterID]
+		if adapterID == "" || adapter == nil || !sourceContinuityAdapterStringSet(sourceContinuityLabStringList(adapter["roles"]))[side] || !sourceContinuityAdapterStringSet(sourceContinuityLabStringList(adapter["evidence_kinds"]))[kind] {
+			diagnostics = append(diagnostics, "evidence-adapter-assignment-mismatch:"+side+":"+kind)
+			continue
+		}
+		observed[adapterID+"|"+side+"|"+kind] = true
+	}
+	for _, value := range listValue(plan["assignments"]) {
+		assignment, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		adapterID := anyString(assignment["adapter_id"])
+		side := anyString(assignment["side"])
+		capability := anyString(assignment["capability"])
+		kind := sourceContinuityAdapterCapabilityEvidence[capability]
+		if !observed[adapterID+"|"+side+"|"+kind] {
+			diagnostics = append(diagnostics, "evidence-adapter-assignment-mismatch:"+side+"."+capability)
+		}
+	}
+	return uniqueSourceContinuityLabDiagnostics(diagnostics)
+}
+
 func sourceContinuityLabNotApplicable(taskID, reason string) Envelope {
 	env := NewEnvelope("ok", "source continuity lab not applicable")
 	env.Data = map[string]any{"task_id": taskID, "applicable": false, "status": "not-applicable", "reason": reason}
@@ -720,6 +828,19 @@ func (service evidenceService) sourceContinuityQuickValidate(args []string, quic
 	if !sourceOK || snapshotErr != nil || strings.TrimSpace(anyString(source["confirmation_digest"])) != context.doc.ConfirmationDigest || strings.TrimSpace(anyString(source["target_snapshot_sha256"])) != targetSnapshot || !reflect.DeepEqual(manifest["source_continuity"], context.continuity) || anyString(manifest["source_continuity_sha256"]) != sourceContinuityLabContractSHA(context.continuity) {
 		diagnostics = append(diagnostics, "stale-manifest")
 	}
+	adapterPlanRef := filepath.ToSlash(strings.TrimSpace(optionValue(args, "--adapter-plan", "")))
+	adapterPlanSHA := strings.TrimSpace(anyString(raw["adapter_plan_sha256"]))
+	var adapterPlan map[string]any
+	if adapterPlanRef == "" || anyString(raw["adapter_plan_ref"]) == "" || adapterPlanSHA == "" {
+		diagnostics = append(diagnostics, "missing-adapter-plan")
+	} else {
+		adapterPlan, err = loadSourceContinuityAdapterPlan(context.workspacePath, context.itemID, adapterPlanRef, adapterPlanSHA, manifestRef, optionalFileSHA256(manifestPath), true)
+		if err != nil {
+			diagnostics = append(diagnostics, "stale-adapter-plan")
+		} else {
+			diagnostics = append(diagnostics, validateSourceContinuityAdapterObservation(adapterPlan, adapterPlanRef, adapterPlanSHA, raw)...)
+		}
+	}
 	diagnostics = uniqueSourceContinuityLabDiagnostics(diagnostics)
 	if len(diagnostics) > 0 {
 		env := NewEnvelope("error", strings.Join(diagnostics, "; "))
@@ -740,6 +861,10 @@ func (service evidenceService) sourceContinuityQuickValidate(args []string, quic
 			"target_snapshot_sha256": targetSnapshot,
 			"quick_id":               quickID, "item_id": context.itemID,
 		},
+	}
+	if adapterPlan != nil {
+		report["adapter_plan_ref"] = adapterPlanRef
+		report["adapter_plan_sha256"] = adapterPlanSHA
 	}
 	rendered, err := marshalReviewAcceptJSON(report)
 	if err != nil {
@@ -886,7 +1011,13 @@ func validateSourceContinuityLabEvidence(value any) (map[string]string, []string
 	diagnostics := []string{}
 	for _, value := range rows {
 		row, ok := value.(map[string]any)
-		if !ok || exactVisualComparisonFields(row, map[string]bool{"side": true, "kind": true, "ref": true}, "source continuity evidence") != nil {
+		expectedFields := map[string]bool{"side": true, "kind": true, "ref": true}
+		if ok {
+			if _, hasAdapter := row["adapter_id"]; hasAdapter {
+				expectedFields["adapter_id"] = true
+			}
+		}
+		if !ok || exactVisualComparisonFields(row, expectedFields, "source continuity evidence") != nil {
 			diagnostics = append(diagnostics, "invalid-evidence-ref")
 			continue
 		}
@@ -927,13 +1058,18 @@ func validateSourceContinuityLabEvidenceRecords(root string, value any) []string
 			continue
 		}
 		ref := filepath.ToSlash(strings.TrimSpace(anyString(row["ref"])))
+		adapterID := strings.TrimSpace(anyString(row["adapter_id"]))
 		if ref == "" || !strings.HasPrefix(ref, ".specify/evidence/records/") {
 			diagnostics = append(diagnostics, "unverified-evidence-ref:"+ref)
 			continue
 		}
 		env := service.verify(ref)
 		record, err := service.readRecord(ref)
-		if err != nil || env.Status != "ok" || record.SchemaVersion != evidenceSchemaVersion || filepath.ToSlash(record.RecordRef) != ref || record.Status != "ready" || record.SHA256 == "" || record.ObjectRef == "" || strings.TrimSpace(record.Source) == "" || strings.TrimSpace(record.Provenance) == "" {
+		provenanceValid := strings.TrimSpace(record.Provenance) != ""
+		if adapterID != "" {
+			provenanceValid = record.Provenance == "adapter:"+adapterID
+		}
+		if err != nil || env.Status != "ok" || record.SchemaVersion != evidenceSchemaVersion || filepath.ToSlash(record.RecordRef) != ref || record.Status != "ready" || record.SHA256 == "" || record.ObjectRef == "" || strings.TrimSpace(record.Source) == "" || !provenanceValid {
 			diagnostics = append(diagnostics, "unverified-evidence-ref:"+ref)
 		}
 	}
@@ -1214,6 +1350,9 @@ func validatePersistedQuickSourceContinuityLabReport(workspacePath string, doc *
 	targetSnapshot, snapshotErr := sourceContinuityLabTargetSnapshot(projectRoot, item.WriteScope)
 	manifestSource, _ := manifest["source"].(map[string]any)
 	reportSource, _ := report["source"].(map[string]any)
+	adapterPlanRef := filepath.ToSlash(strings.TrimSpace(anyString(report["adapter_plan_ref"])))
+	adapterPlanSHA := strings.TrimSpace(anyString(report["adapter_plan_sha256"]))
+	adapterPlan, adapterPlanErr := loadSourceContinuityAdapterPlan(workspacePath, itemID, adapterPlanRef, adapterPlanSHA, manifestRef, taskControlSHA256(manifestRaw), true)
 	validationInput := map[string]any{
 		"schema": reportSource["result_schema"], "manifest_sha256": report["manifest_sha256"],
 		"source_revision": report["source_revision"], "target_revision": report["target_revision"],
@@ -1222,6 +1361,13 @@ func validatePersistedQuickSourceContinuityLabReport(workspacePath string, doc *
 		"verdict": report["verdict"], "reviewer": report["reviewer"],
 	}
 	diagnostics, metrics := validateSourceContinuityLabResult(itemID, manifest, taskControlSHA256(manifestRaw), validationInput)
+	if adapterPlanErr != nil {
+		diagnostics = append(diagnostics, "stale-adapter-plan")
+	} else {
+		validationInput["adapter_plan_ref"] = adapterPlanRef
+		validationInput["adapter_plan_sha256"] = adapterPlanSHA
+		diagnostics = append(diagnostics, validateSourceContinuityAdapterObservation(adapterPlan, adapterPlanRef, adapterPlanSHA, validationInput)...)
+	}
 	if rootErr == nil {
 		diagnostics = append(diagnostics, validateSourceContinuityLabEvidenceRecords(projectRoot, report["evidence_refs"])...)
 	}
@@ -1298,6 +1444,9 @@ func validatePersistedSourceContinuityLabReport(feature string, task map[string]
 		return errors.New("source continuity lab manifest contract binding is stale")
 	}
 	reportSource, _ := report["source"].(map[string]any)
+	adapterPlanRef := filepath.ToSlash(strings.TrimSpace(anyString(report["adapter_plan_ref"])))
+	adapterPlanSHA := strings.TrimSpace(anyString(report["adapter_plan_sha256"]))
+	adapterPlan, adapterPlanErr := loadSourceContinuityAdapterPlan(feature, taskID, adapterPlanRef, adapterPlanSHA, manifestRef, taskControlSHA256(manifestRaw), false)
 	validationInput := map[string]any{
 		"schema": reportSource["result_schema"], "manifest_sha256": report["manifest_sha256"],
 		"source_revision": report["source_revision"], "target_revision": report["target_revision"],
@@ -1306,6 +1455,13 @@ func validatePersistedSourceContinuityLabReport(feature string, task map[string]
 		"verdict": report["verdict"], "reviewer": report["reviewer"],
 	}
 	diagnostics, metrics := validateSourceContinuityLabResult(taskID, manifest, taskControlSHA256(manifestRaw), validationInput)
+	if adapterPlanErr != nil {
+		diagnostics = append(diagnostics, "stale-adapter-plan")
+	} else {
+		validationInput["adapter_plan_ref"] = adapterPlanRef
+		validationInput["adapter_plan_sha256"] = adapterPlanSHA
+		diagnostics = append(diagnostics, validateSourceContinuityAdapterObservation(adapterPlan, adapterPlanRef, adapterPlanSHA, validationInput)...)
+	}
 	manifestSource, _ := manifest["source"].(map[string]any)
 	currentIndexSHA := optionalFileSHA256(indexPath)
 	projectRoot, rootErr := sourceContinuityLabProjectRoot(feature)

@@ -27,6 +27,7 @@ func TestSourceContinuityLabMaterializesManifestAndPassingReport(t *testing.T) {
 	}
 
 	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	planRef := prepareFeatureSourceContinuityAdapterPlan(t, root, featureRef, manifestRef, observation)
 	bindSourceContinuityLabEvidence(t, root, observation)
 	raw, err := json.Marshal(observation)
 	if err != nil {
@@ -35,7 +36,7 @@ func TestSourceContinuityLabMaterializesManifestAndPassingReport(t *testing.T) {
 	exit, env := runTaskRuntimeCommand(t, []string{
 		"evidence", "source-continuity-validate", "--project-root", root,
 		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
-		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+		"--manifest", manifestRef, "--adapter-plan", planRef, "--input-json", string(raw), "--format", "json",
 	})
 	if exit != 0 || env.Status != "ok" {
 		t.Fatalf("source continuity validation failed: exit=%d env=%#v", exit, env)
@@ -73,6 +74,7 @@ func TestSourceContinuityLabRejectsShallowTargetAndCharacterIcon(t *testing.T) {
 	root, featureRef, _ := sourceContinuityLabProject(t)
 	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
 	observation := readSourceContinuityLabObservation(t, "shallow-target-observation.json", manifestSHA)
+	planRef := prepareFeatureSourceContinuityAdapterPlan(t, root, featureRef, manifestRef, observation)
 	bindSourceContinuityLabEvidence(t, root, observation)
 	raw, err := json.Marshal(observation)
 	if err != nil {
@@ -81,7 +83,7 @@ func TestSourceContinuityLabRejectsShallowTargetAndCharacterIcon(t *testing.T) {
 	exit, env := runTaskRuntimeCommand(t, []string{
 		"evidence", "source-continuity-validate", "--project-root", root,
 		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
-		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+		"--manifest", manifestRef, "--adapter-plan", planRef, "--input-json", string(raw), "--format", "json",
 	})
 	if exit != 2 || env.Status != "error" {
 		t.Fatalf("shallow target unexpectedly passed: exit=%d env=%#v", exit, env)
@@ -105,6 +107,7 @@ func TestSourceContinuityLabRejectsAdapterDiscoveredCandidateOutsideContract(t *
 	root, featureRef, _ := sourceContinuityLabProject(t)
 	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
 	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	planRef := prepareFeatureSourceContinuityAdapterPlan(t, root, featureRef, manifestRef, observation)
 	bindSourceContinuityLabEvidence(t, root, observation)
 	discovery := requireObjectValue(t, observation["discovery"])
 	discovery["unexpected_candidates"] = []any{map[string]any{
@@ -118,7 +121,7 @@ func TestSourceContinuityLabRejectsAdapterDiscoveredCandidateOutsideContract(t *
 	exit, env := runTaskRuntimeCommand(t, []string{
 		"evidence", "source-continuity-validate", "--project-root", root,
 		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
-		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+		"--manifest", manifestRef, "--adapter-plan", planRef, "--input-json", string(raw), "--format", "json",
 	})
 	if exit != 2 || env.Status != "error" {
 		t.Fatalf("unbound discovery unexpectedly passed: exit=%d env=%#v", exit, env)
@@ -133,6 +136,7 @@ func TestSourceContinuityLabRejectsIncompleteAdapterAndEvidence(t *testing.T) {
 	root, featureRef, _ := sourceContinuityLabProject(t)
 	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
 	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	planRef := prepareFeatureSourceContinuityAdapterPlan(t, root, featureRef, manifestRef, observation)
 	bindSourceContinuityLabEvidence(t, root, observation)
 	adapter := requireObjectValue(t, observation["adapter"])
 	adapter["capabilities"] = []any{"surface-enumeration"}
@@ -144,7 +148,7 @@ func TestSourceContinuityLabRejectsIncompleteAdapterAndEvidence(t *testing.T) {
 	exit, env := runTaskRuntimeCommand(t, []string{
 		"evidence", "source-continuity-validate", "--project-root", root,
 		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
-		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+		"--manifest", manifestRef, "--adapter-plan", planRef, "--input-json", string(raw), "--format", "json",
 	})
 	if exit != 2 || env.Status != "error" {
 		t.Fatalf("incomplete adapter unexpectedly passed: exit=%d env=%#v", exit, env)
@@ -161,6 +165,7 @@ func TestSourceContinuityLabRejectsUnregisteredEvidenceReferences(t *testing.T) 
 	root, featureRef, _ := sourceContinuityLabProject(t)
 	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
 	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	planRef := prepareFeatureSourceContinuityAdapterPlan(t, root, featureRef, manifestRef, observation)
 	raw, err := json.Marshal(observation)
 	if err != nil {
 		t.Fatal(err)
@@ -168,7 +173,7 @@ func TestSourceContinuityLabRejectsUnregisteredEvidenceReferences(t *testing.T) 
 	exit, env := runTaskRuntimeCommand(t, []string{
 		"evidence", "source-continuity-validate", "--project-root", root,
 		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
-		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+		"--manifest", manifestRef, "--adapter-plan", planRef, "--input-json", string(raw), "--format", "json",
 	})
 	if exit != 2 || env.Status != "error" {
 		t.Fatalf("unregistered evidence references unexpectedly passed: exit=%d env=%#v", exit, env)
@@ -419,6 +424,7 @@ func TestSourceContinuityLabUIVerificationIsNormalizedAndRequiredForAcceptance(t
 
 	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
 	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	planRef := prepareFeatureSourceContinuityAdapterPlan(t, root, featureRef, manifestRef, observation)
 	bindSourceContinuityLabEvidence(t, root, observation)
 	raw, err := json.Marshal(observation)
 	if err != nil {
@@ -427,7 +433,7 @@ func TestSourceContinuityLabUIVerificationIsNormalizedAndRequiredForAcceptance(t
 	exit, env := runTaskRuntimeCommand(t, []string{
 		"evidence", "source-continuity-validate", "--project-root", root,
 		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
-		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+		"--manifest", manifestRef, "--adapter-plan", planRef, "--input-json", string(raw), "--format", "json",
 	})
 	if exit != 0 || env.Status != "ok" {
 		t.Fatalf("source continuity validation failed: exit=%d env=%#v", exit, env)
@@ -494,6 +500,7 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 	manifestRef := anyString(manifestEnv.Data["manifest_ref"])
 	manifestSHA := anyString(manifestEnv.Data["manifest_sha256"])
 	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	planRef := prepareQuickSourceContinuityAdapterPlan(t, root, quickID, "Q1", manifestRef, observation)
 	bindSourceContinuityLabEvidence(t, root, observation)
 	raw, err := json.Marshal(observation)
 	if err != nil {
@@ -501,7 +508,7 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 	}
 	exit, reportEnv := runTaskRuntimeCommand(t, []string{
 		"evidence", "source-continuity-validate", "--project-root", root,
-		"--quick-id", quickID, "--item-id", "Q1", "--manifest", manifestRef,
+		"--quick-id", quickID, "--item-id", "Q1", "--manifest", manifestRef, "--adapter-plan", planRef,
 		"--input-json", string(raw), "--format", "json",
 	})
 	if exit != 0 || reportEnv.Status != "ok" {
@@ -537,6 +544,7 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 	manifestRef = anyString(manifestEnv.Data["manifest_ref"])
 	manifestSHA = anyString(manifestEnv.Data["manifest_sha256"])
 	observation = readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	planRef = prepareQuickSourceContinuityAdapterPlan(t, root, quickID, "Q1", manifestRef, observation)
 	bindSourceContinuityLabEvidence(t, root, observation)
 	raw, err = json.Marshal(observation)
 	if err != nil {
@@ -544,7 +552,7 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 	}
 	exit, reportEnv = runTaskRuntimeCommand(t, []string{
 		"evidence", "source-continuity-validate", "--project-root", root,
-		"--quick-id", quickID, "--item-id", "Q1", "--manifest", manifestRef,
+		"--quick-id", quickID, "--item-id", "Q1", "--manifest", manifestRef, "--adapter-plan", planRef,
 		"--input-json", string(raw), "--format", "json",
 	})
 	if exit != 0 || reportEnv.Status != "ok" {
@@ -741,6 +749,38 @@ func materializeSourceContinuityAdapterPlan(t *testing.T, root, featureRef, mani
 	}
 	binding := requireObjectValue(t, env.Data["adapter_binding"])
 	return anyString(env.Data["adapter_plan_ref"]), anyString(env.Data["adapter_plan_sha256"]), requireObjectValue(t, binding["adapter"])
+}
+
+func prepareFeatureSourceContinuityAdapterPlan(t *testing.T, root, featureRef, manifestRef string, observation map[string]any) string {
+	t.Helper()
+	planRef, planSHA, composite := materializeSourceContinuityAdapterPlan(t, root, featureRef, manifestRef)
+	bindSourceContinuityAdapterPlanToObservation(observation, planRef, planSHA, composite)
+	return planRef
+}
+
+func prepareQuickSourceContinuityAdapterPlan(t *testing.T, root, quickID, itemID, manifestRef string, observation map[string]any) string {
+	t.Helper()
+	raw, err := json.Marshal(sourceContinuityAdapterPlanInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-adapter-plan", "--project-root", root,
+		"--quick-id", quickID, "--item-id", itemID,
+		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+	})
+	if exit != 0 || env.Status != "ok" {
+		t.Fatalf("materialize quick adapter plan: exit=%d env=%#v", exit, env)
+	}
+	binding := requireObjectValue(t, env.Data["adapter_binding"])
+	planRef := anyString(env.Data["adapter_plan_ref"])
+	bindSourceContinuityAdapterPlanToObservation(
+		observation,
+		planRef,
+		anyString(env.Data["adapter_plan_sha256"]),
+		requireObjectValue(t, binding["adapter"]),
+	)
+	return planRef
 }
 
 func bindSourceContinuityAdapterPlanToObservation(observation map[string]any, planRef, planSHA string, composite map[string]any) {
