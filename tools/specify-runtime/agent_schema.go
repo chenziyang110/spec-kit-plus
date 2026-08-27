@@ -148,6 +148,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "evidence.smoothness-validate":
 		capability["side_effect"] = "writes-derived-smoothness-report"
 		capability["usage"] = "specify-runtime evidence smoothness-validate --feature-dir <feature-dir> --task-id <Txxx> --manifest <manifest-ref> --input-json <observed-smoothness> --format json"
+		capability["input_contract"] = "agent supplies one passing observation per expected smoothness id plus measured performance metrics; runtime enforces exact coverage and task-bound budgets, then returns the canonical report ref and byte digest"
 	case "evidence.source-continuity-manifest":
 		capability["side_effect"] = "writes-derived-source-continuity-manifest"
 		capability["usage"] = "specify-runtime evidence source-continuity-manifest --feature-dir <feature-dir> --task-id <Txxx> --format json"
@@ -156,7 +157,6 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "writes-derived-source-continuity-report"
 		capability["usage"] = "specify-runtime evidence source-continuity-validate --feature-dir <feature-dir> --task-id <Txxx> --manifest <manifest-ref> --input-json <observed-source-continuity> --format json"
 		capability["input_contract"] = "accepts adapter-owned observations only; requires exact discovery and target coverage, matched business outcomes/side effects/final states, source+target evidence, and semantic/provenance/render asset fidelity"
-		capability["input_contract"] = "agent supplies one passing observation per expected smoothness id plus measured performance metrics; runtime enforces exact coverage and task-bound budgets, then returns the canonical report ref and byte digest"
 	case "design.change":
 		capability["side_effect"] = "creates-design-change-workspace-and-index-record"
 		capability["usage"] = "specify-runtime design change <UD-ID> --title <title> [--type greenfield|preserve|overhaul|extension] --scope <surface>... [--profiles <csv>] [--baseline-ref <ref>]... [--supersedes <UD-ID>]... --format json"
