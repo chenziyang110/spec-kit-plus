@@ -116,7 +116,6 @@ def test_validate_worker_task_result_accepts_acknowledged_result(
             ValidationResult(
                 command="pytest tests/unit/test_auth_service.py -q",
                 status="passed",
-                output="1 passed",
             )
         ],
         summary="Implemented auth flow",
@@ -147,6 +146,7 @@ def test_validate_worker_task_result_rejects_missing_rule_acknowledgement(
             ValidationResult(
                 command="pytest tests/unit/test_auth_service.py -q",
                 status="passed",
+                output="1 passed",
             )
         ],
         summary="Implemented auth flow",
@@ -812,6 +812,97 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
         "reduced-motion",
     ]
     with pytest.raises(PacketValidationError, match="smoothness acceptance coverage"):
+        validate_worker_task_result(result, sample_packet)
+
+
+def test_validate_worker_task_result_requires_source_continuity_lab_report(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.ui_contract.source_continuity = {
+        "schema": "spec-kit-ui-source-continuity-v1",
+        "applicability": "required",
+        "mode": "mixed",
+        "reason": "A runnable legacy product governs the migration.",
+        "coverage": {
+            "surface_ids": ["DH-SURFACE-001"],
+            "interaction_ids": ["DH-INT-001"],
+            "component_ids": ["DH-COMP-001"],
+        },
+        "authority_refs": ["evidence://legacy/runtime"],
+        "surface_bindings": [
+            {
+                "id": "SC-SURFACE-001",
+                "surface_id": "DH-SURFACE-001",
+                "source_refs": ["legacy/main-window"],
+                "discovery": "measured",
+                "disposition": "adapt",
+                "rationale": "Preserve the primary surface.",
+            }
+        ],
+        "action_bindings": [
+            {
+                "id": "SC-ACTION-001",
+                "interaction_id": "DH-INT-001",
+                "source_refs": ["legacy/exportAction"],
+                "user_promise": "Export the document.",
+                "business_outcome": "The file is written once.",
+                "side_effects": ["write one file"],
+                "final_state": "The exported path is visible.",
+                "verification": "Run source and target with equal data.",
+            }
+        ],
+        "asset_bindings": [
+            {
+                "id": "SC-ASSET-001",
+                "component_id": "DH-COMP-001",
+                "semantic_role": "export action",
+                "source_refs": ["legacy/export.svg"],
+                "target_strategy": "preserve",
+                "target_ref": "src/assets/export.svg",
+                "provenance": "project-owned",
+                "fallback": "Export label",
+                "placeholder_policy": "forbid-character-substitution",
+            }
+        ],
+        "unresolved_gaps": [],
+    }
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[
+            ValidationResult(
+                command="pytest tests/unit/test_auth_service.py -q",
+                status="passed",
+                output="1 passed",
+            )
+        ],
+        summary="Implemented source-grounded UI",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+    )
+
+    with pytest.raises(PacketValidationError, match="source continuity lab report"):
+        validate_worker_task_result(result, sample_packet)
+
+    result.ui_verification = UIVerification(
+        source_continuity_lab_report_ref="implementation-review/source-continuity/source-continuity-lab-T017.json",
+        source_continuity_lab_report_sha256="e" * 64,
+        covered_source_continuity_surface_ids=["DH-SURFACE-001"],
+        covered_source_continuity_interaction_ids=["DH-INT-001"],
+        covered_source_continuity_component_ids=["DH-COMP-001"],
+    )
+    assert validate_worker_task_result(result, sample_packet) is result
+
+    result.ui_verification.covered_source_continuity_interaction_ids = []
+    with pytest.raises(PacketValidationError, match="source continuity interaction coverage"):
         validate_worker_task_result(result, sample_packet)
 
 
