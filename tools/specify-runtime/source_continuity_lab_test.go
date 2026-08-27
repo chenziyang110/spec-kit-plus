@@ -291,6 +291,47 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 		t.Fatalf("quick source continuity validation failed: exit=%d env=%#v", exit, reportEnv)
 	}
 	patch := requireObjectValue(t, reportEnv.Data["ui_verification_patch"])
+	productPath := filepath.Join(root, "src", "after-report.txt")
+	if err := os.MkdirAll(filepath.Dir(productPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(productPath, []byte("implementation changed after report\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustWriteQuickWorkerResult(t, workspace, "Q1", map[string]any{
+		"task_id": "Q1", "status": "success", "summary": "implemented source-grounded UI",
+		"ui_verification": patch,
+	})
+	env = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "item-accept", quickID, "--item", "Q1", "--evidence", "source continuity lab passed",
+	})
+	if env.Status != "blocked" || !strings.Contains(fmt.Sprint(env.Blockers), "target snapshot") {
+		t.Fatalf("quick item must reject a report predating implementation changes: %#v", env)
+	}
+
+	exit, manifestEnv = runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-manifest", "--project-root", root,
+		"--quick-id", quickID, "--item-id", "Q1", "--format", "json",
+	})
+	if exit != 0 || manifestEnv.Status != "ok" {
+		t.Fatalf("refresh quick source continuity manifest failed: exit=%d env=%#v", exit, manifestEnv)
+	}
+	manifestRef = anyString(manifestEnv.Data["manifest_ref"])
+	manifestSHA = anyString(manifestEnv.Data["manifest_sha256"])
+	observation = readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	raw, err = json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, reportEnv = runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-validate", "--project-root", root,
+		"--quick-id", quickID, "--item-id", "Q1", "--manifest", manifestRef,
+		"--input-json", string(raw), "--format", "json",
+	})
+	if exit != 0 || reportEnv.Status != "ok" {
+		t.Fatalf("refresh quick source continuity report failed: exit=%d env=%#v", exit, reportEnv)
+	}
+	patch = requireObjectValue(t, reportEnv.Data["ui_verification_patch"])
 	mustWriteQuickWorkerResult(t, workspace, "Q1", map[string]any{
 		"task_id": "Q1", "status": "success", "summary": "implemented source-grounded UI",
 		"ui_verification": patch,
@@ -320,6 +361,32 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 	metadata, ok := LookupArtifactType(canonical)
 	if !ok || metadata.TypeID != "quick-source-continuity-lab" {
 		t.Fatalf("quick lab artifact owner = %#v ok=%t", metadata, ok)
+	}
+	reportPath := filepath.Join(workspace, filepath.FromSlash(reportRef))
+	reportBytes, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(reportPath, append(reportBytes, ' '), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "close", quickID, "resolved",
+	})
+	if env.Status != "blocked" || !strings.Contains(strings.ToLower(fmt.Sprint(env.Blockers)), "source continuity lab report") {
+		t.Fatalf("quick close must revalidate the accepted lab report: %#v", env)
+	}
+	if err := os.WriteFile(reportPath, reportBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(workspace, quickConfirmationFileName)); err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "close", quickID, "resolved",
+	})
+	if env.Status != "blocked" || !strings.Contains(strings.ToLower(fmt.Sprint(env.Blockers)), "confirmation") {
+		t.Fatalf("quick close must fail closed when confirmation is missing: %#v", env)
 	}
 }
 
