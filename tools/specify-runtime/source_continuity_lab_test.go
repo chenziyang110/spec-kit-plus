@@ -264,6 +264,75 @@ func TestSourceContinuityLabTargetSnapshotHandlesBroadAndGlobScopes(t *testing.T
 	}
 }
 
+func TestSourceContinuityAdapterPlanComposesGenericAdapters(t *testing.T) {
+	root, featureRef, feature := sourceContinuityLabProject(t)
+	manifestRef, _ := materializeSourceContinuityLabManifest(t, root, featureRef)
+	input := sourceContinuityAdapterPlanInput()
+	raw, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-adapter-plan", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+	})
+	if exit != 0 || env.Status != "ok" {
+		t.Fatalf("generic adapter plan failed: exit=%d env=%#v", exit, env)
+	}
+	planRef := anyString(env.Data["adapter_plan_ref"])
+	planPath := filepath.Join(feature, filepath.FromSlash(planRef))
+	plan := readImplementJSONFile(t, planPath)
+	if plan["schema"] != "spec-kit-source-continuity-adapter-plan-v1" || plan["status"] != "ready" || plan["subject_id"] != sourceContinuityLabTaskID {
+		t.Fatalf("adapter plan = %#v", plan)
+	}
+	if len(listValue(plan["required_lanes"])) != 10 || len(listValue(plan["assignments"])) != 10 || len(listValue(plan["adapters"])) != 3 {
+		t.Fatalf("adapter plan coverage = %#v", plan)
+	}
+	if env.Data["adapter_plan_sha256"] != optionalFileSHA256(planPath) {
+		t.Fatalf("adapter plan digest = %#v", env.Data)
+	}
+	binding := requireObjectValue(t, env.Data["adapter_binding"])
+	composite := requireObjectValue(t, binding["adapter"])
+	if !strings.HasPrefix(anyString(composite["id"]), "adapter-plan:") || len(listValue(composite["capabilities"])) != 5 {
+		t.Fatalf("adapter binding = %#v", binding)
+	}
+	canonical := sourceContinuityLabCanonicalPath(root, feature, planRef)
+	metadata, ok := LookupArtifactType(canonical)
+	if !ok || metadata.TypeID != "feature-source-continuity-lab" {
+		t.Fatalf("adapter plan owner = %#v ok=%t", metadata, ok)
+	}
+}
+
+func TestSourceContinuityAdapterPlanRejectsCoverageGapAndUnsafeAction(t *testing.T) {
+	root, featureRef, _ := sourceContinuityLabProject(t)
+	manifestRef, _ := materializeSourceContinuityLabManifest(t, root, featureRef)
+	input := sourceContinuityAdapterPlanInput()
+	assignments := listValue(input["assignments"])
+	input["assignments"] = assignments[1:]
+	adapters := listValue(input["adapters"])
+	first := requireObjectValue(t, adapters[0])
+	first["actions"] = append(listValue(first["actions"]), "shell-exec")
+	raw, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-adapter-plan", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+	})
+	if exit != 2 || env.Status != "error" {
+		t.Fatalf("unsafe incomplete adapter plan unexpectedly passed: exit=%d env=%#v", exit, env)
+	}
+	diagnostics := strings.Join(anyStringSlice(env.Data["diagnostics"]), "\n")
+	for _, marker := range []string{"missing-adapter-lane", "unsupported-adapter-action"} {
+		if !strings.Contains(diagnostics, marker) {
+			t.Fatalf("adapter diagnostics missing %q: %s", marker, diagnostics)
+		}
+	}
+}
+
 func TestSourceContinuityLabUIVerificationIsNormalizedAndRequiredForAcceptance(t *testing.T) {
 	root, featureRef, feature := sourceContinuityLabProject(t)
 	index := readImplementJSONFile(t, filepath.Join(feature, "task-index.json"))
@@ -520,6 +589,59 @@ func sourceContinuityLabContract() map[string]any {
 			"provenance": "project-owned", "fallback": "Visible Export label and accessible name.", "placeholder_policy": "forbid-character-substitution",
 		}},
 		"unresolved_gaps": []any{},
+	}
+}
+
+func sourceContinuityAdapterPlanInput() map[string]any {
+	adapters := []any{
+		map[string]any{
+			"id": "structure-reader", "version": "1.0.0",
+			"roles":          []any{"source", "target"},
+			"capabilities":   []any{"surface-enumeration"},
+			"actions":        []any{"enumerate-surfaces", "capture-structure"},
+			"evidence_kinds": []any{"structure_snapshot"},
+			"execution_mode": "agent-tool", "tool_ref": "tool://structure-reader",
+			"write_policy": "read-only", "network_policy": "denied",
+		},
+		map[string]any{
+			"id": "behavior-runner", "version": "1.0.0",
+			"roles":          []any{"source", "target"},
+			"capabilities":   []any{"action-execution", "side-effect-observation"},
+			"actions":        []any{"enumerate-actions", "activate-action", "observe-side-effects", "capture-runtime"},
+			"evidence_kinds": []any{"runtime_diagnostics"},
+			"execution_mode": "external-runner", "tool_ref": "runner://behavior",
+			"write_policy": "isolated-test-data", "network_policy": "declared-read-only",
+		},
+		map[string]any{
+			"id": "asset-inspector", "version": "1.0.0",
+			"roles":          []any{"source", "target"},
+			"capabilities":   []any{"asset-inspection", "visual-capture"},
+			"actions":        []any{"enumerate-assets", "capture-visual"},
+			"evidence_kinds": []any{"visual_capture"},
+			"execution_mode": "human-guided", "tool_ref": "guide://asset-inspection",
+			"write_policy": "read-only", "network_policy": "denied",
+		},
+	}
+	adapterByCapability := map[string]string{
+		"surface-enumeration":     "structure-reader",
+		"action-execution":        "behavior-runner",
+		"side-effect-observation": "behavior-runner",
+		"asset-inspection":        "asset-inspector",
+		"visual-capture":          "asset-inspector",
+	}
+	assignments := []any{}
+	for _, side := range []string{"source", "target"} {
+		for _, capability := range sourceContinuityLabCapabilities {
+			assignments = append(assignments, map[string]any{
+				"side": side, "capability": capability,
+				"adapter_id":       adapterByCapability[capability],
+				"selection_reason": "Selected for the declared capability and evidence contract.",
+			})
+		}
+	}
+	return map[string]any{
+		"schema":   "spec-kit-source-continuity-adapter-plan-input-v1",
+		"adapters": adapters, "assignments": assignments, "unresolved_gaps": []any{},
 	}
 }
 
