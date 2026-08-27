@@ -11,6 +11,37 @@ def _canonical_bytes(payload: dict[str, object]) -> bytes:
     return (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
 
 
+def _write_evidence_record(project_root: Path, label: str) -> str:
+    content = f"{label}\n".encode()
+    digest = hashlib.sha256(content).hexdigest()
+    object_ref = f".specify/evidence/objects/sha256/{digest[:2]}/{digest}"
+    object_path = project_root / object_ref
+    object_path.parent.mkdir(parents=True, exist_ok=True)
+    object_path.write_bytes(content)
+    record_ref = f".specify/evidence/records/{label}.json"
+    record_path = project_root / record_ref
+    record_path.parent.mkdir(parents=True, exist_ok=True)
+    record_path.write_bytes(
+        _canonical_bytes(
+            {
+                "schema_version": "spec-kit-evidence-v1",
+                "evidence_id": label,
+                "status": "ready",
+                "sha256": digest,
+                "size": len(content),
+                "mime": "text/plain",
+                "scope": "review",
+                "source": "source-continuity-lab-test",
+                "provenance": "test-fixture",
+                "object_ref": object_ref,
+                "record_ref": record_ref,
+                "created_at": "2026-08-27T00:00:00Z",
+            }
+        )
+    )
+    return record_ref
+
+
 def _source_continuity() -> dict[str, object]:
     return {
         "schema": "spec-kit-ui-source-continuity-v1",
@@ -181,6 +212,89 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
         }
     )
 
+    errors = validate_lifecycle_ui_verification(
+        feature_dir, lifecycle, "implementation-review/tasks/T001.json"
+    )
+    assert any("source continuity lab report semantics" in error.lower() for error in errors)
+
+    project_root = tmp_path
+    evidence_refs = {
+        (side, kind): _write_evidence_record(project_root, f"{side}-{kind}")
+        for side in ("source", "target")
+        for kind in (
+            "structure_snapshot",
+            "visual_capture",
+            "runtime_diagnostics",
+        )
+    }
+    report.update(
+        {
+            "adapter": {
+                "id": "fixture",
+                "version": "1",
+                "capabilities": [
+                    "surface-enumeration",
+                    "action-execution",
+                    "side-effect-observation",
+                    "asset-inspection",
+                    "visual-capture",
+                ],
+            },
+            "evidence_refs": [
+                {"side": side, "kind": kind, "ref": ref}
+                for (side, kind), ref in evidence_refs.items()
+            ],
+            "discovery": {
+                "surface_binding_ids": ["SC-SURFACE-001"],
+                "action_binding_ids": ["SC-ACTION-001"],
+                "asset_binding_ids": ["SC-ASSET-001"],
+                "unexpected_candidates": [],
+            },
+            "surface_results": [
+                {
+                    "surface_id": "DH-SURFACE-001",
+                    "source_reachable": True,
+                    "target_reachable": True,
+                    "disposition_verified": True,
+                    "verdict": "passed",
+                }
+            ],
+            "action_results": [
+                {
+                    "interaction_id": "DH-INT-001",
+                    "source_reachable": True,
+                    "target_reachable": True,
+                    "source_evidence_ref": evidence_refs[
+                        ("source", "runtime_diagnostics")
+                    ],
+                    "target_evidence_ref": evidence_refs[
+                        ("target", "runtime_diagnostics")
+                    ],
+                    "observed_side_effects": ["write one file"],
+                    "business_outcome_verified": True,
+                    "final_state_verified": True,
+                    "verdict": "passed",
+                }
+            ],
+            "asset_results": [
+                {
+                    "component_id": "DH-COMP-001",
+                    "source_evidence_ref": evidence_refs[("source", "visual_capture")],
+                    "target_evidence_ref": evidence_refs[("target", "visual_capture")],
+                    "semantic_match": True,
+                    "provenance_match": True,
+                    "render_match": True,
+                    "character_substitution": False,
+                    "verdict": "passed",
+                }
+            ],
+        }
+    )
+    report_bytes = _canonical_bytes(report)
+    report_path.write_bytes(report_bytes)
+    lifecycle["ui_verification"]["source_continuity_lab_report_sha256"] = (
+        hashlib.sha256(report_bytes).hexdigest()
+    )
     errors = validate_lifecycle_ui_verification(
         feature_dir, lifecycle, "implementation-review/tasks/T001.json"
     )
