@@ -382,6 +382,25 @@ func TestSourceContinuityLabBindsEvidenceToAdapterPlan(t *testing.T) {
 	}
 }
 
+func TestSourceContinuityLabRejectsMissingAdapterPlan(t *testing.T) {
+	root, featureRef, _ := sourceContinuityLabProject(t)
+	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
+	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	bindSourceContinuityLabEvidence(t, root, observation)
+	raw, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-validate", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+	})
+	if exit != 2 || env.Status != "error" || !strings.Contains(strings.Join(anyStringSlice(env.Data["diagnostics"]), "\n"), "missing-adapter-plan") {
+		t.Fatalf("missing adapter plan unexpectedly passed: exit=%d env=%#v", exit, env)
+	}
+}
+
 func TestSourceContinuityLabUIVerificationIsNormalizedAndRequiredForAcceptance(t *testing.T) {
 	root, featureRef, feature := sourceContinuityLabProject(t)
 	index := readImplementJSONFile(t, filepath.Join(feature, "task-index.json"))
