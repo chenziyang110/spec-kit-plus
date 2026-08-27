@@ -1004,22 +1004,23 @@ func validateSourceContinuityLabAdapter(value any) []string {
 	return missing
 }
 
-func validateSourceContinuityLabEvidence(value any) (map[string]string, []string) {
+type sourceContinuityLabEvidenceBinding struct {
+	Side      string
+	Kind      string
+	AdapterID string
+}
+
+func validateSourceContinuityLabEvidence(value any) (map[string]sourceContinuityLabEvidenceBinding, []string) {
 	rows, ok := value.([]any)
 	if !ok {
-		return map[string]string{}, []string{"invalid-evidence-refs"}
+		return map[string]sourceContinuityLabEvidenceBinding{}, []string{"invalid-evidence-refs"}
 	}
-	refs := map[string]string{}
+	refs := map[string]sourceContinuityLabEvidenceBinding{}
 	covered := map[string]bool{}
 	diagnostics := []string{}
 	for _, value := range rows {
 		row, ok := value.(map[string]any)
-		expectedFields := map[string]bool{"side": true, "kind": true, "ref": true}
-		if ok {
-			if _, hasAdapter := row["adapter_id"]; hasAdapter {
-				expectedFields["adapter_id"] = true
-			}
-		}
+		expectedFields := map[string]bool{"side": true, "kind": true, "ref": true, "adapter_id": true}
 		if !ok || exactVisualComparisonFields(row, expectedFields, "source continuity evidence") != nil {
 			diagnostics = append(diagnostics, "invalid-evidence-ref")
 			continue
@@ -1027,14 +1028,20 @@ func validateSourceContinuityLabEvidence(value any) (map[string]string, []string
 		side := strings.TrimSpace(anyString(row["side"]))
 		kind := strings.TrimSpace(anyString(row["kind"]))
 		ref := strings.TrimSpace(anyString(row["ref"]))
-		if (side != "source" && side != "target") || ref == "" {
+		adapterID := strings.TrimSpace(anyString(row["adapter_id"]))
+		if (side != "source" && side != "target") || !quickContains(sourceContinuityLabEvidenceKinds, kind) || ref == "" || adapterID == "" {
 			diagnostics = append(diagnostics, "invalid-evidence-ref")
 			continue
 		}
-		if existing := refs[ref]; existing != "" && existing != side {
-			diagnostics = append(diagnostics, "evidence-ref-side-conflict")
+		binding := sourceContinuityLabEvidenceBinding{Side: side, Kind: kind, AdapterID: adapterID}
+		if existing, exists := refs[ref]; exists && existing != binding {
+			if existing.Side != side {
+				diagnostics = append(diagnostics, "evidence-ref-side-conflict")
+			} else {
+				diagnostics = append(diagnostics, "evidence-ref-binding-conflict")
+			}
 		} else {
-			refs[ref] = side
+			refs[ref] = binding
 		}
 		covered[side+":"+kind] = true
 	}
@@ -1154,7 +1161,7 @@ func validateSourceContinuityLabSurfaces(value any, expected []string) (int, []s
 	return passed, diagnostics
 }
 
-func validateSourceContinuityLabActions(value any, expected []string, bindingValue any, evidenceRefs map[string]string) (int, int, []string) {
+func validateSourceContinuityLabActions(value any, expected []string, bindingValue any, evidenceRefs map[string]sourceContinuityLabEvidenceBinding) (int, int, []string) {
 	rows, ok := value.([]any)
 	if !ok {
 		return 0, 0, []string{"invalid-action-results"}
@@ -1180,8 +1187,12 @@ func validateSourceContinuityLabActions(value any, expected []string, bindingVal
 		}
 		id := strings.TrimSpace(anyString(row["interaction_id"]))
 		ids = append(ids, id)
-		if evidenceRefs[strings.TrimSpace(anyString(row["source_evidence_ref"]))] != "source" || evidenceRefs[strings.TrimSpace(anyString(row["target_evidence_ref"]))] != "target" {
+		sourceEvidence := evidenceRefs[strings.TrimSpace(anyString(row["source_evidence_ref"]))]
+		targetEvidence := evidenceRefs[strings.TrimSpace(anyString(row["target_evidence_ref"]))]
+		if sourceEvidence.Side != "source" || targetEvidence.Side != "target" {
 			diagnostics = append(diagnostics, "action-evidence-unbound:"+id)
+		} else if sourceEvidence.Kind != "runtime_diagnostics" || targetEvidence.Kind != "runtime_diagnostics" {
+			diagnostics = append(diagnostics, "action-evidence-kind-mismatch:"+id)
 		}
 		if !sourceContinuityLabExactIDs(sourceContinuityLabStringList(row["observed_side_effects"]), expectedEffects[id]) {
 			diagnostics = append(diagnostics, "side-effect-mismatch:"+id)
@@ -1210,7 +1221,7 @@ func validateSourceContinuityLabActions(value any, expected []string, bindingVal
 	return passed, outcomes, diagnostics
 }
 
-func validateSourceContinuityLabAssets(value any, expected []string, bindingValue any, evidenceRefs map[string]string) (int, []string) {
+func validateSourceContinuityLabAssets(value any, expected []string, bindingValue any, evidenceRefs map[string]sourceContinuityLabEvidenceBinding) (int, []string) {
 	rows, ok := value.([]any)
 	if !ok {
 		return 0, []string{"invalid-asset-results"}
@@ -1235,8 +1246,12 @@ func validateSourceContinuityLabAssets(value any, expected []string, bindingValu
 		}
 		id := strings.TrimSpace(anyString(row["component_id"]))
 		ids = append(ids, id)
-		if evidenceRefs[strings.TrimSpace(anyString(row["source_evidence_ref"]))] != "source" || evidenceRefs[strings.TrimSpace(anyString(row["target_evidence_ref"]))] != "target" {
+		sourceEvidence := evidenceRefs[strings.TrimSpace(anyString(row["source_evidence_ref"]))]
+		targetEvidence := evidenceRefs[strings.TrimSpace(anyString(row["target_evidence_ref"]))]
+		if sourceEvidence.Side != "source" || targetEvidence.Side != "target" {
 			diagnostics = append(diagnostics, "asset-evidence-unbound:"+id)
+		} else if sourceEvidence.Kind != "visual_capture" || targetEvidence.Kind != "visual_capture" {
+			diagnostics = append(diagnostics, "asset-evidence-kind-mismatch:"+id)
 		}
 		characterViolation := boolValue(row["character_substitution"]) && policies[id] == "forbid-character-substitution"
 		if characterViolation {

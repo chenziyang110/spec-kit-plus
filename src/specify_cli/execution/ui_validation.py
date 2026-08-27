@@ -253,7 +253,11 @@ def _source_continuity_evidence_record_valid(
         record = json.loads(record_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return False
-    if not isinstance(record, dict) or record.get("status") != "ready":
+    if (
+        not isinstance(record, dict)
+        or record.get("schema_version") != "spec-kit-evidence-v1"
+        or record.get("status") != "ready"
+    ):
         return False
     digest = str(record.get("sha256") or "").strip()
     object_ref = str(record.get("object_ref") or "").strip().replace("\\", "/")
@@ -530,6 +534,7 @@ def _source_continuity_lab_semantic_errors(
     project_root = _source_continuity_project_root(feature_dir)
     evidence_rows = _source_continuity_rows(report.get("evidence_refs"))
     evidence_sides: dict[str, str] = {}
+    evidence_bindings: dict[str, tuple[str, str, str]] = {}
     covered_evidence: set[tuple[str, str]] = set()
     observed_adapter_evidence: set[tuple[str, str, str]] = set()
     if evidence_rows is None:
@@ -557,7 +562,11 @@ def _source_continuity_lab_semantic_errors(
             continue
         if ref in evidence_sides and evidence_sides[ref] != side:
             errors.append("evidence-ref-side-conflict")
+        binding = (side, kind, adapter_id)
+        if ref in evidence_bindings and evidence_bindings[ref] != binding:
+            errors.append("evidence-ref-binding-conflict")
         evidence_sides[ref] = side
+        evidence_bindings[ref] = binding
         covered_evidence.add((side, kind))
         observed_adapter_evidence.add((adapter_id, side, kind))
     for side in ("source", "target"):
@@ -675,6 +684,11 @@ def _source_continuity_lab_semantic_errors(
         target_ref = str(row.get("target_evidence_ref") or "").strip()
         if evidence_sides.get(source_ref) != "source" or evidence_sides.get(target_ref) != "target":
             errors.append("action-evidence-unbound")
+        elif (
+            evidence_bindings[source_ref][1] != "runtime_diagnostics"
+            or evidence_bindings[target_ref][1] != "runtime_diagnostics"
+        ):
+            errors.append("action-evidence-kind-mismatch")
         observed = _exact_smoothness_ids(row.get("observed_side_effects"))
         expected_effects = _exact_smoothness_ids(
             action_bindings.get(interaction_id, {}).get("side_effects")
@@ -733,6 +747,11 @@ def _source_continuity_lab_semantic_errors(
         target_ref = str(row.get("target_evidence_ref") or "").strip()
         if evidence_sides.get(source_ref) != "source" or evidence_sides.get(target_ref) != "target":
             errors.append("asset-evidence-unbound")
+        elif (
+            evidence_bindings[source_ref][1] != "visual_capture"
+            or evidence_bindings[target_ref][1] != "visual_capture"
+        ):
+            errors.append("asset-evidence-kind-mismatch")
         character_violation = (
             row.get("character_substitution") is True
             and asset_bindings.get(component_id, {}).get("placeholder_policy")
