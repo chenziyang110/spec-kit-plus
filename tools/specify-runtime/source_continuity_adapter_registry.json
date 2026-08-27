@@ -4,6 +4,8 @@
     {
       "id": "structure-observer",
       "version": "1",
+      "description": "Enumerates inspectable surfaces and captures typed structure evidence without claiming runtime behavior.",
+      "detection_signals": ["source-resource-inspection", "dom-accessibility-inspection", "native-widget-tree", "cli-tui-structure"],
       "capabilities": ["surface-enumeration"],
       "actions": ["enumerate-surfaces", "capture-structure"],
       "evidence_kinds": ["structure_snapshot"],
@@ -14,6 +16,8 @@
     {
       "id": "behavior-driver",
       "version": "1",
+      "description": "Activates real user actions with isolated test data and observes runtime effects and final states.",
+      "detection_signals": ["browser-automation", "desktop-automation", "app-connector", "cli-tui-runner"],
       "capabilities": ["action-execution", "side-effect-observation"],
       "actions": ["enumerate-actions", "activate-action", "observe-side-effects", "capture-runtime", "prepare-isolated-test-data"],
       "evidence_kinds": ["runtime_diagnostics"],
@@ -24,6 +28,8 @@
     {
       "id": "visual-asset-observer",
       "version": "1",
+      "description": "Inspects identity-bearing assets and captures visual evidence for source-target comparison.",
+      "detection_signals": ["image-inspection", "screenshot-capture", "asset-resource-inspection"],
       "capabilities": ["asset-inspection", "visual-capture"],
       "actions": ["enumerate-assets", "capture-visual"],
       "evidence_kinds": ["visual_capture"],

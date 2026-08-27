@@ -24,6 +24,8 @@ var sourceContinuityAdapterRegistryRaw []byte
 type sourceContinuityAdapterProvider struct {
 	ID                    string   `json:"id"`
 	Version               string   `json:"version"`
+	Description           string   `json:"description"`
+	DetectionSignals      []string `json:"detection_signals"`
 	Capabilities          []string `json:"capabilities"`
 	Actions               []string `json:"actions"`
 	EvidenceKinds         []string `json:"evidence_kinds"`
@@ -89,7 +91,7 @@ func (service evidenceService) sourceContinuityAdapterProbe(args []string, raw m
 		env.NextArgv = []string{"specify-runtime", "evidence", "source-continuity-adapter-catalog", "--format", "json"}
 		return env
 	}
-	return service.materializeSourceContinuityAdapterProbe(context, raw, route, registrySHA)
+	return service.materializeSourceContinuityAdapterProbe(context, route, registrySHA)
 }
 
 func (service evidenceService) resolveSourceContinuityAdapterProbeContext(args []string) (*sourceContinuityAdapterProbeContext, error) {
@@ -151,7 +153,6 @@ func (service evidenceService) resolveSourceContinuityAdapterProbeContext(args [
 
 func (service evidenceService) materializeSourceContinuityAdapterProbe(
 	context *sourceContinuityAdapterProbeContext,
-	raw map[string]any,
 	route sourceContinuityAdapterProbeRoute,
 	registrySHA string,
 ) Envelope {
@@ -270,9 +271,22 @@ func validateSourceContinuityAdapterRegistry(registry sourceContinuityAdapterReg
 		return errors.New("adapter registry identity is invalid")
 	}
 	seen := map[string]bool{}
+	coveredCapabilities := map[string]bool{}
 	allowedModes := map[string]bool{"runtime-managed": true, "agent-tool": true, "app-connector": true, "external-runner": true, "manual-attested": true}
-	for _, provider := range registry.Providers {
-		if !sourceContinuityAdapterIDPattern.MatchString(provider.ID) || provider.Version == "" || seen[provider.ID] {
+	providerRows := listValue(payload["providers"])
+	if len(providerRows) != len(registry.Providers) {
+		return errors.New("adapter registry provider rows are invalid")
+	}
+	for index, provider := range registry.Providers {
+		row, ok := providerRows[index].(map[string]any)
+		if !ok || exactVisualComparisonFields(row, map[string]bool{
+			"id": true, "version": true, "description": true, "detection_signals": true,
+			"capabilities": true, "actions": true, "evidence_kinds": true,
+			"allowed_execution_modes": true, "write_policy": true, "network_policy": true,
+		}, "adapter provider") != nil {
+			return errors.New("adapter registry provider fields are invalid")
+		}
+		if !sourceContinuityAdapterIDPattern.MatchString(provider.ID) || provider.Version == "" || strings.TrimSpace(provider.Description) == "" || len(provider.DetectionSignals) == 0 || len(provider.DetectionSignals) != len(sourceContinuityAdapterStringSet(provider.DetectionSignals)) || seen[provider.ID] {
 			return fmt.Errorf("adapter provider identity is invalid: %s", provider.ID)
 		}
 		seen[provider.ID] = true
@@ -287,6 +301,7 @@ func validateSourceContinuityAdapterRegistry(registry sourceContinuityAdapterReg
 		actionSet := sourceContinuityAdapterStringSet(provider.Actions)
 		evidenceSet := sourceContinuityAdapterStringSet(provider.EvidenceKinds)
 		for _, capability := range provider.Capabilities {
+			coveredCapabilities[capability] = true
 			for _, action := range sourceContinuityAdapterCapabilityActions[capability] {
 				if !actionSet[action] {
 					return fmt.Errorf("adapter provider %s lacks action %s", provider.ID, action)
@@ -296,6 +311,9 @@ func validateSourceContinuityAdapterRegistry(registry sourceContinuityAdapterReg
 				return fmt.Errorf("adapter provider %s lacks evidence for %s", provider.ID, capability)
 			}
 		}
+	}
+	if !sourceContinuityLabExactIDs(sourceContinuityAdapterOrderedSet(sourceContinuityLabCapabilities, coveredCapabilities), sourceContinuityLabCapabilities) {
+		return errors.New("adapter registry does not cover the complete capability universe")
 	}
 	return nil
 }
