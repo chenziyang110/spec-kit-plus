@@ -568,6 +568,59 @@ def validate_worker_task_result(
                     "DP3",
                     "UI smoothness acceptance requires a bound smoothness lab report ref and SHA-256 digest",
                 )
+        source_continuity = packet.ui_contract.source_continuity
+        if (
+            isinstance(source_continuity, dict)
+            and source_continuity.get("applicability") == "required"
+            and not defer_integrated_ui_evidence
+        ):
+            coverage = source_continuity.get("coverage")
+            coverage = coverage if isinstance(coverage, dict) else {}
+            verification = result.ui_verification
+            for field, covered_values, label in (
+                (
+                    "surface_ids",
+                    verification.covered_source_continuity_surface_ids,
+                    "surface",
+                ),
+                (
+                    "interaction_ids",
+                    verification.covered_source_continuity_interaction_ids,
+                    "interaction",
+                ),
+                (
+                    "component_ids",
+                    verification.covered_source_continuity_component_ids,
+                    "component",
+                ),
+            ):
+                expected_list = [
+                    item.strip()
+                    for item in coverage.get(field, [])
+                    if isinstance(item, str) and item.strip()
+                ]
+                covered_list = [
+                    item.strip()
+                    for item in covered_values
+                    if isinstance(item, str) and item.strip()
+                ]
+                if (
+                    len(expected_list) != len(set(expected_list))
+                    or len(covered_list) != len(set(covered_list))
+                    or set(covered_list) != set(expected_list)
+                ):
+                    raise PacketValidationError(
+                        "DP3",
+                        f"source continuity {label} coverage must exactly match the task contract",
+                    )
+            if not verification.source_continuity_lab_report_ref.strip() or not re.fullmatch(
+                r"[0-9a-f]{64}",
+                verification.source_continuity_lab_report_sha256.strip(),
+            ):
+                raise PacketValidationError(
+                    "DP3",
+                    "source continuity lab report ref and SHA-256 digest are required",
+                )
         if (
             isinstance(usability_validation, dict)
             and usability_validation.get("human_review_required") is True

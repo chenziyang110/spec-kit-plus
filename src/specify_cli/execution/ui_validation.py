@@ -54,6 +54,13 @@ SMOOTHNESS_PERFORMANCE_FIELDS = (
     "animation_dropped_frame_pct",
     "bundle_delta_kb",
 )
+SOURCE_CONTINUITY_METRIC_FIELDS = (
+    "source_discovery_coverage",
+    "target_surface_reachability",
+    "action_operability",
+    "business_outcome_parity",
+    "asset_fidelity",
+)
 
 
 def _canonical_records(values: object) -> tuple[str, ...]:
@@ -66,6 +73,105 @@ def _canonical_records(values: object) -> tuple[str, ...]:
             if isinstance(item, dict)
         )
     )
+
+
+def _source_continuity_coverage(value: object) -> dict[str, list[str]] | None:
+    if not isinstance(value, dict):
+        return None
+    coverage = value.get("coverage")
+    if not isinstance(coverage, dict):
+        return None
+    result: dict[str, list[str]] = {}
+    for field in ("surface_ids", "interaction_ids", "component_ids"):
+        ids = _exact_smoothness_ids(coverage.get(field))
+        if ids is None:
+            return None
+        result[field] = ids
+    return result
+
+
+def _validate_source_continuity_lab_report(
+    feature_dir: Path,
+    relative: str,
+    task_id: str,
+    source_continuity: dict[str, Any],
+    report_ref: str,
+    report_sha256: str,
+) -> list[str]:
+    errors: list[str] = []
+    report_path = resolve_feature_artifact_ref(feature_dir, report_ref)
+    if report_path is None:
+        return [f"{relative} source continuity lab report must exist inside the feature"]
+    try:
+        report_bytes = report_path.read_bytes()
+        report = json.loads(report_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return [f"{relative} source continuity lab report must contain a JSON object"]
+    if hashlib.sha256(report_bytes).hexdigest() != report_sha256:
+        errors.append(f"{relative} source continuity lab report SHA-256 must bind the report")
+    if not isinstance(report, dict):
+        errors.append(f"{relative} source continuity lab report must contain a JSON object")
+        return errors
+
+    expected_coverage = _source_continuity_coverage(source_continuity)
+    report_coverage = _source_continuity_coverage({"coverage": report.get("coverage")})
+    manifest_ref = str(report.get("manifest_ref") or "").strip()
+    manifest_sha256 = str(report.get("manifest_sha256") or "").strip()
+    manifest_path = (
+        resolve_feature_artifact_ref(feature_dir, manifest_ref)
+        if manifest_ref
+        else None
+    )
+    manifest: object = None
+    manifest_bytes = b""
+    if manifest_path is None:
+        errors.append(f"{relative} source continuity lab manifest must exist inside the feature")
+    else:
+        try:
+            manifest_bytes = manifest_path.read_bytes()
+            manifest = json.loads(manifest_bytes.decode("utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            errors.append(f"{relative} source continuity lab manifest must contain a JSON object")
+    if manifest_bytes and hashlib.sha256(manifest_bytes).hexdigest() != manifest_sha256:
+        errors.append(f"{relative} source continuity lab manifest SHA-256 must bind the manifest")
+
+    task_index_path = feature_dir / "task-index.json"
+    try:
+        task_index_sha256 = hashlib.sha256(task_index_path.read_bytes()).hexdigest()
+    except OSError:
+        task_index_sha256 = ""
+    manifest_source = manifest.get("source") if isinstance(manifest, dict) else None
+    report_source = report.get("source")
+    if (
+        report.get("schema") != "spec-kit-source-continuity-lab-report-v1"
+        or str(report.get("task_id") or "").strip().upper() != task_id
+        or str(report.get("verdict") or "").strip().lower() != "passed"
+        or expected_coverage is None
+        or report_coverage != expected_coverage
+        or not isinstance(manifest, dict)
+        or manifest.get("schema")
+        != "spec-kit-source-continuity-lab-manifest-v1"
+        or str(manifest.get("task_id") or "").strip().upper() != task_id
+        or manifest.get("source_continuity") != source_continuity
+        or not isinstance(manifest_source, dict)
+        or manifest_source.get("task_index_ref") != "task-index.json"
+        or manifest_source.get("task_index_sha256") != task_index_sha256
+        or not isinstance(report_source, dict)
+        or report_source.get("result_schema")
+        != "spec-kit-source-continuity-lab-result-v1"
+        or report_source.get("task_index_sha256") != task_index_sha256
+    ):
+        errors.append(
+            f"{relative} source continuity lab report must preserve the current task contract and task-index digest"
+        )
+    metrics = report.get("metrics")
+    if not isinstance(metrics, dict) or any(
+        metrics.get(field) != 1 for field in SOURCE_CONTINUITY_METRIC_FIELDS
+    ):
+        errors.append(
+            f"{relative} source continuity lab report metrics must all pass"
+        )
+    return errors
 
 
 def validate_accepted_task_lifecycle(
@@ -658,6 +764,62 @@ def validate_lifecycle_ui_verification(
                     smoothness_report_sha256,
                 )
             )
+    source_continuity = ui_contract.get("source_continuity")
+    if (
+        isinstance(source_continuity, dict)
+        and source_continuity.get("applicability") == "required"
+    ):
+        expected_coverage = _source_continuity_coverage(source_continuity)
+        if expected_coverage is None:
+            errors.append(
+                f"{relative} source continuity coverage must use exact ID arrays"
+            )
+        else:
+            for field, verification_field, label in (
+                (
+                    "surface_ids",
+                    "covered_source_continuity_surface_ids",
+                    "surface",
+                ),
+                (
+                    "interaction_ids",
+                    "covered_source_continuity_interaction_ids",
+                    "interaction",
+                ),
+                (
+                    "component_ids",
+                    "covered_source_continuity_component_ids",
+                    "component",
+                ),
+            ):
+                covered = _exact_smoothness_ids(
+                    verification.get(verification_field, [])
+                )
+                if covered is None or set(covered) != set(expected_coverage[field]):
+                    errors.append(
+                        f"{relative} source continuity {label} coverage must exactly cover the task contract"
+                    )
+            report_ref = str(
+                verification.get("source_continuity_lab_report_ref") or ""
+            ).strip()
+            report_sha256 = str(
+                verification.get("source_continuity_lab_report_sha256") or ""
+            ).strip()
+            if not report_ref or not re.fullmatch(r"[0-9a-f]{64}", report_sha256):
+                errors.append(
+                    f"{relative} source continuity lab report ref and SHA-256 digest are required"
+                )
+            else:
+                errors.extend(
+                    _validate_source_continuity_lab_report(
+                        feature_dir,
+                        relative,
+                        task_id,
+                        source_continuity,
+                        report_ref,
+                        report_sha256,
+                    )
+                )
     if usability_validation.get("human_review_required") is True:
         reviewer = (
             str(verification.get("reviewer") or "")

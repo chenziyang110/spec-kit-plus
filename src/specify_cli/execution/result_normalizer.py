@@ -164,6 +164,12 @@ def _normalize_ui_verification(payload: dict[str, Any]) -> UIVerification:
         smoothness_lab_report_sha256=str(
             raw.get("smoothness_lab_report_sha256") or ""
         ),
+        source_continuity_lab_report_ref=str(
+            raw.get("source_continuity_lab_report_ref") or ""
+        ),
+        source_continuity_lab_report_sha256=str(
+            raw.get("source_continuity_lab_report_sha256") or ""
+        ),
         implementation_capture_refs=_as_str_list(
             raw.get("implementation_capture_refs")
         ),
@@ -173,6 +179,15 @@ def _normalize_ui_verification(payload: dict[str, Any]) -> UIVerification:
         ),
         covered_smoothness_acceptance_ids=_as_str_list(
             raw.get("covered_smoothness_acceptance_ids")
+        ),
+        covered_source_continuity_surface_ids=_as_str_list(
+            raw.get("covered_source_continuity_surface_ids")
+        ),
+        covered_source_continuity_interaction_ids=_as_str_list(
+            raw.get("covered_source_continuity_interaction_ids")
+        ),
+        covered_source_continuity_component_ids=_as_str_list(
+            raw.get("covered_source_continuity_component_ids")
         ),
         structural_differences=_as_str_list(raw.get("structural_differences")),
         visual_differences=_as_str_list(raw.get("visual_differences")),

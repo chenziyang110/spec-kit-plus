@@ -116,6 +116,7 @@ def test_validate_worker_task_result_accepts_acknowledged_result(
             ValidationResult(
                 command="pytest tests/unit/test_auth_service.py -q",
                 status="passed",
+                output="1 passed",
             )
         ],
         summary="Implemented auth flow",
@@ -889,16 +890,18 @@ def test_validate_worker_task_result_requires_source_continuity_lab_report(
         ),
     )
 
-    with pytest.raises(PacketValidationError, match="source continuity lab report"):
-        validate_worker_task_result(result, sample_packet)
-
     result.ui_verification = UIVerification(
-        source_continuity_lab_report_ref="implementation-review/source-continuity/source-continuity-lab-T017.json",
-        source_continuity_lab_report_sha256="e" * 64,
         covered_source_continuity_surface_ids=["DH-SURFACE-001"],
         covered_source_continuity_interaction_ids=["DH-INT-001"],
         covered_source_continuity_component_ids=["DH-COMP-001"],
     )
+    with pytest.raises(PacketValidationError, match="source continuity lab report"):
+        validate_worker_task_result(result, sample_packet)
+
+    result.ui_verification.source_continuity_lab_report_ref = (
+        "implementation-review/source-continuity/source-continuity-lab-T017.json"
+    )
+    result.ui_verification.source_continuity_lab_report_sha256 = "e" * 64
     assert validate_worker_task_result(result, sample_packet) is result
 
     result.ui_verification.covered_source_continuity_interaction_ids = []
