@@ -61,6 +61,18 @@ SOURCE_CONTINUITY_METRIC_FIELDS = (
     "business_outcome_parity",
     "asset_fidelity",
 )
+SOURCE_CONTINUITY_ADAPTER_CAPABILITIES = {
+    "surface-enumeration",
+    "action-execution",
+    "side-effect-observation",
+    "asset-inspection",
+    "visual-capture",
+}
+SOURCE_CONTINUITY_EVIDENCE_KINDS = {
+    "structure_snapshot",
+    "visual_capture",
+    "runtime_diagnostics",
+}
 
 
 def _canonical_records(values: object) -> tuple[str, ...]:
@@ -88,6 +100,316 @@ def _source_continuity_coverage(value: object) -> dict[str, list[str]] | None:
             return None
         result[field] = ids
     return result
+
+
+def _source_continuity_project_root(feature_dir: Path) -> Path:
+    for candidate in (feature_dir, *feature_dir.parents):
+        if candidate.name.lower() in {".specify", "specs"}:
+            return candidate.parent
+    return feature_dir.parent
+
+
+def _source_continuity_evidence_record_valid(project_root: Path, ref: str) -> bool:
+    normalized = ref.strip().replace("\\", "/")
+    if not normalized.startswith(".specify/evidence/records/"):
+        return False
+    record_path = project_root / Path(normalized)
+    try:
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    if not isinstance(record, dict) or record.get("status") != "ready":
+        return False
+    digest = str(record.get("sha256") or "").strip()
+    object_ref = str(record.get("object_ref") or "").strip().replace("\\", "/")
+    if (
+        not re.fullmatch(r"[0-9a-f]{64}", digest)
+        or not object_ref.startswith(".specify/evidence/objects/sha256/")
+        or not str(record.get("source") or "").strip()
+        or not str(record.get("provenance") or "").strip()
+    ):
+        return False
+    try:
+        raw = (project_root / Path(object_ref)).read_bytes()
+    except OSError:
+        return False
+    return (
+        hashlib.sha256(raw).hexdigest() == digest
+        and record.get("size") == len(raw)
+        and record.get("record_ref") == normalized
+    )
+
+
+def _source_continuity_passing(value: object) -> bool:
+    return str(value or "").strip().lower() in {
+        "pass",
+        "passed",
+        "success",
+        "matched",
+        "approved",
+    }
+
+
+def _source_continuity_rows(value: object) -> list[dict[str, Any]] | None:
+    if not isinstance(value, list) or any(not isinstance(row, dict) for row in value):
+        return None
+    return [dict(row) for row in value]
+
+
+def _source_continuity_lab_semantic_errors(
+    feature_dir: Path,
+    report: dict[str, Any],
+    continuity: dict[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    adapter = report.get("adapter")
+    if (
+        not isinstance(adapter, dict)
+        or set(adapter) != {"id", "version", "capabilities"}
+        or not str(adapter.get("id") or "").strip()
+        or not str(adapter.get("version") or "").strip()
+    ):
+        errors.append("invalid-adapter")
+    else:
+        capabilities = _exact_smoothness_ids(adapter.get("capabilities"))
+        if capabilities is None or not SOURCE_CONTINUITY_ADAPTER_CAPABILITIES <= set(
+            capabilities
+        ):
+            errors.append("missing-adapter-capability")
+
+    project_root = _source_continuity_project_root(feature_dir)
+    evidence_rows = _source_continuity_rows(report.get("evidence_refs"))
+    evidence_sides: dict[str, str] = {}
+    covered_evidence: set[tuple[str, str]] = set()
+    if evidence_rows is None:
+        errors.append("invalid-evidence-refs")
+        evidence_rows = []
+    for row in evidence_rows:
+        if set(row) != {"side", "kind", "ref"}:
+            errors.append("invalid-evidence-ref")
+            continue
+        side = str(row.get("side") or "").strip()
+        kind = str(row.get("kind") or "").strip()
+        ref = str(row.get("ref") or "").strip()
+        if (
+            side not in {"source", "target"}
+            or kind not in SOURCE_CONTINUITY_EVIDENCE_KINDS
+            or not _source_continuity_evidence_record_valid(project_root, ref)
+        ):
+            errors.append("unverified-evidence-ref")
+            continue
+        if ref in evidence_sides and evidence_sides[ref] != side:
+            errors.append("evidence-ref-side-conflict")
+        evidence_sides[ref] = side
+        covered_evidence.add((side, kind))
+    for side in ("source", "target"):
+        for kind in SOURCE_CONTINUITY_EVIDENCE_KINDS:
+            if (side, kind) not in covered_evidence:
+                errors.append(f"missing-{side}-{kind.replace('_', '-')}")
+
+    expected_binding_ids: dict[str, list[str]] = {}
+    for field in ("surface_bindings", "action_bindings", "asset_bindings"):
+        rows = _source_continuity_rows(continuity.get(field))
+        ids = (
+            [str(row.get("id") or "").strip() for row in rows]
+            if rows is not None
+            else []
+        )
+        if not ids or any(not item for item in ids) or len(ids) != len(set(ids)):
+            errors.append(f"invalid-{field.replace('_', '-')}")
+        expected_binding_ids[field] = ids
+
+    discovery = report.get("discovery")
+    if not isinstance(discovery, dict) or set(discovery) != {
+        "surface_binding_ids",
+        "action_binding_ids",
+        "asset_binding_ids",
+        "unexpected_candidates",
+    }:
+        errors.append("invalid-discovery")
+    else:
+        for field, binding_field in (
+            ("surface_binding_ids", "surface_bindings"),
+            ("action_binding_ids", "action_bindings"),
+            ("asset_binding_ids", "asset_bindings"),
+        ):
+            values = _exact_smoothness_ids(discovery.get(field))
+            if values is None or set(values) != set(expected_binding_ids[binding_field]):
+                errors.append(f"{field.replace('_binding_ids', '')}-discovery-coverage-mismatch")
+        unexpected = discovery.get("unexpected_candidates")
+        if not isinstance(unexpected, list) or unexpected:
+            errors.append("unbound-source-candidate")
+
+    coverage = _source_continuity_coverage(continuity) or {
+        "surface_ids": [],
+        "interaction_ids": [],
+        "component_ids": [],
+    }
+    surface_rows = _source_continuity_rows(report.get("surface_results"))
+    surface_passed = 0
+    surface_ids: list[str] = []
+    if surface_rows is None:
+        errors.append("invalid-surface-results")
+        surface_rows = []
+    for row in surface_rows:
+        expected_fields = {
+            "surface_id",
+            "source_reachable",
+            "target_reachable",
+            "disposition_verified",
+            "verdict",
+        }
+        if set(row) != expected_fields:
+            errors.append("invalid-surface-result")
+            continue
+        surface_id = str(row.get("surface_id") or "").strip()
+        surface_ids.append(surface_id)
+        if (
+            row.get("source_reachable") is True
+            and row.get("target_reachable") is True
+            and row.get("disposition_verified") is True
+            and _source_continuity_passing(row.get("verdict"))
+        ):
+            surface_passed += 1
+        else:
+            errors.append("target-surface-unreachable")
+    if len(surface_ids) != len(set(surface_ids)) or set(surface_ids) != set(
+        coverage["surface_ids"]
+    ):
+        errors.append("surface-coverage-mismatch")
+
+    action_bindings = {
+        str(row.get("interaction_id") or "").strip(): row
+        for row in _source_continuity_rows(continuity.get("action_bindings")) or []
+    }
+    action_rows = _source_continuity_rows(report.get("action_results"))
+    action_passed = 0
+    outcome_passed = 0
+    action_ids: list[str] = []
+    if action_rows is None:
+        errors.append("invalid-action-results")
+        action_rows = []
+    for row in action_rows:
+        expected_fields = {
+            "interaction_id",
+            "source_reachable",
+            "target_reachable",
+            "source_evidence_ref",
+            "target_evidence_ref",
+            "observed_side_effects",
+            "business_outcome_verified",
+            "final_state_verified",
+            "verdict",
+        }
+        if set(row) != expected_fields:
+            errors.append("invalid-action-result")
+            continue
+        interaction_id = str(row.get("interaction_id") or "").strip()
+        action_ids.append(interaction_id)
+        source_ref = str(row.get("source_evidence_ref") or "").strip()
+        target_ref = str(row.get("target_evidence_ref") or "").strip()
+        if evidence_sides.get(source_ref) != "source" or evidence_sides.get(target_ref) != "target":
+            errors.append("action-evidence-unbound")
+        observed = _exact_smoothness_ids(row.get("observed_side_effects"))
+        expected_effects = _exact_smoothness_ids(
+            action_bindings.get(interaction_id, {}).get("side_effects")
+        )
+        if observed is None or expected_effects is None or set(observed) != set(
+            expected_effects
+        ):
+            errors.append("side-effect-mismatch")
+        if (
+            row.get("source_reachable") is True
+            and row.get("target_reachable") is True
+            and _source_continuity_passing(row.get("verdict"))
+        ):
+            action_passed += 1
+        else:
+            errors.append("target-action-unreachable")
+        if (
+            row.get("business_outcome_verified") is True
+            and row.get("final_state_verified") is True
+        ):
+            outcome_passed += 1
+        else:
+            errors.append("business-outcome-mismatch")
+    if len(action_ids) != len(set(action_ids)) or set(action_ids) != set(
+        coverage["interaction_ids"]
+    ):
+        errors.append("action-coverage-mismatch")
+
+    asset_bindings = {
+        str(row.get("component_id") or "").strip(): row
+        for row in _source_continuity_rows(continuity.get("asset_bindings")) or []
+    }
+    asset_rows = _source_continuity_rows(report.get("asset_results"))
+    asset_passed = 0
+    asset_ids: list[str] = []
+    if asset_rows is None:
+        errors.append("invalid-asset-results")
+        asset_rows = []
+    for row in asset_rows:
+        expected_fields = {
+            "component_id",
+            "source_evidence_ref",
+            "target_evidence_ref",
+            "semantic_match",
+            "provenance_match",
+            "render_match",
+            "character_substitution",
+            "verdict",
+        }
+        if set(row) != expected_fields:
+            errors.append("invalid-asset-result")
+            continue
+        component_id = str(row.get("component_id") or "").strip()
+        asset_ids.append(component_id)
+        source_ref = str(row.get("source_evidence_ref") or "").strip()
+        target_ref = str(row.get("target_evidence_ref") or "").strip()
+        if evidence_sides.get(source_ref) != "source" or evidence_sides.get(target_ref) != "target":
+            errors.append("asset-evidence-unbound")
+        character_violation = (
+            row.get("character_substitution") is True
+            and asset_bindings.get(component_id, {}).get("placeholder_policy")
+            == "forbid-character-substitution"
+        )
+        fidelity = all(
+            row.get(field) is True
+            for field in ("semantic_match", "provenance_match", "render_match")
+        )
+        if character_violation:
+            errors.append("asset-character-substitution")
+        if not fidelity:
+            errors.append("asset-fidelity-mismatch")
+        if fidelity and not character_violation and _source_continuity_passing(
+            row.get("verdict")
+        ):
+            asset_passed += 1
+    if len(asset_ids) != len(set(asset_ids)) or set(asset_ids) != set(
+        coverage["component_ids"]
+    ):
+        errors.append("asset-coverage-mismatch")
+
+    denominator = sum(len(values) for values in expected_binding_ids.values())
+    discovery_covered = denominator if isinstance(discovery, dict) and not errors else 0
+
+    def ratio(passed: int, total: int) -> float:
+        return 1.0 if total == 0 else passed / total
+
+    recomputed_metrics = {
+        "source_discovery_coverage": ratio(discovery_covered, denominator),
+        "target_surface_reachability": ratio(
+            surface_passed, len(coverage["surface_ids"])
+        ),
+        "action_operability": ratio(action_passed, len(coverage["interaction_ids"])),
+        "business_outcome_parity": ratio(
+            outcome_passed, len(coverage["interaction_ids"])
+        ),
+        "asset_fidelity": ratio(asset_passed, len(coverage["component_ids"])),
+    }
+    if report.get("metrics") != recomputed_metrics:
+        errors.append("metrics-mismatch")
+    return sorted(set(errors))
 
 
 def _validate_source_continuity_lab_report(
@@ -170,6 +492,14 @@ def _validate_source_continuity_lab_report(
     ):
         errors.append(
             f"{relative} source continuity lab report metrics must all pass"
+        )
+    semantic_errors = _source_continuity_lab_semantic_errors(
+        feature_dir, report, source_continuity
+    )
+    if semantic_errors:
+        errors.append(
+            f"{relative} source continuity lab report semantics are invalid: "
+            + ", ".join(semantic_errors)
         )
     return errors
 
