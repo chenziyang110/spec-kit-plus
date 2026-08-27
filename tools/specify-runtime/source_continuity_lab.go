@@ -233,6 +233,8 @@ func (service evidenceService) sourceContinuityValidate(args []string, raw map[s
 		"ui_verification_patch": map[string]any{
 			"source_continuity_lab_report_ref":          reportRef,
 			"source_continuity_lab_report_sha256":       reportSHA,
+			"source_continuity_adapter_plan_ref":        adapterPlanRef,
+			"source_continuity_adapter_plan_sha256":     adapterPlanSHA,
 			"covered_source_continuity_surface_ids":     cloneJSONValue(coverageMap["surface_ids"]),
 			"covered_source_continuity_interaction_ids": cloneJSONValue(coverageMap["interaction_ids"]),
 			"covered_source_continuity_component_ids":   cloneJSONValue(coverageMap["component_ids"]),
@@ -888,6 +890,7 @@ func (service evidenceService) sourceContinuityQuickValidate(args []string, quic
 		"metrics": metrics, "transaction_receipt_ref": receipt.ReceiptRef,
 		"ui_verification_patch": map[string]any{
 			"source_continuity_lab_report_ref": reportRef, "source_continuity_lab_report_sha256": reportSHA,
+			"source_continuity_adapter_plan_ref": adapterPlanRef, "source_continuity_adapter_plan_sha256": adapterPlanSHA,
 			"covered_source_continuity_surface_ids":     cloneJSONValue(coverage["surface_ids"]),
 			"covered_source_continuity_interaction_ids": cloneJSONValue(coverage["interaction_ids"]),
 			"covered_source_continuity_component_ids":   cloneJSONValue(coverage["component_ids"]),

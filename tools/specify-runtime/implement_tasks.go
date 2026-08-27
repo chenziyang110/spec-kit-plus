@@ -952,6 +952,7 @@ func resetImplementTaskUIVerification(value any) map[string]any {
 		"evidence":         []any{}, "comparison_report_ref": "", "comparison_report_sha256": "",
 		"smoothness_lab_report_ref": "", "smoothness_lab_report_sha256": "",
 		"source_continuity_lab_report_ref": "", "source_continuity_lab_report_sha256": "",
+		"source_continuity_adapter_plan_ref": "", "source_continuity_adapter_plan_sha256": "",
 		"implementation_capture_refs": []any{}, "structural_differences": []any{}, "visual_differences": []any{},
 		"covered_source_continuity_surface_ids": []any{}, "covered_source_continuity_interaction_ids": []any{}, "covered_source_continuity_component_ids": []any{},
 	}

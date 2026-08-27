@@ -45,6 +45,8 @@ class UIVerification:
     smoothness_lab_report_sha256: str = ""
     source_continuity_lab_report_ref: str = ""
     source_continuity_lab_report_sha256: str = ""
+    source_continuity_adapter_plan_ref: str = ""
+    source_continuity_adapter_plan_sha256: str = ""
     implementation_capture_refs: list[str] = field(default_factory=list)
     covered_decision_ids: list[str] = field(default_factory=list)
     covered_handoff_contract_ids: list[str] = field(default_factory=list)

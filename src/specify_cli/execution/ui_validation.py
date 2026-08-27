@@ -73,6 +73,47 @@ SOURCE_CONTINUITY_EVIDENCE_KINDS = {
     "visual_capture",
     "runtime_diagnostics",
 }
+SOURCE_CONTINUITY_ADAPTER_ACTIONS = {
+    "enumerate-surfaces",
+    "enumerate-actions",
+    "enumerate-assets",
+    "activate-action",
+    "observe-side-effects",
+    "capture-structure",
+    "capture-visual",
+    "capture-runtime",
+    "prepare-isolated-test-data",
+}
+SOURCE_CONTINUITY_ADAPTER_CAPABILITY_ACTIONS = {
+    "surface-enumeration": {"enumerate-surfaces", "capture-structure"},
+    "action-execution": {
+        "enumerate-actions",
+        "activate-action",
+        "capture-runtime",
+    },
+    "side-effect-observation": {"observe-side-effects", "capture-runtime"},
+    "asset-inspection": {"enumerate-assets", "capture-visual"},
+    "visual-capture": {"capture-visual"},
+}
+SOURCE_CONTINUITY_ADAPTER_CAPABILITY_EVIDENCE = {
+    "surface-enumeration": "structure_snapshot",
+    "action-execution": "runtime_diagnostics",
+    "side-effect-observation": "runtime_diagnostics",
+    "asset-inspection": "visual_capture",
+    "visual-capture": "visual_capture",
+}
+SOURCE_CONTINUITY_ADAPTER_FIELDS = {
+    "id",
+    "version",
+    "roles",
+    "capabilities",
+    "actions",
+    "evidence_kinds",
+    "execution_mode",
+    "tool_ref",
+    "write_policy",
+    "network_policy",
+}
 
 
 def _canonical_records(values: object) -> tuple[str, ...]:
@@ -201,7 +242,9 @@ def _source_continuity_target_snapshot(
     return digest.hexdigest()
 
 
-def _source_continuity_evidence_record_valid(project_root: Path, ref: str) -> bool:
+def _source_continuity_evidence_record_valid(
+    project_root: Path, ref: str, adapter_id: str
+) -> bool:
     normalized = ref.strip().replace("\\", "/")
     if not normalized.startswith(".specify/evidence/records/"):
         return False
@@ -218,7 +261,7 @@ def _source_continuity_evidence_record_valid(project_root: Path, ref: str) -> bo
         not re.fullmatch(r"[0-9a-f]{64}", digest)
         or not object_ref.startswith(".specify/evidence/objects/sha256/")
         or not str(record.get("source") or "").strip()
-        or not str(record.get("provenance") or "").strip()
+        or record.get("provenance") != f"adapter:{adapter_id}"
     ):
         return False
     try:
@@ -248,56 +291,286 @@ def _source_continuity_rows(value: object) -> list[dict[str, Any]] | None:
     return [dict(row) for row in value]
 
 
+def _source_continuity_adapter_plan_errors(
+    feature_dir: Path,
+    task_id: str,
+    continuity: dict[str, Any],
+    report: dict[str, Any],
+    manifest_ref: str,
+    manifest_sha256: str,
+    task_index_sha256: str,
+    target_snapshot_sha256: str | None,
+    adapter_plan_ref: str,
+    adapter_plan_sha256: str,
+) -> tuple[list[str], dict[str, Any] | None]:
+    errors: list[str] = []
+    canonical_ref = (
+        "implementation-review/source-continuity/"
+        f"source-continuity-adapter-plan-{task_id}.json"
+    )
+    if (
+        adapter_plan_ref != canonical_ref
+        or report.get("adapter_plan_ref") != adapter_plan_ref
+        or report.get("adapter_plan_sha256") != adapter_plan_sha256
+        or not re.fullmatch(r"[0-9a-f]{64}", adapter_plan_sha256)
+    ):
+        errors.append("adapter-plan-binding-mismatch")
+    plan_path = resolve_feature_artifact_ref(feature_dir, adapter_plan_ref)
+    if plan_path is None:
+        return [*errors, "adapter-plan-missing"], None
+    try:
+        plan_bytes = plan_path.read_bytes()
+        plan = json.loads(plan_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return [*errors, "adapter-plan-invalid-json"], None
+    if hashlib.sha256(plan_bytes).hexdigest() != adapter_plan_sha256:
+        errors.append("adapter-plan-sha256-mismatch")
+    if not isinstance(plan, dict):
+        return [*errors, "adapter-plan-invalid-object"], None
+    if set(plan) != {
+        "schema",
+        "adapter_protocol",
+        "plan_id",
+        "subject_id",
+        "status",
+        "binding",
+        "required_lanes",
+        "adapters",
+        "assignments",
+        "unresolved_gaps",
+    }:
+        errors.append("adapter-plan-invalid-fields")
+    if (
+        plan.get("schema") != "spec-kit-source-continuity-adapter-plan-v1"
+        or plan.get("adapter_protocol") != "spec-kit-source-continuity-adapter-v1"
+        or not re.fullmatch(r"SCAP-[0-9a-f]{12}", str(plan.get("plan_id") or ""))
+        or str(plan.get("subject_id") or "").strip().upper() != task_id
+        or plan.get("status") != "ready"
+        or plan.get("unresolved_gaps") != []
+    ):
+        errors.append("adapter-plan-invalid-identity")
+
+    capabilities = sorted(SOURCE_CONTINUITY_ADAPTER_CAPABILITIES)
+    required_lanes = {
+        f"{side}.{capability}"
+        for side in ("source", "target")
+        for capability in capabilities
+    }
+    lanes = _exact_smoothness_ids(plan.get("required_lanes"))
+    if lanes is None or set(lanes) != required_lanes:
+        errors.append("adapter-plan-lane-coverage-mismatch")
+
+    binding = plan.get("binding")
+    if not isinstance(binding, dict) or set(binding) != {
+        "mode",
+        "subject_id",
+        "manifest_ref",
+        "manifest_sha256",
+        "source_continuity_sha256",
+        "target_snapshot_sha256",
+        "task_index_sha256",
+    }:
+        errors.append("adapter-plan-invalid-binding")
+    elif binding != {
+        "mode": "formal",
+        "subject_id": task_id,
+        "manifest_ref": manifest_ref,
+        "manifest_sha256": manifest_sha256,
+        "source_continuity_sha256": _source_continuity_contract_sha(continuity),
+        "target_snapshot_sha256": target_snapshot_sha256,
+        "task_index_sha256": task_index_sha256,
+    }:
+        errors.append("adapter-plan-stale-binding")
+
+    adapters = _source_continuity_rows(plan.get("adapters"))
+    adapter_by_id: dict[str, dict[str, Any]] = {}
+    if not adapters:
+        errors.append("adapter-plan-requires-adapters")
+        adapters = []
+    for adapter in adapters:
+        adapter_id = str(adapter.get("id") or "").strip()
+        roles = _exact_smoothness_ids(adapter.get("roles"))
+        adapter_capabilities = _exact_smoothness_ids(adapter.get("capabilities"))
+        actions = _exact_smoothness_ids(adapter.get("actions"))
+        evidence_kinds = _exact_smoothness_ids(adapter.get("evidence_kinds"))
+        if set(adapter) != SOURCE_CONTINUITY_ADAPTER_FIELDS:
+            errors.append(f"adapter-invalid-fields:{adapter_id}")
+            continue
+        if (
+            not re.fullmatch(r"[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*", adapter_id)
+            or adapter_id in adapter_by_id
+            or not str(adapter.get("version") or "").strip()
+            or not re.fullmatch(
+                r"[a-z][a-z0-9+.-]*://\S+", str(adapter.get("tool_ref") or "")
+            )
+        ):
+            errors.append(f"adapter-invalid-identity:{adapter_id}")
+        adapter_by_id[adapter_id] = adapter
+        if roles is None or not roles or not set(roles) <= {"source", "target"}:
+            errors.append(f"adapter-invalid-role:{adapter_id}")
+        if (
+            adapter_capabilities is None
+            or not adapter_capabilities
+            or not set(adapter_capabilities) <= SOURCE_CONTINUITY_ADAPTER_CAPABILITIES
+        ):
+            errors.append(f"adapter-invalid-capability:{adapter_id}")
+        if actions is None or not set(actions) <= SOURCE_CONTINUITY_ADAPTER_ACTIONS:
+            errors.append(f"adapter-unsupported-action:{adapter_id}")
+        if (
+            evidence_kinds is None
+            or not set(evidence_kinds) <= SOURCE_CONTINUITY_EVIDENCE_KINDS
+        ):
+            errors.append(f"adapter-invalid-evidence-kind:{adapter_id}")
+        if adapter.get("execution_mode") not in {
+            "runtime-managed",
+            "agent-tool",
+            "app-connector",
+            "external-runner",
+            "manual-attested",
+        }:
+            errors.append(f"adapter-invalid-execution-mode:{adapter_id}")
+        if adapter.get("write_policy") not in {
+            "read-only",
+            "evidence-store-only",
+            "isolated-test-data",
+        }:
+            errors.append(f"adapter-invalid-write-policy:{adapter_id}")
+        if adapter.get("network_policy") not in {"denied", "declared-read-only"}:
+            errors.append(f"adapter-invalid-network-policy:{adapter_id}")
+        if (
+            adapter_capabilities is not None
+            and actions is not None
+            and evidence_kinds is not None
+        ):
+            for capability in adapter_capabilities:
+                if capability not in SOURCE_CONTINUITY_ADAPTER_CAPABILITY_ACTIONS:
+                    continue
+                if (
+                    not SOURCE_CONTINUITY_ADAPTER_CAPABILITY_ACTIONS[capability]
+                    <= set(actions)
+                    or SOURCE_CONTINUITY_ADAPTER_CAPABILITY_EVIDENCE[capability]
+                    not in evidence_kinds
+                ):
+                    errors.append(
+                        f"adapter-capability-contract-mismatch:{adapter_id}:{capability}"
+                    )
+
+    assignments = _source_continuity_rows(plan.get("assignments"))
+    seen_lanes: set[str] = set()
+    if assignments is None:
+        errors.append("adapter-plan-requires-assignments")
+        assignments = []
+    for assignment in assignments:
+        if set(assignment) != {
+            "side",
+            "capability",
+            "adapter_id",
+            "selection_reason",
+        }:
+            errors.append("adapter-plan-invalid-assignment")
+            continue
+        side = str(assignment.get("side") or "").strip()
+        capability = str(assignment.get("capability") or "").strip()
+        adapter_id = str(assignment.get("adapter_id") or "").strip()
+        lane = f"{side}.{capability}"
+        adapter = adapter_by_id.get(adapter_id, {})
+        if lane in seen_lanes:
+            errors.append(f"adapter-plan-duplicate-lane:{lane}")
+        seen_lanes.add(lane)
+        if (
+            lane not in required_lanes
+            or side not in (adapter.get("roles") or [])
+            or capability not in (adapter.get("capabilities") or [])
+        ):
+            errors.append(f"adapter-plan-assignment-mismatch:{lane}")
+        if not str(assignment.get("selection_reason") or "").strip():
+            errors.append(f"adapter-plan-assignment-reason-missing:{lane}")
+    if seen_lanes != required_lanes:
+        errors.append("adapter-plan-lane-coverage-mismatch")
+    return sorted(set(errors)), plan
+
+
 def _source_continuity_lab_semantic_errors(
     feature_dir: Path,
     report: dict[str, Any],
     continuity: dict[str, Any],
+    adapter_plan: dict[str, Any] | None,
+    adapter_plan_sha256: str,
 ) -> list[str]:
     errors: list[str] = []
     adapter = report.get("adapter")
-    if (
-        not isinstance(adapter, dict)
-        or set(adapter) != {"id", "version", "capabilities"}
-        or not str(adapter.get("id") or "").strip()
-        or not str(adapter.get("version") or "").strip()
-    ):
-        errors.append("invalid-adapter")
-    else:
-        capabilities = _exact_smoothness_ids(adapter.get("capabilities"))
-        if capabilities is None or not SOURCE_CONTINUITY_ADAPTER_CAPABILITIES <= set(
-            capabilities
-        ):
-            errors.append("missing-adapter-capability")
+    expected_adapter = {
+        "id": f"adapter-plan:{adapter_plan_sha256[:12]}",
+        "version": "1",
+        "capabilities": [
+            "surface-enumeration",
+            "action-execution",
+            "side-effect-observation",
+            "asset-inspection",
+            "visual-capture",
+        ],
+    }
+    if adapter != expected_adapter:
+        errors.append("adapter-plan-composite-mismatch")
+
+    adapter_by_id = {
+        str(row.get("id") or "").strip(): row
+        for row in _source_continuity_rows(
+            adapter_plan.get("adapters") if isinstance(adapter_plan, dict) else None
+        )
+        or []
+    }
+    assignments = (
+        _source_continuity_rows(
+            adapter_plan.get("assignments") if isinstance(adapter_plan, dict) else None
+        )
+        or []
+    )
 
     project_root = _source_continuity_project_root(feature_dir)
     evidence_rows = _source_continuity_rows(report.get("evidence_refs"))
     evidence_sides: dict[str, str] = {}
     covered_evidence: set[tuple[str, str]] = set()
+    observed_adapter_evidence: set[tuple[str, str, str]] = set()
     if evidence_rows is None:
         errors.append("invalid-evidence-refs")
         evidence_rows = []
     for row in evidence_rows:
-        if set(row) != {"side", "kind", "ref"}:
+        if set(row) != {"side", "kind", "ref", "adapter_id"}:
             errors.append("invalid-evidence-ref")
             continue
         side = str(row.get("side") or "").strip()
         kind = str(row.get("kind") or "").strip()
         ref = str(row.get("ref") or "").strip()
+        adapter_id = str(row.get("adapter_id") or "").strip()
+        assigned_adapter = adapter_by_id.get(adapter_id, {})
         if (
             side not in {"source", "target"}
             or kind not in SOURCE_CONTINUITY_EVIDENCE_KINDS
-            or not _source_continuity_evidence_record_valid(project_root, ref)
+            or side not in (assigned_adapter.get("roles") or [])
+            or kind not in (assigned_adapter.get("evidence_kinds") or [])
+            or not _source_continuity_evidence_record_valid(
+                project_root, ref, adapter_id
+            )
         ):
-            errors.append("unverified-evidence-ref")
+            errors.append("evidence-adapter-assignment-mismatch")
             continue
         if ref in evidence_sides and evidence_sides[ref] != side:
             errors.append("evidence-ref-side-conflict")
         evidence_sides[ref] = side
         covered_evidence.add((side, kind))
+        observed_adapter_evidence.add((adapter_id, side, kind))
     for side in ("source", "target"):
         for kind in SOURCE_CONTINUITY_EVIDENCE_KINDS:
             if (side, kind) not in covered_evidence:
                 errors.append(f"missing-{side}-{kind.replace('_', '-')}")
+    for assignment in assignments:
+        adapter_id = str(assignment.get("adapter_id") or "").strip()
+        side = str(assignment.get("side") or "").strip()
+        capability = str(assignment.get("capability") or "").strip()
+        kind = SOURCE_CONTINUITY_ADAPTER_CAPABILITY_EVIDENCE.get(capability, "")
+        if (adapter_id, side, kind) not in observed_adapter_evidence:
+            errors.append(f"evidence-adapter-assignment-mismatch:{side}.{capability}")
 
     expected_binding_ids: dict[str, list[str]] = {}
     for field in ("surface_bindings", "action_bindings", "asset_bindings"):
@@ -511,6 +784,8 @@ def _validate_source_continuity_lab_report(
     source_continuity: dict[str, Any],
     report_ref: str,
     report_sha256: str,
+    adapter_plan_ref: str,
+    adapter_plan_sha256: str,
 ) -> list[str]:
     errors: list[str] = []
     report_path = resolve_feature_artifact_ref(feature_dir, report_ref)
@@ -619,8 +894,29 @@ def _validate_source_continuity_lab_report(
         errors.append(
             f"{relative} source continuity lab report metrics must all pass"
         )
+    adapter_plan_errors, adapter_plan = _source_continuity_adapter_plan_errors(
+        feature_dir,
+        task_id,
+        source_continuity,
+        report,
+        manifest_ref,
+        manifest_sha256,
+        task_index_sha256,
+        target_snapshot,
+        adapter_plan_ref,
+        adapter_plan_sha256,
+    )
+    if adapter_plan_errors:
+        errors.append(
+            f"{relative} source continuity adapter plan is invalid: "
+            + ", ".join(adapter_plan_errors)
+        )
     semantic_errors = _source_continuity_lab_semantic_errors(
-        feature_dir, report, source_continuity
+        feature_dir,
+        report,
+        source_continuity,
+        adapter_plan,
+        adapter_plan_sha256,
     )
     if semantic_errors:
         errors.append(
@@ -1261,11 +1557,23 @@ def validate_lifecycle_ui_verification(
             report_sha256 = str(
                 verification.get("source_continuity_lab_report_sha256") or ""
             ).strip()
+            adapter_plan_ref = str(
+                verification.get("source_continuity_adapter_plan_ref") or ""
+            ).strip()
+            adapter_plan_sha256 = str(
+                verification.get("source_continuity_adapter_plan_sha256") or ""
+            ).strip()
             if not report_ref or not re.fullmatch(r"[0-9a-f]{64}", report_sha256):
                 errors.append(
                     f"{relative} source continuity lab report ref and SHA-256 digest are required"
                 )
             else:
+                if not adapter_plan_ref or not re.fullmatch(
+                    r"[0-9a-f]{64}", adapter_plan_sha256
+                ):
+                    errors.append(
+                        f"{relative} source continuity adapter plan ref and SHA-256 digest are required"
+                    )
                 errors.extend(
                     _validate_source_continuity_lab_report(
                         feature_dir,
@@ -1274,6 +1582,8 @@ def validate_lifecycle_ui_verification(
                         source_continuity,
                         report_ref,
                         report_sha256,
+                        adapter_plan_ref,
+                        adapter_plan_sha256,
                     )
                 )
     if usability_validation.get("human_review_required") is True:

@@ -64,6 +64,8 @@ var currentUIVerificationFields = map[string]bool{
 	"smoothness_lab_report_sha256":              true,
 	"source_continuity_lab_report_ref":          true,
 	"source_continuity_lab_report_sha256":       true,
+	"source_continuity_adapter_plan_ref":        true,
+	"source_continuity_adapter_plan_sha256":     true,
 	"implementation_capture_refs":               true,
 	"covered_decision_ids":                      true,
 	"covered_handoff_contract_ids":              true,
@@ -494,7 +496,8 @@ func normalizeUIVerification(value any) (map[string]any, error) {
 		"approved_handoff_sha256", "comparison_report_ref",
 		"comparison_report_sha256", "smoothness_lab_report_ref",
 		"smoothness_lab_report_sha256", "source_continuity_lab_report_ref",
-		"source_continuity_lab_report_sha256",
+		"source_continuity_lab_report_sha256", "source_continuity_adapter_plan_ref",
+		"source_continuity_adapter_plan_sha256",
 	} {
 		if rawValue, exists := raw[key]; exists {
 			result[key] = asString(rawValue)
@@ -537,6 +540,8 @@ func defaultUIVerification() map[string]any {
 		"smoothness_lab_report_sha256":              "",
 		"source_continuity_lab_report_ref":          "",
 		"source_continuity_lab_report_sha256":       "",
+		"source_continuity_adapter_plan_ref":        "",
+		"source_continuity_adapter_plan_sha256":     "",
 		"implementation_capture_refs":               []string{},
 		"covered_decision_ids":                      []string{},
 		"covered_handoff_contract_ids":              []string{},
