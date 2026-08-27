@@ -301,6 +301,20 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 	if env.Status != "ok" {
 		t.Fatalf("quick item with lab report should pass: %#v", env)
 	}
+	quick := quickService{projectRoot: root}
+	accepted, err := quick.loadConfirmation(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validatePersistedQuickSourceContinuityLabReport(
+		workspace,
+		accepted,
+		"Q1",
+		anyString(reportEnv.Data["report_ref"]),
+		anyString(reportEnv.Data["report_sha256"]),
+	); err != nil {
+		t.Fatalf("accepted Q item must preserve a revalidatable continuity report: %v", err)
+	}
 	reportRef := anyString(reportEnv.Data["report_ref"])
 	canonical := filepath.ToSlash(filepath.Join(".planning", "quick", quickID, reportRef))
 	metadata, ok := LookupArtifactType(canonical)
