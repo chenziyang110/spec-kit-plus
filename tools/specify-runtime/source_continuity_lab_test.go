@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -333,6 +334,54 @@ func TestSourceContinuityAdapterPlanRejectsCoverageGapAndUnsafeAction(t *testing
 	}
 }
 
+func TestSourceContinuityLabBindsEvidenceToAdapterPlan(t *testing.T) {
+	root, featureRef, _ := sourceContinuityLabProject(t)
+	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
+	planRef, planSHA, composite := materializeSourceContinuityAdapterPlan(t, root, featureRef, manifestRef)
+	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	bindSourceContinuityAdapterPlanToObservation(observation, planRef, planSHA, composite)
+	bindSourceContinuityLabEvidence(t, root, observation)
+	raw, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-validate", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--adapter-plan", planRef,
+		"--input-json", string(raw), "--format", "json",
+	})
+	if exit != 0 || env.Status != "ok" {
+		t.Fatalf("plan-bound continuity observation failed: exit=%d env=%#v", exit, env)
+	}
+	reportPath := filepath.Join(root, filepath.FromSlash(featureRef), filepath.FromSlash(anyString(env.Data["report_ref"])))
+	report := readImplementJSONFile(t, reportPath)
+	if report["adapter_plan_ref"] != planRef || report["adapter_plan_sha256"] != planSHA || !reflect.DeepEqual(report["adapter"], composite) {
+		t.Fatalf("plan-bound report = %#v", report)
+	}
+
+	evidenceRows := listValue(observation["evidence_refs"])
+	for _, value := range evidenceRows {
+		row := requireObjectValue(t, value)
+		if row["side"] == "target" && row["kind"] == "runtime_diagnostics" {
+			row["adapter_id"] = "asset-inspector"
+		}
+	}
+	raw, err = json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env = runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-validate", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--adapter-plan", planRef,
+		"--input-json", string(raw), "--format", "json",
+	})
+	if exit != 2 || !strings.Contains(strings.Join(anyStringSlice(env.Data["diagnostics"]), "\n"), "evidence-adapter-assignment-mismatch") {
+		t.Fatalf("adapter evidence laundering unexpectedly passed: exit=%d env=%#v", exit, env)
+	}
+}
+
 func TestSourceContinuityLabUIVerificationIsNormalizedAndRequiredForAcceptance(t *testing.T) {
 	root, featureRef, feature := sourceContinuityLabProject(t)
 	index := readImplementJSONFile(t, filepath.Join(feature, "task-index.json"))
@@ -657,6 +706,39 @@ func materializeSourceContinuityLabManifest(t *testing.T, root, featureRef strin
 	return anyString(env.Data["manifest_ref"]), anyString(env.Data["manifest_sha256"])
 }
 
+func materializeSourceContinuityAdapterPlan(t *testing.T, root, featureRef, manifestRef string) (string, string, map[string]any) {
+	t.Helper()
+	raw, err := json.Marshal(sourceContinuityAdapterPlanInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-adapter-plan", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+	})
+	if exit != 0 || env.Status != "ok" {
+		t.Fatalf("materialize adapter plan: exit=%d env=%#v", exit, env)
+	}
+	binding := requireObjectValue(t, env.Data["adapter_binding"])
+	return anyString(env.Data["adapter_plan_ref"]), anyString(env.Data["adapter_plan_sha256"]), requireObjectValue(t, binding["adapter"])
+}
+
+func bindSourceContinuityAdapterPlanToObservation(observation map[string]any, planRef, planSHA string, composite map[string]any) {
+	observation["adapter_plan_ref"] = planRef
+	observation["adapter_plan_sha256"] = planSHA
+	observation["adapter"] = cloneJSONValue(composite)
+	adapterByKind := map[string]string{
+		"structure_snapshot":  "structure-reader",
+		"runtime_diagnostics": "behavior-runner",
+		"visual_capture":      "asset-inspector",
+	}
+	for _, value := range listValue(observation["evidence_refs"]) {
+		row, _ := value.(map[string]any)
+		row["adapter_id"] = adapterByKind[anyString(row["kind"])]
+	}
+}
+
 func readSourceContinuityLabObservation(t *testing.T, name, manifestSHA string) map[string]any {
 	t.Helper()
 	path := filepath.Join("..", "..", "tests", "fixtures", "source-continuity-lab", name)
@@ -680,11 +762,16 @@ func bindSourceContinuityLabEvidence(t *testing.T, root string, observation map[
 		oldRef := anyString(row["ref"])
 		side := anyString(row["side"])
 		kind := anyString(row["kind"])
+		adapterID := anyString(row["adapter_id"])
+		provenance := "test-fixture"
+		if adapterID != "" {
+			provenance = "adapter:" + adapterID
+		}
 		code, payload := runEvidenceCommand(t, root, []string{
 			"register", "--project-root", root,
 			"--content", side + ":" + kind + ":fixture\n",
 			"--scope", "review", "--source", "source-continuity-lab-" + side + "-" + kind,
-			"--provenance", "test-fixture", "--mime", "text/plain",
+			"--provenance", provenance, "--mime", "text/plain",
 		})
 		if code != 0 {
 			t.Fatalf("register source continuity evidence: %#v", payload)
