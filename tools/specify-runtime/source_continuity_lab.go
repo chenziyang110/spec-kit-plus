@@ -39,6 +39,9 @@ var sourceContinuityLabInputFields = map[string]bool{
 }
 
 func (service evidenceService) sourceContinuityManifest(args []string) Envelope {
+	if quickID := strings.TrimSpace(optionValue(args, "--quick-id", "")); quickID != "" {
+		return service.sourceContinuityQuickManifest(args, quickID)
+	}
 	root, feature, err := taskControlFeature(args)
 	if err != nil {
 		return evidenceUsageError(err.Error())
@@ -96,6 +99,9 @@ func (service evidenceService) sourceContinuityManifest(args []string) Envelope 
 }
 
 func (service evidenceService) sourceContinuityValidate(args []string, raw map[string]any) Envelope {
+	if quickID := strings.TrimSpace(optionValue(args, "--quick-id", "")); quickID != "" {
+		return service.sourceContinuityQuickValidate(args, quickID, raw)
+	}
 	root, feature, err := taskControlFeature(args)
 	if err != nil {
 		return evidenceUsageError(err.Error())
@@ -177,6 +183,189 @@ func (service evidenceService) sourceContinuityValidate(args []string, raw map[s
 func sourceContinuityLabNotApplicable(taskID, reason string) Envelope {
 	env := NewEnvelope("ok", "source continuity lab not applicable")
 	env.Data = map[string]any{"task_id": taskID, "applicable": false, "status": "not-applicable", "reason": reason}
+	return env
+}
+
+type sourceContinuityQuickContext struct {
+	root             string
+	workspace        string
+	workspacePath    string
+	itemID           string
+	confirmationPath string
+	doc              *quickConfirmationDoc
+	continuity       map[string]any
+}
+
+func (service evidenceService) sourceContinuityQuickContext(args []string, quickID string) (*sourceContinuityQuickContext, error) {
+	root, err := filepath.Abs(service.projectRoot)
+	if err != nil {
+		return nil, errors.New("source continuity quick project root is invalid")
+	}
+	quick := quickService{projectRoot: root}
+	quickRoot, err := quick.root()
+	if err != nil {
+		return nil, err
+	}
+	tasks, err := quick.scan(quickRoot)
+	if err != nil {
+		return nil, err
+	}
+	task, err := matchQuickTask(tasks, quickID)
+	if err != nil {
+		return nil, err
+	}
+	workspacePath := strings.TrimSpace(anyString(task["workspace_path"]))
+	workspace := strings.TrimSpace(anyString(task["workspace"]))
+	doc, err := quick.loadConfirmation(workspacePath)
+	if err != nil {
+		return nil, err
+	}
+	if err := requireQuickCheckpointExecutable(doc); err != nil {
+		return nil, err
+	}
+	itemID := strings.TrimSpace(firstNonEmpty(optionValue(args, "--item-id", ""), optionValue(args, "--item", "")))
+	if itemID == "" {
+		return nil, errors.New("source continuity quick lab requires --item-id Qn")
+	}
+	if _, ok := findQuickItem(doc, itemID); !ok {
+		return nil, fmt.Errorf("unknown quick work item %s", itemID)
+	}
+	continuity, ok := doc.Decision.UIConfirmation["source_continuity"].(map[string]any)
+	if !ok || strings.TrimSpace(anyString(continuity["applicability"])) != "required" {
+		return nil, errors.New("quick work item has no required source continuity contract")
+	}
+	if err := validateDesignSourceContinuity(continuity, "ui_confirmation.source_continuity", true); err != nil {
+		return nil, err
+	}
+	return &sourceContinuityQuickContext{
+		root: root, workspace: workspace, workspacePath: workspacePath, itemID: itemID,
+		confirmationPath: filepath.Join(workspacePath, quickConfirmationFileName), doc: doc,
+		continuity: continuity,
+	}, nil
+}
+
+func (service evidenceService) sourceContinuityQuickManifest(args []string, quickID string) Envelope {
+	context, err := service.sourceContinuityQuickContext(args, quickID)
+	if err != nil {
+		return evidenceUsageError(err.Error())
+	}
+	contractRaw, err := marshalReviewAcceptJSON(context.continuity)
+	if err != nil {
+		return evidenceBlockedError("source continuity contract cannot be canonicalized", err)
+	}
+	confirmationRef, err := filepath.Rel(context.root, context.confirmationPath)
+	if err != nil {
+		return evidenceBlockedError("quick confirmation path is invalid", err)
+	}
+	manifest := map[string]any{
+		"schema": sourceContinuityLabManifestSchema, "task_id": context.itemID,
+		"source_continuity_schema":      anyString(context.continuity["schema"]),
+		"source_continuity_sha256":      fileContentSHA256(contractRaw),
+		"source_continuity":             cloneJSONValue(context.continuity),
+		"required_adapter_capabilities": stringsToAny(sourceContinuityLabCapabilities),
+		"required_evidence":             stringsToAny(sourceContinuityLabEvidenceKinds),
+		"source": map[string]any{
+			"confirmation_ref":    filepath.ToSlash(confirmationRef),
+			"confirmation_sha256": optionalFileSHA256(context.confirmationPath),
+			"confirmation_digest": context.doc.ConfirmationDigest,
+			"quick_id":            quickID, "item_id": context.itemID,
+		},
+	}
+	rendered, err := marshalReviewAcceptJSON(manifest)
+	if err != nil {
+		return evidenceBlockedError("source continuity manifest cannot be rendered", err)
+	}
+	manifestRef := sourceContinuityLabQuickManifestRef(context.itemID)
+	canonicalPath := sourceContinuityLabCanonicalPath(context.root, context.workspacePath, manifestRef)
+	if err := validateQuickSourceContinuityLabArtifactOwner(canonicalPath); err != nil {
+		return evidenceBlockedError("quick source continuity manifest path is not owned by its specialized CLI", err)
+	}
+	manifestPath := filepath.Join(context.workspacePath, filepath.FromSlash(manifestRef))
+	receipt, err := applyFileTransaction(context.root, "quick-source-continuity-manifest", []fileTransactionUpdate{{Path: manifestPath, Content: rendered, Perm: 0o644}})
+	if err != nil {
+		return evidenceBlockedError("quick source continuity manifest could not be written atomically", err)
+	}
+	env := NewEnvelope("ok", "quick source continuity lab manifest materialized")
+	env.Data = map[string]any{
+		"quick_id": quickID, "item_id": context.itemID, "applicable": true, "status": "ready",
+		"manifest_ref": manifestRef, "manifest_sha256": fileContentSHA256(rendered),
+		"transaction_receipt_ref": receipt.ReceiptRef,
+	}
+	env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--path", canonicalPath, "--view", "summary", "--format", "json"}
+	return env
+}
+
+func (service evidenceService) sourceContinuityQuickValidate(args []string, quickID string, raw map[string]any) Envelope {
+	context, err := service.sourceContinuityQuickContext(args, quickID)
+	if err != nil {
+		return evidenceUsageError(err.Error())
+	}
+	manifestRef := filepath.ToSlash(strings.TrimSpace(optionValue(args, "--manifest", "")))
+	if manifestRef != sourceContinuityLabQuickManifestRef(context.itemID) {
+		return evidenceUsageError("quick source continuity manifest must be the canonical item-bound manifest")
+	}
+	manifestPath, err := secureFeatureRelativePath(context.workspacePath, manifestRef)
+	if err != nil {
+		return evidenceUsageError("quick source continuity manifest path is unsafe")
+	}
+	manifest, err := readImplementJSONMap(manifestPath)
+	if err != nil {
+		return evidenceBlockedError("quick source continuity manifest is unavailable", err)
+	}
+	diagnostics, metrics := validateSourceContinuityLabResult(context.itemID, manifest, optionalFileSHA256(manifestPath), raw)
+	source, sourceOK := manifest["source"].(map[string]any)
+	if !sourceOK || strings.TrimSpace(anyString(source["confirmation_sha256"])) != optionalFileSHA256(context.confirmationPath) || strings.TrimSpace(anyString(source["confirmation_digest"])) != context.doc.ConfirmationDigest {
+		diagnostics = append(diagnostics, "stale-manifest")
+	}
+	diagnostics = uniqueSourceContinuityLabDiagnostics(diagnostics)
+	if len(diagnostics) > 0 {
+		env := NewEnvelope("error", strings.Join(diagnostics, "; "))
+		env.Data = map[string]any{"quick_id": quickID, "item_id": context.itemID, "diagnostics": stringsToAny(diagnostics), "metrics": metrics}
+		return env
+	}
+	report := map[string]any{
+		"schema": sourceContinuityLabReportSchema, "task_id": context.itemID, "verdict": "passed",
+		"manifest_ref": manifestRef, "manifest_sha256": optionalFileSHA256(manifestPath),
+		"source_revision": anyString(raw["source_revision"]), "target_revision": anyString(raw["target_revision"]),
+		"adapter": cloneJSONValue(raw["adapter"]), "evidence_refs": cloneJSONValue(raw["evidence_refs"]),
+		"discovery": cloneJSONValue(raw["discovery"]), "surface_results": cloneJSONValue(raw["surface_results"]),
+		"action_results": cloneJSONValue(raw["action_results"]), "asset_results": cloneJSONValue(raw["asset_results"]),
+		"coverage": cloneJSONValue(context.continuity["coverage"]), "metrics": metrics, "reviewer": anyString(raw["reviewer"]),
+		"source": map[string]any{
+			"result_schema":       sourceContinuityLabResultSchema,
+			"confirmation_sha256": optionalFileSHA256(context.confirmationPath),
+			"confirmation_digest": context.doc.ConfirmationDigest,
+			"quick_id":            quickID, "item_id": context.itemID,
+		},
+	}
+	rendered, err := marshalReviewAcceptJSON(report)
+	if err != nil {
+		return evidenceBlockedError("quick source continuity lab report cannot be rendered", err)
+	}
+	reportRef := sourceContinuityLabQuickReportRef(context.itemID)
+	canonicalPath := sourceContinuityLabCanonicalPath(context.root, context.workspacePath, reportRef)
+	if err := validateQuickSourceContinuityLabArtifactOwner(canonicalPath); err != nil {
+		return evidenceBlockedError("quick source continuity report path is not owned by its specialized CLI", err)
+	}
+	reportPath := filepath.Join(context.workspacePath, filepath.FromSlash(reportRef))
+	receipt, err := applyFileTransaction(context.root, "quick-source-continuity-lab", []fileTransactionUpdate{{Path: reportPath, Content: rendered, Perm: 0o644}})
+	if err != nil {
+		return evidenceBlockedError("quick source continuity lab report could not be written atomically", err)
+	}
+	reportSHA := fileContentSHA256(rendered)
+	coverage, _ := context.continuity["coverage"].(map[string]any)
+	env := NewEnvelope("ok", "quick source continuity lab report materialized")
+	env.Data = map[string]any{
+		"quick_id": quickID, "item_id": context.itemID, "report_ref": reportRef, "report_sha256": reportSHA,
+		"metrics": metrics, "transaction_receipt_ref": receipt.ReceiptRef,
+		"ui_verification_patch": map[string]any{
+			"source_continuity_lab_report_ref": reportRef, "source_continuity_lab_report_sha256": reportSHA,
+			"covered_source_continuity_surface_ids":     cloneJSONValue(coverage["surface_ids"]),
+			"covered_source_continuity_interaction_ids": cloneJSONValue(coverage["interaction_ids"]),
+			"covered_source_continuity_component_ids":   cloneJSONValue(coverage["component_ids"]),
+		},
+	}
+	env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--path", canonicalPath, "--view", "summary", "--format", "json"}
 	return env
 }
 
@@ -499,6 +688,14 @@ func sourceContinuityLabReportRef(taskID string) string {
 	return "implementation-review/source-continuity/source-continuity-lab-" + taskID + ".json"
 }
 
+func sourceContinuityLabQuickManifestRef(itemID string) string {
+	return "source-continuity/source-continuity-manifest-" + itemID + ".json"
+}
+
+func sourceContinuityLabQuickReportRef(itemID string) string {
+	return "source-continuity/source-continuity-lab-" + itemID + ".json"
+}
+
 func sourceContinuityLabCanonicalPath(root, feature, ref string) string {
 	relative, err := filepath.Rel(root, filepath.Join(feature, filepath.FromSlash(ref)))
 	if err != nil {
@@ -512,6 +709,82 @@ func validateSourceContinuityLabArtifactOwner(canonicalPath string) error {
 	wantOwner := "specify-runtime evidence source-continuity-manifest / source-continuity-validate"
 	if !ok || metadata.TypeID != "feature-source-continuity-lab" || metadata.Owner != wantOwner {
 		return errors.New(canonicalPath)
+	}
+	return nil
+}
+
+func validateQuickSourceContinuityLabArtifactOwner(canonicalPath string) error {
+	metadata, ok := LookupArtifactType(canonicalPath)
+	wantOwner := "specify-runtime evidence source-continuity-manifest / source-continuity-validate"
+	if !ok || metadata.TypeID != "quick-source-continuity-lab" || metadata.Owner != wantOwner {
+		return errors.New(canonicalPath)
+	}
+	return nil
+}
+
+func validatePersistedQuickSourceContinuityLabReport(workspacePath string, doc *quickConfirmationDoc, itemID, reportRef, reportSHA256 string) error {
+	if reportRef != sourceContinuityLabQuickReportRef(itemID) {
+		return errors.New("source continuity lab report must use the runtime-owned canonical quick item path")
+	}
+	reportPath, err := secureFeatureRelativePath(workspacePath, reportRef)
+	if err != nil {
+		return errors.New("source continuity lab report path is unsafe")
+	}
+	reportRaw, err := os.ReadFile(reportPath)
+	if err != nil || taskControlSHA256(reportRaw) != reportSHA256 {
+		return errors.New("source continuity lab report SHA-256 must bind the report")
+	}
+	var report map[string]any
+	if err := json.Unmarshal(reportRaw, &report); err != nil {
+		return errors.New("source continuity lab report must contain a JSON object")
+	}
+	if report["schema"] != sourceContinuityLabReportSchema || anyString(report["task_id"]) != itemID || strings.ToLower(strings.TrimSpace(anyString(report["verdict"]))) != "passed" {
+		return errors.New("source continuity lab report identity or verdict is invalid")
+	}
+	manifestRef := filepath.ToSlash(strings.TrimSpace(anyString(report["manifest_ref"])))
+	if manifestRef != sourceContinuityLabQuickManifestRef(itemID) {
+		return errors.New("source continuity lab report must bind the runtime-owned quick manifest")
+	}
+	manifestPath, err := secureFeatureRelativePath(workspacePath, manifestRef)
+	if err != nil {
+		return errors.New("source continuity lab manifest path is unsafe")
+	}
+	manifestRaw, err := os.ReadFile(manifestPath)
+	if err != nil || taskControlSHA256(manifestRaw) != anyString(report["manifest_sha256"]) {
+		return errors.New("source continuity lab report manifest SHA-256 must bind the manifest")
+	}
+	var manifest map[string]any
+	if err := json.Unmarshal(manifestRaw, &manifest); err != nil {
+		return errors.New("source continuity lab manifest must contain a JSON object")
+	}
+	continuity, _ := doc.Decision.UIConfirmation["source_continuity"].(map[string]any)
+	if !reflect.DeepEqual(manifest["source_continuity"], continuity) {
+		return errors.New("source continuity lab manifest contract binding is stale")
+	}
+	confirmationPath := filepath.Join(workspacePath, quickConfirmationFileName)
+	manifestSource, _ := manifest["source"].(map[string]any)
+	reportSource, _ := report["source"].(map[string]any)
+	validationInput := map[string]any{
+		"schema": reportSource["result_schema"], "manifest_sha256": report["manifest_sha256"],
+		"source_revision": report["source_revision"], "target_revision": report["target_revision"],
+		"adapter": report["adapter"], "evidence_refs": report["evidence_refs"], "discovery": report["discovery"],
+		"surface_results": report["surface_results"], "action_results": report["action_results"], "asset_results": report["asset_results"],
+		"verdict": report["verdict"], "reviewer": report["reviewer"],
+	}
+	diagnostics, metrics := validateSourceContinuityLabResult(itemID, manifest, taskControlSHA256(manifestRaw), validationInput)
+	confirmationSHA := optionalFileSHA256(confirmationPath)
+	if anyString(manifestSource["confirmation_sha256"]) != confirmationSHA || anyString(manifestSource["confirmation_digest"]) != doc.ConfirmationDigest || anyString(reportSource["confirmation_sha256"]) != confirmationSHA || anyString(reportSource["confirmation_digest"]) != doc.ConfirmationDigest {
+		diagnostics = append(diagnostics, "stale-manifest")
+	}
+	if !reflect.DeepEqual(report["metrics"], metrics) {
+		diagnostics = append(diagnostics, "metrics-mismatch")
+	}
+	if !reflect.DeepEqual(report["coverage"], continuity["coverage"]) {
+		diagnostics = append(diagnostics, "coverage-mismatch")
+	}
+	diagnostics = uniqueSourceContinuityLabDiagnostics(diagnostics)
+	if len(diagnostics) > 0 {
+		return fmt.Errorf("source continuity lab report is invalid: %s", strings.Join(diagnostics, ", "))
 	}
 	return nil
 }

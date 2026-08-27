@@ -190,6 +190,11 @@ func TestSourceContinuityLabSupportsQuickWorkItemsAndBlocksUnprovenAcceptance(t 
 	}
 	mustWriteQuickWorkerResult(t, workspace, "Q1", map[string]any{
 		"task_id": "Q1", "status": "success", "summary": "implemented source-grounded UI",
+		"ui_verification": map[string]any{
+			"covered_source_continuity_surface_ids":     []any{"DH-SURFACE-MAIN-001", "DH-SURFACE-DEEP-001"},
+			"covered_source_continuity_interaction_ids": []any{"DH-INT-OPEN-DEEP-001", "DH-INT-EXPORT-001", "DH-INT-SHORTCUT-001"},
+			"covered_source_continuity_component_ids":   []any{"DH-COMP-EXPORT-ICON-001"},
+		},
 	})
 	env = runScriptDomainEnvelope(t, runQuick, []string{
 		"--project-root", root, "item-accept", quickID, "--item", "Q1", "--evidence", "target runs",

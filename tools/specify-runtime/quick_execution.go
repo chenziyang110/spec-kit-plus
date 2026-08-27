@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -471,6 +472,9 @@ func requireQuickWorkerAcceptProof(workspacePath, workspace, itemID string, item
 		if err != nil {
 			return nil, fmt.Errorf("worker_result_required: %w", err)
 		}
+		if err := validateQuickSourceContinuityAcceptance(workspacePath, itemID, doc, nil); err != nil {
+			return nil, fmt.Errorf("worker_result_required: %w", err)
+		}
 		return &quickWorkerAcceptProof{
 			Mode:         "leader-inline",
 			InlineReason: normalizedReason,
@@ -499,6 +503,9 @@ func requireQuickWorkerAcceptProof(workspacePath, workspace, itemID string, item
 	if err := ensureQuickWorkerResultUnused(doc, itemID, rel, laneID); err != nil {
 		return nil, fmt.Errorf("worker_result_required: %w", err)
 	}
+	if err := validateQuickSourceContinuityAcceptance(workspacePath, itemID, doc, result); err != nil {
+		return nil, fmt.Errorf("worker_result_required: %w", err)
+	}
 	return &quickWorkerAcceptProof{
 		Mode:         "worker",
 		LaneID:       laneID,
@@ -506,6 +513,45 @@ func requireQuickWorkerAcceptProof(workspacePath, workspace, itemID string, item
 		ResultStatus: status,
 		ChangedFiles: changed,
 	}, nil
+}
+
+func validateQuickSourceContinuityAcceptance(workspacePath, itemID string, doc *quickConfirmationDoc, result map[string]any) error {
+	continuity, ok := doc.Decision.UIConfirmation["source_continuity"].(map[string]any)
+	if !ok || strings.TrimSpace(anyString(continuity["applicability"])) != "required" {
+		return nil
+	}
+	coverage, _ := continuity["coverage"].(map[string]any)
+	reportRef := sourceContinuityLabQuickReportRef(itemID)
+	reportPath, pathErr := secureFeatureRelativePath(workspacePath, reportRef)
+	reportSHA := ""
+	if pathErr == nil {
+		reportSHA = optionalFileSHA256(reportPath)
+	}
+	if result != nil {
+		verification, ok := result["ui_verification"].(map[string]any)
+		if !ok {
+			return errors.New("source continuity lab report requires ui_verification")
+		}
+		for _, item := range []struct {
+			contractField     string
+			verificationField string
+			label             string
+		}{
+			{"surface_ids", "covered_source_continuity_surface_ids", "surface"},
+			{"interaction_ids", "covered_source_continuity_interaction_ids", "interaction"},
+			{"component_ids", "covered_source_continuity_component_ids", "component"},
+		} {
+			if !sourceContinuityLabExactIDs(anyStringSlice(verification[item.verificationField]), anyStringSlice(coverage[item.contractField])) {
+				return fmt.Errorf("source continuity %s coverage must exactly cover the quick contract", item.label)
+			}
+		}
+		reportRef = filepath.ToSlash(strings.TrimSpace(anyString(verification["source_continuity_lab_report_ref"])))
+		reportSHA = strings.TrimSpace(anyString(verification["source_continuity_lab_report_sha256"]))
+	}
+	if reportRef == "" || reportSHA == "" {
+		return errors.New("source continuity lab report ref and SHA-256 digest are required")
+	}
+	return validatePersistedQuickSourceContinuityLabReport(workspacePath, doc, itemID, reportRef, reportSHA)
 }
 
 func normalizeQuickInlineReason(reason string) (string, error) {

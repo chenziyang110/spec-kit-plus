@@ -310,6 +310,12 @@ var artifactTypePatterns = []artifactTypePattern{
 		},
 	},
 	{
+		metadata: ArtifactTypeMetadata{TypeID: "quick-source-continuity-lab", Owner: "specify-runtime evidence source-continuity-manifest / source-continuity-validate", Role: "canonical", Schema: "json/source-continuity-lab", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".planning/quick/") && strings.Contains(path, "/source-continuity/") && strings.HasSuffix(path, ".json")
+		},
+	},
+	{
 		metadata: ArtifactTypeMetadata{TypeID: "quick-index", Owner: "specify-runtime quick", Role: "derived", Schema: "json/quick-index", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
 		match: func(path string) bool {
 			return path == ".planning/quick/index.json"
