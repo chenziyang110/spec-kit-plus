@@ -91,3 +91,36 @@ func TestAPIPublishesSourceContinuityAdapterCatalogAndProbe(t *testing.T) {
 		}
 	}
 }
+
+func TestAPIPublishesToolInventoryBridgeAndAdapterExecution(t *testing.T) {
+	for _, capabilityID := range []string{
+		"evidence.source-continuity-adapter-bridge",
+		"evidence.source-continuity-adapter-execution",
+	} {
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"api", "show", capabilityID, "--format", "json"}, &stdout, &stderr, "test")
+		if code != 0 {
+			t.Fatalf("api show %s exit=%d stdout=%s stderr=%s", capabilityID, code, stdout.String(), stderr.String())
+		}
+		capability := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "capability")
+		for _, field := range []string{"usage", "side_effect", "input_contract"} {
+			if value, ok := capability[field].(string); !ok || strings.TrimSpace(value) == "" {
+				t.Fatalf("%s capability.%s = %#v", capabilityID, field, capability[field])
+			}
+		}
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "schema", "source-continuity-tool-inventory-input", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api schema tool inventory exit=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	schema := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "schema")
+	tools := requireObject(t, requireObject(t, schema, "properties"), "tools")
+	itemProperties := requireObject(t, requireObject(t, tools, "items"), "properties")
+	for _, forbidden := range []string{"provider_ids", "actions", "capabilities", "evidence_kinds", "write_policy", "network_policy", "command", "argv", "env"} {
+		if _, exists := itemProperties[forbidden]; exists {
+			t.Fatalf("tool inventory must not author runtime-owned field %q", forbidden)
+		}
+	}
+}
