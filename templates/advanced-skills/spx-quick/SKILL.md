@@ -304,10 +304,12 @@ real entrypoints when available and separately prove visual fidelity plus each
 promised `business_outcome` and `final_state`. If the source cannot run, use the
 strongest remaining authority and explicitly withhold the parity claim.
 
-Before `item-accept` for each applicable Q item, generate the confirmed
-denominator with `source-continuity-manifest`, inspect the live tool inventory,
-then call `source-continuity-adapter-bridge` with the exact Quick selectors and
-manifest. It maps signals through `source-continuity-adapter-catalog` and owns
+Before `item-accept` for each applicable Q item, call `specify-runtime evidence
+source-continuity-manifest --quick-id <quick-id> --item-id Qn --format json`
+to materialize the runtime-owned confirmed denominator, inspect the live tool
+inventory, then call `source-continuity-adapter-bridge` with the exact Quick
+selectors and manifest. It maps signals through
+`source-continuity-adapter-catalog` and owns
 inventory, Probe, and Plan. `source-continuity-adapter-probe` and
 `source-continuity-adapter-plan` are progressively lower-level fallbacks.
 Compile `source-continuity-adapter-execution` from the plan ref/SHA and execute
