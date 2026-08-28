@@ -62,7 +62,10 @@ func (service evidenceService) sourceContinuityAdapterBridge(args []string, raw 
 		route,
 		registrySHA,
 		[]fileTransactionUpdate{{Path: inventoryPath, Content: inventoryRendered, Perm: 0o644}},
-		map[string]any{"tool_inventory_ref": inventoryRef, "tool_inventory_sha256": inventorySHA},
+		map[string]any{
+			"tool_inventory_ref": inventoryRef, "tool_inventory_sha256": inventorySHA,
+			"visual_capabilities": cloneJSONValue(inventory["visual_capabilities"]),
+		},
 	)
 }
 

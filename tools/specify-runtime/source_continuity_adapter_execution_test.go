@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -35,6 +36,9 @@ func TestSourceContinuityToolInventoryBridgeMaterializesRegistryPlan(t *testing.
 	visual := requireObjectValue(t, inventory["visual_capabilities"])
 	if visual["image_generation"] != "available" || visual["image_inspection"] != "available" || visual["image_editing"] != "unavailable" {
 		t.Fatalf("visual capabilities = %#v", visual)
+	}
+	if !reflect.DeepEqual(env.Data["visual_capabilities"], visual) {
+		t.Fatalf("bridge response visual capabilities = %#v, want %#v", env.Data["visual_capabilities"], visual)
 	}
 	probePath := filepath.Join(feature, filepath.FromSlash(anyString(env.Data["adapter_probe_ref"])))
 	probe := readImplementJSONFile(t, probePath)
