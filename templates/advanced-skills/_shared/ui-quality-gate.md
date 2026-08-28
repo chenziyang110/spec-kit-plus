@@ -111,21 +111,22 @@ subset cannot close a larger discovered scope.
 Executable delivery proves this contract through Source Continuity Lab. For a
 formal task run `specify-runtime evidence source-continuity-manifest
 --feature-dir <feature-dir> --task-id <Txxx>`; for Quick use `--quick-id
-<quick-id> --item-id Qn`. Read the embedded provider packs with
-`specify-runtime evidence source-continuity-adapter-catalog`, then declare only
-the observed provider IDs, symbolic tool refs, roles, execution mode, and
-availability to `specify-runtime evidence source-continuity-adapter-probe`.
-The runtime owns capabilities, actions, evidence kinds, write/network policy,
-deterministic ten-lane routing, recovery gaps, the probe report, and the Plan.
-Use `source-continuity-adapter-plan` only as an explicit fallback for a verified
-tool the registry cannot yet express; it retains the same bounded action space.
+<quick-id> --item-id Qn`. Inspect the live session tool inventory and pass only
+tool refs, generic signals, roles, execution mode, and availability to
+`source-continuity-adapter-bridge`. The Bridge maps signals through
+`source-continuity-adapter-catalog` and owns inventory, Probe, and Plan.
+`source-continuity-adapter-probe` and `source-continuity-adapter-plan` remain
+progressively lower-level fallbacks. Compile the exact Plan through
+`source-continuity-adapter-execution`; execute only its packet actions, targets,
+evidence requirements, permissions, preconditions, and stop conditions.
 Evidence records use provenance `adapter:<adapter_id>`; each
 observation row names its adapter and binds the returned plan ref/digest plus
 composite adapter. After independent source/target discovery and matched
 execution, submit observations through `specify-runtime evidence
 source-continuity-validate` with `--manifest <manifest-ref> --adapter-plan
-<adapter-plan-ref>`. Carry the returned exact coverage,
+<adapter-plan-ref> --adapter-execution <adapter-execution-ref>`. Carry the returned exact coverage,
 `source_continuity_adapter_plan_ref`/SHA-256 and
+`source_continuity_adapter_execution_ref`/SHA-256 and
 `source_continuity_lab_report_ref`/SHA-256 into `ui_verification`. The
 runtime-owned report, not the Agent-authored coverage list, owns the PASS claim.
 

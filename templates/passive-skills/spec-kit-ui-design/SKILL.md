@@ -184,17 +184,20 @@ implement/review require system model + anti-slop + visual validation loop.
 - Prove executable delivery with Source Continuity Lab. Formal tasks call
   `specify-runtime evidence source-continuity-manifest --feature-dir
   <feature-dir> --task-id <Txxx>`; Quick calls it with `--quick-id <quick-id>
-  --item-id Qn`. Read the technology-neutral provider packs with
-  `specify-runtime evidence source-continuity-adapter-catalog`, then pass only
-  observed tool bindings to `specify-runtime evidence
-  source-continuity-adapter-probe`; the runtime owns capabilities, bounded
-  actions, permissions, evidence kinds, ten-lane selection, gaps, probe report,
-  and Plan. Use `source-continuity-adapter-plan` only as an explicit fallback
-  for a verified tool the registry cannot express. Bind every
+  --item-id Qn`. Inspect the live inventory and pass only tool refs, generic
+  signals, roles, execution mode, and availability to
+  `source-continuity-adapter-bridge`. It maps through
+  `source-continuity-adapter-catalog`; `source-continuity-adapter-probe` and
+  `source-continuity-adapter-plan` remain lower-level fallbacks. Compile
+  `source-continuity-adapter-execution` and execute only its bounded packets,
+  binding targets, evidence requirements, permissions, preconditions, and stop
+  conditions. Bind every
   evidence record/row to `adapter:<adapter_id>` and the returned plan, then
   submit independent source/target observations through `specify-runtime
-  evidence source-continuity-validate --adapter-plan <adapter-plan-ref>`.
+  evidence source-continuity-validate --adapter-plan <adapter-plan-ref>
+  --adapter-execution <adapter-execution-ref>`.
   Bind exact coverage, `source_continuity_adapter_plan_ref`/SHA-256 and
+  `source_continuity_adapter_execution_ref`/SHA-256 and
   `source_continuity_lab_report_ref`/SHA-256 in `ui_verification`. The
   runtime-owned report, not self-declared coverage or screenshots, owns PASS.
 - `sp-design` remains design-only: it may discover and approve the continuity

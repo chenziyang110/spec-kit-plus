@@ -193,22 +193,23 @@ task-index digest, typed evidence triad, complete scenario set, and performance
 budgets, so never handwrite or reduce the report. For a passing comparison, call
 `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json` with only the observed entrypoint/revision, typed evidence refs, matrix differences, explicit verdict, and reviewer. The runtime derives the approved preview/manifest/handoff bindings, exact `DS-*`/`DH-*` coverage, tolerance, deviations, canonical report, and byte digest from the task contract. Never read the stable template or author/patch the report. Record behavior checks separately from
 visual/interaction acceptance. When `source_continuity.applicability: required`,
-run `specify-runtime evidence source-continuity-manifest --feature-dir
-<feature-dir> --task-id <Txxx>`, read `specify-runtime evidence
-source-continuity-adapter-catalog`, then pass only observed tool bindings to
-`specify-runtime evidence source-continuity-adapter-probe --feature-dir
-<feature-dir> --task-id <Txxx> --manifest <manifest-ref> --input-json
-'<available-tool-bindings>'`. The runtime owns capabilities, bounded actions,
-permissions, typed evidence, deterministic ten-lane selection, probe report,
-and Plan. Use `source-continuity-adapter-plan` only as an explicit fallback for
-a verified tool the registry cannot express. Register
+run `source-continuity-manifest`, inspect the current tool inventory, then call
+`source-continuity-adapter-bridge` with the exact Formal selectors and manifest.
+It maps signals through `source-continuity-adapter-catalog` and owns inventory,
+Probe, and Plan. `source-continuity-adapter-probe` and
+`source-continuity-adapter-plan` remain progressively lower-level fallbacks.
+Compile `source-continuity-adapter-execution` from the returned plan ref/SHA,
+then execute only its bounded per-adapter packets, business binding targets,
+evidence requirements, permissions, preconditions, and stop conditions. Register
 captures with provenance `adapter:<adapter_id>`, bind each evidence row and the
 observation to the returned plan, then submit observations through
 `specify-runtime evidence
 source-continuity-validate --feature-dir <feature-dir> --task-id <Txxx>
---manifest <manifest-ref> --adapter-plan <adapter-plan-ref> --input-json
+--manifest <manifest-ref> --adapter-plan <adapter-plan-ref>
+--adapter-execution <adapter-execution-ref> --input-json
 '<observed-result-json>'`. Bind the exact three-axis coverage,
 `source_continuity_adapter_plan_ref`/SHA-256 and
+`source_continuity_adapter_execution_ref`/SHA-256 and
 `source_continuity_lab_report_ref`/SHA-256 in
 `ui_verification`; unbound discovery candidates, dead actions, outcome drift,
 stale manifests, and character-substituted assets block acceptance. Missing or bootstrap design sources hand off to

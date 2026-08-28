@@ -305,21 +305,21 @@ promised `business_outcome` and `final_state`. If the source cannot run, use the
 strongest remaining authority and explicitly withhold the parity claim.
 
 Before `item-accept` for each applicable Q item, generate the confirmed
-denominator with `specify-runtime evidence source-continuity-manifest --quick-id
-<quick-id> --item-id Qn`, read `specify-runtime evidence
-source-continuity-adapter-catalog`, then pass only observed tool bindings to
-`specify-runtime evidence source-continuity-adapter-probe --quick-id <quick-id>
---item-id Qn --manifest <manifest-ref> --input-json
-'<available-tool-bindings>'`. The runtime owns provider capabilities, bounded
-actions, permissions, evidence kinds, deterministic ten-lane selection, probe
-report, and Plan. Use `source-continuity-adapter-plan` only as an explicit
-fallback for a verified tool the registry cannot express. Register each capture
+denominator with `source-continuity-manifest`, inspect the live tool inventory,
+then call `source-continuity-adapter-bridge` with the exact Quick selectors and
+manifest. It maps signals through `source-continuity-adapter-catalog` and owns
+inventory, Probe, and Plan. `source-continuity-adapter-probe` and
+`source-continuity-adapter-plan` are progressively lower-level fallbacks.
+Compile `source-continuity-adapter-execution` from the plan ref/SHA and execute
+only its bounded packets, evidence requirements, permissions, and stop
+conditions. Register each capture
 with provenance `adapter:<adapter_id>`, bind its row and observation to the
 returned plan, then submit observations through `specify-runtime evidence
 source-continuity-validate --quick-id <quick-id> --item-id Qn --manifest
-<manifest-ref> --adapter-plan <adapter-plan-ref> --input-json
-'<observed-result-json>'`. Return the exact coverage,
+<manifest-ref> --adapter-plan <adapter-plan-ref> --adapter-execution
+<adapter-execution-ref> --input-json '<observed-result-json>'`. Return the exact coverage,
 `source_continuity_adapter_plan_ref`/SHA-256 and
+`source_continuity_adapter_execution_ref`/SHA-256 and
 `source_continuity_lab_report_ref`/SHA-256 in `ui_verification`; Quick
 acceptance revalidates them against the current digest-protected confirmation decision.
 

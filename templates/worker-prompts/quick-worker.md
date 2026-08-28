@@ -57,20 +57,21 @@ Use this template when the quick-task leader dispatches a bounded execution lane
   the affected claim rather than guessing beyond the confirmed packet.
 - Before returning success for a source-continuity Q item, run
   `specify-runtime evidence source-continuity-manifest --quick-id <quick-id>
-  --item-id Qn`, read `specify-runtime evidence
-  source-continuity-adapter-catalog`, then pass only observed tool bindings to
-  `specify-runtime evidence source-continuity-adapter-probe --quick-id
-  <quick-id> --item-id Qn --manifest <manifest-ref> --input-json
-  '<available-tool-bindings>'`. The runtime owns capabilities, actions,
-  permissions, evidence kinds, ten-lane selection, probe report, and Plan. Use
-  `source-continuity-adapter-plan` only as an explicit fallback for a verified
-  tool the registry cannot express. Register captures with
+  --item-id Qn`, inspect the live tool inventory, and call
+  `source-continuity-adapter-bridge`. It maps signals through
+  `source-continuity-adapter-catalog`; `source-continuity-adapter-probe` and
+  `source-continuity-adapter-plan` remain lower-level fallbacks. Compile
+  `source-continuity-adapter-execution` from the exact Plan and execute only its
+  packet actions, targets, evidence, permissions, preconditions, and stop
+  conditions. Register captures with
   provenance `adapter:<adapter_id>`, bind evidence rows and the observation to
   the returned plan, and submit them with `specify-runtime evidence
   source-continuity-validate --quick-id <quick-id> --item-id Qn --manifest
-  <manifest-ref> --adapter-plan <adapter-plan-ref> --input-json
+  <manifest-ref> --adapter-plan <adapter-plan-ref> --adapter-execution
+  <adapter-execution-ref> --input-json
   '<observed-result-json>'`. Include the returned exact coverage,
   `source_continuity_adapter_plan_ref`/SHA-256 and
+  `source_continuity_adapter_execution_ref`/SHA-256 and
   `source_continuity_lab_report_ref`/SHA-256 under `ui_verification`;
   `item-accept` rejects stale, incomplete, or handwritten proof.
 - If this lane is a bug fix, do not hide the symptom with a surface-only or symptom-only change when the root cause is still unknown. Return a blocker or a narrower diagnostic split and route the investigation toward `/sp-debug`.

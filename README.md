@@ -744,17 +744,19 @@ when the `classic` profile is selected.
   proof: `evidence source-continuity-manifest` derives the immutable denominator
   for a formal task or Quick Q item. `evidence
   source-continuity-adapter-catalog` exposes the embedded generic provider
-  packs, and `evidence source-continuity-adapter-probe` accepts only observed
-  tool bindings while the runtime owns capabilities, bounded actions,
-  permissions, evidence kinds, deterministic ten-lane routing, recoverable
-  gaps, the probe report, and the Plan. Explicit `evidence
-  source-continuity-adapter-plan` is a compatibility fallback only for verified
-  tools the registry cannot express. Both paths reject platform scripts,
+  packs. `evidence source-continuity-adapter-bridge` accepts the live session's
+  tool refs and generic signals, derives truthful image capability availability,
+  maps signals to providers, and atomically owns inventory, Probe, and Plan.
+  Lower-level `source-continuity-adapter-probe` and explicit
+  `source-continuity-adapter-plan` remain fallbacks. `evidence
+  source-continuity-adapter-execution` compiles the Plan into per-provider
+  packets containing only bounded actions, business binding targets, typed
+  evidence, permissions, preconditions, and stop conditions. All paths reject platform scripts,
   command/argv/env/install fields, uncovered lanes, and unresolved gaps.
   Evidence records and rows bind exact `adapter_id`
   provenance, and `evidence source-continuity-validate` verifies those bindings
   before atomically publishing a hashed report. Formal task acceptance and Quick
-  `item-accept` revalidate the plan and report digests, exact three-axis coverage,
+  `item-accept` revalidate the inventory/probe/plan/execution/report chain, exact three-axis coverage,
   current task-index or confirmation digest, business outcomes/side effects/
   final states, evidence types, and asset fidelity.
 

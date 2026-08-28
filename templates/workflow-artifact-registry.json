@@ -369,9 +369,9 @@
     {
       "id": "source_continuity_lab",
       "path_patterns": ["**/implementation-review/source-continuity/source-continuity-manifest-*.json", "**/implementation-review/source-continuity/source-continuity-lab-*.json", ".planning/quick/**/source-continuity/source-continuity-manifest-*.json", ".planning/quick/**/source-continuity/source-continuity-lab-*.json"],
-      "owner_cli": ["specify-runtime evidence source-continuity-manifest", "specify-runtime evidence source-continuity-adapter-probe", "specify-runtime evidence source-continuity-adapter-plan", "specify-runtime evidence source-continuity-validate", "specify-runtime artifact show", "specify-runtime artifact list"],
-      "path_hints": ["source-continuity-manifest", "source-continuity-adapter-probe", "source-continuity-adapter-plan", "source-continuity-lab", "source_continuity_adapter_plan_ref", "source_continuity_lab_report_ref", "source continuity lab report"],
-      "safe_instruction_patterns": ["evidence source-continuity-adapter-catalog", "evidence source-continuity-manifest", "evidence source-continuity-adapter-probe", "evidence source-continuity-adapter-plan", "evidence source-continuity-validate", "artifact show", "artifact list", "runtime derives", "runtime-owned", "cli-owned"]
+      "owner_cli": ["specify-runtime evidence source-continuity-manifest", "specify-runtime evidence source-continuity-adapter-bridge", "specify-runtime evidence source-continuity-adapter-probe", "specify-runtime evidence source-continuity-adapter-plan", "specify-runtime evidence source-continuity-adapter-execution", "specify-runtime evidence source-continuity-validate", "specify-runtime artifact show", "specify-runtime artifact list"],
+      "path_hints": ["source-continuity-manifest", "source-continuity-tool-inventory", "source-continuity-adapter-probe", "source-continuity-adapter-plan", "source-continuity-adapter-execution", "source-continuity-lab", "source_continuity_adapter_plan_ref", "source_continuity_adapter_execution_ref", "source_continuity_lab_report_ref", "source continuity lab report"],
+      "safe_instruction_patterns": ["evidence source-continuity-adapter-catalog", "evidence source-continuity-manifest", "evidence source-continuity-adapter-bridge", "evidence source-continuity-adapter-probe", "evidence source-continuity-adapter-plan", "evidence source-continuity-adapter-execution", "evidence source-continuity-validate", "artifact show", "artifact list", "runtime derives", "runtime-owned", "cli-owned"]
     },
     {
       "id": "review_state",

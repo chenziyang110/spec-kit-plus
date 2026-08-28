@@ -95,21 +95,22 @@ Use this template when the leader dispatches a concrete implementation lane for 
   Never handwrite or shorten the runtime-owned manifest/report.
 - When `source_continuity.applicability` is `required`, use
   `specify-runtime evidence source-continuity-manifest --feature-dir
-  <feature-dir> --task-id <Txxx>`, read `specify-runtime evidence
-  source-continuity-adapter-catalog`, then pass only observed tool bindings to
-  `specify-runtime evidence source-continuity-adapter-probe --feature-dir
-  <feature-dir> --task-id <Txxx> --manifest <manifest-ref> --input-json
-  '<available-tool-bindings>'`. The runtime owns capabilities, actions,
-  permissions, evidence kinds, ten-lane selection, probe report, and Plan. Use
-  `source-continuity-adapter-plan` only as an explicit fallback for a verified
-  tool the registry cannot express. Register evidence
+  <feature-dir> --task-id <Txxx>`, inspect the live tool inventory, and call
+  `source-continuity-adapter-bridge`. It maps signals through
+  `source-continuity-adapter-catalog`; `source-continuity-adapter-probe` and
+  `source-continuity-adapter-plan` remain lower-level fallbacks. Compile
+  `source-continuity-adapter-execution` from the exact Plan and execute only its
+  per-adapter actions, targets, evidence, permissions, preconditions, and stop
+  conditions. Register evidence
   with provenance `adapter:<adapter_id>`, bind each observation row to its
   adapter and the returned plan, then call `specify-runtime evidence
   source-continuity-validate
   --feature-dir <feature-dir> --task-id <Txxx> --manifest <manifest-ref>
-  --adapter-plan <adapter-plan-ref> --input-json '<observed-result-json>'`.
+  --adapter-plan <adapter-plan-ref> --adapter-execution
+  <adapter-execution-ref> --input-json '<observed-result-json>'`.
   Return exact three-axis coverage, `source_continuity_adapter_plan_ref`/
-  SHA-256 and `source_continuity_lab_report_ref`/SHA-256 in `ui_verification`. A dead
+  SHA-256, `source_continuity_adapter_execution_ref`/SHA-256, and
+  `source_continuity_lab_report_ref`/SHA-256 in `ui_verification`. A dead
   action, unbound source candidate, side-effect/final-state mismatch, asset
   fidelity failure, or character substitution is BLOCKED, not DONE.
 - When the Leader performs a passing comparison, return compact observed matrix differences and typed evidence refs for `specify-runtime evidence visual-compare`; do not read the stable template or author the report. The runtime derives approved bindings, exact decision/contract coverage, tolerance, deviations, path, and digest from the task contract. A screenshot path without this CLI-owned comparison record is not a fidelity pass.

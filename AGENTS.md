@@ -305,6 +305,12 @@ present in a test project.
   `unresolved_gaps` blocks ready Design, Quick, task, worker, or Review claims.
   Quick may perform a bounded read-only continuity preflight before its Decision
   Checkpoint, then digest-binds and packetizes the same contract.
+  Executable continuity routes the live session inventory through the runtime-owned
+  adapter Bridge, embedded provider catalog, Probe, and Plan, then compiles one
+  bounded execution packet per selected adapter. Observations, Lab reports,
+  Formal acceptance, and Quick `item-accept` bind the exact inventory/probe/plan/
+  execution chain; no packet may contain command, argv, env, script, or install
+  fields.
 - The single current UI contract separates work type, surface type, and platform. It preserves
   subject, audience, single job, visual/content/interaction theses, a signature
   element, an inspectable approved visual reference, per-reference use intent,

@@ -61,22 +61,25 @@ verdicts. If the source cannot run, use the strongest remaining inspectable
 
 For every task whose `source_continuity.applicability` is `required`, generate
 the task-bound denominator with `specify-runtime evidence
-source-continuity-manifest --feature-dir <feature-dir> --task-id <Txxx>`, read
-`specify-runtime evidence source-continuity-adapter-catalog --format json`, and
-submit only observed tool bindings to `specify-runtime evidence
-source-continuity-adapter-probe --feature-dir <feature-dir> --task-id <Txxx>
---manifest <manifest-ref> --input-json '<available-tool-bindings>'`. The runtime
-owns provider capabilities, bounded actions, permissions, evidence kinds,
-deterministic ten-lane selection, the probe report, and the Plan. The explicit
-`source-continuity-adapter-plan` command is only a compatibility fallback for a
-verified tool the registry cannot represent. Evidence records use provenance
+source-continuity-manifest --feature-dir <feature-dir> --task-id <Txxx>`, inspect
+the live inventory, and call `specify-runtime evidence
+source-continuity-adapter-bridge --feature-dir <feature-dir> --task-id <Txxx>
+--manifest <manifest-ref> --input-json '<live-tool-inventory>'`. It maps signals
+through `source-continuity-adapter-catalog` and owns inventory, Probe, and Plan.
+`source-continuity-adapter-probe` and then `source-continuity-adapter-plan` are
+only progressively lower-level fallbacks. Compile
+`source-continuity-adapter-execution` from the exact plan ref/SHA and execute
+only its bounded packets, evidence requirements, permissions, and stop
+conditions. Evidence records use provenance
 `adapter:<adapter_id>` and observation rows name that adapter. Submit matched
 source/target observations with `specify-runtime evidence
 source-continuity-validate --feature-dir <feature-dir> --task-id <Txxx>
---manifest <manifest-ref> --adapter-plan <adapter-plan-ref> --input-json
+--manifest <manifest-ref> --adapter-plan <adapter-plan-ref>
+--adapter-execution <adapter-execution-ref> --input-json
 '<observed-result-json>'`. Review may claim behavioral continuity only when
 `ui_verification` binds the returned exact coverage,
 `source_continuity_adapter_plan_ref`/SHA-256 and
+`source_continuity_adapter_execution_ref`/SHA-256 and
 `source_continuity_lab_report_ref`/SHA-256. A newly discovered
 unbound candidate, dead target action, side-effect/final-state mismatch, asset
 fidelity failure, stale manifest, or character substitution blocks PASS.

@@ -195,21 +195,24 @@ The following flags are available and composable:
   record the strongest substitute authority and withhold the parity claim.
   Before accepting each applicable Q item, call `specify-runtime evidence
   source-continuity-manifest --quick-id <quick-id> --item-id Qn --format json`,
-  read provider IDs with `specify-runtime evidence
-  source-continuity-adapter-catalog --format json`, then pass only observed tool
-  bindings to `specify-runtime evidence source-continuity-adapter-probe
-  --quick-id <quick-id> --item-id Qn --manifest <manifest-ref> --input-json
-  '<available-tool-bindings>' --format json`. The runtime owns provider
-  capabilities, bounded actions, permissions, typed evidence, deterministic
-  ten-lane routing, the probe report, and the Plan. Use
-  `source-continuity-adapter-plan` only as an explicit fallback for a verified
-  tool the catalog cannot express. Register evidence with
+  inspect the live tool inventory and call `specify-runtime evidence
+  source-continuity-adapter-bridge --quick-id <quick-id> --item-id Qn
+  --manifest <manifest-ref> --input-json '<live-tool-inventory>'`. The Bridge
+  maps signals through `source-continuity-adapter-catalog` and atomically owns
+  inventory, Probe, and Plan. `source-continuity-adapter-probe` is the
+  provider-binding fallback and `source-continuity-adapter-plan` the explicit
+  last fallback. Compile `source-continuity-adapter-execution --quick-id
+  <quick-id> --item-id Qn --manifest <manifest-ref> --adapter-plan
+  <adapter-plan-ref> --adapter-plan-sha256 <sha256>`, then execute only its
+  bounded packets and stop conditions. Register evidence with
   provenance `adapter:<adapter_id>`, bind its row and the observation to the
   returned plan, then submit only observations through `specify-runtime
   evidence source-continuity-validate --quick-id <quick-id> --item-id Qn
-  --manifest <manifest-ref> --adapter-plan <adapter-plan-ref> --input-json
+  --manifest <manifest-ref> --adapter-plan <adapter-plan-ref>
+  --adapter-execution <adapter-execution-ref> --input-json
   '<observed-result-json>' --format json`. Put the returned exact coverage,
   `source_continuity_adapter_plan_ref`/SHA-256 and
+  `source_continuity_adapter_execution_ref`/SHA-256 and
   `source_continuity_lab_report_ref`/SHA-256 in the Q worker result.
   `item-accept` rebinds the report to the digest-protected decision in the
   current `confirmation.json`; stale or handwritten proof, unbound candidates, dead
