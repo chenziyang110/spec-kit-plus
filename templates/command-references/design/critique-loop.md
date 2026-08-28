@@ -1,3 +1,7 @@
+Trigger: Before presenting a concept and whenever user feedback arrives.
+Purpose: Inspect one current direction, repair material craft issues, and turn feedback into immutable follow-up rounds.
+Preserved Contract: Present one inspected concept, preserve prior rounds, and freeze only an explicitly approved exact round.
+
 # Critique and iteration loop
 
 Use this reference before presenting a concept and whenever feedback arrives.

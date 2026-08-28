@@ -1,3 +1,7 @@
+Trigger: Only when the current concept round uses HTML as its primary review medium.
+Purpose: Author a self-contained, inspectable HTML concept with the required manifest and review states.
+Preserved Contract: Keep the concept review-only, dependency-free, immutable per round, and separate from production authority.
+
 # Professional HTML prototype studio
 
 Use this reference only for an `html-primary` round. Do not send this HTML

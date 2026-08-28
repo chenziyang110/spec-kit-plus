@@ -1,3 +1,7 @@
+Trigger: Before creating or revising the current visual concept.
+Purpose: Resolve the highest-impact design ambiguity one question at a time and persist a usable design brief.
+Preserved Contract: Ground recommendations in product context, keep unanswered questions open, and do not advance past material ambiguity.
+
 # Design discovery dialogue
 
 Use this reference before creating or revising a visual prototype.
