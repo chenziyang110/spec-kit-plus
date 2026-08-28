@@ -205,6 +205,8 @@ def test_normalize_worker_task_result_payload_preserves_current_visual_contract(
                 "source_continuity_lab_report_sha256": digest,
                 "source_continuity_adapter_plan_ref": "evidence/source-continuity-adapter-plan-T106.json",
                 "source_continuity_adapter_plan_sha256": digest,
+                "source_continuity_adapter_execution_ref": "evidence/source-continuity-adapter-execution-T106.json",
+                "source_continuity_adapter_execution_sha256": digest,
                 "implementation_capture_refs": ["evidence/desktop.png"],
                 "covered_decision_ids": ["DS-001"],
                 "covered_smoothness_acceptance_ids": [
@@ -242,6 +244,11 @@ def test_normalize_worker_task_result_payload_preserves_current_visual_contract(
         == "evidence/source-continuity-adapter-plan-T106.json"
     )
     assert verification.source_continuity_adapter_plan_sha256 == digest
+    assert (
+        verification.source_continuity_adapter_execution_ref
+        == "evidence/source-continuity-adapter-execution-T106.json"
+    )
+    assert verification.source_continuity_adapter_execution_sha256 == digest
     assert verification.implementation_capture_refs == ["evidence/desktop.png"]
     assert verification.covered_decision_ids == ["DS-001"]
     assert verification.covered_smoothness_acceptance_ids == [

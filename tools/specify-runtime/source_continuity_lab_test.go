@@ -444,6 +444,71 @@ func TestSourceContinuityLabRejectsMissingAdapterPlan(t *testing.T) {
 	}
 }
 
+func TestSourceContinuityLabRequiresAdapterExecutionManifest(t *testing.T) {
+	root, featureRef, _ := sourceContinuityLabProject(t)
+	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
+	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	planRef := prepareFeatureSourceContinuityAdapterPlan(t, root, featureRef, manifestRef, observation)
+	bindSourceContinuityLabEvidence(t, root, observation)
+	raw, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-validate", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--adapter-plan", planRef,
+		"--input-json", string(raw), "--format", "json",
+	})
+	if exit != 2 || !strings.Contains(strings.Join(anyStringSlice(env.Data["diagnostics"]), "\n"), "missing-adapter-execution") {
+		t.Fatalf("missing adapter execution unexpectedly passed: exit=%d env=%#v", exit, env)
+	}
+}
+
+func TestSourceContinuityLabBindsAdapterExecutionManifest(t *testing.T) {
+	root, featureRef, feature := sourceContinuityLabProject(t)
+	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)
+	planRef, planSHA, composite := materializeSourceContinuityAdapterPlan(t, root, featureRef, manifestRef)
+	exit, executionEnv := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-adapter-execution", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--adapter-plan", planRef,
+		"--adapter-plan-sha256", planSHA, "--format", "json",
+	})
+	if exit != 0 || executionEnv.Status != "ok" {
+		t.Fatalf("adapter execution compile failed: exit=%d env=%#v", exit, executionEnv)
+	}
+	executionRef := anyString(executionEnv.Data["adapter_execution_ref"])
+	executionSHA := anyString(executionEnv.Data["adapter_execution_sha256"])
+	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
+	bindSourceContinuityAdapterPlanToObservation(observation, planRef, planSHA, composite)
+	observation["adapter_execution_ref"] = executionRef
+	observation["adapter_execution_sha256"] = executionSHA
+	bindSourceContinuityLabEvidence(t, root, observation)
+	raw, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-validate", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--adapter-plan", planRef,
+		"--adapter-execution", executionRef,
+		"--input-json", string(raw), "--format", "json",
+	})
+	if exit != 0 || env.Status != "ok" {
+		t.Fatalf("execution-bound continuity observation failed: exit=%d env=%#v", exit, env)
+	}
+	report := readImplementJSONFile(t, filepath.Join(feature, filepath.FromSlash(anyString(env.Data["report_ref"]))))
+	if report["adapter_execution_ref"] != executionRef || report["adapter_execution_sha256"] != executionSHA {
+		t.Fatalf("execution-bound report = %#v", report)
+	}
+	patch := requireObjectValue(t, env.Data["ui_verification_patch"])
+	if patch["source_continuity_adapter_execution_ref"] != executionRef || patch["source_continuity_adapter_execution_sha256"] != executionSHA {
+		t.Fatalf("execution-bound ui verification patch = %#v", patch)
+	}
+}
+
 func TestSourceContinuityLabUIVerificationIsNormalizedAndRequiredForAcceptance(t *testing.T) {
 	root, featureRef, feature := sourceContinuityLabProject(t)
 	index := readImplementJSONFile(t, filepath.Join(feature, "task-index.json"))
