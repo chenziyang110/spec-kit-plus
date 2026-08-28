@@ -591,6 +591,33 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
     )
     registry_sha256 = "a" * 64
     inventory_sha256 = "b" * 64
+    tool_inventory_ref = (
+        "implementation-review/source-continuity/"
+        "source-continuity-tool-inventory-T001.json"
+    )
+    tool_inventory = {
+        "schema": "spec-kit-source-continuity-tool-inventory-v1",
+        "subject_id": "T001",
+        "status": "ready",
+        "binding": adapter_plan["binding"],
+        "registry_schema": "spec-kit-source-continuity-adapter-registry-v1",
+        "registry_sha256": registry_sha256,
+        "source": {
+            "kind": "live-session",
+            "captured_by": "agent-observation",
+            "freshness": "current",
+        },
+        "tools": [],
+        "visual_capabilities": {
+            "image_generation": "unavailable",
+            "image_inspection": "available",
+            "image_editing": "unavailable",
+        },
+        "generated_probe_input_sha256": inventory_sha256,
+    }
+    tool_inventory_bytes = _canonical_bytes(tool_inventory)
+    tool_inventory_path = feature_dir / tool_inventory_ref
+    tool_inventory_path.write_bytes(tool_inventory_bytes)
     probe = {
         "schema": "spec-kit-source-continuity-adapter-probe-v1",
         "subject_id": "T001",
@@ -600,10 +627,10 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
         "registry_sha256": registry_sha256,
         "inventory_sha256": inventory_sha256,
         "inventory_bridge": {
-            "mode": "direct",
-            "inventory_schema": "",
-            "inventory_ref": "",
-            "inventory_sha256": "",
+            "mode": "tool-inventory",
+            "inventory_schema": "spec-kit-source-continuity-tool-inventory-v1",
+            "inventory_ref": tool_inventory_ref,
+            "inventory_sha256": hashlib.sha256(tool_inventory_bytes).hexdigest(),
         },
         "adapters": adapter_plan["adapters"],
         "assignments": adapter_plan["assignments"],
@@ -659,6 +686,13 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
     )
     assert any("adapter-probe" in error.lower() for error in errors), errors
     probe_path.write_bytes(probe_bytes)
+
+    tool_inventory_path.write_bytes(tool_inventory_bytes + b" ")
+    errors = validate_lifecycle_ui_verification(
+        feature_dir, lifecycle, "implementation-review/tasks/T001.json"
+    )
+    assert any("adapter-probe" in error.lower() for error in errors), errors
+    tool_inventory_path.write_bytes(tool_inventory_bytes)
 
     adapter_execution_path.write_bytes(adapter_execution_bytes + b" ")
     errors = validate_lifecycle_ui_verification(
