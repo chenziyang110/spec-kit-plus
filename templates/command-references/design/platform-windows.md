@@ -1,3 +1,7 @@
+Trigger: When the approved surface includes Windows desktop UI.
+Purpose: Apply Windows-specific interaction, layout, accessibility, and platform convention guidance.
+Preserved Contract: Keep registered design truth authoritative while adapting implementation details to Windows conventions.
+
 # Windows platform guidance
 
 Load this reference for Windows desktop GUI surfaces.

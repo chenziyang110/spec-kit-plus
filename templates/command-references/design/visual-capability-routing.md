@@ -1,3 +1,7 @@
+Trigger: Before selecting image-primary or HTML-primary review media.
+Purpose: Probe generation, inspection, and editing independently and choose the strongest available primary medium.
+Preserved Contract: Persist the capability route per immutable round and never infer visual inspection or editing capability from the model or integration name.
+
 # Live visual capability routing
 
 Read this reference before choosing a review medium. Capability belongs to the

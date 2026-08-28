@@ -362,7 +362,7 @@ def test_spx_task_asset_uses_object_shaped_source_continuity_bindings() -> None:
 
 def test_source_continuity_lab_is_executable_across_formal_quick_and_review() -> None:
     surfaces = (
-        "templates/commands/implement.md",
+        "templates/command-references/implement/ui-design-intelligence.md",
         "templates/command-references/quick/packetized-work.md",
         "templates/command-references/review/system-scenario-contract.md",
         "templates/advanced-skills/spx-implement/SKILL.md",

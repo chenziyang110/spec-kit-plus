@@ -1,3 +1,7 @@
+Trigger: Only when the current concept round uses generated imagery as its primary review medium.
+Purpose: Produce one review board, its exact generation or edit prompt, and a machine-readable manifest.
+Preserved Contract: Bind the inspected image, prompt, manifest, capabilities, and immutable round without substituting generation for approval.
+
 # Professional image-generation studio
 
 Use this reference only for an `image-primary` round. Do not reuse the HTML

@@ -1,3 +1,7 @@
+Trigger: When the approved surface includes browser-delivered UI.
+Purpose: Apply web-specific responsive, interaction, accessibility, performance, and component-system guidance.
+Preserved Contract: Inherit live product style by default and require real-entrypoint evidence for browser behavior and smoothness.
+
 # Web platform guidance
 
 Load this reference for browser-delivered GUI surfaces.

@@ -301,7 +301,10 @@ def test_professional_ui_contract_survives_every_classic_and_advanced_stage() ->
             "templates/command-partials/design/shell.md",
             "templates/command-partials/design-intelligence/shared-foundation.md",
         ),
-        "specify": ("templates/command-partials/specify/shell.md",),
+        "specify": (
+            "templates/command-partials/specify/shell.md",
+            "templates/command-references/specify/ui-design-intelligence.md",
+        ),
         "plan": (
             "templates/command-partials/plan/shell.md",
             "templates/command-references/plan/plan-contract-fields.md",
@@ -316,6 +319,9 @@ def test_professional_ui_contract_survives_every_classic_and_advanced_stage() ->
         "implement": (
             "templates/commands/implement.md",
             "templates/command-references/implement/join-point-review.md",
+            "templates/command-references/implement/ui-design-intelligence.md",
+            "templates/command-partials/common/design-intelligence.md",
+            "templates/command-partials/design-intelligence/shared-foundation.md",
         ),
         "review": (
             "templates/command-partials/review/shell.md",

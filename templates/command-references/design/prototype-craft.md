@@ -1,3 +1,7 @@
+Trigger: While authoring a project-specific HTML concept.
+Purpose: Turn the confirmed design brief into a deliberate, responsive, and inspectable visual composition.
+Preserved Contract: Avoid generic placeholder craft, preserve approved decisions, and prove the concept at its declared states and viewports.
+
 # Professional HTML prototype craft
 
 Use this reference when authoring the single concept inside a design-preview

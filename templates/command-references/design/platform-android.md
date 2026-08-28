@@ -1,3 +1,7 @@
+Trigger: When the approved surface includes Android UI.
+Purpose: Apply Android-specific interaction, layout, accessibility, and platform convention guidance.
+Preserved Contract: Keep registered design truth authoritative while adapting implementation details to Android conventions.
+
 # Android platform guidance
 
 Load this reference for Android phones, tablets, foldables, desktop windows, or

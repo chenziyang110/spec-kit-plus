@@ -1,3 +1,7 @@
+Trigger: When the approved surface includes iOS, iPadOS, or macOS UI.
+Purpose: Apply Apple-platform interaction, layout, accessibility, and platform convention guidance.
+Preserved Contract: Keep registered design truth authoritative while adapting implementation details to the selected Apple platform.
+
 # Apple platform guidance
 
 Load this reference for iOS, iPadOS, or macOS. Preserve shared product intent
