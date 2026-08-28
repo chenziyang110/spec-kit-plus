@@ -328,7 +328,12 @@ def test_professional_ui_contract_survives_every_classic_and_advanced_stage() ->
             "templates/command-references/review/repair-and-revalidation.md",
         ),
         "accept": ("templates/command-partials/accept/shell.md",),
-        "quick": ("templates/command-partials/quick/shell.md",),
+        "quick": (
+            "templates/command-partials/quick/shell.md",
+            "templates/command-references/quick/ui-design-intelligence.md",
+            "templates/command-partials/common/design-intelligence.md",
+            "templates/command-partials/design-intelligence/shared-foundation.md",
+        ),
         "debug": ("templates/command-partials/debug/shell.md",),
         "analyze": ("templates/command-partials/analyze/shell.md",),
         "checklist": ("templates/command-partials/checklist/shell.md",),
