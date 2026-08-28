@@ -55,6 +55,8 @@ Every terminal blocker records code/cause, owner, exact next action, evidence re
 
 ## Final Reconciliation And Closeout
 
+{{spec-kit-include: ../../command-partials/common/inline-project-cognition-update.md}}
+
 Before completion:
 
 - reconcile task graph, execution state, lifecycle records, worker results, and actual changed paths;

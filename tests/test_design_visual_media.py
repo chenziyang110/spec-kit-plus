@@ -20,8 +20,8 @@ from specify_cli.design import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PREVIEW_TEMPLATE = REPO_ROOT / "templates" / "design-preview-template.html"
-CLASSIC_UI_SKILL = (
-    REPO_ROOT / "templates" / "passive-skills" / "spec-kit-ui-design"
+CLASSIC_DESIGN_REFERENCES = (
+    REPO_ROOT / "templates" / "command-references" / "design"
 )
 ADVANCED_DESIGN_SKILL = REPO_ROOT / "templates" / "advanced-skills" / "spx-design"
 runner = CliRunner()
@@ -128,8 +128,8 @@ def test_design_workflows_route_visual_medium_from_live_capabilities() -> None:
 
 
 def test_image_and_html_rounds_use_separate_professional_prompt_contracts() -> None:
-    classic_image = CLASSIC_UI_SKILL / "references" / "image-generation-studio.md"
-    classic_html = CLASSIC_UI_SKILL / "references" / "html-prototype-studio.md"
+    classic_image = CLASSIC_DESIGN_REFERENCES / "image-generation-studio.md"
+    classic_html = CLASSIC_DESIGN_REFERENCES / "html-prototype-studio.md"
     advanced_image = ADVANCED_DESIGN_SKILL / "references" / "image-round.md"
     advanced_html = ADVANCED_DESIGN_SKILL / "references" / "html-round.md"
 

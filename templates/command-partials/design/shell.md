@@ -207,7 +207,7 @@ and never require a colon subskill or explicit mode argument.
      a license to copy protected brand or artwork. The approved baseline is
      evidence to preserve or supersede within its exact scope. It cannot
      authorize deviation from live style authority.
-4. Activate the installed `spec-kit-ui-design` professional skill package.
+4. Use the professional reference package bundled with `sp-design`.
    Before medium-specific authoring, read
    `.specify/templates/ui-professional-skills/router.md` (source-tree fallback:
    `templates/ui-professional-skills/router.md`) and resolve
@@ -229,8 +229,11 @@ and never require a colon subskill or explicit mode argument.
    reports material ambiguity, ask its one high-impact question and do not
    author a visual round until answered. Read its
    `references/discovery-dialogue.md` and
-   `references/visual-capability-routing.md`, then load only the relevant
-   platform reference. Read `references/image-generation-studio.md` for an
+   `references/visual-capability-routing.md`, then load exactly one relevant
+   platform reference from `references/platform-web.md`,
+   `references/platform-apple.md`, `references/platform-windows.md`, or
+   `references/platform-android.md`. Read
+   `references/image-generation-studio.md` for an
    image-primary round. Read `references/html-prototype-studio.md` plus
    `references/prototype-craft.md` for an HTML-primary round. Augment the chosen
    medium's prompt with the exact selected professional references; never reuse
@@ -293,7 +296,7 @@ unrelated visual systems for one review round.
   independent values: `image_generation`, `image_inspection`, and
   `image_editing`. Do not hard-code capability from an Agent, model, CLI, or
   integration name. Read
-  `spec-kit-ui-design/references/visual-capability-routing.md` and patch the
+  `references/visual-capability-routing.md` and patch the
   probe evidence plus route into `brief.md`.
 - Route `image_generation: available` to `image-primary`, regardless of whether
   inspection is available. Route `image_generation: unavailable` to

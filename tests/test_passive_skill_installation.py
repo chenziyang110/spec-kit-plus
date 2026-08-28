@@ -35,7 +35,7 @@ def test_repo_contains_expected_passive_skill_templates() -> None:
     assert "spec-kit-project-map-gate/SKILL.md" not in passive_files
     assert "spec-kit-project-learning/SKILL.md" in passive_files
     assert "project-to-prd/SKILL.md" in passive_files
-    assert "spec-kit-ui-design/SKILL.md" in passive_files
+    assert "spec-kit-ui-design/SKILL.md" not in passive_files
     assert "tdd-workflow/SKILL.md" in passive_files
     assert "frontend-design/SKILL.md" in passive_files
     assert "python-testing/SKILL.md" in passive_files
@@ -74,46 +74,53 @@ def test_skills_integrations_install_all_passive_skill_files(tmp_path: Path) -> 
         assert not any(path.startswith(retired_prefix) for path in installed), (
             f"{integration_key} installed retired passive workflow routing"
         )
+        ui_gate_prefix = f"{skill_prefix}/spec-kit-ui-design/"
+        assert not any(path.startswith(ui_gate_prefix) for path in installed), (
+            f"{integration_key} installed the retired passive UI gate"
+        )
 
 
-def test_skills_integrations_remove_unmodified_retired_workflow_router(
+def test_skills_integrations_remove_unmodified_retired_passive_skills(
     tmp_path: Path,
 ) -> None:
     for integration_key in _skills_integration_keys():
-        project = tmp_path / integration_key
-        integration = get_integration(integration_key)
+        for retired_skill in ("spec-kit-ui-design", "spec-kit-workflow-routing"):
+            project = tmp_path / integration_key / retired_skill
+            integration = get_integration(integration_key)
+            assert integration is not None
+            manifest = IntegrationManifest(integration_key, project)
+            retired = (
+                integration.skills_dest(project) / retired_skill / "SKILL.md"
+            )
+            retired_rel = retired.relative_to(project)
+            manifest.record_file(retired_rel, "managed legacy passive skill\n")
+
+            integration.setup(project, manifest, script_type="sh")
+
+            assert not retired.exists(), (integration_key, retired_skill)
+            assert retired_rel.as_posix() not in manifest.files, (
+                integration_key,
+                retired_skill,
+            )
+
+
+def test_skills_integration_preserves_modified_retired_passive_skills(
+    tmp_path: Path,
+) -> None:
+    for retired_skill in ("spec-kit-ui-design", "spec-kit-workflow-routing"):
+        project = tmp_path / retired_skill
+        integration = get_integration("codex")
         assert integration is not None
-        manifest = IntegrationManifest(integration_key, project)
-        retired = (
-            integration.skills_dest(project)
-            / "spec-kit-workflow-routing"
-            / "SKILL.md"
-        )
+        manifest = IntegrationManifest("codex", project)
+        retired = integration.skills_dest(project) / retired_skill / "SKILL.md"
         retired_rel = retired.relative_to(project)
-        manifest.record_file(retired_rel, "managed legacy router\n")
+        manifest.record_file(retired_rel, "managed legacy passive skill\n")
+        retired.write_text("user-modified passive skill\n", encoding="utf-8")
 
         integration.setup(project, manifest, script_type="sh")
 
-        assert not retired.exists(), integration_key
-        assert retired_rel.as_posix() not in manifest.files, integration_key
-
-
-def test_skills_integration_preserves_modified_retired_workflow_router(
-    tmp_path: Path,
-) -> None:
-    integration = get_integration("codex")
-    assert integration is not None
-    manifest = IntegrationManifest("codex", tmp_path)
-    retired = (
-        integration.skills_dest(tmp_path)
-        / "spec-kit-workflow-routing"
-        / "SKILL.md"
-    )
-    retired_rel = retired.relative_to(tmp_path)
-    manifest.record_file(retired_rel, "managed legacy router\n")
-    retired.write_text("user-modified router\n", encoding="utf-8")
-
-    integration.setup(tmp_path, manifest, script_type="sh")
-
-    assert retired.read_text(encoding="utf-8") == "user-modified router\n"
-    assert retired_rel.as_posix() in manifest.files
+        assert (
+            retired.read_text(encoding="utf-8")
+            == "user-modified passive skill\n"
+        )
+        assert retired_rel.as_posix() in manifest.files

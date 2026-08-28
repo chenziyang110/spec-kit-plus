@@ -632,6 +632,168 @@ def test_download_tries_next_mirror_when_first_source_fails(
     assert dest.stat().st_size >= 1024
 
 
+def test_download_uses_authenticated_github_cli_before_mirrors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime = _load_runtime()
+    dest = tmp_path / "runtime.bin"
+    filename = "specify-runtime-windows-amd64.exe"
+    official = (
+        "https://github.com/chenziyang110/spec-kit-plus/releases/latest/download/"
+        f"{filename}"
+    )
+    mirror = f"https://mirror.example/{official}"
+    http_attempts: list[str] = []
+    github_cli_attempts: list[str] = []
+
+    monkeypatch.setattr(runtime, "download_urls", lambda _version: [official, mirror])
+    monkeypatch.setattr(runtime, "cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(runtime, "binary_filename", lambda: filename)
+    monkeypatch.setattr(runtime, "_download_timeout_seconds", lambda: 5.0)
+
+    def fake_download(url: str, _destination: Path, *, timeout: float) -> None:
+        assert timeout == 5.0
+        http_attempts.append(url)
+        if url == official:
+            raise runtime.SpecifyRuntimeError("HTTP 404")
+        raise AssertionError("mirror must not run after authenticated download succeeds")
+
+    def fake_github_cli(version: str, destination: Path) -> Path:
+        github_cli_attempts.append(version)
+        destination.write_bytes(b"x" * 2048)
+        return destination
+
+    monkeypatch.setattr(runtime, "_download_from_url", fake_download)
+    monkeypatch.setattr(
+        runtime,
+        "_download_with_github_cli",
+        fake_github_cli,
+        raising=False,
+    )
+
+    result = runtime.download("latest", dest)
+
+    assert result == dest
+    assert http_attempts == [official]
+    assert github_cli_attempts == ["latest"]
+
+
+def test_download_continues_to_mirror_when_authenticated_github_cli_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime = _load_runtime()
+    dest = tmp_path / "runtime.bin"
+    filename = "specify-runtime-windows-amd64.exe"
+    official = (
+        "https://github.com/chenziyang110/spec-kit-plus/releases/latest/download/"
+        f"{filename}"
+    )
+    mirror = f"https://mirror.example/{filename}"
+    http_attempts: list[str] = []
+
+    monkeypatch.setattr(runtime, "download_urls", lambda _version: [official, mirror])
+    monkeypatch.setattr(runtime, "cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(runtime, "binary_filename", lambda: filename)
+    monkeypatch.setattr(runtime, "_download_timeout_seconds", lambda: 5.0)
+
+    def fake_download(url: str, destination: Path, *, timeout: float) -> None:
+        assert timeout == 5.0
+        http_attempts.append(url)
+        if url == official:
+            raise runtime.SpecifyRuntimeError("HTTP 404")
+        destination.write_bytes(b"x" * 2048)
+
+    def fail_github_cli(_version: str, _destination: Path) -> Path:
+        raise runtime.SpecifyRuntimeError("gh auth unavailable")
+
+    monkeypatch.setattr(runtime, "_download_from_url", fake_download)
+    monkeypatch.setattr(runtime, "_download_with_github_cli", fail_github_cli)
+
+    result = runtime.download("latest", dest)
+
+    assert result == dest
+    assert http_attempts == [official, mirror]
+
+
+@pytest.mark.parametrize(
+    ("version", "tag_args"),
+    (("latest", []), ("v0.6.22", ["v0.6.22"])),
+)
+def test_authenticated_github_cli_download_uses_local_credential_store(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    version: str,
+    tag_args: list[str],
+) -> None:
+    runtime = _load_runtime()
+    destination = tmp_path / "runtime.bin"
+    filename = "specify-runtime-windows-amd64.exe"
+    github_cli = r"C:\tools\gh.exe"
+    commands: list[list[str]] = []
+
+    monkeypatch.setattr(
+        runtime.shutil,
+        "which",
+        lambda command: github_cli if command == "gh" else None,
+    )
+    monkeypatch.setattr(runtime, "binary_filename", lambda: filename)
+
+    def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        commands.append(command)
+        assert kwargs["capture_output"] is True
+        assert kwargs["text"] is True
+        destination.write_bytes(b"x" * 2048)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(runtime.subprocess, "run", fake_run)
+
+    result = runtime._download_with_github_cli(version, destination)
+
+    assert result == destination
+    assert commands == [
+        [
+            github_cli,
+            "release",
+            "download",
+            *tag_args,
+            "--repo",
+            runtime.REPO,
+            "--pattern",
+            filename,
+            "--output",
+            str(destination),
+        ]
+    ]
+
+
+def test_authenticated_github_cli_failure_does_not_echo_subprocess_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime = _load_runtime()
+    destination = tmp_path / "runtime.bin"
+    leaked_value = "credential-that-must-not-appear"
+
+    monkeypatch.setattr(runtime.shutil, "which", lambda _command: r"C:\tools\gh.exe")
+    monkeypatch.setattr(
+        runtime.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=1,
+            stdout="",
+            stderr=leaked_value,
+        ),
+    )
+
+    with pytest.raises(runtime.SpecifyRuntimeError) as exc_info:
+        runtime._download_with_github_cli("latest", destination)
+
+    assert leaked_value not in str(exc_info.value)
+    assert not destination.exists()
+
+
 def test_ensure_binary_prefers_release_download_even_when_source_build_flagged(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

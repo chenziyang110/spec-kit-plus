@@ -1,5 +1,6 @@
 """Tests for --integration flag on specify init (CLI-level)."""
 
+import errno
 import json
 import os
 import re
@@ -1337,6 +1338,62 @@ def test_shared_infra_repair_only_overwrites_manifest_proven_unmodified_files(
     assert installed_script.read_text(encoding="utf-8") == "# runtime v2\n"
     assert installed_template.read_text(encoding="utf-8") == "# USER MODIFICATION\n"
     assert ".specify/templates/spec-template.md" in skipped
+
+
+def test_shared_infra_rewrites_project_handbook_template_through_atomic_write(
+    tmp_path,
+    monkeypatch,
+):
+    from specify_cli import _install_shared_infra
+    from specify_cli.launcher import SpecifyLauncherSpec
+
+    core_pack = tmp_path / "core-pack"
+    scripts = core_pack / "scripts" / "powershell"
+    templates = core_pack / "templates"
+    scripts.mkdir(parents=True)
+    templates.mkdir(parents=True)
+
+    (scripts / "common.ps1").write_text("# runtime v1\n", encoding="utf-8")
+    (templates / "project-handbook-template.md").write_text(
+        "# handbook\n",
+        encoding="utf-8",
+    )
+
+    project = tmp_path / "project"
+    project.mkdir()
+
+    monkeypatch.setattr("specify_cli._locate_core_pack", lambda: core_pack)
+    monkeypatch.setattr(
+        "specify_cli.launcher.write_project_specify_launcher_config",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "specify_cli.launcher.load_project_specify_launcher",
+        lambda *_args, **_kwargs: SpecifyLauncherSpec(
+            command="specify",
+            argv=("specify",),
+        ),
+    )
+
+    target_template = (
+        project / ".specify" / "templates" / "project-handbook-template.md"
+    )
+    path_type = type(target_template)
+    real_write_text = path_type.write_text
+    attempts = 0
+
+    def fail_direct_write(self, content, encoding="utf-8"):
+        nonlocal attempts
+        if self == target_template:
+            attempts += 1
+            raise OSError(errno.EINVAL, "Invalid argument", str(self))
+        return real_write_text(self, content, encoding=encoding)
+
+    monkeypatch.setattr(path_type, "write_text", fail_direct_write)
+
+    assert _install_shared_infra(project, "ps") is True
+    assert attempts == 0
+    assert target_template.read_text(encoding="utf-8") == "# handbook\n"
 
 
 def test_repeat_init_refreshes_unmodified_stale_feature_bootstrap_scripts(

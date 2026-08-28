@@ -4,6 +4,8 @@ Purpose: recover compact execution truth and current task context without reload
 
 Preserved Contract: implementation remains resumable, task-driven, evidence-backed, and honest about blockers and completion.
 
+{{spec-kit-include: ../../command-partials/common/run-bootstrap.md}}
+
 ## Intake
 
 1. Verify the managed Run worktree binding and resolve its active feature subject.

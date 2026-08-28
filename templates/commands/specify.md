@@ -20,16 +20,24 @@ scripts:
 
 {{spec-kit-include: ../command-partials/specify/shell.md}}
 
-{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+[AGENT] Before specification decisions involving lifecycle or running state,
+destructive operations, shared state, downstream consumers, compatibility, or
+multiple-behavior semantics, read
+`references/senior-consequence-analysis.md` and complete that gate. Preserve
+stable `CA-###` obligations plus the Affected Object Map, State-Behavior
+Matrix, Dependency Impact Table, Recovery And Validation Contract, and
+Coverage Gaps; neither planning readiness nor a final claim may bypass it.
 
 {{spec-kit-include: ../command-partials/common/agent-phase-handoff.md}}
 {{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
 
-{{spec-kit-include: ../command-partials/common/planning-cognition.md}}
-
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
-{{spec-kit-include: ../command-partials/common/read-only-evidence-lanes.md}}
+[AGENT] When a planning-relevant gap requires project-cognition navigation or
+a bounded read-only evidence lane, read
+`references/planning-and-evidence-navigation.md` before expanding repository
+reads or dispatching evidence work. The leader retains specification judgment
+and must prove technical claims from live evidence.
 
 [AGENT] `sp-specify` first performs the read-only feature dry run described
 below, then starts a new Run with the returned feature identity. When the exact
@@ -94,7 +102,10 @@ Read [Reference index](references/INDEX.md) before applying detailed contracts.
 
 - [discussion handoff validation](references/discussion-handoff-validation.md)
 - [semantic traceability](references/semantic-traceability.md)
+- [planning and evidence navigation](references/planning-and-evidence-navigation.md)
+- [UI design intelligence](references/ui-design-intelligence.md)
 - [ui reference lane](references/ui-reference-lane.md)
+- [senior consequence analysis](references/senior-consequence-analysis.md)
 - [artifact package](references/artifact-package.md)
 - [question cadence and review](references/question-cadence-and-review.md)
 - [self review and quality gates](references/self-review-and-quality-gates.md)

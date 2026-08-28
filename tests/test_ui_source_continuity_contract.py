@@ -384,8 +384,13 @@ def test_source_continuity_lab_is_executable_across_formal_quick_and_review() ->
         assert "source_continuity_lab_report_ref" in content, relative
         assert "source_continuity_adapter_plan_ref" in content, relative
 
+
+def test_user_invoked_design_surfaces_own_source_continuity_without_passive_gate() -> None:
+    assert not (
+        ROOT / "templates" / "passive-skills" / "spec-kit-ui-design"
+    ).exists()
+
     for relative in (
-        "templates/passive-skills/spec-kit-ui-design/SKILL.md",
         "templates/ui-professional-skills/specialists/source-grounded-reconstruction.md",
         "templates/advanced-skills/_shared/ui-quality-gate.md",
     ):
@@ -397,6 +402,8 @@ def test_source_continuity_lab_is_executable_across_formal_quick_and_review() ->
         assert "source-continuity-adapter-execution" in content, relative
         assert "technology-neutral" in content, relative
 
+
+def test_source_continuity_lifecycle_and_registry_fields_remain_bound() -> None:
     lifecycle = json.loads(_read("templates/task-lifecycle-template.json"))
     verification = lifecycle["ui_verification"]
     for field in (

@@ -5874,6 +5874,7 @@ def _install_shared_infra(
     in ``speckit.manifest.json``.
     Returns ``True`` on success.
     """
+    from .atomic_io import atomic_write_text
     from .integrations.manifest import IntegrationManifest
     from .launcher import (
         load_project_specify_launcher,
@@ -6058,7 +6059,7 @@ def _install_shared_infra(
                 project_path,
                 guidance_path.read_text(encoding="utf-8"),
             )
-            guidance_path.write_text(rendered, encoding="utf-8")
+            atomic_write_text(guidance_path, rendered)
             manifest.record_existing(guidance_path.relative_to(project_path).as_posix())
     if launcher_config is not None:
         from .launcher import (

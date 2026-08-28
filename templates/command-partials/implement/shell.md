@@ -1,7 +1,5 @@
 {{spec-kit-include: ../common/user-input.md}}
 
-{{spec-kit-include: ../common/design-intelligence.md}}
-
 ## Objective
 
 Advance the current feature through tracked implementation batches while keeping execution state, subagent work, verification evidence, and recovery paths explicit.
@@ -39,6 +37,11 @@ Advance the current feature through tracked implementation batches while keeping
   review packages, and ledgers. A worker must not run a heavyweight test, full
   build, server startup, E2E journey, or browser capture per Txx. The Leader
   groups those checks into one gate attempt for the current change-set.
+- For UI-bearing work, before generating UI and again before integrated UI
+  validation, read `references/ui-design-intelligence.md`. That reference owns
+  the Design Intelligence **UI Implementation Rules**, exact artifact queries,
+  anti-slop policy, interaction and evidence matrix handling, and the visual,
+  smoothness, and source-continuity validation contracts.
 - Continue automatically until the feature is complete or blocked by a real blocker.
 - A task-local blocker is parked while any dependency-safe task remains runnable;
   do not persist a feature-wide workflow block until no ready work remains.

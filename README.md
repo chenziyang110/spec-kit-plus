@@ -1371,6 +1371,9 @@ Skills-based projects now install two layers into the same skills directory:
 - passive bundled skills: keep the directory names from `templates/passive-skills/` (for example `spec-kit-*`, `spec-kit-discussion-handoff-review`, `tdd-workflow`, `frontend-design`)
 
 `sp-*` remains the primary user-facing workflow surface. Passive skills keep their template names and exist to improve automatic routing, guardrails, and bundled capabilities inside Spec Kit Plus repositories, not to replace the explicit workflow commands.
+UI design is intentionally not installed as a passive `spec-kit-ui-design`
+gate. The professional references live under `sp-design/references`, and
+`sp-design` runs only when the user explicitly invokes it.
 
 The advanced workflow profile installs the independent `spx-*` skills from
 `templates/advanced-skills/` plus exactly the unchanged Classic map companions

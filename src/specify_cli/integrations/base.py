@@ -2681,7 +2681,9 @@ class SkillsIntegration(IntegrationBase):
     """
 
     WORKFLOW_PROFILES = frozenset({"classic", "advanced"})
-    RETIRED_PASSIVE_SKILLS = frozenset({"spec-kit-workflow-routing"})
+    RETIRED_PASSIVE_SKILLS = frozenset(
+        {"spec-kit-ui-design", "spec-kit-workflow-routing"}
+    )
 
     def skills_dest(self, project_root: Path) -> Path:
         """Return the absolute path to the skills output directory.

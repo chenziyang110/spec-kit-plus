@@ -1,6 +1,9 @@
 {{spec-kit-include: ../common/user-input.md}}
 
-{{spec-kit-include: ../common/design-intelligence.md}}
+[AGENT] For any UI-bearing scope—even without an external screenshot—read
+`references/ui-design-intelligence.md` before UI discovery, adoption,
+acceptance, or contract decisions. Registered design and immutable
+approval/handoff remain authoritative.
 
 ## Objective
 
@@ -135,16 +138,3 @@ reference was supplied; create `ui-target.html` only through `specify-runtime de
 - Do not silently narrow user scope, redefine broad capability terms, or convert the request into a smaller delivery without user confirmation.
 - Do not require legacy brainstorming journals, stage manifests, lock JSON files, or replay artifacts for normal `sp-specify` completion.
 - Do not treat this summary block as the workflow itself; the detailed contract below remains authoritative.
-
-## Professional UI Contract Continuity
-
-For UI-bearing scope, copy the exact applicable `surface_catalog`,
-`scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
-`accessibility_matrix`, `navigation_matrix`, `content_matrix`,
-`motion_contract`, and `usability_validation`—including its exact
-`smoothness_acceptance_ids` and performance budgets—into the feature
-requirements and `ui-brief.md`; never replace them with generic accessibility,
-navigation, content, animation, or usability prose. Preserve the exact
-`style_authority`, component adoption/permission rows, component variants,
-content constraints, semantic tokens, governance, and iconography. Select
-risk-based or pairwise acceptance scenarios, not an unbounded Cartesian product.

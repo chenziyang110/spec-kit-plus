@@ -20,6 +20,14 @@ For AI CLI workflows in this repository:
 - Prefer compact structured data with only fields the next agent step needs. Omit explanatory prose, duplicated data, timestamps, hashes, version metadata, exclusion details, and other audit/debug fields unless they are required for the active workflow.
 - Put expanded diagnostics behind explicit debug, verbose, explain, or human-readable modes instead of including them in default agent-facing output.
 
+## Workflow Prompt Modularity
+
+- There is no line-count limit for workflow files. Keep each individual workflow entry file at or below 68 KB whenever practical, but treat 68 KB as a maintainability target and review signal rather than a hard limit.
+- A file exceeding 68 KB does not automatically require a split. Split only after confirming that cohesive sections can be loaded through progressive disclosure without reducing the SKILL's trigger reliability, required context, execution order, stage ownership, safety or side-effect gates, resumable behavior, or final-result quality. If that cannot be established, keep the workflow together even when it exceeds 68 KB.
+- When a safe split is available, move cohesive detail such as schemas, long procedures, platform or integration variants, examples, and recovery playbooks into the owning workflow's reference files. Classic commands use `templates/command-references/<workflow>/`; Advanced skills use `templates/advanced-skills/<workflow>/references/`. Apply the equivalent `references/` layout to any future workflow profile.
+- The entry file must link every companion reference by its exact relative path and state precisely when it must be read. Keep enough routing and mandatory contract context in the entry file for the workflow to select and load the right references; do not hide required semantics in an unlinked reference or assume references are loaded automatically.
+- Splitting is a structure change, not permission to weaken or omit behavior. Preserve the complete workflow contract and effective behavior across the entry file and its triggered references, update renderer and packaging coverage when paths change, and regenerate downstream integration outputs rather than editing them directly. SKILL effectiveness takes priority over reducing file size.
+
 ## Template Artifact Generation
 
 - For template-like artifacts, prefer deterministic scripts, renderers, or CLI helpers over asking an agent to manually emit large Markdown, JSON, TOML, YAML, or code blocks from prose instructions.
@@ -282,8 +290,8 @@ present in a test project.
   downstream consumption boundary: it pins that document's exact SHA-256 in
   metadata-only `.specify/design/index.json`, rejects later mutation, and
   rejects overlapping active scope without an explicit relationship.
-- Classic keeps the explicit UI lane, full command references, passive
-  `spec-kit-ui-design`/`frontend-design` guidance, worker prompts, and verbose
+- Classic keeps the explicit UI lane, full `sp-design` professional references,
+  passive `frontend-design` guidance, worker prompts, and verbose
   evidence mapping. Advanced must not install that passive bundle; its essential
   equivalent lives in `_shared/ui-quality-gate.md`, owning SPX references,
   compact deterministic assets, and shared runtime schemas/validators.

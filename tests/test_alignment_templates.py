@@ -128,6 +128,97 @@ def test_command_reference_coverage_ledgers_target_existing_text(workflow):
         assert entry["source_excerpt"] in target.read_text(encoding="utf-8"), entry
 
 
+def test_large_classic_workflows_route_conditional_contracts_to_references() -> None:
+    workflows = ("quick", "discussion", "specify", "implement")
+    consequence_include = (
+        "{{spec-kit-include: "
+        "../command-partials/common/senior-consequence-analysis-gate.md}}"
+    )
+
+    for workflow in workflows:
+        command = (
+            PROJECT_ROOT / "templates" / "commands" / f"{workflow}.md"
+        ).read_text(encoding="utf-8")
+        ui_reference = (
+            PROJECT_ROOT
+            / "templates"
+            / "command-references"
+            / workflow
+            / "ui-design-intelligence.md"
+        ).read_text(encoding="utf-8")
+        consequence_reference = (
+            PROJECT_ROOT
+            / "templates"
+            / "command-references"
+            / workflow
+            / "senior-consequence-analysis.md"
+        ).read_text(encoding="utf-8")
+
+        assert consequence_include not in command, workflow
+        assert "references/senior-consequence-analysis.md" in command, workflow
+        assert (
+            "../../command-partials/common/senior-consequence-analysis-gate.md"
+            in consequence_reference
+        ), workflow
+        assert "../../command-partials/common/design-intelligence.md" in ui_reference
+
+    quick_shell = (
+        PROJECT_ROOT / "templates" / "command-partials" / "quick" / "shell.md"
+    ).read_text(encoding="utf-8")
+    quick_checkpoint = (
+        PROJECT_ROOT
+        / "templates"
+        / "command-references"
+        / "quick"
+        / "intake-and-checkpoint.md"
+    ).read_text(encoding="utf-8")
+    assert "{{spec-kit-include: checkpoint-card.md}}" not in quick_shell
+    assert "../../command-partials/quick/checkpoint-card.md" in quick_checkpoint
+
+    specify = (
+        PROJECT_ROOT / "templates" / "commands" / "specify.md"
+    ).read_text(encoding="utf-8")
+    specify_navigation = (
+        PROJECT_ROOT
+        / "templates"
+        / "command-references"
+        / "specify"
+        / "planning-and-evidence-navigation.md"
+    ).read_text(encoding="utf-8")
+    assert "../command-partials/common/planning-cognition.md" not in specify
+    assert "../command-partials/common/read-only-evidence-lanes.md" not in specify
+    assert "../../command-partials/common/planning-cognition.md" in specify_navigation
+    assert (
+        "../../command-partials/common/read-only-evidence-lanes.md"
+        in specify_navigation
+    )
+
+    implement = (
+        PROJECT_ROOT / "templates" / "commands" / "implement.md"
+    ).read_text(encoding="utf-8")
+    implement_intake = (
+        PROJECT_ROOT
+        / "templates"
+        / "command-references"
+        / "implement"
+        / "task-intake-and-tracker.md"
+    ).read_text(encoding="utf-8")
+    implement_closeout = (
+        PROJECT_ROOT
+        / "templates"
+        / "command-references"
+        / "implement"
+        / "branch-review-and-closeout.md"
+    ).read_text(encoding="utf-8")
+    assert "../command-partials/common/run-bootstrap.md" not in implement
+    assert "../../command-partials/common/run-bootstrap.md" in implement_intake
+    assert "../command-partials/common/inline-project-cognition-update.md" not in implement
+    assert (
+        "../../command-partials/common/inline-project-cognition-update.md"
+        in implement_closeout
+    )
+
+
 def test_global_design_template_is_removed_in_favor_of_change_template() -> None:
     assert not (PROJECT_ROOT / "templates" / "design-template.md").exists()
 
@@ -556,7 +647,13 @@ def test_discussion_and_specify_share_read_only_evidence_lane_contract() -> None
     _assert_read_only_evidence_lane_contract(partial, "<workflow>")
     _assert_read_only_evidence_lane_contract(discussion, "discussion")
     _assert_read_only_evidence_lane_contract(specify, "specify")
-    assert "{{spec-kit-include: ../command-partials/common/read-only-evidence-lanes.md}}" in specify_raw
+    assert "references/planning-and-evidence-navigation.md" in specify_raw
+    assert (
+        "{{spec-kit-include: ../../command-partials/common/read-only-evidence-lanes.md}}"
+        in _read_project_file(
+            "templates/command-references/specify/planning-and-evidence-navigation.md"
+        )
+    )
     assert "{{spec-kit-include: ../common/read-only-evidence-lanes.md}}" in _read_project_file(
         "templates/command-partials/discussion/shell.md"
     )

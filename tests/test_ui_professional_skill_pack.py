@@ -638,9 +638,6 @@ def test_router_keeps_local_existing_ui_authoritative_over_style_matches() -> No
 
 def test_design_workflows_route_to_the_shared_professional_pack() -> None:
     classic = _read(ROOT / "templates" / "command-partials" / "design" / "shell.md")
-    passive = _read(
-        ROOT / "templates" / "passive-skills" / "spec-kit-ui-design" / "SKILL.md"
-    )
     advanced = _read(
         ROOT / "templates" / "advanced-skills" / "spx-design" / "SKILL.md"
     )
@@ -648,7 +645,7 @@ def test_design_workflows_route_to_the_shared_professional_pack() -> None:
         ROOT / "templates" / "advanced-skills" / "_shared" / "ui-quality-gate.md"
     )
 
-    for content in (classic, passive, advanced, advanced_gate):
+    for content in (classic, advanced, advanced_gate):
         lowered = content.lower()
         assert "ui-professional-skills/router.md" in lowered
         assert "professional_skill_route" in lowered

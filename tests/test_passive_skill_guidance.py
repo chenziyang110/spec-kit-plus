@@ -51,43 +51,17 @@ def test_project_to_prd_skill_routes_to_prd_scan_then_prd_build() -> None:
     assert "deprecated" in lowered
 
 
-def test_ui_design_passive_skill_requires_change_contract_before_ui_work() -> None:
-    content = _read("templates/passive-skills/spec-kit-ui-design/SKILL.md")
-    lowered = content.lower()
-
-    assert "design-change.md" in content
-    assert "design-change.md" in lowered
-    assert "sp-design" in content
-    assert "web" in lowered
-    assert "mobile" in lowered
-    assert "desktop" in lowered
-    assert "tui" in lowered
-    assert "cli" in lowered
-    assert "platform-appropriate evidence" in lowered
-    assert "generic one-off styling" in lowered
-
-
-def test_ui_design_passive_skill_requires_subagent_for_ui_reference_input() -> None:
-    content = _read("templates/passive-skills/spec-kit-ui-design/SKILL.md")
-    lowered = content.lower()
-
-    assert "ui reference input" in lowered
-    assert "ui-reference-artifact" in content
-    assert "choose_ui_reference_lane_dispatch" in content
-    assert "ui-reference-notes.md" in content
-    assert "ui-brief.md" in content
-    assert "ui-target.html" in content
-    assert "pending-human-review" in content
-    assert "must not claim" in lowered
-
-
-def test_frontend_design_is_subordinate_to_design_change_contract() -> None:
+def test_frontend_design_requires_design_workflow_for_high_visibility_unbound_ui() -> None:
     content = _read("templates/passive-skills/frontend-design/SKILL.md")
     lowered = content.lower()
+    normalized = " ".join(lowered.split())
 
     assert "design-change.md" in lowered
     assert "subordinate" in lowered
-    assert "sp-design" in content
+    assert "for a narrow existing-pattern change" in normalized
+    assert "recommend `sp-design`/`spx-design` before implementation" in normalized
+    assert "then wait for the user's explicit invocation" in normalized
+    assert "`sp-design` remains user-invoked" in lowered
     assert "do not invent unrelated bold aesthetics" in lowered
 
 

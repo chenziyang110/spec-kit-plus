@@ -683,8 +683,68 @@ def _download_from_url(url: str, destination: Path, *, timeout: float) -> None:
         )
 
 
+def _download_with_github_cli(version: str, destination: Path) -> Path:
+    """Download one release asset through ``gh`` without exposing credentials.
+
+    Git-backed installs can read a private repository while anonymous release
+    URLs still return 404. The GitHub CLI reuses its credential store (or its
+    supported token environment) without putting a token in argv, logs, or
+    third-party mirror requests.
+    """
+
+    github_cli = shutil.which("gh")
+    if github_cli is None:
+        raise SpecifyRuntimeError(
+            "GitHub CLI is not available for authenticated download"
+        )
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.unlink(missing_ok=True)
+    command = [github_cli, "release", "download"]
+    if version != "latest":
+        command.append(version)
+    command.extend(
+        [
+            "--repo",
+            REPO,
+            "--pattern",
+            binary_filename(),
+            "--output",
+            str(destination),
+        ]
+    )
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=_download_timeout_seconds(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        destination.unlink(missing_ok=True)
+        raise SpecifyRuntimeError(
+            "Authenticated GitHub CLI release download could not run"
+        ) from exc
+    if result.returncode != 0:
+        destination.unlink(missing_ok=True)
+        raise SpecifyRuntimeError(
+            "Authenticated GitHub CLI release download failed "
+            f"(exit {result.returncode}); check `gh auth status`"
+        )
+    size = destination.stat().st_size if destination.is_file() else 0
+    if size < 1024:
+        destination.unlink(missing_ok=True)
+        raise SpecifyRuntimeError(
+            f"Authenticated GitHub CLI asset is too small ({size} bytes)"
+        )
+    return destination
+
+
 def download(version: str = DEFAULT_VERSION, destination: Path | None = None) -> Path:
-    """Download the platform runtime asset, trying official + free CDN mirrors."""
+    """Download via official HTTP, authenticated ``gh``, then free mirrors."""
 
     cache = cache_dir()
     cache.mkdir(parents=True, exist_ok=True)
@@ -698,6 +758,7 @@ def download(version: str = DEFAULT_VERSION, destination: Path | None = None) ->
         file=sys.stderr,
     )
     errors: list[str] = []
+    official_url = github_download_url(version)
     for index, url in enumerate(urls, start=1):
         label = "github" if "github.com/" in url and "proxy" not in url else "mirror"
         print(f"  [{index}/{len(urls)}] trying {label}: {url}", file=sys.stderr)
@@ -706,6 +767,24 @@ def download(version: str = DEFAULT_VERSION, destination: Path | None = None) ->
         except (OSError, URLError, TimeoutError, SpecifyRuntimeError) as exc:
             errors.append(f"{url}: {exc}")
             dest.unlink(missing_ok=True)
+            if url == official_url:
+                print(
+                    f"  trying authenticated GitHub CLI fallback for {filename}...",
+                    file=sys.stderr,
+                )
+                try:
+                    _download_with_github_cli(version, dest)
+                except SpecifyRuntimeError as github_cli_exc:
+                    errors.append(f"GitHub CLI: {github_cli_exc}")
+                    dest.unlink(missing_ok=True)
+                else:
+                    if platform.system().lower() != "windows":
+                        os.chmod(dest, 0o755)
+                    print(
+                        f"  Downloaded {RUNTIME_COMMAND} with authenticated GitHub CLI",
+                        file=sys.stderr,
+                    )
+                    return dest
             continue
         if platform.system().lower() != "windows":
             os.chmod(dest, 0o755)

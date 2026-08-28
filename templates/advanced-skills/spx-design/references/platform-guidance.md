@@ -37,6 +37,6 @@ resizing. Prefer Material adaptive patterns, 48 dp targets, accessible actions,
 font scaling, and keyboard/mouse support on large screens.
 
 Official sources: Apple HIG, Microsoft Windows App Design, Android Adaptive
-Apps/Accessibility, and W3C WCAG/APG. The installed Classic
-`spec-kit-ui-design` references carry the exact URLs; Advanced keeps this
+Apps/Accessibility, and W3C WCAG/APG. The installed Classic `sp-design`
+references carry the exact URLs; Advanced keeps this
 compact execution equivalent without depending on the Classic passive bundle.

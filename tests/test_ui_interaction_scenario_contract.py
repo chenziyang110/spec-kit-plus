@@ -248,7 +248,6 @@ def test_design_artifacts_define_a_professional_ui_contract() -> None:
         "templates/advanced-skills/spx-design/assets/design-change.md",
         "templates/ui-brief-template.md",
         "templates/design-brief-template.md",
-        "templates/passive-skills/spec-kit-ui-design/SKILL.md",
     ):
         content = _read(relative)
         for field in PROFESSIONAL_UI_FIELDS:

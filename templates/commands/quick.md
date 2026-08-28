@@ -9,7 +9,6 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/quick/shell.md}}
 
-{{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 {{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
 {{spec-kit-include: ../command-partials/common/autonomous-blocker-recovery.md}}
 
@@ -22,6 +21,18 @@ it; do not resume another workflow's Run. Older runtimes without `run.launch`
 fall back to `specify-runtime run create` followed by `specify-runtime run
 supervise`. The explicit user-selected context-direct branch is the sole
 exception and creates no run or Quick workspace.
+
+## Senior Consequence Analysis Summary
+
+Before continuing past the gate for lifecycle-sensitive, destructive,
+shared-state, downstream-consumer, compatibility, migration, rollout, or
+multi-behavior work, read `references/senior-consequence-analysis.md`.
+
+Do not skip the gate when those trigger categories apply. Preserve the
+Affected Object Map, State-Behavior Matrix, Dependency Impact Table, Recovery
+And Validation Contract, Coverage Gaps, and every `CA-###` consequence
+obligation that must survive planning, worker packets, validation, and
+closeout.
 
 ## Coordination Preflight
 
@@ -148,7 +159,9 @@ blocked Q item or verification point in the same invocation.
 Read [Reference index](references/INDEX.md) before applying detailed contracts.
 
 - [intake and checkpoint](references/intake-and-checkpoint.md)
+- [senior consequence analysis](references/senior-consequence-analysis.md)
 - [workspace state](references/workspace-state.md)
 - [handoff consumption](references/handoff-consumption.md)
 - [packetized work](references/packetized-work.md)
+- [ui design intelligence](references/ui-design-intelligence.md)
 - [validation and closeout](references/validation-and-closeout.md)

@@ -32,12 +32,15 @@ DI_SHARED_MARKERS = (
     "DesignContext v1",
 )
 
-UI_STAGES_CLASSIC = (
+ROUTED_UI_STAGES_CLASSIC = (
     "discussion",
     "specify",
     "quick",
-    "debug",
     "implement",
+)
+
+INLINE_UI_STAGES_CLASSIC = (
+    "debug",
     "review",
 )
 
@@ -146,10 +149,24 @@ def test_design_intelligence_partials_are_single_sourced() -> None:
     assert (PROJECT_ROOT / "templates/design-intelligence/ARTIFACT-LIFECYCLE.md").is_file()
 
 
-def test_classic_ui_stages_include_design_intelligence_partial() -> None:
-    for stage in UI_STAGES_CLASSIC:
+def test_classic_ui_stages_route_design_intelligence_progressively() -> None:
+    for stage in ROUTED_UI_STAGES_CLASSIC:
         shell = _read(f"templates/command-partials/{stage}/shell.md")
-        assert "design-intelligence.md" in shell, stage
+        reference = _read(
+            f"templates/command-references/{stage}/ui-design-intelligence.md"
+        )
+        assert "references/ui-design-intelligence.md" in shell, stage
+        assert "../common/design-intelligence.md" not in shell, stage
+        assert (
+            "../../command-partials/common/design-intelligence.md" in reference
+        ), stage
+        assert reference.startswith("Trigger:"), stage
+        assert "Purpose:" in reference, stage
+        assert "Preserved Contract:" in reference, stage
+
+    for stage in INLINE_UI_STAGES_CLASSIC:
+        shell = _read(f"templates/command-partials/{stage}/shell.md")
+        assert "../common/design-intelligence.md" in shell, stage
 
 
 def test_advanced_ui_stages_reference_ui_quality_gate_with_stage_hooks() -> None:
@@ -271,8 +288,15 @@ def test_change_scoped_design_templates_document_personality_and_dials() -> None
     assert "change" in lowered
 
 
-def test_passive_ui_skill_surfaces_design_intelligence() -> None:
-    skill = _read("templates/passive-skills/spec-kit-ui-design/SKILL.md")
+def test_shared_ui_partials_surface_design_intelligence() -> None:
+    skill = "\n".join(
+        _read(relative)
+        for relative in (
+            "templates/command-partials/common/design-intelligence.md",
+            "templates/command-partials/design-intelligence/shared-foundation.md",
+            "templates/command-partials/design-intelligence/stage-hooks.md",
+        )
+    )
     lowered = skill.lower()
     assert "design intelligence" in lowered
     assert "design-before-code" in lowered or "quick" in lowered

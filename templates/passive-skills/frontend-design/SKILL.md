@@ -10,28 +10,32 @@ The user provides frontend requirements: a component, page, application, or inte
 
 ## Spec Kit Plus Design-Change Priority
 
-In a Spec Kit Plus project, frontend-design is subordinate to the exact design
-change bound by the current feature or task. Before choosing an aesthetic
-direction, run `specify-runtime design resolve --scope <exact-surface> --format json`
-for discovery, query metadata-only `.specify/design/index.json`, then inspect the
-selected `.specify/design/changes/<UD-ID>/design-change.md` through targeted
-`specify-runtime artifact show` calls and verify its registered
-SHA-256. Never resolve "latest". Follow that scoped contract for tokens,
-components, layout density, interaction states, accessibility, motion, and
-evidence expectations. No root design document can authorize adoption.
-If resolution is composite, stop and require independently bound consumer
-units, each with one exact scope and singular binding artifact; do not blend
-parent and successor contracts in an implementation worker.
+In a Spec Kit Plus project, frontend-design is subordinate to any exact design
+change already bound by the current feature or task. When such a binding
+exists, inspect the selected
+`.specify/design/changes/<UD-ID>/design-change.md` through targeted
+`specify-runtime artifact show` calls, verify its registered SHA-256, and follow
+that scoped contract for tokens, components, layout density, interaction
+states, accessibility, motion, and evidence expectations. Never resolve
+"latest" or use a root design document as adoption authority. If the bound
+scope is composite, require independently bound consumer units rather than
+blending parent and successor contracts.
 
-For substantive new UI with no applicable registered change, route through
-`sp-design`/`spx-design`; for a narrow existing-pattern change, ground the
-implementation in the live product surface and record the bounded design
-assumption.
+When no design change is already bound, do not treat a missing
+`.specify/design/index.json` as an automatic blocker. For a narrow
+existing-pattern change, proceed from the user's request, supplied references,
+and the live product surface; inherit the live visual language unless the user
+explicitly requests a scoped redesign, and record the compact direction
+contract and assumptions in the implementation closeout.
 
-Passive SKILL invocation must not enter any `sp-*` or `spx-*` workflow. All
-`sp-*` and `spx-*` workflows are user-invoked only: recommend its projected
-invocation and stop until the user explicitly invokes it. In
-particular, this passive skill must not load or enter `sp-design` itself.
+For substantive new UI with no applicable registered change, or for
+high-visibility UI, a redesign or rebrand, or a core workflow experience,
+recommend `sp-design`/`spx-design` before implementation, then wait for the
+user's explicit invocation rather than treating visual style as an
+implementation detail.
+
+`sp-design` remains user-invoked. This passive implementation skill must not
+load or invoke `sp-design`/`spx-design` itself.
 
 When the bound contract reports an approved
 `.specify/design/changes/<UD-ID>/previews/round-NN.<html|png|jpg|jpeg|webp>#<direction-id>`, inspect
@@ -43,10 +47,8 @@ preview or registered design change.
 
 Do not invent unrelated bold aesthetics when a registered change governs the
 affected scope or when the request is to implement an existing product surface.
-If no applicable change exists and the work is high-visibility, new product UI,
-a redesign or rebrand, or a core workflow experience, recommend `sp-design`
-before implementation, then wait for the user's explicit invocation rather than
-treating visual style as an implementation detail.
+Without a bound change, make visual choices explicit in the direction contract
+only when the change qualifies for the narrow existing-pattern path above.
 
 ## Design Thinking
 

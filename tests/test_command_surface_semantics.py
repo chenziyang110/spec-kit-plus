@@ -153,10 +153,8 @@ def test_product_guidance_requires_explicit_invocation_for_both_workflow_profile
     "template_path",
     (
         "templates/passive-skills/dispatching-parallel-agents/SKILL.md",
-        "templates/passive-skills/frontend-design/SKILL.md",
         "templates/passive-skills/project-to-prd/SKILL.md",
         "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
-        "templates/passive-skills/spec-kit-ui-design/SKILL.md",
         "templates/passive-skills/subagent-driven-development/SKILL.md",
     ),
 )

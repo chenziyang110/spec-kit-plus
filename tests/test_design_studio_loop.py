@@ -103,7 +103,7 @@ def test_design_workflows_require_collaborative_single_concept_iteration() -> No
         "new immutable round",
         "explicit approval",
         "do not advance past an unanswered question",
-        "spec-kit-ui-design",
+        "professional reference package bundled with `sp-design`",
     ):
         assert phrase in combined
 
@@ -128,8 +128,11 @@ def test_design_brief_persists_dialogue_and_stage_state() -> None:
 
 
 def test_professional_ui_skill_routes_dialogue_craft_and_platform_guidance() -> None:
-    skill_root = REPO_ROOT / "templates" / "passive-skills" / "spec-kit-ui-design"
-    skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
+    references_root = REPO_ROOT / "templates" / "command-references" / "design"
+    reference_index = (references_root / "INDEX.md").read_text(encoding="utf-8")
+    skill = (
+        REPO_ROOT / "templates" / "command-partials" / "design" / "shell.md"
+    ).read_text(encoding="utf-8")
 
     expected_references = {
         "discovery-dialogue.md",
@@ -141,8 +144,9 @@ def test_professional_ui_skill_routes_dialogue_craft_and_platform_guidance() -> 
         "platform-android.md",
     }
     for name in expected_references:
-        assert (skill_root / "references" / name).is_file()
+        assert (references_root / name).is_file()
         assert name in skill
+        assert name in reference_index
 
     advanced_root = REPO_ROOT / "templates" / "advanced-skills" / "spx-design"
     advanced = (advanced_root / "SKILL.md").read_text(encoding="utf-8")

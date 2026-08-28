@@ -501,7 +501,12 @@ def test_collected_skills_integrations_generate_design_workflow(tmp_path):
 
         design_path = integration.skills_dest(project) / "sp-design" / "SKILL.md"
         assert design_path.exists(), integration_key
-        _assert_design_contract(design_path.read_text(encoding="utf-8"))
+        design_content = design_path.read_text(encoding="utf-8")
+        _assert_design_contract(design_content)
+        frontmatter = yaml.safe_load(design_content.split("---", 2)[1])
+        assert frontmatter["description"].startswith(
+            "User-invoked workflow only"
+        ), integration_key
 
 
 def test_collected_skills_integrations_install_ui_design_studio_references(tmp_path):
@@ -524,14 +529,16 @@ def test_collected_skills_integrations_install_ui_design_studio_references(tmp_p
         manifest = IntegrationManifest(integration_key, project)
         integration.setup(project, manifest)
 
-        skill_dir = integration.skills_dest(project) / "spec-kit-ui-design"
+        skills_dir = integration.skills_dest(project)
+        skill_dir = skills_dir / "sp-design"
         skill_content = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
         references_dir = skill_dir / "references"
         installed_references = {path.name for path in references_dir.glob("*.md")}
 
-        assert installed_references == expected_references, integration_key
+        assert expected_references.issubset(installed_references), integration_key
         assert "references/discovery-dialogue.md" in skill_content, integration_key
         assert "references/prototype-craft.md" in skill_content, integration_key
+        assert not (skills_dir / "spec-kit-ui-design").exists(), integration_key
         for reference in references_dir.glob("*.md"):
             assert reference.relative_to(project).as_posix() in manifest.files, (
                 integration_key,
