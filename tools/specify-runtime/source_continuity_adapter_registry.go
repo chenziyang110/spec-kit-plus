@@ -57,6 +57,7 @@ type sourceContinuityAdapterProbeRoute struct {
 	unavailableBindings []any
 	unselectedBindings  []any
 	inventorySHA256     string
+	inventoryBridge     map[string]any
 	diagnostics         []string
 }
 
@@ -91,7 +92,7 @@ func (service evidenceService) sourceContinuityAdapterProbe(args []string, raw m
 		env.NextArgv = []string{"specify-runtime", "evidence", "source-continuity-adapter-catalog", "--format", "json"}
 		return env
 	}
-	return service.materializeSourceContinuityAdapterProbe(context, route, registrySHA)
+	return service.materializeSourceContinuityAdapterProbe(context, route, registrySHA, nil, nil)
 }
 
 func (service evidenceService) resolveSourceContinuityAdapterProbeContext(args []string) (*sourceContinuityAdapterProbeContext, error) {
@@ -155,6 +156,8 @@ func (service evidenceService) materializeSourceContinuityAdapterProbe(
 	context *sourceContinuityAdapterProbeContext,
 	route sourceContinuityAdapterProbeRoute,
 	registrySHA string,
+	additionalUpdates []fileTransactionUpdate,
+	additionalData map[string]any,
 ) Envelope {
 	status := "ready"
 	if len(route.unresolvedGaps) > 0 {
@@ -169,6 +172,7 @@ func (service evidenceService) materializeSourceContinuityAdapterProbe(
 		"registry_schema":      sourceContinuityAdapterRegistrySchema,
 		"registry_sha256":      registrySHA,
 		"inventory_sha256":     route.inventorySHA256,
+		"inventory_bridge":     cloneJSONValue(route.inventoryBridge),
 		"adapters":             cloneJSONValue(route.adapters),
 		"assignments":          cloneJSONValue(route.assignments),
 		"unavailable_bindings": cloneJSONValue(route.unavailableBindings),
@@ -192,7 +196,9 @@ func (service evidenceService) materializeSourceContinuityAdapterProbe(
 	}
 	probeSHA := fileContentSHA256(probeRendered)
 	if status == "blocked" {
-		receipt, err := applyFileTransaction(context.root, "source-continuity-adapter-probe", []fileTransactionUpdate{{Path: probePath, Content: probeRendered, Perm: 0o644}})
+		updates := append([]fileTransactionUpdate{}, additionalUpdates...)
+		updates = append(updates, fileTransactionUpdate{Path: probePath, Content: probeRendered, Perm: 0o644})
+		receipt, err := applyFileTransaction(context.root, "source-continuity-adapter-probe", updates)
 		if err != nil {
 			return evidenceBlockedError("blocked adapter probe could not be written atomically", err)
 		}
@@ -202,6 +208,9 @@ func (service evidenceService) materializeSourceContinuityAdapterProbe(
 			"subject_id": context.subjectID, "adapter_probe_ref": probeRef,
 			"adapter_probe_sha256": probeSHA, "registry_sha256": registrySHA,
 			"diagnostics": stringsToAny(diagnostics), "transaction_receipt_ref": receipt.ReceiptRef,
+		}
+		for key, value := range additionalData {
+			env.Data[key] = value
 		}
 		env.NextArgv = []string{"specify-runtime", "evidence", "source-continuity-adapter-catalog", "--format", "json"}
 		env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--path", canonicalProbePath, "--view", "summary", "--format", "json"}
@@ -230,10 +239,12 @@ func (service evidenceService) materializeSourceContinuityAdapterProbe(
 	if err != nil {
 		return evidenceBlockedError("registry-routed adapter plan cannot be built", err)
 	}
-	receipt, err := applyFileTransaction(context.root, "source-continuity-adapter-probe", []fileTransactionUpdate{
-		{Path: probePath, Content: probeRendered, Perm: 0o644},
-		{Path: planArtifact.path, Content: planArtifact.rendered, Perm: 0o644},
-	})
+	updates := append([]fileTransactionUpdate{}, additionalUpdates...)
+	updates = append(updates,
+		fileTransactionUpdate{Path: probePath, Content: probeRendered, Perm: 0o644},
+		fileTransactionUpdate{Path: planArtifact.path, Content: planArtifact.rendered, Perm: 0o644},
+	)
+	receipt, err := applyFileTransaction(context.root, "source-continuity-adapter-probe", updates)
 	if err != nil {
 		return evidenceBlockedError("adapter probe and plan could not be written atomically", err)
 	}
@@ -243,6 +254,9 @@ func (service evidenceService) materializeSourceContinuityAdapterProbe(
 	env.Data["adapter_probe_sha256"] = probeSHA
 	env.Data["registry_sha256"] = registrySHA
 	env.Data["inventory_sha256"] = route.inventorySHA256
+	for key, value := range additionalData {
+		env.Data[key] = value
+	}
 	env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--path", canonicalProbePath, "--view", "summary", "--format", "json"}
 	return env
 }
@@ -319,7 +333,7 @@ func validateSourceContinuityAdapterRegistry(registry sourceContinuityAdapterReg
 }
 
 func routeSourceContinuityAdapters(raw map[string]any, registry *sourceContinuityAdapterRegistry, registrySHA string) sourceContinuityAdapterProbeRoute {
-	result := sourceContinuityAdapterProbeRoute{}
+	result := sourceContinuityAdapterProbeRoute{inventoryBridge: directSourceContinuityToolInventoryBridge()}
 	canonical, err := marshalReviewAcceptJSON(raw)
 	if err == nil {
 		result.inventorySHA256 = fileContentSHA256(canonical)
@@ -587,19 +601,20 @@ func validateSourceContinuityAdapterProbeSelection(container, subjectID, manifes
 	}
 	if exactVisualComparisonFields(probe, map[string]bool{
 		"schema": true, "subject_id": true, "status": true, "binding": true,
-		"registry_schema": true, "registry_sha256": true, "inventory_sha256": true,
+		"registry_schema": true, "registry_sha256": true, "inventory_sha256": true, "inventory_bridge": true,
 		"adapters": true, "assignments": true, "unavailable_bindings": true,
 		"unselected_bindings": true, "unresolved_gaps": true,
 	}, "source continuity adapter probe") != nil {
 		return []string{"stale-adapter-probe"}
 	}
 	binding, _ := probe["binding"].(map[string]any)
+	inventoryBridge, bridgeOK := probe["inventory_bridge"].(map[string]any)
 	if probe["schema"] != sourceContinuityAdapterProbeSchema || probe["status"] != "ready" || anyString(probe["subject_id"]) != subjectID ||
 		anyString(probe["registry_schema"]) != sourceContinuityAdapterRegistrySchema || anyString(probe["registry_sha256"]) != registrySHA ||
 		anyString(probe["inventory_sha256"]) != anyString(selection["inventory_sha256"]) ||
 		anyString(binding["manifest_ref"]) != manifestRef || anyString(binding["manifest_sha256"]) != manifestSHA ||
 		!reflect.DeepEqual(probe["adapters"], plan["adapters"]) || !reflect.DeepEqual(probe["assignments"], plan["assignments"]) ||
-		len(listValue(probe["unresolved_gaps"])) != 0 {
+		len(listValue(probe["unresolved_gaps"])) != 0 || !bridgeOK || len(validateSourceContinuityToolInventoryBridge(container, subjectID, manifestRef, manifestSHA, inventoryBridge, probe, quick)) > 0 {
 		return []string{"stale-adapter-probe"}
 	}
 	return nil

@@ -535,6 +535,11 @@ func validateQuickSourceContinuityAcceptance(workspacePath, itemID string, doc *
 	if adapterPlanPath, err := secureFeatureRelativePath(workspacePath, adapterPlanRef); err == nil {
 		adapterPlanSHA = optionalFileSHA256(adapterPlanPath)
 	}
+	adapterExecutionRef := sourceContinuityAdapterExecutionRef(itemID, true)
+	adapterExecutionSHA := ""
+	if adapterExecutionPath, err := secureFeatureRelativePath(workspacePath, adapterExecutionRef); err == nil {
+		adapterExecutionSHA = optionalFileSHA256(adapterExecutionPath)
+	}
 	if result != nil {
 		verification, ok := result["ui_verification"].(map[string]any)
 		if !ok {
@@ -557,6 +562,8 @@ func validateQuickSourceContinuityAcceptance(workspacePath, itemID string, doc *
 		reportSHA = strings.TrimSpace(anyString(verification["source_continuity_lab_report_sha256"]))
 		adapterPlanRef = filepath.ToSlash(strings.TrimSpace(anyString(verification["source_continuity_adapter_plan_ref"])))
 		adapterPlanSHA = strings.TrimSpace(anyString(verification["source_continuity_adapter_plan_sha256"]))
+		adapterExecutionRef = filepath.ToSlash(strings.TrimSpace(anyString(verification["source_continuity_adapter_execution_ref"])))
+		adapterExecutionSHA = strings.TrimSpace(anyString(verification["source_continuity_adapter_execution_sha256"]))
 	}
 	if reportRef == "" || reportSHA == "" {
 		return errors.New("source continuity lab report ref and SHA-256 digest are required")
@@ -564,7 +571,10 @@ func validateQuickSourceContinuityAcceptance(workspacePath, itemID string, doc *
 	if adapterPlanRef == "" || adapterPlanSHA == "" {
 		return errors.New("source continuity adapter plan ref and SHA-256 digest are required")
 	}
-	return validatePersistedQuickSourceContinuityLabReport(workspacePath, doc, itemID, reportRef, reportSHA, adapterPlanRef, adapterPlanSHA)
+	if adapterExecutionRef == "" || adapterExecutionSHA == "" {
+		return errors.New("source continuity adapter execution ref and SHA-256 digest are required")
+	}
+	return validatePersistedQuickSourceContinuityLabReport(workspacePath, doc, itemID, reportRef, reportSHA, adapterPlanRef, adapterPlanSHA, adapterExecutionRef, adapterExecutionSHA)
 }
 
 func revalidateAcceptedQuickSourceContinuity(workspacePath, itemID string, doc *quickConfirmationDoc, row quickWorkItemStatus) error {

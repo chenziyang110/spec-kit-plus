@@ -953,6 +953,7 @@ func resetImplementTaskUIVerification(value any) map[string]any {
 		"smoothness_lab_report_ref": "", "smoothness_lab_report_sha256": "",
 		"source_continuity_lab_report_ref": "", "source_continuity_lab_report_sha256": "",
 		"source_continuity_adapter_plan_ref": "", "source_continuity_adapter_plan_sha256": "",
+		"source_continuity_adapter_execution_ref": "", "source_continuity_adapter_execution_sha256": "",
 		"implementation_capture_refs": []any{}, "structural_differences": []any{}, "visual_differences": []any{},
 		"covered_source_continuity_surface_ids": []any{}, "covered_source_continuity_interaction_ids": []any{}, "covered_source_continuity_component_ids": []any{},
 	}
@@ -1331,7 +1332,12 @@ func validateImplementTaskUIAcceptance(feature string, task, lifecycle map[strin
 		if adapterPlanRef == "" || adapterPlanSHA256 == "" {
 			return fmt.Errorf("ui_verification source continuity adapter plan ref and SHA-256 digest are required")
 		}
-		if err := validatePersistedSourceContinuityLabReport(feature, task, reportRef, reportSHA256, adapterPlanRef, adapterPlanSHA256); err != nil {
+		adapterExecutionRef := filepath.ToSlash(strings.TrimSpace(anyString(verification["source_continuity_adapter_execution_ref"])))
+		adapterExecutionSHA256 := strings.TrimSpace(anyString(verification["source_continuity_adapter_execution_sha256"]))
+		if adapterExecutionRef == "" || adapterExecutionSHA256 == "" {
+			return fmt.Errorf("ui_verification source continuity adapter execution ref and SHA-256 digest are required")
+		}
+		if err := validatePersistedSourceContinuityLabReport(feature, task, reportRef, reportSHA256, adapterPlanRef, adapterPlanSHA256, adapterExecutionRef, adapterExecutionSHA256); err != nil {
 			return fmt.Errorf("ui_verification %w", err)
 		}
 	}

@@ -176,6 +176,12 @@ def _normalize_ui_verification(payload: dict[str, Any]) -> UIVerification:
         source_continuity_adapter_plan_sha256=str(
             raw.get("source_continuity_adapter_plan_sha256") or ""
         ),
+        source_continuity_adapter_execution_ref=str(
+            raw.get("source_continuity_adapter_execution_ref") or ""
+        ),
+        source_continuity_adapter_execution_sha256=str(
+            raw.get("source_continuity_adapter_execution_sha256") or ""
+        ),
         implementation_capture_refs=_as_str_list(
             raw.get("implementation_capture_refs")
         ),

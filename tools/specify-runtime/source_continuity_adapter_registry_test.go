@@ -83,9 +83,19 @@ func TestSourceContinuityAdapterProbeMaterializesFormalPlan(t *testing.T) {
 	if !strings.HasPrefix(anyString(composite["id"]), "adapter-plan:") || len(listValue(composite["capabilities"])) != 5 {
 		t.Fatalf("adapter probe binding = %#v", binding)
 	}
+	exit, executionEnv := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-adapter-execution", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--adapter-plan", planRef,
+		"--adapter-plan-sha256", anyString(env.Data["adapter_plan_sha256"]), "--format", "json",
+	})
+	if exit != 0 || executionEnv.Status != "ok" {
+		t.Fatalf("registry plan execution compile failed: exit=%d env=%#v", exit, executionEnv)
+	}
 
 	observation := readSourceContinuityLabObservation(t, "passing-observation.json", manifestSHA)
 	bindSourceContinuityAdapterPlanToObservation(observation, planRef, anyString(env.Data["adapter_plan_sha256"]), composite)
+	bindSourceContinuityAdapterExecutionToObservation(observation, executionEnv)
 	adapterByEvidence := map[string]string{}
 	for _, value := range listValue(plan["assignments"]) {
 		assignment := requireObjectValue(t, value)
@@ -110,6 +120,7 @@ func TestSourceContinuityAdapterProbeMaterializesFormalPlan(t *testing.T) {
 		"evidence", "source-continuity-validate", "--project-root", root,
 		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
 		"--manifest", manifestRef, "--adapter-plan", planRef,
+		"--adapter-execution", anyString(executionEnv.Data["adapter_execution_ref"]),
 		"--input-json", string(observedRaw), "--format", "json",
 	})
 	if exit != 0 || reportEnv.Status != "ok" {

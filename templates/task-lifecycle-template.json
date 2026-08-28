@@ -34,6 +34,8 @@
     "source_continuity_lab_report_sha256": null,
     "source_continuity_adapter_plan_ref": null,
     "source_continuity_adapter_plan_sha256": null,
+    "source_continuity_adapter_execution_ref": null,
+    "source_continuity_adapter_execution_sha256": null,
     "implementation_capture_refs": [],
     "covered_decision_ids": [],
     "covered_handoff_contract_ids": [],

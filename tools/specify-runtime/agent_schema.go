@@ -23,6 +23,9 @@ func runAPISchema(args []string, stdout io.Writer) int {
 	case "source-continuity-adapter-probe-input":
 		schema = sourceContinuityAdapterProbeInputJSONSchema()
 		capabilityID = "evidence.source-continuity-adapter-probe"
+	case "source-continuity-tool-inventory-input":
+		schema = sourceContinuityToolInventoryInputJSONSchema()
+		capabilityID = "evidence.source-continuity-adapter-bridge"
 	case "artifact-show-many-input":
 		schema = artifactShowManyInputSchema()
 		capabilityID = "artifact.show-many"
@@ -196,6 +199,12 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime evidence source-continuity-adapter-catalog --format json"
 		capability["input_contract"] = "returns the embedded technology-neutral provider packs, their capabilities/actions/evidence/policies, and a deterministic registry_sha256; it does not inspect the project or install tools"
+	case "evidence.source-continuity-adapter-bridge":
+		capability["input_schema"] = "source-continuity-tool-inventory-input"
+		capability["side_effect"] = "writes-tool-inventory-probe-and-plan"
+		capability["usage"] = "specify-runtime evidence source-continuity-adapter-bridge (--feature-dir <feature-dir> --task-id <Txxx> | --quick-id <quick-id> --item-id <Qn>) --manifest <manifest-ref> --input-json <live-tool-inventory> --format json"
+		capability["input_contract"] = "agent or host reports only current tool refs, generic detection signals, roles, execution mode, and availability; runtime maps signals to providers, derives visual capability availability, and atomically writes the inventory report, probe, and Plan"
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "source-continuity-tool-inventory-input", "--format", "json"}
 	case "evidence.source-continuity-adapter-probe":
 		capability["input_schema"] = "source-continuity-adapter-probe-input"
 		capability["side_effect"] = "writes-derived-source-continuity-adapter-probe-and-plan"
@@ -208,6 +217,10 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["usage"] = "specify-runtime evidence source-continuity-adapter-plan (--feature-dir <feature-dir> --task-id <Txxx> | --quick-id <quick-id> --item-id <Qn>) --manifest <manifest-ref> --input-json <adapter-plan-input> --format json"
 		capability["input_contract"] = "composes one or more generic adapters across all source/target capability lanes; descriptors expose only symbolic tool refs, declared permissions, typed evidence, and the bounded action enum; command, argv, env, install, unresolved gaps, and uncovered lanes are rejected"
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "source-continuity-adapter-plan-input", "--format", "json"}
+	case "evidence.source-continuity-adapter-execution":
+		capability["side_effect"] = "writes-derived-adapter-execution-manifest"
+		capability["usage"] = "specify-runtime evidence source-continuity-adapter-execution (--feature-dir <feature-dir> --task-id <Txxx> | --quick-id <quick-id> --item-id <Qn>) --manifest <manifest-ref> --adapter-plan <plan-ref> --adapter-plan-sha256 <sha256> --format json"
+		capability["input_contract"] = "runtime validates the manifest/Plan/registry/probe/inventory chain and compiles one packet per selected adapter with only symbolic tool_ref, bounded actions, exact lanes and business binding ids, typed evidence requirements, permissions, preconditions, and stop conditions; no command/argv/env/script/install fields are emitted"
 	case "evidence.source-continuity-validate":
 		capability["side_effect"] = "writes-derived-source-continuity-report"
 		capability["usage"] = "specify-runtime evidence source-continuity-validate (--feature-dir <feature-dir> --task-id <Txxx> | --quick-id <quick-id> --item-id <Qn>) --manifest <manifest-ref> --input-json <observed-source-continuity> --format json"
@@ -667,6 +680,63 @@ func sourceContinuityAdapterProbeInputJSONSchema() map[string]any {
 			"schema":   map[string]any{"const": sourceContinuityAdapterProbeInputSchema},
 			"bindings": map[string]any{"type": "array", "minItems": 1, "maxItems": 32, "items": binding},
 			"policy":   policy,
+		},
+	}
+}
+
+func sourceContinuityToolInventoryInputJSONSchema() map[string]any {
+	nonEmptyString := map[string]any{"type": "string", "minLength": 1}
+	signals := stringsToAny(sourceContinuityToolInventorySignalStrings())
+	tool := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"id", "tool_ref", "signals", "roles", "execution_mode", "available", "unavailable_reason"},
+		"properties": map[string]any{
+			"id":       map[string]any{"type": "string", "minLength": 1, "maxLength": 128},
+			"tool_ref": map[string]any{"type": "string", "maxLength": 512, "pattern": `^[a-z][a-z0-9+.-]*://\S+$`},
+			"signals": map[string]any{
+				"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true,
+				"items": map[string]any{"type": "string", "enum": signals},
+			},
+			"roles": map[string]any{
+				"type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true,
+				"items": map[string]any{"type": "string", "enum": []any{"source", "target"}},
+			},
+			"execution_mode":     map[string]any{"type": "string", "enum": []any{"runtime-managed", "agent-tool", "app-connector", "external-runner", "manual-attested"}},
+			"available":          map[string]any{"type": "boolean"},
+			"unavailable_reason": map[string]any{"type": "string", "enum": []any{"", "tool-missing", "permission-denied", "source-unavailable", "unsupported-mode", "manual-attestation-unavailable"}},
+		},
+	}
+	return map[string]any{
+		"$schema":              "https://json-schema.org/draft/2020-12/schema",
+		"$id":                  "specify://schemas/source-continuity-tool-inventory-input/v1",
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"schema", "source", "tools", "policy"},
+		"properties": map[string]any{
+			"schema": map[string]any{"const": sourceContinuityToolInventoryInputSchema},
+			"source": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"required":             []string{"kind", "captured_by", "freshness"},
+				"properties": map[string]any{
+					"kind":        map[string]any{"const": "live-session"},
+					"captured_by": map[string]any{"type": "string", "enum": []any{"agent-observation", "runtime-api", "host-connector"}},
+					"freshness":   map[string]any{"const": "current"},
+				},
+			},
+			"tools": map[string]any{"type": "array", "minItems": 1, "maxItems": 32, "items": tool},
+			"policy": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"required":             []string{"allow_manual_attested", "preferred_tool_ids"},
+				"properties": map[string]any{
+					"allow_manual_attested": map[string]any{"type": "boolean"},
+					"preferred_tool_ids": map[string]any{
+						"type": "array", "maxItems": 32, "uniqueItems": true, "items": nonEmptyString,
+					},
+				},
+			},
 		},
 	}
 }

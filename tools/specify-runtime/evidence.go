@@ -112,6 +112,16 @@ func runEvidence(args []string, stdout io.Writer) int {
 		return writeEvidenceEnvelope(stdout, service.sourceContinuityManifest(args))
 	case "source-continuity-adapter-catalog":
 		return writeEvidenceEnvelope(stdout, service.sourceContinuityAdapterCatalog())
+	case "source-continuity-adapter-bridge":
+		input, err := readAgentJSONObject(args, projectRoot, "evidence source-continuity-adapter-bridge")
+		if err != nil {
+			return writeEvidenceEnvelope(stdout, evidenceUsageError(err.Error()))
+		}
+		env := service.sourceContinuityAdapterBridge(args, input)
+		if env.Status == "error" {
+			return writeEvidenceEnvelopeWithExit(stdout, env, 2)
+		}
+		return writeEvidenceEnvelope(stdout, env)
 	case "source-continuity-adapter-probe":
 		input, err := readAgentJSONObject(args, projectRoot, "evidence source-continuity-adapter-probe")
 		if err != nil {
@@ -128,6 +138,12 @@ func runEvidence(args []string, stdout io.Writer) int {
 			return writeEvidenceEnvelope(stdout, evidenceUsageError(err.Error()))
 		}
 		env := service.sourceContinuityAdapterPlan(args, input)
+		if env.Status == "error" {
+			return writeEvidenceEnvelopeWithExit(stdout, env, 2)
+		}
+		return writeEvidenceEnvelope(stdout, env)
+	case "source-continuity-adapter-execution":
+		env := service.sourceContinuityAdapterExecution(args)
 		if env.Status == "error" {
 			return writeEvidenceEnvelopeWithExit(stdout, env, 2)
 		}

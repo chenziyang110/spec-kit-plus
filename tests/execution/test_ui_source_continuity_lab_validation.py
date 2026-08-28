@@ -154,6 +154,117 @@ def _adapter_plan(
     }
 
 
+def _adapter_execution(
+    *,
+    adapter_plan: dict[str, object],
+    adapter_plan_ref: str,
+    adapter_plan_sha256: str,
+    continuity: dict[str, object],
+) -> dict[str, object]:
+    adapter_by_id = {
+        str(adapter["id"]): adapter for adapter in adapter_plan["adapters"]
+    }
+    assignments_by_adapter: dict[str, list[dict[str, object]]] = {}
+    for assignment in adapter_plan["assignments"]:
+        assignments_by_adapter.setdefault(str(assignment["adapter_id"]), []).append(
+            assignment
+        )
+    evidence_kind = {
+        "surface-enumeration": "structure_snapshot",
+        "action-execution": "runtime_diagnostics",
+        "side-effect-observation": "runtime_diagnostics",
+        "asset-inspection": "visual_capture",
+        "visual-capture": "visual_capture",
+    }
+    packets: list[dict[str, object]] = []
+    for adapter_id in sorted(assignments_by_adapter):
+        adapter = adapter_by_id[adapter_id]
+        assignments = assignments_by_adapter[adapter_id]
+        capabilities = {str(row["capability"]) for row in assignments}
+        observed = {
+            (str(row["side"]), evidence_kind[str(row["capability"])])
+            for row in assignments
+        }
+        requirements = [
+            {"side": side, "kind": kind, "adapter_id": adapter_id}
+            for side in ("source", "target")
+            for kind in (
+                "structure_snapshot",
+                "visual_capture",
+                "runtime_diagnostics",
+            )
+            if (side, kind) in observed
+        ]
+        preconditions = [
+            "manifest-current",
+            "adapter-plan-current",
+            "tool-binding-available",
+            "real-entrypoint-or-declared-substitute-ready",
+        ]
+        if adapter["write_policy"] == "isolated-test-data":
+            preconditions.append("isolated-test-data-prepared")
+        packet_id = hashlib.sha256(
+            f"{adapter_plan_sha256}\n{adapter_id}\n".encode()
+        ).hexdigest()[:12]
+        packets.append(
+            {
+                "id": f"SCAE-{packet_id}",
+                "adapter_id": adapter_id,
+                "tool_ref": adapter["tool_ref"],
+                "execution_mode": adapter["execution_mode"],
+                "lanes": [
+                    f"{row['side']}.{row['capability']}" for row in assignments
+                ],
+                "actions": adapter["actions"],
+                "evidence_requirements": requirements,
+                "binding_targets": {
+                    "surface_binding_ids": [
+                        row["id"] for row in continuity["surface_bindings"]
+                    ]
+                    if "surface-enumeration" in capabilities
+                    else [],
+                    "action_binding_ids": [
+                        row["id"] for row in continuity["action_bindings"]
+                    ]
+                    if capabilities
+                    & {"action-execution", "side-effect-observation"}
+                    else [],
+                    "asset_binding_ids": [
+                        row["id"] for row in continuity["asset_bindings"]
+                    ]
+                    if capabilities & {"asset-inspection", "visual-capture"}
+                    else [],
+                },
+                "write_policy": adapter["write_policy"],
+                "network_policy": adapter["network_policy"],
+                "preconditions": preconditions,
+                "stop_conditions": [
+                    "tool-unavailable",
+                    "permission-boundary",
+                    "unexpected-destructive-side-effect",
+                    "unbound-surface-action-or-asset",
+                    "runtime-crash-or-unrecoverable-state",
+                ],
+            }
+        )
+    binding = dict(adapter_plan["binding"])
+    binding.update(
+        {
+            "adapter_plan_ref": adapter_plan_ref,
+            "adapter_plan_sha256": adapter_plan_sha256,
+            "adapter_selection": adapter_plan["selection"],
+        }
+    )
+    return {
+        "schema": "spec-kit-source-continuity-adapter-execution-v1",
+        "subject_id": "T001",
+        "status": "ready",
+        "binding": binding,
+        "packets": packets,
+        "unresolved_gaps": [],
+    }
+
+
 def _source_continuity() -> dict[str, object]:
     return {
         "schema": "spec-kit-ui-source-continuity-v1",
@@ -353,6 +464,20 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
     adapter_plan_path = feature_dir / adapter_plan_ref
     adapter_plan_path.write_bytes(adapter_plan_bytes)
     adapter_plan_sha256 = hashlib.sha256(adapter_plan_bytes).hexdigest()
+    adapter_execution_ref = (
+        "implementation-review/source-continuity/"
+        "source-continuity-adapter-execution-T001.json"
+    )
+    adapter_execution = _adapter_execution(
+        adapter_plan=adapter_plan,
+        adapter_plan_ref=adapter_plan_ref,
+        adapter_plan_sha256=adapter_plan_sha256,
+        continuity=continuity,
+    )
+    adapter_execution_bytes = _canonical_bytes(adapter_execution)
+    adapter_execution_path = feature_dir / adapter_execution_ref
+    adapter_execution_path.write_bytes(adapter_execution_bytes)
+    adapter_execution_sha256 = hashlib.sha256(adapter_execution_bytes).hexdigest()
     adapter_by_kind = {
         "structure_snapshot": "structure-reader",
         "runtime_diagnostics": "behavior-runner",
@@ -374,6 +499,8 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
         {
             "adapter_plan_ref": adapter_plan_ref,
             "adapter_plan_sha256": adapter_plan_sha256,
+            "adapter_execution_ref": adapter_execution_ref,
+            "adapter_execution_sha256": adapter_execution_sha256,
             "adapter": {
                 "id": f"adapter-plan:{adapter_plan_sha256[:12]}",
                 "version": "1",
@@ -449,6 +576,8 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
         {
             "source_continuity_adapter_plan_ref": adapter_plan_ref,
             "source_continuity_adapter_plan_sha256": adapter_plan_sha256,
+            "source_continuity_adapter_execution_ref": adapter_execution_ref,
+            "source_continuity_adapter_execution_sha256": adapter_execution_sha256,
         }
     )
     errors = validate_lifecycle_ui_verification(
@@ -470,6 +599,12 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
         "registry_schema": "spec-kit-source-continuity-adapter-registry-v1",
         "registry_sha256": registry_sha256,
         "inventory_sha256": inventory_sha256,
+        "inventory_bridge": {
+            "mode": "direct",
+            "inventory_schema": "",
+            "inventory_ref": "",
+            "inventory_sha256": "",
+        },
         "adapters": adapter_plan["adapters"],
         "assignments": adapter_plan["assignments"],
         "unavailable_bindings": [],
@@ -490,13 +625,24 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
     adapter_plan_bytes = _canonical_bytes(adapter_plan)
     adapter_plan_path.write_bytes(adapter_plan_bytes)
     adapter_plan_sha256 = hashlib.sha256(adapter_plan_bytes).hexdigest()
+    adapter_execution = _adapter_execution(
+        adapter_plan=adapter_plan,
+        adapter_plan_ref=adapter_plan_ref,
+        adapter_plan_sha256=adapter_plan_sha256,
+        continuity=continuity,
+    )
+    adapter_execution_bytes = _canonical_bytes(adapter_execution)
+    adapter_execution_path.write_bytes(adapter_execution_bytes)
+    adapter_execution_sha256 = hashlib.sha256(adapter_execution_bytes).hexdigest()
     report["adapter_plan_sha256"] = adapter_plan_sha256
+    report["adapter_execution_sha256"] = adapter_execution_sha256
     report["adapter"]["id"] = f"adapter-plan:{adapter_plan_sha256[:12]}"
     report_bytes = _canonical_bytes(report)
     report_path.write_bytes(report_bytes)
     lifecycle["ui_verification"].update(
         {
             "source_continuity_adapter_plan_sha256": adapter_plan_sha256,
+            "source_continuity_adapter_execution_sha256": adapter_execution_sha256,
             "source_continuity_lab_report_sha256": hashlib.sha256(
                 report_bytes
             ).hexdigest(),
@@ -513,6 +659,13 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
     )
     assert any("adapter-probe" in error.lower() for error in errors), errors
     probe_path.write_bytes(probe_bytes)
+
+    adapter_execution_path.write_bytes(adapter_execution_bytes + b" ")
+    errors = validate_lifecycle_ui_verification(
+        feature_dir, lifecycle, "implementation-review/tasks/T001.json"
+    )
+    assert any("adapter execution" in error.lower() for error in errors), errors
+    adapter_execution_path.write_bytes(adapter_execution_bytes)
 
     target_runtime = next(
         row

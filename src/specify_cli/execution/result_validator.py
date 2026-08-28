@@ -632,6 +632,17 @@ def validate_worker_task_result(
                     "DP3",
                     "source continuity adapter plan ref and SHA-256 digest are required",
                 )
+            if (
+                not verification.source_continuity_adapter_execution_ref.strip()
+                or not re.fullmatch(
+                    r"[0-9a-f]{64}",
+                    verification.source_continuity_adapter_execution_sha256.strip(),
+                )
+            ):
+                raise PacketValidationError(
+                    "DP3",
+                    "source continuity adapter execution ref and SHA-256 digest are required",
+                )
         if (
             isinstance(usability_validation, dict)
             and usability_validation.get("human_review_required") is True

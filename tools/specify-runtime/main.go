@@ -1228,8 +1228,10 @@ func defaultCapabilities() []string {
 		"evidence.smoothness-validate",
 		"evidence.source-continuity-manifest",
 		"evidence.source-continuity-adapter-catalog",
+		"evidence.source-continuity-adapter-bridge",
 		"evidence.source-continuity-adapter-probe",
 		"evidence.source-continuity-adapter-plan",
+		"evidence.source-continuity-adapter-execution",
 		"evidence.source-continuity-validate",
 		"evidence.visual-compare",
 		"evidence.verify",
@@ -1433,10 +1435,14 @@ func capabilitySummary(id string) string {
 		return "Materialize a task-bound Source Continuity Lab manifest from the current immutable UI contract."
 	case "evidence.source-continuity-adapter-catalog":
 		return "List the embedded generic Source Continuity provider packs and their byte-bound registry identity."
+	case "evidence.source-continuity-adapter-bridge":
+		return "Map the live session tool inventory to provider bindings and atomically materialize inventory, probe, and plan artifacts."
 	case "evidence.source-continuity-adapter-probe":
 		return "Route available tool bindings through the provider registry and atomically materialize a complete Adapter Plan."
 	case "evidence.source-continuity-adapter-plan":
 		return "Materialize a generic capability-routed Source Continuity Adapter Plan with a bounded action space and evidence ownership."
+	case "evidence.source-continuity-adapter-execution":
+		return "Compile the current Adapter Plan into deterministic per-provider execution packets without executable command fields."
 	case "evidence.source-continuity-validate":
 		return "Validate adapter observations for source discovery, target reachability, business outcomes, side effects, final states, and asset fidelity."
 	case "design.change":

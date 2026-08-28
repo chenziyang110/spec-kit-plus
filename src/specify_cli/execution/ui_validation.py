@@ -560,6 +560,7 @@ def _source_continuity_adapter_selection_errors(
         "registry_schema",
         "registry_sha256",
         "inventory_sha256",
+        "inventory_bridge",
         "adapters",
         "assignments",
         "unavailable_bindings",
@@ -575,6 +576,9 @@ def _source_continuity_adapter_selection_errors(
         or probe.get("registry_schema") != selection.get("registry_schema")
         or probe.get("registry_sha256") != registry_sha256
         or probe.get("inventory_sha256") != inventory_sha256
+        or _source_continuity_inventory_bridge_errors(
+            feature_dir, task_id, probe
+        )
         or probe.get("adapters") != plan.get("adapters")
         or probe.get("assignments") != plan.get("assignments")
         or probe.get("unresolved_gaps") != []
@@ -583,6 +587,267 @@ def _source_continuity_adapter_selection_errors(
     if not adapter_plan_sha256:
         return ["adapter-plan-sha256-missing"]
     return []
+
+
+def _source_continuity_inventory_bridge_errors(
+    feature_dir: Path, task_id: str, probe: dict[str, Any]
+) -> list[str]:
+    bridge = probe.get("inventory_bridge")
+    if not isinstance(bridge, dict) or set(bridge) != {
+        "mode",
+        "inventory_schema",
+        "inventory_ref",
+        "inventory_sha256",
+    }:
+        return ["tool-inventory-bridge-invalid-fields"]
+    mode = str(bridge.get("mode") or "").strip()
+    if mode == "direct":
+        if any(
+            str(bridge.get(field) or "").strip()
+            for field in ("inventory_schema", "inventory_ref", "inventory_sha256")
+        ):
+            return ["tool-inventory-bridge-invalid-direct-binding"]
+        return []
+    if mode != "tool-inventory":
+        return ["tool-inventory-bridge-invalid-mode"]
+    inventory_ref = str(bridge.get("inventory_ref") or "").strip().replace("\\", "/")
+    inventory_sha256 = str(bridge.get("inventory_sha256") or "").strip()
+    canonical_ref = (
+        "implementation-review/source-continuity/"
+        f"source-continuity-tool-inventory-{task_id}.json"
+    )
+    if (
+        bridge.get("inventory_schema")
+        != "spec-kit-source-continuity-tool-inventory-v1"
+        or inventory_ref != canonical_ref
+        or not re.fullmatch(r"[0-9a-f]{64}", inventory_sha256)
+    ):
+        return ["tool-inventory-bridge-invalid-binding"]
+    inventory_path = resolve_feature_artifact_ref(feature_dir, inventory_ref)
+    if inventory_path is None:
+        return ["tool-inventory-missing"]
+    try:
+        inventory_bytes = inventory_path.read_bytes()
+        inventory = json.loads(inventory_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return ["tool-inventory-invalid-json"]
+    if hashlib.sha256(inventory_bytes).hexdigest() != inventory_sha256:
+        return ["tool-inventory-sha256-mismatch"]
+    if not isinstance(inventory, dict) or set(inventory) != {
+        "schema",
+        "subject_id",
+        "status",
+        "binding",
+        "registry_schema",
+        "registry_sha256",
+        "source",
+        "tools",
+        "visual_capabilities",
+        "generated_probe_input_sha256",
+    }:
+        return ["tool-inventory-invalid-fields"]
+    if (
+        inventory.get("schema") != "spec-kit-source-continuity-tool-inventory-v1"
+        or str(inventory.get("subject_id") or "").strip().upper() != task_id
+        or inventory.get("status") != "ready"
+        or inventory.get("binding") != probe.get("binding")
+        or inventory.get("registry_schema") != probe.get("registry_schema")
+        or inventory.get("registry_sha256") != probe.get("registry_sha256")
+        or inventory.get("generated_probe_input_sha256")
+        != probe.get("inventory_sha256")
+    ):
+        return ["tool-inventory-stale-binding"]
+    return []
+
+
+def _source_continuity_adapter_execution_errors(
+    feature_dir: Path,
+    task_id: str,
+    continuity: dict[str, Any],
+    report: dict[str, Any],
+    manifest_ref: str,
+    manifest_sha256: str,
+    adapter_plan_ref: str,
+    adapter_plan_sha256: str,
+    adapter_plan: dict[str, Any] | None,
+    adapter_execution_ref: str,
+    adapter_execution_sha256: str,
+) -> list[str]:
+    canonical_ref = (
+        "implementation-review/source-continuity/"
+        f"source-continuity-adapter-execution-{task_id}.json"
+    )
+    if (
+        adapter_execution_ref != canonical_ref
+        or report.get("adapter_execution_ref") != adapter_execution_ref
+        or report.get("adapter_execution_sha256") != adapter_execution_sha256
+        or not re.fullmatch(r"[0-9a-f]{64}", adapter_execution_sha256)
+    ):
+        return ["adapter-execution-binding-mismatch"]
+    if not isinstance(adapter_plan, dict):
+        return ["adapter-execution-plan-missing"]
+    execution_path = resolve_feature_artifact_ref(feature_dir, adapter_execution_ref)
+    if execution_path is None:
+        return ["adapter-execution-missing"]
+    try:
+        execution_bytes = execution_path.read_bytes()
+        execution = json.loads(execution_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return ["adapter-execution-invalid-json"]
+    if hashlib.sha256(execution_bytes).hexdigest() != adapter_execution_sha256:
+        return ["adapter-execution-sha256-mismatch"]
+    if not isinstance(execution, dict) or set(execution) != {
+        "schema",
+        "subject_id",
+        "status",
+        "binding",
+        "packets",
+        "unresolved_gaps",
+    }:
+        return ["adapter-execution-invalid-fields"]
+    expected = _expected_source_continuity_adapter_execution(
+        task_id,
+        continuity,
+        manifest_ref,
+        manifest_sha256,
+        adapter_plan_ref,
+        adapter_plan_sha256,
+        adapter_plan,
+    )
+    if execution != expected:
+        return ["adapter-execution-stale-projection"]
+    return []
+
+
+def _expected_source_continuity_adapter_execution(
+    task_id: str,
+    continuity: dict[str, Any],
+    manifest_ref: str,
+    manifest_sha256: str,
+    adapter_plan_ref: str,
+    adapter_plan_sha256: str,
+    adapter_plan: dict[str, Any],
+) -> dict[str, Any]:
+    adapters = _source_continuity_rows(adapter_plan.get("adapters")) or []
+    assignments = _source_continuity_rows(adapter_plan.get("assignments")) or []
+    adapter_by_id = {
+        str(adapter.get("id") or "").strip(): adapter for adapter in adapters
+    }
+    assignments_by_adapter: dict[str, list[dict[str, Any]]] = {}
+    for assignment in assignments:
+        assignments_by_adapter.setdefault(
+            str(assignment.get("adapter_id") or "").strip(), []
+        ).append(assignment)
+    packets: list[dict[str, Any]] = []
+    for adapter_id in sorted(assignments_by_adapter):
+        adapter = adapter_by_id.get(adapter_id, {})
+        adapter_assignments = assignments_by_adapter[adapter_id]
+        capabilities = {
+            str(row.get("capability") or "").strip()
+            for row in adapter_assignments
+        }
+        observed = {
+            (
+                str(row.get("side") or "").strip(),
+                SOURCE_CONTINUITY_ADAPTER_CAPABILITY_EVIDENCE.get(
+                    str(row.get("capability") or "").strip(), ""
+                ),
+            )
+            for row in adapter_assignments
+        }
+        evidence_requirements = [
+            {"side": side, "kind": kind, "adapter_id": adapter_id}
+            for side in ("source", "target")
+            for kind in (
+                "structure_snapshot",
+                "visual_capture",
+                "runtime_diagnostics",
+            )
+            if (side, kind) in observed
+        ]
+        preconditions = [
+            "manifest-current",
+            "adapter-plan-current",
+            "tool-binding-available",
+            "real-entrypoint-or-declared-substitute-ready",
+        ]
+        if adapter.get("write_policy") == "isolated-test-data":
+            preconditions.append("isolated-test-data-prepared")
+        packet_digest = hashlib.sha256(
+            f"{adapter_plan_sha256}\n{adapter_id}\n".encode()
+        ).hexdigest()[:12]
+        packets.append(
+            {
+                "id": f"SCAE-{packet_digest}",
+                "adapter_id": adapter_id,
+                "tool_ref": adapter.get("tool_ref"),
+                "execution_mode": adapter.get("execution_mode"),
+                "lanes": [
+                    f"{row.get('side')}.{row.get('capability')}"
+                    for row in adapter_assignments
+                ],
+                "actions": adapter.get("actions"),
+                "evidence_requirements": evidence_requirements,
+                "binding_targets": {
+                    "surface_binding_ids": [
+                        row.get("id")
+                        for row in _source_continuity_rows(
+                            continuity.get("surface_bindings")
+                        )
+                        or []
+                    ]
+                    if "surface-enumeration" in capabilities
+                    else [],
+                    "action_binding_ids": [
+                        row.get("id")
+                        for row in _source_continuity_rows(
+                            continuity.get("action_bindings")
+                        )
+                        or []
+                    ]
+                    if capabilities
+                    & {"action-execution", "side-effect-observation"}
+                    else [],
+                    "asset_binding_ids": [
+                        row.get("id")
+                        for row in _source_continuity_rows(
+                            continuity.get("asset_bindings")
+                        )
+                        or []
+                    ]
+                    if capabilities & {"asset-inspection", "visual-capture"}
+                    else [],
+                },
+                "write_policy": adapter.get("write_policy"),
+                "network_policy": adapter.get("network_policy"),
+                "preconditions": preconditions,
+                "stop_conditions": [
+                    "tool-unavailable",
+                    "permission-boundary",
+                    "unexpected-destructive-side-effect",
+                    "unbound-surface-action-or-asset",
+                    "runtime-crash-or-unrecoverable-state",
+                ],
+            }
+        )
+    binding = dict(adapter_plan.get("binding") or {})
+    binding.update(
+        {
+            "manifest_ref": manifest_ref,
+            "manifest_sha256": manifest_sha256,
+            "adapter_plan_ref": adapter_plan_ref,
+            "adapter_plan_sha256": adapter_plan_sha256,
+            "adapter_selection": adapter_plan.get("selection"),
+        }
+    )
+    return {
+        "schema": "spec-kit-source-continuity-adapter-execution-v1",
+        "subject_id": task_id,
+        "status": "ready",
+        "binding": binding,
+        "packets": packets,
+        "unresolved_gaps": [],
+    }
 
 
 def _source_continuity_lab_semantic_errors(
@@ -896,6 +1161,8 @@ def _validate_source_continuity_lab_report(
     report_sha256: str,
     adapter_plan_ref: str,
     adapter_plan_sha256: str,
+    adapter_execution_ref: str,
+    adapter_execution_sha256: str,
 ) -> list[str]:
     errors: list[str] = []
     report_path = resolve_feature_artifact_ref(feature_dir, report_ref)
@@ -1020,6 +1287,24 @@ def _validate_source_continuity_lab_report(
         errors.append(
             f"{relative} source continuity adapter plan is invalid: "
             + ", ".join(adapter_plan_errors)
+        )
+    adapter_execution_errors = _source_continuity_adapter_execution_errors(
+        feature_dir,
+        task_id,
+        source_continuity,
+        report,
+        manifest_ref,
+        manifest_sha256,
+        adapter_plan_ref,
+        adapter_plan_sha256,
+        adapter_plan,
+        adapter_execution_ref,
+        adapter_execution_sha256,
+    )
+    if adapter_execution_errors:
+        errors.append(
+            f"{relative} source continuity adapter execution is invalid: "
+            + ", ".join(adapter_execution_errors)
         )
     semantic_errors = _source_continuity_lab_semantic_errors(
         feature_dir,
@@ -1673,6 +1958,13 @@ def validate_lifecycle_ui_verification(
             adapter_plan_sha256 = str(
                 verification.get("source_continuity_adapter_plan_sha256") or ""
             ).strip()
+            adapter_execution_ref = str(
+                verification.get("source_continuity_adapter_execution_ref") or ""
+            ).strip()
+            adapter_execution_sha256 = str(
+                verification.get("source_continuity_adapter_execution_sha256")
+                or ""
+            ).strip()
             if not report_ref or not re.fullmatch(r"[0-9a-f]{64}", report_sha256):
                 errors.append(
                     f"{relative} source continuity lab report ref and SHA-256 digest are required"
@@ -1684,6 +1976,12 @@ def validate_lifecycle_ui_verification(
                     errors.append(
                         f"{relative} source continuity adapter plan ref and SHA-256 digest are required"
                     )
+                if not adapter_execution_ref or not re.fullmatch(
+                    r"[0-9a-f]{64}", adapter_execution_sha256
+                ):
+                    errors.append(
+                        f"{relative} source continuity adapter execution ref and SHA-256 digest are required"
+                    )
                 errors.extend(
                     _validate_source_continuity_lab_report(
                         feature_dir,
@@ -1694,6 +1992,8 @@ def validate_lifecycle_ui_verification(
                         report_sha256,
                         adapter_plan_ref,
                         adapter_plan_sha256,
+                        adapter_execution_ref,
+                        adapter_execution_sha256,
                     )
                 )
     if usability_validation.get("human_review_required") is True:
