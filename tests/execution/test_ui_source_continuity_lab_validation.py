@@ -608,6 +608,10 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
             "freshness": "current",
         },
         "tools": [],
+        "policy": {
+            "allow_manual_attested": False,
+            "preferred_tool_ids": [],
+        },
         "visual_capabilities": {
             "image_generation": "unavailable",
             "image_inspection": "available",

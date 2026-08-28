@@ -95,7 +95,7 @@ func TestSourceContinuityToolInventoryBridgeRejectsSemanticInventoryDrift(t *tes
 	probePath := filepath.Join(feature, filepath.FromSlash(anyString(env.Data["adapter_probe_ref"])))
 	inventory := readImplementJSONFile(t, inventoryPath)
 	tools := listValue(inventory["tools"])
-	requireObjectValue(t, tools[0])["signals"] = []any{"browser-automation"}
+	requireObjectValue(t, tools[0])["signals"] = []any{"screenshot-capture"}
 	inventoryRaw, err := marshalReviewAcceptJSON(inventory)
 	if err != nil {
 		t.Fatal(err)

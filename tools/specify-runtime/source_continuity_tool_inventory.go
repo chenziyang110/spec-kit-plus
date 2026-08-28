@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 )
@@ -179,7 +180,7 @@ func bridgeSourceContinuityToolInventory(
 		"schema": sourceContinuityToolInventorySchema, "subject_id": context.subjectID,
 		"status": "ready", "binding": sourceContinuityAdapterManifestBinding(context.subjectID, context.mode, context.manifestRef, optionalFileSHA256(context.manifestPath), context.manifest),
 		"registry_schema": sourceContinuityAdapterRegistrySchema, "registry_sha256": registrySHA,
-		"source": cloneJSONValue(source), "tools": toolsAny,
+		"source": cloneJSONValue(source), "tools": toolsAny, "policy": cloneJSONValue(policy),
 		"visual_capabilities": map[string]any{
 			"image_generation": sourceContinuityAvailability(availableSignals["image-generation"]),
 			"image_inspection": sourceContinuityAvailability(availableSignals["image-inspection"]),
@@ -284,7 +285,7 @@ func validateSourceContinuityToolInventoryBridge(container, subjectID, manifestR
 	}
 	if exactVisualComparisonFields(inventory, map[string]bool{
 		"schema": true, "subject_id": true, "status": true, "binding": true,
-		"registry_schema": true, "registry_sha256": true, "source": true, "tools": true,
+		"registry_schema": true, "registry_sha256": true, "source": true, "tools": true, "policy": true,
 		"visual_capabilities": true, "generated_probe_input_sha256": true,
 	}, "tool inventory report") != nil {
 		return []string{"stale-tool-inventory"}
@@ -294,6 +295,35 @@ func validateSourceContinuityToolInventoryBridge(container, subjectID, manifestR
 		anyString(binding["manifest_ref"]) != manifestRef || anyString(binding["manifest_sha256"]) != manifestSHA ||
 		anyString(inventory["registry_schema"]) != anyString(probe["registry_schema"]) || anyString(inventory["registry_sha256"]) != anyString(probe["registry_sha256"]) ||
 		anyString(inventory["generated_probe_input_sha256"]) != anyString(probe["inventory_sha256"]) {
+		return []string{"stale-tool-inventory"}
+	}
+	registry, _, registrySHA, err := loadSourceContinuityAdapterRegistry()
+	if err != nil || registrySHA != anyString(inventory["registry_sha256"]) {
+		return []string{"stale-tool-inventory"}
+	}
+	manifestPath, err := secureFeatureRelativePath(container, manifestRef)
+	if err != nil {
+		return []string{"stale-tool-inventory"}
+	}
+	manifest, err := readImplementJSONMap(manifestPath)
+	if err != nil {
+		return []string{"stale-tool-inventory"}
+	}
+	bindingMode := anyString(binding["mode"])
+	context := &sourceContinuityAdapterProbeContext{
+		container: container, subjectID: subjectID, mode: bindingMode,
+		manifestRef: manifestRef, manifestPath: manifestPath, manifest: manifest, quick: quick,
+	}
+	replayInput := map[string]any{
+		"schema": sourceContinuityToolInventoryInputSchema,
+		"source": inventory["source"], "tools": inventory["tools"], "policy": inventory["policy"],
+	}
+	probeInput, expectedInventory, diagnostics := bridgeSourceContinuityToolInventory(replayInput, context, registry, registrySHA)
+	if len(diagnostics) > 0 || !reflect.DeepEqual(inventory, expectedInventory) {
+		return []string{"stale-tool-inventory"}
+	}
+	route := routeSourceContinuityAdapters(probeInput, registry, registrySHA)
+	if len(route.diagnostics) > 0 || !reflect.DeepEqual(route.adapters, listValue(probe["adapters"])) || !reflect.DeepEqual(route.assignments, listValue(probe["assignments"])) {
 		return []string{"stale-tool-inventory"}
 	}
 	return nil

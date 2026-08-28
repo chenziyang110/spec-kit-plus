@@ -642,6 +642,7 @@ def _source_continuity_inventory_bridge_errors(
         "registry_sha256",
         "source",
         "tools",
+        "policy",
         "visual_capabilities",
         "generated_probe_input_sha256",
     }:
