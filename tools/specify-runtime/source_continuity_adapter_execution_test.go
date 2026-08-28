@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -72,6 +73,50 @@ func TestSourceContinuityToolInventoryBridgeRejectsContractInjection(t *testing.
 	})
 	if exit != 2 || env.Status != "error" || !strings.Contains(strings.Join(anyStringSlice(env.Data["diagnostics"]), "\n"), "invalid-tool-inventory-entry") {
 		t.Fatalf("tool inventory contract injection unexpectedly passed: exit=%d env=%#v", exit, env)
+	}
+}
+
+func TestSourceContinuityToolInventoryBridgeRejectsSemanticInventoryDrift(t *testing.T) {
+	root, featureRef, feature := sourceContinuityLabProject(t)
+	manifestRef, _ := materializeSourceContinuityLabManifest(t, root, featureRef)
+	raw, err := json.Marshal(sourceContinuityToolInventoryInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"evidence", "source-continuity-adapter-bridge", "--project-root", root,
+		"--feature-dir", featureRef, "--task-id", sourceContinuityLabTaskID,
+		"--manifest", manifestRef, "--input-json", string(raw), "--format", "json",
+	})
+	if exit != 0 || env.Status != "ok" {
+		t.Fatalf("tool inventory bridge failed: exit=%d env=%#v", exit, env)
+	}
+	inventoryPath := filepath.Join(feature, filepath.FromSlash(anyString(env.Data["tool_inventory_ref"])))
+	probePath := filepath.Join(feature, filepath.FromSlash(anyString(env.Data["adapter_probe_ref"])))
+	inventory := readImplementJSONFile(t, inventoryPath)
+	tools := listValue(inventory["tools"])
+	requireObjectValue(t, tools[0])["signals"] = []any{"browser-automation"}
+	inventoryRaw, err := marshalReviewAcceptJSON(inventory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(inventoryPath, inventoryRaw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	probe := readImplementJSONFile(t, probePath)
+	bridge := requireObjectValue(t, probe["inventory_bridge"])
+	bridge["inventory_sha256"] = optionalFileSHA256(inventoryPath)
+	diagnostics := validateSourceContinuityToolInventoryBridge(
+		feature,
+		sourceContinuityLabTaskID,
+		manifestRef,
+		optionalFileSHA256(filepath.Join(feature, filepath.FromSlash(manifestRef))),
+		bridge,
+		probe,
+		false,
+	)
+	if !strings.Contains(strings.Join(diagnostics, "\n"), "stale-tool-inventory") {
+		t.Fatalf("semantic inventory drift unexpectedly passed: diagnostics=%#v inventory=%#v", diagnostics, inventory)
 	}
 }
 
