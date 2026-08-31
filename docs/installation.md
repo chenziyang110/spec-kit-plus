@@ -91,13 +91,46 @@ uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git spec
 Generated Agent workflows call the standalone `specify-runtime` binary for
 fixed artifacts, typed workflow state, specification validation, and the
 namespaced project cognition commands. Releases publish prebuilt binaries for
-Windows, Linux, and macOS. `specify init` best-effort downloads the matching
-release asset into a content-addressed user cache, then hardlinks or copies it
+Windows, Linux, and macOS in the public
+[`spec-kit-plus-releases`](https://github.com/chenziyang110/spec-kit-plus-releases/releases)
+distribution repository. CLI source remains in the separate source repository;
+runtime downloads do not require source-repository access. `specify init`
+best-effort downloads the matching release asset into a content-addressed user cache, then hardlinks or copies it
 to `.specify/bin/specify-runtime` (`.exe` on Windows). The generated project's
 `.specify/config.json` stores only that relative entrypoint and its digest. If
 automatic download is unavailable, a human may use the installers below or set
 `SPECIFY_RUNTIME_BIN` as a bootstrap seed; that user-scoped value is not
 persisted or rendered into agent commands.
+
+For `specify init` and Python-managed runtime repair, the default download source
+is official GitHub only. If anonymous HTTP fails, the installer tries the GitHub
+CLI, then the GitHub API using `GH_TOKEN` / `GITHUB_TOKEN` or the existing Git
+credential helper for this repository. Credential lookup is non-interactive;
+it does not open a login prompt or save credentials. API credentials are never
+sent to mirrors or forwarded to redirected asset hosts. The API download checks
+the release asset's size and SHA-256 digest when GitHub provides one.
+
+Older CLI builds download from the private source repository and may return
+**404** despite a successful Git clone. Upgrade the CLI to use the public
+distribution repository. Authenticated fallbacks remain available for restricted
+environments, but are not needed for public runtime downloads. Installing the
+Python CLI from a private Git source still requires source-repository access.
+Do not paste tokens into command arguments or download URLs.
+
+Custom sources remain opt-in through `SPECIFY_RUNTIME_DOWNLOAD_MIRRORS` (a
+comma-separated replacement list supporting `{github_url}`, `{repo}`,
+`{version}`, and `{filename}`). Include `{github_url}` to retain the official
+source and authenticated fallbacks. `SPECIFY_RUNTIME_DOWNLOAD_TIMEOUT` sets the
+per-request timeout in seconds. TLS certificate verification stays enabled.
+
+Download success and runtime compatibility are separate. Stable CLI packages
+try their matching release, then a compatible latest release. A Git development
+head can require capabilities not yet published; in that case the installer
+builds the bundled source with Go and reuses the verified cache on later runs.
+To avoid compiling on an end-user machine, distribute a compatible prebuilt
+runtime with the matching CLI release, or provide one via `SPECIFY_RUNTIME_BIN`.
+Adding mirrors or bypassing compatibility checks does not solve version drift.
+
 The same binary exposes `cognition semantic-audit-resume` for persisted semantic audit
 state checks. The command compares a saved audit input/output pair against
 workflow state; it does not authorize source changes or final claims, and does not grant P3/P4. Multiple `authorized_claims` require one `active_claim_type`, and failed,
@@ -137,15 +170,12 @@ paths were excluded by explicit workflow-owned paths, record that as
 `confidence_notes` or `boundary.initial_dirty_paths`, not as blocking
 `known_unknowns`.
 
-```bash
-# Linux / macOS
-curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/specify-runtime/install.sh | bash
-```
-
-```powershell
-# Windows PowerShell
-irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/specify-runtime/install.ps1 | iex
-```
+For a standalone installation without source-repository access, download your
+platform's binary and `SHA256SUMS` from the same public release. Compare the
+binary's SHA-256 before running it. Windows provides `Get-FileHash -Algorithm
+SHA256`; Linux provides `sha256sum`; macOS provides `shasum -a 256`.
+Users with a source checkout may also run `tools/specify-runtime/install.sh` or
+`tools/specify-runtime/install.ps1`; both default to the public artifact repo.
 
 Go users can also install from source:
 

@@ -14,9 +14,10 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Sequence
-from urllib.error import URLError
-from urllib.request import Request, urlopen
+from typing import Any, Iterator, Sequence
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from packaging.version import InvalidVersion, Version
 
@@ -31,7 +32,8 @@ from specify_cli.launcher import (
     write_runtime_launcher_config,
 )
 
-REPO = "chenziyang110/spec-kit-plus"
+# Runtime assets are public; Python CLI source remains in its separate repository.
+REPO = "chenziyang110/spec-kit-plus-releases"
 EXPECTED_RUNTIME_PROTOCOL = "specify-runtime.v1"
 SOURCE_BUILD_MARKER_VERSION = 1
 FALLBACK_RELEASE_MARKER_VERSION = 1
@@ -48,16 +50,11 @@ RUNTIME_SUPERVISED_TIMEOUT_GRACE_SECONDS = 15
 MAX_RUNTIME_TIMEOUT_SECONDS = 24 * 60 * 60
 # Cold ``go build`` on Windows/CI can exceed two minutes after module fetch.
 DEFAULT_SOURCE_BUILD_TIMEOUT_SECONDS = 300
-# Free community GitHub-release mirrors for open-source installs (esp. regions
-# where github.com is slow/unreachable). Official GitHub is always first unless
-# SPECIFY_RUNTIME_DOWNLOAD_MIRRORS fully replaces the list.
+# Public mirrors cannot access private releases. Keep them opt-in through
+# SPECIFY_RUNTIME_DOWNLOAD_MIRRORS, which fully replaces this list.
 # Template placeholders: {github_url} {repo} {version} {filename}
 DEFAULT_DOWNLOAD_URL_TEMPLATES: tuple[str, ...] = (
     "{github_url}",
-    "https://mirror.ghproxy.com/{github_url}",
-    "https://ghproxy.net/{github_url}",
-    "https://gh-proxy.com/{github_url}",
-    "https://gitdl.cn/{github_url}",
 )
 # Keep in sync with tools/specify-runtime/main.go defaultCapabilities().
 # Install-time handshake requires every id here to be present on the binary.
@@ -623,7 +620,7 @@ def _download_timeout_seconds() -> float:
 
 
 def _download_url_templates() -> list[str]:
-    """Return ordered download URL templates (official + free mirrors)."""
+    """Return official-only defaults or explicitly configured sources."""
 
     override = os.environ.get(RUNTIME_DOWNLOAD_MIRRORS_ENV, "").strip()
     if override:
@@ -745,8 +742,121 @@ def _download_with_github_cli(version: str, destination: Path) -> Path:
     return destination
 
 
+def _github_tokens() -> Iterator[str]:
+    """Read existing credentials without prompts, persistence, or secret output."""
+
+    seen: set[str] = set()
+    for name in ("GH_TOKEN", "GITHUB_TOKEN"):
+        token = os.environ.get(name, "").strip()
+        if re.fullmatch(r"[!-~]{1,4096}", token) and token not in seen:
+            seen.add(token)
+            yield token
+
+    git = shutil.which("git")
+    if git is None:
+        return
+    environment = dict(os.environ)
+    environment.update(
+        GIT_TERMINAL_PROMPT="0", GCM_INTERACTIVE="never",
+        GIT_ASKPASS="", SSH_ASKPASS="",
+    )
+    try:
+        result = subprocess.run(
+            [git, "-c", "credential.interactive=false", "-c", "core.askPass=", "credential", "fill"],
+            input=f"protocol=https\nhost=github.com\npath={REPO}.git\n\n",
+            env=environment, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", check=False,
+            timeout=min(10.0, _download_timeout_seconds()),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return
+    if result.returncode != 0:
+        return
+    fields = dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line)
+    token = fields.get("password", "")
+    if re.fullmatch(r"[!-~]{1,4096}", token) and token not in seen:
+        yield token
+
+
+class _GitHubAssetRedirect(HTTPRedirectHandler):
+    """Follow signed HTTPS asset redirects without forwarding API credentials."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        parsed = urlsplit(newurl)
+        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+            raise SpecifyRuntimeError("GitHub asset redirect is not a safe HTTPS URL")
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected is not None:
+            redirected.remove_header("Authorization")
+        return redirected
+
+
+def _download_with_github_api(version: str, destination: Path) -> Path:
+    """Use the same Git credential helper as source installs, without requiring gh.
+
+    Tokens go only to fixed api.github.com URLs, never metadata-provided URLs or
+    mirrors. GitHub may stream the asset or redirect to a signed HTTPS URL.
+    Neither raw exception text nor signed redirect URLs belong in diagnostics.
+    """
+
+    base = f"https://api.github.com/repos/{REPO}/releases"
+    selector = "latest" if version == "latest" else f"tags/{quote(version, safe='')}"
+    opener = build_opener(_GitHubAssetRedirect())
+    timeout = _download_timeout_seconds()
+    error = (
+        "No usable GitHub credentials; sign in with Git's credential helper or gh, "
+        "or provide GH_TOKEN/GITHUB_TOKEN with repository Contents read access"
+    )
+
+    for token in _github_tokens():
+        def request(url: str, accept: str) -> Request:
+            req = Request(url, headers={
+                "User-Agent": f"specify-cli/{DEFAULT_VERSION}",
+                "Accept": accept,
+                "X-GitHub-Api-Version": "2022-11-28",
+            })
+            req.add_unredirected_header("Authorization", f"Bearer {token}")
+            return req
+
+        try:
+            with opener.open(request(f"{base}/{selector}", "application/vnd.github+json"), timeout=timeout) as response:
+                raw = response.read(2 * 1024 * 1024 + 1)
+            if len(raw) > 2 * 1024 * 1024:
+                raise SpecifyRuntimeError("GitHub release metadata exceeds the size limit")
+            metadata = json.loads(raw)
+            assets = metadata.get("assets") if isinstance(metadata, dict) else None
+            if not isinstance(assets, list):
+                raise SpecifyRuntimeError("GitHub returned invalid release metadata")
+            asset = next((a for a in assets if isinstance(a, dict) and a.get("name") == binary_filename()), None)
+            if asset is None:
+                raise SpecifyRuntimeError("The accessible GitHub release does not contain the required platform asset")
+            asset_id, size = asset.get("id"), asset.get("size")
+            if type(asset_id) is not int or asset_id <= 0 or type(size) is not int or size < 1024:
+                raise SpecifyRuntimeError("GitHub returned invalid release asset metadata")
+            digest = asset.get("digest")
+            if digest is not None and (not isinstance(digest, str) or not re.fullmatch(r"sha256:[0-9a-fA-F]{64}", digest)):
+                raise SpecifyRuntimeError("GitHub returned an invalid release asset digest")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with opener.open(request(f"{base}/assets/{asset_id}", "application/octet-stream"), timeout=timeout) as response:
+                with destination.open("wb") as handle:
+                    shutil.copyfileobj(response, handle)
+            if destination.stat().st_size != size:
+                raise SpecifyRuntimeError("GitHub release asset size verification failed")
+            if digest is not None and _sha256_file(destination) != digest[7:].lower():
+                raise SpecifyRuntimeError("GitHub release asset SHA-256 verification failed")
+            return destination
+        except HTTPError as exc:
+            error = f"GitHub API returned HTTP {exc.code}; verify release availability and repository Contents read access"
+        except SpecifyRuntimeError as exc:
+            error = str(exc)  # Only fixed, credential-free messages from this path.
+        except (OSError, URLError, ValueError):
+            error = "GitHub API download failed (network, TLS, local file, or invalid response)"
+        destination.unlink(missing_ok=True)
+    raise SpecifyRuntimeError(error) from None
+
+
 def download(version: str = DEFAULT_VERSION, destination: Path | None = None) -> Path:
-    """Download via official HTTP, authenticated ``gh``, then free mirrors."""
+    """Download via official HTTP, authenticated gh/API, then opt-in mirrors."""
 
     cache = cache_dir()
     cache.mkdir(parents=True, exist_ok=True)
@@ -762,7 +872,7 @@ def download(version: str = DEFAULT_VERSION, destination: Path | None = None) ->
     errors: list[str] = []
     official_url = github_download_url(version)
     for index, url in enumerate(urls, start=1):
-        label = "github" if "github.com/" in url and "proxy" not in url else "mirror"
+        label = "github" if url == official_url else "mirror"
         print(f"  [{index}/{len(urls)}] trying {label}: {url}", file=sys.stderr)
         try:
             _download_from_url(url, dest, timeout=timeout)
@@ -770,23 +880,24 @@ def download(version: str = DEFAULT_VERSION, destination: Path | None = None) ->
             errors.append(f"{url}: {exc}")
             dest.unlink(missing_ok=True)
             if url == official_url:
-                print(
-                    f"  trying authenticated GitHub CLI fallback for {filename}...",
-                    file=sys.stderr,
-                )
-                try:
-                    _download_with_github_cli(version, dest)
-                except SpecifyRuntimeError as github_cli_exc:
-                    errors.append(f"GitHub CLI: {github_cli_exc}")
-                    dest.unlink(missing_ok=True)
-                else:
-                    if platform.system().lower() != "windows":
-                        os.chmod(dest, 0o755)
+                for method, downloader in (
+                    ("GitHub CLI", _download_with_github_cli),
+                    ("GitHub API (Git/environment credentials)", _download_with_github_api),
+                ):
                     print(
-                        f"  Downloaded {RUNTIME_COMMAND} with authenticated GitHub CLI",
+                        f"  trying authenticated {method} fallback for {filename}...",
                         file=sys.stderr,
                     )
-                    return dest
+                    try:
+                        downloader(version, dest)
+                    except SpecifyRuntimeError as auth_exc:
+                        errors.append(f"{method}: {auth_exc}")
+                        dest.unlink(missing_ok=True)
+                    else:
+                        if platform.system().lower() != "windows":
+                            os.chmod(dest, 0o755)
+                        print(f"  Downloaded {RUNTIME_COMMAND} with authenticated {method}", file=sys.stderr)
+                        return dest
             continue
         if platform.system().lower() != "windows":
             os.chmod(dest, 0o755)

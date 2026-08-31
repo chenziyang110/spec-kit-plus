@@ -2,12 +2,12 @@
 
 **Spec-Driven Development workflows for local AI coding agents—from product intent to reviewed specifications, plans, tasks, implementation, integrated system review, and human acceptance.**
 
-[![Latest release](https://img.shields.io/github/v/release/chenziyang110/spec-kit-plus?display_name=tag&sort=semver)](https://github.com/chenziyang110/spec-kit-plus/releases)
+[![Latest release](https://img.shields.io/github/v/release/chenziyang110/spec-kit-plus-releases?display_name=tag&sort=semver)](https://github.com/chenziyang110/spec-kit-plus-releases/releases)
 [![Test and lint](https://github.com/chenziyang110/spec-kit-plus/actions/workflows/test.yml/badge.svg)](https://github.com/chenziyang110/spec-kit-plus/actions/workflows/test.yml)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[Quick start](#quick-start) · [How it works](#how-it-works) · [Workflow profiles](#workflow-profiles) · [Integrations](#supported-integrations) · [Documentation](#documentation) · [Releases](https://github.com/chenziyang110/spec-kit-plus/releases)
+[Quick start](#quick-start) · [How it works](#how-it-works) · [Workflow profiles](#workflow-profiles) · [Integrations](#supported-integrations) · [Documentation](#documentation) · [Releases](https://github.com/chenziyang110/spec-kit-plus-releases/releases)
 
 Spec Kit Plus is an independently developed Spec-Driven Development toolkit for local AI coding agents. The `specify` CLI scaffolds a shared runtime and renders native commands or skills for the AI coding tool you select. The generated workflows then carry decisions through requirements, technical planning, execution, verification, and acceptance.
 
@@ -42,7 +42,7 @@ uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit
 
 An untagged Git install follows the current development head. For a reproducible
 CLI/runtime pair, append a tag from
-[Releases](https://github.com/chenziyang110/spec-kit-plus/releases) to the Git
+[Releases](https://github.com/chenziyang110/spec-kit-plus-releases/releases) to the Git
 URL, for example `@vX.Y.Z`.
 
 ### 2. Initialize a project
@@ -62,6 +62,13 @@ uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git spec
 ```
 
 For an existing directory, run `specify init --here --force --ai <agent>` after reviewing local changes. Use `--ignore-agent-tools` when you only want the generated assets and do not want `init` to require the selected agent executable.
+
+Runtime downloads use the public
+[`spec-kit-plus-releases`](https://github.com/chenziyang110/spec-kit-plus-releases/releases)
+repository by default; the Python CLI source repository remains separate.
+GitHub CLI and Git/environment authentication remain fallback options, and
+community mirrors are opt-in. A development head ahead of the published runtime
+may still need a cached Go source build; see the [runtime installation guide](docs/installation.md#install-unified-specify-runtime).
 
 ### 3. Start the workflow in your agent
 
@@ -171,7 +178,7 @@ Run `specify init --help` for the authoritative list shipped by the installed CL
 | Persistent Git install | `uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git` |
 | One-time execution | `uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify ...` |
 | Upgrade to the current repository head | `uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git` |
-| Pin a release | Append `@vX.Y.Z` from [Releases](https://github.com/chenziyang110/spec-kit-plus/releases) to the Git URL |
+| Pin a release | Append `@vX.Y.Z` from [Releases](https://github.com/chenziyang110/spec-kit-plus-releases/releases) to the Git URL |
 | Repair runtime-managed generated assets | `specify integration repair` from the generated project root |
 | Diagnose tools and project compatibility | `specify check` |
 | Troubleshoot installation and PATH | [Installation Guide](docs/installation.md) and [Upgrade Guide](docs/upgrade.md) |
@@ -218,7 +225,7 @@ project or run `sp-map-scan -> sp-map-build` for an existing codebase.
 ## Community and contributing
 
 - Ask focused usage questions, report reproducible bugs, or propose features through [GitHub Issues](https://github.com/chenziyang110/spec-kit-plus/issues).
-- Check [Releases](https://github.com/chenziyang110/spec-kit-plus/releases) before reporting an issue against an older build.
+- Check [Releases](https://github.com/chenziyang110/spec-kit-plus-releases/releases) before reporting an issue against an older build.
 - Read the [Local Development Guide](docs/local-development.md) and the repository [pull request template](.github/PULL_REQUEST_TEMPLATE.md) before submitting a change.
 
 The primary local verification loop is:

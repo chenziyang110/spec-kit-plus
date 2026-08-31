@@ -11,17 +11,21 @@ on:
         required: true
         type: string
 
+env:
+  PUBLIC_RELEASES_REPO: chenziyang110/spec-kit-plus-releases
+
 jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Extract version from tag
@@ -43,131 +47,25 @@ jobs:
         id: check_release
         run: |
           VERSION="${{ steps.version.outputs.tag }}"
-          expected_assets=(
-            specify-runtime-linux-amd64
-            specify-runtime-linux-arm64
-            specify-runtime-darwin-amd64
-            specify-runtime-darwin-arm64
-            specify-runtime-windows-amd64.exe
-          )
-          if release_json="$(gh release view "$VERSION" --json isDraft,assets 2>/dev/null)" && \
-             [ "$(jq -r '.isDraft' <<<"$release_json")" = "false" ]; then
-            complete=true
-            for asset in "${expected_assets[@]}"; do
-              if ! jq -e --arg name "$asset" \
-                '.assets[] | select(.name == $name and .size > 0)' \
-                <<<"$release_json" >/dev/null; then
-                complete=false
-                break
-              fi
-            done
-            if [ "$complete" = "true" ]; then
-              identity_dir="$(mktemp -d)"
-              if gh release download "$VERSION" --pattern 'specify-runtime-*' \
-                   --dir "$identity_dir" --clobber; then
-                expected_revision="$(git rev-parse "${VERSION}^{commit}")"
-                expected_identity_marker="specify-runtime.release.v1,version=${VERSION},revision=${expected_revision},dirty=false"
-                for asset in "${expected_assets[@]}"; do
-                  asset_path="$identity_dir/$asset"
-                  if [ ! -s "$asset_path" ] || \
-                     ! grep -aF -- "$expected_identity_marker" "$asset_path" >/dev/null || \
-                     ! grep -aF -- "specify-runtime.v1" "$asset_path" >/dev/null; then
-                    echo "Release $VERSION asset ${asset} is missing its canonical embedded release identity; rebuilding assets."
-                    complete=false
-                    break
-                  fi
-                done
-                if [ "$complete" = "true" ]; then
-                  runtime_asset="$identity_dir/specify-runtime-linux-amd64"
-                  chmod +x "$runtime_asset"
-                  if identity_json="$("$runtime_asset" version --format json 2>/dev/null)" && \
-                     jq -e --arg version "$VERSION" --arg revision "$expected_revision" \
-                       '.status == "ok" and .data.cli_version == $version and .data.source_revision == $revision and .data.dirty == false' \
-                       <<<"$identity_json" >/dev/null; then
-                    :
-                  else
-                    echo "Release $VERSION has an invalid executable runtime identity; rebuilding assets."
-                    complete=false
-                  fi
-                fi
-              else
-                complete=false
-              fi
-            fi
-          else
-            complete=false
-          fi
-          if [ "$complete" = "true" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Release $VERSION is published with every required asset; skipping."
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Release $VERSION is absent or incomplete; building and repairing it."
-          fi
+          SOURCE_REVISION="$(git rev-parse HEAD)"
+          python3 scripts/publish-runtime-release.py \
+            --target-repo "${{ env.PUBLIC_RELEASES_REPO }}" \
+            --tag "$VERSION" \
+            --source-revision "$SOURCE_REVISION" \
+            --assets-dir dist/release-tools \
+            --token-env PUBLIC_RELEASES_TOKEN \
+            --mode check \
+            --github-output "$GITHUB_OUTPUT"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate release notes
-        if: steps.check_release.outputs.exists == 'false'
-        run: |
-          VERSION="${{ steps.version.outputs.tag }}"
-          VERSION_NO_V=${VERSION#v}
-
-          # Find previous tag
-          PREVIOUS_TAG=$(git tag -l 'v*' --sort=-version:refname | grep -v "^${VERSION}$" | head -n 1)
-          if [ -z "$PREVIOUS_TAG" ]; then
-            PREVIOUS_TAG=""
-          fi
-
-          # Get commits since previous tag
-          if [ -z "$PREVIOUS_TAG" ]; then
-            COMMIT_COUNT=$(git rev-list --count HEAD)
-            if [ "$COMMIT_COUNT" -gt 20 ]; then
-              COMMITS=$(bash scripts/release-note-commits.sh HEAD~20..HEAD)
-            else
-              COMMITS=$(bash scripts/release-note-commits.sh HEAD)
-            fi
-          else
-            COMMITS=$(bash scripts/release-note-commits.sh "$PREVIOUS_TAG"..HEAD)
-          fi
-
-          cat > release_notes.md << NOTES_EOF
-          ## Install
-
-          ### specify-cli
-
-          \`\`\`bash
-          uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git@${VERSION}
-          specify init my-project
-          \`\`\`
-
-          ### specify-runtime
-
-          Generated Agent workflows use one project-pinned \`specify-runtime\` binary for canonical workflow artifacts, typed workflow state, specification validation, and project cognition. This release publishes the runtime for Windows, Linux, and macOS.
-
-          **Install the prebuilt release binary**
-          \`\`\`bash
-          # Linux / macOS
-          curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/specify-runtime/install.sh | SPECIFY_RUNTIME_VERSION=${VERSION} bash
-          # Windows (PowerShell)
-          \$env:SPECIFY_RUNTIME_VERSION="${VERSION}"; irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/specify-runtime/install.ps1 | iex
-          \`\`\`
-
-          Generated helpers use only the project-local \`.specify/bin/specify-runtime\` (or \`.exe\`) recorded by \`.specify/config.json\` \`runtime_launcher\`. \`SPECIFY_RUNTIME_BIN\` and PATH are human bootstrap/repair seeds and are never rendered into agent commands.
-
-          NOTES_EOF
-
-          echo "## What's Changed" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "$COMMITS" >> release_notes.md
+          PUBLIC_RELEASES_TOKEN: ${{ secrets.PUBLIC_RELEASES_TOKEN }}
 
       - uses: actions/setup-go@v7
-        if: steps.check_release.outputs.exists == 'false'
+        if: steps.check_release.outputs.complete != 'true'
         with:
           go-version: '1.21'
 
       - name: Cross-compile release tool binaries
-        if: steps.check_release.outputs.exists == 'false'
+        if: steps.check_release.outputs.complete != 'true'
         run: |
           VERSION="${{ steps.version.outputs.tag }}"
           SOURCE_REVISION="$(git rev-parse HEAD)"
@@ -214,7 +112,7 @@ jobs:
           ls -lh dist/release-tools/
 
       - name: Smoke-test specify-runtime release binary
-        if: steps.check_release.outputs.exists == 'false'
+        if: steps.check_release.outputs.complete != 'true'
         run: |
           VERSION="${{ steps.version.outputs.tag }}"
           SOURCE_REVISION="$(git rev-parse HEAD)"
@@ -284,40 +182,17 @@ jobs:
           (cd "$tmpdir" && "$runtime_bin" cognition semantic-audit-resume --format json < resume-validation.json) | grep -q '"semantic_audit_resume_status":"fresh"'
           (cd "$tmpdir" && "$runtime_bin" cognition semantic-audit-resume --format json < resume-validation-route-changed.json) | grep -q '"semantic_audit_resume_status":"needs-rerun"'
 
-      - name: Create GitHub Release
-        if: steps.check_release.outputs.exists == 'false'
+      - name: Publish public runtime release
+        if: steps.check_release.outputs.complete != 'true'
         run: |
           VERSION="${{ steps.version.outputs.tag }}"
-          VERSION_NO_V=${VERSION#v}
-          if gh release view "$VERSION" >/dev/null 2>&1; then
-            gh release edit "$VERSION" \
-              --title "Spec Kit Plus - $VERSION_NO_V" \
-              --notes-file release_notes.md
-          else
-            gh release create "$VERSION" \
-              --draft \
-              --title "Spec Kit Plus - $VERSION_NO_V" \
-              --notes-file release_notes.md
-          fi
-
-          gh release upload "$VERSION" dist/release-tools/* --clobber
-
-          release_json="$(gh release view "$VERSION" --json assets)"
-          missing=0
-          for path in dist/release-tools/*; do
-            asset="$(basename "$path")"
-            if ! jq -e --arg name "$asset" \
-              '.assets[] | select(.name == $name and .size > 0)' \
-              <<<"$release_json" >/dev/null; then
-              echo "Missing or empty release asset: $asset" >&2
-              missing=1
-            fi
-          done
-          if [ "$missing" -ne 0 ]; then
-            exit 1
-          fi
-
-          gh release edit "$VERSION" --draft=false
-          echo "Release $VERSION published with every required binary asset."
+          SOURCE_REVISION="$(git rev-parse HEAD)"
+          python3 scripts/publish-runtime-release.py \
+            --target-repo "${{ env.PUBLIC_RELEASES_REPO }}" \
+            --tag "$VERSION" \
+            --source-revision "$SOURCE_REVISION" \
+            --assets-dir dist/release-tools \
+            --token-env PUBLIC_RELEASES_TOKEN \
+            --mode ensure-release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLIC_RELEASES_TOKEN: ${{ secrets.PUBLIC_RELEASES_TOKEN }}

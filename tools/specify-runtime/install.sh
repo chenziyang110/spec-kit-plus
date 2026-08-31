@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo="${SPECIFY_RUNTIME_REPO:-chenziyang110/spec-kit-plus}"
+repo="${SPECIFY_RUNTIME_REPO:-chenziyang110/spec-kit-plus-releases}"
 version="${SPECIFY_RUNTIME_VERSION:-latest}"
 binary="specify-runtime"
 
@@ -33,16 +33,12 @@ else
   github_url="https://github.com/${repo}/releases/download/${version}/${asset}"
 fi
 
-# Official GitHub first, then free community mirrors (override with SPECIFY_RUNTIME_DOWNLOAD_MIRRORS).
+# Official public release assets by default; custom mirrors are opt-in.
 if [[ -n "${SPECIFY_RUNTIME_DOWNLOAD_MIRRORS:-}" ]]; then
   IFS=',' read -r -a url_templates <<< "${SPECIFY_RUNTIME_DOWNLOAD_MIRRORS}"
 else
   url_templates=(
     "{github_url}"
-    "https://mirror.ghproxy.com/{github_url}"
-    "https://ghproxy.net/{github_url}"
-    "https://gh-proxy.com/{github_url}"
-    "https://gitdl.cn/{github_url}"
   )
 fi
 
