@@ -114,9 +114,9 @@ Save triggers are:
 
 When a save trigger fires, pass one compact semantic event to `specify-runtime discussion checkpoint`; it alone appends `discussion-log.jsonl` and updates companion state.
 
-At a natural pause or when compaction would risk losing important decisions, optionally suggest `checkpoint, continue` to save progress and keep going. Do not expose or maintain a turn counter merely to trigger this suggestion.
+End every discussion reply with a short optional-prefix reminder, as defined in [frontstage-backstage-persistence.md](frontstage-backstage-persistence.md). Do not expose or maintain a turn counter, wait for confirmation, or save merely because the reminder is shown.
 
-When the user says `checkpoint, continue` or an equivalent checkpoint-plus-continue phrase, submit the batched compact event through `specify-runtime discussion checkpoint` first; let that command reset persisted unsaved counts and update only its owned projections, then continue with the next useful discussion content in the same visible reply instead of stopping at a file-write receipt.
+When the user prepends an explicit `checkpoint` modifier, separate it from the discussion body and save the resolved session's prior pending progress through `specify-runtime discussion checkpoint` first. No `continue` keyword is required. Then process the remaining body normally in the same visible reply, applying its topic and boundary gates independently. The prefix does not widen the saved session's owned scope or authorize handoff; quoted or explanatory mentions are not save requests. Preserve the existing runtime-owned projections and recovery guards.
 
 Do not refresh all structured files on ordinary turns. The batched event log exists to survive context compaction while keeping normal discussion lightweight.
 

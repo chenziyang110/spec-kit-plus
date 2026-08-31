@@ -29,6 +29,12 @@ surface one decision cluster at a time, explain meaningful tradeoffs, and
 distinguish confirmed decisions, working assumptions, rejected options, and
 unresolved user choices.
 
+End every discussion reply with the short, localized optional checkpoint-prefix
+reminder in `references/discussion-contract.md`, including acknowledgements.
+Process an explicit prefix separately from the remaining discussion body:
+resolve the session, save its prior pending progress, then discuss the body
+normally. The reminder itself is neither a save trigger nor a confirmation gate.
+
 Run a Truth Pass before source-grounded technical advice or affected-surface,
 implementation-path, or verification claims. For cross-project work, lock
 `target_project_root` before technicalizing and verify facts in that target.

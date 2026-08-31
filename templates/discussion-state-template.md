@@ -92,8 +92,8 @@
 - ordinary_turn_write_gate: suppress local writes until save trigger; do not update persisted counters for every user reply or plain acknowledgement
 - structured_refresh_policy: semantic-checkpoint-only
 - save_trigger_policy: semantic-checkpoint | user-triggered-checkpoint-or-save | evidence-handoff | compaction-risk | durable-lifecycle-transition
-- checkpoint_value_policy: suggest a checkpoint only when semantic recovery value or compaction risk justifies it; do not maintain a hidden turn counter
-- checkpoint_continue_policy: user-triggered checkpoint writes one compact JSONL event and typed state update first, refreshes only changed optional artifacts, then continues in the same reply
+- checkpoint_value_policy: end every discussion reply with a short optional checkpoint-prefix reminder; the prompt does not write files by itself; do not maintain a hidden turn counter
+- checkpoint_continue_policy: separate an explicit checkpoint prefix from the discussion body; save prior pending progress first, then answer the body normally in the same reply; no continue keyword or extra confirmation is required
 - pending_context_summary: []
 - compaction_preserve_items: []
 - hook_persistence_policy: hooks may remind on resume or compaction, but must not create per-user-reply discussion writes

@@ -1,4 +1,4 @@
-Trigger: when deciding whether to write discussion files or preserve compaction state.
+Trigger: before processing a checkpoint prefix, shaping any discussion reply footer, or deciding whether to write discussion files or preserve compaction state.
 
 Purpose: preserve frontstage/backstage separation, checkpoint persistence, semantic checkpoints, save triggers, and recovery persistence rules.
 
@@ -15,7 +15,7 @@ Refresh canonical state and optional structured files only at semantic checkpoin
 - evidence conflict is found
 - truth pass status changes
 - the discussion compass becomes stale or a recommendation changes materially
-- user-triggered checkpoint/save confirms the current discussion point should become durable, including `checkpoint`, `save checkpoint`, `checkpoint, continue`, or localized equivalents that pair checkpoint with continue
+- user-triggered checkpoint/save confirms the current discussion point should become durable, including an optional leading `checkpoint` prefix before ordinary discussion text, `checkpoint` alone, `save checkpoint`, `checkpoint, continue`, or clear localized save requests
 - the user asks for handoff or next-stage continuation
 - context compaction risk is high
 - an old discussion is resumed and compact state is missing or stale
@@ -32,9 +32,44 @@ Checkpoint triggers do not refresh all files. Refresh only the targets whose dur
 
 Do not persist only because an unsaved turn count changed. Recovery value and semantic change, not a hidden counter, determine whether a checkpoint is useful.
 
-At a natural pause or after several unsaved ordinary turns, the visible reply may end with one short note that names the unsaved turn count and suggests `checkpoint, continue` if the user wants to save progress and keep going. This note is not a receipt, does not expose file paths by default, and must not call write-capable tools.
+End every discussion reply with one short reminder in the user's language,
+including brief acknowledgements and replies that already performed a save.
+For Chinese, use: "需要保存进度时，可在下一条回复前加 `checkpoint`。"
+Do not ask the user to choose whether to save, wait for an answer, show an
+unsaved-turn count, or turn the footer into a separate confirmation stage.
+The prompt does not write files by itself. Its frequency does not change any
+semantic, evidence, compaction, handoff, or lifecycle save trigger.
 
-When the user says `checkpoint, continue`, pass the compact semantic delta to `specify-runtime discussion checkpoint` with `--input-json` (inline, `@path`, or `-` for stdin). The payload may include `summary`, `lifecycle_phase`/`phase`, `user_goal`, `context_boundary`, `confirmed_decisions`, `open_questions`, `current_recommendation`, and the other accepted turn_packet fields. The runtime persists those fields into `discussion-state.json` / `turn_packet` and appends `discussion-log.jsonl`; unknown fields are rejected instead of silently dropped. Expand the live schema with `specify-runtime api schema discussion-checkpoint-input --format json`. On Windows PowerShell, prefer `@path` or stdin because inline JSON quoting often strips double quotes. Never mutate those files directly.
+Treat an explicit optional leading `checkpoint` prefix as a save modifier.
+Separate the prefix from the discussion body; no `continue` keyword or extra
+confirmation is required. Whitespace or punctuation can separate the prefix
+from normal prose. Quoted text, code, or a question about checkpoint is not a
+save request; honor an explicit request not to save.
+
+| User message | Save action | Discussion action |
+| --- | --- | --- |
+| `这个方案的成本怎么算？` | No explicit save request | Answer the cost question normally |
+| `checkpoint，这个方案的成本怎么算？` | Save prior pending progress first | Answer the same cost question normally |
+| `checkpoint` | Save prior pending progress | Briefly acknowledge the actual result; keep discussion available |
+| `这里的 checkpoint 是什么意思？` | No explicit save request | Explain the term normally |
+
+After resolving the current session, save prior pending progress first, then
+answer the body normally in the same visible reply. The saved boundary excludes
+the new body until that body is processed. For a later write in the same turn,
+obtain a fresh resolver hash rather than reusing the pre-checkpoint hash.
+Classify the body and apply topic
+ownership independently; the prefix is not a topic, consumer choice, handoff
+approval, or permission to widen scope. Without the prefix, continue normally
+unless another existing save trigger fires. Preserve standalone and legacy
+explicit save requests, including `save checkpoint` and `checkpoint, continue`.
+
+For the save, pass the compact semantic delta to `specify-runtime discussion checkpoint` with the resolver-returned `--expected-state-sha256` and `--input-json` (inline, `@path`, or `-` for stdin). The payload may include `summary`, `lifecycle_phase`/`phase`, `user_goal`, `context_boundary`, `confirmed_decisions`, `open_questions`, `current_recommendation`, and the other accepted turn_packet fields. The runtime persists those fields into `discussion-state.json` / `turn_packet` and appends `discussion-log.jsonl`; unknown fields are rejected instead of silently dropped. Expand the live schema with `specify-runtime api schema discussion-checkpoint-input --format json`. On Windows PowerShell, prefer `@path` or stdin because inline JSON quoting often strips double quotes. Never mutate those files directly.
+
+If saving fails, use the existing resolver/recovery guards, do not claim it was
+saved, and retain pending progress in memory. Continue answering the body where
+safe while reporting the save as pending; do not ask for routine confirmation
+just because the message included the optional prefix. A missing or ambiguous
+session still requires the existing identity guard before any durable write.
 
 ## Recovery Flow
 
