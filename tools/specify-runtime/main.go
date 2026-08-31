@@ -31,9 +31,6 @@ func main() {
 		env.Blockers = append(env.Blockers, err.Error())
 		os.Exit(writeEnvelope(os.Stdout, env))
 	}
-	if isSupervisedRuntimeCommand(args) {
-		os.Exit(runSupervisedWithTimeout(args, os.Stdout, os.Stderr, buildinfo.Current(version).Version, timeout, RunContext))
-	}
 	os.Exit(runWithWatchdog(args, os.Stdout, os.Stderr, buildinfo.Current(version).Version, timeout, RunContext))
 }
 
@@ -57,21 +54,13 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, cl
 	case "artifact":
 		return runArtifact(args[1:], stdout)
 	case "result":
-		return runResultCommand(args[1:], stdout)
-	case "run":
-		return runRunContext(ctx, args[1:], stdout, stderr)
+		return runResult(args[1:], stdout)
 	case "execution":
 		return runExecution(args[1:], stdout)
 	case "work":
 		return runWork(args[1:], stdout)
 	case "board":
 		return runBoard(args[1:], stdout)
-	case "candidate":
-		return runCandidateCommandContext(ctx, args[1:], stdout)
-	case "cas":
-		return runCASCommand(args[1:], stdout)
-	case "sync":
-		return runSyncCommand(args[1:], stdout)
 	case "workflow":
 		return runWorkflow(args[1:], stdout)
 	case "validate":
@@ -99,7 +88,7 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, cl
 	case "review":
 		return runReview(args[1:], stdout)
 	case "accept":
-		return runAcceptCommand(args[1:], stdout)
+		return runAccept(args[1:], stdout)
 	case "sp-teams":
 		return runTeams(args[1:], stdout)
 	case "learning":
@@ -122,8 +111,6 @@ func writeHelp(stdout io.Writer) int {
 		"api",
 		"artifact",
 		"board",
-		"candidate",
-		"cas",
 		"cognition",
 		"discussion",
 		"design",
@@ -143,8 +130,6 @@ func writeHelp(stdout io.Writer) int {
 		"prd-scan",
 		"quick",
 		"result",
-		"run",
-		"sync",
 		"validate",
 		"version",
 		"workflow",
@@ -155,7 +140,6 @@ func writeHelp(stdout io.Writer) int {
 	_, _ = fmt.Fprintln(stdout, "timeout budgets:")
 	_, _ = fmt.Fprintf(stdout, "  queries: %s\n", defaultRuntimeQueryTimeout)
 	_, _ = fmt.Fprintf(stdout, "  commands: %s\n", defaultRuntimeCommandTimeout)
-	_, _ = fmt.Fprintf(stdout, "  run launch/supervise: %s\n", defaultSupervisedRunTimeout)
 	_, _ = fmt.Fprintf(
 		stdout,
 		"  override: %s accepts positive seconds up to %s and cannot disable the watchdog\n",
@@ -1274,27 +1258,12 @@ func defaultCapabilities() []string {
 		"review.resume-audit",
 		"review.target-bind",
 		"review.validate",
-		"result.depend",
-		"result.list",
 		"result.path",
-		"result.reopen",
-		"result.show",
 		"result.submit",
-		"run.cancel",
-		"run.create",
-		"run.events",
-		"run.launch",
-		"run.show",
-		"run.supervise",
-		"candidate.build",
-		"candidate.review",
-		"candidate.show",
 		"accept.closeout",
 		"accept.prepare",
-		"accept.receipt",
 		"accept.route-repair",
 		"accept.validate",
-		"cas.publish",
 		"sp-teams.auto-dispatch",
 		"sp-teams.complete-batch",
 		"sp-teams.doctor",
@@ -1336,7 +1305,6 @@ func defaultCapabilities() []string {
 		"quick.preflight",
 		"quick.resume",
 		"quick.status",
-		"sync.safe",
 		"tasks.build",
 		"tasks.finalize",
 		"tasks.handoff",
@@ -1655,38 +1623,6 @@ func capabilitySummary(id string) string {
 		return "Resume interrupted work under a new fence after conflict checking."
 	case "work.show":
 		return "Read one Work Board item and its declared write intents."
-	case "run.create":
-		return "Record a new workflow Run request in the repository control plane."
-	case "run.show":
-		return "Read the current revision, status, and fence for one Run."
-	case "run.events":
-		return "List the ordered lifecycle events for one Run."
-	case "run.cancel":
-		return "Cancel one revision-bound Run and advance its fence before cleanup."
-	case "run.launch":
-		return "Queue and execute one Run through automatic primary-or-isolated workspace routing in a single host-adapter call."
-	case "run.supervise":
-		return "Execute one Run in its automatically routed primary or isolated workspace under durable lifecycle control."
-	case "result.list":
-		return "List the append-only sealed Result history for one Run."
-	case "result.show":
-		return "Read one immutable sealed Result and its derived bindings."
-	case "result.reopen":
-		return "Reopen a sealed Run from its latest sealed Result basis."
-	case "result.depend":
-		return "Record a dependency edge between sealed Results."
-	case "candidate.build":
-		return "Build one frozen multi-Result Candidate for a target ref."
-	case "candidate.show":
-		return "Read one frozen Candidate, its member Result set, and latest delivery receipts."
-	case "candidate.review":
-		return "Run literal Review argv against one frozen Candidate workspace."
-	case "accept.receipt":
-		return "Record the explicit human acceptance receipt for one frozen Candidate."
-	case "cas.publish":
-		return "Publish one accepted frozen Candidate with target-ref CAS protection."
-	case "sync.safe":
-		return "Safely synchronize the primary worktree to one published frozen Candidate."
 	default:
 		return "Runtime capability."
 	}

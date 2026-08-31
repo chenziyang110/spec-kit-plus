@@ -222,103 +222,6 @@ find_feature_dir_by_prefix() {
     echo "$repo_root/.specify/features/$branch_name"
 }
 
-canonicalize_managed_run_path() {
-    local candidate="$1"
-    if command -v cygpath >/dev/null 2>&1 && [[ "$candidate" =~ ^[A-Za-z]:[\\/] ]]; then
-        candidate=$(cygpath -u "$candidate")
-    fi
-    (cd "$candidate" 2>/dev/null && pwd -P)
-}
-
-assert_managed_run_workspace() {
-    local repo_root="$1"
-    local workspace="${SPECIFY_RUN_WORKSPACE:-}"
-
-    if [[ -z "$workspace" ]]; then
-        echo "ERROR: Managed Run is missing SPECIFY_RUN_WORKSPACE" >&2
-        return 1
-    fi
-
-    local canonical_workspace canonical_repo_root canonical_cwd
-    canonical_workspace=$(canonicalize_managed_run_path "$workspace") || {
-        echo "ERROR: Managed Run workspace does not exist: $workspace" >&2
-        return 1
-    }
-    canonical_repo_root=$(canonicalize_managed_run_path "$repo_root") || return 1
-    canonical_cwd=$(pwd -P)
-    if [[ "$canonical_repo_root" != "$canonical_workspace" || "$canonical_cwd" != "$canonical_workspace" ]]; then
-        echo "ERROR: Managed Run workspace binding mismatch; expected '$canonical_workspace', repo root '$canonical_repo_root', cwd '$canonical_cwd'" >&2
-        return 1
-    fi
-}
-
-assert_managed_run_feature_dir() {
-    local repo_root="$1"
-    local feature_dir="$2"
-    local canonical_feature_dir
-    canonical_feature_dir=$(canonicalize_managed_run_path "$feature_dir") || {
-        echo "ERROR: Managed Run feature directory does not exist: $feature_dir" >&2
-        return 1
-    }
-
-    local registered_root canonical_root
-    while IFS= read -r registered_root; do
-        canonical_root=$(canonicalize_managed_run_path "$registered_root") || continue
-        if [[ "$canonical_feature_dir" != "$canonical_root" && "$canonical_feature_dir" == "$canonical_root/"* ]]; then
-            return 0
-        fi
-    done < <(feature_specs_roots "$repo_root")
-
-    echo "ERROR: Managed Run feature directory is outside registered feature roots: $feature_dir" >&2
-    return 1
-}
-
-find_feature_dir_from_managed_run() {
-    local repo_root="$1"
-    local subject_type="${SPECIFY_RUN_SUBJECT_TYPE:-}"
-    local subject_id="${SPECIFY_RUN_SUBJECT_ID:-}"
-
-    assert_managed_run_workspace "$repo_root" || return 1
-    if [[ "$subject_type" != "feature" || -z "$subject_id" ]]; then
-        echo "ERROR: Managed feature workflow requires SPECIFY_RUN_SUBJECT_TYPE=feature and a non-empty SPECIFY_RUN_SUBJECT_ID" >&2
-        return 1
-    fi
-
-    local subject_path="${subject_id//\\//}"
-    if [[ "$subject_path" = /* || "$subject_path" =~ ^[A-Za-z]:/ || "/$subject_path/" == *"/../"* ]]; then
-        echo "ERROR: Managed Run feature subject must be a safe project-relative feature id or path" >&2
-        return 1
-    fi
-    if [[ "$subject_path" == */* ]]; then
-        case "$subject_path" in
-            .specify/features/*|.specify/specs/*|specs/*)
-                echo "$repo_root/$subject_path"
-                return
-                ;;
-            *)
-                echo "ERROR: Managed Run feature subject path is outside registered feature roots: $subject_path" >&2
-                return 1
-                ;;
-        esac
-    fi
-
-    local exact_matches=()
-    local specs_dir
-    while IFS= read -r specs_dir; do
-        [[ -d "$specs_dir/$subject_path" ]] && exact_matches+=("$specs_dir/$subject_path")
-    done < <(feature_specs_roots "$repo_root")
-    if [[ ${#exact_matches[@]} -eq 1 ]]; then
-        echo "${exact_matches[0]}"
-        return
-    fi
-    if [[ ${#exact_matches[@]} -gt 1 ]]; then
-        echo "ERROR: Managed Run feature subject '$subject_path' matches multiple feature roots: ${exact_matches[*]}" >&2
-        return 1
-    fi
-
-    find_feature_dir_by_prefix "$repo_root" "$subject_path"
-}
-
 get_feature_paths() {
     local explicit_feature_dir="${1:-}"
     local repo_root=$(get_repo_root)
@@ -329,31 +232,24 @@ get_feature_paths() {
         has_git_repo="true"
     fi
 
-    if [[ "${SPECIFY_RUN_MANAGED:-}" == "1" ]]; then
-        assert_managed_run_workspace "$repo_root" || return 1
-    fi
-
     local feature_dir
     if [[ -n "$explicit_feature_dir" ]]; then
+        # Native Windows receipts may be consumed from Git Bash. Normalize the
+        # supplied path before testing absoluteness; never prefix it with a
+        # discovered parent repository path.
+        if command -v cygpath >/dev/null 2>&1 && [[ "$explicit_feature_dir" =~ ^[A-Za-z]:[\\/] ]]; then
+            explicit_feature_dir=$(cygpath -u "$explicit_feature_dir") || return 1
+        fi
         if [[ "$explicit_feature_dir" = /* ]]; then
             feature_dir="$explicit_feature_dir"
         else
             feature_dir="$repo_root/$explicit_feature_dir"
-        fi
-    elif [[ "${SPECIFY_RUN_MANAGED:-}" == "1" ]]; then
-        if ! feature_dir=$(find_feature_dir_from_managed_run "$repo_root"); then
-            echo "ERROR: Failed to resolve managed Run feature subject" >&2
-            return 1
         fi
     else
         if ! feature_dir=$(find_feature_dir_by_prefix "$repo_root" "$current_branch"); then
             echo "ERROR: Failed to resolve feature directory" >&2
             return 1
         fi
-    fi
-
-    if [[ "${SPECIFY_RUN_MANAGED:-}" == "1" ]]; then
-        assert_managed_run_feature_dir "$repo_root" "$feature_dir" || return 1
     fi
 
     # Use printf '%q' to safely quote values, preventing shell injection

@@ -67,6 +67,43 @@ func runImplementPacketCompile(args []string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	packet, err := buildImplementTaskPacket(root, feature, taskID, index, position, task)
+	if err != nil {
+		return nil, err
+	}
+	packetBytes, err := marshalTaskControlJSON(packet)
+	if err != nil {
+		return nil, err
+	}
+	packetRef := filepath.ToSlash(filepath.Join("implementation-review", "packets", taskID+".json"))
+	task["packet_ref"] = packetRef
+	indexBytes, err := marshalTaskControlJSON(index)
+	if err != nil {
+		return nil, err
+	}
+	receipt, err := applyFileTransaction(root, "implement.packet.compile", []fileTransactionUpdate{
+		{Path: filepath.Join(feature, filepath.FromSlash(packetRef)), Content: packetBytes, Perm: 0o644},
+		{Path: filepath.Join(feature, "task-index.json"), Content: indexBytes, Perm: 0o644},
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := fileTransactionReceiptMap(receipt)
+	result["status"] = "ok"
+	result["task_id"] = taskID
+	result["packet_ref"] = packetRef
+	result["path"] = filepath.ToSlash(filepath.Join(featureRef, packetRef))
+	result["sha256"] = taskControlSHA256(packetBytes)
+	return result, nil
+}
+
+// buildImplementTaskPacket is shared by compilation and read-only receipt verification.
+func buildImplementTaskPacket(root, feature, taskID string, index map[string]any, position int, task map[string]any) (map[string]any, error) {
+	featureID := filepath.Base(filepath.Clean(feature))
+	featureRef, err := filepath.Rel(root, feature)
+	if err != nil || featureRef == "." || featureRef == ".." || strings.HasPrefix(featureRef, ".."+string(filepath.Separator)) {
+		return nil, fmt.Errorf("feature directory must stay below the project root")
+	}
 	template, err := readImplementJSONMap(filepath.Join(root, ".specify", "templates", "task-packet-template.json"))
 	if err != nil {
 		return nil, fmt.Errorf("task-packet template is invalid or missing: %w", err)
@@ -92,6 +129,7 @@ func runImplementPacketCompile(args []string) (map[string]any, error) {
 	}
 	packet["read_scope"] = stringsToAny(readScope)
 	packet["write_scope"] = stringsToAny(writeScope)
+	packet["bookkeeping_write_scope"] = stringsToAny(implementTaskBookkeepingScope(filepath.ToSlash(featureRef), taskID))
 	packet["forbidden_drift"] = stringsToAny(anyStringSlice(task["forbidden_drift"]))
 	packetAcceptanceRefs := mergeImplementTaskLists(task["acceptance_refs"], task["required_refs"])
 	if len(packetAcceptanceRefs) == 0 {
@@ -124,30 +162,23 @@ func runImplementPacketCompile(args []string) (map[string]any, error) {
 	if strings.TrimSpace(anyString(packet["objective"])) == "" {
 		return nil, fmt.Errorf("task %s has no objective", taskID)
 	}
-	packetBytes, err := marshalTaskControlJSON(packet)
-	if err != nil {
-		return nil, err
+	return packet, nil
+}
+
+// These are the exact canonical artifacts updated by task start/result/accept.
+// They are declared separately from product source and remain CLI-owned.
+func implementTaskBookkeepingScope(featureRef, taskID string) []string {
+	feature := filepath.FromSlash(featureRef)
+	paths := []string{
+		"task-index.json", "tasks.md", "implement-tracker.md",
+		"implementation-review/execution-state.json",
+		"implementation-review/tasks/" + taskID + ".json",
+		"worker-results/" + taskID + ".json",
 	}
-	packetRef := filepath.ToSlash(filepath.Join("implementation-review", "packets", taskID+".json"))
-	task["packet_ref"] = packetRef
-	indexBytes, err := marshalTaskControlJSON(index)
-	if err != nil {
-		return nil, err
+	for i, path := range paths {
+		paths[i] = filepath.ToSlash(filepath.Join(feature, filepath.FromSlash(path)))
 	}
-	receipt, err := applyFileTransaction(root, "implement.packet.compile", []fileTransactionUpdate{
-		{Path: filepath.Join(feature, filepath.FromSlash(packetRef)), Content: packetBytes, Perm: 0o644},
-		{Path: filepath.Join(feature, "task-index.json"), Content: indexBytes, Perm: 0o644},
-	})
-	if err != nil {
-		return nil, err
-	}
-	result := fileTransactionReceiptMap(receipt)
-	result["status"] = "ok"
-	result["task_id"] = taskID
-	result["packet_ref"] = packetRef
-	result["path"] = filepath.ToSlash(filepath.Join(featureRef, packetRef))
-	result["sha256"] = taskControlSHA256(packetBytes)
-	return result, nil
+	return paths
 }
 
 func runImplementTaskStart(args []string) (map[string]any, error) {
@@ -210,6 +241,10 @@ func runImplementTaskStart(args []string) (map[string]any, error) {
 	if featureID == "" {
 		featureID = strings.TrimSpace(filepath.Base(filepath.Clean(feature)))
 	}
+	taskPacketProjectRef := ""
+	if packetRef != "" {
+		taskPacketProjectRef = projectRelativeSlash(root, filepath.Join(feature, filepath.FromSlash(packetRef)))
+	}
 	workClaim, err := claimCurrentWorkScope(currentWorkScopeClaimRequest{
 		ProjectRoot: root,
 		Args:        args,
@@ -221,6 +256,8 @@ func runImplementTaskStart(args []string) (map[string]any, error) {
 		Reason:                               "claim-before-start for implement:" + featureID + "#" + taskID,
 		UseCurrentConfirmedScopeWhenEmpty:    true,
 		AllowDeclaredNoWriteWhenScopeIsEmpty: true,
+		AllowExecutionGuardReceipt:           true,
+		PacketRef:                            taskPacketProjectRef,
 	})
 	if err != nil {
 		return nil, err

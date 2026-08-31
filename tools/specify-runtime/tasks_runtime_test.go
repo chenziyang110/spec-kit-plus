@@ -57,7 +57,7 @@ func TestTaskMarkdownProjectsProfessionalUIContractWithoutBreakingTable(t *testi
 }
 
 func TestUnifiedTaskControlPlaneOwnsAuthoringAndLifecycle(t *testing.T) {
-	root := t.TempDir()
+	root := initCoordinationCLIRepository(t)
 	templates := filepath.Join(root, ".specify", "templates")
 	feature := filepath.Join(root, ".specify", "features", "001-runtime-tasks")
 	if err := os.MkdirAll(templates, 0o755); err != nil {
@@ -143,8 +143,68 @@ func TestUnifiedTaskControlPlaneOwnsAuthoringAndLifecycle(t *testing.T) {
 	if pathExists(filepath.Join(feature, "implementation-review", "tasks", "T001.json")) {
 		t.Fatal("blocked task-start mutated lifecycle state")
 	}
-	bindImplementTestWork(t, root, featureRef, []string{"src/runtime.go"})
+	packet := readImplementJSONFile(t, filepath.Join(root, filepath.FromSlash(stringValue(compiled["path"]))))
+	packetUI, err := json.Marshal(packet["ui_contract"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexUI, err := json.Marshal(ui)
+	if err != nil || !bytes.Equal(packetUI, indexUI) {
+		t.Fatalf("compiled packet changed the task-local UI contract: %s / %s, %v", packetUI, indexUI, err)
+	}
+	announcedPayload := assertTaskRuntimeCommandOK(t, []string{
+		"execution", "announce", "--project-root", root,
+		"--activity-id", "implement-guarded-task", "--workflow", "implement",
+		"--agent-id", "test-worker", "--adapter-id", "codex",
+		"--work-packet-file", stringValue(compiled["path"]),
+		"--work-packet-sha256", stringValue(compiled["sha256"]), "--format", "json",
+	})
+	announced := announcedPayload["execution_activity"].(map[string]any)
+	t.Setenv("SPECIFY_WORK_ID", stringValue(announced["work_id"]))
+	t.Setenv("SPECIFY_WORK_FENCE", executionJSONNumberString(announced["fence"]))
+	assertEmptyScopeStartBlocked := func(stage string) {
+		t.Helper()
+		indexPath := filepath.Join(feature, "task-index.json")
+		original, err := os.ReadFile(indexPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		changedIndex := readImplementJSONFile(t, indexPath)
+		changedTasks := changedIndex["tasks"].([]any)
+		changedTasks[0].(map[string]any)["expected_write_scope"] = []any{}
+		writeTaskRuntimeFixture(t, indexPath, changedIndex)
+		exit, rejected := runTaskRuntimeCommand(t, []string{"implement", "task-start", "--feature-dir", featureRef, "--task-id", "T001", "--execution-mode", "delegated", "--packet-ref", packetRef, "--format", "json"})
+		if exit == 0 || rejected.Status != "blocked" || pathExists(filepath.Join(feature, "implementation-review", "tasks", "T001.json")) {
+			t.Fatalf("%s task-start bypassed the pinned packet with an empty scope: %d %#v", stage, exit, rejected)
+		}
+		if err := os.WriteFile(indexPath, original, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertEmptyScopeStartBlocked("unguarded")
+	exit, unguarded := runTaskRuntimeCommand(t, []string{"implement", "task-start", "--feature-dir", featureRef, "--task-id", "T001", "--execution-mode", "delegated", "--packet-ref", packetRef, "--format", "json"})
+	if exit == 0 || unguarded.Status != "blocked" {
+		t.Fatalf("task-start accepted an announced but unguarded Activity: %d %#v", exit, unguarded)
+	}
+	guarded := guardExecutionCLI(t, root, announced, executionOverviewCLI(t, root, stringValue(announced["work_id"])), anyStringSlice(announced["planned_write_scope"]), nil)
+	assertEmptyScopeStartBlocked("guarded")
+	alternativePacketRef := "implementation-review/packets/T001-alternative.json"
+	packetBytes, err := os.ReadFile(filepath.Join(feature, filepath.FromSlash(packetRef)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(feature, filepath.FromSlash(alternativePacketRef)), packetBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	exit, mismatched := runTaskRuntimeCommand(t, []string{"implement", "task-start", "--feature-dir", featureRef, "--task-id", "T001", "--execution-mode", "delegated", "--packet-ref", alternativePacketRef, "--format", "json"})
+	if exit == 0 || mismatched.Status != "blocked" || pathExists(filepath.Join(feature, "implementation-review", "tasks", "T001.json")) {
+		t.Fatalf("task-start accepted a different packet than announcement: %d %#v", exit, mismatched)
+	}
+	if err := os.Remove(filepath.Join(feature, filepath.FromSlash(alternativePacketRef))); err != nil {
+		t.Fatal(err)
+	}
 	assertTaskRuntimeCommandOK(t, []string{"implement", "task-start", "--feature-dir", featureRef, "--task-id", "T001", "--execution-mode", "delegated", "--packet-ref", packetRef, "--format", "json"})
+	mustWriteScriptDomainTest(t, filepath.Join(root, "src", "runtime.go"), "package runtime\n")
 	incompleteResult := `{"task_id":"T001","status":"success","changed_files":["src/runtime.go"],"validation_results":[{"command":"go test ./...","status":"passed","output":"PASS"}],"blockers":[],"suggested_recovery_actions":[]}`
 	exit, rejected := runTaskRuntimeCommand(t, []string{"implement", "result-merge", "--feature-dir", featureRef, "--task-id", "T001", "--result-json", incompleteResult, "--format", "json"})
 	if exit == 0 || rejected.Status != "blocked" || !strings.Contains(rejected.Summary, "gofmt check") {
@@ -171,6 +231,23 @@ func TestUnifiedTaskControlPlaneOwnsAuthoringAndLifecycle(t *testing.T) {
 	accepted := assertTaskRuntimeCommandOK(t, []string{"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T001", "--format", "json"})
 	if accepted["task_status"] != "accepted" || accepted["next_task_id"] != nil {
 		t.Fatalf("unexpected acceptance: %#v", accepted)
+	}
+	checkedPayload := assertTaskRuntimeCommandOK(t, []string{
+		"execution", "checkpoint", stringValue(announced["activity_id"]), "--project-root", root,
+		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
+		"--fence", executionJSONNumberString(guarded["fence"]), "--phase", "validating",
+		"--next-action", "verify completed task", "--reason", "task accepted", "--format", "json",
+	})
+	checked := checkedPayload["execution_activity"].(map[string]any)
+	completedPayload := assertTaskRuntimeCommandOK(t, []string{
+		"execution", "complete", stringValue(announced["activity_id"]), "--project-root", root,
+		"--expected-revision", executionJSONNumberString(checked["work_revision"]),
+		"--fence", executionJSONNumberString(checked["fence"]),
+		"--validation-json", `[{"command":"gofmt check","result":"passed"}]`, "--reason", "verified task and bookkeeping", "--format", "json",
+	})
+	completed := completedPayload["execution_completion"].(map[string]any)
+	if completed["phase"] != "completed" || completed["work_status"] != "completed" {
+		t.Fatalf("packet execution did not close through the shared board: %#v", completed)
 	}
 
 	for _, ref := range []string{
@@ -987,7 +1064,7 @@ func bindImplementTestWork(t *testing.T, root, featureRef string, writeScope []s
 			"path": path, "operation": "modify", "confidence": "confirmed",
 		})
 	}
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"work", "begin",
 		"--project-root", root,
 		"--work-id", "implement-test-work",

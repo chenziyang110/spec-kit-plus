@@ -60,6 +60,12 @@ Use the same owner CLI to repeat the route in review when it explains closeout.
 
 ## Scope Resolution
 
+Derive each stable path-like surface ID from confirmed source or registered
+metadata; split surfaces and never pass the whole brief or prose as `--scope`.
+Missing registry/coverage is legitimate discovery absence: do not blindly
+artifact-show a missing index or replace required approved Design with a risk
+note. Preserve existing approval, registration, and late-design adoption gates.
+
 Run `specify-runtime design resolve --scope <exact-surface> --format json` when
 registered design coverage shapes routing. This is discovery only; it neither
 selects “latest” nor adopts a result. If it returns `composite: true`, split the

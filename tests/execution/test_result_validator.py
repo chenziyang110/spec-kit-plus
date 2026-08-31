@@ -105,6 +105,15 @@ def _add_sample_consequence_obligation(packet: WorkerTaskPacket) -> WorkerTaskPa
     return packet
 
 
+@pytest.mark.parametrize("status", ["pending", "success", "blocked", "failed"])
+def test_validate_worker_task_result_rejects_foreign_task_before_status_shortcuts(
+    sample_packet: WorkerTaskPacket, status: str
+) -> None:
+    result = WorkerTaskResult(task_id="T999", status=status, summary="foreign task")
+    with pytest.raises(PacketValidationError, match="does not match dispatched packet"):
+        validate_worker_task_result(result, sample_packet)
+
+
 def test_validate_worker_task_result_accepts_acknowledged_result(
     sample_packet: WorkerTaskPacket,
 ) -> None:

@@ -43,15 +43,16 @@ route to analyze or the current owner to establish a valid reopen decision. A
 blocked runtime must first use `specify-runtime workflow resolve` with evidence, and acceptance
 findings use `accept route-repair`.
 
-When a managed Run declares a feature subject, verify the current directory is
-`SPECIFY_RUN_WORKSPACE` and route only state belonging to that subject. A
+Use an explicit feature selection or validated durable workflow binding in the
+current worktree and route only state belonging to that lineage. Work Board
+activity is coordination context, not feature selection authority. A
 recorded upstream gate outranks an implementation tracker or later artifact.
 For an unbound read-only invocation, stop on conflicting or `uncertain` states
 or anything other than exactly one unique safe candidate; reconcile candidates
 against live workflow artifacts before routing, then report the evidence and
 smallest repair instead of guessing.
 
-Discover candidates only through the managed Run subject, `discussion list`,
+Discover candidates only through a validated durable workflow binding in the current worktree, `discussion list`,
 `quick list`, and bounded `artifact list` queries
 for feature, debug, Review, and Acceptance types. Query a selected record with
 `workflow show|next` or targeted `artifact show`. Never enumerate or parse the

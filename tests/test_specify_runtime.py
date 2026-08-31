@@ -75,6 +75,87 @@ def test_required_runtime_contract_matches_the_shipped_agent_surface() -> None:
     assert set(runtime.REQUIRED_CAPABILITIES) == shipped
 
 
+def test_required_runtime_contract_retires_run_without_retiring_shared_execution() -> None:
+    capabilities = set(_load_runtime().REQUIRED_CAPABILITIES)
+    assert not any(
+        capability.startswith(("run.", "candidate.", "cas.", "sync."))
+        for capability in capabilities
+    )
+    assert {cap for cap in capabilities if cap.startswith("result.")} == {
+        "result.path", "result.submit"
+    }
+    assert {cap for cap in capabilities if cap.startswith("accept.")} == {
+        "accept.prepare", "accept.validate", "accept.route-repair", "accept.closeout"
+    }
+    assert {
+        "work.claim", "work.checkpoint", "work.finish", "work.interrupt",
+        "board.show", "board.branch-policy", "board.feature-bootstrap",
+        "execution.announce", "execution.guard", "execution.checkpoint",
+        "execution.complete", "review.prepare", "review.validate", "review.closeout",
+    } <= capabilities
+
+
+@pytest.mark.parametrize(
+    "missing",
+    (None, "execution.guard", "work.claim", "board.branch-policy", "result.submit", "review.closeout", "accept.validate"),
+)
+def test_runtime_handshake_accepts_retirement_but_requires_shared_guards(
+    monkeypatch: pytest.MonkeyPatch, missing: str | None
+) -> None:
+    runtime = _load_runtime()
+    retired = {
+        "result.list", "result.show", "result.reopen", "result.depend", "accept.receipt"
+    }
+    capabilities = [
+        cap for cap in runtime.REQUIRED_CAPABILITIES
+        if not cap.startswith(("run.", "candidate.", "cas.", "sync."))
+        and cap not in retired and cap != missing
+    ]
+    monkeypatch.setattr(
+        runtime,
+        "_runtime_handshake",
+        lambda *_a, **_k: {
+            "protocol_version": runtime.EXPECTED_RUNTIME_PROTOCOL,
+            "capability_ids": capabilities,
+        },
+    )
+    assert runtime.launcher_supports_required_commands(["specify-runtime"]) is (missing is None)
+
+
+@pytest.mark.parametrize(
+    "retired",
+    (
+        "run.launch", "run.supervise", "run.integrate", "candidate.build",
+        "candidate.review", "candidate.show", "result.list", "result.show",
+        "result.reopen", "result.depend", "accept.receipt", "cas.publish", "sync.safe",
+    ),
+)
+def test_runtime_handshake_rejects_cached_binary_with_retired_surface(
+    monkeypatch: pytest.MonkeyPatch, retired: str
+) -> None:
+    runtime = _load_runtime()
+    monkeypatch.setattr(
+        runtime, "_runtime_handshake",
+        lambda *_a, **_k: {
+            "protocol_version": runtime.EXPECTED_RUNTIME_PROTOCOL,
+            "capability_ids": [*runtime.REQUIRED_CAPABILITIES, retired],
+        },
+    )
+    assert not runtime.launcher_supports_required_commands(["specify-runtime"])
+
+
+def test_runtime_handshake_allows_unrelated_additive_capabilities(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime = _load_runtime()
+    monkeypatch.setattr(
+        runtime, "_runtime_handshake",
+        lambda *_a, **_k: {
+            "protocol_version": runtime.EXPECTED_RUNTIME_PROTOCOL,
+            "capability_ids": [*runtime.REQUIRED_CAPABILITIES, "example.extra"],
+        },
+    )
+    assert runtime.launcher_supports_required_commands(["specify-runtime"])
+
+
 @pytest.mark.parametrize(
     "capability",
     ("cognition.closeout.inspect", "cognition.closeout.repair"),
@@ -327,8 +408,8 @@ def test_runtime_runner_uses_unified_namespaced_argv(
         ),
         (["validate", "spec", "--feature-dir", ".", "--format", "json"], 305.0),
         (
-            ["run", "launch", "--adapter-id", "codex", "--", "codex", "exec"],
-            21615.0,
+            ["execution", "announce", "--workflow", "implement", "--format", "json"],
+            305.0,
         ),
     ],
 )

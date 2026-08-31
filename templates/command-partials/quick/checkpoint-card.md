@@ -45,10 +45,11 @@ specify-runtime quick item-accept <quick-id> --item Qn --evidence '<acceptance p
 specify-runtime quick item-status <quick-id> --format json
 ```
 
-Managed Runs omit the bracketed item-start options because
-`SPECIFY_WORK_ID` and `SPECIFY_WORK_FENCE` are inherited. Unhosted execution
-passes both values from its `work begin` receipt; item-start claims the complete
-Q write scope before dispatch.
+Pass both item-start options from the exact guarded Work/Activity identity,
+or inherit matching `SPECIFY_WORK_ID` and `SPECIFY_WORK_FENCE`. After
+announce, selected checkpoint, fresh overview, and execution guard, item-start
+confirms the complete Q write scope before dispatch; its `work_claim` receipt
+must match that guard. Do not register a duplicate owner.
 
 `confirmation_digest` covers decision fields only. Delivery Map, waves, batches,
 subagents, file splits, and test order never enter the digest. Updating only the

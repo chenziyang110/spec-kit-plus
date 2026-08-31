@@ -489,69 +489,84 @@ your agent:
 7. `accept` to restore a human's context and guide explicit product acceptance one real step at a time
 8. `auto` to resume the recommended next workflow step from current repository state when you do not want to name the exact command yourself
 
-Launch-capable integrations treat every invocation as an independent Run. With
-the default `--workspace-policy auto`, exactly one non-overlapping modifying Run
-uses the primary workspace when that checkout is pristine; every overlap, and
-every launch that finds idle but unsealed local changes, receives an isolated Git
-worktree. Overlaps clone the primary Run's pre-launch Snapshot. The supervisor
-forces the child agent's working directory, maintains liveness, releases primary
-ownership on every terminal path, and fences an interrupted Attempt before a
-replacement generation can start. A successful Run seals an immutable Result.
-Host adapters normally queue and start the child in one call through
-`specify-runtime run launch ... -- <agent argv>`; the full tokenized contract is
-discoverable through `api show run.launch`. `run supervise <run-id> ...` remains
-the replacement-attempt path for a previously queued or interrupted Run.
-Both commands accept either a canonical compiled WorkerTaskPacket receipt through
-`--work-packet-file <path> --work-packet-sha256 <sha256>` or the manual
-`--work-agent-id`, `--work-task-ref`, `--work-summary`, and
-`--work-intents-json` fields. Packet-backed launch verifies the exact compiled
-bytes before parsing, then derives the task identity, objective, and confirmed
-`scope.write_scope` so adapters do not rebuild the same metadata. The supervisor publishes
-the Work item before the child starts and exports `SPECIFY_WORK_ID`,
-`SPECIFY_WORK_FENCE`, and `SPECIFY_FEATURE_BRANCH_POLICY` to the managed child.
-On Windows, the supervisor also extends `WSLENV` so the same fenced Run binding
-survives when the child invokes WSL-backed Bash helpers.
+Work Board + execution is the default coordination path. Work/Activity is the
+sole durable ownership authority, without an extra process layer. Work in the
+current worktree and use the agent's native tooling for subagents or manual
+long-lived workers; workflows do not automatically allocate worktrees, merge,
+or publish.
 
-Modifying agents also coordinate through the repository-shared Work Board in
-`run-control.sqlite`. A managed `run launch` or `run supervise` automatically
-reconciles expired leases, registers its Work item, renews the lease, completes
-it on success, retains it as blocked on nonzero exit, and records cancellation
-as interrupted before returning. Unhosted agents use `specify-runtime board
-reconcile`, inspect current ownership with `board show` or `board owner`, and
-register planned file or directory writes with `work begin`. Later scope
-expansion is an atomic `work scope-add`; checkpoints renew the lease, and finish
-or abandon releases the scope without erasing history.
-Same-path and ancestor/descendant overlaps are blocked. If a lease expires,
-clean scope is released, while matching dirty changes—or an unavailable worker
-worktree—remain behind a recovery hold until explicit `work resume` or
-`work abandon`. After a confirmed computer/session shutdown, `work interrupt`
-can inspect and fence the still-live record immediately instead of waiting for
-lease expiry; it must never be used to take over an owner that may still be
-running. The board is a CLI projection and must not be edited by hand.
-Before an unhosted `sp-specify` writes anything, the feature script runs in
-read-only dry-run mode and its exact feature id/directory is registered through
-the single `specify-runtime board feature-bootstrap` command. That command
-returns the Work fence and branch policy, preventing two callers from both
-observing an empty board before either advertises its work. The real script
-replays the resolved feature id; `keep-current` avoids a branch switch, while an
-idle `default` path preserves the historical business-branch behavior. Managed
-Runs always remain on their allocated private/current ref regardless of the
-public policy. Existing feature directories are rejected unless explicit resume
-was requested. Run Control's private `specify/runs/*` isolation branches remain
-independent.
+For Fast, Debug, Implement, and Quick, inspect
+`specify-runtime execution overview --format json` at entry or resume. Its
+`execution-overview-v1` rows join task state, Work/Activity ownership, planned
+scope, and confirmed scope. After selecting work, use `execution announce`,
+checkpoint `selected`, refresh the overview, and call `execution guard` with
+its exact `coordination_revision` and `snapshot_sha256` before source writes
+or dispatch. That digest binds the concurrency view, not an ambient file
+capture. Guard confirms the full file and semantic-resource set atomically;
+overlap or stale ownership blocks without a partial claim. Refresh at event
+boundaries, not on a timer.
 
-Delivery is a separate frozen chain: inspect sealed work with
-`specify-runtime result show`, compose one or more eligible Results with
-`specify-runtime candidate build`, prove that exact Candidate with `candidate
-review`, record only an actual human decision with `accept receipt`, publish
-under target-ref compare-and-swap protection with `cas publish`, then update the
-primary workspace separately with `sync safe`. Publication recognizes the exact
-sealed primary Result as accounted Run state, but any additional index or
-worktree change blocks publication and remains untouched. Five concurrent `sp-quick`,
-`sp-debug`, or formal workflow Runs therefore never share an overlapping writable
-workspace or silently merge into one another. Publish and sync wait for the
-primary-workspace ownership slot to be idle; both use durable receipts so an
-interruption can be reconciled without repeating an unproven mutation.
+Packet-backed Implement workers pass the compiler's unchanged
+`--work-packet-file <receipt.path> --work-packet-sha256 <receipt.sha256>` to
+`specify-runtime execution announce --workflow implement --agent-id <agent-id>
+--adapter-id <adapter-id>`. The runtime checks the canonical packet path,
+exact current compiler output digest and bytes before parsing, and immutable
+baseline binding. It derives task identity, objective, and `planned_write_scope`
+as the union of unchanged product `write_scope` and the compiler's separate
+`bookkeeping_write_scope` of six exact feature-local canonical task paths.
+Guard uses that full returned union; never hand-edit the CLI-owned bookkeeping
+files, omit them from ownership, or use a wildcard. Shared feature metadata
+overlap requires serialized ownership. Manual overrides of packet-derived fields are forbidden.
+Guard cannot widen packet-backed scope; recompile and reannounce a changed
+packet. Only manual work uses amended-set guards. The selected checkpoint,
+fresh overview, and guard still precede native dispatch.
+
+Checkpoint `validating` before fresh verification. `execution complete`
+requires passing validation and terminal workflow task state, audits product and
+canonical workflow changes against confirmed scope, and releases ownership atomically. Declare
+expected workflow-state artifact writes under `.specify` or `.planning` as
+needed; those paths are not excluded from the audit. Only narrowly identified
+private runtime receipt/transaction cache bytes may be excluded; canonical
+feature, Design, memory, and `.planning` state stay audited, with unchanged Work
+recovery inspections. This grants no agent-authored file bypass. The supported Activity
+workflow values remain `fast|debug|implement|quick`.
+
+Other modifying workflows use `specify-runtime board reconcile`, inspect
+`board show` or `board owner`, and register precise allowed scope with
+`work begin`. Claim before writes, expand scope before touching new paths, and
+preserve artifact leases and state-owner guards. Checkpoint renews the lease;
+finish only after validation and terminal state. Confirmed overlaps block.
+Expired dirty work or an unavailable recorded workspace retains a recovery
+hold. Use `work interrupt` only after confirming the previous owner is offline,
+then explicitly resume with the new fence or abandon after inspecting preserved
+changes. Never take over a possibly live owner or edit board storage directly.
+
+Feature creation first runs the installed script with `--dry-run --json`
+(PowerShell: `-DryRun -Json`) and verifies `BOOTSTRAP_CONTRACT` equals
+`spec-kit-feature-bootstrap-v1`. Then reconcile/show the board and call
+`specify-runtime board feature-bootstrap` exactly once with the dry-run feature
+id and directory. Only after its Work receipt may the real script replay that
+exact id using `--resolved-feature-id` (PowerShell: `-ResolvedFeatureId`).
+Honor the returned branch policy: `keep-current` passes
+`--keep-current-branch` (PowerShell: `-KeepCurrentBranch`); idle `default`
+preserves the existing business-branch behavior. Existing feature directories
+require explicit resume.
+
+Delivery remains `implement -> review -> accept`: Review proves the current
+implementation fingerprint from real entrypoints, repairs and revalidates
+accepted findings, and binds exact runtime targets; Accept records only actual
+human decisions. Generic `WorkerTaskResult`, result path/submit handoffs, and UI
+`structure_snapshot` remain supported. External mutations retain their normal
+user authorization gates; existing authorized durable-team transfers keep
+their own runtime gates without a second approval.
+
+Run is retired. Historical Run records in the existing `run-control.sqlite`
+are inert preserved history only; Run no longer owns scope or resumes
+automatically. Existing worktrees, branches, and edits remain preserved. Live
+or recovery-held Work remains active safety ownership until reconciliation or
+explicit resolution. Safe additive metadata schema evolution is allowed;
+retirement must not delete or rewrite historical records or automatically clean
+up worktrees. The same database's Work Board remains active.
 
 After an advanced-profile init, use independent, discoverable SPX skills:
 
@@ -1104,7 +1119,7 @@ Conditional gates and follow-up commands:
 - Map points, code proves: technical claims must be backed by live code, tests, scripts, configuration, or authoritative docs.
 - Planning-only workflows do not acquire source mutation authority: `specify`, `deep-research`, `plan`, `test-design`, and `tasks` write their owned planning artifacts only. If a request requires source/runtime/template/config/test/generated-asset changes, they must hand off to a registry-owned mutation workflow and stop; they do not conditionally run mutation closeout themselves. The receiving mutation owner applies its rendered planner-first project cognition closeout, while `sp-map-update` remains the external/manual maintenance workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair.
 - `auto` to resume the recommended next workflow step from current repository state; for feature stages it reads `workflow.json` through `specify-runtime workflow show` then `specify-runtime workflow next` and consumes structured `next_argv` before consulting rich `workflow-state.md`, `implement-tracker.md`, quick-task `STATUS.md`, or debug session files. It continues under the routed workflow's contract without rewriting downstream state to `sp-auto`. When the routed workflow would only ask a bounded question or confirmation with one safe recommended/default answer, `auto` accepts that recommendation and continues; when it cannot do so safely, it reports the blocker plus a self-unblock recommendation instead of waiting silently.
-- inside a managed Run, `auto` routes only the current Run subject and verifies `SPECIFY_RUN_WORKSPACE`; an unbound read-only invocation stops when more than one safe candidate remains instead of guessing from branch recency
+- `auto` routes from explicit feature selection or a validated durable workflow binding in the current worktree; an unbound read-only invocation stops when more than one safe candidate remains instead of guessing from branch recency or Work Board activity
 - `ask` for read-only evidence-backed project Q&A. Use it when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. `sp-ask` is independent from `sp-discussion`; it creates no ask state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. Do not teach a `specify ask` helper in v1.
 - `discussion` to shape a rough idea before formal specification or direct quick delivery. At handoff it presents both paths and their eligibility, explains any blocker, recommends one eligible path from delivery complexity and consequence profile, and leaves the final choice to the user. It favors Quick for bounded, well-understood work and Specify for high ambiguity/complexity, interacting systems, architecture/data migration/security/compliance/rollout concerns, broad acceptance obligations, or durable specification traceability; size alone is not a hard routing ceiling. Only after that choice does it submit the confirmed semantic contract through `specify-runtime discussion write-handoff`; the runtime materializes the single machine-oriented `handoff-to-specify.json`. When the contract introduces no quick-stage `semantic_delta`, Quick binds understanding to the confirmed `review_digest` and does not ask for the same confirmation again.
 - `prd-scan` followed by `prd-build` reverse-extracts a repository-first current-state PRD reconstruction archive from an existing project. Substantive `prd-scan` runs are subagent-mandatory; workers inspect implementation reality, docs, tests, routes, UI/API surfaces, project cognition evidence, and memory, while `specify-runtime prd-scan`, `specify-runtime prd-build`, and the artifact/evidence CLIs alone materialize `.specify/prd-runs/<run-id>/`. The ten growing scan ledger/contract JSON files use `prd-scan record-upsert|record-remove|record-show|record-list`, so agents send or inspect one semantic row while the Go runtime owns each envelope, ordering, optimistic digest, and atomic write. `prd-build scaffold` then expands all missing master/export boilerplate from installed templates in one transaction; agents patch only semantic sections and never reconstruct or replace those large documents. Critical reconstruction claims target `L4 Reconstruction-Ready`, and `config-contracts.json` is part of the scan contract surface. `prd-build` compiles from the scan package into the expanded archive, including config/protocol/state/error/verification/risk exports. The exported suite includes `exports/README.md` as the package navigation entry and `exports/prd.md` as the main reader-facing PRD, and `prd-build` must not perform a second repository scan. `prd` remains a deprecated compatibility entrypoint that should route into the same pair.
@@ -1114,7 +1129,7 @@ Conditional gates and follow-up commands:
 - `analyze` is an optional read-only diagnostic and legacy revalidation pass once `tasks.md` exists; run the cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md` only when explicitly requested or recorded by existing state
 - `debug` to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered. It now defaults to project-cognition-backed minimum intake; the heavier Stage 1A/1B observer-contract flow is reserved for missing/ambiguous/stale map coverage, competing truth owners, or failed verification loops.
 - `explain` to describe the current spec, plan, task, implement, project cognition, or compatibility/export artifact in plain language
-- `specify-runtime result show -> specify-runtime candidate build -> candidate review -> accept receipt -> cas publish`, followed separately by `sync safe`, for immutable multi-Run delivery with explicit human acceptance and target-ref compare-and-swap protection
+- Work Board + execution for scoped ownership, native workers, and guarded current-worktree changes; keep `implement -> review -> accept` and existing human authorization for external delivery
 - `integration repair` to refresh generated shared/runtime-managed assets after CLI upgrades or when `specify check` reports stale launcher, script, or hook surfaces
 - when you run `analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `analyze` now also detects boundary guardrail drift through stable issue codes: `BG1` (missing `Implementation Constitution`), `BG2` (missing task guardrails), and `BG3` (missing implementation-time boundary confirmation)

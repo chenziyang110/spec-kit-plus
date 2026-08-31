@@ -20,7 +20,7 @@ scripts:
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
 {{spec-kit-include: ../command-partials/common/agent-phase-handoff.md}}
-{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
+{{spec-kit-include: ../command-partials/common/execution-bootstrap.md}}
 
 {{spec-kit-include: ../command-partials/common/planning-cognition.md}}
 
@@ -28,7 +28,10 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/adaptive-execution.md}}
 
-[AGENT] `sp-tasks` continues the same run created for the feature. Confirm the same run with `specify-runtime run show`, then execute decomposition work only through `specify-runtime run supervise`.
+[AGENT] `sp-tasks` resumes the selected feature's task-generation state in the
+current worktree. Register only its allowed task-artifact scope on Work Board;
+preserve planning inputs, task-index ownership, and all existing readiness
+gates. Do not create another branch or worktree or implement product source.
 
 ## Read-Only Test Design Projection Intake
 

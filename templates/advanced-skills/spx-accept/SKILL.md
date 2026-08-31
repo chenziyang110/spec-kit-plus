@@ -7,20 +7,18 @@ description: Advanced post-Review human acceptance workflow. Use after fresh app
 
 Read `references/project-learning.md` and apply its consume-only policy.
 Read `references/workflow-runtime.md` and let its CLI own phase state.
-Read `references/run-bootstrap.md`.
+Read `references/execution-bootstrap.md`.
 Read `references/project-cognition.md`, using cognition intent `ask`. Read
 `references/acceptance-contract.md` and `references/blocker-resolution.md`. Read
 `references/ui-quality-gate.md` when any acceptance scenario is UI-bearing.
 
 `$spx-accept` is read-only with respect to product source and runs only against
-the exact immutable Candidate and passing Candidate Review digest. Execute its
-managed session through `specify-runtime run supervise` and preserve the frozen
-`review target-bind` output. Only after the human supplies the actual final
-decision may Acceptance call `specify-runtime accept receipt`; an accepted
-receipt may then authorize `specify-runtime cas publish`, while
-`specify-runtime sync safe` remains a separate guarded action. Both wait until
-no Run owns the primary-workspace slot and reconcile durable receipts after an
-interruption. Acceptance never edits or directly integrates the Candidate.
+the current worktree's exact Review-approved implementation fingerprint and
+runtime targets. Preserve the immutable `review target-bind` output. Register
+only its allowed acceptance-artifact scope on Work Board, retain artifact leases,
+and record only the human's actual final decision through product acceptance.
+Acceptance never edits product source, merges, or publishes changes; external
+delivery remains a separate explicitly authorized action.
 
 Resolve exactly one system-reviewed feature and require a trusted
 `review-state.json` with fresh `approved` status and either a passing or
@@ -124,10 +122,8 @@ to `accepted`, run
 `{{specify-subcmd:specify-runtime accept closeout --feature-dir <feature-dir> --format json}}`,
 then execute that successful response's `next_argv` verbatim; it is the
 revision-bound workflow-runtime closeout command, so do not reconstruct it.
-Record the human's actual final decision with
-`specify-runtime accept receipt <candidate-id> --review-digest <digest> --decision accepted --actor <id> --format json`.
-Return the exact `specify-runtime cas publish` command bound to the resulting
-acceptance digest; invoke it only when the active workflow has delivery
-authority. Keep `specify-runtime sync safe` as a separate guarded action. Report
-what the human personally verified, residual risk, durable state, receipt, and
-the exact remaining delivery action.
+Preserve the human's actual final decision and its structured confirmation in
+the product acceptance record. Acceptance closeout does not authorize a branch
+change, merge, push, deployment, or publication. Report what the human personally
+verified, residual risk, durable state, and any separately authorized remaining
+delivery action without invoking it automatically.

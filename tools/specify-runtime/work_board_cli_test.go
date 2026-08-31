@@ -15,12 +15,12 @@ import (
 )
 
 func TestWorkBoardCLIRegistersShowsConflictsAndReleasesScopes(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	intentsJSON := marshalWorkBoardCLIJSON(t, []map[string]any{{
 		"path": "src/auth", "operation": "modify", "reason": "authentication refactor", "confidence": "confirmed",
 	}})
 
-	code, created := invokeRunCLI(t,
+	code, created := invokeCoordinationCLI(t,
 		"work", "begin",
 		"--project-root", root,
 		"--work-id", "work-cli-auth",
@@ -42,7 +42,7 @@ func TestWorkBoardCLIRegistersShowsConflictsAndReleasesScopes(t *testing.T) {
 	conflictingJSON := marshalWorkBoardCLIJSON(t, []map[string]any{{
 		"path": "src/auth/login.go", "operation": "modify", "reason": "login change", "confidence": "confirmed",
 	}})
-	code, conflict := invokeRunCLI(t,
+	code, conflict := invokeCoordinationCLI(t,
 		"work", "begin",
 		"--project-root", root,
 		"--work-id", "work-cli-login",
@@ -61,7 +61,7 @@ func TestWorkBoardCLIRegistersShowsConflictsAndReleasesScopes(t *testing.T) {
 		t.Fatalf("work conflicts = %#v", conflicts)
 	}
 
-	code, board := invokeRunCLI(t, "board", "show", "--project-root", root, "--format", "json")
+	code, board := invokeCoordinationCLI(t, "board", "show", "--project-root", root, "--format", "json")
 	if code != 0 || board["status"] != "ok" {
 		t.Fatalf("board show = code %d envelope %#v", code, board)
 	}
@@ -77,7 +77,7 @@ func TestWorkBoardCLIRegistersShowsConflictsAndReleasesScopes(t *testing.T) {
 		t.Fatalf("shown observed_paths = %#v, want an array", shown["observed_paths"])
 	}
 
-	code, completed := invokeRunCLI(t,
+	code, completed := invokeCoordinationCLI(t,
 		"work", "finish", "work-cli-auth",
 		"--project-root", root,
 		"--expected-revision", "1",
@@ -89,7 +89,7 @@ func TestWorkBoardCLIRegistersShowsConflictsAndReleasesScopes(t *testing.T) {
 		t.Fatalf("work finish = code %d envelope %#v", code, completed)
 	}
 
-	code, replacement := invokeRunCLI(t,
+	code, replacement := invokeCoordinationCLI(t,
 		"work", "begin",
 		"--project-root", root,
 		"--work-id", "work-cli-login",
@@ -103,11 +103,11 @@ func TestWorkBoardCLIRegistersShowsConflictsAndReleasesScopes(t *testing.T) {
 	if code != 0 || replacement["status"] != "ok" {
 		t.Fatalf("replacement work begin = code %d envelope %#v", code, replacement)
 	}
-	code, liveBoard := invokeRunCLI(t, "board", "show", "--project-root", root, "--format", "json")
+	code, liveBoard := invokeCoordinationCLI(t, "board", "show", "--project-root", root, "--format", "json")
 	if code != 0 || len(liveBoard["items"].([]any)) != 1 || requireObjectValue(t, liveBoard["items"].([]any)[0])["work_id"] != "work-cli-login" {
 		t.Fatalf("default live board = code %d envelope %#v", code, liveBoard)
 	}
-	code, historyBoard := invokeRunCLI(t,
+	code, historyBoard := invokeCoordinationCLI(t,
 		"board", "show",
 		"--project-root", root,
 		"--status", "completed,abandoned",
@@ -117,7 +117,7 @@ func TestWorkBoardCLIRegistersShowsConflictsAndReleasesScopes(t *testing.T) {
 		t.Fatalf("completed board history = code %d envelope %#v", code, historyBoard)
 	}
 
-	code, owners := invokeRunCLI(t,
+	code, owners := invokeCoordinationCLI(t,
 		"board", "owner", "src/auth/login.go",
 		"--project-root", root,
 		"--format", "json",
@@ -128,8 +128,8 @@ func TestWorkBoardCLIRegistersShowsConflictsAndReleasesScopes(t *testing.T) {
 }
 
 func TestWorkBoardCLIClaimRequiresIdentityAndClaimsCompleteScopeAllOrNone(t *testing.T) {
-	root := initRunCLIRepository(t)
-	code, claimant := invokeRunCLI(t,
+	root := initCoordinationCLIRepository(t)
+	code, claimant := invokeCoordinationCLI(t,
 		"work", "begin",
 		"--project-root", root,
 		"--work-id", "work-cli-claimant",
@@ -144,7 +144,7 @@ func TestWorkBoardCLIClaimRequiresIdentityAndClaimsCompleteScopeAllOrNone(t *tes
 		t.Fatalf("claimant work begin = code %d envelope %#v", code, claimant)
 	}
 
-	code, missingIdentity := invokeRunCLI(t,
+	code, missingIdentity := invokeCoordinationCLI(t,
 		"work", "claim",
 		"--project-root", root,
 		"--task-ref", "fast:claimant",
@@ -158,7 +158,7 @@ func TestWorkBoardCLIClaimRequiresIdentityAndClaimsCompleteScopeAllOrNone(t *tes
 	ownerIntents := marshalWorkBoardCLIJSON(t, []map[string]any{{
 		"path": "src/shared.go", "operation": "modify", "confidence": "confirmed",
 	}})
-	code, owner := invokeRunCLI(t,
+	code, owner := invokeCoordinationCLI(t,
 		"work", "begin",
 		"--project-root", root,
 		"--work-id", "work-cli-owner",
@@ -174,7 +174,7 @@ func TestWorkBoardCLIClaimRequiresIdentityAndClaimsCompleteScopeAllOrNone(t *tes
 		t.Fatalf("owner work begin = code %d envelope %#v", code, owner)
 	}
 
-	code, conflict := invokeRunCLI(t,
+	code, conflict := invokeCoordinationCLI(t,
 		"work", "claim",
 		"--project-root", root,
 		"--current-work-id", "work-cli-claimant",
@@ -186,7 +186,7 @@ func TestWorkBoardCLIClaimRequiresIdentityAndClaimsCompleteScopeAllOrNone(t *tes
 	if code != 10 || conflict["status"] != "blocked" {
 		t.Fatalf("conflicting complete claim = code %d envelope %#v, want blocked", code, conflict)
 	}
-	code, shown := invokeRunCLI(t, "work", "show", "work-cli-claimant", "--project-root", root, "--format", "json")
+	code, shown := invokeCoordinationCLI(t, "work", "show", "work-cli-claimant", "--project-root", root, "--format", "json")
 	if code != 0 {
 		t.Fatalf("show claimant after conflict = code %d envelope %#v", code, shown)
 	}
@@ -195,7 +195,7 @@ func TestWorkBoardCLIClaimRequiresIdentityAndClaimsCompleteScopeAllOrNone(t *tes
 		t.Fatalf("failed batch claim mutated claimant = %#v", unchanged)
 	}
 
-	code, finished := invokeRunCLI(t,
+	code, finished := invokeCoordinationCLI(t,
 		"work", "finish", "work-cli-owner",
 		"--project-root", root,
 		"--expected-revision", "1",
@@ -206,7 +206,7 @@ func TestWorkBoardCLIClaimRequiresIdentityAndClaimsCompleteScopeAllOrNone(t *tes
 	if code != 0 || finished["status"] != "ok" {
 		t.Fatalf("finish owner = code %d envelope %#v", code, finished)
 	}
-	code, claimed := invokeRunCLI(t,
+	code, claimed := invokeCoordinationCLI(t,
 		"work", "claim",
 		"--project-root", root,
 		"--current-work-id", "work-cli-claimant",
@@ -226,11 +226,11 @@ func TestWorkBoardCLIClaimRequiresIdentityAndClaimsCompleteScopeAllOrNone(t *tes
 }
 
 func TestWorkBoardCLIBranchPolicyKeepsCurrentOnlyForConcurrentWork(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	intentsJSON := marshalWorkBoardCLIJSON(t, []map[string]any{{
 		"path": "src/concurrent.go", "operation": "modify", "confidence": "confirmed",
 	}})
-	code, created := invokeRunCLI(t,
+	code, created := invokeCoordinationCLI(t,
 		"work", "begin",
 		"--project-root", root,
 		"--work-id", "concurrent-agent-work",
@@ -245,7 +245,7 @@ func TestWorkBoardCLIBranchPolicyKeepsCurrentOnlyForConcurrentWork(t *testing.T)
 		t.Fatalf("work begin = code %d envelope %#v", code, created)
 	}
 
-	code, guarded := invokeRunCLI(t,
+	code, guarded := invokeCoordinationCLI(t,
 		"board", "branch-policy",
 		"--project-root", root,
 		"--current-work-id", "current-agent-work",
@@ -260,7 +260,7 @@ func TestWorkBoardCLIBranchPolicyKeepsCurrentOnlyForConcurrentWork(t *testing.T)
 	}
 
 	work := requireObject(t, requireObject(t, created, "data"), "work")
-	code, finished := invokeRunCLI(t,
+	code, finished := invokeCoordinationCLI(t,
 		"work", "finish", "concurrent-agent-work",
 		"--project-root", root,
 		"--expected-revision", "1",
@@ -272,7 +272,7 @@ func TestWorkBoardCLIBranchPolicyKeepsCurrentOnlyForConcurrentWork(t *testing.T)
 		t.Fatalf("work finish = code %d envelope %#v", code, finished)
 	}
 
-	code, normal := invokeRunCLI(t,
+	code, normal := invokeCoordinationCLI(t,
 		"board", "branch-policy",
 		"--project-root", root,
 		"--current-work-id", "current-agent-work",
@@ -288,11 +288,11 @@ func TestWorkBoardCLIBranchPolicyKeepsCurrentOnlyForConcurrentWork(t *testing.T)
 }
 
 func TestWorkBoardCLIFeatureBootstrapRegistersExactScopeBeforeReturningPolicy(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	existingIntents := marshalWorkBoardCLIJSON(t, []map[string]any{{
 		"path": "src/existing.go", "operation": "modify", "confidence": "confirmed",
 	}})
-	code, existing := invokeRunCLI(t,
+	code, existing := invokeCoordinationCLI(t,
 		"work", "begin",
 		"--project-root", root,
 		"--work-id", "existing-feature-work",
@@ -309,7 +309,7 @@ func TestWorkBoardCLIFeatureBootstrapRegistersExactScopeBeforeReturningPolicy(t 
 
 	featureID := "001-shared-board"
 	featureDir := filepath.Join(root, ".specify", "features", featureID)
-	code, bootstrapped := invokeRunCLI(t,
+	code, bootstrapped := invokeCoordinationCLI(t,
 		"board", "feature-bootstrap",
 		"--project-root", root,
 		"--work-id", "feature-bootstrap-work",
@@ -342,7 +342,7 @@ func TestWorkBoardCLIFeatureBootstrapRegistersExactScopeBeforeReturningPolicy(t 
 		t.Fatalf("feature bootstrap policy = %#v", policy)
 	}
 
-	code, duplicate := invokeRunCLI(t,
+	code, duplicate := invokeCoordinationCLI(t,
 		"board", "feature-bootstrap",
 		"--project-root", root,
 		"--work-id", "duplicate-feature-bootstrap",
@@ -360,13 +360,13 @@ func TestWorkBoardCLIFeatureBootstrapRegistersExactScopeBeforeReturningPolicy(t 
 }
 
 func TestWorkBoardCLIFeatureBootstrapRejectsMismatchedOrEscapingDirectory(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	for name, featureDir := range map[string]string{
 		"mismatched": filepath.Join(root, ".specify", "features", "002-other"),
 		"escaping":   filepath.Join(root, "..", "001-shared-board"),
 	} {
 		t.Run(name, func(t *testing.T) {
-			code, payload := invokeRunCLI(t,
+			code, payload := invokeCoordinationCLI(t,
 				"board", "feature-bootstrap",
 				"--project-root", root,
 				"--feature-id", "001-shared-board",
@@ -384,7 +384,7 @@ func TestWorkBoardCLIFeatureBootstrapRejectsMismatchedOrEscapingDirectory(t *tes
 }
 
 func TestWorkBoardCLIConcurrentFeatureBootstrapsNeverBothReceiveDefaultPolicy(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	type bootstrapResult struct {
 		code    int
 		payload map[string]any
@@ -399,7 +399,7 @@ func TestWorkBoardCLIConcurrentFeatureBootstrapsNeverBothReceiveDefaultPolicy(t 
 			defer wait.Done()
 			<-start
 			featureID := fmt.Sprintf("%03d-concurrent-feature", index)
-			code, payload := invokeRunCLI(t,
+			code, payload := invokeCoordinationCLI(t,
 				"board", "feature-bootstrap",
 				"--project-root", root,
 				"--work-id", fmt.Sprintf("feature-bootstrap-%d", index),
@@ -440,7 +440,7 @@ func TestWorkBoardCLIConcurrentFeatureBootstrapsNeverBothReceiveDefaultPolicy(t 
 }
 
 func TestWorkBoardCLIReconcilesDirtyInterruptedWorkAndResumesWithNewFence(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	gitRun(t, root, "config", "user.name", "Work Board Test")
 	gitRun(t, root, "config", "user.email", "work-board@example.invalid")
 	gitRun(t, root, "config", "commit.gpgsign", "false")
@@ -457,7 +457,7 @@ func TestWorkBoardCLIReconcilesDirtyInterruptedWorkAndResumesWithNewFence(t *tes
 	intentsJSON := marshalWorkBoardCLIJSON(t, []map[string]any{{
 		"path": "src/dirty.go", "operation": "modify", "reason": "edit dirty file", "confidence": "confirmed",
 	}})
-	code, created := invokeRunCLI(t,
+	code, created := invokeCoordinationCLI(t,
 		"work", "begin",
 		"--project-root", root,
 		"--work-id", "work-cli-dirty",
@@ -490,7 +490,7 @@ func TestWorkBoardCLIReconcilesDirtyInterruptedWorkAndResumesWithNewFence(t *tes
 		t.Fatal(err)
 	}
 
-	code, reconciled := invokeRunCLI(t, "board", "reconcile", "--project-root", root, "--format", "json")
+	code, reconciled := invokeCoordinationCLI(t, "board", "reconcile", "--project-root", root, "--format", "json")
 	if code != 0 || reconciled["status"] != "ok" {
 		t.Fatalf("board reconcile = code %d envelope %#v", code, reconciled)
 	}
@@ -503,7 +503,7 @@ func TestWorkBoardCLIReconcilesDirtyInterruptedWorkAndResumesWithNewFence(t *tes
 		t.Fatalf("interrupted work = %#v", interruptedWork)
 	}
 
-	code, resumed := invokeRunCLI(t,
+	code, resumed := invokeCoordinationCLI(t,
 		"work", "resume", "work-cli-dirty",
 		"--project-root", root,
 		"--expected-revision", "2",
@@ -523,7 +523,7 @@ func TestWorkBoardCLIReconcilesDirtyInterruptedWorkAndResumesWithNewFence(t *tes
 }
 
 func TestWorkBoardCLIInterruptSupportsImmediateRestartRecoveryBeforeLeaseExpiry(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	gitRun(t, root, "config", "user.name", "Work Board Test")
 	gitRun(t, root, "config", "user.email", "work-board@example.invalid")
 	gitRun(t, root, "config", "commit.gpgsign", "false")
@@ -540,7 +540,7 @@ func TestWorkBoardCLIInterruptSupportsImmediateRestartRecoveryBeforeLeaseExpiry(
 	intentsJSON := marshalWorkBoardCLIJSON(t, []map[string]any{{
 		"path": "src/restart.go", "operation": "modify", "reason": "edit before restart", "confidence": "confirmed",
 	}})
-	code, created := invokeRunCLI(t,
+	code, created := invokeCoordinationCLI(t,
 		"work", "begin",
 		"--project-root", root,
 		"--work-id", "work-cli-restart",
@@ -558,7 +558,7 @@ func TestWorkBoardCLIInterruptSupportsImmediateRestartRecoveryBeforeLeaseExpiry(
 		t.Fatal(err)
 	}
 
-	code, interrupted := invokeRunCLI(t,
+	code, interrupted := invokeCoordinationCLI(t,
 		"work", "interrupt", "work-cli-restart",
 		"--project-root", root,
 		"--expected-revision", "1",
@@ -579,7 +579,7 @@ func TestWorkBoardCLIInterruptSupportsImmediateRestartRecoveryBeforeLeaseExpiry(
 		t.Fatalf("interrupted observed paths = %#v", observed)
 	}
 
-	code, resumed := invokeRunCLI(t,
+	code, resumed := invokeCoordinationCLI(t,
 		"work", "resume", "work-cli-restart",
 		"--project-root", root,
 		"--expected-revision", "2",
@@ -599,7 +599,7 @@ func TestWorkBoardCLIInterruptSupportsImmediateRestartRecoveryBeforeLeaseExpiry(
 }
 
 func TestWorkBoardCLIResumeDefaultsToTheInterruptedWorktree(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	gitRun(t, root, "config", "user.name", "Work Board Test")
 	gitRun(t, root, "config", "user.email", "work-board@example.invalid")
 	gitRun(t, root, "config", "commit.gpgsign", "false")
@@ -615,7 +615,7 @@ func TestWorkBoardCLIResumeDefaultsToTheInterruptedWorktree(t *testing.T) {
 	intentsJSON := marshalWorkBoardCLIJSON(t, []map[string]any{{
 		"path": "README.md", "operation": "modify", "reason": "worker edit", "confidence": "confirmed",
 	}})
-	code, created := invokeRunCLI(t,
+	code, created := invokeCoordinationCLI(t,
 		"work", "begin",
 		"--project-root", root,
 		"--workspace-root", linkedRoot,
@@ -648,12 +648,12 @@ func TestWorkBoardCLIResumeDefaultsToTheInterruptedWorktree(t *testing.T) {
 	if err := database.Close(); err != nil {
 		t.Fatal(err)
 	}
-	code, reconciled := invokeRunCLI(t, "board", "reconcile", "--project-root", root, "--format", "json")
+	code, reconciled := invokeCoordinationCLI(t, "board", "reconcile", "--project-root", root, "--format", "json")
 	if code != 0 || len(reconciled["items"].([]any)) != 1 {
 		t.Fatalf("board reconcile = code %d envelope %#v", code, reconciled)
 	}
 
-	code, resumed := invokeRunCLI(t,
+	code, resumed := invokeCoordinationCLI(t,
 		"work", "resume", "work-cli-linked-resume",
 		"--project-root", root,
 		"--expected-revision", "2",
@@ -672,12 +672,12 @@ func TestWorkBoardCLIResumeDefaultsToTheInterruptedWorktree(t *testing.T) {
 }
 
 func TestWorkBoardCLIReconcilePreservesScopeWhenWorkspaceCannotBeInspected(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	missingWorkspace := filepath.Join(root, "missing-worker-worktree")
 	intentsJSON := marshalWorkBoardCLIJSON(t, []map[string]any{{
 		"path": "src/missing.go", "operation": "modify", "reason": "worker edit", "confidence": "confirmed",
 	}})
-	code, created := invokeRunCLI(t,
+	code, created := invokeCoordinationCLI(t,
 		"work", "begin",
 		"--project-root", root,
 		"--work-id", "work-cli-missing-workspace",
@@ -710,7 +710,7 @@ func TestWorkBoardCLIReconcilePreservesScopeWhenWorkspaceCannotBeInspected(t *te
 		t.Fatal(err)
 	}
 
-	code, reconciled := invokeRunCLI(t, "board", "reconcile", "--project-root", root, "--format", "json")
+	code, reconciled := invokeCoordinationCLI(t, "board", "reconcile", "--project-root", root, "--format", "json")
 	if code != 0 || reconciled["status"] != "ok" {
 		t.Fatalf("board reconcile = code %d envelope %#v", code, reconciled)
 	}
@@ -726,7 +726,7 @@ func TestWorkBoardCLIReconcilePreservesScopeWhenWorkspaceCannotBeInspected(t *te
 	if len(warnings) != 1 {
 		t.Fatalf("inspection warnings = %#v", warnings)
 	}
-	code, resumeBlocked := invokeRunCLI(t,
+	code, resumeBlocked := invokeCoordinationCLI(t,
 		"work", "resume", "work-cli-missing-workspace",
 		"--project-root", root,
 		"--expected-revision", "2",
@@ -743,7 +743,7 @@ func TestWorkBoardCLIReconcilePreservesScopeWhenWorkspaceCannotBeInspected(t *te
 		t.Fatalf("missing workspace resume blockers = %#v", blockers)
 	}
 
-	code, abandoned := invokeRunCLI(t,
+	code, abandoned := invokeCoordinationCLI(t,
 		"work", "abandon", "work-cli-missing-workspace",
 		"--project-root", root,
 		"--expected-revision", "2",
@@ -757,12 +757,12 @@ func TestWorkBoardCLIReconcilePreservesScopeWhenWorkspaceCannotBeInspected(t *te
 }
 
 func TestWorkBoardCLIRejectsWorkspaceFromAnotherRepository(t *testing.T) {
-	root := initRunCLIRepository(t)
-	otherRoot := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
+	otherRoot := initCoordinationCLIRepository(t)
 	intentsJSON := marshalWorkBoardCLIJSON(t, []map[string]any{{
 		"path": "src/cross-repo.go", "operation": "modify", "confidence": "confirmed",
 	}})
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"work", "begin",
 		"--project-root", root,
 		"--work-id", "work-cli-cross-repo",

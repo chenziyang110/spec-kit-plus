@@ -3199,14 +3199,13 @@ class SkillsIntegration(IntegrationBase):
         """Install the advanced prompt profile without classic augmentation."""
         skills_dir = self.skills_dest(project_root).resolve()
         project_root_resolved = project_root.resolve()
-        skills_prefix = (
-            skills_dir.relative_to(project_root_resolved).as_posix().rstrip("/")
-            + "/spx-"
-        )
-        previous_spx_files = {
+        skills_prefix = skills_dir.relative_to(project_root_resolved).as_posix().rstrip("/")
+        advanced_prefix = skills_prefix + "/spx-"
+        shared_reference_prefix = skills_prefix + "/references/"
+        previous_advanced_files = {
             relative
             for relative in manifest.files
-            if relative.startswith(skills_prefix)
+            if relative.startswith((advanced_prefix, shared_reference_prefix))
         }
         advanced_dir = self.shared_advanced_skills_dir()
         shared_references = (
@@ -3339,11 +3338,13 @@ class SkillsIntegration(IntegrationBase):
                         manifest,
                     )
                 )
-        expected_spx_files = {
+        expected_advanced_files = {
             path.resolve().relative_to(project_root_resolved).as_posix()
             for path in created
         }
-        for relative in sorted(previous_spx_files - expected_spx_files):
+        # Shared references also have a top-level copy. Retire renamed sources
+        # there as well as in each skill, preserving locally modified files.
+        for relative in sorted(previous_advanced_files - expected_advanced_files):
             manifest.remove_file_if_unmodified(relative)
         return created
 

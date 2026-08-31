@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from specify_cli.codex_team.runtime_bridge import mark_runtime_failure, submit_runtime_result
+from specify_cli.orchestration.backends.environment import build_child_environment
 
 
 RESULT_START_MARKER = "BEGIN_WORKER_TASK_RESULT_JSON"
@@ -210,7 +211,7 @@ def run_manifest(project_root: Path, manifest_path: Path) -> int:
     }
 
     env = {
-        **os.environ,
+        **build_child_environment(),
         "SPECIFY_TEAM_STATE_ROOT": str(state_root),
         "SP_TEAMS_STATE_ROOT": str(state_root),
     }

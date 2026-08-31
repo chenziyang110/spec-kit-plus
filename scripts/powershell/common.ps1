@@ -167,8 +167,8 @@ function Test-FeatureBranch {
     $hasMalformedTimestamp = ($Branch -match '^[0-9]{7}-[0-9]{6}-') -or ($Branch -match '^(?:\d{7}|\d{8})-\d{6}$')
     $isSequential = ($Branch -match '^[0-9]{3,}-') -and (-not $isDate) -and (-not $hasMalformedTimestamp)
     if (-not $isDate -and -not $isSequential -and $Branch -notmatch '^\d{8}-\d{6}-') {
-        Write-Output "ERROR: Not on a feature branch. Current branch: $Branch"
-        Write-Output "Feature branches should be named like: 2026-06-23-feature-name, 20260319-143022-feature-name, 001-feature-name, or 1234-feature-name"
+        [Console]::Error.WriteLine("ERROR: Not on a feature branch. Current branch: $Branch")
+        [Console]::Error.WriteLine("Feature branches should be named like: 2026-06-23-feature-name, 20260319-143022-feature-name, 001-feature-name, or 1234-feature-name")
         return $false
     }
     return $true
@@ -231,138 +231,23 @@ function Find-FeatureDirByPrefix {
     return (Join-Path (Join-Path $RepoRoot ".specify/features") $BranchName)
 }
 
-function Get-CanonicalManagedRunPath {
-    param([Parameter(Mandatory = $true)][string]$Path)
-
-    $resolved = Resolve-Path -LiteralPath $Path -ErrorAction Stop
-    return [System.IO.Path]::GetFullPath($resolved.Path).TrimEnd(
-        [System.IO.Path]::DirectorySeparatorChar,
-        [System.IO.Path]::AltDirectorySeparatorChar
-    )
-}
-
-function Assert-ManagedRunWorkspace {
-    param([Parameter(Mandatory = $true)][string]$RepoRoot)
-
-    if ([string]::IsNullOrWhiteSpace($env:SPECIFY_RUN_WORKSPACE)) {
-        throw "Managed Run is missing SPECIFY_RUN_WORKSPACE"
-    }
-
-    $canonicalWorkspace = Get-CanonicalManagedRunPath -Path $env:SPECIFY_RUN_WORKSPACE
-    $canonicalRepoRoot = Get-CanonicalManagedRunPath -Path $RepoRoot
-    $canonicalCwd = Get-CanonicalManagedRunPath -Path (Get-Location).Path
-    $comparison = if ($env:OS -eq 'Windows_NT') {
-        [System.StringComparison]::OrdinalIgnoreCase
-    } else {
-        [System.StringComparison]::Ordinal
-    }
-    if (
-        -not [string]::Equals($canonicalRepoRoot, $canonicalWorkspace, $comparison) -or
-        -not [string]::Equals($canonicalCwd, $canonicalWorkspace, $comparison)
-    ) {
-        throw "Managed Run workspace binding mismatch; expected '$canonicalWorkspace', repo root '$canonicalRepoRoot', cwd '$canonicalCwd'"
-    }
-}
-
-function Assert-ManagedRunFeatureDir {
-    param(
-        [Parameter(Mandatory = $true)][string]$RepoRoot,
-        [Parameter(Mandatory = $true)][string]$FeatureDir
-    )
-
-    $canonicalFeatureDir = Get-CanonicalManagedRunPath -Path $FeatureDir
-    $comparison = if ($env:OS -eq 'Windows_NT') {
-        [System.StringComparison]::OrdinalIgnoreCase
-    } else {
-        [System.StringComparison]::Ordinal
-    }
-    foreach ($registeredRoot in (Get-FeatureSpecsRoots -RepoRoot $RepoRoot)) {
-        if (-not (Test-Path -LiteralPath $registeredRoot -PathType Container)) {
-            continue
-        }
-        $canonicalRoot = Get-CanonicalManagedRunPath -Path $registeredRoot
-        $rootPrefix = $canonicalRoot + [System.IO.Path]::DirectorySeparatorChar
-        if ($canonicalFeatureDir.StartsWith($rootPrefix, $comparison)) {
-            return
-        }
-    }
-
-    throw "Managed Run feature directory is outside registered feature roots: $FeatureDir"
-}
-
-function Find-FeatureDirFromManagedRun {
-    param([Parameter(Mandatory = $true)][string]$RepoRoot)
-
-    Assert-ManagedRunWorkspace -RepoRoot $RepoRoot
-    if (
-        $env:SPECIFY_RUN_SUBJECT_TYPE -ne 'feature' -or
-        [string]::IsNullOrWhiteSpace($env:SPECIFY_RUN_SUBJECT_ID)
-    ) {
-        throw "Managed feature workflow requires SPECIFY_RUN_SUBJECT_TYPE=feature and a non-empty SPECIFY_RUN_SUBJECT_ID"
-    }
-
-    $subjectPath = ([string]$env:SPECIFY_RUN_SUBJECT_ID).Replace('\', '/')
-    $segments = @($subjectPath.Split('/') | Where-Object { $_ -ne '' })
-    if (
-        [System.IO.Path]::IsPathRooted($subjectPath) -or
-        $segments -contains '..'
-    ) {
-        throw "Managed Run feature subject must be a safe project-relative feature id or path"
-    }
-    if ($subjectPath.Contains('/')) {
-        if (
-            $subjectPath -notlike '.specify/features/*' -and
-            $subjectPath -notlike '.specify/specs/*' -and
-            $subjectPath -notlike 'specs/*'
-        ) {
-            throw "Managed Run feature subject path is outside registered feature roots: $subjectPath"
-        }
-        return (Join-Path $RepoRoot $subjectPath)
-    }
-
-    $exactMatches = @(
-        foreach ($specsDir in (Get-FeatureSpecsRoots -RepoRoot $RepoRoot)) {
-            $candidate = Join-Path $specsDir $subjectPath
-            if (Test-Path -LiteralPath $candidate -PathType Container) {
-                $candidate
-            }
-        }
-    )
-    if ($exactMatches.Count -eq 1) {
-        return $exactMatches[0]
-    }
-    if ($exactMatches.Count -gt 1) {
-        throw "Managed Run feature subject '$subjectPath' matches multiple feature roots: $($exactMatches -join ', ')"
-    }
-
-    return (Find-FeatureDirByPrefix -RepoRoot $RepoRoot -BranchName $subjectPath)
-}
-
 function Get-FeaturePathsEnv {
     param([string]$FeatureDirOverride = "")
 
     $repoRoot = Get-RepoRoot
     $currentBranch = Get-CurrentBranch
     $hasGit = Test-HasGit
-    if ($env:SPECIFY_RUN_MANAGED -eq '1') {
-        Assert-ManagedRunWorkspace -RepoRoot $repoRoot
-    }
     if (-not [string]::IsNullOrWhiteSpace($FeatureDirOverride)) {
         $featureDir = if ([System.IO.Path]::IsPathRooted($FeatureDirOverride)) {
             $FeatureDirOverride
         } else {
             Join-Path $repoRoot $FeatureDirOverride
         }
-    } elseif ($env:SPECIFY_RUN_MANAGED -eq '1') {
-        $featureDir = Find-FeatureDirFromManagedRun -RepoRoot $repoRoot
     } else {
         $featureDir = Find-FeatureDirByPrefix -RepoRoot $repoRoot -BranchName $currentBranch
     }
     if (-not $featureDir) {
         throw "Failed to resolve feature directory"
-    }
-    if ($env:SPECIFY_RUN_MANAGED -eq '1') {
-        Assert-ManagedRunFeatureDir -RepoRoot $repoRoot -FeatureDir $featureDir
     }
     
     [PSCustomObject]@{

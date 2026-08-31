@@ -40,8 +40,8 @@ Shared or overlapping write/path scopes among packets force serial `one-subagent
 Goal: Read the current stage artifact, project cognition artifact, or explicitly requested compatibility/export atlas artifact and explain it in plain language so the user can understand what the system currently believes, what is decided, what is still open, and what the next phase or next relevant view will do.
 
 1. Run `{SCRIPT}` from repo root once (`--json --paths-only` / `-Json -PathsOnly`) and parse the available feature paths.
-   - If `FEATURE_DIR` is not already explicit, use a validated managed Run feature subject or the helper's unique paths-only result; stop on ambiguity instead of inferring the feature from a private Git ref or branch name.
-   - When `SPECIFY_RUN_MANAGED=1`, verify the current directory equals `SPECIFY_RUN_WORKSPACE` before explaining artifacts.
+   - If `FEATURE_DIR` is not already explicit, use a validated durable workflow binding in the current worktree or the helper's unique paths-only result; stop on ambiguity instead of inferring the feature from a private Git ref or branch name.
+   - Verify selected artifact paths belong to that feature in the current worktree before explaining them.
 
 2. Resolve the stage artifact deterministically:
    - If the user explicitly names a stage, honor it.

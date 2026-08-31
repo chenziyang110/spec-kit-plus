@@ -165,7 +165,7 @@ type AnnounceExecutionParams struct {
 	ActivityID          string
 	WorkID              string
 	ParentWorkID        string
-	RunID               string
+	RunID               string // Optional historical metadata; never execution authority.
 	TaskRef             string
 	Workflow            ExecutionWorkflow
 	SubjectID           string
@@ -368,6 +368,13 @@ func (store *Store) GuardExecution(ctx context.Context, params GuardExecutionPar
 	}
 	activity, err := readExecutionActivity(ctx, tx, params.ActivityID)
 	if err != nil {
+		return GuardedExecution{}, err
+	}
+	paths := make([]string, 0, len(writes))
+	for _, spec := range writes {
+		paths = append(paths, spec.Path)
+	}
+	if err := verifyExecutionPacketScope(activity, paths); err != nil {
 		return GuardedExecution{}, err
 	}
 	work, err := readWorkTx(ctx, tx, activity.WorkID)
@@ -627,6 +634,9 @@ func (store *Store) CheckpointExecution(
 			params.TargetPhase,
 		)
 	}
+	if (params.TargetPhase == ExecutionPhaseClaimed || params.TargetPhase == ExecutionPhaseExecuting) && !hasExecutionGuard(activity) {
+		return CheckpointedExecution{}, fmt.Errorf("%w: checkpoint cannot acquire execution authority", ErrExecutionGuardRequired)
+	}
 	workResult, err := tx.ExecContext(ctx, `
 		UPDATE work_items
 		SET next_action = ?, observed_paths_json = ?, lease_until_ms = ?, heartbeat_at_ms = ?,
@@ -726,14 +736,11 @@ func (store *Store) CompleteExecution(ctx context.Context, params CompleteExecut
 	if work.Status != WorkActive || (activity.Phase != ExecutionPhaseExecuting && activity.Phase != ExecutionPhaseValidating) {
 		return CompletedExecution{}, fmt.Errorf("%w: execution must be active and executing or validating before completion", ErrInvalidTransition)
 	}
-	if work.RunID != "" {
-		run, readErr := readRunTx(ctx, tx, work.RunID)
-		if readErr != nil {
-			return CompletedExecution{}, readErr
-		}
-		if run.Status != RunSealed {
-			return CompletedExecution{}, fmt.Errorf("%w: managed Run %q is %q, not sealed", ErrExecutionCompletionGate, run.RunID, run.Status)
-		}
+	if !hasExecutionGuard(activity) {
+		return CompletedExecution{}, fmt.Errorf("%w: execution completion requires a recorded guard", ErrExecutionGuardRequired)
+	}
+	if err := verifyExecutionPacketScope(activity, changedPaths); err != nil {
+		return CompletedExecution{}, err
 	}
 	writes, err := readWorkIntentsTx(ctx, tx, work.WorkID)
 	if err != nil {
@@ -1179,6 +1186,12 @@ func (store *Store) GetExecutionActivity(ctx context.Context, activityID string)
 }
 
 func (view *View) GetExecutionActivity(ctx context.Context, activityID string) (ExecutionRegistration, error) {
+	if strings.TrimSpace(activityID) == "" {
+		return ExecutionRegistration{}, fmt.Errorf("%w: activity_id is required", ErrInvalidArgument)
+	}
+	if !view.hasExecutionActivities {
+		return ExecutionRegistration{}, fmt.Errorf("%w: execution activity %q", ErrNotFound, activityID)
+	}
 	activity, err := readExecutionActivity(ctx, view.db, activityID)
 	if err != nil {
 		return ExecutionRegistration{}, err
@@ -1199,6 +1212,14 @@ func (store *Store) ListExecutionActivities(ctx context.Context, params ListExec
 }
 
 func (view *View) ListExecutionActivities(ctx context.Context, params ListExecutionActivitiesParams) ([]ExecutionActivity, error) {
+	if !view.hasExecutionActivities {
+		for _, phase := range params.Phases {
+			if !validExecutionPhase(phase) {
+				return nil, fmt.Errorf("%w: unsupported execution phase %q", ErrInvalidArgument, phase)
+			}
+		}
+		return []ExecutionActivity{}, nil
+	}
 	return listExecutionActivities(ctx, view.db, params)
 }
 
@@ -1211,17 +1232,25 @@ func (view *View) CoordinationRevision(ctx context.Context) (int64, error) {
 }
 
 func (store *Store) ListCoordinationChanges(ctx context.Context, sinceRevision int64, limit int) ([]Event, error) {
+	return listCoordinationChanges(ctx, store.db, sinceRevision, limit)
+}
+
+func (view *View) ListCoordinationChanges(ctx context.Context, sinceRevision int64, limit int) ([]Event, error) {
+	return listCoordinationChanges(ctx, view.db, sinceRevision, limit)
+}
+
+func listCoordinationChanges(ctx context.Context, querier workRowsQuerier, sinceRevision int64, limit int) ([]Event, error) {
 	if sinceRevision < 0 {
 		return nil, fmt.Errorf("%w: since revision cannot be negative", ErrInvalidArgument)
 	}
 	if limit <= 0 || limit > 1000 {
 		limit = 100
 	}
-	rows, err := store.db.QueryContext(ctx, `
+	rows, err := querier.QueryContext(ctx, `
 		SELECT event_id, aggregate_type, aggregate_id, aggregate_revision,
 		       event_type, reason, payload_json, created_at_ms
 		FROM events
-		WHERE event_id > ?
+		WHERE event_id > ? AND aggregate_type IN ('work', 'execution_activity')
 		ORDER BY event_id
 		LIMIT ?
 	`, sinceRevision, limit)
@@ -1288,6 +1317,9 @@ func normalizeAnnounceExecutionParams(
 		return AnnounceExecutionParams{}, BeginWorkParams{}, nil, nil, fmt.Errorf("encode execution baseline: %w", err)
 	}
 	params.BaselineJSON = string(canonicalBaseline)
+	if _, err := executionWorkerPacket(params.BaselineJSON); err != nil {
+		return AnnounceExecutionParams{}, BeginWorkParams{}, nil, nil, err
+	}
 	workParams, writeSpecs, err := normalizeBeginWorkParams(BeginWorkParams{
 		WorkID:        params.WorkID,
 		ParentWorkID:  params.ParentWorkID,
@@ -1546,6 +1578,8 @@ func scanExecutionResourceIntent(scanner executionActivityScanner) (ExecutionRes
 }
 
 func coordinationRevision(ctx context.Context, querier rowQuerier) (int64, error) {
+	// Preserve the watermark of historical events too: lowering it during
+	// retirement could make an old overview revision appear current again.
 	var revision int64
 	if err := querier.QueryRowContext(ctx, `SELECT COALESCE(MAX(event_id), 0) FROM events`).Scan(&revision); err != nil {
 		return 0, fmt.Errorf("read coordination revision: %w", err)
@@ -1611,11 +1645,18 @@ func setExecutionActivityPhaseTx(
 	reason string,
 	nowMS int64,
 ) error {
+	// Interruption revokes the fence. Resume must also clear pre-retirement
+	// receipts that older stores retained on interrupted activities.
+	guardRevision, guardSHA256 := activity.GuardedOverviewRevision, activity.GuardedOverviewSHA256
+	if target == ExecutionPhaseInterrupted || eventType == "execution.resumed" {
+		guardRevision, guardSHA256 = 0, ""
+	}
 	result, err := tx.ExecContext(ctx, `
 		UPDATE execution_activities
-		SET phase = ?, revision = revision + 1, updated_at_ms = ?
+		SET phase = ?, guarded_overview_revision = ?, guarded_overview_sha256 = ?,
+		    revision = revision + 1, updated_at_ms = ?
 		WHERE activity_id = ? AND revision = ?
-	`, target, nowMS, activity.ActivityID, activity.Revision)
+	`, target, guardRevision, guardSHA256, nowMS, activity.ActivityID, activity.Revision)
 	if err != nil {
 		return fmt.Errorf("transition execution activity %q: %w", activity.ActivityID, err)
 	}
@@ -1623,6 +1664,7 @@ func setExecutionActivityPhaseTx(
 		return err
 	}
 	activity.Phase = target
+	activity.GuardedOverviewRevision, activity.GuardedOverviewSHA256 = guardRevision, guardSHA256
 	activity.Revision++
 	activity.UpdatedAtMS = nowMS
 	return appendExecutionActivityEventTx(ctx, tx, *activity, eventType, reason)

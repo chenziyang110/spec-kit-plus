@@ -15,11 +15,17 @@ scripts:
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
 {{spec-kit-include: ../command-partials/common/agent-phase-handoff.md}}
-{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
+{{spec-kit-include: ../command-partials/common/execution-bootstrap.md}}
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
-[AGENT] `sp-review` starts from the exact immutable Candidate built from eligible implementation Results. Inspect it with `specify-runtime candidate show` and run integrated proof with `specify-runtime candidate review`. Bind frozen product targets through `specify-runtime review target-bind`. Any accepted code repair runs through `specify-runtime run supervise` as a new repair Run, seals a new Result, and requires a newly built and reviewed Candidate; never mutate or directly integrate the old Candidate.
+[AGENT] `sp-review` starts from the current worktree's validated
+`implementation-handoff.json` and exact implementation fingerprint. Register
+only its allowed artifacts and accepted repair scopes on Work Board; preserve
+artifact leases and independent Review/Fix/revalidation ownership. Bind product
+targets through `specify-runtime review target-bind`. Every repair requires
+fresh integrated evidence against the final reviewed fingerprint before Review
+approval and human Accept. Do not allocate worktrees or merge or publish changes.
 
 ## Read-Only Test Design Oracle Intake
 

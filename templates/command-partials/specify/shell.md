@@ -51,16 +51,22 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
   populated vs partial data behavior, permission/offline/error handling, and
   resize/stretch/overflow behavior.
 - For substantive UI-bearing work, require `ui-brief.md` even when there is no
-  external reference. Run
+  external reference. Derive exact stable path-like surface IDs from confirmed
+  source or registered metadata, split surfaces, and never send the whole brief
+  or prose objective as `--scope`. Run
   `specify-runtime design resolve --scope <exact-surface> --format json`, then
-  query metadata-only `.specify/design/index.json` through
+  query metadata-only `.specify/design/index.json` only when present or identified
+  by registered metadata through
   `specify-runtime artifact show` and show each returned exact `design_ref`.
   Resolution is discovery only. If the result is composite, split the work into
   independently bound feature units; each current formal binding is singular
   and owns one exact scope, `spec-contract.json`, and `ui-brief.md`. Do not
   select or synthesize one broad contract. The leader may compile each brief
   from its returned contract,
-  existing product surfaces, and confirmed experience requirements.
+  existing product surfaces, and confirmed experience requirements. Missing
+  registry/coverage is legitimate discovery absence, not approval: do not
+  blindly read a missing index or replace required approved Design with a prose
+  risk note. Preserve Design approval/registration and late-design receipt gates.
   A narrow copy-only or existing-pattern state fix may record why a separate
   brief adds no decision value and use a precise `spec.md#...` design-contract
   reference as `design_contract.ui_brief_ref`; the UI contract is never omitted.

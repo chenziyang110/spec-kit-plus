@@ -107,11 +107,7 @@ if [ -z "$FEATURE_DESCRIPTION" ]; then
 fi
 
 BRANCH_POLICY="default"
-if [ "${SPECIFY_RUN_MANAGED:-}" = "1" ]; then
-    # Run Control owns the checked-out private ref. A managed child must never
-    # replace that workspace binding with a public feature branch.
-    KEEP_CURRENT_BRANCH=true
-elif [ "${SPECIFY_FEATURE_BRANCH_POLICY:-}" = "keep-current" ]; then
+if [ "${SPECIFY_FEATURE_BRANCH_POLICY:-}" = "keep-current" ]; then
     KEEP_CURRENT_BRANCH=true
 fi
 if [ "$KEEP_CURRENT_BRANCH" = true ]; then

@@ -8,6 +8,12 @@ origin: spec-kit-plus
 
 This passive skill is the brownfield advisory navigation layer, not a hard workflow gate.
 
+Reuse one cognition context capsule and Learning intake for an unchanged intake;
+do not repeat them after every preparatory capability, artifact, script, or board
+call. Refresh for changed scope, relevant live evidence, workflow binding, or
+cognition freshness/generation, and for required resume/recovery invalidation.
+Live verification and mutation-closeout freshness gates remain unchanged.
+
 Passive SKILL invocation must not enter any `sp-*` or `spx-*` workflow. All
 `sp-*` and `spx-*` workflows are user-invoked only: recommend the projected
 invocation and stop until the user explicitly invokes it. Cognition

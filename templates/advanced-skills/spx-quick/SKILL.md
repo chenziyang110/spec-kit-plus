@@ -42,7 +42,7 @@ again. The remaining skill text owns the full Quick branch.
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/native-subagents.md` when task lanes are delegated.
 Read `references/project-cognition.md`, using cognition intent `implement`.
-Read `references/run-bootstrap.md`.
+Read `references/execution-bootstrap.md`.
 Read `references/autonomous-blocker-recovery.md` before treating any execution
 or validation failure as terminal.
 Read `references/human-confirmation.md`, then `references/task-contract.md`.
@@ -53,13 +53,12 @@ shared state, downstream consumers, compatibility, security-sensitive behavior,
 or multiple plausible product behaviors.
 Read `references/ui-quality-gate.md` for any user-visible UI change.
 
-The full `$spx-quick` branch always starts a new Run. When its exact metadata and
-child argv are ready, use `specify-runtime run launch` as the single call that
-records and supervises it; do not resume another workflow's Run. Older runtimes
-without `run.launch` fall back to `specify-runtime run create` followed by
-`specify-runtime run supervise`. The explicit user-selected
-context-direct branch is the sole exception and creates no run or Quick
-workspace.
+The full Quick branch creates or resumes its task workspace in the current
+worktree. The explicit user-selected context-direct branch creates no Quick
+workspace; both routes announce scope, checkpoint selection, refresh the
+overview, and require `specify-runtime execution guard` before source writes.
+Checkpoint validation and call `specify-runtime execution complete` only after
+fresh passing validation and terminal workflow state.
 
 The runtime-managed `STATUS.md` Test Design input uses
 `test_design_gate.decision: not_selected|selected|required` plus a
@@ -132,7 +131,7 @@ supply.
 For full-branch coordination, use
 `{{specify-subcmd:specify-runtime execution overview --format json}}` as the
 primary global view. Its `execution-overview-v1` snapshot joins Fast, Debug,
-Implement, and Quick task, Run, Work, and scope state. The older
+Implement, and Quick task, Work/Activity, and scope state. The older
 `{{specify-subcmd:specify-runtime quick preflight [<quick-id>] --format json}}`
 remains a compatibility view for Quick-specific fields and signals, not the
 global concurrency authority. An empty Work Board does not mean no other task
@@ -147,22 +146,23 @@ not proof of process identity; bind the exact live Work identity or wait for or
 recover the recorded owner.
 
 Refresh the unified overview at entry or resume, before the first `quick item-start`, after
-each join before the next Q item or batch, and before `work scope-add`,
+each join before the next Q item or batch, and before execution guard,
 interrupted-work recovery, or material scope expansion. Do not poll between
 events. Use Work Board task refs `quick:<id>` for the Quick and
-`quick:<id>#Qn` for separately registered Q workers (`--work-task-ref` for a
-managed Run, `--task-ref` for unhosted work).
+`quick:<id>#Qn` for separately registered Q workers through the exact
+`execution announce --task-ref` binding.
 
 Treat `quick item-start` as claim-before-start. It requires the active Work id
 and fence from `SPECIFY_WORK_ID` / `SPECIFY_WORK_FENCE`, or explicit
-`--current-work-id` / `--current-work-fence` for an unhosted caller. Before
+`--current-work-id` / `--current-work-fence`. The inherited identity must match
+the execution guard. Before
 changing the Q item to `in_progress`, runtime claims its complete normalized
 `write_scope` all-or-none and returns `work_claim`; do not dispatch without that
-receipt. Missing identity, foreign `task_ref`, stale fence, inactive Work, or a
+receipt and the matching execution guard. Missing identity, foreign `task_ref`, stale fence, inactive Work, or a
 scope conflict leaves Quick state unchanged. By default the Quick-level Work
 identity owns the active batch. Workers inherit that Quick-level Work authority
 without registering overlapping child scopes. Use `quick:<id>#Qn`
-only for a host-supervised independent Q owner when the Quick-level owner does
+only for an independently guarded Q owner when the Quick-level owner does
 not already hold those paths.
 
 Initialize or preserve the unconfirmed intake state, then stage a
@@ -325,10 +325,15 @@ source-continuity-validate --quick-id <quick-id> --item-id Qn --manifest
 `source_continuity_lab_report_ref`/SHA-256 in `ui_verification`; Quick
 acceptance revalidates them against the current digest-protected confirmation decision.
 
-Run
+Derive exact stable path-like surface IDs from confirmed source or registered
+metadata, split surfaces, and never send the whole brief or prose as `--scope`. Run
 `specify-runtime design resolve --scope <exact-surface> --format json` and query
 `.specify/design/index.json` through `specify-runtime artifact show` only for
-detail. Resolution is discovery only. Each Quick `STATUS.md` has one singular
+detail when the index exists or registered metadata identifies it. Missing
+registry/coverage is legitimate discovery absence; do not blindly read a missing
+index or replace required approved Design with a prose risk note. Required
+Design still follows approval, registration, and confirmed adoption gates.
+Resolution is discovery only. Each Quick `STATUS.md` has one singular
 `ui_design_binding`, so split composite coverage into independently bound Quick
 workspaces; do not distribute conflicting parent/successor bindings across
 workers in one workspace. Select the registered change whose scope matches the Quick task, and

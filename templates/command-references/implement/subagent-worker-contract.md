@@ -18,6 +18,7 @@ You are the workflow leader. You own routing, execution-state truth, acceptance,
 - Use `parallel-subagents` only for multiple validated lanes with isolated write sets and an explicit join point.
 - Use `managed-team` only when the runtime supports it and durable team state, explicit multi-wave join tracking, or lifecycle control is required beyond an in-session subagent burst. It is not an ordinary dispatch fallback.
 - Compile and validate a `WorkerTaskPacket` just in time only for delegated work. Leader-direct tasks do not require a packet.
+- Packet-backed ownership covers product scope plus the separate runtime-derived `bookkeeping_write_scope`. Use execution announce's full returned `planned_write_scope` for guard; never reconstruct only product paths or add a broad `.specify` exemption. Bookkeeping paths remain CLI-owned, never hand-edited. When shared feature metadata overlaps, serialize conflicting ownership instead of dropping bookkeeping paths to force parallel dispatch.
 - Use `native-subagents` when selected and available. Re-evaluate the route after drift, failure, or each join instead of treating dispatch preference as a blocker by itself.
 - Treat non-empty `$ARGUMENTS` as first-class implementation context, not disposable chat-only guidance
 

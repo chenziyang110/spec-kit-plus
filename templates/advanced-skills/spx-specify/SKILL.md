@@ -7,7 +7,7 @@ description: Lean feature-specification workflow for advanced coding models. Use
 
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/workflow-runtime.md` and let its CLI own phase state.
-Read `references/run-bootstrap.md`.
+Read `references/execution-bootstrap.md`.
 Read `references/project-cognition.md`, using cognition intent `plan`.
 Read `references/requirements-contract.md`. Read
 `references/discussion-handoff.md` when consuming a ready discussion and
@@ -15,11 +15,10 @@ Read `references/requirements-contract.md`. Read
 UI-bearing feature, with or without supplied references. Read
 `references/consequence-gate.md` only on its triggers.
 
-`$spx-specify` first performs the read-only feature dry run below, then starts a
-new feature Run with that identity. When its exact metadata and real
-feature-creation child argv are ready, use `specify-runtime run launch` as the
-single call that records and supervises it. Older runtimes without `run.launch`
-fall back to `specify-runtime run create` followed by `specify-runtime run supervise`.
+First perform the read-only feature dry run below, reserve that exact scope once
+through Work Board, then execute the real script with the same identity and
+returned branch policy. Resume existing feature state explicitly; do not
+allocate another worktree or replace artifact and approval gates.
 
 Inspect project rules, relevant live behavior, a supplied feature PRD, and any
 confirmed discussion context. Clarify only decisions that materially change scope, behavior,
@@ -32,33 +31,28 @@ For new feature state, first run the exact installed
 read-only call happens before any feature write or branch action; retain its
 exact `BRANCH_NAME` as `feature_id` and exact `FEATURE_DIR` as `feature_dir`.
 Require the dry-run receipt's exact `BOOTSTRAP_CONTRACT` field to equal
-`spec-kit-feature-bootstrap-v1`. If it is absent or different, stop before the
-managed or unhosted registration paths and before any branch action or feature
+`spec-kit-feature-bootstrap-v1`. If it is absent or different, stop before Work
+registration and before any branch action or feature
 write; request the operator's human-only integration repair action through the
 exact trusted project Specify launcher command named by the dry-run diagnostic, then
 repeat the dry run.
-Every real script invocation must replay the dry-run `BRANCH_NAME` unchanged
-with `--resolved-feature-id <dry-run BRANCH_NAME>` or PowerShell
-`-ResolvedFeatureId <dry-run BRANCH_NAME>`; never recompute its timestamp or
-automatic feature number. On the managed path, record
-`subject_type=feature` with
-`--subject-type feature --subject-id <dry-run BRANCH_NAME>`, then execute the
-real create-feature script only inside `specify-runtime run
-supervise`. The supervisor binds the exact feature directory as a confirmed
-write intent. Its child always stays on the allocated private/current ref and
-does not create or switch to a business feature branch.
 
-On an unhosted path, first reconcile and show the board, then call exactly one
+Next run `specify-runtime board reconcile` and `specify-runtime board show`, then call exactly one
 `specify-runtime board feature-bootstrap --feature-id <dry-run BRANCH_NAME> --feature-dir <dry-run FEATURE_DIR> --summary <summary> --agent-id <agent-id> --adapter-id <adapter-id> --format json`.
-It atomically registers Work, confirms that write intent, and
+It atomically registers Work, records the exact feature directory as a confirmed write intent, and
 returns `data.work` plus `data.feature_branch_policy`. Do not query
 `specify-runtime board branch-policy` before registration, and do not call
-`specify-runtime work begin` separately. Only then execute the real
-create-feature script. For `keep-current`, pass `--keep-current-branch` or
+`specify-runtime work begin` separately. Only then execute the real create-feature script,
+replaying the dry-run `BRANCH_NAME` unchanged with
+`--resolved-feature-id <dry-run BRANCH_NAME>` or PowerShell
+`-ResolvedFeatureId <dry-run BRANCH_NAME>`; never recompute its timestamp or
+automatic feature number. For `keep-current`, pass `--keep-current-branch` or
 PowerShell `-KeepCurrentBranch` and do not create or switch branches. Only for
 `default` because the board was idle does existing branch behavior remain
 unchanged. Stop on any dry-run, reservation, or real-script failure, and require
-the real `FEATURE_DIR` to exactly match the dry-run value. Then create
+the real `FEATURE_DIR` to exactly match the dry-run value. An existing feature
+directory requires explicit resume. Keep the same scoped Work owner and
+existing artifact leases. Then create
 the authoritative `spec-contract.json` with `specify-runtime artifact scaffold --kind spec-contract`, then fill targeted JSON pointers through leased `artifact patch` calls. For a new project-facing
 view, use this Skill's compact `assets/spec.md` only as section guidance for the
 prerequisite-script-created `spec.md` skeleton: query it through `artifact show`

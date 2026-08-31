@@ -8,14 +8,14 @@ import (
 )
 
 func TestQuickPreflightCombinesUnfinishedTasksAndLiveWork(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	writeQuickCoordinationFixture(t, root, "260825-current", "Current upload work", "executing", []string{"src/upload"})
 	writeQuickCoordinationFixture(t, root, "260825-other", "Node workbench", "planned", []string{"src/nodes"})
 
 	beginQuickCoordinationWork(t, root, "work-current", "quick:260825-current", "Current upload work", "src/upload")
 	beginQuickCoordinationWork(t, root, "work-board-only", "feature:260825-reporting", "Reporting feature", "src/reporting")
 
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"quick", "preflight", "260825-current",
 		"--project-root", root,
 		"--current-work-id", "work-current",
@@ -60,11 +60,11 @@ func TestQuickPreflightCombinesUnfinishedTasksAndLiveWork(t *testing.T) {
 }
 
 func TestQuickPreflightBlocksOnlyOnConfirmedBoardOverlap(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	writeQuickCoordinationFixture(t, root, "260825-current", "Current upload work", "planned", []string{"src/shared/upload.go"})
 	beginQuickCoordinationWork(t, root, "work-owner", "quick:260825-other", "Other shared work", "src/shared")
 
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"quick", "preflight", "260825-current",
 		"--project-root", root,
 		"--format", "json",
@@ -95,11 +95,11 @@ func TestQuickPreflightBlocksOnlyOnConfirmedBoardOverlap(t *testing.T) {
 }
 
 func TestQuickPreflightBlocksSameQuickOwnerWithoutExactWorkIdentity(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	writeQuickCoordinationFixture(t, root, "260825-current", "Current upload work", "executing", []string{"src/shared/upload.go"})
 	beginQuickCoordinationWork(t, root, "work-current-owner", "quick:260825-current", "Live owner of current Quick", "src/shared")
 
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"quick", "preflight", "260825-current",
 		"--project-root", root,
 		"--format", "json",
@@ -121,10 +121,10 @@ func TestQuickPreflightBlocksSameQuickOwnerWithoutExactWorkIdentity(t *testing.T
 }
 
 func TestQuickPreflightDoesNotTreatAnEmptyBoardAsAnEmptyRepository(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	writeQuickCoordinationFixture(t, root, "260825-untracked", "Untracked quick", "blocked", nil)
 
-	code, payload := invokeRunCLI(t, "quick", "preflight", "--project-root", root, "--format", "json")
+	code, payload := invokeCoordinationCLI(t, "quick", "preflight", "--project-root", root, "--format", "json")
 	if code != 0 || payload["status"] != "ok" {
 		t.Fatalf("quick preflight = code %d envelope %#v", code, payload)
 	}
@@ -138,11 +138,11 @@ func TestQuickPreflightDoesNotTreatAnEmptyBoardAsAnEmptyRepository(t *testing.T)
 }
 
 func TestQuickPreflightNormalizesGlobScopeForConfirmedBoardOverlap(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	writeQuickCoordinationFixture(t, root, "260825-current", "Current upload work", "planned", []string{"src/**"})
 	beginQuickCoordinationWork(t, root, "work-owner", "feature:upload", "Upload owner", "src/upload.go")
 
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"quick", "preflight", "260825-current",
 		"--project-root", root,
 		"--format", "json",
@@ -158,11 +158,11 @@ func TestQuickPreflightNormalizesGlobScopeForConfirmedBoardOverlap(t *testing.T)
 }
 
 func TestQuickPreflightNormalizesGlobScopeForUnfinishedQuickAdvisory(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	writeQuickCoordinationFixture(t, root, "260825-current", "Current upload work", "planned", []string{"src/*"})
 	writeQuickCoordinationFixture(t, root, "260825-other", "Other node work", "executing", []string{"src/nodes"})
 
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"quick", "preflight", "260825-current",
 		"--project-root", root,
 		"--format", "json",
@@ -223,7 +223,7 @@ func beginQuickCoordinationWork(t *testing.T, root, workID, taskRef, summary, pa
 	intents := marshalWorkBoardCLIJSON(t, []map[string]any{{
 		"path": path, "operation": "modify", "reason": summary, "confidence": "confirmed",
 	}})
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"work", "begin",
 		"--project-root", root,
 		"--work-id", workID,

@@ -10,7 +10,7 @@ import (
 )
 
 func TestQuickCloseRequiresCognitionReceiptForSourceScopes(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	workspace := filepath.Join(root, ".planning", "quick", "260806-cognition")
 	mustMkdirAllScriptDomainTest(t, workspace)
 	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), `---
@@ -143,7 +143,7 @@ project_cognition_refresh:
 }
 
 func TestQuickCloseSkipsCognitionWhenNoSourceWriteScope(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	workspace := filepath.Join(root, ".planning", "quick", "260806-docs")
 	mustMkdirAllScriptDomainTest(t, workspace)
 	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), `---

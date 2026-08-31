@@ -7,7 +7,7 @@ description: Durable-team implementation workflow for advanced coding models. Us
 
 Read `references/project-learning.md` and apply its consume-only policy; implementation closeout owns capture.
 Read `references/project-cognition.md`, using cognition intent `implement`.
-Read `references/run-bootstrap.md` before dispatching or resuming modifying work.
+Read `references/execution-bootstrap.md` before dispatching or resuming modifying work.
 Treat the ordinary execution contract at
 `../spx-implement/references/execution-contract.md` as binding; this workflow
 changes orchestration, not task acceptance or lifecycle truth. Read
@@ -43,8 +43,12 @@ ready work, not an excuse to idle the whole team.
 
 Follow the selected backend reference. Resume the existing feature team when
 present. Dispatch only validated bounded packets; await terminal structured
-results, validate every join, synchronize managed worktrees when required,
-inspect the combined diff, and run fresh real-entrypoint verification.
+results, validate every join, inspect the current-worktree diff, and run fresh
+real-entrypoint verification. If the explicitly selected durable backend has
+separate existing worktrees, synchronize within the existing user-authorized
+delivery scope and runtime gates; do not require a new approval for an already
+authorized transfer. Never infer permission to merge, publish, or clean up
+historical data.
 
 On resume, reject a stale lane whose task source revision, allowed write scope,
 worktree/branch identity, or accepted result no longer matches durable state;

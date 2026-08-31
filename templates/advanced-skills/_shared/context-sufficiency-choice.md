@@ -31,23 +31,25 @@ Use the host's native choice UI when available and wait. Never infer or
 auto-select the answer.
 
 If full is selected, apply the normal workflow. If direct is selected, skip
-entry-time `learning start` and `cognition compass`; create no Quick/Debug run,
-workspace, session, checkpoint, plan, packet, or delegation state.
+entry-time `learning start` and `cognition compass`; create no Quick/Debug
+workspace, session, confirmation checkpoint, plan, packet, or delegation state.
 Before source writes, run `specify-runtime execution overview --format json`
 and inspect its `execution-overview-v1` activities and signals across Fast,
 Debug, Implement, and Quick. It reconciles expired Work; do not infer
 concurrency from a separate empty board snapshot. Resolve any `block` signal
-and review any `warn` signal, then create one bounded Work item through
-`specify-runtime work begin` with exact
-`--task-ref quick:<direct-id>` or `--task-ref debug:<direct-id>`, confirmed
-scope, summary, agent, and adapter; retain its id and fence, then require the
-all-or-none
-`data.work_claim` receipt from `specify-runtime work claim --current-work-id
-<id> --current-work-fence <fence> --task-ref <same-task-ref>
---write-scope-json <complete-json-array> --format json`. Then perform only
+and review any `warn` signal. Read `references/execution-bootstrap.md`, then
+create one bounded Work/Activity with `specify-runtime execution announce
+--workflow quick` or `--workflow debug`, exact `--task-ref quick:<direct-id>`
+or `--task-ref debug:<direct-id>`, planned scope, semantic resources, summary,
+agent, and adapter. Retain its id and fence, checkpoint `selected`, refresh the
+overview, and require the all-or-none `specify-runtime execution guard` with
+the exact overview revision and `snapshot_sha256` before source writes. The
+digest binds the concurrency view, not an ambient file capture. Then perform only
 the confirmed bounded edit; preserve unrelated work; run a failing test or
-executable reproduction before behavior edits and fresh verification after;
-and report exact paths, evidence, and residual risk. A stale patch anchor,
+executable reproduction before behavior edits; checkpoint `validating` and run
+fresh verification afterward. Call `specify-runtime execution complete` only
+after fresh passing validation and terminal direct-task state, then report exact
+paths, evidence, and residual risk. A stale patch anchor,
 new consumer, ambiguity, consequence, or scope expansion ends context-direct
 and resumes the matching full workflow before further mutation.
 

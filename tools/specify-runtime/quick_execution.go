@@ -259,6 +259,7 @@ func (service quickService) claimQuickWorkItem(quickID, itemID string, writeScop
 		WriteScope:                           writeScope,
 		Reason:                               "claim-before-start for " + itemTaskRef,
 		AllowDeclaredNoWriteWhenScopeIsEmpty: true,
+		AllowExecutionGuardReceipt:           true,
 	})
 }
 

@@ -11,6 +11,7 @@
   "authoritative_refs": [],
   "read_scope": [],
   "write_scope": [],
+  "bookkeeping_write_scope": [],
   "forbidden_drift": [],
   "acceptance_refs": [],
   "must_preserve_refs": [],

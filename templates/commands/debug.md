@@ -10,27 +10,23 @@ workflow_contract:
 {{spec-kit-include: ../command-partials/debug/shell.md}}
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
-{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
+{{spec-kit-include: ../command-partials/common/execution-bootstrap.md}}
 {{spec-kit-include: ../command-partials/common/autonomous-blocker-recovery.md}}
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
 [AGENT] Apply the Pre-Intake Context Sufficiency Gate first. The full Debug
-branch always starts a new Run: when its exact metadata and child argv are ready,
-use `specify-runtime run launch` as the single call that records and supervises
-it; do not resume another workflow's Run. Older runtimes without `run.launch`
-fall back to `specify-runtime run create` followed by `specify-runtime run
-supervise`. The explicit user-selected context-direct branch is the sole
-exception and creates no run or debug session.
+branch creates or resumes its debug session in the current worktree, with task
+identity `debug:<session-slug>`. The explicit user-selected context-direct
+branch creates no debug session; both routes use the shared execution bootstrap.
 
-[AGENT] Launch the full branch with task identity `debug:<session-slug>` and a
-confirmed initial scope; zero confirmed scope blocks before the child starts.
-Once the complete repair scope is proven, call `specify-runtime work claim
---task-ref debug:<session-slug> --write-scope-json <complete-json-array>
---format json` and require `data.work_claim` before the first source write. The
-context-direct exception still uses the shared context-direct Work registration
-and `work claim` gate before its bounded fix; it skips Debug state, not write
-coordination.
+[AGENT] Once the complete repair scope is proven, announce that scope, checkpoint
+selection, refresh the overview, and require the all-or-none
+`specify-runtime execution guard` before the first source write. Context-direct
+uses the same guarded Work/Activity lifecycle before its bounded fix; skipping
+Debug state does not skip write coordination. Checkpoint validation and call
+`specify-runtime execution complete` only after fresh passing validation and
+terminal workflow state.
 
 ## Main Flow
 

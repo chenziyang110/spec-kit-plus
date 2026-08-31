@@ -21,6 +21,7 @@ from specify_cli.execution import (
     worker_task_packet_payload,
     worker_task_result_payload,
 )
+from specify_cli.orchestration.backends.environment import build_child_environment
 
 
 PACKET_EXECUTOR_ENV = "SPECIFY_CODEX_TEAM_PACKET_EXECUTOR"
@@ -148,6 +149,7 @@ def execute_packet(
     completed = subprocess.run(
         command,
         cwd=str(project_root),
+        env=build_child_environment(),
         input=json.dumps(payload, ensure_ascii=False),
         text=True,
         encoding="utf-8",

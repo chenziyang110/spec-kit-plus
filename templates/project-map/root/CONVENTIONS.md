@@ -21,7 +21,7 @@
 
 ## State and Data Semantics
 
-[When concurrent Runs exist, treat the Run authority plus real workflow artifacts as truth. Describe the managed workspace binding, fenced replacement rules, immutable Candidate/Result records, and why branch-only active-feature heuristics are not authoritative.]
+[When concurrent work exists, treat Work Board ownership plus real workflow artifacts as truth. Describe the current-worktree scope, fenced recovery, execution guards for Fast/Debug/Implement/Quick, and why branch-only active-feature heuristics are not authoritative. Preserve Run history without reactivating it; live/recovery-held Work stays binding until reconciliation or explicit resolution.]
 
 ## Config and Option Propagation
 

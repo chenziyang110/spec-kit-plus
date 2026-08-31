@@ -2,12 +2,10 @@ package runcontrol
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -21,25 +19,24 @@ import (
 const sqliteBusyTimeoutMS = 5000
 
 type Store struct {
-	db         *sql.DB
-	ownerEpoch string
-	closeOnce  sync.Once
-	closeErr   error
+	db        *sql.DB
+	closeOnce sync.Once
+	closeErr  error
 }
 
-type openConfig struct {
-	ownerEpoch string
-}
+type openConfig struct{}
 
 type OpenOption func(*openConfig) error
 
+// WithOwnerEpoch is retained for source compatibility with older board callers.
+// Deprecated: shared work owns its own fence and lease; this option registers
+// no supervisor and grants no authority.
 func WithOwnerEpoch(ownerEpoch string) OpenOption {
-	return func(config *openConfig) error {
-		ownerEpoch = strings.TrimSpace(ownerEpoch)
+	ownerEpoch = strings.TrimSpace(ownerEpoch)
+	return func(_ *openConfig) error {
 		if ownerEpoch == "" {
 			return fmt.Errorf("%w: owner epoch is required", ErrInvalidArgument)
 		}
-		config.ownerEpoch = ownerEpoch
 		return nil
 	}
 }
@@ -57,14 +54,6 @@ func Open(ctx context.Context, databasePath string, options ...OpenOption) (*Sto
 			return nil, err
 		}
 	}
-	if config.ownerEpoch == "" {
-		ownerEpoch, err := newOwnerEpoch()
-		if err != nil {
-			return nil, err
-		}
-		config.ownerEpoch = ownerEpoch
-	}
-
 	absolutePath, err := filepath.Abs(databasePath)
 	if err != nil {
 		return nil, fmt.Errorf("resolve run control database path: %w", err)
@@ -73,7 +62,7 @@ func Open(ctx context.Context, databasePath string, options ...OpenOption) (*Sto
 		return nil, fmt.Errorf("create run control database directory: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", absolutePath+"?_txlock=immediate")
+	db, err := sql.Open("sqlite", sqliteDataSource(absolutePath, "_txlock=immediate"))
 	if err != nil {
 		return nil, fmt.Errorf("open run control database: %w", err)
 	}
@@ -83,7 +72,7 @@ func Open(ctx context.Context, databasePath string, options ...OpenOption) (*Sto
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
-	store := &Store{db: db, ownerEpoch: config.ownerEpoch}
+	store := &Store{db: db}
 	if err := store.initialize(ctx); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -91,6 +80,19 @@ func Open(ctx context.Context, databasePath string, options ...OpenOption) (*Sto
 	return store, nil
 }
 
+// SQLite honors mode=ro only for file: URIs. Encode paths as URI paths so
+// spaces, percent signs, and fragment characters cannot change their meaning.
+func sqliteDataSource(absolutePath, query string) string {
+	path := filepath.ToSlash(absolutePath)
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return (&url.URL{Scheme: "file", Path: path, RawQuery: query}).String()
+}
+
+// initialize installs only shared coordination state. Historical lifecycle
+// tables are intentionally neither created nor modified. Schema migration is
+// additive, and reopening never reconciles leases or starts background work.
 func (store *Store) initialize(ctx context.Context) error {
 	if _, err := store.db.ExecContext(ctx, `PRAGMA foreign_keys = ON`); err != nil {
 		return fmt.Errorf("enable sqlite foreign keys: %w", err)
@@ -106,7 +108,7 @@ func (store *Store) initialize(ctx context.Context) error {
 	}
 	transaction, err := store.beginInitializationTransaction(ctx)
 	if err != nil {
-		return fmt.Errorf("begin run control initialization: %w", err)
+		return fmt.Errorf("begin shared board initialization: %w", err)
 	}
 	defer func() { _ = transaction.Rollback() }()
 
@@ -114,83 +116,23 @@ func (store *Store) initialize(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if exists && version != schemaVersion {
-		if version < 3 || version > schemaVersion {
-			return fmt.Errorf("%w: database has version %d, runtime requires %d", ErrUnsupportedSchema, version, schemaVersion)
-		}
-		if version < 4 {
-			if _, err := transaction.ExecContext(ctx, workspaceAllocationSchemaSQL); err != nil {
-				return fmt.Errorf("migrate run control schema from version 3: %w", err)
-			}
-		}
-		if version < 6 {
-			if _, err := transaction.ExecContext(ctx, snapshotSchemaSQL+resourceClaimSchemaSQL); err != nil {
-				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
-			}
-		}
-		if version < 7 {
-			if _, err := transaction.ExecContext(ctx, runResultSchemaSQL); err != nil {
-				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
-			}
-		}
-		if version < 8 {
-			if _, err := transaction.ExecContext(ctx, frozenCandidateSchemaSQL); err != nil {
-				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
-			}
-		}
-		if version < 9 {
-			if _, err := transaction.ExecContext(ctx, candidateDeliverySchemaSQL); err != nil {
-				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
-			}
-		}
-		if version < 10 {
-			if _, err := transaction.ExecContext(ctx, adapterAttestationSchemaSQL); err != nil {
-				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
-			}
-		}
-		if version < 11 {
-			if _, err := transaction.ExecContext(ctx, primaryWorkspaceSchemaSQL); err != nil {
-				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
-			}
-		}
-		if version < 12 {
-			if _, err := transaction.ExecContext(ctx, workBoardSchemaSQL); err != nil {
-				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
-			}
-		}
-		if version < 13 {
-			if _, err := transaction.ExecContext(ctx, executionActivitySchemaSQL); err != nil {
-				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
-			}
-		}
-		if _, err := transaction.ExecContext(ctx, `
-			UPDATE metadata SET value = ? WHERE key = 'schema_version' AND value = ?
-		`, fmt.Sprint(schemaVersion), fmt.Sprint(version)); err != nil {
-			return fmt.Errorf("record migrated run control schema version: %w", err)
-		}
+	if exists && (version < oldestSupportedSchemaVersion || version > schemaVersion) {
+		return fmt.Errorf("%w: database has version %d, supported versions are %d..%d",
+			ErrUnsupportedSchema, version, oldestSupportedSchemaVersion, schemaVersion)
 	}
 	if _, err := transaction.ExecContext(ctx, schemaSQL); err != nil {
-		return fmt.Errorf("initialize run control schema: %w", err)
+		return fmt.Errorf("initialize shared board schema: %w", err)
 	}
-	now := time.Now().UTC().UnixMilli()
-	if _, err := transaction.ExecContext(ctx, `
-		INSERT INTO metadata (key, value) VALUES ('schema_version', ?)
-		ON CONFLICT(key) DO NOTHING
-	`, fmt.Sprint(schemaVersion)); err != nil {
-		return fmt.Errorf("record run control schema version: %w", err)
-	}
-	if _, err := transaction.ExecContext(ctx, `
-		INSERT INTO supervisor_instances (
-			owner_epoch, status, started_at_ms, heartbeat_at_ms, stopped_at_ms
-		) VALUES (?, 'active', ?, ?, NULL)
-	`, store.ownerEpoch, now, now); err != nil {
-		if isUniqueConstraintError(err) {
-			return fmt.Errorf("%w: %q", ErrOwnerEpochConflict, store.ownerEpoch)
+	if !exists || version != schemaVersion {
+		if _, err := transaction.ExecContext(ctx, `
+			INSERT INTO metadata (key, value) VALUES ('schema_version', ?)
+			ON CONFLICT(key) DO UPDATE SET value = excluded.value
+		`, fmt.Sprint(schemaVersion)); err != nil {
+			return fmt.Errorf("record shared board schema version: %w", err)
 		}
-		return fmt.Errorf("register supervisor epoch: %w", err)
 	}
 	if err := transaction.Commit(); err != nil {
-		return fmt.Errorf("commit run control initialization: %w", err)
+		return fmt.Errorf("commit shared board initialization: %w", err)
 	}
 	return nil
 }
@@ -238,441 +180,22 @@ func waitForSQLiteRetry(ctx context.Context) error {
 	}
 }
 
+// Close releases only this database handle. Durable work and historical rows
+// belong to their recorded owners, not the lifetime of a CLI invocation.
 func (store *Store) Close() error {
 	if store == nil || store.db == nil {
 		return nil
 	}
 	store.closeOnce.Do(func() {
-		now := time.Now().UTC()
-		shutdownErr := store.shutdownOwnedState(context.Background(), now)
-		_, updateErr := store.db.Exec(`
-			UPDATE supervisor_instances
-			SET status = 'stopped', heartbeat_at_ms = ?, stopped_at_ms = ?
-			WHERE owner_epoch = ?
-		`, now.UnixMilli(), now.UnixMilli(), store.ownerEpoch)
-		closeErr := store.db.Close()
-		switch {
-		case shutdownErr != nil:
-			store.closeErr = fmt.Errorf("interrupt supervisor-owned state: %w", shutdownErr)
-		case updateErr != nil:
-			store.closeErr = fmt.Errorf("stop supervisor epoch: %w", updateErr)
-		case closeErr != nil:
-			store.closeErr = fmt.Errorf("close run control database: %w", closeErr)
+		if err := store.db.Close(); err != nil {
+			store.closeErr = fmt.Errorf("close shared board database: %w", err)
 		}
 	})
 	return store.closeErr
 }
 
-func (store *Store) CreateRun(ctx context.Context, params CreateRunParams) (Run, error) {
-	return store.createRun(ctx, params, RunAllocating)
-}
-
-// EnqueueRun records durable execution intent without claiming that a
-// supervisor has started allocation. Queued Runs are neutral during owner
-// reconciliation and must be claimed explicitly before workspace allocation.
-func (store *Store) EnqueueRun(ctx context.Context, params CreateRunParams) (Run, error) {
-	return store.createRun(ctx, params, RunQueued)
-}
-
-func (store *Store) createRun(ctx context.Context, params CreateRunParams, status RunStatus) (Run, error) {
-	if err := validateCreateRunParams(params); err != nil {
-		return Run{}, err
-	}
-	now := time.Now().UTC().UnixMilli()
-	run := Run{
-		RunID:        params.RunID,
-		Kind:         params.Kind,
-		SubjectType:  params.SubjectType,
-		SubjectID:    params.SubjectID,
-		TargetRef:    params.TargetRef,
-		IntentSHA256: params.IntentSHA256,
-		OwnerEpoch:   store.ownerEpoch,
-		Status:       status,
-		Revision:     1,
-		CurrentFence: 0,
-		CreatedAtMS:  now,
-		UpdatedAtMS:  now,
-	}
-	transaction, err := store.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Run{}, fmt.Errorf("begin create run: %w", err)
-	}
-	defer func() { _ = transaction.Rollback() }()
-	if err := requireActiveSupervisorTx(ctx, transaction, store.ownerEpoch); err != nil {
-		return Run{}, err
-	}
-	_, err = transaction.ExecContext(ctx, `
-		INSERT INTO runs (
-			run_id, kind, subject_type, subject_id, target_ref, intent_sha256,
-			owner_epoch, status, revision, current_fence, created_at_ms, updated_at_ms
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, run.RunID, run.Kind, run.SubjectType, run.SubjectID, run.TargetRef,
-		run.IntentSHA256, run.OwnerEpoch, run.Status, run.Revision, run.CurrentFence,
-		run.CreatedAtMS, run.UpdatedAtMS)
-	if err != nil {
-		if isUniqueConstraintError(err) {
-			return Run{}, fmt.Errorf("%w: run %q", ErrAlreadyExists, run.RunID)
-		}
-		return Run{}, fmt.Errorf("insert run: %w", err)
-	}
-	if err := appendRunEventTx(ctx, transaction, run, RunEventCreated, "run created"); err != nil {
-		return Run{}, err
-	}
-	if err := transaction.Commit(); err != nil {
-		return Run{}, fmt.Errorf("commit create run: %w", err)
-	}
-	return run, nil
-}
-
-// ClaimRun transfers a queued request or an interrupted execution to the
-// current supervisor. Interrupted Runs can be retried only after their old
-// Attempt is fenced and every old workspace is non-usable; the next allocation
-// therefore receives a strictly newer workspace generation.
-func (store *Store) ClaimRun(ctx context.Context, runID string, expectedRevision int64) (Run, error) {
-	if strings.TrimSpace(runID) == "" || expectedRevision <= 0 {
-		return Run{}, fmt.Errorf("%w: run id and positive expected revision are required", ErrInvalidArgument)
-	}
-	transaction, err := store.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Run{}, fmt.Errorf("begin claim run: %w", err)
-	}
-	defer func() { _ = transaction.Rollback() }()
-	if err := requireActiveSupervisorTx(ctx, transaction, store.ownerEpoch); err != nil {
-		return Run{}, err
-	}
-
-	run, err := readRunTx(ctx, transaction, runID)
-	if err != nil {
-		return Run{}, err
-	}
-	if run.Revision != expectedRevision {
-		return Run{}, fmt.Errorf("%w: run %q is revision %d, expected %d", ErrRevisionConflict, run.RunID, run.Revision, expectedRevision)
-	}
-	if run.Status != RunQueued && run.Status != RunInterrupted {
-		return Run{}, fmt.Errorf("%w: cannot claim run %q from %q", ErrInvalidTransition, run.RunID, run.Status)
-	}
-	if hasLiveAttempt, err := runHasLiveAttemptTx(ctx, transaction, run.RunID); err != nil {
-		return Run{}, err
-	} else if hasLiveAttempt {
-		return Run{}, fmt.Errorf("%w: run %q still has a live attempt", ErrLiveAttempt, run.RunID)
-	}
-	var hasUsableWorkspace int
-	if err := transaction.QueryRowContext(ctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM workspaces
-			WHERE run_id = ? AND status IN (?, ?, ?)
-		)
-	`, run.RunID, WorkspaceAllocating, WorkspaceReady, WorkspaceInUse).Scan(&hasUsableWorkspace); err != nil {
-		return Run{}, fmt.Errorf("read usable workspace for run %q: %w", run.RunID, err)
-	}
-	if hasUsableWorkspace != 0 {
-		return Run{}, fmt.Errorf("%w: run %q still has a usable workspace", ErrUsableWorkspace, run.RunID)
-	}
-
-	claimedFrom := run.Status
-	nowMS := time.Now().UTC().UnixMilli()
-	result, err := transaction.ExecContext(ctx, `
-		UPDATE runs
-		SET status = ?, owner_epoch = ?, revision = revision + 1, updated_at_ms = ?
-		WHERE run_id = ? AND revision = ? AND current_fence = ? AND status = ?
-	`, RunAllocating, store.ownerEpoch, nowMS, run.RunID, run.Revision, run.CurrentFence, run.Status)
-	if err != nil {
-		return Run{}, fmt.Errorf("claim run %q: %w", run.RunID, err)
-	}
-	if err := requireOneCASRow(result, ErrRevisionConflict, "claim run"); err != nil {
-		return Run{}, err
-	}
-	run.Status = RunAllocating
-	run.OwnerEpoch = store.ownerEpoch
-	run.Revision++
-	run.UpdatedAtMS = nowMS
-	reason := "run claimed for allocation"
-	if claimedFrom == RunInterrupted {
-		reason = "interrupted run reclaimed for replacement allocation"
-	}
-	if err := appendRunEventTx(ctx, transaction, run, RunEventClaimed, reason); err != nil {
-		return Run{}, err
-	}
-	if err := transaction.Commit(); err != nil {
-		return Run{}, fmt.Errorf("commit claim run: %w", err)
-	}
-	return run, nil
-}
-
-func (store *Store) GetRun(ctx context.Context, runID string) (Run, error) {
-	if strings.TrimSpace(runID) == "" {
-		return Run{}, fmt.Errorf("%w: run id is required", ErrInvalidArgument)
-	}
-	return readRunTx(ctx, store.db, runID)
-}
-
-func (store *Store) ListRuns(ctx context.Context, params ListRunsParams) ([]Run, error) {
-	return listRuns(ctx, store.db, params)
-}
-
-type runRowsQuerier interface {
-	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-}
-
-func listRuns(ctx context.Context, querier runRowsQuerier, params ListRunsParams) ([]Run, error) {
-	query := `
-		SELECT run_id, kind, subject_type, subject_id, target_ref, intent_sha256,
-		       owner_epoch, status, revision, current_fence, created_at_ms, updated_at_ms
-		FROM runs
-	`
-	queryArgs := make([]any, 0, len(params.Statuses))
-	if len(params.Statuses) > 0 {
-		placeholders := make([]string, 0, len(params.Statuses))
-		for _, status := range params.Statuses {
-			if !validRunStatus(status) {
-				return nil, fmt.Errorf("%w: unsupported run status %q", ErrInvalidArgument, status)
-			}
-			placeholders = append(placeholders, "?")
-			queryArgs = append(queryArgs, status)
-		}
-		query += " WHERE status IN (" + strings.Join(placeholders, ", ") + ")"
-	}
-	query += " ORDER BY updated_at_ms DESC, run_id"
-
-	rows, err := querier.QueryContext(ctx, query, queryArgs...)
-	if err != nil {
-		return nil, fmt.Errorf("list runs: %w", err)
-	}
-	defer rows.Close()
-	runs := make([]Run, 0)
-	for rows.Next() {
-		var run Run
-		if err := rows.Scan(
-			&run.RunID,
-			&run.Kind,
-			&run.SubjectType,
-			&run.SubjectID,
-			&run.TargetRef,
-			&run.IntentSHA256,
-			&run.OwnerEpoch,
-			&run.Status,
-			&run.Revision,
-			&run.CurrentFence,
-			&run.CreatedAtMS,
-			&run.UpdatedAtMS,
-		); err != nil {
-			return nil, fmt.Errorf("scan run: %w", err)
-		}
-		runs = append(runs, run)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate runs: %w", err)
-	}
-	return runs, nil
-}
-
-func validRunStatus(status RunStatus) bool {
-	switch status {
-	case RunQueued, RunAllocating, RunReady, RunActive, RunParked, RunInterrupted, RunSealed, RunCancelled, RunFailed:
-		return true
-	default:
-		return false
-	}
-}
-
-func (store *Store) TransitionRun(ctx context.Context, runID string, expectedRevision int64, target RunStatus, reason string) (Run, error) {
-	if strings.TrimSpace(runID) == "" || expectedRevision < 1 {
-		return Run{}, fmt.Errorf("%w: run id and positive expected revision are required", ErrInvalidArgument)
-	}
-	transaction, err := store.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Run{}, fmt.Errorf("begin run transition: %w", err)
-	}
-	defer func() { _ = transaction.Rollback() }()
-	if err := requireActiveSupervisorTx(ctx, transaction, store.ownerEpoch); err != nil {
-		return Run{}, err
-	}
-
-	run, err := readRunTx(ctx, transaction, runID)
-	if err != nil {
-		return Run{}, err
-	}
-	if run.Revision != expectedRevision {
-		return Run{}, fmt.Errorf("%w: run %q is revision %d, expected %d", ErrRevisionConflict, runID, run.Revision, expectedRevision)
-	}
-	if !canTransitionRun(run.Status, target) {
-		return Run{}, fmt.Errorf("%w: %s -> %s", ErrInvalidTransition, run.Status, target)
-	}
-	run.Status = target
-	run.OwnerEpoch = store.ownerEpoch
-	run.Revision++
-	run.UpdatedAtMS = time.Now().UTC().UnixMilli()
-	result, err := transaction.ExecContext(ctx, `
-		UPDATE runs
-		SET status = ?, owner_epoch = ?, revision = ?, updated_at_ms = ?
-		WHERE run_id = ? AND revision = ?
-	`, run.Status, run.OwnerEpoch, run.Revision, run.UpdatedAtMS, run.RunID, expectedRevision)
-	if err != nil {
-		return Run{}, fmt.Errorf("update run transition: %w", err)
-	}
-	updated, err := result.RowsAffected()
-	if err != nil {
-		return Run{}, fmt.Errorf("count updated runs: %w", err)
-	}
-	if updated != 1 {
-		return Run{}, fmt.Errorf("%w: run %q changed concurrently", ErrRevisionConflict, runID)
-	}
-	if err := appendRunEventTx(ctx, transaction, run, RunEventTransitioned, reason); err != nil {
-		return Run{}, err
-	}
-	if err := transaction.Commit(); err != nil {
-		return Run{}, fmt.Errorf("commit run transition: %w", err)
-	}
-	return run, nil
-}
-
-func (store *Store) ListRunEvents(ctx context.Context, runID string) ([]Event, error) {
-	if strings.TrimSpace(runID) == "" {
-		return nil, fmt.Errorf("%w: run id is required", ErrInvalidArgument)
-	}
-	rows, err := store.db.QueryContext(ctx, `
-		SELECT event_id, aggregate_type, aggregate_id, aggregate_revision,
-		       event_type, reason, payload_json, created_at_ms
-		FROM events
-		WHERE aggregate_type = 'run' AND aggregate_id = ?
-		ORDER BY aggregate_revision, event_id
-	`, runID)
-	if err != nil {
-		return nil, fmt.Errorf("list run events: %w", err)
-	}
-	defer rows.Close()
-	events := make([]Event, 0)
-	for rows.Next() {
-		var event Event
-		if err := rows.Scan(
-			&event.EventID,
-			&event.AggregateType,
-			&event.AggregateID,
-			&event.AggregateRevision,
-			&event.EventType,
-			&event.Reason,
-			&event.PayloadJSON,
-			&event.CreatedAtMS,
-		); err != nil {
-			return nil, fmt.Errorf("scan run event: %w", err)
-		}
-		events = append(events, event)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate run events: %w", err)
-	}
-	return events, nil
-}
-
 type rowQuerier interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
-}
-
-func requireActiveSupervisorTx(ctx context.Context, querier rowQuerier, ownerEpoch string) error {
-	var status string
-	if err := querier.QueryRowContext(ctx, `
-		SELECT status FROM supervisor_instances WHERE owner_epoch = ?
-	`, ownerEpoch).Scan(&status); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("%w: supervisor epoch %q is not registered", ErrStaleFence, ownerEpoch)
-		}
-		return fmt.Errorf("read supervisor authority: %w", err)
-	}
-	if status != "active" {
-		return fmt.Errorf("%w: supervisor epoch %q is %q", ErrStaleFence, ownerEpoch, status)
-	}
-	return nil
-}
-
-func readRunTx(ctx context.Context, querier rowQuerier, runID string) (Run, error) {
-	row := querier.QueryRowContext(ctx, `
-		SELECT run_id, kind, subject_type, subject_id, target_ref, intent_sha256,
-		       owner_epoch, status, revision, current_fence, created_at_ms, updated_at_ms
-		FROM runs
-		WHERE run_id = ?
-	`, runID)
-	var run Run
-	if err := row.Scan(
-		&run.RunID,
-		&run.Kind,
-		&run.SubjectType,
-		&run.SubjectID,
-		&run.TargetRef,
-		&run.IntentSHA256,
-		&run.OwnerEpoch,
-		&run.Status,
-		&run.Revision,
-		&run.CurrentFence,
-		&run.CreatedAtMS,
-		&run.UpdatedAtMS,
-	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return Run{}, fmt.Errorf("%w: run %q", ErrRunNotFound, runID)
-		}
-		return Run{}, fmt.Errorf("read run %q: %w", runID, err)
-	}
-	return run, nil
-}
-
-func appendRunEventTx(ctx context.Context, transaction *sql.Tx, run Run, eventType, reason string) error {
-	payload, err := json.Marshal(struct {
-		Status       RunStatus `json:"status"`
-		CurrentFence int64     `json:"current_fence"`
-		OwnerEpoch   string    `json:"owner_epoch"`
-	}{Status: run.Status, CurrentFence: run.CurrentFence, OwnerEpoch: run.OwnerEpoch})
-	if err != nil {
-		return fmt.Errorf("encode run event: %w", err)
-	}
-	_, err = transaction.ExecContext(ctx, `
-		INSERT INTO events (
-			aggregate_type, aggregate_id, aggregate_revision,
-			event_type, reason, payload_json, created_at_ms
-		) VALUES ('run', ?, ?, ?, ?, ?, ?)
-	`, run.RunID, run.Revision, eventType, reason, string(payload), run.UpdatedAtMS)
-	if err != nil {
-		return fmt.Errorf("append run event: %w", err)
-	}
-	return nil
-}
-
-func validateCreateRunParams(params CreateRunParams) error {
-	required := map[string]string{
-		"run_id":        params.RunID,
-		"kind":          params.Kind,
-		"subject_type":  params.SubjectType,
-		"subject_id":    params.SubjectID,
-		"target_ref":    params.TargetRef,
-		"intent_sha256": params.IntentSHA256,
-	}
-	for name, value := range required {
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("%w: %s is required", ErrInvalidArgument, name)
-		}
-	}
-	if !validSHA256(params.IntentSHA256) {
-		return fmt.Errorf("%w: intent_sha256 must be a lowercase sha256 digest", ErrInvalidArgument)
-	}
-	return nil
-}
-
-func canTransitionRun(from, to RunStatus) bool {
-	transitions := map[RunStatus]map[RunStatus]bool{
-		RunQueued:      {},
-		RunAllocating:  {RunReady: true},
-		RunReady:       {RunParked: true},
-		RunActive:      {},
-		RunParked:      {RunReady: true},
-		RunInterrupted: {RunReady: true},
-		RunSealed:      {},
-		RunCancelled:   {},
-		RunFailed:      {},
-	}
-	allowed, knownFrom := transitions[from]
-	if !knownFrom {
-		return false
-	}
-	_, knownTo := transitions[to]
-	return knownTo && allowed[to]
 }
 
 func existingSchemaVersion(ctx context.Context, db rowQuerier) (int, bool, error) {
@@ -711,14 +234,27 @@ func validSHA256(value string) bool {
 	return true
 }
 
-func newOwnerEpoch() (string, error) {
-	bytes := make([]byte, 16)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", fmt.Errorf("generate supervisor epoch: %w", err)
-	}
-	return "supervisor_" + hex.EncodeToString(bytes), nil
-}
-
 func isUniqueConstraintError(err error) bool {
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "unique constraint failed")
+}
+
+func requireOneCASRow(result sql.Result, conflict error, action string) error {
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read %s result: %w", action, err)
+	}
+	if rows != 1 {
+		return fmt.Errorf("%w: %s compare-and-swap affected %d rows", conflict, action, rows)
+	}
+	return nil
+}
+
+func isSQLiteContention(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "database is locked") ||
+		strings.Contains(message, "database table is locked") ||
+		strings.Contains(message, "sqlite_busy")
 }

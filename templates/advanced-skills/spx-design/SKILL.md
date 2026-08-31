@@ -17,8 +17,10 @@ closeout or approval adoption. Read
 `references/consequence-gate.md` when
 shared component state or generated consumers change.
 
-Query `.specify/design/index.json` through `specify-runtime artifact show`,
-resume a matching nonterminal `UD-*` workspace, then inspect its exact contract,
+Query `.specify/design/index.json` through `specify-runtime artifact show` only
+when it exists or registered metadata was returned by scope discovery. A missing
+registry is legitimate discovery absence; do not blindly artifact-show it.
+Resume a matching nonterminal `UD-*` workspace when present, then inspect its exact contract,
 relevant live UI entry points, existing tokens/components, accessibility rules,
 and supplied references. No root design contract participates in selection or
 delivery. Distinguish
@@ -67,7 +69,7 @@ refactor or feature addition is not style-change authority. Use `greenfield`
 only when no live visual language governs the surface.
 
 For every exact affected surface, use
-`specify-runtime design resolve --scope <surface> --format json` to discover
+`specify-runtime design resolve --scope <exact-surface> --format json` to discover
 active registered candidates. Resolution is discovery only and never binds a
 consumer. Current binding artifacts are singular, so split `composite: true`
 results into independently bound consumer units, each with one exact scope and

@@ -13,8 +13,19 @@ desktop, or Web presentation surface.
 
 ## Design readiness
 
-Run `specify-runtime design resolve --scope <exact-surface> --format json`, then
-query metadata-only `.specify/design/index.json`, select an applicable
+Derive one exact stable path-like surface ID from confirmed source surfaces or
+registered metadata before each
+`specify-runtime design resolve --scope <exact-surface> --format json` call.
+Split Web, CLI, API, and other surfaces into separate scoped queries; never pass
+the whole brief, a prose objective, or a cross-platform sentence as `--scope`.
+Query metadata-only `.specify/design/index.json` through
+`specify-runtime artifact show` only when it exists or the resolver identifies
+registered metadata. A missing registry or zero matching
+changes is legitimate discovery absence, not an artifact-read failure to retry.
+It does not waive required approved Design: new/high-visibility UI still needs
+an approved registered change, not a prose risk note. Preserve the late-design
+`formal-post-specify` receipt, unchanged-spec return to Plan, and existing
+approval, registration, and adoption gates. When coverage exists, select an applicable
 registered `UD-*` change, and inspect that exact change-local `design-change.md`
 through `specify-runtime artifact show` together with relevant live surfaces.
 Resolution is discovery only. Split composite coverage into explicit bindings.

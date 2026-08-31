@@ -33,13 +33,13 @@ type ArtifactSubmitRequest struct {
 }
 
 type ArtifactShowRequest struct {
-	FeatureID   string
-	Kind        string
-	Path        string
-	View        string
-	JSONPointer string
-	Section     string
-	Limit       int
+	FeatureID   string `json:"feature,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	Path        string `json:"path,omitempty"`
+	View        string `json:"view,omitempty"`
+	JSONPointer string `json:"json_pointer,omitempty"`
+	Section     string `json:"section,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
 }
 
 type artifactLease struct {

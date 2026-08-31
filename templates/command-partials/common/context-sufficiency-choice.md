@@ -1,6 +1,6 @@
 ## Pre-Intake Context Sufficiency Gate
 
-For `sp-quick` and `sp-debug`, this is the first action. Run it before run
+For `sp-quick` and `sp-debug`, this is the first action. Run it before execution
 bootstrap, workspace/session discovery or creation, the Constitution, Learning,
 Project Cognition, repository search, source reads, reproduction, logs, tests,
 delegation, or any other tool call.
@@ -80,20 +80,23 @@ When the user selects the context-direct option:
   and inspect its `execution-overview-v1` activities and signals across Fast,
   Debug, Implement, and Quick; this command reconciles expired Work, so do not
   infer concurrency from a separate empty board snapshot; resolve any `block`
-  signal and review any `warn` signal, then create one bounded Work item through
-  `specify-runtime work begin` with exact
-  `--task-ref quick:<direct-id>` or `--task-ref debug:<direct-id>`, the confirmed
-  scope, summary, agent, and adapter; retain its returned id and fence, and call
-  `specify-runtime work claim --current-work-id <id> --current-work-fence
-  <fence> --task-ref <same-task-ref> --write-scope-json <complete-json-array>
-  --format json`; the all-or-none `data.work_claim` receipt is mandatory even
-  though context-direct creates no Quick/Debug workflow state;
+  signal and review any `warn` signal. Read the shared execution bootstrap for
+  the selected workflow, then create one bounded Work/Activity through
+  `specify-runtime execution announce --workflow quick` or `--workflow debug`
+  with exact `--task-ref quick:<direct-id>` or `--task-ref debug:<direct-id>`,
+  planned scope, semantic resources, summary, agent, and adapter. Retain its id
+  and fence, checkpoint `selected`, refresh the overview, and require the
+  all-or-none `specify-runtime execution guard` with the exact overview revision
+  and `snapshot_sha256` before source writes. This concurrency-view digest is
+  not an ambient file capture; no separate Work owner is created;
 - make only the confirmed bounded change and preserve unrelated work; a patch
   anchor mismatch or newly discovered consumer, consequence, ambiguity, or
   larger scope ends context-direct execution and resumes the matching full
   workflow before further mutation;
 - behavior-changing work still requires a failing test or executable reproduction
-  before production edits and fresh verification afterward; and
+  before production edits and fresh verification afterward; checkpoint
+  `validating` before final checks and call `specify-runtime execution complete`
+  only after fresh passing validation and terminal direct-task state; and
 - report the exact changed paths, checks, residual risk, and why the evidence
   surface was sufficient.
 

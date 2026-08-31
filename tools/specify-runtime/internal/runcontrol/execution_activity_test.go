@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -273,4 +274,76 @@ func announceExecutionTestActivity(
 		t.Fatal(err)
 	}
 	return registration
+}
+
+func TestConcurrentExecutionGuardsSerializeFileAndSemanticAuthority(t *testing.T) {
+	ctx := context.Background()
+	databasePath := filepath.Join(t.TempDir(), "run-control.sqlite")
+	first := openTestStore(t, databasePath)
+	registrations := []ExecutionRegistration{
+		announceExecutionTestActivity(t, first, "first", "fast:first", "src/first.go", ResourceAPI, "/v1/shared"),
+		announceExecutionTestActivity(t, first, "second", "quick:second", "src/second.go", ResourceAPI, "/v1/shared"),
+	}
+	second := openTestStore(t, databasePath)
+	revision, err := first.CoordinationRevision(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	params := make([]GuardExecutionParams, len(registrations))
+	for i, registration := range registrations {
+		params[i] = GuardExecutionParams{
+			ActivityID: registration.Activity.ActivityID, ExpectedWorkRevision: registration.Work.Revision, Fence: registration.Work.Fence,
+			ExpectedCoordinationRevision: revision, OverviewSHA256: strings.Repeat("a", 64), Reason: "concurrent guard",
+			WriteIntents: []WriteIntentSpec{{Path: registration.WriteIntents[0].Path}},
+			Resources:    []ExecutionResourceIntentSpec{{ResourceType: ResourceAPI, ResourceKey: "/v1/shared", Confidence: IntentConfirmed}},
+		}
+	}
+	type outcome struct {
+		index int
+		err   error
+	}
+	start := make(chan struct{})
+	results := make(chan outcome, 2)
+	var workers sync.WaitGroup
+	for i, store := range []*Store{first, second} {
+		workers.Add(1)
+		go func(i int, store *Store) {
+			defer workers.Done()
+			<-start
+			_, err := store.GuardExecution(ctx, params[i])
+			results <- outcome{index: i, err: err}
+		}(i, store)
+	}
+	close(start)
+	workers.Wait()
+	close(results)
+	succeeded, loser := 0, -1
+	for result := range results {
+		switch {
+		case result.err == nil:
+			succeeded++
+		case errors.Is(result.err, ErrExecutionSnapshotStale):
+			loser = result.index
+		default:
+			t.Fatalf("concurrent guard returned untyped failure: %v", result.err)
+		}
+	}
+	if succeeded != 1 || loser < 0 {
+		t.Fatalf("concurrent guards: %d successes, rejected index %d", succeeded, loser)
+	}
+	params[loser].ExpectedCoordinationRevision, err = first.CoordinationRevision(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.GuardExecution(ctx, params[loser]); !errors.Is(err, ErrExecutionResourceConflict) {
+		t.Fatalf("refreshed losing guard bypassed semantic ownership: %v", err)
+	}
+	loaded, err := first.GetExecutionActivity(ctx, registrations[loser].Activity.ActivityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Activity.Phase != ExecutionPhaseAnnounced || loaded.Work.Revision != registrations[loser].Work.Revision ||
+		loaded.WriteIntents[0].Confidence != IntentCandidate || loaded.Resources[0].Confidence != IntentCandidate {
+		t.Fatalf("failed guard partially acquired authority: %#v", loaded)
+	}
 }

@@ -103,9 +103,15 @@ The following flags are available and composable:
 ## Image and UI Reference Handoff
 
 - UI handling applies even without an image. For every bounded user-visible UI
-  change, run `specify-runtime design resolve --scope <exact-surface> --format json`
+  change, derive stable path-like surface IDs from confirmed source or registered
+  metadata; split surfaces and never send the whole brief or prose as `--scope`.
+  Run `specify-runtime design resolve --scope <exact-surface> --format json`
   and query `.specify/design/index.json` through `specify-runtime artifact
-  show` for detail. Resolution is discovery only. Because each Quick
+  show` for detail only when the index exists or registered metadata identifies
+  it. Missing registry/coverage is legitimate discovery absence; do not blindly
+  read a missing index or replace required approved Design with a prose risk note.
+  Preserve approval, registration, and confirmed adoption gates.
+  Resolution is discovery only. Because each Quick
   `STATUS.md` has one singular `ui_design_binding`, split composite coverage
   into independently bound Quick workspaces; do not spread conflicting parent
   and successor bindings across worker packets in one workspace. Pin the exact
@@ -348,18 +354,19 @@ The following flags are available and composable:
 
 5. **Execution**
    - Start execution only after a leased `specify-runtime artifact patch` sets `understanding_confirmed: true` in `STATUS.md`.
-   - Run `specify-runtime quick preflight <quick-id> --format json` before the
+   - Run `specify-runtime execution overview --format json` before the
      first `quick item-start`, after each join before choosing the next item or
-     batch, and before `work scope-add` or a material scope expansion. Resolve
+     batch, and before execution guard or a material scope expansion. Keep
+     `quick preflight` only as a compatibility view. Resolve
      `write_overlap`; review advisory concurrent/untracked signals and continue
      automatically when the work is unrelated. Do not poll between events.
-   - Every `quick item-start` carries the exact active Work identity. Managed
-     execution uses `SPECIFY_WORK_ID` plus `SPECIFY_WORK_FENCE`; unhosted
-     execution passes `--current-work-id <id> --current-work-fence <fence>`.
+   - Every `quick item-start` carries the exact guarded Work/Activity identity,
+     through matching `SPECIFY_WORK_ID` plus `SPECIFY_WORK_FENCE` or
+     `--current-work-id <id> --current-work-fence <fence>`.
      Runtime verifies `task_ref` is `quick:<id>` or `quick:<id>#Qn`, then claims
      the Q item's complete normalized `write_scope` all-or-none before changing
      the Q item to `in_progress`. Do not dispatch without the returned
-     `work_claim` receipt. A Quick-level owner normally claims the active batch;
+     `work_claim` receipt and matching execution guard. A Quick-level owner normally claims the active batch;
      workers inherit that Quick-level Work authority and do not register
      overlapping child scopes.
    - Execute the current quick-task lane or ready batch through the selected dispatch shape and execution surface.

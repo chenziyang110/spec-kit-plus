@@ -2,6 +2,12 @@
 
 This command should treat the project cognition runtime as an advisory navigation index, not a mandatory pre-source gate.
 
+Reuse one cognition context capsule and Learning intake for an unchanged intake;
+do not repeat them after each preparatory capability, artifact, script, or board
+call. Refresh when request/scope, relevant live source, workflow binding, or
+cognition freshness/generation changes, or when a required resume/recovery gate
+invalidates that capsule. Keep live verification and mutation-closeout gates.
+
 ### Advisory Rule
 
 Use project cognition when available to find likely owners, affected paths,
