@@ -929,7 +929,7 @@ managed `<!-- SPEC-KIT:BEGIN -->` block because
 ### Specify Runtime Distribution
 
 - `tools/specify-runtime/` is the standalone Go runtime used by every generated Classic `sp-*`, Advanced `spx-*`, and worker surface for fixed workflow artifact access, deterministic `plan-contract`/`quick-status` scaffolds, tiered spec validation, workflow state, and project cognition. It is a user-facing binary, not a Python `specify` subcommand.
-- The primary `.github/workflows/release.yml` flow cross-compiles and attaches specify-runtime release assets during `gh release create`; `.github/workflows/release-specify-runtime.yml` is only a fallback for externally created releases.
+- The primary `.github/workflows/release.yml` flow cross-compiles and publishes runtime assets to the separate public distribution repository through `scripts/publish-runtime-release.py`; `.github/workflows/release-specify-runtime.yml` is only a fallback for externally created source-repository releases. Follow the public release checklist below.
 - Any specify-runtime update that changes user-visible behavior, command names, flags, output contracts, install/runtime compatibility checks, or generated-workflow expectations must ship with a new GitHub release before it is considered distributed. Do not leave these changes only on `main`: trigger the release flow, publish fresh `specify-runtime-*` assets, and verify the latest release binary reports the new version and exposes the expected commands/flags.
 - `tools/specify-runtime/install.sh` and `tools/specify-runtime/install.ps1` must download the matching prebuilt release binary by default, verify `api handshake`, and smoke-test the namespaced cognition command surface.
 - `specify init` must best-effort auto-download/cache the prebuilt binary, then persist the resolved executable in `.specify/config.json` under `runtime_launcher` so generated command templates invoke the pinned binary path instead of relying only on PATH.
@@ -937,6 +937,73 @@ managed `<!-- SPEC-KIT:BEGIN -->` block because
 - Project-cognition outputs intended for agent consumption should default to minimal stdout and compact temporary files that contain only the next-step data needed, such as a file list path and count or the file list itself. Detailed exclusion reasons, scan explanations, and audit metadata belong behind explicit explain/debug modes.
 - `specify-runtime cognition scan-set` is the runtime-owned scan-set resolution contract for agent-facing file-list handoffs; do not replace it with prompt-only guidance that asks agents to freely decide which files to skip.
 - When changing project-cognition command names, flags, binary names, release assets, or install behavior, update `src/specify_cli/specify_runtime.py`, `src/specify_cli/launcher.py`, the install scripts, release workflows, README/docs, and the init/launcher regression tests in the same pass, then publish and verify the release assets in the same workstream.
+
+#### Public Runtime Release Checklist
+
+Before any runtime release, read
+[docs/runtime-release-distribution.md](docs/runtime-release-distribution.md).
+These are repository maintenance instructions, not generated-project rules;
+keep them outside the managed `<!-- SPEC-KIT:BEGIN -->` block.
+
+- **Separate source and distribution.** Keep `chenziyang110/spec-kit-plus`
+  private. Publish binaries to
+  [chenziyang110/spec-kit-plus-releases](https://github.com/chenziyang110/spec-kit-plus-releases/releases).
+  Never make the source repository public, push its Git history to the public
+  repository, or upload source archives, private commit messages, logs, or
+  credentials. The public repository's landing document comes from
+  `templates/runtime-distribution/README.md`; retain the existing LICENSE.
+- **Publish exactly six assets:** `specify-runtime-linux-amd64`,
+  `specify-runtime-linux-arm64`, `specify-runtime-darwin-amd64`,
+  `specify-runtime-darwin-arm64`, `specify-runtime-windows-amd64.exe`, and
+  `SHA256SUMS`. Do not upload an entire build directory with an unchecked glob.
+- **Bind the version to source.** Use a new concrete release tag, the matching
+  CLI version in `pyproject.toml`, and a clean snapshot of that source tag's
+  commit. The binary must report that version and source revision, the current
+  protocol, every required capability, and `dirty=false`. The source revision
+  is the private source tag's commit, not the public README repository's commit.
+  Never move an existing tag or replace it with a different source revision.
+- **Check automation prerequisites first.** The private workflows require
+  `PUBLIC_RELEASES_TOKEN`, a fine-grained token with Contents read/write access
+  to only `spec-kit-plus-releases`. Store it in the private repository's Actions
+  secrets; never put its value in chat, argv, files, or Git. The built-in
+  `GITHUB_TOKEN` cannot publish across repositories. Source checkout must remain
+  `contents: read` with `persist-credentials: false`. Do not persist a broad
+  personal CLI login token as the publishing secret.
+- **Use the owning workflow and helper.** `release-trigger.yml` owns the private
+  source tag/version sequence; `release.yml` owns the normal build/publication.
+  Both publication workflows use `scripts/publish-runtime-release.py` with
+  `--target-repo chenziyang110/spec-kit-plus-releases`, `--tag`,
+  `--source-revision`, `--assets-dir`, and `--token-env PUBLIC_RELEASES_TOKEN`.
+  Run `--mode check` before `--mode ensure-release`. The helper generates
+  SHA256SUMS and fixed public notes, verifies existing assets, uploads a draft,
+  and publishes only after verification. Do not use automatic notes derived
+  from private Git history.
+- **Recover without weakening publication checks.** If cloud Actions cannot
+  start because of billing, spending limits, or missing credentials, report
+  that exact blocker. An authorized local publication may use a clean source
+  snapshot, the same build identity and helper, and credentials only in memory.
+  Do not rely on previous session scripts or binaries under `dist/`. For an
+  interrupted upload, inspect the existing draft and rerun the helper with the
+  same tag/source revision only when its checks permit recovery. Never expose
+  a partial draft or bypass an extra-asset, checksum, or revision rejection.
+- **Verify the public consumer path.** Check the public release is no longer a
+  draft and has exactly the six assets. Download the Windows binary and
+  SHA256SUMS without authentication, compare the checksum, and run `version`
+  and `api handshake`. Run `specify init` in an isolated project with an empty
+  runtime cache and no runtime override or download token; require the public
+  URL, successful project-local pinning, and no source-build fallback. Keep
+  Python/PowerShell/Bash download defaults pointed at the public repository.
+  CLI installation from the private Git source still requires source access.
+- **Keep completion claims separate.** Local tests, cross-platform builds,
+  native execution checks, cloud CI, public publication, and anonymous init
+  verification are distinct evidence. Never claim cloud automation works just
+  because a one-off local release succeeded.
+
+Historical setup checkpoint: on 2026-08-31, `v0.6.24` was publicly published and
+anonymous empty-cache initialization passed. At that time, GitHub Actions jobs
+were blocked by account billing/spending limits and `PUBLIC_RELEASES_TOKEN` was
+not configured. Recheck both conditions before the next release; do not treat
+this historical note as a permanent or current status assertion.
 
 ### Project Cognition Schema v5 Maintenance
 
