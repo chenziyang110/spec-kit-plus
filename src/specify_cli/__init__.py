@@ -2153,7 +2153,7 @@ def _render_spec_kit_managed_block(*, project_root: Path, newline: str) -> str:
             "## Durable State",
             "",
             "- When resuming generated work, prefer durable workflow state and explicit feature paths over branch name or chat memory.",
-            "- For `sp-discussion`, default ordinary replies and acknowledgements to frontstage-only deferred persistence: do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply; flush only at semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions. After several unsaved turns, mention the unsaved turn count and suggest `checkpoint, continue`; the prompt does not write files by itself.",
+            "- For `sp-discussion` and `spx-discussion`, default ordinary replies and acknowledgements to frontstage-only deferred persistence: do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply; flush only at semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions. End every discussion reply with a short reminder about the optional leading `checkpoint` prefix; no `continue` keyword or extra confirmation is required. Separate the prefix from the discussion body, save prior pending progress first, then answer the body normally; the prompt does not write files by itself.",
             "- Keep project cognition freshness truthful after changes to architecture, ownership, workflow names, integration contracts, or verification entry points.",
             "- Store reusable lessons through Project Learning, not only in chat or task artifacts.",
             "",

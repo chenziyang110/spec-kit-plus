@@ -126,8 +126,12 @@ def _write_pinned_launcher_config(repo: Path) -> None:
 def _run_bash_update(
     repo: Path, agent_type: str = "codex"
 ) -> subprocess.CompletedProcess[str]:
+    # Match _bash_path's probe; Windows may resolve a bare "bash" to WSL
+    # before the Git Bash executable selected from PATH by shutil.which.
+    bash = shutil.which("bash")
+    assert bash is not None, "bash is not installed"
     return subprocess.run(
-        ["bash", _bash_path(BASH_SCRIPT), agent_type],
+        [bash, _bash_path(BASH_SCRIPT), agent_type],
         cwd=repo,
         text=True,
         errors="replace",
@@ -197,7 +201,7 @@ def _assert_managed_block_is_compact_always_on_context(content: str) -> None:
         "semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions"
         in lower
     )
-    assert "suggest `checkpoint, continue`" in lower
+    assert "end every discussion reply" in lower
     assert "prompt does not write files by itself" in lower
     assert "project cognition freshness truthful" in lower
     assert "store reusable lessons through project learning" in lower

@@ -1158,7 +1158,7 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
             "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply"
             in content
         )
-        assert "suggest `checkpoint, continue`" in content
+        assert "end every discussion reply" in content
         assert "prompt does not write files by itself" in content
         assert "project cognition freshness truthful" in content
         assert "store reusable lessons through project learning" in content
