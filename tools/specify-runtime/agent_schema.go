@@ -119,7 +119,8 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["input_schema"] = "artifact-patch-batch-input"
 		capability["side_effect"] = "patches-artifact"
 		capability["usage"] = "specify-runtime artifact patch-batch --lease <id> --input-json <object|@path|-> [--project-root <path>] --format json"
-		capability["input_contract"] = "input-json must be an object with operations[]. Each operation is exactly one of {json_pointer,value}, {section,content}, or {frontmatter}. One lease covers 1..32 operations and writes only when the entire batch validates without target conflicts."
+		capability["input_contract"] = "input-json must be an object with operations[]. Each operation is exactly one of {json_pointer,value}, {section,content}, or {frontmatter}. One lease covers 1..32 operations and writes only when the entire batch validates without target conflicts. For large or Windows payloads, stream UTF-8 JSON from memory through --input-json - rather than putting the payload in argv or creating an authoring file; the complete input remains limited to 256 KiB."
+		capability["max_input_bytes"] = maxArtifactBatchInputBytes
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "artifact-patch-batch-input", "--format", "json"}
 	case "artifact.submit":
 		capability["side_effect"] = "writes-artifact"
@@ -130,6 +131,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime artifact show-many --input-json <object|@path|-> [--project-root <path>] --format json"
 		capability["input_contract"] = "input-json must be an object with queries[] ArtifactShowRequest entries. Each query may select feature/kind or path plus optional view, json_pointer, section, and limit. The batch accepts 1..16 queries and returns per-query status in one bounded envelope."
+		capability["max_input_bytes"] = maxArtifactBatchInputBytes
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "artifact-show-many-input", "--format", "json"}
 	case "evidence.register":
 		capability["side_effect"] = "writes-content-addressed-evidence"
@@ -236,7 +238,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "design.resolve":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime design resolve --scope <surface> --format json"
-		capability["input_contract"] = "returns active immutable candidates after scope-specific supersession; multiple candidates are a composite discovery result that must be split and explicitly adopted, never an implicit latest binding"
+		capability["input_contract"] = "scope must be one exact stable path-like surface identifier from a design contract, such as web:orders/list or cli:search, not a prose product description. Returns active immutable candidates after scope-specific supersession; multiple candidates are a composite discovery result that must be split and explicitly adopted, never an implicit latest binding. Missing registry is read-only empty discovery; malformed or unreadable existing registry remains blocked. No candidate, missing registry, or discovery result ever waives required UI approval and registration."
 	case "design.diff":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime design diff <FROM-UD-ID> <TO-UD-ID> --format json"
@@ -303,8 +305,8 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		env.ShowArgv = []string{"specify-runtime", "execution", "help"}
 	case "execution.announce":
 		capability["side_effect"] = "announces-activity-and-candidate-authority"
-		capability["usage"] = "specify-runtime execution announce --workflow <fast|debug|implement|quick> --subject-id <id> --summary <text> --agent-id <id> --adapter-id <id> [--activity-id <id>] [--work-id <id>] [--task-ref <ref>] [--item-id <id>] [--source-ref <path>] [--planned-write-scope-json <array>] [--resources-json <array>] [--lease-seconds <seconds>] [--project-root <path>] --format json"
-		capability["input_contract"] = "creates one Activity and one-to-one Work atomically before mutation, captures the actual Git baseline, and advertises candidate file scope plus semantic resources without granting write authority"
+		capability["usage"] = "specify-runtime execution announce --workflow <fast|debug|implement|quick> (--subject-id <id> --summary <text> | --work-packet-file <worker-packet.json> --work-packet-sha256 <sha256>) --agent-id <id> --adapter-id <id> [--activity-id <id>] [--work-id <id>] [--task-ref <ref>] [--item-id <id>] [--source-ref <path>] [--planned-write-scope-json <array>] [--resources-json <array>] [--lease-seconds <seconds>] [--project-root <path>] --format json"
+		capability["input_contract"] = "creates one Activity and one-to-one Work atomically before mutation, captures the actual Git baseline, and advertises candidate file scope plus semantic resources without granting write authority. For implement, --work-packet-file plus --work-packet-sha256 verifies the exact compiled bytes against the canonical packet-compile receipt sha256 and current compiler output before deriving feature_id, task_id, task_ref, objective and planned_write_scope. The planned scope is the union of product write_scope and compiler-owned bookkeeping_write_scope; guard the full returned set. The exact packet path, digest and scope stay pinned for the activity, so changed packets require recompilation and a new announcement. Packet mode cannot be mixed with manual subject-id, item-id, task-ref, summary or planned-write-scope-json. Only execution guard grants write authority"
 	case "execution.checkpoint":
 		capability["side_effect"] = "advances-activity-and-renews-work"
 		capability["usage"] = "specify-runtime execution checkpoint <activity-id> --expected-revision <work-revision> --fence <fence> --phase <selected|executing|validating|blocked> --next-action <text> --lease-seconds <seconds> [--observed-paths-json <array>] [--reason <text>] [--project-root <path>] --format json"
@@ -324,7 +326,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "execution.overview":
 		capability["side_effect"] = "reconciles-work-board"
 		capability["usage"] = "specify-runtime execution overview [--current-work-id <work-id>] [--project-root <path>] --format json"
-		capability["input_contract"] = "returns one execution-overview-v1 snapshot joining open Quick and Implement task state with every nonterminal Fast, Debug, Implement, or Quick Run and every live or recovery-held Work identity; activities correlate task, Run, Work, planned scope, and confirmed scope; duplicate owners, invalid current identity, and an executing task whose planned scope is not covered by confirmed Work scope block; executing tasks without Work, broken Run/Work links, recovery holds, unreadable task sources, and cross-workflow planned-scope overlap warn; other open untracked tasks remain visible context; current-work-id defaults to SPECIFY_WORK_ID"
+		capability["input_contract"] = "returns one execution-overview-v1 snapshot joining open Quick and Implement task state with registered execution activities and every live or recovery-held Work identity; activities correlate task, Work, planned scope, and confirmed scope; duplicate owners, invalid current identity, and an executing task whose planned scope is not covered by confirmed Work scope block; executing tasks without Work, recovery holds, unreadable task sources, and cross-workflow planned-scope overlap warn; other open untracked tasks remain visible context; current-work-id defaults to SPECIFY_WORK_ID"
 	case "quick.preflight":
 		capability["side_effect"] = "reconciles-work-board-and-refreshes-derived-quick-index"
 		capability["usage"] = "specify-runtime quick preflight [<quick-id>] [--current-work-id <work-id>] [--project-root <path>] --format json"
@@ -397,68 +399,6 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "resumes-interrupted-work-under-new-fence"
 		capability["usage"] = "specify-runtime work resume <work-id> --expected-revision <revision> --agent-id <id> --adapter-id <id> [--workspace-root <path>] [--lease-seconds <seconds>] [--next-action <text>] [--project-root <path>] --format json"
 		capability["input_contract"] = "explicitly reclaims interrupted intents after atomic conflict checks, clears recovery holds, and advances the fence; defaults to the interrupted worktree, while an unavailable worktree blocks until an inspected same-repository replacement is passed with --workspace-root or the work is abandoned"
-	case "run.create":
-		capability["side_effect"] = "writes-run-control"
-		capability["usage"] = "specify-runtime run create --run-id <id> --kind <kind> --subject-type <type> --subject-id <id> --target-ref <ref> --intent-sha256 <sha256> [--project-root <path>] --format json"
-		capability["input_contract"] = "records control-plane intent only; it does not allocate a workspace or launch an agent"
-	case "run.show":
-		capability["side_effect"] = "read-only"
-		capability["usage"] = "specify-runtime run show <run-id> [--project-root <path>] --format json"
-	case "run.events":
-		capability["side_effect"] = "read-only"
-		capability["usage"] = "specify-runtime run events <run-id> [--project-root <path>] --format json"
-	case "run.cancel":
-		capability["side_effect"] = "cancels-and-fences-run"
-		capability["usage"] = "specify-runtime run cancel <run-id> --expected-revision <revision> --reason <reason> [--project-root <path>] --format json"
-		capability["input_contract"] = "requires the exact observed Run revision; cancellation advances the fence before revoking execution authority"
-	case "run.launch":
-		capability["side_effect"] = "queues-run-routes-workspace-and-runs-tokenized-child"
-		capability["usage"] = "specify-runtime run launch --run-id <id> --kind <kind> --subject-type <type> --subject-id <id> --target-ref <ref> --intent-sha256 <sha256> --adapter-id <id> [--work-agent-id <id>] ([--work-packet-file <worker-packet.json> --work-packet-sha256 <sha256>] | [--work-task-ref <ref>] [--work-summary <text>] [--work-intents-json <array>]) [--workspace-policy auto|primary|isolated] [--project-root <path>] --format json -- <argv...>"
-		capability["input_contract"] = "single call queues durable Run intent, automatically reconciles expired Work Board leases, and automatically registers one Work Board item before child launch. Fast, Debug, Implement, and Quick modifying runs with zero confirmed write scope fail before Run claim or child launch. Compiled task packet mode requires the packet-compile receipt path plus sha256, verifies the exact compiled bytes before JSON parsing, then derives feature_id, task_id, objective, and scope.write_scope into task identity and confirmed modify intents; it cannot be mixed with manual task-ref, summary, or intents. Same/ancestor/descendant conflicts block before the child starts. Runtime auto routes exactly one non-overlapping modifying Run to the pristine primary workspace, routes overlaps and idle-but-dirty launches to isolated worktrees, clones overlaps from the primary Run's pre-launch Snapshot, forces child cwd, binds fenced SPECIFY_RUN_* and SPECIFY_WORK_* environment variables, and sets SPECIFY_FEATURE_BRANCH_POLICY=keep-current when another live task or dirty recovery hold exists. It renews both leases, completes Work on success, keeps it blocked on child failure, and interrupts it conservatively on cancellation; interrupted Runs remain recoverable through run supervise"
-	case "run.supervise":
-		capability["side_effect"] = "routes-workspace-and-runs-tokenized-child"
-		capability["usage"] = "specify-runtime run supervise <run-id> --adapter-id <id> [--work-agent-id <id>] ([--work-packet-file <worker-packet.json> --work-packet-sha256 <sha256>] | [--work-task-ref <ref>] [--work-summary <text>] [--work-intents-json <array>]) [--workspace-policy auto|primary|isolated] [--project-root <path>] --format json -- <argv...>"
-		capability["input_contract"] = "requires a literal -- separator and --adapter-id; runtime automatically reconciles expired Work Board leases and rejects Fast, Debug, Implement, or Quick modifying runs with zero confirmed write scope before Run claim or child launch. It registers the managed task and exact write intents before child launch and reports conflicting owner details without starting the child. Compiled task packet mode requires the packet-compile receipt path plus sha256, verifies the exact compiled bytes before JSON parsing, then derives task identity, objective, and scope.write_scope; it cannot be mixed with manual work metadata. Runtime owns auto routing between one pristine primary workspace owner and isolated overlap or idle-but-dirty worktrees, forces child cwd, binds SPECIFY_RUN_* and SPECIFY_WORK_* identity/fence variables, sets SPECIFY_FEATURE_BRANCH_POLICY=keep-current when another live task or dirty recovery hold exists, extends WSLENV, renews liveness without overwriting child-authored scope revisions, completes Work on success, retains blocked scope on nonzero exit, and conservatively interrupts cancellation. Greenfield/local interactive agents may use create-new-feature + workflow enter + artifact owners without supervise when no host adapter is configured; that path is not a run-control violation for unhosted sessions"
-	case "result.list":
-		capability["side_effect"] = "read-only"
-		capability["usage"] = "specify-runtime result list [<run-id> | --run-id <id>] [--project-root <path>] --format json"
-		capability["input_contract"] = "returns append-only result history for one Run from sealed Result records without mutating execution state"
-	case "result.show":
-		capability["side_effect"] = "read-only"
-		capability["usage"] = "specify-runtime result show [<result-id> | --result-id <id>] [--project-root <path>] --format json"
-		capability["input_contract"] = "loads one immutable sealed result, its derived identity bindings, and current supersession metadata"
-	case "result.reopen":
-		capability["side_effect"] = "reopens-sealed-run"
-		capability["usage"] = "specify-runtime result reopen <run-id> (--basis-result <result-id> | --basis-result-id <result-id>) --expected-revision <revision> --reason <reason> [--project-root <path>] --format json"
-		capability["input_contract"] = "reopens a sealed Run only from its latest sealed Result basis and records deterministic supersession history"
-	case "result.depend":
-		capability["side_effect"] = "writes-result-dependency"
-		capability["usage"] = "specify-runtime result depend <result-id> (--on <result-id> | --upstream-result-id <result-id>) --kind requires|after|conflicts_with --reason <reason> [--project-root <path>] --format json"
-		capability["input_contract"] = "records one Result dependency edge in the immutable result graph; runtime validates the dependency kind"
-	case "candidate.build":
-		capability["side_effect"] = "builds-frozen-candidate"
-		capability["usage"] = "specify-runtime candidate build --target-ref <ref> (--result <result-id> | --result-id <result-id>)... [--project-root <path>] --format json"
-		capability["input_contract"] = "builds one frozen candidate from multiple results for a single target ref; runtime resolves Result ordering, dependency closure, and immutable candidate bindings"
-	case "candidate.show":
-		capability["side_effect"] = "read-only"
-		capability["usage"] = "specify-runtime candidate show <candidate-id> [--candidate-id <id>] [--project-root <path>] --format json"
-		capability["input_contract"] = "loads one immutable candidate, its member Results, manifest digest, hidden ref, and latest Review, Acceptance, Publication, and Sync delivery receipts without mutation"
-	case "candidate.review":
-		capability["side_effect"] = "writes-candidate-review"
-		capability["usage"] = "specify-runtime candidate review <candidate-id> --reviewer <id> [--project-root <path>] --format json -- <literal argv>"
-		capability["input_contract"] = "requires at least one literal argv after --; runtime materializes the frozen Candidate review workspace, executes the literal argv, and binds the resulting evidence digest to that exact candidate"
-	case "accept.receipt":
-		capability["side_effect"] = "writes-candidate-acceptance"
-		capability["usage"] = "specify-runtime accept receipt [<candidate-id> | --candidate-id <id>] [(--review-digest <sha256> --decision accepted|rejected --actor <id>) | --input-json <object>] [--project-root <path>] --format json"
-		capability["input_contract"] = "records the explicit accept receipt for one frozen Candidate against the latest passing Review digest; runtime binds the human acceptance receipt"
-	case "cas.publish":
-		capability["side_effect"] = "publishes-accepted-candidate"
-		capability["usage"] = "specify-runtime cas publish <candidate-id> --acceptance-digest <sha256> --expected-sha256 <sha256> [--project-root <path>] --format json"
-		capability["input_contract"] = "publishes one accepted frozen Candidate under cas protection; runtime verifies the exact acceptance digest, excludes an active primary-workspace owner, and resumes a durable publication journal by observing the protected target ref"
-	case "sync.safe":
-		capability["side_effect"] = "safe-syncs-primary-worktree"
-		capability["usage"] = "specify-runtime sync safe <candidate-id> --publication-digest <sha256> --target-ref <ref> [--project-root <path>] --format json"
-		capability["input_contract"] = "performs a separate safe sync only after a successful publication receipt; runtime excludes an active primary-workspace owner, verifies the published Candidate digest and protected worktree state, and can finish a reset whose receipt write was interrupted"
 	}
 	env.Data["capability"] = capability
 	return writeEnvelope(stdout, env)

@@ -55,11 +55,7 @@ if ([string]::IsNullOrWhiteSpace($featureDesc)) {
 }
 
 $branchPolicy = 'default'
-if ($env:SPECIFY_RUN_MANAGED -eq '1') {
-    # Run Control owns the checked-out private ref. A managed child must never
-    # replace that workspace binding with a public feature branch.
-    $KeepCurrentBranch = $true
-} elseif ($env:SPECIFY_FEATURE_BRANCH_POLICY -eq 'keep-current') {
+if ($env:SPECIFY_FEATURE_BRANCH_POLICY -eq 'keep-current') {
     $KeepCurrentBranch = $true
 }
 if ($KeepCurrentBranch) {

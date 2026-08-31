@@ -4,13 +4,19 @@ Read this for any substantive user-visible UI change, not only when a screenshot
 was supplied. Confirmed discussion state is governed by
 `discussion-handoff.md`.
 
+Derive exact stable path-like surface IDs from confirmed source or registered
+metadata, split surfaces, and never send the whole brief or prose as `--scope`.
 Run `specify-runtime design resolve --scope <exact-surface> --format json`, then
-query `.specify/design/index.json` and the exact change-local `design-change.md` /
+query `.specify/design/index.json` only when present or identified by registered
+metadata, plus the exact change-local `design-change.md` /
 `design-contract.json` for every returned registered candidate. Resolve is
 discovery only and never selects “latest” or adopts. The current formal binding
 is singular, so split `composite: true` coverage into independently bound
 feature units, each with one exact scope, `spec-contract.json`, and
-`ui-brief.md`. Create `ui-brief.md` through
+`ui-brief.md`. Missing registry/coverage is legitimate discovery absence; do not
+blindly artifact-show a missing index or replace required approved Design with
+a prose risk note. Preserve approval/registration and the late-design
+`formal-post-specify` receipt described below. Create `ui-brief.md` through
 `specify-runtime artifact scaffold --kind ui-brief --path <feature-dir>/ui-brief.md`, then fill only its adoption and feature-delta sections through leased `artifact patch` calls; use `assets/ui-brief.md` only as compact field guidance, never as a block to reproduce. When original references exist, create `ui-reference-notes.md` through `artifact scaffold --kind ui-reference-notes` and patch its observed facts. Patch the related `spec-contract.json` fields through leased JSON-pointer `artifact patch`. Set
 `design_contract.ui_applicable: true`, `ui_work_type`,
 `surface_type`, `platforms`, `ui_brief_ref`, and the

@@ -8,7 +8,7 @@ description: Lean implementation workflow for advanced coding models. Use for re
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/native-subagents.md` when implementation lanes are delegated.
 Read `references/workflow-runtime.md` and let its CLI own phase state.
-Read `references/run-bootstrap.md`.
+Read `references/execution-bootstrap.md`.
 Read `references/autonomous-blocker-recovery.md` before treating any task,
 tooling, or validation failure as terminal.
 Read `references/project-cognition.md`, using cognition intent `implement`.
@@ -16,23 +16,27 @@ Read `references/execution-contract.md`. Read `references/worker-contract.md`
 only when delegating. Read `references/consequence-gate.md` only on its triggers.
 Read `references/ui-quality-gate.md` when any ready task is UI-bearing.
 
-`$spx-implement` continues the same run created for the feature. Confirm the same run with `specify-runtime run show`, then execute implementation work only through `specify-runtime run supervise`.
+Resume the feature's durable execution state in the current worktree through
+its runtime owner.
 
-Leader supervision uses task identity `implement:<feature-id>`; packet workers
-use the runtime-derived `<feature-id>#<Txx>`. Every modifying launch carries
-confirmed scope. `implement task-start` requires that fenced Work identity,
+Leader work uses task identity `implement:<feature-id>`; packet workers use the
+runtime-derived `<feature-id>#<Txx>`. Announce complete planned scope, checkpoint
+selection, refresh the overview, and require `specify-runtime execution guard`
+before source writes or dispatch. `implement task-start` requires that fenced Work identity,
 claims the task's complete `expected_write_scope` all-or-none, and returns
 `work_claim` before changing lifecycle state to `in_progress`. A legacy
 scope-empty task reuses the current Work's confirmed scope; a genuinely
 no-write task returns `claim_state: not_required` and must not later report
-changed files. Do not perform source writes without a claimed receipt.
+changed files. The receipt must match the guarded identity and scope. Checkpoint
+validation and call `specify-runtime execution complete` only after fresh passing
+validation and terminal workflow state.
 
 The shared `specify-runtime execution overview` is coordination context only:
 it may reveal that other Implement tasks exist, but it is not
 task selection authority or feature selection authority. Do not choose,
 resume, or bind a feature from an overview activity row. Resolve the owning feature through the
 provenance gate below, then use the matching overview row only to sequence work
-and verify Run/Work ownership.
+and verify Work/Activity ownership.
 
 Resolve the task-bearing feature with the installed
 `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks
@@ -43,7 +47,7 @@ workflow runtime before any source or test edit.
 
 Apply the Feature Context Provenance Gate before task intake. Accept
 `<feature-dir>` only from the setup command, an explicit user selection, or the
-runtime-selected current lane. If feature context is missing or ambiguous, stop
+validated durable workflow binding in the current worktree. If feature context is missing or ambiguous, stop
 before `task-next`; never enumerate `.specify/features/**`, `tasks.md`, or
 `task-index.json`, and never choose a feature from name, slug, title, topic, or
 keyword similarity. An active or unconsumed discussion is not implementation
@@ -76,14 +80,24 @@ with `{{specify-subcmd:specify-runtime implement task-next --feature-dir <featur
 `specify-runtime artifact show`; never parse the full task index with an ad-hoc
 script. The compact execution state is the implementation source of truth,
 `implement-tracker.md` is a compatibility projection, and the CLI alone owns
-those files plus task lifecycle acceptance. Start with `task-start`, compile
-delegated packets with `packet-compile`, and pass the receipt's canonical `path`
+those files plus task lifecycle acceptance. Compile delegated packets with
+`packet-compile` before dispatch, and pass the receipt's canonical `path`
 and `sha256` unchanged as
-`--work-packet-file <path> --work-packet-sha256 <sha256>` on the delegated
-`run launch` or `run supervise` call. Run Control verifies those exact compiled
-bytes before deriving the Work Board task identity, objective, and confirmed
-`scope.write_scope`; do not rebuild them with manual
-`--work-task-ref`, `--work-summary`, or `--work-intents-json`. Merge inline
+`--work-packet-file <receipt.path> --work-packet-sha256 <receipt.sha256>` on
+`specify-runtime execution announce --workflow implement --agent-id <agent-id>
+--adapter-id <adapter-id>`. The runtime verifies the canonical packet path,
+exact current compiler output digest over its bytes before parsing, and
+immutable baseline binding, then derives feature/subject id, item/task id, task identity, objective,
+and the full `planned_write_scope` union of product `write_scope` plus separate
+compiler-derived `bookkeeping_write_scope`. Product scope and `ui_contract`
+stay unchanged. Do not reconstruct or override packet-derived metadata, or
+guard only product paths: use the full returned `planned_write_scope`.
+Bookkeeping paths remain CLI-owned, never hand-edited; serialize ownership when
+shared feature metadata overlaps, without a wildcard or broad `.specify`
+exemption. Guard cannot widen packet-backed scope: recompile and reannounce a
+changed packet; only manual work uses amended-set guards.
+Checkpoint `selected`, refresh the overview, and guard complete file
+and semantic scope before `task-start` or native worker dispatch. Merge inline
 results with `result-merge --result-json`, and accept with `task-accept`. Never
 mutate lifecycle/tracker/task projections directly and never create temporary
 packet/result files.

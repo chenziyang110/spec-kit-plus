@@ -44,9 +44,7 @@ RUNTIME_TIMEOUT_ENV = "SPECIFY_RUNTIME_TIMEOUT_SECONDS"
 DEFAULT_DOWNLOAD_TIMEOUT_SECONDS = 60
 DEFAULT_RUNTIME_QUERY_TIMEOUT_SECONDS = 30
 DEFAULT_RUNTIME_COMMAND_TIMEOUT_SECONDS = 300
-DEFAULT_RUNTIME_SUPERVISED_TIMEOUT_SECONDS = 6 * 60 * 60
 RUNTIME_TIMEOUT_GRACE_SECONDS = 5
-RUNTIME_SUPERVISED_TIMEOUT_GRACE_SECONDS = 15
 MAX_RUNTIME_TIMEOUT_SECONDS = 24 * 60 * 60
 # Cold ``go build`` on Windows/CI can exceed two minutes after module fetch.
 DEFAULT_SOURCE_BUILD_TIMEOUT_SECONDS = 300
@@ -245,27 +243,12 @@ REQUIRED_CAPABILITIES = (
     "review.resume-audit",
     "review.target-bind",
     "review.validate",
-    "result.depend",
-    "result.list",
     "result.path",
-    "result.reopen",
-    "result.show",
     "result.submit",
-    "run.cancel",
-    "run.create",
-    "run.events",
-    "run.launch",
-    "run.show",
-    "run.supervise",
-    "candidate.build",
-    "candidate.review",
-    "candidate.show",
     "accept.closeout",
     "accept.prepare",
-    "accept.receipt",
     "accept.route-repair",
     "accept.validate",
-    "cas.publish",
     "sp-teams.auto-dispatch",
     "sp-teams.complete-batch",
     "sp-teams.doctor",
@@ -307,7 +290,6 @@ REQUIRED_CAPABILITIES = (
     "quick.preflight",
     "quick.resume",
     "quick.status",
-    "sync.safe",
     "tasks.build",
     "tasks.finalize",
     "tasks.handoff",
@@ -335,6 +317,20 @@ REQUIRED_CAPABILITIES = (
     "work.resume",
     "work.scope-add",
     "work.show",
+)
+# A pre-retirement binary is not compatible merely because its old surface is
+# a superset: execution announce now accepts the packet-bound direct workflow.
+_RETIRED_CAPABILITY_PREFIXES = ("run.", "candidate.")
+_RETIRED_CAPABILITIES = frozenset(
+    {
+        "result.list",
+        "result.show",
+        "result.reopen",
+        "result.depend",
+        "accept.receipt",
+        "cas.publish",
+        "sync.safe",
+    }
 )
 RUNTIME_COMMAND = "specify-runtime"
 RUNTIME_ENV = "SPECIFY_RUNTIME_BIN"
@@ -386,13 +382,6 @@ def _is_short_runtime_query(args: Sequence[str]) -> bool:
     }
 
 
-def _is_supervised_runtime_command(args: Sequence[str]) -> bool:
-    return len(args) >= 2 and tuple(args[:2]) in {
-        ("run", "launch"),
-        ("run", "supervise"),
-    }
-
-
 def _runtime_command_timeout_seconds(args: Sequence[str]) -> float:
     raw = os.environ.get(RUNTIME_TIMEOUT_ENV, "").strip()
     if raw:
@@ -409,16 +398,9 @@ def _runtime_command_timeout_seconds(args: Sequence[str]) -> float:
             )
     elif _is_short_runtime_query(args):
         budget = float(DEFAULT_RUNTIME_QUERY_TIMEOUT_SECONDS)
-    elif _is_supervised_runtime_command(args):
-        budget = float(DEFAULT_RUNTIME_SUPERVISED_TIMEOUT_SECONDS)
     else:
         budget = float(DEFAULT_RUNTIME_COMMAND_TIMEOUT_SECONDS)
-    grace = (
-        RUNTIME_SUPERVISED_TIMEOUT_GRACE_SECONDS
-        if _is_supervised_runtime_command(args)
-        else RUNTIME_TIMEOUT_GRACE_SECONDS
-    )
-    return budget + grace
+    return budget + RUNTIME_TIMEOUT_GRACE_SECONDS
 
 
 def _runtime_operation(args: Sequence[str]) -> str:
@@ -1071,7 +1053,7 @@ def launcher_supports_required_commands(
     *,
     cwd: Path | None = None,
 ) -> bool:
-    """Return whether a launcher prefix exposes the required runtime protocol."""
+    """Require the current surface, including retirement of old Run commands."""
 
     info = _runtime_handshake(argv, cwd=cwd)
     if info is None:
@@ -1081,6 +1063,12 @@ def launcher_supports_required_commands(
     if protocol != EXPECTED_RUNTIME_PROTOCOL or not isinstance(capabilities, list):
         return False
     capability_set = {str(capability) for capability in capabilities}
+    if any(
+        capability.startswith(_RETIRED_CAPABILITY_PREFIXES)
+        or capability in _RETIRED_CAPABILITIES
+        for capability in capability_set
+    ):
+        return False
     return all(capability in capability_set for capability in REQUIRED_CAPABILITIES)
 
 

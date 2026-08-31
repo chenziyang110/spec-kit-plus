@@ -69,23 +69,86 @@ def test_debug_guidance_aggregates_same_checkpoint_session_updates() -> None:
         assert "older runtimes" in content
 
 
-def test_new_run_workflows_prefer_single_call_run_launch_with_legacy_fallback() -> None:
+def test_execution_workflows_use_guarded_current_worktree_path_without_process_fallback() -> None:
     for relative in (
         "templates/commands/fast.md",
         "templates/commands/debug.md",
         "templates/commands/quick.md",
-        "templates/commands/specify.md",
+        "templates/commands/implement.md",
         "templates/advanced-skills/spx-fast/SKILL.md",
         "templates/advanced-skills/spx-debug/SKILL.md",
         "templates/advanced-skills/spx-quick/SKILL.md",
-        "templates/advanced-skills/spx-specify/SKILL.md",
-        "templates/command-partials/common/run-bootstrap.md",
-        "templates/advanced-skills/_shared/run-bootstrap.md",
+        "templates/advanced-skills/spx-implement/SKILL.md",
+        "templates/command-partials/common/execution-bootstrap.md",
+        "templates/advanced-skills/_shared/execution-bootstrap.md",
     ):
-        content = read_template(relative).lower()
-        assert "run launch" in content, relative
-        assert "single" in content and "call" in content, relative
-        assert "older runtime" in content and "run create" in content and "run supervise" in content, relative
+        content = " ".join(read_template(relative).lower().split())
+        assert "execution guard" in content, relative
+        assert "execution complete" in content, relative
+        assert "current worktree" in content, relative
+        assert "run launch" not in content, relative
+        assert "run create" not in content and "run supervise" not in content, relative
+
+
+def test_large_atomic_artifact_batches_use_in_memory_utf8_stdin() -> None:
+    for relative in (
+        "templates/command-partials/common/runtime-artifact-boundary.md",
+        "templates/advanced-skills/_shared/runtime-artifact-boundary.md",
+    ):
+        content = " ".join(read_template(relative).lower().split())
+        for token in (
+            "--input-json -",
+            "stdin",
+            "utf-8",
+            "memory",
+            "windows",
+            "one prepared lease for one atomic patch-batch",
+            "32 operations",
+            "256 kib",
+            "json_pointer",
+            "do not write a temporary authoring file",
+            "split only when a runtime bound",
+            "fresh lease",
+        ):
+            assert token in content, (relative, token)
+        assert "not mean argv-only" in content
+
+
+def test_design_discovery_uses_stable_scopes_and_preserves_missing_design_gates() -> None:
+    for relative in (
+        "templates/command-partials/common/design-intelligence.md",
+        "templates/advanced-skills/_shared/ui-quality-gate.md",
+        "templates/command-partials/specify/shell.md",
+        "templates/advanced-skills/spx-specify/references/ui-and-handoffs.md",
+        "templates/command-references/quick/packetized-work.md",
+        "templates/advanced-skills/spx-quick/SKILL.md",
+    ):
+        content = " ".join(read_template(relative).lower().split())
+        assert "stable path-like" in content, relative
+        assert "whole brief" in content and "--scope" in content, relative
+        assert "registered metadata" in content, relative
+        assert "legitimate discovery absence" in content, relative
+        assert "approved design" in content and "risk note" in content, relative
+        assert "approval" in content and "registration" in content, relative
+
+
+def test_unchanged_learning_and_cognition_intake_is_reused_without_weakening_refresh() -> None:
+    for relative in (
+        "templates/command-partials/common/learning-layer.md",
+        "templates/advanced-skills/_shared/project-learning.md",
+        "templates/command-partials/common/context-loading-gradient.md",
+        "templates/advanced-skills/_shared/project-cognition.md",
+        "templates/passive-skills/spec-kit-project-learning/SKILL.md",
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+    ):
+        content = " ".join(read_template(relative).lower().split())
+        assert "reuse one" in content or "reuse this learning intake" in content, relative
+        assert "unchanged" in content and "intake" in content, relative
+        assert "preparatory" in content, relative
+        assert "refresh" in content and "scope" in content, relative
+        assert "freshness/generation" in content, relative
+        assert "resume/recovery" in content, relative
+        assert "mutation-closeout" in content, relative
 
 
 def test_project_cognition_gate_uses_bounded_capability_checks_instead_of_relisting() -> None:

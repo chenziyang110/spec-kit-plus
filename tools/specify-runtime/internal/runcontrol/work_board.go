@@ -17,7 +17,7 @@ import (
 )
 
 // The Work Board is repository-scoped durable coordination state. It is not
-// owned by the short-lived supervisor epoch used by an individual CLI call.
+// owned by an individual CLI call or database handle.
 // A WorkItem owns its authority through revision, fence, and lease fields.
 const workBoardSchemaSQL = `
 CREATE TABLE IF NOT EXISTS work_items (
@@ -122,7 +122,7 @@ const (
 type WorkItem struct {
 	WorkID            string
 	ParentWorkID      string
-	RunID             string
+	RunID             string // Optional historical metadata; never execution authority.
 	TaskRef           string
 	Summary           string
 	AgentID           string
@@ -168,7 +168,7 @@ type WriteIntentSpec struct {
 type BeginWorkParams struct {
 	WorkID        string
 	ParentWorkID  string
-	RunID         string
+	RunID         string // Optional historical metadata; never execution authority.
 	TaskRef       string
 	Summary       string
 	AgentID       string
@@ -192,6 +192,8 @@ type ClaimWorkIntentsParams struct {
 	ExpectedRevision int64
 	Fence            int64
 	Specs            []WriteIntentSpec
+	PacketRef        string // Optional except when verifying a packet-bound execution.
+	PacketSHA256     string
 }
 
 type CheckpointWorkParams struct {
@@ -376,6 +378,12 @@ func (store *Store) GetWork(ctx context.Context, workID string) (WorkItem, []Wri
 }
 
 func (view *View) GetWork(ctx context.Context, workID string) (WorkItem, []WriteIntent, error) {
+	if strings.TrimSpace(workID) == "" {
+		return WorkItem{}, nil, fmt.Errorf("%w: work_id is required", ErrInvalidArgument)
+	}
+	if !view.hasWorkBoard {
+		return WorkItem{}, nil, fmt.Errorf("%w: Work %q", ErrNotFound, workID)
+	}
 	return getWork(ctx, view.db, workID)
 }
 
@@ -400,12 +408,20 @@ func (store *Store) ListWork(ctx context.Context, params ListWorkParams) ([]Work
 }
 
 func (view *View) ListWork(ctx context.Context, params ListWorkParams) ([]WorkItem, error) {
+	if !view.hasWorkBoard {
+		for _, status := range params.Statuses {
+			if !validWorkStatus(status) {
+				return nil, fmt.Errorf("%w: unsupported work status %q", ErrInvalidArgument, status)
+			}
+		}
+		return []WorkItem{}, nil
+	}
 	return listWork(ctx, view.db, params)
 }
 
 // ResolveFeatureBranchPolicy preserves the historical feature-branch behavior
 // unless another live task or dirty recovery hold is visible on the shared
-// repository board. The current managed Work item is excluded from the test.
+// repository board. The current Work item is excluded from the test.
 func (store *Store) ResolveFeatureBranchPolicy(
 	ctx context.Context,
 	currentWorkID string,
@@ -483,6 +499,12 @@ func (store *Store) FindWorkOwners(ctx context.Context, requestedPath string) ([
 }
 
 func (view *View) FindWorkOwners(ctx context.Context, requestedPath string) ([]WorkIntentOwner, error) {
+	if !view.hasWorkBoard {
+		if _, _, err := normalizeWorkPath(requestedPath, runtime.GOOS == "windows"); err != nil {
+			return nil, err
+		}
+		return []WorkIntentOwner{}, nil
+	}
 	return findWorkOwners(ctx, view.db, requestedPath)
 }
 
@@ -827,7 +849,7 @@ func (store *Store) CheckpointWork(ctx context.Context, params CheckpointWorkPar
 	return work, nil
 }
 
-// RenewWorkLease is the supervisor-owned heartbeat path. It deliberately does
+// RenewWorkLease is the owner's heartbeat path. It deliberately does
 // not require an expected revision because a managed child may add scope or
 // record a checkpoint between heartbeats. The fence and live lease remain the
 // authority boundary, and renewal never overwrites child-authored progress.

@@ -9,18 +9,17 @@ import (
 )
 
 func TestExecutionOverviewJoinsFastDebugImplementAndQuickActivity(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	writeQuickCoordinationFixture(t, root, "260826-upload", "Upload recognition", "executing", []string{"src/upload"})
 	writeQuickCoordinationFixture(t, root, "260826-nodes", "Node workbench", "planned", []string{"src/nodes"})
 	writeExecutionOverviewImplementFixture(t, root, "feature-ledger", "T001", "in_progress", []string{"src/ledger"})
 
-	createExecutionOverviewRun(t, root, "run-quick", "sp-quick", "quick", "260826-upload")
-	createExecutionOverviewRun(t, root, "run-debug", "debug", "debug", "overlay-dismiss")
-	beginExecutionOverviewWork(t, root, "work-quick", "run-quick", "quick:260826-upload", "Upload recognition", "src/upload")
-	beginExecutionOverviewWork(t, root, "work-fast", "", "fast:small-copy-fix", "Small copy fix", "src/copy")
-	beginExecutionOverviewWork(t, root, "work-implement", "", "implement:feature-ledger", "Ledger implementation", "src/ledger")
+	beginExecutionOverviewWork(t, root, "work-quick", "quick:260826-upload", "Upload recognition", "src/upload")
+	beginExecutionOverviewWork(t, root, "work-debug", "debug:overlay-dismiss", "Overlay dismissal", "src/overlay")
+	beginExecutionOverviewWork(t, root, "work-fast", "fast:small-copy-fix", "Small copy fix", "src/copy")
+	beginExecutionOverviewWork(t, root, "work-implement", "implement:feature-ledger", "Ledger implementation", "src/ledger")
 
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"execution", "overview",
 		"--project-root", root,
 		"--current-work-id", "work-quick",
@@ -36,7 +35,7 @@ func TestExecutionOverviewJoinsFastDebugImplementAndQuickActivity(t *testing.T) 
 	if data["workflow_count"] != float64(4) || data["execution_count"] != float64(5) {
 		t.Fatalf("overview counts = %#v", data)
 	}
-	if data["open_task_count"] != float64(3) || data["nonterminal_run_count"] != float64(2) || data["live_work_count"] != float64(3) {
+	if data["open_task_count"] != float64(3) || data["live_work_count"] != float64(4) {
 		t.Fatalf("source counts = %#v", data)
 	}
 	if data["untracked_open_task_count"] != float64(1) {
@@ -45,15 +44,15 @@ func TestExecutionOverviewJoinsFastDebugImplementAndQuickActivity(t *testing.T) 
 
 	activities := requireObjectSlice(t, data, "activities")
 	quick := executionOverviewActivity(t, activities, "quick", "260826-upload", "")
-	if quick["tracking_state"] != "managed" || quick["current"] != true {
+	if quick["tracking_state"] != "work_tracked" || quick["current"] != true {
 		t.Fatalf("quick activity = %#v", quick)
 	}
-	if strings.Join(anyStringSlice(quick["run_ids"]), ",") != "run-quick" || strings.Join(anyStringSlice(quick["work_ids"]), ",") != "work-quick" {
+	if strings.Join(anyStringSlice(quick["work_ids"]), ",") != "work-quick" {
 		t.Fatalf("quick correlation = %#v", quick)
 	}
 	_ = executionOverviewActivity(t, activities, "fast", "small-copy-fix", "")
 	debug := executionOverviewActivity(t, activities, "debug", "overlay-dismiss", "")
-	if debug["tracking_state"] != "run_only" {
+	if debug["tracking_state"] != "work_only" {
 		t.Fatalf("debug activity = %#v", debug)
 	}
 	implementation := executionOverviewActivity(t, activities, "implement", "feature-ledger", "T001")
@@ -73,12 +72,12 @@ func TestExecutionOverviewJoinsFastDebugImplementAndQuickActivity(t *testing.T) 
 }
 
 func TestExecutionOverviewBlocksDuplicateLiveOwnersOfSameTask(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	writeQuickCoordinationFixture(t, root, "260826-shared", "Shared task", "executing", []string{"src/shared-a", "src/shared-b"})
-	beginExecutionOverviewWork(t, root, "work-owner-a", "", "quick:260826-shared", "Shared task A", "src/shared-a")
-	beginExecutionOverviewWork(t, root, "work-owner-b", "", "quick:260826-shared", "Shared task B", "src/shared-b")
+	beginExecutionOverviewWork(t, root, "work-owner-a", "quick:260826-shared", "Shared task A", "src/shared-a")
+	beginExecutionOverviewWork(t, root, "work-owner-b", "quick:260826-shared", "Shared task B", "src/shared-b")
 
-	code, payload := invokeRunCLI(t, "execution", "overview", "--project-root", root, "--format", "json")
+	code, payload := invokeCoordinationCLI(t, "execution", "overview", "--project-root", root, "--format", "json")
 	if code != ExitCodeForStatus("blocked") || payload["status"] != "blocked" {
 		t.Fatalf("execution overview = code %d envelope %#v", code, payload)
 	}
@@ -94,10 +93,10 @@ func TestExecutionOverviewBlocksDuplicateLiveOwnersOfSameTask(t *testing.T) {
 }
 
 func TestExecutionOverviewWarnsWhenExecutingTaskHasNoWorkAuthority(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	writeExecutionOverviewImplementFixture(t, root, "feature-untracked", "T009", "in_progress", []string{"src/untracked"})
 
-	code, payload := invokeRunCLI(t, "execution", "overview", "--project-root", root, "--format", "json")
+	code, payload := invokeCoordinationCLI(t, "execution", "overview", "--project-root", root, "--format", "json")
 	if code != 0 || payload["status"] != "ok" {
 		t.Fatalf("execution overview = code %d envelope %#v", code, payload)
 	}
@@ -113,9 +112,9 @@ func TestExecutionOverviewWarnsWhenExecutingTaskHasNoWorkAuthority(t *testing.T)
 }
 
 func TestExecutionOverviewBlocksUnknownCurrentWorkIdentity(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"execution", "overview",
 		"--project-root", root,
 		"--current-work-id", "missing-work",
@@ -133,7 +132,7 @@ func TestExecutionOverviewBlocksUnknownCurrentWorkIdentity(t *testing.T) {
 }
 
 func TestExecutionOverviewIsPublishedAsOneSharedRuntimeCapability(t *testing.T) {
-	code, payload := invokeRunCLI(t, "api", "show", "execution.overview", "--format", "json")
+	code, payload := invokeCoordinationCLI(t, "api", "show", "execution.overview", "--format", "json")
 	if code != 0 || payload["status"] != "ok" {
 		t.Fatalf("api show execution.overview = code %d envelope %#v", code, payload)
 	}
@@ -149,11 +148,11 @@ func TestExecutionOverviewIsPublishedAsOneSharedRuntimeCapability(t *testing.T) 
 }
 
 func TestExecutionOverviewWarnsAcrossWorkflowPlannedScopeOverlap(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	writeQuickCoordinationFixture(t, root, "260826-shared-plan", "Shared Quick plan", "planned", []string{"src/shared"})
 	writeExecutionOverviewImplementFixture(t, root, "feature-shared-plan", "T010", "pending", []string{"src/shared/worker.go"})
 
-	code, payload := invokeRunCLI(t, "execution", "overview", "--project-root", root, "--format", "json")
+	code, payload := invokeCoordinationCLI(t, "execution", "overview", "--project-root", root, "--format", "json")
 	if code != 0 || payload["status"] != "ok" {
 		t.Fatalf("execution overview = code %d envelope %#v", code, payload)
 	}
@@ -172,11 +171,11 @@ func TestExecutionOverviewWarnsAcrossWorkflowPlannedScopeOverlap(t *testing.T) {
 }
 
 func TestExecutionOverviewBlocksExecutingTaskWhoseScopeWasNotClaimed(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	writeQuickCoordinationFixture(t, root, "260826-unclaimed", "Unclaimed Quick", "executing", []string{"src/unclaimed"})
-	beginExecutionOverviewWorkWithConfidence(t, root, "work-unclaimed", "", "quick:260826-unclaimed", "Unclaimed Quick", "src/unclaimed", "candidate")
+	beginExecutionOverviewWorkWithConfidence(t, root, "work-unclaimed", "quick:260826-unclaimed", "Unclaimed Quick", "src/unclaimed", "candidate")
 
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"execution", "overview",
 		"--project-root", root,
 		"--current-work-id", "work-unclaimed",
@@ -193,30 +192,12 @@ func TestExecutionOverviewBlocksExecutingTaskWhoseScopeWasNotClaimed(t *testing.
 	}
 }
 
-func createExecutionOverviewRun(t *testing.T, root, runID, kind, subjectType, subjectID string) {
+func beginExecutionOverviewWork(t *testing.T, root, workID, taskRef, summary, path string) {
 	t.Helper()
-	code, payload := invokeRunCLI(t,
-		"run", "create",
-		"--project-root", root,
-		"--run-id", runID,
-		"--kind", kind,
-		"--subject-type", subjectType,
-		"--subject-id", subjectID,
-		"--target-ref", "main",
-		"--intent-sha256", strings.Repeat("a", 64),
-		"--format", "json",
-	)
-	if code != 0 || payload["status"] != "ok" {
-		t.Fatalf("run create %s = code %d envelope %#v", runID, code, payload)
-	}
+	beginExecutionOverviewWorkWithConfidence(t, root, workID, taskRef, summary, path, "confirmed")
 }
 
-func beginExecutionOverviewWork(t *testing.T, root, workID, runID, taskRef, summary, path string) {
-	t.Helper()
-	beginExecutionOverviewWorkWithConfidence(t, root, workID, runID, taskRef, summary, path, "confirmed")
-}
-
-func beginExecutionOverviewWorkWithConfidence(t *testing.T, root, workID, runID, taskRef, summary, path, confidence string) {
+func beginExecutionOverviewWorkWithConfidence(t *testing.T, root, workID, taskRef, summary, path, confidence string) {
 	t.Helper()
 	intents := marshalWorkBoardCLIJSON(t, []map[string]any{{
 		"path": path, "operation": "modify", "reason": summary, "confidence": confidence,
@@ -233,10 +214,7 @@ func beginExecutionOverviewWorkWithConfidence(t *testing.T, root, workID, runID,
 		"--intents-json", intents,
 		"--format", "json",
 	}
-	if runID != "" {
-		args = append(args[:4], append([]string{"--run-id", runID}, args[4:]...)...)
-	}
-	code, payload := invokeRunCLI(t, args...)
+	code, payload := invokeCoordinationCLI(t, args...)
 	if code != 0 || payload["status"] != "ok" {
 		t.Fatalf("work begin %s = code %d envelope %#v", workID, code, payload)
 	}

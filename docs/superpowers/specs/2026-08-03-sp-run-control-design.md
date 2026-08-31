@@ -2,9 +2,15 @@
 
 ## Status
 
-This document is the implementation contract for replacing project-wide workflow
-serialization with independently isolated Runs. It supersedes the retired
-Feature Lane model. Human product acceptance remains an explicit user action.
+Retired historical design, not the current implementation contract or executable
+workflow guidance. Work Board + execution now owns current-worktree coordination;
+see `README.md` and `PROJECT-HANDBOOK.md`. The design below records the former
+Run model only. Historical Run records are inert preserved history; existing
+worktrees remain untouched and live/recovery-held Work ownership remains active
+until reconciliation or explicit resolution. Safe additive metadata schema
+evolution is allowed; retirement never deletes or rewrites historical records
+or automatically cleans up worktrees. Human product acceptance remains an
+explicit user action.
 
 ## Goals
 

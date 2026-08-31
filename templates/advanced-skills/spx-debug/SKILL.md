@@ -42,7 +42,7 @@ again. The remaining skill text owns the full Debug branch.
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/native-subagents.md` when evidence lanes are delegated.
 Read `references/project-cognition.md`, using cognition intent `debug`.
-Read `references/run-bootstrap.md`.
+Read `references/execution-bootstrap.md`.
 Read `references/autonomous-blocker-recovery.md` before treating any
 investigation, harness, or verification failure as terminal.
 Read `references/human-confirmation.md`, then
@@ -64,21 +64,18 @@ partial, error, permission, offline, retry, undo, recovery), resize/reflow
 input), and/or taste/generic-look; record
 issue, reason, and design-aware fix direction before coding.
 
-The full `$spx-debug` branch always starts a new Run. When its exact metadata and
-child argv are ready, use `specify-runtime run launch` as the single call that
-records and supervises it; do not resume another workflow's Run. Older runtimes
-without `run.launch` fall back to `specify-runtime run create` followed by
-`specify-runtime run supervise`. The explicit user-selected
-context-direct branch is the sole exception and creates no run or debug
-session.
-
-Launch the full branch with task identity `debug:<session-slug>` and confirmed
-initial scope; zero confirmed scope blocks before the child starts. Once the
-complete repair scope is proven, call `specify-runtime work claim --task-ref
-debug:<session-slug> --write-scope-json <complete-json-array> --format json`
-and require `data.work_claim` before the first source write. Context-direct
-still uses the shared Work registration and `work claim` gate before its
-bounded fix; it skips Debug state, not write coordination.
+Create an absent full Debug session with `specify-runtime artifact scaffold
+--kind debug-session`, or resume its existing state through targeted
+`specify-runtime artifact show` calls in the current worktree with task
+identity `debug:<session-slug>`. The explicit user-selected context-direct
+branch creates no debug session; both routes use the shared execution bootstrap.
+Once the complete repair scope is proven, announce it, checkpoint selection,
+refresh the overview, and require the all-or-none
+`specify-runtime execution guard` before the first source write. Context-direct
+uses that same guarded Work/Activity lifecycle before its bounded fix; skipping
+Debug state does not skip write coordination. Checkpoint validation and call
+`specify-runtime execution complete` only after fresh passing validation and
+terminal workflow state.
 
 Create or resume the session in its unconfirmed intake state. Render the Debug
 checkpoint from `references/human-confirmation.md` as readable headings and

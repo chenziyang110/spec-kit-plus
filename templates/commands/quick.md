@@ -9,18 +9,18 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/quick/shell.md}}
 
-{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
+{{spec-kit-include: ../command-partials/common/execution-bootstrap.md}}
 {{spec-kit-include: ../command-partials/common/autonomous-blocker-recovery.md}}
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
 [AGENT] Apply the Pre-Intake Context Sufficiency Gate first. The full Quick
-branch always starts a new Run: when its exact metadata and child argv are ready,
-use `specify-runtime run launch` as the single call that records and supervises
-it; do not resume another workflow's Run. Older runtimes without `run.launch`
-fall back to `specify-runtime run create` followed by `specify-runtime run
-supervise`. The explicit user-selected context-direct branch is the sole
-exception and creates no run or Quick workspace.
+branch creates or resumes its task workspace in the current worktree. The
+explicit user-selected context-direct branch creates no Quick workspace; both
+routes announce scope, checkpoint selection, refresh the overview, and require
+`specify-runtime execution guard` before source writes. Checkpoint validation
+and call `specify-runtime execution complete` only after fresh passing validation
+and terminal workflow state.
 
 ## Senior Consequence Analysis Summary
 
@@ -43,7 +43,7 @@ and Quick activity in one `execution-overview-v1` snapshot. The older
 `specify-runtime quick preflight [<quick-id>] --format json` remains a
 compatibility view for Quick-specific legacy fields and signals; it is not the
 global concurrency authority. An empty Work Board does not mean that no other
-task exists; inspect the unified `activities`, `work_board`, `runs`, and
+task exists; inspect the unified `activities`, `work_board`, and
 `signals` together.
 
 In the compatibility Quick preflight, interpret `write_overlap` as a hard
@@ -61,26 +61,25 @@ the Quick id.
 
 Refresh the unified snapshot at events, not on a timer: at entry or resume, before the
 first `quick item-start`, after each join before selecting the next Q item or
-batch, and before `work scope-add`, interrupted-work recovery, or a material
-scope expansion. Do not poll the two stores continuously. Register managed
-Quick work with `--work-task-ref quick:<id>` and unhosted work with `--task-ref
+batch, and before execution guard, interrupted-work recovery, or a material
+scope expansion. Do not poll on a timer. Announce Quick work with `--task-ref
 quick:<id>`; use `quick:<id>#Qn` for separately registered Q workers so the
 preflight can correlate both views.
 
 `quick item-start` is the write boundary, not just a lifecycle marker. It
-requires the exact active Work id and fence (managed Runs receive
-`SPECIFY_WORK_ID` / `SPECIFY_WORK_FENCE`; unhosted callers pass
-`--current-work-id` / `--current-work-fence`). Before changing the Q item to `in_progress`
+requires the exact guarded Work id and fence through
+`--current-work-id` / `--current-work-fence` or matching inherited
+`SPECIFY_WORK_ID` / `SPECIFY_WORK_FENCE`. Before changing the Q item to `in_progress`
 or writing its packet, runtime claims the selected item's complete `write_scope`
 as confirmed Work Board intents in one all-or-none transaction.
 Missing identity, a foreign `task_ref`, stale fence, inactive Work, or any scope
 conflict blocks without changing Quick state. The successful response's
-`work_claim` receipt is the dispatch authority.
+`work_claim` receipt must match the successful execution guard before dispatch.
 
 The default ownership model is one Quick-level Work identity for the active
 batch. Spawned workers inherit that Quick-level Work authority and do not
 register overlapping child scopes. Use `quick:<id>#Qn` only when a host gives
-that Q worker an independent supervised Work identity and the Quick-level owner
+that Q worker an independent guarded Work/Activity identity and the Quick-level owner
 does not already hold the same source paths.
 
 ## Read-Only Test Design Projection Gate

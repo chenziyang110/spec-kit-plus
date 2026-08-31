@@ -4,11 +4,11 @@ Purpose: recover compact execution truth and current task context without reload
 
 Preserved Contract: implementation remains resumable, task-driven, evidence-backed, and honest about blockers and completion.
 
-{{spec-kit-include: ../../command-partials/common/run-bootstrap.md}}
+{{spec-kit-include: ../../command-partials/common/execution-bootstrap.md}}
 
 ## Intake
 
-1. Verify the managed Run worktree binding and resolve its active feature subject.
+1. Verify the current worktree and durable workflow binding and resolve its active feature subject.
 2. Call `specify-runtime implement task-next` for compact execution state and the next ready task. Query any extra field with `specify-runtime artifact show --json-pointer`; do not parse the complete task index directly.
 3. Validate task-graph revision, current ready batch, dependencies, and relevant repository baseline.
 4. Load only the current task's required refs and live touched-area evidence.

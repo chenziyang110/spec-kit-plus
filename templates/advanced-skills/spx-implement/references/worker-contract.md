@@ -7,6 +7,14 @@ leader-direct. The leader retains task graph, join, task acceptance,
 task-level review, and final implementation verification ownership. The later
 system Review remains an independent workflow.
 
+The hashed packet pins product scope and separate runtime-derived
+`bookkeeping_write_scope`; product `write_scope` and `ui_contract` stay unchanged.
+Guard execution announce's full returned `planned_write_scope` union, never only
+the product paths. Bookkeeping paths remain CLI-owned and never hand-edited.
+Shared feature metadata overlap requires serialized ownership; do not drop
+those paths, use a wildcard, or add a broad `.specify` audit exemption to force
+parallel dispatch.
+
 Provide the worker:
 
 - full task outcome and authoritative contract refs;

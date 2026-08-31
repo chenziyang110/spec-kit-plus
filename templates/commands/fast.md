@@ -10,7 +10,7 @@ workflow_contract:
 {{spec-kit-include: ../command-partials/fast/shell.md}}
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
-{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
+{{spec-kit-include: ../command-partials/common/execution-bootstrap.md}}
 {{spec-kit-include: ../command-partials/common/autonomous-blocker-recovery.md}}
 
 ## Project Learning Intake
@@ -31,13 +31,13 @@ Learning write surface can handle it later.
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
-[AGENT] `sp-fast` always starts a new Run. When its exact metadata and child argv are ready, use `specify-runtime run launch` as the single call that records and supervises it; do not resume another workflow's Run. Older runtimes without `run.launch` fall back to `specify-runtime run create` followed by `specify-runtime run supervise`.
-
-[AGENT] Launch Fast with exact task identity `fast:<run-id>` and at least one
-confirmed planned write scope; zero confirmed scope blocks before the child
-starts. Inside the managed child, call `specify-runtime work claim --task-ref
-fast:<run-id> --write-scope-json <complete-json-array> --format json` and require
-its all-or-none `data.work_claim` receipt before the first source write.
+[AGENT] `sp-fast` works directly in the current worktree with exact task identity
+`fast:<task-id>`. Follow the shared execution bootstrap: announce the complete
+planned scope, checkpoint selection, refresh the overview, and require the
+all-or-none `specify-runtime execution guard` before the first source write.
+Zero confirmed write scope blocks mutation. Checkpoint validation and call
+`specify-runtime execution complete` only after fresh passing validation and
+terminal workflow state; preserve unrelated work and external approval gates.
 
 ## Detailed References
 

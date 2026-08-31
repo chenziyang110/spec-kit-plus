@@ -92,8 +92,8 @@ func writeBoardHelp(stdout io.Writer) int {
 }
 
 func workBegin(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 0,
-		"--project-root", "--work-id", "--parent-work-id", "--run-id", "--task-ref",
+	parsed, err := parseCoordinationCommandArgs(args, 0,
+		"--project-root", "--work-id", "--parent-work-id", "--task-ref",
 		"--summary", "--agent-id", "--adapter-id", "--workspace-root", "--base-commit",
 		"--next-action", "--lease-seconds", "--intents-json", "--format",
 	)
@@ -137,7 +137,6 @@ func workBegin(args []string, stdout io.Writer) int {
 	work, writeIntents, operationErr := store.BeginWork(ctx, runcontrol.BeginWorkParams{
 		WorkID:        parsed.option("--work-id", ""),
 		ParentWorkID:  parsed.option("--parent-work-id", ""),
-		RunID:         parsed.option("--run-id", ""),
 		TaskRef:       parsed.option("--task-ref", ""),
 		Summary:       parsed.option("--summary", ""),
 		AgentID:       parsed.option("--agent-id", ""),
@@ -163,7 +162,7 @@ func workBegin(args []string, stdout io.Writer) int {
 }
 
 func workShow(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 1, "--project-root", "--format")
+	parsed, err := parseCoordinationCommandArgs(args, 1, "--project-root", "--format")
 	if err != nil {
 		return writeEnvelope(stdout, workBoardUsageEnvelope(err.Error()))
 	}
@@ -191,7 +190,7 @@ func workShow(args []string, stdout io.Writer) int {
 }
 
 func workClaim(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 0,
+	parsed, err := parseCoordinationCommandArgs(args, 0,
 		"--project-root", "--current-work-id", "--current-work-fence", "--task-ref",
 		"--write-scope-json", "--reason", "--format",
 	)
@@ -237,7 +236,7 @@ func workClaim(args []string, stdout io.Writer) int {
 }
 
 func workScopeAdd(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 1,
+	parsed, err := parseCoordinationCommandArgs(args, 1,
 		"--project-root", "--expected-revision", "--fence", "--path", "--operation",
 		"--reason", "--confidence", "--format",
 	)
@@ -286,7 +285,7 @@ func workScopeAdd(args []string, stdout io.Writer) int {
 }
 
 func workCheckpoint(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 1,
+	parsed, err := parseCoordinationCommandArgs(args, 1,
 		"--project-root", "--expected-revision", "--fence", "--lease-seconds",
 		"--next-action", "--observed-paths-json", "--format",
 	)
@@ -336,7 +335,7 @@ func workCheckpoint(args []string, stdout io.Writer) int {
 }
 
 func workTransition(args []string, stdout io.Writer, target runcontrol.WorkStatus) int {
-	parsed, err := parseRunCommandArgs(args, 1,
+	parsed, err := parseCoordinationCommandArgs(args, 1,
 		"--project-root", "--expected-revision", "--fence", "--reason", "--next-action", "--format",
 	)
 	if err != nil {
@@ -380,7 +379,7 @@ func workTransition(args []string, stdout io.Writer, target runcontrol.WorkStatu
 }
 
 func workInterrupt(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 1,
+	parsed, err := parseCoordinationCommandArgs(args, 1,
 		"--project-root", "--expected-revision", "--fence", "--reason", "--next-action", "--format",
 	)
 	if err != nil {
@@ -448,7 +447,7 @@ func workInterrupt(args []string, stdout io.Writer) int {
 }
 
 func workResume(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 1,
+	parsed, err := parseCoordinationCommandArgs(args, 1,
 		"--project-root", "--expected-revision", "--agent-id", "--adapter-id",
 		"--workspace-root", "--base-commit", "--next-action", "--lease-seconds", "--format",
 	)
@@ -536,7 +535,7 @@ func workResume(args []string, stdout io.Writer) int {
 }
 
 func boardShow(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 0, "--project-root", "--status", "--format")
+	parsed, err := parseCoordinationCommandArgs(args, 0, "--project-root", "--status", "--format")
 	if err != nil {
 		return writeEnvelope(stdout, workBoardUsageEnvelope(err.Error()))
 	}
@@ -592,7 +591,7 @@ func boardShow(args []string, stdout io.Writer) int {
 }
 
 func boardOwner(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 1, "--project-root", "--format")
+	parsed, err := parseCoordinationCommandArgs(args, 1, "--project-root", "--format")
 	if err != nil {
 		return writeEnvelope(stdout, workBoardUsageEnvelope(err.Error()))
 	}
@@ -629,7 +628,7 @@ func boardOwner(args []string, stdout io.Writer) int {
 }
 
 func boardReconcile(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 0, "--project-root", "--format")
+	parsed, err := parseCoordinationCommandArgs(args, 0, "--project-root", "--format")
 	if err != nil {
 		return writeEnvelope(stdout, workBoardUsageEnvelope(err.Error()))
 	}
@@ -669,7 +668,7 @@ func boardReconcile(args []string, stdout io.Writer) int {
 }
 
 func boardBranchPolicy(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 0, "--project-root", "--current-work-id", "--format")
+	parsed, err := parseCoordinationCommandArgs(args, 0, "--project-root", "--current-work-id", "--format")
 	if err != nil {
 		return writeEnvelope(stdout, workBoardUsageEnvelope(err.Error()))
 	}
@@ -712,7 +711,7 @@ func boardBranchPolicy(args []string, stdout io.Writer) int {
 }
 
 func boardFeatureBootstrap(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 0,
+	parsed, err := parseCoordinationCommandArgs(args, 0,
 		"--project-root", "--work-id", "--feature-id", "--feature-dir", "--summary",
 		"--agent-id", "--adapter-id", "--workspace-root", "--base-commit",
 		"--next-action", "--lease-seconds", "--format",
@@ -851,7 +850,6 @@ func workItemDTO(work runcontrol.WorkItem, intents []runcontrol.WriteIntent) map
 	payload := map[string]any{
 		"work_id":         work.WorkID,
 		"parent_work_id":  work.ParentWorkID,
-		"run_id":          work.RunID,
 		"task_ref":        work.TaskRef,
 		"summary":         work.Summary,
 		"agent_id":        work.AgentID,
@@ -898,7 +896,7 @@ func writeIntentDTO(intent runcontrol.WriteIntent) map[string]any {
 }
 
 func workBoardErrorEnvelope(action string, err error) Envelope {
-	env := runControlErrorEnvelope(action, err)
+	env := coordinationErrorEnvelope(action, err)
 	switch {
 	case errors.Is(err, runcontrol.ErrExecutionGuardRequired):
 		env.Status = "blocked"
@@ -936,14 +934,14 @@ func workBoardUsageEnvelope(summary string) Envelope {
 	return env
 }
 
-func validateWorkBoardFormat(parsed parsedRunCommand) error {
+func validateWorkBoardFormat(parsed parsedCoordinationCommand) error {
 	if format, present := parsed.options["--format"]; present && strings.TrimSpace(format) != "json" {
 		return errors.New("Work Board commands support only --format json")
 	}
 	return nil
 }
 
-func workLeaseUntil(parsed parsedRunCommand) (time.Time, error) {
+func workLeaseUntil(parsed parsedCoordinationCommand) (time.Time, error) {
 	raw := strings.TrimSpace(parsed.option("--lease-seconds", strconv.FormatInt(defaultWorkLeaseSeconds, 10)))
 	seconds, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil || seconds <= 0 || seconds > maximumWorkLeaseSeconds {
@@ -952,7 +950,7 @@ func workLeaseUntil(parsed parsedRunCommand) (time.Time, error) {
 	return time.Now().UTC().Add(time.Duration(seconds) * time.Second), nil
 }
 
-func workRevisionAndFence(parsed parsedRunCommand) (int64, int64, error) {
+func workRevisionAndFence(parsed parsedCoordinationCommand) (int64, int64, error) {
 	revision, err := positiveWorkOption(parsed, "--expected-revision")
 	if err != nil {
 		return 0, 0, err
@@ -964,7 +962,7 @@ func workRevisionAndFence(parsed parsedRunCommand) (int64, int64, error) {
 	return revision, fence, nil
 }
 
-func positiveWorkOption(parsed parsedRunCommand, name string) (int64, error) {
+func positiveWorkOption(parsed parsedCoordinationCommand, name string) (int64, error) {
 	raw := strings.TrimSpace(parsed.option(name, ""))
 	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil || value <= 0 {

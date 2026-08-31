@@ -152,6 +152,12 @@ def validate_worker_task_result(
 ) -> WorkerTaskResult:
     """Return the result when it satisfies the packet's handoff contract."""
 
+    if result.task_id != packet.task_id:
+        raise PacketValidationError(
+            "DP3",
+            f"worker result task_id {result.task_id!r} does not match dispatched packet {packet.task_id!r}",
+        )
+
     canonical_ui_kinds = {
         "structure_snapshot",
         "visual_capture",

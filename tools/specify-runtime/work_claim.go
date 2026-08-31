@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"runtime"
@@ -23,6 +24,8 @@ type currentWorkScopeClaimRequest struct {
 	Reason                               string
 	UseCurrentConfirmedScopeWhenEmpty    bool
 	AllowDeclaredNoWriteWhenScopeIsEmpty bool
+	AllowExecutionGuardReceipt           bool
+	PacketRef                            string
 }
 
 // claimCurrentWorkScope is the shared claim-before-write gate used by every
@@ -88,6 +91,58 @@ func claimCurrentWorkScope(request currentWorkScopeClaimRequest) (map[string]any
 			return nil, err
 		}
 	}
+	reason := strings.TrimSpace(request.Reason)
+	if reason == "" {
+		reason = "claim-before-write for " + strings.TrimSpace(work.TaskRef)
+	}
+	specs := make([]runcontrol.WriteIntentSpec, 0, len(normalizedScope))
+	for _, path := range normalizedScope {
+		specs = append(specs, runcontrol.WriteIntentSpec{
+			Path:       path,
+			Operation:  runcontrol.WriteModify,
+			Reason:     reason,
+			Confidence: runcontrol.IntentConfirmed,
+		})
+	}
+	claimParams := runcontrol.ClaimWorkIntentsParams{
+		WorkID:           work.WorkID,
+		ExpectedRevision: work.Revision,
+		Fence:            fence,
+		Specs:            specs,
+	}
+	if request.PacketRef != "" {
+		packetPath, err := resolveProjectContainedPath(request.ProjectRoot, request.PacketRef)
+		if err != nil {
+			return nil, fmt.Errorf("resolve task-start packet: %w", err)
+		}
+		content, err := os.ReadFile(packetPath)
+		if err != nil {
+			return nil, fmt.Errorf("read task-start packet: %w", err)
+		}
+		claimParams.PacketRef = request.PacketRef
+		claimParams.PacketSHA256 = fmt.Sprintf("%x", sha256.Sum256(content))
+	}
+	claimedWork := work
+	var claimedIntents []runcontrol.WriteIntent
+	verifiedExecution := false
+	if request.AllowExecutionGuardReceipt {
+		activity, registered, err := store.GetExecutionActivityForWork(ctx, work.WorkID)
+		if err != nil {
+			return nil, fmt.Errorf("load execution identity before item start: %w", err)
+		}
+		if registered {
+			if err := verifyExecutionPacketFile(runcontrol.ExecutionRegistration{Activity: activity, Work: work}); err != nil {
+				return nil, fmt.Errorf("verify current item-start packet: %w", err)
+			}
+			claimedWork, claimedIntents, err = store.VerifyExecutionWorkClaim(ctx, claimParams)
+			if err != nil {
+				return nil, fmt.Errorf("verify complete execution scope before item start: %w", err)
+			}
+			verifiedExecution = true
+		}
+	}
+	// A source-read-only result is an exemption from source mutation, never
+	// from a registered Activity's current guard and immutable packet binding.
 	if len(normalizedScope) == 0 {
 		if request.AllowDeclaredNoWriteWhenScopeIsEmpty {
 			return map[string]any{
@@ -104,27 +159,11 @@ func claimCurrentWorkScope(request currentWorkScopeClaimRequest) (map[string]any
 		return nil, fmt.Errorf("claim-before-write requires a non-empty complete write scope")
 	}
 
-	reason := strings.TrimSpace(request.Reason)
-	if reason == "" {
-		reason = "claim-before-write for " + strings.TrimSpace(work.TaskRef)
-	}
-	specs := make([]runcontrol.WriteIntentSpec, 0, len(normalizedScope))
-	for _, path := range normalizedScope {
-		specs = append(specs, runcontrol.WriteIntentSpec{
-			Path:       path,
-			Operation:  runcontrol.WriteModify,
-			Reason:     reason,
-			Confidence: runcontrol.IntentConfirmed,
-		})
-	}
-	claimedWork, claimedIntents, err := store.ClaimWorkIntents(ctx, runcontrol.ClaimWorkIntentsParams{
-		WorkID:           work.WorkID,
-		ExpectedRevision: work.Revision,
-		Fence:            fence,
-		Specs:            specs,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("claim complete write scope all-or-none: %w", err)
+	if !verifiedExecution {
+		claimedWork, claimedIntents, err = store.ClaimWorkIntents(ctx, claimParams)
+		if err != nil {
+			return nil, fmt.Errorf("claim complete write scope all-or-none: %w", err)
+		}
 	}
 	claimedScope := make([]string, 0, len(claimedIntents))
 	for _, intent := range claimedIntents {

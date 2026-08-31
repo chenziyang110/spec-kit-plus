@@ -1538,6 +1538,7 @@ func TestDesignRegisterPartiallySupersedesOnlyIntersectingScope(t *testing.T) {
 		t.Fatalf("superseded_scopes = %#v, want %#v", parent["superseded_scopes"], wantCovered)
 	}
 
+	beforeResolve := snapshotDesignDiscoveryFiles(t, tmp)
 	if got := resolveDesignIDsRuntime(t, "web:orders/list"); !reflect.DeepEqual(got, []string{"UD-0043"}) {
 		t.Fatalf("list resolution = %#v, want only successor", got)
 	}
@@ -1546,6 +1547,9 @@ func TestDesignRegisterPartiallySupersedesOnlyIntersectingScope(t *testing.T) {
 	}
 	if got := resolveDesignIDsRuntime(t, "web:orders"); !reflect.DeepEqual(got, []string{"UD-0043", "UD-0042"}) {
 		t.Fatalf("broad resolution = %#v, want explicit composite candidates", got)
+	}
+	if afterResolve := snapshotDesignDiscoveryFiles(t, tmp); !reflect.DeepEqual(beforeResolve, afterResolve) {
+		t.Fatal("resolving valid single and composite candidates mutated design files")
 	}
 }
 
@@ -2390,6 +2394,9 @@ func resolveDesignIDsRuntime(t *testing.T, scope string) []string {
 		t.Fatalf("resolve %s failed: %d %s", scope, exit, stdout.String())
 	}
 	env := decodeEnvelope(t, stdout.Bytes())
+	if env.Data["registry_state"] != "present" || env.Data["requires_explicit_adoption"] != true || env.Data["composite"] != (len(env.Items) > 1) {
+		t.Fatalf("resolution lost registry, composite, or explicit-adoption semantics: %#v", env)
+	}
 	ids := make([]string, 0, len(env.Items))
 	for _, raw := range env.Items {
 		ids = append(ids, raw.(map[string]any)["id"].(string))

@@ -117,8 +117,8 @@ When recommending manual implementation resumption to the user, tell them to run
 
 Run `{SCRIPT}` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS. Derive absolute paths:
 
-- If `FEATURE_DIR` is not already explicit, use a validated managed Run feature subject or the helper's unique paths-only result; stop on ambiguity instead of guessing from a branch name.
-- When `SPECIFY_RUN_MANAGED=1`, verify the current directory equals `SPECIFY_RUN_WORKSPACE` before reading or writing analysis state.
+- If `FEATURE_DIR` is not already explicit, use a validated durable workflow binding in the current worktree or the helper's unique paths-only result; stop on ambiguity instead of guessing from a branch name.
+- Verify selected artifact paths belong to that feature in the current worktree before reading or writing analysis state.
 
 - SPEC_CONTRACT = FEATURE_DIR/spec-contract.json
 - PLAN_CONTRACT = FEATURE_DIR/plan-contract.json

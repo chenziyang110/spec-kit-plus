@@ -13,7 +13,7 @@ Translate the approved specification package into explicit implementation design
 ## Process
 
 - Recover the active feature context and validate that the specification package is ready for planning.
-- If `FEATURE_DIR` is not explicit, use a validated managed Run feature subject or the installed prerequisite helper's paths-only result. Require exactly one match and stop on ambiguity; never guess from the Run's private Git ref.
+- If `FEATURE_DIR` is not explicit, use a validated durable workflow binding in the current worktree or the installed prerequisite helper's paths-only result. Require exactly one match and stop on ambiguity; never guess from a Git ref or branch name.
 - Validate `/status: planning-ready` and the source revision from the `artifact show` response. Do not revalidate the original discussion contract unless the revision changed or the spec contract reports a semantic or evidence delta.
 - If Design ran after this planning-ready source spec, require the current
   `formal-post-specify` receipt. Verify it read-only with

@@ -208,8 +208,8 @@ runtime lifecycle surfaces are present.
 ## Outline
 
 1. **Setup**: Run `{SCRIPT}` from repo root once (`--json --paths-only` / `-Json -PathsOnly`). Parse:
-   - If `FEATURE_DIR` is not already explicit, use a validated managed Run feature subject or the helper's unique paths-only result; stop on ambiguity instead of inferring the feature from a private Git ref or branch name.
-   - When `SPECIFY_RUN_MANAGED=1`, verify the current directory equals `SPECIFY_RUN_WORKSPACE` before reading or writing research artifacts.
+   - If `FEATURE_DIR` is not already explicit, use a validated durable workflow binding in the current worktree or the helper's unique paths-only result; stop on ambiguity instead of inferring the feature from a private Git ref or branch name.
+   - Verify selected artifact paths belong to that feature in the current worktree before reading or writing research artifacts.
    - `FEATURE_DIR`
    - `FEATURE_SPEC`
    - optional downstream paths if returned

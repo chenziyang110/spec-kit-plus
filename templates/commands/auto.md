@@ -35,7 +35,7 @@ Its job is to read current repository state, identify the recommended next Spec 
 ## Context
 
 - Primary inputs are the repository's authoritative workflow state surfaces, not chat memory.
-- When a managed Run declares a feature subject, treat that subject as the routing boundary and verify the current directory equals `SPECIFY_RUN_WORKSPACE`; authoritative workflow state remains the truth source.
+- An explicit feature selection or validated durable workflow binding sets the routing boundary in the current worktree; authoritative workflow state remains the truth source. Work Board activity provides coordination context, not feature selection authority.
 - `sp-auto` does not create a new long-lived state file of its own.
 - It exists to continue the already-canonical workflow step recorded elsewhere.
 - Candidate priority applies only within one resolved workflow lineage. A
@@ -152,7 +152,7 @@ Inspect the available state surfaces in this order and prefer the most specific 
 
 Choose exactly one routed command.
 
-- If a managed Run subject exists, select only state belonging to that subject and reconcile it against the real workflow artifacts before routing.
+- If an explicit feature selection or durable workflow binding exists, select only state belonging to that lineage and reconcile it against the real workflow artifacts in the current worktree before routing.
 - Auto-resume only when there is exactly one unique safe candidate.
 - If multiple candidates remain after reconcile, stop and present a minimal choice instead of guessing.
 - Prefer the route that is already recorded in the highest-authority active

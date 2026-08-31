@@ -47,7 +47,9 @@ owner CLI to repeat the route in review when it explains closeout.
 ## Resume Before Reclassification
 
 Query `.specify/design/index.json` and the matching change brief/contract first
-through targeted `specify-runtime artifact show` calls.
+through targeted `specify-runtime artifact show` calls only when they exist or
+registered metadata identifies them. Missing registration is legitimate
+discovery absence; do not blindly artifact-show a missing index.
 Never use an unregistered root design document as workflow input. Resume before reclassification when
 the same objective is nonterminal, using the brief's task type and input
 strategy plus the derived state's current stage. Approval, feedback, and
@@ -55,6 +57,8 @@ continuation are lifecycle events for the active task. Reclassify only for an
 explicit objective change or evidence that the stored route cannot safely
 finish, and record that delta.
 
+Derive each stable path-like surface ID from confirmed source or registered
+metadata; split surfaces and never pass the whole brief or prose as `--scope`.
 Run `specify-runtime design resolve --scope <exact-surface> --format json` for
 registered coverage. It is discovery only, never adoption. Split a composite
 result into independently bound consumer units. Current binding artifacts are

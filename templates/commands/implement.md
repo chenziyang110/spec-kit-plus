@@ -17,29 +17,31 @@ scripts:
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
-[AGENT] `sp-implement` continues the same run created for the feature. Confirm
-the same run with `specify-runtime run show`, then execute implementation work
-only through `specify-runtime run supervise`. Before any feature binding, task
+[AGENT] `sp-implement` resumes the feature's durable execution state in the
+current worktree. Before any feature binding, task
 selection, packet compile, or implementation launch at entry or resume, read
-`references/task-intake-and-tracker.md`; that reference owns the same-Run
+`references/task-intake-and-tracker.md`; that reference owns the execution
 bootstrap and task-intake sequencing contract.
 
-[AGENT] Leader-owned supervision uses task identity `implement:<feature-id>`;
-packet-backed workers use the runtime-derived `<feature-id>#<Txx>`. Every
-modifying launch carries confirmed scope. `implement task-start` requires that
+[AGENT] Leader-owned work uses task identity `implement:<feature-id>`;
+packet-backed workers use the runtime-derived `<feature-id>#<Txx>`. Announce the
+complete planned scope, checkpoint selection, refresh the overview, and require
+`specify-runtime execution guard` before source writes or dispatch.
+`implement task-start` requires that
 same fenced Work identity, claims the task's complete `expected_write_scope`
 all-or-none, and returns `work_claim` before changing lifecycle state to
 `in_progress`. A legacy scope-empty task reuses the current Work's confirmed
 scope; a genuinely no-write task returns `claim_state: not_required` and must
-not later report changed files. Do not perform source writes without a claimed
-receipt.
+not later report changed files. The receipt must match the guarded identity and
+scope. Checkpoint validation and call `specify-runtime execution complete` only
+after fresh passing validation and terminal workflow state.
 
 The shared `specify-runtime execution overview` is coordination context only:
 it may reveal that other Implement tasks exist, but it is not
 task selection authority or feature selection authority. Do not choose,
 resume, or bind a feature from an overview activity row. Resolve the owning feature through the
 provenance gate below, then use the matching overview row only to sequence work
-and verify Run/Work ownership.
+and verify Work/Activity ownership.
 
 ## Senior Consequence Analysis Summary
 
@@ -55,8 +57,8 @@ as general caution.
 
 ## Feature Context Provenance Gate
 
-Accept `<feature-dir>` only from `{SCRIPT}`, an explicit user selection, or the
-runtime-selected current Run subject. If feature context is missing or ambiguous, stop
+Accept `<feature-dir>` only from `{SCRIPT}`, an explicit user selection, or a
+validated durable workflow binding in the current worktree. If feature context is missing or ambiguous, stop
 before `task-next`; never enumerate `.specify/features/**`, `tasks.md`, or
 `task-index.json`, and never choose a feature from name, slug, title, topic, or
 keyword similarity. An active or unconsumed discussion is not implementation
@@ -90,7 +92,7 @@ projection.
 ## Main Flow
 
 1. Run `{SCRIPT}` to resolve the task-bearing feature context, then call `{{specify-subcmd:specify-runtime implement task-next --feature-dir <feature-dir> --format json}}`. Treat CLI-owned `task-index.json` as the structured execution contract from Tasks, while letting the CLI return only the next ready task and compact execution state; use `specify-runtime artifact show --json-pointer ...` for any additional canonical field. Never parse or rewrite the full task index with ad-hoc scripts. Required refs, protected requirements, user decisions, and task-local `MP-*` must-preserve obligations remain locked; a conflict must stop and route to the owning upstream phase, park the task, and route repair through the owning upstream phase rather than redefining the goal. After that owner validates the repair, resume Implement from the parked task.
-2. Validate the returned task and current ready batch. For delegated work, call `{{specify-subcmd:specify-runtime implement packet-compile --feature-dir <feature-dir> --task-id <Txx> --format json}}`; do not author a packet file. Pass the returned canonical `path` and `sha256` unchanged as `--work-packet-file <path> --work-packet-sha256 <sha256>` when the delegated worker is launched through `run launch` or `run supervise`; Run Control verifies the exact compiled bytes before parsing, then registers the packet's task identity, objective, and confirmed `scope.write_scope` on the shared Work Board before child launch. Do not reconstruct that metadata with manual `--work-task-ref`, `--work-summary`, or `--work-intents-json` flags. When its task packet includes Test Design refs, enforce the task-packet boundary above and stop on any binding failure. Group behavior-changing Txx items into one coherent change-set, establish its RED/baseline through the Leader-owned logical validation-gate contract, and do not claim completion from chat narration.
+2. Validate the returned task and current ready batch. For delegated work, call `{{specify-subcmd:specify-runtime implement packet-compile --feature-dir <feature-dir> --task-id <Txx> --format json}}`; do not author a packet file. Pass the returned canonical `path` and `sha256` unchanged as `--work-packet-file <receipt.path> --work-packet-sha256 <receipt.sha256>` to `specify-runtime execution announce --workflow implement --agent-id <agent-id> --adapter-id <adapter-id>`. The runtime verifies the canonical packet path, exact current compiler output digest over its bytes before parsing, and immutable baseline binding and derives feature/subject id, item/task id, task identity, objective, and the full `planned_write_scope` union of product `write_scope` plus separate compiler-derived `bookkeeping_write_scope`. Product scope and `ui_contract` stay unchanged. Do not reconstruct or override packet-derived metadata; guard the full returned `planned_write_scope`, not product paths alone. Bookkeeping paths remain CLI-owned, never hand-edited; serialize ownership when shared feature metadata overlaps, without a wildcard or broad `.specify` exemption. Guard cannot widen packet-backed scope: recompile and reannounce a changed packet; only manual work uses amended-set guards. Checkpoint `selected`, refresh the overview, and guard the complete file and semantic scope before `task-start` or native worker dispatch. When the task packet includes Test Design refs, enforce the task-packet boundary above and stop on any binding failure. Group behavior-changing Txx items into one coherent change-set, establish its RED/baseline through the Leader-owned logical validation-gate contract, and do not claim completion from chat narration.
 3. Use `choose_subagent_dispatch(command_name="implement", snapshot, workload_shape)` for safe worker lanes, use the current integration's native subagent lifecycle where available, and keep leader ownership of tracker state.
 4. Start with `specify-runtime implement task-start`, execute the current task or ready batch, merge a structured result with `specify-runtime implement result-merge --result-json '<inline-json>'`, and accept it only with `specify-runtime implement task-accept`. These commands atomically own task status, lifecycle, execution state, and compatibility tracker projections. Never edit those workflow files directly and never create a temporary result JSON file under `worker-results/` (runtime owns that path). Expand the authoritative WorkerTaskResult shape with `specify-runtime api schema implement-result-merge-input --format json` or `api show implement.result-merge`. Acceptance-ready `status: success` requires `validation_results: [{command, status: "passed", summary?}, ...]` (field name is `validation_results`, not `validation`); `blockers` must be empty; worker status is `success|blocked|failed` (not `DONE`). Prefer `--result-json @path` or a clean argv JSON dump over shell `ConvertTo-Json`. `evidence register` is optional attachment and does not substitute for `validation_results`. Resolve known blockers through focused repair; for an unknown technical root cause, preserve Implement state, enter a bounded Debug-grade evidence lane inside Implement, repair the proven owner, then resume the task. Do not invoke another user-invoked workflow automatically.
 5. Run event-triggered review for repository drift, parallel joins, write-scope drift, validation failure, worker concerns, obligation conflicts, or sequential change-window limits. Let `specify-runtime implement task-start|result-merge|task-accept` maintain the single task lifecycle record; submit a blocked result through `result-merge` rather than inventing a task-block file operation. Report completion only when its changed paths, validation evidence, review status, and mutation closeout are complete.

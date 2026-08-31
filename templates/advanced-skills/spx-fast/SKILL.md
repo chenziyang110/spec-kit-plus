@@ -13,7 +13,7 @@ task-relevant card through its `show_argv`; do not parse Learning storage and do
 not capture or promote from this workflow.
 Read `references/project-cognition.md`, using cognition intent `implement`,
 only after Learning intake.
-Read `references/run-bootstrap.md`.
+Read `references/execution-bootstrap.md`.
 Read `references/autonomous-blocker-recovery.md` before treating any execution
 or validation failure as terminal.
 Use `references/scope-gate.md` when eligibility is not immediately obvious.
@@ -23,13 +23,13 @@ consumers, compatibility, security-sensitive behavior, or multiple plausible
 product behaviors.
 Read `references/ui-quality-gate.md` for any user-visible UI change.
 
-`$spx-fast` always starts a new Run. When its exact metadata and child argv are ready, use `specify-runtime run launch` as the single call that records and supervises it; do not resume another workflow's Run. Older runtimes without `run.launch` fall back to `specify-runtime run create` followed by `specify-runtime run supervise`.
-
-Launch it with exact task identity `fast:<run-id>` and confirmed planned write
-scope; zero confirmed scope blocks before the child starts. Inside the managed
-child, call `specify-runtime work claim --task-ref fast:<run-id>
---write-scope-json <complete-json-array> --format json` and require its
-all-or-none `data.work_claim` receipt before the first source write.
+Work directly in the current worktree with exact task identity `fast:<task-id>`.
+Use the shared execution bootstrap: announce complete planned scope, checkpoint
+selection, refresh the overview, and require the all-or-none
+`specify-runtime execution guard` before the first source write. Zero confirmed
+write scope blocks mutation. Checkpoint validation and call
+`specify-runtime execution complete` only after fresh passing validation and
+terminal workflow state; preserve unrelated work and external approval gates.
 
 Use this leader-direct path only when the change is obvious, local, and normally
 touches no more than three files. It must not cross a shared contract, registry,

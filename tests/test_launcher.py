@@ -1903,15 +1903,16 @@ def test_unified_runtime_rebinding_covers_namespaces_and_non_executable_contexts
         "accept prepare --feature-dir feature",
         "api handshake",
         "artifact show --kind spec",
+        "board branch-policy --project-root project",
         "cognition status",
+        "deep-research status --feature-dir feature",
         "design lint --level ready",
         "discussion list",
         "doctor --format json",
+        "evidence verify --feature-dir feature",
+        "execution announce --work-packet-file packet.json --work-packet-sha256 digest --workflow implement --agent-id worker --adapter-id native",
         "hook validate-state --command plan",
         "implement resume-audit --feature-dir feature",
-        "run supervise run-1 --adapter-id codex -- echo ok",
-        "candidate build --target-ref main --result-id result-1",
-        "cas publish candidate-1 --acceptance-digest digest",
         "learning start --command plan",
         "prd-build status",
         "prd-scan status",
@@ -1919,10 +1920,12 @@ def test_unified_runtime_rebinding_covers_namespaces_and_non_executable_contexts
         "result path --command implement",
         "review prepare --feature-dir feature",
         "sp-teams status",
-        "sync safe candidate-1 --publication-digest digest --target-ref main",
+        "tasks build --feature-dir feature",
+        "test-design status --feature-dir feature",
         "validate spec --path feature/spec.md",
         "version",
         "workflow show",
+        "work checkpoint work-1 --expected-revision 2 --fence 1",
     ),
 )
 def test_unified_runtime_rebinding_recognizes_each_supported_namespace(runtime_args):
@@ -1935,6 +1938,14 @@ def test_unified_runtime_rebinding_recognizes_each_supported_namespace(runtime_a
 
     assert count == 1
     assert f"`{pinned} {runtime_args}`" in rebound
+
+
+@pytest.mark.parametrize("namespace", ("run", "candidate", "cas", "sync"))
+def test_unified_runtime_rebinding_does_not_advertise_retired_namespaces(namespace):
+    original = f"Run `specify-runtime {namespace} show legacy-id`.\n"
+    rebound, count = rebind_unbound_unified_runtime_calls(original, "C:/trusted/specify-runtime.exe")
+    assert count == 0
+    assert rebound == original
 
 
 @pytest.mark.parametrize("namespace", ("workflow", "artifact", "cognition"))

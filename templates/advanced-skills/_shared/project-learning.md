@@ -24,6 +24,15 @@ SPX and Classic share one namespace: pass `implement` for `spx-implement` and
 more summaries. Execute one selected card's `show_argv` only when its triggers
 match the active work. Live evidence overrides stale Learning.
 
+Reuse this Learning intake and the current cognition context capsule once per
+unchanged workflow intake. Preparatory capability checks, artifact queries,
+script dry runs, and board operations do not by themselves restart intake.
+Refresh only for changed request/scope, relevant source evidence, workflow
+binding, Learning applicability, cognition freshness/generation, or a required
+resume/recovery gate that invalidates the prior intake. Contextual recall for
+a newly evidenced operation remains valid; do not repeat the same recall after
+every command. Verification and mutation-closeout freshness gates remain intact.
+
 After minimal live inspection identifies a reused operation or changed entry
 point, rerun targeted recall from current code, tests, and task/contract
 evidence:

@@ -30,7 +30,7 @@ agent_scripts:
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
 {{spec-kit-include: ../command-partials/common/agent-phase-handoff.md}}
-{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
+{{spec-kit-include: ../command-partials/common/execution-bootstrap.md}}
 
 {{spec-kit-include: ../command-partials/common/planning-cognition.md}}
 
@@ -38,7 +38,10 @@ agent_scripts:
 
 {{spec-kit-include: ../command-partials/common/adaptive-execution.md}}
 
-[AGENT] `sp-plan` continues the same run created for the feature. Confirm the same run with `specify-runtime run show`, then execute planning work only through `specify-runtime run supervise`.
+[AGENT] `sp-plan` resolves the feature in the current worktree, registers only its
+allowed planning-artifact scope on Work Board, and resumes through the workflow
+runtime. Preserve artifact leases, input readiness, and design-only boundaries;
+do not create another branch or worktree.
 
 ## Read-Only Test Design Projection Gate
 
@@ -69,7 +72,7 @@ decisions do not become canonical Test Design truth.
 
 ## Main Flow
 
-1. Resolve `FEATURE_DIR` without creating `plan.md`. Prefer the explicit feature argument; otherwise use the managed Run's `SPECIFY_RUN_SUBJECT_ID` only when `SPECIFY_RUN_MANAGED=1`, `SPECIFY_RUN_SUBJECT_TYPE=feature`, and the current directory equals `SPECIFY_RUN_WORKSPACE`. Fall back to the installed prerequisite helper's paths-only mode only when it returns one unambiguous feature. Never infer the feature from the Run's private Git ref. Enter `plan` with the deterministic `specify-runtime workflow transition` command and stop on exit `10`; do not edit source/runtime/test files.
+1. Resolve `FEATURE_DIR` in the current worktree without creating `plan.md`. Prefer the explicit feature argument or a validated durable workflow binding; otherwise use the installed prerequisite helper's paths-only mode only when it returns one unambiguous feature. Never infer the feature from a Git ref or branch name. Enter `plan` with the deterministic `specify-runtime workflow transition` command and stop on exit `10`; do not edit source/runtime/test files.
 2. Only after the transition succeeds, run `{SCRIPT}` to create the plan skeleton or report `STATUS=noop` without overwriting existing work.
 3. Query canonical `spec-contract.json` first with `specify-runtime artifact show`, using JSON pointers for its context capsule, evidence refs, and `semantic_delta`; query other workflow artifacts only when a required reference or stale-evidence condition demands it.
 4. Preserve complete-first scope: do not split confirmed scope into MVP, future-work slices, `v1/v2`, `P0/P1`, or a smaller delivery unless the user confirmed the deferral contract.

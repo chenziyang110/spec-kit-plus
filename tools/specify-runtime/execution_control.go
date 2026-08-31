@@ -19,16 +19,20 @@ const executionGuardSchema = "execution-guard-v1"
 const executionCompletionSchema = "execution-completion-v1"
 
 func executionAnnounce(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 0,
-		"--project-root", "--activity-id", "--work-id", "--parent-work-id", "--run-id",
+	parsed, err := parseCoordinationCommandArgs(args, 0,
+		"--project-root", "--activity-id", "--work-id", "--parent-work-id",
 		"--task-ref", "--workflow", "--subject-id", "--item-id", "--source-ref",
 		"--summary", "--agent-id", "--adapter-id", "--workspace-root", "--next-action",
 		"--lease-seconds", "--planned-write-scope-json", "--resources-json", "--format",
+		"--work-packet-file", "--work-packet-sha256",
 	)
 	if err != nil {
 		return writeEnvelope(stdout, executionControlUsageEnvelope(err.Error()))
 	}
 	if err := parsed.validateJSONFormat(); err != nil {
+		return writeEnvelope(stdout, executionControlUsageEnvelope(err.Error()))
+	}
+	if err := applyExecutionPacketOptions(&parsed); err != nil {
 		return writeEnvelope(stdout, executionControlUsageEnvelope(err.Error()))
 	}
 	for _, required := range []string{"--workflow", "--subject-id", "--summary", "--agent-id", "--adapter-id"} {
@@ -61,6 +65,7 @@ func executionAnnounce(args []string, stdout io.Writer) int {
 	if err != nil {
 		return writeEnvelope(stdout, executionControlErrorEnvelope("capture execution baseline", err))
 	}
+	baseline.WorkerPacket = parsed.packet
 	baselineJSON, err := runcontrol.EncodeWorkspaceBaseline(baseline)
 	if err != nil {
 		return writeEnvelope(stdout, executionControlErrorEnvelope("encode execution baseline", err))
@@ -87,7 +92,6 @@ func executionAnnounce(args []string, stdout io.Writer) int {
 		ActivityID:          parsed.option("--activity-id", ""),
 		WorkID:              parsed.option("--work-id", ""),
 		ParentWorkID:        parsed.option("--parent-work-id", ""),
-		RunID:               parsed.option("--run-id", ""),
 		TaskRef:             parsed.option("--task-ref", ""),
 		Workflow:            runcontrol.ExecutionWorkflow(strings.ToLower(strings.TrimSpace(parsed.option("--workflow", "")))),
 		SubjectID:           parsed.option("--subject-id", ""),
@@ -118,8 +122,51 @@ func executionAnnounce(args []string, stdout io.Writer) int {
 	return writeEnvelope(stdout, env)
 }
 
+// applyExecutionPacketOptions keeps compiled task identity and scope bound to
+// the exact packet receipt without launching or allocating an execution process.
+func applyExecutionPacketOptions(parsed *parsedCoordinationCommand) error {
+	packetPath, hasPath := parsed.options["--work-packet-file"]
+	packetDigest, hasDigest := parsed.options["--work-packet-sha256"]
+	if !hasPath && !hasDigest {
+		return nil
+	}
+	if !hasPath || !hasDigest {
+		return errors.New("--work-packet-file and --work-packet-sha256 must be supplied together")
+	}
+	if parsed.option("--workflow", "") != "implement" {
+		return errors.New("compiled worker task packets require --workflow implement")
+	}
+	for _, field := range []string{"--subject-id", "--item-id", "--task-ref", "--summary", "--planned-write-scope-json"} {
+		if _, supplied := parsed.options[field]; supplied {
+			return fmt.Errorf("--work-packet-file cannot be combined with %s", field)
+		}
+	}
+	packet, err := workParamsFromTaskPacket(parsed.option("--project-root", "."), packetPath, packetDigest)
+	if err != nil {
+		return err
+	}
+	if !safeSegment(packet.FeatureID) || !safeSegment(packet.TaskID) {
+		return errors.New("--work-packet-file requires safe feature_id and task_id path segments")
+	}
+	paths := make([]string, 0, len(packet.WriteIntents))
+	for _, intent := range packet.WriteIntents {
+		paths = append(paths, intent.Path)
+	}
+	encoded, err := json.Marshal(paths)
+	if err != nil {
+		return fmt.Errorf("encode compiled write scope: %w", err)
+	}
+	parsed.options["--subject-id"] = packet.FeatureID
+	parsed.options["--item-id"] = packet.TaskID
+	parsed.options["--task-ref"] = packet.TaskRef
+	parsed.options["--summary"] = packet.Summary
+	parsed.options["--planned-write-scope-json"] = string(encoded)
+	parsed.packet = &runcontrol.WorkerPacketBinding{Path: packet.Path, SHA256: packetDigest, WriteScope: paths}
+	return nil
+}
+
 func executionShow(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 1, "--project-root", "--format")
+	parsed, err := parseCoordinationCommandArgs(args, 1, "--project-root", "--format")
 	if err != nil {
 		return writeEnvelope(stdout, executionControlUsageEnvelope(err.Error()))
 	}
@@ -146,7 +193,7 @@ func executionShow(args []string, stdout io.Writer) int {
 }
 
 func executionCheckpoint(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 1,
+	parsed, err := parseCoordinationCommandArgs(args, 1,
 		"--project-root", "--expected-revision", "--fence", "--phase",
 		"--next-action", "--observed-paths-json", "--lease-seconds", "--reason", "--format",
 	)
@@ -211,7 +258,7 @@ func executionCheckpoint(args []string, stdout io.Writer) int {
 }
 
 func executionGuard(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 1,
+	parsed, err := parseCoordinationCommandArgs(args, 1,
 		"--project-root", "--expected-revision", "--fence",
 		"--expected-overview-revision", "--expected-overview-sha256",
 		"--write-scope-json", "--resources-json", "--reason", "--format",
@@ -256,6 +303,9 @@ func executionGuard(args []string, stdout io.Writer) int {
 	}
 	if closeViewErr != nil {
 		return writeEnvelope(stdout, executionControlErrorEnvelope("close execution control view", closeViewErr))
+	}
+	if err := verifyExecutionPacketFile(registration); err != nil {
+		return writeEnvelope(stdout, executionControlErrorEnvelope("verify execution packet before guard", err))
 	}
 	currentWorkID := registration.Work.WorkID
 	currentOverview, err := buildExecutionOverview(projectRoot, currentWorkID)
@@ -316,7 +366,7 @@ func executionGuard(args []string, stdout io.Writer) int {
 }
 
 func executionComplete(args []string, stdout io.Writer) int {
-	parsed, err := parseRunCommandArgs(args, 1,
+	parsed, err := parseCoordinationCommandArgs(args, 1,
 		"--project-root", "--expected-revision", "--fence",
 		"--validation-json", "--reason", "--format",
 	)
@@ -348,6 +398,10 @@ func executionComplete(args []string, stdout io.Writer) int {
 	if err != nil {
 		_ = store.Close()
 		return writeEnvelope(stdout, executionControlErrorEnvelope("load execution activity", err))
+	}
+	if err := verifyExecutionPacketFile(registration); err != nil {
+		_ = store.Close()
+		return writeEnvelope(stdout, executionControlErrorEnvelope("verify execution packet before completion", err))
 	}
 	if blocker, blocked := executionTaskCompletionBlock(projectRoot, registration.Activity); blocked {
 		_ = store.Close()
@@ -537,7 +591,7 @@ func executionRegistrationDTO(registration runcontrol.ExecutionRegistration) map
 			planned = append(planned, intent.Path)
 		}
 	}
-	return map[string]any{
+	dto := map[string]any{
 		"activity_id":               registration.Activity.ActivityID,
 		"activity_revision":         registration.Activity.Revision,
 		"work_id":                   registration.Work.WorkID,
@@ -559,6 +613,11 @@ func executionRegistrationDTO(registration runcontrol.ExecutionRegistration) map
 		"guarded_overview_sha256":   registration.Activity.GuardedOverviewSHA256,
 		"completion_sha256":         registration.Activity.CompletionSHA256,
 	}
+	var baseline runcontrol.WorkspaceBaseline
+	if json.Unmarshal([]byte(registration.Activity.BaselineJSON), &baseline) == nil && baseline.WorkerPacket != nil {
+		dto["worker_packet"] = baseline.WorkerPacket
+	}
+	return dto
 }
 
 func executionGuardDTO(guarded runcontrol.GuardedExecution) map[string]any {
@@ -645,6 +704,7 @@ func executionControlErrorEnvelope(action string, err error) Envelope {
 		env.Status = "blocked"
 		env.Blockers = []any{map[string]any{"code": "write_scope_conflict", "reason": err.Error()}}
 	case errors.Is(err, runcontrol.ErrExecutionCompletionGate),
+		errors.Is(err, runcontrol.ErrExecutionGuardRequired),
 		errors.Is(err, runcontrol.ErrRevisionConflict),
 		errors.Is(err, runcontrol.ErrStaleFence),
 		errors.Is(err, runcontrol.ErrInvalidTransition):
@@ -663,7 +723,7 @@ func executionShowArgv(activityID, projectRoot string) []string {
 	return []string{"specify-runtime", "execution", "show", activityID, "--project-root", projectRoot, "--format", "json"}
 }
 
-func nonNegativeExecutionOption(parsed parsedRunCommand, name string) (int64, error) {
+func nonNegativeExecutionOption(parsed parsedCoordinationCommand, name string) (int64, error) {
 	raw := strings.TrimSpace(parsed.option(name, ""))
 	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil || value < 0 {

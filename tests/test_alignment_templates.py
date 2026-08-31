@@ -210,8 +210,8 @@ def test_large_classic_workflows_route_conditional_contracts_to_references() -> 
         / "implement"
         / "branch-review-and-closeout.md"
     ).read_text(encoding="utf-8")
-    assert "../command-partials/common/run-bootstrap.md" not in implement
-    assert "../../command-partials/common/run-bootstrap.md" in implement_intake
+    assert "../command-partials/common/execution-bootstrap.md" not in implement
+    assert "../../command-partials/common/execution-bootstrap.md" in implement_intake
     assert "../command-partials/common/inline-project-cognition-update.md" not in implement
     assert (
         "../../command-partials/common/inline-project-cognition-update.md"

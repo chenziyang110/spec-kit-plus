@@ -14,6 +14,19 @@ Apply when work changes a user-visible screen, component, layout, navigation or
 interaction flow, responsive behavior, visual state, desktop/mobile surface,
 TUI layout, or CLI presentation—even without an external screenshot.
 
+For Design discovery, derive one exact stable path-like surface ID from
+confirmed source surfaces or registered metadata before each
+`specify-runtime design resolve --scope <exact-surface> --format json` call.
+Split Web, CLI, API, and other surfaces into separate scoped queries; never pass
+the whole brief, a prose objective, or a cross-platform sentence as `--scope`.
+Query `.specify/design/index.json` through `specify-runtime artifact show` only
+when it exists or the resolver identifies registered metadata. A missing registry or zero matching changes is legitimate
+discovery absence, not an artifact-read failure to retry. It does not waive
+required approved Design: new/high-visibility UI must still obtain and register
+an approved change, not replace that contract with a prose risk note. Preserve
+the late-design `formal-post-specify` receipt and unchanged-spec return to Plan,
+plus all existing approval, registration, and adoption gates.
+
 {{spec-kit-include: ../design-intelligence/shared-foundation.md}}
 
 {{spec-kit-include: ../design-intelligence/evidence-rules.md}}

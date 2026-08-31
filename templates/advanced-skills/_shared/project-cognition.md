@@ -3,6 +3,12 @@
 Use project cognition as the default navigation layer, not as proof of current
 behavior.
 
+Reuse one cognition context capsule and Learning intake for an unchanged intake;
+do not repeat them after each preparatory capability, artifact, script, or board
+call. Refresh when request/scope, relevant live source, workflow binding, or
+cognition freshness/generation changes, or when a required resume/recovery gate
+invalidates that capsule. Keep live verification and mutation-closeout gates.
+
 Archived specifications are excluded from default discovery and are never
 current authority. Read one only for explicit lineage or provenance, identify
 the exact historical claim, and verify it against current live evidence before

@@ -6,8 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestResolveRepositoryUsesSharedGitCommonDirectory(t *testing.T) {
@@ -83,48 +85,33 @@ func TestResolveRepositoryRejectsNonGitDirectory(t *testing.T) {
 	}
 }
 
-func TestOpenForRepositorySharesRunDataAcrossWorktrees(t *testing.T) {
+func TestOpenForRepositorySharesWorkAcrossWorktrees(t *testing.T) {
 	mainRoot, worktreeRoot := createLinkedRepository(t)
 	ctx := context.Background()
-
-	mainStore, err := OpenForRepository(ctx, mainRoot, WithOwnerEpoch("main-view"))
+	mainStore, err := OpenForRepository(ctx, mainRoot)
 	if err != nil {
-		t.Fatalf("open store from main worktree: %v", err)
+		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		if err := mainStore.Close(); err != nil {
-			t.Errorf("close main store: %v", err)
-		}
-	})
-
-	created, err := mainStore.CreateRun(ctx, CreateRunParams{
-		RunID:        "run-shared-across-worktrees",
-		Kind:         "sp-quick",
-		SubjectType:  "feature",
-		SubjectID:    "shared-database",
-		TargetRef:    "HEAD",
-		IntentSHA256: strings.Repeat("a", 64),
+	t.Cleanup(func() { _ = mainStore.Close() })
+	created, _, err := mainStore.BeginWork(ctx, BeginWorkParams{
+		WorkID: "shared-work", Summary: "shared work", AgentID: "main-agent", AdapterID: "codex",
+		WorkspaceRoot: mainRoot, LeaseUntil: time.Now().UTC().Add(time.Hour),
+		WriteIntents: []WriteIntentSpec{{Path: "src/shared.go", Operation: WriteModify, Confidence: IntentConfirmed}},
 	})
 	if err != nil {
-		t.Fatalf("create run from main worktree: %v", err)
+		t.Fatal(err)
 	}
-
-	linkedStore, err := OpenForRepository(ctx, worktreeRoot, WithOwnerEpoch("linked-view"))
+	linkedStore, err := OpenForRepository(ctx, worktreeRoot)
 	if err != nil {
-		t.Fatalf("open store from linked worktree: %v", err)
+		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		if err := linkedStore.Close(); err != nil {
-			t.Errorf("close linked store: %v", err)
-		}
-	})
-
-	loaded, err := linkedStore.GetRun(ctx, created.RunID)
+	t.Cleanup(func() { _ = linkedStore.Close() })
+	loaded, intents, err := linkedStore.GetWork(ctx, created.WorkID)
 	if err != nil {
-		t.Fatalf("load main-worktree run from linked worktree: %v", err)
+		t.Fatal(err)
 	}
-	if loaded.RunID != created.RunID || loaded.IntentSHA256 != created.IntentSHA256 {
-		t.Fatalf("loaded run = %#v, want persisted run %#v", loaded, created)
+	if !reflect.DeepEqual(loaded, created) || len(intents) != 1 || intents[0].Path != "src/shared.go" {
+		t.Fatalf("linked work = %#v, intents = %#v", loaded, intents)
 	}
 }
 
@@ -169,6 +156,44 @@ func TestInspectWorkspaceDeltaDetectsDeletedPreexistingUntrackedPath(t *testing.
 	}
 	if len(paths) != 1 || paths[0] != relativePath {
 		t.Fatalf("workspace delta = %#v, want deleted preexisting path", paths)
+	}
+}
+
+func TestWorkspaceBaselineToleratesUntrackedNestedWorktree(t *testing.T) {
+	ctx := context.Background()
+	mainRoot, _ := createLinkedRepository(t)
+	nestedRoot := filepath.Join(mainRoot, "nested copies", "parallel work")
+	runGit(t, ensureGitAvailable(t), mainRoot, "worktree", "add", "--detach", nestedRoot, "HEAD")
+	baseline, err := CaptureWorkspaceBaseline(ctx, mainRoot)
+	if err != nil {
+		t.Fatalf("baseline with an untracked nested worktree: %v", err)
+	}
+	if !reflect.DeepEqual(baseline.DirtyPaths, []string{"nested copies/parallel work"}) {
+		t.Fatalf("nested worktree baseline paths = %#v", baseline.DirtyPaths)
+	}
+	baselineJSON, err := EncodeWorkspaceBaseline(baseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nestedContent := []byte("another owner's unfinished work\n")
+	if err := os.WriteFile(filepath.Join(nestedRoot, "README.md"), nestedContent, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mainRoot, "README.md"), []byte("this workspace changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	delta, err := InspectWorkspaceDelta(ctx, mainRoot, baselineJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(delta, []string{"README.md"}) {
+		t.Fatalf("parent workspace delta = %#v, want only its own changed file", delta)
+	}
+	if content, err := os.ReadFile(filepath.Join(nestedRoot, "README.md")); err != nil || string(content) != string(nestedContent) {
+		t.Fatalf("baseline audit changed nested worktree content: %q, %v", content, err)
+	}
+	if _, err := os.Stat(filepath.Join(mainRoot, ".git", "specify-runtime")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("baseline materialized retired runtime storage: %v", err)
 	}
 }
 
@@ -223,4 +248,40 @@ func absoluteCleanPath(t *testing.T, path string) string {
 		t.Fatalf("resolve absolute path %q: %v", path, err)
 	}
 	return filepath.Clean(absolute)
+}
+
+func TestResolveRepositoryDistinguishesPlainDirectoryFromBrokenGitMetadata(t *testing.T) {
+	ensureGitAvailable(t)
+	parent := t.TempDir()
+	plainDirectory := filepath.Join(parent, "plain")
+	if err := os.MkdirAll(plainDirectory, 0o755); err != nil {
+		t.Fatalf("create plain directory: %v", err)
+	}
+	t.Setenv("GIT_CEILING_DIRECTORIES", parent)
+
+	_, err := ResolveRepository(context.Background(), plainDirectory)
+	if !errors.Is(err, ErrNotGitRepository) {
+		t.Fatalf("ResolveRepository(plain) error = %v, want ErrNotGitRepository", err)
+	}
+}
+
+func TestResolveRepositoryDoesNotClassifyBrokenGitMetadataAsPlainDirectory(t *testing.T) {
+	ensureGitAvailable(t)
+	parent := t.TempDir()
+	brokenDirectory := filepath.Join(parent, "broken")
+	if err := os.MkdirAll(brokenDirectory, 0o755); err != nil {
+		t.Fatalf("create broken directory: %v", err)
+	}
+	t.Setenv("GIT_CEILING_DIRECTORIES", parent)
+	if err := os.WriteFile(filepath.Join(brokenDirectory, ".git"), []byte("gitdir: missing\n"), 0o644); err != nil {
+		t.Fatalf("write broken .git file: %v", err)
+	}
+
+	_, err := ResolveRepository(context.Background(), brokenDirectory)
+	if err == nil {
+		t.Fatal("ResolveRepository(broken) error = nil, want broken Git metadata error")
+	}
+	if errors.Is(err, ErrNotGitRepository) || strings.Contains(err.Error(), ErrNotGitRepository.Error()) {
+		t.Fatalf("ResolveRepository(broken) error = %v, want non-ErrNotGitRepository broken metadata error", err)
+	}
 }

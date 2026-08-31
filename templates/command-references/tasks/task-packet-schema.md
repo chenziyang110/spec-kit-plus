@@ -6,7 +6,7 @@ Preserved Contract: leader-direct tasks stay compact; delegated packets carry ob
 
 ## Task Packet Schema
 
-- When lane resolution returns a materialized lane worktree, record that lane ref in the canonical task graph.
+- Resolve the feature from its validated durable workflow binding in the current worktree; task shaping does not allocate a branch or worktree.
 - Do not run project cognition from packet shaping. Reuse the context capsule and validation routes already stored by planning/task intake.
 - Supply only task-shaping fields to `specify-runtime tasks`: objective, dependencies, expected write scope, required refs, acceptance, verification, optional cheap `task_checks`, obligation refs, join point, packet mode, and any task-local `test_case_refs` / `test_data_refs` carried from an optional authoritative test-design handoff. The CLI owns `task-index.json`.
 - Root `validation_policy` uses `feature_epochs`, `max_epochs: 3`, `budget_scope: implement-review`, `budget_ref: implementation-review/validation-runs.json`, and `heavy_gate_owner: leader`. The three epochs are logical baseline/convergence/delivery gates; retries, timeout recovery, and deterministic shards are attempts within their gate. `verification` and `required_validation` remain leader-owned shared gates; only `task_checks` compile into a worker packet.
@@ -14,6 +14,7 @@ Preserved Contract: leader-direct tasks stay compact; delegated packets carry ob
 - Use `packet_mode: leader-direct | delegated | parallel-high-risk`.
 - `leader-direct` tasks do not need a WorkerTaskPacket.
 - For delegated work, `sp-implement` compiles and validates the packet just in time from the current task, live repository state, and stable contract refs.
+- Keep product `write_scope` and `ui_contract` unchanged. The runtime compiler fills separate `bookkeeping_write_scope` with exact feature-local task/index/tracker/lifecycle/result paths; do not author that list or use a wildcard. The hashed packet pins both sets. Execution announce returns their union as `planned_write_scope`; guard that full returned set. Bookkeeping remains CLI-owned, never hand-edited, and shared feature metadata overlap requires serialized ownership rather than omitting it from the claim.
 - Preserve `test_case_refs` and `test_data_refs` in the canonical task graph and carry them into the just-in-time packet when they exist; they are consumed as authoritative task inputs, not as a separate public workflow surface.
 - Carry `global_constraints`, interfaces, review risks, UI fidelity, controller checks, `MP-*`, and `CA-###` only when they affect that task.
 - UI-bearing tasks use the complete current `ui_contract` as their only UI

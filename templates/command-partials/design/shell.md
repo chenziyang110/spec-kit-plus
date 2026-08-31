@@ -24,7 +24,10 @@ Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep
 ## Workflow Phase Lock
 
 - Resolve or create the active workspace by lifecycle state. Resume a matching
-  draft from `.specify/design/index.json`; use
+  draft from `.specify/design/index.json` when that registry exists; absent
+  registration is legitimate discovery absence, not a reason to retry a missing
+  artifact. Use stable path-like surface IDs from confirmed source or registered
+  metadata, never the whole brief or a prose objective, for every `--scope`. Use
   `specify-runtime design change <UD-ID> --title <title> --type <greenfield|preserve|overhaul|extension> --scope <surface> --profiles <profiles>`
   only for a new bounded change; use
   `specify-runtime design iterate <SOURCE-UD-ID> <SUCCESSOR-UD-ID> --title <title> --type <preserve|overhaul|extension> [--scope <surface>]... --format json`
@@ -47,7 +50,8 @@ Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep
   only after their observable exit condition is met:
   `context-intake -> discovery -> concept-brief -> prototype-authoring ->
   visual-review -> revision|approval -> contract-export -> registered`.
-- When resuming after compaction, query `.specify/design/index.json`, then the
+- When resuming after compaction, query `.specify/design/index.json` only when
+  present or identified by registered metadata, then the
   active `<change-dir>/brief.md` and `<change-dir>/design-change.md` through
   `specify-runtime artifact show` before continuing.
 
@@ -82,18 +86,22 @@ and never require a colon subskill or explicit mode argument.
 
 ## Intake
 
-1. Query `.specify/design/index.json` and resume a nonterminal change for the
+1. Query `.specify/design/index.json` only when it exists or registered metadata
+   is returned by scope discovery, and resume a nonterminal change for the
    same objective through targeted `specify-runtime artifact show` calls. Query
    only its exact `design-change.md`, brief, references, options, and review through
    the same owner. Never query or select an unregistered root design document.
-2. For each exact affected surface, run
-   `specify-runtime design resolve --scope <surface> --format json` to discover
+2. For each exact affected surface, derive its stable path-like ID from confirmed
+   source surfaces or registered metadata, then run
+   `specify-runtime design resolve --scope <exact-surface> --format json` to discover
    active registered candidates. Resolution is discovery only: it never binds
    a consumer or chooses “latest.” A `composite: true` result means the broad
    surface crosses multiple active contracts. Current consumer bindings are
    singular, so split it into independently bound consumer units, each with one
    exact scope and one binding artifact, instead of choosing or merging a
-   candidate for the whole surface.
+   candidate for the whole surface. Never send the whole brief or a cross-platform
+   prose sentence as scope. Missing registry/coverage means discovery absence;
+   required approved Design still needs its approval and registration gates.
 3. If no matching draft exists, allocate a stable `UD-*` ID. Run
    `specify-runtime design change` for a new bounded direction. For an approved
    source being refined, run `specify-runtime design iterate` so lineage and

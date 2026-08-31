@@ -20,7 +20,10 @@ path.
 
 Await every request and reject missing, stale, out-of-scope, or unverified
 results. Run `{{specify-subcmd:specify-runtime sp-teams complete-batch --batch-id <id>}}` only
-after terminal results and accepted joins. Use
-`{{specify-subcmd:specify-runtime sp-teams sync-back}}` before leader-visible verification when
-managed worktrees diverge. Do not edit an active worker scope or clean state
+after terminal results and accepted joins. Verify the current worktree. If this
+explicitly selected backend has separate existing worktrees, inspect the join
+state and use `{{specify-subcmd:specify-runtime sp-teams sync-back}}` within the
+existing user-authorized delivery scope and runtime gates before leader-visible
+verification. Do not ask again for an already authorized transfer. Do not infer
+permission to merge or publish, edit an active worker scope, or clean state
 needed for recovery.

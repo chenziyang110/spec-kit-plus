@@ -11,6 +11,14 @@ on:
         required: true
         type: string
 
+# Public releases contain only the five prebuilt specify-runtime binaries and
+# SHA256SUMS; source code and Git history remain in the private repository.
+# Human `specify init`/upgrade verifies the binary and pins the relative
+# project-local `.specify/bin/specify-runtime` entrypoint (`.exe` on Windows).
+# SPECIFY_RUNTIME_BIN, PATH, and user-scoped cache paths are bootstrap/repair
+# sources only; they are never rendered into agent commands. Generated commands
+# invoke only the pinned project-local entrypoint.
+# See docs/runtime-release-distribution.md for the public release checklist.
 env:
   PUBLIC_RELEASES_REPO: chenziyang110/spec-kit-plus-releases
 

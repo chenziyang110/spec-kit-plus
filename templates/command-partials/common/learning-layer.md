@@ -13,6 +13,16 @@ The CLI is the only agent-facing Learning read surface:
 2. Select summaries by applicability and triggers; use `{{specify-subcmd:specify-runtime learning list --command <classic-command-name> --format json}}` only to filter or page.
 3. Execute one matching card's `show_argv`. Do not parse Learning storage.
 
+Reuse this Learning intake and the current cognition context capsule once per
+unchanged workflow intake. A preparatory capability check, artifact query,
+script dry run, or board operation does not by itself restart Learning or
+cognition. Refresh only when the request/scope, relevant source evidence,
+workflow binding, Learning applicability, or cognition freshness/generation
+changes, or a required resume/recovery gate invalidates the prior intake.
+Contextual recall for a newly evidenced operation remains valid; do not repeat
+the same recall after every command. Verification and mutation-closeout
+freshness gates remain unchanged.
+
 After minimal live inspection identifies a reused operation or changed entry point, rerun targeted recall with current code, tests, and task/contract evidence, for example `{{specify-subcmd:specify-runtime learning list --command <classic-command-name> --context operation_owner=<owner> --context consumer_owner=<consumer> --context outcome=<result-family> --format json}}`. Do not derive these facets from archived specifications. An exact operation-owner match may surface a cross-command candidate even when the new consumer differs; treat it as a candidate, expand one `show_argv`, verify it against live evidence, and do not auto-apply it.
 
 When the entrypoint outcome audit is triggered, persist the live facets as `learning_context`, the contextual invocation as `learning_search_refs`, and returned refs as `learning_candidate_refs`. Record exactly one `applied`, `not_applicable`, or `deferred` item in `learning_dispositions` for every candidate. Do not silently ignore a candidate: applied Learning traces to requirement/consequence refs, not-applicable needs current evidence, and deferred needs an explicit deferral ref.

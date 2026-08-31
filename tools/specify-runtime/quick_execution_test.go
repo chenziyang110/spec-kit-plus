@@ -12,7 +12,7 @@ import (
 )
 
 func TestQuickItemStartBlockedByUnmetDepsAndPacketCompile(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	workspace := filepath.Join(root, ".planning", "quick", "260805-010-exec")
 	mustMkdirAllScriptDomainTest(t, workspace)
 	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), `---
@@ -371,7 +371,7 @@ func TestQuickItemStartClaimsScopeAndReturnsReceipt(t *testing.T) {
 		t.Fatalf("work claim receipt = %#v", env.Data["work_claim"])
 	}
 
-	code, payload := invokeRunCLI(t, "work", "show", workID, "--project-root", root, "--format", "json")
+	code, payload := invokeCoordinationCLI(t, "work", "show", workID, "--project-root", root, "--format", "json")
 	if code != 0 || payload["status"] != "ok" {
 		t.Fatalf("work show = code %d envelope %#v", code, payload)
 	}
@@ -404,7 +404,7 @@ func TestQuickItemStartClaimsAllScopesOrNoneOnConflict(t *testing.T) {
 	if env.Status != "blocked" || !strings.Contains(fmt.Sprint(env.Blockers), "write intent conflict") {
 		t.Fatalf("conflicting item-start = %#v, want hard conflict", env)
 	}
-	code, payload := invokeRunCLI(t, "work", "show", workID, "--project-root", root, "--format", "json")
+	code, payload := invokeCoordinationCLI(t, "work", "show", workID, "--project-root", root, "--format", "json")
 	if code != 0 || payload["status"] != "ok" {
 		t.Fatalf("work show = code %d envelope %#v", code, payload)
 	}
@@ -424,7 +424,7 @@ func TestQuickItemStartClaimsAllScopesOrNoneOnConflict(t *testing.T) {
 func TestQuickItemStartRejectsForeignTaskRefAndStaleFence(t *testing.T) {
 	t.Run("foreign task ref", func(t *testing.T) {
 		root, _ := stageConfirmedQuickExecutionTestWorkspace(t, "260826-foreign", quickExecutionSingleItemPayload("src/a.go"))
-		code, payload := invokeRunCLI(t,
+		code, payload := invokeCoordinationCLI(t,
 			"work", "begin", "--project-root", root,
 			"--work-id", "work-foreign", "--task-ref", "quick:260826-other",
 			"--summary", "Foreign Quick", "--agent-id", "foreign-agent", "--adapter-id", "codex",
@@ -472,7 +472,7 @@ func quickExecutionSingleItemPayload(writeScope string) map[string]any {
 }
 
 func TestQuickAllowInlineAndRejectDocsOnly(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	workspace := filepath.Join(root, ".planning", "quick", "260808-inline")
 	mustMkdirAllScriptDomainTest(t, workspace)
 	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), `---
@@ -563,7 +563,7 @@ y
 }
 
 func TestQuickItemAcceptRejectsOutOfScopeChangedFiles(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	workspace := filepath.Join(root, ".planning", "quick", "260808-scope")
 	mustMkdirAllScriptDomainTest(t, workspace)
 	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), `---
@@ -896,7 +896,7 @@ func TestQuickItemAcceptAllowsNoChangedFilesWithoutWriteScope(t *testing.T) {
 
 func stageConfirmedQuickExecutionTestWorkspace(t *testing.T, quickID string, payload map[string]any) (string, string) {
 	t.Helper()
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	workspace := filepath.Join(root, ".planning", "quick", quickID)
 	mustMkdirAllScriptDomainTest(t, workspace)
 	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), fmt.Sprintf(`---
@@ -939,7 +939,7 @@ y
 func bindQuickExecutionWork(t *testing.T, root, quickID string) string {
 	t.Helper()
 	workID := "work-" + strings.ReplaceAll(quickID, "/", "-")
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"work", "begin",
 		"--project-root", root,
 		"--work-id", workID,

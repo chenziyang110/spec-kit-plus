@@ -1,9 +1,9 @@
 # Artifact explanation
 
 When branch context is ambiguous, resolve the lane with
-the explicit feature argument, a validated managed Run feature subject, or the
+the explicit feature argument, a validated durable workflow binding in the current worktree, or the
 installed prerequisite helper's unique paths-only result. Never infer it from
-the Run's private Git ref.
+a Git ref or branch name.
 
 Choose evidence by question:
 

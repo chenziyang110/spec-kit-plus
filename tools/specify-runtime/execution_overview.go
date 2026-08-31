@@ -38,7 +38,6 @@ type executionOverviewActivityAccumulator struct {
 	TaskStatus            string
 	NextAction            string
 	SourceRefs            map[string]bool
-	RunIDs                map[string]bool
 	WorkIDs               map[string]bool
 	TaskPresent           bool
 	Current               bool
@@ -57,7 +56,7 @@ func runExecution(args []string, stdout io.Writer) int {
 	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
 		env := NewEnvelope("ok", "execution command help")
 		env.Data["commands"] = []string{"announce", "overview", "checkpoint", "guard", "show", "complete"}
-		env.Data["announce_usage"] = "specify-runtime execution announce --workflow <fast|debug|implement|quick> --subject-id <id> --summary <text> --agent-id <id> --adapter-id <id> [--planned-write-scope-json <array>] [--resources-json <array>] [--project-root <path>] --format json"
+		env.Data["announce_usage"] = "specify-runtime execution announce --workflow <fast|debug|implement|quick> (--subject-id <id> --summary <text> | --work-packet-file <worker-packet.json> --work-packet-sha256 <sha256>) --agent-id <id> --adapter-id <id> [--planned-write-scope-json <array>] [--resources-json <array>] [--project-root <path>] --format json"
 		env.Data["overview_usage"] = "specify-runtime execution overview [--current-work-id <work-id>] [--project-root <path>] --format json"
 		env.Data["guard_usage"] = "specify-runtime execution guard <activity-id> --expected-revision <revision> --fence <fence> --expected-overview-revision <revision> --expected-overview-sha256 <sha256> --write-scope-json <array> --resources-json <array> --reason <text> [--project-root <path>] --format json"
 		env.Data["checkpoint_usage"] = "specify-runtime execution checkpoint <activity-id> --expected-revision <revision> --fence <fence> --phase <selected|executing|validating|blocked> --next-action <text> --lease-seconds <seconds> [--observed-paths-json <array>] [--reason <text>] [--project-root <path>] --format json"
@@ -80,7 +79,7 @@ func runExecution(args []string, stdout io.Writer) int {
 	default:
 		return writeEnvelope(stdout, executionOverviewUsageEnvelope(fmt.Sprintf("unknown execution subcommand %q", args[0])))
 	}
-	parsed, err := parseRunCommandArgs(args[1:], 0, "--project-root", "--current-work-id", "--since-revision", "--format")
+	parsed, err := parseCoordinationCommandArgs(args[1:], 0, "--project-root", "--current-work-id", "--since-revision", "--format")
 	if err != nil {
 		return writeEnvelope(stdout, executionOverviewUsageEnvelope(err.Error()))
 	}
@@ -134,17 +133,6 @@ func buildExecutionOverviewWithChanges(projectRoot, currentWorkID string, sinceR
 	}})
 	if err != nil {
 		return Envelope{}, fmt.Errorf("list shared Work Board: %w", err)
-	}
-	runs, err := store.ListRuns(ctx, runcontrol.ListRunsParams{Statuses: []runcontrol.RunStatus{
-		runcontrol.RunQueued,
-		runcontrol.RunAllocating,
-		runcontrol.RunReady,
-		runcontrol.RunActive,
-		runcontrol.RunParked,
-		runcontrol.RunInterrupted,
-	}})
-	if err != nil {
-		return Envelope{}, fmt.Errorf("list nonterminal Runs: %w", err)
 	}
 	registeredActivities, err := store.ListExecutionActivities(ctx, runcontrol.ListExecutionActivitiesParams{Phases: []runcontrol.ExecutionPhase{
 		runcontrol.ExecutionPhaseAnnounced,
@@ -270,8 +258,6 @@ func buildExecutionOverviewWithChanges(projectRoot, currentWorkID string, sinceR
 	}
 
 	workProjections := make([]map[string]any, 0, len(liveWork))
-	workActivityKeys := make(map[string][]string, len(liveWork))
-	workByRun := make(map[string][]string)
 	taskRefOwners := make(map[string][]runcontrol.WorkItem)
 	for _, work := range liveWork {
 		workflow, subjectID, itemID := parseExecutionOverviewTaskRef(work.TaskRef, quickAliases)
@@ -306,50 +292,10 @@ func buildExecutionOverviewWithChanges(projectRoot, currentWorkID string, sinceR
 				}
 			}
 		}
-		workActivityKeys[work.WorkID] = append([]string(nil), keys...)
-		if work.RunID != "" {
-			workByRun[work.RunID] = append(workByRun[work.RunID], work.WorkID)
-		}
 		if normalizedRef := strings.ToLower(strings.TrimSpace(work.TaskRef)); normalizedRef != "" {
 			taskRefOwners[normalizedRef] = append(taskRefOwners[normalizedRef], work)
 		}
 		workProjections = append(workProjections, executionOverviewWorkProjection(work, intentsByWork[work.WorkID], workflow))
-	}
-
-	runProjections := make([]map[string]any, 0, len(runs))
-	runIDs := make(map[string]bool, len(runs))
-	for _, run := range runs {
-		runIDs[run.RunID] = true
-		keys := make([]string, 0)
-		for _, workID := range workByRun[run.RunID] {
-			keys = append(keys, workActivityKeys[workID]...)
-		}
-		keys = uniqueSortedExecutionOverviewStrings(keys)
-		workflow := normalizeExecutionOverviewWorkflow(run.Kind)
-		subjectID := strings.TrimSpace(run.SubjectID)
-		if workflow == "quick" {
-			if alias := quickAliases[subjectID]; alias != "" {
-				subjectID = alias
-			}
-		}
-		if len(keys) == 0 {
-			if workflow == "implement" && len(implementTaskKeys[subjectID]) > 0 {
-				keys = append(keys, implementTaskKeys[subjectID]...)
-			} else {
-				if subjectID == "" {
-					subjectID = run.RunID
-				}
-				keys = []string{executionOverviewActivityKey(workflow, subjectID, "")}
-			}
-		}
-		for _, key := range keys {
-			activity := ensureExecutionOverviewActivity(activities, key, workflow, subjectID, "")
-			activity.RunIDs[run.RunID] = true
-			if activity.Title == "" {
-				activity.Title = run.Kind + " " + subjectID
-			}
-		}
-		runProjections = append(runProjections, executionOverviewRunProjection(run, workflow))
 	}
 
 	for taskRef, owners := range taskRefOwners {
@@ -499,23 +445,7 @@ func buildExecutionOverviewWithChanges(projectRoot, currentWorkID string, sinceR
 			))
 		}
 	}
-	for _, run := range runs {
-		workIDs := workByRun[run.RunID]
-		if len(workIDs) == 0 && run.Status != runcontrol.RunQueued && run.Status != runcontrol.RunInterrupted {
-			signals = append(signals, executionOverviewSignal("warn", "managed_run_untracked", "nonterminal managed Run has no live Work registration", map[string]any{
-				"run_id": run.RunID,
-				"status": run.Status,
-				"kind":   run.Kind,
-			}))
-		}
-	}
 	for _, work := range liveWork {
-		if work.RunID != "" && !runIDs[work.RunID] {
-			signals = append(signals, executionOverviewSignal("warn", "work_run_missing", "Work item references a Run that is not nonterminal or is missing", map[string]any{
-				"work_id": work.WorkID,
-				"run_id":  work.RunID,
-			}))
-		}
 		if work.RecoveryHold {
 			signals = append(signals, executionOverviewSignal("warn", "work_recovery_hold", "interrupted Work retains dirty or uninspectable scope", map[string]any{
 				"work_id":              work.WorkID,
@@ -554,9 +484,6 @@ func buildExecutionOverviewWithChanges(projectRoot, currentWorkID string, sinceR
 	})
 	sort.Slice(workProjections, func(i, j int) bool {
 		return stringValue(workProjections[i]["work_id"]) < stringValue(workProjections[j]["work_id"])
-	})
-	sort.Slice(runProjections, func(i, j int) bool {
-		return stringValue(runProjections[i]["run_id"]) < stringValue(runProjections[j]["run_id"])
 	})
 	sort.SliceStable(signals, func(i, j int) bool {
 		left := executionOverviewSignalRank(stringValue(signals[i]["level"]))
@@ -614,7 +541,6 @@ func buildExecutionOverviewWithChanges(projectRoot, currentWorkID string, sinceR
 		"workflow_count":            len(workflowSet),
 		"execution_count":           len(activityProjections),
 		"open_task_count":           len(tasks),
-		"nonterminal_run_count":     len(runProjections),
 		"live_work_count":           len(workProjections),
 		"untracked_open_task_count": untrackedOpenTasks,
 		"blocker_count":             blockerCount,
@@ -623,7 +549,6 @@ func buildExecutionOverviewWithChanges(projectRoot, currentWorkID string, sinceR
 		"coordination_revision":     coordinationRevision,
 		"registered_activity_count": len(registrations),
 		"activities":                activityProjections,
-		"runs":                      runProjections,
 		"work_board":                workProjections,
 		"signals":                   signals,
 		"changes":                   changeProjections,
@@ -808,7 +733,6 @@ func ensureExecutionOverviewActivity(activities map[string]*executionOverviewAct
 		SubjectID:             strings.TrimSpace(subjectID),
 		ItemID:                strings.TrimSpace(itemID),
 		SourceRefs:            map[string]bool{},
-		RunIDs:                map[string]bool{},
 		WorkIDs:               map[string]bool{},
 		PlannedScope:          map[string]bool{},
 		ConfirmedScope:        map[string]bool{},
@@ -897,20 +821,14 @@ func executionOverviewTaskIsExecuting(workflow, status string) bool {
 
 func executionOverviewActivityProjection(activity *executionOverviewActivityAccumulator) map[string]any {
 	trackingState := "untracked"
-	hasTask, hasRun, hasWork := activity.TaskPresent, len(activity.RunIDs) > 0, len(activity.WorkIDs) > 0
+	hasTask, hasWork := activity.TaskPresent, len(activity.WorkIDs) > 0
 	switch {
-	case hasRun && hasWork:
-		trackingState = "managed"
 	case hasTask && hasWork:
 		trackingState = "work_tracked"
-	case hasTask && hasRun:
-		trackingState = "run_tracked"
 	case hasTask:
 		trackingState = "task_only"
 	case hasWork:
 		trackingState = "work_only"
-	case hasRun:
-		trackingState = "run_only"
 	}
 	return map[string]any{
 		"activity_id":             executionOverviewActivityKey(activity.Workflow, activity.SubjectID, activity.ItemID),
@@ -924,7 +842,6 @@ func executionOverviewActivityProjection(activity *executionOverviewActivityAccu
 		"current":                 activity.Current,
 		"task_present":            activity.TaskPresent,
 		"source_refs":             executionOverviewSetValues(activity.SourceRefs),
-		"run_ids":                 executionOverviewSetValues(activity.RunIDs),
 		"work_ids":                executionOverviewSetValues(activity.WorkIDs),
 		"planned_write_scope":     executionOverviewSetValues(activity.PlannedScope),
 		"confirmed_write_scope":   executionOverviewSetValues(activity.ConfirmedScope),
@@ -962,18 +879,6 @@ func executionOverviewResourceProjections(resources []runcontrol.ExecutionResour
 	return projected
 }
 
-func executionOverviewRunProjection(run runcontrol.Run, workflow string) map[string]any {
-	return map[string]any{
-		"run_id":       run.RunID,
-		"kind":         run.Kind,
-		"workflow":     workflow,
-		"subject_type": run.SubjectType,
-		"subject_id":   run.SubjectID,
-		"status":       run.Status,
-		"target_ref":   run.TargetRef,
-	}
-}
-
 func executionOverviewWorkProjection(work runcontrol.WorkItem, intents []runcontrol.WriteIntent, workflow string) map[string]any {
 	projectedIntents := make([]map[string]any, 0, len(intents))
 	for _, intent := range intents {
@@ -992,7 +897,6 @@ func executionOverviewWorkProjection(work runcontrol.WorkItem, intents []runcont
 	})
 	return map[string]any{
 		"work_id":         work.WorkID,
-		"run_id":          work.RunID,
 		"task_ref":        work.TaskRef,
 		"workflow":        workflow,
 		"summary":         work.Summary,

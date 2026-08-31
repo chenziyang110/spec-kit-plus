@@ -25,8 +25,19 @@ CHECK_PREREQUISITES_PS = PROJECT_ROOT / "scripts" / "powershell" / "check-prereq
 SETUP_PLAN = PROJECT_ROOT / "scripts" / "bash" / "setup-plan.sh"
 SETUP_PLAN_PS = PROJECT_ROOT / "scripts" / "powershell" / "setup-plan.ps1"
 
+def _git_bash_executable() -> str | None:
+    if os.name == "nt" and (git := shutil.which("git")):
+        executable = Path(git).resolve().parent.parent / "bin" / "bash.exe"
+        if executable.is_file():
+            return str(executable)
+    return None
+
+
+GIT_BASH_EXECUTABLE = _git_bash_executable()
+BASH_EXECUTABLE = GIT_BASH_EXECUTABLE or shutil.which("bash")
+
 requires_bash = pytest.mark.skipif(
-    shutil.which("bash") is None,
+    BASH_EXECUTABLE is None,
     reason="bash is not installed",
 )
 
@@ -39,6 +50,8 @@ def _today_prefix() -> str:
 def git_repo(tmp_path: Path) -> Path:
     """Create a temp git repo with scripts and .specify dir."""
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    if os.name == "nt":
+        subprocess.run(["git", "config", "core.longpaths", "true"], cwd=tmp_path, check=True)
     subprocess.run(
         ["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True
     )
@@ -75,7 +88,7 @@ def no_git_dir(tmp_path: Path) -> Path:
 
 def run_script(cwd: Path, *args: str, env: dict | None = None) -> subprocess.CompletedProcess:
     """Run create-new-feature.sh with given args."""
-    cmd = ["bash", "scripts/bash/create-new-feature.sh", *args]
+    cmd = [BASH_EXECUTABLE, "scripts/bash/create-new-feature.sh", *args]
     return subprocess.run(
         cmd,
         cwd=cwd,
@@ -89,24 +102,7 @@ def run_script(cwd: Path, *args: str, env: dict | None = None) -> subprocess.Com
 def run_branch_policy_script(
     cwd: Path, *args: str, env: dict | None = None
 ) -> subprocess.CompletedProcess:
-    """Run branch-policy cases with Git Bash when Windows resolves bash to WSL."""
-    if os.name == "nt":
-        git_executable = shutil.which("git")
-        if git_executable:
-            git_root = Path(git_executable).resolve().parent.parent
-            git_bash = git_root / "bin" / "bash.exe"
-            if git_bash.is_file():
-                command = shlex.join(
-                    ["./scripts/bash/create-new-feature.sh", *args]
-                )
-                return subprocess.run(
-                    [str(git_bash), "-lc", command],
-                    cwd=cwd,
-                    capture_output=True,
-                    text=True,
-                    errors="replace",
-                    env={**os.environ, **(env or {})},
-                )
+    """Use the same native Bash and path conventions as the other helper tests."""
     return run_script(cwd, *args, env=env)
 
 
@@ -114,7 +110,7 @@ def run_check_prerequisites(
     cwd: Path, *args: str, env: dict | None = None
 ) -> subprocess.CompletedProcess:
     """Run check-prerequisites.sh with given args."""
-    cmd = ["bash", "scripts/bash/check-prerequisites.sh", *args]
+    cmd = [BASH_EXECUTABLE, "scripts/bash/check-prerequisites.sh", *args]
     return subprocess.run(
         cmd,
         cwd=cwd,
@@ -129,7 +125,7 @@ def run_setup_plan(
     cwd: Path, *args: str, env: dict | None = None
 ) -> subprocess.CompletedProcess:
     """Run setup-plan.sh with given args."""
-    cmd = ["bash", "scripts/bash/setup-plan.sh", *args]
+    cmd = [BASH_EXECUTABLE, "scripts/bash/setup-plan.sh", *args]
     return subprocess.run(
         cmd,
         cwd=cwd,
@@ -141,9 +137,15 @@ def run_setup_plan(
 
 
 def _bash_path(path: Path) -> str:
-    raw = str(path.resolve())
-    normalized = raw.replace("\\", "/")
+    return _normalize_bash_path(str(path.resolve()))
+
+
+def _normalize_bash_path(value: str) -> str:
+    # Native Windows jq can translate MSYS path arguments back to drive paths.
+    normalized = value.replace("\\", "/")
     if len(normalized) >= 2 and normalized[1] == ":":
+        if GIT_BASH_EXECUTABLE:
+            return f"/{normalized[0].lower()}{normalized[2:]}"
         return f"/mnt/{normalized[0].lower()}{normalized[2:]}"
     return normalized
 
@@ -159,7 +161,7 @@ def source_and_call(func_call: str, env: dict | None = None) -> subprocess.Compl
         env_exports = "; ".join(export_parts) + "; "
     cmd = f'{env_exports}source "{_bash_path(COMMON_SH)}" && {func_call}'
     return subprocess.run(
-        ["bash", "-c", cmd],
+        [BASH_EXECUTABLE, "-c", cmd],
         capture_output=True,
         text=True,
         errors="replace",
@@ -436,8 +438,8 @@ class TestExplicitFeatureDirOverrides:
 
         assert result.returncode == 0, result.stderr
         payload = json.loads(result.stdout)
-        assert payload["FEATURE_DIR"] == _bash_path(legacy_feature_dir)
-        assert payload["FEATURE_SPEC"] == _bash_path(legacy_feature_dir / "spec.md")
+        assert _normalize_bash_path(payload["FEATURE_DIR"]) == _bash_path(legacy_feature_dir)
+        assert _normalize_bash_path(payload["FEATURE_SPEC"]) == _bash_path(legacy_feature_dir / "spec.md")
 
     def test_setup_plan_accepts_explicit_legacy_feature_dir(self, git_repo: Path):
         """setup-plan should accept an explicit feature dir even off a feature branch."""
@@ -455,90 +457,107 @@ class TestExplicitFeatureDirOverrides:
 
         assert result.returncode == 0, result.stderr
         payload = json.loads(result.stdout)
-        assert payload["FEATURE_DIR"] == _bash_path(legacy_feature_dir)
-        assert payload["IMPL_PLAN"] == _bash_path(legacy_feature_dir / "plan.md")
+        assert _normalize_bash_path(payload["FEATURE_DIR"]) == _bash_path(legacy_feature_dir)
+        assert _normalize_bash_path(payload["IMPL_PLAN"]) == _bash_path(legacy_feature_dir / "plan.md")
         assert (legacy_feature_dir / "plan.md").exists()
 
 
 @requires_bash
-class TestManagedRunFeatureDirResolution:
-    def test_check_prerequisites_uses_managed_run_subject_off_feature_branch(
-        self, git_repo: Path
+class TestRetiredRunFeatureDirResolution:
+    @pytest.mark.parametrize(
+        "path_kind",
+        ["relative", "absolute", pytest.param("native", marks=pytest.mark.skipif(os.name != "nt", reason="Windows path"))],
+    )
+    def test_explicit_feature_directory_ignores_retired_run_environment(
+        self, git_repo: Path, path_kind: str
     ):
-        feature_dir = git_repo / ".specify" / "features" / "2026-08-03-parallel-run"
+        feature_dir = git_repo / ".specify" / "features" / "2026-08-03-selected"
         feature_dir.mkdir(parents=True)
-        (feature_dir / "spec.md").write_text("# spec\n", encoding="utf-8")
         env = {
             "SPECIFY_RUN_MANAGED": "1",
-            "SPECIFY_RUN_WORKSPACE": str(git_repo),
+            "SPECIFY_RUN_WORKSPACE": str(git_repo.parent / "unrelated-project"),
             "SPECIFY_RUN_SUBJECT_TYPE": "feature",
-            "SPECIFY_RUN_SUBJECT_ID": feature_dir.name,
-            "WSLENV": "SPECIFY_RUN_MANAGED:SPECIFY_RUN_WORKSPACE/p:SPECIFY_RUN_SUBJECT_TYPE:SPECIFY_RUN_SUBJECT_ID",
+            "SPECIFY_RUN_SUBJECT_ID": "../unrelated-feature",
         }
+        selected = {
+            "relative": ".specify/features/2026-08-03-selected",
+            "absolute": _bash_path(feature_dir),
+            "native": str(feature_dir),
+        }[path_kind]
 
         result = run_check_prerequisites(
-            git_repo,
-            "--json",
-            "--paths-only",
-            "--feature-dir",
-            ".specify/features/2026-08-03-parallel-run",
-            env=env,
+            git_repo, "--json", "--paths-only", "--feature-dir", selected, env=env
         )
 
         assert result.returncode == 0, result.stderr
         payload = json.loads(result.stdout)
-        assert payload["FEATURE_DIR"] == _bash_path(feature_dir)
+        assert _normalize_bash_path(payload["REPO_ROOT"]) == _bash_path(git_repo)
+        assert _normalize_bash_path(payload["FEATURE_DIR"]) == _bash_path(feature_dir)
 
-    def test_check_prerequisites_rejects_managed_run_workspace_mismatch(
+    def test_nested_project_marker_takes_priority_over_parent_git_and_retired_workspace(
         self, git_repo: Path
     ):
-        feature_dir = git_repo / ".specify" / "features" / "2026-08-03-parallel-run"
+        project = git_repo / "nested-project"
+        feature = project / ".specify/features/001-selected"
+        feature.mkdir(parents=True)
+        head = (git_repo / ".git/HEAD").read_bytes()
+        result = subprocess.run(
+            [BASH_EXECUTABLE, _bash_path(CHECK_PREREQUISITES), "--json", "--paths-only",
+             "--feature-dir", ".specify/features/001-selected"],
+            cwd=project, capture_output=True, text=True, errors="replace",
+            env={**os.environ, "SPECIFY_RUN_MANAGED": "1", "SPECIFY_RUN_WORKSPACE": str(git_repo)},
+        )
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout)
+        assert _normalize_bash_path(payload["REPO_ROOT"]) == _bash_path(project)
+        assert _normalize_bash_path(payload["FEATURE_DIR"]) == _bash_path(feature)
+        assert not (project / ".git").exists()
+        assert (git_repo / ".git/HEAD").read_bytes() == head
+
+    @pytest.mark.parametrize("script_runner", [run_check_prerequisites, run_setup_plan])
+    def test_retired_run_environment_cannot_skip_branch_validation(
+        self, git_repo: Path, script_runner
+    ):
+        flags = ["--json"]
+        if script_runner is run_check_prerequisites:
+            flags.append("--paths-only")
+        result = script_runner(
+            git_repo, *flags,
+            env={
+                "SPECIFY_RUN_MANAGED": "1",
+                "SPECIFY_RUN_WORKSPACE": str(git_repo),
+                "SPECIFY_RUN_SUBJECT_TYPE": "feature",
+                "SPECIFY_RUN_SUBJECT_ID": "2026-08-03-retired",
+            },
+        )
+
+        assert result.returncode != 0
+        assert "not on a feature branch" in result.stderr.lower()
+        assert not (git_repo / ".specify" / "features").exists()
+
+    def test_setup_plan_uses_only_explicit_feature_with_retired_run_environment(
+        self, git_repo: Path
+    ):
+        feature_dir = git_repo / ".specify" / "features" / "2026-08-03-selected"
         feature_dir.mkdir(parents=True)
-        env = {
-            "SPECIFY_RUN_MANAGED": "1",
-            "SPECIFY_RUN_WORKSPACE": str(git_repo.parent),
-            "SPECIFY_RUN_SUBJECT_TYPE": "feature",
-            "SPECIFY_RUN_SUBJECT_ID": feature_dir.name,
-            "WSLENV": "SPECIFY_RUN_MANAGED:SPECIFY_RUN_WORKSPACE/p:SPECIFY_RUN_SUBJECT_TYPE:SPECIFY_RUN_SUBJECT_ID",
-        }
-
-        result = run_check_prerequisites(
-            git_repo,
-            "--json",
-            "--paths-only",
-            env=env,
+        outside = git_repo.parent / f"unrelated-{git_repo.name}"
+        outside.mkdir()
+        sentinel = outside / "plan.md"
+        sentinel.write_text("unrelated work\n", encoding="utf-8")
+        result = run_setup_plan(
+            git_repo, "--json", "--feature-dir", ".specify/features/2026-08-03-selected",
+            env={
+                "SPECIFY_RUN_MANAGED": "1",
+                "SPECIFY_RUN_WORKSPACE": str(outside),
+                "SPECIFY_RUN_SUBJECT_TYPE": "feature",
+                "SPECIFY_RUN_SUBJECT_ID": str(outside),
+            },
         )
 
-        assert result.returncode != 0
-        assert "workspace binding mismatch" in result.stderr.lower()
-
-    def test_check_prerequisites_rejects_managed_run_feature_dir_escape(
-        self, git_repo: Path
-    ):
-        # Unique sibling name avoids xdist collisions under a shared parent tmp.
-        outside_name = f"outside-feature-{git_repo.name}"
-        outside_feature_dir = git_repo.parent / outside_name
-        outside_feature_dir.mkdir(exist_ok=True)
-        (outside_feature_dir / "spec.md").write_text("# spec\n", encoding="utf-8")
-        env = {
-            "SPECIFY_RUN_MANAGED": "1",
-            "SPECIFY_RUN_WORKSPACE": str(git_repo),
-            "SPECIFY_RUN_SUBJECT_TYPE": "feature",
-            "SPECIFY_RUN_SUBJECT_ID": outside_name,
-            "WSLENV": "SPECIFY_RUN_MANAGED:SPECIFY_RUN_WORKSPACE/p:SPECIFY_RUN_SUBJECT_TYPE:SPECIFY_RUN_SUBJECT_ID",
-        }
-
-        result = run_check_prerequisites(
-            git_repo,
-            "--json",
-            "--paths-only",
-            "--feature-dir",
-            f"../{outside_name}",
-            env=env,
-        )
-
-        assert result.returncode != 0
-        assert "outside registered feature roots" in result.stderr.lower()
+        assert result.returncode == 0, result.stderr
+        assert _normalize_bash_path(json.loads(result.stdout)["FEATURE_DIR"]) == _bash_path(feature_dir)
+        assert (feature_dir / "plan.md").is_file()
+        assert sentinel.read_text(encoding="utf-8") == "unrelated work\n"
 
 
 # ── E2E Flow Tests ───────────────────────────────────────────────────────────
@@ -822,46 +841,28 @@ class TestSharedWorkBoardBranchPolicy:
         assert after == before
         assert json.loads(result.stdout)["BRANCH_POLICY"] == "keep-current"
 
-    def test_managed_run_always_preserves_allocated_checkout(self, git_repo: Path):
+    @pytest.mark.parametrize("policy", ["default", "keep-current"])
+    def test_retired_run_environment_does_not_override_board_branch_policy(
+        self, git_repo: Path, policy: str
+    ):
         before = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            cwd=git_repo,
-            capture_output=True,
-            text=True,
-            check=True,
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=git_repo,
+            capture_output=True, text=True, check=True,
         ).stdout.strip()
 
         result = run_branch_policy_script(
-            git_repo,
-            "--json",
-            "--number",
-            "46",
-            "--short-name",
-            "managed-private-ref",
-            "Managed private ref",
-            env={
-                "SPECIFY_RUN_MANAGED": "1",
-                "SPECIFY_FEATURE_BRANCH_POLICY": "default",
-            },
+            git_repo, "--json", "--number", "46", "--short-name", "retired-environment",
+            "Explicit branch policy",
+            env={"SPECIFY_RUN_MANAGED": "1", "SPECIFY_FEATURE_BRANCH_POLICY": policy},
         )
 
         assert result.returncode == 0, result.stderr
         after = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            cwd=git_repo,
-            capture_output=True,
-            text=True,
-            check=True,
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=git_repo,
+            capture_output=True, text=True, check=True,
         ).stdout.strip()
-        assert after == before
-        assert subprocess.run(
-            ["git", "branch", "--list", "046-managed-private-ref"],
-            cwd=git_repo,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip() == ""
-        assert json.loads(result.stdout)["BRANCH_POLICY"] == "keep-current"
+        assert after == (before if policy == "keep-current" else "046-retired-environment")
+        assert json.loads(result.stdout)["BRANCH_POLICY"] == policy
 
     def test_keep_current_rejects_existing_feature_dir_without_explicit_resume(
         self, git_repo: Path
@@ -1226,111 +1227,136 @@ def _has_pwsh() -> bool:
 
 @pytest.mark.skipif(not _has_pwsh(), reason="pwsh not available")
 class TestPowerShellFeatureDirResolution:
-    def test_common_ps_uses_managed_run_subject_off_feature_branch(
-        self, tmp_path: Path
+    @pytest.mark.parametrize("absolute", [False, True])
+    def test_common_ps_explicit_feature_ignores_retired_run_environment(
+        self, tmp_path: Path, absolute: bool
     ):
-        feature_dir = tmp_path / ".specify" / "features" / "2026-08-03-parallel-run"
+        feature_dir = tmp_path / ".specify" / "features" / "2026-08-03-selected"
         feature_dir.mkdir(parents=True)
         ps_dir = tmp_path / "scripts" / "powershell"
         ps_dir.mkdir(parents=True)
         shutil.copy(COMMON_PS, ps_dir / "common.ps1")
+        selected = str(feature_dir) if absolute else ".specify/features/2026-08-03-selected"
         script = (
             f'. "{ps_dir / "common.ps1"}"; '
-            "$paths = Get-FeaturePathsEnv; "
-            "Write-Output $paths.FEATURE_DIR"
+            f"$paths = Get-FeaturePathsEnv -FeatureDirOverride '{selected}'; "
+            "$paths | ConvertTo-Json -Compress"
         )
         env = {
             **os.environ,
             "SPECIFY_RUN_MANAGED": "1",
-            "SPECIFY_RUN_WORKSPACE": str(tmp_path),
+            "SPECIFY_RUN_WORKSPACE": str(tmp_path.parent / "unrelated-project"),
             "SPECIFY_RUN_SUBJECT_TYPE": "feature",
-            "SPECIFY_RUN_SUBJECT_ID": feature_dir.name,
+            "SPECIFY_RUN_SUBJECT_ID": "../unrelated-feature",
         }
 
         result = subprocess.run(
-            ["pwsh", "-NoProfile", "-Command", script],
-            cwd=tmp_path,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
+            ["pwsh", "-NoProfile", "-Command", script], cwd=tmp_path,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
         )
 
         assert result.returncode == 0, result.stderr
-        assert result.stdout.strip() == str(feature_dir)
+        payload = json.loads(result.stdout)
+        assert Path(payload["REPO_ROOT"]) == tmp_path
+        assert Path(payload["FEATURE_DIR"]) == feature_dir
 
-    def test_common_ps_rejects_managed_run_workspace_mismatch(
+    def test_ps_nested_project_marker_takes_priority_over_parent_git_and_retired_workspace(
+        self, ps_git_repo: Path
+    ):
+        project = ps_git_repo / "nested-project"
+        feature = project / ".specify/features/001-selected"
+        feature.mkdir(parents=True)
+        head = (ps_git_repo / ".git/HEAD").read_bytes()
+        result = subprocess.run(
+            ["pwsh", "-NoProfile", "-File", str(CHECK_PREREQUISITES_PS), "-Json", "-PathsOnly",
+             "-FeatureDir", ".specify/features/001-selected"],
+            cwd=project, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            env={**os.environ, "SPECIFY_RUN_MANAGED": "1", "SPECIFY_RUN_WORKSPACE": str(ps_git_repo)},
+        )
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout)
+        assert Path(payload["REPO_ROOT"]) == project
+        assert Path(payload["FEATURE_DIR"]) == feature
+        assert not (project / ".git").exists()
+        assert (ps_git_repo / ".git/HEAD").read_bytes() == head
+
+    def test_common_ps_prefers_normal_feature_identity_over_retired_run_subject(
         self, tmp_path: Path
     ):
-        feature_dir = tmp_path / ".specify" / "features" / "2026-08-03-parallel-run"
+        feature_dir = tmp_path / ".specify" / "features" / "2026-08-03-selected"
         feature_dir.mkdir(parents=True)
         ps_dir = tmp_path / "scripts" / "powershell"
         ps_dir.mkdir(parents=True)
         shutil.copy(COMMON_PS, ps_dir / "common.ps1")
         script = (
             f'. "{ps_dir / "common.ps1"}"; '
-            "Get-FeaturePathsEnv -FeatureDirOverride '.specify/features/2026-08-03-parallel-run'"
+            "(Get-FeaturePathsEnv).FEATURE_DIR"
         )
         env = {
             **os.environ,
+            "SPECIFY_FEATURE": feature_dir.name,
             "SPECIFY_RUN_MANAGED": "1",
             "SPECIFY_RUN_WORKSPACE": str(tmp_path.parent),
             "SPECIFY_RUN_SUBJECT_TYPE": "feature",
-            "SPECIFY_RUN_SUBJECT_ID": feature_dir.name,
+            "SPECIFY_RUN_SUBJECT_ID": "2026-08-03-unrelated",
         }
 
         result = subprocess.run(
-            ["pwsh", "-NoProfile", "-Command", script],
-            cwd=tmp_path,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
+            ["pwsh", "-NoProfile", "-Command", script], cwd=tmp_path,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
         )
 
-        assert result.returncode != 0
-        assert "workspace binding mismatch" in (
-            (result.stderr or "") + (result.stdout or "")
-        ).lower()
+        assert result.returncode == 0, result.stderr
+        assert Path(result.stdout.strip()) == feature_dir
 
-    def test_common_ps_rejects_managed_run_feature_dir_escape(
-        self, tmp_path: Path
+    @pytest.mark.parametrize("script", [CHECK_PREREQUISITES_PS, SETUP_PLAN_PS])
+    @pytest.mark.parametrize("managed", ["", "1"])
+    def test_ps_retired_run_environment_cannot_skip_branch_validation(
+        self, ps_git_repo: Path, script: Path, managed: str
     ):
-        feature_dir = tmp_path / ".specify" / "features" / "2026-08-03-parallel-run"
-        feature_dir.mkdir(parents=True)
-        outside_feature_dir = tmp_path.parent / "outside-feature"
-        outside_feature_dir.mkdir(exist_ok=True)
-        ps_dir = tmp_path / "scripts" / "powershell"
-        ps_dir.mkdir(parents=True)
-        shutil.copy(COMMON_PS, ps_dir / "common.ps1")
-        script = (
-            f'. "{ps_dir / "common.ps1"}"; '
-            "Get-FeaturePathsEnv -FeatureDirOverride '../outside-feature'"
-        )
-        env = {
-            **os.environ,
-            "SPECIFY_RUN_MANAGED": "1",
-            "SPECIFY_RUN_WORKSPACE": str(tmp_path),
-            "SPECIFY_RUN_SUBJECT_TYPE": "feature",
-            "SPECIFY_RUN_SUBJECT_ID": feature_dir.name,
-        }
-
+        flags = ["-Json"]
+        if script == CHECK_PREREQUISITES_PS:
+            flags.append("-PathsOnly")
         result = subprocess.run(
-            ["pwsh", "-NoProfile", "-Command", script],
-            cwd=tmp_path,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
+            ["pwsh", "-NoProfile", "-File", str(script), *flags],
+            cwd=ps_git_repo, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            env={
+                **os.environ,
+                "SPECIFY_RUN_MANAGED": managed,
+                "SPECIFY_RUN_WORKSPACE": str(ps_git_repo),
+                "SPECIFY_RUN_SUBJECT_TYPE": "feature",
+                "SPECIFY_RUN_SUBJECT_ID": "2026-08-03-retired",
+            },
         )
-
         assert result.returncode != 0
-        assert "outside registered feature roots" in (
-            (result.stderr or "") + (result.stdout or "")
-        ).lower()
+        assert "not on a feature branch" in (result.stderr + result.stdout).lower()
+        assert not (ps_git_repo / ".specify" / "features").exists()
+
+    def test_ps_setup_plan_uses_explicit_feature_with_retired_run_environment(
+        self, ps_git_repo: Path
+    ):
+        feature_dir = ps_git_repo / ".specify" / "features" / "2026-08-03-selected"
+        feature_dir.mkdir(parents=True)
+        outside = ps_git_repo.parent / f"unrelated-{ps_git_repo.name}"
+        outside.mkdir()
+        sentinel = outside / "plan.md"
+        sentinel.write_text("unrelated work\n", encoding="utf-8")
+        result = subprocess.run(
+            ["pwsh", "-NoProfile", "-File", str(SETUP_PLAN_PS),
+             "-Json", "-FeatureDir", ".specify/features/2026-08-03-selected"],
+            cwd=ps_git_repo, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            env={
+                **os.environ,
+                "SPECIFY_RUN_MANAGED": "1",
+                "SPECIFY_RUN_WORKSPACE": str(outside),
+                "SPECIFY_RUN_SUBJECT_TYPE": "feature",
+                "SPECIFY_RUN_SUBJECT_ID": str(outside),
+            },
+        )
+        assert result.returncode == 0, result.stderr
+        assert Path(json.loads(result.stdout)["FEATURE_DIR"]) == feature_dir
+        assert (feature_dir / "plan.md").is_file()
+        assert sentinel.read_text(encoding="utf-8") == "unrelated work\n"
 
     def test_common_ps_feature_paths_match_timestamp_prefix(self, tmp_path: Path):
         """PowerShell should resolve an existing timestamp-prefixed spec dir even when branch suffix differs."""
@@ -1655,48 +1681,28 @@ class TestPowerShellDryRun:
         ).stdout.strip()
         assert current == "045-ps-default"
 
-    def test_ps_managed_run_always_preserves_allocated_checkout(
-        self, ps_git_repo: Path
+    @pytest.mark.parametrize("policy", ["default", "keep-current"])
+    def test_ps_retired_run_environment_does_not_override_board_branch_policy(
+        self, ps_git_repo: Path, policy: str
     ):
         before = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            cwd=ps_git_repo,
-            capture_output=True,
-            text=True,
-            check=True,
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=ps_git_repo,
+            capture_output=True, text=True, check=True,
         ).stdout.strip()
 
         result = run_ps_script(
-            ps_git_repo,
-            "-Json",
-            "-Number",
-            "49",
-            "-ShortName",
-            "ps-managed-private-ref",
-            "PowerShell managed private ref",
-            env={
-                "SPECIFY_RUN_MANAGED": "1",
-                "SPECIFY_FEATURE_BRANCH_POLICY": "default",
-            },
+            ps_git_repo, "-Json", "-Number", "49", "-ShortName", "ps-retired-environment",
+            "PowerShell explicit branch policy",
+            env={"SPECIFY_RUN_MANAGED": "1", "SPECIFY_FEATURE_BRANCH_POLICY": policy},
         )
 
         assert result.returncode == 0, result.stderr
         after = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            cwd=ps_git_repo,
-            capture_output=True,
-            text=True,
-            check=True,
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=ps_git_repo,
+            capture_output=True, text=True, check=True,
         ).stdout.strip()
-        assert after == before
-        assert subprocess.run(
-            ["git", "branch", "--list", "049-ps-managed-private-ref"],
-            cwd=ps_git_repo,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip() == ""
-        assert json.loads(result.stdout)["BRANCH_POLICY"] == "keep-current"
+        assert after == (before if policy == "keep-current" else "049-ps-retired-environment")
+        assert json.loads(result.stdout)["BRANCH_POLICY"] == policy
 
     def test_ps_keep_current_rejects_existing_feature_dir_without_explicit_resume(
         self, ps_git_repo: Path

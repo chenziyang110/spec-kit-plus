@@ -36,9 +36,10 @@ type Repository struct {
 }
 
 type WorkspaceBaseline struct {
-	HeadCommit  string            `json:"head_commit"`
-	DirtyPaths  []string          `json:"dirty_paths"`
-	PathDigests map[string]string `json:"path_digests"`
+	HeadCommit   string               `json:"head_commit"`
+	DirtyPaths   []string             `json:"dirty_paths"`
+	PathDigests  map[string]string    `json:"path_digests"`
+	WorkerPacket *WorkerPacketBinding `json:"worker_packet,omitempty"`
 }
 
 // ResolveRepository discovers the current worktree root and the shared Git
@@ -207,6 +208,9 @@ func EncodeWorkspaceBaseline(baseline WorkspaceBaseline) (string, error) {
 	return string(raw), nil
 }
 
+// InspectWorkspaceDelta audits deliverable changes against an execution's
+// baseline. Known private runtime transport paths are excluded only here;
+// ownership recovery must continue to use the unfiltered InspectWorkspaceChanges.
 func InspectWorkspaceDelta(ctx context.Context, workspaceRoot, baselineJSON string) ([]string, error) {
 	var baseline WorkspaceBaseline
 	if err := json.Unmarshal([]byte(strings.TrimSpace(baselineJSON)), &baseline); err != nil {
@@ -233,6 +237,9 @@ func InspectWorkspaceDelta(ctx context.Context, workspaceRoot, baselineJSON stri
 		if normalizeErr != nil {
 			return nil, fmt.Errorf("normalize workspace baseline path %q: %w", baselinePath, normalizeErr)
 		}
+		if isPrivateRuntimeTransportPath(pathKey) {
+			continue
+		}
 		baselineByKey[pathKey] = baselinePathState{path: pathValue, digest: digest}
 	}
 	seen := make(map[string]string, len(committed)+len(dirty)+len(baselineByKey))
@@ -241,17 +248,23 @@ func InspectWorkspaceDelta(ctx context.Context, workspaceRoot, baselineJSON stri
 		if normalizeErr != nil {
 			return nil, normalizeErr
 		}
+		if isPrivateRuntimeTransportPath(key) {
+			continue
+		}
 		seen[key] = path
 	}
 	currentDirtyKeys := make(map[string]struct{}, len(dirty))
 	for _, path := range dirty {
-		digest, digestErr := workspacePathDigest(workspaceRoot, path)
-		if digestErr != nil {
-			return nil, fmt.Errorf("inspect current digest for %q: %w", path, digestErr)
-		}
 		_, key, normalizeErr := normalizeWorkPath(path, runtime.GOOS == "windows")
 		if normalizeErr != nil {
 			return nil, normalizeErr
+		}
+		if isPrivateRuntimeTransportPath(key) {
+			continue
+		}
+		digest, digestErr := workspacePathDigest(workspaceRoot, path)
+		if digestErr != nil {
+			return nil, fmt.Errorf("inspect current digest for %q: %w", path, digestErr)
 		}
 		currentDirtyKeys[key] = struct{}{}
 		if baselineState, existed := baselineByKey[key]; existed && baselineState.digest == digest {
@@ -280,6 +293,30 @@ func InspectWorkspaceDelta(ctx context.Context, workspaceRoot, baselineJSON stri
 	}
 	sort.Strings(paths)
 	return paths, nil
+}
+
+// isPrivateRuntimeTransportPath accepts an already-normalized repository path
+// key. These are operational journals/copies, receipts, leases, and locks owned
+// by file_transaction.go, artifact*.go, and the workflow lock helpers. Their
+// canonical source/destination artifacts remain audited, including both sides
+// of renames. Do not extend this to all of .specify or .planning: even unknown
+// .specify/runtime paths and the directory roots themselves stay audit-visible.
+// This exception belongs only to execution delta auditing, never Work recovery.
+func isPrivateRuntimeTransportPath(pathKey string) bool {
+	const root = ".specify/runtime/"
+	if !strings.HasPrefix(pathKey, root) {
+		return false
+	}
+	privatePath := strings.TrimPrefix(pathKey, root)
+	for _, directory := range []string{
+		"receipts/", "transactions/", "leases/", "locks/", "artifact-trash/",
+		"deep-research/locks/", "test-design/locks/",
+	} {
+		if strings.HasPrefix(privatePath, directory) {
+			return true
+		}
+	}
+	return privatePath == "discussion/mutation.lock"
 }
 
 func inspectCommittedWorkspacePaths(ctx context.Context, workspaceRoot, baseCommit string) ([]string, error) {

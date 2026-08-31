@@ -10,8 +10,8 @@ def read(path: str) -> str:
 
 def test_shared_workflow_bootstraps_use_the_execution_control_lifecycle() -> None:
     for path in (
-        "templates/command-partials/common/run-bootstrap.md",
-        "templates/advanced-skills/_shared/run-bootstrap.md",
+        "templates/command-partials/common/execution-bootstrap.md",
+        "templates/advanced-skills/_shared/execution-bootstrap.md",
     ):
         content = read(path)
         assert "specify-runtime execution announce" in content, path
@@ -21,6 +21,11 @@ def test_shared_workflow_bootstraps_use_the_execution_control_lifecycle() -> Non
         assert "specify-runtime execution complete" in content, path
         assert "actual changed" in content, path
         assert "semantic resource" in content, path
+        assert "product and canonical workflow git delta" in content, path
+        assert "not an audit exemption" in content, path
+        assert ".specify" in content and ".planning" in content, path
+        assert "fast|debug|implement|quick" in content, path
+        assert "artifact leases" in content and "state owners" in content, path
 
 
 def test_handbooks_define_one_activity_lifecycle_and_atomic_boundaries() -> None:
@@ -29,8 +34,12 @@ def test_handbooks_define_one_activity_lifecycle_and_atomic_boundaries() -> None
         assert "announced -> selected -> claimed -> executing -> validating -> completed" in content, path
         assert "execution guard" in content, path
         assert "execution complete" in content, path
-        assert "task, run, and work" in content, path
+        assert "task state and work ownership" in content, path
         assert "changed paths" in content, path
+        assert "fresh passing validation" in content, path
+        assert "terminal workflow task state" in content, path
+        assert "product and canonical workflow git delta" in content, path
+        assert "without a second owner" in content, path
 
 
 def test_python_launcher_requires_the_execution_control_capability() -> None:

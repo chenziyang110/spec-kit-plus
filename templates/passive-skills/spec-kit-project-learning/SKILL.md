@@ -11,6 +11,13 @@ or `.planning/learnings/**` directly during normal workflow execution.
 
 ## Consume With Progressive Disclosure
 
+Reuse one Learning intake and cognition context capsule for an unchanged intake;
+do not restart them after each preparatory capability, artifact, script, or board
+call. Refresh for changed scope, relevant evidence, workflow binding, Learning
+applicability, cognition freshness/generation, or a required resume/recovery gate.
+Keep contextual recall for newly evidenced operations and mutation-closeout
+freshness checks; do not duplicate unchanged recall.
+
 1. Run `{{specify-subcmd:specify-runtime learning start --command <classic-command-name> --format json}}`.
 2. Use the returned compact cards to identify matching trigger signals.
 3. If more summaries are needed, run `{{specify-subcmd:specify-runtime learning list --command <classic-command-name> --format json}}`. Use `--query`, `--type`, `--status`, `--cursor`, or `--all` only when needed.

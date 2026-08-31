@@ -8,14 +8,20 @@ description: Advanced system review and repair workflow. Use after implementatio
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/native-subagents.md` when Review, Fix, or revalidation lanes are delegated.
 Read `references/workflow-runtime.md` and let its CLI own phase state.
-Read `references/run-bootstrap.md`.
+Read `references/execution-bootstrap.md`.
 Read
 `references/project-cognition.md`, using cognition intent `implement`. Read
 `references/review-contract.md`; read `references/worker-contract.md` only when
 delegating. Read `references/ui-quality-gate.md` for UI-bearing scenarios and
 `references/blocker-resolution.md` when a blocked exit becomes possible.
 
-`$spx-review` starts from the exact immutable Candidate built from eligible implementation Results. Inspect it with `specify-runtime candidate show` and run integrated proof with `specify-runtime candidate review`. Bind frozen product targets through `specify-runtime review target-bind`. Any accepted code repair runs through `specify-runtime run supervise` as a new repair Run, seals a new Result, and requires a newly built and reviewed Candidate; never mutate or directly integrate the old Candidate.
+`$spx-review` starts from the current worktree's validated
+`implementation-handoff.json` and exact implementation fingerprint. Register
+only its allowed artifacts and accepted repair scopes on Work Board; preserve
+artifact leases and independent Review/Fix/revalidation ownership. Bind product
+targets through `specify-runtime review target-bind`. Every repair requires
+fresh integrated evidence against the final reviewed fingerprint before Review
+approval and human Accept. Do not allocate worktrees or merge or publish changes.
 
 When the upstream gate is `selected` or `required`, or the canonical task index
 has a Test Design binding, require a producer-built Review projection and

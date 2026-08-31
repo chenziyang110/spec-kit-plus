@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
 
 from .base import BackendDescriptor
+from .environment import build_child_environment
 
 
 @dataclass(slots=True, frozen=True)
@@ -38,10 +38,5 @@ class ProcessBackend:
         cwd: Path | str | None = None,
         env: Mapping[str, str] | None = None,
     ) -> ProcessHandle:
-        merged_env: dict[str, str] | None = None
-        if env is not None:
-            merged_env = os.environ.copy()
-            merged_env.update(env)
-
-        process = subprocess.Popen(command, cwd=cwd, env=merged_env)
+        process = subprocess.Popen(command, cwd=cwd, env=build_child_environment(env))
         return ProcessHandle(pid=process.pid, command=command, cwd=cwd)

@@ -16,10 +16,8 @@ const (
 	runtimeTimeoutEnv            = "SPECIFY_RUNTIME_TIMEOUT_SECONDS"
 	defaultRuntimeQueryTimeout   = 30 * time.Second
 	defaultRuntimeCommandTimeout = 5 * time.Minute
-	defaultSupervisedRunTimeout  = 6 * time.Hour
 	maxRuntimeCommandTimeout     = 24 * time.Hour
 	runtimeCleanupGrace          = 4 * time.Second
-	supervisedCleanupGrace       = 10 * time.Second
 )
 
 type contextualRuntimeCommandRunner func(context.Context, []string, io.Writer, io.Writer, string) int
@@ -39,18 +37,7 @@ func runtimeCommandTimeout(args []string) (time.Duration, error) {
 	if isShortRuntimeQuery(args) {
 		return defaultRuntimeQueryTimeout, nil
 	}
-	if isSupervisedRuntimeCommand(args) {
-		return defaultSupervisedRunTimeout, nil
-	}
 	return defaultRuntimeCommandTimeout, nil
-}
-
-func isSupervisedRuntimeCommand(args []string) bool {
-	if len(args) < 2 || !strings.EqualFold(strings.TrimSpace(args[0]), "run") {
-		return false
-	}
-	subcommand := strings.ToLower(strings.TrimSpace(args[1]))
-	return subcommand == "launch" || subcommand == "supervise"
 }
 
 func isShortRuntimeQuery(args []string) bool {
@@ -131,39 +118,4 @@ func runWithWatchdog(
 		fmt.Sprintf("operation exceeded its %s execution budget; child processes were cancelled and cleanup was bounded", timeout),
 	)
 	return writeEnvelope(stdout, env)
-}
-
-func runSupervisedWithTimeout(
-	args []string,
-	stdout, stderr io.Writer,
-	cliVersion string,
-	timeout time.Duration,
-	runner contextualRuntimeCommandRunner,
-) int {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	resultChannel := make(chan int, 1)
-	go func() {
-		resultChannel <- runner(ctx, args, stdout, stderr, cliVersion)
-	}()
-
-	select {
-	case code := <-resultChannel:
-		return code
-	case <-ctx.Done():
-	}
-
-	cleanupTimer := time.NewTimer(supervisedCleanupGrace)
-	defer cleanupTimer.Stop()
-	select {
-	case code := <-resultChannel:
-		return code
-	case <-cleanupTimer.C:
-		env := NewEnvelope("blocked", "runtime command timed out")
-		env.Data["operation"] = runtimeOperation(args)
-		env.Data["timeout_seconds"] = timeout.Seconds()
-		env.Data["timeout_env"] = runtimeTimeoutEnv
-		env.Blockers = append(env.Blockers, "supervised process cleanup exceeded its bounded grace period; the runtime process will exit")
-		return writeEnvelope(stdout, env)
-	}
 }

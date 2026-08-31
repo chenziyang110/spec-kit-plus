@@ -16,7 +16,7 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
-{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
+{{spec-kit-include: ../command-partials/common/execution-bootstrap.md}}
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
@@ -66,7 +66,7 @@ Use this when:
 14. Use `sp-teams result-template --request-id <id>` or `sp-teams submit-result --print-schema` for structured result handoff instead of ad hoc JSON guessing. Treat the generated template as a `pending` placeholder only; do not submit it unchanged.
 15. Materialize each subagent lane as an explicit execution packet: write set, required references, forbidden drift, validation command, completion-handoff protocol, and platform guardrails must stay visible to the leader and subagent.
 16. Treat a blocked baseline build as a pre-dispatch runtime concern; do not mix existing repo compile debt into the current batch verdict.
-17. After managed team execution, use `sp-teams sync-back` when leader-visible results need to be promoted from runtime worktrees back into the active workspace.
+17. Verify results in the current worktree. If an explicitly selected durable-team backend has separate existing worktrees, inspect its join state and use `sp-teams sync-back` within the existing user-authorized delivery scope and runtime gates. Do not ask again for an already authorized transfer; ask only when its scope exceeds that authority or an existing gate requires it. Never infer permission to merge, publish, or clean up historical worktrees.
 18. Distinguish lane-local completion from repo-global verification: `DONE_WITH_CONCERNS` means the lane finished with follow-up concerns, while repo-wide failure may still be caused by baseline debt.
 19. Every join point that gates downstream work must have an explicit validation target, validation command or check, and pass condition before the runtime crosses it.
 20. After each completed join point or ready batch, call `specify-runtime implement task-next` again instead of rereading tracker/task files, then continue automatically. Stop only when no ready work remains, a real blocker stops progress, or an explicit human gate is reached.

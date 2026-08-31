@@ -106,19 +106,21 @@ technical questions; ask the user only for product choices or authority the
 repository cannot supply.
 
 Use the event-driven coordination gate alongside those durable transitions:
-run `specify-runtime quick preflight <quick-id> --format json` before the first
+run `specify-runtime execution overview --format json` before the first
 `quick item-start`, after each join before selecting more work, and before
-`work scope-add` or material scope expansion. Resolve a confirmed
+execution guard or material scope expansion. Keep `quick preflight` only as a
+compatibility view. Resolve a confirmed
 `write_overlap`; treat unfinished/untracked Quick and board-only signals as
 advisory context and continue when their product intent and planned paths are
 unrelated. Do not poll between these events.
 
-Before `quick item-start`, bind the exact active Work id and fence. Managed
-execution reads `SPECIFY_WORK_ID` / `SPECIFY_WORK_FENCE`; unhosted execution
-passes `--current-work-id` / `--current-work-fence`. Runtime verifies the
+Before `quick item-start`, bind the exact guarded Work/Activity id and fence
+through matching `SPECIFY_WORK_ID` / `SPECIFY_WORK_FENCE` or
+`--current-work-id` / `--current-work-fence`. Runtime verifies the
 canonical `quick:<id>` or `quick:<id>#Qn` task ref and claims the selected Q
 item's complete normalized `write_scope` all-or-none before changing the Q item
-to `in_progress`. Dispatch only from the returned `work_claim` receipt. The
+to `in_progress`. Dispatch only from the returned `work_claim` receipt and
+matching execution guard. The
 default Quick-level owner claims the active batch and workers inherit that
 Quick-level Work authority rather than creating overlapping registrations.
 

@@ -10,7 +10,7 @@ import (
 )
 
 func TestExecutionAnnounceMakesFastVisibleBeforeClaim(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	announced := announceExecutionCLI(t, root, "activity-fast-visible", "fast", "copy-fix", "", []string{"src/copy"}, []map[string]any{{
 		"type": "capability", "key": "copy-rendering", "mode": "exclusive", "confidence": "candidate",
 	}})
@@ -18,7 +18,7 @@ func TestExecutionAnnounceMakesFastVisibleBeforeClaim(t *testing.T) {
 		t.Fatalf("announced activity = %#v", announced)
 	}
 
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"execution", "overview",
 		"--project-root", root,
 		"--current-work-id", "activity-fast-visible",
@@ -45,7 +45,7 @@ func TestExecutionAnnounceMakesFastVisibleBeforeClaim(t *testing.T) {
 }
 
 func TestExecutionGuardAndCompleteEnforceOneAuditedLifecycle(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	announced := announceExecutionCLI(t, root, "activity-audited", "fast", "audited", "", []string{"src/allowed"}, []map[string]any{{
 		"type": "feature", "key": "audited", "mode": "exclusive", "confidence": "candidate",
 	}})
@@ -58,7 +58,7 @@ func TestExecutionGuardAndCompleteEnforceOneAuditedLifecycle(t *testing.T) {
 	}
 
 	mustWriteScriptDomainTest(t, filepath.Join(root, "src", "outside.go"), "package outside\n")
-	code, blocked := invokeRunCLI(t,
+	code, blocked := invokeCoordinationCLI(t,
 		"execution", "complete", "activity-audited",
 		"--project-root", root,
 		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
@@ -79,7 +79,7 @@ func TestExecutionGuardAndCompleteEnforceOneAuditedLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	mustWriteScriptDomainTest(t, filepath.Join(root, "src", "allowed", "main.go"), "package allowed\n")
-	code, completedPayload := invokeRunCLI(t,
+	code, completedPayload := invokeCoordinationCLI(t,
 		"execution", "complete", "activity-audited",
 		"--project-root", root,
 		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
@@ -99,7 +99,7 @@ func TestExecutionGuardAndCompleteEnforceOneAuditedLifecycle(t *testing.T) {
 		t.Fatalf("audited completion = %#v", completed)
 	}
 
-	code, shownPayload := invokeRunCLI(t, "execution", "show", "activity-audited", "--project-root", root, "--format", "json")
+	code, shownPayload := invokeCoordinationCLI(t, "execution", "show", "activity-audited", "--project-root", root, "--format", "json")
 	if code != 0 || shownPayload["status"] != "ok" {
 		t.Fatalf("execution show = code %d envelope %#v", code, shownPayload)
 	}
@@ -110,7 +110,7 @@ func TestExecutionGuardAndCompleteEnforceOneAuditedLifecycle(t *testing.T) {
 }
 
 func TestExecutionCompleteRejectsMissingImplementTaskSource(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	featureID := "feature-missing-task"
 	taskID := "T001"
 	taskIndexPath := filepath.Join(root, ".specify", "features", featureID, "task-index.json")
@@ -125,7 +125,7 @@ func TestExecutionCompleteRejectsMissingImplementTaskSource(t *testing.T) {
 	guarded := guardExecutionCLI(t, root, announced, overview, []string{"src/missing-task", taskIndexScope}, nil)
 	mustWriteScriptDomainTest(t, taskIndexPath, `{"version":2,"status":"ready","feature_id":"feature-missing-task","tasks":[]}`+"\n")
 
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"execution", "complete", "activity-missing-implement-task",
 		"--project-root", root,
 		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
@@ -144,7 +144,7 @@ func TestExecutionCompleteRejectsMissingImplementTaskSource(t *testing.T) {
 }
 
 func TestExecutionCompleteRejectsMissingQuickTaskSource(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	quickID := "260826-missing-task"
 	writeQuickCoordinationFixture(t, root, quickID, "Missing Quick task", "planned", []string{"src/missing-quick"})
 	statusScope := filepath.ToSlash(filepath.Join(".planning", "quick", quickID+"-fixture", "STATUS.md"))
@@ -159,7 +159,7 @@ func TestExecutionCompleteRejectsMissingQuickTaskSource(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"execution", "complete", "activity-missing-quick-task",
 		"--project-root", root,
 		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
@@ -178,12 +178,12 @@ func TestExecutionCompleteRejectsMissingQuickTaskSource(t *testing.T) {
 }
 
 func TestExecutionGuardRejectsOverviewChangedAfterObservation(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	announced := announceExecutionCLI(t, root, "activity-stale-cli", "debug", "stale-cli", "", []string{"src/stale"}, nil)
 	overview := executionOverviewCLI(t, root, "activity-stale-cli")
 	_ = announceExecutionCLI(t, root, "activity-racer-cli", "fast", "racer-cli", "", []string{"src/racer"}, nil)
 
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"execution", "guard", "activity-stale-cli",
 		"--project-root", root,
 		"--expected-revision", executionJSONNumberString(announced["work_revision"]),
@@ -205,7 +205,7 @@ func TestExecutionGuardRejectsOverviewChangedAfterObservation(t *testing.T) {
 }
 
 func TestExecutionGuardBlocksSemanticConflictAcrossDifferentFiles(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	first := announceExecutionCLI(t, root, "activity-api-first", "quick", "api-first", "", []string{"src/first"}, nil)
 	firstOverview := executionOverviewCLI(t, root, "activity-api-first")
 	_ = guardExecutionCLI(t, root, first, firstOverview, []string{"src/first"}, []map[string]any{{
@@ -217,7 +217,7 @@ func TestExecutionGuardBlocksSemanticConflictAcrossDifferentFiles(t *testing.T) 
 	resources := marshalWorkBoardCLIJSON(t, []map[string]any{{
 		"type": "api", "key": "/v1/nodes", "mode": "exclusive", "confidence": "confirmed",
 	}})
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"execution", "guard", "activity-api-second",
 		"--project-root", root,
 		"--expected-revision", executionJSONNumberString(second["work_revision"]),
@@ -239,11 +239,11 @@ func TestExecutionGuardBlocksSemanticConflictAcrossDifferentFiles(t *testing.T) 
 }
 
 func TestExecutionOverviewReturnsChangesSinceRevision(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	initial := executionOverviewCLI(t, root, "")
 	_ = announceExecutionCLI(t, root, "activity-change-feed", "fast", "change-feed", "", []string{"src/change"}, nil)
 
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"execution", "overview",
 		"--project-root", root,
 		"--since-revision", executionJSONNumberString(initial["coordination_revision"]),
@@ -260,9 +260,9 @@ func TestExecutionOverviewReturnsChangesSinceRevision(t *testing.T) {
 }
 
 func TestExecutionCheckpointAdvancesSelectedAndValidatingPhases(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	announced := announceExecutionCLI(t, root, "activity-checkpoint", "debug", "checkpoint", "", []string{"src/checkpoint"}, nil)
-	code, selectedPayload := invokeRunCLI(t,
+	code, selectedPayload := invokeCoordinationCLI(t,
 		"execution", "checkpoint", "activity-checkpoint",
 		"--project-root", root,
 		"--expected-revision", executionJSONNumberString(announced["work_revision"]),
@@ -281,7 +281,7 @@ func TestExecutionCheckpointAdvancesSelectedAndValidatingPhases(t *testing.T) {
 	}
 	overview := executionOverviewCLI(t, root, "activity-checkpoint")
 	guarded := guardExecutionCLI(t, root, selected, overview, []string{"src/checkpoint"}, nil)
-	code, validatingPayload := invokeRunCLI(t,
+	code, validatingPayload := invokeCoordinationCLI(t,
 		"execution", "checkpoint", "activity-checkpoint",
 		"--project-root", root,
 		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
@@ -301,9 +301,9 @@ func TestExecutionCheckpointAdvancesSelectedAndValidatingPhases(t *testing.T) {
 }
 
 func TestLegacyWorkFinishCannotBypassExecutionCompletionAudit(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	announced := announceExecutionCLI(t, root, "activity-no-bypass", "fast", "no-bypass", "", []string{"src/no-bypass"}, nil)
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"work", "finish", "activity-no-bypass",
 		"--project-root", root,
 		"--expected-revision", executionJSONNumberString(announced["work_revision"]),
@@ -321,14 +321,14 @@ func TestLegacyWorkFinishCannotBypassExecutionCompletionAudit(t *testing.T) {
 }
 
 func TestExecutionOverviewWarnsCandidateSemanticResourceOverlap(t *testing.T) {
-	root := initRunCLIRepository(t)
+	root := initCoordinationCLIRepository(t)
 	resource := []map[string]any{{
 		"type": "api", "key": "/v1/shared", "mode": "exclusive", "confidence": "candidate",
 	}}
 	_ = announceExecutionCLI(t, root, "activity-plan-a", "fast", "plan-a", "", []string{"src/a"}, resource)
 	_ = announceExecutionCLI(t, root, "activity-plan-b", "debug", "plan-b", "", []string{"src/b"}, resource)
 
-	code, payload := invokeRunCLI(t, "execution", "overview", "--project-root", root, "--format", "json")
+	code, payload := invokeCoordinationCLI(t, "execution", "overview", "--project-root", root, "--format", "json")
 	if code != 0 || payload["status"] != "ok" {
 		t.Fatalf("semantic planned overview = code %d envelope %#v", code, payload)
 	}
@@ -343,8 +343,8 @@ func TestExecutionOverviewWarnsCandidateSemanticResourceOverlap(t *testing.T) {
 }
 
 func TestExecutionRecoverySignalCarriesActionableState(t *testing.T) {
-	root := initRunCLIRepository(t)
-	code, announcedPayload := invokeRunCLI(t,
+	root := initCoordinationCLIRepository(t)
+	code, announcedPayload := invokeCoordinationCLI(t,
 		"execution", "announce",
 		"--project-root", root,
 		"--activity-id", "activity-recovery",
@@ -364,7 +364,7 @@ func TestExecutionRecoverySignalCarriesActionableState(t *testing.T) {
 	mustWriteScriptDomainTest(t, filepath.Join(root, "src", "recovery", "main.go"), "package recovery\n")
 	time.Sleep(1200 * time.Millisecond)
 
-	code, payload := invokeRunCLI(t, "execution", "overview", "--project-root", root, "--format", "json")
+	code, payload := invokeCoordinationCLI(t, "execution", "overview", "--project-root", root, "--format", "json")
 	if code != 0 || payload["status"] != "ok" {
 		t.Fatalf("recovery overview = code %d envelope %#v", code, payload)
 	}
@@ -383,8 +383,8 @@ func TestExecutionRecoverySignalCarriesActionableState(t *testing.T) {
 }
 
 func TestExecutionGuardUsesRegisteredWorkIdentityWhenIDsDiffer(t *testing.T) {
-	root := initRunCLIRepository(t)
-	code, payload := invokeRunCLI(t,
+	root := initCoordinationCLIRepository(t)
+	code, payload := invokeCoordinationCLI(t,
 		"execution", "announce",
 		"--project-root", root,
 		"--activity-id", "activity-distinct-id",
@@ -440,7 +440,7 @@ func announceExecutionCLI(
 	if itemID != "" {
 		args = append(args[:8], append([]string{"--item-id", itemID}, args[8:]...)...)
 	}
-	code, payload := invokeRunCLI(t, args...)
+	code, payload := invokeCoordinationCLI(t, args...)
 	if code != 0 || payload["status"] != "ok" {
 		t.Fatalf("execution announce %s = code %d envelope %#v", activityID, code, payload)
 	}
@@ -453,7 +453,7 @@ func executionOverviewCLI(t *testing.T, root, currentActivityID string) map[stri
 	if currentActivityID != "" {
 		args = append(args[:4], append([]string{"--current-work-id", currentActivityID}, args[4:]...)...)
 	}
-	code, payload := invokeRunCLI(t, args...)
+	code, payload := invokeCoordinationCLI(t, args...)
 	if code != 0 || payload["status"] != "ok" {
 		t.Fatalf("execution overview = code %d envelope %#v", code, payload)
 	}
@@ -462,7 +462,7 @@ func executionOverviewCLI(t *testing.T, root, currentActivityID string) map[stri
 
 func guardExecutionCLI(t *testing.T, root string, announced, overview map[string]any, scope []string, resources []map[string]any) map[string]any {
 	t.Helper()
-	code, payload := invokeRunCLI(t,
+	code, payload := invokeCoordinationCLI(t,
 		"execution", "guard", stringValue(announced["activity_id"]),
 		"--project-root", root,
 		"--expected-revision", executionJSONNumberString(announced["work_revision"]),

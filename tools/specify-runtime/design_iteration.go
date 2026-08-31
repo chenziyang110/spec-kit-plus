@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -55,26 +56,67 @@ func runDesignIterate(args []string, stdout io.Writer) int {
 
 func runDesignResolve(args []string, stdout io.Writer) int {
 	scope := strings.TrimSpace(optionValue(args, "--scope", ""))
-	if scope == "" {
-		return writeDesignError(stdout, "usage-error", "design resolve requires --scope")
-	}
 	root, err := os.Getwd()
 	if err != nil {
 		return writeDesignError(stdout, "error", "resolve project root: "+err.Error())
 	}
-	items, err := resolveDesignChanges(root, scope)
-	if err != nil {
-		return writeDesignError(stdout, "blocked", err.Error())
-	}
 	env := NewEnvelope("ok", "active UI design changes resolved for explicit adoption")
+	env.Data["scope"] = scope
+	env.Data["read_only"] = true
+	env.Data["requires_explicit_adoption"] = true
+	if !designChangeScopeRE.MatchString(scope) {
+		env.Status = "usage-error"
+		env.Summary = "design resolve requires --scope to be an exact stable path-like identifier, not a prose description"
+		env.Blockers = append(env.Blockers, env.Summary)
+		env.Data["diagnostic_code"] = "invalid-scope"
+		env.Data["scope_format"] = map[string]any{
+			"pattern":     designChangeScopeRE.String(),
+			"description": "Start with an ASCII letter or digit; remaining characters may be ASCII letters, digits, '.', '_', ':', '/', or '-'. Use an exact applicable surface from a design change contract.",
+			"examples":    []string{"web:orders", "web:orders/list", "cli:search"},
+		}
+		addDesignDiscoveryGuidance(&env, root)
+		return writeEnvelope(stdout, env)
+	}
+	env.Data["index_path"] = ".specify/design/index.json"
+	items, err := resolveDesignChanges(root, scope)
+	registryState := "present"
+	if err != nil {
+		var indexError *designChangeIndexError
+		if errors.As(err, &indexError) {
+			registryState = indexError.state
+			env.Data["registry_state"] = registryState
+			env.Data["diagnostic_code"] = "design-index-" + registryState
+		}
+		if registryState != "missing" {
+			env.Status = "blocked"
+			env.Summary = err.Error()
+			env.Blockers = append(env.Blockers, err.Error())
+			return writeEnvelope(stdout, env)
+		}
+		env.Summary = "no registered UI design candidates: design change index is missing"
+	}
 	for _, item := range items {
 		env.Items = append(env.Items, item)
 	}
-	env.Data["scope"] = scope
+	if len(items) == 0 {
+		if registryState == "present" {
+			env.Summary = "no active registered UI design candidates match the requested scope"
+		}
+		addDesignDiscoveryGuidance(&env, root)
+	}
+	env.Data["registry_state"] = registryState
 	env.Data["candidate_count"] = len(items)
 	env.Data["composite"] = len(items) > 1
-	env.Data["requires_explicit_adoption"] = true
 	return writeEnvelope(stdout, env)
+}
+
+func addDesignDiscoveryGuidance(env *Envelope, root string) {
+	env.NextArgv = []string{
+		"specify-runtime", "artifact", "list", "--project-root", root,
+		"--path-prefix", ".specify/design/changes/",
+		"--type", "ui-design-change-contract", "--format", "json",
+	}
+	env.Data["discovery_guidance"] = "Inspect a listed canonical_path with artifact show --path <canonical_path> --view full; read design_change.scope.surfaces, then retry resolve with an exact applicable scope. Discovery does not approve or adopt designs, or waive required UI design."
 }
 
 func runDesignDiff(args []string, stdout io.Writer) int {
@@ -250,22 +292,37 @@ func scaffoldDesignIteration(sourceID, changeID, title, changeType string, scope
 	)
 }
 
+type designChangeIndexError struct {
+	state string
+	err   error
+}
+
+func (err *designChangeIndexError) Error() string { return err.err.Error() }
+func (err *designChangeIndexError) Unwrap() error { return err.err }
+
 func loadDesignChangeIndex(root string) (map[string]any, string, map[string]map[string]any, error) {
 	indexPath := filepath.Join(root, ".specify", "design", "index.json")
 	raw, err := os.ReadFile(indexPath)
 	if err != nil {
-		return nil, indexPath, nil, fmt.Errorf("cannot read design change index: %v", err)
+		state := "unreadable"
+		if errors.Is(err, os.ErrNotExist) {
+			// A dangling index symlink is an existing unreadable registry.
+			if _, statErr := os.Lstat(indexPath); errors.Is(statErr, os.ErrNotExist) {
+				state = "missing"
+			}
+		}
+		return nil, indexPath, nil, &designChangeIndexError{state: state, err: fmt.Errorf("cannot read design change index: %w", err)}
 	}
 	index := map[string]any{}
 	if err := json.Unmarshal(raw, &index); err != nil {
-		return nil, indexPath, nil, fmt.Errorf("cannot read design change index: %v", err)
+		return nil, indexPath, nil, &designChangeIndexError{state: "malformed", err: fmt.Errorf("cannot parse design change index: %w", err)}
 	}
 	if index["schema"] != designChangeIndexSchema {
-		return nil, indexPath, nil, fmt.Errorf("design change index has an invalid schema")
+		return nil, indexPath, nil, &designChangeIndexError{state: "malformed", err: fmt.Errorf("design change index has an invalid schema")}
 	}
 	changes, ok := index["changes"].([]any)
 	if !ok {
-		return nil, indexPath, nil, fmt.Errorf("design change index changes must be a list")
+		return nil, indexPath, nil, &designChangeIndexError{state: "malformed", err: fmt.Errorf("design change index changes must be a list")}
 	}
 	records := map[string]map[string]any{}
 	for _, rawRecord := range changes {
