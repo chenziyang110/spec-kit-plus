@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,34 +14,40 @@ import (
 
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/delta"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/update"
 )
 
 const closeoutIntentVersion = 1
 
 type closeoutIntent struct {
-	Version            int      `json:"version"`
-	ID                 string   `json:"id"`
-	State              string   `json:"state"`
-	Workflow           string   `json:"workflow"`
-	Scope              string   `json:"scope"`
-	Reason             string   `json:"reason"`
-	PayloadJSON        string   `json:"payload_json,omitempty"`
-	DeltaSessionID     string   `json:"delta_session_id,omitempty"`
-	DeltaDigest        string   `json:"delta_digest,omitempty"`
-	CommitRange        string   `json:"commit_range,omitempty"`
-	InputDigest        string   `json:"input_digest"`
-	ChangedPaths       []string `json:"changed_paths"`
-	UpdateID           string   `json:"update_id,omitempty"`
-	UpdateOutcome      string   `json:"update_outcome,omitempty"`
-	ActiveGenerationID string   `json:"active_generation_id,omitempty"`
-	ChangedBasis       []string `json:"changed_basis,omitempty"`
-	RecordedAt         string   `json:"recorded_at"`
+	Version              int                           `json:"version"`
+	ID                   string                        `json:"id"`
+	State                string                        `json:"state"`
+	Workflow             string                        `json:"workflow"`
+	Scope                string                        `json:"scope"`
+	Reason               string                        `json:"reason"`
+	PayloadJSON          string                        `json:"payload_json,omitempty"`
+	DeltaSessionID       string                        `json:"delta_session_id,omitempty"`
+	DeltaDigest          string                        `json:"delta_digest,omitempty"`
+	CommitRange          string                        `json:"commit_range,omitempty"`
+	InputDigest          string                        `json:"input_digest"`
+	ChangedPaths         []string                      `json:"changed_paths"`
+	UpdateID             string                        `json:"update_id,omitempty"`
+	UpdateOutcome        string                        `json:"update_outcome,omitempty"`
+	ActiveGenerationID   string                        `json:"active_generation_id,omitempty"`
+	ChangedBasis         []string                      `json:"changed_basis,omitempty"`
+	RecordedAt           string                        `json:"recorded_at"`
+	VerificationOverride []update.VerificationEvidence `json:"verification_override,omitempty"`
+	RepairsIntentID      string                        `json:"repairs_intent_id,omitempty"`
 }
 
-func ensureCloseoutIntent(paths rt.Paths, workflow string, scope string, reason string, payloadJSON string, deltaSession string, commitRange string, changedPaths []string) (closeoutIntent, string, bool, error) {
+func ensureCloseoutIntent(paths rt.Paths, workflow string, scope string, reason string, payloadJSON string, deltaSession string, commitRange string, changedPaths []string, expectedDeltaDigest ...string) (closeoutIntent, string, bool, error) {
 	deltaDigest, err := closeoutDeltaDigest(paths, deltaSession)
 	if err != nil {
 		return closeoutIntent{}, "", false, err
+	}
+	if len(expectedDeltaDigest) > 0 && deltaDigest != expectedDeltaDigest[0] {
+		return closeoutIntent{}, "", false, fmt.Errorf("delta session digest changed after closeout preflight; rerun preflight before creating an intent")
 	}
 	digest := closeoutIntentDigest(workflow, scope, reason, payloadJSON, deltaSession, commitRange, deltaDigest)
 	intent := closeoutIntent{
@@ -131,10 +138,13 @@ func listCloseoutIntents(paths rt.Paths) ([]closeoutIntent, error) {
 		}
 		var intent closeoutIntent
 		if err := json.Unmarshal(raw, &intent); err != nil {
-			return nil, err
+			return nil, &closeoutReplayError{IntentID: strings.TrimSuffix(entry.Name(), ".json"), Err: fmt.Errorf("invalid closeout intent JSON")}
+		}
+		if entry.Name() != intent.ID+".json" {
+			return nil, &closeoutReplayError{IntentID: strings.TrimSuffix(entry.Name(), ".json"), Err: fmt.Errorf("closeout intent filename does not match identity")}
 		}
 		if err := validateCloseoutIntent(paths, intent); err != nil {
-			return nil, fmt.Errorf("invalid closeout intent %s: %w", entry.Name(), err)
+			return nil, &closeoutReplayError{IntentID: intent.ID, Err: err}
 		}
 		intents = append(intents, intent)
 	}
@@ -148,8 +158,8 @@ func listCloseoutIntents(paths rt.Paths) ([]closeoutIntent, error) {
 }
 
 func validateCloseoutIntent(paths rt.Paths, intent closeoutIntent) error {
-	if intent.Version != closeoutIntentVersion || strings.TrimSpace(intent.ID) == "" {
-		return fmt.Errorf("unsupported or missing intent identity")
+	if err := validateCloseoutIntentIdentity(intent); err != nil {
+		return err
 	}
 	deltaDigest, err := closeoutDeltaDigest(paths, intent.DeltaSessionID)
 	if err != nil {
@@ -158,11 +168,75 @@ func validateCloseoutIntent(paths rt.Paths, intent closeoutIntent) error {
 	if deltaDigest != intent.DeltaDigest {
 		return fmt.Errorf("delta session digest changed")
 	}
-	digest := closeoutIntentDigest(intent.Workflow, intent.Scope, intent.Reason, intent.PayloadJSON, intent.DeltaSessionID, intent.CommitRange, intent.DeltaDigest)
+	return nil
+}
+
+func validateCloseoutIntentIdentity(intent closeoutIntent) error {
+	if intent.Version != closeoutIntentVersion || !validCloseoutIntentID(intent.ID) {
+		return fmt.Errorf("unsupported or missing intent identity")
+	}
+	if (intent.PayloadJSON == "") == (intent.DeltaSessionID == "") {
+		return fmt.Errorf("intent must bind exactly one payload or delta session")
+	}
+	if _, err := normalizeMutationWorkflowID(intent.Workflow); err != nil {
+		return err
+	}
+	switch intent.State {
+	case "pending_update", "pending_validation", "receipt_recorded", "scope_receipt_recorded":
+	default:
+		return fmt.Errorf("invalid closeout intent state")
+	}
+	if intent.VerificationOverride != nil || intent.RepairsIntentID != "" {
+		if !validCloseoutIntentID(intent.RepairsIntentID) || len(intent.VerificationOverride) == 0 {
+			return fmt.Errorf("invalid repaired intent binding")
+		}
+		if err := update.ValidateVerificationEvidence(intent.VerificationOverride); err != nil {
+			return err
+		}
+	}
+	digest := storedCloseoutIntentDigest(intent)
 	if intent.InputDigest != digest || intent.ID != "intent-"+digest[:24] {
 		return fmt.Errorf("intent digest mismatch")
 	}
 	return nil
+}
+
+func storedCloseoutIntentDigest(intent closeoutIntent) string {
+	values := []string{intent.Workflow, intent.Scope, intent.Reason, intent.PayloadJSON, intent.DeltaSessionID, intent.CommitRange, intent.DeltaDigest}
+	if intent.VerificationOverride != nil || intent.RepairsIntentID != "" {
+		raw, _ := json.Marshal(intent.VerificationOverride)
+		values = append(values, "verification-repair", intent.RepairsIntentID, string(raw))
+	}
+	return closeoutIntentDigest(values...)
+}
+
+func validCloseoutIntentID(value string) bool {
+	if !strings.HasPrefix(value, "intent-") || len(value) != len("intent-")+24 {
+		return false
+	}
+	_, err := hex.DecodeString(strings.TrimPrefix(value, "intent-"))
+	return err == nil && strings.ToLower(value) == value
+}
+
+func loadCloseoutIntent(paths rt.Paths, id string) (closeoutIntent, error) {
+	if !validCloseoutIntentID(id) {
+		return closeoutIntent{}, fmt.Errorf("--intent-id must be an exact intent ID")
+	}
+	raw, err := os.ReadFile(closeoutIntentPath(paths, id))
+	if err != nil {
+		return closeoutIntent{}, err
+	}
+	var intent closeoutIntent
+	if err := json.Unmarshal(raw, &intent); err != nil {
+		return closeoutIntent{}, fmt.Errorf("invalid closeout intent JSON")
+	}
+	if intent.ID != id {
+		return closeoutIntent{}, fmt.Errorf("closeout intent filename does not match identity")
+	}
+	if err := validateCloseoutIntent(paths, intent); err != nil {
+		return closeoutIntent{}, err
+	}
+	return intent, nil
 }
 
 func closeoutDeltaDigest(paths rt.Paths, sessionID string) (string, error) {
@@ -178,55 +252,15 @@ func closeoutDeltaDigest(paths rt.Paths, sessionID string) (string, error) {
 }
 
 func runCognitionCloseoutReplayCLI(args []string, stdout io.Writer) int {
+	if containsHelpFlag(args) {
+		env := NewEnvelope("ok", "project cognition closeout replay usage")
+		env.Data["usage"] = "specify-runtime cognition closeout replay (--intent-id <id> --expected-digest <sha256> | --scope-dir <scope>) [--project-root <path>] --format json"
+		return writeEnvelope(stdout, env)
+	}
 	projectRoot := optionValue(args, "--project-root", ".")
 	paths, err := rt.ResolvePaths(projectRoot)
 	if err != nil {
 		return writeEnvelope(stdout, scriptDomainError("cognition", err))
 	}
-	scopeDir := firstNonEmpty(optionValue(args, "--scope-dir", ""), optionValue(args, "--feature-dir", ""), optionValue(args, "--workspace", ""))
-	absScope, relScope, err := resolveCloseoutApplyScope(paths.Root, scopeDir)
-	if err != nil {
-		return writeEnvelope(stdout, scriptDomainError("cognition", err))
-	}
-	receipt, err := loadMutationCognitionReceipt(absScope)
-	if err != nil {
-		return writeEnvelope(stdout, scriptDomainError("cognition", err))
-	}
-	if receipt == nil || normalizeMutationCognitionState(receipt.ResultState) != "blocked" {
-		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("closeout replay requires a blocked cognition-closeout.json for %s", relScope)))
-	}
-	intents, err := listCloseoutIntents(paths)
-	if err != nil {
-		return writeEnvelope(stdout, scriptDomainError("cognition", err))
-	}
-	matches := []closeoutIntent{}
-	for _, intent := range intents {
-		if intent.Scope == relScope {
-			matches = append(matches, intent)
-		}
-	}
-	if len(matches) != 1 {
-		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("closeout replay found %d intents for %s; expected exactly one", len(matches), relScope)))
-	}
-	intent := matches[0]
-	intentRef := closeoutIntentRef(paths, closeoutIntentPath(paths, intent.ID))
-	if receipt.IntentID != intent.ID || receipt.IntentRef != intentRef || receipt.IntentDigest != intent.InputDigest {
-		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("blocked closeout receipt does not bind the selected replay intent")))
-	}
-	replayArgs := []string{
-		"--project-root", paths.Root,
-		"--workflow", intent.Workflow,
-		"--scope-dir", intent.Scope,
-		"--reason", intent.Reason,
-		"--format", "json",
-	}
-	if intent.PayloadJSON != "" {
-		replayArgs = append(replayArgs, "--payload-json", "-")
-		return runCognitionCloseoutApplyCLIWithInput(replayArgs, strings.NewReader(intent.PayloadJSON), stdout)
-	}
-	replayArgs = append(replayArgs, "--delta-session", intent.DeltaSessionID)
-	if intent.CommitRange != "" {
-		replayArgs = append(replayArgs, "--commit-range", intent.CommitRange)
-	}
-	return runCognitionCloseoutApplyCLIWithInput(replayArgs, strings.NewReader(""), stdout)
+	return replaySelectedCloseoutIntent(paths, args, stdout)
 }

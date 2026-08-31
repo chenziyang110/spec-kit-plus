@@ -18,6 +18,8 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+from .ui_migration import migration_contract_errors
+
 UI_SOURCE_CONTINUITY_SCHEMA = "spec-kit-ui-source-continuity-v1"
 
 APPLICABILITY_NOT_ASSESSED = "not-assessed"
@@ -495,6 +497,15 @@ def validate_ui_source_continuity(
     _append_duplicate_id_errors(payload, errors)
     _append_coverage_errors(payload, errors, require_ready=require_ready)
     _append_ready_asset_errors(payload, errors, require_ready=require_ready)
+    if not errors:
+        errors.extend(
+            UiSourceContinuityValidationError(message, path)
+            for path, message in migration_contract_errors(
+                payload,
+                character_ref=_is_character_ref,
+                placeholder_ref=_is_placeholder_ref,
+            )
+        )
 
     gaps = payload.get("unresolved_gaps")
     if require_ready and _nonempty_list(gaps):

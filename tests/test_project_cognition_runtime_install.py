@@ -36,6 +36,21 @@ def test_standalone_installers_require_the_format_policy_command_chain() -> None
             assert command in content, (relative_path, command)
 
 
+@pytest.mark.parametrize(
+    "relative_path",
+    ("tools/specify-runtime/install.sh", "tools/specify-runtime/install.ps1"),
+)
+def test_standalone_installers_require_closeout_intent_recovery(
+    relative_path: str,
+) -> None:
+    content = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
+    handshake_guard = content.split("Downloaded binary failed the specify-runtime API handshake")[0]
+    normalized = handshake_guard.replace(r"\.", ".")
+
+    for capability in ("cognition.closeout.inspect", "cognition.closeout.repair"):
+        assert f'"{capability}"' in normalized, (relative_path, capability)
+
+
 def test_binary_filename_uses_unified_runtime_name(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(runtime, "get_platform", lambda: ("linux", "amd64"))
 
@@ -106,6 +121,76 @@ def test_launcher_support_probe_rejects_runtime_without_artifact_data_plane(
     assert not runtime.launcher_supports_required_commands(
         [str(tmp_path / RUNTIME_NAME)]
     )
+
+
+@pytest.mark.parametrize(
+    "missing_capabilities",
+    (
+        {"cognition.closeout.inspect"},
+        {"cognition.closeout.repair"},
+        {"cognition.closeout.inspect", "cognition.closeout.repair"},
+    ),
+)
+def test_launcher_support_probe_rejects_runtime_without_closeout_intent_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    missing_capabilities: set[str],
+) -> None:
+    legacy_capabilities = sorted(
+        set(runtime.REQUIRED_CAPABILITIES) - missing_capabilities
+    )
+    assert "cognition.closeout.apply" in legacy_capabilities
+    assert "cognition.closeout.replay" in legacy_capabilities
+    monkeypatch.setattr(
+        runtime.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps(
+                {
+                    "status": "ok",
+                    "data": {
+                        "protocol_version": "specify-runtime.v1",
+                        "capability_ids": legacy_capabilities,
+                    },
+                }
+            ),
+            stderr="",
+        ),
+    )
+
+    assert not runtime.launcher_supports_required_commands(
+        [str(tmp_path / RUNTIME_NAME)]
+    )
+
+
+def test_clean_release_without_closeout_intent_recovery_requires_replacement(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    binary = _write_runtime(tmp_path / "old" / RUNTIME_NAME)
+    replacement = _write_runtime(tmp_path / "new" / RUNTIME_NAME)
+    missing = {"cognition.closeout.inspect", "cognition.closeout.repair"}
+    handshake = {
+        "protocol_version": "specify-runtime.v1",
+        "capability_ids": sorted(set(runtime.REQUIRED_CAPABILITIES) - missing),
+        "cli_version": "v0.6.23",
+        "source_revision": "a" * 40,
+        "dirty": False,
+    }
+    monkeypatch.setattr(runtime, "_runtime_handshake", lambda *_args, **_kwargs: handshake)
+    monkeypatch.setattr(runtime, "_source_build_marker_matches", lambda _binary: False)
+    build_calls: list[tuple[Path, str]] = []
+
+    def build_replacement(candidate: Path, version: str, _reason: str) -> Path:
+        build_calls.append((candidate, version))
+        return replacement
+
+    monkeypatch.setattr(runtime, "_build_supported_binary_from_source", build_replacement)
+
+    assert not runtime._cached_binary_is_compatible(binary, "v0.6.23")
+    assert runtime._ensure_supported_binary(binary, "v0.6.23") == replacement
+    assert build_calls == [(binary, "v0.6.23")]
 
 
 def test_resolve_prefers_env_over_path_when_no_project_launcher(

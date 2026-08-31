@@ -26,6 +26,7 @@ var (
 	closeoutApplyAfterScopeReceiptHook         func(string) error
 	closeoutApplyBeforeCurrentUpdateHook       func(string) error
 	closeoutApplyAfterReplayedScopeReceiptHook func(string) error
+	closeoutApplyAfterPreflightHook            func() error
 )
 
 type closeoutIntentPendingError struct {
@@ -100,10 +101,11 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		payloadJSON = string(raw)
 	}
 
-	missingAgentFields, err := closeoutApplyPreflight(paths, workflow, payloadJSON, deltaSession)
+	prepared, err := prepareCloseoutInput(paths, workflow, payloadJSON, deltaSession, nil, optionValue(args, "--commit-range", ""))
 	if err != nil {
-		return writeEnvelope(stdout, scriptDomainError("cognition", err))
+		return closeoutApplyInputRejected(stdout, workflow, relScope, err)
 	}
+	missingAgentFields := prepared.Missing
 	if len(missingAgentFields) > 0 {
 		env := NewEnvelope("blocked", "project cognition closeout needs agent-owned evidence before mutation")
 		env.Data = map[string]any{
@@ -129,9 +131,11 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		input.DeltaSessionID = strings.TrimSpace(deltaSession)
 		input.CommitRange = strings.TrimSpace(optionValue(args, "--commit-range", ""))
 	}
-	changedPaths, pathErr := closeoutApplyInputPaths(paths, payloadJSON, deltaSession)
-	if pathErr != nil {
-		return closeoutApplyInputRejected(stdout, workflow, relScope, pathErr)
+	changedPaths := prepared.ChangedPaths
+	if closeoutApplyAfterPreflightHook != nil {
+		if err := closeoutApplyAfterPreflightHook(); err != nil {
+			return closeoutApplyInputRejected(stdout, workflow, relScope, err)
+		}
 	}
 	var (
 		updatePayload   update.UpdatePayload
@@ -147,7 +151,10 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 	replayedIntents = []string{}
 	lockedErr := update.WithLockedRuntime(paths, func(runtime *update.LockedRuntime) error {
 		var err error
-		intent, intentRef, resumed, err = ensureCloseoutIntent(paths, workflow, relScope, reason, payloadJSON, deltaSession, input.CommitRange, changedPaths)
+		if err := reconcileCloseoutRepairsLocked(paths); err != nil {
+			return err
+		}
+		intent, intentRef, resumed, err = ensureCloseoutIntent(paths, workflow, relScope, reason, payloadJSON, deltaSession, input.CommitRange, changedPaths, prepared.DeltaDigest)
 		if err != nil {
 			return err
 		}
@@ -166,7 +173,7 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 			}
 			updateID, err := replayStoredCloseoutIntentLocked(runtime, paths, pending)
 			if err != nil {
-				return fmt.Errorf("replay older closeout intent %s: %w", pending.ID, err)
+				return &closeoutReplayError{IntentID: pending.ID, Err: err}
 			}
 			replayedIntents = append(replayedIntents, updateID)
 		}
@@ -251,6 +258,12 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 	})
 
 	if lockedErr != nil {
+		var replayErr *closeoutReplayError
+		if errors.As(lockedErr, &replayErr) {
+			env := NewEnvelope("blocked", "an older closeout intent requires exact recovery")
+			env.Data = map[string]any{"closeout_status": "intent_recovery_blocked", "workflow": workflow, "scope": relScope, "intent_id": intent.ID, "intent_ref": intentRef, "blocked_intent_id": replayErr.IntentID, "error": replayErr.Error(), "recommended_next_action": "inspect_closeout_intent", "recovery_argv": closeoutRecoveryArgv(paths, "inspect", replayErr.IntentID, "")}
+			return writeEnvelope(stdout, env)
+		}
 		var pendingErr *closeoutIntentPendingError
 		if errors.As(lockedErr, &pendingErr) {
 			env := NewEnvelope("blocked", "project cognition closeout intent is durable and pending replay")
@@ -278,16 +291,21 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 				result["validation_status"] = gate.Status
 				result["validation_readiness"] = gate.Readiness
 			}
-			return closeoutApplyBlockedAfterUpdate(stdout, absScope, workflow, relScope, updatePayload, result, stageErr.category, stageErr.detail)
+			return closeoutApplyBlockedAfterUpdate(stdout, absScope, workflow, relScope, updatePayload, result, stageErr.category, stageErr.detail, intent, intentRef)
 		}
 		env := NewEnvelope("blocked", "project cognition closeout update failed")
+		if intent.ID == "" {
+			return closeoutApplyInputRejected(stdout, workflow, relScope, lockedErr)
+		}
 		env.Data = map[string]any{
 			"closeout_status":         "update_failed",
 			"workflow":                workflow,
 			"scope":                   relScope,
 			"error":                   lockedErr.Error(),
 			"intent_ref":              intentRef,
-			"recommended_next_action": "repair_update_or_replay_intent",
+			"intent_id":               intent.ID,
+			"recommended_next_action": "inspect_closeout_intent",
+			"recovery_argv":           closeoutRecoveryArgv(paths, "inspect", intent.ID, ""),
 		}
 		return writeEnvelope(stdout, env)
 	}
@@ -315,6 +333,18 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 }
 
 func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Paths, intent closeoutIntent) (string, error) {
+	if intent.RepairsIntentID != "" {
+		record, err := loadCloseoutRepair(paths, intent.RepairsIntentID)
+		if err != nil {
+			return "", err
+		}
+		if record.Replacement.InputDigest != intent.InputDigest {
+			return "", fmt.Errorf("repair record does not bind replay intent")
+		}
+		if err := publishCloseoutRepairLocked(paths, record); err != nil {
+			return "", err
+		}
+	}
 	pruned, err := pruneCompletedCloseoutIntent(paths, intent)
 	if err != nil {
 		return "", err
@@ -322,18 +352,29 @@ func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Pa
 	if pruned {
 		return intent.UpdateID, nil
 	}
+	prepared, err := prepareCloseoutInput(paths, intent.Workflow, intent.PayloadJSON, intent.DeltaSessionID, intent.VerificationOverride, intent.CommitRange)
+	if err != nil {
+		return "", err
+	}
+	if len(prepared.Missing) > 0 {
+		return "", fmt.Errorf("closeout evidence incomplete: %s", strings.Join(prepared.Missing, ", "))
+	}
+	if prepared.DeltaDigest != intent.DeltaDigest || !equalCloseoutPaths(prepared.ChangedPaths, intent.ChangedPaths) {
+		return "", fmt.Errorf("replay input no longer matches its bound scope or delta")
+	}
 	absScope, relScope, err := resolveCloseoutApplyScope(paths.Root, intent.Scope)
 	if err != nil {
 		return "", err
 	}
 	input := update.UpdateInput{
-		Workflow:            intent.Workflow,
-		Reason:              intent.Reason,
-		PayloadJSON:         intent.PayloadJSON,
-		DeltaSessionID:      intent.DeltaSessionID,
-		CommitRange:         intent.CommitRange,
-		CloseoutIntentID:    intent.ID,
-		ExpectedDeltaDigest: intent.DeltaDigest,
+		Workflow:             intent.Workflow,
+		Reason:               intent.Reason,
+		PayloadJSON:          intent.PayloadJSON,
+		DeltaSessionID:       intent.DeltaSessionID,
+		CommitRange:          intent.CommitRange,
+		CloseoutIntentID:     intent.ID,
+		ExpectedDeltaDigest:  intent.DeltaDigest,
+		VerificationOverride: intent.VerificationOverride,
 	}
 	payload, err := runtime.RunUpdate(input)
 	if err != nil {
@@ -570,107 +611,13 @@ func closeoutApplyInputRejected(stdout io.Writer, workflow string, scope string,
 }
 
 func closeoutApplyPreflight(paths rt.Paths, workflow string, payloadJSON string, deltaSession string) ([]string, error) {
-	missing := []string{}
-	if strings.TrimSpace(payloadJSON) != "" {
-		var payload update.PayloadFileInput
-		if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
-			return nil, fmt.Errorf("--payload-json must be valid project cognition update JSON: %w", err)
-		}
-		if strings.TrimSpace(payload.Workflow) != "" {
-			payloadWorkflow, err := normalizeMutationWorkflowID(payload.Workflow)
-			if err != nil {
-				return nil, err
-			}
-			if payloadWorkflow != workflow {
-				return nil, fmt.Errorf("closeout apply workflow %s does not match payload workflow %s", workflow, payloadWorkflow)
-			}
-		}
-		owned := normalizedCloseoutPaths(payload.Boundary.WorkflowOwnedPaths)
-		if strings.TrimSpace(payload.Boundary.ScopeMode) != "explicit" {
-			missing = append(missing, "boundary.scope_mode=explicit")
-		}
-		if len(owned) == 0 {
-			missing = append(missing, "boundary.workflow_owned_paths")
-		}
-		changed := append([]string{}, payload.ChangedPaths...)
-		changed = append(changed, payload.ScopePaths...)
-		for _, change := range payload.PathChanges {
-			changed = append(changed, change.Path)
-			if strings.TrimSpace(change.OldPath) != "" {
-				changed = append(changed, change.OldPath)
-			}
-		}
-		changed = normalizedCloseoutPaths(changed)
-		if len(changed) == 0 {
-			missing = append(missing, "changed_paths")
-		}
-		if len(owned) > 0 {
-			ownedSet := closeoutPathSet(owned)
-			for _, path := range changed {
-				if !ownedSet[path] {
-					return nil, fmt.Errorf("payload path %s is outside boundary.workflow_owned_paths", path)
-				}
-			}
-		}
-		verification := append(update.VerificationEvidenceList{}, payload.Verification...)
-		verification = append(verification, payload.VerificationEvidence...)
-		if !closeoutHasPassingVerification(verification) {
-			missing = append(missing, "verification[result=passed]")
-		}
-		return sortedUniqueCloseoutStrings(missing), nil
-	}
-
-	bundle, err := delta.Load(paths.RuntimeDir, strings.TrimSpace(deltaSession))
-	if err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(bundle.Session.OriginCommand) != "" {
-		sessionWorkflow, err := normalizeMutationWorkflowID(bundle.Session.OriginCommand)
-		if err != nil {
-			return nil, fmt.Errorf("invalid delta session origin_command: %w", err)
-		}
-		if sessionWorkflow != workflow {
-			return nil, fmt.Errorf("closeout apply workflow %s does not match delta workflow %s", workflow, sessionWorkflow)
-		}
-	}
-	declaredPaths := []string{}
-	pathChangeEndpoints := []string{}
-	hasPassing := false
-	for _, event := range bundle.Events {
-		declaredPaths = append(declaredPaths, event.ChangedPaths...)
-		for _, change := range event.PathChanges {
-			pathChangeEndpoints = append(pathChangeEndpoints, change.Path)
-			if strings.TrimSpace(change.OldPath) != "" {
-				pathChangeEndpoints = append(pathChangeEndpoints, change.OldPath)
-			}
-		}
-		for _, raw := range event.Verification {
-			var evidence update.VerificationEvidence
-			if json.Unmarshal([]byte(strings.TrimSpace(raw)), &evidence) == nil && strings.TrimSpace(evidence.Command) != "" && strings.TrimSpace(evidence.Result) == "passed" {
-				hasPassing = true
-			}
-		}
-	}
-	declaredPaths = normalizedCloseoutPaths(declaredPaths)
-	if len(declaredPaths) == 0 {
-		missing = append(missing, "delta.workflow_owned_changed_paths")
-	} else {
-		declaredSet := closeoutPathSet(declaredPaths)
-		for _, endpoint := range normalizedCloseoutPaths(pathChangeEndpoints) {
-			if !declaredSet[endpoint] {
-				return nil, fmt.Errorf("delta path change endpoint %s is outside declared workflow-owned changed paths", endpoint)
-			}
-		}
-	}
-	if !hasPassing {
-		missing = append(missing, "delta.verification[result=passed]")
-	}
-	return sortedUniqueCloseoutStrings(missing), nil
+	prepared, err := prepareCloseoutInput(paths, workflow, payloadJSON, deltaSession, nil)
+	return prepared.Missing, err
 }
 
-func closeoutApplyBlockedAfterUpdate(stdout io.Writer, absScope string, workflow string, relScope string, payload update.UpdatePayload, result map[string]any, category string, detail string) int {
+func closeoutApplyBlockedAfterUpdate(stdout io.Writer, absScope string, workflow string, relScope string, payload update.UpdatePayload, result map[string]any, category string, detail string, intent closeoutIntent, intentRef string) int {
 	reason := strings.TrimSpace(category + ": " + detail)
-	receipt, receiptErr := recordMutationCognitionReceipt(absScope, workflow, relScope, "blocked", reason, payload.UpdateID, closeoutApplyEvidence(payload))
+	receipt, receiptErr := recordMutationCognitionReceiptBound(absScope, workflow, relScope, "blocked", reason, payload.UpdateID, closeoutApplyEvidence(payload), intent.ChangedPaths, intent.ID, intentRef, intent.InputDigest)
 	if receiptErr == nil {
 		result["receipt"] = receipt
 	}
@@ -714,12 +661,16 @@ func closeoutApplyEvidence(payload update.UpdatePayload) []string {
 }
 
 func closeoutHasPassingVerification(values update.VerificationEvidenceList) bool {
+	passed := false
 	for _, value := range values {
+		if strings.TrimSpace(value.Result) == "failed" {
+			return false
+		}
 		if strings.TrimSpace(value.Command) != "" && strings.TrimSpace(value.Result) == "passed" {
-			return true
+			passed = true
 		}
 	}
-	return false
+	return passed
 }
 
 func resolveCloseoutApplyScope(root string, scopeDir string) (string, string, error) {

@@ -1,0 +1,214 @@
+{
+  "schema": "spec-kit-ui-source-continuity-v1",
+  "applicability": "required",
+  "mode": "implementation-backed",
+  "reason": "Preserve the source controls, original four-state reset images, and native window drag.",
+  "coverage": {
+    "surface_ids": [
+      "DH-SURFACE-001"
+    ],
+    "interaction_ids": [
+      "DH-INT-001"
+    ],
+    "component_ids": [
+      "DH-COMP-001"
+    ]
+  },
+  "authority_refs": [
+    "legacy/main_window.cpp",
+    "legacy/resources.qrc"
+  ],
+  "surface_bindings": [
+    {
+      "id": "SC-SURFACE-001",
+      "surface_id": "DH-SURFACE-001",
+      "source_refs": [
+        "legacy/main_window.cpp"
+      ],
+      "discovery": "measured",
+      "disposition": "preserve",
+      "rationale": "Preserve source control states.",
+      "component_states": [
+        {
+          "component_id": "DH-COMP-001",
+          "parts": [
+            "indicator",
+            "label"
+          ],
+          "required_states": [
+            "normal",
+            "hover",
+            "pressed",
+            "disabled"
+          ],
+          "states": [
+            {
+              "state": "normal",
+              "behavior": "The enabled control accepts one activation.",
+              "visuals": [
+                {
+                  "part": "indicator",
+                  "expectation": "Use the source normal indicator treatment."
+                },
+                {
+                  "part": "label",
+                  "expectation": "Use the source normal label treatment."
+                }
+              ]
+            },
+            {
+              "state": "hover",
+              "behavior": "The enabled control accepts one activation.",
+              "visuals": [
+                {
+                  "part": "indicator",
+                  "expectation": "Use the source hover indicator treatment."
+                },
+                {
+                  "part": "label",
+                  "expectation": "Use the source hover label treatment."
+                }
+              ]
+            },
+            {
+              "state": "pressed",
+              "behavior": "The enabled control accepts one activation.",
+              "visuals": [
+                {
+                  "part": "indicator",
+                  "expectation": "Use the source pressed indicator treatment."
+                },
+                {
+                  "part": "label",
+                  "expectation": "Use the source pressed label treatment."
+                }
+              ]
+            },
+            {
+              "state": "disabled",
+              "behavior": "Pointer and keyboard activation leave the value unchanged.",
+              "visuals": [
+                {
+                  "part": "indicator",
+                  "expectation": "Use the source disabled indicator treatment."
+                },
+                {
+                  "part": "label",
+                  "expectation": "Use the source disabled label treatment."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "action_bindings": [
+    {
+      "id": "SC-ACTION-001",
+      "interaction_id": "DH-INT-001",
+      "source_refs": [
+        "legacy/main_window.cpp#drag"
+      ],
+      "user_promise": "Drag the window from its title bar.",
+      "business_outcome": "The window moves to the intended screen position.",
+      "side_effects": [
+        "window position changes"
+      ],
+      "final_state": "The window remains usable at the new position.",
+      "verification": "Exercise the real source and target native window.",
+      "native_operation": {
+        "api_ref": "desktop.window.begin_drag",
+        "effect_requirement": "state-change",
+        "effect_fields": ["x", "y"],
+        "permission_required": true,
+        "permission_refs": [
+          "native/capabilities/window.json#start-drag"
+        ],
+        "permission_reason": "The window bridge requires an explicit capability.",
+        "expected_effect": "The native window screen position changes."
+      }
+    }
+  ],
+  "asset_bindings": [
+    {
+      "id": "SC-ASSET-001",
+      "component_id": "DH-COMP-001",
+      "semantic_role": "reset control",
+      "source_refs": [
+        "legacy/assets/reset-normal.png",
+        "legacy/assets/reset-hover.png",
+        "legacy/assets/reset-pressed.png",
+        "legacy/assets/reset-disabled.png"
+      ],
+      "target_strategy": "preserve",
+      "target_ref": "src/assets/reset-normal.png",
+      "provenance": "project-owned",
+      "fallback": "Visible Reset label.",
+      "placeholder_policy": "forbid-character-substitution",
+      "state_variants": {
+        "required_states": [
+          "normal",
+          "hover",
+          "pressed",
+          "disabled"
+        ],
+        "variants": [
+          {
+            "state": "normal",
+            "source_ref": "legacy/assets/reset-normal.png",
+            "target_ref": "src/assets/reset-normal.png",
+            "source_size": [
+              26,
+              26
+            ],
+            "target_size": [
+              26,
+              26
+            ]
+          },
+          {
+            "state": "hover",
+            "source_ref": "legacy/assets/reset-hover.png",
+            "target_ref": "src/assets/reset-hover.png",
+            "source_size": [
+              26,
+              26
+            ],
+            "target_size": [
+              26,
+              26
+            ]
+          },
+          {
+            "state": "pressed",
+            "source_ref": "legacy/assets/reset-pressed.png",
+            "target_ref": "src/assets/reset-pressed.png",
+            "source_size": [
+              26,
+              26
+            ],
+            "target_size": [
+              26,
+              26
+            ]
+          },
+          {
+            "state": "disabled",
+            "source_ref": "legacy/assets/reset-disabled.png",
+            "target_ref": "src/assets/reset-disabled.png",
+            "source_size": [
+              26,
+              26
+            ],
+            "target_size": [
+              26,
+              26
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "unresolved_gaps": []
+}

@@ -152,6 +152,41 @@ runtime-owned report, not the Agent-authored coverage list, owns the PASS claim.
   open gap capable of hiding a surface, promised action, business outcome,
   final state, asset, or unsafe evidence conflict.
 
+For source controls with distinct states, bind
+`surface_bindings[].component_states` to exact component anatomy/required
+states; each state separates `behavior` from per-part `visuals`. Disabled
+semantics cannot prove disabled label/indicator/icon appearance. Source image
+variants require `asset_bindings[].state_variants` with complete state coverage,
+source/target refs and `[width,height]` sizes; `preserve` keeps dimensions equal.
+Variant mappings exhaust the full source resource inventory and component
+states; deleting the same state from declarations and results cannot shrink scope.
+Native actions require `action_bindings[].native_operation` with the platform
+API, explicit permission requirement/refs/reason, and observable effect.
+Use the matching nested Lab result details, typed state captures, and native
+runtime evidence with before/after state objects. Declare
+`effect_requirement: state-change|observation` and exact scalar `effect_fields`;
+compare only those fields, all present on both sides, with numeric rather than
+textual equality. Unrelated timestamps cannot prove window movement.
+Observation mode requires no promised side effects and cannot downgrade drag.
+Never infer native
+operation from a DOM marker or browser-only preview. Omit these optional
+details only for static/non-native sources; unknowns block through
+`unresolved_gaps`. Adapter `binding_targets` preserves the applicable state
+and asset-variant targets without executable commands or another workflow.
+
+Detailed result shapes: `surface_results[].component_states[]` carries
+`component_id`, `state`, `behavior_matches`, `behavior_observation`,
+`behavior_evidence_ref`, and `visuals[{part,matches,observation,
+source_evidence_ref,target_evidence_ref}]`;
+`asset_results[].state_variants[]` carries `state`, source/target `_ref` and
+`_size`, source/target `_evidence_ref`, `render_match`, and
+`character_substitution`; `action_results[].native_operation` carries `api_ref`,
+`verified_permission_refs`, `permission_evidence_ref`, `effect_evidence_ref`,
+`before`/`after` objects, and `effect_matches`. State-change requires a change
+in a declared effect field. Match flags are booleans;
+character substitution is false. Behavior/native refs use target runtime
+diagnostics; visual refs use matched source/target visual captures.
+
 Design may discover and approve this contract but remains design-only and must
 not write target code or claim runtime parity. Quick may own full direct
 delivery when its confirmed checkpoint binds the applicable continuity subset;

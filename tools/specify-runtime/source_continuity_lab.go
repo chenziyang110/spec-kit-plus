@@ -1033,6 +1033,9 @@ func (service evidenceService) sourceContinuityQuickValidate(args []string, quic
 }
 
 func buildSourceContinuityLabManifest(root, feature, taskID, indexPath string, task, continuity map[string]any) (map[string]any, error) {
+	if err := validateMigrationComponentBindings(continuity, mapValue(task["ui_contract"])["component_contracts"]); err != nil {
+		return nil, err
+	}
 	contractRaw, err := marshalReviewAcceptJSON(continuity)
 	if err != nil {
 		return nil, errors.New("source continuity contract cannot be canonicalized")
@@ -1098,12 +1101,13 @@ func validateSourceContinuityLabResult(taskID string, manifest map[string]any, m
 
 	discovery, discoveryDiagnostics := validateSourceContinuityLabDiscovery(raw["discovery"], expectedSurfaceBindings, expectedActionBindings, expectedAssetBindings)
 	diagnostics = append(diagnostics, discoveryDiagnostics...)
-	surfacePassed, surfaceDiagnostics := validateSourceContinuityLabSurfaces(raw["surface_results"], expectedSurfaces)
+	surfacePassed, surfaceDiagnostics := validateSourceContinuityLabSurfaces(raw["surface_results"], expectedSurfaces, continuity["surface_bindings"])
 	diagnostics = append(diagnostics, surfaceDiagnostics...)
 	actionPassed, actionOutcomePassed, actionDiagnostics := validateSourceContinuityLabActions(raw["action_results"], expectedActions, continuity["action_bindings"], evidenceRefs)
 	diagnostics = append(diagnostics, actionDiagnostics...)
 	assetPassed, assetDiagnostics := validateSourceContinuityLabAssets(raw["asset_results"], expectedAssets, continuity["asset_bindings"], evidenceRefs)
 	diagnostics = append(diagnostics, assetDiagnostics...)
+	diagnostics = append(diagnostics, migrationObservationErrors(continuity, raw, evidenceRefs)...)
 
 	metrics := map[string]any{
 		"source_discovery_coverage":   sourceContinuityLabRatio(discovery, len(expectedSurfaceBindings)+len(expectedActionBindings)+len(expectedAssetBindings)),
@@ -1257,7 +1261,7 @@ func validateSourceContinuityLabDiscovery(value any, expectedSurfaces, expectedA
 	return covered, diagnostics
 }
 
-func validateSourceContinuityLabSurfaces(value any, expected []string) (int, []string) {
+func validateSourceContinuityLabSurfaces(value any, expected []string, bindingValue any) (int, []string) {
 	rows, ok := value.([]any)
 	if !ok {
 		return 0, []string{"invalid-surface-results"}
@@ -1265,11 +1269,16 @@ func validateSourceContinuityLabSurfaces(value any, expected []string) (int, []s
 	ids := []string{}
 	passed := 0
 	diagnostics := []string{}
+	bindings := migrationResultByID(bindingValue, "surface_id")
 	for _, value := range rows {
 		row, ok := value.(map[string]any)
-		if !ok || exactVisualComparisonFields(row, map[string]bool{
+		expectedFields := map[string]bool{
 			"surface_id": true, "source_reachable": true, "target_reachable": true, "disposition_verified": true, "verdict": true,
-		}, "source continuity surface result") != nil {
+		}
+		if _, present := bindings[anyString(row["surface_id"])]["component_states"]; present {
+			expectedFields["component_states"] = true
+		}
+		if !ok || exactVisualComparisonFields(row, expectedFields, "source continuity surface result") != nil {
 			diagnostics = append(diagnostics, "invalid-surface-result")
 			continue
 		}
@@ -1299,6 +1308,7 @@ func validateSourceContinuityLabActions(value any, expected []string, bindingVal
 		return 0, 0, []string{"invalid-action-results"}
 	}
 	expectedEffects := map[string][]string{}
+	bindings := migrationResultByID(bindingValue, "interaction_id")
 	for _, value := range listValue(bindingValue) {
 		row, _ := value.(map[string]any)
 		expectedEffects[strings.TrimSpace(anyString(row["interaction_id"]))] = sourceContinuityLabStringList(row["side_effects"])
@@ -1309,11 +1319,15 @@ func validateSourceContinuityLabActions(value any, expected []string, bindingVal
 	diagnostics := []string{}
 	for _, value := range rows {
 		row, ok := value.(map[string]any)
-		if !ok || exactVisualComparisonFields(row, map[string]bool{
+		expectedFields := map[string]bool{
 			"interaction_id": true, "source_reachable": true, "target_reachable": true,
 			"source_evidence_ref": true, "target_evidence_ref": true, "observed_side_effects": true,
 			"business_outcome_verified": true, "final_state_verified": true, "verdict": true,
-		}, "source continuity action result") != nil {
+		}
+		if _, present := bindings[anyString(row["interaction_id"])]["native_operation"]; present {
+			expectedFields["native_operation"] = true
+		}
+		if !ok || exactVisualComparisonFields(row, expectedFields, "source continuity action result") != nil {
 			diagnostics = append(diagnostics, "invalid-action-result")
 			continue
 		}
@@ -1359,6 +1373,7 @@ func validateSourceContinuityLabAssets(value any, expected []string, bindingValu
 		return 0, []string{"invalid-asset-results"}
 	}
 	policies := map[string]string{}
+	bindings := migrationResultByID(bindingValue, "component_id")
 	for _, value := range listValue(bindingValue) {
 		row, _ := value.(map[string]any)
 		policies[strings.TrimSpace(anyString(row["component_id"]))] = strings.TrimSpace(anyString(row["placeholder_policy"]))
@@ -1368,11 +1383,15 @@ func validateSourceContinuityLabAssets(value any, expected []string, bindingValu
 	diagnostics := []string{}
 	for _, value := range rows {
 		row, ok := value.(map[string]any)
-		if !ok || exactVisualComparisonFields(row, map[string]bool{
+		expectedFields := map[string]bool{
 			"component_id": true, "source_evidence_ref": true, "target_evidence_ref": true,
 			"semantic_match": true, "provenance_match": true, "render_match": true,
 			"character_substitution": true, "verdict": true,
-		}, "source continuity asset result") != nil {
+		}
+		if _, present := bindings[anyString(row["component_id"])]["state_variants"]; present {
+			expectedFields["state_variants"] = true
+		}
+		if !ok || exactVisualComparisonFields(row, expectedFields, "source continuity asset result") != nil {
 			diagnostics = append(diagnostics, "invalid-asset-result")
 			continue
 		}
@@ -1659,6 +1678,9 @@ func validatePersistedSourceContinuityLabReport(feature string, task map[string]
 	}
 	if !reflect.DeepEqual(report["coverage"], currentContinuity["coverage"]) {
 		diagnostics = append(diagnostics, "coverage-mismatch")
+	}
+	if err := validateMigrationComponentBindings(currentContinuity, mapValue(currentTask["ui_contract"])["component_contracts"]); err != nil {
+		diagnostics = append(diagnostics, "component-state-component-contract-mismatch")
 	}
 	diagnostics = uniqueSourceContinuityLabDiagnostics(diagnostics)
 	if len(diagnostics) > 0 {

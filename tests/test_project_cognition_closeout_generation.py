@@ -7,6 +7,7 @@ import pytest
 
 from specify_cli.integrations.base import IntegrationBase
 from specify_cli.integrations.cursor_agent import CursorAgentIntegration
+from specify_cli.launcher import write_runtime_launcher_config
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,16 +41,23 @@ STRUCTURED_PASSED_VERIFICATION = (
 )
 
 
-def _classic_surface(command_name: str) -> str:
+def _classic_surface(
+    command_name: str,
+    *,
+    agent_name: str = "codex",
+    script_type: str = "sh",
+    project_root: Path | None = None,
+) -> str:
     command_path = ROOT / "templates" / "commands" / f"{command_name}.md"
     owner_raw = command_path.read_text(encoding="utf-8")
     parts = [
         IntegrationBase.process_template(
             owner_raw,
-            "codex",
-            "sh",
+            agent_name,
+            script_type,
             "$ARGUMENTS",
             template_path=command_path,
+            project_root=project_root,
         )
     ]
     references_dir = ROOT / "templates" / "command-references" / command_name
@@ -61,9 +69,10 @@ def _classic_surface(command_name: str) -> str:
                     owner_template_raw=owner_raw,
                     owner_template_path=command_path,
                     reference_path=reference_path,
-                    agent_name="codex",
-                    script_type="sh",
+                    agent_name=agent_name,
+                    script_type=script_type,
                     arg_placeholder="$ARGUMENTS",
+                    project_root=project_root,
                 )
             )
     return "\n".join(parts)
@@ -524,6 +533,72 @@ def test_shared_closeout_contract_owns_atomic_intent_replay_and_identity_repair(
         content = surface.read_text(encoding="utf-8")
         assert "one direct predecessor" in content, surface
         assert "pending_finalization" in content, surface
+
+
+def _assert_closeout_intent_recovery_contract(content: str) -> None:
+    normalized = " ".join(content.split())
+    for required in (
+        "repair_update_or_replay_intent",
+        "cognition closeout inspect",
+        "cognition closeout repair",
+        "--intent-id",
+        "--expected-digest",
+        "--verification-json -",
+        "blocked_intent_id",
+        "input_digest",
+        "repair_argv",
+        "replay_argv",
+        "intent_repaired",
+        "replacement_intent_id",
+        "replacement_input_digest",
+        "blocked scope receipt",
+        "Stop retrying the same failing apply",
+        "Never invent verification commands",
+        "Do not edit or delete intent JSON",
+        "do not rebuild merely",
+    ):
+        assert required in normalized, required
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "templates/command-partials/common/inline-project-cognition-update.md",
+        "templates/advanced-skills/_shared/project-cognition.md",
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+    ),
+)
+def test_shared_closeout_contract_has_receipt_independent_intent_recovery(
+    relative_path: str,
+) -> None:
+    surface = ROOT / relative_path
+    _assert_closeout_intent_recovery_contract(
+        IntegrationBase.render_template_content(
+            surface.read_text(encoding="utf-8"), template_path=surface
+        )
+    )
+
+
+@pytest.mark.parametrize("command_name", (*MUTATION_WORKFLOWS, *MAINTENANCE_WORKFLOWS))
+def test_classic_mutation_workflows_render_intent_recovery(command_name: str) -> None:
+    _assert_closeout_intent_recovery_contract(_classic_surface(command_name))
+
+
+@pytest.mark.parametrize("agent_name", ("codex", "claude", "gemini", "cursor-agent"))
+@pytest.mark.parametrize("script_type", ("sh", "ps"))
+def test_closeout_intent_recovery_renders_across_cli_integrations(
+    tmp_path: Path, agent_name: str, script_type: str
+) -> None:
+    binary = tmp_path / ".specify" / "bin" / "specify-runtime"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("runtime", encoding="utf-8")
+    write_runtime_launcher_config(tmp_path, binary)
+    content = _classic_surface(
+        "fast", agent_name=agent_name, script_type=script_type, project_root=tmp_path
+    )
+
+    _assert_closeout_intent_recovery_contract(content)
+    assert "{{specify-subcmd:" not in content
 
 
 def test_greenfield_with_project_code_uses_structured_rebuild_recovery() -> None:

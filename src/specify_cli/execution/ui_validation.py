@@ -8,6 +8,12 @@ import re
 from pathlib import Path
 from typing import Any
 
+from specify_cli.design_intelligence.ui_migration import (
+    migration_adapter_targets,
+    migration_component_binding_errors,
+    migration_observation_errors,
+)
+
 from .packet_schema import UI_CONTRACT_FIELDS, UIContract
 from .packet_validator import PacketValidationError, validate_ui_contract
 
@@ -818,6 +824,7 @@ def _expected_source_continuity_adapter_execution(
                     ]
                     if capabilities & {"asset-inspection", "visual-capture"}
                     else [],
+                    **migration_adapter_targets(capabilities, continuity),
                 },
                 "write_policy": adapter.get("write_policy"),
                 "network_policy": adapter.get("network_policy"),
@@ -858,7 +865,7 @@ def _source_continuity_lab_semantic_errors(
     adapter_plan: dict[str, Any] | None,
     adapter_plan_sha256: str,
 ) -> list[str]:
-    errors: list[str] = []
+    errors: list[str] = migration_observation_errors(continuity, report)
     adapter = report.get("adapter")
     expected_adapter = {
         "id": f"adapter-plan:{adapter_plan_sha256[:12]}",
@@ -990,6 +997,12 @@ def _source_continuity_lab_semantic_errors(
             "disposition_verified",
             "verdict",
         }
+        if any(
+            binding.get("surface_id") == row.get("surface_id")
+            and "component_states" in binding
+            for binding in _source_continuity_rows(continuity.get("surface_bindings")) or []
+        ):
+            expected_fields.add("component_states")
         if set(row) != expected_fields:
             errors.append("invalid-surface-result")
             continue
@@ -1032,6 +1045,8 @@ def _source_continuity_lab_semantic_errors(
             "final_state_verified",
             "verdict",
         }
+        if "native_operation" in action_bindings.get(str(row.get("interaction_id") or ""), {}):
+            expected_fields.add("native_operation")
         if set(row) != expected_fields:
             errors.append("invalid-action-result")
             continue
@@ -1095,6 +1110,8 @@ def _source_continuity_lab_semantic_errors(
             "character_substitution",
             "verdict",
         }
+        if "state_variants" in asset_bindings.get(str(row.get("component_id") or ""), {}):
+            expected_fields.add("state_variants")
         if set(row) != expected_fields:
             errors.append("invalid-asset-result")
             continue
@@ -1226,6 +1243,12 @@ def _validate_source_continuity_lab_report(
             and str(item.get("id") or "").strip().upper() == task_id
         ),
         None,
+    )
+    current_ui = current_task.get("ui_contract") if isinstance(current_task, dict) else None
+    components = current_ui.get("component_contracts", []) if isinstance(current_ui, dict) else []
+    errors.extend(
+        f"{relative} source continuity {message}"
+        for message in migration_component_binding_errors(source_continuity, components)
     )
     project_root = _source_continuity_project_root(feature_dir)
     target_snapshot = (

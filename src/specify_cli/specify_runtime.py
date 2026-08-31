@@ -95,6 +95,8 @@ REQUIRED_CAPABILITIES = (
     "cognition.clear-dirty",
     "cognition.closeout",
     "cognition.closeout.apply",
+    "cognition.closeout.inspect",
+    "cognition.closeout.repair",
     "cognition.closeout-plan",
     "cognition.closeout.replay",
     "cognition.compass",

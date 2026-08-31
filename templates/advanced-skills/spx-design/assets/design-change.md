@@ -355,6 +355,12 @@ bans.
 Record each baseline/reference, its intent, what must be preserved, what may
 adapt, and what must not be copied.
 
+Source controls with distinct states bind `surface_bindings[].component_states`
+to separate behavior and per-part visual expectations. Source image variants
+bind exact states, refs, and dimensions through `asset_bindings[].state_variants`.
+Native actions bind API, permission declarations, and actual system effect
+through `action_bindings[].native_operation`; unknowns remain gaps.
+
 ## Planned Gaps and Exceptions
 
 Record only explicit, owned gaps with affected decisions and revisit criteria.

@@ -1,0 +1,286 @@
+{
+  "schema": "spec-kit-source-continuity-lab-result-v1",
+  "manifest_sha256": "runtime-filled",
+  "source_revision": "source:approved",
+  "target_revision": "target:current",
+  "adapter": {
+    "id": "migration-inspector",
+    "version": "1",
+    "capabilities": [
+      "surface-enumeration",
+      "action-execution",
+      "side-effect-observation",
+      "asset-inspection",
+      "visual-capture"
+    ]
+  },
+  "evidence_refs": [
+    {
+      "side": "source",
+      "kind": "structure_snapshot",
+      "ref": "evidence://source/structure_snapshot",
+      "adapter_id": "migration-inspector"
+    },
+    {
+      "side": "source",
+      "kind": "visual_capture",
+      "ref": "evidence://source/visual_capture",
+      "adapter_id": "migration-inspector"
+    },
+    {
+      "side": "source",
+      "kind": "runtime_diagnostics",
+      "ref": "evidence://source/runtime_diagnostics",
+      "adapter_id": "migration-inspector"
+    },
+    {
+      "side": "target",
+      "kind": "structure_snapshot",
+      "ref": "evidence://target/structure_snapshot",
+      "adapter_id": "migration-inspector"
+    },
+    {
+      "side": "target",
+      "kind": "visual_capture",
+      "ref": "evidence://target/visual_capture",
+      "adapter_id": "migration-inspector"
+    },
+    {
+      "side": "target",
+      "kind": "runtime_diagnostics",
+      "ref": "evidence://target/runtime_diagnostics",
+      "adapter_id": "migration-inspector"
+    }
+  ],
+  "discovery": {
+    "surface_binding_ids": [
+      "SC-SURFACE-001"
+    ],
+    "action_binding_ids": [
+      "SC-ACTION-001"
+    ],
+    "asset_binding_ids": [
+      "SC-ASSET-001"
+    ],
+    "unexpected_candidates": []
+  },
+  "surface_results": [
+    {
+      "surface_id": "DH-SURFACE-001",
+      "source_reachable": true,
+      "target_reachable": true,
+      "disposition_verified": true,
+      "verdict": "passed",
+      "component_states": [
+        {
+          "component_id": "DH-COMP-001",
+          "state": "normal",
+          "behavior_matches": true,
+          "behavior_observation": "One input produced one value change.",
+          "behavior_evidence_ref": "evidence://target/runtime_diagnostics",
+          "visuals": [
+            {
+              "part": "indicator",
+              "matches": true,
+              "observation": "The normal indicator matches the source capture.",
+              "source_evidence_ref": "evidence://source/visual_capture",
+              "target_evidence_ref": "evidence://target/visual_capture"
+            },
+            {
+              "part": "label",
+              "matches": true,
+              "observation": "The normal label matches the source capture.",
+              "source_evidence_ref": "evidence://source/visual_capture",
+              "target_evidence_ref": "evidence://target/visual_capture"
+            }
+          ]
+        },
+        {
+          "component_id": "DH-COMP-001",
+          "state": "hover",
+          "behavior_matches": true,
+          "behavior_observation": "One input produced one value change.",
+          "behavior_evidence_ref": "evidence://target/runtime_diagnostics",
+          "visuals": [
+            {
+              "part": "indicator",
+              "matches": true,
+              "observation": "The hover indicator matches the source capture.",
+              "source_evidence_ref": "evidence://source/visual_capture",
+              "target_evidence_ref": "evidence://target/visual_capture"
+            },
+            {
+              "part": "label",
+              "matches": true,
+              "observation": "The hover label matches the source capture.",
+              "source_evidence_ref": "evidence://source/visual_capture",
+              "target_evidence_ref": "evidence://target/visual_capture"
+            }
+          ]
+        },
+        {
+          "component_id": "DH-COMP-001",
+          "state": "pressed",
+          "behavior_matches": true,
+          "behavior_observation": "One input produced one value change.",
+          "behavior_evidence_ref": "evidence://target/runtime_diagnostics",
+          "visuals": [
+            {
+              "part": "indicator",
+              "matches": true,
+              "observation": "The pressed indicator matches the source capture.",
+              "source_evidence_ref": "evidence://source/visual_capture",
+              "target_evidence_ref": "evidence://target/visual_capture"
+            },
+            {
+              "part": "label",
+              "matches": true,
+              "observation": "The pressed label matches the source capture.",
+              "source_evidence_ref": "evidence://source/visual_capture",
+              "target_evidence_ref": "evidence://target/visual_capture"
+            }
+          ]
+        },
+        {
+          "component_id": "DH-COMP-001",
+          "state": "disabled",
+          "behavior_matches": true,
+          "behavior_observation": "Click and Space did not change the value.",
+          "behavior_evidence_ref": "evidence://target/runtime_diagnostics",
+          "visuals": [
+            {
+              "part": "indicator",
+              "matches": true,
+              "observation": "The disabled indicator matches the source capture.",
+              "source_evidence_ref": "evidence://source/visual_capture",
+              "target_evidence_ref": "evidence://target/visual_capture"
+            },
+            {
+              "part": "label",
+              "matches": true,
+              "observation": "The disabled label matches the source capture.",
+              "source_evidence_ref": "evidence://source/visual_capture",
+              "target_evidence_ref": "evidence://target/visual_capture"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "action_results": [
+    {
+      "interaction_id": "DH-INT-001",
+      "source_reachable": true,
+      "target_reachable": true,
+      "source_evidence_ref": "evidence://source/runtime_diagnostics",
+      "target_evidence_ref": "evidence://target/runtime_diagnostics",
+      "observed_side_effects": [
+        "window position changes"
+      ],
+      "business_outcome_verified": true,
+      "final_state_verified": true,
+      "verdict": "passed",
+      "native_operation": {
+        "api_ref": "desktop.window.begin_drag",
+        "verified_permission_refs": [
+          "native/capabilities/window.json#start-drag"
+        ],
+        "permission_evidence_ref": "evidence://target/runtime_diagnostics",
+        "effect_evidence_ref": "evidence://target/runtime_diagnostics",
+        "before": {
+          "x": 100,
+          "y": 100
+        },
+        "after": {
+          "x": 180,
+          "y": 160
+        },
+        "effect_matches": true
+      }
+    }
+  ],
+  "asset_results": [
+    {
+      "component_id": "DH-COMP-001",
+      "source_evidence_ref": "evidence://source/visual_capture",
+      "target_evidence_ref": "evidence://target/visual_capture",
+      "semantic_match": true,
+      "provenance_match": true,
+      "render_match": true,
+      "character_substitution": false,
+      "verdict": "passed",
+      "state_variants": [
+        {
+          "state": "normal",
+          "source_ref": "legacy/assets/reset-normal.png",
+          "target_ref": "src/assets/reset-normal.png",
+          "source_size": [
+            26,
+            26
+          ],
+          "target_size": [
+            26,
+            26
+          ],
+          "source_evidence_ref": "evidence://source/visual_capture",
+          "target_evidence_ref": "evidence://target/visual_capture",
+          "render_match": true,
+          "character_substitution": false
+        },
+        {
+          "state": "hover",
+          "source_ref": "legacy/assets/reset-hover.png",
+          "target_ref": "src/assets/reset-hover.png",
+          "source_size": [
+            26,
+            26
+          ],
+          "target_size": [
+            26,
+            26
+          ],
+          "source_evidence_ref": "evidence://source/visual_capture",
+          "target_evidence_ref": "evidence://target/visual_capture",
+          "render_match": true,
+          "character_substitution": false
+        },
+        {
+          "state": "pressed",
+          "source_ref": "legacy/assets/reset-pressed.png",
+          "target_ref": "src/assets/reset-pressed.png",
+          "source_size": [
+            26,
+            26
+          ],
+          "target_size": [
+            26,
+            26
+          ],
+          "source_evidence_ref": "evidence://source/visual_capture",
+          "target_evidence_ref": "evidence://target/visual_capture",
+          "render_match": true,
+          "character_substitution": false
+        },
+        {
+          "state": "disabled",
+          "source_ref": "legacy/assets/reset-disabled.png",
+          "target_ref": "src/assets/reset-disabled.png",
+          "source_size": [
+            26,
+            26
+          ],
+          "target_size": [
+            26,
+            26
+          ],
+          "source_evidence_ref": "evidence://source/visual_capture",
+          "target_evidence_ref": "evidence://target/visual_capture",
+          "render_match": true,
+          "character_substitution": false
+        }
+      ]
+    }
+  ],
+  "verdict": "passed",
+  "reviewer": "test:migration"
+}

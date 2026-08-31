@@ -374,6 +374,13 @@ present in a test project.
   approved deviations.
   Unavailable or incomplete comparison remains `pending-human-review`; automated
   tests or unbound screenshots cannot substitute for this report.
+- Stateful source reconstruction preserves applicable `component_states`
+  (behavior and per-part visual expectations), `state_variants` (complete
+  source/target resource states and dimensions), and `native_operation`
+  (native API, permission declarations, and observable effect). Keep their
+  complete source denominators in task and adapter packets and revalidate
+  detailed evidence at Lab and lifecycle acceptance; a generic PASS or unrelated
+  metadata change cannot prove a missing visual state or native effect.
 - UI contract versions are not a compatibility surface. Do not emit or accept
   `ui_contract_version`, `contract_version`, `ui_fidelity_requirements`,
   `ui_fidelity_evidence`, lifecycle `evidence_refs`, or legacy evidence-kind
@@ -932,6 +939,14 @@ managed `<!-- SPEC-KIT:BEGIN -->` block because
 - When changing project-cognition command names, flags, binary names, release assets, or install behavior, update `src/specify_cli/specify_runtime.py`, `src/specify_cli/launcher.py`, the install scripts, release workflows, README/docs, and the init/launcher regression tests in the same pass, then publish and verify the release assets in the same workstream.
 
 ### Project Cognition Schema v5 Maintenance
+
+- Cognition closeout must reject malformed or failed verification before writing
+  a pending intent. Recover older invalid verification through runtime-owned
+  `cognition closeout inspect` and its exact digest-bound repair/replay argv;
+  never edit/delete pending intent JSON, fabricate passing evidence, or rebuild
+  a usable map merely to bypass a bad input. A verification repair is not graph
+  readiness, and already committed intents must not be resubmitted after a
+  graph generation changes.
 
 - Schema v5 runtime readiness is graph, alias, and revision-bound typed graph-claim reconciliation first. The active runtime tables are `metadata`, `generations`, `evidence`, `nodes`, `node_evidence`, `edges`, `edge_evidence`, `observations`, `observation_evidence`, `path_index`, `alias_index`, `claims`, `claim_evidence`, `claim_verifications`, `claim_transitions`, `claim_reconciliations`, and `updates`.
 - Schema v5 adds claim revisions to the auditable reconciliation record and current/superseded claim-evidence basis. Agents supply semantic reconciliation intent only; the runtime owns contract versions, generation/state/revision preconditions, time bounds, source kinds, hashes, repository snapshots, IDs, prepared packet paths, and `apply_argv`. Do not reintroduce old broad-schema tables such as `conflicts`, `conflict_claims`, `symbol_index`, `entrypoint_index`, `test_index`, `slice_members`, FTS tables, or `query_examples` as readiness requirements unless a deliberate design, runtime implementation, prompt update, and regression suite add them back together.

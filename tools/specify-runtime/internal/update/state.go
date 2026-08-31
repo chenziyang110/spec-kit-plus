@@ -44,6 +44,9 @@ type VerificationEvidenceList []VerificationEvidence
 func (values *VerificationEvidenceList) UnmarshalJSON(data []byte) error {
 	var structured []VerificationEvidence
 	if err := json.Unmarshal(data, &structured); err == nil {
+		if err := validateVerificationEvidence(structured); err != nil {
+			return err
+		}
 		*values = normalizeVerificationEvidence(structured)
 		return nil
 	}
@@ -52,6 +55,9 @@ func (values *VerificationEvidenceList) UnmarshalJSON(data []byte) error {
 		out := make([]VerificationEvidence, 0, len(strings))
 		for _, value := range strings {
 			out = append(out, verificationEvidenceFromText(value))
+		}
+		if err := validateVerificationEvidence(out); err != nil {
+			return err
 		}
 		*values = normalizeVerificationEvidence(out)
 		return nil
@@ -86,25 +92,26 @@ type PayloadFileInput struct {
 }
 
 type UpdateInput struct {
-	ChangedPaths        []string
-	PathChanges         []changemodel.PathChange
-	ScopePaths          []string
-	Reason              string
-	DeltaSessionID      string
-	CommitRange         string
-	PayloadFile         string
-	PayloadJSON         string
-	Workflow            string
-	BehaviorSurfaces    []string
-	GeneratedSurfaces   []string
-	StateContracts      []string
-	Verification        []VerificationEvidence
-	KnownUnknowns       []string
-	ConfidenceNotes     []string
-	UserDecisions       []string
-	Boundary            UpdateBoundaryInput
-	CloseoutIntentID    string
-	ExpectedDeltaDigest string
+	ChangedPaths         []string
+	PathChanges          []changemodel.PathChange
+	ScopePaths           []string
+	Reason               string
+	DeltaSessionID       string
+	CommitRange          string
+	PayloadFile          string
+	PayloadJSON          string
+	Workflow             string
+	BehaviorSurfaces     []string
+	GeneratedSurfaces    []string
+	StateContracts       []string
+	Verification         []VerificationEvidence
+	KnownUnknowns        []string
+	ConfidenceNotes      []string
+	UserDecisions        []string
+	Boundary             UpdateBoundaryInput
+	CloseoutIntentID     string
+	ExpectedDeltaDigest  string
+	VerificationOverride []VerificationEvidence
 }
 
 type StatusUpdate struct {
@@ -651,14 +658,18 @@ func (runtime *LockedRuntime) RunUpdate(input UpdateInput) (UpdatePayload, error
 		return UpdatePayload{}, fmt.Errorf("provide at most one of payload file or inline payload JSON")
 	}
 	if input.PayloadFile != "" {
-		payload, err := loadPayloadFile(input.PayloadFile)
+		raw, err := os.ReadFile(input.PayloadFile)
+		if err != nil {
+			return UpdatePayload{}, err
+		}
+		payload, err := ParseUpdatePayload(raw, input.VerificationOverride)
 		if err != nil {
 			return UpdatePayload{}, err
 		}
 		input = applyPayloadFileInput(input, payload)
 	}
 	if input.PayloadJSON != "" {
-		payload, err := parsePayloadInput([]byte(input.PayloadJSON), "inline update payload")
+		payload, err := ParseUpdatePayload([]byte(input.PayloadJSON), input.VerificationOverride)
 		if err != nil {
 			return UpdatePayload{}, err
 		}
@@ -666,6 +677,9 @@ func (runtime *LockedRuntime) RunUpdate(input UpdateInput) (UpdatePayload, error
 	}
 	if input.DeltaSessionID != "" {
 		return runDeltaSessionUpdate(paths, input)
+	}
+	if input.VerificationOverride != nil {
+		input.Verification = append([]VerificationEvidence{}, input.VerificationOverride...)
 	}
 	pathChanges, err := normalizePathChanges(input.PathChanges)
 	if err != nil {
@@ -852,10 +866,10 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 	if err := validateChangedPaths(changed); err != nil {
 		return UpdatePayload{}, err
 	}
-	input.Verification = normalizeVerificationEvidence(input.Verification)
 	if err := validateVerificationEvidence(input.Verification); err != nil {
 		return UpdatePayload{}, err
 	}
+	input.Verification = normalizeVerificationEvidence(input.Verification)
 	statusRecovery, err := recoverStatusMismatchLocked(paths)
 	if err != nil {
 		return UpdatePayload{}, err
@@ -1074,15 +1088,15 @@ func resumeUpdateForCloseoutIntent(paths rt.Paths, st *store.Store, intentID str
 	if err != nil {
 		return UpdatePayload{}, false, err
 	}
-	rows, err := st.DB().QueryContext(context.Background(), `SELECT id, result_state, changed_paths_json, attrs_json FROM updates WHERE generation_id = ? ORDER BY completed_at, id`, generationID)
+	rows, err := st.DB().QueryContext(context.Background(), `SELECT id, generation_id, result_state, changed_paths_json, attrs_json FROM updates WHERE json_extract(attrs_json, '$.closeout_intent_id') = ? ORDER BY completed_at, id`, intentID)
 	if err != nil {
 		return UpdatePayload{}, false, err
 	}
 	defer rows.Close()
 	matches := []closeoutIntentUpdateRecord{}
 	for rows.Next() {
-		var id, resultState, changedJSON, attrsJSON string
-		if err := rows.Scan(&id, &resultState, &changedJSON, &attrsJSON); err != nil {
+		var id, recordGenerationID, resultState, changedJSON, attrsJSON string
+		if err := rows.Scan(&id, &recordGenerationID, &resultState, &changedJSON, &attrsJSON); err != nil {
 			return UpdatePayload{}, false, err
 		}
 		var attrs struct {
@@ -1091,6 +1105,9 @@ func resumeUpdateForCloseoutIntent(paths rt.Paths, st *store.Store, intentID str
 		}
 		if json.Unmarshal([]byte(attrsJSON), &attrs) != nil || attrs.CloseoutIntentID != intentID {
 			continue
+		}
+		if recordGenerationID != generationID {
+			return UpdatePayload{}, false, fmt.Errorf("closeout intent %s already committed in generation %s; it cannot be replayed into generation %s", intentID, recordGenerationID, generationID)
 		}
 		record := closeoutIntentUpdateRecord{ID: id, ResultState: resultState, ScopeResultState: attrs.ScopeResultState}
 		if err := json.Unmarshal([]byte(changedJSON), &record.ChangedPaths); err != nil {
@@ -1466,12 +1483,16 @@ func allPathsMapped(paths []string, pathNodeIDs map[string]string) bool {
 }
 
 func hasPassingVerification(values []VerificationEvidence) bool {
+	passed := false
 	for _, value := range values {
+		if strings.TrimSpace(value.Result) == "failed" {
+			return false
+		}
 		if strings.TrimSpace(value.Command) != "" && verificationResultPassed(value.Result) {
-			return true
+			passed = true
 		}
 	}
-	return false
+	return passed
 }
 
 func verificationResultPassed(value string) bool {
@@ -1848,7 +1869,13 @@ func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, er
 			return UpdatePayload{}, fmt.Errorf("delta session digest changed after closeout intent validation")
 		}
 	}
+	if err := ValidateDeltaInput(bundle, input.VerificationOverride); err != nil {
+		return UpdatePayload{}, err
+	}
 	input = applyDeltaBundleInput(input, bundle)
+	if input.VerificationOverride != nil {
+		input.Verification = append([]VerificationEvidence{}, input.VerificationOverride...)
+	}
 	input.PathChanges, err = normalizePathChanges(input.PathChanges)
 	if err != nil {
 		return UpdatePayload{}, err

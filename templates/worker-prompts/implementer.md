@@ -93,6 +93,12 @@ Use this template when the leader dispatches a concrete implementation lane for 
   channels. The task surface must bind one exact official `entrypoint_id`;
   report missing or ambiguous bindings instead of choosing another entrypoint.
   Never handwrite or shorten the runtime-owned manifest/report.
+- Bound `component_states`, `state_variants`, and `native_operation` details
+  remain independent acceptance obligations: control behavior plus each part's
+  visible state, every original resource state and dimensions, and native
+  API/permission evidence plus actual before/after effect. Follow the adapter's
+  exact state/variant targets and return nested Lab observations; a present
+  handler, disabled semantic flag, or aggregate PASS cannot substitute.
 - When `source_continuity.applicability` is `required`, use
   `specify-runtime evidence source-continuity-manifest --feature-dir
   <feature-dir> --task-id <Txxx>`, inspect the live tool inventory, and call

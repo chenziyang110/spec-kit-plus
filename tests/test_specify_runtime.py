@@ -77,6 +77,18 @@ def test_required_runtime_contract_matches_the_shipped_agent_surface() -> None:
 
 @pytest.mark.parametrize(
     "capability",
+    ("cognition.closeout.inspect", "cognition.closeout.repair"),
+)
+def test_required_runtime_contract_includes_closeout_intent_recovery(
+    capability: str,
+) -> None:
+    runtime = _load_runtime()
+
+    assert capability in runtime.REQUIRED_CAPABILITIES
+
+
+@pytest.mark.parametrize(
+    "capability",
     (
         "evidence.smoothness-manifest",
         "evidence.smoothness-validate",

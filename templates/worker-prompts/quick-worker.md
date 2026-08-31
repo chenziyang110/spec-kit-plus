@@ -55,6 +55,12 @@ Use this template when the quick-task leader dispatches a bounded execution lane
 - If runtime/source inspection discovers a missing surface, action, outcome,
   state, asset, or evidence conflict, return it as `unresolved_gaps` and stop
   the affected claim rather than guessing beyond the confirmed packet.
+- Preserve bound `component_states`, `state_variants`, and `native_operation`
+  details through Lab observations: disabled behavior and each label/indicator
+  visual state are separate checks; every source image state retains its exact
+  mapping/dimensions; native actions require API/permission evidence and an
+  observed before/after system effect. Follow the adapter's additional state
+  and asset-variant binding targets; aggregate PASS cannot replace them.
 - Before returning success for a source-continuity Q item, run
   `specify-runtime evidence source-continuity-manifest --quick-id <quick-id>
   --item-id Qn`, inspect the live tool inventory, and call

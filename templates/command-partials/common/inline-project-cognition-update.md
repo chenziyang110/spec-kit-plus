@@ -94,6 +94,8 @@ receipt. Do not use standalone `mark-dirty` to bypass a replayable closeout or
 ask the user to invoke `{{invoke:map-update}}` for an agent-repairable
 predecessor.
 
+{{spec-kit-include: project-cognition-intent-recovery.md}}
+
 Never run `update`, `validate-build`, `complete-refresh`, or `mutation-receipt` individually as a substitute for `closeout apply`. The runtime must not run `complete-refresh` after a scope-level `partial_refresh`, `needs_rebuild`, `blocked`, or legacy `recorded`; it preserves the truthful state and returned recovery action. A failed, blocked, stale, or non-`query_ready` validate-build result also must not run `complete-refresh`.
 
 Dirty fallback command shape: `{{specify-subcmd:specify-runtime cognition mark-dirty --reason "<reason>" --format json}}`.

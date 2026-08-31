@@ -241,6 +241,37 @@ parent workflow active. For bounded path-led identity debt run returned
 Only replay may replace that receipt. Do not downgrade a replayable intent to
 `mark-dirty` or send agent-repairable recovery to the user.
 
+For `repair_update_or_replay_intent` or blocked queued intent recovery, keep the
+parent workflow active. Stop retrying the same failing apply while the intent
+and cause are unchanged. Execute returned `recovery_argv`, or
+`{{specify-subcmd:specify-runtime cognition closeout inspect --intent-id <blocked_intent_id> --format json}}`;
+omit the ID only to list compact pending cards. Inspect is read-only, needs no
+blocked scope receipt, and returns the selected scope/workflow/state,
+`input_digest`, verification diagnostics, and `recommended_next_action`.
+An absent or older successful receipt does not justify guessing `--scope-dir .`.
+If inspect directly offers `replay_argv`, execute it unchanged without requiring
+repair or replacement fields.
+
+Execute applicable returned `repair_argv` unchanged. A new repair uses
+`cognition closeout repair --intent-id <ID> --expected-digest <input_digest>
+--verification-json - --format json` with the complete truthful structured
+verification array on stdin. Records require
+actual `command`, exact `result`, and optional `artifact`. Never invent verification commands
+or passing results; run missing checks or recover trustworthy evidence first.
+Empty stdin cannot start a repair; only a previously journaled repair may resume
+without resupplying evidence when runtime permits it. Repair changes only
+defective verification of an uncommitted intent, archives the original, and
+creates a digest-bound successor preserving other semantics, scope, paths, and
+delta content. `intent_repaired` is not readiness: follow returned
+`replacement_intent_id`, `replacement_input_digest`, and `replay_argv`.
+Exact replay uses `cognition closeout replay --intent-id <ID> --expected-digest
+<SHA256>`; any supplied scope must match. Legacy scope replay requires its
+matching blocked receipt. Reinspect on digest drift. After replay, resume the
+original closeout and verify its own allowed receipt. Do not edit or delete intent JSON,
+fabricate receipts, bypass the queue, or downgrade to `mark-dirty`;
+do not rebuild merely because verification was malformed. When no safe action
+is available, preserve the exact blocker, required evidence, and resume action.
+
 Successful shared apply stamps the hard gate receipt itself before terminal
 close. Do not stamp a second receipt. Only `mark-dirty` fallback uses the
 standalone compatibility command:

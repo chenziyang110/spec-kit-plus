@@ -237,6 +237,14 @@ not behavioral evidence. Raw characters, emoji, or Unicode glyphs cannot stand
 in for a required icon unless the approved contract explicitly records an
 `approved-text-symbol` exception.
 
+For stateful source controls, `surface_bindings[].component_states` binds
+the complete component anatomy/state set to separate behavior and per-part
+visual expectations. Source image variants use `asset_bindings[].state_variants`
+with exact state/source/target/size mappings. Native actions use
+`action_bindings[].native_operation` for API, permission declarations and the
+observable system effect. Unknown details remain gaps; a disabled semantic flag,
+an icon name, or a UI drag marker is not proof of those outcomes.
+
 Keep these in `verification.interaction_matrix`, `verification.editing_matrix`,
 and `verification.data_state_matrix`, not only in prose.
 

@@ -108,6 +108,9 @@ Use `scope_result_state` and project-wide `result_state` together, not `status=o
 Use the returned `result_state` for project-wide debt accounting. `sp-map-update` must not call `complete-refresh` when `result_state` is `partial_refresh`; only shared apply may finalize, and only when both scope and project-wide results are `ready|no_op`.
 
 - Execute `apply_argv` exactly once; do not separately replay update, validation, finalizer, or receipt commands.
+
+{{spec-kit-include: ../command-partials/common/project-cognition-intent-recovery.md}}
+
 - `sp-map-update` must not call `complete-refresh` itself when `scope_result_state` is `partial_refresh`, `needs_rebuild`, `blocked`, or legacy `recorded`; those states are useful recorded outcomes, not fresh completed baselines.
 - If the update helper returns `needs_rebuild`, `sp-map-update` must not call `complete-refresh`; report the concrete first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid` condition and route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
 - If `validate-build` reports `identity_reconciliation=blocked` but the blocked set is bounded and path-led, `sp-map-update` must run a focused identity-repair pass before offering rebuild. Treat missing or unexpected `coverage_path` identities, renamed paths, deleted paths, ignored paths, stale DB path rows, and path-derived evidence identities as map-update repair work when they can be explained from git delta, file existence, `.cognitionignore`, existing merge records, or explicit row decisions.

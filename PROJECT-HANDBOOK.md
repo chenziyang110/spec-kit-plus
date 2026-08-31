@@ -1,6 +1,6 @@
 # Project Handbook
 
-**Last Updated:** 2026-08-17
+**Last Updated:** 2026-08-31
 **Purpose:** Root navigation artifact for this repository.
 
 ## System Summary
@@ -23,6 +23,26 @@ Schema v5 adds revision-bound, expiring reconciliation to the auditable live fee
 ## System Boundaries
 
 This repository owns the human/operator `specify` CLI, the agent-facing `specify-runtime` CLI, bundled templates/scripts, supported-agent integration adapters, project-map compatibility/export templates, extension/preset managers, and optional Codex team runtime packaging. It coordinates with external agent CLIs, Git, uv/pip packaging, Node/npm, Cargo/Rust, optional MCP dependencies, tmux/psmux, and GitHub Actions. It does not own upstream agent CLI behavior, external MCP server implementations, terminal multiplexers, or the user's global `specify` installation.
+
+Closeout admission and replay share complete input validation, including every
+verification row and applicable delta commit range. `closeout inspect` is the
+read-only recovery entrypoint; exact `repair` replaces verification only on an
+uncommitted original intent and requires its expected digest. An immutable
+original/successor repair record makes publication recoverable across crashes;
+the original payload and delta content are preserved. Exact `replay` uses the
+intent ID and digest without requiring a stale scope receipt. Repair checks
+committed bindings across all graph generations, and replay refuses to submit
+an already committed intent into a newer generation. A repair result is not a
+ready map or workflow closeout. Inspect/repair capabilities are required by the
+Python installer and standalone platform installers.
+
+Source-grounded UI continuity includes applicable component-state behavior and
+per-part visual expectations, exact source/target asset variants and dimensions,
+and native API/permission/system-effect contracts. Their complete denominators
+travel through task and adapter packets into Lab and lifecycle revalidation;
+aggregate PASS flags cannot replace missing detailed evidence. These extend the
+existing continuity contract in both profiles without adding a new workflow or
+approval authority.
 
 ## Design Governance Foundation v1.0
 

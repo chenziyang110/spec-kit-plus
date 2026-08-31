@@ -119,6 +119,54 @@ uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git spec
 Do not edit managed hook command strings by hand unless the diagnostic
 explicitly says the file is user-owned.
 
+### Recovering an interrupted cognition closeout
+
+Upgrading the CLI alone does not replace a project's pinned binary. After
+`specify integration repair`, check the project-local runtime's `version` and
+`api handshake --format json`: it must advertise `cognition.closeout.inspect`
+and `cognition.closeout.repair`. Install compatibility checks reject older
+binaries without either capability, including otherwise clean cached or release
+binaries. A shared `.dev0` package version is not proof of the installed runtime
+revision or capabilities.
+
+If a queued intent repeatedly blocks closeout with
+`repair_update_or_replay_intent`, stop retrying unchanged inputs. Follow returned
+`recovery_argv`, or run the project-local runtime with
+`cognition closeout inspect --intent-id <blocked_intent_id> --format json`.
+Without an ID, inspect lists compact pending cards. Inspection does not require
+a blocked scope receipt; an old successful `cognition-closeout.json` cannot
+identify the failed intent.
+
+Inspect the exact scope, workflow, state, `input_digest`, verification problems,
+and returned action. If inspect directly offers `replay_argv`, execute it
+unchanged; that intent does not require repair or replacement fields.
+Execute an applicable returned `repair_argv` unchanged.
+A new repair uses
+`cognition closeout repair --intent-id <ID> --expected-digest <input_digest>
+--verification-json - --format json`. Write a complete JSON array of real
+verification records to stdin: each has `command`, an exact `result`
+(`passed`, `failed`, or `recorded`), and optional `artifact`. Run missing checks
+or recover trustworthy evidence; never invent command names or passing results.
+An empty input cannot create a repair. Only a previously journaled repair may
+resume without resupplying evidence when the runtime permits it.
+
+Repair is limited to defective verification on an uncommitted intent. It
+archives the original and creates a digest-bound successor without changing
+other payload semantics, scope, paths, or delta content. A returned
+`closeout_status=intent_repaired` does not mean closeout passed. Use its
+`replacement_intent_id`, `replacement_input_digest`, and `replay_argv`; exact
+replay uses `cognition closeout replay --intent-id <ID> --expected-digest
+<SHA256> --format json`. A supplied scope must match. The legacy
+`--scope-dir` replay path remains available only for its matching blocked
+receipt. Reinspect if the digest changed, then resume the original closeout
+after the older intent replays and verify the original workflow's own receipt.
+
+Do not hand-edit or delete intent JSON, fabricate receipts, bypass the queue,
+or rebuild cognition merely to clear malformed verification. If no safe repair
+or replay is offered, preserve the exact diagnostic, missing evidence, and
+resume action. A real schema or baseline incompatibility follows its separately
+reported recovery route below.
+
 ## 3. Regenerate or Add a Workflow Profile
 
 Use a full init pass when you intentionally need to add an integration, add the

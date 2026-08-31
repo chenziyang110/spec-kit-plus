@@ -771,6 +771,12 @@ func resolveValidateSpecFeatureDir(args []string) (string, error) {
 }
 
 func runCognition(args []string, stdout, stderr io.Writer, cliVersion string) int {
+	if len(args) >= 2 && strings.EqualFold(args[0], "closeout") && strings.EqualFold(args[1], "inspect") {
+		return runCognitionCloseoutInspectCLI(args[2:], stdout)
+	}
+	if len(args) >= 2 && strings.EqualFold(args[0], "closeout") && strings.EqualFold(args[1], "repair") {
+		return runCognitionCloseoutRepairCLI(args[2:], stdout)
+	}
 	if len(args) > 0 && strings.EqualFold(strings.TrimSpace(args[0]), "identity-repair") {
 		return runCognitionIdentityRepairCLI(args[1:], stdout)
 	}
@@ -1115,6 +1121,8 @@ func defaultCapabilities() []string {
 		"cognition.clear-dirty",
 		"cognition.closeout",
 		"cognition.closeout.apply",
+		"cognition.closeout.inspect",
+		"cognition.closeout.repair",
 		"cognition.closeout.replay",
 		"cognition.closeout-plan",
 		"cognition.compass",
@@ -1595,10 +1603,14 @@ func capabilitySummary(id string) string {
 		return "Record a durable project-cognition mutation closeout receipt required before implement/quick/review terminal close."
 	case "cognition.closeout.apply":
 		return "Run the shared mutation closeout sequence: bounded update, build validation, eligible finalization, and runtime-bound receipt."
+	case "cognition.closeout.inspect":
+		return "Inspect exact pending closeout intents and their recovery routes without changing state."
+	case "cognition.closeout.repair":
+		return "Repair verification on an uncommitted intent with digest checks, preserved input, and a durable replacement."
 	case "cognition.closeout":
 		return "Operate the shared project-cognition closeout namespace, including digest-bound replay."
 	case "cognition.closeout.replay":
-		return "Replay one digest-bound blocked closeout intent through the shared atomic closeout sequence."
+		return "Replay one exact digest-bound pending intent, or the intent bound to a legacy blocked scope receipt."
 	case "cognition.identity-repair.plan":
 		return "Prepare a digest-bound bounded path identity repair from current validation evidence."
 	case "cognition.identity-repair":

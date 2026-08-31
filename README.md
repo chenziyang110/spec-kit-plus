@@ -760,6 +760,15 @@ when the `classic` profile is selected.
   current task-index or confirmation digest, business outcomes/side effects/
   final states, evidence types, and asset fidelity.
 
+  Stateful reconstruction also binds component behavior and each visual part
+  through `component_states`, original/target images and dimensions through
+  `state_variants`, and native API, permission declarations, and observable
+  system effects through `native_operation`. These details travel unchanged
+  into worker and adapter packets. A disabled control must satisfy both its
+  behavior and approved visual expectations; a four-state asset cannot pass
+  with one image; a native window action needs evidence of the actual effect.
+  Static surfaces do not acquire unrelated state or platform requirements.
+
   The shared **UI Professional Skill** pack adds progressive disclosure to this
   studio loop. Its compact router selects one product domain, at most one visual
   style, and at most two specialist skills, then loads only those exact
@@ -1038,6 +1047,19 @@ Conditional gates and follow-up commands:
 - The planner chooses `update_mode=delta_session` for leased delta capture or `update_mode=inline_json` for a bounded inline payload. Delta mode exposes `delta_append_draft.argv_prefix`; `update_argv` and other display-only command templates remain compatibility and diagnostic output, while the Agent executes the structured `apply_argv`.
 - The Agent completes returned `unknown_path_dispositions`, `verification_evidence`, and `generated_surface_notes`. Missing or failed verification evidence stops the closeout before any mutation.
 - The closeout result selects the finalization branch. Clean completion additionally requires `status=ok` and `readiness=query_ready`, a current bound `update_id`, and a matching receipt; otherwise the outcome stays partial or recorded-only without overstating project freshness.
+- Closeout validates every verification row, path boundary, and applicable
+  commit range before persisting an intent; a passing row cannot hide a failed
+  or malformed row. For a stranded older intent, execute `recovery_argv` or
+  `specify-runtime cognition closeout inspect --intent-id <id> --format json`,
+  then follow its exact repair or replay argv. Verification-only repair
+  requires the expected input digest and truthful structured evidence, preserves
+  the original input and delta session, and records a crash-recoverable successor
+  without submitting graph updates. Exact replay does not require an absent or
+  older scope receipt, and an already committed intent cannot be resubmitted
+  into another graph generation. Do not edit/delete intent files or rebuild a
+  usable map to bypass malformed evidence. Both profiles and all installers
+  require inspect/repair capabilities; upgrading the CLI alone does not update
+  a project's pinned runtime. See the [upgrade and repair guide](docs/upgrade.md).
 - Closeout agents should use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If unrelated dirty or untracked working-tree paths were excluded by explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as blocking `known_unknowns`.
 - Use `map-update` for localized stale cognition refresh recommendations, external/manual changed-path map maintenance, and ordinary existing-baseline gaps; use `map-scan` followed by `map-build` only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` when you want a map baseline. `build-from-scan` adapts the accepted legacy-compatible scan package into a versioned proposal and runs the deterministic cognition proposal compiler before SQLite publication; conflicts block before graph-store mutation. Compilation proves structural publication safety, not repository behavior, so compiled graph rows remain advisory route candidates. The pair is map-maintenance complete only when scan acceptance and build acceptance pass: `specify-runtime cognition validate-scan --format json` and `specify-runtime cognition validate-build --format json`. Ordinary workflows may continue from live repository evidence when the map is missing, stale, or blocked.

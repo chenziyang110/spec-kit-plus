@@ -278,7 +278,7 @@
           "id": "SP-DESKTOP-WINDOW-001",
           "kind": "desktop-window",
           "title": "Window, menu, and toolbar",
-          "purpose": "Prove window hierarchy, command discoverability, and platform chrome boundaries.",
+          "purpose": "Prove window hierarchy, command discoverability, platform chrome boundaries, and separate disabled behavior from label/indicator/icon appearance; exercise native window actions through their API and permission declarations to an observed system effect.",
           "capability_ids": ["layout.resizable-window", "navigation.menu-toolbar", "input.pointer", "input.keyboard"],
           "required_states": ["default", "hover", "focus", "disabled"],
           "content_keys": ["surface_title", "primary_action", "secondary_action", "command_label"]

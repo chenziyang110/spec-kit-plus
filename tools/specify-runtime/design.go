@@ -3071,7 +3071,7 @@ func validateDesignSourceContinuity(value any, path string, ready bool) error {
 			return fmt.Errorf("%s.reason is required when not-applicable", path)
 		}
 	}
-	return nil
+	return validateMigrationContract(continuity, path)
 }
 
 func validateDesignHandoffSourceContinuityCoverage(handoff map[string]any, path string) error {
@@ -3104,7 +3104,7 @@ func validateDesignHandoffSourceContinuityCoverage(handoff map[string]any, path 
 			return err
 		}
 	}
-	return nil
+	return validateMigrationComponentBindings(continuity, handoff["component_contracts"])
 }
 
 func validateDesignReadiness(doc designDocument, diagnostics *[]designDiagnostic) {

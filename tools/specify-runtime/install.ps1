@@ -87,6 +87,8 @@ try {
         ($handshake -notmatch '"artifact\.show-many"') -or
         ($handshake -notmatch '"artifact\.submit"') -or
         ($handshake -notmatch '"cognition\.archive-incompatible-store"') -or
+        ($handshake -notmatch '"cognition\.closeout\.inspect"') -or
+        ($handshake -notmatch '"cognition\.closeout\.repair"') -or
         ($handshake -notmatch '"cognition\.run"') -or
         ($handshake -notmatch '"cognition\.scan-packet"') -or
         ($handshake -notmatch '"implement\.task-reopen"') -or

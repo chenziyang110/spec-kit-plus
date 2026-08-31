@@ -492,6 +492,8 @@ func generatedRuntimeVerbCapabilities() []string {
 		"cognition.claim-reconcile.prepare",
 		"cognition.clear-dirty",
 		"cognition.closeout.apply",
+		"cognition.closeout.inspect",
+		"cognition.closeout.repair",
 		"cognition.closeout.replay",
 		"cognition.closeout-plan",
 		"cognition.mutation-receipt",

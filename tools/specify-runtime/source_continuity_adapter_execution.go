@@ -154,6 +154,9 @@ func sourceContinuityAdapterExecutionPacket(planSHA string, adapter map[string]a
 	if capabilitySet["asset-inspection"] || capabilitySet["visual-capture"] {
 		targets["asset_binding_ids"] = stringsToAny(sourceContinuityLabBindingIDs(continuity["asset_bindings"]))
 	}
+	for field, value := range migrationAdapterTargets(capabilitySet, continuity) {
+		targets[field] = value
+	}
 	preconditions := []any{"manifest-current", "adapter-plan-current", "tool-binding-available", "real-entrypoint-or-declared-substitute-ready"}
 	if anyString(adapter["write_policy"]) == "isolated-test-data" {
 		preconditions = append(preconditions, "isolated-test-data-prepared")

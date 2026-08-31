@@ -4,6 +4,10 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
+from specify_cli.design_intelligence.ui_migration import migration_adapter_targets
+
 from specify_cli.execution.ui_validation import (
     _source_continuity_target_snapshot,
     validate_lifecycle_ui_verification,
@@ -234,6 +238,7 @@ def _adapter_execution(
                     ]
                     if capabilities & {"asset-inspection", "visual-capture"}
                     else [],
+                    **migration_adapter_targets(capabilities, continuity),
                 },
                 "write_policy": adapter["write_policy"],
                 "network_policy": adapter["network_policy"],
@@ -316,8 +321,10 @@ def _source_continuity() -> dict[str, object]:
     }
 
 
+@pytest.mark.parametrize("migration_details", [False, True])
 def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
     tmp_path: Path,
+    migration_details: bool,
 ) -> None:
     feature_dir = tmp_path / "specs" / "001-source-continuity"
     feature_dir.mkdir(parents=True)
@@ -325,6 +332,9 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
     source_file.parent.mkdir(parents=True)
     source_file.write_text("export const ready = true;\n", encoding="utf-8")
     continuity = _source_continuity()
+    migration_fixture_dir = Path(__file__).parents[1] / "fixtures" / "source-continuity-lab"
+    if migration_details:
+        continuity = json.loads((migration_fixture_dir / "migration-contract.json").read_text(encoding="utf-8"))
     task_index = {
         "version": 2,
         "status": "ready",
@@ -340,6 +350,12 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
         ],
     }
     task_index_bytes = _canonical_bytes(task_index)
+    if migration_details:
+        task_index["tasks"][0]["ui_contract"]["component_contracts"] = [{
+            "id": "DH-COMP-001", "anatomy": ["indicator", "label"],
+            "required_states": ["normal", "hover", "pressed", "disabled"],
+        }]
+        task_index_bytes = _canonical_bytes(task_index)
     (feature_dir / "task-index.json").write_bytes(task_index_bytes)
     lifecycle = {
         "task_id": "T001",
@@ -567,6 +583,21 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
             ],
         }
     )
+    if migration_details:
+        observations = json.loads((migration_fixture_dir / "migration-observation.json").read_text(encoding="utf-8"))
+
+        def bind_detail_refs(value: object) -> object:
+            if isinstance(value, dict):
+                return {key: bind_detail_refs(item) for key, item in value.items()}
+            if isinstance(value, list):
+                return [bind_detail_refs(item) for item in value]
+            if isinstance(value, str) and value.startswith("evidence://"):
+                side, kind = value.removeprefix("evidence://").split("/")
+                return evidence_refs[(side, kind)]
+            return value
+
+        for field in ("surface_results", "action_results", "asset_results"):
+            report[field] = bind_detail_refs(observations[field])
     report_bytes = _canonical_bytes(report)
     report_path.write_bytes(report_bytes)
     lifecycle["ui_verification"]["source_continuity_lab_report_sha256"] = (
@@ -584,6 +615,27 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
         feature_dir, lifecycle, "implementation-review/tasks/T001.json"
     )
     assert not any("source continuity" in error.lower() for error in errors), errors
+
+    if migration_details:
+        component = task_index["tasks"][0]["ui_contract"]["component_contracts"][0]
+        component["anatomy"] = ["indicator"]
+        (feature_dir / "task-index.json").write_bytes(_canonical_bytes(task_index))
+        errors = validate_lifecycle_ui_verification(feature_dir, lifecycle, "implementation-review/tasks/T001.json")
+        assert any("component anatomy" in error for error in errors), errors
+        component["anatomy"] = ["indicator", "label"]
+        (feature_dir / "task-index.json").write_bytes(task_index_bytes)
+        native = report["action_results"][0]["native_operation"]
+        original_permissions = native["verified_permission_refs"]
+        native["verified_permission_refs"] = []
+        tampered_bytes = _canonical_bytes(report)
+        report_path.write_bytes(tampered_bytes)
+        lifecycle["ui_verification"]["source_continuity_lab_report_sha256"] = hashlib.sha256(tampered_bytes).hexdigest()
+        errors = validate_lifecycle_ui_verification(feature_dir, lifecycle, "implementation-review/tasks/T001.json")
+        assert any("native-operation-permission-mismatch" in error for error in errors), errors
+        native["verified_permission_refs"] = original_permissions
+        report_bytes = _canonical_bytes(report)
+        report_path.write_bytes(report_bytes)
+        lifecycle["ui_verification"]["source_continuity_lab_report_sha256"] = hashlib.sha256(report_bytes).hexdigest()
 
     probe_ref = (
         "implementation-review/source-continuity/"

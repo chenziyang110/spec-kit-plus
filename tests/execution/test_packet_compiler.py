@@ -17,6 +17,7 @@ from specify_cli.execution.result_schema import (
     WorkerTaskResult,
 )
 from specify_cli.execution.result_validator import validate_worker_task_result
+from specify_cli.design_intelligence.ui_migration import migration_observation_errors
 from specify_cli.task_authoring import _render_tasks_markdown
 
 
@@ -850,6 +851,8 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
             source_continuity_lab_report_sha256="f" * 64,
             source_continuity_adapter_plan_ref="implementation-review/source-continuity/source-continuity-adapter-plan-T021.json",
             source_continuity_adapter_plan_sha256="a" * 64,
+            source_continuity_adapter_execution_ref="implementation-review/source-continuity/source-continuity-adapter-execution-T021.json",
+            source_continuity_adapter_execution_sha256="b" * 64,
             implementation_capture_refs=["artifacts/ui/settings.png"],
             covered_decision_ids=list(packet.ui_contract.design_decision_ids),
             covered_handoff_contract_ids=list(packet.ui_contract.handoff_contract_ids),
@@ -877,6 +880,36 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
     )
 
     assert validate_worker_task_result(documented_result, packet) is documented_result
+
+    # Keep migration obligations intact from the actual task-index compiler to
+    # the same detailed acceptance check used by lifecycle report revalidation.
+    fixtures = Path(__file__).parents[1] / "fixtures" / "source-continuity-lab"
+    migration = json.loads((fixtures / "migration-contract.json").read_text(encoding="utf-8"))
+    ui = task_index["tasks"][0]["ui_contract"]
+    migration["coverage"]["surface_ids"] = ["DH-SURFACE-WEB-001"]
+    migration["surface_bindings"][0]["surface_id"] = "DH-SURFACE-WEB-001"
+    migration["coverage"]["interaction_ids"].append("DH-INT-002")
+    migration["action_bindings"].append(ui["source_continuity"]["action_bindings"][1])
+    ui["source_continuity"] = migration
+    ui["component_contracts"][0]["anatomy"] = ["indicator", "label"]
+    ui["component_contracts"][0]["required_states"] = ["normal", "hover", "pressed", "disabled"]
+    task_index_path.write_text(json.dumps(task_index), encoding="utf-8")
+    migrated_packet = compile_worker_task_packet(
+        project_root=project_root, feature_dir=feature_dir, task_id="T021"
+    )
+    assert migrated_packet.ui_contract.source_continuity == migration
+    observation = json.loads((fixtures / "migration-observation.json").read_text(encoding="utf-8"))
+    observation["surface_results"][0]["surface_id"] = "DH-SURFACE-WEB-001"
+    assert migration_observation_errors(migrated_packet.ui_contract.source_continuity, observation) == []
+    observation["surface_results"][0]["component_states"][-1]["visuals"][-1]["matches"] = False
+    assert any(
+        error.startswith("component-state-visual-mismatch")
+        for error in migration_observation_errors(migrated_packet.ui_contract.source_continuity, observation)
+    )
+    ui["component_contracts"][0]["anatomy"] = ["indicator"]
+    task_index_path.write_text(json.dumps(task_index), encoding="utf-8")
+    with pytest.raises(PacketValidationError, match="component anatomy"):
+        compile_worker_task_packet(project_root=project_root, feature_dir=feature_dir, task_id="T021")
 
 
 def test_current_ui_contract_rejects_obsolete_version_and_duplicate_payload() -> None:

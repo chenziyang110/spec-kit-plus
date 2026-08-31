@@ -60,6 +60,13 @@ acceptance revalidates the canonical manifest, current task-index digest, typed
 evidence triad, full scenario set, and performance budgets, so a handwritten
 or minimal report cannot pass.
 
+Preserve applicable nested `component_states`, `state_variants`, and
+`native_operation` requirements from source discovery. Validate control
+behavior separately from each part's visual state, preserve every original
+asset variant and its dimensions, and verify native API/permission/effect
+through the real native entrypoint. Return the corresponding nested Lab
+observations; do not replace them with aggregate PASS or screenshot-only proof.
+
 When `ui_contract.source_continuity.applicability` is `required`, call
 `specify-runtime evidence source-continuity-manifest --feature-dir
 <feature-dir> --task-id <Txxx> --format json`. Inspect the current live tool

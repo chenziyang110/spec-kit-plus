@@ -86,6 +86,13 @@ command when they promise the same result.
 
 ## Asset fidelity
 
+For source controls with distinct interactive states, add
+`surface_bindings[].component_states`: exact `component_id`, `parts`,
+`required_states`, and `states[]` with separate `behavior` and per-part
+`visuals[{part, expectation}]`. Bind parts/states to the selected component's
+anatomy/required states. A disabled input does not prove its label, indicator,
+or icon looks disabled. Keep every discovered state in the denominator.
+
 Inventory source assets before substituting them. Preserve or deliberately map
 semantic role, family, state variants, size, optical alignment, accessibility
 name, provenance, and distribution rights through the binding and linked
@@ -96,6 +103,29 @@ A character is valid only when it is the approved literal content, not a cheap
 stand-in for a missing asset. Missing or legally unusable assets remain an
 `unresolved_gaps` item until an owned replacement or explicit exception is
 approved.
+
+When the source has state-specific image resources, add
+`asset_bindings[].state_variants` with complete `required_states` and
+`variants[{state, source_ref, target_ref, source_size, target_size}]`; sizes are
+`[width, height]`. Variant refs must exhaust the source asset inventory and
+the full component state denominator; explicitly map reused resources to every
+applicable state instead of deleting states from both declaration and result.
+Source refs must belong to that inventory, and
+`preserve` requires equal source/target dimensions. Exercise every source
+variant, including pressed and disabled when present, without character
+substitution. Other approved strategies retain their exact target dimensions.
+
+For native window/system actions, add `action_bindings[].native_operation`:
+`api_ref`, `permission_required`, `permission_refs`, `permission_reason`, and
+`expected_effect`, `effect_requirement: state-change|observation`, and nonempty
+`effect_fields` naming the exact top-level scalar snapshot fields to compare.
+State-changing actions such as window dragging require changes in those fields;
+timestamps or unrelated metadata cannot count. `observation` is only for native
+actions with no promised side effects. Resolve the actual platform API and capability/configuration
+declarations; do not infer permission from a UI marker or a present handler.
+Use the real native entrypoint and observe the operating-system effect.
+These details may be omitted only when the source has no corresponding
+stateful/variant/native requirement; uncertainty belongs in `unresolved_gaps`.
 
 ## Image-primary augmentation
 
@@ -140,6 +170,21 @@ approved.
   reachability, feedback, side effects, `business_outcome`, and `final_state`.
   When the source cannot run, use the strongest remaining authority and record
   the withheld parity claim.
+- Detailed Lab results retain `surface_results[].component_states` with
+  `component_id`, `state`, `behavior_matches`, `behavior_observation`,
+  `behavior_evidence_ref`, and `visuals[{part, matches, observation,
+  source_evidence_ref, target_evidence_ref}]`;
+  `asset_results[].state_variants` rows retain `state`, `source_ref`,
+  `target_ref`, `source_size`, `target_size`, `source_evidence_ref`,
+  `target_evidence_ref`, `render_match`, and `character_substitution`;
+  `action_results[].native_operation` retains `api_ref`,
+  `verified_permission_refs`, `permission_evidence_ref`, `effect_evidence_ref`,
+  `before`/`after` state objects, and `effect_matches`. Every declared effect
+  field must occur on both sides; state-change requires at least one changed
+  field using JSON numeric semantics (100 and 100.0 are equal).
+  Boolean match fields must be true and `character_substitution` false;
+  behavior/native refs are target runtime diagnostics, and visual refs bind
+  source/target captures. Aggregate PASS cannot replace these details.
 - Pass only when coverage is bidirectional and every in-scope surface has an explicit disposition, every
   promised action reaches its verified final state, every asset has an owned
   binding, `unresolved_gaps` is ready-safe, and visual fidelity plus behavioral

@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 
 from specify_cli.design_intelligence import validate_ui_source_continuity
+from specify_cli.design_intelligence.ui_migration import migration_component_binding_errors
 
 from .packet_schema import UI_CONTRACT_FIELDS, UIContract, WorkerTaskPacket
 
@@ -1110,6 +1111,11 @@ def validate_ui_contract(contract: UIContract) -> None:
             "UI contract surface_catalog entries require stable identity, profile, source/specimen/component coverage, and known references",
         )
     if contract.source_continuity.get("applicability") == "required":
+        migration_errors = migration_component_binding_errors(
+            contract.source_continuity, contract.component_contracts
+        )
+        if migration_errors:
+            raise PacketValidationError("DP1", "; ".join(migration_errors))
         surface_ids = {
             str(item.get("id") or "").strip()
             for item in contract.surface_catalog

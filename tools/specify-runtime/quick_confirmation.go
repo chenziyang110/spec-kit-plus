@@ -794,7 +794,7 @@ func validateQuickSourceContinuity(continuity map[string]any) error {
 	seenBindingIDs := map[string]string{}
 	for index, row := range surfaces {
 		rowPath := fmt.Sprintf("%s.surface_bindings[%d]", path, index)
-		if err := validateQuickContinuityKnownFields(row, rowPath, "id", "surface_id", "source_refs", "discovery", "disposition", "rationale"); err != nil {
+		if err := validateQuickContinuityKnownFields(row, rowPath, "id", "surface_id", "source_refs", "discovery", "disposition", "rationale", "component_states"); err != nil {
 			return err
 		}
 		if err := validateQuickContinuityStrings(row, rowPath, "id", "surface_id", "discovery", "disposition", "rationale"); err != nil {
@@ -818,7 +818,7 @@ func validateQuickSourceContinuity(continuity map[string]any) error {
 	}
 	for index, row := range actions {
 		rowPath := fmt.Sprintf("%s.action_bindings[%d]", path, index)
-		if err := validateQuickContinuityKnownFields(row, rowPath, "id", "interaction_id", "source_refs", "user_promise", "business_outcome", "side_effects", "final_state", "verification"); err != nil {
+		if err := validateQuickContinuityKnownFields(row, rowPath, "id", "interaction_id", "source_refs", "user_promise", "business_outcome", "side_effects", "final_state", "verification", "native_operation"); err != nil {
 			return err
 		}
 		if err := validateQuickContinuityStrings(row, rowPath, "id", "interaction_id", "user_promise", "business_outcome", "final_state", "verification"); err != nil {
@@ -837,7 +837,7 @@ func validateQuickSourceContinuity(continuity map[string]any) error {
 	}
 	for index, row := range assets {
 		rowPath := fmt.Sprintf("%s.asset_bindings[%d]", path, index)
-		if err := validateQuickContinuityKnownFields(row, rowPath, "id", "component_id", "semantic_role", "source_refs", "target_strategy", "target_ref", "provenance", "fallback", "placeholder_policy"); err != nil {
+		if err := validateQuickContinuityKnownFields(row, rowPath, "id", "component_id", "semantic_role", "source_refs", "target_strategy", "target_ref", "provenance", "fallback", "placeholder_policy", "state_variants"); err != nil {
 			return err
 		}
 		if err := validateQuickContinuityStrings(row, rowPath, "id", "component_id", "semantic_role", "target_ref", "provenance", "fallback"); err != nil {
@@ -881,7 +881,7 @@ func validateQuickSourceContinuity(continuity map[string]any) error {
 	if err := validateQuickContinuityCoverage(path+".coverage.component_ids", coverageComponents, assets, "component_id"); err != nil {
 		return err
 	}
-	return nil
+	return validateMigrationContract(continuity, path)
 }
 
 func validateQuickContinuityCoverage(path string, declared []string, bindings []map[string]any, bindingField string) error {
@@ -1139,16 +1139,16 @@ func validateQuickSourceContinuityDeltaPath(ui map[string]any, parts []string) b
 	rowFields := map[string]map[string]bool{
 		"surface_bindings": {
 			"id": true, "surface_id": true, "source_refs": true, "discovery": true,
-			"disposition": true, "rationale": true,
+			"disposition": true, "rationale": true, "component_states": true,
 		},
 		"action_bindings": {
 			"id": true, "interaction_id": true, "source_refs": true, "user_promise": true,
-			"business_outcome": true, "side_effects": true, "final_state": true, "verification": true,
+			"business_outcome": true, "side_effects": true, "final_state": true, "verification": true, "native_operation": true,
 		},
 		"asset_bindings": {
 			"id": true, "component_id": true, "semantic_role": true, "source_refs": true,
 			"target_strategy": true, "target_ref": true, "provenance": true, "fallback": true,
-			"placeholder_policy": true,
+			"placeholder_policy": true, "state_variants": true,
 		},
 	}
 	allowedFields := rowFields[parts[0]]
