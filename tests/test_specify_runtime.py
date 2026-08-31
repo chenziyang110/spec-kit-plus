@@ -569,7 +569,7 @@ def test_runtime_runner_can_install_when_missing(
     assert calls == [[str(binary), "validate", "spec", "--feature-dir", "."]]
 
 
-def test_download_urls_include_github_and_free_mirrors(
+def test_download_urls_default_to_official_source_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runtime = _load_runtime()
@@ -578,13 +578,10 @@ def test_download_urls_include_github_and_free_mirrors(
 
     urls = runtime.download_urls("v0.6.9")
 
-    assert urls[0] == (
-        "https://github.com/chenziyang110/spec-kit-plus/releases/download/"
+    assert urls == [(
+        "https://github.com/chenziyang110/spec-kit-plus-releases/releases/download/"
         "v0.6.9/specify-runtime-linux-amd64"
-    )
-    assert any("mirror.ghproxy.com" in url for url in urls)
-    assert any("gh-proxy.com" in url for url in urls)
-    assert all("v0.6.9" in url and "specify-runtime-linux-amd64" in url for url in urls)
+    )]
 
 
 def test_download_urls_honor_custom_mirror_env(
@@ -600,7 +597,7 @@ def test_download_urls_honor_custom_mirror_env(
     urls = runtime.download_urls("v1.2.3")
 
     assert urls == [
-        "https://github.com/chenziyang110/spec-kit-plus/releases/download/"
+        "https://github.com/chenziyang110/spec-kit-plus-releases/releases/download/"
         "v1.2.3/specify-runtime-linux-amd64",
         "https://example.invalid/cdn/specify-runtime-linux-amd64",
     ]
@@ -652,7 +649,7 @@ def test_download_uses_authenticated_github_cli_before_mirrors(
     dest = tmp_path / "runtime.bin"
     filename = "specify-runtime-windows-amd64.exe"
     official = (
-        "https://github.com/chenziyang110/spec-kit-plus/releases/latest/download/"
+        "https://github.com/chenziyang110/spec-kit-plus-releases/releases/latest/download/"
         f"{filename}"
     )
     mirror = f"https://mirror.example/{official}"
@@ -699,7 +696,7 @@ def test_download_continues_to_mirror_when_authenticated_github_cli_fails(
     dest = tmp_path / "runtime.bin"
     filename = "specify-runtime-windows-amd64.exe"
     official = (
-        "https://github.com/chenziyang110/spec-kit-plus/releases/latest/download/"
+        "https://github.com/chenziyang110/spec-kit-plus-releases/releases/latest/download/"
         f"{filename}"
     )
     mirror = f"https://mirror.example/{filename}"
@@ -722,6 +719,7 @@ def test_download_continues_to_mirror_when_authenticated_github_cli_fails(
 
     monkeypatch.setattr(runtime, "_download_from_url", fake_download)
     monkeypatch.setattr(runtime, "_download_with_github_cli", fail_github_cli)
+    monkeypatch.setattr(runtime, "_download_with_github_api", fail_github_cli, raising=False)
 
     result = runtime.download("latest", dest)
 

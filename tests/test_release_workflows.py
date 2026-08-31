@@ -10,13 +10,22 @@ def test_release_workflow_uploads_unified_runtime_binaries():
     )
 
     assert "workflow_dispatch:" in content
+    assert "PUBLIC_RELEASES_REPO: chenziyang110/spec-kit-plus-releases" in content
+    assert "contents: read" in content
+    assert "persist-credentials: false" in content
     assert (
         "ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}"
         in content
     )
     assert 'build_tool "specify-runtime" "tools/specify-runtime"' in content
     assert '-o "../../dist/release-tools/${tool}-${goos}-${goarch}${ext}" .' in content
-    assert "dist/release-tools/*" in content
+    assert "--assets-dir dist/release-tools" in content
+    assert '--target-repo "${{ env.PUBLIC_RELEASES_REPO }}"' in content
+    assert "--token-env PUBLIC_RELEASES_TOKEN" in content
+    assert "--mode check" in content
+    assert "--mode ensure-release" in content
+    assert '--github-output "$GITHUB_OUTPUT"' in content
+    assert "PUBLIC_RELEASES_TOKEN: ${{ secrets.PUBLIC_RELEASES_TOKEN }}" in content
     assert "Smoke-test specify-runtime release binary" in content
     assert 'SOURCE_REVISION="$(git rev-parse HEAD)"' in content
     assert (
@@ -89,30 +98,20 @@ def test_release_workflow_uploads_unified_runtime_binaries():
     assert 'cognition scan-accept --help 2>&1 | grep -q -- "-packet-id"' in content
     assert 'semantic_audit_resume_status":"fresh' in content
     assert 'semantic_audit_resume_status":"needs-rerun' in content
-    assert "SPECIFY_RUNTIME_VERSION=${VERSION}" in content
-    assert r'\$env:SPECIFY_RUNTIME_VERSION="${VERSION}"' in content
-    assert "gh release create" in content
-    assert 'gh release upload "$VERSION" dist/release-tools/* --clobber' in content
-    assert "--json isDraft,assets" in content
-    assert ".size > 0" in content
-    assert "--pattern 'specify-runtime-*'" in content
-    assert (
-        'expected_identity_marker="specify-runtime.release.v1,version=${VERSION},revision=${expected_revision},dirty=false"'
-        in content
-    )
-    assert 'grep -aF -- "$expected_identity_marker" "$asset_path"' in content
+    assert "gh release create" not in content
+    assert 'gh release upload "$VERSION" dist/release-tools/* --clobber' not in content
+    assert "scripts/publish-runtime-release.py" in content
+    assert "release_notes.md" not in content
+    assert "scripts/release-note-commits.sh" not in content
     assert (
         'IDENTITY_MARKER="specify-runtime.release.v1,version=${VERSION},revision=${SOURCE_REVISION},dirty=false"'
         in content
     )
     assert 'grep -aF -- "$IDENTITY_MARKER" "$asset"' in content
-    assert 'grep -aF -- "specify-runtime.v1" "$asset_path"' in content
-    assert 'gh release edit "$VERSION" --draft=false' in content
-    assert r"project-pinned \`specify-runtime\` binary" in content
-    assert r"\`runtime_launcher\`" in content
-    assert r"\`SPECIFY_RUNTIME_BIN\`" in content
+    assert '--mode ensure-release' in content
     assert 'build_tool "project-cognition"' not in content
     assert 'build_tool "spec-lint"' not in content
+    assert "## What's Changed" not in content
 
 
 def test_project_handbook_runtime_regression_includes_install_suite():
@@ -128,18 +127,21 @@ def test_runtime_fallback_release_smokes_namespaced_cognition_commands():
     ).read_text(encoding="utf-8")
 
     assert "actions/checkout@v7" in content
+    assert "PUBLIC_RELEASES_REPO: chenziyang110/spec-kit-plus-releases" in content
+    assert "contents: read" in content
+    assert "persist-credentials: false" in content
     assert 'bin/specify-runtime-linux-amd64 --help | grep -q "cognition"' in content
     assert "ref: ${{ github.event.release.tag_name }}" in content
     assert "fetch-depth: 1" in content
-    assert 'expected_revision="$(git rev-parse HEAD)"' in content
     assert 'SOURCE_REVISION="$(git rev-parse HEAD)"' in content
-    assert "--pattern 'specify-runtime-*'" in content
-    assert (
-        'expected_identity_marker="specify-runtime.release.v1,version=${RELEASE_TAG},revision=${expected_revision},dirty=false"'
-        in content
-    )
-    assert 'grep -aF -- "$expected_identity_marker" "$asset_path"' in content
-    assert 'grep -aF -- "specify-runtime.v1" "$asset_path"' in content
+    assert "scripts/publish-runtime-release.py" in content
+    assert "--assets-dir tools/specify-runtime/bin" in content
+    assert '--target-repo "${{ env.PUBLIC_RELEASES_REPO }}"' in content
+    assert "--token-env PUBLIC_RELEASES_TOKEN" in content
+    assert "--mode check" in content
+    assert "--mode ensure-release" in content
+    assert '--github-output "$GITHUB_OUTPUT"' in content
+    assert 'PUBLIC_RELEASES_TOKEN: ${{ secrets.PUBLIC_RELEASES_TOKEN }}' in content
     assert (
         "tools/specify-runtime/internal/buildinfo.SourceRevision=${SOURCE_REVISION}"
         in content
@@ -287,12 +289,25 @@ def test_runtime_attach_workflow_remains_fallback_only():
 
     assert "release:" in content
     assert "types: [published]" in content
-    assert "tools/specify-runtime/bin/*" in content
+    assert "--assets-dir tools/specify-runtime/bin" in content
     assert "Check whether runtime assets are missing or invalid" in content
-    assert "steps.assets.outputs.missing == 'true'" in content
-    assert "gh release view" in content
-    assert 'gh release download "$RELEASE_TAG"' in content
-    assert (
-        'gh release upload "$RELEASE_TAG" tools/specify-runtime/bin/* --clobber'
-        in content
+    assert "steps.assets.outputs.complete != 'true'" in content
+    assert "scripts/publish-runtime-release.py" in content
+    assert "gh release view" not in content
+    assert "gh release download" not in content
+    assert "gh release upload" not in content
+
+
+def test_public_runtime_release_helper_is_covered() -> None:
+    helper = (ROOT / "scripts" / "publish-runtime-release.py").read_text(
+        encoding="utf-8"
     )
+    tests = (ROOT / "tests" / "test_publish_runtime_release.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert '--token-env' in helper
+    assert "validate_token_env" in helper
+    assert "SHA256SUMS" in helper
+    assert '"release",' in helper and '"upload",' in helper
+    assert "ALLOWED_BINARY_ASSETS" in tests

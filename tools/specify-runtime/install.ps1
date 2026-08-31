@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($Version)) { $Version = "latest" }
-if ([string]::IsNullOrWhiteSpace($Repo)) { $Repo = "chenziyang110/spec-kit-plus" }
+if ([string]::IsNullOrWhiteSpace($Repo)) { $Repo = "chenziyang110/spec-kit-plus-releases" }
 if (($Version -ne "latest") -and ($Version -notmatch '^v[0-9]+(\.[0-9]+){2}([.-][0-9A-Za-z.-]+)?$')) {
     throw "SPECIFY_RUNTIME_VERSION must be latest or a concrete release tag such as v0.6.6"
 }
@@ -25,16 +25,12 @@ $githubUrl = if ($Version -eq "latest") {
     "https://github.com/${Repo}/releases/download/${Version}/${asset}"
 }
 
-# Official GitHub first, then free community mirrors (override with SPECIFY_RUNTIME_DOWNLOAD_MIRRORS).
+# Official public release assets by default; custom mirrors are opt-in.
 $templates = if (-not [string]::IsNullOrWhiteSpace($env:SPECIFY_RUNTIME_DOWNLOAD_MIRRORS)) {
     $env:SPECIFY_RUNTIME_DOWNLOAD_MIRRORS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
 } else {
     @(
-        "{github_url}",
-        "https://mirror.ghproxy.com/{github_url}",
-        "https://ghproxy.net/{github_url}",
-        "https://gh-proxy.com/{github_url}",
-        "https://gitdl.cn/{github_url}"
+        "{github_url}"
     )
 }
 
