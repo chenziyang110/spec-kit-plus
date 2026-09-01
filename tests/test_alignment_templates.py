@@ -3943,7 +3943,11 @@ def test_workflow_state_template_documents_recovery_sections() -> None:
         "approved | auto-approved-recommended]"
         in content
     )
-    assert "final_handoff_decision: [/sp.plan | /sp.specify | /sp.deep-research | undecided]" in content
+    assert (
+        "final_handoff_decision: [/sp.design | /sp.plan | /sp.specify | "
+        "/sp.deep-research | undecided]"
+        in content
+    )
     assert "Re-read this file first after compaction or session recovery." not in content
 
 
