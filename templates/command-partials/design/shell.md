@@ -27,15 +27,15 @@ Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep
   `{{specify-subcmd:specify-runtime api list --format json}}` and use only the
   exact returned `design.*` capability IDs. Use
   `{{specify-subcmd:specify-runtime design --help}}` for the command catalog.
-  Never guess unadvertised commands such as `design.status`,
-  `design.synthesize`, `design handoff`, or `design validate`; an unknown
+  Never guess unadvertised capabilities such as `design.status` or
+  `design.synthesize`, and never invent `handoff` or `validate` subcommands; an unknown
   capability is a discovery error, not a reason to try adjacent names.
-- Before `design change`, `design iterate`, or any design-artifact write, run
+- Before opening or resuming a Design Work item, run
   `{{specify-subcmd:specify-runtime board reconcile --format json}}` and
   `{{specify-subcmd:specify-runtime board show --format json}}`. Allocate the
-  `UD-*` ID read-only, then register only the confirmed change-local Work scope
-  `.specify/design/changes/<UD-ID>`. Never claim `.specify/design` or
-  `.specify/design/changes` as a long-lived Work intent. The Design runtime
+  `UD-*` ID read-only. The long-lived Work scope is exactly
+  `.specify/design/changes/<UD-ID>`. Never claim a parent design directory as
+  a long-lived Work intent. The Design runtime
   owns atomic `.specify/design/index.json` updates under its index lock; add
   `.specify/memory/project-rules.md` only immediately before an explicit rule
   promotion that truly needs it.

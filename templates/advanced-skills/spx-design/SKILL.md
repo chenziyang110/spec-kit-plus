@@ -26,12 +26,12 @@ Before probing capabilities, run
 returned `design.*` IDs; use
 `{{specify-subcmd:specify-runtime design --help}}` for the command catalog.
 Never guess `design.status`, `design.synthesize`,
-`specify-runtime design handoff`, or `specify-runtime design validate`.
-Before any Design write, run
+or invent `handoff` or `validate` Design subcommands.
+Before opening or resuming a Design Work item, run
 `{{specify-subcmd:specify-runtime board reconcile --format json}}` and
-`{{specify-subcmd:specify-runtime board show --format json}}`, then register
-only `.specify/design/changes/<UD-ID>` as the long-lived Work scope. Never
-claim `.specify/design` or `.specify/design/changes`; the Design runtime owns
+`{{specify-subcmd:specify-runtime board show --format json}}`. The long-lived
+Work scope is exactly `.specify/design/changes/<UD-ID>`. Never
+claim a parent design directory; the Design runtime owns
 atomic index updates under its index lock. Keep live conflicts protected. For
 a recovery hold, execute its exact `show_argv`, inspect the recorded workspace,
 observed paths, and preserved changes, and prove the old owner/session ended
