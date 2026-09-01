@@ -6803,7 +6803,7 @@ def _spec_transition_next_action_allowed(
     if design_required:
         return token == "/sp.design"
     if feasibility_required:
-        return False
+        return token == "/sp.plan"
     return token == "/sp.plan"
 
 
