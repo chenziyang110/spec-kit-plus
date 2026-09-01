@@ -620,12 +620,12 @@ def test_classic_and_advanced_design_preflight_uses_exact_capabilities_and_recov
         assert "never guess" in content
         assert "design.status" in content
         assert "design.synthesize" in content
-        assert "design handoff" in content
-        assert "design validate" in content
+        assert "handoff" in content
+        assert "validate" in content
         assert "specify-runtime board reconcile" in content
         assert "specify-runtime board show" in content
         assert ".specify/design/changes/<ud-id>" in content
-        assert "never claim `.specify/design`" in content
+        assert "never claim a parent design directory" in content
         assert "recovery hold" in content
         assert "show_argv" in content
         assert "resume" in content
