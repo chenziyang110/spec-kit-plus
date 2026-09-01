@@ -12,7 +12,12 @@ from tests.template_utils import read_skill_with_references
 
 def _assert_prefix_contract(content: str) -> None:
     compact = re.sub(r"\s+", " ", content).lower()
-    assert "end every discussion reply" in compact
+    assert "active discussion turns" in compact
+    assert "suppress the reminder" in compact
+    assert "handoff assessment or consumer-route selection" in compact
+    assert "draft handoff review or exact digest confirmation" in compact
+    assert "`handoff-ready` closeout or downstream invocation" in compact
+    assert "end every discussion reply" not in compact
     assert "optional leading `checkpoint` prefix" in compact
     assert "no `continue` keyword or extra confirmation is required" in compact
     assert "separate the prefix from the discussion body" in compact
@@ -34,7 +39,8 @@ def test_installed_discussion_keeps_prefix_and_body_independent(tmp_path, agent,
     combined = read_skill_with_references(skill)
 
     _assert_prefix_contract(combined)
-    assert "需要保存进度时，可在下一条回复前加 `checkpoint`。" in combined
+    assert "需要保存讨论进度时，可在下一条回复前加 `checkpoint`。" in combined
+    assert "需要保存进度时，可在下一条回复前加 `checkpoint`。" not in combined
     assert "checkpoint，这个方案的成本怎么算？" in combined
     assert "这个方案的成本怎么算？" in combined
     assert "这里的 checkpoint 是什么意思？" in combined
