@@ -108,6 +108,7 @@
     "handoff_contract_ids": [],
     "ui_brief_ref": null,
     "design_readiness": "not-applicable",
+    "design_adoption_binding": null,
     "source_refs": [],
     "design_system_adoption": [],
     "token_strategy": [],

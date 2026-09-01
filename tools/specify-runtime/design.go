@@ -23,20 +23,21 @@ import (
 )
 
 const (
-	designPreviewSchema            = "spec-kit-design-preview-v1"
-	designPreviewManifestSchema    = "spec-kit-design-preview-manifest-v1"
-	designPreviewApprovalSchema    = "spec-kit-design-preview-approval-v1"
-	designImageApprovalSchema      = "spec-kit-design-image-approval-v1"
-	designHandoffSchema            = "spec-kit-design-handoff-v1"
-	designChangeSchema             = "spec-kit-ui-design-change-v1"
-	designChangeIndexSchema        = "spec-kit-ui-design-index-v1"
-	uiProfessionalSkillCatalog     = "spec-kit-ui-professional-v1"
-	designCapabilityProfilesSchema = "spec-kit-design-capability-profiles-v1"
-	designCapabilityModelSchema    = "spec-kit-design-capability-model-v1"
-	designPreviewManifestID        = "design-preview-manifest"
-	uiTargetSchema                 = "spec-kit-ui-target-v1"
-	uiTargetManifestSchema         = "spec-kit-ui-target-manifest-v1"
-	uiTargetManifestID             = "ui-target-manifest"
+	designPreviewSchema                  = "spec-kit-design-preview-v1"
+	designPreviewManifestSchema          = "spec-kit-design-preview-manifest-v1"
+	designPreviewApprovalSchema          = "spec-kit-design-preview-approval-v1"
+	designImageApprovalSchema            = "spec-kit-design-image-approval-v1"
+	designHandoffSchema                  = "spec-kit-design-handoff-v1"
+	designChangeSchema                   = "spec-kit-ui-design-change-v1"
+	designChangeIndexSchema              = "spec-kit-ui-design-index-v1"
+	uiProfessionalSkillCatalog           = "spec-kit-ui-professional-v1"
+	designCapabilityProfilesSchema       = "spec-kit-design-capability-profiles-v1"
+	designCapabilityModelSchema          = "spec-kit-design-capability-model-v1"
+	designPreviewManifestID              = "design-preview-manifest"
+	uiTargetSchema                       = "spec-kit-ui-target-v1"
+	uiTargetManifestSchema               = "spec-kit-ui-target-manifest-v1"
+	uiTargetManifestID                   = "ui-target-manifest"
+	maxDesignImageImportBytes      int64 = 32 << 20
 )
 
 var designImageSuffixes = map[string]bool{
@@ -74,6 +75,7 @@ var (
 	canonicalHandoffIDRE    = regexp.MustCompile(`^DH-[A-Z0-9]+(?:-[A-Z0-9]+)+$`)
 	designChangeIDRE        = regexp.MustCompile(`^UD-[0-9]{4,}$`)
 	designChangeScopeRE     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]*$`)
+	designRoundRE           = regexp.MustCompile(`^[0-9]{1,4}$`)
 )
 
 type designDiagnostic struct {
@@ -108,8 +110,8 @@ type htmlParseSummary struct {
 }
 
 func runDesign(args []string, stdout io.Writer) int {
-	if len(args) == 0 {
-		return writeDesignError(stdout, "usage-error", "missing design subcommand")
+	if len(args) == 0 || designHelpRequested(args) {
+		return writeDesignHelp(stdout)
 	}
 	switch args[0] {
 	case "change":
@@ -151,6 +153,51 @@ func runDesign(args []string, stdout io.Writer) int {
 	default:
 		return writeDesignError(stdout, "usage-error", fmt.Sprintf("unknown design subcommand %q", args[0]))
 	}
+}
+
+func designHelpRequested(args []string) bool {
+	if len(args) == 0 {
+		return true
+	}
+	switch args[0] {
+	case "--help", "-h", "help":
+		return true
+	}
+	for _, arg := range args[1:] {
+		switch arg {
+		case "--help", "-h":
+			return true
+		}
+	}
+	return false
+}
+
+func writeDesignHelp(stdout io.Writer) int {
+	_, _ = fmt.Fprintln(stdout, "specify-runtime design commands:")
+	for _, command := range []string{
+		"change",
+		"iterate",
+		"register",
+		"resolve",
+		"diff",
+		"impact",
+		"adopt",
+		"adoption",
+		"lint",
+		"preview",
+		"preview-manifest",
+		"preview-lint",
+		"profiles",
+		"ui-target",
+		"ui-target-lint",
+		"approve",
+		"export",
+		"import",
+	} {
+		_, _ = fmt.Fprintf(stdout, "  %s\n", command)
+	}
+	_, _ = fmt.Fprintln(stdout, "Run specify-runtime api show design.<command> --format json for capability details.")
+	return 0
 }
 
 func runDesignChange(args []string, stdout io.Writer) int {
@@ -441,12 +488,32 @@ func runDesignImport(args []string, stdout io.Writer) int {
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
 		return writeDesignError(stdout, "usage-error", "design import requires a source")
 	}
-	outDir := optionValue(args, "--out-dir", ".specify/design")
+	hasChange := hasFlag(args, "--change")
+	hasRound := hasFlag(args, "--round")
+	changeID := strings.ToUpper(strings.TrimSpace(optionValue(args, "--change", "")))
+	roundValue := strings.TrimSpace(optionValue(args, "--round", ""))
+	if hasChange != hasRound || (hasChange && (changeID == "" || roundValue == "")) {
+		return writeDesignError(stdout, "usage-error", "design image import requires both --change and --round")
+	}
+	if hasChange {
+		if hasFlag(args, "--out") || hasFlag(args, "--out-dir") {
+			return writeDesignError(stdout, "usage-error", "design image import derives its target from --change and --round; do not pass --out or --out-dir")
+		}
+		return runDesignImageImport(args[0], changeID, roundValue, optionValue(args, "--notes", ""), stdout)
+	}
+
 	root, err := os.Getwd()
 	if err != nil {
 		return writeDesignError(stdout, "error", "resolve project root: "+err.Error())
 	}
-	outPath, err := resolveProjectContainedPath(root, filepath.Join(outDir, "references.md"))
+	outValue := strings.TrimSpace(optionValue(args, "--out", ""))
+	if outValue != "" && hasFlag(args, "--out-dir") {
+		return writeDesignError(stdout, "usage-error", "design import accepts only one of --out or --out-dir")
+	}
+	if outValue == "" {
+		outValue = filepath.Join(optionValue(args, "--out-dir", ".specify/design"), "references.md")
+	}
+	outPath, err := resolveProjectContainedPath(root, outValue)
 	if err != nil {
 		return writeDesignError(stdout, "usage-error", "design import path is invalid: "+err.Error())
 	}
@@ -457,6 +524,144 @@ func runDesignImport(args []string, stdout io.Writer) int {
 	env := NewEnvelope("ok", "design reference imported")
 	env.Data["path"] = outPath
 	return writeEnvelope(stdout, env)
+}
+
+func runDesignImageImport(source, changeID, roundValue, notes string, stdout io.Writer) int {
+	if !designChangeIDRE.MatchString(changeID) {
+		return writeDesignError(stdout, "usage-error", "design image import --change must use UD- followed by at least four digits")
+	}
+	roundID, err := normalizeDesignRound(roundValue)
+	if err != nil {
+		return writeDesignError(stdout, "usage-error", err.Error())
+	}
+	root, err := os.Getwd()
+	if err != nil {
+		return writeDesignError(stdout, "error", "resolve project root: "+err.Error())
+	}
+	root, err = filepath.Abs(root)
+	if err != nil {
+		return writeDesignError(stdout, "error", "resolve project root: "+err.Error())
+	}
+
+	sourcePath, err := filepath.Abs(strings.TrimSpace(source))
+	if err != nil {
+		return writeDesignError(stdout, "usage-error", "design image source path is invalid: "+err.Error())
+	}
+	info, err := os.Stat(sourcePath)
+	if err != nil {
+		return writeDesignError(stdout, "blocked", "design image source is unavailable: "+err.Error())
+	}
+	if !info.Mode().IsRegular() {
+		return writeDesignError(stdout, "usage-error", "design image import requires a regular source file")
+	}
+	imageBytes, err := readBoundedDesignImage(sourcePath, info.Size())
+	if err != nil {
+		return writeDesignError(stdout, "blocked", "design image source is invalid: "+err.Error())
+	}
+	diagnostics := designImageBytesDiagnostics(sourcePath, imageBytes)
+	if len(diagnostics) > 0 {
+		return writeDesignError(stdout, "blocked", "design image source is invalid: "+joinDiagnostics(diagnostics))
+	}
+
+	_, _, records, err := loadDesignChangeIndex(root)
+	if err != nil {
+		return writeDesignError(stdout, "blocked", err.Error())
+	}
+	record := records[changeID]
+	if record == nil {
+		return writeDesignError(stdout, "blocked", fmt.Sprintf("design change %s does not exist", changeID))
+	}
+	if designRecordIsRegistered(record) || strings.TrimSpace(fmt.Sprint(record["status"])) != "draft" {
+		return writeDesignError(stdout, "blocked", fmt.Sprintf("design change %s is immutable; import into a new draft UD-* change", changeID))
+	}
+	expectedDesignRef := filepath.ToSlash(filepath.Join(".specify", "design", "changes", changeID, "design-change.md"))
+	if filepath.ToSlash(strings.TrimSpace(fmt.Sprint(record["design_ref"]))) != expectedDesignRef {
+		return writeDesignError(stdout, "blocked", fmt.Sprintf("design change %s index path is not canonical", changeID))
+	}
+	designPath, err := resolveProjectContainedPath(root, expectedDesignRef)
+	if err != nil {
+		return writeDesignError(stdout, "blocked", "design change workspace is invalid: "+err.Error())
+	}
+	if designInfo, statErr := os.Stat(designPath); statErr != nil || !designInfo.Mode().IsRegular() {
+		if statErr == nil {
+			statErr = fmt.Errorf("design-change.md is not a regular file")
+		}
+		return writeDesignError(stdout, "blocked", fmt.Sprintf("design change %s workspace is unavailable: %v", changeID, statErr))
+	}
+
+	suffix := strings.ToLower(filepath.Ext(sourcePath))
+	targetRef := filepath.ToSlash(filepath.Join(".specify", "design", "changes", changeID, "previews", "round-"+roundID+suffix))
+	targetPath, err := resolveProjectContainedPath(root, targetRef)
+	if err != nil {
+		return writeDesignError(stdout, "blocked", "design image target is invalid: "+err.Error())
+	}
+	referencesRef := filepath.ToSlash(filepath.Join(".specify", "design", "changes", changeID, "references.md"))
+	referencesPath, err := resolveProjectContainedPath(root, referencesRef)
+	if err != nil {
+		return writeDesignError(stdout, "blocked", "design reference target is invalid: "+err.Error())
+	}
+	digestBytes := sha256.Sum256(imageBytes)
+	digest := hex.EncodeToString(digestBytes[:])
+	referencesContent := designImportedAssetReferenceContent(sourcePath, notes, targetRef, digest)
+
+	updates := []fileTransactionUpdate{{Path: referencesPath, Content: []byte(referencesContent), Perm: 0o644}}
+	preconditions := []fileTransactionPrecondition{}
+	existing, readErr := os.ReadFile(targetPath)
+	alreadyImported := readErr == nil
+	switch {
+	case readErr == nil:
+		if !bytes.Equal(existing, imageBytes) {
+			return writeDesignError(stdout, "blocked", fmt.Sprintf("design image round already exists with different bytes: %s", targetRef))
+		}
+		referenceInfo, referenceErr := os.Stat(referencesPath)
+		switch {
+		case referenceErr == nil && referenceInfo.Mode().IsRegular():
+			updates = nil
+		case referenceErr == nil:
+			return writeDesignError(stdout, "blocked", "design reference target is not a regular file")
+		case os.IsNotExist(referenceErr):
+			preconditions = append(preconditions, fileTransactionPrecondition{Path: targetPath, ExpectedSHA256: digest})
+		default:
+			return writeDesignError(stdout, "blocked", "cannot inspect design reference target: "+referenceErr.Error())
+		}
+	case os.IsNotExist(readErr):
+		updates = append(updates, fileTransactionUpdate{Path: targetPath, Content: imageBytes, Perm: 0o644})
+		preconditions = append(preconditions, fileTransactionPrecondition{Path: targetPath, MustNotExist: true})
+	default:
+		return writeDesignError(stdout, "blocked", "cannot inspect design image target: "+readErr.Error())
+	}
+	receiptRef := ""
+	if len(updates) > 0 {
+		receipt, transactionErr := applyFileTransactionWithPreconditions(root, "design.import-image", updates, preconditions)
+		if transactionErr != nil {
+			return writeDesignError(stdout, "blocked", "cannot import design image: "+transactionErr.Error())
+		}
+		receiptRef = receipt.ReceiptRef
+	}
+
+	env := NewEnvelope("ok", "design image imported into change preview workspace")
+	env.Data["path"] = targetRef
+	env.Data["reference_path"] = referencesRef
+	env.Data["change_id"] = changeID
+	env.Data["round"] = roundID
+	env.Data["sha256"] = digest
+	env.Data["already_imported"] = alreadyImported
+	if receiptRef != "" {
+		env.Data["receipt_ref"] = receiptRef
+	}
+	return writeEnvelope(stdout, env)
+}
+
+func normalizeDesignRound(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if !designRoundRE.MatchString(value) {
+		return "", fmt.Errorf("design image import --round must be a positive integer with at most four digits")
+	}
+	round, err := strconv.Atoi(value)
+	if err != nil || round < 1 {
+		return "", fmt.Errorf("design image import --round must be greater than zero")
+	}
+	return fmt.Sprintf("%02d", round), nil
 }
 
 func normalizeDesignChangeValues(values []string, field string, required bool) ([]string, error) {
@@ -966,11 +1171,34 @@ func designImageArtifactDiagnostics(path string) ([]byte, []designDiagnostic) {
 	if err != nil {
 		return nil, []designDiagnostic{{Code: "image-missing-file", Message: "cannot read design image: " + err.Error(), Path: path, Level: "error"}}
 	}
+	return raw, designImageBytesDiagnostics(path, raw)
+}
+
+func readBoundedDesignImage(path string, declaredSize int64) ([]byte, error) {
+	if declaredSize > maxDesignImageImportBytes {
+		return nil, fmt.Errorf("image size %d exceeds the %d MiB import limit", declaredSize, maxDesignImageImportBytes>>20)
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	raw, err := io.ReadAll(io.LimitReader(file, maxDesignImageImportBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(raw)) > maxDesignImageImportBytes {
+		return nil, fmt.Errorf("image content exceeds the %d MiB import limit", maxDesignImageImportBytes>>20)
+	}
+	return raw, nil
+}
+
+func designImageBytesDiagnostics(path string, raw []byte) []designDiagnostic {
 	var diagnostics []designDiagnostic
 	suffix := strings.ToLower(filepath.Ext(path))
 	if !designImageSuffixes[suffix] {
 		addDesignDiagnostic(&diagnostics, "image-unsupported-format", "design image must be PNG, JPEG, or WEBP", path)
-		return raw, diagnostics
+		return diagnostics
 	}
 	matches := false
 	switch suffix {
@@ -984,7 +1212,7 @@ func designImageArtifactDiagnostics(path string) ([]byte, []designDiagnostic) {
 	if !matches {
 		addDesignDiagnostic(&diagnostics, "image-format-mismatch", "design image bytes do not match the PNG, JPEG, or WEBP extension", path)
 	}
-	return raw, diagnostics
+	return diagnostics
 }
 
 func adjacentDesignImageBundlePath(imagePath, candidate, expectedName, label string) (string, error) {
@@ -4535,6 +4763,24 @@ func designReferenceContent(source, notes string) string {
 		"## Synthesis Instructions\n\n" +
 		"- Extract reusable design principles.\n" +
 		"- Remove brand-specific expression.\n" +
+		"- Write original scoped guidance into the change-local `design-change.md` only after user approval in `sp-design`.\n"
+}
+
+func designImportedAssetReferenceContent(source, notes, importedRef, digest string) string {
+	notes = strings.TrimSpace(notes)
+	if notes == "" {
+		notes = "No notes supplied."
+	}
+	return "# Design References\n\n" +
+		"This file is input for `sp-design`. It is not an approved UI design change.\n\n" +
+		"## Imported Reference\n\n" +
+		"- Source: " + strings.TrimSpace(source) + "\n" +
+		"- Imported asset: " + importedRef + "\n" +
+		"- SHA-256: " + digest + "\n" +
+		"- Notes: " + notes + "\n\n" +
+		"## Synthesis Instructions\n\n" +
+		"- Preserve the imported bytes as one immutable candidate round.\n" +
+		"- Bind the adjacent manifest and exact prompt only through `design approve` after explicit user approval.\n" +
 		"- Write original scoped guidance into the change-local `design-change.md` only after user approval in `sp-design`.\n"
 }
 

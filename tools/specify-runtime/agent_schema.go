@@ -168,7 +168,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "validate.spec":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime validate spec --feature-dir <feature-dir> [--tier light|standard|deep] [--show-passes] --format json"
-		capability["input_contract"] = "--feature-dir preferred; --dir is a compatibility alias; conflicting values are rejected; transition.next_action accepts \"/sp.plan\" or {\"command\":\"/sp.plan\"}; change-propagation requires a markdown pipe table"
+		capability["input_contract"] = "--feature-dir preferred; --dir is a compatibility alias; conflicting values are rejected; without design_gate the planning-ready transition.next_action must be \"/sp.plan\" or {\"command\":\"/sp.plan\"}; when spec-contract.json design_gate.decision=required the planning-ready transition.next_action must route to \"/sp.design\" and return_target stays /sp.plan; change-propagation requires a markdown pipe table"
 	case "artifact.prepare":
 		capability["side_effect"] = "creates-lease"
 		capability["usage"] = "specify-runtime artifact prepare --path <project-relative-path> --format json"
@@ -231,6 +231,11 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "creates-design-change-workspace-and-index-record"
 		capability["usage"] = "specify-runtime design change <UD-ID> --title <title> [--type greenfield|preserve|overhaul|extension] --scope <surface>... [--profiles <csv>] [--baseline-ref <ref>]... [--supersedes <UD-ID>]... --format json"
 		capability["input_contract"] = "creates .specify/design/changes/<UD-ID>/design-change.md plus local working surfaces and a draft metadata-only index record; scopes are stable path-like identifiers"
+	case "design.import":
+		capability["side_effect"] = "imports-external-image-into-draft-design-round"
+		capability["usage"] = "specify-runtime design import <external-image-path> --change <UD-ID> --round <positive-integer> [--notes <text>] --format json"
+		capability["input_contract"] = "the source must be a regular PNG, JPEG, or WEBP file no larger than 32 MiB; the named change must be an existing draft. Runtime copies identical bytes atomically to .specify/design/changes/<UD-ID>/previews/round-NN.<ext>, records source and SHA-256 in change-local references.md, permits byte-identical retry, and rejects replacement or registered changes. Omit --change/--round only for legacy URL/path reference recording."
+		capability["file_input"] = "external generated image only; approval still requires the adjacent manifest and exact prompt"
 	case "design.iterate":
 		capability["side_effect"] = "creates-digest-pinned-successor-workspace"
 		capability["usage"] = "specify-runtime design iterate <SOURCE-UD-ID> <SUCCESSOR-UD-ID> --title <title> [--type preserve|overhaul|extension] [--scope <surface>]... [--profiles <csv>] --format json"

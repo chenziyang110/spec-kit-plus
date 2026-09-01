@@ -18,7 +18,7 @@
 - blocker_reason: [None | Why progress is blocked]
 - approach_comparison_status: [not-needed | pending | awaiting-user-confirmation | selected | auto-accepted-recommended]
 - section_approval_status: [not-needed | pending | awaiting-user-confirmation | approved | auto-approved-recommended]
-- final_handoff_decision: [/sp.plan | /sp.specify | /sp.deep-research | undecided]
+- final_handoff_decision: [/sp.design | /sp.plan | /sp.specify | /sp.deep-research | undecided]
 
 ## Review State
 

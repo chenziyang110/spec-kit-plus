@@ -8,6 +8,7 @@ from specify_cli.hooks import artifact_validation
 from specify_cli.hooks.engine import run_quality_hook
 from specify_cli.hooks.artifact_validation import (
     _ui_contract_valid_component_adoption,
+    _validate_spec_contract_artifacts,
     _ui_contract_valid_usability,
     _validate_plan_human_acceptance_contract,
     _validate_plan_ui_contract,
@@ -659,6 +660,185 @@ def _write_valid_spec_contract(feature_dir: Path) -> None:
             "recovery": None,
         },
     }
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+
+
+def _write_pending_ui_spec_contract(feature_dir: Path) -> dict[str, object]:
+    _write_valid_spec_contract(feature_dir)
+    payload = json.loads((feature_dir / "spec-contract.json").read_text(encoding="utf-8"))
+    payload["design_gate"] = {
+        "decision": "required",
+        "scope": "web:settings/page",
+        "reason_codes": ["new-surface", "high-visibility"],
+        "return_target": "/sp.plan",
+    }
+    payload["design_contract"] = {
+        "ui_applicable": True,
+        "ui_brief_ref": "ui-brief.md",
+        "ui_work_type": "feature-extension",
+        "surface_type": "product-workspace",
+        "platforms": ["web"],
+        "subject": "settings workspace",
+        "audience": "signed-in operators",
+        "single_job": "review and save a preference",
+        "visual_thesis": "compact settings hierarchy with clear status states",
+        "content_thesis": "explain side effects inline without expanding the layout",
+        "interaction_thesis": "save feedback stays local and preserves focus",
+        "signature_element": "section-scoped save feedback rail",
+        "experience_requirements": ["keep settings dense and scannable"],
+        "design_source_refs": ["ui-brief.md"],
+        "design_system_requirements": ["preserve existing settings hierarchy"],
+        "design_system_status": "design-required",
+        "design_risk_level": "high",
+        "fidelity_refs": [],
+        "fidelity_mode": "none",
+        "original_reference_refs": [],
+        "reference_intents": [],
+        "real_content_plan": [],
+        "image_plan": [],
+        "surface_catalog": [],
+        "scenario_matrix": [],
+        "color_modes": [],
+        "component_contracts": [],
+        "responsive_matrix": [],
+        "motion_contract": {},
+        "visual_acceptance_matrix": [],
+        "comparison_tolerance": None,
+        "accepted_deviations": [],
+        "entry_points": ["/settings"],
+        "interaction_matrix": [],
+        "editing_matrix": [],
+        "accessibility_matrix": [],
+        "navigation_matrix": [],
+        "content_matrix": [],
+        "must_preserve": ["compact hierarchy", "local save feedback"],
+        "may_adapt": ["framework markup"],
+        "must_not": ["invent a new navigation shell"],
+        "required_states": ["loading", "ready", "error"],
+        "data_state_matrix": [],
+        "usability_validation": {},
+        "validation_refs": ["ui-brief.md#validation"],
+        "visual_acceptance": ["design review must happen before planning"],
+        "required_evidence": ["pending-design-review"],
+        "style_authority": {
+            "mode": "inherit-existing",
+            "scope_level": "feature-partial",
+            "source_refs": ["src/ui/settings.tsx"],
+            "protected_surfaces": ["global-shell", "shared-components"],
+            "allowed_style_delta_surfaces": [],
+            "authorization_source": None,
+        },
+    }
+    payload["transition"]["next_action"] = "/sp.design"
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+    return payload
+
+
+def _write_design_index_for_formal_post_specify(
+    root: Path,
+    *,
+    feature_id: str,
+    scope: str,
+    change_id: str,
+    binding_ref: str,
+    binding_sha256: str,
+    impact_sha256: str,
+    revision: int = 1,
+) -> str:
+    design_root = root / ".specify" / "design"
+    design_root.mkdir(parents=True, exist_ok=True)
+    change_root = root / ".specify" / "design" / "changes" / change_id
+    change_root.mkdir(parents=True, exist_ok=True)
+    design_change = (
+        "---\n"
+        "design_change:\n"
+        "  schema: spec-kit-ui-design-change-v1\n"
+        f"  id: {change_id}\n"
+        "---\n"
+        "# Registered Design\n"
+    )
+    design_change_bytes = design_change.encode("utf-8")
+    design_change_sha256 = hashlib.sha256(design_change_bytes).hexdigest()
+    (change_root / "design-change.md").write_bytes(design_change_bytes)
+    (change_root / "design-contract.json").write_text("{}\n", encoding="utf-8")
+    index = {
+        "schema": "spec-kit-ui-design-index-v1",
+        "changes": [
+            {
+                "id": change_id,
+                "status": "approved",
+                "title": "Settings overlay",
+                "type": "extension",
+                "scope": [scope],
+                "profiles": ["developer-tool-sharp"],
+                "design_ref": f".specify/design/changes/{change_id}/design-change.md",
+                "approval_sha256": design_change_sha256,
+                "iteration_of": None,
+                "basis_sha256": None,
+                "supersedes": [],
+                "superseded_scopes": [],
+                "consumers": [
+                    {
+                        "consumer_ref": f"feature:{feature_id}",
+                        "scope": scope,
+                        "revision": revision,
+                        "change_id": change_id,
+                    }
+                ],
+            }
+        ],
+        "adoptions": [
+            {
+                "consumer_ref": f"feature:{feature_id}",
+                "scope": scope,
+                "mode": "formal-post-specify",
+                "revision": revision,
+                "status": "current",
+                "change_id": change_id,
+                "design_change_id": change_id,
+                "design_change_ref": f".specify/design/changes/{change_id}/design-change.md",
+                "design_change_sha256": design_change_sha256,
+                "design_contract_ref": f".specify/design/changes/{change_id}/design-contract.json",
+                "binding_ref": binding_ref,
+                "binding_sha256": binding_sha256,
+                "impact_sha256": impact_sha256,
+            }
+        ],
+    }
+    (design_root / "index.json").write_text(json.dumps(index), encoding="utf-8")
+    return design_change_sha256
+
+
+def _write_pending_ui_spec_contract_from_plan(
+    feature_dir: Path, plan_design: dict[str, object]
+) -> None:
+    payload = _write_pending_ui_spec_contract(feature_dir)
+    design_contract = payload["design_contract"]
+    assert isinstance(design_contract, dict)
+    for field in (
+        "ui_work_type",
+        "surface_type",
+        "platforms",
+        "style_authority",
+        "subject",
+        "audience",
+        "single_job",
+        "reference_intents",
+        "real_content_plan",
+        "image_plan",
+        "entry_points",
+        "required_states",
+        "must_preserve",
+        "may_adapt",
+        "must_not",
+        "validation_refs",
+        "visual_acceptance",
+    ):
+        design_contract[field] = json.loads(json.dumps(plan_design.get(field)))
     (feature_dir / "spec-contract.json").write_text(
         json.dumps(payload), encoding="utf-8"
     )
@@ -1478,6 +1658,111 @@ def test_incomplete_ui_contract_is_not_accepted_as_a_legacy_shape(
     errors = _validate_plan_ui_contract(feature_dir)
     assert any("visual_thesis" in error for error in errors)
     assert any("required_evidence" in error for error in errors)
+
+
+def test_pending_ui_spec_contract_accepts_pre_design_route(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "007-ui-pending-spec"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (feature_dir / "ui-brief.md").write_text(
+        "# UI Brief\n\n## Validation\n\n- Await sp-design.\n", encoding="utf-8"
+    )
+    _write_pending_ui_spec_contract(feature_dir)
+
+    assert _validate_spec_contract_artifacts(feature_dir) == []
+
+
+def test_pending_ui_spec_contract_rejects_fake_registered_design_binding(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "008-ui-pending-binding"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (feature_dir / "ui-brief.md").write_text(
+        "# UI Brief\n\n## Validation\n\n- Await sp-design.\n", encoding="utf-8"
+    )
+    payload = _write_pending_ui_spec_contract(feature_dir)
+    design_contract = payload["design_contract"]
+    assert isinstance(design_contract, dict)
+    design_contract.update(
+        {
+            "design_change_id": "UD-0042",
+            "design_change_ref": ".specify/design/changes/UD-0042/design-change.md",
+            "design_change_sha256": "a" * 64,
+            "design_contract_ref": ".specify/design/changes/UD-0042/design-contract.json",
+        }
+    )
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+
+    errors = _validate_spec_contract_artifacts(feature_dir)
+
+    assert any("design_change_id" in error or "pending" in error for error in errors)
+
+
+def test_required_design_gate_rejects_plan_next_action(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "009-ui-pending-transition"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    (feature_dir / "ui-brief.md").write_text(
+        "# UI Brief\n\n## Validation\n\n- Await sp-design.\n", encoding="utf-8"
+    )
+    payload = _write_pending_ui_spec_contract(feature_dir)
+    payload["transition"]["next_action"] = "/sp.plan"
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+
+    errors = _validate_spec_contract_artifacts(feature_dir)
+
+    assert any("transition.next_action" in error for error in errors)
+
+
+def test_not_required_design_gate_rejects_design_next_action(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "010-ui-direct-transition"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_spec_contract(feature_dir)
+    payload = json.loads((feature_dir / "spec-contract.json").read_text(encoding="utf-8"))
+    payload["design_gate"] = {
+        "decision": "not_required",
+        "scope": None,
+        "reason_codes": [],
+        "return_target": "/sp.plan",
+    }
+    payload["transition"]["next_action"] = "/sp.design"
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+
+    errors = _validate_spec_contract_artifacts(feature_dir)
+
+    assert any("transition.next_action" in error for error in errors)
+
+
+def test_feasibility_only_gate_preserves_existing_plan_next_action(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "011-feasibility-only-transition"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
+    _write_valid_spec_contract(feature_dir)
+    payload = json.loads(
+        (feature_dir / "spec-contract.json").read_text(encoding="utf-8")
+    )
+    payload["feasibility_gate"] = {
+        "decision": "required",
+        "capability_refs": ["CAP-001"],
+        "reason_refs": ["spec-contract.json#/scope/in/0"],
+    }
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+
+    errors = _validate_spec_contract_artifacts(feature_dir)
+
+    assert not any("transition.next_action" in error for error in errors)
 
 
 @pytest.mark.parametrize("visual_extension", ["html", "png"])
@@ -2617,6 +2902,141 @@ def _write_ui_continuity_fixture(
     return spec_design, plan_design, task_contract
 
 
+def _late_overlay_plan_design_contract() -> dict[str, object]:
+    direction: dict[str, object] = {
+        "ui_work_type": "feature-extension",
+        "surface_type": "product-workspace",
+        "platforms": ["web"],
+        "style_authority": {
+            "mode": "inherit-existing",
+            "scope_level": "feature-partial",
+            "source_refs": ["src/ui/settings.tsx"],
+            "protected_surfaces": ["global-shell", "shared-components"],
+            "allowed_style_delta_surfaces": [],
+            "authorization_source": None,
+        },
+        "subject": "settings workspace",
+        "audience": "signed-in operators",
+        "single_job": "review and save a preference",
+        "visual_thesis": "compact settings hierarchy with clear local save states",
+        "content_thesis": "preserve dense operator copy with inline rationale",
+        "interaction_thesis": "keep focus in place while save state resolves",
+        "signature_element": "section-scoped feedback rail",
+        "design_change_id": "UD-0042",
+        "design_change_ref": ".specify/design/changes/UD-0042/design-change.md",
+        "design_change_sha256": "a" * 64,
+        "design_contract_ref": ".specify/design/changes/UD-0042/design-contract.json",
+        "approved_visual_ref": ".specify/design/changes/UD-0042/previews/round-01.png#direction-main",
+        "approved_preview_sha256": "b" * 64,
+        "approved_manifest_sha256": "c" * 64,
+        "approved_handoff_ref": ".specify/design/changes/UD-0042/previews/round-01.handoff.json",
+        "approved_handoff_sha256": "d" * 64,
+        "design_decision_ids": ["DS-COMP-001"],
+        "handoff_contract_ids": ["DH-COMP-001"],
+        "reference_intents": [],
+        "real_content_plan": [],
+        "image_plan": [],
+        "surface_catalog": [
+            {"id": "SURF-001", "surface": "settings page", "entrypoint_id": "EP-WEB-SETTINGS"}
+        ],
+        "scenario_matrix": [
+            {
+                "id": "SCN-001",
+                "surface_id": "SURF-001",
+                "interaction_ids": ["INT-001"],
+                "editing_ids": [],
+                "data_state_ids": ["DATA-001"],
+                "accessibility_ids": [],
+                "navigation_ids": [],
+                "content_ids": [],
+                "preconditions": ["user is on settings"],
+                "start_state_id": "DATA-001",
+                "steps": [{"input": "mouse", "action": "click Save", "expected_feedback": "inline pending feedback"}],
+                "branches": [],
+                "focus_checkpoint": "save button remains in context",
+                "announcement_checkpoint": "status is announced",
+                "completion_checkpoint": "saved state appears",
+                "recovery_checkpoint": "retry remains available",
+            }
+        ],
+        "interaction_matrix": [_interaction_contract()],
+        "editing_matrix": [],
+        "accessibility_matrix": [],
+        "navigation_matrix": [],
+        "content_matrix": [],
+        "required_states": ["loading", "ready", "error"],
+        "data_state_matrix": [
+            {
+                "id": "DATA-001",
+                "surface": "settings page",
+                "state": "ready",
+                "data_condition": "settings data is loaded",
+                "expectation": "current values render before edits",
+                "decision_ids": ["DS-COMP-001"],
+            }
+        ],
+        "fidelity_refs": [".specify/design/changes/UD-0042/design-change.md#settings"],
+        "fidelity_mode": "approximate",
+        "source_continuity": {
+            "schema": "spec-kit-ui-source-continuity-v1",
+            "applicability": "not-assessed",
+            "mode": "none",
+            "reason": None,
+            "coverage": {
+                "surface_ids": [],
+                "interaction_ids": [],
+                "component_ids": [],
+            },
+            "authority_refs": [],
+            "surface_bindings": [],
+            "action_bindings": [],
+            "asset_bindings": [],
+            "unresolved_gaps": [],
+        },
+        "color_modes": ["light"],
+        "component_contracts": [],
+        "responsive_matrix": [],
+        "motion_contract": {},
+        "usability_validation": {
+            "risk_level": "medium",
+            "methods": ["cognitive walkthrough"],
+            "critical_tasks": ["save one preference"],
+            "success_criteria": ["save without losing section context"],
+            "human_review_required": False,
+        },
+        "visual_acceptance_matrix": [],
+        "comparison_tolerance": COMPARISON_TOLERANCE,
+        "accepted_deviations": [],
+        "must_preserve": ["compact hierarchy", "local save feedback"],
+        "may_adapt": ["framework markup"],
+        "must_not": ["invent a new navigation shell"],
+        "validation_refs": ["browser settings route"],
+        "visual_acceptance": ["desktop settings route inspected"],
+        "human_review_conditions": ["visual comparison unavailable"],
+        "required_evidence": [
+            "structure_snapshot",
+            "visual_capture",
+            "runtime_diagnostics",
+            "visual_comparison_or_human_review",
+        ],
+    }
+    return {
+        "ui_applicable": True,
+        "ui_brief_ref": "ui-brief.md",
+        "design_readiness": "approved",
+        "source_refs": [
+            ".specify/design/changes/UD-0042/design-change.md",
+            ".specify/design/changes/UD-0042/design-contract.json",
+            "ui-brief.md",
+        ],
+        "design_system_adoption": ["reuse approved settings design"],
+        "token_strategy": ["reuse registered color and spacing tokens"],
+        "component_strategy": ["reuse registered settings shell"],
+        "entry_points": ["/settings"],
+        **direction,
+    }
+
+
 def test_task_ui_contract_surface_entrypoint_must_bind_official_entrypoint(
     tmp_path: Path,
 ) -> None:
@@ -2678,6 +3098,153 @@ def test_plan_ui_contract_rejects_specification_constraint_drift(
     errors = _validate_plan_ui_contract(feature_dir)
 
     assert any(field in error and "preserve" in error.lower() for error in errors)
+
+
+def test_plan_ui_contract_accepts_formal_post_specify_overlay_binding(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path
+    feature_dir = root / "specs" / "007-ui-plan-overlay"
+    _, plan_design, _ = _write_ui_continuity_fixture(feature_dir)
+    _write_pending_ui_spec_contract_from_plan(feature_dir, plan_design)
+    binding_sha256 = hashlib.sha256(
+        (feature_dir / "spec-contract.json").read_bytes()
+    ).hexdigest()
+    impact_sha256 = "f" * 64
+    design_change_sha256 = _write_design_index_for_formal_post_specify(
+        root,
+        feature_id=feature_dir.name,
+        scope="web:settings/page",
+        change_id="UD-0042",
+        binding_ref="specs/007-ui-plan-overlay/spec-contract.json",
+        binding_sha256=binding_sha256,
+        impact_sha256=impact_sha256,
+    )
+    plan_design["design_change_sha256"] = design_change_sha256
+    plan_design["design_adoption_binding"] = {
+        "mode": "formal-post-specify",
+        "consumer_ref": "feature:007-ui-plan-overlay",
+        "scope": "web:settings/page",
+        "revision": 1,
+        "change_id": "UD-0042",
+        "binding_ref": "specs/007-ui-plan-overlay/spec-contract.json",
+        "binding_sha256": binding_sha256,
+        "impact_sha256": impact_sha256,
+    }
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps({"ui_design_contract": plan_design}), encoding="utf-8"
+    )
+
+    assert _validate_plan_ui_contract(feature_dir) == []
+
+
+def test_plan_rejects_formal_post_specify_overlay_without_required_design_gate(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path
+    feature_dir = root / "specs" / "009-ui-plan-overlay-bypass"
+    _, plan_design, _ = _write_ui_continuity_fixture(feature_dir)
+    _write_pending_ui_spec_contract_from_plan(feature_dir, plan_design)
+    spec_payload = json.loads(
+        (feature_dir / "spec-contract.json").read_text(encoding="utf-8")
+    )
+    spec_payload.pop("design_gate", None)
+    spec_payload["transition"]["next_action"] = "/sp.plan"
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(spec_payload), encoding="utf-8"
+    )
+    binding_ref = "specs/009-ui-plan-overlay-bypass/spec-contract.json"
+    binding_sha256 = hashlib.sha256(
+        (feature_dir / "spec-contract.json").read_bytes()
+    ).hexdigest()
+    impact_sha256 = "f" * 64
+    design_change_sha256 = _write_design_index_for_formal_post_specify(
+        root,
+        feature_id=feature_dir.name,
+        scope="web:settings/page",
+        change_id="UD-0042",
+        binding_ref=binding_ref,
+        binding_sha256=binding_sha256,
+        impact_sha256=impact_sha256,
+    )
+    plan_design["design_change_sha256"] = design_change_sha256
+    plan_design["must_preserve"] = ["replace the approved hierarchy"]
+    plan_design["design_adoption_binding"] = {
+        "mode": "formal-post-specify",
+        "consumer_ref": f"feature:{feature_dir.name}",
+        "scope": "web:settings/page",
+        "revision": 1,
+        "change_id": "UD-0042",
+        "binding_ref": binding_ref,
+        "binding_sha256": binding_sha256,
+        "impact_sha256": impact_sha256,
+    }
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps({"ui_design_contract": plan_design}), encoding="utf-8"
+    )
+
+    errors = _validate_plan_ui_contract(feature_dir)
+
+    assert any("design_gate.required" in error for error in errors)
+
+
+def test_plan_rejects_formal_post_specify_overlay_when_registered_design_mutates(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path
+    feature_dir = root / "specs" / "010-ui-plan-overlay-tampered"
+    _, plan_design, _ = _write_ui_continuity_fixture(feature_dir)
+    _write_pending_ui_spec_contract_from_plan(feature_dir, plan_design)
+    binding_ref = "specs/010-ui-plan-overlay-tampered/spec-contract.json"
+    binding_sha256 = hashlib.sha256(
+        (feature_dir / "spec-contract.json").read_bytes()
+    ).hexdigest()
+    impact_sha256 = "f" * 64
+    design_change_sha256 = _write_design_index_for_formal_post_specify(
+        root,
+        feature_id=feature_dir.name,
+        scope="web:settings/page",
+        change_id="UD-0042",
+        binding_ref=binding_ref,
+        binding_sha256=binding_sha256,
+        impact_sha256=impact_sha256,
+    )
+    plan_design["design_change_sha256"] = design_change_sha256
+    plan_design["design_adoption_binding"] = {
+        "mode": "formal-post-specify",
+        "consumer_ref": f"feature:{feature_dir.name}",
+        "scope": "web:settings/page",
+        "revision": 1,
+        "change_id": "UD-0042",
+        "binding_ref": binding_ref,
+        "binding_sha256": binding_sha256,
+        "impact_sha256": impact_sha256,
+    }
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps({"ui_design_contract": plan_design}), encoding="utf-8"
+    )
+    design_path = root / ".specify" / "design" / "changes" / "UD-0042" / "design-change.md"
+    design_path.write_text(design_path.read_text(encoding="utf-8") + "tampered\n", encoding="utf-8")
+
+    errors = _validate_plan_ui_contract(feature_dir)
+
+    assert any("registered design" in error.lower() for error in errors)
+
+
+def test_plan_ui_contract_requires_formal_post_specify_overlay_binding(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "008-ui-plan-overlay"
+    feature_dir.mkdir(parents=True)
+    _write_pending_ui_spec_contract(feature_dir)
+    plan_design = _late_overlay_plan_design_contract()
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps({"ui_design_contract": plan_design}), encoding="utf-8"
+    )
+
+    errors = _validate_plan_ui_contract(feature_dir)
+
+    assert any("design_adoption_binding" in error for error in errors)
 
 
 @pytest.mark.parametrize(

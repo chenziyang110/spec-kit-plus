@@ -655,7 +655,10 @@ def test_quickstart_taskify_walkthrough_frames_literal_sp_examples_as_claude_sty
     assert "The following Taskify snippets use Claude-style `/sp-*` invocation syntax." in walkthrough
     assert "translate each literal command through the invocation matrix above" in walkthrough
     assert "### Step 2: Define Requirements with `specify`" in walkthrough
-    assert "Once `specify` reaches planning-ready alignment, move directly to `plan`." in walkthrough
+    assert "Once `specify` reaches planning-ready alignment" in walkthrough
+    assert "substantive UI" in walkthrough
+    assert "design" in walkthrough
+    assert "formal-post-specify" in walkthrough
     assert "using the `checklist` workflow" in walkthrough
     assert "using the `tasks` workflow" in walkthrough
     assert "Finally, implement the solution:" in walkthrough

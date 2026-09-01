@@ -213,7 +213,7 @@ func validateHookState(args []string) Envelope {
 	stateInfo, err := os.Stat(statePath)
 	if err != nil {
 		env := hookBlocked(command, displayFeature, fmt.Errorf("workflow-state.md is missing"))
-		env.Data["autofix"] = hookAutofixMetadata(displayFeature, command)
+		env.Data["autofix"] = hookAutofixMetadata(target, displayFeature, command)
 		return env
 	}
 	if !stateInfo.Mode().IsRegular() {
@@ -227,7 +227,7 @@ func validateHookState(args []string) Envelope {
 	errors := hookStateErrors(command, checkpoint)
 	if len(errors) > 0 {
 		if hasFlag(args, "--autofix") {
-			snippet := hookAutofixSnippet(command)
+			snippet := hookAutofixSnippet(command, target)
 			if strings.TrimSpace(snippet) == "" {
 				return hookBlocked(command, displayFeature, stdErrors.New(strings.Join(errors, "; ")))
 			}
@@ -243,14 +243,14 @@ func validateHookState(args []string) Envelope {
 			repaired.Data["feature_dir"] = displayFeature
 			repaired.Data["validated_path"] = filepath.ToSlash(statePath)
 			repaired.Data["checkpoint"] = hookWorkflowCheckpoint(updated)
-			repaired.Data["autofix"] = hookAutofixMetadata(displayFeature, command)
+			repaired.Data["autofix"] = hookAutofixMetadata(target, displayFeature, command)
 			repaired.Data["writes"] = map[string]any{"workflow_state": filepath.ToSlash(statePath)}
 			return repaired
 		}
 		env := hookBlocked(command, displayFeature, stdErrors.New(strings.Join(errors, "; ")))
 		env.Data["checkpoint"] = checkpoint
 		env.Data["validated_path"] = filepath.ToSlash(statePath)
-		env.Data["autofix"] = hookAutofixMetadata(displayFeature, command)
+		env.Data["autofix"] = hookAutofixMetadata(target, displayFeature, command)
 		return env
 	}
 	env := NewEnvelope("ok", "workflow state is available")
@@ -969,10 +969,10 @@ func hookParseFrontmatter(content string, checkpoint map[string]any) {
 	}
 }
 
-func hookAutofixSnippet(command string) string {
+func hookAutofixSnippet(command, featurePath string) string {
 	switch command {
 	case "specify":
-		return hookAutofixSections([]string{"spec.md", "alignment.md", "context.md", "references.md", "specify-draft.md", "workflow-state.md", "checklists/requirements.md"}, []string{"edit source code", "edit tests", "fix build/tooling", "implement behavior", "run implementation-oriented fix loops"}, []string{"spec.md", "alignment.md", "context.md", "references.md", "specify-draft.md"}, "/sp.plan")
+		return hookAutofixSections([]string{"spec.md", "alignment.md", "context.md", "references.md", "specify-draft.md", "workflow-state.md", "checklists/requirements.md"}, []string{"edit source code", "edit tests", "fix build/tooling", "implement behavior", "run implementation-oriented fix loops"}, []string{"spec.md", "alignment.md", "context.md", "references.md", "specify-draft.md"}, hookSpecifyAutofixNextCommand(featurePath))
 	case "plan":
 		return hookAutofixSections([]string{"plan.md", "research.md", "data-model.md", "contracts/", "quickstart.md", "plan-contract.json", "workflow-state.md"}, []string{"edit source code", "edit tests", "implement behavior"}, []string{"spec-contract.json", "plan-contract.json"}, "/sp.tasks")
 	case "deep-research":
@@ -1005,12 +1005,40 @@ func hookMarkdownList(items []string) string {
 	return strings.Join(lines, "\n")
 }
 
-func hookAutofixMetadata(featureDir, command string) map[string]any {
+func hookAutofixMetadata(featurePath, featureDir, command string) map[string]any {
 	return map[string]any{
 		"available": true,
 		"command":   fmt.Sprintf("specify-runtime hook validate-state --command %s --feature-dir %q --autofix --format json", command, featureDir),
-		"snippet":   hookAutofixSnippet(command),
+		"snippet":   hookAutofixSnippet(command, featurePath),
 	}
+}
+
+func hookSpecifyAutofixNextCommand(featurePath string) string {
+	specPath := filepath.Join(featurePath, "spec-contract.json")
+	raw, err := os.ReadFile(specPath)
+	if err != nil {
+		return "/sp.plan"
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return "/sp.plan"
+	}
+	gate, ok := payload["design_gate"].(map[string]any)
+	if !ok {
+		return "/sp.plan"
+	}
+	if strings.ToLower(strings.TrimSpace(hookAnyStringField(gate, "decision"))) != "required" {
+		return "/sp.plan"
+	}
+	if strings.TrimSpace(hookAnyStringField(gate, "scope")) == "" {
+		return "/sp.plan"
+	}
+	transition, _ := payload["transition"].(map[string]any)
+	nextAction := normalizeCommandToken(hookAnyStringField(transition, "next_action"))
+	if nextAction == "/sp.design" {
+		return nextAction
+	}
+	return "/sp.design"
 }
 
 func hookValidateJSONObject(path, label string) error {

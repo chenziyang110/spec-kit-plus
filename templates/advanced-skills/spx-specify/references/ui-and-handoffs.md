@@ -88,6 +88,12 @@ Do not infer hidden behavior from a screenshot. Do not reduce original visual
 inputs to prose when downstream implementation needs to inspect them. If
 no applicable registered change exists and the feature needs a new direction,
 stop and route to `$spx-design` instead of improvising or mutating legacy truth.
+Persist that stop as top-level `design_gate.decision: required` with one exact
+scope, reason codes, `return_target: /sp.plan`, and ready
+`transition.next_action: /sp.design`. Keep the source Spec planning-ready and
+byte-stable. The pending Spec carries only requirement-owned UI fields; Design
+owns approval identity and the full `DS-*`/`DH-*` handoff. Do not invoke Design
+from Specify. A current `formal-post-specify` receipt is required before Plan.
 Do not substitute feature-level `ui-target.html` for an approved change-level
 design preview; preserve both references when both apply.
 Do not restate the approved handoff from memory. Select task-relevant `DH-*`

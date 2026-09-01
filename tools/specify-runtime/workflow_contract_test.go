@@ -303,6 +303,123 @@ func TestWorkflowArtifactGateFailsClosedOnRuntimeSemanticValidation(t *testing.T
 	assertWorkflowRevision(t, service, featureRel, 1, "active")
 }
 
+func TestWorkflowSpecifyRoutesToDesignBeforePlanWhenDesignGatePending(t *testing.T) {
+	projectRoot, _, featureRel := newWorkflowFeature(t, "001-ui-design")
+	service := NewWorkflowService(projectRoot)
+	entered := service.Enter(WorkflowEnterRequest{FeatureDir: featureRel, Command: "specify"})
+	if entered.Status != "ok" {
+		t.Fatal(entered)
+	}
+	writeSpecifyDesignGateRequiredArtifacts(t, projectRoot, featureRel, "desktop:workbench")
+
+	completed := service.CompleteStage(WorkflowCompleteStageRequest{
+		FeatureDir:       featureRel,
+		ExpectedRevision: 1,
+		Summary:          "Specification is ready for visual review.",
+	})
+	if completed.Status != "ok" || completed.Data["revision"] != 2 || completed.Data["status"] != "completed" {
+		t.Fatalf("complete-stage = %#v", completed)
+	}
+	if completed.Data["next_workflow"] != "/sp.design" || completed.Data["return_stage"] != "plan" {
+		t.Fatalf("pending design route = %#v", completed.Data)
+	}
+	if len(completed.NextArgv) != 0 {
+		t.Fatalf("pending design should not expose transition argv: %#v", completed.NextArgv)
+	}
+
+	next := service.Next(WorkflowShowRequest{FeatureDir: featureRel})
+	if next.Status != "ok" || next.Data["next_workflow"] != "/sp.design" || next.Data["return_stage"] != "plan" {
+		t.Fatalf("next = %#v", next)
+	}
+	if len(next.NextArgv) != 0 {
+		t.Fatalf("next should wait on design: %#v", next.NextArgv)
+	}
+
+	shown := service.Show(WorkflowShowRequest{FeatureDir: featureRel})
+	if shown.Status != "ok" || shown.Data["next_workflow"] != "/sp.design" || shown.Data["return_stage"] != "plan" {
+		t.Fatalf("show = %#v", shown)
+	}
+	if len(shown.NextArgv) != 0 {
+		t.Fatalf("show should wait on design: %#v", shown.NextArgv)
+	}
+}
+
+func TestWorkflowTransitionToPlanRequiresFormalPostSpecifyAdoptionReceipt(t *testing.T) {
+	projectRoot, _, featureRel := newWorkflowFeature(t, "001-ui-receipt")
+	service := NewWorkflowService(projectRoot)
+	entered := service.Enter(WorkflowEnterRequest{FeatureDir: featureRel, Command: "specify"})
+	if entered.Status != "ok" {
+		t.Fatal(entered)
+	}
+	writeSpecifyDesignGateRequiredArtifacts(t, projectRoot, featureRel, "desktop:workbench")
+	completed := service.CompleteStage(WorkflowCompleteStageRequest{
+		FeatureDir:       featureRel,
+		ExpectedRevision: 1,
+		Summary:          "Specification is ready for design binding.",
+	})
+	if completed.Status != "ok" {
+		t.Fatalf("complete-stage = %#v", completed)
+	}
+
+	blocked := service.Transition(WorkflowTransitionRequest{
+		FeatureDir:       featureRel,
+		To:               "plan",
+		ExpectedRevision: 2,
+	})
+	if blocked.Status != "blocked" {
+		t.Fatalf("missing design receipt transition = %#v, want blocked", blocked)
+	}
+	if blocked.Data["next_workflow"] != "/sp.design" || blocked.Data["return_stage"] != "plan" {
+		t.Fatalf("blocked transition route = %#v", blocked.Data)
+	}
+	if len(blocked.NextArgv) != 0 {
+		t.Fatalf("blocked transition should not expose plan argv: %#v", blocked.NextArgv)
+	}
+
+	writeFormalPostSpecifyDesignAdoption(t, projectRoot, featureRel, "001-ui-receipt", "desktop:workbench", "UD-0042")
+	advanced := service.Transition(WorkflowTransitionRequest{
+		FeatureDir:       featureRel,
+		To:               "plan",
+		ExpectedRevision: 2,
+	})
+	if advanced.Status != "ok" || advanced.Data["revision"] != 3 || advanced.Data["stage"] != "plan" || advanced.Data["status"] != "active" {
+		t.Fatalf("transition = %#v", advanced)
+	}
+}
+
+func TestWorkflowCompletedSpecifyDoesNotHideMalformedDesignGateRoute(t *testing.T) {
+	projectRoot, featureDir, featureRel := newWorkflowFeature(t, "001-ui-route-corrupt")
+	service := NewWorkflowService(projectRoot)
+	entered := service.Enter(WorkflowEnterRequest{FeatureDir: featureRel, Command: "specify"})
+	if entered.Status != "ok" {
+		t.Fatal(entered)
+	}
+	writeSpecifyDesignGateRequiredArtifacts(t, projectRoot, featureRel, "desktop:workbench")
+	completed := service.CompleteStage(WorkflowCompleteStageRequest{
+		FeatureDir:       featureRel,
+		ExpectedRevision: 1,
+		Summary:          "Specification is ready for design binding.",
+	})
+	if completed.Status != "ok" {
+		t.Fatalf("complete-stage = %#v", completed)
+	}
+	if err := os.WriteFile(filepath.Join(featureDir, "spec-contract.json"), []byte("{invalid-json\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, result := range []Envelope{
+		service.Show(WorkflowShowRequest{FeatureDir: featureRel}),
+		service.Next(WorkflowShowRequest{FeatureDir: featureRel}),
+	} {
+		if result.Status != "blocked" {
+			t.Fatalf("malformed completed route = %#v, want blocked", result)
+		}
+		if len(result.NextArgv) != 0 {
+			t.Fatalf("malformed route must not expose Plan guidance: %#v", result.NextArgv)
+		}
+	}
+}
+
 func TestWorkflowArtifactGateSkipsDiscussionAndValidatesAcceptSemantics(t *testing.T) {
 	projectRoot, featureDir, featureRel := newWorkflowFeature(t, "001-accept-gate")
 	writeWorkflowStateFixture(t, featureDir, "001-accept-gate", 5, "accept", "active", nil)
@@ -938,4 +1055,86 @@ func writeValidSpecifyGateArtifacts(t *testing.T, projectRoot, featureRel string
 	writeHookArtifactFixture(t, projectRoot, featureRel, "spec.md", "# Feature Specification\n\n## Requirements\n\n- FR-001: Runtime validation.\n")
 	writeHookArtifactFixture(t, projectRoot, featureRel, "spec-contract.json", "{\"schema_version\":1,\"status\":\"ready\"}\n")
 	writeHookArtifactFixture(t, projectRoot, featureRel, "workflow-state.md", "# Workflow State\n")
+}
+
+func writeSpecifyDesignGateRequiredArtifacts(t *testing.T, projectRoot, featureRel, scope string) {
+	t.Helper()
+	writeHookArtifactFixture(t, projectRoot, featureRel, "spec.md", "# Feature Specification\n\n## Requirements\n\n- FR-001: Large UI change requires visual review before planning.\n")
+	specContract := map[string]any{
+		"version":                     1,
+		"status":                      "planning-ready",
+		"source_contract":             nil,
+		"source_revision":             nil,
+		"decision_digest_ref":         nil,
+		"target_need":                 "Freeze the approved UI direction before implementation planning.",
+		"scope":                       map[string]any{"in": []any{"ui redesign"}, "out": []any{}, "deferred": []any{}},
+		"constraints":                 []any{"Do not skip the design review loop."},
+		"acceptance_criteria":         []any{"Plan starts only after the current visual direction is adopted."},
+		"decisions":                   []any{},
+		"semantic_delta":              []any{},
+		"capability_operations":       []any{},
+		"must_preserve_refs":          []any{},
+		"consequence_obligation_refs": []any{},
+		"entrypoint_outcome_contract": map[string]any{},
+		"design_contract":             map[string]any{},
+		"design_gate": map[string]any{
+			"decision":      "required",
+			"scope":         scope,
+			"reason_codes":  []any{"large-ui-change"},
+			"return_target": "/sp.plan",
+		},
+		"context_capsule": map[string]any{
+			"evidence_refs":         []any{},
+			"selected_capabilities": []any{},
+			"minimal_live_reads":    []any{},
+			"validation_routes":     []any{},
+			"stale_if":              []any{},
+		},
+		"open_items": []any{},
+		"artifact_refs": map[string]any{
+			"spec": "spec.md",
+		},
+		"transition": map[string]any{
+			"version":        1,
+			"status":         "ready",
+			"source_ref":     "spec-contract.json",
+			"semantic_delta": []any{},
+			"required_refs":  []any{},
+			"blockers":       []any{},
+			"next_action":    "/sp.design",
+			"recovery":       nil,
+		},
+	}
+	raw, err := json.Marshal(specContract)
+	if err != nil {
+		t.Fatalf("marshal spec-contract: %v", err)
+	}
+	writeHookArtifactFixture(t, projectRoot, featureRel, "spec-contract.json", string(raw)+"\n")
+	writeHookArtifactFixture(t, projectRoot, featureRel, "workflow-state.md", "# Workflow State\n")
+}
+
+func writeFormalPostSpecifyDesignAdoption(t *testing.T, projectRoot, featureRel, featureID, scope, changeID string) {
+	t.Helper()
+	var designPath string
+	var contractPath string
+	withCwd(t, projectRoot)
+	designPath, _ = createRegisteredDesignChangeRuntime(t, changeID, scope)
+	contractPath = writeDesignContractRuntime(t, designPath)
+	bindingRef := filepath.ToSlash(filepath.Join(featureRel, "spec-contract.json"))
+	sourceSpec, err := os.ReadFile(filepath.Join(projectRoot, filepath.FromSlash(bindingRef)))
+	if err != nil {
+		t.Fatalf("read source spec: %v", err)
+	}
+	sourceDigest := fmt.Sprintf("%x", sha256.Sum256(sourceSpec))
+	if _, err := adoptDesignChange(projectRoot, designAdoptionRequest{
+		ConsumerRef:    "feature:" + featureID,
+		ChangeID:       changeID,
+		Scope:          scope,
+		Mode:           "formal-post-specify",
+		BindingRef:     bindingRef,
+		BindingSHA256:  sourceDigest,
+		ExpectedChange: "none",
+	}); err != nil {
+		t.Fatalf("adopt design change: %v (contract=%s)", err, contractPath)
+	}
 }

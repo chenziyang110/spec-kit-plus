@@ -564,6 +564,35 @@ func TestHookStateValidationAutofixRepairsMissingSections(t *testing.T) {
 	}
 }
 
+func TestHookStateValidationAutofixUsesPendingDesignRouteForSpecify(t *testing.T) {
+	root := t.TempDir()
+	feature := filepath.Join(root, ".specify", "features", "002-design-route")
+	if err := os.MkdirAll(feature, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustWriteHookText(t, filepath.Join(feature, "spec-contract.json"), "{\n  \"version\": 1,\n  \"status\": \"planning-ready\",\n  \"design_gate\": {\n    \"decision\": \"required\",\n    \"scope\": \"desktop:workbench\",\n    \"reason_codes\": [\"large-ui-change\"],\n    \"return_target\": \"/sp.plan\"\n  },\n  \"transition\": {\n    \"version\": 1,\n    \"status\": \"ready\",\n    \"source_ref\": \"spec-contract.json\",\n    \"semantic_delta\": [],\n    \"required_refs\": [],\n    \"blockers\": [],\n    \"next_action\": \"/sp.design\"\n  }\n}\n")
+	statePath := filepath.Join(feature, "workflow-state.md")
+	if err := os.WriteFile(statePath, []byte("# Workflow State\n\n## Current Command\n\n- active_command: `sp-specify`\n- status: `active`\n\n## Phase Mode\n\n- phase_mode: `planning-only`\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env := validateHookState([]string{
+		"--command", "specify",
+		"--feature-dir", feature,
+		"--project-root", root,
+		"--autofix",
+	})
+	if env.Status != "repaired" {
+		t.Fatalf("state status = %q blockers=%#v", env.Status, env.Blockers)
+	}
+	repaired, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(repaired, []byte("`/sp.design`")) {
+		t.Fatalf("autofix did not derive /sp.design next command:\n%s", string(repaired))
+	}
+}
+
 func TestHookStateValidationBlocksWrongCommand(t *testing.T) {
 	root := t.TempDir()
 	feature := filepath.Join(root, ".specify", "features", "003-state")

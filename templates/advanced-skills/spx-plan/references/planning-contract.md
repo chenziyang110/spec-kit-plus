@@ -37,6 +37,12 @@ through targeted `specify-runtime artifact show` calls; use the former as the
 machine-readable source of truth and the latter only as the corresponding
 human-readable projection for review and explanation. Never resolve “latest”
 from the index. Explicitly set `ui_applicable: true`,
+record `design_adoption_binding` with the exact current receipt mode, consumer,
+scope, revision/change ID, project-relative source-Spec ref/SHA, and impact SHA,
+and revalidate it against the runtime index and current source bytes. A model's
+own `verified` claim is not evidence. For a pending source `design_gate`,
+preserve Spec-owned requirement fields exactly while allowing only verified
+Design-owned identity and matrices to come from the registered overlay.
 preserve `ui_brief_ref`, and record `design_readiness: approved` or a bounded
 `narrow-existing-pattern-exception`. Map its work/surface/platform types,
 subject/audience/job, three theses, signature, exact `style_authority`, approved visual ref, reference

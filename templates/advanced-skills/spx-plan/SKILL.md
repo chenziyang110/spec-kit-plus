@@ -44,6 +44,14 @@ the exact Design overlay. Do not run a second Specify or resolve “latest”. A
 receipt/spec digest mismatch blocks Plan; a real requirements change routes to
 Specify.
 
+Record the verified output as
+`ui_design_contract.design_adoption_binding` (mode, consumer, exact scope,
+revision/change, project-relative source-Spec ref/SHA, and impact SHA). Recheck
+it against the current runtime adoption; never trust a model-authored verified
+flag. For a source `design_gate.required`, preserve requirement-owned fields
+from the unchanged Spec and fill design-owned identity/matrices only from that
+verified registered overlay. Any mismatch blocks Plan.
+
 Treat `plan-contract.json#/test_design_gate/decision` as exactly
 `not_selected`, `selected`, or `required`. A selected/required binding may be
 all-null while production is pending; partial binding is invalid. When Plan

@@ -87,8 +87,15 @@ func checkWorkflowStateReadiness(a artifactSet) checkResult {
 		if err != nil {
 			return checkResult{status: statusFail, message: err.Error()}
 		}
-		if nextAction != "/sp.plan" {
-			return checkResult{status: statusFail, message: "spec-contract transition.next_action must be /sp.plan (string \"/sp.plan\" or object {\"command\":\"/sp.plan\"})"}
+		expectedNextAction, err := specContractExpectedNextAction(contract)
+		if err != nil {
+			return checkResult{status: statusFail, message: err.Error()}
+		}
+		if nextAction != expectedNextAction {
+			return checkResult{status: statusFail, message: fmt.Sprintf("spec-contract transition.next_action must be %s", expectedNextAction)}
+		}
+		if specContractGateDecision(contract, "design_gate") == "required" && specContractGateDecision(contract, "feasibility_gate") == "required" {
+			return checkResult{status: statusFail, message: "spec-contract cannot mark transition ready when design_gate and feasibility_gate are both required"}
 		}
 		return checkResult{status: statusPass, message: "canonical contract is planning-ready"}
 	}
@@ -182,6 +189,11 @@ func checkHandoffJSONSchema(a artifactSet) checkResult {
 				if !regexp.MustCompile(`^CAP-[0-9]{3,}$`).MatchString(strings.TrimSpace(valueString(rawRef))) {
 					return checkResult{status: statusFail, message: "spec-contract feasibility_gate capability refs must use CAP-### identifiers"}
 				}
+			}
+		}
+		if rawGate, present := contract["design_gate"]; present {
+			if result := validateSpecDesignGate(rawGate); result.status != statusPass {
+				return result
 			}
 		}
 		scope, _ := objectValue(contract["scope"])
@@ -875,7 +887,7 @@ func checkChangePropagation(a artifactSet) checkResult {
 func transitionNextActionToken(value any) (string, error) {
 	switch typed := value.(type) {
 	case nil:
-		return "", fmt.Errorf("spec-contract transition.next_action is required; use string \"/sp.plan\" or object {\"command\":\"/sp.plan\"}")
+		return "", fmt.Errorf("spec-contract transition.next_action is required; use a canonical workflow token such as string \"/sp.plan\" or object {\"command\":\"/sp.plan\"}")
 	case string:
 		return normalizeCommandToken(typed), nil
 	case map[string]any:
@@ -888,8 +900,76 @@ func transitionNextActionToken(value any) (string, error) {
 		}
 		return "", fmt.Errorf("spec-contract transition.next_action object must include string field \"command\" (example: {\"command\":\"/sp.plan\"})")
 	default:
-		return "", fmt.Errorf("spec-contract transition.next_action must be string \"/sp.plan\" or object {\"command\":\"/sp.plan\"}, got %T", value)
+		return "", fmt.Errorf("spec-contract transition.next_action must be a canonical workflow string or object {\"command\":\"/sp.plan\"}, got %T", value)
 	}
+}
+
+func specContractGateDecision(contract map[string]any, key string) string {
+	gate, ok := objectValue(contract[key])
+	if !ok {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(valueString(gate["decision"])))
+}
+
+func specContractExpectedNextAction(contract map[string]any) (string, error) {
+	designRequired := specContractGateDecision(contract, "design_gate") == "required"
+	feasibilityRequired := specContractGateDecision(contract, "feasibility_gate") == "required"
+	if designRequired && feasibilityRequired {
+		return "", fmt.Errorf("spec-contract does not support combining design_gate.required with feasibility_gate.required in one planning-ready transition")
+	}
+	if designRequired {
+		return "/sp.design", nil
+	}
+	return "/sp.plan", nil
+}
+
+func validateSpecDesignGate(value any) checkResult {
+	gate, ok := objectValue(value)
+	if !ok {
+		return checkResult{status: statusFail, message: "spec-contract design_gate must be an object"}
+	}
+	decision := strings.TrimSpace(valueString(gate["decision"]))
+	switch decision {
+	case "not_required", "required", "satisfied", "narrow_existing_pattern_exception":
+	default:
+		return checkResult{status: statusFail, message: "spec-contract design_gate.decision must be not_required, required, satisfied, or narrow_existing_pattern_exception"}
+	}
+	scope := gate["scope"]
+	if scope != nil {
+		scopeString, ok := scope.(string)
+		if !ok {
+			return checkResult{status: statusFail, message: "spec-contract design_gate.scope must be null or a string"}
+		}
+		if strings.TrimSpace(scopeString) != "" && !regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]*$`).MatchString(strings.TrimSpace(scopeString)) {
+			return checkResult{status: statusFail, message: "spec-contract design_gate.scope must be a stable path-like identifier"}
+		}
+	}
+	reasonCodes, ok := arrayValue(gate["reason_codes"])
+	if !ok {
+		return checkResult{status: statusFail, message: "spec-contract design_gate.reason_codes must be an array"}
+	}
+	for _, item := range reasonCodes {
+		if strings.TrimSpace(valueString(item)) == "" {
+			return checkResult{status: statusFail, message: "spec-contract design_gate.reason_codes must contain non-empty strings"}
+		}
+	}
+	returnTarget := strings.TrimSpace(valueString(gate["return_target"]))
+	if returnTarget != "" && returnTarget != "/sp.plan" {
+		return checkResult{status: statusFail, message: "spec-contract design_gate.return_target must be /sp.plan"}
+	}
+	if decision == "required" {
+		if strings.TrimSpace(valueString(scope)) == "" {
+			return checkResult{status: statusFail, message: "required design_gate must name an exact scope"}
+		}
+		if len(reasonCodes) == 0 {
+			return checkResult{status: statusFail, message: "required design_gate must include reason_codes"}
+		}
+		if returnTarget != "/sp.plan" {
+			return checkResult{status: statusFail, message: "required design_gate must return to /sp.plan"}
+		}
+	}
+	return checkResult{status: statusPass}
 }
 
 // ---- check 5: non-functional ----

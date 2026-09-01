@@ -74,6 +74,20 @@ happened after a planning-ready spec: an unchanged late design overlay binds
 through `formal-post-specify` and returns to Plan. Only a genuine requirements,
 scope, or acceptance change re-enters this workflow.
 
+When substantive new or high-visibility UI has no applicable registered
+Design, keep the requirements contract `planning-ready` but make the external
+stop explicit: set top-level `design_gate.decision: required`, one exact stable
+`scope`, non-empty `reason_codes`, `return_target: /sp.plan`, and the ready
+transition command `/sp.design`. The pending UI contract contains confirmed
+requirements only; do not fabricate design bindings, approval digests,
+`DS-*`/`DH-*` IDs, or design-owned matrices. `$spx-design` is independently
+user-invoked. Recommend it and stop. It must adopt the unchanged Spec through
+`formal-post-specify`; a current matching receipt is the only route onward to
+Plan. Existing exact registered coverage or a bounded existing-pattern
+exception keeps the ordinary Plan route. Treat simultaneous required Design
+and feasibility gates as a blocked unsupported composition rather than
+bypassing either gate.
+
 Treat `alignment.md`, `context.md`, and `references.md` as conditional
 project-facing views, not parallel truth. When one has independent review
 value, create an absent stable view with `artifact scaffold --kind alignment`,
@@ -120,5 +134,5 @@ handoff.
 Do not implement or edit production code, tests, migrations, or runtime
 configuration. This invocation authorizes only this workflow stage. Stop after
 reporting the specification result and recommend exactly one next workflow. Do
-not invoke `$spx-plan`, `$spx-deep-research`, or any other next
+not invoke `$spx-plan`, `$spx-design`, `$spx-deep-research`, or any other next
 workflow in this run; a handoff is not authorization to execute it.

@@ -21,6 +21,32 @@ participates in selection or delivery.
 
 Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep the work design-only unless the user explicitly starts a downstream implementation workflow after reviewing the design output.
 
+## Runtime And Work Preflight
+
+- Before probing Design capabilities, run
+  `{{specify-subcmd:specify-runtime api list --format json}}` and use only the
+  exact returned `design.*` capability IDs. Use
+  `{{specify-subcmd:specify-runtime design --help}}` for the command catalog.
+  Never guess unadvertised commands such as `design.status`,
+  `design.synthesize`, `design handoff`, or `design validate`; an unknown
+  capability is a discovery error, not a reason to try adjacent names.
+- Before `design change`, `design iterate`, or any design-artifact write, run
+  `{{specify-subcmd:specify-runtime board reconcile --format json}}` and
+  `{{specify-subcmd:specify-runtime board show --format json}}`. Allocate the
+  `UD-*` ID read-only, then register only the confirmed change-local Work scope
+  `.specify/design/changes/<UD-ID>`. Never claim `.specify/design` or
+  `.specify/design/changes` as a long-lived Work intent. The Design runtime
+  owns atomic `.specify/design/index.json` updates under its index lock; add
+  `.specify/memory/project-rules.md` only immediately before an explicit rule
+  promotion that truly needs it.
+- A live conflicting owner remains protected: yield or narrow the new scope;
+  never interrupt it. For a recovery hold, execute the conflict's exact
+  `show_argv`, inspect the recorded workspace, observed paths, and preserved
+  changes, and independently establish that the old owner/session ended. Only
+  then is recovery agent-owned: resume the Work to finish it, or abandon it
+  explicitly after accounting for preserved changes. Never auto-abandon, and
+  never stop merely by saying the original owner must return.
+
 ## Workflow Phase Lock
 
 - Resolve or create the active workspace by lifecycle state. Resume a matching
@@ -327,7 +353,11 @@ unrelated visual systems for one review round.
   roles, and edit invariants; they are not HTML/DOM/CSS prompts. When image
   inspection is available, open the actual saved pixels, critique, repair, and
   re-inspect. Without inspection, show the image, make no visual-quality claim,
-  and revise from the user's observations.
+  and revise from the user's observations. If the image tool saves outside the
+  project, import the selected bytes through
+  `{{specify-subcmd:specify-runtime design import <saved-image-path> --change <UD-ID> --round NN --format json}}`
+  and use the returned change-local path. A different image requires a new
+  round; never copy or overwrite `previews/` manually.
 - **HTML-primary lane:** read `references/html-prototype-studio.md`,
   `references/prototype-craft.md`, and selected platform guidance. Render
   `{{specify-subcmd:specify-runtime design preview --manifest <change-dir>/previews/round-NN.manifest.json --out <change-dir>/previews/round-NN.html}}`,

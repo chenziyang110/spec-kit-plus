@@ -9,6 +9,15 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from specify_cli.design import (
+    DESIGN_CHANGE_SCOPE_RE,
+    DesignLintError,
+    _active_design_adoption_record,
+    _current_design_adoption,
+    _load_design_change_index,
+    _load_registered_design_change,
+    _planning_ready_spec_binding,
+)
 from specify_cli.design_intelligence import validate_ui_source_continuity
 from specify_cli.execution.implementation_review import task_review_is_accepted
 from specify_cli.execution.packet_schema import UI_CONTRACT_FIELDS
@@ -4608,6 +4617,30 @@ def _spec_ui_design_contract(feature_dir: Path) -> dict[str, Any] | None:
     return contract if isinstance(contract, dict) else None
 
 
+def _spec_design_gate_requires_design(feature_dir: Path) -> bool:
+    path = feature_dir / "spec-contract.json"
+    if not path.is_file():
+        return False
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(payload, dict):
+        return False
+    return _spec_gate_decision(payload, "design_gate") == "required"
+
+
+def _feature_project_root(feature_dir: Path) -> Path:
+    if feature_dir.parent.name == "specs":
+        return feature_dir.parent.parent.resolve()
+    if (
+        feature_dir.parent.name == "features"
+        and feature_dir.parent.parent.name == ".specify"
+    ):
+        return feature_dir.parent.parent.parent.resolve()
+    return feature_dir.parent.resolve()
+
+
 def _plan_ui_design_contract(feature_dir: Path) -> tuple[dict[str, Any] | None, str]:
     for contract_path, label in _consequence_contract_paths(feature_dir):
         if not contract_path.is_file():
@@ -4653,6 +4686,10 @@ def _validate_plan_ui_contract(feature_dir: Path) -> list[str]:
             f"{label} ui_design_contract",
         )
     )
+    current_overlay, adoption_errors = _validate_plan_design_adoption_binding(
+        feature_dir, plan_contract, label
+    )
+    errors.extend(adoption_errors)
     ui_brief_ref = str(plan_contract.get("ui_brief_ref") or "").strip()
     if not ui_brief_ref:
         errors.append(f"{label} UI work requires ui_design_contract.ui_brief_ref")
@@ -4700,7 +4737,26 @@ def _validate_plan_ui_contract(feature_dir: Path) -> list[str]:
                 f"{label} UI work requires non-empty ui_design_contract.{field}"
             )
 
-    if spec_applies and isinstance(spec_contract, dict):
+    design_gate_required = _spec_design_gate_requires_design(feature_dir)
+    post_specify_design_overlay = current_overlay is not None and design_gate_required
+    if current_overlay is not None and not design_gate_required:
+        errors.append(
+            f"{label} formal-post-specify design_adoption_binding requires source spec design_gate.required"
+        )
+    if design_gate_required and not post_specify_design_overlay:
+        errors.append(
+            f"{label} ui_design_contract.design_adoption_binding must carry the verified formal-post-specify receipt"
+        )
+    if (
+        spec_applies
+        and isinstance(spec_contract, dict)
+        and post_specify_design_overlay
+        and _spec_design_gate_requires_design(feature_dir)
+    ):
+        errors.extend(
+            _spec_owned_pending_ui_fields_match(spec_contract, plan_contract, label)
+        )
+    if spec_applies and isinstance(spec_contract, dict) and not post_specify_design_overlay:
         spec_brief_ref = str(spec_contract.get("ui_brief_ref") or "").strip()
         if spec_brief_ref and ui_brief_ref and spec_brief_ref != ui_brief_ref:
             spec_path = resolve_feature_artifact_ref(feature_dir, spec_brief_ref)
@@ -4709,25 +4765,30 @@ def _validate_plan_ui_contract(feature_dir: Path) -> list[str]:
                 errors.append(
                     f"{label} ui_design_contract.ui_brief_ref must preserve the specification UI brief"
                 )
-        for field in (
-            "ui_work_type",
-            "surface_type",
-            "fidelity_mode",
-            "source_continuity",
-            *UI_DESIGN_CHANGE_BINDING_FIELDS,
-            *UI_CONTRACT_SCALAR_FIELDS,
-            *UI_CONTRACT_LIST_FIELDS,
-            *UI_CONTRACT_OBJECT_FIELDS,
-            *UI_APPROVAL_DIGEST_FIELDS,
-            *UI_APPROVAL_REFERENCE_FIELDS,
-            *UI_SPEC_PLAN_CONTINUITY_LIST_FIELDS,
-        ):
-            if _canonical_ui_continuity_value(
-                field, plan_contract.get(field)
-            ) != _canonical_ui_continuity_value(field, spec_contract.get(field)):
-                errors.append(
-                    f"{label} ui_design_contract.{field} must preserve the specification UI contract"
-                )
+        if _spec_design_gate_requires_design(feature_dir):
+            errors.extend(
+                _spec_owned_pending_ui_fields_match(spec_contract, plan_contract, label)
+            )
+        else:
+            for field in (
+                "ui_work_type",
+                "surface_type",
+                "fidelity_mode",
+                "source_continuity",
+                *UI_DESIGN_CHANGE_BINDING_FIELDS,
+                *UI_CONTRACT_SCALAR_FIELDS,
+                *UI_CONTRACT_LIST_FIELDS,
+                *UI_CONTRACT_OBJECT_FIELDS,
+                *UI_APPROVAL_DIGEST_FIELDS,
+                *UI_APPROVAL_REFERENCE_FIELDS,
+                *UI_SPEC_PLAN_CONTINUITY_LIST_FIELDS,
+            ):
+                if _canonical_ui_continuity_value(
+                    field, plan_contract.get(field)
+                ) != _canonical_ui_continuity_value(field, spec_contract.get(field)):
+                    errors.append(
+                        f"{label} ui_design_contract.{field} must preserve the specification UI contract"
+                    )
     return errors
 
 
@@ -6666,6 +6727,410 @@ def _validate_agent_transition(payload: Any, label: str) -> list[str]:
     return errors
 
 
+SPEC_DESIGN_GATE_DECISIONS = {
+    "not_required",
+    "required",
+    "satisfied",
+    "narrow_existing_pattern_exception",
+}
+
+
+def _spec_gate_decision(payload: dict[str, Any], field: str) -> str:
+    gate = payload.get(field)
+    if not isinstance(gate, dict):
+        return ""
+    return str(gate.get("decision") or "").strip()
+
+
+def _validate_spec_design_gate(payload: dict[str, Any]) -> list[str]:
+    gate = payload.get("design_gate")
+    if gate is None:
+        return []
+    errors: list[str] = []
+    if not isinstance(gate, dict):
+        return ["spec-contract.json design_gate must be an object"]
+    decision = str(gate.get("decision") or "").strip()
+    if decision not in SPEC_DESIGN_GATE_DECISIONS:
+        errors.append(
+            "spec-contract.json design_gate.decision must be not_required, required, satisfied, or narrow_existing_pattern_exception"
+        )
+    scope = gate.get("scope")
+    if scope is not None and not isinstance(scope, str):
+        errors.append("spec-contract.json design_gate.scope must be null or a string")
+    reason_codes = gate.get("reason_codes")
+    if not isinstance(reason_codes, list) or any(
+        not isinstance(item, str) or not item.strip() for item in reason_codes
+    ):
+        errors.append(
+            "spec-contract.json design_gate.reason_codes must be a list of non-empty strings"
+        )
+    return_target = gate.get("return_target")
+    if return_target is not None and return_target != "/sp.plan":
+        errors.append("spec-contract.json design_gate.return_target must be /sp.plan")
+    if decision == "required":
+        if (
+            not isinstance(scope, str)
+            or not scope.strip()
+            or DESIGN_CHANGE_SCOPE_RE.fullmatch(scope.strip()) is None
+        ):
+            errors.append(
+                "spec-contract.json required design_gate must name an exact scope"
+            )
+        if not isinstance(reason_codes, list) or not reason_codes:
+            errors.append(
+                "spec-contract.json required design_gate must include reason_codes"
+            )
+        if return_target != "/sp.plan":
+            errors.append(
+                "spec-contract.json required design_gate must return to /sp.plan"
+            )
+    return errors
+
+
+def _spec_transition_next_action_allowed(
+    payload: dict[str, Any], next_action: object
+) -> bool:
+    if isinstance(next_action, dict):
+        token = str(next_action.get("command") or "").strip()
+    else:
+        token = str(next_action or "").strip()
+    design_required = _spec_gate_decision(payload, "design_gate") == "required"
+    feasibility_required = (
+        _spec_gate_decision(payload, "feasibility_gate") == "required"
+    )
+    if design_required and feasibility_required:
+        return False
+    if design_required:
+        return token == "/sp.design"
+    if feasibility_required:
+        return False
+    return token == "/sp.plan"
+
+
+def _validate_pending_spec_design_contract(
+    feature_dir: Path, design_contract: dict[str, Any]
+) -> list[str]:
+    errors: list[str] = []
+    if any(str(design_contract.get(field) or "").strip() for field in UI_DESIGN_CHANGE_BINDING_FIELDS):
+        errors.append(
+            "spec-contract.json pending Design route must not carry registered design binding fields before approval"
+        )
+    ui_brief_ref = str(design_contract.get("ui_brief_ref") or "").strip()
+    if not ui_brief_ref:
+        errors.append(
+            "spec-contract.json UI work requires design_contract.ui_brief_ref"
+        )
+    elif resolve_feature_artifact_ref(feature_dir, ui_brief_ref) is None:
+        errors.append(
+            "spec-contract.json design_contract.ui_brief_ref must reference an existing feature artifact"
+        )
+    if str(design_contract.get("ui_work_type") or "").strip() not in {
+        "existing-pattern",
+        "feature-extension",
+        "reference-implementation",
+    }:
+        errors.append(
+            "spec-contract.json UI work requires a valid design_contract.ui_work_type"
+        )
+    if str(design_contract.get("surface_type") or "").strip() not in UI_CONTRACT_SURFACE_TYPES:
+        errors.append(
+            "spec-contract.json design_contract.surface_type must be a supported UI surface type"
+        )
+    platforms = design_contract.get("platforms")
+    if (
+        not isinstance(platforms, list)
+        or not platforms
+        or any(str(item).strip() not in UI_CONTRACT_PLATFORMS for item in platforms)
+    ):
+        errors.append(
+            "spec-contract.json design_contract.platforms must contain supported UI platforms"
+        )
+    for field in (
+        "entry_points",
+        "required_states",
+        "must_preserve",
+        "may_adapt",
+        "must_not",
+        "validation_refs",
+        "visual_acceptance",
+    ):
+        value = design_contract.get(field)
+        if not isinstance(value, list) or not any(
+            isinstance(item, str) and item.strip() for item in value
+        ):
+            errors.append(
+                f"spec-contract.json pending Design route requires non-empty design_contract.{field}"
+            )
+    errors.extend(
+        _validate_ui_style_authority(
+            design_contract.get("style_authority"), "spec-contract.json design_contract"
+        )
+    )
+    for field in (
+        "subject",
+        "audience",
+        "single_job",
+    ):
+        if not str(design_contract.get(field) or "").strip():
+            errors.append(
+                f"spec-contract.json pending Design route requires non-empty design_contract.{field}"
+            )
+    forbidden_scalar_fields = (
+        "design_change_id",
+        "design_change_ref",
+        "design_change_sha256",
+        "design_contract_ref",
+        "approved_visual_ref",
+        "approved_preview_sha256",
+        "approved_manifest_sha256",
+        "approved_handoff_ref",
+        "approved_handoff_sha256",
+    )
+    for field in forbidden_scalar_fields:
+        if str(design_contract.get(field) or "").strip():
+            errors.append(
+                f"spec-contract.json pending Design route must not prefill design_contract.{field}"
+            )
+    forbidden_list_fields = (
+        "design_decision_ids",
+        "handoff_contract_ids",
+        "surface_catalog",
+        "scenario_matrix",
+        "interaction_matrix",
+        "editing_matrix",
+        "accessibility_matrix",
+        "navigation_matrix",
+        "content_matrix",
+        "data_state_matrix",
+        "color_modes",
+        "component_contracts",
+        "responsive_matrix",
+        "visual_acceptance_matrix",
+        "accepted_deviations",
+    )
+    for field in forbidden_list_fields:
+        value = design_contract.get(field)
+        if isinstance(value, list) and value:
+            errors.append(
+                f"spec-contract.json pending Design route must not prefill design_contract.{field}"
+            )
+    for field in ("motion_contract", "usability_validation", "comparison_tolerance"):
+        value = design_contract.get(field)
+        if isinstance(value, dict) and value:
+            errors.append(
+                f"spec-contract.json pending Design route must not prefill design_contract.{field}"
+            )
+    return errors
+
+
+def _spec_owned_pending_ui_fields_match(
+    spec_contract: dict[str, Any], plan_contract: dict[str, Any], label: str
+) -> list[str]:
+    errors: list[str] = []
+    for field in (
+        "ui_work_type",
+        "surface_type",
+        "style_authority",
+        "subject",
+        "audience",
+        "single_job",
+        "reference_intents",
+        "real_content_plan",
+        "image_plan",
+        "entry_points",
+        "required_states",
+        "must_preserve",
+        "may_adapt",
+        "must_not",
+        "validation_refs",
+        "visual_acceptance",
+    ):
+        if _canonical_ui_continuity_value(
+            field, plan_contract.get(field)
+        ) != _canonical_ui_continuity_value(field, spec_contract.get(field)):
+            errors.append(
+                f"{label} ui_design_contract.{field} must preserve the specification UI contract"
+            )
+    spec_platforms = set(_normalized_ui_string_values("platforms", spec_contract))
+    plan_platforms = set(_normalized_ui_string_values("platforms", plan_contract))
+    if spec_platforms and spec_platforms != plan_platforms:
+        errors.append(
+            f"{label} ui_design_contract.platforms must preserve the specification UI contract"
+        )
+    return errors
+
+
+def _verify_current_formal_post_specify_adoption(
+    feature_dir: Path, plan_contract: dict[str, Any]
+) -> tuple[dict[str, Any] | None, list[str]]:
+    binding = plan_contract.get("design_adoption_binding")
+    label = "plan-contract.json"
+    if not isinstance(binding, dict):
+        return None, [f"{label} ui_design_contract.design_adoption_binding must be an object"]
+    mode = str(binding.get("mode") or "").strip()
+    consumer_ref = str(binding.get("consumer_ref") or "").strip()
+    scope = str(binding.get("scope") or "").strip()
+    change_id = str(binding.get("change_id") or "").strip()
+    binding_ref = str(binding.get("binding_ref") or "").strip()
+    binding_sha256 = str(binding.get("binding_sha256") or "").strip()
+    impact_sha256 = str(binding.get("impact_sha256") or "").strip()
+    revision = binding.get("revision")
+    errors: list[str] = []
+    if mode != "formal-post-specify":
+        errors.append(
+            f"{label} ui_design_contract.design_adoption_binding.mode must be formal-post-specify"
+        )
+    feature_id = feature_dir.name
+    expected_consumer = f"feature:{feature_id}"
+    if consumer_ref != expected_consumer:
+        errors.append(
+            f"{label} ui_design_contract.design_adoption_binding.consumer_ref must be {expected_consumer}"
+        )
+    spec_path = feature_dir / "spec-contract.json"
+    try:
+        spec_payload = json.loads(spec_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        spec_payload = {}
+    expected_scope = ""
+    if isinstance(spec_payload, dict):
+        gate = spec_payload.get("design_gate")
+        if isinstance(gate, dict):
+            expected_scope = str(gate.get("scope") or "").strip()
+    if not DESIGN_CHANGE_SCOPE_RE.fullmatch(scope):
+        errors.append(
+            f"{label} ui_design_contract.design_adoption_binding.scope must be a stable path-like identifier"
+        )
+    elif expected_scope and scope != expected_scope:
+        errors.append(
+            f"{label} ui_design_contract.design_adoption_binding.scope must match spec-contract.json design_gate.scope"
+        )
+    if not UI_DESIGN_CHANGE_ID_RE.fullmatch(change_id):
+        errors.append(
+            f"{label} ui_design_contract.design_adoption_binding.change_id must be a canonical UD-#### ID"
+        )
+    elif change_id != str(plan_contract.get("design_change_id") or "").strip():
+        errors.append(
+            f"{label} ui_design_contract.design_adoption_binding.change_id must match ui_design_contract.design_change_id"
+        )
+    if not isinstance(revision, int) or revision <= 0:
+        errors.append(
+            f"{label} ui_design_contract.design_adoption_binding.revision must be a positive integer"
+        )
+    if UI_SHA256_RE.fullmatch(binding_sha256) is None:
+        errors.append(
+            f"{label} ui_design_contract.design_adoption_binding.binding_sha256 must be a SHA-256 digest"
+        )
+    if UI_SHA256_RE.fullmatch(impact_sha256) is None:
+        errors.append(
+            f"{label} ui_design_contract.design_adoption_binding.impact_sha256 must be a SHA-256 digest"
+        )
+    if errors:
+        return None, errors
+
+    project_root = _feature_project_root(feature_dir)
+    try:
+        index, _, records = _load_design_change_index(project_root.resolve())
+        _, current = _current_design_adoption(
+            index, consumer_ref=consumer_ref, scope=scope
+        )
+        if current is None:
+            raise DesignLintError(
+                "no current design adoption exists for the feature and scope"
+            )
+        if str(current.get("mode") or "").strip() != "formal-post-specify":
+            raise DesignLintError(
+                "current design adoption is not a formal-post-specify overlay"
+            )
+        current_binding_ref = str(current.get("binding_ref") or "").strip()
+        if binding_ref != current_binding_ref:
+            raise DesignLintError(
+                "plan binding_ref does not match the current design adoption receipt"
+            )
+        binding_path = (project_root / binding_ref).resolve()
+        try:
+            binding_path.relative_to(project_root)
+        except ValueError as exc:
+            raise DesignLintError(
+                "current design adoption binding_ref must stay inside the project"
+            ) from exc
+        binding_bytes = binding_path.read_bytes()
+        actual_digest = hashlib.sha256(binding_bytes).hexdigest()
+        if not _planning_ready_spec_binding(binding_bytes):
+            raise DesignLintError(
+                "formal-post-specify adoption requires the unchanged planning-ready source spec"
+            )
+        if (
+            str(current.get("binding_sha256") or "").strip() != binding_sha256
+            or actual_digest != binding_sha256
+        ):
+            raise DesignLintError(
+                "source spec binding does not match the current design adoption receipt"
+            )
+        if int(current.get("revision") or 0) != revision:
+            raise DesignLintError("current design adoption revision does not match the plan binding")
+        if str(current.get("change_id") or "").strip() != change_id:
+            raise DesignLintError("current design adoption change_id does not match the plan binding")
+        if str(current.get("impact_sha256") or "").strip() != impact_sha256:
+            raise DesignLintError("current design adoption impact_sha256 does not match the plan binding")
+        record = _active_design_adoption_record(records, change_id=change_id, scope=scope)
+        _, registered_digest, _, registered_record = _load_registered_design_change(
+            project_root, change_id
+        )
+        if (
+            str(current.get("design_change_sha256") or "").strip()
+            != registered_digest
+            or str(current.get("design_change_ref") or "").strip()
+            != str(registered_record.get("design_ref") or "").strip()
+            or str(record.get("approval_sha256") or "").strip()
+            != registered_digest
+        ):
+            raise DesignLintError(
+                "current design adoption does not match the active registered design"
+            )
+        contract_ref = str(current.get("design_contract_ref") or "").strip()
+        contract_path = (project_root / contract_ref).resolve()
+        try:
+            contract_path.relative_to(project_root)
+        except ValueError as exc:
+            raise DesignLintError(
+                "current design adoption design_contract_ref must stay inside the project"
+            ) from exc
+        if not contract_path.is_file():
+            raise DesignLintError(
+                "current design adoption design_contract_ref does not exist"
+            )
+        if (
+            str(current.get("design_change_ref") or "").strip()
+            != str(plan_contract.get("design_change_ref") or "").strip()
+            or str(current.get("design_change_sha256") or "").strip()
+            != str(plan_contract.get("design_change_sha256") or "").strip()
+            or str(current.get("design_contract_ref") or "").strip()
+            != str(plan_contract.get("design_contract_ref") or "").strip()
+        ):
+            raise DesignLintError(
+                "current design adoption does not match ui_design_contract binding fields"
+            )
+        return current, []
+    except (DesignLintError, OSError) as exc:
+        return None, [
+            f"{label} ui_design_contract.design_adoption_binding must match the current formal-post-specify adoption: {exc}"
+        ]
+
+
+def _validate_plan_design_adoption_binding(
+    feature_dir: Path, plan_contract: dict[str, Any], label: str
+) -> tuple[dict[str, Any] | None, list[str]]:
+    binding = plan_contract.get("design_adoption_binding")
+    if binding is None:
+        return None, []
+    current, errors = _verify_current_formal_post_specify_adoption(
+        feature_dir, plan_contract
+    )
+    if errors:
+        return None, errors
+    return current, []
+
+
 def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
     path = feature_dir / "spec-contract.json"
     payload, errors = _read_json_artifact(path, "spec-contract.json")
@@ -6738,6 +7203,14 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
             "spec-contract.json acceptance_criteria must contain only non-empty strings"
         )
     errors.extend(_validate_spec_acceptance_coverage(payload))
+    errors.extend(_validate_spec_design_gate(payload))
+    if (
+        _spec_gate_decision(payload, "design_gate") == "required"
+        and _spec_gate_decision(payload, "feasibility_gate") == "required"
+    ):
+        errors.append(
+            "spec-contract.json cannot require design_gate and feasibility_gate at the same time until that combined route is wired"
+        )
     semantic_delta = payload.get("semantic_delta")
     if isinstance(semantic_delta, list) and semantic_delta:
         workflow_state_path = feature_dir / "workflow-state.md"
@@ -6789,7 +7262,16 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
             errors.append(
                 "spec-contract.json carries ui-brief.md but design_contract.ui_applicable is not true"
             )
-        if ui_applicable is True:
+        pending_design_route = _spec_gate_decision(payload, "design_gate") == "required"
+        if pending_design_route and ui_applicable is not True:
+            errors.append(
+                "spec-contract.json design_gate.required requires design_contract.ui_applicable true"
+            )
+        if ui_applicable is True and pending_design_route:
+            errors.extend(
+                _validate_pending_spec_design_contract(feature_dir, design_contract)
+            )
+        elif ui_applicable is True:
             errors.extend(
                 _validate_ui_contract_shape(
                     design_contract,
@@ -6866,9 +7348,18 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
     errors.extend(_validate_spec_entrypoint_outcome_contract(feature_dir))
     transition = payload.get("transition")
     if isinstance(transition, dict) and transition.get("status") == "ready":
-        if transition.get("next_action") != "/sp.plan":
+        if (
+            _spec_gate_decision(payload, "design_gate") == "required"
+            and _spec_gate_decision(payload, "feasibility_gate") == "required"
+        ):
             errors.append(
-                "spec-contract.json transition.next_action must be /sp.plan when planning-ready"
+                "spec-contract.json cannot mark transition ready when design_gate and feasibility_gate are both required; resolve the combined route before Plan"
+            )
+        if not _spec_transition_next_action_allowed(
+            payload, transition.get("next_action")
+        ):
+            errors.append(
+                "spec-contract.json transition.next_action must be /sp.design with design_gate.required, otherwise /sp.plan when planning-ready"
             )
 
     artifact_refs = payload.get("artifact_refs")

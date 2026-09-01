@@ -24,6 +24,13 @@ Translate the approved specification package into explicit implementation design
   overlay. Do not require a second Specify and never select “latest” from the
   design index. A missing/mismatched receipt blocks Plan; a real requirements
   change routes to Specify.
+- Materialize the verified receipt identity in
+  `ui_design_contract.design_adoption_binding` with its exact mode,
+  `consumer_ref`, scope, revision, change ID, project-relative source-Spec
+  `binding_ref`/`binding_sha256`, and `impact_sha256`. Never accept an
+  agent-authored `verified: true` as proof; validation must reconcile those
+  fields against the current adoption in `.specify/design/index.json`, the
+  current source Spec bytes, and the active registered Design.
 - Stop when the spec contract is not planning-ready, its context capsule lacks the required target boundary, hard unknowns remain open, or conflicts remain open.
 - For cross-project implementation, plan from the target project context and record that current project cognition cannot prove target-project implementation facts.
 - Use target cognition, minimal live reads in the target, user confirmation, or explicit assumptions for target evidence; do not ask the user to rebuild current-project cognition for target files.
@@ -47,6 +54,15 @@ Translate the approved specification package into explicit implementation design
   `ui_design_contract`. Planning may select the task-relevant `DS-*` and `DH-*`
   subsets and assign them to implementation owners, but may not summarize,
   rename, restate, or weaken their structured values.
+- For a `design_gate.required` source Spec, merge rather than falsely require
+  every Plan UI field to equal the pre-Design placeholder. Preserve the
+  Spec-owned work/surface/platform, style authority, subject/audience/job,
+  entry points/states, reference/content/image plans, and
+  must-preserve/may-adapt/must-not/validation/visual-acceptance fields exactly.
+  Populate design-owned bindings, approval identity, decisions, handoff rows,
+  components, scenarios, matrices, motion, and usability only from the verified
+  registered overlay. Missing receipt, stale Spec digest, wrong scope, or
+  drifted registered Design blocks Plan.
 - When delegated planning lanes are used, scaffold the compact planning lane manifest, replace its bounded `/lanes` array through fresh leased JSON-pointer patches at material joins, and submit each required result inline through `specify-runtime result submit`; the runtime owns all result paths. Do not submit the manifest wholesale or create evidence indexes/checkpoint logs for leader-inline work.
 - Query every accepted planning handoff through `specify-runtime artifact show` before final synthesis; integrate it into `plan.md`, `research.md`, `quickstart.md`, `data-model.md`, `contracts/`, or `plan-contract.json` only through the registered artifact CLI, or patch a complete user-confirmed deferral contract or blocker with its reason.
 - Surface risks, unresolved decisions, and planning-time constitution/guardrail requirements explicitly.

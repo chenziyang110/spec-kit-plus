@@ -22,6 +22,26 @@ def test_workflow_boundary_allows_mainline_transition(tmp_path: Path):
     assert result.status == "ok"
 
 
+def test_workflow_boundary_allows_specify_to_design_to_plan(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    specify_to_design = run_quality_hook(
+        project,
+        "workflow.boundary.validate",
+        {"from_command": "specify", "to_command": "design"},
+    )
+    design_to_plan = run_quality_hook(
+        project,
+        "workflow.boundary.validate",
+        {"from_command": "design", "to_command": "plan"},
+    )
+
+    assert specify_to_design.status == "ok"
+    assert specify_to_design.data == {"from_command": "specify", "to_command": "design"}
+    assert design_to_plan.status == "ok"
+    assert design_to_plan.data == {"from_command": "design", "to_command": "plan"}
+
+
 def test_workflow_boundary_allows_tasks_to_implement_mainline(tmp_path: Path):
     project = _create_project(tmp_path)
 

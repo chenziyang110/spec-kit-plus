@@ -20,6 +20,24 @@ shared component state or generated consumers change.
 Query `.specify/design/index.json` through `specify-runtime artifact show` only
 when it exists or registered metadata was returned by scope discovery. A missing
 registry is legitimate discovery absence; do not blindly artifact-show it.
+
+Before probing capabilities, run
+`{{specify-subcmd:specify-runtime api list --format json}}` and use only exact
+returned `design.*` IDs; use
+`{{specify-subcmd:specify-runtime design --help}}` for the command catalog.
+Never guess `design.status`, `design.synthesize`,
+`specify-runtime design handoff`, or `specify-runtime design validate`.
+Before any Design write, run
+`{{specify-subcmd:specify-runtime board reconcile --format json}}` and
+`{{specify-subcmd:specify-runtime board show --format json}}`, then register
+only `.specify/design/changes/<UD-ID>` as the long-lived Work scope. Never
+claim `.specify/design` or `.specify/design/changes`; the Design runtime owns
+atomic index updates under its index lock. Keep live conflicts protected. For
+a recovery hold, execute its exact `show_argv`, inspect the recorded workspace,
+observed paths, and preserved changes, and prove the old owner/session ended
+before resuming or explicitly abandoning it. Never auto-abandon or require a
+vanished original owner to return.
+
 Resume a matching nonterminal `UD-*` workspace when present, then inspect its exact contract,
 relevant live UI entry points, existing tokens/components, accessibility rules,
 and supplied references. No root design contract participates in selection or
@@ -177,7 +195,10 @@ composite image board for that round. Image prompts own subject, context, style,
 composition, aspect ratio, exact text, input-image roles, and invariants; they
 are not HTML authoring prompts. Inspect actual saved pixels when possible; when
 inspection is unavailable, show the image without a visual-quality claim and
-revise from user observations. Freeze explicit approval with `specify-runtime design approve
+revise from user observations. Import an externally saved result through
+`specify-runtime design import <saved-image-path> --change <UD-ID> --round NN
+--format json`; use the returned change-local path and never copy or overwrite
+the managed round manually. Freeze explicit approval with `specify-runtime design approve
 <round-image> --direction direction-main --manifest <manifest> --prompt
 <prompt> --image-inspection <available|unavailable> --image-editing
 <available|unavailable> --format json`.

@@ -9,6 +9,7 @@ import re
 import pytest
 from typer.testing import CliRunner
 
+import specify_cli.design as design_module
 from specify_cli import app
 from specify_cli.design import (
     DesignLintError,
@@ -2231,6 +2232,138 @@ def test_import_design_reference_writes_reference_summary(tmp_path: Path) -> Non
     assert "https://example.com/style" in content
     assert "Dense admin UI with compact tables." in content
     assert not (tmp_path / "DESIGN.md").exists()
+
+
+def test_import_design_reference_copies_external_image_into_change_round(
+    tmp_path: Path,
+) -> None:
+    design_root = tmp_path / ".specify" / "design"
+    workspace = design_root / "changes" / "UD-0001"
+    workspace.mkdir(parents=True)
+    (workspace / "design-change.md").write_text("draft", encoding="utf-8")
+    (design_root / "index.json").write_text(
+        json.dumps(
+            {
+                "schema": "spec-kit-ui-design-index-v1",
+                "changes": [
+                    {
+                        "id": "UD-0001",
+                        "status": "draft",
+                        "design_ref": ".specify/design/changes/UD-0001/design-change.md",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    source = tmp_path / "generated-candidate.PNG"
+    image_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2n1cAAAAASUVORK5CYII="
+    )
+    source.write_bytes(image_bytes)
+
+    result = import_design_reference(
+        str(source),
+        out_dir=design_root,
+        notes="User-approved first concept.",
+        change_id="UD-0001",
+        round_id="01",
+    )
+
+    assert result == workspace / "previews" / "round-01.png"
+    assert result.read_bytes() == image_bytes
+    references = (workspace / "references.md").read_text(encoding="utf-8")
+    assert str(source) in references
+    assert ".specify/design/changes/UD-0001/previews/round-01.png" in references
+    assert hashlib.sha256(image_bytes).hexdigest() in references
+
+    assert (
+        import_design_reference(
+            str(source),
+            out_dir=design_root,
+            change_id="UD-0001",
+            round_id="1",
+        )
+        == result
+    )
+    assert "User-approved first concept." in (workspace / "references.md").read_text(
+        encoding="utf-8"
+    )
+    source.write_bytes(image_bytes + b"different")
+    with pytest.raises(DesignLintError, match="already exists with different bytes"):
+        import_design_reference(
+            str(source),
+            out_dir=design_root,
+            change_id="UD-0001",
+            round_id="01",
+        )
+    assert result.read_bytes() == image_bytes
+
+
+def test_design_import_cli_copies_image_into_named_change_round(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    design_root = Path(".specify/design")
+    workspace = design_root / "changes" / "UD-0001"
+    workspace.mkdir(parents=True)
+    (workspace / "design-change.md").write_text("draft", encoding="utf-8")
+    (design_root / "index.json").write_text(
+        json.dumps(
+            {
+                "schema": "spec-kit-ui-design-index-v1",
+                "changes": [
+                    {
+                        "id": "UD-0001",
+                        "status": "draft",
+                        "design_ref": ".specify/design/changes/UD-0001/design-change.md",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    source = tmp_path / "candidate.png"
+    source.write_bytes(
+        base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2n1cAAAAASUVORK5CYII="
+        )
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "design",
+            "import",
+            str(source),
+            "--change",
+            "UD-0001",
+            "--round",
+            "01",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "round-01.png" in result.output
+    assert (workspace / "previews" / "round-01.png").read_bytes() == source.read_bytes()
+
+
+def test_import_design_reference_rejects_oversized_external_image(
+    tmp_path: Path,
+) -> None:
+    design_root = tmp_path / ".specify" / "design"
+    source = tmp_path / "oversized.png"
+    source.write_bytes(b"\x89PNG\r\n\x1a\n")
+    with source.open("r+b") as handle:
+        handle.truncate(design_module.MAX_DESIGN_IMAGE_IMPORT_BYTES + 1)
+
+    with pytest.raises(DesignLintError, match="import limit"):
+        import_design_reference(
+            str(source),
+            out_dir=design_root,
+            change_id="UD-0001",
+            round_id="01",
+        )
 
 
 def test_design_lint_cli_does_not_implicitly_select_a_root_design_file(

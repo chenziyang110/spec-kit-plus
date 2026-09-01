@@ -275,8 +275,23 @@ func (service *WorkflowService) Show(request WorkflowShowRequest) Envelope {
 		env.Data["resolution_action"] = workflowResolutionAction(feature, state.Revision)
 		return env
 	}
+	nextStage, nextWorkflow, returnStage, routeErr := service.workflowNextRoute(feature, state)
+	if routeErr != nil {
+		return workflowStateBlocked(feature, state, "workflow next route is invalid", "invalid-next-route", routeErr.Error())
+	}
+	if nextStage != "" {
+		env.Data["next_stage"] = nextStage
+	}
+	if nextWorkflow != "" {
+		env.Data["next_workflow"] = nextWorkflow
+	}
+	if returnStage != "" {
+		env.Data["return_stage"] = returnStage
+	}
 	if !isTerminalWorkflowState(state) {
-		env.NextArgv = workflowNextArgv(feature)
+		if state.Status != "completed" || nextWorkflow == "" {
+			env.NextArgv = workflowNextArgv(feature)
+		}
 	}
 	return env
 }
@@ -300,9 +315,18 @@ func (service *WorkflowService) Next(request WorkflowShowRequest) Envelope {
 		env.Data["resolution_action"] = workflowResolutionAction(feature, state.Revision)
 		return env
 	}
-	nextStage := nextWorkflowStage(state.Stage)
+	nextStage, nextWorkflow, returnStage, routeErr := service.workflowNextRoute(feature, state)
+	if routeErr != nil {
+		return workflowStateBlocked(feature, state, "workflow next route is invalid", "invalid-next-route", routeErr.Error())
+	}
 	if nextStage != "" {
 		env.Data["next_stage"] = nextStage
+	}
+	if nextWorkflow != "" {
+		env.Data["next_workflow"] = nextWorkflow
+	}
+	if returnStage != "" {
+		env.Data["return_stage"] = returnStage
 	}
 	switch state.Status {
 	case "active":
@@ -312,7 +336,7 @@ func (service *WorkflowService) Next(request WorkflowShowRequest) Envelope {
 			env.NextArgv = workflowCompleteArgv(feature, state.Revision)
 		}
 	case "completed":
-		if state.Stage != "accept" {
+		if state.Stage != "accept" && nextWorkflow == "" {
 			env.NextArgv = workflowTransitionArgv(feature, nextStage, state.Revision)
 		}
 	}
@@ -346,7 +370,22 @@ func (service *WorkflowService) CompleteStage(request WorkflowCompleteStageReque
 		env = NewEnvelope("ok", "workflow stage is already completed")
 		addWorkflowStateData(&env, state)
 		env.ShowArgv = workflowShowArgv(feature)
-		env.NextArgv = workflowTransitionArgv(feature, nextWorkflowStage(state.Stage), state.Revision)
+		nextStage, nextWorkflow, returnStage, routeErr := service.workflowNextRoute(feature, state)
+		if routeErr != nil {
+			return workflowStateBlocked(feature, state, "workflow next route is invalid", "invalid-next-route", routeErr.Error())
+		}
+		if nextStage != "" {
+			env.Data["next_stage"] = nextStage
+		}
+		if nextWorkflow != "" {
+			env.Data["next_workflow"] = nextWorkflow
+		}
+		if returnStage != "" {
+			env.Data["return_stage"] = returnStage
+		}
+		if nextWorkflow == "" {
+			env.NextArgv = workflowTransitionArgv(feature, nextStage, state.Revision)
+		}
 		return env
 	}
 	if state.Stage == "accept" {
@@ -389,7 +428,22 @@ func (service *WorkflowService) CompleteStage(request WorkflowCompleteStageReque
 	env = NewEnvelope("ok", "workflow stage completed")
 	addWorkflowStateData(&env, state)
 	env.ShowArgv = workflowShowArgv(feature)
-	env.NextArgv = workflowTransitionArgv(feature, nextWorkflowStage(state.Stage), state.Revision)
+	nextStage, nextWorkflow, returnStage, routeErr := service.workflowNextRoute(feature, state)
+	if routeErr != nil {
+		return workflowStateBlocked(feature, state, "workflow next route is invalid", "invalid-next-route", routeErr.Error())
+	}
+	if nextStage != "" {
+		env.Data["next_stage"] = nextStage
+	}
+	if nextWorkflow != "" {
+		env.Data["next_workflow"] = nextWorkflow
+	}
+	if returnStage != "" {
+		env.Data["return_stage"] = returnStage
+	}
+	if nextWorkflow == "" {
+		env.NextArgv = workflowTransitionArgv(feature, nextStage, state.Revision)
+	}
 	return env
 }
 
@@ -425,7 +479,17 @@ func (service *WorkflowService) Transition(request WorkflowTransitionRequest) En
 		env.NextArgv = workflowCompleteArgv(feature, state.Revision)
 		return env
 	}
-	expectedTarget := nextWorkflowStage(state.Stage)
+	expectedTarget, nextWorkflow, returnStage, routeErr := service.workflowNextRoute(feature, state)
+	if routeErr != nil {
+		return workflowStateBlocked(feature, state, "workflow next route is invalid", "invalid-next-route", routeErr.Error())
+	}
+	if nextWorkflow != "" && target == expectedTarget {
+		env = workflowStateBlocked(feature, state, "formal planning must wait for the required design adoption receipt", "design-adoption-required", "complete the pending design workflow and return to plan with a formal-post-specify adoption receipt")
+		env.Data["next_stage"] = expectedTarget
+		env.Data["next_workflow"] = nextWorkflow
+		env.Data["return_stage"] = returnStage
+		return env
+	}
 	if target != expectedTarget {
 		env = workflowStateBlocked(feature, state, fmt.Sprintf("cannot transition from %s to %s", state.Stage, target), "invalid-transition")
 		if expectedTarget != "" {
@@ -438,6 +502,15 @@ func (service *WorkflowService) Transition(request WorkflowTransitionRequest) En
 		if gate.Status != "ok" && gate.Status != "warn" && gate.Status != "repaired" {
 			addWorkflowStateData(&gate, state)
 			return gate
+		}
+	}
+	if state.Stage == "specify" && target == "plan" {
+		if err := service.requireSpecifyDesignAdoption(feature); err != nil {
+			env = workflowStateBlocked(feature, state, err.Error(), "design-adoption-required")
+			env.Data["next_stage"] = "plan"
+			env.Data["next_workflow"] = "/sp.design"
+			env.Data["return_stage"] = "plan"
+			return env
 		}
 	}
 	state.Revision++
@@ -1091,6 +1164,83 @@ func nextWorkflowStage(stage string) string {
 		return ""
 	}
 	return workflowStageOrder[index+1]
+}
+
+func (service *WorkflowService) workflowNextRoute(feature workflowFeature, state workflowState) (string, string, string, error) {
+	nextStage := nextWorkflowStage(state.Stage)
+	if state.Stage == "specify" && state.Status == "completed" {
+		pending, _, err := service.specifyNeedsDesignRoute(feature)
+		if err != nil {
+			return nextStage, "", "", err
+		}
+		if pending {
+			return nextStage, "/sp.design", "plan", nil
+		}
+	}
+	return nextStage, "", "", nil
+}
+
+func (service *WorkflowService) requireSpecifyDesignAdoption(feature workflowFeature) error {
+	required, request, err := service.specifyDesignAdoptionRequest(feature)
+	if err != nil || !required {
+		return err
+	}
+	_, err = resolveDesignAdoption(service.projectRoot, request)
+	return err
+}
+
+func (service *WorkflowService) specifyNeedsDesignRoute(feature workflowFeature) (bool, designAdoptionRequest, error) {
+	required, request, err := service.specifyDesignAdoptionRequest(feature)
+	if err != nil || !required {
+		return false, request, err
+	}
+	if _, err := resolveDesignAdoption(service.projectRoot, request); err == nil {
+		return false, request, nil
+	}
+	return true, request, nil
+}
+
+func (service *WorkflowService) specifyDesignAdoptionRequest(feature workflowFeature) (bool, designAdoptionRequest, error) {
+	var request designAdoptionRequest
+	specPath := filepath.Join(feature.Abs, "spec-contract.json")
+	raw, err := os.ReadFile(specPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, request, nil
+		}
+		return false, request, fmt.Errorf("cannot read spec-contract.json for design gate: %w", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false, request, fmt.Errorf("spec-contract.json is invalid: %w", err)
+	}
+	gate, ok := payload["design_gate"].(map[string]any)
+	if !ok {
+		return false, request, nil
+	}
+	if strings.ToLower(strings.TrimSpace(fmt.Sprint(gate["decision"]))) != "required" {
+		return false, request, nil
+	}
+	if feasibilityGate, ok := payload["feasibility_gate"].(map[string]any); ok && strings.ToLower(strings.TrimSpace(fmt.Sprint(feasibilityGate["decision"]))) == "required" {
+		return false, request, fmt.Errorf("spec-contract does not support combining design_gate.required with feasibility_gate.required in one planning-ready transition")
+	}
+	scope := strings.TrimSpace(fmt.Sprint(gate["scope"]))
+	if scope == "" {
+		return false, request, fmt.Errorf("spec-contract.json design_gate.scope must be set when decision is required")
+	}
+	if !designChangeScopeRE.MatchString(scope) {
+		return false, request, fmt.Errorf("spec-contract.json design_gate.scope must be a stable path-like identifier")
+	}
+	if normalizeCommandToken(fmt.Sprint(gate["return_target"])) != "/sp.plan" {
+		return false, request, fmt.Errorf("spec-contract.json design_gate.return_target must be /sp.plan")
+	}
+	request = designAdoptionRequest{
+		ConsumerRef:   "feature:" + feature.ID,
+		Scope:         scope,
+		BindingRef:    filepath.ToSlash(filepath.Join(feature.Rel, "spec-contract.json")),
+		BindingSHA256: fmt.Sprintf("%x", sha256.Sum256(raw)),
+	}
+	return true, request, nil
 }
 
 func isTerminalWorkflowState(state workflowState) bool {

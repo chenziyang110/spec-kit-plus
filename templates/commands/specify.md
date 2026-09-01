@@ -4,8 +4,11 @@ workflow_contract:
   when_to_use: A new or changed feature request needs a planning-ready specification package instead of immediate implementation.
   primary_objective: 'Produce and patch the planning-ready specification contract only through `specify-runtime artifact`, followed by deterministic completeness and traceability review.'
   primary_outputs: 'CLI-owned `spec-contract.json`, `spec.md`, triggered views, and `workflow-state.md`, created or changed only through `specify-runtime artifact`.'
-  default_handoff: 'After user review, recommend exactly one next command: `/sp.plan`, `/sp.specify`, or `/sp.deep-research`.'
+  default_handoff: 'After user review, recommend exactly one next command. A planning-ready substantive UI contract with `design_gate.decision: required` routes to `/sp.design`; otherwise use the applicable `/sp.plan`, `/sp.specify`, or `/sp.deep-research` route.'
 handoffs:
+  - label: Complete UI Design Before Plan
+    agent: sp.design
+    prompt: Complete the required post-Specify UI design for this planning-ready feature, preserve the exact source Spec bytes, register the approved Design, and return a formal-post-specify receipt for Plan.
   - label: Build Technical Plan
     agent: sp.plan
     prompt: Create a plan for the spec. I am building with...

@@ -19,6 +19,7 @@ from jsonschema import Draft202012Validator
 
 from .atomic_io import atomic_write_text, interprocess_lock
 from .design_intelligence import validate_ui_source_continuity
+from .workflow_transaction import WorkflowTransactionError, apply_workflow_transaction
 
 
 FRONT_MATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n?(.*)\Z", re.DOTALL)
@@ -65,6 +66,7 @@ DESIGN_PREVIEW_MANIFEST_ID = "design-preview-manifest"
 DESIGN_PREVIEW_DIRECTION_RE = re.compile(r"^direction-[a-z0-9][a-z0-9-]*$")
 DESIGN_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 DESIGN_IMAGE_CAPABILITY_VALUES = {"available", "unavailable"}
+MAX_DESIGN_IMAGE_IMPORT_BYTES = 32 * 1024 * 1024
 DESIGN_VISUAL_COLLABORATION_FIELDS = (
     "image_generation",
     "image_inspection",
@@ -5557,7 +5559,6 @@ def approve_design_preview(
 
 
 def _design_image_artifact_diagnostics(path: Path) -> tuple[bytes, list[DesignDiagnostic]]:
-    diagnostics: list[DesignDiagnostic] = []
     try:
         image_bytes = path.read_bytes()
     except OSError as exc:
@@ -5568,6 +5569,13 @@ def _design_image_artifact_diagnostics(path: Path) -> tuple[bytes, list[DesignDi
                 str(path),
             )
         ]
+    return image_bytes, _design_image_bytes_diagnostics(path, image_bytes)
+
+
+def _design_image_bytes_diagnostics(
+    path: Path, image_bytes: bytes
+) -> list[DesignDiagnostic]:
+    diagnostics: list[DesignDiagnostic] = []
     suffix = path.suffix.lower()
     if suffix not in DESIGN_IMAGE_SUFFIXES:
         _add_diagnostic(
@@ -5576,7 +5584,7 @@ def _design_image_artifact_diagnostics(path: Path) -> tuple[bytes, list[DesignDi
             "design image must be PNG, JPEG, or WEBP",
             str(path),
         )
-        return image_bytes, diagnostics
+        return diagnostics
     signatures = {
         ".png": image_bytes.startswith(b"\x89PNG\r\n\x1a\n"),
         ".jpg": image_bytes.startswith(b"\xff\xd8\xff"),
@@ -5594,7 +5602,7 @@ def _design_image_artifact_diagnostics(path: Path) -> tuple[bytes, list[DesignDi
             "design image bytes do not match the PNG, JPEG, or WEBP extension",
             str(path),
         )
-    return image_bytes, diagnostics
+    return diagnostics
 
 
 def _design_image_bundle_path(
@@ -7053,7 +7061,27 @@ def export_design_system(
     return json.dumps(_to_tailwind_theme(document.design_system), indent=2, sort_keys=True) + "\n"
 
 
-def import_design_reference(source: str, *, out_dir: Path, notes: str = "") -> Path:
+def import_design_reference(
+    source: str,
+    *,
+    out_dir: Path,
+    notes: str = "",
+    change_id: str | None = None,
+    round_id: str | None = None,
+) -> Path:
+    if (change_id is None) != (round_id is None):
+        raise DesignLintError(
+            "design image import requires both change_id and round_id"
+        )
+    if change_id is not None and round_id is not None:
+        return _import_design_image_round(
+            source,
+            design_root=out_dir,
+            notes=notes,
+            change_id=change_id,
+            round_id=round_id,
+        )
+
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "references.md"
     source_line = source.strip()
@@ -7070,8 +7098,160 @@ def import_design_reference(source: str, *, out_dir: Path, notes: str = "") -> P
         "- Write original scoped guidance into the change-local "
         "`design-change.md` only after user approval in `sp-design`.\n"
     )
-    out_path.write_text(content, encoding="utf-8")
+    atomic_write_text(out_path, content)
     return out_path
+
+
+def _import_design_image_round(
+    source: str,
+    *,
+    design_root: Path,
+    notes: str,
+    change_id: str,
+    round_id: str,
+) -> Path:
+    normalized_change = change_id.strip().upper()
+    if not DESIGN_CHANGE_ID_RE.fullmatch(normalized_change):
+        raise DesignLintError(
+            "design image import change_id must use UD- followed by at least four digits"
+        )
+    normalized_round = _normalize_design_round(round_id)
+    design_root = design_root.resolve()
+    if design_root.name != "design" or design_root.parent.name != ".specify":
+        raise DesignLintError(
+            "design image import out_dir must be the project .specify/design directory"
+        )
+    project_root = design_root.parent.parent
+
+    source_path = Path(source).expanduser().resolve()
+    if not source_path.is_file():
+        raise DesignLintError(
+            f"design image import requires a regular source file: {source_path}"
+        )
+    try:
+        if source_path.stat().st_size > MAX_DESIGN_IMAGE_IMPORT_BYTES:
+            raise DesignLintError(
+                "design image source exceeds the "
+                f"{MAX_DESIGN_IMAGE_IMPORT_BYTES // (1024 * 1024)} MiB import limit"
+            )
+        with source_path.open("rb") as handle:
+            image_bytes = handle.read(MAX_DESIGN_IMAGE_IMPORT_BYTES + 1)
+    except DesignLintError:
+        raise
+    except OSError as exc:
+        raise DesignLintError(f"cannot read design image source: {exc}") from exc
+    if len(image_bytes) > MAX_DESIGN_IMAGE_IMPORT_BYTES:
+        raise DesignLintError(
+            "design image source exceeds the "
+            f"{MAX_DESIGN_IMAGE_IMPORT_BYTES // (1024 * 1024)} MiB import limit"
+        )
+    diagnostics = _design_image_bytes_diagnostics(source_path, image_bytes)
+    if diagnostics:
+        messages = "; ".join(
+            f"{diagnostic.code}: {diagnostic.message}" for diagnostic in diagnostics
+        )
+        raise DesignLintError(f"design image source is invalid: {messages}")
+
+    index_path = design_root / "index.json"
+    try:
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DesignLintError(f"cannot read design change index: {exc}") from exc
+    if not isinstance(index, dict) or index.get("schema") != DESIGN_CHANGE_INDEX_SCHEMA:
+        raise DesignLintError("design change index has an invalid schema")
+    changes = index.get("changes")
+    if not isinstance(changes, list):
+        raise DesignLintError("design change index changes must be a list")
+    record = next(
+        (
+            item
+            for item in changes
+            if isinstance(item, dict) and item.get("id") == normalized_change
+        ),
+        None,
+    )
+    if record is None:
+        raise DesignLintError(f"design change {normalized_change} does not exist")
+    if record.get("status") != "draft":
+        raise DesignLintError(
+            f"design change {normalized_change} is immutable; import into a new draft UD-* change"
+        )
+
+    workspace = design_root / "changes" / normalized_change
+    design_path = workspace / "design-change.md"
+    expected_design_ref = design_path.relative_to(project_root).as_posix()
+    if record.get("design_ref") != expected_design_ref or not design_path.is_file():
+        raise DesignLintError(
+            f"design change {normalized_change} workspace is not canonical"
+        )
+
+    target = workspace / "previews" / (
+        f"round-{normalized_round}{source_path.suffix.lower()}"
+    )
+    imported_ref = target.relative_to(project_root).as_posix()
+    digest = hashlib.sha256(image_bytes).hexdigest()
+    references_path = workspace / "references.md"
+    notes_line = notes.strip() or "No notes supplied."
+    references = (
+        "# Design References\n\n"
+        "This file is input for `sp-design`. It is not an approved UI design change.\n\n"
+        "## Imported Reference\n\n"
+        f"- Source: {source_path}\n"
+        f"- Imported asset: {imported_ref}\n"
+        f"- SHA-256: {digest}\n"
+        f"- Notes: {notes_line}\n\n"
+        "## Synthesis Instructions\n\n"
+        "- Preserve the imported bytes as one immutable candidate round.\n"
+        "- Bind the adjacent manifest and exact prompt only through `design approve` after explicit user approval.\n"
+        "- Write original scoped guidance into the change-local `design-change.md` only after user approval in `sp-design`.\n"
+    )
+
+    expected_before: dict[Path, bytes | None] = {}
+    updates: dict[Path, bytes] = {references_path: references.encode("utf-8")}
+    try:
+        existing = target.read_bytes()
+    except FileNotFoundError:
+        existing = None
+        updates[target] = image_bytes
+        expected_before[target] = None
+    except OSError as exc:
+        raise DesignLintError(f"cannot inspect design image target: {exc}") from exc
+    else:
+        if existing != image_bytes:
+            raise DesignLintError(
+                f"design image round already exists with different bytes: {imported_ref}"
+            )
+        if references_path.is_file():
+            return target
+        if references_path.exists():
+            raise DesignLintError(
+                "design reference target is not a regular file: "
+                f"{references_path}"
+            )
+        expected_before[target] = existing
+
+    try:
+        apply_workflow_transaction(
+            project_root,
+            kind="design.import-image",
+            updates=updates,
+            expected_before=expected_before,
+        )
+    except WorkflowTransactionError as exc:
+        raise DesignLintError(f"cannot import design image: {exc}") from exc
+    return target
+
+
+def _normalize_design_round(value: str) -> str:
+    normalized = value.strip()
+    if not re.fullmatch(r"[0-9]{1,4}", normalized):
+        raise DesignLintError(
+            "design image import round_id must be a positive integer with at most four digits"
+        )
+    round_number = int(normalized)
+    if round_number < 1:
+        raise DesignLintError("design image import round_id must be greater than zero")
+    return f"{round_number:02d}"
 
 
 def _load_professional_skill_catalog_refs() -> dict[str, str] | None:

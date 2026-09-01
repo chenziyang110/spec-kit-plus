@@ -50,7 +50,7 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
                     "autofix": _autofix_metadata(
                         feature_dir,
                         command_name,
-                        _autofix_sections_for_command(command_name),
+                        _autofix_sections_for_command(command_name, feature_dir),
                     ),
                 },
             )
@@ -124,7 +124,7 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
                 )
         if errors:
             if autofix:
-                snippet = _autofix_sections_for_command(command_name)
+                snippet = _autofix_sections_for_command(command_name, feature_dir)
                 content = target.read_text(encoding="utf-8")
                 if snippet.strip() not in content:
                     updated = content.rstrip() + "\n\n" + snippet
@@ -159,7 +159,7 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
                     "autofix": _autofix_metadata(
                         feature_dir,
                         command_name,
-                        _autofix_sections_for_command(command_name),
+                        _autofix_sections_for_command(command_name, feature_dir),
                     ),
                 },
             )
@@ -289,7 +289,26 @@ def _implementation_review_metadata(feature_dir: Path) -> dict[str, str]:
     }
 
 
-def _autofix_sections_for_command(command_name: str) -> str:
+def _specify_autofix_next_command(feature_dir: Path) -> str:
+    spec_path = feature_dir / "spec-contract.json"
+    if not spec_path.is_file():
+        return "/sp.plan"
+    try:
+        import json
+
+        payload = json.loads(spec_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return "/sp.plan"
+    if not isinstance(payload, dict):
+        return "/sp.plan"
+    transition = payload.get("transition")
+    if not isinstance(transition, dict):
+        return "/sp.plan"
+    next_action = str(transition.get("next_action") or "").strip()
+    return next_action if next_action in {"/sp.plan", "/sp.design"} else "/sp.plan"
+
+
+def _autofix_sections_for_command(command_name: str, feature_dir: Path | None = None) -> str:
     defaults: dict[str, dict[str, object]] = {
         "specify": {
             "allowed": [
@@ -315,7 +334,11 @@ def _autofix_sections_for_command(command_name: str) -> str:
                 "references.md",
                 "specify-draft.md",
             ],
-            "next_command": "/sp.plan",
+            "next_command": (
+                _specify_autofix_next_command(feature_dir)
+                if feature_dir is not None
+                else "/sp.plan"
+            ),
         },
         "deep-research": {
             "allowed": [

@@ -576,6 +576,105 @@ def test_classic_and_advanced_design_contracts_pin_exact_change_identity() -> No
         assert "never silently retarget" in content
 
 
+def test_classic_and_advanced_design_image_routes_import_external_outputs() -> None:
+    classic = "\n".join(
+        [
+            read_template("templates/command-partials/design/shell.md"),
+            read_template(
+                "templates/command-references/design/image-generation-studio.md"
+            ),
+        ]
+    ).lower()
+    advanced = "\n".join(
+        [
+            read_template("templates/advanced-skills/spx-design/SKILL.md"),
+            read_template(
+                "templates/advanced-skills/spx-design/references/image-round.md"
+            ),
+        ]
+    ).lower()
+
+    for content in (classic, advanced):
+        assert (
+            "specify-runtime design import <saved-image-path> --change <ud-id> "
+            "--round nn --format json"
+        ) in " ".join(content.split())
+        assert "returned change-local path" in content
+        assert "never copy" in content
+        assert "design approve" in content
+
+
+def test_classic_and_advanced_design_preflight_uses_exact_capabilities_and_recovery() -> None:
+    classic = " ".join(
+        read_template("templates/command-partials/design/shell.md").lower().split()
+    )
+    advanced = " ".join(
+        read_template("templates/advanced-skills/spx-design/SKILL.md")
+        .lower()
+        .split()
+    )
+
+    for content in (classic, advanced):
+        assert "specify-runtime api list --format json" in content
+        assert "specify-runtime design --help" in content
+        assert "never guess" in content
+        assert "design.status" in content
+        assert "design.synthesize" in content
+        assert "design handoff" in content
+        assert "design validate" in content
+        assert "specify-runtime board reconcile" in content
+        assert "specify-runtime board show" in content
+        assert ".specify/design/changes/<ud-id>" in content
+        assert "never claim `.specify/design`" in content
+        assert "recovery hold" in content
+        assert "show_argv" in content
+        assert "resume" in content
+        assert "abandon" in content
+
+
+def test_specify_routes_pending_substantive_ui_through_design_before_plan() -> None:
+    classic = " ".join(
+        read_template("templates/commands/specify.md").lower().split()
+    )
+    advanced = " ".join(
+        (
+            read_template("templates/advanced-skills/spx-specify/SKILL.md")
+            + "\n"
+            + read_template(
+                "templates/advanced-skills/spx-specify/references/ui-and-handoffs.md"
+            )
+        )
+        .lower()
+        .split()
+    )
+    plan_surfaces = " ".join(
+        (
+            read_template("templates/command-partials/plan/shell.md")
+            + "\n"
+            + read_template("templates/advanced-skills/spx-plan/SKILL.md")
+            + "\n"
+            + read_template(
+                "templates/advanced-skills/spx-plan/references/planning-contract.md"
+            )
+        )
+        .lower()
+        .split()
+    )
+
+    for content in (classic, advanced):
+        assert "design_gate" in content
+        assert "decision=required" in content or "decision: required" in content
+        assert "/sp.design" in content
+        assert "planning-ready" in content
+        assert "formal-post-specify" in content
+        assert "do not" in content and "invoke" in content
+
+    assert "design_adoption_binding" in plan_surfaces
+    assert "specify-runtime design adoption" in plan_surfaces
+    assert "unchanged" in plan_surfaces and "source spec" in plan_surfaces
+    assert "missing" in plan_surfaces and "blocks plan" in plan_surfaces
+
+
 def test_classic_and_advanced_design_workflows_publish_scope_aware_iteration() -> None:
     classic = "\n".join(
         [

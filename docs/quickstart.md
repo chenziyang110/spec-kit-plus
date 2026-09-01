@@ -513,7 +513,12 @@ first testing thing to ensure that our basic features are set up.
 
 ### Step 3: Define the Plan
 
-Once `specify` reaches planning-ready alignment, move directly to `plan`.
+Once `specify` reaches planning-ready alignment, move directly to `plan` for
+non-UI work, an exact already-registered Design binding, or a bounded
+existing-pattern exception. For substantive UI without applicable registered
+Design, follow the recommended `design` workflow first. It preserves the
+planning-ready Spec, produces a `formal-post-specify` adoption receipt, and
+then returns to `plan` without running Specify again.
 
 ```bash
 /sp-plan We are going to generate this using .NET Aspire, using Postgres as the database. The frontend should use Blazor server with drag-and-drop task boards, real-time updates. There should be a REST API created with a projects API, tasks API, and a notifications API.

@@ -104,6 +104,146 @@ func TestTransitionNextActionAcceptsObjectCommandForm(t *testing.T) {
 	}
 }
 
+func TestCanonicalSpecContractAllowsPendingDesignGateRoute(t *testing.T) {
+	dir := t.TempDir()
+	writeFileForTest(t, dir, "spec.md", "# Spec\n\n## Need\nA compact canonical specification.\n")
+	contract := map[string]any{
+		"version":             1,
+		"status":              "planning-ready",
+		"source_contract":     nil,
+		"source_revision":     nil,
+		"decision_digest_ref": nil,
+		"target_need":         "Prepare a large UI change for design review before planning.",
+		"scope": map[string]any{
+			"in": []any{"desktop workbench redesign"}, "out": []any{}, "deferred": []any{},
+		},
+		"constraints":                 []any{"Do not bypass visual review."},
+		"acceptance_criteria":         []any{"Planning waits for an approved design receipt."},
+		"decisions":                   []any{},
+		"semantic_delta":              []any{},
+		"capability_operations":       []any{},
+		"must_preserve_refs":          []any{"MP-001"},
+		"consequence_obligation_refs": []any{},
+		"design_contract": map[string]any{
+			"experience_requirements":    []any{},
+			"design_source_refs":         []any{},
+			"design_system_requirements": []any{},
+			"design_system_status":       "required",
+			"design_risk_level":          "high",
+			"fidelity_refs":              []any{},
+			"required_states":            []any{},
+			"validation_refs":            []any{},
+		},
+		"design_gate": map[string]any{
+			"decision":      "required",
+			"scope":         "desktop:workbench",
+			"reason_codes":  []any{"large-ui-change"},
+			"return_target": "/sp.plan",
+		},
+		"context_capsule": map[string]any{
+			"boundary_ref":          "repo-root",
+			"evidence_refs":         []any{},
+			"selected_capabilities": []any{},
+			"minimal_live_reads":    []any{},
+			"validation_routes":     []any{"specify-runtime validate spec"},
+			"stale_if":              []any{},
+		},
+		"open_items": []any{},
+		"artifact_refs": map[string]any{
+			"spec": "spec.md", "alignment": nil, "context": nil, "references": nil,
+		},
+		"transition": map[string]any{
+			"version": 1, "status": "ready", "source_ref": "spec-contract.json",
+			"semantic_delta": []any{}, "required_refs": []any{}, "blockers": []any{},
+			"next_action": map[string]any{"command": "/sp.design"}, "recovery": nil,
+		},
+	}
+	data, err := json.MarshalIndent(contract, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal canonical contract: %v", err)
+	}
+	writeFileForTest(t, dir, "spec-contract.json", string(data)+"\n")
+
+	results := runLintForTest(t, dir, "standard")
+	for _, name := range []string{
+		"required-artifacts", "workflow-state-readiness", "handoff-json-schema",
+		"planning-gate-ready", "source-signal-disposition", "must-preserve-coverage",
+		"review-state-approved", "quality-gate-summary", "scout-summary",
+		"capability-triage", "execution-mode", "change-propagation",
+	} {
+		requireCheckStatus(t, results, name, statusPass)
+	}
+}
+
+func TestCanonicalSpecContractAcceptsRequiredDesignGateRoute(t *testing.T) {
+	dir := t.TempDir()
+	writeFileForTest(t, dir, "spec.md", "# Spec\n")
+	contract := minimalCanonicalContractForTest()
+	contract["design_gate"] = map[string]any{
+		"decision":      "required",
+		"scope":         "desktop:workbench",
+		"reason_codes":  []any{"new-high-visibility-ui"},
+		"return_target": "/sp.plan",
+	}
+	transition := contract["transition"].(map[string]any)
+	transition["next_action"] = "/sp.design"
+	data, err := json.MarshalIndent(contract, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal canonical contract: %v", err)
+	}
+	writeFileForTest(t, dir, "spec-contract.json", string(data)+"\n")
+
+	results := runLintForTest(t, dir, "standard")
+
+	requireCheckStatus(t, results, "workflow-state-readiness", statusPass)
+	requireCheckStatus(t, results, "handoff-json-schema", statusPass)
+}
+
+func TestCanonicalSpecContractRejectsDesignRouteWithoutGate(t *testing.T) {
+	dir := t.TempDir()
+	writeFileForTest(t, dir, "spec.md", "# Spec\n")
+	contract := minimalCanonicalContractForTest()
+	transition := contract["transition"].(map[string]any)
+	transition["next_action"] = "/sp.design"
+	data, err := json.MarshalIndent(contract, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal canonical contract: %v", err)
+	}
+	writeFileForTest(t, dir, "spec-contract.json", string(data)+"\n")
+
+	results := runLintForTest(t, dir, "standard")
+
+	requireCheckStatus(t, results, "workflow-state-readiness", statusFail)
+}
+
+func TestCanonicalSpecContractRejectsReadyCombinedDesignAndResearchRoute(t *testing.T) {
+	dir := t.TempDir()
+	writeFileForTest(t, dir, "spec.md", "# Spec\n")
+	contract := minimalCanonicalContractForTest()
+	contract["design_gate"] = map[string]any{
+		"decision":      "required",
+		"scope":         "desktop:workbench",
+		"reason_codes":  []any{"new-high-visibility-ui"},
+		"return_target": "/sp.plan",
+	}
+	contract["feasibility_gate"] = map[string]any{
+		"decision":        "required",
+		"capability_refs": []any{"CAP-001"},
+		"reason_refs":     []any{"spec-contract.json#/scope/in/0"},
+	}
+	transition := contract["transition"].(map[string]any)
+	transition["next_action"] = "/sp.design"
+	data, err := json.MarshalIndent(contract, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal canonical contract: %v", err)
+	}
+	writeFileForTest(t, dir, "spec-contract.json", string(data)+"\n")
+
+	results := runLintForTest(t, dir, "standard")
+
+	requireCheckStatus(t, results, "workflow-state-readiness", statusFail)
+}
+
 func TestChangePropagationMessageMentionsMarkdownTable(t *testing.T) {
 	dir := t.TempDir()
 	writeFileForTest(t, dir, "spec.md", "# Spec\n")
@@ -119,6 +259,52 @@ func TestChangePropagationMessageMentionsMarkdownTable(t *testing.T) {
 	}
 	if !strings.Contains(result.message, "markdown data table") || !strings.Contains(result.message, "| Surface |") {
 		t.Fatalf("expected actionable table hint, got %q", result.message)
+	}
+}
+
+func minimalCanonicalContractForTest() map[string]any {
+	return map[string]any{
+		"version":                     1,
+		"status":                      "planning-ready",
+		"source_contract":             nil,
+		"source_revision":             nil,
+		"decision_digest_ref":         nil,
+		"target_need":                 "Produce a compact canonical specification.",
+		"scope":                       map[string]any{"in": []any{"canonical contract"}, "out": []any{}, "deferred": []any{}},
+		"constraints":                 []any{"Do not duplicate handoff truth."},
+		"acceptance_criteria":         []any{"Planner can consume spec-contract.json directly."},
+		"decisions":                   []any{},
+		"semantic_delta":              []any{},
+		"capability_operations":       []any{},
+		"must_preserve_refs":          []any{"MP-001"},
+		"consequence_obligation_refs": []any{},
+		"design_contract": map[string]any{
+			"experience_requirements":    []any{},
+			"design_source_refs":         []any{},
+			"design_system_requirements": []any{},
+			"design_system_status":       "not-applicable",
+			"design_risk_level":          "none",
+			"fidelity_refs":              []any{},
+			"required_states":            []any{},
+			"validation_refs":            []any{},
+		},
+		"context_capsule": map[string]any{
+			"boundary_ref":          "repo-root",
+			"evidence_refs":         []any{},
+			"selected_capabilities": []any{},
+			"minimal_live_reads":    []any{},
+			"validation_routes":     []any{"specify-runtime validate spec"},
+			"stale_if":              []any{},
+		},
+		"open_items": []any{},
+		"artifact_refs": map[string]any{
+			"spec": "spec.md", "alignment": nil, "context": nil, "references": nil,
+		},
+		"transition": map[string]any{
+			"version": 1, "status": "ready", "source_ref": "spec-contract.json",
+			"semantic_delta": []any{}, "required_refs": []any{}, "blockers": []any{},
+			"next_action": "/sp.plan", "recovery": nil,
+		},
 	}
 }
 

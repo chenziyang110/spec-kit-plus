@@ -25,3 +25,10 @@ responsive/data branches, and handoff. Freeze explicit approval with `design
 approve <round-image> --manifest <manifest> --prompt <prompt>
 --image-inspection <available|unavailable> --image-editing
 <available|unavailable>`.
+
+When the image tool saves outside the project, run `specify-runtime design
+import <saved-image-path> --change <UD-ID> --round NN --format json` immediately
+after selecting that result. Continue with the returned change-local path. The
+runtime preserves the exact bytes and source digest, permits byte-identical
+retry, and blocks replacement of the numbered round; never copy, rename, or
+hard-link the file into `previews/` manually.

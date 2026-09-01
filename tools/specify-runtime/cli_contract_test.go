@@ -303,6 +303,7 @@ func TestAPIDesignChangeCapabilitiesPublishMutationContracts(t *testing.T) {
 		"design.change",
 		"design.diff",
 		"design.impact",
+		"design.import",
 		"design.iterate",
 		"design.register",
 		"design.resolve",
@@ -325,6 +326,24 @@ func TestAPIDesignChangeCapabilitiesPublishMutationContracts(t *testing.T) {
 		if len(command) != 3 || strings.TrimSpace(command[0]) == "" || command[1] != parts[0] || command[2] != parts[1] {
 			t.Fatalf("api show %s command = %#v, want a bound executable followed by %#v", capabilityID, command, parts)
 		}
+	}
+}
+
+func TestAPIShowValidateSpecMentionsPendingDesignGateRoute(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := Run([]string{"api", "show", "validate.spec", "--format", "json"}, &stdout, &stderr, "v9.9.9")
+	if code != 0 {
+		t.Fatalf("api show validate.spec exit code = %d, want 0; stderr=%q stdout=%q", code, stderr.String(), stdout.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	inputContract, ok := capability["input_contract"].(string)
+	if !ok {
+		t.Fatalf("validate.spec input_contract = %#v, want string", capability["input_contract"])
+	}
+	if !strings.Contains(inputContract, "/sp.design") || !strings.Contains(inputContract, "design_gate") {
+		t.Fatalf("validate.spec input_contract = %q, want pending design gate route", inputContract)
 	}
 }
 

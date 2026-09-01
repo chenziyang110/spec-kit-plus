@@ -344,6 +344,26 @@ def test_post_specify_design_returns_to_plan_without_repeating_specify() -> None
         assert "source spec" in lowered
 
 
+def test_specify_design_gate_is_an_external_user_invoked_stop_before_plan() -> None:
+    classic = " ".join(
+        _read(PROJECT_ROOT / "templates" / "command-partials" / "specify" / "shell.md")
+        .lower()
+        .split()
+    )
+    advanced = " ".join(
+        _read(PROJECT_ROOT / "templates" / "advanced-skills" / "spx-specify" / "SKILL.md")
+        .lower()
+        .split()
+    )
+
+    for content in (classic, advanced):
+        assert "design_gate" in content
+        assert "/sp.design" in content
+        assert "formal-post-specify" in content
+        assert "return" in content and "plan" in content
+        assert "do not invoke" in content
+
+
 def test_plan_and_review_enforce_existing_ui_style_authority() -> None:
     surfaces = (
         _read(

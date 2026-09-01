@@ -339,7 +339,10 @@ evidence. Use `image-primary` whenever image generation is available and
 - No generation or inspection: use `html-primary`, set `inspection_owner: user`,
   provide the stable deep link, and make no visual-quality claim.
 - Image prompt strategy: `image-generation`; preserve the exact generate/edit
-  prompt through the design CLI for the numbered round.
+  prompt through the design CLI for the numbered round. If generation saves
+  outside the project, use `specify-runtime design import <saved-image-path>
+  --change <UD-ID> --round NN --format json` and record the returned path and
+  SHA-256; never copy into the managed preview directory manually.
 - HTML prompt strategy: `html-authoring`; do not reuse an image-generation
   prompt as DOM/CSS instructions.
 

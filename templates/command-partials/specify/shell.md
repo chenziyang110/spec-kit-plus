@@ -93,6 +93,20 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 - Never use an unregistered root design document as design input. Route new or
   high-visibility design
   decisions with no applicable registered change to `sp-design`.
+- Make that pending Design route machine-readable instead of leaving it as
+  prose. Keep the requirements contract itself `status: planning-ready`; set
+  top-level `design_gate.decision: required`, one exact stable `scope`,
+  non-empty `reason_codes`, and `return_target: /sp.plan`. Set the ready
+  transition to `/sp.design`. The pending `design_contract` owns only confirmed
+  requirement-level UI truth. Leave registered design fields, approval
+  digests, `DS-*`/`DH-*` IDs, and design matrices empty until Design approves
+  and registers them.
+- `sp-design` remains an independent user-invoked workflow, not a hidden
+  Specify substage. Stop after recommending it. Design must bind the unchanged
+  source Spec through `formal-post-specify`; only that current exact-scope
+  receipt permits the workflow to return to Plan. If both Design and an
+  unproven feasibility gate are required, record the unsupported combined route
+  as blocked instead of silently bypassing either gate.
 - When approved design provenance names
   `.specify/design/changes/<UD-ID>/previews/round-NN.<html|png|jpg|jpeg|webp>#<direction-id>`, query the visual round and
   its approval/manifest/handoff sidecars only through targeted
@@ -119,7 +133,11 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 - Do not repeat user review for an unchanged confirmed discussion contract. Ask again only when specification compilation changes scope, behavior, risk acceptance, target boundary, or another user-owned decision.
 - When entered through `sp-auto` with `auto_default_recommendation: true`, automatically accept a single safe recommended approach or section-shape option instead of stopping only for a `1`/`2`/`3` reply; do not use this to confirm scope reduction, dropped upstream signals, out-of-scope conflicts, or unresolved planning-critical ambiguity.
 - Scaffold `spec-contract.json` first with `artifact scaffold --kind spec-contract`, refine it with targeted `artifact patch`, and patch named sections in the prerequisite-script-created `spec.md` skeleton through its registered owner; never write or resubmit those files directly.
-- Ask the user only about a non-empty `semantic_delta` or unresolved user-owned decision before recommending exactly one next command: `/sp.plan`, `/sp.specify`, or `/sp.deep-research`.
+- Ask the user only about a non-empty `semantic_delta` or unresolved user-owned
+  decision before recommending exactly one next command: `/sp.design` for an
+  explicit pending `design_gate`, otherwise `/sp.plan`, `/sp.specify`, or the
+  already-supported research route. Recommend only; do not invoke the next
+  workflow in this run.
 
 ## Output Contract
 

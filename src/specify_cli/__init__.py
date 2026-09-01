@@ -1585,10 +1585,30 @@ def design_import(
     out_dir: Path = typer.Option(
         Path(".specify/design"), "--out-dir", help="Directory for design references"
     ),
+    change: Optional[str] = typer.Option(
+        None,
+        "--change",
+        help="Draft UD-* change that owns an imported image round",
+    ),
+    round_id: Optional[str] = typer.Option(
+        None,
+        "--round",
+        help="Positive numbered image round to create under the change previews directory",
+    ),
 ) -> None:
-    """Store a design reference URL or path in the project."""
+    """Store a design reference or import an external image into a draft round."""
 
-    out_path = import_design_reference(source, out_dir=out_dir, notes=notes)
+    try:
+        out_path = import_design_reference(
+            source,
+            out_dir=out_dir,
+            notes=notes,
+            change_id=change,
+            round_id=round_id,
+        )
+    except DesignLintError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
     print(f"Wrote {_display_path(out_path)}")
 
 

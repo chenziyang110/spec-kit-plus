@@ -956,6 +956,64 @@ def test_validate_state_autofix_repairs_missing_sections(tmp_path: Path):
     assert "## Next Command" in updated
 
 
+def test_validate_state_autofix_uses_spec_transition_for_design_route(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "002-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "spec-contract.json").write_text(
+        "\n".join(
+            [
+                "{",
+                '  "version": 1,',
+                '  "status": "planning-ready",',
+                '  "target_need": "Demo need",',
+                '  "scope": {"in": ["UI change"], "out": [], "deferred": []},',
+                '  "acceptance_criteria": ["UI spec is reviewable"],',
+                '  "acceptance_coverage": [{"requirement_ref": "spec-contract.json#/scope/in/0", "acceptance_ref": "spec-contract.json#/acceptance_criteria/0"}],',
+                '  "design_contract": {"experience_requirements": [], "design_source_refs": [], "design_system_requirements": [], "design_system_status": "not-applicable", "design_risk_level": "none", "fidelity_refs": [], "required_states": [], "validation_refs": []},',
+                '  "context_capsule": {"boundary_ref": null, "evidence_refs": [], "selected_capabilities": [], "minimal_live_reads": [], "validation_routes": [], "stale_if": []},',
+                '  "open_items": [],',
+                '  "artifact_refs": {"spec": "spec.md", "alignment": null, "context": null, "references": null},',
+                '  "transition": {"version": 1, "status": "ready", "source_ref": "spec-contract.json", "semantic_delta": [], "required_refs": [], "blockers": [], "next_action": "/sp.design", "recovery": null}',
+                "}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    target = feature_dir / "workflow-state.md"
+    target.write_text(
+        "\n".join(
+            [
+                "# Workflow State: Demo",
+                "",
+                "## Current Command",
+                "",
+                "- active_command: `sp-specify`",
+                "- status: `active`",
+                "",
+                "## Phase Mode",
+                "",
+                "- phase_mode: `planning-only`",
+                "- summary: demo",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_quality_hook(
+        project,
+        "workflow.state.validate",
+        {"command_name": "specify", "feature_dir": str(feature_dir), "autofix": True},
+    )
+
+    assert result.status == "repaired"
+    updated = target.read_text(encoding="utf-8")
+    assert "- `/sp.design`" in updated
+
+
 def test_validate_state_reports_feature_resolution_diagnostics(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"

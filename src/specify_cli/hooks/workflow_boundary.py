@@ -8,8 +8,10 @@ from .types import HookResult, QualityHookError
 
 
 ALLOWED_WORKFLOW_TRANSITIONS = {
+    ("specify", "design"),
     ("specify", "plan"),
     ("specify", "deep-research"),
+    ("design", "plan"),
     ("deep-research", "plan"),
     ("deep-research", "specify"),
     ("plan", "tasks"),
@@ -32,6 +34,7 @@ ALLOWED_PHASE_TRANSITIONS = {
     ("planning-only", "design-only"),
     ("planning-only", "research-only"),
     ("research-only", "design-only"),
+    ("design-only", "planning-only"),
     ("design-only", "task-generation-only"),
     ("task-generation-only", "execution-only"),
     ("task-generation-only", "analysis-only"),

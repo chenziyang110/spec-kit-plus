@@ -1423,6 +1423,8 @@ func capabilitySummary(id string) string {
 		return "Validate adapter observations for source discovery, target reachability, business outcomes, side effects, final states, and asset fidelity."
 	case "design.change":
 		return "Create a scoped UI design-change workspace and draft index record."
+	case "design.import":
+		return "Import an external image into one immutable draft design round."
 	case "design.iterate":
 		return "Create a digest-pinned successor of one immutable UI design change."
 	case "design.resolve":

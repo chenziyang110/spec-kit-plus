@@ -23,6 +23,12 @@
     "capability_refs": [],
     "reason_refs": []
   },
+  "design_gate": {
+    "decision": "not_required",
+    "scope": null,
+    "reason_codes": [],
+    "return_target": "/sp.plan"
+  },
   "entrypoint_outcome_contract": {
     "triggered": false,
     "trigger_reasons": [],

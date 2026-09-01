@@ -87,13 +87,20 @@ Other integrations use different punctuation. The `Start Here` panel printed by 
 
 ## How it works
 
-The normal pre-planning path is `specify -> plan`. Focused specification repair stays inside `specify`; feasibility research is a conditional branch, not mandatory ceremony.
+The normal pre-planning path is `specify -> plan`. Substantive UI with no
+applicable registered Design uses the conditional external gate
+`specify -> design -> plan`; Design remains user-invoked and Plan is withheld
+until a current `formal-post-specify` receipt verifies the unchanged Spec.
+Focused specification repair stays inside `specify`; feasibility research is a
+separate conditional branch, not mandatory ceremony.
 
 ```mermaid
 flowchart LR
     D["discussion<br/>(optional shaping)"] -.-> S["specify<br/>requirements and acceptance"]
     D -. direct delivery .-> Q["quick<br/>resumable execution at any size"]
     S --> P["plan<br/>technical design"]
+    S -. substantive UI needs approval .-> U["design<br/>independent visual contract"]
+    U --> P
     S -. feasibility unproven .-> R["deep-research"]
     R --> P
     P --> T["tasks<br/>dependency-aware graph"]
@@ -604,7 +611,7 @@ final-claim gate. The advanced profile is command-equivalent and
 prompt-optimized: every Classic command keeps an independent SPX entrypoint,
 state owner, write boundary, resumable stop point, and explicit side-effect
 gate. The normal feature path is
-`spx-specify -> spx-plan -> [spx-test-design] -> spx-tasks -> spx-implement -> spx-review -> spx-accept`; test design is optional on that default formal path, while its independent producer can publish typed Plan, Quick, Tasks, or Review projections without waiting for Plan completion. Focused specification repair stays inside `spx-specify`. Discussion (including an optional confirmed handoff into `spx-quick` or `spx-specify`), research, analysis, checklists, issue export, team execution, PRD reconstruction, and map phases remain separately invocable instead of being hidden inside that path. Integrated system verification belongs to `spx-review`, not a standalone workflow. `spx-fast` is for trivial leader-direct changes with consume-only Learning, Project Cognition, targeted verification, and one lightweight self-review; `spx-quick` is a resumable direct-delivery workflow for clear requests
+`spx-specify -> [spx-design when required] -> spx-plan -> [spx-test-design] -> spx-tasks -> spx-implement -> spx-review -> spx-accept`; Design and test design remain independently user-invoked conditional producers rather than hidden substages. Test design can publish typed Plan, Quick, Tasks, or Review projections without waiting for Plan completion. Focused specification repair stays inside `spx-specify`. Discussion (including an optional confirmed handoff into `spx-quick` or `spx-specify`), research, analysis, checklists, issue export, team execution, PRD reconstruction, and map phases remain separately invocable instead of being hidden inside that path. Integrated system verification belongs to `spx-review`, not a standalone workflow. `spx-fast` is for trivial leader-direct changes with consume-only Learning, Project Cognition, targeted verification, and one lightweight self-review; `spx-quick` is a resumable direct-delivery workflow for clear requests
 that do not need the formal specification path first, including larger work
 when task-local planning, lanes or batches, consequence tracking, and validation
 can preserve acceptance confidence.
@@ -918,7 +925,7 @@ Profile details and selection guidance live in [docs/constitution-profiles.md](d
 Mainline pre-planning flow:
 
 ```text
-specify -> plan
+specify -> [design when substantive UI lacks registered coverage] -> plan
 ```
 
 Feature creation is driven by the `specify` workflow itself. `sp-specify` now
@@ -1332,12 +1339,14 @@ Native hook coverage matrix:
 Formal delivery flow:
 
 ```text
-specify -> [deep-research when feasibility is unproven] -> plan -> [test-design] -> tasks -> implement -> review -> accept
+specify -> [deep-research or design when its single gate is required] -> plan -> [test-design] -> tasks -> implement -> review -> accept
 ```
 
 `specify` also repairs an unclear existing specification. `design` is a separate UI
-contract lane that feeds `specify` or `quick`; it is not an unconditional
-stage in this sequence.
+contract lane that feeds `specify`, `plan` through a verified late overlay, or
+`quick`; it is not an unconditional stage in this sequence. The currently
+unsupported combination where both Design and feasibility research are required
+must block instead of silently bypassing either gate.
 
 `test-design` is an independent producer and planning-only quality lane; it
 does not require a completed Plan. Its leader freezes the scope, uses Project
@@ -1625,7 +1634,7 @@ Maintainer note:
   Partial registration records parent `superseded_scopes` rather than retiring
   unaffected scope.
 - Existing projects can use `--allow-unapproved` as a temporary structural-compatibility export while `sp-design`/`spx-design` records change-specific approval and provenance.
-- `specify-runtime design import SOURCE_REFERENCE --out .specify/design/changes/UD-0001/references.md` records synthesis input for one design change; it does not overwrite the change-local `design-change.md`.
+- `specify-runtime design import SOURCE_REFERENCE --out .specify/design/changes/UD-0001/references.md` records synthesis input for one design change. For an image tool output outside the project, use `specify-runtime design import SAVED_IMAGE --change UD-0001 --round 01 --format json`; the runtime copies identical bytes into the change-local `previews/round-01.<ext>`, records source plus SHA-256, permits byte-identical retry, and rejects replacement or registered changes. Neither mode overwrites `design-change.md`.
 - `specify-runtime design ui-target --out FEATURE_DIR/ui-target.html` scaffolds a
   feature-level composition/state target, and `specify-runtime design ui-target-lint
   PATH --level ready` validates its manifest, review controls, approved design

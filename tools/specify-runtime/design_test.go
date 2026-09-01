@@ -288,6 +288,43 @@ func TestDesignPreviewReadyRequiresTruthfulHTMLCapabilityRoute(t *testing.T) {
 	}
 }
 
+func TestDesignHelpDoesNotExecutePreviewManifestOrWriteFiles(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+
+	for _, args := range [][]string{
+		{"--help"},
+		{"preview-manifest", "--help"},
+		{"approve", "--help"},
+	} {
+		var stdout bytes.Buffer
+		if exit := runDesign(args, &stdout); exit != 0 {
+			t.Fatalf("help args=%v exit=%d output=%s", args, exit, stdout.String())
+		}
+		output := stdout.String()
+		for _, want := range []string{"specify-runtime design commands:", "preview-manifest", "import"} {
+			if !strings.Contains(output, want) {
+				t.Fatalf("help args=%v output=%q missing %q", args, output, want)
+			}
+		}
+		if _, err := os.Stat(filepath.Join(".specify", "design", "previews", "round-01.manifest.json")); !os.IsNotExist(err) {
+			t.Fatalf("help args=%v created a preview manifest: %v", args, err)
+		}
+	}
+
+	var stdout bytes.Buffer
+	explicitRef := filepath.Join(".specify", "design", "changes", "UD-0002", "references.md")
+	if exit := runDesign([]string{"import", "https://example.com/other", "--notes", "help", "--out", explicitRef}, &stdout); exit != 0 {
+		t.Fatalf("notes value should not trigger help: exit=%d output=%s", exit, stdout.String())
+	}
+	if strings.Contains(stdout.String(), "specify-runtime design commands:") {
+		t.Fatalf("notes value should not trigger help output: %s", stdout.String())
+	}
+	if _, err := os.Stat(explicitRef); err != nil {
+		t.Fatalf("notes value should still allow import: %v", err)
+	}
+}
+
 func TestDesignPreviewApproveFreezesDirectionAndBindsSidecar(t *testing.T) {
 	tmp := t.TempDir()
 	withCwd(t, tmp)
@@ -1335,6 +1372,171 @@ func TestDesignImportWritesReferenceWithoutRootDesign(t *testing.T) {
 	}
 	if _, err := os.Stat("DESIGN.md"); !os.IsNotExist(err) {
 		t.Fatalf("import should not create root DESIGN.md")
+	}
+
+	stdout.Reset()
+	explicitRef := filepath.Join(".specify", "design", "changes", "UD-0001", "references.md")
+	exit = runDesign([]string{"import", "https://example.com/other", "--out", explicitRef}, &stdout)
+	if exit != 0 {
+		t.Fatalf("explicit reference import exit=%d output=%s", exit, stdout.String())
+	}
+	if content := readFile(t, explicitRef); !strings.Contains(content, "https://example.com/other") {
+		t.Fatalf("explicit reference content missing source:\n%s", content)
+	}
+}
+
+func TestDesignImportCopiesExternalImageIntoChangePreviewWorkspace(t *testing.T) {
+	projectRoot := t.TempDir()
+	externalRoot := t.TempDir()
+	withCwd(t, projectRoot)
+
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{
+		"change", "UD-0001",
+		"--title", "Windows workbench",
+		"--scope", "desktop:workbench",
+		"--profiles", "desktop",
+	}, &stdout); exit != 0 {
+		t.Fatalf("design change failed: %d %s", exit, stdout.String())
+	}
+
+	pngBytes, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2n1cAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(externalRoot, "generated-candidate.PNG")
+	if err := os.WriteFile(source, pngBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout.Reset()
+	exit := runDesign([]string{
+		"import", source,
+		"--change", "UD-0001",
+		"--round", "01",
+		"--notes", "User-approved first concept.",
+	}, &stdout)
+	if exit != 0 {
+		t.Fatalf("design image import failed: %d %s", exit, stdout.String())
+	}
+
+	wantRef := ".specify/design/changes/UD-0001/previews/round-01.png"
+	target := filepath.FromSlash(wantRef)
+	gotBytes, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(gotBytes, pngBytes) {
+		t.Fatalf("imported image bytes changed")
+	}
+	env := decodeEnvelope(t, stdout.Bytes())
+	if env.Data["path"] != wantRef || env.Data["change_id"] != "UD-0001" || env.Data["round"] != "01" {
+		t.Fatalf("import envelope = %#v", env.Data)
+	}
+	digest := sha256.Sum256(pngBytes)
+	wantDigest := fmt.Sprintf("%x", digest)
+	if env.Data["sha256"] != wantDigest {
+		t.Fatalf("import sha256 = %#v, want %s", env.Data["sha256"], wantDigest)
+	}
+	references := readFile(t, filepath.Join(".specify", "design", "changes", "UD-0001", "references.md"))
+	for _, want := range []string{source, wantRef, wantDigest, "User-approved first concept."} {
+		if !strings.Contains(references, want) {
+			t.Fatalf("change-local references missing %q:\n%s", want, references)
+		}
+	}
+	stdout.Reset()
+	if exit := runDesign([]string{
+		"import", source,
+		"--change", "UD-0001",
+		"--round", "1",
+	}, &stdout); exit != 0 {
+		t.Fatalf("byte-identical import retry failed: %d %s", exit, stdout.String())
+	}
+	if retry := decodeEnvelope(t, stdout.Bytes()); retry.Data["already_imported"] != true {
+		t.Fatalf("retry envelope = %#v", retry.Data)
+	}
+	if referencesAfterRetry := readFile(t, filepath.Join(".specify", "design", "changes", "UD-0001", "references.md")); !strings.Contains(referencesAfterRetry, "User-approved first concept.") {
+		t.Fatalf("byte-identical retry rewrote reference notes:\n%s", referencesAfterRetry)
+	}
+
+	differentImage := append(append([]byte{}, pngBytes...), byte(0))
+	if err := os.WriteFile(source, differentImage, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	exit = runDesign([]string{
+		"import", source,
+		"--change", "UD-0001",
+		"--round", "1",
+	}, &stdout)
+	if exit == 0 {
+		t.Fatalf("different bytes must not replace a reviewed round: %s", stdout.String())
+	}
+	if got := readFile(t, target); !bytes.Equal([]byte(got), pngBytes) {
+		t.Fatal("failed replacement changed the imported image")
+	}
+}
+
+func TestDesignImportImageRequiresExistingDraftChange(t *testing.T) {
+	projectRoot := t.TempDir()
+	externalRoot := t.TempDir()
+	withCwd(t, projectRoot)
+	source := filepath.Join(externalRoot, "candidate.png")
+	pngBytes, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2n1cAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(source, pngBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout bytes.Buffer
+	exit := runDesign([]string{
+		"import", source,
+		"--change", "UD-9999",
+		"--round", "01",
+	}, &stdout)
+	if exit == 0 {
+		t.Fatalf("missing design change must block image import: %s", stdout.String())
+	}
+	if _, err := os.Stat(filepath.Join(".specify", "design", "changes", "UD-9999", "previews", "round-01.png")); !os.IsNotExist(err) {
+		t.Fatalf("blocked import created a preview: %v", err)
+	}
+}
+
+func TestDesignImportRejectsOversizedExternalImage(t *testing.T) {
+	projectRoot := t.TempDir()
+	externalRoot := t.TempDir()
+	withCwd(t, projectRoot)
+	source := filepath.Join(externalRoot, "candidate.png")
+	if err := os.WriteFile(source, []byte("\x89PNG\r\n\x1a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(source, maxDesignImageImportBytes+1); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout bytes.Buffer
+	exit := runDesign([]string{
+		"import", source,
+		"--change", "UD-0001",
+		"--round", "01",
+	}, &stdout)
+	if exit == 0 || !strings.Contains(stdout.String(), "import limit") {
+		t.Fatalf("oversized image must be rejected before import: exit=%d output=%s", exit, stdout.String())
+	}
+}
+
+func TestDesignImportRequiresCompleteImageTargetOptions(t *testing.T) {
+	for _, args := range [][]string{
+		{"import", "candidate.png", "--change"},
+		{"import", "candidate.png", "--round"},
+	} {
+		var stdout bytes.Buffer
+		exit := runDesign(args, &stdout)
+		if exit == 0 || !strings.Contains(stdout.String(), "requires both --change and --round") {
+			t.Fatalf("incomplete image target options must fail: args=%v exit=%d output=%s", args, exit, stdout.String())
+		}
 	}
 }
 

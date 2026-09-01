@@ -75,6 +75,16 @@ JavaScript, component-library implementation instructions, or production code.
 6. Save every reviewed result as a new numbered round. Never overwrite a
    reviewed or approved image.
 
+Image tools may save their output outside the project. Immediately bring the
+selected bytes under the design runtime's ownership with:
+
+`specify-runtime design import <saved-image-path> --change <UD-ID> --round NN --format json`
+
+Use the returned change-local path for inspection, presentation, and approval.
+The import validates the raster signature, records its SHA-256 and provenance,
+allows only a byte-identical retry, and refuses to replace an existing round.
+Do not copy, rename, or hard-link generated pixels into `previews/` by hand.
+
 Generated UI imagery is not executable proof. It cannot demonstrate focus
 order, input mechanics, resize continuity, reduced motion, or failure recovery;
 those remain explicit manifest/handoff contracts and later real-entrypoint
