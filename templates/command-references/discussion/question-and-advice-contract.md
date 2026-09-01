@@ -158,11 +158,15 @@ Every substantive frontstage reply uses the same contract. Include the parts tha
 
 No visible section title is mandatory. Do not make the agent select a reply template before answering. Internal lifecycle state may still record where the discussion is, but frontstage output is governed by this single contract.
 
-End every discussion reply, including short acknowledgements, with the brief
-optional checkpoint-prefix reminder from
+On active discussion turns whose next user message may continue ordinary
+discussion, including short acknowledgements, end with the brief optional
+checkpoint-prefix reminder from
 [frontstage-backstage-persistence.md](frontstage-backstage-persistence.md).
-Place it after the discussion content and any genuine decision question. The
-reminder is not another question, save receipt, confirmation gate, or write trigger.
+Place it after the discussion content and any genuine decision question.
+Suppress the reminder during handoff assessment or consumer-route selection,
+draft handoff review or exact digest confirmation, handoff confirmation or
+mark-ready, and `handoff-ready` closeout or downstream invocation. The reminder
+is not another question, save receipt, confirmation gate, or write trigger.
 
 When a lifecycle state needs specialized content, adapt the same contract:
 

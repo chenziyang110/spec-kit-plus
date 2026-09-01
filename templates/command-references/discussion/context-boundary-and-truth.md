@@ -114,7 +114,7 @@ Save triggers are:
 
 When a save trigger fires, pass one compact semantic event to `specify-runtime discussion checkpoint`; it alone appends `discussion-log.jsonl` and updates companion state.
 
-End every discussion reply with a short optional-prefix reminder, as defined in [frontstage-backstage-persistence.md](frontstage-backstage-persistence.md). Do not expose or maintain a turn counter, wait for confirmation, or save merely because the reminder is shown.
+Show the short optional-prefix reminder only on active discussion turns whose next user message may continue ordinary discussion, as defined in [frontstage-backstage-persistence.md](frontstage-backstage-persistence.md). Suppress the reminder during handoff assessment or consumer-route selection, draft handoff review or exact digest confirmation, handoff confirmation or mark-ready, and `handoff-ready` closeout or downstream invocation. Do not expose or maintain a turn counter, wait for confirmation, or save merely because the reminder is shown.
 
 When the user prepends an explicit `checkpoint` modifier, separate it from the discussion body and save the resolved session's prior pending progress through `specify-runtime discussion checkpoint` first. No `continue` keyword is required. Then process the remaining body normally in the same visible reply, applying its topic and boundary gates independently. The prefix does not widen the saved session's owned scope or authorize handoff; quoted or explanatory mentions are not save requests. Preserve the existing runtime-owned projections and recovery guards.
 

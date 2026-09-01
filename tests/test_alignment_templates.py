@@ -1190,7 +1190,9 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "frontstage-only deferred persistence" in lowered
     assert "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply" in lowered
     assert "semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions" in lowered
-    assert "end every discussion reply" in lowered
+    assert "active discussion turns" in lowered
+    assert "suppress the reminder" in lowered
+    assert "end every discussion reply" not in lowered
     assert "prompt does not write files by itself" in lowered
     assert "project cognition freshness truthful" in lowered
     assert "store reusable lessons through project learning" in lowered

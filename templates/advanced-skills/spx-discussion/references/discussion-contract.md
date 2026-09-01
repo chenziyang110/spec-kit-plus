@@ -12,14 +12,22 @@ user chooses a slug; do not guess and do not select latest. The resolver's
 
 ## Optional checkpoint prefix
 
-End every discussion reply with one short reminder in the user's language,
-including acknowledgements and replies that already saved progress. For Chinese:
-"需要保存进度时，可在下一条回复前加 `checkpoint`。"
+Show one short reminder in the user's language only on active discussion turns
+whose next user message may continue ordinary discussion, including
+acknowledgements and replies that already saved progress while the discussion
+remains active. For Chinese:
+"需要保存讨论进度时，可在下一条回复前加 `checkpoint`。"
 This advertises an optional leading `checkpoint` prefix on the next user message;
 no `continue` keyword or extra confirmation is required. Do not ask whether to
 save, wait for an answer, or maintain a turn counter. The prompt does not write
 files by itself. Ordinary turns remain memory-first; existing semantic,
 evidence, compaction-risk, handoff, and lifecycle save gates still apply.
+
+Suppress the reminder during handoff assessment or consumer-route selection,
+draft handoff review or exact digest confirmation, handoff confirmation or
+mark-ready, and `handoff-ready` closeout or downstream invocation. Those replies
+already request one dedicated handoff action and must not append an unrelated
+discussion-save prompt.
 
 Separate the prefix from the discussion body; it is a user-triggered save
 modifier. After resolving the session,

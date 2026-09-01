@@ -201,7 +201,9 @@ def _assert_managed_block_is_compact_always_on_context(content: str) -> None:
         "semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions"
         in lower
     )
-    assert "end every discussion reply" in lower
+    assert "active discussion turns" in lower
+    assert "suppress the reminder" in lower
+    assert "end every discussion reply" not in lower
     assert "prompt does not write files by itself" in lower
     assert "project cognition freshness truthful" in lower
     assert "store reusable lessons through project learning" in lower

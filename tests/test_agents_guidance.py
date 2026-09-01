@@ -16,7 +16,9 @@ def test_root_agents_documents_current_managed_context_and_schema_v5_rules() -> 
         "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply"
         in lowered
     )
-    assert "end every discussion reply" in lowered
+    assert "active discussion turns" in lowered
+    assert "suppress the reminder" in lowered
+    assert "end every discussion reply" not in lowered
     assert "prompt does not write files by itself" in lowered
     assert ".specify/scripts/bash/create-new-feature.sh" in lowered
     assert ".specify/scripts/powershell/create-new-feature.ps1" in lowered

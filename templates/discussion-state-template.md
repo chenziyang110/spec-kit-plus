@@ -92,7 +92,7 @@
 - ordinary_turn_write_gate: suppress local writes until save trigger; do not update persisted counters for every user reply or plain acknowledgement
 - structured_refresh_policy: semantic-checkpoint-only
 - save_trigger_policy: semantic-checkpoint | user-triggered-checkpoint-or-save | evidence-handoff | compaction-risk | durable-lifecycle-transition
-- checkpoint_value_policy: end every discussion reply with a short optional checkpoint-prefix reminder; the prompt does not write files by itself; do not maintain a hidden turn counter
+- checkpoint_value_policy: show the short optional checkpoint-prefix reminder only on active discussion turns whose next user message may continue ordinary discussion; suppress the reminder during handoff assessment or consumer-route selection, draft handoff review or exact digest confirmation, handoff confirmation or mark-ready, and `handoff-ready` closeout or downstream invocation; the prompt does not write files by itself; do not maintain a hidden turn counter
 - checkpoint_continue_policy: separate an explicit checkpoint prefix from the discussion body; save prior pending progress first, then answer the body normally in the same reply; no continue keyword or extra confirmation is required
 - pending_context_summary: []
 - compaction_preserve_items: []

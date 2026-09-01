@@ -29,8 +29,12 @@ surface one decision cluster at a time, explain meaningful tradeoffs, and
 distinguish confirmed decisions, working assumptions, rejected options, and
 unresolved user choices.
 
-End every discussion reply with the short, localized optional checkpoint-prefix
-reminder in `references/discussion-contract.md`, including acknowledgements.
+Show the short, localized optional checkpoint-prefix reminder from
+`references/discussion-contract.md` only on active discussion turns whose next
+user message may continue ordinary discussion, including acknowledgements.
+Suppress the reminder during handoff assessment or consumer-route selection,
+draft handoff review or exact digest confirmation, handoff confirmation or
+mark-ready, and `handoff-ready` closeout or downstream invocation.
 Process an explicit prefix separately from the remaining discussion body:
 resolve the session, save its prior pending progress, then discuss the body
 normally. The reminder itself is neither a save trigger nor a confirmation gate.

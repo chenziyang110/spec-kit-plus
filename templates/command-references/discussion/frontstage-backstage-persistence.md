@@ -32,13 +32,21 @@ Checkpoint triggers do not refresh all files. Refresh only the targets whose dur
 
 Do not persist only because an unsaved turn count changed. Recovery value and semantic change, not a hidden counter, determine whether a checkpoint is useful.
 
-End every discussion reply with one short reminder in the user's language,
-including brief acknowledgements and replies that already performed a save.
-For Chinese, use: "需要保存进度时，可在下一条回复前加 `checkpoint`。"
+Show one short reminder in the user's language only on active discussion turns
+whose next user message may continue ordinary discussion, including brief
+acknowledgements and replies that already performed a save while the discussion
+remains active.
+For Chinese, use: "需要保存讨论进度时，可在下一条回复前加 `checkpoint`。"
 Do not ask the user to choose whether to save, wait for an answer, show an
 unsaved-turn count, or turn the footer into a separate confirmation stage.
 The prompt does not write files by itself. Its frequency does not change any
 semantic, evidence, compaction, handoff, or lifecycle save trigger.
+
+Suppress the reminder during handoff assessment or consumer-route selection,
+draft handoff review or exact digest confirmation, handoff confirmation or
+mark-ready, and `handoff-ready` closeout or downstream invocation. Those replies
+already request one dedicated handoff action and must not append an unrelated
+discussion-save prompt.
 
 Treat an explicit optional leading `checkpoint` prefix as a save modifier.
 Separate the prefix from the discussion body; no `continue` keyword or extra
