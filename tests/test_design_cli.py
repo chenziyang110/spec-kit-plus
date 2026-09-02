@@ -2568,9 +2568,19 @@ def test_design_preview_lint_cli_concept_accepts_authored_single_concept_with_in
     )
 
     assert concept.exit_code == 0
-    assert "valid at concept level" in concept.output
+    assert "valid at concept level" in " ".join(concept.output.split())
     assert ready.exit_code != 0
     assert "surface_catalog" in ready.output or "scenario_matrix" in ready.output
+
+
+def test_design_preview_lint_help_scopes_concept_to_preview_artifacts() -> None:
+    preview_help = runner.invoke(app, ["design", "preview-lint", "--help"])
+    design_help = runner.invoke(app, ["design", "lint", "--help"])
+
+    assert preview_help.exit_code == 0
+    assert "concept" in preview_help.output
+    assert design_help.exit_code == 0
+    assert "concept" not in design_help.output
 
 
 def test_design_direction_confirm_cli_html_writes_non_consumable_checkpoint_only(
@@ -2682,6 +2692,161 @@ def test_design_direction_confirm_blocks_formal_approve_on_same_round(
     assert confirmed.exit_code == 0
     assert approved.exit_code != 0
     assert "direction checkpoint" in approved.output or "cannot approve" in approved.output
+
+
+def test_design_direction_confirm_requires_round_numbered_preview(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _, _, preview, _, _ = _draft_change_workspace(
+        tmp_path,
+        change_id="UD-0035",
+        preview_filename="round-35.html",
+        preview_content=_configured_preview(),
+    )
+    invalid_preview = preview.with_name("candidate.html")
+    preview.rename(invalid_preview)
+    preview.with_suffix(".manifest.json").rename(
+        invalid_preview.with_suffix(".manifest.json")
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "design",
+            "direction-confirm",
+            str(invalid_preview),
+            "--direction",
+            "direction-main",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "round-NN" in result.output
+
+
+def test_design_direction_confirm_image_reports_malformed_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    image, manifest, prompt, _, _ = _write_candidate_image_bundle(
+        tmp_path,
+        change_id="UD-0036",
+        round_number="36",
+    )
+    manifest.write_text("{", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "design",
+            "direction-confirm",
+            str(image),
+            "--direction",
+            "direction-main",
+            "--manifest",
+            str(manifest),
+            "--prompt",
+            str(prompt),
+            "--image-inspection",
+            "available",
+            "--image-editing",
+            "unavailable",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "cannot read design image manifest" in result.output
+
+
+def test_design_direction_confirm_rejects_contract_profile_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    design_path, _, preview, _, _ = _draft_change_workspace(
+        tmp_path,
+        change_id="UD-0037",
+        preview_filename="round-37.html",
+        preview_content=_configured_preview(),
+    )
+    design_text = design_path.read_text(encoding="utf-8")
+    assert 'capability_profiles: ["web"]' in design_text
+    design_path.write_text(
+        design_text.replace(
+            'capability_profiles: ["web"]',
+            'capability_profiles: ["mobile"]',
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["design", "direction-confirm", str(preview), "--direction", "direction-main"],
+    )
+
+    assert result.exit_code != 0
+    assert "capability profiles" in result.output
+
+
+def test_design_direction_confirm_rejects_existing_formal_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _, _, preview, _, _ = _draft_change_workspace(
+        tmp_path,
+        change_id="UD-0038",
+        preview_filename="round-38.html",
+        preview_content=_configured_preview(),
+    )
+    preview.with_suffix(".approval.json").write_text("{}\n", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["design", "direction-confirm", str(preview), "--direction", "direction-main"],
+    )
+
+    assert result.exit_code != 0
+    assert "formal approval or handoff" in result.output
+
+
+def test_design_direction_confirm_holds_design_index_transaction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _, _, preview, _, _ = _draft_change_workspace(
+        tmp_path,
+        change_id="UD-0039",
+        preview_filename="round-39.html",
+        preview_content=_configured_preview(),
+    )
+    events: list[tuple[str, Path]] = []
+
+    class RecordingLock:
+        def __init__(self, path: Path) -> None:
+            self.path = path
+
+        def __enter__(self) -> None:
+            events.append(("enter", self.path))
+
+        def __exit__(self, *_args: object) -> None:
+            events.append(("exit", self.path))
+
+    monkeypatch.setattr(
+        design_module,
+        "interprocess_lock",
+        lambda path: RecordingLock(path),
+    )
+
+    result = runner.invoke(
+        app,
+        ["design", "direction-confirm", str(preview), "--direction", "direction-main"],
+    )
+
+    assert result.exit_code == 0
+    assert events == [
+        ("enter", tmp_path / ".specify" / "design" / ".index.lock"),
+        ("exit", tmp_path / ".specify" / "design" / ".index.lock"),
+    ]
 
 
 def test_design_lint_cli_json_reports_diagnostics_for_invalid_schema(

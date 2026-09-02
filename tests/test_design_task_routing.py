@@ -147,6 +147,17 @@ def test_workflow_registry_models_change_scoped_design_artifacts_without_design_
     assert ".specify/design/changes/*/brief.md" in workspace["path_patterns"]
     assert ".specify/design/changes/*/review.md" in workspace["path_patterns"]
     assert "legacy_project_design_contract" not in entries
+    checkpoint = entries["ui_design_direction_checkpoint"]
+    assert checkpoint["path_patterns"] == [
+        ".specify/design/changes/*/previews/round-*.direction.json"
+    ]
+    assert checkpoint["owner_cli"] == [
+        "specify-runtime design direction-confirm",
+        "specify-runtime artifact show",
+        "specify-runtime artifact list",
+    ]
+    assert "round-NN.direction.json" not in change["path_hints"]
+    assert "specify-runtime artifact patch" not in checkpoint["owner_cli"]
     index_patterns = entries["ui_design_change_index"]["safe_instruction_patterns"]
     for command in (
         "specify-runtime design iterate",

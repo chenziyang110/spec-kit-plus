@@ -1152,6 +1152,7 @@ func defaultCapabilities() []string {
 		"design.adopt",
 		"design.adoption",
 		"design.change",
+		"design.direction-confirm",
 		"design.diff",
 		"design.impact",
 		"design.export",
@@ -1423,6 +1424,8 @@ func capabilitySummary(id string) string {
 		return "Validate adapter observations for source discovery, target reachability, business outcomes, side effects, final states, and asset fidelity."
 	case "design.change":
 		return "Create a scoped UI design-change workspace and draft index record."
+	case "design.direction-confirm":
+		return "Record an explicit non-consumable direction checkpoint for one exact draft concept round."
 	case "design.import":
 		return "Import an external image into one immutable draft design round."
 	case "design.iterate":

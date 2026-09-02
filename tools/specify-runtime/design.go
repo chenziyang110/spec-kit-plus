@@ -23,21 +23,22 @@ import (
 )
 
 const (
-	designPreviewSchema                  = "spec-kit-design-preview-v1"
-	designPreviewManifestSchema          = "spec-kit-design-preview-manifest-v1"
-	designPreviewApprovalSchema          = "spec-kit-design-preview-approval-v1"
-	designImageApprovalSchema            = "spec-kit-design-image-approval-v1"
-	designHandoffSchema                  = "spec-kit-design-handoff-v1"
-	designChangeSchema                   = "spec-kit-ui-design-change-v1"
-	designChangeIndexSchema              = "spec-kit-ui-design-index-v1"
-	uiProfessionalSkillCatalog           = "spec-kit-ui-professional-v1"
-	designCapabilityProfilesSchema       = "spec-kit-design-capability-profiles-v1"
-	designCapabilityModelSchema          = "spec-kit-design-capability-model-v1"
-	designPreviewManifestID              = "design-preview-manifest"
-	uiTargetSchema                       = "spec-kit-ui-target-v1"
-	uiTargetManifestSchema               = "spec-kit-ui-target-manifest-v1"
-	uiTargetManifestID                   = "ui-target-manifest"
-	maxDesignImageImportBytes      int64 = 32 << 20
+	designPreviewSchema                   = "spec-kit-design-preview-v1"
+	designPreviewManifestSchema           = "spec-kit-design-preview-manifest-v1"
+	designPreviewApprovalSchema           = "spec-kit-design-preview-approval-v1"
+	designImageApprovalSchema             = "spec-kit-design-image-approval-v1"
+	designDirectionCheckpointSchema       = "spec-kit-design-direction-checkpoint-v1"
+	designHandoffSchema                   = "spec-kit-design-handoff-v1"
+	designChangeSchema                    = "spec-kit-ui-design-change-v1"
+	designChangeIndexSchema               = "spec-kit-ui-design-index-v1"
+	uiProfessionalSkillCatalog            = "spec-kit-ui-professional-v1"
+	designCapabilityProfilesSchema        = "spec-kit-design-capability-profiles-v1"
+	designCapabilityModelSchema           = "spec-kit-design-capability-model-v1"
+	designPreviewManifestID               = "design-preview-manifest"
+	uiTargetSchema                        = "spec-kit-ui-target-v1"
+	uiTargetManifestSchema                = "spec-kit-ui-target-manifest-v1"
+	uiTargetManifestID                    = "ui-target-manifest"
+	maxDesignImageImportBytes       int64 = 32 << 20
 )
 
 var designImageSuffixes = map[string]bool{
@@ -76,6 +77,7 @@ var (
 	designChangeIDRE        = regexp.MustCompile(`^UD-[0-9]{4,}$`)
 	designChangeScopeRE     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]*$`)
 	designRoundRE           = regexp.MustCompile(`^[0-9]{1,4}$`)
+	designPreviewRoundRE    = regexp.MustCompile(`^round-([0-9]{1,4})\.(html|png|jpg|jpeg|webp)$`)
 )
 
 type designDiagnostic struct {
@@ -90,6 +92,24 @@ type designDocument struct {
 	FrontMatter  map[string]any
 	DesignSystem map[string]any
 	Body         string
+}
+
+type designDraftPreviewBinding struct {
+	Root             string
+	ChangeID         string
+	DesignPath       string
+	DesignRef        string
+	DesignBytes      []byte
+	Scopes           []string
+	ProfileIDs       []string
+	PreviewPath      string
+	PreviewRef       string
+	PreviewBytes     []byte
+	ReviewRound      string
+	DirectionPath    string
+	ApprovalPath     string
+	HandoffPath      string
+	AdjacentBasePath string
 }
 
 type htmlParseSummary struct {
@@ -138,6 +158,8 @@ func runDesign(args []string, stdout io.Writer) int {
 		return runDesignPreviewManifest(args[1:], stdout)
 	case "preview-lint":
 		return runDesignPreviewLint(args[1:], stdout)
+	case "direction-confirm":
+		return runDesignDirectionConfirm(args[1:], stdout)
 	case "profiles":
 		return runDesignProfiles(stdout)
 	case "ui-target":
@@ -187,6 +209,7 @@ func writeDesignHelp(stdout io.Writer) int {
 		"preview",
 		"preview-manifest",
 		"preview-lint",
+		"direction-confirm",
 		"profiles",
 		"ui-target",
 		"ui-target-lint",
@@ -338,7 +361,7 @@ func runDesignPreviewLint(args []string, stdout io.Writer) int {
 		return writeDesignError(stdout, "usage-error", "design preview-lint requires a path")
 	}
 	level := strings.ToLower(optionValue(args, "--level", "structural"))
-	if !supportedDesignLintLevel(level) {
+	if !supportedDesignPreviewLintLevel(level) {
 		return writeDesignError(stdout, "usage-error", "unsupported design preview lint level: "+level)
 	}
 	target, env, ok := designContainedPath(args[0], false)
@@ -352,6 +375,64 @@ func runDesignPreviewLint(args []string, stdout io.Writer) int {
 		diagnostics = lintDesignImageBundle(target, level)
 	}
 	return writeDesignDiagnostics(stdout, diagnostics, fmt.Sprintf("%s is valid at %s level", filepath.ToSlash(args[0]), level))
+}
+
+func runDesignDirectionConfirm(args []string, stdout io.Writer) int {
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
+		return writeDesignError(stdout, "usage-error", "design direction-confirm requires a preview path")
+	}
+	direction := strings.TrimSpace(optionValue(args, "--direction", ""))
+	if direction == "" {
+		return writeDesignError(stdout, "usage-error", "design direction-confirm requires --direction")
+	}
+	target, env, ok := designContainedPath(args[0], false)
+	if !ok {
+		return writeEnvelope(stdout, env)
+	}
+
+	var payload map[string]any
+	var directionPath string
+	var err error
+	if strings.EqualFold(filepath.Ext(target), ".html") {
+		for _, option := range []string{"--manifest", "--prompt", "--image-inspection", "--image-editing"} {
+			if strings.TrimSpace(optionValue(args, option, "")) != "" {
+				return writeDesignError(stdout, "usage-error", "HTML direction-confirm does not accept image manifest, prompt, or capability flags")
+			}
+		}
+		payload, directionPath, err = confirmDesignHTMLDirection(target, direction)
+	} else {
+		manifestArg := strings.TrimSpace(optionValue(args, "--manifest", ""))
+		promptArg := strings.TrimSpace(optionValue(args, "--prompt", ""))
+		inspection := strings.TrimSpace(optionValue(args, "--image-inspection", ""))
+		editing := strings.TrimSpace(optionValue(args, "--image-editing", ""))
+		if manifestArg == "" || promptArg == "" {
+			return writeDesignError(stdout, "usage-error", "image direction-confirm requires --manifest and --prompt")
+		}
+		if inspection == "" || editing == "" {
+			return writeDesignError(stdout, "usage-error", "image direction-confirm requires --image-inspection and --image-editing")
+		}
+		manifestPath, manifestEnv, manifestOK := designContainedPath(manifestArg, false)
+		if !manifestOK {
+			return writeEnvelope(stdout, manifestEnv)
+		}
+		promptPath, promptEnv, promptOK := designContainedPath(promptArg, false)
+		if !promptOK {
+			return writeEnvelope(stdout, promptEnv)
+		}
+		payload, directionPath, err = confirmDesignImageDirection(target, manifestPath, promptPath, direction, inspection, editing)
+	}
+	if err != nil {
+		env := NewEnvelope("blocked", "design direction checkpoint blocked")
+		env.Blockers = append(env.Blockers, err.Error())
+		env.Data["ok"] = false
+		env.Data["error"] = err.Error()
+		return writeEnvelope(stdout, env)
+	}
+	env = NewEnvelope("ok", "design direction checkpoint confirmed")
+	env.Data["ok"] = true
+	env.Data["direction"] = payload
+	env.Data["direction_path"] = directionPath
+	return writeEnvelope(stdout, env)
 }
 
 func runDesignUITarget(args []string, stdout io.Writer) int {
@@ -1065,7 +1146,352 @@ func exportDesignSystem(path, format string, requireReady bool) (string, error) 
 	return marshalPretty(payload)
 }
 
+func loadDesignDraftPreviewBinding(path string) (designDraftPreviewBinding, error) {
+	root, err := os.Getwd()
+	if err != nil {
+		return designDraftPreviewBinding{}, err
+	}
+	root, err = filepath.Abs(root)
+	if err != nil {
+		return designDraftPreviewBinding{}, err
+	}
+	path, err = filepath.Abs(path)
+	if err != nil {
+		return designDraftPreviewBinding{}, err
+	}
+	relative, err := filepath.Rel(root, path)
+	if err != nil {
+		return designDraftPreviewBinding{}, err
+	}
+	relative = filepath.ToSlash(relative)
+	parts := strings.Split(relative, "/")
+	if len(parts) != 6 || parts[0] != ".specify" || parts[1] != "design" || parts[2] != "changes" || parts[4] != "previews" {
+		return designDraftPreviewBinding{}, fmt.Errorf("design direction-confirm requires .specify/design/changes/<UD-ID>/previews/round-* inside one draft change")
+	}
+	changeID := parts[3]
+	if !designChangeIDRE.MatchString(changeID) {
+		return designDraftPreviewBinding{}, fmt.Errorf("design direction-confirm preview path must contain a canonical UD-* change ID")
+	}
+	roundMatch := designPreviewRoundRE.FindStringSubmatch(parts[5])
+	if roundMatch == nil {
+		return designDraftPreviewBinding{}, fmt.Errorf("design direction-confirm preview filename must use round-<positive-integer>.<html|png|jpg|jpeg|webp>")
+	}
+	roundNumber, err := strconv.Atoi(roundMatch[1])
+	if err != nil || roundNumber < 1 {
+		return designDraftPreviewBinding{}, fmt.Errorf("design direction-confirm preview round must be greater than zero")
+	}
+
+	_, _, records, err := loadDesignChangeIndex(root)
+	if err != nil {
+		return designDraftPreviewBinding{}, err
+	}
+	record := records[changeID]
+	if record == nil {
+		return designDraftPreviewBinding{}, fmt.Errorf("design change %s does not exist", changeID)
+	}
+	if strings.TrimSpace(fmt.Sprint(record["status"])) != "draft" || designRecordIsRegistered(record) || nonEmpty(record["approval_sha256"]) {
+		return designDraftPreviewBinding{}, fmt.Errorf("design change %s is immutable; direction-confirm requires its draft workspace", changeID)
+	}
+	designRef := filepath.ToSlash(filepath.Join(".specify", "design", "changes", changeID, "design-change.md"))
+	if filepath.ToSlash(strings.TrimSpace(fmt.Sprint(record["design_ref"]))) != designRef {
+		return designDraftPreviewBinding{}, fmt.Errorf("design change %s index path is not canonical", changeID)
+	}
+	designPath, err := resolveProjectContainedPath(root, designRef)
+	if err != nil {
+		return designDraftPreviewBinding{}, fmt.Errorf("design change workspace is invalid: %w", err)
+	}
+	designBytes, err := os.ReadFile(designPath)
+	if err != nil {
+		return designDraftPreviewBinding{}, fmt.Errorf("cannot read draft design change %s: %w", changeID, err)
+	}
+	doc, err := parseDesignMarkdown(string(designBytes), designPath)
+	if err != nil {
+		return designDraftPreviewBinding{}, err
+	}
+	if doc.DesignSystem["schema"] != designChangeSchema || strings.TrimSpace(fmt.Sprint(doc.DesignSystem["id"])) != changeID {
+		return designDraftPreviewBinding{}, fmt.Errorf("draft design change identity does not match its canonical workspace")
+	}
+	scope, ok := doc.DesignSystem["scope"].(map[string]any)
+	if !ok {
+		return designDraftPreviewBinding{}, fmt.Errorf("draft design change scope is invalid")
+	}
+	scopes := stringList(record["scope"])
+	if len(scopes) == 0 || !reflect.DeepEqual(scopes, stringList(scope["surfaces"])) {
+		return designDraftPreviewBinding{}, fmt.Errorf("draft design change scope does not match index.json")
+	}
+	profileIDs := stringList(doc.DesignSystem["capability_profiles"])
+	if len(profileIDs) == 0 {
+		return designDraftPreviewBinding{}, fmt.Errorf("draft design change must select at least one capability profile")
+	}
+	previewBytes, err := os.ReadFile(path)
+	if err != nil {
+		return designDraftPreviewBinding{}, fmt.Errorf("cannot read design preview: %w", err)
+	}
+	base := strings.TrimSuffix(path, filepath.Ext(path))
+	return designDraftPreviewBinding{
+		Root:             root,
+		ChangeID:         changeID,
+		DesignPath:       designPath,
+		DesignRef:        designRef,
+		DesignBytes:      designBytes,
+		Scopes:           scopes,
+		ProfileIDs:       profileIDs,
+		PreviewPath:      path,
+		PreviewRef:       relative,
+		PreviewBytes:     previewBytes,
+		ReviewRound:      strconv.Itoa(roundNumber),
+		DirectionPath:    base + ".direction.json",
+		ApprovalPath:     base + ".approval.json",
+		HandoffPath:      base + ".handoff.json",
+		AdjacentBasePath: base,
+	}, nil
+}
+
+func designProjectRelativeRef(root, path string) (string, error) {
+	relative, err := filepath.Rel(root, path)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+		return "", fmt.Errorf("design artifact must stay inside the project: %s", path)
+	}
+	return filepath.ToSlash(relative), nil
+}
+
+func validateDesignDirectionManifestBinding(binding designDraftPreviewBinding, manifest map[string]any, directionID string) ([]string, error) {
+	directions, ok := manifest["directions"].([]any)
+	if !ok || len(directions) != 1 {
+		return nil, fmt.Errorf("direction checkpoint requires exactly one current concept")
+	}
+	direction, ok := directions[0].(map[string]any)
+	if !ok || strings.TrimSpace(fmt.Sprint(direction["id"])) != directionID {
+		return nil, fmt.Errorf("unknown design direction %s", directionID)
+	}
+	review, ok := manifest["review"].(map[string]any)
+	if !ok || strings.ToLower(strings.TrimSpace(fmt.Sprint(review["status"]))) != "candidate" || nonEmpty(review["approved_direction"]) {
+		return nil, fmt.Errorf("direction checkpoint requires a candidate manifest without formal approval")
+	}
+	reviewRound := strings.TrimSpace(fmt.Sprint(review["round"]))
+	if reviewRound != binding.ReviewRound {
+		return nil, fmt.Errorf("direction checkpoint round %s does not match manifest review round %s", binding.ReviewRound, reviewRound)
+	}
+	profileIDs := manifestCapabilityProfileIDs(manifest)
+	if !reflect.DeepEqual(profileIDs, binding.ProfileIDs) {
+		return nil, fmt.Errorf("direction checkpoint capability profiles do not match the draft design change")
+	}
+	return profileIDs, nil
+}
+
+func ensureDesignDirectionRoundHasNoFormalArtifacts(binding designDraftPreviewBinding) error {
+	for _, path := range []string{binding.ApprovalPath, binding.HandoffPath} {
+		if _, err := os.Lstat(path); err == nil {
+			return fmt.Errorf("cannot direction-confirm a round that already has formal approval or handoff artifacts")
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("cannot inspect formal design artifact %s: %w", path, err)
+		}
+	}
+	return nil
+}
+
+func designDirectionCheckpointBase(binding designDraftPreviewBinding, directionID, visualMedium, manifestRef string, manifestBytes []byte, profileIDs []string) map[string]any {
+	return map[string]any{
+		"schema":                 designDirectionCheckpointSchema,
+		"status":                 "confirmed",
+		"authority":              "non-consumable",
+		"approved":               false,
+		"registered":             false,
+		"consumer_eligible":      false,
+		"confirmed_by":           "explicit-user-direction-confirmation",
+		"design_change_id":       binding.ChangeID,
+		"design_change_ref":      binding.DesignRef,
+		"design_change_sha256":   sha256Bytes(binding.DesignBytes),
+		"scope":                  binding.Scopes,
+		"capability_profile_ids": profileIDs,
+		"visual_medium":          visualMedium,
+		"preview_file":           filepath.Base(binding.PreviewPath),
+		"preview_ref":            binding.PreviewRef + "#" + directionID,
+		"preview_sha256":         sha256Bytes(binding.PreviewBytes),
+		"direction_id":           directionID,
+		"review_round":           binding.ReviewRound,
+		"manifest_ref":           manifestRef,
+		"manifest_sha256":        sha256Bytes(manifestBytes),
+	}
+}
+
+func writeDesignDirectionCheckpoint(path string, payload map[string]any) error {
+	rendered, err := marshalPretty(payload)
+	if err != nil {
+		return fmt.Errorf("cannot render design direction checkpoint: %w", err)
+	}
+	existing, err := os.ReadFile(path)
+	switch {
+	case err == nil:
+		if bytes.Equal(existing, []byte(rendered)) {
+			return nil
+		}
+		return fmt.Errorf("design direction checkpoint is immutable and already binds different bytes")
+	case os.IsNotExist(err):
+		return writeTextAtomic(path, rendered)
+	default:
+		return fmt.Errorf("cannot inspect design direction checkpoint: %w", err)
+	}
+}
+
+func confirmDesignHTMLDirection(path, directionID string) (map[string]any, string, error) {
+	root, err := os.Getwd()
+	if err != nil {
+		return nil, "", err
+	}
+	release, err := acquireDesignIndexLock(root)
+	if err != nil {
+		return nil, "", err
+	}
+	defer release()
+	binding, err := loadDesignDraftPreviewBinding(path)
+	if err != nil {
+		return nil, "", err
+	}
+	if err := ensureDesignDirectionRoundHasNoFormalArtifacts(binding); err != nil {
+		return nil, "", err
+	}
+	if diagnostics := lintDesignPreviewFile(path, "concept"); len(diagnostics) > 0 {
+		return nil, "", fmt.Errorf("design preview is not ready for direction confirmation: %s", joinDiagnostics(diagnostics))
+	}
+	parsed := parseHTMLSummary(string(binding.PreviewBytes))
+	manifest, err := parseJSONObject(parsed.PreviewManifestText)
+	if err != nil {
+		return nil, "", err
+	}
+	manifestPath := binding.AdjacentBasePath + ".manifest.json"
+	manifestBytes, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return nil, "", fmt.Errorf("HTML direction-confirm requires the adjacent manifest: %w", err)
+	}
+	adjacentManifest := map[string]any{}
+	if err := json.Unmarshal(manifestBytes, &adjacentManifest); err != nil {
+		return nil, "", fmt.Errorf("cannot read adjacent design preview manifest: %w", err)
+	}
+	if canonicalJSONSHA256(adjacentManifest) != canonicalJSONSHA256(manifest) {
+		return nil, "", fmt.Errorf("adjacent design preview manifest does not match the embedded concept manifest")
+	}
+	profileIDs, err := validateDesignDirectionManifestBinding(binding, manifest, directionID)
+	if err != nil {
+		return nil, "", err
+	}
+	manifestRef, err := designProjectRelativeRef(binding.Root, manifestPath)
+	if err != nil {
+		return nil, "", err
+	}
+	payload := designDirectionCheckpointBase(binding, directionID, "html", manifestRef, manifestBytes, profileIDs)
+	if err := writeDesignDirectionCheckpoint(binding.DirectionPath, payload); err != nil {
+		return nil, "", err
+	}
+	return payload, binding.DirectionPath, nil
+}
+
+func confirmDesignImageDirection(path, manifestPath, promptPath, directionID, imageInspection, imageEditing string) (map[string]any, string, error) {
+	root, err := os.Getwd()
+	if err != nil {
+		return nil, "", err
+	}
+	release, err := acquireDesignIndexLock(root)
+	if err != nil {
+		return nil, "", err
+	}
+	defer release()
+	binding, err := loadDesignDraftPreviewBinding(path)
+	if err != nil {
+		return nil, "", err
+	}
+	if err := ensureDesignDirectionRoundHasNoFormalArtifacts(binding); err != nil {
+		return nil, "", err
+	}
+	if diagnostics := lintDesignImageBundle(path, "concept"); len(diagnostics) > 0 {
+		return nil, "", fmt.Errorf("design image is not ready for direction confirmation: %s", joinDiagnostics(diagnostics))
+	}
+	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	manifestPath, err = adjacentDesignImageBundlePath(path, manifestPath, base+".manifest.json", "manifest")
+	if err != nil {
+		return nil, "", err
+	}
+	promptPath, err = adjacentDesignImageBundlePath(path, promptPath, base+".prompt.md", "prompt")
+	if err != nil {
+		return nil, "", err
+	}
+	manifestBytes, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return nil, "", fmt.Errorf("cannot read design image manifest: %w", err)
+	}
+	manifest := map[string]any{}
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		return nil, "", fmt.Errorf("cannot read design image manifest: %w", err)
+	}
+	promptBytes, err := os.ReadFile(promptPath)
+	if err != nil || !utf8.Valid(promptBytes) {
+		if err == nil {
+			err = fmt.Errorf("prompt is not valid UTF-8")
+		}
+		return nil, "", fmt.Errorf("cannot read image generation prompt: %w", err)
+	}
+	imageInspection = strings.ToLower(strings.TrimSpace(imageInspection))
+	imageEditing = strings.ToLower(strings.TrimSpace(imageEditing))
+	for label, value := range map[string]string{"image inspection": imageInspection, "image editing": imageEditing} {
+		if value != "available" && value != "unavailable" {
+			return nil, "", fmt.Errorf("%s must be available or unavailable", label)
+		}
+	}
+	inspectionOwner := "user"
+	if imageInspection == "available" {
+		inspectionOwner = "agent-and-user"
+	}
+	expectedCollaboration := map[string]any{
+		"primary_medium":   "image-primary",
+		"image_generation": "available",
+		"image_inspection": imageInspection,
+		"image_editing":    imageEditing,
+		"inspection_owner": inspectionOwner,
+		"prompt_strategy":  "image-generation",
+	}
+	if !reflect.DeepEqual(manifest["visual_collaboration"], expectedCollaboration) {
+		return nil, "", fmt.Errorf("image direction-confirm capability flags must exactly match the adjacent manifest")
+	}
+	profileIDs, err := validateDesignDirectionManifestBinding(binding, manifest, directionID)
+	if err != nil {
+		return nil, "", err
+	}
+	manifestRef, err := designProjectRelativeRef(binding.Root, manifestPath)
+	if err != nil {
+		return nil, "", err
+	}
+	promptRef, err := designProjectRelativeRef(binding.Root, promptPath)
+	if err != nil {
+		return nil, "", err
+	}
+	payload := designDirectionCheckpointBase(binding, directionID, "image", manifestRef, manifestBytes, profileIDs)
+	payload["prompt_ref"] = promptRef
+	payload["prompt_sha256"] = sha256Bytes(promptBytes)
+	payload["image_generation"] = "available"
+	payload["image_inspection"] = imageInspection
+	payload["image_editing"] = imageEditing
+	payload["inspection_owner"] = inspectionOwner
+	payload["prompt_strategy"] = "image-generation"
+	if err := writeDesignDirectionCheckpoint(binding.DirectionPath, payload); err != nil {
+		return nil, "", err
+	}
+	return payload, binding.DirectionPath, nil
+}
+
+func rejectDesignApprovalWhenDirectionConfirmed(path string) error {
+	directionPath := strings.TrimSuffix(path, filepath.Ext(path)) + ".direction.json"
+	if _, err := os.Lstat(directionPath); err == nil {
+		return fmt.Errorf("cannot approve this round because its direction checkpoint is non-consumable; complete the formal contract in a new round")
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("cannot inspect design direction checkpoint: %w", err)
+	}
+	return nil
+}
+
 func approveDesignPreview(path, directionID string) (map[string]any, error) {
+	if err := rejectDesignApprovalWhenDirectionConfirmed(path); err != nil {
+		return nil, err
+	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("design preview does not exist: %s", path)
@@ -1231,6 +1657,9 @@ func adjacentDesignImageBundlePath(imagePath, candidate, expectedName, label str
 }
 
 func approveDesignImage(path, manifestPath, promptPath, directionID, imageInspection, imageEditing string) (map[string]any, error) {
+	if err := rejectDesignApprovalWhenDirectionConfirmed(path); err != nil {
+		return nil, err
+	}
 	imageBytes, imageDiagnostics := designImageArtifactDiagnostics(path)
 	if len(imageDiagnostics) > 0 {
 		return nil, errors.New(joinDiagnostics(imageDiagnostics))
@@ -1418,6 +1847,9 @@ func lintDesignImageBundle(path, level string) []designDiagnostic {
 	if len(diagnostics) > 0 || strings.EqualFold(level, "structural") {
 		return diagnostics
 	}
+	if strings.EqualFold(level, "concept") {
+		return append(diagnostics, lintDesignImageConceptBundle(path)...)
+	}
 	basePath := strings.TrimSuffix(path, filepath.Ext(path))
 	approvalPath := basePath + ".approval.json"
 	approvalRaw, err := os.ReadFile(approvalPath)
@@ -1598,6 +2030,8 @@ func lintDesignPreviewFile(path, level string) []designDiagnostic {
 	manifest, err := parseJSONObject(parsed.PreviewManifestText)
 	if err != nil {
 		addDesignDiagnostic(&diagnostics, "preview-invalid-manifest", err.Error(), "script#"+designPreviewManifestID)
+	} else if level == "concept" {
+		diagnostics = append(diagnostics, previewConceptManifestDiagnostics(manifest, parsed.DirectionIDs, "html-primary")...)
 	} else {
 		diagnostics = append(diagnostics, previewManifestDiagnostics(manifest, parsed.DirectionIDs, level == "ready", "html-primary")...)
 	}
@@ -1641,6 +2075,22 @@ func lintDesignPreviewFile(path, level string) []designDiagnostic {
 				addDesignDiagnostic(&diagnostics, "preview-manifest-approval-mismatch", "approved preview manifest must record the same approved direction", "manifest.review")
 			}
 			diagnostics = append(diagnostics, validatePreviewApprovalSidecar(path, content, approved, manifest)...)
+		}
+	}
+	if level == "concept" {
+		if strings.ToLower(strings.TrimSpace(parsed.PreviewAttrs["data-prototype-status"])) != "authored" || previewSeedRE.MatchString(content) {
+			addDesignDiagnostic(&diagnostics, "preview-unfinished-prototype", "concept preview must replace the prototype seed and set data-prototype-status=authored after visual inspection", "data-prototype-status")
+		}
+		if strings.ToLower(strings.TrimSpace(parsed.PreviewAttrs["data-preview-status"])) != "candidate" {
+			addDesignDiagnostic(&diagnostics, "preview-not-candidate", "concept preview status must be candidate", "data-preview-status")
+		}
+		if previewPlaceholderRE.MatchString(content) {
+			addDesignDiagnostic(&diagnostics, "preview-unresolved-placeholder", "concept preview must not contain unresolved __PLACEHOLDER__ values", "html")
+		}
+		if round, ok := designPreviewRoundFromPath(path); !ok {
+			addDesignDiagnostic(&diagnostics, "preview-invalid-round", "concept preview filename must use round-<positive-integer>.html", filepath.Base(path))
+		} else if review, ok := manifest["review"].(map[string]any); !ok || strings.TrimSpace(fmt.Sprint(review["round"])) != round {
+			addDesignDiagnostic(&diagnostics, "preview-round-mismatch", "concept preview filename round must match manifest.review.round", "manifest.review.round")
 		}
 	}
 	return diagnostics
@@ -3887,6 +4337,266 @@ func scaffoldTasteReason(value string) bool {
 	return false
 }
 
+func designPreviewRoundFromPath(path string) (string, bool) {
+	match := designPreviewRoundRE.FindStringSubmatch(filepath.Base(path))
+	if match == nil {
+		return "", false
+	}
+	round, err := strconv.Atoi(match[1])
+	if err != nil || round < 1 {
+		return "", false
+	}
+	return strconv.Itoa(round), true
+}
+
+func lintDesignImageConceptBundle(path string) []designDiagnostic {
+	var diagnostics []designDiagnostic
+	basePath := strings.TrimSuffix(path, filepath.Ext(path))
+	manifestPath := basePath + ".manifest.json"
+	manifestBytes, err := os.ReadFile(manifestPath)
+	if err != nil {
+		addDesignDiagnostic(&diagnostics, "image-invalid-manifest", "cannot read adjacent design image manifest: "+err.Error(), manifestPath)
+		return diagnostics
+	}
+	manifest := map[string]any{}
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		addDesignDiagnostic(&diagnostics, "image-invalid-manifest", "cannot read adjacent design image manifest: "+err.Error(), manifestPath)
+		return diagnostics
+	}
+	directionIDs := manifestDirectionIDs(manifest)
+	diagnostics = append(diagnostics, previewConceptManifestDiagnostics(manifest, directionIDs, "image-primary")...)
+	if round, ok := designPreviewRoundFromPath(path); !ok {
+		addDesignDiagnostic(&diagnostics, "image-invalid-round", "concept image filename must use round-<positive-integer>.<png|jpg|jpeg|webp>", filepath.Base(path))
+	} else if review, ok := manifest["review"].(map[string]any); !ok || strings.TrimSpace(fmt.Sprint(review["round"])) != round {
+		addDesignDiagnostic(&diagnostics, "image-round-mismatch", "concept image filename round must match manifest.review.round", "manifest.review.round")
+	}
+	promptPath := basePath + ".prompt.md"
+	promptBytes, err := os.ReadFile(promptPath)
+	if err != nil || !utf8.Valid(promptBytes) {
+		if err == nil {
+			err = fmt.Errorf("prompt is not valid UTF-8")
+		}
+		addDesignDiagnostic(&diagnostics, "image-invalid-generation-prompt", "cannot read adjacent image generation prompt: "+err.Error(), promptPath)
+		return diagnostics
+	}
+	if len(strings.TrimSpace(string(promptBytes))) < 40 || previewPlaceholderRE.Match(promptBytes) {
+		addDesignDiagnostic(&diagnostics, "image-invalid-generation-prompt", "image generation prompt must be project-specific, non-placeholder Markdown", promptPath)
+	}
+	return diagnostics
+}
+
+func previewConceptManifestDiagnostics(manifest map[string]any, directionIDs []string, expectedPrimaryMedium string) []designDiagnostic {
+	var diagnostics []designDiagnostic
+	if manifest["schema"] != designPreviewManifestSchema {
+		addDesignDiagnostic(&diagnostics, "preview-invalid-manifest-schema", "preview manifest schema must equal "+designPreviewManifestSchema, "manifest.schema")
+	}
+	if manifest["configured"] != true {
+		addDesignDiagnostic(&diagnostics, "preview-manifest-not-configured", "concept preview manifest must set configured to true", "manifest.configured")
+	}
+	diagnostics = append(diagnostics, previewVisualCollaborationDiagnostics(manifest, expectedPrimaryMedium)...)
+	directions, ok := manifest["directions"].([]any)
+	if !ok || len(directions) != 1 {
+		addDesignDiagnostic(&diagnostics, "preview-manifest-direction-count", "concept preview manifest must define exactly one current concept", "manifest.directions")
+		return diagnostics
+	}
+	manifestIDs := make([]string, 0, len(directions))
+	for index, raw := range directions {
+		direction, ok := raw.(map[string]any)
+		if !ok {
+			addDesignDiagnostic(&diagnostics, "preview-invalid-direction", "each preview manifest direction must be an object", fmt.Sprintf("manifest.directions[%d]", index))
+			continue
+		}
+		id := strings.TrimSpace(fmt.Sprint(direction["id"]))
+		manifestIDs = append(manifestIDs, id)
+		if !previewDirectionIDRE.MatchString(id) {
+			addDesignDiagnostic(&diagnostics, "preview-invalid-direction-id", "direction IDs must use the direction-<slug> form", fmt.Sprintf("manifest.directions[%d].id", index))
+		}
+		for _, field := range []string{"name", "visual_thesis", "content_thesis", "interaction_thesis", "signature_element", "gain", "cost"} {
+			if !nonEmpty(direction[field]) || previewPlaceholderRE.MatchString(strings.TrimSpace(fmt.Sprint(direction[field]))) {
+				addDesignDiagnostic(&diagnostics, "preview-incomplete-direction", "concept direction "+id+" must define "+field, fmt.Sprintf("manifest.directions[%d].%s", index, field))
+			}
+		}
+		dials, dialsOK := direction["dials"].(map[string]any)
+		if !dialsOK {
+			addDesignDiagnostic(&diagnostics, "preview-missing-direction-dials", "concept direction "+id+" must define dials.variance/motion/density", fmt.Sprintf("manifest.directions[%d].dials", index))
+		} else {
+			validDials := true
+			for _, axis := range []string{"variance", "motion", "density"} {
+				validDials = validDials && validDesignDial(dials[axis])
+			}
+			if !validDials {
+				addDesignDiagnostic(&diagnostics, "preview-invalid-direction-dials", "concept direction "+id+" dials must be integers 1-10", fmt.Sprintf("manifest.directions[%d].dials", index))
+			}
+			reason := strings.TrimSpace(fmt.Sprint(dials["inference_reason"]))
+			if reason == "" || reason == "<nil>" || previewPlaceholderRE.MatchString(reason) || scaffoldTasteReason(reason) {
+				addDesignDiagnostic(&diagnostics, "preview-missing-dial-inference", "concept direction "+id+" must explain project-grounded dial inference", fmt.Sprintf("manifest.directions[%d].dials.inference_reason", index))
+			}
+		}
+		aestheticFamily := strings.TrimSpace(fmt.Sprint(direction["aesthetic_family"]))
+		if aestheticFamily == "" || aestheticFamily == "<nil>" || previewPlaceholderRE.MatchString(aestheticFamily) {
+			addDesignDiagnostic(&diagnostics, "preview-missing-aesthetic-family", "concept direction "+id+" must define aesthetic_family", fmt.Sprintf("manifest.directions[%d].aesthetic_family", index))
+		}
+		motion, motionOK := direction["motion"].(map[string]any)
+		if !motionOK || !nonEmpty(motion["reduced_motion"]) {
+			addDesignDiagnostic(&diagnostics, "preview-incomplete-motion-system", "concept direction "+id+" must define a reduced-motion equivalent", fmt.Sprintf("manifest.directions[%d].motion.reduced_motion", index))
+		}
+		modes, modesOK := direction["modes"].(map[string]any)
+		highContrast, highContrastOK := modes["high-contrast"].(map[string]any)
+		if !modesOK || !highContrastOK || len(highContrast) == 0 {
+			addDesignDiagnostic(&diagnostics, "preview-incomplete-color-mode", "concept direction "+id+" must define a high-contrast mode", fmt.Sprintf("manifest.directions[%d].modes.high-contrast", index))
+		}
+	}
+	if !reflect.DeepEqual(manifestIDs, directionIDs) {
+		addDesignDiagnostic(&diagnostics, "preview-manifest-direction-mismatch", "preview manifest direction ID must match the rendered current concept", "manifest.directions")
+	}
+	review, reviewOK := manifest["review"].(map[string]any)
+	if !reviewOK || strings.ToLower(strings.TrimSpace(fmt.Sprint(review["status"]))) != "candidate" || nonEmpty(review["approved_direction"]) {
+		addDesignDiagnostic(&diagnostics, "preview-manifest-candidate-mismatch", "concept preview manifest must record candidate status without an approved direction", "manifest.review")
+	} else {
+		round := strings.TrimSpace(fmt.Sprint(review["round"]))
+		roundNumber, err := strconv.Atoi(round)
+		if err != nil || roundNumber < 1 || !designRoundRE.MatchString(round) {
+			addDesignDiagnostic(&diagnostics, "preview-invalid-review-round", "concept preview manifest review.round must be a positive integer", "manifest.review.round")
+		}
+	}
+	if raw, err := json.Marshal(manifest); err != nil || previewPlaceholderRE.Match(raw) {
+		addDesignDiagnostic(&diagnostics, "preview-unresolved-placeholder", "concept preview manifest must not contain unresolved __PLACEHOLDER__ values", "manifest")
+	}
+	diagnostics = append(diagnostics, previewConceptCapabilityDiagnostics(manifest)...)
+	return diagnostics
+}
+
+func previewConceptCapabilityDiagnostics(manifest map[string]any) []designDiagnostic {
+	var diagnostics []designDiagnostic
+	model, ok := manifest["capability_model"].(map[string]any)
+	if !ok {
+		addDesignDiagnostic(&diagnostics, "preview-missing-capability-model", "concept preview manifest must define a platform capability model", "manifest.capability_model")
+		return diagnostics
+	}
+	if strings.TrimSpace(fmt.Sprint(model["schema"])) != designCapabilityModelSchema {
+		addDesignDiagnostic(&diagnostics, "preview-invalid-capability-model-schema", "capability model schema must equal "+designCapabilityModelSchema, "manifest.capability_model.schema")
+	}
+	registry, err := loadDesignCapabilityRegistry()
+	if err != nil {
+		addDesignDiagnostic(&diagnostics, "preview-capability-registry-error", err.Error(), "manifest.capability_model")
+		return diagnostics
+	}
+	profilesByID := map[string]map[string]any{}
+	for _, raw := range registry["profiles"].([]any) {
+		if profile, ok := raw.(map[string]any); ok {
+			profilesByID[strings.TrimSpace(fmt.Sprint(profile["id"]))] = profile
+		}
+	}
+	profileIDs := stringList(model["profile_ids"])
+	if len(profileIDs) == 0 || hasDuplicates(profileIDs) {
+		addDesignDiagnostic(&diagnostics, "preview-missing-capability-profile", "concept preview must select unique visual capability profiles", "manifest.capability_model.profile_ids")
+		return diagnostics
+	}
+	var contractProfileIDs []string
+	if contracts, ok := model["profiles"].([]any); ok {
+		for _, raw := range contracts {
+			if contract, ok := raw.(map[string]any); ok {
+				contractProfileIDs = append(contractProfileIDs, strings.TrimSpace(fmt.Sprint(contract["id"])))
+			}
+		}
+	}
+	if !reflect.DeepEqual(profileIDs, contractProfileIDs) {
+		addDesignDiagnostic(&diagnostics, "preview-profile-contract-mismatch", "capability profile contracts must match selected profile_ids in order", "manifest.capability_model.profiles")
+	}
+	if stringInSlice("no-ui", profileIDs) {
+		addDesignDiagnostic(&diagnostics, "preview-nonvisual-profile", "no-ui cannot enter concept calibration", "manifest.capability_model.profile_ids")
+		return diagnostics
+	}
+	selected := map[string]map[string]any{}
+	requiredCapabilities := map[string]bool{}
+	requiredInputs := map[string]bool{}
+	requiredUnits := map[string]bool{}
+	for _, profileID := range profileIDs {
+		profile := profilesByID[profileID]
+		if profile == nil || profile["preview_required"] != true {
+			addDesignDiagnostic(&diagnostics, "preview-unknown-capability-profile", "unknown or nonvisual capability profile: "+profileID, "manifest.capability_model.profile_ids")
+			continue
+		}
+		selected[profileID] = profile
+		for value := range listToStringSet(profile["capability_ids"]) {
+			requiredCapabilities[value] = true
+		}
+		for value := range listToStringSet(profile["input_modes"]) {
+			requiredInputs[value] = true
+		}
+		for value := range listToStringSet(profile["measurement_units"]) {
+			requiredUnits[value] = true
+		}
+	}
+	for _, contract := range []struct {
+		code     string
+		label    string
+		required map[string]bool
+		declared map[string]bool
+		path     string
+	}{
+		{"preview-missing-profile-capability", "capabilities", requiredCapabilities, listToStringSet(model["capability_ids"]), "manifest.capability_model.capability_ids"},
+		{"preview-missing-profile-input", "input modes", requiredInputs, listToStringSet(model["input_modes"]), "manifest.capability_model.input_modes"},
+		{"preview-missing-profile-unit", "measurement units", requiredUnits, listToStringSet(model["measurement_units"]), "manifest.capability_model.measurement_units"},
+	} {
+		var missing []string
+		for value := range contract.required {
+			if !contract.declared[value] {
+				missing = append(missing, value)
+			}
+		}
+		if len(missing) > 0 {
+			sort.Strings(missing)
+			addDesignDiagnostic(&diagnostics, contract.code, "selected profiles require "+contract.label+": "+strings.Join(missing, ", "), contract.path)
+		}
+	}
+
+	specimens, ok := model["specimens"].([]any)
+	if !ok || len(specimens) == 0 {
+		addDesignDiagnostic(&diagnostics, "preview-missing-capability-specimens", "concept preview requires at least one concrete specimen per selected profile", "manifest.capability_model.specimens")
+		return diagnostics
+	}
+	coveredProfiles := map[string]bool{}
+	for _, raw := range specimens {
+		specimen, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		id := strings.TrimSpace(fmt.Sprint(specimen["id"]))
+		profileID := strings.TrimSpace(fmt.Sprint(specimen["profile_id"]))
+		if selected[profileID] != nil && id != "" && id != "<nil>" && len(stringList(specimen["required_states"])) > 0 {
+			coveredProfiles[profileID] = true
+		}
+	}
+	for _, profileID := range profileIDs {
+		if !coveredProfiles[profileID] {
+			addDesignDiagnostic(&diagnostics, "preview-missing-profile-specimen", "concept preview requires at least one specimen for selected profile "+profileID, "manifest.capability_model.specimens")
+		}
+	}
+	foundTarget := false
+	handoff, _ := manifest["handoff"].(map[string]any)
+	targets, _ := handoff["responsive_matrix"].([]any)
+	for _, raw := range targets {
+		target, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		profileID := strings.TrimSpace(fmt.Sprint(target["profile_id"]))
+		if selected[profileID] == nil {
+			continue
+		}
+		dimensions, dimensionsOK := target["target"].(map[string]any)
+		if nonEmpty(target["id"]) && dimensionsOK && dimensions["width"] != nil && dimensions["height"] != nil && nonEmpty(dimensions["unit"]) {
+			foundTarget = true
+			break
+		}
+	}
+	if !foundTarget {
+		addDesignDiagnostic(&diagnostics, "preview-missing-concept-target", "concept preview requires at least one selected-profile review target", "manifest.handoff.responsive_matrix")
+	}
+	return diagnostics
+}
+
 func previewCapabilityDiagnostics(manifest map[string]any, directions []any, ready bool) []designDiagnostic {
 	var diagnostics []designDiagnostic
 	model, ok := manifest["capability_model"].(map[string]any)
@@ -4828,6 +5538,10 @@ func writeDesignError(stdout io.Writer, status, message string) int {
 
 func supportedDesignLintLevel(level string) bool {
 	return level == "structural" || level == "ready"
+}
+
+func supportedDesignPreviewLintLevel(level string) bool {
+	return supportedDesignLintLevel(level) || level == "concept"
 }
 
 func firstPositional(args []string, fallback string) string {

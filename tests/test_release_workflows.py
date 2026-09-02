@@ -73,6 +73,10 @@ def test_release_workflow_uploads_unified_runtime_binaries():
         "show ensure enter next complete-stage transition reopen block resolve closeout"
         in content
     )
+    assert "design --help 2>&1" in content
+    assert 'grep -q -- "direction-confirm"' in content
+    assert "api show design.preview-lint --format json" in content
+    assert 'grep -q -- "concept"' in content
     for capability in (
         '"api.ensure"',
         '"api.pack"',
@@ -199,6 +203,10 @@ def test_runtime_fallback_release_smokes_namespaced_cognition_commands():
         "show ensure enter next complete-stage transition reopen block resolve closeout"
         in content
     )
+    assert "design --help 2>&1" in content
+    assert 'grep -q -- "direction-confirm"' in content
+    assert "api show design.preview-lint --format json" in content
+    assert 'grep -q -- "concept"' in content
 
 
 def test_release_workflows_accept_scan_formats_help_exit_code():

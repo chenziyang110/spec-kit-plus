@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.dev/schemas/design-direction-checkpoint.schema.json",
+  "title": "Spec Kit Plus non-consumable design direction checkpoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "authority",
+    "approved",
+    "registered",
+    "consumer_eligible",
+    "confirmed_by",
+    "design_change_id",
+    "design_change_ref",
+    "design_change_sha256",
+    "scope",
+    "capability_profile_ids",
+    "visual_medium",
+    "preview_file",
+    "preview_ref",
+    "preview_sha256",
+    "direction_id",
+    "review_round",
+    "manifest_ref",
+    "manifest_sha256"
+  ],
+  "properties": {
+    "schema": {"const": "spec-kit-design-direction-checkpoint-v1"},
+    "status": {"const": "confirmed"},
+    "authority": {"const": "non-consumable"},
+    "approved": {"const": false},
+    "registered": {"const": false},
+    "consumer_eligible": {"const": false},
+    "confirmed_by": {"const": "explicit-user-direction-confirmation"},
+    "design_change_id": {"type": "string", "pattern": "^UD-[0-9]{4,}$"},
+    "design_change_ref": {"type": "string", "pattern": "^\\.specify/design/changes/UD-[0-9]{4,}/design-change\\.md$"},
+    "design_change_sha256": {"$ref": "#/$defs/sha256"},
+    "scope": {"$ref": "#/$defs/nonEmptyStrings"},
+    "capability_profile_ids": {"$ref": "#/$defs/nonEmptyStrings"},
+    "visual_medium": {"enum": ["html", "image"]},
+    "preview_file": {"type": "string", "minLength": 1},
+    "preview_ref": {"type": "string", "minLength": 1},
+    "preview_sha256": {"$ref": "#/$defs/sha256"},
+    "direction_id": {"type": "string", "pattern": "^direction-[a-z0-9][a-z0-9-]*$"},
+    "review_round": {"type": "string", "minLength": 1},
+    "manifest_ref": {"type": "string", "minLength": 1},
+    "manifest_sha256": {"$ref": "#/$defs/sha256"},
+    "prompt_ref": {"type": "string", "minLength": 1},
+    "prompt_sha256": {"$ref": "#/$defs/sha256"},
+    "image_generation": {"const": "available"},
+    "image_inspection": {"enum": ["available", "unavailable"]},
+    "image_editing": {"enum": ["available", "unavailable"]},
+    "inspection_owner": {"enum": ["agent-and-user", "user"]},
+    "prompt_strategy": {"const": "image-generation"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"visual_medium": {"const": "image"}}},
+      "then": {
+        "required": [
+          "prompt_ref",
+          "prompt_sha256",
+          "image_generation",
+          "image_inspection",
+          "image_editing",
+          "inspection_owner",
+          "prompt_strategy"
+        ]
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            {"required": ["prompt_ref"]},
+            {"required": ["prompt_sha256"]},
+            {"required": ["image_generation"]},
+            {"required": ["image_inspection"]},
+            {"required": ["image_editing"]},
+            {"required": ["inspection_owner"]},
+            {"required": ["prompt_strategy"]}
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "visual_medium": {"const": "image"},
+          "image_inspection": {"const": "available"}
+        },
+        "required": ["visual_medium", "image_inspection"]
+      },
+      "then": {"properties": {"inspection_owner": {"const": "agent-and-user"}}},
+      "else": {
+        "if": {
+          "properties": {"visual_medium": {"const": "image"}},
+          "required": ["visual_medium"]
+        },
+        "then": {"properties": {"inspection_owner": {"const": "user"}}}
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "nonEmptyStrings": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

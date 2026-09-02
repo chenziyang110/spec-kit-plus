@@ -46,27 +46,19 @@ observed product language from new design decisions; do not invent a parallel
 system when an established one can be extended.
 
 When the target reconstructs, migrates, adapts, or completes an interface from
-prior evidence, make `source_continuity` required. Treat screenshots and
-recordings, HTML/design exports, live source surfaces, source code/resources/
-tests, runnable source products, and business rules as complementary bounded
-authorities; no single visual proves hidden surfaces or behavior. Ensure the
-professional router selects and loads
-`specialist-source-grounded-reconstruction`. Persist
-`schema: spec-kit-ui-source-continuity-v1`, `applicability`, `mode`, `reason`,
-and `authority_refs`. Discover the complete in-scope
-surface/state graph and persist `surface_bindings` with exactly one disposition
-per mapping: `preserve`, `adapt`, `replace`, `merge`, `split`, or `retire`.
-Persist `action_bindings` with `interaction_id`, `source_refs`, `user_promise`,
-`business_outcome`, `side_effects`, `final_state`, and `verification`; linked
-interaction/scenario rows own event order, feedback, and recovery. Persist
-`asset_bindings` for icons, imagery, fonts, and other identity-bearing resources
-with `component_id`, `semantic_role`, `source_refs`, `target_strategy`,
-`target_ref`, `provenance`, `fallback`, and
-`placeholder_policy: forbid-character-substitution`; Unicode, emoji, ASCII, or
-arbitrary text glyphs cannot stand in for a missing asset. Keep unknown
-surfaces, behavior, outcomes, states, assets, and evidence conflicts in
-`unresolved_gaps` with owners and exact discovery actions. A ready contract has
-no material unresolved gap disguised as `retire` or a cosmetic exception.
+prior evidence, make `source_continuity` required but split it by stage. Treat
+screenshots and recordings, HTML/design exports, live source surfaces, source
+code/resources/tests, runnable source products, and business rules as
+complementary bounded authorities; no single visual proves hidden surfaces or
+behavior. Before direction-confirmed, lock only exact scope, primary authority
+refs, main in-scope surface(s), and critical gaps that can change the visual
+direction. Ensure the professional router selects and loads
+`specialist-source-grounded-reconstruction` only when that is needed for Stage 1
+feasibility. Complete coverage IDs, `surface_bindings`, `action_bindings`,
+`asset_bindings`, business outcomes, side effects, final states, and the
+ready-safe unresolved-gap ledger are contract-completion work after
+direction-confirmed. A ready contract still has no material unresolved gap
+disguised as `retire` or a cosmetic exception.
 
 Determine `delivery_context` before authoring: `design-first` when no
 planning-ready feature spec exists, `post-specify` when an exact planning-ready
@@ -138,16 +130,16 @@ one-line `design_read`, dials (variance/motion/density) with inference reason,
 surface-aware `anti_slop_locks`, and synthesize `reference_board_intents`
 (`mood`/`layout`/`type`/`color-only`) when references shape the board.
 Read `.specify/templates/ui-professional-skills/router.md`, resolve and persist
-`professional_skill_route` with `domain_skill_id`, `style_skill_id`,
-`specialist_skill_ids`, `matched_signals`, `loaded_refs`, and
-`mature_web_ui_resource_ids`, `web_ui_asset_inventory`,
+Stage 1 `professional_skill_route` with only `domain_skill_id`,
+`style_skill_id`, `specialist_skill_ids`, `matched_signals`, and `loaded_refs`.
+Pass the actual project root to the deterministic router, then load only the
+selected one domain, zero-or-one style, and zero-to-two specialist references.
+Also inspect live style/component feasibility blockers that can invalidate the
+direction. Mature Web inventory, `mature_web_ui_resource_ids`,
 `mature_web_ui_selection`, deterministic `component_adoption_plan`, read-only
-official-resource refresh result, `smoothness_acceptance_ids`, and performance budgets when Web UI applies.
-Pass the actual project root to the deterministic router, then load only the selected
-one domain, zero-or-one style, and zero-to-two specialist references. Web
-component work also reads the router-triggered `web-component-selection.md`:
-reuse inspected live components first, select at most one compatible mature
-primary system, and add only exact headless or specialist gaps. Load official
+official-resource refresh, `smoothness_acceptance_ids`, and performance budgets
+are contract-completion work after direction-confirmed unless one is directly
+needed to decide whether the visual direction is feasible. Load official
 Agent/MCP/LLM material only for selected candidates.
 Pass the resolved `style_authority` to the router; `inherit-existing` suppresses
 all style refs while retaining relevant domain/specialist expertise.
@@ -156,12 +148,37 @@ ambiguity owns the same one-high-impact-question stop; resume the pinned route
 for an active immutable round. The selected references augment the eventual
 image-primary or html-primary prompt separately and never replace approved
 references or registered design truth.
-Confirm subject, audience, single
-job, modules, locales, modes, platforms/viewports, comparison content,
-component/state coverage, meaningful motion and `prefers-reduced-motion`, and
-Must Preserve / May Adapt / Must Not boundaries. Record confirmed choices as
-stable `DS-<KIND>-NNN` decisions with source, status, affected surfaces, and
-verification; the brief is the decision ledger, not a chat transcript.
+Confirm only Stage 1 direction inputs before concept authoring: subject,
+audience, single job, selected profiles, primary layout/signature,
+layout-changing critical states, contrast/focus/reduced-motion feasibility, one
+stress target, and Must Preserve / May Adapt / Must Not boundaries that can
+change the visual direction. Modules, locales, modes, comparison content, full
+component/state coverage, all input/data scenarios, resize/stretch behavior,
+mature adoption rows, and smoothness budgets wait for contract-completion.
+Record confirmed choices as stable `DS-<KIND>-NNN` decisions with source,
+status, affected surfaces, and verification; the brief is the decision ledger,
+not a chat transcript.
+
+Run substantive create/refine through the platform-neutral sequence
+`intake -> concept-calibration -> direction-confirmed -> contract-completion ->
+formal-approval -> register`. Stage 1 (`intake` through
+`direction-confirmed`) keeps one current concept and only the stage 1 minimum
+viable contract: exact scope, selected profiles, subject, audience, single job,
+taste, primary layout/signature, layout-changing critical state coverage,
+contrast/focus/reduced-motion feasibility, and one stress target. Offer 2-3
+textual choices only to resolve a single ambiguity; do not generate three full
+boards, three complete HTML alternatives, or auto-add an unselected profile.
+Call the advertised `direction-confirm` capability only after both conditions
+hold: the named concept passed the advertised `preview-lint concept` capability
+and the user gave explicit direction confirmation. A lint pass alone must not
+create the sidecar. The direction-confirmed sidecar is non-consumable: not approval, not register, and not a
+Plan/Tasks/Implement/Quick/Review input. Full source continuity denominator,
+mature Web adoption rows, complete matrices, and `DH-*` handoff rows are
+deferred to contract-completion after direction-confirmed. Always start
+contract-completion from the next numbered round because a round with a
+`.direction.json` sidecar must never be formal approved. Inherit the confirmed
+visual direction by default; if matrix work exposes a needed visual change,
+revise that new round and confirm or approve it there.
 
 Read `{{specify-subcmd:specify-runtime design profiles}}` and select one or more
 independent capability profiles: `web`, `mobile`, `desktop`, `cli`, `tui`, or
@@ -184,8 +201,11 @@ create a new `UD-*` workspace as a digest-pinned successor; an export, hand-auth
 in-place mutation of an approved change is not a substitute. For `create` and
 those `refine` routes, author `<change-dir>/previews/round-NN.manifest.json` from
 `{{specify-subcmd:specify-runtime design preview-manifest --profiles <comma-separated-profile-ids> --out <change-dir>/previews/round-NN.manifest.json}}`,
-then configure its one current concept, boundaries, modes, decisions, and full
-`DH-*` handoff contract. Patch `visual_collaboration` with the exact live
+then configure its one current concept, selected profiles, Stage 1 boundaries,
+critical states, accessibility/reduced-motion feasibility, one stress target,
+and minimal concept decisions. Do not require a full `DH-*` handoff contract
+before concept authoring; complete it in the next numbered round during
+contract-completion. Patch `visual_collaboration` with the exact live
 generation/inspection/editing probe; ready lint rejects missing,
 contradictory, or medium-mismatched capability truth.
 

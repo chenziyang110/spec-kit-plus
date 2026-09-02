@@ -58,7 +58,9 @@ the concept.
 
 Keep one concept per immutable round. Feedback revises the same direction in a
 new file; it never creates three unrelated HTML alternatives and never mutates
-a reviewed round.
+a reviewed round. Do not generate three full boards; if direction ambiguity
+remains, return to 2-3 textual choices in concept-calibration before authoring
+another immutable review artifact.
 
 Sources informing this authoring contract:
 

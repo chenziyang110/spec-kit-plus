@@ -52,10 +52,12 @@ REQUIRED_ACCESSIBILITY_KEYS = (
 )
 SUPPORTED_EXPORT_FORMATS = {"json", "tailwind"}
 SUPPORTED_LINT_LEVELS = {"structural", "ready"}
+SUPPORTED_PREVIEW_LINT_LEVELS = {"structural", "concept", "ready"}
 DESIGN_PREVIEW_SCHEMA = "spec-kit-design-preview-v1"
 DESIGN_PREVIEW_MANIFEST_SCHEMA = "spec-kit-design-preview-manifest-v1"
 DESIGN_PREVIEW_APPROVAL_SCHEMA = "spec-kit-design-preview-approval-v1"
 DESIGN_IMAGE_APPROVAL_SCHEMA = "spec-kit-design-image-approval-v1"
+DESIGN_DIRECTION_CHECKPOINT_SCHEMA = "spec-kit-design-direction-checkpoint-v1"
 DESIGN_HANDOFF_SCHEMA = "spec-kit-design-handoff-v1"
 DESIGN_CHANGE_SCHEMA = "spec-kit-ui-design-change-v1"
 DESIGN_CHANGE_INDEX_SCHEMA = "spec-kit-ui-design-index-v1"
@@ -94,6 +96,7 @@ DESIGN_HANDOFF_REQUIRED_EVIDENCE = {
     "runtime_diagnostics",
     "visual_comparison_or_human_review",
 }
+DESIGN_DIRECTION_CONFIRMATION_MARKER = "explicit-user-direction-confirmation"
 DESIGN_PROFESSIONAL_MATRIX_FIELDS = (
     "interaction_matrix",
     "editing_matrix",
@@ -2518,6 +2521,12 @@ def design_preview_handoff_path(path: Path) -> Path:
     return path.with_suffix(".handoff.json")
 
 
+def design_preview_direction_checkpoint_path(path: Path) -> Path:
+    """Return the non-consumable direction checkpoint sidecar path."""
+
+    return path.with_suffix(".direction.json")
+
+
 def _sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
@@ -3261,6 +3270,451 @@ def _parse_preview_manifest(
             f"embedded {DESIGN_PREVIEW_MANIFEST_ID} must be a JSON object"
         )
     return payload
+
+
+def _preview_project_root(path: Path) -> Path:
+    resolved = path.resolve()
+    _design_preview_round_number(resolved)
+    if (
+        resolved.parent.name != "previews"
+        or resolved.parent.parent.name == ""
+        or not DESIGN_CHANGE_ID_RE.fullmatch(resolved.parent.parent.name)
+        or resolved.parent.parent.parent.name != "changes"
+        or resolved.parent.parent.parent.parent.name != "design"
+        or resolved.parent.parent.parent.parent.parent.name != ".specify"
+    ):
+        raise DesignLintError(
+            "design preview must be inside .specify/design/changes/<UD-ID>/previews/"
+        )
+    return resolved.parent.parent.parent.parent.parent.parent
+
+
+def _preview_change_context(
+    path: Path,
+) -> tuple[Path, Path, str, dict[str, Any], str, DesignDocument]:
+    resolved = path.resolve()
+    project_root = _preview_project_root(resolved)
+    change_id = resolved.parent.parent.name
+    _index, _index_path, records = _load_design_change_index(project_root)
+    record = records.get(change_id)
+    if record is None:
+        raise DesignLintError(f"design change {change_id} is not registered in index.json")
+    if (
+        str(record.get("status") or "").strip() != "draft"
+        or _design_record_is_registered(record)
+        or bool(str(record.get("approval_sha256") or "").strip())
+    ):
+        raise DesignLintError(
+            f"design preview direction checkpoint requires a draft change workspace: {change_id}"
+        )
+    design_path = (project_root / str(record.get("design_ref") or "")).resolve()
+    expected_design_ref = f".specify/design/changes/{change_id}/design-change.md"
+    if str(record.get("design_ref") or "").strip() != expected_design_ref or not design_path.is_file():
+        raise DesignLintError(f"design change {change_id} workspace is not canonical")
+    try:
+        design_bytes = design_path.read_bytes()
+        document = parse_design_markdown(
+            design_bytes.decode("utf-8"),
+            source=str(design_path),
+        )
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise DesignLintError(f"cannot read draft design change {change_id}: {exc}") from exc
+    design_change = document.design_system
+    if (
+        design_change.get("schema") != DESIGN_CHANGE_SCHEMA
+        or str(design_change.get("id") or "").strip() != change_id
+    ):
+        raise DesignLintError(
+            "draft design change identity does not match its canonical workspace"
+        )
+    scope = design_change.get("scope")
+    surfaces = scope.get("surfaces") if isinstance(scope, dict) else None
+    document_scopes = (
+        [str(value) for value in surfaces]
+        if isinstance(surfaces, list)
+        else []
+    )
+    record_scopes = (
+        [str(value) for value in record.get("scope", [])]
+        if isinstance(record.get("scope"), list)
+        else []
+    )
+    if not document_scopes or record_scopes != document_scopes:
+        raise DesignLintError("draft design change scope does not match index.json")
+    for formal_path in (
+        design_preview_approval_path(resolved),
+        design_preview_handoff_path(resolved),
+    ):
+        if formal_path.exists():
+            raise DesignLintError(
+                "cannot direction-confirm a round that already has formal approval or handoff artifacts"
+            )
+    expected_preview_ref = resolved.relative_to(project_root).as_posix()
+    return (
+        project_root,
+        design_path,
+        change_id,
+        record,
+        expected_preview_ref,
+        document,
+    )
+
+
+def _design_preview_round_number(path: Path) -> str:
+    match = re.fullmatch(r"round-(\d+)", path.stem, re.IGNORECASE)
+    if match is None:
+        raise DesignLintError(
+            "design direction checkpoints require a round-NN preview filename"
+        )
+    return str(int(match.group(1)))
+
+
+def _concept_preview_manifest_diagnostics(
+    manifest: dict[str, Any] | None,
+    *,
+    direction_ids: list[str],
+    expected_primary_medium: str,
+) -> list[DesignDiagnostic]:
+    diagnostics: list[DesignDiagnostic] = []
+    if manifest is None:
+        _add_diagnostic(
+            diagnostics,
+            "preview-missing-manifest",
+            "design preview must embed one machine-readable design-preview-manifest",
+            f"script#{DESIGN_PREVIEW_MANIFEST_ID}",
+        )
+        return diagnostics
+    if manifest.get("schema") != DESIGN_PREVIEW_MANIFEST_SCHEMA:
+        _add_diagnostic(
+            diagnostics,
+            "preview-invalid-manifest-schema",
+            f"preview manifest schema must equal {DESIGN_PREVIEW_MANIFEST_SCHEMA}",
+            "manifest.schema",
+        )
+    diagnostics.extend(
+        _visual_collaboration_diagnostics(
+            manifest, expected_primary_medium=expected_primary_medium
+        )
+    )
+    if manifest.get("configured") is not True:
+        _add_diagnostic(
+            diagnostics,
+            "preview-manifest-not-configured",
+            "concept preview manifest must set configured to true",
+            "manifest.configured",
+        )
+    project = manifest.get("project")
+    if not isinstance(project, dict):
+        _add_diagnostic(
+            diagnostics,
+            "preview-invalid-project-context",
+            "preview manifest project must be an object",
+            "manifest.project",
+        )
+    else:
+        for field in ("name", "short_name", "subject", "audience", "single_job"):
+            if not isinstance(project.get(field), str) or not str(project.get(field)).strip():
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-incomplete-project-context",
+                    f"concept preview manifest project.{field} must be non-empty",
+                    f"manifest.project.{field}",
+                )
+    directions = manifest.get("directions")
+    if not isinstance(directions, list) or len(directions) != 1:
+        _add_diagnostic(
+            diagnostics,
+            "preview-manifest-direction-count",
+            "preview manifest must define exactly one current concept",
+            "manifest.directions",
+        )
+        directions = []
+    manifest_direction_ids = [
+        str(item.get("id") or "").strip()
+        for item in directions
+        if isinstance(item, dict)
+    ]
+    if manifest_direction_ids != direction_ids:
+        _add_diagnostic(
+            diagnostics,
+            "preview-manifest-direction-mismatch",
+            "preview manifest direction ID must match the rendered current concept",
+            "manifest.directions",
+        )
+    for index, direction in enumerate(directions):
+        if not isinstance(direction, dict):
+            continue
+        dials = direction.get("dials")
+        if not isinstance(dials, dict) or any(
+            key not in dials or not str(dials.get(key) or "").strip()
+            for key in ("variance", "motion", "density", "inference_reason")
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "preview-incomplete-direction",
+                "concept preview direction must define dials and inference reason",
+                f"manifest.directions[{index}].dials",
+            )
+        if not isinstance(direction.get("aesthetic_family"), str) or not str(
+            direction.get("aesthetic_family") or ""
+        ).strip():
+            _add_diagnostic(
+                diagnostics,
+                "preview-incomplete-direction",
+                "concept preview direction must define aesthetic_family",
+                f"manifest.directions[{index}].aesthetic_family",
+            )
+    boundaries = manifest.get("boundaries")
+    if not isinstance(boundaries, dict) or not boundaries:
+        _add_diagnostic(
+            diagnostics,
+            "preview-invalid-boundaries",
+            "concept preview manifest must define boundaries",
+            "manifest.boundaries",
+        )
+    diagnostics.extend(_concept_capability_model_diagnostics(manifest))
+    handoff = manifest.get("handoff")
+    handoff = handoff if isinstance(handoff, dict) else {}
+    responsive_matrix = handoff.get("responsive_matrix")
+    selected_profiles = set(_design_capability_profile_ids(manifest))
+    found_target = False
+    if isinstance(responsive_matrix, list):
+        for index, row in enumerate(responsive_matrix):
+            if not isinstance(row, dict):
+                continue
+            target = row.get("target")
+            if (
+                isinstance(row.get("id"), str)
+                and row.get("id").strip()
+                and isinstance(row.get("profile_id"), str)
+                and row.get("profile_id").strip() in selected_profiles
+                and isinstance(target, dict)
+                and target.get("width") is not None
+                and target.get("height") is not None
+                and str(target.get("unit") or "").strip()
+            ):
+                found_target = True
+                break
+    if not found_target:
+        _add_diagnostic(
+            diagnostics,
+            "preview-missing-concept-target",
+            "concept preview must define at least one selected-profile review target",
+            "manifest.handoff.responsive_matrix",
+        )
+    review = manifest.get("review")
+    if not isinstance(review, dict):
+        _add_diagnostic(
+            diagnostics,
+            "preview-invalid-review",
+            "preview manifest must define review state",
+            "manifest.review",
+        )
+    else:
+        if not str(review.get("round") or "").strip():
+            _add_diagnostic(
+                diagnostics,
+                "preview-invalid-review",
+                "preview manifest review.round must be non-empty",
+                "manifest.review.round",
+            )
+        if str(review.get("status") or "").strip().lower() != "candidate":
+            _add_diagnostic(
+                diagnostics,
+                "preview-manifest-candidate-mismatch",
+                "concept preview manifest must record candidate status",
+                "manifest.review.status",
+            )
+        if review.get("approved_direction") not in {None, ""}:
+            _add_diagnostic(
+                diagnostics,
+                "preview-manifest-candidate-mismatch",
+                "concept preview manifest must not record an approved direction",
+                "manifest.review.approved_direction",
+            )
+    return diagnostics
+
+
+def _concept_capability_model_diagnostics(
+    manifest: dict[str, Any],
+) -> list[DesignDiagnostic]:
+    diagnostics: list[DesignDiagnostic] = []
+    model = manifest.get("capability_model")
+    if not isinstance(model, dict):
+        _add_diagnostic(
+            diagnostics,
+            "preview-missing-capability-model",
+            "preview manifest must define a platform capability model",
+            "manifest.capability_model",
+        )
+        return diagnostics
+    if model.get("schema") != DESIGN_CAPABILITY_MODEL_SCHEMA:
+        _add_diagnostic(
+            diagnostics,
+            "preview-invalid-capability-model-schema",
+            f"capability model schema must equal {DESIGN_CAPABILITY_MODEL_SCHEMA}",
+            "manifest.capability_model.schema",
+        )
+    try:
+        registry_profiles = design_capability_profiles()
+    except DesignLintError as exc:
+        _add_diagnostic(
+            diagnostics,
+            "preview-capability-registry-error",
+            str(exc),
+            "manifest.capability_model",
+        )
+        return diagnostics
+    profiles_by_id = {
+        str(profile.get("id") or "").strip(): profile
+        for profile in registry_profiles
+        if isinstance(profile, dict)
+    }
+    profile_ids = _design_capability_profile_ids(manifest)
+    if not profile_ids:
+        _add_diagnostic(
+            diagnostics,
+            "preview-missing-capability-profile",
+            "capability model must select at least one profile",
+            "manifest.capability_model.profile_ids",
+        )
+        return diagnostics
+    if "no-ui" in profile_ids:
+        _add_diagnostic(
+            diagnostics,
+            "preview-nonvisual-profile",
+            "no-ui cannot be combined with concept preview confirmation",
+            "manifest.capability_model.profile_ids",
+        )
+        return diagnostics
+    profile_rows = model.get("profiles")
+    if not isinstance(profile_rows, list):
+        _add_diagnostic(
+            diagnostics,
+            "preview-profile-contract-mismatch",
+            "capability model profiles must be a list",
+            "manifest.capability_model.profiles",
+        )
+        return diagnostics
+    rows_by_id = {
+        str(profile.get("id") or "").strip(): profile
+        for profile in profile_rows
+        if isinstance(profile, dict) and str(profile.get("id") or "").strip()
+    }
+    unknown_profiles = [profile_id for profile_id in profile_ids if profile_id not in profiles_by_id]
+    if unknown_profiles:
+        _add_diagnostic(
+            diagnostics,
+            "preview-unknown-capability-profile",
+            "unknown capability profiles: " + ", ".join(unknown_profiles),
+            "manifest.capability_model.profile_ids",
+        )
+    if list(rows_by_id) != profile_ids:
+        _add_diagnostic(
+            diagnostics,
+            "preview-profile-contract-mismatch",
+            "capability profile contracts must match profile_ids in order",
+            "manifest.capability_model.profiles",
+        )
+    declared_capabilities = {
+        str(value).strip()
+        for value in model.get("capability_ids") or []
+        if str(value).strip()
+    }
+    declared_inputs = {
+        str(value).strip()
+        for value in model.get("input_modes") or []
+        if str(value).strip()
+    }
+    declared_units = {
+        str(value).strip()
+        for value in model.get("measurement_units") or []
+        if str(value).strip()
+    }
+    required_capabilities: set[str] = set()
+    required_inputs: set[str] = set()
+    required_units: set[str] = set()
+    specimens = model.get("specimens")
+    specimen_rows = specimens if isinstance(specimens, list) else []
+    for profile_id in profile_ids:
+        registry_profile = profiles_by_id.get(profile_id, {})
+        required_capabilities.update(
+            str(value).strip()
+            for value in registry_profile.get("capability_ids") or []
+            if str(value).strip()
+        )
+        required_inputs.update(
+            str(value).strip()
+            for value in registry_profile.get("input_modes") or []
+            if str(value).strip()
+        )
+        required_units.update(
+            str(value).strip()
+            for value in registry_profile.get("measurement_units") or []
+            if str(value).strip()
+        )
+        row = rows_by_id.get(profile_id)
+        if not isinstance(row, dict):
+            continue
+        profile_specimens = [
+            specimen
+            for specimen in specimen_rows
+            if isinstance(specimen, dict)
+            and str(specimen.get("profile_id") or "").strip() == profile_id
+        ]
+        if not profile_specimens:
+            _add_diagnostic(
+                diagnostics,
+                "preview-missing-profile-specimen",
+                f"concept preview profile {profile_id} must define at least one specimen",
+                "manifest.capability_model.specimens",
+            )
+        else:
+            valid_specimen = False
+            for specimen in profile_specimens:
+                if (
+                    isinstance(specimen.get("id"), str)
+                    and specimen.get("id").strip()
+                    and isinstance(specimen.get("required_states"), list)
+                    and specimen.get("required_states")
+                ):
+                    valid_specimen = True
+                    break
+            if not valid_specimen:
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-missing-profile-specimen",
+                    f"concept preview profile {profile_id} must define one reviewable specimen with required_states",
+                    "manifest.capability_model.specimens",
+                )
+    for code, label, missing, path in (
+        (
+            "preview-missing-profile-capability",
+            "capabilities",
+            required_capabilities - declared_capabilities,
+            "manifest.capability_model.capability_ids",
+        ),
+        (
+            "preview-missing-profile-input",
+            "input modes",
+            required_inputs - declared_inputs,
+            "manifest.capability_model.input_modes",
+        ),
+        (
+            "preview-missing-profile-unit",
+            "measurement units",
+            required_units - declared_units,
+            "manifest.capability_model.measurement_units",
+        ),
+    ):
+        if missing:
+            _add_diagnostic(
+                diagnostics,
+                code,
+                f"selected profiles require {label}: " + ", ".join(sorted(missing)),
+                path,
+            )
+    return diagnostics
 
 
 def _hex_luminance(value: str) -> float | None:
@@ -5338,6 +5792,104 @@ def _validate_preview_approval_sidecar(
     return diagnostics
 
 
+def _build_direction_checkpoint_payload(
+    path: Path,
+    *,
+    direction_id: str,
+    manifest: dict[str, Any],
+    visual_medium: str,
+    prompt_path: Path | None = None,
+) -> dict[str, Any]:
+    project_root, design_path, change_id, record, preview_ref, document = (
+        _preview_change_context(path)
+    )
+    contract_profile_ids = [
+        str(value)
+        for value in document.design_system.get("capability_profiles", [])
+        if str(value).strip()
+    ]
+    manifest_profile_ids = _design_capability_profile_ids(manifest)
+    if manifest_profile_ids != contract_profile_ids:
+        raise DesignLintError(
+            "direction checkpoint capability profiles do not match the draft design change"
+        )
+    review = manifest.get("review")
+    review = review if isinstance(review, dict) else {}
+    review_round = str(review.get("round") or "").strip()
+    expected_round = _design_preview_round_number(path)
+    if review_round != expected_round:
+        raise DesignLintError(
+            "design preview review.round must match its round-NN filename"
+        )
+    payload: dict[str, Any] = {
+        "schema": DESIGN_DIRECTION_CHECKPOINT_SCHEMA,
+        "status": "confirmed",
+        "authority": "non-consumable",
+        "approved": False,
+        "registered": False,
+        "consumer_eligible": False,
+        "confirmed_by": DESIGN_DIRECTION_CONFIRMATION_MARKER,
+        "design_change_id": change_id,
+        "design_change_ref": str(record.get("design_ref") or "").strip(),
+        "design_change_sha256": _sha256_bytes(design_path.read_bytes()),
+        "scope": deepcopy(record.get("scope", [])),
+        "capability_profile_ids": manifest_profile_ids,
+        "visual_medium": visual_medium,
+        "preview_file": path.name,
+        "preview_ref": f"{preview_ref}#{direction_id}",
+        "preview_sha256": _sha256_bytes(path.read_bytes()),
+        "direction_id": direction_id,
+        "review_round": review_round,
+        "manifest_ref": path.with_suffix(".manifest.json").resolve(strict=False)
+        .relative_to(project_root)
+        .as_posix(),
+        "manifest_sha256": _sha256_bytes(path.with_suffix(".manifest.json").read_bytes()),
+    }
+    if prompt_path is not None:
+        collaboration = manifest.get("visual_collaboration")
+        collaboration = collaboration if isinstance(collaboration, dict) else {}
+        payload.update(
+            {
+                "prompt_ref": prompt_path.resolve(strict=False)
+                .relative_to(project_root)
+                .as_posix(),
+                "prompt_sha256": _sha256_bytes(prompt_path.read_bytes()),
+                "image_generation": str(collaboration.get("image_generation") or "").strip(),
+                "image_inspection": str(collaboration.get("image_inspection") or "").strip(),
+                "image_editing": str(collaboration.get("image_editing") or "").strip(),
+                "inspection_owner": str(collaboration.get("inspection_owner") or "").strip(),
+                "prompt_strategy": str(collaboration.get("prompt_strategy") or "").strip(),
+            }
+        )
+    return payload
+
+
+def _write_or_verify_direction_checkpoint(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    checkpoint_path = design_preview_direction_checkpoint_path(path)
+    diagnostics = _json_schema_diagnostics(
+        payload,
+        schema_name="design-direction-checkpoint.schema.json",
+        code="direction-checkpoint-schema-error",
+        root_path="direction_checkpoint",
+    )
+    if diagnostics:
+        raise DesignLintError(
+            "; ".join(
+                f"{diagnostic.code}: {diagnostic.message}" for diagnostic in diagnostics
+            )
+        )
+    rendered = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    if checkpoint_path.exists():
+        existing = checkpoint_path.read_text(encoding="utf-8")
+        if existing == rendered:
+            return payload
+        raise DesignLintError(
+            f"direction checkpoint already exists with different bytes: {checkpoint_path}"
+        )
+    atomic_write_text(checkpoint_path, rendered)
+    return payload
+
+
 def _replace_preview_attribute(content: str, name: str, value: str) -> str:
     pattern = re.compile(
         rf'(<[a-z][^<>]*\b{re.escape(name)}\s*=\s*")[^"]*(")',
@@ -5440,6 +5992,10 @@ def approve_design_preview(
     if status != "candidate":
         raise DesignLintError(
             "design preview must be a configured candidate before approval"
+        )
+    if design_preview_direction_checkpoint_path(path).exists():
+        raise DesignLintError(
+            "design preview has a non-consumable direction checkpoint; approve a new round instead"
         )
     if direction_id not in parser.direction_ids:
         raise DesignLintError(
@@ -5671,6 +6227,10 @@ def approve_design_image(
     status = str(review.get("status") or "").strip().lower()
     if status == "approved" or design_preview_approval_path(path).exists():
         raise DesignLintError(f"design image round is already approved and immutable: {path}")
+    if design_preview_direction_checkpoint_path(path).exists():
+        raise DesignLintError(
+            "design image has a non-consumable direction checkpoint; approve a new round instead"
+        )
     if status != "candidate":
         raise DesignLintError("design image manifest must be a configured candidate before approval")
     directions = manifest.get("directions")
@@ -5812,6 +6372,188 @@ def approve_design_image(
     return payload
 
 
+@_design_index_transaction
+def _confirm_design_preview_direction_locked(
+    project_root: Path,
+    path: Path,
+    *,
+    direction_id: str,
+) -> dict[str, Any]:
+    if _preview_project_root(path) != project_root:
+        raise DesignLintError("design preview project root changed during confirmation")
+    if not path.is_file():
+        raise DesignLintError(f"design preview does not exist: {path}")
+    content = path.read_text(encoding="utf-8")
+    parser = _DesignPreviewHTMLParser()
+    parser.feed(content)
+    parser.close()
+    if parser.preview_attrs.get("data-preview-status", "").strip().lower() != "candidate":
+        raise DesignLintError("design preview must be a configured candidate before direction confirmation")
+    if direction_id not in parser.direction_ids:
+        raise DesignLintError(
+            f"unknown design direction {direction_id}; choose one of "
+            + ", ".join(parser.direction_ids)
+        )
+    diagnostics = lint_design_preview_file(path, level="concept")
+    if diagnostics:
+        raise DesignLintError(
+            "design preview is not ready for direction confirmation: "
+            + "; ".join(f"{diagnostic.code}: {diagnostic.message}" for diagnostic in diagnostics)
+        )
+    manifest = _parse_preview_manifest(parser)
+    if manifest is None:
+        raise DesignLintError("design preview has no embedded manifest")
+    adjacent_manifest_path = path.with_suffix(".manifest.json")
+    try:
+        adjacent_manifest = json.loads(adjacent_manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DesignLintError(f"cannot read adjacent design preview manifest: {exc}") from exc
+    if not isinstance(adjacent_manifest, dict):
+        raise DesignLintError("adjacent design preview manifest must be a JSON object")
+    if _canonical_json_sha256(adjacent_manifest) != _canonical_json_sha256(manifest):
+        raise DesignLintError(
+            "adjacent design preview manifest must exactly match the embedded manifest before direction confirmation"
+        )
+    payload = _build_direction_checkpoint_payload(
+        path,
+        direction_id=direction_id,
+        manifest=manifest,
+        visual_medium="html",
+    )
+    return _write_or_verify_direction_checkpoint(path, payload)
+
+
+def confirm_design_preview_direction(
+    path: Path,
+    *,
+    direction_id: str,
+) -> dict[str, Any]:
+    return _confirm_design_preview_direction_locked(
+        _preview_project_root(path),
+        path,
+        direction_id=direction_id,
+    )
+
+
+@_design_index_transaction
+def _confirm_design_image_direction_locked(
+    project_root: Path,
+    path: Path,
+    *,
+    manifest_path: Path,
+    prompt_path: Path,
+    direction_id: str,
+    image_inspection: str,
+    image_editing: str,
+) -> dict[str, Any]:
+    if _preview_project_root(path) != project_root:
+        raise DesignLintError("design preview project root changed during confirmation")
+    _image_bytes, diagnostics = _design_image_artifact_diagnostics(path)
+    if diagnostics:
+        raise DesignLintError("; ".join(f"{d.code}: {d.message}" for d in diagnostics))
+    manifest_path = _design_image_bundle_path(
+        path,
+        manifest_path,
+        expected_name=f"{path.stem}.manifest.json",
+        label="manifest",
+    )
+    prompt_path = _design_image_bundle_path(
+        path,
+        prompt_path,
+        expected_name=f"{path.stem}.prompt.md",
+        label="prompt",
+    )
+    if not manifest_path.is_file():
+        raise DesignLintError("image direction confirmation requires --manifest")
+    if not prompt_path.is_file():
+        raise DesignLintError("image direction confirmation requires --prompt")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DesignLintError(f"cannot read design image manifest: {exc}") from exc
+    if not isinstance(manifest, dict):
+        raise DesignLintError("design image manifest must be a JSON object")
+    review = manifest.get("review")
+    if not isinstance(review, dict) or str(review.get("status") or "").strip().lower() != "candidate":
+        raise DesignLintError("design image manifest must be a configured candidate before direction confirmation")
+    direction_ids = [
+        str(item.get("id") or "").strip()
+        for item in manifest.get("directions") or []
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    ]
+    if direction_id not in direction_ids:
+        raise DesignLintError(
+            f"unknown design direction {direction_id}; choose one of "
+            + ", ".join(direction_ids)
+        )
+    try:
+        prompt_text = prompt_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise DesignLintError(f"cannot read image generation prompt: {exc}") from exc
+    if len(prompt_text.strip()) < 40 or DESIGN_PREVIEW_PLACEHOLDER_RE.search(prompt_text):
+        raise DesignLintError("image generation prompt must be project-specific, non-placeholder Markdown")
+    collaboration = manifest.get("visual_collaboration")
+    if not isinstance(collaboration, dict):
+        raise DesignLintError("design image manifest must freeze the live visual capability route")
+    normalized_inspection = image_inspection.strip().lower()
+    normalized_editing = image_editing.strip().lower()
+    for label, value in (
+        ("image inspection", normalized_inspection),
+        ("image editing", normalized_editing),
+    ):
+        if value not in DESIGN_IMAGE_CAPABILITY_VALUES:
+            raise DesignLintError(f"{label} must be available or unavailable")
+    expected = {
+        "primary_medium": "image-primary",
+        "image_generation": "available",
+        "image_inspection": normalized_inspection,
+        "image_editing": normalized_editing,
+        "inspection_owner": "agent-and-user"
+        if normalized_inspection == "available"
+        else "user",
+        "prompt_strategy": "image-generation",
+    }
+    if collaboration != expected:
+        raise DesignLintError(
+            "image direction confirmation requires the manifest "
+            "visual_collaboration to exactly match the provided capability route"
+        )
+    diagnostics = lint_design_image_bundle(path, level="concept")
+    if diagnostics:
+        raise DesignLintError(
+            "design image is not ready for direction confirmation: "
+            + "; ".join(f"{diagnostic.code}: {diagnostic.message}" for diagnostic in diagnostics)
+        )
+    payload = _build_direction_checkpoint_payload(
+        path,
+        direction_id=direction_id,
+        manifest=manifest,
+        visual_medium="image",
+        prompt_path=prompt_path,
+    )
+    return _write_or_verify_direction_checkpoint(path, payload)
+
+
+def confirm_design_image_direction(
+    path: Path,
+    *,
+    manifest_path: Path,
+    prompt_path: Path,
+    direction_id: str,
+    image_inspection: str,
+    image_editing: str,
+) -> dict[str, Any]:
+    return _confirm_design_image_direction_locked(
+        _preview_project_root(path),
+        path,
+        manifest_path=manifest_path,
+        prompt_path=prompt_path,
+        direction_id=direction_id,
+        image_inspection=image_inspection,
+        image_editing=image_editing,
+    )
+
+
 def lint_design_image_bundle(
     path: Path,
     *,
@@ -5820,10 +6562,76 @@ def lint_design_image_bundle(
     """Validate an image-primary round and its immutable approval bundle."""
 
     normalized_level = level.lower()
-    if normalized_level not in SUPPORTED_LINT_LEVELS:
+    if normalized_level not in SUPPORTED_PREVIEW_LINT_LEVELS:
         raise DesignLintError(f"unsupported design image lint level: {level}")
     image_bytes, diagnostics = _design_image_artifact_diagnostics(path)
     if diagnostics or normalized_level == "structural":
+        return enrich_design_diagnostics(diagnostics)
+    if normalized_level == "concept":
+        try:
+            _preview_change_context(path)
+        except DesignLintError as exc:
+            _add_diagnostic(
+                diagnostics,
+                "image-noncanonical-workspace",
+                str(exc),
+                str(path),
+            )
+
+    manifest_path = path.with_suffix(".manifest.json")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        _add_diagnostic(
+            diagnostics,
+            "image-invalid-manifest",
+            f"cannot read design image manifest: {exc}",
+            str(manifest_path),
+        )
+        return enrich_design_diagnostics(diagnostics)
+    if not isinstance(manifest, dict):
+        _add_diagnostic(
+            diagnostics,
+            "image-invalid-manifest",
+            "design image manifest must be a JSON object",
+            str(manifest_path),
+        )
+        return enrich_design_diagnostics(diagnostics)
+    direction_ids = [
+        str(item.get("id") or "").strip()
+        for item in manifest.get("directions") or []
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    ]
+    prompt_path = path.with_suffix(".prompt.md")
+    try:
+        prompt_bytes = prompt_path.read_bytes()
+        prompt_text = prompt_bytes.decode("utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        _add_diagnostic(
+            diagnostics,
+            "image-invalid-generation-prompt",
+            f"cannot read image generation prompt: {exc}",
+            str(prompt_path),
+        )
+        return enrich_design_diagnostics(diagnostics)
+    if (
+        len(prompt_text.strip()) < 40
+        or DESIGN_PREVIEW_PLACEHOLDER_RE.search(prompt_text)
+    ):
+        _add_diagnostic(
+            diagnostics,
+            "image-invalid-generation-prompt",
+            "concept image preview requires a project-specific adjacent generation prompt",
+            str(prompt_path),
+        )
+    if normalized_level == "concept":
+        diagnostics.extend(
+            _concept_preview_manifest_diagnostics(
+                manifest,
+                direction_ids=direction_ids,
+                expected_primary_medium="image-primary",
+            )
+        )
         return enrich_design_diagnostics(diagnostics)
 
     approval_path = design_preview_approval_path(path)
@@ -5888,25 +6696,6 @@ def lint_design_image_bundle(
             str(approval_path),
         )
 
-    manifest_path = path.with_suffix(".manifest.json")
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        _add_diagnostic(
-            diagnostics,
-            "image-invalid-manifest",
-            f"cannot read design image manifest: {exc}",
-            str(manifest_path),
-        )
-        return enrich_design_diagnostics(diagnostics)
-    if not isinstance(manifest, dict):
-        _add_diagnostic(
-            diagnostics,
-            "image-invalid-manifest",
-            "design image manifest must be a JSON object",
-            str(manifest_path),
-        )
-        return enrich_design_diagnostics(diagnostics)
     if approval.get("manifest_sha256") != _canonical_json_sha256(manifest):
         _add_diagnostic(
             diagnostics,
@@ -5914,11 +6703,6 @@ def lint_design_image_bundle(
             "image approval sidecar does not bind the immutable manifest",
             str(manifest_path),
         )
-    direction_ids = [
-        str(item.get("id") or "").strip()
-        for item in manifest.get("directions") or []
-        if isinstance(item, dict) and str(item.get("id") or "").strip()
-    ]
     diagnostics.extend(
         _preview_manifest_diagnostics(
             manifest,
@@ -5955,23 +6739,7 @@ def lint_design_image_bundle(
             "manifest.visual_collaboration",
         )
 
-    prompt_path = path.with_suffix(".prompt.md")
-    try:
-        prompt_bytes = prompt_path.read_bytes()
-        prompt_text = prompt_bytes.decode("utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        _add_diagnostic(
-            diagnostics,
-            "image-invalid-generation-prompt",
-            f"cannot read image generation prompt: {exc}",
-            str(prompt_path),
-        )
-        return enrich_design_diagnostics(diagnostics)
-    if (
-        len(prompt_text.strip()) < 40
-        or DESIGN_PREVIEW_PLACEHOLDER_RE.search(prompt_text)
-        or approval.get("prompt_sha256") != _sha256_bytes(prompt_bytes)
-    ):
+    if approval.get("prompt_sha256") != _sha256_bytes(prompt_bytes):
         _add_diagnostic(
             diagnostics,
             "image-stale-prompt-binding",
@@ -6033,7 +6801,7 @@ def lint_design_preview_file(
     """Validate a project-level, single-concept HTML design preview round."""
 
     normalized_level = level.lower()
-    if normalized_level not in SUPPORTED_LINT_LEVELS:
+    if normalized_level not in SUPPORTED_PREVIEW_LINT_LEVELS:
         raise DesignLintError(f"unsupported design preview lint level: {level}")
     if not path.exists():
         return enrich_design_diagnostics(
@@ -6178,14 +6946,33 @@ def lint_design_preview_file(
             str(exc),
             f"script#{DESIGN_PREVIEW_MANIFEST_ID}",
         )
-    diagnostics.extend(
-        _preview_manifest_diagnostics(
-            manifest,
-            direction_ids=direction_ids,
-            ready=normalized_level == "ready",
-            expected_primary_medium="html-primary",
+    if normalized_level == "concept":
+        try:
+            _preview_change_context(path)
+        except DesignLintError as exc:
+            _add_diagnostic(
+                diagnostics,
+                "preview-noncanonical-workspace",
+                str(exc),
+                str(path),
+            )
+    if normalized_level == "concept":
+        diagnostics.extend(
+            _concept_preview_manifest_diagnostics(
+                manifest,
+                direction_ids=direction_ids,
+                expected_primary_medium="html-primary",
+            )
         )
-    )
+    else:
+        diagnostics.extend(
+            _preview_manifest_diagnostics(
+                manifest,
+                direction_ids=direction_ids,
+                ready=normalized_level == "ready",
+                expected_primary_medium="html-primary",
+            )
+        )
     for token_name in (
         "--motion-duration-fast",
         "--motion-duration-base",
@@ -6231,7 +7018,7 @@ def lint_design_preview_file(
             "html.dependencies",
         )
 
-    if normalized_level == "ready":
+    if normalized_level in {"concept", "ready"}:
         prototype_status = (
             parser.preview_attrs.get("data-prototype-status", "").strip().lower()
         )
@@ -6240,13 +7027,20 @@ def lint_design_preview_file(
                 diagnostics,
                 "preview-unfinished-prototype",
                 (
-                    "ready preview must replace the prototype seed and set "
+                    f"{normalized_level} preview must replace the prototype seed and set "
                     'data-prototype-status="authored" after visual inspection'
                 ),
                 "data-prototype-status",
             )
         status = parser.preview_attrs.get("data-preview-status", "").strip().lower()
-        if status not in {"candidate", "approved"}:
+        if normalized_level == "concept" and status != "candidate":
+            _add_diagnostic(
+                diagnostics,
+                "preview-not-candidate",
+                "concept preview status must be candidate",
+                "data-preview-status",
+            )
+        elif normalized_level == "ready" and status not in {"candidate", "approved"}:
             _add_diagnostic(
                 diagnostics,
                 "preview-not-candidate",
@@ -6257,9 +7051,17 @@ def lint_design_preview_file(
             _add_diagnostic(
                 diagnostics,
                 "preview-unresolved-placeholder",
-                "ready preview must not contain unresolved __PLACEHOLDER__ values",
+                f"{normalized_level} preview must not contain unresolved __PLACEHOLDER__ values",
                 "html",
             )
+        if ":focus-visible" not in style_text:
+            _add_diagnostic(
+                diagnostics,
+                "preview-missing-focus-visible",
+                "concept preview must style visible focus states",
+                "style.focus-visible",
+            )
+    if normalized_level == "ready":
         review = manifest.get("review") if isinstance(manifest, dict) else None
         if status == "candidate" and (
             not isinstance(review, dict)

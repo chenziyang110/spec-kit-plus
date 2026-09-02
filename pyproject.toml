@@ -51,6 +51,7 @@ packages = ["src/specify_cli"]
 "templates/context-template.md" = "specify_cli/core_pack/templates/context-template.md"
 "templates/debug.md" = "specify_cli/core_pack/templates/debug.md"
 "templates/design-brief-template.md" = "specify_cli/core_pack/templates/design-brief-template.md"
+"templates/design-direction-checkpoint.schema.json" = "specify_cli/core_pack/templates/design-direction-checkpoint.schema.json"
 "templates/design-handoff-schema.json" = "specify_cli/core_pack/templates/design-handoff-schema.json"
 "templates/design-capability-profiles.json" = "specify_cli/core_pack/templates/design-capability-profiles.json"
 "templates/design-preview-manifest.schema.json" = "specify_cli/core_pack/templates/design-preview-manifest.schema.json"

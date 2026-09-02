@@ -24,7 +24,10 @@ review a known seed, broken layout, or uninspected file.
 Show the exact round path and summarize its thesis, signature, preserved
 decisions, intentional risk, and known trade-offs. Ask what feels right and
 what remains wrong. Do not make the user compare three unrelated compositions
-in one file.
+in one file. When the user explicitly confirms the named direction but has not
+approved the complete handoff contract, record direction-confirmed and keep it
+separate from formal approval. Do not call direction-confirm automatically from
+lint or agent confidence alone.
 
 ## Turn feedback into a new immutable round
 
@@ -43,6 +46,11 @@ Approval must name the exact inspected round. If wording is ambiguous, ask one
 direct confirmation question. After explicit approval, freeze the preview and
 handoff sidecars; later changes require another immutable round and renewed
 approval.
+
+Direction-confirmed is non-consumable: it is not a Plan, Tasks, Implement,
+Quick, or Review input. Direction-confirmed must not bind `spec-contract.json`;
+only an approve/register receipt after contract completion may be consumed by
+delivery workflows.
 
 An audit is different: return a small prioritized set of `Observed / Change /
 Why` findings without mutating approved truth. Open a refine successor only

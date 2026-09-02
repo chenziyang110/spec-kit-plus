@@ -312,6 +312,10 @@ func TestDesignPreviewConceptLintAllowsAuthoredCandidateBeforeHandoffCompletion(
 	if exit := runDesign([]string{"preview-lint", preview, "--level", "concept"}, &stdout); exit != 0 {
 		t.Fatalf("authored candidate should pass concept lint before handoff completion: exit=%d output=%s", exit, stdout.String())
 	}
+	stdout.Reset()
+	if exit := runDesign([]string{"lint", preview, "--level", "concept"}, &stdout); exit != 2 {
+		t.Fatalf("concept must remain preview-lint-specific: exit=%d output=%s", exit, stdout.String())
+	}
 }
 
 func TestDesignDirectionConfirmCreatesNonConsumableIdempotentCheckpointAndRejectsDrift(t *testing.T) {
@@ -320,10 +324,6 @@ func TestDesignDirectionConfirmCreatesNonConsumableIdempotentCheckpointAndReject
 	preview, designPath := createDirectionCheckpointFixture(t, "UD-0060", true)
 	previewBefore := readFile(t, preview)
 	designBefore := readFile(t, designPath)
-	manifest, err := parseJSONObject(parseHTMLSummary(previewBefore).PreviewManifestText)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	var stdout bytes.Buffer
 	if exit := runDesign([]string{"direction-confirm", preview, "--direction", "direction-main"}, &stdout); exit != 0 {
@@ -337,6 +337,7 @@ func TestDesignDirectionConfirmCreatesNonConsumableIdempotentCheckpointAndReject
 	directionPath := base + ".direction.json"
 	approvalPath := base + ".approval.json"
 	handoffPath := base + ".handoff.json"
+	manifestPath := base + ".manifest.json"
 	for _, path := range []string{approvalPath, handoffPath} {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Fatalf("direction-confirm created consumable artifact %s: %v", path, err)
@@ -349,7 +350,7 @@ func TestDesignDirectionConfirmCreatesNonConsumableIdempotentCheckpointAndReject
 		t.Fatal(err)
 	}
 	wantDesignRef := filepath.ToSlash(designPath)
-	wantFields := map[string]any{
+	wantCheckpoint := map[string]any{
 		"schema":               "spec-kit-design-direction-checkpoint-v1",
 		"status":               "confirmed",
 		"authority":            "non-consumable",
@@ -360,22 +361,21 @@ func TestDesignDirectionConfirmCreatesNonConsumableIdempotentCheckpointAndReject
 		"design_change_id":     "UD-0060",
 		"design_change_ref":    wantDesignRef,
 		"design_change_sha256": sha256String(designBefore),
-		"visual_medium":        "html",
-		"preview_sha256":       sha256String(previewBefore),
-		"direction_id":         "direction-main",
-		"review_round":         "1",
-		"manifest_sha256":      canonicalJSONSHA256(manifest),
+		"scope":                []any{"web:orders/list"},
+		"capability_profile_ids": []any{
+			"web",
+		},
+		"visual_medium":   "html",
+		"preview_file":    filepath.Base(preview),
+		"preview_ref":     filepath.ToSlash(preview) + "#direction-main",
+		"preview_sha256":  sha256String(previewBefore),
+		"direction_id":    "direction-main",
+		"review_round":    "1",
+		"manifest_ref":    filepath.ToSlash(manifestPath),
+		"manifest_sha256": sha256String(readFile(t, manifestPath)),
 	}
-	for field, want := range wantFields {
-		if got := checkpoint[field]; got != want {
-			t.Errorf("checkpoint %s = %#v, want %#v", field, got, want)
-		}
-	}
-	if got := stringList(checkpoint["scope"]); !reflect.DeepEqual(got, []string{"web:orders/list"}) {
-		t.Errorf("checkpoint scope = %#v", got)
-	}
-	if got := stringList(checkpoint["capability_profile_ids"]); !reflect.DeepEqual(got, []string{"web"}) {
-		t.Errorf("checkpoint capability_profile_ids = %#v", got)
+	if !reflect.DeepEqual(checkpoint, wantCheckpoint) {
+		t.Fatalf("direction checkpoint = %#v, want %#v", checkpoint, wantCheckpoint)
 	}
 
 	stdout.Reset()
@@ -399,6 +399,74 @@ func TestDesignDirectionConfirmCreatesNonConsumableIdempotentCheckpointAndReject
 	}
 	if got := readFile(t, directionPath); got != checkpointText {
 		t.Fatal("drift rejection changed the existing checkpoint")
+	}
+}
+
+func TestDesignDirectionConfirmImageRequiresCapabilityParityAndPreservesCandidateBundle(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	image, manifestPath, promptPath := createDirectionImageCheckpointFixture(t, "UD-0062")
+	manifestBefore := readFile(t, manifestPath)
+
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"preview-lint", image, "--level", "concept"}, &stdout); exit != 0 {
+		t.Fatalf("candidate image with deferred handoff should pass concept lint: %d %s", exit, stdout.String())
+	}
+	stdout.Reset()
+	if exit := runDesign([]string{
+		"direction-confirm", image,
+		"--direction", "direction-main",
+		"--manifest", manifestPath,
+		"--prompt", promptPath,
+		"--image-inspection", "unavailable",
+		"--image-editing", "unavailable",
+	}, &stdout); exit == 0 {
+		t.Fatalf("direction-confirm accepted capability drift: %s", stdout.String())
+	}
+	if _, err := os.Stat(strings.TrimSuffix(image, filepath.Ext(image)) + ".direction.json"); !os.IsNotExist(err) {
+		t.Fatalf("rejected capability drift created a checkpoint: %v", err)
+	}
+
+	stdout.Reset()
+	if exit := runDesign([]string{
+		"direction-confirm", image,
+		"--direction", "direction-main",
+		"--manifest", manifestPath,
+		"--prompt", promptPath,
+		"--image-inspection", "available",
+		"--image-editing", "unavailable",
+	}, &stdout); exit != 0 {
+		t.Fatalf("image direction-confirm failed: %d %s", exit, stdout.String())
+	}
+	if got := readFile(t, manifestPath); got != manifestBefore {
+		t.Fatal("image direction-confirm mutated the candidate manifest")
+	}
+	base := strings.TrimSuffix(image, filepath.Ext(image))
+	for _, path := range []string{base + ".approval.json", base + ".handoff.json"} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("image direction-confirm created consumable artifact %s: %v", path, err)
+		}
+	}
+	var checkpoint map[string]any
+	if err := json.Unmarshal([]byte(readFile(t, base+".direction.json")), &checkpoint); err != nil {
+		t.Fatal(err)
+	}
+	for field, want := range map[string]any{
+		"schema":           "spec-kit-design-direction-checkpoint-v1",
+		"authority":        "non-consumable",
+		"visual_medium":    "image",
+		"preview_sha256":   sha256String(readFile(t, image)),
+		"manifest_sha256":  sha256String(manifestBefore),
+		"prompt_sha256":    sha256String(readFile(t, promptPath)),
+		"image_generation": "available",
+		"image_inspection": "available",
+		"image_editing":    "unavailable",
+		"inspection_owner": "agent-and-user",
+		"prompt_strategy":  "image-generation",
+	} {
+		if got := checkpoint[field]; got != want {
+			t.Errorf("checkpoint %s = %#v, want %#v", field, got, want)
+		}
 	}
 }
 
@@ -446,7 +514,7 @@ func TestDesignHelpDoesNotExecutePreviewManifestOrWriteFiles(t *testing.T) {
 			t.Fatalf("help args=%v exit=%d output=%s", args, exit, stdout.String())
 		}
 		output := stdout.String()
-		for _, want := range []string{"specify-runtime design commands:", "preview-manifest", "import"} {
+		for _, want := range []string{"specify-runtime design commands:", "preview-manifest", "direction-confirm", "import"} {
 			if !strings.Contains(output, want) {
 				t.Fatalf("help args=%v output=%q missing %q", args, output, want)
 			}
@@ -2926,7 +2994,69 @@ func createDirectionCheckpointFixture(t *testing.T, changeID string, incompleteH
 	if incompleteHandoff {
 		removePreviewHandoffField(t, preview, "editing_matrix")
 	}
+	writePreviewAdjacentManifest(t, preview)
 	return preview, designPath
+}
+
+func createDirectionImageCheckpointFixture(t *testing.T, changeID string) (string, string, string) {
+	t.Helper()
+	preview, _ := createDirectionCheckpointFixture(t, changeID, false)
+	content := readFile(t, preview)
+	manifest, err := parseJSONObject(parseHTMLSummary(content).PreviewManifestText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest["visual_collaboration"] = map[string]any{
+		"primary_medium":   "image-primary",
+		"image_generation": "available",
+		"image_inspection": "available",
+		"image_editing":    "unavailable",
+		"inspection_owner": "agent-and-user",
+		"prompt_strategy":  "image-generation",
+	}
+	handoff := manifest["handoff"].(map[string]any)
+	for _, field := range []string{"surface_catalog", "scenario_matrix", "component_contracts"} {
+		handoff[field] = []any{}
+	}
+	base := strings.TrimSuffix(preview, filepath.Ext(preview))
+	manifestPath := base + ".manifest.json"
+	manifestText, err := marshalPretty(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifestPath, []byte(manifestText), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	image := base + ".png"
+	pngBytes, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2n1cAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(image, pngBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	promptPath := base + ".prompt.md"
+	prompt := "# Image generation prompt\n\nOne product UI concept with a persistent recovery rail and representative operator states.\n"
+	if err := os.WriteFile(promptPath, []byte(prompt), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return image, manifestPath, promptPath
+}
+
+func writePreviewAdjacentManifest(t *testing.T, path string) {
+	t.Helper()
+	manifest, err := parseJSONObject(parseHTMLSummary(readFile(t, path)).PreviewManifestText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestText, err := marshalPretty(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestPath := strings.TrimSuffix(path, filepath.Ext(path)) + ".manifest.json"
+	if err := os.WriteFile(manifestPath, []byte(manifestText), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func removePreviewHandoffField(t *testing.T, path, field string) {
