@@ -414,6 +414,152 @@ def _configured_preview() -> str:
     return updated
 
 
+def _configured_preview_with_incomplete_handoff() -> str:
+    content = _configured_preview()
+    match = re.search(
+        r'<script\b(?=[^>]*\bid="design-preview-manifest")[^>]*>(.*?)</script>',
+        content,
+        re.DOTALL | re.IGNORECASE,
+    )
+    assert match is not None
+    manifest = json.loads(match.group(1))
+    handoff = manifest["handoff"]
+    assert isinstance(handoff, dict)
+    handoff["surface_catalog"] = []
+    handoff["scenario_matrix"] = []
+    handoff["component_contracts"] = []
+    rendered = json.dumps(manifest, ensure_ascii=False, indent=2)
+    pattern = re.compile(
+        r'(<script\b(?=[^>]*\bid="design-preview-manifest")[^>]*>).*?(</script>)',
+        re.DOTALL | re.IGNORECASE,
+    )
+    updated, count = pattern.subn(
+        lambda match: f"{match.group(1)}\n{rendered}\n  {match.group(2)}",
+        content,
+        count=1,
+    )
+    assert count == 1
+    return updated
+
+
+def _draft_change_workspace(
+    tmp_path: Path,
+    *,
+    change_id: str,
+    preview_filename: str,
+    preview_content: str,
+) -> tuple[Path, Path, Path, dict[str, object], bytes]:
+    design_path = scaffold_design_change(
+        tmp_path,
+        change_id=change_id,
+        title=f"{change_id} direction candidate",
+        change_type="extension",
+        scopes=["web:orders/detail"],
+        profile_ids=["web"],
+    )
+    workspace = design_path.parent
+    preview = workspace / "previews" / preview_filename
+    preview.parent.mkdir(parents=True, exist_ok=True)
+    round_match = re.search(r"round-(\d+)", preview_filename)
+    assert round_match is not None
+    round_number = str(int(round_match.group(1)))
+    match = re.search(
+        r'<script\b(?=[^>]*\bid="design-preview-manifest")[^>]*>(.*?)</script>',
+        preview_content,
+        re.DOTALL | re.IGNORECASE,
+    )
+    assert match is not None
+    manifest = json.loads(match.group(1))
+    review = manifest["review"]
+    assert isinstance(review, dict)
+    review["round"] = round_number
+    rendered = json.dumps(manifest, ensure_ascii=False, indent=2)
+    pattern = re.compile(
+        r'(<script\b(?=[^>]*\bid="design-preview-manifest")[^>]*>).*?(</script>)',
+        re.DOTALL | re.IGNORECASE,
+    )
+    preview_content, count = pattern.subn(
+        lambda match: f"{match.group(1)}\n{rendered}\n  {match.group(2)}",
+        preview_content,
+        count=1,
+    )
+    assert count == 1
+    preview.write_text(preview_content, encoding="utf-8")
+    preview.with_suffix(".manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    index_path = tmp_path / ".specify" / "design" / "index.json"
+    index_bytes = index_path.read_bytes()
+    index = json.loads(index_bytes.decode("utf-8"))
+    record = index["changes"][0]
+    assert record["id"] == change_id
+    return design_path, workspace, preview, record, index_bytes
+
+
+def _write_candidate_image_bundle(
+    tmp_path: Path,
+    *,
+    change_id: str,
+    round_number: str,
+    incomplete_handoff: bool = False,
+) -> tuple[Path, Path, Path, dict[str, object], bytes]:
+    design_path = scaffold_design_change(
+        tmp_path,
+        change_id=change_id,
+        title=f"{change_id} image direction candidate",
+        change_type="extension",
+        scopes=["web:orders/detail"],
+        profile_ids=["web"],
+    )
+    workspace = design_path.parent
+    image = workspace / "previews" / f"round-{round_number}.png"
+    image.parent.mkdir(parents=True, exist_ok=True)
+    image.write_bytes(
+        base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2n1cAAAAASUVORK5CYII="
+        )
+    )
+    configured = (
+        _configured_preview_with_incomplete_handoff()
+        if incomplete_handoff
+        else _configured_preview()
+    )
+    match = re.search(
+        r'<script\b(?=[^>]*\bid="design-preview-manifest")[^>]*>(.*?)</script>',
+        configured,
+        re.DOTALL | re.IGNORECASE,
+    )
+    assert match is not None
+    manifest_payload = json.loads(match.group(1))
+    manifest_payload["review"]["round"] = str(int(round_number))
+    manifest_payload["visual_collaboration"] = {
+        "primary_medium": "image-primary",
+        "image_generation": "available",
+        "image_inspection": "available",
+        "image_editing": "unavailable",
+        "inspection_owner": "agent-and-user",
+        "prompt_strategy": "image-generation",
+    }
+    manifest = image.with_suffix(".manifest.json")
+    manifest.write_text(
+        json.dumps(manifest_payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    prompt = image.with_suffix(".prompt.md")
+    prompt.write_text(
+        "# Image generation prompt\n\n"
+        "One product UI concept with the persistent recovery rail, dense operator "
+        "states, and explicit pending/error recovery.\n",
+        encoding="utf-8",
+    )
+    index_path = tmp_path / ".specify" / "design" / "index.json"
+    index_bytes = index_path.read_bytes()
+    index = json.loads(index_bytes.decode("utf-8"))
+    record = next(row for row in index["changes"] if row["id"] == change_id)
+    return image, manifest, prompt, record, index_bytes
+
+
 def _bind_approved_contract(
     content: str,
     *,
@@ -2401,6 +2547,143 @@ def test_design_lint_cli_ready_accepts_approved_project_design(
     assert "valid at ready level" in result.output
 
 
+def test_design_preview_lint_cli_concept_accepts_authored_single_concept_with_incomplete_handoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _, _, preview, _, _ = _draft_change_workspace(
+        tmp_path,
+        change_id="UD-0030",
+        preview_filename="round-30.html",
+        preview_content=_configured_preview_with_incomplete_handoff(),
+    )
+
+    concept = runner.invoke(
+        app,
+        ["design", "preview-lint", str(preview), "--level", "concept"],
+    )
+    ready = runner.invoke(
+        app,
+        ["design", "preview-lint", str(preview), "--level", "ready"],
+    )
+
+    assert concept.exit_code == 0
+    assert "valid at concept level" in concept.output
+    assert ready.exit_code != 0
+    assert "surface_catalog" in ready.output or "scenario_matrix" in ready.output
+
+
+def test_design_direction_confirm_cli_html_writes_non_consumable_checkpoint_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    design_path, workspace, preview, record, index_bytes = _draft_change_workspace(
+        tmp_path,
+        change_id="UD-0032",
+        preview_filename="round-32.html",
+        preview_content=_configured_preview(),
+    )
+
+    result = runner.invoke(
+        app,
+        ["design", "direction-confirm", str(preview), "--direction", "direction-main"],
+    )
+
+    assert result.exit_code == 0
+    direction_path = preview.with_suffix(".direction.json")
+    assert direction_path.is_file()
+    assert not preview.with_suffix(".approval.json").exists()
+    assert not preview.with_suffix(".handoff.json").exists()
+    assert direction_path.parent == workspace / "previews"
+    payload = json.loads(direction_path.read_text(encoding="utf-8"))
+    assert payload == {
+        "schema": "spec-kit-design-direction-checkpoint-v1",
+        "status": "confirmed",
+        "authority": "non-consumable",
+        "approved": False,
+        "registered": False,
+        "consumer_eligible": False,
+        "confirmed_by": "explicit-user-direction-confirmation",
+        "design_change_id": "UD-0032",
+        "design_change_ref": record["design_ref"],
+        "design_change_sha256": hashlib.sha256(
+            design_path.read_bytes()
+        ).hexdigest(),
+        "scope": record["scope"],
+        "capability_profile_ids": ["web"],
+        "visual_medium": "html",
+        "preview_file": "round-32.html",
+        "preview_ref": ".specify/design/changes/UD-0032/previews/round-32.html#direction-main",
+        "preview_sha256": hashlib.sha256(preview.read_bytes()).hexdigest(),
+        "direction_id": "direction-main",
+        "review_round": "32",
+        "manifest_ref": ".specify/design/changes/UD-0032/previews/round-32.manifest.json",
+        "manifest_sha256": hashlib.sha256(
+            preview.with_suffix(".manifest.json").read_bytes()
+        ).hexdigest(),
+    }
+    assert (tmp_path / ".specify" / "design" / "index.json").read_bytes() == index_bytes
+
+
+def test_design_direction_confirm_cli_html_is_idempotent_and_rejects_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _, _, preview, _, _ = _draft_change_workspace(
+        tmp_path,
+        change_id="UD-0033",
+        preview_filename="round-33.html",
+        preview_content=_configured_preview(),
+    )
+
+    first = runner.invoke(
+        app,
+        ["design", "direction-confirm", str(preview), "--direction", "direction-main"],
+    )
+    second = runner.invoke(
+        app,
+        ["design", "direction-confirm", str(preview), "--direction", "direction-main"],
+    )
+    preview.write_text(
+        preview.read_text(encoding="utf-8") + "\n<!-- drift -->\n",
+        encoding="utf-8",
+    )
+    drifted = runner.invoke(
+        app,
+        ["design", "direction-confirm", str(preview), "--direction", "direction-main"],
+    )
+
+    assert first.exit_code == 0
+    assert second.exit_code == 0
+    assert drifted.exit_code != 0
+    assert "different bytes" in drifted.output or "immutable" in drifted.output
+
+
+def test_design_direction_confirm_blocks_formal_approve_on_same_round(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _, _, preview, _, _ = _draft_change_workspace(
+        tmp_path,
+        change_id="UD-0034",
+        preview_filename="round-34.html",
+        preview_content=_configured_preview(),
+    )
+
+    confirmed = runner.invoke(
+        app,
+        ["design", "direction-confirm", str(preview), "--direction", "direction-main"],
+    )
+    approved = runner.invoke(
+        app,
+        ["design", "approve", str(preview), "--direction", "direction-main"],
+    )
+
+    assert confirmed.exit_code == 0
+    assert approved.exit_code != 0
+    assert "direction checkpoint" in approved.output or "cannot approve" in approved.output
+
+
 def test_design_lint_cli_json_reports_diagnostics_for_invalid_schema(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2505,3 +2788,123 @@ def test_design_import_cli_writes_reference_without_root_design(
     assert "https://example.com/style" in references_content
     assert "Dense admin UI with compact tables." in references_content
     assert not root_design_exists
+
+
+def test_design_preview_lint_cli_concept_image_requires_adjacent_bundle_and_ready_still_fails_incomplete_handoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    image, manifest, prompt, _, _ = _write_candidate_image_bundle(
+        tmp_path,
+        change_id="UD-0031",
+        round_number="31",
+        incomplete_handoff=True,
+    )
+
+    concept = runner.invoke(
+        app,
+        ["design", "preview-lint", str(image), "--level", "concept"],
+    )
+    ready = runner.invoke(
+        app,
+        ["design", "preview-lint", str(image), "--level", "ready"],
+    )
+
+    assert manifest.is_file()
+    assert prompt.is_file()
+    assert concept.exit_code == 0
+    assert ready.exit_code != 0
+    assert (
+        "approval" in ready.output
+        or "approved" in ready.output
+        or "surface_catalog" in ready.output
+        or "scenario_matrix" in ready.output
+        or "handoff" in ready.output
+    )
+
+
+def test_design_direction_confirm_cli_image_requires_adjacent_manifest_prompt_and_capability_parity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    image, manifest, prompt, record, index_bytes = _write_candidate_image_bundle(
+        tmp_path,
+        change_id="UD-0035",
+        round_number="35",
+    )
+
+    ok = runner.invoke(
+        app,
+        [
+            "design",
+            "direction-confirm",
+            str(image),
+            "--direction",
+            "direction-main",
+            "--manifest",
+            str(manifest),
+            "--prompt",
+            str(prompt),
+            "--image-inspection",
+            "available",
+            "--image-editing",
+            "unavailable",
+        ],
+    )
+    missing_prompt = runner.invoke(
+        app,
+        [
+            "design",
+            "direction-confirm",
+            str(image),
+            "--direction",
+            "direction-main",
+            "--manifest",
+            str(manifest),
+            "--image-inspection",
+            "available",
+            "--image-editing",
+            "unavailable",
+        ],
+    )
+
+    assert ok.exit_code == 0
+    direction_path = image.with_suffix(".direction.json")
+    assert direction_path.is_file()
+    assert not image.with_suffix(".approval.json").exists()
+    assert not image.with_suffix(".handoff.json").exists()
+    payload = json.loads(direction_path.read_text(encoding="utf-8"))
+    assert payload == {
+        "schema": "spec-kit-design-direction-checkpoint-v1",
+        "status": "confirmed",
+        "authority": "non-consumable",
+        "approved": False,
+        "registered": False,
+        "consumer_eligible": False,
+        "confirmed_by": "explicit-user-direction-confirmation",
+        "design_change_id": "UD-0035",
+        "design_change_ref": record["design_ref"],
+        "design_change_sha256": hashlib.sha256(
+            (tmp_path / record["design_ref"]).read_bytes()
+        ).hexdigest(),
+        "scope": record["scope"],
+        "capability_profile_ids": ["web"],
+        "visual_medium": "image",
+        "preview_file": "round-35.png",
+        "preview_ref": ".specify/design/changes/UD-0035/previews/round-35.png#direction-main",
+        "preview_sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
+        "direction_id": "direction-main",
+        "review_round": "35",
+        "manifest_ref": ".specify/design/changes/UD-0035/previews/round-35.manifest.json",
+        "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+        "prompt_ref": ".specify/design/changes/UD-0035/previews/round-35.prompt.md",
+        "prompt_sha256": hashlib.sha256(prompt.read_bytes()).hexdigest(),
+        "image_generation": "available",
+        "image_inspection": "available",
+        "image_editing": "unavailable",
+        "inspection_owner": "agent-and-user",
+        "prompt_strategy": "image-generation",
+    }
+    assert (tmp_path / ".specify" / "design" / "index.json").read_bytes() == index_bytes
+    assert missing_prompt.exit_code != 0
+    assert "--prompt" in missing_prompt.output or "adjacent" in missing_prompt.output

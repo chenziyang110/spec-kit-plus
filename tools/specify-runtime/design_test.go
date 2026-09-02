@@ -288,6 +288,150 @@ func TestDesignPreviewReadyRequiresTruthfulHTMLCapabilityRoute(t *testing.T) {
 	}
 }
 
+func TestDesignPreviewConceptLintAllowsAuthoredCandidateBeforeHandoffCompletion(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	preview := filepath.Join(".specify", "design", "previews", "round-01.html")
+
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"preview", "--out", preview}, &stdout); exit != 0 {
+		t.Fatalf("preview scaffold failed: %d %s", exit, stdout.String())
+	}
+	configurePreviewCandidate(t, preview)
+	removePreviewHandoffField(t, preview, "editing_matrix")
+
+	stdout.Reset()
+	if exit := runDesign([]string{"preview-lint", preview, "--level", "ready"}, &stdout); exit != 2 {
+		t.Fatalf("incomplete handoff should fail ready lint: exit=%d output=%s", exit, stdout.String())
+	}
+	if env := decodeEnvelope(t, stdout.Bytes()); !envelopeHasDiagnostic(env, "preview-missing-editing-matrix") {
+		t.Fatalf("ready lint did not identify the incomplete handoff: %#v", env.Items)
+	}
+
+	stdout.Reset()
+	if exit := runDesign([]string{"preview-lint", preview, "--level", "concept"}, &stdout); exit != 0 {
+		t.Fatalf("authored candidate should pass concept lint before handoff completion: exit=%d output=%s", exit, stdout.String())
+	}
+}
+
+func TestDesignDirectionConfirmCreatesNonConsumableIdempotentCheckpointAndRejectsDrift(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	preview, designPath := createDirectionCheckpointFixture(t, "UD-0060", true)
+	previewBefore := readFile(t, preview)
+	designBefore := readFile(t, designPath)
+	manifest, err := parseJSONObject(parseHTMLSummary(previewBefore).PreviewManifestText)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"direction-confirm", preview, "--direction", "direction-main"}, &stdout); exit != 0 {
+		t.Fatalf("direction-confirm failed: %d %s", exit, stdout.String())
+	}
+	if got := readFile(t, preview); got != previewBefore {
+		t.Fatal("direction-confirm mutated the candidate preview")
+	}
+
+	base := strings.TrimSuffix(preview, filepath.Ext(preview))
+	directionPath := base + ".direction.json"
+	approvalPath := base + ".approval.json"
+	handoffPath := base + ".handoff.json"
+	for _, path := range []string{approvalPath, handoffPath} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("direction-confirm created consumable artifact %s: %v", path, err)
+		}
+	}
+
+	var checkpoint map[string]any
+	checkpointText := readFile(t, directionPath)
+	if err := json.Unmarshal([]byte(checkpointText), &checkpoint); err != nil {
+		t.Fatal(err)
+	}
+	wantDesignRef := filepath.ToSlash(designPath)
+	wantFields := map[string]any{
+		"schema":               "spec-kit-design-direction-checkpoint-v1",
+		"status":               "confirmed",
+		"authority":            "non-consumable",
+		"approved":             false,
+		"registered":           false,
+		"consumer_eligible":    false,
+		"confirmed_by":         "explicit-user-direction-confirmation",
+		"design_change_id":     "UD-0060",
+		"design_change_ref":    wantDesignRef,
+		"design_change_sha256": sha256String(designBefore),
+		"visual_medium":        "html",
+		"preview_sha256":       sha256String(previewBefore),
+		"direction_id":         "direction-main",
+		"review_round":         "1",
+		"manifest_sha256":      canonicalJSONSHA256(manifest),
+	}
+	for field, want := range wantFields {
+		if got := checkpoint[field]; got != want {
+			t.Errorf("checkpoint %s = %#v, want %#v", field, got, want)
+		}
+	}
+	if got := stringList(checkpoint["scope"]); !reflect.DeepEqual(got, []string{"web:orders/list"}) {
+		t.Errorf("checkpoint scope = %#v", got)
+	}
+	if got := stringList(checkpoint["capability_profile_ids"]); !reflect.DeepEqual(got, []string{"web"}) {
+		t.Errorf("checkpoint capability_profile_ids = %#v", got)
+	}
+
+	stdout.Reset()
+	if exit := runDesign([]string{"direction-confirm", preview, "--direction", "direction-main"}, &stdout); exit != 0 {
+		t.Fatalf("identical direction-confirm replay failed: %d %s", exit, stdout.String())
+	}
+	if got := readFile(t, directionPath); got != checkpointText {
+		t.Fatal("identical direction-confirm replay rewrote the checkpoint")
+	}
+
+	drifted := strings.Replace(previewBefore, "Operations command center", "Operations command center revised", 1)
+	if drifted == previewBefore {
+		t.Fatal("preview drift fixture did not change the preview")
+	}
+	if err := os.WriteFile(preview, []byte(drifted), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	if exit := runDesign([]string{"direction-confirm", preview, "--direction", "direction-main"}, &stdout); exit == 0 {
+		t.Fatalf("direction-confirm accepted preview drift: %s", stdout.String())
+	}
+	if got := readFile(t, directionPath); got != checkpointText {
+		t.Fatal("drift rejection changed the existing checkpoint")
+	}
+}
+
+func TestDesignDirectionConfirmedRoundCannotBeApproved(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	preview, _ := createDirectionCheckpointFixture(t, "UD-0061", false)
+	previewBefore := readFile(t, preview)
+
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"preview-lint", preview, "--level", "ready"}, &stdout); exit != 0 {
+		t.Fatalf("control fixture must be approval-ready before direction confirmation: %d %s", exit, stdout.String())
+	}
+	stdout.Reset()
+	if exit := runDesign([]string{"direction-confirm", preview, "--direction", "direction-main"}, &stdout); exit != 0 {
+		t.Fatalf("direction-confirm failed: %d %s", exit, stdout.String())
+	}
+	if got := readFile(t, preview); got != previewBefore {
+		t.Fatal("direction-confirm mutated the approval-ready preview")
+	}
+
+	stdout.Reset()
+	if exit := runDesign([]string{"approve", preview, "--direction", "direction-main"}, &stdout); exit == 0 {
+		t.Fatalf("approve accepted a direction-confirmed round: %s", stdout.String())
+	}
+	base := strings.TrimSuffix(preview, filepath.Ext(preview))
+	for _, path := range []string{base + ".approval.json", base + ".handoff.json"} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("blocked approval created %s: %v", path, err)
+		}
+	}
+}
+
 func TestDesignHelpDoesNotExecutePreviewManifestOrWriteFiles(t *testing.T) {
 	tmp := t.TempDir()
 	withCwd(t, tmp)
@@ -2759,6 +2903,51 @@ func designChangeRecordRuntime(t *testing.T, index map[string]any, changeID stri
 	}
 	t.Fatalf("design change %s was not found", changeID)
 	return nil
+}
+
+func createDirectionCheckpointFixture(t *testing.T, changeID string, incompleteHandoff bool) (string, string) {
+	t.Helper()
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{
+		"change", changeID,
+		"--title", "Orders direction checkpoint",
+		"--scope", "web:orders/list",
+		"--profiles", "web",
+	}, &stdout); exit != 0 {
+		t.Fatalf("design change scaffold failed: %d %s", exit, stdout.String())
+	}
+	designPath := filepath.Join(".specify", "design", "changes", changeID, "design-change.md")
+	preview := filepath.Join(".specify", "design", "changes", changeID, "previews", "round-01.html")
+	stdout.Reset()
+	if exit := runDesign([]string{"preview", "--out", preview}, &stdout); exit != 0 {
+		t.Fatalf("preview scaffold failed: %d %s", exit, stdout.String())
+	}
+	configurePreviewCandidate(t, preview)
+	if incompleteHandoff {
+		removePreviewHandoffField(t, preview, "editing_matrix")
+	}
+	return preview, designPath
+}
+
+func removePreviewHandoffField(t *testing.T, path, field string) {
+	t.Helper()
+	content := readFile(t, path)
+	manifest, err := parseJSONObject(parseHTMLSummary(content).PreviewManifestText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handoff, ok := manifest["handoff"].(map[string]any)
+	if !ok {
+		t.Fatal("preview fixture handoff is missing")
+	}
+	delete(handoff, field)
+	updated, err := replaceEmbeddedJSON(content, designPreviewManifestID, manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func configurePreviewCandidate(t *testing.T, path string) {

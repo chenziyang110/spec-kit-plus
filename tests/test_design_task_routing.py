@@ -55,6 +55,15 @@ def _assert_consumer_contract(content: str) -> None:
     assert "not a formal design-contract consumer" in compact
 
 
+def _assert_terms_in_order(content: str, terms: list[str]) -> None:
+    cursor = -1
+    lowered = content.lower()
+    for term in terms:
+        next_cursor = lowered.find(term, cursor + 1)
+        assert next_cursor != -1, f"missing ordered term: {term}"
+        cursor = next_cursor
+
+
 def test_classic_design_uses_prompt_routing_and_explicit_consumers() -> None:
     command = _read(CLASSIC_DESIGN)
     router = _read(CLASSIC_REFERENCES / "task-router.md")
@@ -308,6 +317,71 @@ def test_design_surfaces_teach_taste_intake_iteration_and_redesign() -> None:
         seed = _read(PROJECT_ROOT / "templates" / "design-library" / name)
         assert "Not approval truth" in seed or "not approval truth" in seed.lower()
         assert "seed_warning" in seed
+
+
+def test_design_direction_flow_is_platform_neutral_and_single_concept() -> None:
+    classic = "\n".join(
+        [
+            _read(CLASSIC_DESIGN),
+            _read(CLASSIC_REFERENCES / "task-router.md"),
+            _read(CLASSIC_REFERENCES / "discovery-dialogue.md"),
+            _read(CLASSIC_REFERENCES / "image-generation-studio.md"),
+            _read(CLASSIC_REFERENCES / "html-prototype-studio.md"),
+            _read(CLASSIC_REFERENCES / "critique-loop.md"),
+        ]
+    )
+    advanced = "\n".join(
+        [
+            _read(ADVANCED_DESIGN / "SKILL.md"),
+            _read(ADVANCED_DESIGN / "references" / "task-router.md"),
+            _read(ADVANCED_DESIGN / "references" / "studio-loop.md"),
+            _read(ADVANCED_DESIGN / "references" / "image-round.md"),
+            _read(ADVANCED_DESIGN / "references" / "html-round.md"),
+            _read(ADVANCED_DESIGN / "references" / "design-contract.md"),
+        ]
+    )
+
+    for content in (classic, advanced):
+        compact = " ".join(content.lower().split())
+        _assert_terms_in_order(
+            compact,
+            [
+                "intake",
+                "concept-calibration",
+                "direction-confirmed",
+                "contract-completion",
+                "formal-approval",
+                "register",
+            ],
+        )
+        assert "platform-neutral" in compact or "platform independent" in compact
+        assert "one current concept" in compact
+        assert "2-3 textual choices" in compact
+        assert "do not generate three full boards" in compact
+
+
+def test_direction_confirmation_is_not_consumable_by_delivery_workflows() -> None:
+    classic = "\n".join(
+        [
+            _read(CLASSIC_REFERENCES / "consumer-contract.md"),
+            _read(CLASSIC_REFERENCES / "discovery-dialogue.md"),
+            _read(CLASSIC_REFERENCES / "critique-loop.md"),
+        ]
+    )
+    advanced = "\n".join(
+        [
+            _read(ADVANCED_DESIGN / "references" / "consumer-contract.md"),
+            _read(ADVANCED_DESIGN / "references" / "studio-loop.md"),
+            _read(ADVANCED_DESIGN / "references" / "design-contract.md"),
+        ]
+    )
+
+    for content in (classic, advanced):
+        compact = " ".join(content.lower().split())
+        assert "direction-confirmed is non-consumable" in compact
+        assert "plan and implement may consume only formal-approval plus register" in compact
+        assert "direction-confirmed must not bind spec-contract.json" in compact
+        assert "approve/register receipt" in compact
 
 
 def test_post_specify_design_returns_to_plan_without_repeating_specify() -> None:
