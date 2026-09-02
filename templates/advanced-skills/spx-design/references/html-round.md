@@ -9,6 +9,8 @@ interaction/state controls, accessibility semantics, focus behavior, and
 reduced motion. Use real content and platform-authentic anatomy. Keep the
 review carrier self-contained with no framework, CDN, remote runtime, network,
 persistence, analytics, production data, or business logic.
+Do not generate three full boards or parallel complete HTML options; unresolved
+ambiguity returns to 2-3 textual choices in concept-calibration.
 
 Before rendering, freeze `html-primary`, `image_generation: unavailable`, the
 independently probed inspection/editing values, truthful inspection owner, and

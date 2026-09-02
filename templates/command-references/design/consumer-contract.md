@@ -13,6 +13,13 @@ integrated verification owns the final design-conformance claim.
 - `sp-discussion` may shape the product and help the user choose formal or
   direct delivery, but it is not a formal design-contract consumer and must not
   bind or rewrite `DS-*`/`DH-*` rows.
+- Direction-confirmed is non-consumable. Plan and Implement may consume only
+  formal-approval plus register, represented by the approve/register receipt,
+  registered `approval_sha256`, exact design-change ref, and exported contract.
+  Direction-confirmed must not bind `spec-contract.json`, Quick `STATUS.md`, a
+  task `ui_contract`, or any implementation packet.
+  Direction-confirmed must not bind spec-contract.json or any other delivery
+  artifact.
 - For a design-first route, `sp-specify` is the first formal consumer. It selects the feature-relevant
   registered `UD-*` contract, immutable approval digest, `DS-*` decisions, and
   `DH-*` handoff contracts and binds them into `spec-contract.json` plus the

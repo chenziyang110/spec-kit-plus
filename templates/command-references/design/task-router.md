@@ -44,6 +44,44 @@ Use the same owner CLI to repeat the route in review when it explains closeout.
   references with explicit reference intents. Synthesize is an input strategy,
   not a terminal task type; combine it with `create` or `refine`.
 
+## Direction Checkpoint Flow
+
+Every create/refine route uses the same platform-neutral staged flow:
+`intake -> concept-calibration -> direction-confirmed -> contract-completion ->
+formal-approval -> register`. This sequence is independent of Web, desktop,
+mobile, CLI, TUI, or content profile selection; platform references only add
+profile-specific obligations after the shared checkpoint names are pinned.
+
+Stage 1 is `intake -> concept-calibration -> direction-confirmed`. It keeps one
+current concept and a stage 1 minimum viable contract: exact scope, selected
+profiles, subject, audience, single job, taste read/dials, primary layout or
+signature element, layout-changing critical state coverage, contrast, focus,
+reduced-motion feasibility, and one stress target. It may offer 2-3 textual
+choices to resolve direction ambiguity, but do not generate three full boards
+or ask the user to pick among complete visual alternatives. The Agent must not
+auto-add an unselected profile because a later matrix would be convenient.
+
+Before presenting a direction as ready to complete, call the advertised
+`preview-lint concept` capability through `specify-runtime design` using exact
+runtime names from preflight. Call the advertised `direction-confirm`
+capability only after both conditions hold: the named current concept passed
+that concept lint and the user gave explicit direction confirmation. A lint
+pass alone must not create the sidecar. The resulting direction-confirmed
+sidecar is non-consumable: it is not approval, not a register event, and not
+input that Plan, Tasks, Implement, Quick, or Review may adopt. It only proves
+that the single current concept is coherent enough to finish its contract.
+
+Stage 2 is `contract-completion -> formal-approval -> register`. Full source
+continuity denominators, mature Web adoption rows, complete scenario,
+interaction, editing, data-state, accessibility, navigation, content, motion,
+and `DH-*` handoff matrices are deferred to contract-completion after
+direction-confirmed. Contract completion must start from the next numbered
+round because a round with a `.direction.json` sidecar can never be formally
+approved. The next round inherits the confirmed visual direction by default; if
+matrix work exposes a needed visual change, revise that new round and confirm
+or approve it there. Only explicit approve/register truth may feed formal or
+direct delivery.
+
 ## Resume Before Reclassification
 
 1. Query `.specify/design/index.json` and matching

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -111,6 +112,52 @@ func TestAPIShowArtifactBatchCapabilitiesPublishContracts(t *testing.T) {
 				t.Fatalf("api show %s capability.%s = %#v", capabilityID, field, capability[field])
 			}
 		}
+	}
+}
+
+func TestAPIShowDesignDirectionConfirmPublishesNonConsumableCheckpointContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "design.direction-confirm", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show design.direction-confirm exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	for _, field := range []string{"summary", "usage", "side_effect", "input_contract"} {
+		value, ok := capability[field].(string)
+		if !ok || strings.TrimSpace(value) == "" {
+			t.Fatalf("design.direction-confirm capability.%s = %#v", field, capability[field])
+		}
+	}
+	contract := capability["input_contract"].(string)
+	if !strings.Contains(contract, "non-consumable") || !strings.Contains(contract, "draft") || !strings.Contains(contract, ".direction.json") {
+		t.Fatalf("design.direction-confirm input_contract = %q", contract)
+	}
+
+	metadata, ok := LookupArtifactType(".specify/design/changes/UD-0042/previews/round-01.direction.json")
+	if !ok {
+		t.Fatal("direction checkpoint artifact type is not registered")
+	}
+	if metadata.TypeID != "ui-design-direction-checkpoint" || metadata.Owner != "specify-runtime design direction-confirm" || metadata.Role != "derived" || metadata.Authority != "non-consumable" || strings.Join(metadata.Operations, ",") != "show,list" {
+		t.Fatalf("direction checkpoint artifact metadata = %#v", metadata)
+	}
+	if artifactTypeAllows(metadata, "prepare") || artifactTypeAllows(metadata, "patch") {
+		t.Fatalf("direction checkpoint must remain runtime-owned: %#v", metadata)
+	}
+}
+
+func TestAPIShowDesignPreviewLintPublishesConceptLevel(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "design.preview-lint", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show design.preview-lint exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	usage := fmt.Sprint(capability["usage"])
+	contract := fmt.Sprint(capability["input_contract"])
+	if !strings.Contains(usage, "structural|concept|ready") || !strings.Contains(contract, "concept") {
+		t.Fatalf("design.preview-lint concept contract missing: usage=%q input_contract=%q", usage, contract)
 	}
 }
 

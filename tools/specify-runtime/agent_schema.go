@@ -259,11 +259,15 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "design.approve":
 		capability["side_effect"] = "freezes-immutable-visual-round-and-handoff"
 		capability["usage"] = "specify-runtime design approve <round.html|round.png|round.jpg|round.jpeg|round.webp> --direction direction-main [--manifest <round.manifest.json> --prompt <round.prompt.md> --image-inspection available|unavailable --image-editing available|unavailable] --format json"
-		capability["input_contract"] = "HTML uses its embedded ready manifest; image-primary approval requires adjacent manifest and exact generation/edit prompt plus independently probed inspection/editing capability values. Both routes byte-bind one current concept, manifest, selected-direction handoff, and explicit user approval."
+		capability["input_contract"] = "HTML uses its embedded ready manifest; image-primary approval requires adjacent manifest and exact generation/edit prompt plus independently probed inspection/editing capability values. Both routes byte-bind one current concept, manifest, selected-direction handoff, and explicit user approval. A non-consumable direction checkpoint on the same round blocks approval; contract completion must produce a new round."
+	case "design.direction-confirm":
+		capability["side_effect"] = "writes-non-consumable-direction-checkpoint"
+		capability["usage"] = "specify-runtime design direction-confirm <change-local-round.html|png|jpg|jpeg|webp> --direction direction-main [--manifest <round.manifest.json> --prompt <round.prompt.md> --image-inspection available|unavailable --image-editing available|unavailable] --format json"
+		capability["input_contract"] = "requires the canonical previews/round-* path inside one indexed draft .specify/design/changes/<UD-ID> workspace. Concept-level validation binds the exact draft contract, scope, selected profiles, preview, adjacent manifest, direction, and review round into runtime-owned .direction.json with authority non-consumable; image rounds also byte-bind the adjacent prompt and exact declared capability route without mutating the manifest. Identical replay is idempotent, drift is rejected, index.json is unchanged, and the checkpoint cannot satisfy approve, register, Plan, Implement, or Quick consumption."
 	case "design.preview-lint":
 		capability["side_effect"] = "read-only"
-		capability["usage"] = "specify-runtime design preview-lint <round.html|round.png|round.jpg|round.jpeg|round.webp> --level structural|ready --format json"
-		capability["input_contract"] = "HTML validates the self-contained authored review carrier; image-primary validates raster bytes plus immutable manifest, prompt, capability route, approval, and handoff sidecars."
+		capability["usage"] = "specify-runtime design preview-lint <round.html|round.png|round.jpg|round.jpeg|round.webp> --level structural|concept|ready --format json"
+		capability["input_contract"] = "concept is preview-only and validates one authored candidate, selected visual profiles, minimum specimens/critical states, reduced/high-contrast direction feasibility, and at least one selected-profile stress target while deferring complete DH matrices and acceptance. ready retains the full immutable manifest, prompt, capability, approval, and handoff requirements."
 	case "design.adopt":
 		capability["side_effect"] = "appends-cas-guarded-consumer-adoption"
 		capability["usage"] = "specify-runtime design adopt <consumer-ref> --change <UD-ID> --scope <surface> --mode formal|formal-post-specify|quick --binding-ref <path> --binding-sha256 <sha256> --expected-change <UD-ID|none> --format json"

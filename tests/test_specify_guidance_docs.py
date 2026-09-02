@@ -92,6 +92,26 @@ def test_docs_describe_change_scoped_design_workflow() -> None:
         assert "pending-human-review" in content
 
 
+def test_primary_docs_describe_two_stage_design_direction_checkpoint() -> None:
+    for rel_path in (
+        "AGENTS.md",
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+        "docs/quickstart.md",
+    ):
+        content = _read(rel_path)
+        normalized = " ".join(content.split()).lower()
+
+        assert "concept-calibration" in normalized, rel_path
+        assert "direction-confirmed" in normalized, rel_path
+        assert "contract-completion" in normalized, rel_path
+        assert "direction-confirm" in normalized, rel_path
+        assert "non-consumable" in normalized, rel_path
+        assert "next numbered round" in normalized, rel_path
+        assert "plan" in normalized and "register" in normalized, rel_path
+
+
 def test_quickstart_teaches_specify_to_plan_mainline():
     quickstart = _read("docs/quickstart.md")
 

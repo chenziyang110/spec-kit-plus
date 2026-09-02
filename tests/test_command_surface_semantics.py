@@ -23,6 +23,15 @@ def _normalize_newlines(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
+def _assert_terms_in_order(content: str, terms: tuple[str, ...]) -> None:
+    cursor = -1
+    lowered = content.lower()
+    for term in terms:
+        next_cursor = lowered.find(term, cursor + 1)
+        assert next_cursor != -1, f"missing ordered term: {term}"
+        cursor = next_cursor
+
+
 def _assert_managed_block_emitters_match_across_shells() -> None:
     bash = (PROJECT_ROOT / "scripts" / "bash" / "update-agent-context.sh").read_text(
         encoding="utf-8"
@@ -630,6 +639,57 @@ def test_classic_and_advanced_design_preflight_uses_exact_capabilities_and_recov
         assert "show_argv" in content
         assert "resume" in content
         assert "abandon" in content
+
+
+def test_design_stage_one_keeps_minimum_contract_until_full_approval() -> None:
+    classic = "\n".join(
+        [
+            read_template("templates/command-partials/design/shell.md"),
+            read_template("templates/command-references/design/task-router.md"),
+            read_template("templates/command-references/design/discovery-dialogue.md"),
+            read_template(
+                "templates/command-references/design/image-generation-studio.md"
+            ),
+            read_template("templates/command-references/design/html-prototype-studio.md"),
+        ]
+    )
+    advanced = "\n".join(
+        [
+            read_template("templates/advanced-skills/spx-design/SKILL.md"),
+            read_template(
+                "templates/advanced-skills/spx-design/references/task-router.md"
+            ),
+            read_template(
+                "templates/advanced-skills/spx-design/references/studio-loop.md"
+            ),
+            read_template(
+                "templates/advanced-skills/spx-design/references/design-contract.md"
+            ),
+        ]
+    )
+
+    for content in (classic, advanced):
+        compact = " ".join(content.lower().split())
+        _assert_terms_in_order(
+            compact,
+            (
+                "intake",
+                "concept-calibration",
+                "direction-confirmed",
+                "contract-completion",
+                "formal-approval",
+                "register",
+            ),
+        )
+        assert "stage 1 minimum viable contract" in compact
+        assert "scope" in compact
+        assert "profile" in compact
+        assert "critical state" in compact
+        assert "accessibility" in compact
+        assert "reduced-motion" in compact
+        assert "full matrices are deferred to contract-completion" in compact
+        assert "unselected profile" in compact
+        assert "must not be auto-added" in compact
 
 
 def test_specify_routes_pending_substantive_ui_through_design_before_plan() -> None:

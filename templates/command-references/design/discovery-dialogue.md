@@ -24,6 +24,9 @@ Use this reference before creating or revising a visual prototype.
   decision, not the easiest item on a checklist.
 - Explain why the answer changes the design. Offer a concrete recommendation
   and two or three bounded choices when that reduces effort for the user.
+  These are 2-3 textual choices only: they calibrate the one current concept
+  during concept-calibration and must not become three full boards, three
+  unrelated HTML concepts, or a silent profile expansion.
 - Include the agent's current guess when evidence supports one. Make the
   assumption visible instead of silently designing around it.
 - If the user asks for context, examples, or trade-offs, answer that request and
@@ -49,6 +52,13 @@ Treat only an explicit approval of the named round as approval. Praise,
 acknowledgment, silence, or a request for explanation is not approval. If the
 user is dissatisfied, keep the same direction open and move to critique and
 revision.
+
+If the user explicitly confirms the named visual direction before formal
+approval, record that as direction-confirmed only after the runtime
+direction-confirm sidecar exists. Do not call direction-confirm from lint or
+agent confidence alone. Direction-confirmed is non-consumable: it does not
+approve the design, does not bind `spec-contract.json`, and does not let Plan
+or Implement consume the UI direction.
 
 Sources informing this workflow:
 

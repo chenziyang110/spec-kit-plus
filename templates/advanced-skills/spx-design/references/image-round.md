@@ -3,8 +3,10 @@
 Use only when the live capability probe reports `image_generation: available`.
 Do not reuse the HTML authoring prompt.
 
-Create one composite GUI review board for one current concept and have the
-design CLI persist the exact final request for the numbered round. The image prompt names: use case and
+Create one composite GUI review board for one current concept; do not generate
+three full boards. If the user needs choice, return to 2-3 textual choices in
+concept-calibration before this round. Have the design CLI persist the exact
+final request for the numbered round. The image prompt names: use case and
 asset type; generate versus edit; product subject, audience, and job; every
 input image role; context; style; composition/framing; aspect ratio and output
 dimensions; palette/material/type/icon language; exact text; required states;

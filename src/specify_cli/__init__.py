@@ -95,11 +95,14 @@ from specify_cli.agent_api import (
 )
 from specify_cli.command_catalog import list_command_catalog, show_catalog_command
 from specify_cli.design import (
+    DESIGN_DIRECTION_CHECKPOINT_SCHEMA,
     DesignDiagnostic,
     DesignLintError,
     adopt_design_change,
     approve_design_image,
     approve_design_preview,
+    confirm_design_image_direction,
+    confirm_design_preview_direction,
     design_capability_profiles,
     diff_design_changes,
     export_design_system,
@@ -1354,14 +1357,14 @@ def design_preview_lint(
     level: str = typer.Option(
         "structural",
         "--level",
-        help="Validation level: structural or ready",
+        help="Validation level: structural, concept, or ready",
     ),
 ) -> None:
     """Validate a self-contained single-concept HTML design preview."""
 
     normalized_format = output_format.lower()
     normalized_level = level.lower()
-    if normalized_level not in {"structural", "ready"}:
+    if normalized_level not in {"structural", "concept", "ready"}:
         console.print(
             "[red]Error:[/red] unsupported design preview lint level: "
             f"{normalized_level}"
@@ -1529,6 +1532,88 @@ def design_approve(
     console.print(
         f"Approved {_display_path(path)}#{direction}; "
         f"wrote {_display_path(approval_path)}"
+    )
+
+
+@design_app.command("direction-confirm")
+def design_direction_confirm(
+    path: Path = typer.Argument(
+        ...,
+        help="Path to a candidate HTML preview or image-primary visual round",
+    ),
+    direction: str = typer.Option(
+        ...,
+        "--direction",
+        help="Exact direction ID confirmed by the user",
+    ),
+    manifest: Optional[Path] = typer.Option(
+        None,
+        "--manifest",
+        help="Adjacent round-NN.manifest.json required for image-primary direction confirmation",
+    ),
+    prompt: Optional[Path] = typer.Option(
+        None,
+        "--prompt",
+        help="Adjacent round-NN.prompt.md required for image-primary direction confirmation",
+    ),
+    image_inspection: Optional[str] = typer.Option(
+        None,
+        "--image-inspection",
+        help="Live image-inspection capability: available or unavailable",
+    ),
+    image_editing: Optional[str] = typer.Option(
+        None,
+        "--image-editing",
+        help="Live image-editing capability: available or unavailable",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+) -> None:
+    """Record a non-consumable visual direction checkpoint for one candidate round."""
+
+    try:
+        if path.suffix.lower() == ".html":
+            if any(
+                value is not None
+                for value in (manifest, prompt, image_inspection, image_editing)
+            ):
+                raise DesignLintError(
+                    "HTML direction confirmation does not accept image manifest, prompt, or capability flags"
+                )
+            payload = confirm_design_preview_direction(path, direction_id=direction)
+        else:
+            if manifest is None or prompt is None:
+                raise DesignLintError(
+                    "image direction confirmation requires --manifest and --prompt"
+                )
+            if image_inspection is None or image_editing is None:
+                raise DesignLintError(
+                    "image direction confirmation requires --image-inspection and --image-editing"
+                )
+            payload = confirm_design_image_direction(
+                path,
+                manifest_path=manifest,
+                prompt_path=prompt,
+                direction_id=direction,
+                image_inspection=image_inspection,
+                image_editing=image_editing,
+            )
+    except DesignLintError as exc:
+        if output_format.lower() == "json":
+            print_json({"ok": False, "error": str(exc)})
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    if output_format.lower() == "json":
+        print_json({"ok": True, "direction_checkpoint": payload})
+        return
+    checkpoint_path = path.with_suffix(".direction.json")
+    console.print(
+        f"Confirmed {_display_path(path)}#{direction}; "
+        f"wrote {_display_path(checkpoint_path)} ({DESIGN_DIRECTION_CHECKPOINT_SCHEMA})"
     )
 
 

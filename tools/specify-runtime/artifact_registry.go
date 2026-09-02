@@ -15,6 +15,7 @@ type ArtifactTypeMetadata struct {
 	TypeID         string   `json:"type_id"`
 	Owner          string   `json:"owner"`
 	Role           string   `json:"role"`
+	Authority      string   `json:"authority,omitempty"`
 	Schema         string   `json:"schema"`
 	Operations     []string `json:"operations"`
 	SummaryAdapter string   `json:"summary_adapter"`
@@ -504,6 +505,21 @@ var artifactTypePatterns = []artifactTypePattern{
 			return strings.HasPrefix(path, ".specify/design/") &&
 				!isDesignChangeWorkspaceFile(path, "DESIGN.md") &&
 				strings.HasSuffix(path, ".md")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{
+			TypeID:         "ui-design-direction-checkpoint",
+			Owner:          "specify-runtime design direction-confirm",
+			Role:           "derived",
+			Authority:      "non-consumable",
+			Schema:         "json/design-direction-checkpoint",
+			Operations:     []string{"show", "list"},
+			SummaryAdapter: "json-top-level-keys",
+		},
+		match: func(path string) bool {
+			parts := strings.Split(path, "/")
+			return len(parts) == 6 && parts[0] == ".specify" && parts[1] == "design" && parts[2] == "changes" && designChangeIDRE.MatchString(parts[3]) && parts[4] == "previews" && strings.HasSuffix(parts[5], ".direction.json")
 		},
 	},
 	{

@@ -744,9 +744,20 @@ when the `classic` profile is selected.
   generation, inspection, and editing capabilities independently. Generation
   available produces one image-primary board bound to its exact prompt and
   manifest; otherwise the Agent authors one self-contained HTML-primary
-  concept. User feedback revises
-  that same direction in a new round until the user explicitly approves it;
-  ready-level `design preview-lint` rejects unconfigured scaffold output.
+  concept. The platform-neutral flow is `intake -> concept-calibration ->
+  direction-confirmed -> contract-completion -> formal-approval -> register`.
+  Stage 1 carries only the scope/profile, subject/audience/job, taste, primary
+  layout/signature, layout-changing critical states, accessibility feasibility,
+  and one stress target needed to judge that direction. User feedback revises
+  that same direction in a new round. After concept lint and explicit user
+  confirmation, `specify-runtime design direction-confirm` freezes a
+  non-consumable `round-NN.direction.json` checkpoint. It is neither approval
+  nor registration and cannot be read by Plan, Tasks, or implementation.
+  Contract completion starts in the next numbered round and adds the full
+  continuity, component-adoption, state, interaction, editing, accessibility,
+  responsive, evidence, and `DH-*` contracts. If those expose a necessary
+  visual change, the workflow returns to concept calibration. Ready-level
+  `design preview-lint` still rejects incomplete contract rounds.
   Approval freezes one
   exact direction with a byte-bound approval sidecar plus visual/manifest
   digests, the prompt digest for image-primary rounds, an immutable
@@ -1588,8 +1599,12 @@ Maintainer note:
   is the HTML-primary fallback and scaffolds one unfinished concept canvas; add
   `specify-runtime design preview --manifest .specify/design/changes/UD-0001/previews/round-NN.manifest.json` to
   deterministically render the structural draft, then replace its visible seed
-  with professional project-specific HTML before ready lint;
-  `specify-runtime design preview-lint PATH --level ready` validates a configured
+  with professional project-specific HTML. `specify-runtime design preview-lint
+  PATH --level concept` validates the deliberately small calibration contract;
+  after explicit user confirmation, `specify-runtime design direction-confirm
+  PATH --direction <direction-id>` writes its non-consumable direction
+  checkpoint. Continue contract completion in the next numbered round, where
+  `specify-runtime design preview-lint PATH --level ready` validates the full
   candidate. When live image generation is available, generate one
   `round-NN.png|jpg|jpeg|webp` concept plus `round-NN.prompt.md` beside the same
   manifest, then approve it with `--manifest`, `--prompt`,

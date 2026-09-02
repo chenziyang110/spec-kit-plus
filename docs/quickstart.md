@@ -520,6 +520,14 @@ Design, follow the recommended `design` workflow first. It preserves the
 planning-ready Spec, produces a `formal-post-specify` adoption receipt, and
 then returns to `plan` without running Specify again.
 
+For substantial UI, Design first calibrates one current concept using
+`intake -> concept-calibration -> direction-confirmed`. After concept lint and
+your explicit direction confirmation, `design direction-confirm` records a
+non-consumable checkpoint; it is not approval and cannot enter Plan or Tasks.
+The workflow then starts `contract-completion` in the next numbered round,
+finishes the full implementation and evidence contract, and runs formal
+approval plus register. Plan resumes only from that registered result.
+
 ```bash
 /sp-plan We are going to generate this using .NET Aspire, using Postgres as the database. The frontend should use Blazor server with drag-and-drop task boards, real-time updates. There should be a REST API created with a projects API, tasks API, and a notifications API.
 ```

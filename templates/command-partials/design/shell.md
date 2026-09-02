@@ -81,6 +81,38 @@ Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep
   active `<change-dir>/brief.md` and `<change-dir>/design-change.md` through
   `specify-runtime artifact show` before continuing.
 
+## Direction Checkpoint Stages
+
+Use a platform-neutral design progression for every substantive create/refine:
+`intake -> concept-calibration -> direction-confirmed -> contract-completion ->
+formal-approval -> register`.
+
+- `intake`: resolve the exact scope, selected profiles, source authority,
+  delivery origin, subject, audience, and single job. Do not auto-add an
+  unselected profile because a later matrix, platform specimen, or helper would
+  be convenient. The unselected profile must not be auto-added.
+- `concept-calibration`: keep one current concept. Preserve a stage 1 minimum
+  viable contract: scope, selected profile list, taste read/dials, primary
+  layout and signature element, layout-changing critical states, accessibility
+  contrast and focus feasibility, reduced-motion feasibility, and one stress
+  target. Full matrices are deferred to contract-completion. Offer 2-3 textual
+  choices only when that helps the user answer one decision; do not generate
+  three full boards.
+- `direction-confirmed`: after the concept passes the advertised
+  `preview-lint concept` check, call the advertised `direction-confirm`
+  capability. Its sidecar is non-consumable: not approval, not register, and not
+  a Plan/Tasks/Implement/Quick/Review input.
+- `contract-completion`: after direction-confirmed, complete the full source
+  continuity denominator when applicable, mature Web adoption rows, scenario /
+  interaction / editing / data-state / accessibility / navigation / content /
+  motion matrices, and `DH-*` handoff rows. Always start this work from the
+  next numbered round: a round with a `.direction.json` sidecar must never be
+  formal approved. Inherit the confirmed visual direction by default; if matrix
+  work exposes a needed visual change, revise that new round and confirm or
+  approve it there.
+- `formal-approval` and `register`: only explicit `design approve` followed by
+  `design register` creates consumable truth for downstream workflows.
+
 ## Allowed Writes
 
 - `.specify/design/index.json` through `specify-runtime design change/iterate/register`
@@ -145,41 +177,28 @@ and never require a colon subskill or explicit mode argument.
    A late design overlay must not require a second requirements workflow pass when requirements stay
    unchanged. A genuine requirements, scope, or acceptance change exits this
    lane and returns to the requirements owner before design adoption.
-5. **UI Evidence Analysis (when references or live UI exist):** collect sources
-   into a surface/page map; extract candidate tokens, components, states, and
-   responsive rules; enumerate pointer/mouse, keyboard/focus, touch, and
-   command interactions plus empty/populated/partial/error/permission/offline
-   data scenarios and stretch/overflow behavior; tag each claim with evidence level
-   Design Evidence v1 (`measured` | `inferred` | `assumption`; alias
-   `evidence-backed-inference`) with rationale when not measured and source or
-   source_gap when inferred. Do not treat screenshot similarity as measured
-   truth.
-6. **Source Continuity (when reconstructing, migrating, adapting, or completing
-   an interface from prior evidence):** treat screenshots, HTML/design exports,
-   live source surfaces, source code/resources/tests, runnable source products,
-   and business rules as complementary authorities rather than assuming one
-   screenshot proves the product. Load the routed
-   `specialist-source-grounded-reconstruction` reference and patch a structured
-   `source_continuity` contract with
-   `schema: spec-kit-ui-source-continuity-v1`, `applicability`, `mode`, `reason`,
-   the complete `coverage.surface_ids` / `interaction_ids` / `component_ids`
-   universe, and `authority_refs` into the brief and final
-   `design_change.verification.source_continuity`. Discover
-   deep surfaces and states; map each surface with one of `preserve`, `adapt`,
-   `replace`, `merge`, `split`, or `retire`; trace every actionable control to
-   an `action_bindings` row with `interaction_id`, `source_refs`,
-   `user_promise`, `business_outcome`, `side_effects`, `final_state`, and
-   `verification`; linked interaction/scenario rows own feedback and recovery.
-   Record icons, images, fonts, and other resources in `asset_bindings` using
-   the schema's semantic role, source refs, target strategy/ref, provenance,
-   fallback, and placeholder policy. Every icon binding
-   uses `placeholder_policy: forbid-character-substitution`; a glyph, emoji, or
-   ASCII character is not a substitute asset. Keep unknown surfaces, actions,
-   outcomes, states, assets, and evidence conflicts in `unresolved_gaps` with an
-   owner and next discovery action. An applicable ready contract cannot hide a
-   material gap by calling it retired. This command discovers and approves the
-   continuity contract only; it does not implement the target or claim runtime
-   parity.
+5. **Stage 1 UI Evidence Analysis (when references or live UI exist):** collect
+   only enough source evidence to calibrate one concept quickly: exact scope,
+   primary authority refs, main surface map, governing token/component/style
+   signals, layout-changing critical states, and critical gaps that could block
+   the direction. Tag each claim with Design Evidence v1 (`measured` |
+   `inferred` | `assumption`; alias `evidence-backed-inference`) and a rationale
+   when not measured. Do not enumerate the full interaction/data/asset universe
+   before concept-calibration, and do not treat screenshot similarity as
+   measured truth.
+6. **Stage 1 Source Continuity Triage (when reconstructing, migrating,
+   adapting, or completing an interface from prior evidence):** treat
+   screenshots, HTML/design exports, live source surfaces, source
+   code/resources/tests, runnable source products, and business rules as
+   complementary authorities rather than assuming one screenshot proves the
+   product. Before direction-confirmed, lock only exact scope, primary
+   authority refs, main in-scope surface(s), and critical unresolved gaps that
+   can change the visual direction. The complete coverage denominator,
+   `surface_bindings`, `action_bindings`, `asset_bindings`, business outcomes,
+   side effects, final states, and ready-safe unresolved-gap ledger are
+   contract-completion work after direction-confirmed. This command discovers
+   and approves the continuity contract only; it does not implement the target
+   or claim runtime parity.
 7. Use project cognition to locate likely UI entry points, token/theme owners,
    reusable component owners, responsive/state patterns, visual or accessibility
    tests, and design assets; verify every selected route in live files before it
@@ -242,21 +261,20 @@ and never require a colon subskill or explicit mode argument.
      evidence to preserve or supersede within its exact scope. It cannot
      authorize deviation from live style authority.
 4. Use the professional reference package bundled with `sp-design`.
-   Before medium-specific authoring, read
+   During Stage 1, read
    `.specify/templates/ui-professional-skills/router.md` (source-tree fallback:
-   `templates/ui-professional-skills/router.md`) and resolve
-   `professional_skill_route`. Record `domain_skill_id`, `style_skill_id`,
-   `specialist_skill_ids`, `matched_signals`, `loaded_refs`, the compact
-   `mature_web_ui_resource_ids` shortlist, `web_ui_asset_inventory`, explainable
-   `mature_web_ui_selection`, its deterministic `component_adoption_plan` and
-   read-only official-resource refresh result, plus `smoothness_acceptance_ids`
-   and performance budgets when Web UI
-   applies; pass the actual project root to the deterministic router and load only the
-   selected one domain, zero-or-one style, and zero-to-two specialist
-   references. For Web component work, follow the router-triggered
-   `web-component-selection.md`: reuse inspected live components first, then
-   select one compatible mature primary system plus only justified headless or
-   specialist support. Pass the resolved `style_authority` to the deterministic router.
+   `templates/ui-professional-skills/router.md`) and persist the Stage 1
+   `professional_skill_route` with only `domain_skill_id`, `style_skill_id`,
+   `specialist_skill_ids`, `matched_signals`, and `loaded_refs`; pass the actual
+   project root to the deterministic router and load only the selected one
+   domain, zero-or-one style, and zero-to-two specialist references. Also inspect live
+   style/component feasibility blockers that could make the visual direction
+   impossible or force a different profile. Mature Web inventory, resource
+   selection, deterministic `component_adoption_plan`, official-resource refresh,
+   `smoothness_acceptance_ids`, and performance budgets are
+   contract-completion work after direction-confirmed unless one of them is
+   directly needed to decide whether the proposed visual direction is feasible.
+   Pass the resolved `style_authority` to the deterministic router.
    For `inherit-existing`, `style_skill_id` and style references must remain
    null/absent; domain and specialists may improve the UI only inside the live
    language. Never load the whole UI professional skill pack. If the router
@@ -287,12 +305,15 @@ and never require a colon subskill or explicit mode argument.
    stack to use merely to shape the review artifact. The selected visual medium
    is implementation-neutral. Ask about a technical constraint only when it changes the
    target platform or the visual/interaction result.
-8. Before generating the current concept, confirm the product subject, audience, single
-   user job, modules, locales, color modes, platform/viewports, real or
-   representative content, required component/state coverage, meaningful
-   motion moments, reduced-motion equivalent, references, taste intake fields,
-   component interaction modes, data-state scenarios, resize/stretch behavior,
-   and Must Preserve / May Adapt / Must Not boundaries.
+8. Before generating the current concept, confirm only the Stage 1 direction
+   inputs: product subject, audience, single user job, selected profiles,
+   primary layout/signature, layout-changing critical states, contrast and
+   focus feasibility, reduced-motion feasibility, one stress target, references,
+   taste intake fields, and Must Preserve / May Adapt / Must Not boundaries
+   that can change the visual direction. Modules, locales, complete component
+   and state coverage, all input/data scenarios, continuous resize behavior,
+   smoothness budgets, mature adoption rows, and full matrices are deferred to
+   contract-completion after direction-confirmed.
 9. Continue the question loop until those decisions are confirmed or recorded
    as bounded, visible assumptions. Do not manufacture more questions once the
    concept can be explained and evaluated without inventing product facts.
@@ -338,13 +359,15 @@ unrelated visual systems for one review round.
   agent-and-user`; unavailable means `inspection_owner: user` and the Agent
   makes no visual-quality claim. Editing availability changes targeted edit
   versus full regeneration only.
-- For every route, scaffold and complete the compact source with
+- For every route, scaffold and complete the Stage 1 compact source with
   `{{specify-subcmd:specify-runtime design preview-manifest --profiles <comma-separated-profile-ids> --out <change-dir>/previews/round-NN.manifest.json}}`.
-  Configure representative content, capability profiles/specimens, the one
-  direction, boundaries, tokens, decisions, owner mappings, modes, targets,
-  and complete `DS-*` / `DH-*` coverage. Patch `visual_collaboration` with the
-  exact live probe before authoring the visual; ready lint rejects a missing,
-  contradictory, or medium-mismatched route.
+  Configure the one direction, selected profiles, Stage 1 boundaries, critical
+  states, accessibility/reduced-motion feasibility, one stress target, and the
+  minimal `DS-*` decisions needed for the concept. Do not require complete
+  `DH-*` coverage before concept authoring; full `DS-*` / `DH-*` coverage is
+  completed in the next numbered round during contract-completion. Patch
+  `visual_collaboration` with the exact live probe before authoring the visual;
+  ready lint rejects a missing, contradictory, or medium-mismatched route.
 - **Image-primary lane:** read
   `references/image-generation-studio.md`. Use the design CLI to persist the exact
   professional generate/edit request for the numbered round, then generate one
@@ -377,7 +400,11 @@ unrelated visual systems for one review round.
   restart from an unrelated aesthetic, or reinterpret criticism as approval.
 - Do not advance past an unanswered question during feedback. A request for
   explanation keeps that feedback decision open.
-- Only explicit approval of the named reviewed round is approval. For HTML,
+- Only explicit user direction confirmation of the named reviewed round permits
+  a direction-confirmed sidecar; never call direction-confirm automatically
+  just because lint passed. Direction-confirmed remains non-consumable and the
+  same `.direction.json` round must not be formally approved. Only explicit
+  approval of the named contract-completion round is approval. For HTML,
   freeze with
   `{{specify-subcmd:specify-runtime design approve <change-dir>/previews/round-NN.html --direction direction-main --format json}}`.
   For images, freeze the image, manifest, and exact generation prompt together:

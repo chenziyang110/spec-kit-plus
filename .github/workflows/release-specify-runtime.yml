@@ -110,6 +110,8 @@ jobs:
           bin/specify-runtime-linux-amd64 cognition scan-policy-confirm --help 2>&1 | grep -q -- "-proposal-digest"
           bin/specify-runtime-linux-amd64 cognition scan-lease --help 2>&1 | grep -q -- "-worker-capacity-tokens"
           bin/specify-runtime-linux-amd64 cognition scan-accept --help 2>&1 | grep -q -- "-packet-id"
+          bin/specify-runtime-linux-amd64 design --help 2>&1 | grep -q -- "direction-confirm"
+          bin/specify-runtime-linux-amd64 api show design.preview-lint --format json | grep -q -- "concept"
 
       - name: Publish public runtime release
         if: steps.assets.outputs.complete != 'true'

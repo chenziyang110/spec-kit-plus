@@ -11,11 +11,13 @@ invariants; it does not author a DOM, CSS system, or executable interaction.
 ## One concept board per immutable round
 
 Generate one composite review board for the same current concept, never three
-unrelated alternatives. Choose the target aspect ratio and pixel dimensions
-before generation. The board should make one principal surface dominant and
-show only the labeled component, state, responsive, or platform specimens
-needed to judge that concept. A multi-platform scope keeps one shared thesis but
-uses clearly labeled native frames; it must not disguise every platform as Web.
+unrelated alternatives. Do not generate three full boards; if the user needs
+choice, use 2-3 textual choices during concept-calibration before this image
+round. Choose the target aspect ratio and pixel dimensions before generation.
+The board should make one principal surface dominant and show only the labeled
+component, state, responsive, or platform specimens needed to judge that
+concept. A multi-platform scope keeps one shared thesis but uses clearly
+labeled native frames; it must not disguise every platform as Web.
 
 Use the design CLI to persist the exact final prompt and primary raster artifact
 for the numbered round. Keep the compact round manifest as the machine contract.

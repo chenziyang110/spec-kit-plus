@@ -11,6 +11,13 @@ and Review owns final formal conformance.
 
 - Discussion may shape intent and route choice, but it is not a formal
   design-contract consumer and never binds `DS-*`/`DH-*` rows.
+- Direction-confirmed is non-consumable. Plan and Implement may consume only
+  formal-approval plus register, represented by the approve/register receipt,
+  registered approval digest, exact change ref, and exported contract.
+  Direction-confirmed must not bind `spec-contract.json`, Quick state, task UI
+  contracts, or implementation packets.
+  Direction-confirmed must not bind spec-contract.json or any other delivery
+  artifact.
 - On a design-first route, `$spx-specify` is the first formal consumer. It pins the relevant registered
   `UD-*` contract, approval digest, decisions, and handoff rows in `spec-contract.json` and
   `ui-brief.md`.

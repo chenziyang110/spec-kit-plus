@@ -298,12 +298,20 @@
       "safe_instruction_patterns": ["specify-runtime design change", "specify-runtime design iterate", "specify-runtime design resolve", "specify-runtime design diff", "specify-runtime design impact", "specify-runtime design register", "specify-runtime design adopt", "specify-runtime design adoption", "artifact show", "artifact list", "metadata-only", "registered", "cli-owned"]
     },
     {
+      "id": "ui_design_direction_checkpoint",
+      "path_patterns": [".specify/design/changes/*/previews/round-*.direction.json"],
+      "owner_cli": ["specify-runtime design direction-confirm", "specify-runtime artifact show", "specify-runtime artifact list"],
+      "path_hints": ["round-NN.direction.json", ".direction.json", "direction checkpoint"],
+      "forbidden_cli_patterns": ["artifact\\s+(?:prepare|submit|patch|delete)"],
+      "safe_instruction_patterns": ["specify-runtime design direction-confirm", "artifact show", "artifact list", "runtime-owned", "non-consumable", "immutable"]
+    },
+    {
       "id": "ui_design_change_contract",
       "path_patterns": [".specify/design/changes/*/design-change.md", ".specify/design/changes/*/design-contract.json", ".specify/design/changes/*/previews/**"],
       "owner_cli": ["specify-runtime design", "specify-runtime artifact patch before design register"],
       "path_hints": [".specify/design/changes/<UD-ID>/design-change.md", ".specify/design/changes/UD-", "<change-dir>/design-change.md", "<change-dir>/design-contract.json", "<change-dir>/previews/"],
       "instruction_sources": ["templates/design-change-template.md"],
-      "safe_instruction_patterns": ["specify-runtime design", "design change", "design register", "artifact show", "artifact patch", "before registration", "immutable", "cli-owned", "human-readable projection", "review and explanation"]
+      "safe_instruction_patterns": ["specify-runtime design", "design change", "design direction-confirm", "direction checkpoint", "non-consumable", "design register", "artifact show", "artifact patch", "before registration", "immutable", "cli-owned", "human-readable projection", "review and explanation"]
     },
     {
       "id": "ui_design_change_workspace",

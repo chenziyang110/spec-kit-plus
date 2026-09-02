@@ -243,6 +243,22 @@ present in a test project.
   advance past an unanswered question. User feedback revises the same concept
   in a new inspected/reviewed immutable round; never mutate an approved round
   in place. Only explicit user approval may freeze the current concept.
+- Substantive create/refine work uses the platform-neutral sequence
+  `intake -> concept-calibration -> direction-confirmed -> contract-completion
+  -> formal-approval -> register`. Before direction confirmation, author only
+  the minimum needed to judge one visual direction: exact scope and selected
+  profiles, subject/audience/single job, taste, primary layout and signature,
+  layout-changing critical states, contrast/focus/reduced-motion feasibility,
+  and one stress target. After concept lint and explicit user confirmation,
+  `specify-runtime design direction-confirm` writes an immutable
+  `round-NN.direction.json` checkpoint. It is non-consumable, does not approve
+  or register the change, never enters Plan/Tasks/Implement, and is not written
+  to the Design index. Contract completion starts in the next numbered round,
+  where complete source-continuity coverage, mature component adoption,
+  scenario/interaction/editing/state/accessibility matrices, and `DH-*` rows
+  are added without changing the confirmed visual direction. If that work
+  requires a material visual change, return to concept calibration and user
+  review. Only the existing formal approve-and-register chain is consumable.
 - The shared **UI Professional Skill** pack uses progressive disclosure before
   substantive create/refine authoring: read its compact catalog, select exactly
   one domain, zero-or-one style, and zero-to-two specialists, then load only

@@ -36,6 +36,10 @@ implementation detail.
 
 `sp-design` remains user-invoked. This passive implementation skill must not
 load or invoke `sp-design`/`spx-design` itself.
+If Design returns only a direction-confirmed sidecar, do not implement from it:
+direction-confirmed is non-consumable, not approval, not register, and not a
+Plan/Implement input. Implementation requires the later approve/register
+receipt with the exact registered change ref, digest, and exported contract.
 
 When the bound contract reports an approved
 `.specify/design/changes/<UD-ID>/previews/round-NN.<html|png|jpg|jpeg|webp>#<direction-id>`, inspect

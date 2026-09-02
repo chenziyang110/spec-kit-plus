@@ -80,6 +80,35 @@ design_brief:
     binding_ref: null
     binding_sha256: null
     return_target: null
+  direction_checkpoint:
+    flow: intake -> concept-calibration -> direction-confirmed -> contract-completion -> formal-approval -> register
+    stage: intake
+    stage_1_minimum_viable_contract:
+      scope: null
+      selected_profiles: []
+      subject: null
+      audience: null
+      single_job: null
+      taste: null
+      primary_layout_or_signature: null
+      layout_changing_critical_states: []
+      contrast_focus_reduced_motion_feasibility: null
+      stress_target: null
+    textual_choices: []
+    direction_confirmed:
+      sidecar_ref: null
+      sidecar_sha256: null
+      consumable: false
+      approval: false
+      register: false
+    contract_completion_deferred:
+      source_continuity_denominator: true
+      mature_adoption_rows: true
+      full_matrices: true
+      dh_handoff_rows: true
+      starts_next_numbered_round: true
+      inherits_confirmed_visual_direction: true
+    profile_selection_rule: unselected profile must not be auto-added
   subject: null
   audience: null
   single_job: null
@@ -153,21 +182,20 @@ inspiration only; they never substitute for `design approve`.
 
 ## UI Professional Skill Route
 
-Resolve this route from the compact catalog before visual authoring. Keep one
-domain, at most one style, and at most two specialists; `loaded_refs` lists only
-those exact progressively disclosed references. Existing approved references
-and registered design truth always take precedence over routed style guidance.
-For Web UI, `mature_web_ui_resource_ids` is a compact, stack-compatible
-shortlist. Follow `web-component-selection.md`: prefer inspected live
-components, then one mature primary system and only exact headless/specialist
-gaps; retrieve official Agent material only for selected candidates. Run the
-bounded project-root scan first, preserve its `web_ui_asset_inventory`, use the
-compact `mature_web_ui_selection` reason codes, and treat an unscanned result as
-provisional.
-Retain its deterministic component adoption/permission plan. Refresh only
-selected official material through the offline helper, persist hash/drift
-results, and treat drift as a selection-review trigger rather than install or
-upgrade authority.
+Resolve the Stage 1 route from the compact catalog before visual authoring.
+Keep one domain, at most one style, and at most two specialists; `loaded_refs`
+lists only those exact progressively disclosed references. Existing approved
+references and registered design truth always take precedence over routed style
+guidance. During Stage 1, inspect only live style/component feasibility blockers
+that could make the direction impossible or force a different selected profile.
+
+For Web UI, mature resource inventory/selection is contract-completion work
+after direction-confirmed unless it directly decides visual feasibility. Record
+`mature_web_ui_resource_ids`, `web_ui_asset_inventory`,
+`mature_web_ui_selection`, deterministic `component_adoption_plan`, selected
+official-resource refresh results, `smoothness_acceptance_ids`, and performance
+budgets during Contract Completion Intake, not as a blanket prerequisite for
+the first concept.
 
 For local work in an existing product, resolve `style_authority.mode` to
 `inherit-existing`, keep `style_skill_id: null`, and load only the domain plus
@@ -187,6 +215,27 @@ an explicitly authorized full-page overhaul.
 - Persist whether this round is standalone or `post-specify`. A post-Specify
   round pins the exact feature consumer and source spec bytes and returns to
   Plan when design does not change requirement, scope, or acceptance truth.
+
+## Direction Checkpoint
+
+Track the platform-neutral flow `intake -> concept-calibration ->
+direction-confirmed -> contract-completion -> formal-approval -> register`.
+Before `direction-confirmed`, keep one current concept and only the stage 1
+minimum viable contract: exact scope, selected profiles, subject, audience,
+single job, taste, primary layout/signature, layout-changing critical states,
+contrast/focus/reduced-motion feasibility, and one stress target. Store any
+2-3 textual choices here; they resolve ambiguity and must not become three full
+boards. Record the runtime direction-confirm sidecar only after explicit user
+direction confirmation of the named concept; do not create it from lint or
+agent confidence alone. Keep `consumable: false`: it is not approval, not
+register, and not downstream Plan/Implement authority. Complete
+source-continuity denominators, mature adoption rows, full matrices, and `DH-*`
+handoff rows after
+direction-confirmed during contract-completion. Contract-completion always
+starts from the next numbered round because a round with a `.direction.json`
+sidecar must never be formally approved; inherit the confirmed visual direction
+by default, and revise that new round only when matrix work exposes a necessary
+visual change. Never auto-add an unselected profile.
 
 ## UI Evidence And System Model
 
@@ -210,11 +259,16 @@ belongs under `.specify/design/evidence/` and must validate with
 
 ## Source Continuity
 
-Complete `source_continuity` whenever screenshots, HTML, a live or runnable
-product, source code, recordings, design exports, or prior implementation
-govern the requested UI. A reference proves only the dimensions it exposes:
-visual material alone cannot prove hidden surfaces, business outcomes, side
-effects, final states, or asset provenance.
+Assess `source_continuity` in Stage 1 whenever screenshots, HTML, a live or
+runnable product, source code, recordings, design exports, or prior
+implementation govern the requested UI. Before direction-confirmed, lock only
+exact scope, primary authority refs, main in-scope surface(s), and critical
+gaps that can change the visual direction. A reference proves only the
+dimensions it exposes: visual material alone cannot prove hidden surfaces,
+business outcomes, side effects, final states, or asset provenance.
+
+Complete the full denominator during Contract Completion Intake after
+direction-confirmed:
 
 - Bind every discovered target surface to inspectable authority refs and mark
   its discovery level plus preserve/adapt/replace/merge/split/retire disposition.
@@ -230,10 +284,11 @@ effects, final states, or asset provenance.
   revealed surfaces in `unresolved_gaps`; ready approval requires that list to
   be empty or each item to become an explicit scoped disposition.
 
-## Professional Contract Intake
+## Contract Completion Intake
 
-Before concept authoring, identify the rows the approved concept must
-later freeze under `design_change.verification`: `surface_catalog`,
+After direction-confirmed, start the next numbered round and identify the rows
+the approved contract must freeze under `design_change.verification`:
+`surface_catalog`,
 `scenario_matrix`, `interaction_matrix`, `editing_matrix`, `data_state_matrix`,
 `accessibility_matrix`, `navigation_matrix`, `content_matrix`,
 `motion_contract`, and `usability_validation`.

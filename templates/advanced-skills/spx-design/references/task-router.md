@@ -44,6 +44,27 @@ owner CLI to repeat the route in review when it explains closeout.
   exists, and surface-aware `anti_slop_locks`. Do not expose colon-namespaced
   design skills (including taste variants).
 
+## Direction checkpoints
+
+Use the same platform-neutral flow for every substantive route:
+`intake -> concept-calibration -> direction-confirmed -> contract-completion ->
+formal-approval -> register`. Stage 1 keeps one current concept and a stage 1
+minimum viable contract: exact scope, selected profiles, subject, audience,
+single job, taste, primary layout/signature, layout-changing critical state,
+accessibility contrast/focus feasibility, reduced-motion feasibility, and one
+stress target. Use 2-3 textual choices only to answer one material ambiguity;
+do not generate three full boards and do not auto-add an unselected profile.
+Call `direction-confirm` only after both conditions hold: the named concept
+passed `preview-lint concept` and the user gave explicit direction
+confirmation. A lint pass alone must not create the sidecar. The
+direction-confirmed sidecar is non-consumable, not approval, not register, and
+not a downstream binding. Full source continuity denominator, mature adoption,
+complete matrices, and `DH-*` handoff rows wait for contract-completion.
+Contract-completion starts from the next numbered round because a
+`.direction.json` round must never be formal approved; inherit the confirmed
+visual direction by default, and revise that new round only if matrix work
+exposes a necessary visual change.
+
 ## Resume Before Reclassification
 
 Query `.specify/design/index.json` and the matching change brief/contract first

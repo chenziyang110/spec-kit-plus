@@ -40,6 +40,11 @@ def test_design_assets_are_packaged() -> None:
         '"templates/design-change-template.md" = '
         '"specify_cli/core_pack/templates/design-change-template.md"'
     ) in pyproject
+    assert (
+        '"templates/design-direction-checkpoint.schema.json" = '
+        '"specify_cli/core_pack/templates/design-direction-checkpoint.schema.json"'
+    ) in pyproject
+    assert (REPO_ROOT / "templates" / "design-direction-checkpoint.schema.json").is_file()
     assert '"templates/design-library" = "specify_cli/core_pack/templates/design-library"' in pyproject
     assert (
         '"templates/design-diagnostic-contract.json" = '

@@ -29,10 +29,20 @@ Include only applicable decisions:
 - accessibility semantics, focus, contrast, input, and reduced-motion behavior;
 - reference fidelity and later visual evidence requirements.
 
-Before locking a new or materially changed direction, complete durable taste
-intake in the design brief (`design_read`, variance/motion/density dials with
-inference reason, aesthetic family, foundation strategy, redesign mode when
-applicable, anti-slop locks, and synthesize reference-board intents when used).
+Before locking a new or materially changed direction, complete only the Stage 1
+taste and feasibility intake needed for one concept: `design_read`,
+variance/motion/density dials with inference reason, aesthetic family,
+foundation strategy, redesign mode when applicable, anti-slop locks, and
+synthesize reference-board intents when used. During Stage 1, keep only the
+stage 1 minimum viable contract: exact scope, selected profile IDs, subject,
+audience, single job, taste, primary layout or signature element,
+layout-changing critical state, accessibility contrast/focus feasibility,
+reduced-motion feasibility, and one stress target. Full matrices are deferred
+to contract-completion after direction-confirmed; unselected profile
+obligations must not be auto-added to make a matrix look complete.
+Contract-completion starts from the next numbered round because a round with a
+`.direction.json` sidecar must never be formal approved; inherit the confirmed
+visual direction unless the full matrix work exposes a necessary visual change.
 When screenshots, live UI, or other references are present, run **UI Evidence
 Analysis** first: surface/page map, candidate tokens/components/states/
 responsive rules, each claim tagged
