@@ -55,6 +55,25 @@ def _write_feature(tmp_path: Path, *, task_count: int = 2) -> tuple[Path, Path]:
         ),
         encoding="utf-8",
     )
+    (feature / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "test_design_gate": {
+                    "decision": "not_selected",
+                    "reason_refs": ["fixture:no-test-design-selected"],
+                    "projection_binding": {
+                        "publication_ref": None,
+                        "publication_sha256": None,
+                        "projection_ref": None,
+                        "projection_sha256": None,
+                        "source_fingerprint": None,
+                        "state_revision": None,
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
     (project / "src").mkdir()
     (project / "src" / "contracts.py").write_text(
         "# authoritative contract\n", encoding="utf-8"

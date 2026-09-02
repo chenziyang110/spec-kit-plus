@@ -39,6 +39,8 @@ handoff, surface the conflict; do not silently favor either source.
 
 Bind the feature compatibility pointer with
 `specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --review-digest <review_digest> --input-json '<transition-json>'`.
+Always use the resolver-returned `review_digest`; never infer, omit, or
+reconstruct it from the handoff bytes.
 Mark the handoff consumed only after validation and successful compilation into
 the spec contract. `$spx-discussion` owns the producer lifecycle; this reference
 only governs safe consumption, and discussion is never mandatory for a clear

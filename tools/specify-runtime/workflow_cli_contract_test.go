@@ -9,19 +9,20 @@ import (
 	"testing"
 )
 
-func TestWorkflowCLIRecognizesExactlyTenCurrentSubcommands(t *testing.T) {
+func TestWorkflowCLIRecognizesExactlyElevenCurrentSubcommands(t *testing.T) {
 	projectRoot, _, featureRel := newWorkflowFeature(t, "001-cli")
 	current := map[string][]string{
-		"show":           {"workflow", "show", "--feature-dir", featureRel},
-		"ensure":         {"workflow", "ensure", "--feature-dir", featureRel, "--command", "specify"},
-		"enter":          {"workflow", "enter", "--feature-dir", featureRel, "--command", "specify"},
-		"next":           {"workflow", "next", "--feature-dir", featureRel},
-		"complete-stage": {"workflow", "complete-stage", "--feature-dir", featureRel, "--expected-revision", "1"},
-		"transition":     {"workflow", "transition", "--feature-dir", featureRel, "--to", "plan", "--expected-revision", "1"},
-		"reopen":         {"workflow", "reopen", "--feature-dir", featureRel, "--to", "specify", "--expected-revision", "1", "--reason", "invalidated", "--evidence", "finding", "--invalidated-artifacts", "spec-contract.json"},
-		"block":          {"workflow", "block", "--input-json", "{}"},
-		"resolve":        {"workflow", "resolve", "--feature-dir", featureRel, "--expected-revision", "1", "--resolution-evidence", "fixed"},
-		"closeout":       {"workflow", "closeout", "--feature-dir", featureRel, "--expected-revision", "1"},
+		"show":              {"workflow", "show", "--feature-dir", featureRel},
+		"ensure":            {"workflow", "ensure", "--feature-dir", featureRel, "--command", "specify"},
+		"enter":             {"workflow", "enter", "--feature-dir", featureRel, "--command", "specify"},
+		"next":              {"workflow", "next", "--feature-dir", featureRel},
+		"complete-stage":    {"workflow", "complete-stage", "--feature-dir", featureRel, "--expected-revision", "1"},
+		"transition":        {"workflow", "transition", "--feature-dir", featureRel, "--to", "plan", "--expected-revision", "1"},
+		"reopen":            {"workflow", "reopen", "--feature-dir", featureRel, "--to", "specify", "--expected-revision", "1", "--reason", "invalidated", "--evidence", "finding", "--invalidated-artifacts", "spec-contract.json"},
+		"block":             {"workflow", "block", "--input-json", "{}"},
+		"reconcile-blocker": {"workflow", "reconcile-blocker", "--input-json", "{}"},
+		"resolve":           {"workflow", "resolve", "--feature-dir", featureRel, "--expected-revision", "1", "--resolution-evidence", "fixed"},
+		"closeout":          {"workflow", "closeout", "--feature-dir", featureRel, "--expected-revision", "1"},
 	}
 	for name, args := range current {
 		t.Run(name, func(t *testing.T) {
@@ -55,7 +56,7 @@ func TestWorkflowCLIHelpListsCurrentCommandsOnly(t *testing.T) {
 		t.Fatalf("workflow help code = %d", code)
 	}
 	output := stdout.String()
-	for _, command := range []string{"show", "ensure", "enter", "next", "complete-stage", "transition", "reopen", "block", "resolve", "closeout"} {
+	for _, command := range []string{"show", "ensure", "enter", "next", "complete-stage", "transition", "reopen", "block", "reconcile-blocker", "resolve", "closeout"} {
 		if !strings.Contains(output, "  "+command+"\n") {
 			t.Fatalf("workflow help missing %q: %q", command, output)
 		}

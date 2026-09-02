@@ -163,7 +163,7 @@ def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_p
     assert "blocker_reason" in content
     assert "subagent dispatch contract" in content
     assert "subagent result contract" in content
-    assert "inline result submission" in content
+    assert "result submission" in content
     assert "runtime-owned compatibility path" in content
     assert "done_with_concerns" in content
     assert "needs_context" in content

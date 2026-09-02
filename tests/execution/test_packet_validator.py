@@ -166,6 +166,47 @@ def test_design_decision_ids_allow_stable_multi_segment_names() -> None:
     assert DESIGN_DECISION_ID_RE.fullmatch("DS-DATA-EMPTY-STATE-002")
 
 
+@pytest.mark.parametrize(
+    "scope",
+    [
+        "tests/unit/*_test.py",
+        "tests/unit/test_?.py",
+        "tests/unit/[ab]_test.py",
+        "tests/**/test_pause.py",
+        "tests/unit/*",
+        "../outside.py",
+        "/outside.py",
+        "C:/outside.py",
+        "C:outside.py",
+    ],
+)
+def test_worker_packet_rejects_filename_globs_before_dispatch(
+    sample_packet: WorkerTaskPacket, scope: str
+) -> None:
+    sample_packet.scope.write_scope = [scope]
+
+    with pytest.raises(
+        PacketValidationError, match="exact future file path or bounded directory subtree"
+    ):
+        validate_worker_task_packet(sample_packet)
+
+
+@pytest.mark.parametrize(
+    "scope",
+    [
+        "tests/unit/test_pause.py",
+        "tests/unit",
+        "tests/unit/**",
+    ],
+)
+def test_worker_packet_accepts_exact_future_file_or_bounded_subtree(
+    sample_packet: WorkerTaskPacket, scope: str
+) -> None:
+    sample_packet.scope.write_scope = [scope]
+
+    assert validate_worker_task_packet(sample_packet) is sample_packet
+
+
 @pytest.fixture
 def sample_packet() -> WorkerTaskPacket:
     return WorkerTaskPacket(

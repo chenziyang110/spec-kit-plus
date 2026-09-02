@@ -12,6 +12,7 @@ import (
 
 func TestDeepResearchWorkflowPublishesVerifiedPlanBinding(t *testing.T) {
 	fixture := newDeepResearchFixture(t, "required")
+	writeWorkflowStateFixture(t, fixture.featureDir, filepath.Base(fixture.featureDir), 4, "specify", "completed", nil)
 
 	init := requireDeepResearchOK(t, fixture.projectRoot, []string{
 		"deep-research", "init",
@@ -154,6 +155,17 @@ func TestDeepResearchWorkflowPublishesVerifiedPlanBinding(t *testing.T) {
 	if verified.Data["claim_status"] != "complete" {
 		t.Fatalf("verified binding = %#v", verified.Data)
 	}
+	workflowService := NewWorkflowService(fixture.projectRoot)
+	workflowService.workflowArtifactGateRunner = func(workflowFeature, string) Envelope {
+		return NewEnvelope("ok", "fixture source artifacts already passed their independent gate")
+	}
+	planWorkflow := workflowService.Transition(WorkflowTransitionRequest{
+		FeatureDir: fixture.featureRel, To: "plan", ExpectedRevision: 4,
+		Summary: "Enter Plan with the verified Deep Research handoff.",
+	})
+	if planWorkflow.Status != "ok" || planWorkflow.Data["stage"] != "plan" || planWorkflow.Data["status"] != "active" {
+		t.Fatalf("verified Deep Research handoff could not enter Plan: %#v", planWorkflow)
+	}
 
 	writeReadyPlanContract(t, fixture, published)
 	for _, artifact := range []struct {
@@ -174,6 +186,24 @@ func TestDeepResearchWorkflowPublishesVerifiedPlanBinding(t *testing.T) {
 	})
 	if planGate.Status != "ok" {
 		t.Fatalf("verified Plan binding was rejected: %#v", planGate)
+	}
+	originalSpec, err := os.ReadFile(fixture.specPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	draftSpec, err := deepResearchReadObject(fixture.specPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	draftSpec["status"] = "draft"
+	writeDeepResearchJSON(t, fixture.specPath, draftSpec)
+	if draftPlanGate := validateHookArtifacts([]string{
+		"--command", "plan", "--feature-dir", fixture.featureRel, "--project-root", fixture.projectRoot,
+	}); draftPlanGate.Status != "blocked" {
+		t.Fatalf("Plan accepted a Deep Research binding after source readiness regressed: %#v", draftPlanGate)
+	}
+	if err := os.WriteFile(fixture.specPath, originalSpec, 0o644); err != nil {
+		t.Fatal(err)
 	}
 
 	evidence, err := os.ReadFile(evidencePath)
@@ -239,6 +269,179 @@ func TestDeepResearchWorkflowRejectsStaleSpecAndStaleRevision(t *testing.T) {
 	})
 	if blockedExit == 0 || blocked.Status != "blocked" {
 		t.Fatalf("stale source mutation passed: exit=%d env=%#v", blockedExit, blocked)
+	}
+}
+
+func TestDeepResearchRejectsNonPlanningReadyOrBlockedSpecifySource(t *testing.T) {
+	t.Run("draft specification", func(t *testing.T) {
+		fixture := newDeepResearchFixture(t, "required")
+		spec, err := deepResearchReadObject(fixture.specPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		spec["status"] = "draft"
+		writeDeepResearchJSON(t, fixture.specPath, spec)
+
+		blocked, exit := runDeepResearchWorkflowCommand(t, fixture.projectRoot, []string{
+			"deep-research", "init", "--feature-dir", fixture.featureRel,
+			"--mode", "repo-only", "--leader-id", "leader-1",
+		})
+		if exit == 0 || blocked.Status != "blocked" || blocked.Data["error_code"] != "source_spec_not_planning_ready" {
+			t.Fatalf("draft source initialized deep research: exit=%d env=%#v", exit, blocked)
+		}
+		if len(blocked.NextArgv) != 1 || blocked.NextArgv[0] != "/sp.specify" || blocked.Data["owner_workflow"] != "/sp.specify" {
+			t.Fatalf("draft source recovery is not executable: %#v", blocked)
+		}
+		if _, err := os.Stat(filepath.Join(fixture.featureDir, "research", deepResearchStateFilename)); !os.IsNotExist(err) {
+			t.Fatalf("draft source created deep-research state: %v", err)
+		}
+	})
+
+	t.Run("persisted Specify blocker at entry", func(t *testing.T) {
+		fixture := newDeepResearchFixture(t, "required")
+		featureID := filepath.Base(fixture.featureDir)
+		writeWorkflowStateFixture(t, fixture.featureDir, featureID, 4, "specify", "active", nil)
+		blockedWorkflow := NewWorkflowService(fixture.projectRoot).Block(WorkflowBlockRequest{
+			FeatureDir: fixture.featureRel, ExpectedRevision: 4, Category: "technical-failure", Owner: "agent",
+			Cause: "Specify still requires feasibility evidence.", Evidence: []string{"planning-readiness check remains blocked"},
+			AttemptedRecovery: []WorkflowRecoveryAttempt{{Action: "inspect available evidence", Result: "required evidence is still missing"}},
+			AffectedScope:     []string{"specification planning readiness"}, ExactNextAction: "Return to Specify with the missing evidence.",
+			UnblockCriteria: "The specification is planning-ready and the persisted blocker is resolved.",
+		})
+		if blockedWorkflow.Status != "blocked" {
+			t.Fatalf("workflow block fixture = %#v", blockedWorkflow)
+		}
+
+		blocked, exit := runDeepResearchWorkflowCommand(t, fixture.projectRoot, []string{
+			"deep-research", "init", "--feature-dir", fixture.featureRel,
+			"--mode", "repo-only", "--leader-id", "leader-1",
+		})
+		if exit == 0 || blocked.Status != "blocked" || blocked.Data["error_code"] != "source_workflow_blocked" {
+			t.Fatalf("blocked Specify initialized deep research: exit=%d env=%#v", exit, blocked)
+		}
+		resolution := requireObject(t, blocked.Data, "resolution_action")
+		if resolution["capability_id"] != "workflow.resolve" || len(blocked.NextArgv) != 1 || blocked.NextArgv[0] != "/sp.specify" {
+			t.Fatalf("blocked Specify recovery = %#v", blocked)
+		}
+	})
+
+	t.Run("workflow blocks after initialization", func(t *testing.T) {
+		fixture := newDeepResearchFixture(t, "required")
+		featureID := filepath.Base(fixture.featureDir)
+		writeWorkflowStateFixture(t, fixture.featureDir, featureID, 4, "specify", "completed", nil)
+		init := requireDeepResearchOK(t, fixture.projectRoot, []string{
+			"deep-research", "init", "--feature-dir", fixture.featureRel,
+			"--mode", "repo-only", "--leader-id", "leader-1",
+		})
+		blockedWorkflow := NewWorkflowService(fixture.projectRoot).Block(WorkflowBlockRequest{
+			FeatureDir: fixture.featureRel, ExpectedRevision: 4, Category: "technical-failure", Owner: "agent",
+			Cause: "Specify readiness was revoked.", Evidence: []string{"current readiness check failed"},
+			AttemptedRecovery: []WorkflowRecoveryAttempt{{Action: "recheck source", Result: "source remains blocked"}},
+			AffectedScope:     []string{"Deep Research handoff"}, ExactNextAction: "Resolve the Specify blocker.",
+			UnblockCriteria: "Specify returns to completed with planning-ready source.",
+		})
+		if blockedWorkflow.Status != "blocked" {
+			t.Fatalf("workflow block after init = %#v", blockedWorkflow)
+		}
+		status, exit := runDeepResearchWorkflowCommand(t, fixture.projectRoot, []string{
+			"deep-research", "status", "--feature-dir", fixture.featureRel,
+		})
+		if exit == 0 || status.Status != "blocked" || status.Data["error_code"] != "source_workflow_blocked" {
+			t.Fatalf("post-init blocker still advertised research progress: init=%#v exit=%d status=%#v", init, exit, status)
+		}
+		if len(status.NextArgv) != 1 || status.NextArgv[0] != "/sp.specify" || asString(status.Data["next_action"]) != "" {
+			t.Fatalf("post-init blocker advertised Plan/research action: %#v", status)
+		}
+	})
+
+	t.Run("Plan-active source cannot initialize new research", func(t *testing.T) {
+		fixture := newDeepResearchFixture(t, "required")
+		writeWorkflowStateFixture(t, fixture.featureDir, filepath.Base(fixture.featureDir), 5, "plan", "active", nil)
+		blocked, exit := runDeepResearchWorkflowCommand(t, fixture.projectRoot, []string{
+			"deep-research", "init", "--feature-dir", fixture.featureRel,
+			"--mode", "repo-only", "--leader-id", "leader-1",
+		})
+		if exit == 0 || blocked.Status != "blocked" || blocked.Data["error_code"] != "source_workflow_not_plan_enterable" {
+			t.Fatalf("Plan-active source initialized a new research workspace: exit=%d env=%#v", exit, blocked)
+		}
+	})
+}
+
+func TestDeepResearchSubcommandHelpIsReadOnly(t *testing.T) {
+	for _, subcommand := range []string{"init", "track-prepare", "track-submit", "synthesize", "audit-accept", "publish"} {
+		t.Run(subcommand, func(t *testing.T) {
+			projectRoot := t.TempDir()
+			var stdout, stderr bytes.Buffer
+			exit := Run([]string{"deep-research", subcommand, "--help", "--project-root", projectRoot}, &stdout, &stderr, "test")
+			if exit != 0 || !strings.Contains(stdout.String(), "Usage: specify-runtime deep-research "+subcommand) {
+				t.Fatalf("%s --help exit=%d stdout=%s stderr=%s", subcommand, exit, stdout.String(), stderr.String())
+			}
+			entries, err := os.ReadDir(projectRoot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(entries) != 0 {
+				t.Fatalf("%s --help mutated project root: %#v", subcommand, entries)
+			}
+		})
+	}
+}
+
+func TestDeepResearchInitDoesNotCommitAfterSourceChangesPastReadinessCheck(t *testing.T) {
+	fixture := newDeepResearchFixture(t, "required")
+	writeWorkflowStateFixture(t, fixture.featureDir, filepath.Base(fixture.featureDir), 4, "specify", "completed", nil)
+	service := deepResearchService{
+		projectRoot: fixture.projectRoot,
+		beforeSourceBoundMutation: func() error {
+			spec, err := deepResearchReadObject(fixture.specPath)
+			if err != nil {
+				return err
+			}
+			spec["status"] = "draft"
+			raw, err := deepResearchMarshal(spec)
+			if err != nil {
+				return err
+			}
+			return os.WriteFile(fixture.specPath, raw, 0o644)
+		},
+	}
+	blocked := service.initialize([]string{
+		"--feature-dir", fixture.featureRel, "--mode", "repo-only", "--leader-id", "leader-1",
+	})
+	if blocked.Status != "blocked" || blocked.Data["error_code"] != "source_spec_not_planning_ready" {
+		t.Fatalf("source race committed or lost owner recovery: %#v", blocked)
+	}
+	if _, err := os.Stat(filepath.Join(fixture.featureDir, "research", deepResearchStateFilename)); !os.IsNotExist(err) {
+		t.Fatalf("source race created Deep Research state: %v", err)
+	}
+}
+
+func TestDeepResearchInitRejectsSymlinkedSourceWorkflowLock(t *testing.T) {
+	fixture := newDeepResearchFixture(t, "required")
+	writeWorkflowStateFixture(t, fixture.featureDir, filepath.Base(fixture.featureDir), 4, "specify", "completed", nil)
+	outside := filepath.Join(t.TempDir(), "outside-workflow-lock")
+	const sentinel = "must remain unchanged\n"
+	if err := os.WriteFile(outside, []byte(sentinel), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lockPath := filepath.Join(fixture.featureDir, ".workflow.lock")
+	if err := os.Symlink(outside, lockPath); err != nil {
+		t.Skipf("file symlinks are unavailable: %v", err)
+	}
+
+	blocked, exit := runDeepResearchWorkflowCommand(t, fixture.projectRoot, []string{
+		"deep-research", "init", "--feature-dir", fixture.featureRel,
+		"--mode", "repo-only", "--leader-id", "leader-1",
+	})
+	if exit == 0 || blocked.Status != "blocked" {
+		t.Fatalf("symlinked workflow lock was accepted: exit=%d env=%#v", exit, blocked)
+	}
+	content, err := os.ReadFile(outside)
+	if err != nil || string(content) != sentinel {
+		t.Fatalf("outside workflow lock target changed: %q, %v", content, err)
+	}
+	if _, err := os.Stat(filepath.Join(fixture.featureDir, "research", deepResearchStateFilename)); !os.IsNotExist(err) {
+		t.Fatalf("rejected workflow lock created Deep Research state: %v", err)
 	}
 }
 

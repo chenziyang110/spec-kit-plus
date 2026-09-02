@@ -1,13 +1,13 @@
 # Release Process
 
-This document describes the automated release process for Spec Kit.
+This document describes the automated release process for Spec Kit Plus.
 
 ## Overview
 
 The release process is split into two workflows to ensure version consistency:
 
 1. **Release Trigger Workflow** (`release-trigger.yml`) - Manages versioning and triggers release
-2. **Release Workflow** (`release.yml`) - Builds and publishes artifacts
+2. **Release Workflow** (`release.yml`) - Builds and publishes public runtime artifacts
 
 This separation ensures that git tags always point to commits with the correct version in `pyproject.toml`.
 
@@ -88,8 +88,8 @@ Once the release trigger workflow completes:
 1. A `chore/release-vX.Y.Z` branch is pushed with the version bump commit
 2. The git tag is pushed, pointing to that commit
 3. The **Release Workflow** is automatically triggered by the tag push
-4. Release tool binaries are cross-compiled
-5. A GitHub Release is created with all assets
+4. The unified runtime is cross-compiled for the five supported platforms
+5. `scripts/publish-runtime-release.py` verifies provenance and publishes the five binaries plus `SHA256SUMS` to `chenziyang110/spec-kit-plus-releases`
 6. A PR is opened to merge the version bump branch into `main`
 
 > **Note**: Merge the auto-opened PR after the release is published to keep `main` in sync.
@@ -102,7 +102,7 @@ Once the release trigger workflow completes:
 
 **Trigger**: Manual (`workflow_dispatch`)
 
-**Permissions Required**: `contents: write`
+**Permissions Required**: source-repository `contents: read` plus the `PUBLIC_RELEASES_TOKEN` secret with release-write access to `chenziyang110/spec-kit-plus-releases`
 
 **Steps**:
 1. Checkout repository
@@ -126,10 +126,10 @@ Once the release trigger workflow completes:
 **Steps**:
 1. Checkout repository at tag
 2. Extract version from tag name
-3. Check if release already exists
-4. Generate release notes from commits
-5. Cross-compile the unified `specify-runtime` binary
-6. Create the GitHub Release with all `specify-runtime-*` platform assets
+3. Check whether the matching public release and its exact asset set already exist
+4. Cross-compile the unified `specify-runtime` binary for Linux amd64/arm64, macOS amd64/arm64, and Windows amd64
+5. Verify embedded version, source revision, protocol, command/capability smoke checks, and SHA-256 checksums
+6. Idempotently create or repair the public runtime release with exactly those five binaries and `SHA256SUMS`
 
 ## Version Constraints
 
@@ -174,6 +174,14 @@ Check that:
 - The release trigger workflow completed successfully
 - The tag was pushed (check repository tags)
 - The release workflow is enabled in Actions settings
+
+### Public Release Credential Missing
+
+If the release workflow reports `Missing required publishing credential in PUBLIC_RELEASES_TOKEN`:
+- create or rotate a fine-grained token that can create and edit releases in `chenziyang110/spec-kit-plus-releases`
+- store it as the source repository Actions secret `PUBLIC_RELEASES_TOKEN`
+- rerun the failed `Create Release` workflow for the same tag; publishing is idempotent and validates any existing assets before changing them
+- verify the public release contains exactly five non-empty `specify-runtime-*` binaries plus `SHA256SUMS`
 
 ### Version Mismatch
 

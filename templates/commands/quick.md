@@ -113,9 +113,13 @@ After checkpoint confirmation, **every** in-progress `Qn` uses this hard order. 
 2. `specify-runtime quick item-start <id> --item Qn` (sets `requires_worker: true`)
 3. **Spawn subagent** for the Qn write scope (required; do **not** Edit/Write those paths first)
 4. Wait / join the subagent
-5. `specify-runtime result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id Qn --result-json '...'`
+5. `specify-runtime result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id Qn --result-json <inline-json|@path|->`
 6. `specify-runtime quick item-accept <id> --item Qn --evidence '...'` (runtime requires matching worker result)
 7. Only then start the next Q
+
+Keep small result payloads inline, send large model-authored JSON through stdin,
+and reserve `@path` for an existing runtime-owned or registered project
+artifact. Never create a temporary result file merely to transport the payload.
 
 **Forbidden after item-start / before item-accept:** Leader Edit/Write/shell mutation of that item's `write_scope`.
 

@@ -42,7 +42,20 @@ or parse it as its revision authority: it is never required-stage authority. Que
   owner only after proving that correct implementation is impossible under the
   current requirement, design, or architecture truth. After any repair, rerun
   the full frozen Human Acceptance Universe; preserve no stale human PASS.
+- When a verified late Design or other fresh truth requires a strict backward
+  reopen while the current later stage is blocked, call `workflow reopen` with
+  the exact target, reason, evidence, and invalidated artifacts. It does not clear
+  or overwrite the persisted blocker. The non-mutating blocked response carries
+  `data.pending_reopen_action`, whose `base_argv` is a revision-bound
+  `workflow resolve --reopen-to ...` transaction. Present the existing Human
+  Action Guide; after the unblock criteria are actually proven, append the
+  declared `--resolution-evidence` inputs and execute that base argv exactly.
+  The runtime atomically preserves the blocker audit, records its resolution,
+  and reopens the requested earlier stage. Do not reconstruct a separate reopen,
+  and do not ask the user to invoke the destination workflow before this
+  transaction succeeds.
 - Keep task-local parked blockers in lifecycle state while another dependency-safe lane can run. They do not justify a feature-wide runtime block, and a human-confirmed deferral remains unresolved/transferred rather than passed. After safe agent recovery is exhausted **and no ready work remains**, build the blocker object in memory and persist it through `{{specify-subcmd:specify-runtime workflow block --input-json '<blocker-json>' --format json}}`; never create a blocker input file. Obtain its exact input shape with `{{specify-subcmd:specify-runtime api schema workflow-block-input --format json}}`; the runtime rejects replacement of an unresolved blocker and returns the human tutorial, a safe read-only `show_argv` plus structured `data.resolution_action`. While evidence is missing, `next_argv` is intentionally empty.
+- If current evidence resolves only named blocker subcauses, expand `specify-runtime workflow reconcile-blocker` through `api show` and submit its revision-bound input with the complete remaining cause, evidence, scope, next action, and criteria. This preserves owner/category and blocked status, removes stale current text, and appends audit. Use `workflow resolve` instead when nothing remains.
 - When the recorded unblock criteria are proven, append each sanitized evidence item to the runtime-returned `resolution_action.base_argv` using its declared `--resolution-evidence` required input, then execute that argv. This invokes `specify-runtime workflow resolve`, preserves the full prior blocker audit, and reactivates the same stage; do not reconstruct other flags or clear blocker state manually.
 - After explicit human acceptance, run the acceptance-owned `accept closeout` command and execute its successful response's `next_argv` verbatim. That revision-bound argv invokes `specify-runtime workflow closeout`; do not reconstruct it from prose or a remembered revision. It validates and snapshots acceptance evidence before marking the feature workflow complete.
 

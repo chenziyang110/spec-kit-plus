@@ -944,7 +944,7 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "execution_surface" in lower
     assert "join point" in lower
     assert "subagent result contract" in lower
-    assert "inline result submission" in lower
+    assert "result submission" in lower
     assert "runtime-owned compatibility path" in lower
     assert ".specify/teams/state/results/<request-id>.json" in lower
     assert "core implementation complete" in lower
@@ -1171,7 +1171,7 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "spawn_agent" in content
     assert "wait_agent" in content
     assert "close_agent" not in content
-    assert "inline result submission" in content.lower()
+    assert "result submission" in content.lower()
     assert "runtime-owned compatibility path" in content.lower()
     # Implement uses stage-owned result-merge, not result submit --command implement.
     assert "implement result-merge" in content.lower()

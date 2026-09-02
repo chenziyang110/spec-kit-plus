@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from specify_cli import app
@@ -26,12 +27,18 @@ def _create_codex_project(tmp_path: Path) -> Path:
     return project
 
 
-def _invoke_in_project(project: Path, args: list[str], env: dict[str, str] | None = None):
+def _invoke_in_project(
+    project: Path,
+    args: list[str],
+    env: dict[str, str] | None = None,
+    *,
+    input_text: str | None = None,
+):
     runner = CliRunner()
     old_cwd = os.getcwd()
     try:
         os.chdir(project)
-        result = runner.invoke(app, args, env=env or os.environ)
+        result = runner.invoke(app, args, env=env or os.environ, input=input_text)
     finally:
         os.chdir(old_cwd)
     return result
@@ -191,6 +198,64 @@ def test_api_submit_result_accepts_inline_json_and_persists_result(tmp_path: Pat
     assert envelope["payload"]["status"] == "completed"
     assert dispatch_record_path(project, "req-submit").exists()
     assert result_record_path(project, "req-submit").exists()
+
+
+@pytest.mark.parametrize("channel", ["at-path", "stdin"])
+def test_api_submit_result_accepts_bounded_result_json_channels(
+    tmp_path: Path, channel: str
+) -> None:
+    project = _create_codex_project(tmp_path)
+    request_id = f"req-{channel}"
+    source = _seed_runtime_dispatch(project, request_id=request_id)
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    payload["summary"] = "x" * 40_000
+    payload_text = json.dumps(payload)
+    source.write_text(payload_text, encoding="utf-8")
+    input_text = None
+    if channel == "at-path":
+        result_token = f"@{source.name}"
+    else:
+        result_token = "-"
+        input_text = payload_text
+
+    result = _invoke_in_project(
+        project,
+        [
+            "sp-teams",
+            "api",
+            "submit-result",
+            "--request-id",
+            request_id,
+            "--result-json",
+            result_token,
+        ],
+        input_text=input_text,
+    )
+
+    assert result.exit_code == 0, result.output
+    envelope = json.loads(result.output)
+    assert envelope["status"] == "ok"
+    assert result_record_path(project, request_id).exists()
+
+
+def test_team_submit_result_command_accepts_at_path(tmp_path: Path) -> None:
+    project = _create_codex_project(tmp_path)
+    source = _seed_runtime_dispatch(project, request_id="req-at-path-cli")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "sp-teams",
+            "submit-result",
+            "--request-id",
+            "req-at-path-cli",
+            "--result-json",
+            f"@{source.name}",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert result_record_path(project, "req-at-path-cli").exists()
 
 
 def test_team_submit_result_command_rejects_worker_result_file(tmp_path: Path):

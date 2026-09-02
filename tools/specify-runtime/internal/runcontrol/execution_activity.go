@@ -250,6 +250,7 @@ type GuardExecutionParams struct {
 	OverviewSHA256               string
 	WriteIntents                 []WriteIntentSpec
 	Resources                    []ExecutionResourceIntentSpec
+	ScopeAmendments              []ExecutionScopeAmendmentSpec
 	Reason                       string
 }
 
@@ -279,8 +280,14 @@ type CompleteExecutionParams struct {
 	ExpectedWorkRevision int64
 	Fence                int64
 	ChangedPaths         []string
+	ControlPlaneFiles    []ExecutionFileDigestExpectation
 	ValidationJSON       string
 	Reason               string
+}
+
+type ExecutionFileDigestExpectation struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
 }
 
 type CompletedExecution struct {
@@ -305,6 +312,23 @@ func (err *ExecutionScopeAuditError) Error() string {
 }
 
 func (err *ExecutionScopeAuditError) Unwrap() error { return ErrExecutionCompletionGate }
+
+type ExecutionControlPlaneDriftError struct {
+	Paths []string
+}
+
+func (err *ExecutionControlPlaneDriftError) Error() string {
+	if err == nil || len(err.Paths) == 0 {
+		return ErrExecutionCompletionGate.Error()
+	}
+	return fmt.Sprintf(
+		"%s: workflow control-plane files changed after validation: %s",
+		ErrExecutionCompletionGate,
+		strings.Join(err.Paths, ", "),
+	)
+}
+
+func (err *ExecutionControlPlaneDriftError) Unwrap() error { return ErrExecutionCompletionGate }
 
 func (store *Store) GuardExecution(ctx context.Context, params GuardExecutionParams) (GuardedExecution, error) {
 	params.ActivityID = strings.TrimSpace(params.ActivityID)
@@ -370,11 +394,28 @@ func (store *Store) GuardExecution(ctx context.Context, params GuardExecutionPar
 	if err != nil {
 		return GuardedExecution{}, err
 	}
+	amendments, err := normalizeExecutionScopeAmendmentSpecs(activity, params.ScopeAmendments)
+	if err != nil {
+		return GuardedExecution{}, err
+	}
+	for _, amendment := range amendments {
+		_, amendmentKey, _ := normalizeWorkPath(amendment.Path, runtime.GOOS == "windows")
+		claimedExactly := false
+		for _, spec := range writes {
+			if spec.pathKey == amendmentKey {
+				claimedExactly = true
+				break
+			}
+		}
+		if !claimedExactly {
+			return GuardedExecution{}, fmt.Errorf("%w: scope amendment %q must be claimed exactly by the same guard", ErrExecutionGuardRequired, amendment.Path)
+		}
+	}
 	paths := make([]string, 0, len(writes))
 	for _, spec := range writes {
 		paths = append(paths, spec.Path)
 	}
-	if err := verifyExecutionPacketScope(activity, paths); err != nil {
+	if err := verifyExecutionPacketScopeWithPending(activity, paths, amendments); err != nil {
 		return GuardedExecution{}, err
 	}
 	work, err := readWorkTx(ctx, tx, activity.WorkID)
@@ -382,15 +423,22 @@ func (store *Store) GuardExecution(ctx context.Context, params GuardExecutionPar
 		return GuardedExecution{}, err
 	}
 	nowMS := time.Now().UTC().UnixMilli()
+	amendedBaseline, err := appendExecutionScopeAmendments(activity.BaselineJSON, amendments, nowMS)
+	if err != nil {
+		return GuardedExecution{}, err
+	}
 	if err := requireWorkAuthority(work, params.ExpectedWorkRevision, params.Fence, nowMS); err != nil {
 		return GuardedExecution{}, err
 	}
 	if work.Status != WorkActive && work.Status != WorkBlocked {
 		return GuardedExecution{}, fmt.Errorf("%w: cannot guard %q work", ErrInvalidTransition, work.Status)
 	}
+	if activity.Phase == ExecutionPhaseValidating && len(params.ScopeAmendments) == 0 {
+		return GuardedExecution{}, fmt.Errorf("%w: validating execution may re-enter guard only for an audited scope amendment", ErrInvalidTransition)
+	}
 	switch activity.Phase {
 	case ExecutionPhaseAnnounced, ExecutionPhaseSelected, ExecutionPhaseClaimed,
-		ExecutionPhaseExecuting, ExecutionPhaseBlocked:
+		ExecutionPhaseExecuting, ExecutionPhaseValidating, ExecutionPhaseBlocked:
 	default:
 		return GuardedExecution{}, fmt.Errorf("%w: cannot guard execution in %q phase", ErrInvalidTransition, activity.Phase)
 	}
@@ -522,10 +570,10 @@ func (store *Store) GuardExecution(ctx context.Context, params GuardExecutionPar
 
 	activityResult, err := tx.ExecContext(ctx, `
 		UPDATE execution_activities
-		SET phase = ?, guarded_overview_revision = ?, guarded_overview_sha256 = ?,
+		SET phase = ?, baseline_json = ?, guarded_overview_revision = ?, guarded_overview_sha256 = ?,
 		    revision = revision + 1, updated_at_ms = ?
 		WHERE activity_id = ? AND revision = ?
-	`, ExecutionPhaseExecuting, params.ExpectedCoordinationRevision, params.OverviewSHA256,
+	`, ExecutionPhaseExecuting, amendedBaseline, params.ExpectedCoordinationRevision, params.OverviewSHA256,
 		nowMS, activity.ActivityID, activity.Revision)
 	if err != nil {
 		return GuardedExecution{}, fmt.Errorf("update guarded execution activity: %w", err)
@@ -534,14 +582,21 @@ func (store *Store) GuardExecution(ctx context.Context, params GuardExecutionPar
 		return GuardedExecution{}, err
 	}
 	activity.Phase = ExecutionPhaseExecuting
+	activity.BaselineJSON = amendedBaseline
 	activity.GuardedOverviewRevision = params.ExpectedCoordinationRevision
 	activity.GuardedOverviewSHA256 = params.OverviewSHA256
 	activity.Revision++
 	activity.UpdatedAtMS = nowMS
-	if err := appendWorkEventTx(ctx, tx, work, "work.execution_guarded", params.Reason); err != nil {
+	workEvent := "work.execution_guarded"
+	activityEvent := "execution.guarded"
+	if len(amendments) > 0 {
+		workEvent = "work.execution_scope_amended"
+		activityEvent = "execution.scope_amended"
+	}
+	if err := appendWorkEventTx(ctx, tx, work, workEvent, params.Reason); err != nil {
 		return GuardedExecution{}, err
 	}
-	if err := appendExecutionActivityEventTx(ctx, tx, activity, "execution.guarded", params.Reason); err != nil {
+	if err := appendExecutionActivityEventTx(ctx, tx, activity, activityEvent, params.Reason); err != nil {
 		return GuardedExecution{}, err
 	}
 	coordinationRevision, err := coordinationRevision(ctx, tx)
@@ -715,6 +770,10 @@ func (store *Store) CompleteExecution(ctx context.Context, params CompleteExecut
 	if err != nil {
 		return CompletedExecution{}, err
 	}
+	controlPlaneFiles, err := normalizeExecutionFileDigestExpectations(params.ControlPlaneFiles)
+	if err != nil {
+		return CompletedExecution{}, err
+	}
 
 	tx, err := store.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -739,6 +798,9 @@ func (store *Store) CompleteExecution(ctx context.Context, params CompleteExecut
 	if !hasExecutionGuard(activity) {
 		return CompletedExecution{}, fmt.Errorf("%w: execution completion requires a recorded guard", ErrExecutionGuardRequired)
 	}
+	if err := requireExecutionScopeAmendmentReview(activity, work, validationJSON); err != nil {
+		return CompletedExecution{}, err
+	}
 	if err := verifyExecutionPacketScope(activity, changedPaths); err != nil {
 		return CompletedExecution{}, err
 	}
@@ -749,6 +811,9 @@ func (store *Store) CompleteExecution(ctx context.Context, params CompleteExecut
 	unclaimed := executionUnclaimedChangedPaths(changedPaths, writes)
 	if len(unclaimed) != 0 {
 		return CompletedExecution{}, &ExecutionScopeAuditError{UnclaimedPaths: unclaimed}
+	}
+	if err := verifyExecutionFileDigestExpectations(work.WorkspaceRoot, controlPlaneFiles); err != nil {
+		return CompletedExecution{}, err
 	}
 	resources, err := readExecutionResourceIntents(ctx, tx, activity.ActivityID)
 	if err != nil {
@@ -762,7 +827,7 @@ func (store *Store) CompleteExecution(ctx context.Context, params CompleteExecut
 			return CompletedExecution{}, err
 		}
 	}
-	completionSHA256, err := executionCompletionSHA256(activity, work, changedPaths, validationJSON, params.Reason)
+	completionSHA256, err := executionCompletionSHA256(activity, work, changedPaths, controlPlaneFiles, validationJSON, params.Reason)
 	if err != nil {
 		return CompletedExecution{}, err
 	}
@@ -855,6 +920,47 @@ func (store *Store) CompleteExecution(ctx context.Context, params CompleteExecut
 		},
 		ChangedPaths: changedPaths, CoordinationRevision: coordinationRevision,
 	}, nil
+}
+
+func normalizeExecutionFileDigestExpectations(values []ExecutionFileDigestExpectation) ([]ExecutionFileDigestExpectation, error) {
+	result := make([]ExecutionFileDigestExpectation, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		pathValue, pathKey, err := normalizeWorkPath(value.Path, runtime.GOOS == "windows")
+		if err != nil {
+			return nil, err
+		}
+		digest := strings.ToLower(strings.TrimSpace(value.SHA256))
+		if digest != "missing" && (len(digest) != 64 || strings.IndexFunc(digest, func(char rune) bool {
+			return (char < '0' || char > '9') && (char < 'a' || char > 'f')
+		}) >= 0) {
+			return nil, fmt.Errorf("%w: control-plane file %q requires a lower-case SHA-256 or missing", ErrInvalidArgument, pathValue)
+		}
+		if _, exists := seen[pathKey]; exists {
+			return nil, fmt.Errorf("%w: duplicate control-plane file expectation %q", ErrInvalidArgument, pathValue)
+		}
+		seen[pathKey] = struct{}{}
+		result = append(result, ExecutionFileDigestExpectation{Path: pathValue, SHA256: digest})
+	}
+	sort.Slice(result, func(left, right int) bool { return result[left].Path < result[right].Path })
+	return result, nil
+}
+
+func verifyExecutionFileDigestExpectations(workspaceRoot string, values []ExecutionFileDigestExpectation) error {
+	drifted := make([]string, 0)
+	for _, value := range values {
+		current, err := workspacePathDigest(workspaceRoot, value.Path)
+		if err != nil {
+			return fmt.Errorf("inspect workflow control-plane file %q: %w", value.Path, err)
+		}
+		if current != value.SHA256 {
+			drifted = append(drifted, value.Path)
+		}
+	}
+	if len(drifted) > 0 {
+		return &ExecutionControlPlaneDriftError{Paths: drifted}
+	}
+	return nil
 }
 
 func findExecutionTaskConflictTx(
@@ -1022,6 +1128,7 @@ func executionCompletionSHA256(
 	activity ExecutionActivity,
 	work WorkItem,
 	changedPaths []string,
+	controlPlaneFiles []ExecutionFileDigestExpectation,
 	validationJSON string,
 	reason string,
 ) (string, error) {
@@ -1035,6 +1142,7 @@ func executionCompletionSHA256(
 		"guarded_overview_revision": activity.GuardedOverviewRevision,
 		"guarded_overview_sha256":   activity.GuardedOverviewSHA256,
 		"changed_paths":             changedPaths,
+		"control_plane_files":       controlPlaneFiles,
 		"validation_json":           json.RawMessage(validationJSON),
 		"reason":                    strings.TrimSpace(reason),
 	})

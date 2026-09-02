@@ -70,9 +70,11 @@ def test_release_workflow_uploads_unified_runtime_binaries():
     )
     assert "workflow --help 2>&1" in content
     assert (
-        "show ensure enter next complete-stage transition reopen block resolve closeout"
+        "show ensure enter next complete-stage transition reopen block reconcile-blocker resolve closeout"
         in content
     )
+    assert "work --help 2>&1" in content
+    assert 'grep -q -- "unblock"' in content
     assert "design --help 2>&1" in content
     assert 'grep -q -- "direction-confirm"' in content
     assert "api show design.preview-lint --format json" in content
@@ -200,9 +202,11 @@ def test_runtime_fallback_release_smokes_namespaced_cognition_commands():
     )
     assert "workflow --help 2>&1" in content
     assert (
-        "show ensure enter next complete-stage transition reopen block resolve closeout"
+        "show ensure enter next complete-stage transition reopen block reconcile-blocker resolve closeout"
         in content
     )
+    assert "work --help 2>&1" in content
+    assert 'grep -q -- "unblock"' in content
     assert "design --help 2>&1" in content
     assert 'grep -q -- "direction-confirm"' in content
     assert "api show design.preview-lint --format json" in content
@@ -248,6 +252,7 @@ def test_runtime_installers_require_artifact_and_workflow_capabilities() -> None
         "cognition.run",
         "cognition.scan-packet",
         "implement.task-reopen",
+        "test-design.recover",
         "workflow.show",
         "workflow.ensure",
         "workflow.enter",
@@ -256,6 +261,7 @@ def test_runtime_installers_require_artifact_and_workflow_capabilities() -> None
         "workflow.transition",
         "workflow.reopen",
         "workflow.block",
+        "workflow.reconcile-blocker",
         "workflow.resolve",
         "workflow.closeout",
     ):

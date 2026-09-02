@@ -146,9 +146,9 @@ Treat these fields as binding execution inputs from the current worker packet an
 - Evidence paths that the leader can attach to the current task lifecycle record.
 - Remaining concern, blocker, or missing context
 - When the runtime supports structured delegated results, format the handoff as a `WorkerTaskResult` with `status: success|blocked|failed` (not `DONE`), `changed_files`, and `validation_results: [{command, status: "passed", summary?}, ...]` covering every packet `task_checks` entry as a passed command. Empty `blockers` for success. A successful worker handoff proves bounded implementation only and lets the Leader advance dependency-safe work; it does not claim that shared heavyweight validation passed.
-- When the leader provides a runtime result channel, submit the normalized envelope inline with its `--result-json` option; otherwise return the structured object to the leader. Never create or overwrite `worker-results/*.json` yourself—the Leader runs `implement result-merge`.
+- When the leader provides a runtime result channel, submit the normalized envelope through `--result-json <inline-json|@path|->`; keep small payloads inline, send large model-authored JSON through stdin, and use `@path` only for an existing runtime-owned or registered project artifact. Otherwise return the structured object to the leader. Never create or overwrite `worker-results/*.json` or create a temporary result file merely for transport—the Leader runs `implement result-merge`.
 - If the delegated lane requires lifecycle signals such as `task_started`, `task_blocked`, or `task_completed`, emit them as part of the promised completion-handoff protocol instead of assuming a status flip is enough.
-- The worker must not enter `idle` before the required inline handoff is submitted or returned.
+- The worker must not enter `idle` before the required structured handoff is submitted or returned.
 - If the handoff channel fails, return that failure explicitly instead of idling silently.
 
 ## Guardrails

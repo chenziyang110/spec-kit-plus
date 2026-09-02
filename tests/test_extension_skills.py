@@ -429,7 +429,7 @@ class TestBuiltInSkillGeneration:
         assert "implementation target and boundary refs" in plan_body
         assert "Dispatch Compilation Hints" in plan_body
         assert "workflow-state.md" in plan_body
-        assert "enter `plan` with the deterministic" in plan_body.lower()
+        assert "enter `plan` with deterministic" in plan_body.lower()
         assert re.search(
             r"specify-runtime(?:\.exe)? workflow transition --to",
             plan_body,

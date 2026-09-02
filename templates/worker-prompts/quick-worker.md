@@ -99,8 +99,8 @@ Use this template when the quick-task leader dispatches a bounded execution lane
 - Recommended next action
 - Blocker or concern
 - When structured delegated results are available, return a `WorkerTaskResult`-style payload so the leader can merge execution state without reinterpreting prose.
-- When the leader provides a runtime result channel, execute the complete runtime-owned argv prefix from the packet, append `--result-json '<inline-json>'`, and submit the normalized envelope (or use the integration's runtime-managed team channel). The Quick command also needs its runtime-supplied workspace and lane ID, so never reconstruct an incomplete command or create/overwrite a result file.
-- The worker must not enter `idle` before the required inline handoff is submitted or returned.
+- When the leader provides a runtime result channel, execute the complete runtime-owned argv prefix from the packet, append `--result-json <inline-json|@path|->`, and submit the normalized envelope (or use the integration's runtime-managed team channel). Keep small payloads inline, send large model-authored JSON through stdin, and use `@path` only for an existing runtime-owned or registered project artifact. The Quick command also needs its runtime-supplied workspace and lane ID, so never reconstruct an incomplete command or create/overwrite a result file.
+- The worker must not enter `idle` before the required structured handoff is submitted or returned.
 - If the handoff channel fails, return that failure explicitly instead of idling silently.
 
 ## Guardrails

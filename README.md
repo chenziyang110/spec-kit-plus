@@ -502,6 +502,14 @@ current worktree and use the agent's native tooling for subagents or manual
 long-lived workers; workflows do not automatically allocate worktrees, merge,
 or publish.
 
+The repository-shared Work Board database lives in the primary worktree at
+`.specify/runtime/run-control/run-control.sqlite`, so normal sandboxed work does
+not require write access to `.git`. All linked worktrees derive that same
+location. On first writer access, the runtime transactionally snapshots an
+older `.git/specify-runtime/run-control.sqlite` store into the new location and
+keeps the legacy file as audit evidence; it never silently switches back after
+the canonical store exists.
+
 For Fast, Debug, Implement, and Quick, inspect
 `specify-runtime execution overview --format json` at entry or resume. Its
 `execution-overview-v1` rows join task state, Work/Activity ownership, planned
@@ -520,13 +528,34 @@ Packet-backed Implement workers pass the compiler's unchanged
 exact current compiler output digest and bytes before parsing, and immutable
 baseline binding. It derives task identity, objective, and `planned_write_scope`
 as the union of unchanged product `write_scope` and the compiler's separate
-`bookkeeping_write_scope` of six exact feature-local canonical task paths.
+`bookkeeping_write_scope` of seven exact feature-local canonical paths,
+including `workflow.json` for official workflow-runtime mutations.
 Guard uses that full returned union; never hand-edit the CLI-owned bookkeeping
 files, omit them from ownership, or use a wildcard. Shared feature metadata
 overlap requires serialized ownership. Manual overrides of packet-derived fields are forbidden.
-Guard cannot widen packet-backed scope; recompile and reannounce a changed
-packet. Only manual work uses amended-set guards. The selected checkpoint,
-fresh overview, and guard still precede native dispatch.
+Although `workflow.json` is claimed as bookkeeping, it remains writable only by
+`specify-runtime workflow`; agents never edit it or treat it as product scope.
+Announce binds its exact state and latest runtime mutation receipt when present.
+Completion accepts a change only when active Implement matches a newer receipt,
+then reports `workflow_control_plane_paths` plus the receipt ref/digest.
+Valid-shaped hand edits, malformed state, and unresolved blockers stay
+agent-owned until official resolution resumes the same Activity. The runtime
+holds the workflow mutation lock and rechecks both exact digests inside the
+completion transaction before releasing authority; drift leaves the Activity
+active for retry. Feature-local `.workflow.lock` and workflow-mutation receipt
+storage are private runtime transport, not packet scope.
+Guard cannot widen packet-backed scope silently; recompile and reannounce a
+planned change before dispatch. A later-proven causal companion path stays in
+the same agent-owned invocation: refresh overview and rerun `execution guard`
+with the complete union plus `--scope-amendments-json`. The original packet
+remains immutable, late discovery is recorded, and completion requires an
+independent passing `scope-drift-review`. The selected checkpoint, fresh
+overview, and guard still precede native dispatch.
+Product scope accepts exact future files, exact directories, or a bounded
+subtree ending in `/**`. Filename globs such as `*_test.go` are rejected before
+dispatch. Companion tests, migrations, fixtures, and generated files must be
+declared explicitly; a verification command that names a test does not grant
+write authority.
 
 Checkpoint `validating` before fresh verification. `execution complete`
 requires passing validation and terminal workflow task state, audits product and
@@ -544,9 +573,12 @@ Other modifying workflows use `specify-runtime board reconcile`, inspect
 preserve artifact leases and state-owner guards. Checkpoint renews the lease;
 finish only after validation and terminal state. Confirmed overlaps block.
 Expired dirty work or an unavailable recorded workspace retains a recovery
-hold. Use `work interrupt` only after confirming the previous owner is offline,
-then explicitly resume with the new fence or abandon after inspecting preserved
-changes. Never take over a possibly live owner or edit board storage directly.
+hold. A current live owner resumes its own repaired `blocked` Work directly with
+revision/fence-bound `work unblock`, preserving the same owner, fence, workspace,
+declared intents, and resources without recovery inspection. Use `work interrupt`
+only after confirming the previous owner is offline, then explicitly resume with
+the new fence or abandon after inspecting preserved changes. Never take over a
+possibly live owner or edit board storage directly.
 
 Feature creation first runs the installed script with `--dry-run --json`
 (PowerShell: `-DryRun -Json`) and verifies `BOOTSTRAP_CONTRACT` equals
@@ -1012,8 +1044,12 @@ expected results, safe failure branches, evidence to return, and resume argv.
 Evidence-backed `specify-runtime workflow reopen` handles an invalidated earlier or same
 completed non-accept stage without deleting stale artifacts; failed acceptance
 uses atomic `accept route-repair`. An unresolved blocker cannot be replaced or
-bypassed. After its criteria are proven, `specify-runtime workflow resolve` reactivates the same
-owner and preserves the complete blocker audit.
+bypassed. When evidence resolves only named subcauses, revision-bound
+`specify-runtime workflow reconcile-blocker` removes stale current text while
+preserving the remaining cause, owner/category, blocked state, and appended
+audit. After no cause remains and the criteria are proven, `specify-runtime
+workflow resolve` reactivates the same owner and preserves the complete blocker
+audit.
 
 Optional feasibility branch when `sp-specify` finds an unproven implementation chain:
 
@@ -1022,12 +1058,18 @@ specify -> deep-research -> plan
 ```
 
 This branch is a runtime-enforced gate, not generic web research and not a
-second specification phase. It binds the current `spec-contract.json` digest
-and selected capability IDs, coordinates bounded track leases and results,
+second specification phase. It requires `spec-contract.json.status` to remain
+`planning-ready`; draft or blocked/non-enterable Specify truth returns a typed
+`/sp.specify` owner action and cannot initialize, publish, or verify an
+`/sp.plan` handoff. It binds the current `spec-contract.json` digest and selected
+capability IDs, coordinates bounded track leases and results,
 checks repository/external/spike provenance, preserves contradictions and
 rejected attempts, requires independent audit, and publishes
 `research/handoff-to-plan.json` with an exact digest and state revision.
 `sp-plan` must verify that binding before consuming the `PH-###` decisions.
+Every structured payload is discoverable through `specify-runtime api show
+deep-research.<subcommand>` and its returned `api schema` command; subcommand
+`--help` is read-only.
 `deep-research.md` is only the derived human-readable projection. Minor changes
 to already-proven capabilities use the runtime `not-needed` path or skip the
 branch according to the spec gate.
@@ -1297,7 +1339,7 @@ First-party hook runtime:
   - `specify-runtime hook validate-commit --commit-message "<message>"`
   - `specify hook validate-session-state --command <workflow> --feature-dir <dir>`
   - `specify hook validate-packet --packet-file <path>`
-  - Normal result validation/submission uses `specify-runtime implement result-merge --result-json '<inline-json>'` or `specify-runtime result submit ... --result-json '<inline-json>'`; the legacy file-only hook remains diagnostic compatibility and is not a generated workflow step.
+  - Normal result validation/submission uses `specify-runtime implement result-merge --result-json <inline-json|@path|->` or `specify-runtime result submit ... --result-json <inline-json|@path|->`; the legacy file-only hook remains diagnostic compatibility and is not a generated workflow step.
   - `specify hook validate-read-path --target-path <path>`
   - `specify hook validate-prompt --prompt-text "<text>"`
 - Project cognition freshness should use the public specify-runtime cognition commands:
@@ -1405,7 +1447,7 @@ Current `sp-implement` runtime model in Spec Kit Plus:
 - delegated packets are compiled just in time from the current task, live code, and stable contract refs; a dispatch failure triggers route re-evaluation rather than an automatic local fallback
 - durable teams/runtime execution is the `managed-team` surface (`sp-implement-teams` / `sp-teams`) for durable state or lifecycle needs, not an internal fallback hidden inside `sp-implement`
 - subagents should execute from compiled `WorkerTaskPacket` contracts rather than rediscovering rules from background context
-- native planning, task-generation, research, review, quick, debug, and PRD-scan lanes submit through their stage-owned `specify-runtime result submit --result-json '<inline-json>'` channel; native implementation workers return inline results for leader-owned `specify-runtime implement result-merge`, while only an explicitly selected durable Teams run uses its owning `submit-result` command
+- native planning, task-generation, research, review, quick, debug, and PRD-scan lanes submit through their stage-owned `specify-runtime result submit --result-json <inline-json|@path|->` channel; small payloads may remain inline, large model-authored JSON uses stdin, and `@path` is reserved for an existing runtime-owned or registered project artifact; only an explicitly selected durable Teams run uses its owning `submit-result` command
 - `specify-runtime result path` emits JSON directly and does not accept `--format`; do not append `--format`
 - a managed dispatch supplies its request id; an unmanaged implementation, quick, debug, planning, task-generation, or research lane supplies the owning workflow/workspace/session and lane identifiers accepted by `result submit`
 - never compute, create, edit, rename, or delete a result path directly, and never ask a subagent to emit a result file; build the bounded envelope in memory and pass it inline
@@ -1486,7 +1528,7 @@ one.
 - `specify sp-teams resume` re-attaches to an existing runtime session by replaying the metadata in `.specify/teams/` and restarting the tmux backend.
 - `specify sp-teams shutdown` requests a graceful stop, letting workers finish or fail their in-flight tasks before tearing down.
 - `specify sp-teams cleanup` removes `.specify/teams/` state after shutdown succeeds; run it only once shutdown has settled to avoid corrupting the state folder.
-- `specify sp-teams submit-result --request-id <id> --result-json '<inline-json>'` validates and records a structured subagent result for an existing dispatch. Use `specify sp-teams result-template --request-id <id>` only to inspect the canonical `pending` shape; do not submit that template unchanged or materialize it as a temporary result file.
+- `specify sp-teams submit-result --request-id <id> --result-json <inline-json|@path|->` validates and records a structured subagent result for an existing dispatch. Keep small payloads inline, use stdin for large model-authored JSON, and reserve `@path` for an existing runtime-owned or registered project artifact. Use `specify sp-teams result-template --request-id <id>` only to inspect the canonical `pending` shape; do not submit that template unchanged or materialize it as a temporary result file.
 - `specify sp-teams api <operation>` proxies structured JSON operations (task claims, worker heartbeats, events) into the runtime; use it when automation needs a predictable channel.
 
 For agents and automation, prefer the optional MCP supplement instead of having the model compose CLI invocations directly:
@@ -1672,17 +1714,17 @@ Maintainer note:
 
 Result helper command shapes:
 
-- Native implementation result merge: `specify-runtime implement result-merge --feature-dir <feature-dir> --result-json '<inline-json>' --format json`
+- Native implementation result merge: `specify-runtime implement result-merge --feature-dir <feature-dir> --result-json <inline-json|@path|-> --format json`
 - Unmanaged non-Codex implementation path: `specify-runtime result path --command implement --feature-dir <feature-dir> --task-id <task-id>`
-- Feature-stage native lane (Plan, Tasks, or Review): `specify-runtime result submit --command <feature-stage> --feature-dir <feature-dir> --lane-id <lane-id> --result-json '<inline-json>'`
-- Deep Research worker result: `specify-runtime deep-research track-submit --feature-dir <feature-dir> --track-id <TRK-###> --attempt-id <ATTEMPT-###> --expected-revision <revision> --result-json '<inline-json>'`; the leader then uses `track-accept` or `track-reject`. Generic `result submit --command deep-research` is rejected.
+- Feature-stage native lane (Plan, Tasks, or Review): `specify-runtime result submit --command <feature-stage> --feature-dir <feature-dir> --lane-id <lane-id> --result-json <inline-json|@path|->`
+- Deep Research worker result: `specify-runtime deep-research track-submit --feature-dir <feature-dir> --track-id <TRK-###> --attempt-id <ATTEMPT-###> --expected-revision <revision> --result-json <inline-json|@path|->`; the leader then uses `track-accept` or `track-reject`. Generic `result submit --command deep-research` is rejected.
 - Command shape: `specify-runtime result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>`
-- Command shape: `specify-runtime result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id> --result-json '<inline-json>'`
+- Command shape: `specify-runtime result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id> --result-json <inline-json|@path|->`
 - Command shape: `specify-runtime result path --command debug --session-slug <session-slug> --lane-id <lane-id>`
-- Command shape: `specify-runtime result submit --command debug --session-slug <session-slug> --lane-id <lane-id> --result-json '<inline-json>'`
-- PRD-scan native lane: `specify-runtime result submit --command prd-scan --workspace <prd-scan-workspace> --lane-id <lane-id> --result-json '<inline-json>'`
+- Command shape: `specify-runtime result submit --command debug --session-slug <session-slug> --lane-id <lane-id> --result-json <inline-json|@path|->`
+- PRD-scan native lane: `specify-runtime result submit --command prd-scan --workspace <prd-scan-workspace> --lane-id <lane-id> --result-json <inline-json|@path|->`
 - Durable Codex team path: `specify-runtime result path --command <workflow> --request-id <request-id>`
-- Durable Codex team submission: `specify-runtime sp-teams submit-result --request-id <request-id> --result-json '<inline-json>'`
+- Durable Codex team submission: `specify-runtime sp-teams submit-result --request-id <request-id> --result-json <inline-json|@path|->`
 
 For the full CLI surface:
 
@@ -1770,7 +1812,7 @@ Navigation and technical truth are now cognition-first:
 - `specify-runtime cognition confirm-ignore --all-suggested --format json` (or repeated exact `--pattern` values for an approved subset) is the runtime-owned transition from reviewed starter suggestions to active rules. Chat confirmation alone does not alter the scan boundary, and agents do not edit the runtime-owned ignore file.
 - `specify-runtime cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json` is the runtime scan-set resolution contract for agent-facing scan handoffs. It produces compact stdout with only the temporary file-list path and count; the file list itself contains only `files`.
 - Project cognition is code-serving evidence, not an equal-depth archive. After `scan-set`, `scan-formats` inventories every repository-specific format cohort using detected format/family, path kind, top-level directory, and Git state, exposing only aggregate counts and at most three representatives. The Agent proposes one complete cohort-level policy (`semantic_scan`, `sample`, `inventory_only`, `exclude`, or `split_required`), `scan-policy-stage` validates exact coverage, and the user confirms the exact proposal digest before `scan-policy-confirm` activates it. Known cohorts reuse their confirmed decision across ordinary content/membership drift; newly observed cohorts require another exact proposal and confirmation. `scan-prepare` rejects missing, tampered, incomplete, unresolved, or newly uncovered policy state and freezes the current inventory plus confirmed policy into the workbench. This lets custom code formats be selected deliberately without turning Agent judgment into unconfirmed path-level filtering. Ordinary untracked source stays eligible, but untracked `.gitignore` matches, local runtime vendor/data/log payloads, and generated agent/workflow state default to inventory-only `P3`. `--include-gitignored` remains an explicit reviewed pre-policy input; it does not bypass the confirmed cohort decision. `scan-status.recommended_parallel_workers` is capped at four and may be reduced further by available agent slots.
-- Advanced rebuilds run `specify-runtime cognition scan-prepare --scan-set .specify/project-cognition/tmp/scan-files.json --format json` to create or resume the deterministic, context-budgeted workbench and disjoint packet queue. Pass the model context window plus real instruction/inherited/reasoning/tool/result reserves, or an already-computed `--worker-budget-tokens`; packet estimates must fit the selected worker. Existing incompatible/in-progress workbenches are protected by default; `--force` explicitly discards current accepted and pending work but may replay validated cache, while `--full-rebuild` bypasses cache. The leader drives only `pending_path_count` through `scan-status` and `scan-lease`; an oversized packet remains undispatched until a worker with sufficient effective capacity is selected through `--worker-capacity-tokens`. Each low-cost worker receives a CLI-generated task brief, fills the supplied result shape in memory, and submits bounded progress through the brief's `scan-checkpoint --result-json '<inline-json>'` command; only the runtime materializes pending-result and checkpoint artifacts. If capacity is running out, `scan-yield` preserves the validated subset and requeues exactly the remaining paths for a new attempt; if a worker stops first, the leader uses the active lease from `scan-status` with `scan-requeue`. A fully checkpointed attempt is finalized with `scan-accept --packet-id <packet-id> --attempt-id <attempt-id> --format json`. The runtime—not a natural-language completion claim—validates path accounting, evidence, concrete `nodes[].paths`, generation-scoped attempt identity, and cumulative sequence before merging. Only after every packet is accepted may `validate-scan` issue the generation-, source-, and artifact-bound `scan-receipt.json`; `build-from-scan` rejects a missing or stale v2 receipt before graph-store mutation. Repeating build for the same receipt/compiler/schema fingerprint returns `reused=true` with the same ready generation and still runs `validate-build`.
+- Advanced rebuilds run `specify-runtime cognition scan-prepare --scan-set .specify/project-cognition/tmp/scan-files.json --format json` to create or resume the deterministic, context-budgeted workbench and disjoint packet queue. Pass the model context window plus real instruction/inherited/reasoning/tool/result reserves, or an already-computed `--worker-budget-tokens`; packet estimates must fit the selected worker. Existing incompatible/in-progress workbenches are protected by default; `--force` explicitly discards current accepted and pending work but may replay validated cache, while `--full-rebuild` bypasses cache. The leader drives only `pending_path_count` through `scan-status` and `scan-lease`; an oversized packet remains undispatched until a worker with sufficient effective capacity is selected through `--worker-capacity-tokens`. Each low-cost worker receives a CLI-generated task brief, fills the supplied result shape in memory, and submits bounded progress through the brief's `scan-checkpoint --result-json <inline-json|@path|->` command; only the runtime materializes pending-result and checkpoint artifacts. If capacity is running out, `scan-yield` preserves the validated subset and requeues exactly the remaining paths for a new attempt; if a worker stops first, the leader uses the active lease from `scan-status` with `scan-requeue`. A fully checkpointed attempt is finalized with `scan-accept --packet-id <packet-id> --attempt-id <attempt-id> --format json`. The runtime—not a natural-language completion claim—validates path accounting, evidence, concrete `nodes[].paths`, generation-scoped attempt identity, and cumulative sequence before merging. Only after every packet is accepted may `validate-scan` issue the generation-, source-, and artifact-bound `scan-receipt.json`; `build-from-scan` rejects a missing or stale v2 receipt before graph-store mutation. Repeating build for the same receipt/compiler/schema fingerprint returns `reused=true` with the same ready generation and still runs `validate-build`.
 - For cross-project references, run `specify-runtime cognition discover --root <path> --format json`
   before broad inspection. Use another project's cognition only when the CLI
   response reports `reference_readiness=ready`, `freshness=fresh`, and

@@ -94,3 +94,12 @@ in-progress work at a safe boundary, preserve completed work, create a
 corrective work item for drift, and recapture only affected Review evidence.
 “Latest” is never an adoption rule; metadata-only index state cannot authorize
 adoption by itself.
+
+Returning to Plan names the reconciliation target; it does not clear a
+persisted blocker or make Plan immediately enterable from a later stage. The
+Plan owner first requests `workflow reopen --to plan`. If the later stage is
+blocked, the runtime does not clear it and returns `pending_reopen_action`;
+only real evidence satisfying the blocker criteria may execute the atomic
+resolve-and-reopen transaction. Hand off Plan as the recovery owner, not as an
+already-enterable stage; its first invocation stages and consumes the action
+without asking the user to invoke Plan again while the blocker is unchanged.

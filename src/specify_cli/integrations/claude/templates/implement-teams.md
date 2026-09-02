@@ -99,7 +99,7 @@ TeamCreate({
      - required references and forbidden drift
      - deliverables
      - explicit verification command or acceptance check
-     - exact inline result-submission command and runtime identifiers
+     - exact runtime-owned result-submission command and runtime identifiers
      - completion protocol covering start, blocker, and final completion evidence
      - platform guardrails such as supported platforms or required conditional compilation for platform-specific code
    - use a standardized task body shape such as:
@@ -119,7 +119,7 @@ Deliverables:
 Verification:
 - cargo test -p local-agent
 Result Handoff:
-- return the normalized result envelope inline; the leader submits it with `specify-runtime implement result-merge --feature-dir FEATURE_DIR --result-json '<inline-json>'`
+- return the normalized result envelope through `--result-json <inline-json|@path|->`; keep small payloads inline, use stdin for large model-authored JSON, and reserve `@path` for an existing runtime-owned or registered project artifact
 Completion Protocol:
 1. SendMessage({ type: "task_started", task_id: "T001" })
 2. run the required verification

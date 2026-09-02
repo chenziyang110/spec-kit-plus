@@ -3012,7 +3012,7 @@ def test_plan_template_requires_cli_owned_delegated_planning_results() -> None:
     assert "read-only evidence worker may satisfy a planning lane" in lowered
     assert "planning/handoffs/<lane-id>.json" in content
     assert "materialized only by the runtime" in lowered
-    assert "--result-json '<inline-json>'" in content
+    assert "--result-json <inline-json|@path|->" in content
 
 
 def test_adaptive_execution_partial_requires_runtime_owned_artifact_handoffs() -> None:
@@ -3726,19 +3726,20 @@ def test_specify_template_keeps_canonical_state_tokens_but_not_universal_user_in
     assert "semantic_delta" in content
 
 
-def test_auto_template_binds_resume_to_the_current_run_subject():
+def test_auto_template_binds_resume_to_one_current_workflow_lineage():
     content = _read("templates/commands/auto.md").lower()
 
-    assert "managed run" in content
-    assert "specify_run_workspace" in content
-    assert "reconcile" in content
-    assert "unique safe candidate" in content or "exactly one unique safe candidate" in content
+    assert "explicit feature selection or validated durable workflow binding" in content
+    assert "workflow show" in content
+    assert "workflow next" in content
+    assert "exactly one safe canonical next command" in content
     assert "do not guess" in content
     assert "never auto-resume an uncertain or unbound candidate" in content
     assert "never inspect or resume another run's subject" in content
+    assert "specify_run_workspace" not in content
 
 
-def test_feature_workflows_prefer_managed_run_subject_when_feature_dir_is_not_explicit():
+def test_feature_workflows_prefer_explicit_or_durable_feature_binding():
     plan = _read("templates/commands/plan.md")
     tasks = _read("templates/commands/tasks.md")
     implement = _read("templates/commands/implement.md")
@@ -3747,26 +3748,27 @@ def test_feature_workflows_prefer_managed_run_subject_when_feature_dir_is_not_ex
 
     for content in (plan, tasks, implement, deep_research, explain):
         lowered = content.lower()
-        assert "managed run" in lowered
-        assert "private git ref" in lowered
+        assert "specify_run_" not in lowered
         assert "lane resolve" not in lowered
-    assert "specify_run_subject_id" in plan.lower()
-    assert "exactly one match" in tasks.lower()
-    assert "exactly one match" in implement.lower()
+    assert "validated durable workflow binding" in plan.lower()
+    assert "never infer the feature from a git ref or branch name" in plan.lower()
+    assert "validated durable workflow binding" in implement.lower()
+    assert "private git ref or branch name" in deep_research.lower()
+    assert "private git ref or branch name" in explain.lower()
 
 
-def test_analyze_template_requires_managed_run_binding_before_branch_guessing() -> None:
+def test_analyze_template_requires_explicit_or_durable_binding_before_branch_guessing() -> None:
     content = _read("templates/commands/analyze.md")
     lowered = content.lower()
 
     assert "if `feature_dir` is not already explicit" in lowered
-    assert "managed run feature subject" in lowered
-    assert "specify_run_workspace" in lowered
+    assert "validated durable workflow binding" in lowered
     assert "stop on ambiguity" in lowered
     assert "lane resolve" not in lowered
     assert "must not switch branches" in lowered
     assert 'implicitly check out a "correct" feature branch' in lowered
     assert "mutate git state" in lowered
+    assert "specify_run_" not in lowered
 
 
 def test_specify_and_plan_templates_route_feasibility_gaps_through_deep_research():
@@ -3994,14 +3996,18 @@ def test_auto_routes_feature_test_design_before_tasks_and_rejects_stale_handoffs
     assert "artifact list --path-prefix <feature-dir>/test-design/" in lowered
     assert "artifact show --path <feature-dir>/test-design/test-state.json" in lowered
     assert "specify-runtime test-design status --feature-dir <feature-dir>" in lowered
-    for state in ("active", "blocked", "validated-unhanded", "stale"):
-        assert state in lowered
-    assert "route to canonical `/sp.test-design`" in lowered
-    assert "handoff_freshness=current" in lowered
+    for decision in ("not_selected", "selected", "required"):
+        assert decision in lowered
+    assert "routes to test design even when no root exists" in lowered
+    assert "canonical `/sp.test-design`" in lowered
+    assert "recovery_action" in lowered
+    assert "projection_action" in lowered
+    assert "human_action_required=true" in lowered
+    assert "exact base_argv" in lowered
+    assert "returned next_argv" in lowered
     assert "only" in lowered and "allow `/sp.tasks`" in lowered
-    assert "state_revision" in lowered
-    assert "source_fingerprint" in lowered
-    assert "artifact_digests" in lowered
+    assert "compatibility handoff" in lowered
+    assert "fresh tasks projection" in lowered
 
 
 def test_discussion_convergence_never_becomes_implementation_authority() -> None:
@@ -4843,7 +4849,7 @@ def test_shared_implement_teams_contract_preserves_explicit_execution_packet_fie
     assert "every team-managed task in the teams-backed flow must still behave like an explicit execution packet" in content
     assert "write set and shared surfaces" in content
     assert "explicit verification command or acceptance check" in content
-    assert "exact inline result-submission owner and required runtime identifiers" in content
+    assert "exact runtime-owned result-submission owner and required runtime identifiers" in content
     assert "completion-handoff protocol covering start, blocker, and final completion evidence" in content
     assert "platform guardrails" in content
     assert "status flip alone" in content
@@ -4962,8 +4968,10 @@ def test_debug_and_quick_templates_reference_shared_worker_prompt_assets() -> No
     assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" not in quick_content.lower()
     assert "{{specify-subcmd:specify-runtime result submit" in debug_content.lower()
     assert "{{specify-subcmd:specify-runtime result submit" in quick_content.lower()
-    assert "--result-json '<inline-json>'" in debug_content.lower()
-    assert "--result-json '<inline-json>'" in quick_content.lower()
+    assert "--result-json <inline-json|@path|->" in debug_content.lower()
+    assert "--result-json <inline-json|@path|->" in quick_content.lower()
+    assert "large model-authored json through stdin" in quick_content.lower()
+    assert "never create a temporary result file merely" in quick_content.lower()
     assert "the runtime derives and writes the canonical destination" in debug_content.lower()
     assert "the runtime derives and writes the canonical destination" in quick_content.lower()
     assert "never compute a result path, create a result file, or use `--result-file`" in debug_content.lower()
@@ -4991,7 +4999,9 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     assert "platform guardrails" in implementer.lower()
     assert "completion-handoff protocol" in implementer.lower()
     assert "task_started" in implementer.lower()
-    assert "must not enter `idle` before the required inline handoff is submitted or returned" in implementer.lower()
+    assert "must not enter `idle` before the required structured handoff is submitted or returned" in implementer.lower()
+    assert "large model-authored json through stdin" in implementer.lower()
+    assert "temporary result file merely for transport" in implementer.lower()
     assert "test-authoring-only" in implementer.lower()
     assert "accepted change-set red/baseline" in implementer.lower()
     assert "must not run a test suite" in implementer.lower()
@@ -5009,12 +5019,12 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     assert "# Debug Investigator Worker Prompt" in debug_investigator
     assert "current hypothesis" in debug_investigator.lower()
     assert "must not update the debug file" in debug_investigator.lower()
-    assert "must not enter `idle` before the required inline handoff is submitted or returned" in debug_investigator.lower()
+    assert "must not enter `idle` before the required structured handoff is submitted or returned" in debug_investigator.lower()
 
     assert "# Quick Worker Prompt" in quick_worker
     assert "`status.md` remains leader-owned" in quick_worker.lower()
     assert "smallest safe lane" in quick_worker.lower()
-    assert "must not enter `idle` before the required inline handoff is submitted or returned" in quick_worker.lower()
+    assert "must not enter `idle` before the required structured handoff is submitted or returned" in quick_worker.lower()
     assert "surface-only" in quick_worker.lower() or "symptom-only" in quick_worker.lower()
     assert "/sp-debug" in quick_worker.lower()
 
@@ -5088,7 +5098,7 @@ def test_alignment_template_exists():
     assert "## Coverage Mode Outcomes" not in content
 
 
-def test_script_contracts_expose_context_artifact_paths():
+def test_script_contracts_expose_context_paths_without_retired_run_binding():
     ps_common = _read("scripts/powershell/common.ps1")
     ps_check = _read("scripts/powershell/check-prerequisites.ps1")
     ps_setup = _read("scripts/powershell/setup-plan.ps1")
@@ -5109,24 +5119,14 @@ def test_script_contracts_expose_context_artifact_paths():
     assert "CONTEXT=%q\\n" in sh_common
     assert "SPECIFY_DRAFT=%q\\n" in sh_common
     assert "find_feature_dir_by_prefix" in sh_common
-    assert "find_feature_dir_from_managed_run" in sh_common
-    assert "assert_managed_run_workspace" in sh_common
-    assert "assert_managed_run_feature_dir" in sh_common
-    assert "SPECIFY_RUN_WORKSPACE" in sh_common
-    assert "SPECIFY_RUN_SUBJECT_TYPE" in sh_common
-    assert "SPECIFY_RUN_SUBJECT_ID" in sh_common
-    assert '"${SPECIFY_RUN_MANAGED:-}" != "1"' in sh_check
-    assert '"${SPECIFY_RUN_MANAGED:-}" != "1"' in sh_setup
+    assert "SPECIFY_RUN_" not in sh_common
+    assert "SPECIFY_RUN_" not in sh_check
+    assert "SPECIFY_RUN_" not in sh_setup
     assert "feature_specs_roots" in sh_common
     assert "Find-FeatureDirByPrefix" in ps_common
-    assert "Find-FeatureDirFromManagedRun" in ps_common
-    assert "Assert-ManagedRunWorkspace" in ps_common
-    assert "Assert-ManagedRunFeatureDir" in ps_common
-    assert "$env:SPECIFY_RUN_WORKSPACE" in ps_common
-    assert "$env:SPECIFY_RUN_SUBJECT_TYPE" in ps_common
-    assert "$env:SPECIFY_RUN_SUBJECT_ID" in ps_common
-    assert "$env:SPECIFY_RUN_MANAGED -ne '1'" in ps_check
-    assert "$env:SPECIFY_RUN_MANAGED -ne '1'" in ps_setup
+    assert "SPECIFY_RUN_" not in ps_common
+    assert "SPECIFY_RUN_" not in ps_check
+    assert "SPECIFY_RUN_" not in ps_setup
     assert "Get-FeatureSpecsRoots" in ps_common
     assert '--arg context "$CONTEXT"' in sh_check
     assert '--feature-dir' in sh_check

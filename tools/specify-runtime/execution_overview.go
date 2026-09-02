@@ -58,7 +58,7 @@ func runExecution(args []string, stdout io.Writer) int {
 		env.Data["commands"] = []string{"announce", "overview", "checkpoint", "guard", "show", "complete"}
 		env.Data["announce_usage"] = "specify-runtime execution announce --workflow <fast|debug|implement|quick> (--subject-id <id> --summary <text> | --work-packet-file <worker-packet.json> --work-packet-sha256 <sha256>) --agent-id <id> --adapter-id <id> [--planned-write-scope-json <array>] [--resources-json <array>] [--project-root <path>] --format json"
 		env.Data["overview_usage"] = "specify-runtime execution overview [--current-work-id <work-id>] [--project-root <path>] --format json"
-		env.Data["guard_usage"] = "specify-runtime execution guard <activity-id> --expected-revision <revision> --fence <fence> --expected-overview-revision <revision> --expected-overview-sha256 <sha256> --write-scope-json <array> --resources-json <array> --reason <text> [--project-root <path>] --format json"
+		env.Data["guard_usage"] = "specify-runtime execution guard <activity-id> --expected-revision <revision> --fence <fence> --expected-overview-revision <revision> --expected-overview-sha256 <sha256> --write-scope-json <array> --resources-json <array> [--scope-amendments-json <array>] --reason <text> [--project-root <path>] --format json"
 		env.Data["checkpoint_usage"] = "specify-runtime execution checkpoint <activity-id> --expected-revision <revision> --fence <fence> --phase <selected|executing|validating|blocked> --next-action <text> --lease-seconds <seconds> [--observed-paths-json <array>] [--reason <text>] [--project-root <path>] --format json"
 		env.Data["complete_usage"] = "specify-runtime execution complete <activity-id> --expected-revision <revision> --fence <fence> --validation-json <array> --reason <text> [--project-root <path>] --format json"
 		return writeEnvelope(stdout, env)
@@ -1064,5 +1064,6 @@ func executionOverviewErrorEnvelope(err error) Envelope {
 	env := NewEnvelope("error", "execution overview failed")
 	env.Blockers = append(env.Blockers, err.Error())
 	env.ShowArgv = []string{"specify-runtime", "execution", "overview", "--format", "json"}
+	bindRunControlStoreAccess(&env, err)
 	return env
 }

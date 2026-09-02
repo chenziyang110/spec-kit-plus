@@ -527,6 +527,7 @@ class TestClaudeIntegration:
                 ".specify/bin/specify-hook.mjs",
                 ".specify/bin/specify-hook.py",
                 ".specify/bin/.gitignore",
+                ".specify/runtime/.gitignore",
                 (
                     ".specify/bin/specify-runtime.exe"
                     if os.name == "nt"
@@ -3724,7 +3725,7 @@ def test_claude_generated_runtime_facing_skills_include_native_subagent_contract
         assert "native subagent capability discovery" in content
         assert "do not record `subagent-blocked`" in content
         assert "result contract" in content
-        assert "inline result submission" in content
+        assert "result submission" in content
         assert "runtime-owned compatibility path" in content
         assert "wait for every subagent's structured handoff" in content
         assert "do not treat an idle subagent as done work" in content
@@ -3948,7 +3949,7 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     )
     assert "write set and shared surfaces" in lower
     assert "explicit verification command or acceptance check" in lower
-    assert "exact inline result-submission owner" in lower
+    assert "exact runtime-owned result-submission owner" in lower
     assert (
         "completion protocol covering start, blocker, and final completion evidence"
         in lower
@@ -4001,7 +4002,7 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "worker-results" in lower
     assert "subagent result contract" not in lower
     assert "subagent dispatch contract" not in lower
-    assert "inline result submission" in lower
+    assert "result submission" in lower
     assert "never create a result file or use `--result-file`" in lower
     assert "feature_dir/worker-results/<task-id>.json" in lower
     assert "core implementation complete" in lower

@@ -24,14 +24,16 @@ repository evidence first and current primary external sources through
 vendor-neutral search or documentation tooling when the answer depends on an
 API, platform, standard, dependency, or recent behavior.
 
-Before any write, run
+At entry, run
 `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`.
 `FEATURE_DIR/workflow.json` is CLI-owned; this auxiliary skill must not write
-it, and its expected required-stage owner is `specify`. On missing, corrupt,
-different, or completed runtime state, stop with the returned blocker or a
-typed owner handoff containing the observed stage, expected owner, affected
-files, exact next action, unblock criteria, and resume argv. Never overwrite
-either state surface to force entry.
+it. Also require `spec-contract.json.status: planning-ready`. A present source
+workflow is enterable before research only at `stage: specify, status:
+completed`; verification may later observe `stage: plan, status: active` after
+handoff consumption. Draft source truth, active or blocked Specify, another
+stage, corruption, or a persisted blocker returns a typed owner handoff to
+`$spx-specify` with the exact workflow resolution action when applicable. Do not
+initialize research, publish `$spx-plan`, or overwrite state to force entry.
 
 Create initial `workflow-state.md` through `artifact scaffold --kind workflow-state`; resume and mutate it only through targeted `artifact show` and leased `artifact patch` before
 substantial work and read it before reconstructing intent from chat. Persist at least
@@ -52,9 +54,23 @@ audit, validate the structured package, publish the planning handoff, verify
 the handoff before recommending `$spx-plan`, and use the dedicated not-needed
 path when repository evidence already proves the implementation chain. Never
 simulate these lifecycle transitions by patching a Markdown summary alone.
+Every lifecycle mutation rechecks the unchanged planning-ready source and
+Plan-enterable workflow state. If Specify becomes blocked after initialization,
+preserve the current research revision, return to `$spx-specify`, and resume
+only after official blocker resolution; never advertise Plan from draft or
+blocked source truth.
+Source-sensitive `init`, `validate`, `publish`, and `not-needed` commits hold
+the feature workflow lock and compare-and-swap the exact spec/workflow bytes
+with the research artifacts. Concurrent upstream drift rolls back the whole
+commit instead of leaving a new state or handoff.
 
 Use the concrete runtime surface, preserving the `--expected-revision` returned
 by each mutation:
+
+Before authoring each structured payload, expand its current schema through
+`specify-runtime api show deep-research.<subcommand> --format json` and the
+returned `api schema` argv. Do not discover enums or required fields through
+repeated validation failures.
 
 ```text
 specify-runtime deep-research init
@@ -131,7 +147,8 @@ before reporting readiness. Repair the research artifact or remain blocked on a
 non-OK result; surface presence alone is not a valid handoff.
 
 Before a clean handoff claim, verify that the published research handoff binds
-the current source revision, current structured research claim status, exact
+the current planning-ready source revision, Plan-enterable workflow state,
+current structured research claim status, exact
 accepted `PH-*` / `EVD-*` / `SPK-*` IDs, and any runtime-produced source hash or
 handoff digest. If the publish or verify step reports stale, tampered, foreign,
 or partial state, stop and repair the canonical structured package instead of

@@ -10,6 +10,128 @@ import (
 	"testing"
 )
 
+func TestTaskControlWriteScopeRejectsFilenameGlobsBeforePacketCompilation(t *testing.T) {
+	for _, scope := range []string{
+		"backend/internal/projectlifecycle/*_test.go",
+		"backend/internal/projectlifecycle/test_?.go",
+		"backend/internal/projectlifecycle/[ab]_test.go",
+		"backend/**/pause_metadata_test.go",
+		"backend/internal/projectlifecycle/*",
+		"../outside.go",
+		"/outside.go",
+		"C:/outside.go",
+	} {
+		t.Run(scope, func(t *testing.T) {
+			_, err := normalizeTaskControlTask(map[string]any{
+				"id": "T001", "objective": "Implement pause metadata",
+				"expected_write_scope": []any{scope},
+			}, false)
+			if err == nil || !strings.Contains(err.Error(), "exact future file path or bounded directory subtree") {
+				t.Fatalf("scope %q error = %v, want actionable early rejection", scope, err)
+			}
+		})
+	}
+}
+
+func TestTaskControlWriteScopeAllowsExactFutureFileAndBoundedSubtree(t *testing.T) {
+	for _, scope := range []string{
+		"backend/internal/projectlifecycle/pause_metadata_test.go",
+		"backend/internal/projectlifecycle",
+		"backend/internal/projectlifecycle/**",
+	} {
+		t.Run(scope, func(t *testing.T) {
+			task, err := normalizeTaskControlTask(map[string]any{
+				"id": "T001", "objective": "Implement pause metadata",
+				"expected_write_scope": []any{scope},
+			}, false)
+			if err != nil {
+				t.Fatalf("scope %q rejected: %v", scope, err)
+			}
+			if got := anyStringSlice(task["expected_write_scope"]); len(got) != 1 || got[0] != scope {
+				t.Fatalf("scope round trip = %#v, want %q", got, scope)
+			}
+		})
+	}
+}
+
+func TestImplementResultChangedFilesMustStayInsideTaskWriteScope(t *testing.T) {
+	task := map[string]any{"expected_write_scope": []any{
+		"backend/internal/projectlifecycle/service.go",
+		"backend/internal/projectlifecycle/tests/**",
+	}}
+	if err := validateImplementResultWriteScope(task, map[string]any{"changed_files": []any{
+		"backend/internal/projectlifecycle/service.go",
+		"backend/internal/projectlifecycle/tests/pause_metadata_test.go",
+	}}); err != nil {
+		t.Fatalf("bounded test subtree rejected a future test file: %v", err)
+	}
+	err := validateImplementResultWriteScope(task, map[string]any{"changed_files": []any{
+		"backend/internal/projectlifecycle/pause_metadata_test.go",
+	}})
+	if err == nil || !strings.Contains(err.Error(), "changed_files outside expected_write_scope") {
+		t.Fatalf("out-of-scope result error = %v", err)
+	}
+	for name, taskAndResult := range map[string][2]map[string]any{
+		"no-write-task": {
+			{"expected_write_scope": []any{}},
+			{"changed_files": []any{"backend/internal/projectlifecycle/service.go"}},
+		},
+		"non-concrete-result": {
+			{"expected_write_scope": []any{"backend/internal/projectlifecycle/**"}},
+			{"changed_files": []any{"backend/internal/projectlifecycle/**"}},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := validateImplementResultWriteScope(taskAndResult[0], taskAndResult[1]); err == nil {
+				t.Fatal("changed_files without concrete declared write authority was accepted")
+			}
+		})
+	}
+}
+
+func TestImplementResultScopeAcceptsSameWorkManualGuardWithoutPacket(t *testing.T) {
+	root := initCoordinationCLIRepository(t)
+	feature := filepath.Join(root, ".specify", "features", "manual-scope-feature")
+	if err := os.MkdirAll(feature, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	announced := announceExecutionCLI(
+		t, root, "manual-implement-scope", "implement", "manual-scope-feature", "T001",
+		[]string{"src/original.go"}, nil,
+	)
+	first := guardExecutionCLI(t, root, announced, executionOverviewCLI(t, root, stringValue(announced["work_id"])), []string{"src/original.go"}, nil)
+	second := guardExecutionCLI(t, root, first, executionOverviewCLI(t, root, stringValue(first["work_id"])), []string{
+		"src/original.go", "tests/manual_scope_test.go",
+	}, nil)
+	t.Setenv("SPECIFY_WORK_ID", stringValue(second["work_id"]))
+	t.Setenv("SPECIFY_WORK_FENCE", executionJSONNumberString(second["fence"]))
+	packetBound, err := validateImplementResultAgainstCurrentExecutionScope(
+		root, feature, "T001", nil,
+		map[string]any{"changed_files": []any{"tests/manual_scope_test.go"}},
+	)
+	if err != nil || packetBound {
+		t.Fatalf("manual same-Work guarded scope = packetBound %v, err %v", packetBound, err)
+	}
+}
+
+func TestImplementPacketBookkeepingIncludesWorkflowControlPlane(t *testing.T) {
+	featureRef := ".specify/features/issue-111"
+	scope := implementTaskBookkeepingScope(featureRef, "T001")
+	want := featureRef + "/workflow.json"
+	found := false
+	for _, path := range scope {
+		if path == want {
+			found = true
+		}
+		if strings.HasSuffix(path, "/.workflow.lock") {
+			t.Fatalf("private workflow lock must not become packet bookkeeping: %#v", scope)
+		}
+	}
+	if !found {
+		t.Fatalf("bookkeeping scope = %#v, missing %s", scope, want)
+	}
+}
+
 func TestTaskMarkdownProjectsProfessionalUIContractWithoutBreakingTable(t *testing.T) {
 	payload := map[string]any{
 		"tasks": []any{
@@ -152,6 +274,7 @@ func TestUnifiedTaskControlPlaneOwnsAuthoringAndLifecycle(t *testing.T) {
 	if err != nil || !bytes.Equal(packetUI, indexUI) {
 		t.Fatalf("compiled packet changed the task-local UI contract: %s / %s, %v", packetUI, indexUI, err)
 	}
+	writeWorkflowStateFixture(t, feature, "001-runtime-tasks", 13, "implement", "active", nil)
 	announcedPayload := assertTaskRuntimeCommandOK(t, []string{
 		"execution", "announce", "--project-root", root,
 		"--activity-id", "implement-guarded-task", "--workflow", "implement",
@@ -160,6 +283,17 @@ func TestUnifiedTaskControlPlaneOwnsAuthoringAndLifecycle(t *testing.T) {
 		"--work-packet-sha256", stringValue(compiled["sha256"]), "--format", "json",
 	})
 	announced := announcedPayload["execution_activity"].(map[string]any)
+	workflowRef := filepath.ToSlash(filepath.Join(featureRef, "workflow.json"))
+	foundWorkflowScope := false
+	for _, path := range anyStringSlice(announced["planned_write_scope"]) {
+		if path == workflowRef {
+			foundWorkflowScope = true
+			break
+		}
+	}
+	if !foundWorkflowScope {
+		t.Fatalf("packet bookkeeping scope omitted runtime-owned workflow state: %#v", announced["planned_write_scope"])
+	}
 	t.Setenv("SPECIFY_WORK_ID", stringValue(announced["work_id"]))
 	t.Setenv("SPECIFY_WORK_FENCE", executionJSONNumberString(announced["fence"]))
 	assertEmptyScopeStartBlocked := func(stage string) {
@@ -205,8 +339,38 @@ func TestUnifiedTaskControlPlaneOwnsAuthoringAndLifecycle(t *testing.T) {
 	}
 	assertTaskRuntimeCommandOK(t, []string{"implement", "task-start", "--feature-dir", featureRef, "--task-id", "T001", "--execution-mode", "delegated", "--packet-ref", packetRef, "--format", "json"})
 	mustWriteScriptDomainTest(t, filepath.Join(root, "src", "runtime.go"), "package runtime\n")
+	mustWriteScriptDomainTest(t, filepath.Join(root, "tests", "pause_metadata_test.go"), "package tests\n")
+	unamendedResult := `{"task_id":"T001","status":"success","changed_files":["src/runtime.go","tests/pause_metadata_test.go"],"validation_results":[{"command":"gofmt check","status":"passed","output":"PASS"}],"blockers":[],"suggested_recovery_actions":[]}`
+	exit, rejected := runTaskRuntimeCommand(t, []string{"implement", "result-merge", "--feature-dir", featureRef, "--task-id", "T001", "--result-json", unamendedResult, "--format", "json"})
+	if exit == 0 || rejected.Status != "blocked" || !strings.Contains(rejected.Summary, "changed_files outside expected_write_scope") {
+		t.Fatalf("unamended companion file should block before result persistence: exit=%d env=%#v", exit, rejected)
+	}
+	recovery := requireObject(t, rejected.Data, "resolution_action")
+	if recovery["owner"] != "agent" || recovery["human_action_required"] != false || recovery["packet_bound"] != true {
+		t.Fatalf("result scope recovery = %#v", recovery)
+	}
+	if argv := requireStringArray(t, recovery, "overview_argv"); len(argv) < 4 || argv[1] != "execution" || argv[2] != "overview" {
+		t.Fatalf("result scope overview argv = %#v", argv)
+	}
+	amendmentOverview := executionOverviewCLI(t, root, stringValue(announced["work_id"]))
+	amendmentScope := append(anyStringSlice(announced["planned_write_scope"]), "tests/pause_metadata_test.go")
+	amendedPayload := assertTaskRuntimeCommandOK(t, []string{
+		"execution", "guard", stringValue(announced["activity_id"]), "--project-root", root,
+		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
+		"--fence", executionJSONNumberString(guarded["fence"]),
+		"--expected-overview-revision", executionJSONNumberString(amendmentOverview["coordination_revision"]),
+		"--expected-overview-sha256", stringValue(amendmentOverview["snapshot_sha256"]),
+		"--write-scope-json", marshalWorkBoardCLIJSON(t, amendmentScope), "--resources-json", "[]",
+		"--scope-amendments-json", `[{"path":"tests/pause_metadata_test.go","operation":"create","reason":"causally required companion test"}]`,
+		"--reason", "amend packet scope inside the active implementation recovery lane", "--format", "json",
+	})
+	guarded = amendedPayload["execution_guard"].(map[string]any)
+	amendments := guarded["scope_amendments"].([]any)
+	if len(amendments) != 1 || requireObjectValue(t, amendments[0])["late_discovery"] != true {
+		t.Fatalf("scope amendment timing/audit = %#v", amendments)
+	}
 	incompleteResult := `{"task_id":"T001","status":"success","changed_files":["src/runtime.go"],"validation_results":[{"command":"go test ./...","status":"passed","output":"PASS"}],"blockers":[],"suggested_recovery_actions":[]}`
-	exit, rejected := runTaskRuntimeCommand(t, []string{"implement", "result-merge", "--feature-dir", featureRef, "--task-id", "T001", "--result-json", incompleteResult, "--format", "json"})
+	exit, rejected = runTaskRuntimeCommand(t, []string{"implement", "result-merge", "--feature-dir", featureRef, "--task-id", "T001", "--result-json", incompleteResult, "--format", "json"})
 	if exit == 0 || rejected.Status != "blocked" || !strings.Contains(rejected.Summary, "gofmt check") {
 		t.Fatalf("incomplete success result should fail before mutation: exit=%d env=%#v", exit, rejected)
 	}
@@ -226,11 +390,80 @@ func TestUnifiedTaskControlPlaneOwnsAuthoringAndLifecycle(t *testing.T) {
 	if lifecycle["status"] != "in_progress" || intFromAny(lifecycle["revision"]) != 1 {
 		t.Fatalf("rejected follow-up result mutated lifecycle: %#v", lifecycle)
 	}
-	result := `{"task_id":"T001","status":"success","changed_files":["src/runtime.go"],"validation_results":[{"command":"gofmt check","status":"passed","output":"PASS"}],"blockers":[],"suggested_recovery_actions":[]}`
+	result := `{"task_id":"T001","status":"success","changed_files":["src/runtime.go","tests/pause_metadata_test.go"],"validation_results":[{"command":"gofmt check","status":"passed","output":"PASS"}],"blockers":[],"suggested_recovery_actions":[]}`
 	assertTaskRuntimeCommandOK(t, []string{"implement", "result-merge", "--feature-dir", featureRef, "--task-id", "T001", "--result-json", result, "--format", "json"})
 	accepted := assertTaskRuntimeCommandOK(t, []string{"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T001", "--format", "json"})
 	if accepted["task_status"] != "accepted" || accepted["next_task_id"] != nil {
 		t.Fatalf("unexpected acceptance: %#v", accepted)
+	}
+	workflowPath := filepath.Join(feature, "workflow.json")
+	validWorkflowBytes, err := os.ReadFile(workflowPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(workflowPath, []byte("{invalid-json\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exit, invalidWorkflowCompletion := runTaskRuntimeCommand(t, []string{
+		"execution", "complete", stringValue(announced["activity_id"]), "--project-root", root,
+		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
+		"--fence", executionJSONNumberString(guarded["fence"]),
+		"--validation-json", `[{"command":"gofmt check","result":"passed"},{"command":"scope-drift-review","result":"passed","reviewer":"independent-test-reviewer","independent":true}]`,
+		"--reason", "must reject malformed workflow control-plane state", "--format", "json",
+	})
+	if exit == 0 || invalidWorkflowCompletion.Status != "blocked" || invalidWorkflowCompletion.Data["error_code"] != "workflow_control_plane_invalid" {
+		t.Fatalf("malformed workflow state bypassed execution completion: exit=%d env=%#v", exit, invalidWorkflowCompletion)
+	}
+	if err := os.WriteFile(workflowPath, validWorkflowBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manuallyEditedWorkflow := readWorkflowStateMap(t, workflowPath)
+	manuallyEditedWorkflow["summary"] = "manually edited without the workflow runtime"
+	writeTaskRuntimeFixture(t, workflowPath, manuallyEditedWorkflow)
+	exit, unprovenWorkflowCompletion := runTaskRuntimeCommand(t, []string{
+		"execution", "complete", stringValue(announced["activity_id"]), "--project-root", root,
+		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
+		"--fence", executionJSONNumberString(guarded["fence"]),
+		"--validation-json", `[{"command":"gofmt check","result":"passed"},{"command":"scope-drift-review","result":"passed","reviewer":"independent-test-reviewer","independent":true}]`,
+		"--reason", "must reject a valid-shaped workflow edit without runtime provenance", "--format", "json",
+	})
+	if exit == 0 || unprovenWorkflowCompletion.Status != "blocked" || unprovenWorkflowCompletion.Data["error_code"] != "workflow_control_plane_invalid" {
+		t.Fatalf("valid-shaped workflow edit bypassed runtime provenance: exit=%d env=%#v", exit, unprovenWorkflowCompletion)
+	}
+	if err := os.WriteFile(workflowPath, validWorkflowBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	workflowService := NewWorkflowService(root)
+	blockedWorkflow := workflowService.Block(WorkflowBlockRequest{
+		FeatureDir: featureRef, ExpectedRevision: 13, Category: "technical-failure", Owner: "agent",
+		Cause: "A local runtime check required recovery.", Evidence: []string{"focused check reproduced the local failure"},
+		AttemptedRecovery: []WorkflowRecoveryAttempt{{Action: "repair local runtime state", Result: "repair completed"}},
+		AffectedScope:     []string{"T001 execution closeout"}, ExactNextAction: "Verify the repair and resolve the blocker.",
+		UnblockCriteria: "The focused local check passes.",
+	})
+	if blockedWorkflow.Status != "blocked" || blockedWorkflow.Data["revision"] != 14 {
+		t.Fatalf("official workflow block = %#v", blockedWorkflow)
+	}
+	exit, unresolvedWorkflowCompletion := runTaskRuntimeCommand(t, []string{
+		"execution", "complete", stringValue(announced["activity_id"]), "--project-root", root,
+		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
+		"--fence", executionJSONNumberString(guarded["fence"]),
+		"--validation-json", `[{"command":"gofmt check","result":"passed"},{"command":"scope-drift-review","result":"passed","reviewer":"independent-test-reviewer","independent":true}]`,
+		"--reason", "workflow blocker must resolve before completion", "--format", "json",
+	})
+	if exit == 0 || unresolvedWorkflowCompletion.Status != "blocked" || unresolvedWorkflowCompletion.Data["error_code"] != "workflow_control_plane_blocked" {
+		t.Fatalf("unresolved workflow blocker bypassed execution completion: exit=%d env=%#v", exit, unresolvedWorkflowCompletion)
+	}
+	resolvedWorkflow := workflowService.Resolve(WorkflowResolveRequest{
+		FeatureDir: featureRef, ExpectedRevision: 14,
+		ResolutionEvidence: []string{"focused local check passed after repair"},
+	})
+	if resolvedWorkflow.Status != "ok" || resolvedWorkflow.Data["revision"] != 15 {
+		t.Fatalf("official workflow resolve = %#v", resolvedWorkflow)
+	}
+	workflowState := readWorkflowStateMap(t, filepath.Join(feature, "workflow.json"))
+	if workflowState["blocker"] != nil || workflowState["last_blocker_resolution"] == nil {
+		t.Fatalf("workflow audit was not preserved: %#v", workflowState)
 	}
 	checkedPayload := assertTaskRuntimeCommandOK(t, []string{
 		"execution", "checkpoint", stringValue(announced["activity_id"]), "--project-root", root,
@@ -243,15 +476,21 @@ func TestUnifiedTaskControlPlaneOwnsAuthoringAndLifecycle(t *testing.T) {
 		"execution", "complete", stringValue(announced["activity_id"]), "--project-root", root,
 		"--expected-revision", executionJSONNumberString(checked["work_revision"]),
 		"--fence", executionJSONNumberString(checked["fence"]),
-		"--validation-json", `[{"command":"gofmt check","result":"passed"}]`, "--reason", "verified task and bookkeeping", "--format", "json",
+		"--validation-json", `[{"command":"gofmt check","result":"passed"},{"command":"scope-drift-review","result":"passed","reviewer":"independent-test-reviewer","independent":true}]`, "--reason", "verified task and bookkeeping", "--format", "json",
 	})
 	completed := completedPayload["execution_completion"].(map[string]any)
 	if completed["phase"] != "completed" || completed["work_status"] != "completed" {
 		t.Fatalf("packet execution did not close through the shared board: %#v", completed)
 	}
+	if got := anyStringSlice(completed["workflow_control_plane_paths"]); len(got) != 1 || got[0] != workflowRef || completed["workflow_audit_preserved"] != true {
+		t.Fatalf("workflow control-plane completion accounting = %#v", completed)
+	}
+	if receiptRef := stringValue(completed["workflow_mutation_receipt_ref"]); !strings.HasPrefix(receiptRef, ".specify/runtime/workflow-mutations/") || len(stringValue(completed["workflow_mutation_receipt_sha256"])) != 64 {
+		t.Fatalf("workflow mutation receipt accounting = %#v", completed)
+	}
 
 	for _, ref := range []string{
-		"task-index.json", "tasks.md", "handoff-to-tasks.json", "handoff-to-implement.json", "implement-tracker.md",
+		"task-index.json", "tasks.md", "workflow.json", "handoff-to-tasks.json", "handoff-to-implement.json", "implement-tracker.md",
 		"implementation-review/execution-state.json", "implementation-review/tasks/T001.json",
 		"implementation-review/packets/T001.json", "worker-results/T001.json",
 	} {
@@ -755,7 +994,7 @@ func newImplementedTaskRecoveryFixture(t *testing.T) (string, string, string) {
 	}
 	tasks := []any{
 		map[string]any{"id": "T001", "objective": "accepted sibling", "status": "accepted", "dependencies": []any{}, "task_checks": []any{"sibling check"}},
-		map[string]any{"id": "T002", "objective": "repair evidence", "status": "implemented", "dependencies": []any{"T001"}, "task_checks": []any{"required check"}, "result_ref": "worker-results/T002.json"},
+		map[string]any{"id": "T002", "objective": "repair evidence", "status": "implemented", "dependencies": []any{"T001"}, "expected_write_scope": []any{"src/t002.go"}, "task_checks": []any{"required check"}, "result_ref": "worker-results/T002.json"},
 		map[string]any{"id": "T003", "objective": "dependent task", "status": "pending", "dependencies": []any{"T002"}, "task_checks": []any{"dependent check"}},
 		map[string]any{"id": "T006", "objective": "accepted sibling", "status": "accepted", "dependencies": []any{}, "task_checks": []any{"other sibling check"}},
 	}

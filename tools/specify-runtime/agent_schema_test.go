@@ -36,6 +36,31 @@ func TestAPISchemaExpandsWorkflowBlockInputContract(t *testing.T) {
 	}
 }
 
+func TestAPISchemaExpandsWorkflowReconcileBlockerContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "schema", "workflow-reconcile-blocker-input", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api schema reconcile blocker exit=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	schema := requireObject(t, requireObject(t, payload, "data"), "schema")
+	properties := requireObject(t, schema, "properties")
+	for _, field := range []string{"resolved_subcauses", "remaining_cause", "remaining_evidence", "remaining_scope", "exact_next_action", "unblock_criteria"} {
+		if _, ok := properties[field].(map[string]any); !ok {
+			t.Fatalf("reconcile blocker schema missing %s: %#v", field, schema)
+		}
+	}
+	var showOut bytes.Buffer
+	code = Run([]string{"api", "show", "workflow.reconcile-blocker", "--format", "json"}, &showOut, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show reconcile blocker exit=%d stdout=%s stderr=%s", code, showOut.String(), stderr.String())
+	}
+	capability := requireObject(t, requireObject(t, decodeJSONObject(t, showOut.Bytes()), "data"), "capability")
+	if capability["input_schema"] != "workflow-reconcile-blocker-input" || !strings.Contains(anyString(capability["input_contract"]), "stale text") {
+		t.Fatalf("reconcile blocker capability = %#v", capability)
+	}
+}
+
 func TestAPISchemaExpandsArtifactBatchInputContracts(t *testing.T) {
 	for _, schemaID := range []string{"artifact-show-many-input", "artifact-patch-batch-input"} {
 		var stdout, stderr bytes.Buffer
@@ -59,6 +84,101 @@ func TestAPISchemaExpandsArtifactBatchInputContracts(t *testing.T) {
 				t.Fatalf("%s operations = %#v", schemaID, operations)
 			}
 		}
+	}
+}
+
+func TestAPISchemaExpandsEveryDeepResearchPayloadContract(t *testing.T) {
+	tests := []struct {
+		schemaID    string
+		capability  string
+		requiredKey string
+	}{
+		{"deep-research-track-prepare-input", "deep-research.track-prepare", "tracks"},
+		{"deep-research-track-submit-result", "deep-research.track-submit", "protocol"},
+		{"deep-research-synthesis-input", "deep-research.synthesize", "planning_handoffs"},
+		{"deep-research-audit-input", "deep-research.audit-accept", "checks"},
+		{"deep-research-not-needed-input", "deep-research.not-needed", "capability_dispositions"},
+	}
+	for _, test := range tests {
+		t.Run(test.schemaID, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"api", "schema", test.schemaID, "--format", "json"}, &stdout, &stderr, "test")
+			if code != 0 {
+				t.Fatalf("api schema %s exit=%d stdout=%s stderr=%s", test.schemaID, code, stdout.String(), stderr.String())
+			}
+			payload := decodeJSONObject(t, stdout.Bytes())
+			data := requireObject(t, payload, "data")
+			if data["schema_id"] != test.schemaID {
+				t.Fatalf("schema id = %#v", data["schema_id"])
+			}
+			schema := requireObject(t, data, "schema")
+			if schema["type"] != "object" || schema["additionalProperties"] != false {
+				t.Fatalf("schema boundary = %#v", schema)
+			}
+			properties := requireObject(t, schema, "properties")
+			if _, ok := properties[test.requiredKey].(map[string]any); !ok {
+				t.Fatalf("schema %s missing %s: %#v", test.schemaID, test.requiredKey, properties)
+			}
+			show := requireStringArray(t, payload, "show_argv")
+			if len(show) < 4 || show[1] != "api" || show[2] != "show" || show[3] != test.capability {
+				t.Fatalf("schema %s show argv = %#v", test.schemaID, show)
+			}
+		})
+	}
+}
+
+func TestAPIShowDeepResearchPayloadCommandsPublishSchemas(t *testing.T) {
+	want := map[string]string{
+		"deep-research.track-prepare": "deep-research-track-prepare-input",
+		"deep-research.track-submit":  "deep-research-track-submit-result",
+		"deep-research.synthesize":    "deep-research-synthesis-input",
+		"deep-research.audit-accept":  "deep-research-audit-input",
+		"deep-research.not-needed":    "deep-research-not-needed-input",
+	}
+	for capabilityID, schemaID := range want {
+		t.Run(capabilityID, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"api", "show", capabilityID, "--format", "json"}, &stdout, &stderr, "test")
+			if code != 0 {
+				t.Fatalf("api show %s exit=%d stdout=%s stderr=%s", capabilityID, code, stdout.String(), stderr.String())
+			}
+			capability := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "capability")
+			if capability["input_schema"] != schemaID {
+				t.Fatalf("%s input_schema = %#v, want %s", capabilityID, capability["input_schema"], schemaID)
+			}
+			if show := requireStringArray(t, decodeJSONObject(t, stdout.Bytes()), "show_argv"); len(show) < 4 || show[2] != "schema" || show[3] != schemaID {
+				t.Fatalf("%s schema argv = %#v", capabilityID, show)
+			}
+		})
+	}
+}
+
+func TestAPIShowDeepResearchPlanHandoffCommandsPublishSourceReadiness(t *testing.T) {
+	for _, capabilityID := range []string{
+		"deep-research.init", "deep-research.status", "deep-research.validate",
+		"deep-research.publish", "deep-research.verify-handoff",
+	} {
+		t.Run(capabilityID, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"api", "show", capabilityID, "--format", "json"}, &stdout, &stderr, "test")
+			if code != 0 {
+				t.Fatalf("api show %s exit=%d stdout=%s stderr=%s", capabilityID, code, stdout.String(), stderr.String())
+			}
+			capability := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "capability")
+			contract := strings.ToLower(anyString(capability["input_contract"]))
+			for _, phrase := range []string{"planning-ready", "workflow", "blocked", "specify"} {
+				if !strings.Contains(contract, phrase) {
+					t.Fatalf("%s input_contract = %q, missing %q", capabilityID, contract, phrase)
+				}
+			}
+			if capabilityID == "deep-research.init" || capabilityID == "deep-research.validate" || capabilityID == "deep-research.publish" {
+				for _, phrase := range []string{"workflow lock", "precondition"} {
+					if !strings.Contains(contract, phrase) {
+						t.Fatalf("%s input_contract = %q, missing atomicity phrase %q", capabilityID, contract, phrase)
+					}
+				}
+			}
+		})
 	}
 }
 
@@ -161,6 +281,56 @@ func TestAPIShowDesignPreviewLintPublishesConceptLevel(t *testing.T) {
 	}
 }
 
+func TestAPIShowWorkflowResolvePublishesAtomicReopenContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "workflow.resolve", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show workflow.resolve exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	capability := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "capability")
+	usage, _ := capability["usage"].(string)
+	contract, _ := capability["input_contract"].(string)
+	for _, phrase := range []string{"--resolution-evidence", "--reopen-to", "--reopen-reason", "--reopen-evidence", "--invalidated-artifacts"} {
+		if !strings.Contains(usage, phrase) {
+			t.Fatalf("workflow.resolve usage = %q, missing %q", usage, phrase)
+		}
+	}
+	for _, phrase := range []string{"all-or-none", "strict earlier stage", "blocker audit", "atomically"} {
+		if !strings.Contains(contract, phrase) {
+			t.Fatalf("workflow.resolve input_contract = %q, missing %q", contract, phrase)
+		}
+	}
+}
+
+func TestAPIShowTestDesignPublishesRecoveryAndConsumerReturnContracts(t *testing.T) {
+	tests := []struct {
+		capability string
+		phrases    []string
+	}{
+		{capability: "test-design.status", phrases: []string{"recovery_action", "blocked", "stale", "agent-owned"}},
+		{capability: "test-design.recover", phrases: []string{"runtime-owned", "CAS", "without inline input-json"}},
+		{capability: "test-design.handoff", phrases: []string{"publish", "before Tasks", "next_argv"}},
+		{capability: "test-design.projection-build", phrases: []string{"projection-verify", "next_argv"}},
+		{capability: "test-design.projection-verify", phrases: []string{"selected consumer", "next_argv"}},
+	}
+	for _, test := range tests {
+		t.Run(test.capability, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"api", "show", test.capability, "--format", "json"}, &stdout, &stderr, "test")
+			if code != 0 {
+				t.Fatalf("api show %s exit=%d stdout=%s stderr=%s", test.capability, code, stdout.String(), stderr.String())
+			}
+			capability := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "capability")
+			contract, _ := capability["input_contract"].(string)
+			for _, phrase := range test.phrases {
+				if !strings.Contains(contract, phrase) {
+					t.Fatalf("%s input_contract=%q, missing %q", test.capability, contract, phrase)
+				}
+			}
+		})
+	}
+}
+
 func TestAPIPackReturnsCompactCapabilityDescriptors(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"api", "pack", "--capabilities", "artifact.patch,workflow.block", "--format", "json"}, &stdout, &stderr, "test")
@@ -246,6 +416,7 @@ func TestAPIShowWorkBoardCapabilitiesPublishCoordinationContracts(t *testing.T) 
 		"work.scope-add",
 		"work.checkpoint",
 		"work.block",
+		"work.unblock",
 		"work.finish",
 		"work.abandon",
 		"work.interrupt",
@@ -266,6 +437,57 @@ func TestAPIShowWorkBoardCapabilitiesPublishCoordinationContracts(t *testing.T) 
 				}
 			}
 		})
+	}
+}
+
+func TestAPIShowBoardPublishesWritableCanonicalStoreAndAgentOwnedRecovery(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "board.show", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show board.show exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	capability := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "capability")
+	contract := anyString(capability["input_contract"])
+	for _, phrase := range []string{".specify/runtime/run-control", "legacy Git-common", "agent-owned"} {
+		if !strings.Contains(contract, phrase) {
+			t.Fatalf("board.show input_contract = %q, missing %q", contract, phrase)
+		}
+	}
+}
+
+func TestAPIShowExecutionGuardPublishesAgentOwnedPacketScopeRecovery(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "execution.guard", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show execution.guard exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	capability := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "capability")
+	usage := anyString(capability["usage"])
+	contract := anyString(capability["input_contract"])
+	for _, phrase := range []string{"--expected-overview-revision", "--expected-overview-sha256", "--scope-amendments-json", "--reason"} {
+		if !strings.Contains(usage, phrase) {
+			t.Fatalf("execution.guard usage = %q, missing %q", usage, phrase)
+		}
+	}
+	for _, phrase := range []string{"original packet", "agent-owned", "conflict", "late discovery", "independent"} {
+		if !strings.Contains(contract, phrase) {
+			t.Fatalf("execution.guard input_contract = %q, missing %q", contract, phrase)
+		}
+	}
+}
+
+func TestAPIShowExecutionCompletePublishesWorkflowControlPlaneAccounting(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "execution.complete", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show execution.complete exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	capability := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "capability")
+	contract := anyString(capability["input_contract"])
+	for _, phrase := range []string{"workflow.json", "active Implement", "mutation receipt", "manual Implement", "legacy feature roots", "completion transaction", "authority release", "agent-owned", "workflow_control_plane_paths", "workflow_mutation_receipt_sha256", "workflow_audit_preserved"} {
+		if !strings.Contains(contract, phrase) {
+			t.Fatalf("execution.complete input_contract = %q, missing %q", contract, phrase)
+		}
 	}
 }
 
@@ -324,7 +546,27 @@ func TestAPIShowExecutionPacketCapabilitiesRequireCompiledReceiptDigest(t *testi
 			if !strings.Contains(contract, "exact compiled bytes") || !strings.Contains(contract, "sha256") {
 				t.Fatalf("api show %s input_contract = %q, want exact-byte digest binding", capabilityID, contract)
 			}
+			for _, phrase := range []string{"exact future files", "final /**", "companion test", "validation commands", "workflow.json", "separately audited", "scope-amendment"} {
+				if !strings.Contains(contract, phrase) {
+					t.Fatalf("api show %s input_contract = %q, missing %q", capabilityID, contract, phrase)
+				}
+			}
 		})
+	}
+}
+
+func TestAPIShowImplementTaskStartPublishesConcreteCompanionScopeContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "implement.task-start", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show implement.task-start exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	capability := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "capability")
+	contract := anyString(capability["input_contract"])
+	for _, phrase := range []string{"exact future files", "final /**", "companion test", "validation commands"} {
+		if !strings.Contains(contract, phrase) {
+			t.Fatalf("implement.task-start input_contract = %q, missing %q", contract, phrase)
+		}
 	}
 }
 

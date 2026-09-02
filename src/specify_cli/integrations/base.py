@@ -762,7 +762,7 @@ class IntegrationBase(ABC):
             '- In compile mode, reuse the confirmed discussion contract\'s context capsule and decision digest. Run one bounded `{{specify-subcmd:specify-runtime cognition compass --intent plan --query="$ARGUMENTS" --format json}}` intake only when a planning facet is absent or outdated; preserve `{{specify-subcmd:specify-runtime cognition query --intent plan --query-plan "<query_plan_json>" --format json}}` as a precision escalation for an explicit unresolved concept.\n'
             "- Read top-level `minimal_live_reads` first and open live files only for the named gap. Do not build a second broad repository summary or infer final scope from first-pass paths.\n"
             "- After `FEATURE_DIR` is known, use the idempotent `{{specify-subcmd:specify-runtime workflow ensure --command specify --feature-dir <feature-dir> --format json}}`; older runtimes fall back to `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}` and, only when missing, `{{specify-subcmd:specify-runtime workflow enter --command specify --feature-dir <feature-dir> --format json}}`. The deterministic workflow runtime owns `workflow.json` as required-stage state; do not author or advance it manually. Rich `workflow-state.md` remains specification evidence and resume state inside the fixed workflow artifact boundary: initialize it with `{{specify-subcmd:specify-runtime artifact scaffold --kind workflow-state --path <project-relative-workflow-state-path> --format json}}`, query it through targeted `artifact show` or bounded `artifact show-many`, and mutate multiple same-checkpoint targets through one leased `artifact patch-batch` when available, falling back to leased `artifact patch` calls on older runtimes. Never create a temporary authoring file or use rich state to skip runtime stages. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
-            "- Initialize canonical `spec-contract.json` first through `specify-runtime artifact scaffold --kind spec-contract` and fill it through leased `artifact patch` calls. Fill the prerequisite-created `spec.md` skeleton only through leased `specify-runtime artifact patch --section` calls; submit `alignment.md`, `context.md`, `references.md`, or diagnostics through `artifact prepare` plus inline `artifact submit` only when the triggered content has independent project-review value and cannot be represented by a stable ref.\n"
+            "- Initialize canonical `spec-contract.json` first through `specify-runtime artifact scaffold --kind spec-contract` and fill it through leased `artifact patch` calls. Fill the prerequisite-created `spec.md` skeleton only through leased `specify-runtime artifact patch --section` calls; submit `alignment.md`, `context.md`, `references.md`, or diagnostics through `artifact prepare` plus `artifact submit` only when the triggered content has independent project-review value and cannot be represented by a stable ref. Keep small payloads inline, send large model-authored content through stdin, and use `@path` only for an existing runtime-owned or registered project artifact; never create a temporary authoring file solely to transport bytes.\n"
             "- Clarify only planning-critical ambiguity. Recommend returning to `/sp.specify` or routing to `/sp.deep-research` only when the unresolved item belongs there.\n"
             "- Preserve this as an internal understand-before-acting pass; do not replace the one-question-at-a-time requirement discovery flow with a broad analysis report.\n"
         )
@@ -1327,9 +1327,13 @@ class IntegrationBase(ABC):
             "2. `quick item-start --item Qn` (`requires_worker: true`)\n"
             "3. Spawn native subagent for write scope (**required**; no Edit/Write first)\n"
             "4. Join / wait\n"
-            "5. `result submit --command quick --lane-id Qn --result-json '...'`\n"
+            "5. `result submit --command quick --lane-id Qn --result-json <inline-json|@path|->`\n"
             "6. `quick item-accept --item Qn --evidence '...'`\n"
             "7. Only then start the next Q\n"
+            "\n"
+            "Keep small result payloads inline, send large model-authored JSON through stdin, "
+            "and reserve `@path` for an existing runtime-owned or registered project artifact. "
+            "Never create a temporary result file merely for transport.\n"
             "\n"
             "**Illegal leader-inline excuses:** docs-only, few files, serial order, save time.\n"
             "**Legal leader-inline only via:** `quick allow-inline --item Qn --reason \"spawn_failed: ...\"`.\n"
@@ -3269,6 +3273,27 @@ class SkillsIntegration(IntegrationBase):
                     )
                 else:
                     skill_content = boundary + skill_content.lstrip()
+            if "## Blocked Exit Contract" not in skill_content:
+                frontmatter_text, body = self._split_frontmatter(skill_content)
+                blocked_exit = (
+                    "## Blocked Exit Contract\n\n"
+                    "Read `references/blocker-resolution.md` before any blocked "
+                    "exit. Keep agent-owned and agent-capable diagnosis, repair, "
+                    "retry, redispatch, and exact resume actions inside the current "
+                    "workflow; never transfer lifecycle repair or command "
+                    "reconstruction to the user. Pause for a Human Action Guide "
+                    "only at a genuine authority, credential, protected-system, "
+                    "physical-access, destructive-confirmation, or subjective "
+                    "review boundary.\n\n"
+                )
+                if frontmatter_text:
+                    rendered_body = body.lstrip("\r\n")
+                    skill_content = (
+                        f"---\n{frontmatter_text}---\n\n"
+                        f"{blocked_exit}{rendered_body}"
+                    )
+                else:
+                    skill_content = blocked_exit + skill_content.lstrip()
             skill_dir = skills_dir / skill_name
             created.append(
                 self.write_file_and_record(
@@ -3908,9 +3933,13 @@ class SkillsIntegration(IntegrationBase):
                 "2. `quick item-start --item Qn` (`requires_worker: true`)\n"
                 f"3. `{dispatch_tool}` for that Qn write scope (**required**; no Edit/Write first)\n"
                 f"4. `{join_tool}` / wait\n"
-                "5. `result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id Qn --result-json '...'`\n"
+                "5. `result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id Qn --result-json <inline-json|@path|->`\n"
                 "6. `quick item-accept --item Qn --evidence '...'` (runtime requires matching worker result)\n"
                 "7. Only then start the next Q\n"
+                "\n"
+                "Keep small result payloads inline, send large model-authored JSON through stdin, "
+                "and reserve `@path` for an existing runtime-owned or registered project artifact. "
+                "Never create a temporary result file merely for transport.\n"
                 "\n"
                 "**Forbidden after item-start / before item-accept:** Leader Edit/Write of that item's `write_scope`.\n"
                 "**Illegal leader-inline excuses:** docs-only, few files, serial Q order, save time.\n"
@@ -4046,14 +4075,14 @@ class SkillsIntegration(IntegrationBase):
             "2. compile and validate a `WorkerTaskPacket` just in time before assigning each team-managed execution task\n"
             "3. for implementation-oriented teams flows, preserve the user-visible fields `execution_model`, `dispatch_shape`, and `execution_surface`\n"
             "4. preserve explicit join behavior, blocker/recovery reporting, event-triggered review, and completion checks\n"
-            "5. preserve the team result contract and CLI-owned inline result submission channel\n"
+            "5. preserve the team result contract and CLI-owned result submission channel\n"
             "6. preserve final-completion truthfulness: do not describe `core implementation complete`, `implementation complete`, or `ready for integration testing` as overall feature completion while required E2E, Polish, documentation, quickstart, or validation work remains\n\n"
             "Every team-managed task in the teams-backed flow must still behave like an explicit execution packet, not a chat-only summary. Preserve these fields whenever the backend exposes task records, mailbox messages, or equivalent runtime-managed assignments:\n\n"
             "1. task id and subject\n"
             "2. write set and shared surfaces\n"
             "3. required references and forbidden drift\n"
             "4. explicit verification command or acceptance check\n"
-            "5. exact inline result-submission owner and required runtime identifiers\n"
+            "5. exact runtime-owned result-submission owner and required runtime identifiers\n"
             "6. completion-handoff protocol covering start, blocker, and final completion evidence\n"
             "7. platform guardrails such as supported platforms, conditional compilation requirements, or other environment-sensitive constraints\n\n"
             f"Before {backend_label} starts concrete work, ensure the current ready batch is prepared the same way `{canonical_command}` would prepare it:\n\n"

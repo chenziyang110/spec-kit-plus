@@ -94,8 +94,35 @@ stay unchanged. Do not reconstruct or override packet-derived metadata, or
 guard only product paths: use the full returned `planned_write_scope`.
 Bookkeeping paths remain CLI-owned, never hand-edited; serialize ownership when
 shared feature metadata overlaps, without a wildcard or broad `.specify`
-exemption. Guard cannot widen packet-backed scope: recompile and reannounce a
-changed packet; only manual work uses amended-set guards.
+exemption. Exact feature `workflow.json` is compiler-owned bookkeeping so
+official `specify-runtime workflow` mutations remain separately audited control
+plane work; never hand-edit it or add it through product scope amendment.
+Announce binds its exact state and latest mutation receipt when present.
+Completion accepts a changed state only when it is active Implement and matches
+a newer runtime mutation receipt; valid-shaped hand edits, malformed state, and
+unresolved blockers remain agent-owned. The same Activity retries after
+official resolution and returns the control-plane path plus receipt ref/digest.
+Completion holds the workflow mutation lock and rechecks both exact digests in
+its transaction before authority release; drift keeps the same Activity active
+for agent-owned retry. Feature-local `.workflow.lock` and workflow-mutation
+receipt storage are private transport, not packet scope.
+Guard cannot widen packet-backed scope silently: planned changes
+before dispatch recompile and reannounce the packet. Packet-backed product
+scope accepts only exact future files, exact directories, or bounded subtrees
+ending with `/**`; filename globs such as `*_test.go`, `?`, `[]`, `/*`, or
+middle `**` are rejected before dispatch. If the task may create or modify
+companion tests, migrations, fixtures, generated files, or other companion
+artifacts, they must already be present in `expected_write_scope`. Validation
+commands and `pytest tests/...` references do not grant write authority. When
+the exact future filename is unknown, Tasks must use the narrowest containing
+directory or bounded subtree ending with `/**`.
+Guard cannot widen packet-backed scope silently. Planned scope changes before
+dispatch recompile and reannounce the packet. For one causally required
+companion path proven later, keep agent-owned recovery in the same invocation:
+refresh overview and rerun the existing `execution guard` with the complete
+union plus `--scope-amendments-json`; preserve the original packet, let runtime
+mark late discovery, obtain an independent passing `scope-drift-review`, and
+resume the interrupted task/gate. `work scope-add` cannot bypass this route.
 Checkpoint `selected`, refresh the overview, and guard complete file
 and semantic scope before `task-start` or native worker dispatch. Merge inline
 results with `result-merge --result-json`, and accept with `task-accept`. Never

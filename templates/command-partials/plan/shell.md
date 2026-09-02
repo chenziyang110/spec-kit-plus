@@ -14,6 +14,13 @@ Translate the approved specification package into explicit implementation design
 
 - Recover the active feature context and validate that the specification package is ready for planning.
 - If `FEATURE_DIR` is not explicit, use a validated durable workflow binding in the current worktree or the installed prerequisite helper's paths-only result. Require exactly one match and stop on ambiguity; never guess from a Git ref or branch name.
+- Query the workflow runtime before stage entry. Transition from completed
+  Specify for the ordinary forward path. If a verified late-Design adoption or
+  other fresh evidence invalidates Plan while the runtime owns a later stage,
+  request an evidence-backed `workflow reopen --to plan`. When that later stage
+  is blocked, consume its `pending_reopen_action`; do not clear the blocker,
+  reconstruct separate resolve/reopen commands, or ask the user to invoke
+  Plan again before the atomic resolution-and-reopen transaction succeeds.
 - Validate `/status: planning-ready` and the source revision from the `artifact show` response. Do not revalidate the original discussion contract unless the revision changed or the spec contract reports a semantic or evidence delta.
 - If Design ran after this planning-ready source spec, require the current
   `formal-post-specify` receipt. Verify it read-only with

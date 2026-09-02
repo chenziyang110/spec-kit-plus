@@ -11,17 +11,18 @@ import (
 )
 
 type ArtifactPatchRequest struct {
-	LeaseID     string
-	JSONPointer string
-	Value       any
-	Section     string
-	Content     string
-	Frontmatter map[string]any
-	Heading     string
-	NewHeading  string
-	Preamble    *string
-	AppendJSON  any
-	Append      bool
+	LeaseID            string
+	JSONPointer        string
+	FrontmatterPointer string
+	Value              any
+	Section            string
+	Content            string
+	Frontmatter        map[string]any
+	Heading            string
+	NewHeading         string
+	Preamble           *string
+	AppendJSON         any
+	Append             bool
 }
 
 func (service *ArtifactService) Patch(request ArtifactPatchRequest) Envelope {
@@ -107,6 +108,9 @@ func validateArtifactPatchRequest(canonicalPath string, request ArtifactPatchReq
 	if strings.TrimSpace(request.JSONPointer) != "" {
 		modes++
 	}
+	if strings.TrimSpace(request.FrontmatterPointer) != "" {
+		modes++
+	}
 	if strings.TrimSpace(request.Section) != "" {
 		modes++
 	}
@@ -157,6 +161,8 @@ func patchArtifactContent(raw []byte, request ArtifactPatchRequest) ([]byte, err
 		}
 		updated, err := json.MarshalIndent(payload, "", "  ")
 		return append(updated, '\n'), err
+	case strings.TrimSpace(request.FrontmatterPointer) != "":
+		return patchMarkdownFrontmatterPointer(raw, request.FrontmatterPointer, request.Value)
 	case strings.TrimSpace(request.Section) != "":
 		return replaceMarkdownSection(raw, request.Section, request.Content)
 	case request.Frontmatter != nil:
@@ -179,6 +185,120 @@ func patchArtifactContent(raw []byte, request ArtifactPatchRequest) ([]byte, err
 	default:
 		return nil, fmt.Errorf("artifact patch requires one patch operation")
 	}
+}
+
+func patchMarkdownFrontmatterPointer(raw []byte, pointer string, value any) ([]byte, error) {
+	tokens, err := artifactFrontmatterPointerTokens(pointer)
+	if err != nil {
+		return nil, err
+	}
+	text := strings.ReplaceAll(string(raw), "\r\n", "\n")
+	lines := strings.Split(text, "\n")
+	if len(lines) < 3 || strings.TrimSpace(lines[0]) != "---" {
+		return nil, fmt.Errorf("markdown artifact has no frontmatter")
+	}
+	frontmatterEnd := -1
+	for index := 1; index < len(lines); index++ {
+		if strings.TrimSpace(lines[index]) == "---" {
+			frontmatterEnd = index
+			break
+		}
+	}
+	if frontmatterEnd < 0 {
+		return nil, fmt.Errorf("markdown frontmatter is not terminated")
+	}
+
+	searchStart, searchEnd, parentIndent := 1, frontmatterEnd, -1
+	for tokenIndex, token := range tokens {
+		childIndent := -1
+		for index := searchStart; index < searchEnd; index++ {
+			trimmed := strings.TrimSpace(lines[index])
+			if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+				continue
+			}
+			indent := len(lines[index]) - len(strings.TrimLeft(lines[index], " "))
+			if indent <= parentIndent {
+				continue
+			}
+			if childIndent < 0 || indent < childIndent {
+				childIndent = indent
+			}
+		}
+		if childIndent < 0 {
+			return nil, fmt.Errorf("frontmatter pointer %q does not match the artifact", pointer)
+		}
+
+		matched := -1
+		for index := searchStart; index < searchEnd; index++ {
+			indent := len(lines[index]) - len(strings.TrimLeft(lines[index], " "))
+			if indent != childIndent {
+				continue
+			}
+			trimmed := strings.TrimSpace(lines[index])
+			if strings.HasPrefix(trimmed, "- ") {
+				continue
+			}
+			parts := strings.SplitN(trimmed, ":", 2)
+			if len(parts) == 2 && strings.TrimSpace(parts[0]) == token {
+				matched = index
+				break
+			}
+		}
+		if matched < 0 {
+			return nil, fmt.Errorf("frontmatter pointer %q does not match the artifact", pointer)
+		}
+
+		blockEnd := searchEnd
+		for index := matched + 1; index < searchEnd; index++ {
+			trimmed := strings.TrimSpace(lines[index])
+			if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+				continue
+			}
+			indent := len(lines[index]) - len(strings.TrimLeft(lines[index], " "))
+			if indent <= childIndent {
+				blockEnd = index
+				break
+			}
+		}
+
+		if tokenIndex == len(tokens)-1 {
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				return nil, fmt.Errorf("frontmatter pointer %q value is not JSON-serializable: %w", pointer, err)
+			}
+			replacement := strings.Repeat(" ", childIndent) + token + ": " + string(encoded)
+			updated := append([]string{}, lines[:matched]...)
+			updated = append(updated, replacement)
+			updated = append(updated, lines[blockEnd:]...)
+			for len(updated) > 0 && updated[len(updated)-1] == "" {
+				updated = updated[:len(updated)-1]
+			}
+			return []byte(strings.Join(updated, "\n") + "\n"), nil
+		}
+
+		parts := strings.SplitN(strings.TrimSpace(lines[matched]), ":", 2)
+		if len(parts) != 2 || strings.TrimSpace(parts[1]) != "" {
+			return nil, fmt.Errorf("frontmatter pointer %q crosses a non-mapping value", pointer)
+		}
+		searchStart, searchEnd, parentIndent = matched+1, blockEnd, childIndent
+	}
+	return nil, fmt.Errorf("frontmatter pointer %q does not match the artifact", pointer)
+}
+
+func artifactFrontmatterPointerTokens(pointer string) ([]string, error) {
+	if pointer == "" || !strings.HasPrefix(pointer, "/") {
+		return nil, fmt.Errorf("frontmatter pointer must identify a non-root mapping field")
+	}
+	rawTokens := strings.Split(pointer[1:], "/")
+	tokens := make([]string, 0, len(rawTokens))
+	for _, raw := range rawTokens {
+		token := strings.ReplaceAll(strings.ReplaceAll(raw, "~1", "/"), "~0", "~")
+		if token == "" || strings.ContainsAny(token, ":\r\n") {
+			return nil, fmt.Errorf("frontmatter pointer %q contains an invalid mapping key", pointer)
+		}
+		tokens = append(tokens, token)
+	}
+	return tokens, nil
 }
 
 func renameMarkdownHeading(raw []byte, current, replacement string) ([]byte, error) {

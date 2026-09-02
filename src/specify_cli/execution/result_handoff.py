@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from specify_cli.input_transport import resolve_agent_text_input
+
 from .result_normalizer import normalize_worker_task_result_payload
 from .result_schema import WorkerTaskResult, worker_task_result_payload
 
@@ -51,7 +53,7 @@ def describe_result_handoff_template(*, command_name: str, integration_key: str)
 
 
 def describe_result_submit_template(*, command_name: str, integration_key: str) -> str:
-    """Return the CLI-owned inline submission route for a delegated result."""
+    """Return the CLI-owned submission route for a delegated result."""
 
     normalized_command = command_name.strip().lower()
     normalized_integration = integration_key.strip().lower()
@@ -61,39 +63,39 @@ def describe_result_submit_template(*, command_name: str, integration_key: str) 
             "`specify-runtime deep-research track-submit "
             "--feature-dir <feature-dir> --track-id <track-id> "
             "--attempt-id <attempt-id> --expected-revision <revision> "
-            "--result-json '<inline-json>'`"
+            "--result-json <inline-json|@path|->`"
         )
     if normalized_command == "implement":
         return (
             "return the WorkerTaskResult inline; the leader runs "
             "`specify-runtime implement result-merge --feature-dir <feature-dir> "
-            "--result-json '<inline-json>' --format json`"
+            "--result-json <inline-json|@path|-> --format json`"
         )
     if normalized_command in FEATURE_LANE_RESULT_DIRECTORIES:
         return (
             f"`specify-runtime result submit --command {normalized_command} "
             "--feature-dir <feature-dir> "
-            "--lane-id <lane-id> --result-json '<inline-json>'`"
+            "--lane-id <lane-id> --result-json <inline-json|@path|->`"
         )
     if normalized_command in WORKSPACE_LANE_RESULT_COMMANDS:
         return (
             f"`specify-runtime result submit --command {normalized_command} "
             "--workspace <workspace> --lane-id <lane-id> "
-            "--result-json '<inline-json>'`"
+            "--result-json <inline-json|@path|->`"
         )
     if normalized_command == "debug":
         return (
             "`specify-runtime result submit --command debug --session-slug "
-            "<session-slug> --lane-id <lane-id> --result-json '<inline-json>'`"
+            "<session-slug> --lane-id <lane-id> --result-json <inline-json|@path|->`"
         )
     if normalized_integration == "codex":
         return (
             "`specify-runtime sp-teams submit-result --request-id <request-id> "
-            "--result-json '<inline-json>'`"
+            "--result-json <inline-json|@path|->`"
         )
     return (
         f"`specify-runtime result submit --command {normalized_command or '<command>'} "
-        "--lane-id <lane-id> --result-json '<inline-json>'`"
+        "--lane-id <lane-id> --result-json <inline-json|@path|->`"
     )
 
 
@@ -189,6 +191,12 @@ def write_normalized_result_handoff(
 ) -> tuple[Path, WorkerTaskResult]:
     """Normalize a worker result and persist it to the canonical handoff path."""
 
+    if isinstance(raw_result, str):
+        raw_result = resolve_agent_text_input(
+            raw_result,
+            project_root=project_root,
+            label="result_json",
+        )
     normalized = normalize_worker_task_result_payload(raw_result)
     if normalized.status == "pending":
         raise ValueError(

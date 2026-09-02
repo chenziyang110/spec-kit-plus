@@ -12,6 +12,35 @@ import (
 
 const sourceContinuityLabTaskID = "T901"
 
+func TestSourceContinuityLabTaskIndexDigestIgnoresOnlyRuntimeOwnedTaskFields(t *testing.T) {
+	_, _, feature := sourceContinuityLabProject(t)
+	indexPath := filepath.Join(feature, "task-index.json")
+	original := sourceContinuityLabTaskIndexContractSHA(indexPath)
+	if original == "" {
+		t.Fatal("task-index contract digest is empty")
+	}
+
+	index := readImplementJSONFile(t, indexPath)
+	_, task, err := findImplementTask(index, sourceContinuityLabTaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task["status"] = "implemented"
+	task["lifecycle_ref"] = "implementation-review/tasks/T901.json"
+	task["packet_ref"] = "implementation-review/packets/T901.json"
+	task["result_ref"] = "worker-results/T901.json"
+	writeTaskRuntimeFixture(t, indexPath, index)
+	if got := sourceContinuityLabTaskIndexContractSHA(indexPath); got != original {
+		t.Fatalf("runtime-owned task fields changed contract digest: got %s want %s", got, original)
+	}
+
+	task["objective"] = "Unauthorized authored contract drift"
+	writeTaskRuntimeFixture(t, indexPath, index)
+	if got := sourceContinuityLabTaskIndexContractSHA(indexPath); got == original {
+		t.Fatal("authored task contract drift did not change the digest")
+	}
+}
+
 func TestSourceContinuityLabMaterializesManifestAndPassingReport(t *testing.T) {
 	root, featureRef, feature := sourceContinuityLabProject(t)
 	manifestRef, manifestSHA := materializeSourceContinuityLabManifest(t, root, featureRef)

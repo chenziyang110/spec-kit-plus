@@ -2025,6 +2025,31 @@ func writeImplementPayload(stdout io.Writer, payload map[string]any, err error, 
 		env := NewEnvelope("blocked", err.Error())
 		env.Data = map[string]any{"status": "blocked", "errors": []any{err.Error()}}
 		env.Blockers = append(env.Blockers, err.Error())
+		var scopeErr *implementResultScopeError
+		if errors.As(err, &scopeErr) {
+			env.Data["error_code"] = "implementation_scope_amendment_required"
+			env.Data["owner"] = "agent"
+			env.Data["human_action_required"] = false
+			action := map[string]any{
+				"kind":                  "refresh-overview-and-guard-scope",
+				"owner":                 "agent",
+				"human_action_required": false,
+				"unclaimed_paths":       stringsToAny(scopeErr.Paths),
+				"packet_bound":          scopeErr.PacketBound,
+				"next_action":           "prove causal necessity, refresh the execution overview, and reuse execution guard with the complete scope; packet-bound work supplies --scope-amendments-json and later passing independent scope-drift-review evidence",
+			}
+			if scopeErr.WorkID != "" {
+				action["overview_argv"] = []string{
+					"specify-runtime", "execution", "overview", "--current-work-id", scopeErr.WorkID,
+					"--project-root", firstNonEmpty(scopeErr.ProjectRoot, "."), "--format", "json",
+				}
+			}
+			env.Data["resolution_action"] = action
+			env.Blockers = []any{map[string]any{
+				"code": "implementation_scope_amendment_required", "owner": "agent",
+				"human_action_required": false, "paths": stringsToAny(scopeErr.Paths),
+			}}
+		}
 		return writeEnvelope(stdout, env)
 	}
 	env := NewEnvelope("ok", summary)

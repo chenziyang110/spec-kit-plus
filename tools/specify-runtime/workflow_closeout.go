@@ -116,7 +116,7 @@ func (service *WorkflowService) Closeout(request WorkflowCloseoutRequest) Envelo
 			return workflowError("failed to commit workflow closeout", err)
 		}
 	}
-	if err := service.writeState(feature, state); err != nil {
+	if err := service.writeState(feature, state, "closeout"); err != nil {
 		if rollbackErr := rollbackSnapshot(); rollbackErr != nil {
 			err = fmt.Errorf("%w; snapshot rollback failed: %v", err, rollbackErr)
 		}

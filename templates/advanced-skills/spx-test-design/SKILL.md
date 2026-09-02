@@ -62,7 +62,10 @@ On resume, run
 `{{specify-subcmd:specify-runtime test-design status --feature-dir <feature-dir> --format json}}`
 (omit `--feature-dir` for project scope) and continue from its phase, revision,
 accepted results, blockers, and source fingerprint; never reconstruct state
-from chat or overwrite runtime-owned state files. `next_action` expresses the
+from chat or overwrite runtime-owned state files. A blocked or stale status
+returns `recovery_action`; execute its exact base argv in the same invocation
+for agent-owned repair, and wait only for genuine authority-owned evidence—not
+for the user to repair state or retype a command. `next_action` expresses the
 default formal Tasks route; for an explicitly selected Plan or Quick consumer
 at validated feature state, use the permitted direct `publish` branch below
 instead of `handoff`. Reenter an existing root only
@@ -108,19 +111,24 @@ from uncovered obligations and risks. A packet must declare its obligation IDs,
 read paths, questions, frozen fingerprint, evidence expectations, and result
 shape. Every substantive discovery lane must be leased to and executed by a
 non-Leader worker; the Leader plans packets, reviews candidates, accepts lanes,
-and synthesizes, but never substitutes for discovery. If no subagent is
-available, leave the lane pending or yield the active attempt with a non-empty
-reason, then stop blocked at that lane and resume there when a worker is
-available.
+and synthesizes, but never substitutes for discovery. If one subagent is
+unavailable, yield and redispatch serially or wait on another independent
+worker in the same invocation. If the platform exposes no independent worker
+surface, preserve an agent-owned capability blocker and exact lane resume
+action; never make the user repair or requeue state.
 
 For each packet, the Leader or worker follows the lease lifecycle:
 
 ```text
 {{specify-subcmd:specify-runtime test-design lane-lease --feature-dir <feature-dir> --expected-revision <revision> --worker-id <worker-id> --format json}}
-{{specify-subcmd:specify-runtime test-design lane-checkpoint --feature-dir <feature-dir> --expected-revision <revision> --lane-id <lane-id> --attempt-id <attempt-id> --result-json <json> --format json}}
+{{specify-subcmd:specify-runtime test-design lane-checkpoint --feature-dir <feature-dir> --expected-revision <revision> --lane-id <lane-id> --attempt-id <attempt-id> --result-json <inline-json|@path|-> --format json}}
 <execute the lease response's yield_argv_prefix with --reason <reason>>
 {{specify-subcmd:specify-runtime test-design lane-accept --feature-dir <feature-dir> --expected-revision <revision> --lane-id <lane-id> --attempt-id <attempt-id> --format json}}
 ```
+
+Keep small result payloads inline, send large model-authored JSON through stdin,
+and reserve `@path` for an existing runtime-owned or registered project
+artifact. Never create a temporary result file merely for transport.
 
 Use the returned `yield_argv_prefix` (owned verb `specify-runtime test-design lane-yield`) with the exact non-empty interruption or blocker reason for a
 blocked, interrupted, or no-longer-safe attempt. A worker's successful
@@ -154,7 +162,7 @@ a dataset ready.
 Workers may propose search evidence, but only the Leader may validate its
 authority, licensing, reproducibility, source, and provenance and accept it into
 the content-addressed evidence store. Register accepted inline text or JSON with
-`{{specify-subcmd:specify-runtime evidence register --content '<payload>' --scope test-design --source <source> --provenance <provenance>}}`
+`{{specify-subcmd:specify-runtime evidence register --content <inline-payload|@path|-> --scope test-design --source <source> --provenance <provenance>}}`
 and import accepted external or binary material with
 `{{specify-subcmd:specify-runtime evidence import --file <path> --scope test-design --source <source> --provenance <provenance>}}`.
 Verify the returned record and cite its `evidence_id` or `record_ref` from the
@@ -163,18 +171,21 @@ evidence.
 
 When the missing truth is external feasibility, a normative oracle, a
 disposable proof, or evidence that bounded read-only search cannot establish,
-stop with the affected coverage and gap refs and route to
-`$spx-deep-research`. Do not invoke it in this run. Resume Test Design only from
-its primary-source findings, evidence records, and `Planning Handoff`; then CAS
-reenter the test-design root when those findings change the frozen inputs.
+preserve the affected coverage and gap refs. The current `$spx-deep-research`
+runtime is plan-only Deep Research and returns to Plan; do not route an
+independent test-design run directly to it. Return the typed blocker to the
+original consumer: Plan may own plan-only Deep Research and then reselect Test
+Design, while Quick/Tasks/Review retain repair ownership on their path.
 
 ## Audit, validate, publish, and project
 
 After synthesis, run
 `{{specify-subcmd:specify-runtime test-design audit-prepare --feature-dir <feature-dir> --expected-revision <revision> --format json}}`.
 Lease the resulting `AUDIT-*` lane to a worker identity that is neither the
-Leader nor any accepted discovery worker. If no independent worker is
-available, leave the lane pending or yielded and block validation and handoff. The auditor
+Leader nor any accepted discovery worker. If one independent worker is
+unavailable, redispatch or wait in the same invocation. If the platform has no
+independent surface, preserve an agent-owned capability blocker and exact
+resume action; never self-audit or ask the user to repair the lane. The auditor
 challenges omitted requirements and risk dimensions, weak oracles, unsupported
 evidence, missing states and boundaries, infeasible harness assumptions, unsafe
 data, duplicate cases, and broken reverse traceability. Checkpoint and accept
@@ -189,6 +200,9 @@ resolved. The only honest outcomes are
 `stale`. Never claim `absolutely_complete`; scope-relative completeness requires
 a frozen denominator, bidirectional traceability, explicit exclusions and gap
 dispositions, usable materials, and an accepted independent audit.
+For blocked or stale output, consume runtime `recovery_action` in the same
+invocation, repair or refresh, and run a fresh audit. Only real
+authority-owned input may pause that action.
 
 Only a non-stale validated package may run
 `{{specify-subcmd:specify-runtime test-design handoff --feature-dir <feature-dir> --expected-revision <revision> --format json}}`.
@@ -199,8 +213,8 @@ the handoff.
 
 For a Tasks consumer, preserve the exact lifecycle `validate -> handoff ->
 publish -> projection-build --consumer tasks -> projection-verify`. Because
-`handoff` increments state revision, rerun `status` after handoff and publish
-with that new handed-off revision. Plan and Quick may publish/build directly
+`handoff` increments state revision, execute its returned publish `next_argv`;
+do not return to Tasks before publication and projection verification. Plan and Quick may publish/build directly
 from validated state; Review and Tasks are feature-only consumers. Publish with
 `{{specify-subcmd:specify-runtime test-design publish --feature-dir <feature-dir> --expected-revision <revision> --format json}}`,
 omitting `--feature-dir` for project scope. The runtime alone writes the
@@ -217,6 +231,12 @@ producer nor a consumer patches it. A later feature `handoff` is legal, but its
 revision increment invalidates every earlier publication and projection; rerun
 `status`, `publish`, `projection-build`, and `projection-verify` before further
 consumption.
+
+After publication use `projection_action` and execute each returned next_argv
+exactly. Projection build returns verification, and successful verification
+returns the selected consumer. Pass that exact action to the current orchestrator so
+Test Design returns to the original consumer without asking the user to
+re-invoke it.
 
 Use an immutable upstream consumer basis: Plan uses the current feature
 `spec-contract.json`; Quick uses the runtime-owned

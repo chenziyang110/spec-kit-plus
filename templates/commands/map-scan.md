@@ -505,7 +505,7 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
   patterns, absolute paths, and summary labels are invalid.
 - Each packet carries a runtime-generated packet-local task ledger and result
   skeleton. The worker returns concrete outcomes as one in-memory object and
-  submits it with `specify-runtime cognition scan-checkpoint --result-json '<inline-json>'`;
+  submits it with `specify-runtime cognition scan-checkpoint --result-json <inline-json|@path|->`;
   the CLI alone materializes the designated pending result. Do not reproduce a
   stable JSON schema in the prompt or create a temporary result file.
 - Worker-authored `acceptance` remains `partial` even when the packet-local work

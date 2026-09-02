@@ -187,6 +187,28 @@ def test_plan_contract_records_gate_decision_and_content_addressed_projection() 
     assert "projection_binding" in plan_surfaces
 
 
+def test_plan_auto_and_tasks_align_on_test_design_gate_shape() -> None:
+    gate = _json("templates/plan-contract-template.json")["test_design_gate"]
+
+    assert set(gate) == {"decision", "reason_refs", "projection_binding"}
+    assert gate["decision"] == "not_selected"
+    assert gate["reason_refs"] == []
+    _assert_projection_binding(gate["projection_binding"])
+
+    surfaces = _normalized(
+        "templates/commands/plan.md",
+        "templates/advanced-skills/spx-plan/SKILL.md",
+        "templates/commands/auto.md",
+        "templates/advanced-skills/spx-auto/references/routing-contract.md",
+        "templates/commands/tasks.md",
+        "templates/advanced-skills/spx-tasks/SKILL.md",
+    )
+    assert "plan-contract.json#/test_design_gate" in surfaces
+    assert "projection_binding" in surfaces
+    for decision in ("not_selected", "selected", "required"):
+        assert decision in surfaces
+
+
 def test_quick_status_records_the_equivalent_optional_projection_binding() -> None:
     status = _normalized("templates/artifacts/quick-status.md")
 
@@ -233,6 +255,29 @@ def test_test_design_is_an_independent_producer_with_published_projections(
             "without plan completion",
         )
     )
+
+
+def test_test_design_repairs_in_place_and_returns_to_the_exact_consumer() -> None:
+    for surface in (
+        "templates/commands/test-design.md",
+        "templates/advanced-skills/spx-test-design/SKILL.md",
+    ):
+        content = _normalized(surface)
+        assert "recovery_action" in content
+        assert "incremental-update" in content
+        assert "same invocation" in content
+        assert "projection-build" in content and "projection-verify" in content
+        assert "returned next_argv" in content
+        assert "original consumer" in content or "selected consumer" in content
+        assert "handoff" in content and "publish" in content
+        assert "do not return to tasks before" in content
+
+    producer = _normalized(
+        "templates/commands/test-design.md",
+        "templates/advanced-skills/spx-test-design/SKILL.md",
+    )
+    assert "plan-only deep research" in producer
+    assert "do not route an independent test-design run directly" in producer
 
 
 CONSUMER_SURFACES = {
@@ -387,6 +432,20 @@ def test_auto_routes_every_selected_required_or_unfresh_gate_to_test_design(
         )
     )
     assert "tasks" in content
+
+
+def test_auto_executes_test_design_recovery_and_consumer_return_actions() -> None:
+    for surface in (
+        "templates/commands/auto.md",
+        "templates/advanced-skills/spx-auto/references/routing-contract.md",
+    ):
+        content = _normalized(surface)
+        assert "recovery_action" in content
+        assert "projection_action" in content
+        assert "human_action_required" in content
+        assert "exact base_argv" in content
+        assert "returned next_argv" in content
+        assert "do not ask the user to re-invoke" in content
 
 
 @pytest.mark.parametrize(

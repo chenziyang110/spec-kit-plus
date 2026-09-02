@@ -378,6 +378,64 @@ func TestArtifactPatchCLIHandlesHeadingAndPreambleModes(t *testing.T) {
 	}
 }
 
+func TestArtifactPatchCLIAcceptsFileBackedSectionAndFrontmatterJSON(t *testing.T) {
+	projectRoot := t.TempDir()
+	path := ".specify/design/changes/UD-0042/brief.md"
+	writeArtifactTestFile(t, projectRoot, path, "---\nstatus: draft\n---\n\n# Brief\n\n## Evidence\n\nold\n")
+
+	largeContent := strings.Repeat("handoff row ", 5000) + "\nfinal evidence\n"
+	contentPath := filepath.Join(projectRoot, ".specify", "runtime", "inputs", "section.txt")
+	if err := os.MkdirAll(filepath.Dir(contentPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(contentPath, []byte(largeContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	frontmatterPath := filepath.Join(projectRoot, ".specify", "runtime", "inputs", "frontmatter.json")
+	if err := os.WriteFile(frontmatterPath, []byte(`{"status":"reviewed","approved":true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	service := NewArtifactService(projectRoot)
+	sectionLease := service.Prepare(ArtifactPrepareRequest{Path: path})
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"artifact", "patch",
+		"--project-root", projectRoot,
+		"--lease", sectionLease.Data["lease_id"].(string),
+		"--section", "Evidence",
+		"--content", "@.specify/runtime/inputs/section.txt",
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("section @path patch code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+
+	frontmatterLease := service.Prepare(ArtifactPrepareRequest{Path: path})
+	stdout.Reset()
+	stderr.Reset()
+	code = Run([]string{
+		"artifact", "patch",
+		"--project-root", projectRoot,
+		"--lease", frontmatterLease.Data["lease_id"].(string),
+		"--frontmatter-json", "@.specify/runtime/inputs/frontmatter.json",
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("frontmatter @path patch code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+
+	updated, err := os.ReadFile(filepath.Join(projectRoot, filepath.FromSlash(path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"status: \"reviewed\"", "approved: true", strings.TrimSpace(largeContent)} {
+		if !bytes.Contains(updated, []byte(want)) {
+			t.Fatalf("file-backed patch missing %q", want)
+		}
+	}
+}
+
 func TestScaffoldOwnedArtifactRejectsWholeFileSubmit(t *testing.T) {
 	projectRoot := t.TempDir()
 	path := "specs/001-runtime/spec-contract.json"

@@ -24,6 +24,30 @@ type Store struct {
 	closeErr  error
 }
 
+// StoreAccessError identifies a local filesystem boundary that prevented the
+// repository-shared coordination store from opening. Callers keep this typed
+// so an agent can repair project-local runtime state without misclassifying the
+// failure as a user decision or external-system blocker.
+type StoreAccessError struct {
+	Stage string
+	Path  string
+	Cause error
+}
+
+func (err *StoreAccessError) Error() string {
+	if err == nil {
+		return "run control store is unavailable"
+	}
+	return fmt.Sprintf("run control store is unavailable during %s for %q: %v", err.Stage, err.Path, err.Cause)
+}
+
+func (err *StoreAccessError) Unwrap() error {
+	if err == nil {
+		return nil
+	}
+	return err.Cause
+}
+
 type openConfig struct{}
 
 type OpenOption func(*openConfig) error
@@ -59,12 +83,12 @@ func Open(ctx context.Context, databasePath string, options ...OpenOption) (*Sto
 		return nil, fmt.Errorf("resolve run control database path: %w", err)
 	}
 	if err := os.MkdirAll(filepath.Dir(absolutePath), 0o755); err != nil {
-		return nil, fmt.Errorf("create run control database directory: %w", err)
+		return nil, &StoreAccessError{Stage: "create-directory", Path: absolutePath, Cause: err}
 	}
 
 	db, err := sql.Open("sqlite", sqliteDataSource(absolutePath, "_txlock=immediate"))
 	if err != nil {
-		return nil, fmt.Errorf("open run control database: %w", err)
+		return nil, &StoreAccessError{Stage: "open-database", Path: absolutePath, Cause: err}
 	}
 	// SQLite PRAGMAs such as foreign_keys and busy_timeout are connection-local.
 	// One pooled connection per Store keeps those invariants deterministic;
@@ -75,9 +99,42 @@ func Open(ctx context.Context, databasePath string, options ...OpenOption) (*Sto
 	store := &Store{db: db}
 	if err := store.initialize(ctx); err != nil {
 		_ = db.Close()
+		if isStoreAccessFailure(err) {
+			return nil, &StoreAccessError{Stage: storeAccessStage(err), Path: absolutePath, Cause: err}
+		}
 		return nil, err
 	}
 	return store, nil
+}
+
+func isStoreAccessFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, os.ErrPermission) {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	for _, marker := range []string{
+		"unable to open database file", "attempt to write a readonly database",
+		"readonly database", "read-only database", "permission denied", "access is denied",
+	} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func storeAccessStage(err error) string {
+	message := strings.ToLower(err.Error())
+	if strings.Contains(message, "wal") {
+		return "enable-wal"
+	}
+	if strings.Contains(message, "initialization") || strings.Contains(message, "schema") {
+		return "initialize-schema"
+	}
+	return "initialize-database"
 }
 
 // SQLite honors mode=ro only for file: URIs. Encode paths as URI paths so

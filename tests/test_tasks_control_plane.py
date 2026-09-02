@@ -36,6 +36,18 @@ def _project(tmp_path: Path) -> tuple[Path, Path]:
                 "status": "ready",
                 "acceptance_refs": [],
                 "source_revision": 3,
+                "test_design_gate": {
+                    "decision": "not_selected",
+                    "reason_refs": ["fixture:no-test-design-selected"],
+                    "projection_binding": {
+                        "publication_ref": None,
+                        "publication_sha256": None,
+                        "projection_ref": None,
+                        "projection_sha256": None,
+                        "source_fingerprint": None,
+                        "state_revision": None,
+                    },
+                },
             }
         ),
         encoding="utf-8",
@@ -109,6 +121,29 @@ def test_tasks_build_expands_template_and_renders_markdown_via_cli(
     assert "- [ ] T001 [US1] Implement the typed task mutation API" in rendered
     assert "## T001" in rendered
     assert "## Consequence Obligation Mapping" in rendered
+
+
+def test_tasks_build_rejects_definition_file_outside_project(tmp_path: Path) -> None:
+    project, feature = _project(tmp_path)
+    outside = tmp_path / "outside-definition.json"
+    outside.write_text("{}", encoding="utf-8")
+
+    result = _invoke(
+        project,
+        [
+            "tasks",
+            "build",
+            "--feature-dir",
+            str(feature.relative_to(project)),
+            "--definition-json",
+            f"@{outside}",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 10
+    assert "inside the project root" in result.output
 
 
 def test_tasks_upsert_remove_and_finalize_keep_both_projections_aligned(

@@ -1196,7 +1196,7 @@ def test_create_codex_teams_initial_commit_bootstraps_head(tmp_path):
 
     ok, detail = _create_codex_teams_initial_commit(project)
 
-    assert ok is True
+    assert ok is True, detail
     assert "initial git commit" in detail.lower()
     head = subprocess.run(
         ["git", "rev-parse", "--verify", "HEAD"],
@@ -1232,7 +1232,7 @@ def test_create_codex_teams_initial_commit_excludes_vs_and_svn_metadata(tmp_path
 
     ok, detail = _create_codex_teams_initial_commit(project)
 
-    assert ok is True
+    assert ok is True, detail
     assert "initial git commit" in detail.lower()
     exclude_path = project / ".git" / "info" / "exclude"
     exclude_content = exclude_path.read_text(encoding="utf-8")

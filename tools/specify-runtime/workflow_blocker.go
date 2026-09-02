@@ -27,6 +27,18 @@ type WorkflowBlockRequest struct {
 	HumanActionRequired *bool                     `json:"human_action_required,omitempty"`
 }
 
+type WorkflowReconcileBlockerRequest struct {
+	FeatureDir        string   `json:"feature_dir"`
+	FeatureID         string   `json:"-"`
+	ExpectedRevision  int      `json:"expected_revision"`
+	ResolvedSubcauses []string `json:"resolved_subcauses"`
+	RemainingCause    string   `json:"remaining_cause"`
+	RemainingEvidence []string `json:"remaining_evidence"`
+	RemainingScope    []string `json:"remaining_scope"`
+	ExactNextAction   string   `json:"exact_next_action"`
+	UnblockCriteria   string   `json:"unblock_criteria"`
+}
+
 var workflowBlockerCategories = map[string]bool{
 	"workflow-validation":          true,
 	"artifact-or-state":            true,
@@ -164,7 +176,7 @@ func (service *WorkflowService) Block(request WorkflowBlockRequest) Envelope {
 	state.Status = "blocked"
 	state.Summary = cause
 	state.Blocker = blocker
-	if err := service.writeState(feature, state); err != nil {
+	if err := service.writeState(feature, state, "block"); err != nil {
 		return workflowError("failed to write workflow blocker", err)
 	}
 	env = NewEnvelope("blocked", cause)
@@ -172,6 +184,99 @@ func (service *WorkflowService) Block(request WorkflowBlockRequest) Envelope {
 	env.Data["resolution_action"] = workflowResolutionAction(feature, state.Revision)
 	env.Blockers = append(env.Blockers, cloneMap(blocker))
 	env.ShowArgv = workflowShowArgv(feature)
+	return env
+}
+
+func (service *WorkflowService) ReconcileBlocker(request WorkflowReconcileBlockerRequest) Envelope {
+	feature, err := service.resolveFeature(request.FeatureDir, request.FeatureID)
+	if err != nil {
+		return workflowInvalid("workflow feature directory is invalid", "invalid-feature-dir", err)
+	}
+	resolved, err := requiredWorkflowStrings(request.ResolvedSubcauses, "resolved-subcauses")
+	if err != nil {
+		return workflowInvalid("workflow blocker reconciliation is invalid", "invalid-resolved-subcauses", err)
+	}
+	remainingCause := strings.TrimSpace(request.RemainingCause)
+	if remainingCause == "" {
+		return workflowInvalid("workflow blocker reconciliation is invalid", "invalid-remaining-cause", fmt.Errorf("remaining_cause is required; use workflow resolve when no blocker remains"))
+	}
+	remainingEvidence, err := requiredWorkflowStrings(request.RemainingEvidence, "remaining-evidence")
+	if err != nil {
+		return workflowInvalid("workflow blocker reconciliation is invalid", "invalid-remaining-evidence", err)
+	}
+	remainingScope, err := requiredWorkflowStrings(request.RemainingScope, "remaining-scope")
+	if err != nil {
+		return workflowInvalid("workflow blocker reconciliation is invalid", "invalid-remaining-scope", err)
+	}
+	nextAction := strings.TrimSpace(request.ExactNextAction)
+	criteria := strings.TrimSpace(request.UnblockCriteria)
+	if nextAction == "" || criteria == "" {
+		return workflowInvalid("workflow blocker reconciliation is invalid", "invalid-remaining-recovery", fmt.Errorf("exact_next_action and unblock_criteria are required"))
+	}
+
+	release, env, ok := service.acquireWorkflowLock(feature)
+	if !ok {
+		return env
+	}
+	defer release()
+	state, err := service.readState(feature)
+	if err != nil {
+		return service.stateReadFailure(feature, err)
+	}
+	if request.ExpectedRevision != state.Revision {
+		return workflowRevisionConflictWithState(feature, request.ExpectedRevision, state)
+	}
+	if state.Status != "blocked" || state.Blocker == nil {
+		return workflowStateBlocked(feature, state, "workflow blocker reconciliation requires a persisted blocker", "no-blocker-to-reconcile")
+	}
+	previousID := strings.TrimSpace(fmt.Sprint(state.Blocker["blocker_id"]))
+	category := strings.TrimSpace(fmt.Sprint(state.Blocker["category"]))
+	owner := strings.TrimSpace(fmt.Sprint(state.Blocker["owner"]))
+	humanRequired, _ := state.Blocker["human_action_required"].(bool)
+	state.Revision++
+	current := cloneMap(state.Blocker)
+	currentID := fmt.Sprintf("workflow-%s-%s-r%d", workflowSlug(state.Stage), workflowSlug(category), state.Revision)
+	current["blocker_id"] = currentID
+	current["summary"] = remainingCause
+	current["details"] = remainingCause
+	current["evidence"] = stringValuesAsAny(remainingEvidence)
+	current["affected_scope"] = stringValuesAsAny(remainingScope)
+	current["exact_next_action"] = nextAction
+	current["unblock_criteria"] = criteria
+	attempts, _ := current["attempted_recovery"].([]any)
+	attempts = append(attempts, map[string]any{
+		"action": "Resolved blocker subcauses: " + strings.Join(resolved, "; "),
+		"result": fmt.Sprintf("Reconciled %s into remaining blocker %s: %s", previousID, currentID, remainingCause),
+	})
+	current["attempted_recovery"] = attempts
+	current["resume"] = map[string]any{
+		"instruction": "Execute the structured resume.argv array exactly; do not reconstruct a shell command.",
+		"command":     "use resume.argv",
+		"argv":        stringValuesAsAny(workflowShowArgv(feature)),
+	}
+	if humanRequired {
+		if guide, exists := current["human_action_guide"]; !exists || guide == nil {
+			current["human_action_guide"] = noviceWorkflowHumanAction(owner, remainingEvidence, nextAction, criteria, workflowShowArgv(feature))
+		}
+	}
+	state.Status = "blocked"
+	state.Summary = remainingCause
+	state.Blocker = current
+	state.LastResolutionEvidence = append(state.LastResolutionEvidence,
+		fmt.Sprintf("partially reconciled %s: %s", previousID, strings.Join(resolved, "; ")))
+	if err := service.writeState(feature, state, "reconcile-blocker"); err != nil {
+		return workflowError("failed to reconcile workflow blocker", err)
+	}
+	env = workflowPersistedBlock(feature, state)
+	env.Data["blocker_reconciliation"] = map[string]any{
+		"previous_blocker_id": previousID,
+		"current_blocker_id":  currentID,
+		"resolved_subcauses":  stringValuesAsAny(resolved),
+		"remaining_cause":     remainingCause,
+		"remaining_evidence":  stringValuesAsAny(remainingEvidence),
+		"remaining_scope":     stringValuesAsAny(remainingScope),
+		"preserves_owner":     owner,
+	}
 	return env
 }
 

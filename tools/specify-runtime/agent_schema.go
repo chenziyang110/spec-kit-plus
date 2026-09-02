@@ -17,6 +17,9 @@ func runAPISchema(args []string, stdout io.Writer) int {
 	case "workflow-block-input":
 		schema = workflowBlockInputSchema()
 		capabilityID = "workflow.block"
+	case "workflow-reconcile-blocker-input":
+		schema = workflowReconcileBlockerInputSchema()
+		capabilityID = "workflow.reconcile-blocker"
 	case "source-continuity-adapter-plan-input":
 		schema = sourceContinuityAdapterPlanInputSchema()
 		capabilityID = "evidence.source-continuity-adapter-plan"
@@ -50,6 +53,21 @@ func runAPISchema(args []string, stdout io.Writer) int {
 	case "implement-result-merge-input":
 		schema = implementResultMergeInputSchema()
 		capabilityID = "implement.result-merge"
+	case "deep-research-track-prepare-input":
+		schema = deepResearchTrackPrepareInputSchema()
+		capabilityID = "deep-research.track-prepare"
+	case "deep-research-track-submit-result":
+		schema = deepResearchTrackSubmitResultSchema()
+		capabilityID = "deep-research.track-submit"
+	case "deep-research-synthesis-input":
+		schema = deepResearchSynthesisInputSchema()
+		capabilityID = "deep-research.synthesize"
+	case "deep-research-audit-input":
+		schema = deepResearchAuditInputSchema()
+		capabilityID = "deep-research.audit-accept"
+	case "deep-research-not-needed-input":
+		schema = deepResearchNotNeededInputSchema()
+		capabilityID = "deep-research.not-needed"
 	default:
 		return writeEnvelope(stdout, NewEnvelope("usage-error", fmt.Sprintf("unknown schema %q", schemaID)))
 	}
@@ -98,6 +116,86 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "shows-or-creates-workflow"
 		capability["usage"] = "specify-runtime workflow ensure --feature-dir <feature-dir> [--command <discussion|specify>] [--summary <text>] --format json"
 		capability["input_contract"] = "returns the current typed workflow state when it already exists; otherwise creates the initial state idempotently without advancing an existing revision"
+	case "workflow.resolve":
+		capability["side_effect"] = "writes-workflow"
+		capability["usage"] = "specify-runtime workflow resolve --feature-dir <feature-dir> --expected-revision <revision> --resolution-evidence <sanitized-evidence> [--resolution-evidence <sanitized-evidence> ...] [--summary <text>] [--reopen-to <specify|plan|tasks|implement|review> --reopen-reason <reason> --reopen-evidence <sanitized-evidence> [--reopen-evidence <sanitized-evidence> ...] --invalidated-artifacts <artifact> [--invalidated-artifacts <artifact> ...]] --format json"
+		capability["input_contract"] = "resolution evidence is always required; reopen-to, reopen-reason, reopen-evidence, and invalidated-artifacts are all-or-none and may name only a strict earlier stage permitted by normal reopen ownership; on success the runtime atomically preserves the blocker audit, records its resolution, and reopens that stage"
+	case "workflow.reconcile-blocker":
+		capability["input_schema"] = "workflow-reconcile-blocker-input"
+		capability["side_effect"] = "reconciles-persisted-workflow-blocker"
+		capability["usage"] = "specify-runtime workflow reconcile-blocker --input-json <object|@path|-> [--feature-dir <feature-dir>] --format json"
+		capability["input_contract"] = "requires a current blocked revision, one or more evidence-backed resolved_subcauses, and a complete remaining cause/evidence/scope/recovery contract. It keeps the same owner/category and blocked status, appends reconciliation audit, removes stale text from the current blocker, and returns workflow.resolve when no blocker remains"
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "workflow-reconcile-blocker-input", "--format", "json"}
+	case "deep-research.init":
+		capability["side_effect"] = "creates-deep-research-workspace"
+		capability["usage"] = "specify-runtime deep-research init --feature-dir <feature-dir> --leader-id <leader-id> --mode <repo-only|external-enabled|external-blocked> [--expected-revision <revision>] --format json"
+		capability["input_contract"] = "requires an unchanged planning-ready spec with feasibility_gate.required; when workflow.json exists it must be specify/completed. Draft, active or blocked Specify, invalid workflow, and non-enterable stages fail closed to the typed Specify owner action before research state is created; the commit holds the workflow lock and pins source-spec/workflow bytes as transaction preconditions"
+	case "deep-research.status":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime deep-research status --feature-dir <feature-dir> --format json"
+		capability["input_contract"] = "returns lifecycle phase, revision, track counts, source freshness, and next action; a source that is no longer planning-ready or whose Specify workflow is blocked returns the typed Specify owner and resolution action without advertising Plan"
+	case "deep-research.validate":
+		capability["side_effect"] = "validates-deep-research-package"
+		capability["usage"] = "specify-runtime deep-research validate --feature-dir <feature-dir> --expected-revision <revision> --format json"
+		capability["input_contract"] = "requires accepted independent audit, canonical package closure, unchanged planning-ready source, and a Plan-enterable workflow; a blocked Specify source preserves the research revision and returns to its owner, while the source-bound commit uses the workflow lock plus exact spec/workflow preconditions"
+	case "deep-research.publish":
+		capability["side_effect"] = "publishes-deep-research-plan-handoff"
+		capability["usage"] = "specify-runtime deep-research publish --feature-dir <feature-dir> --expected-revision <revision> --format json"
+		capability["input_contract"] = "publishes /sp.plan only from validated research whose source remains planning-ready and whose workflow can enter Plan; blocked or non-enterable Specify truth returns the exact owner recovery without replacing the source blocker, and concurrent upstream drift rolls back through the workflow lock plus exact spec/workflow transaction preconditions"
+	case "deep-research.verify-handoff":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime deep-research verify-handoff --feature-dir <feature-dir> [--handoff-ref <ref>] [--expected-sha256 <sha256>] --format json"
+		capability["input_contract"] = "revalidates the published handoff, every artifact digest, the unchanged planning-ready source, and its workflow; blocked Specify or any non-enterable workflow state invalidates /sp.plan and returns the source owner route"
+	case "deep-research.track-prepare":
+		capability["input_schema"] = "deep-research-track-prepare-input"
+		capability["side_effect"] = "writes-deep-research-tracks"
+		capability["usage"] = "specify-runtime deep-research track-prepare --feature-dir <feature-dir> --expected-revision <revision> --input-json <object|@path|-> --format json"
+		capability["input_contract"] = "freezes one or more bounded tracks with exact capability coverage, read paths, questions, source classes, spike requirement, and completion signal; --input-json accepts inline, project-contained @path, or stdin"
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "deep-research-track-prepare-input", "--format", "json"}
+	case "deep-research.track-submit":
+		capability["input_schema"] = "deep-research-track-submit-result"
+		capability["side_effect"] = "writes-deep-research-result-and-evidence"
+		capability["usage"] = "specify-runtime deep-research track-submit --feature-dir <feature-dir> --expected-revision <revision> --track-id <TRK-ID> --attempt-id <ATTEMPT-ID> --result-json <object|@path|-> --format json"
+		capability["input_contract"] = "the result payload is a complete or blocked track result; complete results bind findings, evidence quality, paths read, spikes, constraints, risks, and contradictions, while blocked results carry non-empty blockers; --result-json accepts inline, project-contained @path, or stdin"
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "deep-research-track-submit-result", "--format", "json"}
+	case "deep-research.synthesize":
+		capability["input_schema"] = "deep-research-synthesis-input"
+		capability["side_effect"] = "writes-deep-research-synthesis"
+		capability["usage"] = "specify-runtime deep-research synthesize --feature-dir <feature-dir> --expected-revision <revision> --leader-id <leader-id> --input-json <object|@path|-> --format json"
+		capability["input_contract"] = "closes every selected capability, planning handoff, evidence disposition, accepted spike, and contradiction before recommending /sp.plan; --input-json accepts inline, project-contained @path, or stdin"
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "deep-research-synthesis-input", "--format", "json"}
+	case "deep-research.audit-accept":
+		capability["input_schema"] = "deep-research-audit-input"
+		capability["side_effect"] = "writes-deep-research-audit"
+		capability["usage"] = "specify-runtime deep-research audit-accept --feature-dir <feature-dir> --expected-revision <revision> --auditor-id <auditor-id> --input-json <object|@path|-> --format json"
+		capability["input_contract"] = "binds the prepared audit request digest, accepted or rejected verdict, all required audit checks, and optional typed findings; --input-json accepts inline, project-contained @path, or stdin"
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "deep-research-audit-input", "--format", "json"}
+	case "deep-research.not-needed":
+		capability["input_schema"] = "deep-research-not-needed-input"
+		capability["side_effect"] = "publishes-deep-research-not-needed-handoff"
+		capability["usage"] = "specify-runtime deep-research not-needed --feature-dir <feature-dir> --leader-id <leader-id> --input-json <object|@path|-> --format json"
+		capability["input_contract"] = "requires one evidence-backed not-needed disposition for every selected feasibility capability and refuses publication unless the source specification and workflow can enter Plan; publication holds the workflow lock and pins exact spec/workflow bytes; --input-json accepts inline, project-contained @path, or stdin"
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "deep-research-not-needed-input", "--format", "json"}
+	case "test-design.status":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime test-design status [--feature-dir <feature-dir>] --format json"
+		capability["input_contract"] = "returns phase, revision, blockers, freshness, and next action; blocked or stale agent-owned state includes recovery_action and an executable exact base_argv, while genuine human_action_required state preserves the same post-evidence action without an executable next_argv"
+	case "test-design.recover":
+		capability["side_effect"] = "writes-test-design"
+		capability["usage"] = "specify-runtime test-design recover [--feature-dir <feature-dir>] --mode <audit|incremental-update> --expected-revision <revision> --format json"
+		capability["input_contract"] = "reads the existing runtime-owned frozen boundary and leader identity, then CAS-reenters the same root without inline input-json; audit preserves the boundary and incremental-update refreshes its fingerprint"
+	case "test-design.handoff":
+		capability["side_effect"] = "writes-test-design"
+		capability["usage"] = "specify-runtime test-design handoff --feature-dir <feature-dir> --expected-revision <revision> --format json"
+		capability["input_contract"] = "writes the Tasks compatibility pointer and returns publish in next_argv; publication and projection verification must complete before Tasks is returned"
+	case "test-design.projection-build":
+		capability["side_effect"] = "writes-test-design-projection"
+		capability["usage"] = "specify-runtime test-design projection-build [--feature-dir <feature-dir>] --consumer <plan|quick|tasks|review> --basis-ref <project-relative-ref> [--obligation-ids <csv>] --format json"
+		capability["input_contract"] = "builds a pointer-only consumer projection and returns its exact projection-verify next_argv; the producer never asks an agent or user to reconstruct verification flags"
+	case "test-design.projection-verify":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime test-design projection-verify [--feature-dir <feature-dir>] --projection-ref <project-relative-ref> --expected-sha256 <sha256> --format json"
+		capability["input_contract"] = "fails closed on source, publication, basis, selection, or digest drift; success returns the selected consumer in next_argv so the orchestrator resumes the original path"
 	case "artifact.scaffold":
 		capability["input_schema"] = "artifact-scaffold-input"
 		capability["side_effect"] = "creates-artifact"
@@ -107,13 +205,14 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "artifact.checklist":
 		capability["input_schema"] = "artifact-checklist-input"
 		capability["side_effect"] = "creates-or-appends-artifact"
-		capability["usage"] = "specify-runtime artifact checklist --path <feature-dir>/checklists/<name>.md --input-json <object> --format json"
+		capability["usage"] = "specify-runtime artifact checklist --path <feature-dir>/checklists/<name>.md --input-json <object|@path|-> --format json"
+		capability["input_contract"] = "--input-json accepts inline JSON, @path, or - (stdin). Schema: title, purpose, feature, categories[{heading,items[]}]."
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "artifact-checklist-input", "--format", "json"}
 	case "artifact.patch":
 		capability["input_schema"] = "artifact-patch-input"
 		capability["side_effect"] = "patches-artifact"
-		capability["usage"] = "specify-runtime artifact patch --lease <id> (--json-pointer <pointer> --value-json <json> | --section <heading> --content <text> | --frontmatter-json <object> | --heading <current> --new-heading <replacement> | --preamble <text> | --append-json <json>)"
-		capability["input_contract"] = "--section accepts bare heading text or markdown markers (\"Source Design Change\" or \"## Source Design Change\"); for Windows path content prefer forward slashes or raw strings so \\a is not treated as a bell escape"
+		capability["usage"] = "specify-runtime artifact patch --lease <id> (--json-pointer <pointer> --value-json <json|@path|-> [--value-json-pointer <source-pointer>] | --frontmatter-pointer <pointer> --value-json <json|@path|-> [--value-json-pointer <source-pointer>] | --section <heading> --content <text|@path|-> | --frontmatter-json <object|@path|-> | --heading <current> --new-heading <replacement> | --preamble <text|@path|-> | --append-json <json|@path|->)"
+		capability["input_contract"] = "--section accepts bare heading text or markdown markers (\"Source Design Change\" or \"## Source Design Change\"); --frontmatter-pointer replaces an existing nested YAML mapping field and --value-json-pointer selects a subtree from the JSON input; large or Windows-sensitive payloads may be passed as @project-relative-path or - for stdin, with project-root containment and symlink/reparse rejection; prefix literal text beginning with @ as @@"
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "artifact-patch-input", "--format", "json"}
 	case "artifact.patch-batch":
 		capability["input_schema"] = "artifact-patch-batch-input"
@@ -124,8 +223,9 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "artifact-patch-batch-input", "--format", "json"}
 	case "artifact.submit":
 		capability["side_effect"] = "writes-artifact"
-		capability["usage"] = "specify-runtime artifact submit --lease <id> --content <inline-payload> --format json"
-		capability["file_input"] = "recovery-only: --recovery-file accepts only the runtime-created human acceptance repair backup bound by its sibling journal"
+		capability["usage"] = "specify-runtime artifact submit --lease <id> --content <inline-payload|@path|-> --format json"
+		capability["input_contract"] = "large or Windows-sensitive content may use a project-contained @path or - for stdin; prefix literal text beginning with @ as @@"
+		capability["file_input"] = "--content @path accepts only project-contained regular files; --recovery-file remains reserved for the runtime-created human acceptance repair backup bound by its sibling journal"
 	case "artifact.show-many":
 		capability["input_schema"] = "artifact-show-many-input"
 		capability["side_effect"] = "read-only"
@@ -135,12 +235,12 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "artifact-show-many-input", "--format", "json"}
 	case "evidence.register":
 		capability["side_effect"] = "writes-content-addressed-evidence"
-		capability["usage"] = "specify-runtime evidence register (--content <inline-payload> | --object <existing-object-ref>) --scope <scope> [metadata options]"
-		capability["input_contract"] = "exactly one of --content or --object; --object must reference an existing .specify/evidence/objects/sha256 object"
+		capability["usage"] = "specify-runtime evidence register (--content <inline-payload|@path|-> | --object <existing-object-ref>) --scope <scope> [metadata options]"
+		capability["input_contract"] = "exactly one of --content or --object; large content may use a project-contained @path or - for stdin and literal text beginning with @ uses @@; --object must reference an existing .specify/evidence/objects/sha256 object"
 	case "evidence.import":
 		capability["side_effect"] = "imports-content-addressed-evidence"
 		capability["usage"] = "specify-runtime evidence import --file <external-local-path> --scope <scope> [metadata options]"
-		capability["file_input"] = "external evidence only; agent-authored structured evidence uses evidence register --content"
+		capability["file_input"] = "external evidence only; agent-authored structured evidence uses evidence register --content with small inline text, project-contained @path, or stdin -"
 	case "hook.extension-plan":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime hook extension-plan --event <event-id> --format json"
@@ -315,15 +415,15 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "execution.announce":
 		capability["side_effect"] = "announces-activity-and-candidate-authority"
 		capability["usage"] = "specify-runtime execution announce --workflow <fast|debug|implement|quick> (--subject-id <id> --summary <text> | --work-packet-file <worker-packet.json> --work-packet-sha256 <sha256>) --agent-id <id> --adapter-id <id> [--activity-id <id>] [--work-id <id>] [--task-ref <ref>] [--item-id <id>] [--source-ref <path>] [--planned-write-scope-json <array>] [--resources-json <array>] [--lease-seconds <seconds>] [--project-root <path>] --format json"
-		capability["input_contract"] = "creates one Activity and one-to-one Work atomically before mutation, captures the actual Git baseline, and advertises candidate file scope plus semantic resources without granting write authority. For implement, --work-packet-file plus --work-packet-sha256 verifies the exact compiled bytes against the canonical packet-compile receipt sha256 and current compiler output before deriving feature_id, task_id, task_ref, objective and planned_write_scope. The planned scope is the union of product write_scope and compiler-owned bookkeeping_write_scope; guard the full returned set. The exact packet path, digest and scope stay pinned for the activity, so changed packets require recompilation and a new announcement. Packet mode cannot be mixed with manual subject-id, item-id, task-ref, summary or planned-write-scope-json. Only execution guard grants write authority"
+		capability["input_contract"] = "creates one Activity and one-to-one Work atomically before mutation, captures the actual Git baseline, and advertises candidate file scope plus semantic resources without granting write authority. Implement announcements also bind the exact feature workflow.json state and its latest runtime mutation receipt when present. Manual legacy .specify/specs or specs roots identify their exact task index through --source-ref; omission selects canonical .specify/features. For implement, --work-packet-file plus --work-packet-sha256 verifies the exact compiled bytes against the canonical packet-compile receipt sha256 and current compiler output before deriving feature_id, task_id, task_ref, objective and planned_write_scope. Product write scope accepts exact future files, exact directories, or a final /** bounded subtree; filename globs are invalid, companion test/migration/fixture/generated writes must be declared, and validation commands do not grant write authority. The planned scope is the union of product write_scope and compiler-owned bookkeeping_write_scope, which includes exact feature workflow.json so official workflow block/resolve/reopen/complete mutations stay separately audited without becoming product drift; agents never hand-edit that path or add it through scope amendments. Guard the full returned set. The exact packet path, digest and original scope stay pinned for the activity; planned changes require recompilation/new announcement, while only execution guard's audited scope-amendment mode may append a later causal product companion path. Packet mode cannot be mixed with manual subject-id, item-id, task-ref, summary or planned-write-scope-json. Only execution guard grants write authority"
 	case "execution.checkpoint":
 		capability["side_effect"] = "advances-activity-and-renews-work"
 		capability["usage"] = "specify-runtime execution checkpoint <activity-id> --expected-revision <work-revision> --fence <fence> --phase <selected|executing|validating|blocked> --next-action <text> --lease-seconds <seconds> [--observed-paths-json <array>] [--reason <text>] [--project-root <path>] --format json"
 		capability["input_contract"] = "atomically advances the lifecycle and updates the paired Work lease, heartbeat, next action, observed paths, reason, and revisions; terminal and interruption phases remain owned by their dedicated boundaries"
 	case "execution.guard":
 		capability["side_effect"] = "atomically-claims-execution-authority"
-		capability["usage"] = "specify-runtime execution guard <activity-id> --expected-revision <work-revision> --fence <fence> --expected-overview-revision <revision> --expected-overview-sha256 <sha256> --write-scope-json <array> --resources-json <array> --reason <text> [--project-root <path>] --format json"
-		capability["input_contract"] = "rebuilds and byte-compares the current overview, then in one transaction rejects duplicate task, file, or semantic ownership conflicts or promotes the entire confirmed set and advances selected -> claimed -> executing without partial authority"
+		capability["usage"] = "specify-runtime execution guard <activity-id> --expected-revision <work-revision> --fence <fence> --expected-overview-revision <revision> --expected-overview-sha256 <sha256> --write-scope-json <array> --resources-json <array> [--scope-amendments-json <array>] --reason <text> [--project-root <path>] --format json"
+		capability["input_contract"] = "rebuilds and byte-compares the current overview, then in one transaction rejects duplicate task, file, or semantic ownership conflicts or promotes the entire confirmed set and advances selected -> claimed -> executing without partial authority. Packet scope recovery stays inside this existing guard authority: optional scope amendments require concrete causally necessary paths and reasons, preserve the original packet path/digest/write_scope, append audit state, and remain agent-owned. The runtime marks late discovery from the actual Git delta; any amendment requires independent passing scope-drift-review evidence before completion"
 	case "execution.show":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime execution show <activity-id> [--project-root <path>] --format json"
@@ -331,7 +431,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "execution.complete":
 		capability["side_effect"] = "audits-and-releases-execution-authority"
 		capability["usage"] = "specify-runtime execution complete <activity-id> --expected-revision <work-revision> --fence <fence> --validation-json <array> --reason <text> [--project-root <path>] --format json"
-		capability["input_contract"] = "requires terminal Quick/Implement task state when registered, a live fence, and passing validation; derives actual changed paths from the announced Git baseline, rejects paths outside confirmed scope, records validating -> completed events and a completion digest, and releases all file and semantic authority atomically"
+		capability["input_contract"] = "requires terminal Quick/Implement task state when registered, a live fence, and passing validation; derives actual changed paths from the announced Git baseline and accepts changed workflow.json only when it is the active Implement stage and matches a newer specify-runtime workflow mutation receipt. This applies to compiled packets and manual Implement Activities across canonical and legacy feature roots; valid-shaped hand edits, malformed state, or unresolved blockers fail closed with agent-owned workflow recovery while the same Activity remains resumable. Completion holds the workflow mutation lock and rechecks the exact workflow/receipt digests inside the completion transaction before authority release; drift keeps the Activity and Work active for an agent-owned retry. Every other path outside confirmed scope is rejected. Success reports workflow_control_plane_paths, workflow_mutation_receipt_ref, workflow_mutation_receipt_sha256, and workflow_audit_preserved; the completion digest binds those control-plane file expectations before all file and semantic authority is released atomically"
 	case "execution.overview":
 		capability["side_effect"] = "reconciles-work-board"
 		capability["usage"] = "specify-runtime execution overview [--current-work-id <work-id>] [--project-root <path>] --format json"
@@ -347,11 +447,11 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "implement.task-start":
 		capability["side_effect"] = "claims-work-scope-and-starts-implementation-task"
 		capability["usage"] = "specify-runtime implement task-start --feature-dir <feature-dir> --task-id <Txxx> --execution-mode leader-direct|delegated|managed-team [--packet-ref <ref>] [--current-work-id <work-id>] [--current-work-fence <fence>] --format json"
-		capability["input_contract"] = "requires an active fenced Work identity whose task_ref is implement:<feature-id> or <feature-id>#<task-id>; atomically claims expected_write_scope all-or-none and returns work_claim before changing the task lifecycle to in_progress; a legacy task with no expected scope reuses the current Work's confirmed scope, while a genuinely no-write task returns claim_state not_required; missing identity, foreign task_ref, stale fence, inactive Work, or scope conflict blocks without lifecycle mutation"
+		capability["input_contract"] = "requires an active fenced Work identity whose task_ref is implement:<feature-id> or <feature-id>#<task-id>; atomically claims expected_write_scope all-or-none and returns work_claim before changing the task lifecycle to in_progress. Scope entries are exact future files, exact directories, or final /** bounded subtrees; companion test/migration/fixture/generated writes are explicit and validation commands grant no write authority. A legacy task with no expected scope reuses the current Work's confirmed scope, while a genuinely no-write task returns claim_state not_required; missing identity, foreign task_ref, stale fence, inactive Work, or scope conflict blocks without lifecycle mutation"
 	case "board.show":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime board show [--status active|blocked|interrupted|completed|abandoned] [--project-root <path>] --format json"
-		capability["input_contract"] = "reads the repository-shared Work Board projection from the Git common directory; defaults to active, blocked, and interrupted work while explicit --status selects retained history; run board reconcile first when expired leases may exist, and never edit the SQLite database directly"
+		capability["input_contract"] = "reads the repository-shared Work Board projection from the primary worktree's writable .specify/runtime/run-control store; before its one-time automatic migration, a missing canonical store may be read from the legacy Git-common location without writing there. Writer commands migrate a consistent snapshot and preserve the legacy database. Local store setup or migration failures stay typed agent-owned recovery rather than becoming a user decision; defaults to active, blocked, and interrupted work while explicit --status selects retained history; run board reconcile first when expired leases may exist, and never edit either SQLite database directly"
 	case "board.owner":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime board owner <project-relative-path> [--project-root <path>] --format json"
@@ -396,6 +496,10 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "completes-work-and-releases-scope"
 		capability["usage"] = "specify-runtime work finish <work-id> --expected-revision <revision> --fence <fence> --reason <text> [--next-action <text>] [--project-root <path>] --format json"
 		capability["input_contract"] = "marks work completed and releases active or recovery write ownership while retaining the board record and intent history"
+	case "work.unblock":
+		capability["side_effect"] = "resumes-live-blocked-work"
+		capability["usage"] = "specify-runtime work unblock <work-id> --expected-revision <revision> --fence <fence> --reason <text> [--next-action <text>] [--project-root <path>] --format json"
+		capability["input_contract"] = "revision- and fence-bound blocked -> active transition for the same live owner/session; preserves the current owner, fence, workspace, declared write intents, and semantic resources without interruption or broad workspace recovery inspection; interrupted work still uses work resume"
 	case "work.abandon":
 		capability["side_effect"] = "abandons-work-and-releases-scope"
 		capability["usage"] = "specify-runtime work abandon <work-id> --expected-revision <revision> --fence <fence> --reason <text> [--next-action <text>] [--project-root <path>] --format json"
@@ -438,6 +542,181 @@ func containsCapability(capabilities []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func deepResearchTrackPrepareInputSchema() map[string]any {
+	track := deepResearchSchemaObject(
+		[]string{"track_id", "title", "capability_refs", "read_paths", "questions", "source_classes", "requires_spike", "completion_signal"},
+		map[string]any{
+			"track_id":          deepResearchSchemaString("^TRK-[0-9]{3,}$"),
+			"title":             deepResearchSchemaString(""),
+			"capability_refs":   deepResearchSchemaStringArray("^CAP-[0-9]{3,}$", 1),
+			"read_paths":        deepResearchSchemaStringArray("", 1),
+			"questions":         deepResearchSchemaStringArray("", 1),
+			"source_classes":    map[string]any{"type": "array", "minItems": 1, "uniqueItems": true, "items": map[string]any{"type": "string", "enum": []string{"repository", "primary_external", "secondary_external", "experiment"}}},
+			"requires_spike":    map[string]any{"type": "boolean"},
+			"completion_signal": deepResearchSchemaString(""),
+		},
+	)
+	return deepResearchSchemaRoot("deep-research-track-prepare-input", []string{"tracks"}, map[string]any{
+		"tracks": map[string]any{"type": "array", "minItems": 1, "items": track},
+	})
+}
+
+func deepResearchTrackSubmitResultSchema() map[string]any {
+	quality := deepResearchSchemaObject(
+		[]string{"authority", "independence", "recency", "limitations"},
+		map[string]any{
+			"authority":    map[string]any{"type": "string", "enum": []string{"repository", "primary", "secondary", "experiment"}},
+			"independence": map[string]any{"type": "string", "enum": []string{"direct", "independent", "corroborated", "single-source"}},
+			"recency":      map[string]any{"type": "string", "enum": []string{"current", "dated", "unknown"}},
+			"limitations":  deepResearchSchemaStringArray("", 0),
+		},
+	)
+	evidence := deepResearchSchemaObject(
+		[]string{"evidence_id", "source_type", "source_ref", "claim", "capability_refs", "quality"},
+		map[string]any{
+			"evidence_id":     deepResearchSchemaString("^EVD-[0-9]{3,}$"),
+			"source_type":     map[string]any{"type": "string", "enum": []string{"repository", "primary_external", "secondary_external", "experiment"}},
+			"source_ref":      deepResearchSchemaString(""),
+			"source_title":    deepResearchSchemaString(""),
+			"retrieved_on":    map[string]any{"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+			"claim":           deepResearchSchemaString(""),
+			"capability_refs": deepResearchSchemaStringArray("^CAP-[0-9]{3,}$", 1),
+			"quality":         quality,
+		},
+	)
+	finding := deepResearchSchemaObject(
+		[]string{"finding_id", "kind", "summary", "capability_refs", "evidence_refs", "spike_refs"},
+		map[string]any{
+			"finding_id":      deepResearchSchemaString("^FND-[0-9]{3,}$"),
+			"kind":            map[string]any{"type": "string", "enum": []string{"fact", "inference", "recommendation"}},
+			"summary":         deepResearchSchemaString(""),
+			"capability_refs": deepResearchSchemaStringArray("^CAP-[0-9]{3,}$", 1),
+			"evidence_refs":   deepResearchSchemaStringArray("^EVD-[0-9]{3,}$", 1),
+			"spike_refs":      deepResearchSchemaStringArray("", 0),
+		},
+	)
+	contradiction := deepResearchSchemaObject(
+		[]string{"contradiction_id", "summary", "evidence_refs"},
+		map[string]any{
+			"contradiction_id": deepResearchSchemaString("^CON-[0-9]{3,}$"),
+			"summary":          deepResearchSchemaString(""),
+			"evidence_refs":    deepResearchSchemaStringArray("^EVD-[0-9]{3,}$", 1),
+		},
+	)
+	schema := deepResearchSchemaRoot("deep-research-track-submit-result", []string{"protocol", "status", "paths_read"}, map[string]any{
+		"protocol":       map[string]any{"const": deepResearchTrackProtocol},
+		"status":         map[string]any{"type": "string", "enum": []string{"complete", "blocked"}},
+		"paths_read":     deepResearchSchemaStringArray("", 1),
+		"findings":       map[string]any{"type": "array", "items": finding},
+		"evidence":       map[string]any{"type": "array", "items": evidence},
+		"spike_refs":     deepResearchSchemaStringArray("", 0),
+		"constraints":    deepResearchSchemaStringArray("", 0),
+		"risks":          deepResearchSchemaStringArray("", 0),
+		"contradictions": map[string]any{"type": "array", "items": contradiction},
+		"blockers":       deepResearchSchemaStringArray("", 0),
+	})
+	schema["allOf"] = []any{
+		map[string]any{"if": map[string]any{"properties": map[string]any{"status": map[string]any{"const": "complete"}}}, "then": map[string]any{"required": []string{"findings", "evidence"}, "properties": map[string]any{"findings": map[string]any{"minItems": 1}, "evidence": map[string]any{"minItems": 1}}}},
+		map[string]any{"if": map[string]any{"properties": map[string]any{"status": map[string]any{"const": "blocked"}}}, "then": map[string]any{"required": []string{"blockers"}, "properties": map[string]any{"blockers": map[string]any{"minItems": 1}}}},
+	}
+	return schema
+}
+
+func deepResearchSynthesisInputSchema() map[string]any {
+	capabilityDisposition := deepResearchSchemaObject([]string{"capability_ref", "disposition", "reason_refs"}, map[string]any{
+		"capability_ref": deepResearchSchemaString("^CAP-[0-9]{3,}$"),
+		"disposition":    map[string]any{"type": "string", "enum": []string{"plannable", "constrained_but_plannable"}},
+		"reason_refs":    deepResearchSchemaStringArray("", 1),
+	})
+	planningHandoff := deepResearchSchemaObject([]string{"handoff_id", "capability_refs", "status", "decision", "evidence_refs", "spike_refs", "constraints", "risks", "rejected_options", "validation"}, map[string]any{
+		"handoff_id":       deepResearchSchemaString("^PH-[0-9]{3,}$"),
+		"capability_refs":  deepResearchSchemaStringArray("^CAP-[0-9]{3,}$", 1),
+		"status":           map[string]any{"type": "string", "enum": []string{"mandatory", "optional", "user-decision"}},
+		"decision":         deepResearchSchemaString(""),
+		"evidence_refs":    deepResearchSchemaStringArray("^EVD-[0-9]{3,}$", 0),
+		"spike_refs":       deepResearchSchemaStringArray("", 0),
+		"constraints":      deepResearchSchemaStringArray("", 0),
+		"risks":            deepResearchSchemaStringArray("", 0),
+		"rejected_options": deepResearchSchemaStringArray("", 0),
+		"validation":       deepResearchSchemaStringArray("", 1),
+	})
+	evidenceDisposition := deepResearchSchemaObject([]string{"evidence_ref", "disposition", "handoff_refs", "reason"}, map[string]any{
+		"evidence_ref": deepResearchSchemaString("^EVD-[0-9]{3,}$"),
+		"disposition":  map[string]any{"type": "string", "enum": []string{"consumed", "deferred", "excluded"}},
+		"handoff_refs": deepResearchSchemaStringArray("^PH-[0-9]{3,}$", 0),
+		"reason":       deepResearchSchemaString(""),
+	})
+	contradictionResolution := deepResearchSchemaObject([]string{"contradiction_id", "resolution", "evidence_refs"}, map[string]any{
+		"contradiction_id": deepResearchSchemaString("^CON-[0-9]{3,}$"),
+		"resolution":       deepResearchSchemaString(""),
+		"evidence_refs":    deepResearchSchemaStringArray("^EVD-[0-9]{3,}$", 1),
+	})
+	return deepResearchSchemaRoot("deep-research-synthesis-input", []string{"capability_dispositions", "planning_handoffs", "evidence_dispositions", "contradiction_resolutions", "recommended_next_command"}, map[string]any{
+		"capability_dispositions":   map[string]any{"type": "array", "minItems": 1, "items": capabilityDisposition},
+		"planning_handoffs":         map[string]any{"type": "array", "minItems": 1, "items": planningHandoff},
+		"evidence_dispositions":     map[string]any{"type": "array", "items": evidenceDisposition},
+		"contradiction_resolutions": map[string]any{"type": "array", "items": contradictionResolution},
+		"recommended_next_command":  map[string]any{"const": "/sp.plan"},
+	})
+}
+
+func deepResearchAuditInputSchema() map[string]any {
+	check := deepResearchSchemaObject([]string{"check_id", "status", "evidence_refs"}, map[string]any{
+		"check_id":      map[string]any{"type": "string", "enum": append([]string(nil), deepResearchAuditCheckIDs...)},
+		"status":        map[string]any{"type": "string", "enum": []string{"pass", "fail"}},
+		"evidence_refs": deepResearchSchemaStringArray("", 0),
+	})
+	finding := deepResearchSchemaObject([]string{"severity", "summary"}, map[string]any{
+		"severity": map[string]any{"type": "string", "enum": []string{"low", "medium", "high", "blocking"}},
+		"summary":  deepResearchSchemaString(""),
+	})
+	return deepResearchSchemaRoot("deep-research-audit-input", []string{"schema_version", "audit_request_sha256", "status", "checks", "findings"}, map[string]any{
+		"schema_version":       map[string]any{"const": deepResearchAuditV1},
+		"audit_request_sha256": deepResearchSchemaString("^[0-9a-f]{64}$"),
+		"status":               map[string]any{"type": "string", "enum": []string{"accepted", "rejected"}},
+		"checks":               map[string]any{"type": "array", "minItems": len(deepResearchAuditCheckIDs), "maxItems": len(deepResearchAuditCheckIDs), "items": check},
+		"findings":             map[string]any{"type": "array", "items": finding},
+	})
+}
+
+func deepResearchNotNeededInputSchema() map[string]any {
+	disposition := deepResearchSchemaObject([]string{"capability_ref", "reason", "evidence_refs"}, map[string]any{
+		"capability_ref": deepResearchSchemaString("^CAP-[0-9]{3,}$"),
+		"reason":         deepResearchSchemaString(""),
+		"evidence_refs":  deepResearchSchemaStringArray("", 1),
+	})
+	return deepResearchSchemaRoot("deep-research-not-needed-input", []string{"capability_dispositions"}, map[string]any{
+		"capability_dispositions": map[string]any{"type": "array", "minItems": 1, "items": disposition},
+	})
+}
+
+func deepResearchSchemaRoot(id string, required []string, properties map[string]any) map[string]any {
+	return map[string]any{
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"$id":     "specify://schemas/" + id + "/v1", "type": "object",
+		"additionalProperties": false, "required": required, "properties": properties,
+	}
+}
+
+func deepResearchSchemaObject(required []string, properties map[string]any) map[string]any {
+	return map[string]any{"type": "object", "additionalProperties": false, "required": required, "properties": properties}
+}
+
+func deepResearchSchemaString(pattern string) map[string]any {
+	schema := map[string]any{"type": "string", "minLength": 1}
+	if pattern != "" {
+		schema["pattern"] = pattern
+	}
+	return schema
+}
+
+func deepResearchSchemaStringArray(pattern string, minItems int) map[string]any {
+	return map[string]any{
+		"type": "array", "minItems": minItems, "uniqueItems": true,
+		"items": deepResearchSchemaString(pattern),
+	}
 }
 
 func artifactScaffoldInputSchema() map[string]any {
@@ -501,9 +780,11 @@ func artifactPatchInputSchema() map[string]any {
 		"additionalProperties": false,
 		"required":             []string{"lease"},
 		"properties": map[string]any{
-			"lease":        nonEmptyString,
-			"json_pointer": nonEmptyString,
-			"value":        map[string]any{},
+			"lease":               nonEmptyString,
+			"json_pointer":        nonEmptyString,
+			"frontmatter_pointer": nonEmptyString,
+			"value":               map[string]any{},
+			"value_json_pointer":  nonEmptyString,
 			"section": map[string]any{
 				"type":        "string",
 				"minLength":   1,
@@ -521,6 +802,7 @@ func artifactPatchInputSchema() map[string]any {
 		},
 		"oneOf": []any{
 			map[string]any{"required": []string{"json_pointer", "value"}},
+			map[string]any{"required": []string{"frontmatter_pointer", "value"}},
 			map[string]any{"required": []string{"section", "content"}},
 			map[string]any{"required": []string{"frontmatter_patch"}},
 			map[string]any{"required": []string{"heading", "new_heading"}},
@@ -1157,6 +1439,31 @@ func workflowBlockInputSchema() map[string]any {
 					"properties": map[string]any{"human_action_required": map[string]any{"enum": []any{true, nil}}},
 				},
 			},
+		},
+	}
+}
+
+func workflowReconcileBlockerInputSchema() map[string]any {
+	nonEmpty := map[string]any{"type": "string", "minLength": 1}
+	nonEmptyList := map[string]any{"type": "array", "minItems": 1, "uniqueItems": true, "items": nonEmpty}
+	return map[string]any{
+		"$schema":              "https://json-schema.org/draft/2020-12/schema",
+		"$id":                  "specify://schemas/workflow-reconcile-blocker-input/v1",
+		"type":                 "object",
+		"additionalProperties": false,
+		"required": []string{
+			"feature_dir", "expected_revision", "resolved_subcauses", "remaining_cause",
+			"remaining_evidence", "remaining_scope", "exact_next_action", "unblock_criteria",
+		},
+		"properties": map[string]any{
+			"feature_dir":        nonEmpty,
+			"expected_revision":  map[string]any{"type": "integer", "minimum": 1},
+			"resolved_subcauses": nonEmptyList,
+			"remaining_cause":    nonEmpty,
+			"remaining_evidence": nonEmptyList,
+			"remaining_scope":    nonEmptyList,
+			"exact_next_action":  nonEmpty,
+			"unblock_criteria":   nonEmpty,
 		},
 	}
 }

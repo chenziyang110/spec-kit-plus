@@ -70,6 +70,25 @@ def _write_packet_project(
     (feature_dir / "task-index.json").write_text(
         json.dumps(task_index), encoding="utf-8"
     )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "test_design_gate": {
+                    "decision": "not_selected",
+                    "reason_refs": ["fixture:no-test-design-selected"],
+                    "projection_binding": {
+                        "publication_ref": None,
+                        "publication_sha256": None,
+                        "projection_ref": None,
+                        "projection_sha256": None,
+                        "source_fingerprint": None,
+                        "state_revision": None,
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
     return project_root, feature_dir
 
 

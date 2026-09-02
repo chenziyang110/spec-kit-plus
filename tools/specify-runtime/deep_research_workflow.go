@@ -60,7 +60,8 @@ var deepResearchAuditCheckIDs = []string{
 }
 
 type deepResearchService struct {
-	projectRoot string
+	projectRoot               string
+	beforeSourceBoundMutation func() error
 }
 
 type deepResearchState struct {
@@ -140,9 +141,31 @@ type deepResearchTrackRejection struct {
 }
 
 type deepResearchFeasibilityGate struct {
+	SpecStatus     string
 	Decision       string
 	CapabilityRefs []string
 	ReasonRefs     []string
+}
+
+type deepResearchSourceReadinessError struct {
+	Code                string
+	FeatureRef          string
+	SpecStatus          string
+	WorkflowStage       string
+	WorkflowStatus      string
+	OwnerWorkflow       string
+	Owner               string
+	HumanActionRequired bool
+	ResolutionAction    any
+	Details             []any
+	Message             string
+}
+
+func (err *deepResearchSourceReadinessError) Error() string {
+	if err == nil || strings.TrimSpace(err.Message) == "" {
+		return "deep-research source cannot produce an executable Plan handoff"
+	}
+	return err.Message
 }
 
 type deepResearchPublishedBinding struct {
@@ -162,6 +185,9 @@ func runDeepResearch(args []string, stdout io.Writer) int {
 	}
 	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
 		return writeDeepResearchHelp(stdout)
+	}
+	if deepResearchHelpRequested(args[1:]) {
+		return writeDeepResearchSubcommandHelp(stdout, args[0])
 	}
 	if err := deepResearchValidateOptions(args); err != nil {
 		return writeEnvelope(stdout, deepResearchFailure("usage-error", "deep-research command options are invalid", err))
@@ -203,6 +229,21 @@ func runDeepResearch(args []string, stdout io.Writer) int {
 		env = deepResearchFailure("usage-error", fmt.Sprintf("unknown deep-research subcommand %q", args[0]), nil)
 	}
 	return writeEnvelope(stdout, env)
+}
+
+func deepResearchHelpRequested(args []string) bool {
+	for _, arg := range args {
+		if arg == "--help" || arg == "-h" {
+			return true
+		}
+	}
+	return false
+}
+
+func writeDeepResearchSubcommandHelp(stdout io.Writer, subcommand string) int {
+	_, _ = fmt.Fprintf(stdout, "Usage: specify-runtime deep-research %s [options]\n", subcommand)
+	_, _ = fmt.Fprintf(stdout, "Discover the machine-readable contract with: specify-runtime api show deep-research.%s --format json\n", subcommand)
+	return 0
 }
 
 func writeDeepResearchHelp(stdout io.Writer) int {
@@ -282,6 +323,9 @@ func (service deepResearchService) initialize(args []string) Envelope {
 	if gate.Decision != "required" {
 		return deepResearchFailure("blocked", "deep-research is not selected by the specification", fmt.Errorf("spec-contract.json feasibility_gate.decision is %s", gate.Decision))
 	}
+	if readinessErr := service.requirePlanningReadySource(featurePath, featureRef, gate); readinessErr != nil {
+		return deepResearchFailure("blocked", "deep-research source is not ready for the research-to-Plan route", readinessErr)
+	}
 	specRef := filepath.ToSlash(filepath.Join(featureRef, "spec-contract.json"))
 	state := deepResearchState{
 		SchemaVersion: deepResearchStateSchema,
@@ -342,7 +386,7 @@ func (service deepResearchService) initialize(args []string) Envelope {
 		if updateErr != nil {
 			return deepResearchFailure("error", "cannot render deep-research workspace", updateErr)
 		}
-		if _, transactionErr := applyFileTransaction(service.projectRoot, "deep-research.init", updates); transactionErr != nil {
+		if transactionErr := service.applySourceBoundTransaction(featurePath, featureRef, state.Source.SpecSHA256, false, "deep-research.init", updates); transactionErr != nil {
 			return deepResearchFailure("error", "cannot initialize deep-research workspace", transactionErr)
 		}
 		env := NewEnvelope("ok", "deep-research workspace initialized")
@@ -369,11 +413,16 @@ func (service deepResearchService) status(args []string) Envelope {
 	env.Data = deepResearchStateData(state)
 	env.Data["tracks"] = deepResearchTrackCounts(manifest)
 	next := ""
-	if freshnessErr := service.requireFreshSpec(state); freshnessErr != nil {
+	freshnessErr := service.requireFreshSpec(state)
+	if state.Phase == "published" {
+		freshnessErr = service.requireFreshSpecWithPlanState(state, true)
+	}
+	if freshnessErr != nil {
 		env.Status = "blocked"
 		env.Summary = "deep-research specification source is stale"
 		env.Blockers = append(env.Blockers, freshnessErr.Error())
 		env.Data["source_freshness"] = "stale"
+		bindDeepResearchSourceReadiness(&env, freshnessErr)
 	} else {
 		env.Data["source_freshness"] = "current"
 		next = deepResearchNextSubcommand(state, manifest)
@@ -1525,7 +1574,7 @@ func (service deepResearchService) auditAccept(args []string) Envelope {
 }
 
 func (service deepResearchService) validate(args []string) Envelope {
-	featurePath, _, root, _, err := service.resolveFeature(optionValue(args, "--feature-dir", ""))
+	featurePath, featureRef, root, _, err := service.resolveFeature(optionValue(args, "--feature-dir", ""))
 	if err != nil {
 		return deepResearchFailure("usage-error", "deep-research feature is invalid", err)
 	}
@@ -1544,7 +1593,7 @@ func (service deepResearchService) validate(args []string) Envelope {
 		if manifestErr != nil {
 			return deepResearchFailure("blocked", "deep-research track manifest is unavailable", manifestErr)
 		}
-		if validationErr := service.validateCurrentPackage(featurePath, root, state, manifest); validationErr != nil {
+		if validationErr := service.validateCurrentPackage(featurePath, root, state, manifest, false); validationErr != nil {
 			return deepResearchFailure("blocked", "deep-research package failed validation", validationErr)
 		}
 		state.Phase = "validated"
@@ -1553,7 +1602,14 @@ func (service deepResearchService) validate(args []string) Envelope {
 		state.Blockers = []any{}
 		state.Revision++
 		manifest.Status = "validated"
-		if writeErr := service.writeStateAndManifest(root, state, manifest, "deep-research.validate"); writeErr != nil {
+		updates, updateErr := deepResearchJSONUpdates(map[string]any{
+			filepath.Join(root, deepResearchStateFilename):    state,
+			filepath.Join(root, deepResearchManifestFilename): manifest,
+		})
+		if updateErr != nil {
+			return deepResearchFailure("error", "cannot render deep-research validation", updateErr)
+		}
+		if writeErr := service.applySourceBoundTransaction(featurePath, featureRef, state.Source.SpecSHA256, false, "deep-research.validate", updates); writeErr != nil {
 			return deepResearchFailure("error", "cannot persist deep-research validation", writeErr)
 		}
 		env := NewEnvelope("ok", "deep-research package validated")
@@ -1590,7 +1646,7 @@ func (service deepResearchService) publish(args []string) Envelope {
 		if manifestErr != nil {
 			return deepResearchFailure("blocked", "deep-research track manifest is unavailable", manifestErr)
 		}
-		if validationErr := service.validateCurrentPackage(featurePath, root, state, manifest); validationErr != nil {
+		if validationErr := service.validateCurrentPackage(featurePath, root, state, manifest, false); validationErr != nil {
 			return deepResearchFailure("blocked", "deep-research package failed publication validation", validationErr)
 		}
 		synthesis, synthesisErr := deepResearchReadObject(filepath.Join(root, deepResearchSynthesisFilename))
@@ -1634,7 +1690,7 @@ func (service deepResearchService) publish(args []string) Envelope {
 		if updateErr != nil {
 			return deepResearchFailure("error", "cannot render deep-research publication", updateErr)
 		}
-		if _, transactionErr := applyFileTransaction(service.projectRoot, "deep-research.publish", updates); transactionErr != nil {
+		if transactionErr := service.applySourceBoundTransaction(featurePath, featureRef, state.Source.SpecSHA256, false, "deep-research.publish", updates); transactionErr != nil {
 			return deepResearchFailure("error", "cannot publish deep-research handoff", transactionErr)
 		}
 		binding := deepResearchPublishedBinding{
@@ -1687,6 +1743,9 @@ func (service deepResearchService) notNeeded(args []string) Envelope {
 	}
 	if gate.Decision != "required" {
 		return deepResearchFailure("blocked", "deep-research is not selected by the specification", fmt.Errorf("spec-contract.json feasibility_gate.decision is %s", gate.Decision))
+	}
+	if readinessErr := service.requirePlanningReadySource(featurePath, featureRef, gate); readinessErr != nil {
+		return deepResearchFailure("blocked", "deep-research source is not ready for the research-to-Plan route", readinessErr)
 	}
 	dispositions, proofDigests, err := service.normalizeNotNeededDispositions(input["capability_dispositions"], gate.CapabilityRefs)
 	if err != nil {
@@ -1796,7 +1855,7 @@ func (service deepResearchService) notNeeded(args []string) Envelope {
 		if updateErr != nil {
 			return deepResearchFailure("error", "cannot render not-needed research artifacts", updateErr)
 		}
-		if _, transactionErr := applyFileTransaction(service.projectRoot, "deep-research.not-needed", updates); transactionErr != nil {
+		if transactionErr := service.applySourceBoundTransaction(featurePath, featureRef, specSHA, false, "deep-research.not-needed", updates); transactionErr != nil {
 			return deepResearchFailure("error", "cannot publish not-needed research handoff", transactionErr)
 		}
 		return deepResearchBindingEnvelope("deep-research not-needed handoff published", deepResearchPublishedBinding{
@@ -2152,8 +2211,8 @@ func deepResearchNormalizeAuditFindings(value any) ([]any, error) {
 	return findings, nil
 }
 
-func (service deepResearchService) validateCurrentPackage(featurePath, root string, state deepResearchState, manifest deepResearchTrackManifest) error {
-	if err := service.requireFreshSpec(state); err != nil {
+func (service deepResearchService) validateCurrentPackage(featurePath, root string, state deepResearchState, manifest deepResearchTrackManifest, allowPlanActive bool) error {
+	if err := service.requireFreshSpecWithPlanState(state, allowPlanActive); err != nil {
 		return err
 	}
 	if !deepResearchAllTracksAccepted(manifest) {
@@ -2307,7 +2366,7 @@ func (service deepResearchService) verifyPublishedHandoff(featurePath, featureRe
 		*state.Publication.Ref != canonicalRef || *state.Publication.SHA256 != handoffSHA {
 		return binding, fmt.Errorf("runtime publication state does not match handoff-to-plan.json")
 	}
-	if err := service.requireFreshSpec(state); err != nil {
+	if err := service.requireFreshSpecWithPlanState(state, true); err != nil {
 		return binding, err
 	}
 	if strings.TrimSpace(asString(handoff["schema_version"])) != deepResearchHandoffV1 ||
@@ -2335,7 +2394,7 @@ func (service deepResearchService) verifyPublishedHandoff(featurePath, featureRe
 		return binding, fmt.Errorf("not-needed handoff must not invent PH ids")
 	}
 	if state.ClaimStatus == "complete" {
-		if err := service.validateCurrentPackage(featurePath, root, state, manifest); err != nil {
+		if err := service.validateCurrentPackage(featurePath, root, state, manifest, true); err != nil {
 			return binding, err
 		}
 		synthesis, readErr := deepResearchReadObject(filepath.Join(root, deepResearchSynthesisFilename))
@@ -2444,6 +2503,71 @@ func (service deepResearchService) resolveFeature(featureDir string) (string, st
 		return "", "", "", "", err
 	}
 	return featurePath, featureRef, root, rootRef, nil
+}
+
+func (service deepResearchService) applySourceBoundTransaction(featurePath, featureRef, expectedSpecSHA string, allowPlanActive bool, kind string, updates []fileTransactionUpdate) error {
+	workflowLockRef := filepath.ToSlash(filepath.Join(featureRef, ".workflow.lock"))
+	workflowLockPath, err := secureProjectPath(service.projectRoot, workflowLockRef)
+	if err != nil {
+		return fmt.Errorf("validate source workflow lock: %w", err)
+	}
+	if info, statErr := os.Lstat(workflowLockPath); statErr == nil && !info.Mode().IsRegular() {
+		return fmt.Errorf("source workflow lock %q must be a regular file", workflowLockPath)
+	} else if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+		return fmt.Errorf("inspect source workflow lock: %w", statErr)
+	}
+	releaseWorkflow, err := filelock.Acquire(workflowLockPath)
+	if err != nil {
+		return fmt.Errorf("acquire source workflow lock: %w", err)
+	}
+	defer releaseWorkflow()
+	revalidatedLockPath, err := secureProjectPath(service.projectRoot, workflowLockRef)
+	if err != nil {
+		return fmt.Errorf("revalidate source workflow lock: %w", err)
+	}
+	if !sameFilesystemPath(workflowLockPath, revalidatedLockPath) {
+		return fmt.Errorf("source workflow lock changed during acquisition")
+	}
+	if info, statErr := os.Lstat(workflowLockPath); statErr != nil || !info.Mode().IsRegular() {
+		return fmt.Errorf("source workflow lock %q changed during acquisition", workflowLockPath)
+	}
+
+	specPath := filepath.Join(featurePath, "spec-contract.json")
+	gate, specRaw, err := deepResearchReadFeasibilityGate(specPath)
+	if err != nil {
+		return err
+	}
+	if deepResearchDigest(specRaw) != expectedSpecSHA {
+		return fmt.Errorf("spec-contract.json digest changed before %s", kind)
+	}
+	if err := service.requirePlanningReadySourceWithPlanState(featurePath, featureRef, gate, allowPlanActive); err != nil {
+		return err
+	}
+	preconditions := []fileTransactionPrecondition{{Path: specPath, ExpectedSHA256: expectedSpecSHA}}
+	workflowPath := filepath.Join(featurePath, "workflow.json")
+	workflowRaw, workflowErr := os.ReadFile(workflowPath)
+	if workflowErr == nil {
+		preconditions = append(preconditions, fileTransactionPrecondition{Path: workflowPath, ExpectedSHA256: fileContentSHA256(workflowRaw)})
+	} else if errors.Is(workflowErr, os.ErrNotExist) {
+		preconditions = append(preconditions, fileTransactionPrecondition{Path: workflowPath, MustNotExist: true})
+	} else {
+		return workflowErr
+	}
+	if service.beforeSourceBoundMutation != nil {
+		if err := service.beforeSourceBoundMutation(); err != nil {
+			return err
+		}
+	}
+	if _, err := applyFileTransactionWithPreconditions(service.projectRoot, kind, updates, preconditions); err != nil {
+		currentGate, _, readErr := deepResearchReadFeasibilityGate(specPath)
+		if readErr == nil {
+			if readinessErr := service.requirePlanningReadySourceWithPlanState(featurePath, featureRef, currentGate, allowPlanActive); readinessErr != nil {
+				return readinessErr
+			}
+		}
+		return err
+	}
+	return nil
 }
 
 func (service deepResearchService) withMutationLock(root string, action func() Envelope) Envelope {
@@ -2603,6 +2727,10 @@ func (service deepResearchService) parseTrack(row map[string]any, state deepRese
 }
 
 func (service deepResearchService) requireFreshSpec(state deepResearchState) error {
+	return service.requireFreshSpecWithPlanState(state, false)
+}
+
+func (service deepResearchService) requireFreshSpecWithPlanState(state deepResearchState, allowPlanActive bool) error {
 	raw, err := deepResearchReadRegularProjectFile(service.projectRoot, state.Source.SpecRef)
 	if err != nil {
 		return err
@@ -2617,7 +2745,76 @@ func (service deepResearchService) requireFreshSpec(state deepResearchState) err
 	if gate.Decision != "required" || !deepResearchSameStringSet(gate.CapabilityRefs, state.Source.CapabilityRefs) {
 		return fmt.Errorf("specification feasibility gate changed after deep-research initialization")
 	}
-	return nil
+	featurePath := filepath.Dir(filepath.Join(service.projectRoot, filepath.FromSlash(state.Source.SpecRef)))
+	return service.requirePlanningReadySourceWithPlanState(featurePath, state.FeatureDir, gate, allowPlanActive)
+}
+
+func (service deepResearchService) requirePlanningReadySource(featurePath, featureRef string, gate deepResearchFeasibilityGate) error {
+	return service.requirePlanningReadySourceWithPlanState(featurePath, featureRef, gate, false)
+}
+
+func (service deepResearchService) requirePlanningReadySourceWithPlanState(featurePath, featureRef string, gate deepResearchFeasibilityGate, allowPlanActive bool) error {
+	if gate.SpecStatus != "planning-ready" {
+		return &deepResearchSourceReadinessError{
+			Code: "source_spec_not_planning_ready", FeatureRef: featureRef, SpecStatus: gate.SpecStatus,
+			OwnerWorkflow: "/sp.specify", Owner: "agent", HumanActionRequired: false,
+			ResolutionAction: map[string]any{
+				"kind": "return-to-source-owner", "owner_workflow": "/sp.specify",
+				"next_action":      "run Specify against the existing feature and make spec-contract.json planning-ready without discarding accepted research or Design evidence",
+				"unblock_criteria": "spec-contract.json status is planning-ready and its required Specify workflow state is no longer blocked",
+			},
+			Message: fmt.Sprintf("spec-contract.json status is %q; deep-research requires planning-ready source truth", gate.SpecStatus),
+		}
+	}
+	workflowPath := filepath.Join(featurePath, "workflow.json")
+	if _, err := os.Lstat(workflowPath); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return &deepResearchSourceReadinessError{
+			Code: "source_workflow_unavailable", FeatureRef: featureRef, SpecStatus: gate.SpecStatus,
+			OwnerWorkflow: "/sp.specify", Owner: "agent", HumanActionRequired: false,
+			Message: fmt.Sprintf("inspect source workflow state: %v", err),
+		}
+	}
+	shown := NewWorkflowService(service.projectRoot).Show(WorkflowShowRequest{FeatureDir: featureRef})
+	stage := strings.ToLower(strings.TrimSpace(asString(shown.Data["stage"])))
+	status := strings.ToLower(strings.TrimSpace(asString(shown.Data["status"])))
+	if shown.Status == "ok" && (stage == "specify" && status == "completed" || allowPlanActive && stage == "plan" && status == "active") {
+		return nil
+	}
+	code := "source_workflow_not_plan_enterable"
+	if shown.Status == "blocked" && status == "blocked" {
+		code = "source_workflow_blocked"
+	}
+	ownerWorkflow := "/sp.specify"
+	if stage != "" {
+		ownerWorkflow = "/sp." + stage
+	}
+	owner := "agent"
+	humanRequired := false
+	if len(shown.Blockers) > 0 {
+		if blocker, ok := shown.Blockers[0].(map[string]any); ok {
+			if value := strings.TrimSpace(asString(blocker["owner"])); value != "" {
+				owner = value
+			}
+			humanRequired, _ = blocker["human_action_required"].(bool)
+		}
+	}
+	resolutionAction := shown.Data["resolution_action"]
+	if resolutionAction == nil {
+		resolutionAction = map[string]any{
+			"kind": "return-to-source-owner", "owner_workflow": ownerWorkflow,
+			"show_argv": stringValuesAsAny(shown.ShowArgv), "next_argv": stringValuesAsAny(shown.NextArgv),
+			"unblock_criteria": "workflow show permits entering or resuming Plan without a persisted blocker",
+		}
+	}
+	return &deepResearchSourceReadinessError{
+		Code: code, FeatureRef: featureRef, SpecStatus: gate.SpecStatus,
+		WorkflowStage: stage, WorkflowStatus: status, OwnerWorkflow: ownerWorkflow,
+		Owner: owner, HumanActionRequired: humanRequired, ResolutionAction: resolutionAction,
+		Details: append([]any(nil), shown.Blockers...),
+		Message: fmt.Sprintf("workflow state %s/%s cannot produce an executable /sp.plan handoff", stage, status),
+	}
 }
 
 func (service deepResearchService) writeStateAndManifest(root string, state deepResearchState, manifest deepResearchTrackManifest, kind string) error {
@@ -2720,6 +2917,7 @@ func deepResearchReadFeasibilityGate(path string) (deepResearchFeasibilityGate, 
 	if err := json.Unmarshal(raw, &spec); err != nil || spec == nil {
 		return gate, nil, firstDeepResearchError(err, fmt.Errorf("spec-contract.json must contain a JSON object"))
 	}
+	gate.SpecStatus = strings.ToLower(strings.TrimSpace(asString(spec["status"])))
 	payload, ok := spec["feasibility_gate"].(map[string]any)
 	if !ok {
 		return gate, nil, fmt.Errorf("spec-contract.json is missing feasibility_gate")
@@ -3461,7 +3659,38 @@ func deepResearchFailure(status, summary string, err error) Envelope {
 	if err != nil {
 		env.Blockers = append(env.Blockers, err.Error())
 	}
+	bindDeepResearchSourceReadiness(&env, err)
 	return env
+}
+
+func bindDeepResearchSourceReadiness(env *Envelope, cause error) bool {
+	if env == nil || cause == nil {
+		return false
+	}
+	var readiness *deepResearchSourceReadinessError
+	if !errors.As(cause, &readiness) {
+		return false
+	}
+	env.Status = "blocked"
+	env.Summary = readiness.Error()
+	env.Data["error_code"] = readiness.Code
+	env.Data["feature_dir"] = readiness.FeatureRef
+	env.Data["source_spec_status"] = readiness.SpecStatus
+	env.Data["workflow_stage"] = readiness.WorkflowStage
+	env.Data["workflow_status"] = readiness.WorkflowStatus
+	env.Data["owner_workflow"] = readiness.OwnerWorkflow
+	env.Data["owner"] = readiness.Owner
+	env.Data["human_action_required"] = readiness.HumanActionRequired
+	env.Data["resolution_action"] = readiness.ResolutionAction
+	env.Blockers = []any{map[string]any{
+		"code": readiness.Code, "owner": readiness.Owner,
+		"human_action_required": readiness.HumanActionRequired,
+		"owner_workflow":        readiness.OwnerWorkflow, "details": append([]any(nil), readiness.Details...),
+	}}
+	if readiness.OwnerWorkflow != "" {
+		env.NextArgv = []string{readiness.OwnerWorkflow}
+	}
+	return true
 }
 
 func firstDeepResearchError(primary, fallback error) error {

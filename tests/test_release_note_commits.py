@@ -120,14 +120,14 @@ def test_release_note_helper_filters_release_bookkeeping_commits(
     ]
 
 
-def test_release_workflows_call_shared_release_note_helper() -> None:
+def test_release_trigger_calls_shared_release_note_helper() -> None:
     assert HELPER.exists(), (
         "Missing scripts/release-note-commits.sh. "
-        "Both release workflows should shell out to one shared helper to avoid "
-        "release-note filtering drift."
+        "The release trigger should shell out to one shared helper to avoid "
+        "source changelog filtering drift."
     )
 
     expected = "scripts/release-note-commits.sh"
-    for path in WORKFLOW_PATHS:
-        content = path.read_text(encoding="utf-8")
-        assert expected in content, f"{path} does not call {expected}"
+    trigger, publisher = WORKFLOW_PATHS
+    assert expected in trigger.read_text(encoding="utf-8")
+    assert expected not in publisher.read_text(encoding="utf-8")

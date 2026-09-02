@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -122,6 +123,36 @@ func TestTeamsSubmitResultAcceptsInlineJSON(t *testing.T) {
 	result := readTeamsJSON(t, teamsResultRecordPath(project, "req-inline"))
 	if result["summary"] != "inline" {
 		t.Fatalf("summary = %#v, want inline", result["summary"])
+	}
+}
+
+func TestTeamsSubmitResultAcceptsFileBackedResultJSON(t *testing.T) {
+	project := newTeamsProject(t)
+	withCwd(t, project)
+	seedTeamsDispatch(t, project, "req-backed", "T704")
+	inputPath := filepath.Join(project, ".specify", "runtime", "inputs", "team-result.json")
+	if err := os.MkdirAll(filepath.Dir(inputPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(map[string]any{
+		"task_id": "T704",
+		"status":  "success",
+		"summary": strings.Repeat("file-backed ", 4000),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(inputPath, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout bytes.Buffer
+	if exit := runTeams([]string{"submit-result", "--request-id", "req-backed", "--result-json", "@.specify/runtime/inputs/team-result.json"}, &stdout); exit != 0 {
+		t.Fatalf("submit-result exit=%d output=%s", exit, stdout.String())
+	}
+	result := readTeamsJSON(t, teamsResultRecordPath(project, "req-backed"))
+	if result["task_id"] != "T704" || !strings.Contains(fmt.Sprint(result["summary"]), "file-backed") {
+		t.Fatalf("file-backed result = %#v", result)
 	}
 }
 

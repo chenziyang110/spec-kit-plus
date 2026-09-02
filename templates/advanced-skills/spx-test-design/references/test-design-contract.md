@@ -147,15 +147,12 @@ using `scope: test-design` plus explicit source and provenance. Cite the returne
 content-addressed `evidence_id` or `record_ref`; a worker cannot register its own
 proposal as accepted truth.
 
-Route missing external feasibility, normative oracles, disposable proofs, and
-evidence beyond bounded read-only search to `$spx-deep-research`. Preserve the
-affected coverage/gap refs, then resume only from its primary-source evidence
-and `Planning Handoff`. If that handoff changes the frozen inputs, use
-revision-guarded `incremental-update` rather than patching lifecycle state.
-After verifying the handoff, the Leader registers or imports the accepted
-object under evidence scope `test-design`, preserving the Deep Research record
-and Planning Handoff in provenance. Canonical rows cite that new Test Design
-record ref because the runtime rejects evidence from an unrelated scope.
+Keep bounded external research in Test Design discovery lanes. The current
+`$spx-deep-research` runtime is plan-only and cannot return directly to this
+independent producer. A disposable proof or planning-feasibility gap returns as
+a typed blocker to the selected consumer owner; Plan may run Deep Research and
+then reselect Test Design, while Quick/Tasks/Review retain repair ownership.
+Never claim a plan-only Planning Handoff resumes Test Design.
 
 ## Completion gate
 
@@ -191,9 +188,15 @@ and selection metadata, not copied canonical bodies.
 
 Tasks has one stricter compatibility sequence: `validate -> handoff -> publish
 -> projection-build --consumer tasks -> projection-verify`. Since `handoff`
-increments revision, publish must bind the new handed-off revision. Plan, Quick,
+increments revision, execute its returned publish `next_argv`; do not return to
+Tasks before projection verification. Plan, Quick,
 and a feature-scoped Review publish/build directly from validated state. Never call `handoff`
 after publish because it makes that publication stale.
+
+Blocked/stale status and validation return `recovery_action`; agent-owned
+repair executes it in the same invocation. Publication returns
+`projection_action`, projection build returns exact verification argv, and
+successful verification returns the selected consumer argv.
 
 The compatibility handoff to `$spx-tasks` contains refs, not duplicated content. Tasks bind
 the relevant `test_case_refs` and `test_data_refs` to task-local contracts and

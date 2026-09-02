@@ -33,6 +33,27 @@ COMPARISON_TOLERANCE = {
 }
 
 
+def _write_unselected_test_design_plan(feature_dir: Path) -> None:
+    path = feature_dir / "plan-contract.json"
+    payload = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    payload.setdefault(
+        "test_design_gate",
+        {
+            "decision": "not_selected",
+            "reason_refs": ["fixture:no-test-design-selected"],
+            "projection_binding": {
+                "publication_ref": None,
+                "publication_sha256": None,
+                "projection_ref": None,
+                "projection_sha256": None,
+                "source_fingerprint": None,
+                "state_revision": None,
+            },
+        },
+    )
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
 def _interaction_contract(row_id: str, input_method: str) -> dict[str, object]:
     return {
         "id": row_id,
@@ -164,6 +185,7 @@ def test_compile_worker_task_packet_prefers_canonical_task_index_for_jit_packet(
         ),
         encoding="utf-8",
     )
+    _write_unselected_test_design_plan(feature_dir)
 
     packet = compile_worker_task_packet(
         project_root=project_root,
@@ -641,6 +663,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
         json.dumps(task_index),
         encoding="utf-8",
     )
+    _write_unselected_test_design_plan(feature_dir)
     (feature_dir / "tasks.md").write_text(
         "# Tasks\n\n- [ ] T021 Implement UI without duplicated markdown contract\n",
         encoding="utf-8",
@@ -973,6 +996,7 @@ def test_compile_worker_task_packet_rejects_task_missing_from_canonical_index(
         "# Tasks\n\n- [ ] T017 Implement stale rendered behavior in src/stale.py\n",
         encoding="utf-8",
     )
+    _write_unselected_test_design_plan(feature_dir)
 
     with pytest.raises(
         PacketValidationError, match="T017 is missing from canonical task-index.json"
@@ -1504,6 +1528,7 @@ def test_compile_worker_task_packet_rejects_cli_owned_artifacts_in_task_scope(
         ),
         encoding="utf-8",
     )
+    _write_unselected_test_design_plan(feature_dir)
 
     with pytest.raises(PacketValidationError, match="CLI-owned workflow artifacts"):
         compile_worker_task_packet(

@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -194,6 +193,8 @@ func runTestDesign(args []string, stdout io.Writer) int {
 	switch args[0] {
 	case "init":
 		env = service.initialize(args[1:])
+	case "recover":
+		env = service.recover(args[1:])
 	case "status":
 		env = service.status(args[1:])
 	case "universe-build":
@@ -237,6 +238,7 @@ func testDesignValidateOptions(args []string) error {
 	common := []string{"--project-root", "--format"}
 	perCommand := map[string][]string{
 		"init":              {"--scope", "--feature-dir", "--mode", "--input-json", "--expected-revision", "--leader-id"},
+		"recover":           {"--feature-dir", "--mode", "--expected-revision"},
 		"status":            {"--feature-dir"},
 		"universe-build":    {"--feature-dir", "--expected-revision"},
 		"lane-prepare":      {"--feature-dir", "--input-json", "--expected-revision"},
@@ -284,8 +286,55 @@ func testDesignValidateOptions(args []string) error {
 
 func writeTestDesignHelp(stdout io.Writer) int {
 	_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime test-design <subcommand> [options]")
-	_, _ = fmt.Fprintln(stdout, "Subcommands: init, status, universe-build, lane-prepare, lane-lease, lane-checkpoint, lane-yield, lane-accept, gap-reconcile, synthesize, audit-prepare, validate, publish, projection-build, projection-verify, handoff")
+	_, _ = fmt.Fprintln(stdout, "Subcommands: init, recover, status, universe-build, lane-prepare, lane-lease, lane-checkpoint, lane-yield, lane-accept, gap-reconcile, synthesize, audit-prepare, validate, publish, projection-build, projection-verify, handoff")
 	return 0
+}
+
+func (service testDesignService) recover(args []string) Envelope {
+	mode := strings.ToLower(strings.TrimSpace(optionValue(args, "--mode", "")))
+	if mode != "audit" && mode != "incremental-update" {
+		return testDesignFailure("usage-error", "test-design recover --mode must be audit or incremental-update", nil)
+	}
+	root, _, _, err := service.resolveRoot(optionValue(args, "--feature-dir", ""))
+	if err != nil {
+		return testDesignFailure("usage-error", "test-design recovery root is invalid", err)
+	}
+	state, err := testDesignReadState(root)
+	if err != nil {
+		return testDesignFailure("blocked", "test-design recovery state is unavailable", err)
+	}
+	if revisionErr := testDesignCheckExpectedRevision(args, state); revisionErr != nil {
+		return testDesignFailure("blocked", "test-design recovery revision changed", revisionErr)
+	}
+	manifest, err := testDesignReadManifest(root)
+	if err != nil {
+		return testDesignFailure("blocked", "test-design recovery lane manifest is unavailable", err)
+	}
+	if !testDesignWorkerIDPattern.MatchString(manifest.LeaderID) {
+		return testDesignFailure("blocked", "test-design recovery leader identity is invalid", nil)
+	}
+	input := map[string]any{
+		"query":           state.Source.Query,
+		"source_refs":     append([]string(nil), state.Source.SourceRefs...),
+		"included_paths":  append([]string(nil), state.Source.IncludedPaths...),
+		"excluded_paths":  append([]string(nil), state.Source.ExcludedPaths...),
+		"risk_dimensions": append([]string(nil), state.Source.RiskDimensions...),
+	}
+	raw, err := json.Marshal(input)
+	if err != nil {
+		return testDesignFailure("error", "cannot prepare test-design recovery input", err)
+	}
+	initArgs := []string{
+		"--scope", state.Scope,
+		"--mode", mode,
+		"--leader-id", manifest.LeaderID,
+		"--expected-revision", strconv.Itoa(state.Revision),
+		"--input-json", string(raw),
+	}
+	if state.Scope == "feature" && state.FeatureDir != nil && strings.TrimSpace(*state.FeatureDir) != "" {
+		initArgs = append(initArgs, "--feature-dir", *state.FeatureDir)
+	}
+	return service.initialize(initArgs)
 }
 
 func (service testDesignService) initialize(args []string) Envelope {
@@ -535,7 +584,9 @@ func (service testDesignService) status(args []string) Envelope {
 	env.Data = testDesignStateData(state, rootRef)
 	env.Data["lanes"] = testDesignLaneCounts(manifest)
 	env.Data["active_leases"] = testDesignActiveLeases(manifest)
+	sourceStale := false
 	if freshnessErr := service.requireFreshSources(state); freshnessErr != nil {
+		sourceStale = true
 		env.Status = "blocked"
 		env.Summary = "test-design sources are stale"
 		env.Blockers = append(env.Blockers, freshnessErr.Error())
@@ -557,12 +608,14 @@ func (service testDesignService) status(args []string) Envelope {
 	} else {
 		env.Data["handoff_freshness"] = "not-published"
 	}
+	publicationCurrent := false
 	if _, publicationErr := os.Lstat(filepath.Join(root, testDesignPublicationFile)); publicationErr == nil {
 		binding, verifyErr := service.verifyPublication(root)
 		if verifyErr != nil {
 			env.Data["publication_freshness"] = "stale"
 			env.Data["publication_error"] = verifyErr.Error()
 		} else {
+			publicationCurrent = true
 			env.Data["publication_freshness"] = "current"
 			env.Data["publication_sha256"] = binding.SHA256
 		}
@@ -570,6 +623,43 @@ func (service testDesignService) status(args []string) Envelope {
 		env.Data["publication_freshness"] = "missing"
 	} else {
 		env.Data["publication_freshness"] = "not-published"
+	}
+	if state.Status == "blocked" || sourceStale {
+		env.Status = "blocked"
+		if !sourceStale {
+			env.Summary = "test-design requires repair before continuing"
+		}
+		if len(state.Blockers) == 0 && len(env.Blockers) == 0 {
+			env.Blockers = append(env.Blockers, "test-design state is blocked without a resolved repair disposition")
+		} else {
+			env.Blockers = append(env.Blockers, cloneJSONValue(state.Blockers).([]any)...)
+		}
+		mode := "audit"
+		nextAction := "repair"
+		if sourceStale || state.ClaimStatus == "stale" {
+			mode = "incremental-update"
+			nextAction = "incremental-update"
+		}
+		env.Data["next_action"] = nextAction
+		if action, actionErr := service.testDesignRecoveryAction(state, manifest, mode); actionErr != nil {
+			env.Blockers = append(env.Blockers, "cannot prepare test-design recovery: "+actionErr.Error())
+		} else {
+			env.Data["recovery_action"] = action
+			if mode == "incremental-update" || !testDesignBlockersRequireHuman(state.Blockers) {
+				env.NextArgv = stringSliceFromAny(action["base_argv"])
+			}
+		}
+		return env
+	}
+	if publicationCurrent && (state.Phase == "validated" || state.Phase == "handed-off") {
+		consumer := ""
+		if state.Phase == "handed-off" && state.Scope == "feature" {
+			consumer = "tasks"
+			env.Data["consumer_return"] = "/sp.tasks"
+		}
+		env.Data["next_action"] = "projection-build"
+		env.Data["projection_action"] = testDesignProjectionBuildAction(state, consumer)
+		return env
 	}
 	next := testDesignNextSubcommand(state, manifest)
 	env.Data["next_action"] = next
@@ -1389,8 +1479,10 @@ func (service testDesignService) validate(args []string) Envelope {
 		state.Revision++
 		if claimStatus == "blocked" {
 			state.Status = "blocked"
+			state.Blockers = testDesignClaimBlockers(bundle)
 		} else {
 			state.Status = "ready"
+			state.Blockers = []any{}
 		}
 		if writeErr := service.writeState(root, state, "test-design.validate"); writeErr != nil {
 			return testDesignFailure("error", "cannot persist test-design validation", writeErr)
@@ -1409,6 +1501,16 @@ func (service testDesignService) validate(args []string) Envelope {
 				nextCommand = "publish"
 			}
 			env.NextArgv = service.commandArgv(state, nextCommand)
+		} else {
+			env.Data["next_action"] = "repair"
+			if action, actionErr := service.testDesignRecoveryAction(state, manifest, "audit"); actionErr != nil {
+				env.Blockers = append(env.Blockers, "cannot prepare test-design recovery: "+actionErr.Error())
+			} else {
+				env.Data["recovery_action"] = action
+				if !testDesignBlockersRequireHuman(state.Blockers) {
+					env.NextArgv = stringSliceFromAny(action["base_argv"])
+				}
+			}
 		}
 		return env
 	})
@@ -1469,6 +1571,13 @@ func testDesignPublicationEnvelope(binding testDesignPublicationBinding, state t
 	env.Data["publication_ref"] = binding.Ref
 	env.Data["publication_sha256"] = binding.SHA256
 	env.Data["test_execution_status"] = "not_executed_by_test_design"
+	consumer := ""
+	if state.Phase == "handed-off" && state.Scope == "feature" {
+		consumer = "tasks"
+		env.Data["consumer_return"] = "/sp.tasks"
+	}
+	env.Data["next_action"] = "projection-build"
+	env.Data["projection_action"] = testDesignProjectionBuildAction(state, consumer)
 	return env
 }
 
@@ -1756,7 +1865,9 @@ func testDesignLegacyHandoffEnvelope(binding testDesignPublishedHandoff, state t
 	env.Data["handoff_ref"] = filepath.ToSlash(filepath.Join(rootRef, "handoff-to-tasks.json"))
 	env.Data["handoff_sha256"] = binding.SHA256
 	env.Data["next_command"] = "/sp.tasks"
-	env.NextArgv = []string{"/sp.tasks"}
+	env.Data["consumer_return"] = "/sp.tasks"
+	env.Data["next_action"] = "publish"
+	env.NextArgv = testDesignStateCommandArgv(state, "publish")
 	return env
 }
 
@@ -1826,6 +1937,15 @@ func (service testDesignService) projectionBuild(args []string) Envelope {
 			"projection_sha256": projectionSHA, "publication_ref": binding.Ref, "publication_sha256": binding.SHA256,
 			"basis_ref": basisRef, "basis_sha256": testDesignDigest(basisRaw),
 		}
+		env.NextArgv = []string{"specify-runtime", "test-design", "projection-verify"}
+		if binding.Scope == "feature" && binding.FeatureDir != nil && strings.TrimSpace(*binding.FeatureDir) != "" {
+			env.NextArgv = append(env.NextArgv, "--feature-dir", *binding.FeatureDir)
+		}
+		env.NextArgv = append(env.NextArgv,
+			"--projection-ref", env.Data["projection_ref"].(string),
+			"--expected-sha256", projectionSHA,
+			"--format", "json",
+		)
 		return env
 	})
 }
@@ -1919,7 +2039,24 @@ func (service testDesignService) projectionVerify(args []string) Envelope {
 		"source_fingerprint": binding.SourceFingerprint, "state_revision": binding.StateRevision,
 		"basis_ref": normalizedBasisRef, "basis_sha256": testDesignDigest(basisRaw),
 	}
+	env.Data["consumer_return"] = testDesignConsumerCommand(consumer)
+	env.NextArgv = []string{testDesignConsumerCommand(consumer)}
 	return env
+}
+
+func testDesignConsumerCommand(consumer string) string {
+	switch strings.ToLower(strings.TrimSpace(consumer)) {
+	case "plan":
+		return "/sp.plan"
+	case "quick":
+		return "/sp.quick"
+	case "tasks":
+		return "/sp.tasks"
+	case "review":
+		return "/sp.review"
+	default:
+		return ""
+	}
 }
 
 func testDesignValidateProjectionConsumer(consumer, scope string) error {
@@ -2411,59 +2548,7 @@ func testDesignResolveProjectPath(projectRoot, value string) (string, error) {
 }
 
 func testDesignSecureProjectPath(projectRoot, relative string) (string, error) {
-	target, err := secureProjectPath(projectRoot, relative)
-	if err != nil {
-		return "", err
-	}
-	root, err := filepath.Abs(projectRoot)
-	if err != nil {
-		return "", err
-	}
-	root, err = filepath.EvalSymlinks(root)
-	if err != nil {
-		return "", err
-	}
-	relativeToRoot, err := filepath.Rel(root, target)
-	if err != nil || relativeToRoot == ".." || strings.HasPrefix(relativeToRoot, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("path must stay inside the project root")
-	}
-	current := root
-	for _, component := range strings.Split(relativeToRoot, string(filepath.Separator)) {
-		if component == "" || component == "." {
-			continue
-		}
-		current = filepath.Join(current, component)
-		info, statErr := os.Lstat(current)
-		if errors.Is(statErr, os.ErrNotExist) {
-			break
-		}
-		if statErr != nil {
-			return "", statErr
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return "", fmt.Errorf("project path crosses symlink or junction %q", current)
-		}
-		resolved, resolveErr := filepath.EvalSymlinks(current)
-		if resolveErr != nil {
-			return "", resolveErr
-		}
-		resolved, resolveErr = filepath.Abs(resolved)
-		if resolveErr != nil {
-			return "", resolveErr
-		}
-		currentAbs, currentErr := filepath.Abs(current)
-		if currentErr != nil {
-			return "", currentErr
-		}
-		same := filepath.Clean(resolved) == filepath.Clean(currentAbs)
-		if runtime.GOOS == "windows" {
-			same = strings.EqualFold(filepath.Clean(resolved), filepath.Clean(currentAbs))
-		}
-		if !same {
-			return "", fmt.Errorf("project path crosses reparse point %q", current)
-		}
-	}
-	return target, nil
+	return secureProjectPath(projectRoot, relative)
 }
 
 func (service testDesignService) resolveRoot(featureArg string) (string, string, string, error) {
@@ -2858,11 +2943,13 @@ func (service testDesignService) persistStaleState(root, rootRef string, state t
 	state.Status = "blocked"
 	state.ClaimStatus = "stale"
 	state.Blockers = []any{map[string]any{
-		"category":     "source_freshness",
-		"owner":        "test-design leader",
-		"exact_cause":  cause.Error(),
-		"next_action":  "rerun test-design init or rebuild the affected universe",
-		"resume_point": "test-design universe-build",
+		"category":              "source_freshness",
+		"owner":                 "test-design leader",
+		"exact_cause":           cause.Error(),
+		"next_action":           "CAS-reenter this root with incremental-update and rebuild the affected universe",
+		"unblock_criteria":      "The refreshed source fingerprint is current and a fresh audit is accepted.",
+		"resume_point":          "test-design universe-build",
+		"human_action_required": false,
 	}}
 	state.Revision++
 	if err := service.writeState(root, state, "test-design.mark-stale"); err != nil {
@@ -2870,6 +2957,15 @@ func (service testDesignService) persistStaleState(root, rootRef string, state t
 	}
 	env := testDesignFailure("blocked", "test-design sources are stale", cause)
 	env.Data = testDesignStateData(state, rootRef)
+	env.Data["next_action"] = "incremental-update"
+	if manifest, manifestErr := testDesignReadManifest(root); manifestErr != nil {
+		env.Blockers = append(env.Blockers, "cannot prepare test-design recovery: "+manifestErr.Error())
+	} else if action, actionErr := service.testDesignRecoveryAction(state, manifest, "incremental-update"); actionErr != nil {
+		env.Blockers = append(env.Blockers, "cannot prepare test-design recovery: "+actionErr.Error())
+	} else {
+		env.Data["recovery_action"] = action
+		env.NextArgv = stringSliceFromAny(action["base_argv"])
+	}
 	return env
 }
 
@@ -3279,6 +3375,10 @@ func (service testDesignService) writeStateAndManifest(root string, state testDe
 }
 
 func (service testDesignService) commandArgv(state testDesignState, subcommand string) []string {
+	return testDesignStateCommandArgv(state, subcommand)
+}
+
+func testDesignStateCommandArgv(state testDesignState, subcommand string) []string {
 	argv := []string{"specify-runtime", "test-design", subcommand}
 	if state.Scope == "feature" && state.FeatureDir != nil && strings.TrimSpace(*state.FeatureDir) != "" {
 		argv = append(argv, "--feature-dir", *state.FeatureDir)
@@ -4937,10 +5037,14 @@ func testDesignStateData(state testDesignState, rootRef string) map[string]any {
 		"status":             state.Status,
 		"claim_status":       state.ClaimStatus,
 		"source_fingerprint": state.Source.Fingerprint,
+		"blockers":           cloneJSONValue(state.Blockers),
 	}
 }
 
 func testDesignNextSubcommand(state testDesignState, manifest testDesignLaneManifest) string {
+	if state.Status == "blocked" {
+		return ""
+	}
 	counts := testDesignLaneCounts(manifest)
 	if counts["pending"] > 0 {
 		return "lane-lease"
@@ -4968,6 +5072,165 @@ func testDesignNextSubcommand(state testDesignState, manifest testDesignLaneMani
 		return "publish"
 	default:
 		return ""
+	}
+}
+
+func (service testDesignService) testDesignRecoveryAction(state testDesignState, manifest testDesignLaneManifest, mode string) (map[string]any, error) {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode != "audit" && mode != "incremental-update" {
+		return nil, fmt.Errorf("unsupported recovery mode %s", mode)
+	}
+	if !testDesignWorkerIDPattern.MatchString(manifest.LeaderID) {
+		return nil, fmt.Errorf("lane manifest has no valid leader identity")
+	}
+	argv := []string{
+		"specify-runtime", "test-design", "recover",
+		"--mode", mode,
+		"--expected-revision", strconv.Itoa(state.Revision),
+	}
+	if state.Scope == "feature" && state.FeatureDir != nil && strings.TrimSpace(*state.FeatureDir) != "" {
+		argv = append(argv, "--feature-dir", *state.FeatureDir)
+	}
+	argv = append(argv, "--format", "json")
+	return map[string]any{
+		"capability_id": "test-design.recover",
+		"mode":          mode,
+		"base_argv":     stringValuesAsAny(argv),
+		"effect":        "CAS-reenter the same test-design root, preserve stable IDs, invalidate stale lane/audit/publication state, and resume from universe-build.",
+	}, nil
+}
+
+func testDesignProjectionBuildAction(state testDesignState, consumer string) map[string]any {
+	consumer = strings.ToLower(strings.TrimSpace(consumer))
+	argv := []string{"specify-runtime", "test-design", "projection-build"}
+	if state.Scope == "feature" && state.FeatureDir != nil && strings.TrimSpace(*state.FeatureDir) != "" {
+		argv = append(argv, "--feature-dir", *state.FeatureDir)
+	}
+	if consumer != "" {
+		argv = append(argv, "--consumer", consumer)
+	}
+	requiredInputs := []any{
+		map[string]any{
+			"field": "basis_ref", "flag": "--basis-ref", "required": true,
+			"source": "the immutable current upstream artifact for the selected consumer",
+		},
+	}
+	if consumer == "" {
+		requiredInputs = append([]any{map[string]any{
+			"field": "consumer", "flag": "--consumer", "required": true,
+			"allowed": []any{"plan", "quick", "tasks", "review"},
+		}}, requiredInputs...)
+	}
+	return map[string]any{
+		"capability_id":   "test-design.projection-build",
+		"consumer":        consumer,
+		"base_argv":       stringValuesAsAny(argv),
+		"required_inputs": requiredInputs,
+		"optional_inputs": []any{map[string]any{
+			"field": "obligation_ids", "flag": "--obligation-ids", "required": false,
+			"source": "an explicit bounded TO-* selection; omit only for the complete applicable denominator",
+		}},
+		"effect": "Build the selected consumer projection; execute the returned projection verification argv before returning to that consumer.",
+	}
+}
+
+func testDesignBlockersRequireHuman(blockers []any) bool {
+	for _, raw := range blockers {
+		blocker, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if required, _ := blocker["human_action_required"].(bool); required {
+			return true
+		}
+	}
+	return false
+}
+
+func testDesignClaimBlockers(bundle testDesignBundle) []any {
+	refs := []string{}
+	humanRequired := false
+	for _, gap := range testDesignObjects(bundle.Gaps["gaps"]) {
+		disposition := strings.ToLower(strings.TrimSpace(asString(gap["disposition"])))
+		severity := strings.ToLower(strings.TrimSpace(asString(gap["severity"])))
+		if disposition == "blocked" || (disposition == "open" && severity == "blocking") {
+			refs = testDesignAppendUnique(refs, strings.TrimSpace(asString(gap["gap_id"])))
+			if testDesignGapOwnerRequiresHuman(asString(gap["owner"])) {
+				humanRequired = true
+			}
+		}
+	}
+	for _, dataset := range testDesignObjects(bundle.DataManifest["datasets"]) {
+		readiness := strings.ToLower(strings.TrimSpace(asString(dataset["readiness"])))
+		disposition := strings.ToLower(strings.TrimSpace(asString(dataset["disposition"])))
+		if readiness == "human-input-required" || disposition == "request" {
+			refs = testDesignAppendUnique(refs, strings.TrimSpace(asString(dataset["test_data_id"])))
+			humanRequired = true
+		} else if readiness == "blocked" || readiness == "evidence-needed" || disposition == "block" {
+			refs = testDesignAppendUnique(refs, strings.TrimSpace(asString(dataset["test_data_id"])))
+		}
+	}
+	refs = testDesignSortedKeys(stringSliceSet(refs))
+	if len(refs) == 0 {
+		refs = []string{"frozen-test-design-claim"}
+	}
+	owner := "test-design leader"
+	var humanGuide any
+	if humanRequired {
+		owner = "user or maintainer"
+		humanGuide = map[string]any{
+			"goal":      "Provide only the exact approved, sanitized test material or authority evidence named by the affected TD/GAP refs.",
+			"why_human": "The required input is controlled outside the agent's authority and cannot be fabricated safely.",
+			"prerequisites": []any{
+				"Access to the exact organization-controlled material or approval record.",
+				"Authority to sanitize or approve that input for this test-design scope.",
+			},
+			"safety_notes": []any{
+				"Do not provide secrets, credentials, production customer data, private keys, or unsanitized personal data.",
+				"Do not broaden approval beyond the affected refs.",
+			},
+			"steps": []any{
+				map[string]any{"order": 1, "action": "Confirm the exact affected TD/GAP refs and owning organization boundary.", "expected_result": "Exactly one bounded request is identified.", "if_failed": "Return the ambiguity without sharing sensitive content."},
+				map[string]any{"order": 2, "action": "Provide a sanitized material reference or approval record for that request.", "expected_result": "The input satisfies the recorded readiness and provenance requirements.", "if_failed": "Keep the blocker open and return only sanitized failure evidence."},
+			},
+			"verification": []any{
+				"The Test Design leader can bind the evidence to every affected ref without copying prohibited data.",
+			},
+			"evidence_to_return": []any{
+				"The exact affected ref IDs.",
+				"A sanitized approval/material reference and its terminal status.",
+			},
+			"resume_instruction": "Return the sanitized evidence to the active Test Design owner; it will execute recovery_action and rerun the audit without asking you to repair state.",
+		}
+	}
+	return []any{map[string]any{
+		"category":              "test-design-claim",
+		"owner":                 owner,
+		"exact_cause":           "The current frozen Test Design claim contains blocking gaps or test-material requirements.",
+		"affected_refs":         stringValuesAsAny(refs),
+		"next_action":           "CAS-reenter the same root in audit mode, repair the canonical gap/material dispositions, and run a fresh independent audit.",
+		"unblock_criteria":      "No blocking gap or material remains and a fresh independent audit is accepted.",
+		"resume_point":          "test-design universe-build",
+		"human_action_required": humanRequired,
+		"human_action_guide":    humanGuide,
+	}}
+}
+
+func testDesignGapOwnerRequiresHuman(owner string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(owner))
+	if strings.HasPrefix(normalized, "sp-") || strings.HasPrefix(normalized, "spx-") {
+		return false
+	}
+	switch normalized {
+	case "test-design leader", "test-design agent", "test-design worker", "agent",
+		"plan", "quick", "tasks", "implement", "review",
+		"external-system", "external system", "provider", "service":
+		return false
+	default:
+		// Gap rows predate an explicit owner-kind field. Fail closed for every
+		// unknown owner instead of guessing that an organizational role is an
+		// agent and accidentally emitting an executable recovery action.
+		return true
 	}
 }
 

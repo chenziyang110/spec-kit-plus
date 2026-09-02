@@ -87,6 +87,7 @@ class TestCopilotIntegration:
             [
                 ".vscode/settings.json",
                 ".specify/bin/.gitignore",
+                ".specify/runtime/.gitignore",
                 PROJECT_SPECIFY_RUNTIME,
                 ".specify/config.json",
                 ".specify/integration.json",

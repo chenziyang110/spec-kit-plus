@@ -1,15 +1,39 @@
 package main
 
 import (
+	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runcontrol"
 )
 
 var implementTaskTerminalStatuses = map[string]bool{"accepted": true, "deferred": true}
+
+type implementResultScopeError struct {
+	Paths         []string
+	ProjectRoot   string
+	WorkID        string
+	PacketBound   bool
+	RuntimeReason string
+}
+
+func (err *implementResultScopeError) Error() string {
+	if err == nil {
+		return "changed_files outside expected_write_scope"
+	}
+	message := "changed_files outside expected_write_scope: " + strings.Join(err.Paths, ", ")
+	if strings.TrimSpace(err.RuntimeReason) != "" {
+		message += "; no matching confirmed execution scope amendment: " + err.RuntimeReason
+	}
+	return message
+}
 
 type implementWorkflowSnapshot struct {
 	Present          bool
@@ -170,7 +194,7 @@ func buildImplementTaskPacket(root, feature, taskID string, index map[string]any
 func implementTaskBookkeepingScope(featureRef, taskID string) []string {
 	feature := filepath.FromSlash(featureRef)
 	paths := []string{
-		"task-index.json", "tasks.md", "implement-tracker.md",
+		"task-index.json", "tasks.md", "workflow.json", "implement-tracker.md",
 		"implementation-review/execution-state.json",
 		"implementation-review/tasks/" + taskID + ".json",
 		"worker-results/" + taskID + ".json",
@@ -313,6 +337,19 @@ func runImplementResultMerge(args []string) (map[string]any, error) {
 	_, task, err := findImplementTask(index, taskID)
 	if err != nil {
 		return nil, err
+	}
+	if scopeErr := validateImplementResultWriteScope(task, result); scopeErr != nil {
+		packetBound, amendmentErr := validateImplementResultAgainstCurrentExecutionScope(root, feature, taskID, args, result)
+		if amendmentErr != nil {
+			if typed, ok := scopeErr.(*implementResultScopeError); ok {
+				typed.ProjectRoot = root
+				typed.WorkID = strings.TrimSpace(optionValue(args, "--current-work-id", os.Getenv("SPECIFY_WORK_ID")))
+				typed.PacketBound = packetBound
+				typed.RuntimeReason = amendmentErr.Error()
+				return nil, typed
+			}
+			return nil, scopeErr
+		}
 	}
 	lifecycleRef := filepath.ToSlash(filepath.Join("implementation-review", "tasks", taskID+".json"))
 	lifecycle, err := readImplementJSONMap(filepath.Join(feature, filepath.FromSlash(lifecycleRef)))
@@ -557,6 +594,7 @@ func runImplementTaskReopen(args []string) (map[string]any, error) {
 	validation, _ := lifecycle["validation"].([]any)
 	blockers, _ := lifecycle["blockers"].([]any)
 	acceptanceErr := validateImplementTaskAcceptanceEvidence(task, validation, blockers)
+	uiAcceptanceErr := validateImplementTaskUIAcceptance(feature, task, lifecycle)
 	resultRef := strings.TrimSpace(anyString(lifecycle["result_ref"]))
 	expectedResultRef := filepath.ToSlash(filepath.Join("worker-results", taskID+".json"))
 	indexedResultRef := strings.TrimSpace(anyString(task["result_ref"]))
@@ -580,7 +618,7 @@ func runImplementTaskReopen(args []string) (map[string]any, error) {
 	} else if !os.IsNotExist(resultReadErr) {
 		return nil, fmt.Errorf("current worker result cannot be read: %w", resultReadErr)
 	}
-	if acceptanceErr == nil {
+	if acceptanceErr == nil && uiAcceptanceErr == nil {
 		return nil, fmt.Errorf("task %s is acceptance-ready; use implement task-accept instead of reopening it", taskID)
 	}
 
@@ -1137,9 +1175,13 @@ func readImplementTaskResult(args []string, root string) (map[string]any, error)
 	}
 	var raw []byte
 	if hasInline {
-		raw = []byte(optionValue(args, "--result-json", ""))
-		if len(raw) == 0 || len(raw) > maxAgentJSONInputBytes {
-			return nil, fmt.Errorf("--result-json must contain at most %d bytes", maxAgentJSONInputBytes)
+		var err error
+		raw, err = resolveJSONInputBytesFrom(optionValue(args, "--result-json", ""), root, "implement result-merge", "--result-json", os.Stdin)
+		if err != nil {
+			return nil, err
+		}
+		if len(raw) == 0 {
+			return nil, fmt.Errorf("--result-json must not be empty")
 		}
 	} else {
 		path, err := resolveProjectContainedPath(root, optionValue(args, "--result-file", ""))
@@ -1155,7 +1197,7 @@ func readImplementTaskResult(args []string, root string) (map[string]any, error)
 		}
 		metadata, registered := LookupArtifactType(filepath.ToSlash(relative))
 		if !registered || (metadata.Schema != "json/worker-result" && metadata.TypeID != "teams-runtime-state") {
-			return nil, fmt.Errorf("--result-file may reference only a CLI-owned canonical worker-result artifact; pass new results inline with --result-json")
+			return nil, fmt.Errorf("--result-file may reference only a CLI-owned canonical worker-result artifact; pass new bounded semantic results with --result-json (inline, @path, or - for stdin)")
 		}
 		info, err := os.Stat(path)
 		if err != nil || !info.Mode().IsRegular() || info.Size() > maxAgentJSONInputBytes {
@@ -1330,6 +1372,99 @@ func validateImplementTaskAcceptanceEvidence(task map[string]any, validation, bl
 		return fmt.Errorf("task acceptance is blocked by unresolved blockers; status success requires blockers:[]")
 	}
 	return nil
+}
+
+func validateImplementResultWriteScope(task, result map[string]any) error {
+	writeScope := anyStringSlice(task["expected_write_scope"])
+	changedFiles := anyStringSlice(result["changed_files"])
+	if len(changedFiles) == 0 {
+		return nil
+	}
+	outside := []string{}
+	for _, changed := range changedFiles {
+		covered := false
+		for _, scope := range writeScope {
+			if taskControlExpectedWriteScopeCoversPath(scope, changed) {
+				covered = true
+				break
+			}
+		}
+		if !covered {
+			outside = append(outside, changed)
+		}
+	}
+	if len(outside) > 0 {
+		return &implementResultScopeError{Paths: outside}
+	}
+	return nil
+}
+
+func validateImplementResultAgainstCurrentExecutionScope(root, feature, taskID string, args []string, result map[string]any) (bool, error) {
+	workID := strings.TrimSpace(optionValue(args, "--current-work-id", os.Getenv("SPECIFY_WORK_ID")))
+	fenceRaw := strings.TrimSpace(optionValue(args, "--current-work-fence", os.Getenv("SPECIFY_WORK_FENCE")))
+	if workID == "" || fenceRaw == "" {
+		return false, fmt.Errorf("current Work identity is unavailable")
+	}
+	fence, err := strconv.ParseInt(fenceRaw, 10, 64)
+	if err != nil || fence < 1 {
+		return false, fmt.Errorf("current Work fence is invalid")
+	}
+	changedFiles := anyStringSlice(result["changed_files"])
+	specs := make([]runcontrol.WriteIntentSpec, 0, len(changedFiles))
+	for _, changed := range changedFiles {
+		path, subtree, pathErr := normalizeTaskControlExpectedWriteScopeEntry(changed)
+		if pathErr != nil || subtree || strings.Contains(path, "*") || taskControlWriteScopePatternCharsRE.MatchString(path) {
+			return false, fmt.Errorf("changed_files must contain concrete repository-relative paths")
+		}
+		specs = append(specs, runcontrol.WriteIntentSpec{Path: path, Operation: runcontrol.WriteModify, Confidence: runcontrol.IntentConfirmed})
+	}
+	store, err := runcontrol.OpenForRepository(context.Background(), root)
+	if err != nil {
+		return false, fmt.Errorf("open current execution scope: %w", err)
+	}
+	defer func() { _ = store.Close() }()
+	work, _, err := store.GetWork(context.Background(), workID)
+	if err != nil {
+		return false, fmt.Errorf("load current Work: %w", err)
+	}
+	if work.Fence != fence {
+		return false, fmt.Errorf("current Work fence is stale")
+	}
+	featureID := filepath.Base(filepath.Clean(feature))
+	if work.TaskRef != featureID+"#"+taskID && work.TaskRef != "implement:"+featureID && work.TaskRef != "implement:"+featureID+"#"+taskID {
+		return false, fmt.Errorf("current Work task_ref %q does not match %s", work.TaskRef, taskID)
+	}
+	activity, registered, err := store.GetExecutionActivityForWork(context.Background(), work.WorkID)
+	if err != nil {
+		return false, fmt.Errorf("load current execution Activity: %w", err)
+	}
+	if !registered {
+		return false, fmt.Errorf("current Work has no guarded execution Activity")
+	}
+	packetRef := ""
+	packetSHA256 := ""
+	packetBound := false
+	var baseline runcontrol.WorkspaceBaseline
+	if err := json.Unmarshal([]byte(activity.BaselineJSON), &baseline); err != nil {
+		return false, fmt.Errorf("decode current execution baseline: %w", err)
+	}
+	if baseline.WorkerPacket != nil {
+		packetBound = true
+		packetRef = baseline.WorkerPacket.Path
+		packetBytes, readErr := secureProjectReadFile(root, packetRef)
+		if readErr != nil {
+			return true, fmt.Errorf("read compiled packet: %w", readErr)
+		}
+		packetSHA256 = fmt.Sprintf("%x", sha256.Sum256(packetBytes))
+	}
+	_, _, err = store.VerifyExecutionWorkClaim(context.Background(), runcontrol.ClaimWorkIntentsParams{
+		WorkID: work.WorkID, ExpectedRevision: work.Revision, Fence: work.Fence,
+		PacketRef: packetRef, PacketSHA256: packetSHA256, Specs: specs,
+	})
+	if err != nil {
+		return packetBound, err
+	}
+	return packetBound, nil
 }
 
 func validateImplementTaskUIAcceptance(feature string, task, lifecycle map[string]any) error {

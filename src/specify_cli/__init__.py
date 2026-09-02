@@ -86,6 +86,11 @@ from specify_cli.codex_team.runtime_bridge import (
     submit_runtime_result,
 )
 from specify_cli.cli_output import print_json
+from specify_cli.input_transport import (
+    MAX_AGENT_INPUT_BYTES,
+    resolve_agent_json_object,
+    resolve_agent_text_input,
+)
 from specify_cli.agent_api import (
     AgentApiError,
     capability_schema,
@@ -2879,7 +2884,9 @@ def discussion_validate_handoff(
 def discussion_write_handoff(
     slug: str = typer.Argument(..., help="Discussion slug"),
     input_json: str | None = typer.Option(
-        None, "--input-json", help="Inline canonical handoff JSON draft"
+        None,
+        "--input-json",
+        help="Canonical handoff JSON draft: inline, @path, or - for stdin",
     ),
     expected_state_sha256: str = typer.Option(
         "",
@@ -2897,6 +2904,7 @@ def discussion_write_handoff(
         draft = _agent_json_object_input(
             input_json=input_json,
             label="handoff draft",
+            project_root=project_root,
         )
         payload = _run_discussion_helper(
             "write-handoff-json",
@@ -3390,66 +3398,29 @@ def _fail_implement_task_runtime(exc: Exception, output_format: TextJsonFormat) 
     raise typer.Exit(10)
 
 
-def _task_authoring_object(raw: str, *, label: str) -> dict[str, Any]:
+def _task_authoring_object(
+    raw: str, *, label: str, project_root: Path
+) -> dict[str, Any]:
     """Load task authoring JSON from inline text, @path, or stdin '-'."""
-
-    text = (raw or "").strip()
-    if not text:
-        raise ValueError(
-            f"{label} is required (inline JSON, @path, or - for stdin; "
-            "on Windows prefer @path to avoid command-line length limits)"
-        )
-    if text == "-":
-        import sys
-
-        payload_text = sys.stdin.read()
-    elif text.startswith("@"):
-        path = Path(text[1:].strip())
-        if not path.is_absolute():
-            path = Path.cwd() / path
-        try:
-            payload_text = path.read_text(encoding="utf-8")
-        except OSError as exc:
-            raise ValueError(f"{label} @path could not be read: {exc}") from exc
-    else:
-        payload_text = raw
-    if len(payload_text.encode("utf-8")) > _MAX_AGENT_JSON_INPUT_BYTES:
-        raise ValueError(f"{label} exceeds the 16 MiB input limit")
-    try:
-        payload = json.loads(payload_text)
-    except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"{label} must be valid JSON: {exc}; "
-            "on Windows PowerShell prefer @payload.json or stdin -"
-        ) from exc
-    if not isinstance(payload, dict):
-        raise ValueError(f"{label} must contain a JSON object")
-    return payload
-
-
-_MAX_AGENT_JSON_INPUT_BYTES = 16 * 1024 * 1024
+    return resolve_agent_json_object(raw, project_root=project_root, label=label)
 
 
 def _agent_json_object_input(
     *,
     input_json: str | None,
     label: str,
+    project_root: Path,
 ) -> dict[str, Any]:
-    """Load one bounded JSON object from the inline agent input channel."""
+    """Load one bounded JSON object from inline text, @path, or stdin."""
 
     if input_json is None:
-        raise ValueError(f"provide --input-json for {label}; input files are disabled")
-    raw = input_json
-    if len(raw.encode("utf-8")) > _MAX_AGENT_JSON_INPUT_BYTES:
-        raise ValueError(f"{label} exceeds the 16 MiB input limit")
-
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"{label} must be valid JSON: {exc}") from exc
-    if not isinstance(payload, dict):
-        raise ValueError(f"{label} must contain a JSON object")
-    return payload
+        raise ValueError(f"provide --input-json for {label}")
+    return resolve_agent_json_object(
+        input_json,
+        project_root=project_root,
+        label=label,
+        max_bytes=MAX_AGENT_INPUT_BYTES,
+    )
 
 
 def _run_task_authoring(
@@ -3486,7 +3457,11 @@ def tasks_build(
         lambda: build_task_package(
             project_root,
             feature_dir,
-            _task_authoring_object(definition_json, label="definition_json"),
+            _task_authoring_object(
+                definition_json,
+                label="definition_json",
+                project_root=project_root,
+            ),
         ),
         output_format,
         summary="Created a draft canonical task package.",
@@ -3512,7 +3487,11 @@ def tasks_upsert(
         lambda: upsert_task(
             project_root,
             feature_dir,
-            _task_authoring_object(task_json, label="task_json"),
+            _task_authoring_object(
+                task_json,
+                label="task_json",
+                project_root=project_root,
+            ),
         ),
         output_format,
         summary="Updated the canonical task package.",
@@ -3538,7 +3517,11 @@ def tasks_set_root(
         lambda: set_task_root_fields(
             project_root,
             feature_dir,
-            _task_authoring_object(patch_json, label="patch_json"),
+            _task_authoring_object(
+                patch_json,
+                label="patch_json",
+                project_root=project_root,
+            ),
         ),
         output_format,
         summary="Updated task-package root fields.",
@@ -3693,7 +3676,7 @@ def implement_result_merge(
     feature_dir: str = typer.Option(..., "--feature-dir"),
     task_id: str = typer.Option(..., "--task-id"),
     result_json: str | None = typer.Option(
-        None, "--result-json", help="Inline WorkerTaskResult JSON"
+        None, "--result-json", help="WorkerTaskResult JSON: inline, @path, or - for stdin"
     ),
     result_file: Path | None = typer.Option(
         None,
@@ -3714,6 +3697,12 @@ def implement_result_merge(
         )
     try:
         raw_result: object = result_json
+        if result_json is not None:
+            raw_result = resolve_agent_text_input(
+                result_json,
+                project_root=project_root,
+                label="result_json",
+            )
         if result_file is not None:
             source = (
                 result_file if result_file.is_absolute() else project_root / result_file
@@ -3741,7 +3730,7 @@ def implement_result_merge(
                 )
             raw_result = source.read_text(encoding="utf-8")
         payload = record_task_result(project_root, feature_dir, task_id, raw_result)
-    except (TaskRuntimeError, OSError, UnicodeError) as exc:
+    except (TaskRuntimeError, OSError, UnicodeError, ValueError) as exc:
         _fail_implement_task_runtime(exc, output_format)
     _emit_implement_task_payload(
         payload,
@@ -3814,7 +3803,9 @@ def implement_task_reopen(
 def implement_deferral_propose(
     feature_dir: str = typer.Option(..., "--feature-dir"),
     input_json: str | None = typer.Option(
-        None, "--input-json", help="Inline JSON deferral proposal"
+        None,
+        "--input-json",
+        help="JSON deferral proposal: inline, @path, or - for stdin",
     ),
     output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
 ):
@@ -3831,6 +3822,7 @@ def implement_deferral_propose(
         proposal = _agent_json_object_input(
             input_json=input_json,
             label="deferral proposal",
+            project_root=project_root,
         )
         payload = propose_implementation_deferral(
             project_root, resolved_feature_dir, proposal
@@ -4211,7 +4203,9 @@ def review_validate(
 def review_exception_propose(
     feature_dir: str = typer.Option(..., "--feature-dir"),
     input_json: str | None = typer.Option(
-        None, "--input-json", help="Inline JSON hardware exception proposal"
+        None,
+        "--input-json",
+        help="JSON hardware exception proposal: inline, @path, or - for stdin",
     ),
     output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
 ):
@@ -4225,6 +4219,7 @@ def review_exception_propose(
         proposal = _agent_json_object_input(
             input_json=input_json,
             label="Review exception proposal",
+            project_root=project_root,
         )
         payload = propose_review_exception(project_root, resolved_feature_dir, proposal)
     except (
@@ -7905,7 +7900,7 @@ def _resolve_result_context(
             console.print(
                 "[red]Error:[/red] Codex result handoff paths are runtime-managed "
                 "for durable-team requests; pass --request-id <id> or use `sp-teams "
-                "submit-result --request-id <id> --result-json '<inline-json>'`."
+                "submit-result --request-id <id> --result-json <inline-json|@path|->`."
             )
             raise typer.Exit(1)
         return {
@@ -8452,7 +8447,7 @@ def team_submit_result(
     result_json: str | None = typer.Option(
         None,
         "--result-json",
-        help="Inline structured WorkerTaskResult JSON",
+        help="Structured WorkerTaskResult JSON: inline, @path, or - for stdin",
     ),
     session_id: str = typer.Option(
         "default", "--session-id", help="Runtime session identifier"
@@ -8484,7 +8479,11 @@ def team_submit_result(
         result = normalize_result_submission(
             project_root,
             request_id,
-            result_json,
+            resolve_agent_text_input(
+                result_json,
+                project_root=project_root,
+                label="result_json",
+            ),
         )
         record = submit_runtime_result(
             project_root,
@@ -8538,7 +8537,9 @@ def team_api(
         None, "--request-id", help="Dispatch request identifier for result submission"
     ),
     result_json: str | None = typer.Option(
-        None, "--result-json", help="Inline worker result JSON for result submission"
+        None,
+        "--result-json",
+        help="Worker result JSON for submission: inline, @path, or - for stdin",
     ),
     session_id: str = typer.Option(
         "default", "--session-id", help="Runtime session identifier"
@@ -8639,7 +8640,7 @@ def result_submit_command(
     result_json: str | None = typer.Option(
         None,
         "--result-json",
-        help="Inline structured WorkerTaskResult JSON",
+        help="Structured WorkerTaskResult JSON: inline, @path, or - for stdin",
     ),
     request_id: str | None = typer.Option(
         None, "--request-id", help="Dispatch request id (Codex/runtime-managed paths)"

@@ -1848,7 +1848,10 @@ def _parse_plan_test_design_gate(
 ) -> tuple[str, dict[str, Any] | None]:
     raw_gate = plan.get("test_design_gate")
     if raw_gate is None:
-        return "not_selected", None
+        raise TaskAuthoringError(
+            f"{label} test_design_gate is required; rerun sp-plan to record "
+            "not_selected, selected, or required explicitly"
+        )
     if not isinstance(raw_gate, Mapping):
         raise TaskAuthoringError(
             f"{label} test_design_gate must contain an object"
@@ -1967,7 +1970,10 @@ def _plan_test_design_gate(
             (label, *_parse_plan_test_design_gate(plan, label=label))
         )
     if not decisions:
-        return "not_selected", None
+        raise TaskAuthoringError(
+            "plan-contract.json is required; rerun sp-plan to record an explicit "
+            "test_design_gate decision"
+        )
     if len({decision for _, decision, _ in decisions}) != 1:
         rendered = ", ".join(
             f"{label}={decision}" for label, decision, _ in decisions

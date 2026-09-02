@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -151,14 +152,51 @@ func TestExecutionCompletionAuditsActualPathsAndClosesAllAuthority(t *testing.T)
 	if unchanged.Activity.Phase != ExecutionPhaseExecuting || unchanged.Work.Status != WorkActive {
 		t.Fatalf("failed completion mutated authority = %#v", unchanged)
 	}
+	controlPlaneRef := ".specify/runtime/workflow-mutations/control-plane.json"
+	controlPlanePath := filepath.Join(guarded.Work.WorkspaceRoot, filepath.FromSlash(controlPlaneRef))
+	if err := os.MkdirAll(filepath.Dir(controlPlanePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(controlPlanePath, []byte("pinned workflow control plane\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	controlPlaneSHA256, err := workspacePathDigest(guarded.Work.WorkspaceRoot, controlPlaneRef)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.CompleteExecution(ctx, CompleteExecutionParams{
+		ActivityID:           guarded.Activity.ActivityID,
+		ExpectedWorkRevision: guarded.Work.Revision,
+		Fence:                guarded.Work.Fence,
+		ChangedPaths:         []string{"src/allowed/main.go"},
+		ControlPlaneFiles: []ExecutionFileDigestExpectation{{
+			Path: controlPlaneRef, SHA256: strings.Repeat("0", 64),
+		}},
+		ValidationJSON: `[{"command":"go test ./...","result":"passed"}]`,
+		Reason:         "reject control-plane drift at commit",
+	})
+	var controlPlaneErr *ExecutionControlPlaneDriftError
+	if !errors.As(err, &controlPlaneErr) || strings.Join(controlPlaneErr.Paths, ",") != controlPlaneRef {
+		t.Fatalf("control-plane completion error = %v, want drift for %s", err, controlPlaneRef)
+	}
+	unchanged, err = store.GetExecutionActivity(ctx, guarded.Activity.ActivityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unchanged.Activity.Phase != ExecutionPhaseExecuting || unchanged.Work.Status != WorkActive || unchanged.WriteIntents[0].Status != WriteIntentActive {
+		t.Fatalf("control-plane drift released authority = %#v", unchanged)
+	}
 
 	completed, err := store.CompleteExecution(ctx, CompleteExecutionParams{
 		ActivityID:           guarded.Activity.ActivityID,
 		ExpectedWorkRevision: guarded.Work.Revision,
 		Fence:                guarded.Work.Fence,
 		ChangedPaths:         []string{"src/allowed/main.go"},
-		ValidationJSON:       `[{"command":"go test ./...","result":"passed"}]`,
-		Reason:               "execution verified",
+		ControlPlaneFiles: []ExecutionFileDigestExpectation{{
+			Path: controlPlaneRef, SHA256: controlPlaneSHA256,
+		}},
+		ValidationJSON: `[{"command":"go test ./...","result":"passed"}]`,
+		Reason:         "execution verified",
 	})
 	if err != nil {
 		t.Fatal(err)

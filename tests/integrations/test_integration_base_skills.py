@@ -1224,7 +1224,7 @@ class SkillsIntegrationTests:
             else:
                 assert "fallback path" in content
             assert "subagent result contract" in content
-            assert "inline result submission" in content
+            assert "result submission" in content
             assert "runtime-owned compatibility path" in content
             assert "never create a result file or use `--result-file`" in content
             assert "reported_status" in content

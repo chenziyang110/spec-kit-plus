@@ -105,6 +105,15 @@ integrated verification owns the final design-conformance claim.
   --binding-sha256 <source-spec-sha256> --expected-change <UD-ID>`. This receipt
   is the explicit late overlay and sends the feature to Plan. The runtime never
   rewrites the source specification.
+- “Sends the feature to Plan” names the reconciliation target; it does not clear
+  a persisted blocker or make Plan immediately enterable from a later stage.
+  The Plan owner first requests `workflow reopen --to plan`. If the later stage
+  is blocked, the runtime leaves that blocker untouched and returns
+  `pending_reopen_action`; only real evidence satisfying its unblock criteria
+  may execute the atomic resolve-and-reopen transaction. Design hands off Plan
+  as the recovery owner, not as an already-enterable stage; Plan stages and
+  consumes that structured action on its first invocation and must not ask the
+  user to invoke Plan again while the blocker is unchanged.
 - To adopt it in an active Quick task, present and persist a Quick checkpoint
   amendment containing the new exact design binding as
   `decision.ui_confirmation.design_binding` before implementation resumes.

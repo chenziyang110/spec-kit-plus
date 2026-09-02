@@ -144,6 +144,44 @@ def test_schema_expands_only_the_requested_machine_contract() -> None:
         "expected_revision",
         "resolution_evidence",
     ]
+    assert resolve_input["properties"]["reopen_to"]["enum"] == [
+        "specify",
+        "plan",
+        "tasks",
+        "implement",
+        "review",
+    ]
+    for field in (
+        "reopen_to",
+        "reopen_reason",
+        "reopen_evidence",
+        "invalidated_artifacts",
+    ):
+        assert field not in resolve_input["required"]
+    resolve_validator = Draft202012Validator(resolve_input)
+    base_resolve = {
+        "feature_dir": ".specify/features/001-demo",
+        "expected_revision": 9,
+        "resolution_evidence": ["SEC-42 approved the exact fixture"],
+    }
+    assert list(resolve_validator.iter_errors(base_resolve)) == []
+    assert list(
+        resolve_validator.iter_errors({**base_resolve, "reopen_to": "plan"})
+    )
+    assert (
+        list(
+            resolve_validator.iter_errors(
+                {
+                    **base_resolve,
+                    "reopen_to": "plan",
+                    "reopen_reason": "late design invalidated plan",
+                    "reopen_evidence": ["UD-2601 verified"],
+                    "invalidated_artifacts": ["plan-contract.json"],
+                }
+            )
+        )
+        == []
+    )
 
 
 def test_blocker_input_schema_rejects_shapes_the_runtime_would_reject() -> None:

@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from specify_cli import app
@@ -48,15 +49,27 @@ def _feature(tmp_path: Path) -> tuple[Path, Path]:
     (feature / "tasks.md").write_text(
         "# Tasks\n\n- [ ] T001 Implement the CLI-owned task\n", encoding="utf-8"
     )
+    (feature / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "status": "ready",
+                "test_design_gate": {
+                    "decision": "not_selected",
+                    "projection_binding": None,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     return project, feature
 
 
-def _invoke(project: Path, args: list[str]):
+def _invoke(project: Path, args: list[str], *, input_text: str | None = None):
     runner = CliRunner()
     previous = os.getcwd()
     try:
         os.chdir(project)
-        return runner.invoke(app, args, catch_exceptions=False)
+        return runner.invoke(app, args, input=input_text, catch_exceptions=False)
     finally:
         os.chdir(previous)
 
@@ -174,3 +187,80 @@ def test_implement_cli_owns_packet_result_and_task_transitions(tmp_path: Path) -
     assert payload["task_status"] == "accepted"
     assert payload["next_task_id"] is None
     assert "- [x] T001" in (feature / "tasks.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("channel", ["at-path", "stdin"])
+def test_implement_result_merge_accepts_bounded_result_json_channels(
+    tmp_path: Path, channel: str
+) -> None:
+    project, feature = _feature(tmp_path)
+    packet = _invoke(
+        project,
+        [
+            "implement",
+            "packet-compile",
+            "--feature-dir",
+            str(feature),
+            "--task-id",
+            "T001",
+            "--format",
+            "json",
+        ],
+    )
+    assert packet.exit_code == 0, packet.output
+    started = _invoke(
+        project,
+        [
+            "implement",
+            "task-start",
+            "--feature-dir",
+            str(feature),
+            "--task-id",
+            "T001",
+            "--execution-mode",
+            "delegated",
+            "--format",
+            "json",
+        ],
+    )
+    assert started.exit_code == 0, started.output
+
+    payload = json.dumps(
+        {
+            "task_id": "T001",
+            "status": "success",
+            "changed_files": ["src/task.py"],
+            "validation_results": [
+                {"command": "python -m compileall src", "status": "passed"}
+            ],
+            "summary": "x" * 40_000,
+        }
+    )
+    input_text = None
+    if channel == "at-path":
+        source = project / "large-result.json"
+        source.write_text(payload, encoding="utf-8")
+        result_token = f"@{source.name}"
+    else:
+        result_token = "-"
+        input_text = payload
+
+    merged = _invoke(
+        project,
+        [
+            "implement",
+            "result-merge",
+            "--feature-dir",
+            str(feature),
+            "--task-id",
+            "T001",
+            "--result-json",
+            result_token,
+            "--format",
+            "json",
+        ],
+        input_text=input_text,
+    )
+
+    assert merged.exit_code == 0, merged.output
+    assert json.loads(merged.output)["worker_status"] == "success"

@@ -27,6 +27,21 @@ AUDIT_CORE_CHECK_IDS = (
 )
 
 
+def _unselected_test_design_gate() -> dict[str, object]:
+    return {
+        "decision": "not_selected",
+        "reason_refs": ["fixture:no-test-design-selected"],
+        "projection_binding": {
+            "publication_ref": None,
+            "publication_sha256": None,
+            "projection_ref": None,
+            "projection_sha256": None,
+            "source_fingerprint": None,
+            "state_revision": None,
+        },
+    }
+
+
 def _read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
@@ -70,6 +85,7 @@ def _project(tmp_path: Path) -> tuple[Path, Path]:
                 "status": "ready",
                 "acceptance_refs": [],
                 "source_revision": 7,
+                "test_design_gate": _unselected_test_design_gate(),
             }
         ),
         encoding="utf-8",
@@ -599,6 +615,21 @@ def _publish_test_design_handoff(
     }
     handoff_raw = _write_json(test_design / "handoff-to-tasks.json", handoff)
     assert handoff_raw
+    plan_path = feature / "plan-contract.json"
+    plan_contract = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan_contract["test_design_gate"] = {
+        "decision": "selected",
+        "reason_refs": ["fixture:test-design-published"],
+        "projection_binding": {
+            "publication_ref": None,
+            "publication_sha256": None,
+            "projection_ref": None,
+            "projection_sha256": None,
+            "source_fingerprint": None,
+            "state_revision": None,
+        },
+    }
+    _write_json(plan_path, plan_contract)
     return task_authoring._verify_published_test_design_handoff(project, feature)
 
 
@@ -974,6 +1005,33 @@ def test_tasks_build_allows_an_explicitly_unselected_test_design_without_root(
     result = _build(project, feature, _task(case_refs=[]))
 
     assert result.exit_code == 0, result.output
+
+
+def test_tasks_build_rejects_a_missing_plan_test_design_gate(
+    tmp_path: Path,
+) -> None:
+    project, feature = _project(tmp_path)
+    plan_path = feature / "plan-contract.json"
+    plan_contract = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan_contract.pop("test_design_gate")
+    _write_json(plan_path, plan_contract)
+
+    result = _build(project, feature, _task(case_refs=[]))
+
+    assert result.exit_code == 10
+    assert "test_design_gate" in result.output
+    assert "sp-plan" in result.output
+
+
+def test_tasks_build_rejects_a_missing_plan_contract(tmp_path: Path) -> None:
+    project, feature = _project(tmp_path)
+    (feature / "plan-contract.json").unlink()
+
+    result = _build(project, feature, _task(case_refs=[]))
+
+    assert result.exit_code == 10
+    assert "plan-contract.json" in result.output
+    assert "sp-plan" in result.output
 
 
 def test_tasks_build_rejects_an_unknown_plan_test_design_gate_decision(

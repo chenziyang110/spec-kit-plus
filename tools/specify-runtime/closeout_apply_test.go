@@ -719,7 +719,11 @@ func TestCognitionCloseoutApplyAcceptsLargePayloadFromStdin(t *testing.T) {
 
 func TestCognitionCloseoutApplyAcceptsPayloadFromAtPath(t *testing.T) {
 	project, _, scopeDir := seedCloseoutApplyRuntime(t)
-	payloadPath := filepath.Join(t.TempDir(), "closeout-payload.json")
+	payloadDir := filepath.Join(project, ".specify", "runtime", "test-inputs")
+	if err := os.MkdirAll(payloadDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	payloadPath := filepath.Join(payloadDir, "closeout-payload.json")
 	if err := os.WriteFile(payloadPath, []byte(largeCloseoutApplyPayloadJSON(t)), 0o600); err != nil {
 		t.Fatal(err)
 	}

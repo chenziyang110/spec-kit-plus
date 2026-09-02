@@ -274,7 +274,15 @@ def _write_minimal_planning_outputs(feature_dir: Path) -> None:
         and not (feature_dir / "plan" / "plan-contract.json").exists()
     ):
         plan_contract_path.write_text(
-            '{"version": 1, "status": "ready"}\n', encoding="utf-8"
+            json.dumps(
+                {
+                    "version": 1,
+                    "status": "ready",
+                    "test_design_gate": _unselected_test_design_gate(),
+                }
+            )
+            + "\n",
+            encoding="utf-8",
         )
     for filename in ("research.md", "quickstart.md"):
         path = feature_dir / filename
@@ -287,6 +295,21 @@ def _write_minimal_planning_outputs(feature_dir: Path) -> None:
     )
     (planning_dir / "checkpoints.ndjson").write_text("", encoding="utf-8")
     (planning_dir / "handoffs").mkdir(exist_ok=True)
+
+
+def _unselected_test_design_gate() -> dict[str, object]:
+    return {
+        "decision": "not_selected",
+        "reason_refs": ["fixture:no-test-design-selected"],
+        "projection_binding": {
+            "publication_ref": None,
+            "publication_sha256": None,
+            "projection_ref": None,
+            "projection_sha256": None,
+            "source_fingerprint": None,
+            "state_revision": None,
+        },
+    }
 
 
 def _write_minimal_acceptance_denominator(
@@ -6245,7 +6268,15 @@ def test_validate_artifacts_accepts_plan_without_unused_lane_outputs(tmp_path: P
         "# Workflow State\n", encoding="utf-8"
     )
     (feature_dir / "plan-contract.json").write_text(
-        '{"version": 1, "status": "ready"}\n', encoding="utf-8"
+        json.dumps(
+            {
+                "version": 1,
+                "status": "ready",
+                "test_design_gate": _unselected_test_design_gate(),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
     )
     _write_minimal_acceptance_denominator(feature_dir)
 
@@ -6271,7 +6302,15 @@ def test_validate_artifacts_accepts_plan_with_nested_plan_contract(tmp_path: Pat
     _write_minimal_planning_outputs(feature_dir)
     (feature_dir / "plan-contract.json").unlink()
     (feature_dir / "plan" / "plan-contract.json").write_text(
-        '{"version": 1, "status": "ready"}\n', encoding="utf-8"
+        json.dumps(
+            {
+                "version": 1,
+                "status": "ready",
+                "test_design_gate": _unselected_test_design_gate(),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
     )
     _write_minimal_acceptance_denominator(feature_dir)
 
@@ -6512,6 +6551,63 @@ def test_validate_artifacts_accepts_plan_consuming_deep_research_handoff(
 
     assert result.status == "ok"
     assert result.errors == []
+
+
+def test_validate_artifacts_blocks_plan_without_test_design_gate(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "plan.md").write_text("# Plan\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n", encoding="utf-8"
+    )
+    _write_minimal_planning_outputs(feature_dir)
+    _write_minimal_acceptance_denominator(feature_dir)
+    plan_path = feature_dir / "plan-contract.json"
+    plan_payload = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan_payload.pop("test_design_gate")
+    plan_path.write_text(json.dumps(plan_payload) + "\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "plan", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any("test_design_gate is required" in error for error in result.errors)
+    assert any("sp-plan" in error for error in result.errors)
+
+
+def test_validate_artifacts_blocks_plan_with_invalid_test_design_gate_decision(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "plan.md").write_text("# Plan\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n", encoding="utf-8"
+    )
+    _write_minimal_planning_outputs(feature_dir)
+    _write_minimal_acceptance_denominator(feature_dir)
+    plan_path = feature_dir / "plan-contract.json"
+    plan_payload = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan_payload["test_design_gate"]["decision"] = "implicit"
+    plan_path.write_text(json.dumps(plan_payload) + "\n", encoding="utf-8")
+
+    result = run_quality_hook(
+        project,
+        "workflow.artifacts.validate",
+        {"command_name": "plan", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert any(
+        "test_design_gate.decision" in error
+        and "not_selected, selected, or required" in error
+        for error in result.errors
+    )
 
 
 def test_validate_artifacts_requires_exact_runtime_deep_research_plan_binding(
@@ -6950,6 +7046,7 @@ def test_validate_artifacts_accepts_plan_when_decision_covers_obligation_id(
             {
                 "version": 1,
                 "status": "ready",
+                "test_design_gate": _unselected_test_design_gate(),
                 "consequence_gate": {
                     "triggered": True,
                     "trigger_reason": "team close has running-worker semantics",

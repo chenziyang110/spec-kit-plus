@@ -86,9 +86,13 @@ Leader owns scope, `STATUS.md`, join, accept—not `write_scope` edits.
 2. `quick item-start --item Qn` (`requires_worker: true`)
 3. **Spawn subagent** for the Qn write scope (required; no Edit/Write first)
 4. Wait / join
-5. `result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id Qn --result-json '...'`
+5. `result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id Qn --result-json <inline-json|@path|->`
 6. `quick item-accept --item Qn --evidence '...'` (runtime requires worker result)
 7. Only then start the next Q
+
+Keep small result payloads inline, send large model-authored JSON through stdin,
+and reserve `@path` for an existing runtime-owned or registered project
+artifact. Never create a temporary result file merely for transport.
 
 **Forbidden** between item-start and item-accept: Leader mutation of that item's
 `write_scope`. **Illegal excuses:** docs-only, few files, serial order, save

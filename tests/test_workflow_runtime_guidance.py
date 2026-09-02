@@ -23,6 +23,7 @@ def test_classic_stage_handoff_uses_the_deterministic_workflow_cli() -> None:
         "specify-runtime workflow transition",
         "specify-runtime workflow next",
         "specify-runtime workflow block",
+        "specify-runtime workflow reconcile-blocker",
         "specify-runtime workflow resolve",
         "specify-runtime workflow closeout",
         "specify-runtime workflow reopen",
@@ -90,6 +91,25 @@ def test_runtime_state_is_separate_from_auxiliary_and_learning_state() -> None:
     assert "workflow-state.md" in learning
 
 
+def test_partial_blocker_reconciliation_removes_only_proven_stale_subcauses() -> None:
+    for relative in (
+        "templates/command-partials/common/blocker-resolution.md",
+        "templates/advanced-skills/_shared/blocker-resolution.md",
+        "templates/advanced-skills/_shared/workflow-runtime.md",
+    ):
+        content = " ".join(_read(relative).lower().split())
+        for token in (
+            "workflow.reconcile-blocker",
+            "subcauses",
+            "resolved",
+            "remaining cause",
+            "owner/category",
+            "blocked",
+            "workflow.resolve",
+        ):
+            assert token in content, (relative, token)
+
+
 def test_auto_routes_canonical_features_from_structured_runtime_argv_first() -> None:
     classic = _read("templates/commands/auto.md")
     advanced = _read(
@@ -138,6 +158,27 @@ def test_auxiliary_spx_skills_do_not_call_rich_state_runtime_owned() -> None:
     for name in ("deep-research", "analyze"):
         content = _read(f"templates/advanced-skills/spx-{name}/SKILL.md")
         assert "runtime-owned `workflow-state.md`" not in content
+
+
+def test_deep_research_requires_executable_planning_source_and_schema_discovery() -> None:
+    surfaces = (
+        _read("templates/commands/deep-research.md"),
+        _read("templates/advanced-skills/spx-deep-research/SKILL.md"),
+    )
+    for content in surfaces:
+        lowered = " ".join(content.lower().split())
+        for token in (
+            "spec-contract.json.status: planning-ready",
+            "stage: specify",
+            "status: completed",
+            "api show deep-research.<subcommand>",
+            "api schema",
+            "draft",
+            "blocked",
+        ):
+            assert token in lowered
+        assert "do not initialize research" in lowered
+        assert "never" in lowered and "plan" in lowered
 
 
 def test_auxiliary_workflows_do_not_call_rich_state_the_required_stage_authority() -> (
@@ -286,6 +327,76 @@ def test_plan_and_accept_resolve_then_gate_before_their_first_owned_write() -> N
     for content in (classic_accept, advanced_accept):
         assert "Transition from" in content
         assert content.index("Transition from") < content.index("accept prepare")
+
+
+def test_blocked_backward_reopen_uses_one_atomic_resolution_bridge() -> None:
+    shared_surfaces = (
+        _read("templates/command-partials/common/agent-phase-handoff.md"),
+        _read("templates/advanced-skills/_shared/workflow-runtime.md"),
+    )
+    for content in shared_surfaces:
+        assert "pending_reopen_action" in content
+        assert "--reopen-to" in content
+        assert "atomically" in content.lower()
+        assert "blocker audit" in content.lower()
+
+    blocker_surfaces = (
+        _read("templates/command-partials/common/blocker-resolution.md"),
+        _read("templates/advanced-skills/_shared/blocker-resolution.md"),
+    )
+    for content in blocker_surfaces:
+        assert "pending_reopen_action" in content
+        assert "resolution_action" in content
+        assert "same owner" in content.lower()
+        assert "earlier stage" in content.lower()
+
+    plan_surfaces = (
+        _read("templates/commands/plan.md"),
+        _read("templates/advanced-skills/spx-plan/SKILL.md"),
+    )
+    for content in plan_surfaces:
+        lowered = " ".join(content.lower().split())
+        assert "pending_reopen_action" in content
+        assert "later stage" in lowered
+        assert "do not ask the user to invoke" in lowered
+
+    design_surfaces = (
+        _read("templates/command-references/design/consumer-contract.md"),
+        _read("templates/advanced-skills/spx-design/references/consumer-contract.md"),
+    )
+    for content in design_surfaces:
+        assert "pending_reopen_action" in content
+        assert "does not clear" in content.lower()
+
+    routing_surfaces = (
+        _read("templates/commands/auto.md"),
+        _read("templates/advanced-skills/spx-auto/references/routing-contract.md"),
+        _read("templates/commands/analyze.md"),
+        _read("templates/advanced-skills/spx-analyze/SKILL.md"),
+    )
+    for content in routing_surfaces:
+        assert "pending_reopen_action" in content
+        assert "before reopen" not in " ".join(content.lower().split())
+
+
+def test_capability_unavailability_stays_agent_owned_across_workflows() -> None:
+    surfaces = (
+        _read("templates/command-references/plan/subagent-dispatch.md"),
+        _read("templates/command-references/quick/packetized-work.md"),
+        _read("templates/commands/test-design.md"),
+        _read("templates/advanced-skills/spx-test-design/SKILL.md"),
+        _read("templates/advanced-skills/spx-implement-teams/SKILL.md"),
+        _read(
+            "templates/advanced-skills/spx-implement-teams/references/claude-agent-teams.md"
+        ),
+    )
+    for content in surfaces:
+        lowered = " ".join(content.lower().split())
+        assert "agent-owned" in lowered
+        assert "resume" in lowered or "fallback" in lowered or "redispatch" in lowered
+    claude_teams = " ".join(surfaces[-1].lower().split())
+    assert "tell the user to enable" not in claude_teams
+    assert "fallback_action" in claude_teams
 
 
 def test_classic_required_stages_do_not_rebuild_workflow_state_by_prompt() -> None:

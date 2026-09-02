@@ -19,11 +19,19 @@ planning-artifact scope on Work Board, and resume through the workflow runtime.
 Preserve artifact leases, input readiness, and design-only boundaries; do not
 create another branch or worktree.
 
-Resolve `FEATURE_DIR` without creating `plan.md`, using an explicit feature
-argument, a validated durable workflow binding, or the installed prerequisite
-helper's unique paths-only result. Never infer it from a Git ref or branch name.
-Transition from the validated `specify` stage into `plan` through the workflow
-runtime. Only after the transition succeeds, run the installed
+Resolve `FEATURE_DIR` without creating `plan.md`. Do that in the current
+worktree, using an explicit feature argument, a validated durable workflow
+binding, or the installed prerequisite helper's unique paths-only result. Never
+infer it from a Git ref or branch name.
+Query the workflow runtime first. Transition from the validated completed
+`specify` stage into `plan` on the ordinary forward path. If verified fresh
+evidence invalidates Plan while the runtime owns a later stage, use an
+evidence-backed `workflow reopen --to plan`. A blocked later stage returns
+`pending_reopen_action`; preserve its blocker, present the Human Action Guide,
+and execute the returned atomic resolve-and-reopen base argv only after real
+resolution evidence exists. Do not ask the user to invoke Plan again before
+that transaction succeeds. Only after the transition succeeds, or the atomic
+resolve-and-reopen transaction succeeds, run the installed
 `.specify/scripts/bash/setup-plan.sh --json` or PowerShell equivalent to create
 or preserve the plan skeleton. Run
 `{{specify-subcmd:specify-runtime hook validate-state --command plan --feature-dir <feature-dir> --autofix --format json}}`

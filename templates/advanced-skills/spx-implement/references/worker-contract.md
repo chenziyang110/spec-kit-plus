@@ -15,6 +15,37 @@ Shared feature metadata overlap requires serialized ownership; do not drop
 those paths, use a wildcard, or add a broad `.specify` audit exemption to force
 parallel dispatch.
 
+Exact feature `workflow.json` is part of compiler-owned bookkeeping so official
+`specify-runtime workflow` mutations retain their own audit without becoming
+worker product drift; it belongs exclusively to that runtime owner and remains
+outside Leader/worker content and product `--scope-amendments-json` input.
+Announce binds the exact workflow state and latest mutation receipt when
+present. Completion accepts a changed state only when it is active Implement
+and matches a newer runtime mutation receipt, then reports the path and receipt
+digest. Valid-shaped hand edits, malformed state, and unresolved blockers
+remain agent-owned until official resolution resumes the same Activity. The
+completion transaction rechecks both exact digests while holding the workflow
+mutation lock before authority release; drift keeps the same Activity active.
+The feature-local `.workflow.lock` and workflow-mutation receipt storage are
+private transport, not packet scope.
+
+Product `write_scope` accepts only exact future files, exact directories, or
+bounded subtrees ending with `/**`. Filename globs such as `*_test.go`, `?`,
+`[]`, `/*`, or middle `**` are invalid. If the task will create or modify
+companion tests, migrations, fixtures, generated files, or other companion
+artifacts, those future writes must already be declared in `expected_write_scope`.
+Validation commands and `pytest tests/...` references are evidence only and do
+not grant write authority. When the exact future filename is unknown, Tasks
+must use the narrowest containing directory or bounded subtree ending with
+`/**`.
+If one causal companion path is discovered after dispatch, stop before that
+write when possible and return it to the Leader. The Leader keeps recovery in
+the same invocation by refreshing overview and rerunning the existing
+`execution guard` with the complete union plus `--scope-amendments-json`.
+Runtime preserves the original packet, marks late discovery from Git delta,
+and requires an independent passing `scope-drift-review`; `work scope-add`
+cannot bypass this route.
+
 Provide the worker:
 
 - full task outcome and authoritative contract refs;
@@ -61,7 +92,7 @@ Required field name is `validation_results` (array of `{command, status:
 `evidence register` does not replace `validation_results`.
 The worker returns this bounded object to the leader or submits it inline through
 the runtime-managed result channel. The leader merges it with
-`{{specify-subcmd:specify-runtime implement result-merge --feature-dir <feature-dir> --task-id <task-id> --result-json '<inline-json>' --format json}}`;
+`{{specify-subcmd:specify-runtime implement result-merge --feature-dir <feature-dir> --task-id <task-id> --result-json <inline-json|@path|-> --format json}}`;
 neither party writes a canonical or temporary result
 file under `worker-results/` directly.
 Cheap producer-to-consumer wiring evidence remains task-local when a consumer

@@ -81,6 +81,15 @@ patch those fields. Every task ref must be a handoff member; before finalize,
 the task-wide unions must consume all and only the handoff case/data arrays.
 Finalize and handoff recompute all bindings and reject stale, tampered, forged,
 foreign, missing, or partial consumption.
+Treat `expected_write_scope` as explicit write authority for dispatch. Each
+entry must be an exact future file, an exact directory path, or a bounded
+subtree ending with `/**`; filename globs such as `*_test.go`, `?`, `[]`,
+`/*`, or middle `**` are invalid. If a task may create or change companion
+tests, migrations, fixtures, generated files, or other companion artifacts,
+include them explicitly in `expected_write_scope`. When the exact filename is
+unknown, use the narrowest containing directory or bounded subtree ending with
+`/**`. Verification commands, validation routes, and `pytest tests/...`
+strings are evidence only and never grant write authority.
 
 Set root `validation_policy` to `mode: feature_epochs`, `max_epochs: 3`,
 `budget_scope: implement-review`,

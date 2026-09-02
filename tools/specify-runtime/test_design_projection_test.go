@@ -19,7 +19,7 @@ const (
 )
 
 func TestTestDesignProjectionCommandsArePublic(t *testing.T) {
-	for _, subcommand := range []string{"publish", "projection-build", "projection-verify"} {
+	for _, subcommand := range []string{"recover", "publish", "projection-build", "projection-verify"} {
 		t.Run(subcommand, func(t *testing.T) {
 			env, _ := runTestDesignWorkflowCommand(t, []string{
 				"test-design", subcommand, "--project-root", t.TempDir(), "--format", "json",
@@ -259,6 +259,9 @@ func TestTestDesignStatusRoutesIndependentPublicationAndTasksRepublish(t *testin
 	if projectStatus.Data["next_action"] != "publish" || !testDesignArgvContains(projectStatus.NextArgv, "--expected-revision") {
 		t.Fatalf("project validated status did not route to CAS publication: %#v", projectStatus)
 	}
+	publishTestDesignProjectionFixture(t, projectFixture)
+	projectPublished := requireTestDesignOK(t, projectFixture.command("status", "--format", "json"))
+	assertTestDesignProjectionAction(t, projectPublished, "")
 
 	featureFixture := setupValidatedTestDesignProjectionFixture(t, "feature", 1)
 	featureStatus := requireTestDesignOK(t, featureFixture.command("status", "--format", "json"))
@@ -269,6 +272,81 @@ func TestTestDesignStatusRoutesIndependentPublicationAndTasksRepublish(t *testin
 	handedOffStatus := requireTestDesignOK(t, featureFixture.command("status", "--format", "json"))
 	if handedOffStatus.Data["next_action"] != "publish" || !testDesignArgvContains(handedOffStatus.NextArgv, "--expected-revision") {
 		t.Fatalf("handed-off status did not route to current-revision publication: %#v", handedOffStatus)
+	}
+	publishTestDesignProjectionFixture(t, featureFixture)
+	tasksProjectionStatus := requireTestDesignOK(t, featureFixture.command("status", "--format", "json"))
+	assertTestDesignProjectionAction(t, tasksProjectionStatus, "tasks")
+}
+
+func TestTestDesignStatusKeepsGenuineHumanInputBlockedWithoutLosingRecovery(t *testing.T) {
+	fixture := setupValidatedTestDesignProjectionFixture(t, "feature", 1)
+	state := readTestDesignJSONMap(t, filepath.Join(fixture.artifactRoot, "test-state.json"))
+	state["status"] = "blocked"
+	state["claim_status"] = "blocked"
+	state["blockers"] = []any{map[string]any{
+		"category": "test-material", "owner": "maintainer",
+		"exact_cause":           "Organization-controlled sanitized fixture approval is missing.",
+		"human_action_required": true,
+	}}
+	if err := writeTestDesignJSONFixture(filepath.Join(fixture.artifactRoot, "test-state.json"), state); err != nil {
+		t.Fatal(err)
+	}
+
+	env, exit := runTestDesignWorkflowCommand(t, fixture.command("status", "--format", "json"))
+	if exit == 0 || env.Status != "blocked" || len(env.NextArgv) != 0 {
+		t.Fatalf("human-owned blocked status must wait without executable next_argv: exit=%d env=%#v", exit, env)
+	}
+	if _, ok := env.Data["recovery_action"].(map[string]any); !ok {
+		t.Fatalf("human-owned blocker lost the exact post-evidence recovery action: %#v", env.Data)
+	}
+
+	if err := os.WriteFile(filepath.Join(fixture.projectRoot, "src", "approval.go"), []byte("package approval\n// source drift\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stale, staleExit := runTestDesignWorkflowCommand(t, fixture.command("status", "--format", "json"))
+	if staleExit == 0 || stale.Status != "blocked" || stale.Data["next_action"] != "incremental-update" || len(stale.NextArgv) == 0 {
+		t.Fatalf("agent-owned source refresh must proceed before the preserved human input: exit=%d env=%#v", staleExit, stale)
+	}
+}
+
+func TestTestDesignRecoverReusesRuntimeBoundaryWithoutInlinePayload(t *testing.T) {
+	fixture := setupValidatedTestDesignProjectionFixture(t, "feature", 1)
+	state := readTestDesignJSONMap(t, filepath.Join(fixture.artifactRoot, "test-state.json"))
+	state["status"] = "blocked"
+	state["claim_status"] = "blocked"
+	state["blockers"] = []any{map[string]any{
+		"category": "test-design-claim", "owner": "test-design leader", "human_action_required": false,
+	}}
+	if err := writeTestDesignJSONFixture(filepath.Join(fixture.artifactRoot, "test-state.json"), state); err != nil {
+		t.Fatal(err)
+	}
+
+	status, statusExit := runTestDesignWorkflowCommand(t, fixture.command("status", "--format", "json"))
+	if statusExit == 0 || status.Status != "blocked" {
+		t.Fatalf("blocked status exit=%d env=%#v", statusExit, status)
+	}
+	action := status.Data["recovery_action"].(map[string]any)
+	argv := stringSlice(t, action["base_argv"])
+	if hasFlag(argv, "--input-json") || hasFlag(argv, "--leader-id") {
+		t.Fatalf("recovery action leaked a reconstructed boundary into argv: %#v", argv)
+	}
+	recovered := requireTestDesignOK(t, argv[1:])
+	if recovered.Data["phase"] != "scoped" || recovered.Data["status"] != "active" || !testDesignArgvContains(recovered.NextArgv, "universe-build") {
+		t.Fatalf("recovery did not resume the same root at universe-build: %#v", recovered)
+	}
+}
+
+func assertTestDesignProjectionAction(t *testing.T, env Envelope, consumer string) {
+	t.Helper()
+	if env.Data["next_action"] != "projection-build" {
+		t.Fatalf("published status next_action=%#v, want projection-build", env.Data["next_action"])
+	}
+	action, ok := env.Data["projection_action"].(map[string]any)
+	if !ok || action["capability_id"] != "test-design.projection-build" {
+		t.Fatalf("projection_action=%#v", env.Data["projection_action"])
+	}
+	if consumer != "" && action["consumer"] != consumer {
+		t.Fatalf("projection_action consumer=%#v, want %s", action["consumer"], consumer)
 	}
 }
 
@@ -442,6 +520,9 @@ func buildTestDesignProjection(t *testing.T, fixture testDesignProjectionFixture
 	if projectionRef == "" || !testDesignSHA256Pattern.MatchString(projectionSHA) {
 		t.Fatalf("projection-build returned an invalid binding: %#v", env.Data)
 	}
+	if len(env.NextArgv) == 0 || !testDesignArgvContains(env.NextArgv, "projection-verify") || optionValue(env.NextArgv, "--projection-ref", "") != projectionRef || optionValue(env.NextArgv, "--expected-sha256", "") != projectionSHA {
+		t.Fatalf("projection-build next_argv=%#v, want exact projection verification", env.NextArgv)
+	}
 	if filepath.IsAbs(projectionRef) || strings.Contains(filepath.ToSlash(filepath.Clean(projectionRef)), "../") {
 		t.Fatalf("projection_ref must be a safe project-relative path: %q", projectionRef)
 	}
@@ -464,6 +545,11 @@ func requireTestDesignProjectionVerifyOK(t *testing.T, fixture testDesignProject
 	))
 	if env.Data["valid"] != true || env.Data["fresh"] != true {
 		t.Fatalf("projection verify did not report valid+fresh: %#v", env.Data)
+	}
+	consumer := strings.TrimSpace(asString(env.Data["consumer"]))
+	wantReturn := "/sp." + consumer
+	if len(env.NextArgv) != 1 || env.NextArgv[0] != wantReturn {
+		t.Fatalf("projection verify next_argv=%#v, want return to %s", env.NextArgv, wantReturn)
 	}
 }
 

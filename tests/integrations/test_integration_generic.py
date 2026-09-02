@@ -61,6 +61,7 @@ class TestGenericIntegration:
             *(f".myagent/commands/sp.{stem}.md" for stem in cls._command_stems()),
             *cls._command_reference_files(),
             ".specify/bin/.gitignore",
+            ".specify/runtime/.gitignore",
             PROJECT_SPECIFY_RUNTIME,
             ".specify/config.json",
             ".specify/init-options.json",

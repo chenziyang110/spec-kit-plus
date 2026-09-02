@@ -19,11 +19,20 @@ Preserved Contract: complete scope, boundaries, interfaces, obligations, verific
 
 - stable id and objective;
 - dependencies and packet mode;
-- expected write scope or discovery rule;
+- expected write scope as exact future files, exact directories, or bounded subtrees ending with `/**`;
 - required refs and forbidden drift;
 - objective acceptance and verification;
 - task-relevant interfaces, `MP-*`, `CA-###`, UI/fidelity, and real-entrypoint evidence;
 - join point and stop/reopen condition when applicable.
+
+Write scope is explicit authorization, not something inferred from validation.
+Reject filename globs such as `*_test.go`, `?`, `[]`, `/*`, or middle `**`
+before dispatch. If a task will create or update companion tests, migrations,
+fixtures, generated files, or other companion artifacts, include those writes
+explicitly in `expected_write_scope`. When the exact future filename is
+unknown, use the narrowest containing directory or bounded subtree ending with
+`/**`; do not rely on `verification` or `pytest tests/...` to imply write
+access.
 
 ## Complete-First Scope Preservation
 
@@ -31,7 +40,7 @@ Keep protected obligations and the complete confirmed scope executable in the gr
 
 Do not shrink scope into agent-invented `v1/v2`, `P0/P1`, or a future-work delivery slice. Execution phases and user-story priorities order the complete confirmed scope; they are not delivery deferral. A valid deferral references user confirmation, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact. If the user did not confirm the deferral, task the behavior or block truthfully.
 
-5. Build dependency edges, parallel batches, join points, and write-set safety. Exact write sets are required for parallel delegation; leader-direct tasks may use a bounded module scope that live evidence can refine. Every explicit join point includes a validation target, validation command or concrete check, pass condition, and recovery on failure.
+5. Build dependency edges, parallel batches, join points, and write-set safety. Exact write sets are required for parallel delegation; leader-direct tasks may use a bounded module scope that live evidence can refine, but that scope still has to be expressed as exact future files, exact directories, or a bounded subtree ending with `/**`. Every explicit join point includes a validation target, validation command or concrete check, pass condition, and recovery on failure.
 
 The graph may describe the full feature delivery shape, but dispatch guidance and packet compilation target only the current ready batch.
 

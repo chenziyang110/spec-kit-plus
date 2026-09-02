@@ -3265,6 +3265,41 @@ def _validate_plan_deep_research_binding(
     return errors
 
 
+def _validate_plan_test_design_gate(feature_dir: Path) -> list[str]:
+    from ..task_authoring import TaskAuthoringError, _parse_plan_test_design_gate
+
+    decisions: list[tuple[str, str, dict[str, Any] | None]] = []
+    for candidate, label in _consequence_contract_paths(feature_dir):
+        if not candidate.is_file():
+            continue
+        plan_payload, read_errors = _read_json_artifact(candidate, label)
+        if read_errors:
+            return read_errors
+        if not isinstance(plan_payload, dict):
+            return [f"{label} must contain a top-level JSON object"]
+        try:
+            decision, binding = _parse_plan_test_design_gate(
+                plan_payload, label=label
+            )
+        except TaskAuthoringError as exc:
+            return [str(exc)]
+        decisions.append((label, decision, binding))
+    if not decisions:
+        return ["plan-contract.json or plan/plan-contract.json is required"]
+    if len({decision for _, decision, _ in decisions}) != 1:
+        rendered = ", ".join(
+            f"{label}={decision}" for label, decision, _ in decisions
+        )
+        return ["conflicting plan-contract test_design_gate decisions: " + rendered]
+    first_binding = decisions[0][2]
+    if any(binding != first_binding for _, _, binding in decisions[1:]):
+        rendered = ", ".join(
+            f"{label}={binding!r}" for label, _, binding in decisions
+        )
+        return ["conflicting plan-contract test_design_gate bindings: " + rendered]
+    return []
+
+
 def _validate_plan_consequence_contract(feature_dir: Path) -> list[str]:
     errors: list[str] = []
     triggered_payloads: list[tuple[Any, str]] = []
@@ -7760,6 +7795,7 @@ def validate_artifacts_hook(
             )
         else:
             validation_errors.extend(_validate_plan_consumes_deep_research(feature_dir))
+        validation_errors.extend(_validate_plan_test_design_gate(feature_dir))
         validation_errors.extend(_validate_plan_consequence_contract(feature_dir))
         validation_errors.extend(
             _validate_plan_entrypoint_outcome_contract(feature_dir)

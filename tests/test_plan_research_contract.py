@@ -27,7 +27,9 @@ def test_plan_command_requires_persisted_delegated_planning_lane_handoffs() -> N
     lowered = content.lower()
 
     assert "planning/lane-manifest.json" in content
-    assert "each delegated planning lane submits its structured handoff inline" in lowered
+    assert "each delegated planning lane submits its structured handoff with `specify-runtime result submit" in lowered
+    assert "<inline-json|@path|->" in lowered
+    assert "use stdin for large model-authored json" in lowered
     assert "materialized only by the runtime" in lowered
     assert "every accepted lane result is integrated" in lowered
     assert "do not require separate evidence-index and checkpoint logs" in lowered

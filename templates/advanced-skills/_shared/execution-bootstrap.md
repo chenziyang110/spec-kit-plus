@@ -8,6 +8,15 @@ worktree, or automatically merge or publish. Feature scaffolding alone follows
 the explicit branch policy returned by its bootstrap receipt below. Use the
 agent's native tooling for bounded subagents or manual long-lived workers.
 
+The repository-shared database is the primary worktree's writable
+`.specify/runtime/run-control/run-control.sqlite`; linked worktrees derive that
+same location, so normal execution never needs `.git` write permission. On the
+first writer access, the runtime transactionally snapshots a legacy
+`.git/specify-runtime/run-control.sqlite` into the canonical store, preserves
+the legacy file for audit, and never falls back after the canonical store
+exists. Local setup or migration failure is typed agent-owned recovery. Do not
+send the user to repair Git permissions or edit either database.
+
 Fast, Debug, Implement, and Quick use one global concurrency view; other
 workflows may inspect that same read-only context. At entry or resume, before choosing new work versus an existing
 task, call `specify-runtime execution overview --format json`; pass the exact
@@ -46,7 +55,7 @@ objective/summary, and the full `planned_write_scope`. Never pass the path alone
 or reconstruct or override those packet-derived fields with manual metadata.
 Keep product `write_scope` and `ui_contract` unchanged. The compiler adds
 separate `bookkeeping_write_scope` with exactly these feature-local paths:
-`task-index.json`, `tasks.md`, `implement-tracker.md`,
+`task-index.json`, `tasks.md`, `workflow.json`, `implement-tracker.md`,
 `implementation-review/execution-state.json`,
 `implementation-review/tasks/<task-id>.json`, and
 `worker-results/<task-id>.json`. The hashed packet pins both sets. Announce
@@ -55,10 +64,38 @@ not a reconstruction of product paths alone. Bookkeeping remains CLI-owned,
 never hand-edited. Shared feature metadata overlaps require serialized
 ownership instead of dropping paths or bypassing the board. No wildcard or
 broad `.specify` exemption is allowed.
+`workflow.json` is included so official `specify-runtime workflow` mutations
+during an active Activity remain runtime-owned bookkeeping. Announce binds its
+exact baseline and latest runtime mutation receipt when present. Agents still
+never edit it or add it through product scope amendments. Completion accepts a
+changed state only when it is active Implement and matches a newer runtime
+mutation receipt; valid-shaped hand edits, malformed state, and unresolved
+blockers return agent-owned workflow recovery. After official resolution, the
+same Activity resumes completion and reports the control-plane path plus the
+receipt ref/digest. It holds the workflow mutation lock and rechecks both exact
+digests inside the completion transaction before releasing authority; drift
+keeps the same Activity active for agent-owned retry. Feature-local
+`.workflow.lock` and workflow-mutation receipt storage are private runtime
+transport, never packet scope or product evidence.
+Product `write_scope` entries are exact future files, exact directories, or a
+final `/**` bounded subtree. Filename globs such as `*_test.go`, `?`, `[]`,
+`/*`, or middle `**` are invalid. Declare companion tests, migrations,
+fixtures, and generated files explicitly; validation commands such as
+`pytest tests/...` are evidence and never grant write authority.
 Packet integrity establishes planned scope; it does not grant a write claim.
-Packet-backed scope is pinned: guard cannot widen it. If the packet or its scope
-changes, recompile and reannounce the new canonical packet through the runtime
-owner before dispatch; never amend or hand-edit a pinned packet.
+Packet-backed scope is pinned: guard cannot widen it silently. If planned scope
+changes before dispatch, recompile and reannounce the new canonical packet
+through the runtime owner; never hand-edit it. If implementation later proves
+one causally required companion path, keep that agent-owned recovery inside the
+same invocation: pause before writing when possible, refresh the execution
+overview, and call the existing `execution guard` with the full confirmed union
+plus `--scope-amendments-json` containing concrete path, operation, and reason.
+This appends audit state without changing the original packet path, digest, or
+write scope. The runtime detects late discovery from the Git delta. Every such
+amendment requires an independent passing `scope-drift-review` before
+completion, after which the interrupted task and gate resume in the same
+invocation. This is the only packet amendment route; `work scope-add` cannot
+bypass it.
 
 Record the `selected` boundary with `specify-runtime execution checkpoint`,
 refresh `specify-runtime execution overview`, and pass that response's exact
@@ -70,8 +107,9 @@ write scope and semantic resource set before source writes or worker dispatch.
 The claim is all-or-none: a stale overview, duplicate task, stale fence,
 inactive identity, empty write scope, file overlap, or semantic resource
 conflict blocks without a partial claim. For manual work, refresh and guard the
-whole amended set before expanding scope; packet-backed work must instead
-recompile and reannounce its changed packet. An earlier board scan or packet receipt alone
+whole amended set before expanding scope; packet-backed planned changes
+recompile and reannounce, while a causal companion amendment uses the guarded
+route above. An earlier board scan or packet receipt alone
 does not authorize mutation.
 
 The Activity lifecycle is `announced -> selected -> claimed -> executing ->
@@ -147,9 +185,14 @@ semantic resources follow that Work transition. Legacy non-Activity board
 clients retain `specify-runtime work begin`, `specify-runtime work checkpoint`,
 `specify-runtime work finish`, and `specify-runtime work abandon`; these are
 not completion shortcuts for Activities. Reconcile stale leases and show the
-board at process or computer restart. Active same-task Work may still belong
-to another agent: do not take it over or resume it, and you must not interrupt
-another live agent. Only after confirming that the old owner/session has ended
+board at process or computer restart. When the current live owner intentionally
+blocked its own Work and the recorded recovery now passes, use
+`specify-runtime work unblock <work-id> --expected-revision <n> --fence <n>
+--reason <evidence-backed reason> --format json`; this preserves owner, fence,
+workspace, declared scope, and semantic resources without recovery inspection.
+Active same-task Work may still belong to another agent: do not take it over or
+resume it, and you must not interrupt another live agent. Only after confirming
+that the old owner/session has ended
 and inspecting its recorded workspace and changes, use
 `specify-runtime work interrupt <work-id> --expected-revision <n> --fence <n> --reason <reason> --format json`.
 The runtime advances the fence, marks Work `interrupted`, and preserves a dirty

@@ -56,6 +56,19 @@ an existing blocker with fresh evidence first. Failed acceptance uses
 `accept route-repair`; a completed acceptance is immutable and new scope starts
 a distinct feature workflow.
 
+When verified fresh truth requires a strict backward reopen from a blocked
+later stage, submit the normal `workflow reopen` request with its exact target,
+reason, evidence, and invalidated artifacts. It remains non-mutating and does
+not clear or replace the blocker. Consume `data.pending_reopen_action` from the
+blocked response: its base argv is the revision-bound
+`workflow resolve --reopen-to ...` transaction. Present the existing Human
+Action Guide, wait for real evidence satisfying the unblock criteria, append
+that evidence only through the declared `--resolution-evidence` inputs, and
+execute the base argv exactly. The runtime atomically preserves the blocker
+audit, records resolution, and reopens the requested earlier stage. Do not
+reconstruct a second reopen, and do not ask the user to invoke the destination
+workflow before the transaction succeeds.
+
 Task-local `parked` blockers stay in task lifecycle state while another
 dependency-safe lane can run; they do not justify a feature-wide runtime block.
 Use a human-confirmed DEF transfer only through the owning workflow's
@@ -74,6 +87,12 @@ append each evidence item through the action's declared `--resolution-evidence`
 input and execute its `base_argv`; do not reconstruct other flags. This invokes
 `specify-runtime workflow resolve`, preserves the prior blocker audit, and reactivates the same
 stage.
+
+If fresh evidence resolves only some blocker subcauses, use the discoverable
+`workflow.reconcile-blocker` schema to replace stale current cause/evidence with
+the complete remaining blocker while retaining owner/category, blocked status,
+and appended reconciliation audit. Full resolution still uses
+`workflow.resolve`; never reconcile to an empty remaining cause.
 
 Review completion is bound to its fresh approved state and final source
 fingerprint; any later covered source/configuration change makes Review and

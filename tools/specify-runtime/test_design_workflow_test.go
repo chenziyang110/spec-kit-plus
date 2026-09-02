@@ -156,7 +156,13 @@ func TestTestDesignWorkflowFeatureLifecycleProducesTaskHandoff(t *testing.T) {
 	if validated.Data["claim_status"] != "complete_against_frozen_scope" {
 		t.Fatalf("claim_status=%#v, want complete_against_frozen_scope", validated.Data["claim_status"])
 	}
-	requireTestDesignOK(t, []string{"test-design", "handoff", "--feature-dir", featureRel, "--format", "json"})
+	handoffEnv := requireTestDesignOK(t, []string{"test-design", "handoff", "--feature-dir", featureRel, "--format", "json"})
+	if !testDesignArgvContains(handoffEnv.NextArgv, "publish") || testDesignArgvContains(handoffEnv.NextArgv, "/sp.tasks") {
+		t.Fatalf("handoff next_argv=%#v, want current-revision publication before Tasks", handoffEnv.NextArgv)
+	}
+	if handoffEnv.Data["consumer_return"] != "/sp.tasks" || handoffEnv.Data["next_action"] != "publish" {
+		t.Fatalf("handoff recovery metadata=%#v", handoffEnv.Data)
+	}
 	stateAfterHandoff, err := os.ReadFile(filepath.Join(artifactRoot, "test-state.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -532,12 +538,61 @@ func TestTestDesignGapReconcileSupportsQualifiedHandoffAndBlocksBlockingGap(t *t
 				if exit == 0 || validated.Status != "blocked" {
 					t.Fatalf("blocking validation exit=%d env=%#v", exit, validated)
 				}
+				assertTestDesignRecoveryAction(t, validated, "audit")
+				status, statusExit := runTestDesignWorkflowCommand(t, []string{"test-design", "status", "--feature-dir", featureRel, "--format", "json"})
+				if statusExit == 0 || status.Status != "blocked" || status.Data["next_action"] != "repair" {
+					t.Fatalf("blocked validation status did not preserve repair ownership: exit=%d env=%#v", statusExit, status)
+				}
+				assertTestDesignRecoveryAction(t, status, "audit")
 				handoff, handoffExit := runTestDesignWorkflowCommand(t, []string{"test-design", "handoff", "--feature-dir", featureRel, "--format", "json"})
 				if handoffExit == 0 || handoff.Status != "blocked" {
 					t.Fatalf("blocking gap handoff exit=%d env=%#v", handoffExit, handoff)
 				}
 			}
 		})
+	}
+}
+
+func TestTestDesignClaimBlockersSeparateAgentRepairFromGenuineHumanInput(t *testing.T) {
+	for _, owner := range []string{"test-design leader", "sp-plan", "spx-plan", "sp-quick", "spx-quick", "sp-tasks", "spx-tasks", "sp-implement", "spx-implement", "sp-review", "spx-review"} {
+		agentBlockers := testDesignClaimBlockers(testDesignBundle{
+			Gaps: map[string]any{"gaps": []any{map[string]any{
+				"gap_id": "GAP-001", "severity": "blocking", "disposition": "open", "owner": owner,
+			}}},
+			DataManifest: map[string]any{"datasets": []any{}},
+		})
+		agent := agentBlockers[0].(map[string]any)
+		if agent["human_action_required"] != false || agent["human_action_guide"] != nil {
+			t.Fatalf("agent-owned blocker %q was transferred to a human: %#v", owner, agent)
+		}
+	}
+
+	humanGapBlockers := testDesignClaimBlockers(testDesignBundle{
+		Gaps: map[string]any{"gaps": []any{map[string]any{
+			"gap_id": "GAP-017", "severity": "blocking", "disposition": "open", "owner": "security reviewer",
+		}}},
+		DataManifest: map[string]any{"datasets": []any{}},
+	})
+	assertTestDesignHumanBlockerGuide(t, humanGapBlockers[0].(map[string]any))
+
+	humanMaterialBlockers := testDesignClaimBlockers(testDesignBundle{
+		Gaps: map[string]any{"gaps": []any{}},
+		DataManifest: map[string]any{"datasets": []any{map[string]any{
+			"test_data_id": "TD-017", "readiness": "human-input-required", "disposition": "request",
+		}}},
+	})
+	assertTestDesignHumanBlockerGuide(t, humanMaterialBlockers[0].(map[string]any))
+}
+
+func assertTestDesignHumanBlockerGuide(t *testing.T, human map[string]any) {
+	t.Helper()
+	if human["human_action_required"] != true {
+		t.Fatalf("human-owned material was not classified as a human boundary: %#v", human)
+	}
+	guide, ok := human["human_action_guide"].(map[string]any)
+	evidence, evidenceOK := guide["evidence_to_return"].([]any)
+	if !ok || strings.TrimSpace(asString(guide["goal"])) == "" || !evidenceOK || len(evidence) == 0 {
+		t.Fatalf("human-owned blocker has no actionable guide: %#v", human)
 	}
 }
 
@@ -816,6 +871,27 @@ func TestTestDesignStatusValidateAndHandoffRejectEditedIncludedSource(t *testing
 		if exit == 0 || env.Status != "blocked" {
 			t.Fatalf("stale command %v exit=%d env=%#v", command, exit, env)
 		}
+		if command[1] == "status" {
+			if env.Data["next_action"] != "incremental-update" {
+				t.Fatalf("stale status next_action=%#v, want incremental-update", env.Data["next_action"])
+			}
+			assertTestDesignRecoveryAction(t, env, "incremental-update")
+		}
+	}
+}
+
+func assertTestDesignRecoveryAction(t *testing.T, env Envelope, mode string) {
+	t.Helper()
+	action, ok := env.Data["recovery_action"].(map[string]any)
+	if !ok || action["capability_id"] != "test-design.recover" {
+		t.Fatalf("recovery_action=%#v, want test-design.recover", env.Data["recovery_action"])
+	}
+	argv := stringSlice(t, action["base_argv"])
+	if !testDesignArgvContains(argv, "recover") || optionValue(argv, "--mode", "") != mode || optionValue(argv, "--expected-revision", "") == "" || hasFlag(argv, "--input-json") || hasFlag(argv, "--leader-id") {
+		t.Fatalf("recovery argv=%#v, want %s CAS reentry", argv, mode)
+	}
+	if len(env.NextArgv) == 0 || strings.Join(env.NextArgv, "\x00") != strings.Join(argv, "\x00") {
+		t.Fatalf("agent-owned recovery next_argv=%#v, want base_argv=%#v", env.NextArgv, argv)
 	}
 }
 

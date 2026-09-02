@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runcontrol"
 )
 
 func TestExecutionAnnounceMakesFastVisibleBeforeClaim(t *testing.T) {
@@ -74,6 +76,13 @@ func TestExecutionGuardAndCompleteEnforceOneAuditedLifecycle(t *testing.T) {
 	if blockers[0]["code"] != "unclaimed_changed_paths" || strings.Join(anyStringSlice(blockers[0]["paths"]), ",") != "src/outside.go" {
 		t.Fatalf("scope audit blocker = %#v", blockers)
 	}
+	recovery := requireObject(t, requireObject(t, blocked, "data"), "resolution_action")
+	if recovery["owner"] != "agent" || recovery["human_action_required"] != false || recovery["kind"] != "refresh-overview-and-guard-scope" {
+		t.Fatalf("scope audit recovery = %#v", recovery)
+	}
+	if argv := requireStringArray(t, recovery, "overview_argv"); len(argv) < 4 || argv[1] != "execution" || argv[2] != "overview" {
+		t.Fatalf("scope audit overview recovery argv = %#v", argv)
+	}
 
 	if err := os.Remove(filepath.Join(root, "src", "outside.go")); err != nil {
 		t.Fatal(err)
@@ -140,6 +149,169 @@ func TestExecutionCompleteRejectsMissingImplementTaskSource(t *testing.T) {
 	blockers := requireObjectSlice(t, payload, "blockers")
 	if blockers[0]["code"] != "task_source_missing" || blockers[0]["workflow"] != "implement" {
 		t.Fatalf("missing implement task blocker = %#v", blockers)
+	}
+}
+
+func TestManualImplementCompletionRequiresWorkflowRuntimeProvenance(t *testing.T) {
+	root := initCoordinationCLIRepository(t)
+	featureID := "feature-manual-workflow"
+	taskID := "T001"
+	featureDir := filepath.Join(root, ".specify", "features", featureID)
+	workflowRef := filepath.ToSlash(filepath.Join(".specify", "features", featureID, "workflow.json"))
+	taskIndexRef := filepath.ToSlash(filepath.Join(".specify", "features", featureID, "task-index.json"))
+	writeExecutionOverviewImplementFixture(t, root, featureID, taskID, "accepted", []string{workflowRef, taskIndexRef})
+	writeWorkflowStateFixture(t, featureDir, featureID, 7, "implement", "active", nil)
+
+	announced := announceExecutionCLI(
+		t, root, "activity-manual-workflow", "implement", featureID, taskID,
+		[]string{workflowRef, taskIndexRef}, nil,
+	)
+	overview := executionOverviewCLI(t, root, "activity-manual-workflow")
+	guarded := guardExecutionCLI(t, root, announced, overview, []string{workflowRef, taskIndexRef}, nil)
+
+	workflowPath := filepath.Join(featureDir, "workflow.json")
+	baseline, err := os.ReadFile(workflowPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manuallyEdited := readWorkflowStateMap(t, workflowPath)
+	manuallyEdited["summary"] = "valid-shaped manual edit"
+	writeTaskRuntimeFixture(t, workflowPath, manuallyEdited)
+	code, blocked := invokeCoordinationCLI(t,
+		"execution", "complete", "activity-manual-workflow",
+		"--project-root", root,
+		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
+		"--fence", executionJSONNumberString(guarded["fence"]),
+		"--validation-json", `[{"command":"go test ./...","result":"passed"}]`,
+		"--reason", "reject manual workflow mutation",
+		"--format", "json",
+	)
+	if code != ExitCodeForStatus("blocked") || blocked["status"] != "blocked" || requireObject(t, blocked, "data")["error_code"] != "workflow_control_plane_invalid" {
+		t.Fatalf("manual implement accepted unproven workflow mutation: code=%d payload=%#v", code, blocked)
+	}
+	if err := os.WriteFile(workflowPath, baseline, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	workflowService := NewWorkflowService(root)
+	blockedWorkflow := workflowService.Block(WorkflowBlockRequest{
+		FeatureDir: featureDir, ExpectedRevision: 7, Category: "technical-failure", Owner: "agent",
+		Cause: "manual execution needed a local repair", Evidence: []string{"focused reproduction"},
+		AttemptedRecovery: []WorkflowRecoveryAttempt{{Action: "repair local state", Result: "repaired"}},
+		AffectedScope:     []string{"T001 completion"}, ExactNextAction: "resolve after verification",
+		UnblockCriteria: "focused verification passes",
+	})
+	if blockedWorkflow.Status != "blocked" {
+		t.Fatalf("official block = %#v", blockedWorkflow)
+	}
+	resolvedWorkflow := workflowService.Resolve(WorkflowResolveRequest{
+		FeatureDir: featureDir, ExpectedRevision: 8, ResolutionEvidence: []string{"focused verification passed"},
+	})
+	if resolvedWorkflow.Status != "ok" || resolvedWorkflow.Data["revision"] != 9 {
+		t.Fatalf("official resolve = %#v", resolvedWorkflow)
+	}
+
+	code, completedPayload := invokeCoordinationCLI(t,
+		"execution", "complete", "activity-manual-workflow",
+		"--project-root", root,
+		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
+		"--fence", executionJSONNumberString(guarded["fence"]),
+		"--validation-json", `[{"command":"go test ./...","result":"passed"}]`,
+		"--reason", "accept official workflow recovery",
+		"--format", "json",
+	)
+	if code != 0 || completedPayload["status"] != "ok" {
+		t.Fatalf("manual implement did not resume after official workflow recovery: code=%d payload=%#v", code, completedPayload)
+	}
+	completed := requireObject(t, requireObject(t, completedPayload, "data"), "execution_completion")
+	if got := anyStringSlice(completed["workflow_control_plane_paths"]); len(got) != 1 || got[0] != workflowRef || completed["workflow_audit_preserved"] != true {
+		t.Fatalf("manual workflow completion accounting = %#v", completed)
+	}
+	if receiptRef := stringValue(completed["workflow_mutation_receipt_ref"]); !strings.HasPrefix(receiptRef, ".specify/runtime/workflow-mutations/") || len(stringValue(completed["workflow_mutation_receipt_sha256"])) != 64 {
+		t.Fatalf("manual workflow mutation receipt accounting = %#v", completed)
+	}
+}
+
+func TestLegacyImplementCompletionUsesMatchingWorkflowRoot(t *testing.T) {
+	root := initCoordinationCLIRepository(t)
+	featureID := "feature-legacy-workflow"
+	taskID := "T001"
+	featureRef := filepath.ToSlash(filepath.Join("specs", featureID))
+	featureDir := filepath.Join(root, filepath.FromSlash(featureRef))
+	workflowRef := featureRef + "/workflow.json"
+	taskIndexRef := featureRef + "/task-index.json"
+	writeTaskRuntimeFixture(t, filepath.Join(featureDir, "task-index.json"), map[string]any{
+		"version": 2, "status": "ready", "feature_id": featureID,
+		"tasks": []any{map[string]any{
+			"id": taskID, "objective": "legacy task", "status": "accepted",
+			"expected_write_scope": []any{workflowRef, taskIndexRef},
+		}},
+	})
+	writeWorkflowStateFixture(t, featureDir, featureID, 7, "implement", "active", nil)
+
+	code, announcedPayload := invokeCoordinationCLI(t,
+		"execution", "announce", "--project-root", root,
+		"--activity-id", "activity-legacy-workflow", "--workflow", "implement",
+		"--subject-id", featureID, "--item-id", taskID, "--source-ref", taskIndexRef,
+		"--summary", "legacy implement", "--agent-id", "legacy-agent", "--adapter-id", "codex",
+		"--next-action", "guard legacy execution", "--lease-seconds", "1800",
+		"--planned-write-scope-json", marshalWorkBoardCLIJSON(t, []string{workflowRef, taskIndexRef}),
+		"--resources-json", "[]", "--format", "json",
+	)
+	if code != 0 || announcedPayload["status"] != "ok" {
+		t.Fatalf("legacy execution announce = code=%d payload=%#v", code, announcedPayload)
+	}
+	announced := requireObject(t, requireObject(t, announcedPayload, "data"), "execution_activity")
+	overview := executionOverviewCLI(t, root, "activity-legacy-workflow")
+	guarded := guardExecutionCLI(t, root, announced, overview, []string{workflowRef, taskIndexRef}, nil)
+
+	workflowService := NewWorkflowService(root)
+	blockedWorkflow := workflowService.Block(WorkflowBlockRequest{
+		FeatureDir: featureRef, ExpectedRevision: 7, Category: "technical-failure", Owner: "agent",
+		Cause: "legacy execution needed local recovery", Evidence: []string{"legacy focused reproduction"},
+		AttemptedRecovery: []WorkflowRecoveryAttempt{{Action: "repair legacy state", Result: "repaired"}},
+		AffectedScope:     []string{"legacy T001 completion"}, ExactNextAction: "resolve after legacy verification",
+		UnblockCriteria: "legacy focused verification passes",
+	})
+	if blockedWorkflow.Status != "blocked" {
+		t.Fatalf("legacy workflow block = %#v", blockedWorkflow)
+	}
+	resolvedWorkflow := workflowService.Resolve(WorkflowResolveRequest{
+		FeatureDir: featureRef, ExpectedRevision: 8, ResolutionEvidence: []string{"legacy focused verification passed"},
+	})
+	if resolvedWorkflow.Status != "ok" {
+		t.Fatalf("legacy workflow resolve = %#v", resolvedWorkflow)
+	}
+
+	code, completedPayload := invokeCoordinationCLI(t,
+		"execution", "complete", "activity-legacy-workflow", "--project-root", root,
+		"--expected-revision", executionJSONNumberString(guarded["work_revision"]),
+		"--fence", executionJSONNumberString(guarded["fence"]),
+		"--validation-json", `[{"command":"go test ./...","result":"passed"}]`,
+		"--reason", "complete legacy workflow recovery", "--format", "json",
+	)
+	if code != 0 || completedPayload["status"] != "ok" {
+		t.Fatalf("legacy implement did not resume on its matching root: code=%d payload=%#v", code, completedPayload)
+	}
+	completed := requireObject(t, requireObject(t, completedPayload, "data"), "execution_completion")
+	if got := anyStringSlice(completed["workflow_control_plane_paths"]); len(got) != 1 || got[0] != workflowRef || completed["workflow_audit_preserved"] != true {
+		t.Fatalf("legacy workflow completion accounting = %#v", completed)
+	}
+}
+
+func TestLegacyManualExecutionBaselineFallbackUsesPersistedSourceRef(t *testing.T) {
+	for _, featureRoot := range []string{filepath.ToSlash(filepath.Join(".specify", "specs")), "specs"} {
+		featureID := "feature-upgrade-legacy"
+		featureRef := filepath.ToSlash(filepath.Join(filepath.FromSlash(featureRoot), featureID))
+		registration := runcontrol.ExecutionRegistration{Activity: runcontrol.ExecutionActivity{
+			Workflow: runcontrol.ExecutionWorkflowImplement, SubjectID: featureID,
+			SourceRef:    featureRef + "/task-index.json",
+			BaselineJSON: `{"head_commit":"legacy","dirty_paths":[],"path_digests":{}}`,
+		}}
+		binding, captured, ok := executionWorkflowControlPlaneBaseline(registration)
+		if !ok || captured || binding.FeatureRef != featureRef || binding.WorkflowRef != featureRef+"/workflow.json" {
+			t.Fatalf("legacy baseline fallback for %s = binding %#v captured=%v ok=%v", featureRoot, binding, captured, ok)
+		}
 	}
 }
 

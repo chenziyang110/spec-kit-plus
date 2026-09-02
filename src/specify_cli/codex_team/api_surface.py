@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from specify_cli.specify_runtime import SpecifyRuntimeError, run_specify_runtime
+from specify_cli.input_transport import resolve_agent_text_input
 
 from . import task_ops
 from .auto_dispatch import AutoDispatchError, complete_dispatched_batch, route_ready_parallel_batch
@@ -21,9 +22,6 @@ from .runtime_bridge import (
 )
 
 INTEGRATION_JSON = ".specify/integration.json"
-MAX_RESULT_INPUT_BYTES = 16 * 1024 * 1024
-
-
 class TeamApiError(ValueError):
     """Raised when a structured Codex team operation cannot be executed."""
 
@@ -188,10 +186,12 @@ def run_team_api_operation(
             raise TeamApiError("--request-id is required for submit-result.")
         if result_json is None:
             raise TeamApiError("--result-json is required for submit-result.")
-        raw_result = result_json
-        if len(raw_result.encode("utf-8")) > MAX_RESULT_INPUT_BYTES:
-            raise TeamApiError("result JSON exceeds the 16 MiB input limit.")
         try:
+            raw_result = resolve_agent_text_input(
+                result_json,
+                project_root=project_root,
+                label="result_json",
+            )
             result = normalize_result_submission(
                 project_root,
                 request_id,

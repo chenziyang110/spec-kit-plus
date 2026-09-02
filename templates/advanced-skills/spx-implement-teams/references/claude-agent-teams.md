@@ -1,9 +1,13 @@
 # Claude Agent Teams execution
 
-Require Claude Code Agent Teams to be enabled and expose its native team-create,
-shared task ledger, teammate launch, message, join, and shutdown surfaces. If
-the first native team operation reports the feature unavailable, stop and tell
-the user to enable Agent Teams; do not fall back to ordinary Agent subagents.
+Require Claude Code Agent Teams to expose its native team-create, shared task
+ledger, teammate launch, message, join, and shutdown surfaces. If the first
+operation reports the feature unavailable, return an agent-owned
+`fallback_action` carrying the exact feature/task/revision context back to
+`$spx-implement`. The current orchestrator executes that action automatically
+when implementation—not Teams specifically—was authorized. Preserve a genuine
+Teams-only request as a capability blocker; never tell the user to repair
+workflow state or emulate a team in chat.
 
 Resume one existing feature team or create one leader-owned team. Compile each
 ready task into a bounded teammate contract with authoritative inputs, isolated

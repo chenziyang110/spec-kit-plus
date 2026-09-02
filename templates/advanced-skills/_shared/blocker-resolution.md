@@ -42,7 +42,20 @@ persisted blocker. Use the runtime-returned read-only `show_argv` and structured
 `resolution_action`; an empty `next_argv` means evidence is still required.
 After the criteria are proven, attach sanitized evidence through the action's
 declared input and execute its base argv. It reactivates the same owner and
-preserves the prior blocker audit.
+preserves the prior blocker audit. When a validated strict backward reopen
+targets an earlier stage, the blocked `workflow reopen` response also returns
+`pending_reopen_action`. It does not replace the blocker. Once the same real
+resolution evidence exists, execute that base argv exactly so the runtime
+atomically records resolution and reopens the earlier stage instead of
+reactivating the same owner first; never reconstruct a separate reopen.
+
+When current evidence proves only some named blocker subcauses are resolved,
+expand `workflow.reconcile-blocker` through `specify-runtime api show`, then
+submit its revision-bound input with the resolved subcauses and a complete
+remaining cause/evidence/scope/recovery contract. The runtime keeps the same
+owner/category and blocked state, removes stale current text, and appends the
+reconciliation audit. Do not use it when no cause remains; satisfy the original
+criteria and use `workflow.resolve` instead.
 
 For protected CI, identify the repository, branch, pipeline/manual job,
 authorization boundary, expected terminal state, safe logs to collect, and the

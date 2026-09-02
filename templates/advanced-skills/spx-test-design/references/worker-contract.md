@@ -5,10 +5,11 @@ retains scope, canonical artifact mutation, lane acceptance, synthesis,
 validation, publication, projection, and handoff authority.
 
 Every substantive discovery packet must be executed by a non-Leader worker.
-The Leader must not perform discovery serially as a substitute. If no worker is
-available, keep the lane pending or yield the active attempt with its auditable
-reason, report the blocked stop, and resume at that lane when a worker becomes
-available.
+The Leader must not perform discovery serially as a substitute. If one worker
+is unavailable, keep/yield the lane and redispatch serially or wait on another
+independent worker in the same invocation. If the platform exposes no
+independent surface, persist an agent-owned capability blocker plus exact lane
+resume action; never ask the user to repair or requeue runtime state.
 
 ## Discovery packet
 
@@ -78,8 +79,10 @@ The audit packet uses an `AUDIT-*` lane and includes the frozen denominator,
 canonical artifact refs, accepted discovery result refs, and explicit review
 questions. It must be assigned after synthesis to a worker that did not author
 the package and is distinct from the Leader and every accepted discovery
-worker. An independent auditor is always required; if none is available, keep
-the audit lane pending or yielded and stop blocked rather than self-auditing.
+worker. An independent auditor is always required; if one is unavailable,
+redispatch or wait in the same invocation. With no independent platform
+surface, preserve an agent-owned capability blocker and exact resume action
+rather than self-auditing or transferring repair to the user.
 
 The auditor checks:
 

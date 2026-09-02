@@ -104,7 +104,7 @@ func TestExecutionAnnounceUsesExactCompiledWorkerPacketWithoutRun(t *testing.T) 
 		}
 	}
 	planned := anyStringSlice(activity["planned_write_scope"])
-	if len(planned) != 7 || planned[len(planned)-1] != "src/packet" || len(anyStringSlice(activity["confirmed_write_scope"])) != 0 {
+	if len(planned) != 8 || planned[len(planned)-1] != "src/packet" || len(anyStringSlice(activity["confirmed_write_scope"])) != 0 {
 		t.Fatalf("packet announce granted or lost scope: %#v", activity)
 	}
 	code, board := invokeCoordinationCLI(t, "board", "show", "--project-root", root, "--format", "json")

@@ -49,6 +49,14 @@ dependency edges for true prerequisites, not display ordering. Two tasks are
 parallel-safe only when neither consumes the other's uncommitted result and
 their writes, generated outputs, state mutations, and verification fixtures do
 not collide.
+Every `expected_write_scope` entry must be an exact future file, an exact
+directory path, or a bounded subtree ending with `/**`. Reject filename globs
+such as `*_test.go`, `?`, `[]`, `/*`, or middle `**` before dispatch. If the
+task may create or modify companion tests, migrations, fixtures, generated
+files, or other companion artifacts, list those future writes explicitly.
+When the exact filename is unknown, use the narrowest containing directory or
+bounded subtree ending with `/**`. Validation commands and `pytest tests/...`
+references are evidence only and never grant write authority.
 
 The graph and its Markdown projection are CLI-owned. Pass semantic task/root
 objects inline to the Tasks CLI; use `build`, `upsert`, `set-root`, `remove`,

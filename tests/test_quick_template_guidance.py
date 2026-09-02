@@ -155,8 +155,13 @@ def test_quick_template_requires_one_time_understanding_checkpoint() -> None:
 
 def test_quick_shell_embeds_fixed_checkpoint_card() -> None:
     shell = read_template("templates/command-partials/quick/shell.md")
+    checkpoint = read_template(
+        "templates/command-references/quick/intake-and-checkpoint.md"
+    )
 
-    assert_quick_checkpoint_card_shape(shell)
+    assert "Quick Checkpoint Card" in shell
+    assert "references/intake-and-checkpoint.md" in shell
+    assert_quick_checkpoint_card_shape(checkpoint)
 
 
 def test_quick_template_uses_fixed_status_scaffold() -> None:
@@ -407,7 +412,8 @@ def test_quick_template_uses_event_driven_coordination_preflight() -> None:
     assert "does not mean" in content
     assert "first `quick item-start`" in content
     assert "after each join" in content
-    assert "before `work scope-add`" in content
+    assert "before execution guard" in content
+    assert "material scope expansion" in content
     assert "do not poll" in content
     assert "write_overlap" in content
     assert "unfinished_quick_untracked" in content

@@ -21,7 +21,8 @@ func TestWorkspaceDeltaExcludesKnownRuntimeTransportAcrossGitStates(t *testing.T
 			// test temp root; never change the operator's Git configuration.
 			runGit(t, ensureGitAvailable(t), root, "config", "core.longpaths", "true")
 			baseline := captureDeltaTestBaseline(t, root)
-			transport := runtimeTransportTestPaths()
+			transport := append(runtimeTransportTestPaths(), runControlRuntimeTestPaths()...)
+			transport = append(transport, workflowRuntimeLockTestPaths()...)
 			audited := []string{
 				"README.md",
 				".specify/features/feature/task-index.json",
@@ -32,6 +33,7 @@ func TestWorkspaceDeltaExcludesKnownRuntimeTransportAcrossGitStates(t *testing.T
 				".specify/runtime/receipts-other/user.json",
 				".specify/runtime/discussion/notes.md",
 				".specify/runtime/test-design/report.md",
+				".specify/runtime/workflow-mutations/receipt.json",
 				"nested/.specify/runtime/receipts/user.json",
 			}
 			for _, path := range append(transport, audited...) {
@@ -226,6 +228,24 @@ func runtimeTransportTestPaths() []string {
 		".specify/runtime/deep-research/locks/random-subject.lock",
 		".specify/runtime/test-design/locks/random-subject.lock",
 		".specify/runtime/discussion/mutation.lock",
+	}
+}
+
+func runControlRuntimeTestPaths() []string {
+	return []string{
+		".specify/runtime/run-control/run-control.sqlite",
+		".specify/runtime/run-control/run-control.sqlite-wal",
+		".specify/runtime/run-control/run-control.sqlite-shm",
+		".specify/runtime/run-control/migration.lock",
+	}
+}
+
+func workflowRuntimeLockTestPaths() []string {
+	return []string{
+		".specify/features/feature/.workflow.lock",
+		".specify/specs/legacy/.workflow.lock",
+		"specs/compat/.workflow.lock",
+		".specify/runtime/workflow-mutations/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef.json",
 	}
 }
 

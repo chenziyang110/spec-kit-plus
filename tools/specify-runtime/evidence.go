@@ -71,7 +71,7 @@ func runEvidence(args []string, stdout io.Writer) int {
 		return writeEvidenceEnvelope(stdout, env)
 	case "register":
 		objectRef := evidenceOptionValue(args, "--object", "")
-		content := evidenceOptionValue(args, "--content", "")
+		contentToken := evidenceOptionValue(args, "--content", "")
 		input := evidenceCommonInput{
 			Scope:      evidenceOptionValue(args, "--scope", ""),
 			Source:     evidenceOptionValue(args, "--source", ""),
@@ -82,10 +82,15 @@ func runEvidence(args []string, stdout io.Writer) int {
 		}
 		var env Envelope
 		switch {
-		case objectRef != "" && content != "":
+		case objectRef != "" && contentToken != "":
 			env = evidenceUsageError("evidence register accepts exactly one of --object or --content")
-		case content != "":
-			env = service.registerContent(content, input)
+		case contentToken != "":
+			content, err := resolveTextInputBytes(contentToken, projectRoot, "evidence register", "--content")
+			if err != nil {
+				env = evidenceUsageError(err.Error())
+			} else {
+				env = service.registerContent(string(content), input)
+			}
 		default:
 			env = service.registerObject(objectRef, input)
 		}

@@ -426,6 +426,23 @@ def test_every_advanced_workflow_has_the_shared_fixed_artifact_boundary(
     assert errors == [], "\n".join(errors)
 
 
+def test_every_generated_workflow_has_a_discoverable_blocked_exit_contract(
+    generated_agent_surfaces: dict[str, Path],
+) -> None:
+    classic = generated_agent_surfaces["classic"]
+    for skill in sorted(classic.glob("sp-*/SKILL.md")):
+        content = skill.read_text(encoding="utf-8").lower()
+        assert "## blocked exit contract" in content, skill
+        assert "agent-capable" in content or "agent-owned" in content, skill
+
+    advanced = generated_agent_surfaces["advanced"]
+    for skill in sorted(advanced.glob("spx-*/SKILL.md")):
+        content = skill.read_text(encoding="utf-8").lower()
+        assert "## blocked exit contract" in content, skill
+        assert "references/blocker-resolution.md" in content, skill
+        assert "agent-owned" in content, skill
+
+
 def test_worker_prompts_name_only_implemented_runtime_artifact_namespaces(
     generated_agent_surfaces: dict[str, Path],
 ) -> None:
@@ -506,6 +523,22 @@ def test_generated_phase_control_uses_only_unified_runtime(
         assert "never required-stage authority" in content, profile
         assert "only completed `accept` is terminal" in content, profile
         assert "unresolved blocker" in content, profile
+
+
+def test_generated_plan_and_design_surfaces_close_blocked_backward_reopen(
+    generated_agent_surfaces: dict[str, Path],
+) -> None:
+    surfaces = (
+        generated_agent_surfaces["classic"] / "sp-plan",
+        generated_agent_surfaces["classic"] / "sp-design",
+        generated_agent_surfaces["advanced"] / "spx-plan",
+        generated_agent_surfaces["advanced"] / "spx-design",
+    )
+    for surface in surfaces:
+        content = _read_generated_tree(surface)
+        assert "pending_reopen_action" in content, surface
+        assert "resolution evidence" in content, surface
+        assert "blocker" in content and "plan" in content, surface
 
 
 def test_agent_facing_runtime_calls_do_not_embed_uvx_python_or_user_paths(

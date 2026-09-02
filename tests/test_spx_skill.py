@@ -318,6 +318,8 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "deep-research.md" in skills["spx-deep-research"]
     assert "deep-research init" in skills["spx-deep-research"]
     assert "deep-research not-needed" in skills["spx-deep-research"]
+    assert "api show deep-research.<subcommand>" in skills["spx-deep-research"]
+    assert "spec-contract.json.status: planning-ready" in skills["spx-deep-research"]
     assert "artifact scaffold --kind deep-research" not in skills["spx-deep-research"]
     assert "planning handoff" in skills["spx-deep-research"]
     assert "do not implement production" in skills["spx-deep-research"]
@@ -589,6 +591,9 @@ def test_spx_fast_and_quick_keep_broad_consequential_work_in_quick() -> None:
         "route broader or user-owned consequences to `$spx-specify`"
         not in skills["spx-fast"]
     )
+    assert "--result-json <inline-json|@path|->" in skills["spx-quick"]
+    assert "large model-authored json through stdin" in skills["spx-quick"]
+    assert "temporary result file merely for transport" in skills["spx-quick"]
     assert "record every consequence obligation" in skills["spx-quick"]
     assert (
         "quick can handle larger" in skills["spx-quick"]
@@ -1937,6 +1942,9 @@ def test_spx_test_design_gap_reconcile_uses_renderer_safe_json_placeholder() -> 
     assert "test-design gap-reconcile" in content
     assert "--input-json <gap-json>" in content
     assert "--input-json '{\"gaps\"" not in content
+    assert "lane-checkpoint" in content
+    assert "--result-json <inline-json|@path|->" in content
+    assert "large model-authored json through stdin" in content.lower()
 
 
 def test_classic_profile_keeps_existing_skills_and_does_not_install_spx(

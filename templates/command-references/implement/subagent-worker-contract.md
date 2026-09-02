@@ -19,6 +19,9 @@ You are the workflow leader. You own routing, execution-state truth, acceptance,
 - Use `managed-team` only when the runtime supports it and durable team state, explicit multi-wave join tracking, or lifecycle control is required beyond an in-session subagent burst. It is not an ordinary dispatch fallback.
 - Compile and validate a `WorkerTaskPacket` just in time only for delegated work. Leader-direct tasks do not require a packet.
 - Packet-backed ownership covers product scope plus the separate runtime-derived `bookkeeping_write_scope`. Use execution announce's full returned `planned_write_scope` for guard; never reconstruct only product paths or add a broad `.specify` exemption. Bookkeeping paths remain CLI-owned, never hand-edited. When shared feature metadata overlaps, serialize conflicting ownership instead of dropping bookkeeping paths to force parallel dispatch.
+
+- Exact feature `workflow.json` is compiler-owned bookkeeping and belongs exclusively to `specify-runtime workflow`; it remains outside Leader/worker content and product `--scope-amendments-json` input. Announce binds its exact state and latest mutation receipt when present; completion accepts changes only when active Implement matches a newer runtime mutation receipt and reports the path plus receipt digest. It holds the workflow mutation lock and rechecks both digests inside the completion transaction before authority release; drift preserves the same Activity for agent-owned retry. Valid-shaped hand edits fail closed while official mutations retain their own audit inside Activity completion scope.
+- Product scope accepts exact future files, exact directories, or bounded subtrees ending with `/**`; reject filename globs such as `*_test.go`, `?`, `[]`, `/*`, or middle `**`. Companion tests, migrations, fixtures, and generated files need explicit `expected_write_scope`; validation commands never grant write authority. If one causal companion path appears later, pause before its write when possible and keep recovery in the same invocation: refresh overview, rerun the existing `execution guard` with the complete union plus `--scope-amendments-json`, preserve the original packet, and require independent passing `scope-drift-review` before resuming completion.
 - Use `native-subagents` when selected and available. Re-evaluate the route after drift, failure, or each join instead of treating dispatch preference as a blocker by itself.
 - Treat non-empty `$ARGUMENTS` as first-class implementation context, not disposable chat-only guidance
 
@@ -60,7 +63,7 @@ Tasks/Test Design ownership.
 - Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success
 - Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly
 
-Accept a delegated lane only through a `WorkerTaskResult`-compatible payload containing task ID, status, changed paths, cheap task-check results, test impact, task-relevant obligation evidence, concerns, and blocker/recovery metadata when applicable. Pass it inline to `specify-runtime implement result-merge --result-json`; do not create a result file or a second ledger. A successful implementation result proves the bounded edit only and may advance dependency-safe work; feature verification remains pending instead of duplicating the Leader's heavyweight evidence.
+Accept a delegated lane only through a `WorkerTaskResult`-compatible payload containing task ID, status, changed paths, cheap task-check results, test impact, task-relevant obligation evidence, concerns, and blocker/recovery metadata when applicable. Submit it with `specify-runtime implement result-merge --result-json <inline-json|@path|->`: keep small payloads inline, send large model-authored JSON through stdin, and reserve `@path` for an existing runtime-owned or registered project artifact. Do not create a temporary result file or a second ledger. A successful implementation result proves the bounded edit only and may advance dependency-safe work; feature verification remains pending instead of duplicating the Leader's heavyweight evidence.
 
 A `success` result must already be task-acceptance-ready: every canonical
 `task_checks` entry appears exactly as a passed validation command, every
@@ -83,7 +86,7 @@ If technical blockers arise (build errors, missing toolchain components, environ
 
 - The leader must not edit a delegated lane's write scope while that subagent is active.
 - Do not silently fall through from a failed dispatch or a parallel write-scope conflict into local execution. Record the event, re-evaluate route safety, prefer serial `one-subagent`, and use leader-direct only when the task independently qualifies for it with a recorded reason.
-- Do not dispatch a subagent when required packet fields or required references are missing — repair the packet first or stop as `subagent-blocked`
+- Do not dispatch a subagent when required packet fields or required references are missing — repair the packet before dispatch or stop as `subagent-blocked`; after dispatch, use the guarded causal scope-amendment recovery above instead of rewriting the packet
 - Do not dispatch image-backed UI implementation when the worker cannot inspect the original visual input and the task depends on fidelity. Repair the packet/handoff first, or stop as `subagent-blocked` with the missing image handoff reason.
 - Do not bypass lifecycle truth, result handoffs, or verification gates.
 - Do not let a worker, passive skill, task transition, join, or resume open an

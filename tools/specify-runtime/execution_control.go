@@ -66,6 +66,13 @@ func executionAnnounce(args []string, stdout io.Writer) int {
 		return writeEnvelope(stdout, executionControlErrorEnvelope("capture execution baseline", err))
 	}
 	baseline.WorkerPacket = parsed.packet
+	if strings.EqualFold(parsed.option("--workflow", ""), string(runcontrol.ExecutionWorkflowImplement)) {
+		controlPlane, controlErr := captureExecutionWorkflowControlPlaneBinding(workspaceRoot, parsed)
+		if controlErr != nil {
+			return writeEnvelope(stdout, executionControlErrorEnvelope("capture workflow control-plane baseline", controlErr))
+		}
+		baseline.WorkflowControlPlane = controlPlane
+	}
 	baselineJSON, err := runcontrol.EncodeWorkspaceBaseline(baseline)
 	if err != nil {
 		return writeEnvelope(stdout, executionControlErrorEnvelope("encode execution baseline", err))
@@ -77,7 +84,7 @@ func executionAnnounce(args []string, stdout io.Writer) int {
 			Reason: "announced planned write scope", Confidence: runcontrol.IntentCandidate,
 		})
 	}
-	store, err := runcontrol.Open(ctx, repository.DatabasePath)
+	store, err := runcontrol.OpenRepository(ctx, repository)
 	if err != nil {
 		return writeEnvelope(stdout, executionControlErrorEnvelope("open execution control store", err))
 	}
@@ -120,6 +127,86 @@ func executionAnnounce(args []string, stdout io.Writer) int {
 	env.ShowArgv = executionShowArgv(registration.Activity.ActivityID, projectRoot)
 	env.NextArgv = []string{"specify-runtime", "execution", "overview", "--current-work-id", registration.Work.WorkID, "--project-root", projectRoot, "--format", "json"}
 	return writeEnvelope(stdout, env)
+}
+
+func captureExecutionWorkflowControlPlaneBinding(workspaceRoot string, parsed parsedCoordinationCommand) (*runcontrol.WorkflowControlPlaneBinding, error) {
+	featureRef := ""
+	if parsed.packet != nil {
+		packetRef := filepath.ToSlash(parsed.packet.Path)
+		featureRef = filepath.ToSlash(filepath.Dir(filepath.Dir(filepath.Dir(filepath.FromSlash(packetRef)))))
+	} else {
+		var err error
+		featureRef, err = manualImplementFeatureRef(parsed)
+		if err != nil {
+			return nil, err
+		}
+	}
+	workflowRef := filepath.ToSlash(filepath.Join(filepath.FromSlash(featureRef), "workflow.json"))
+	binding := &runcontrol.WorkflowControlPlaneBinding{FeatureRef: featureRef, WorkflowRef: workflowRef}
+	raw, err := secureProjectReadFile(workspaceRoot, workflowRef)
+	if os.IsNotExist(err) {
+		return binding, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	service := NewWorkflowService(workspaceRoot)
+	feature, err := service.resolveFeature(featureRef, "")
+	if err != nil {
+		return nil, err
+	}
+	state, err := service.readState(feature)
+	if err != nil {
+		return nil, err
+	}
+	if state.Stage != "implement" || state.Status != "active" {
+		return nil, fmt.Errorf("workflow control-plane baseline must be active implement, found %s/%s", state.Stage, state.Status)
+	}
+	binding.StateSHA256 = fileContentSHA256(raw)
+	binding.Revision = state.Revision
+	receipt, receiptRaw, receiptRef, receiptErr := readWorkflowMutationReceipt(workspaceRoot, featureRef)
+	if receiptErr == nil {
+		if receipt.WorkflowSHA256 != binding.StateSHA256 || receipt.Revision != binding.Revision || receipt.Stage != state.Stage || receipt.Status != state.Status {
+			return nil, fmt.Errorf("workflow mutation receipt does not match the baseline state")
+		}
+		binding.ReceiptRef = receiptRef
+		binding.ReceiptSHA256 = fileContentSHA256(receiptRaw)
+	} else if !os.IsNotExist(receiptErr) {
+		return nil, receiptErr
+	}
+	return binding, nil
+}
+
+func manualImplementFeatureRef(parsed parsedCoordinationCommand) (string, error) {
+	subjectID := strings.TrimSpace(parsed.option("--subject-id", ""))
+	if !safeSegment(subjectID) {
+		return "", fmt.Errorf("manual implement execution requires a safe feature subject id")
+	}
+	canonical := filepath.ToSlash(filepath.Join(".specify", "features", subjectID))
+	sourceRef := filepath.ToSlash(strings.Trim(strings.TrimSpace(parsed.option("--source-ref", "")), "/"))
+	if sourceRef == "" {
+		return canonical, nil
+	}
+	if featureRef, ok := implementFeatureRefFromSourceRef(subjectID, sourceRef); ok {
+		return featureRef, nil
+	}
+	return "", fmt.Errorf("manual implement --source-ref must be the matching feature task-index.json under .specify/features, .specify/specs, or specs")
+}
+
+func implementFeatureRefFromSourceRef(subjectID, sourceRef string) (string, bool) {
+	subjectID = strings.TrimSpace(subjectID)
+	if !safeSegment(subjectID) {
+		return "", false
+	}
+	sourceRef = filepath.ToSlash(strings.Trim(strings.TrimSpace(sourceRef), "/"))
+	for _, root := range []string{filepath.ToSlash(filepath.Join(".specify", "features")), filepath.ToSlash(filepath.Join(".specify", "specs")), "specs"} {
+		featureRef := filepath.ToSlash(filepath.Join(filepath.FromSlash(root), subjectID))
+		expectedSource := featureRef + "/task-index.json"
+		if strings.EqualFold(sourceRef, expectedSource) {
+			return featureRef, true
+		}
+	}
+	return "", false
 }
 
 // applyExecutionPacketOptions keeps compiled task identity and scope bound to
@@ -261,7 +348,7 @@ func executionGuard(args []string, stdout io.Writer) int {
 	parsed, err := parseCoordinationCommandArgs(args, 1,
 		"--project-root", "--expected-revision", "--fence",
 		"--expected-overview-revision", "--expected-overview-sha256",
-		"--write-scope-json", "--resources-json", "--reason", "--format",
+		"--write-scope-json", "--resources-json", "--scope-amendments-json", "--reason", "--format",
 	)
 	if err != nil {
 		return writeEnvelope(stdout, executionControlUsageEnvelope(err.Error()))
@@ -289,6 +376,12 @@ func executionGuard(args []string, stdout io.Writer) int {
 	if err != nil {
 		return writeEnvelope(stdout, executionControlUsageEnvelope(err.Error()))
 	}
+	amendments, err := parseExecutionScopeAmendmentSpecsJSON(
+		parsed.option("--scope-amendments-json", "[]"), parsed.option("--reason", "execution scope amendment"),
+	)
+	if err != nil {
+		return writeEnvelope(stdout, executionControlUsageEnvelope(err.Error()))
+	}
 	activityID := strings.TrimSpace(parsed.positionals[0])
 	projectRoot := parsed.option("--project-root", ".")
 	ctx := context.Background()
@@ -306,6 +399,24 @@ func executionGuard(args []string, stdout io.Writer) int {
 	}
 	if err := verifyExecutionPacketFile(registration); err != nil {
 		return writeEnvelope(stdout, executionControlErrorEnvelope("verify execution packet before guard", err))
+	}
+	if len(amendments) > 0 {
+		changedPaths, deltaErr := runcontrol.InspectWorkspaceDelta(ctx, registration.Work.WorkspaceRoot, registration.Activity.BaselineJSON)
+		if deltaErr != nil {
+			return writeEnvelope(stdout, executionControlErrorEnvelope("inspect scope amendment timing", deltaErr))
+		}
+		for index := range amendments {
+			for _, changedPath := range changedPaths {
+				overlaps, overlapErr := runcontrol.WritePathsOverlap(amendments[index].Path, changedPath)
+				if overlapErr != nil {
+					return writeEnvelope(stdout, executionControlUsageEnvelope(overlapErr.Error()))
+				}
+				if overlaps {
+					amendments[index].LateDiscovery = true
+					break
+				}
+			}
+		}
 	}
 	currentWorkID := registration.Work.WorkID
 	currentOverview, err := buildExecutionOverview(projectRoot, currentWorkID)
@@ -348,6 +459,7 @@ func executionGuard(args []string, stdout io.Writer) int {
 		OverviewSHA256:               overviewSHA256,
 		WriteIntents:                 writes,
 		Resources:                    resources,
+		ScopeAmendments:              amendments,
 		Reason:                       parsed.option("--reason", "execution guarded before write"),
 	})
 	closeErr := store.Close()
@@ -403,7 +515,19 @@ func executionComplete(args []string, stdout io.Writer) int {
 		_ = store.Close()
 		return writeEnvelope(stdout, executionControlErrorEnvelope("verify execution packet before completion", err))
 	}
-	if blocker, blocked := executionTaskCompletionBlock(projectRoot, registration.Activity); blocked {
+	executionRoot := registration.Work.WorkspaceRoot
+	releaseWorkflowLock := func() {}
+	if registration.Activity.Workflow == runcontrol.ExecutionWorkflowImplement {
+		var lockEnvelope Envelope
+		var locked bool
+		releaseWorkflowLock, lockEnvelope, locked = acquireExecutionWorkflowControlPlaneLock(executionRoot, registration)
+		if !locked {
+			_ = store.Close()
+			return writeEnvelope(stdout, lockEnvelope)
+		}
+		defer releaseWorkflowLock()
+	}
+	if blocker, blocked := executionTaskCompletionBlock(executionRoot, registration); blocked {
 		_ = store.Close()
 		env := NewEnvelope("blocked", "workflow task is not terminal")
 		env.Blockers = append(env.Blockers, blocker)
@@ -415,17 +539,29 @@ func executionComplete(args []string, stdout io.Writer) int {
 		_ = store.Close()
 		return writeEnvelope(stdout, executionControlErrorEnvelope("inspect actual execution changes", err))
 	}
+	if env, blocked := executionWorkflowControlPlaneCompletionBlock(executionRoot, registration, changedPaths); blocked {
+		_ = store.Close()
+		return writeEnvelope(stdout, env)
+	}
+	controlPlaneFiles, err := captureExecutionWorkflowControlPlaneExpectations(executionRoot, registration)
+	if err != nil {
+		_ = store.Close()
+		return writeEnvelope(stdout, executionControlErrorEnvelope("pin workflow control-plane completion state", err))
+	}
 	completed, operationErr := store.CompleteExecution(ctx, runcontrol.CompleteExecutionParams{
 		ActivityID:           activityID,
 		ExpectedWorkRevision: revision,
 		Fence:                fence,
 		ChangedPaths:         changedPaths,
+		ControlPlaneFiles:    controlPlaneFiles,
 		ValidationJSON:       parsed.option("--validation-json", ""),
 		Reason:               parsed.option("--reason", ""),
 	})
 	closeErr := store.Close()
 	if operationErr != nil {
 		env := executionControlErrorEnvelope("complete execution", operationErr)
+		bindExecutionScopeAuditRecovery(&env, operationErr, registration, projectRoot)
+		bindExecutionControlPlaneDriftRecovery(&env, operationErr, registration, projectRoot)
 		env.ShowArgv = executionShowArgv(activityID, projectRoot)
 		return writeEnvelope(stdout, env)
 	}
@@ -438,12 +574,234 @@ func executionComplete(args []string, stdout io.Writer) int {
 	return writeEnvelope(stdout, env)
 }
 
-func executionTaskCompletionBlock(projectRoot string, activity runcontrol.ExecutionActivity) (map[string]any, bool) {
+func acquireExecutionWorkflowControlPlaneLock(projectRoot string, registration runcontrol.ExecutionRegistration) (func(), Envelope, bool) {
+	binding, _, ok := executionWorkflowControlPlaneBaseline(registration)
+	if !ok {
+		return func() {}, Envelope{}, true
+	}
+	service := NewWorkflowService(projectRoot)
+	feature, err := service.resolveFeature(binding.FeatureRef, registration.Activity.SubjectID)
+	if err != nil {
+		return nil, executionControlErrorEnvelope("resolve workflow control-plane lock", err), false
+	}
+	return service.acquireWorkflowLock(feature)
+}
+
+func captureExecutionWorkflowControlPlaneExpectations(projectRoot string, registration runcontrol.ExecutionRegistration) ([]runcontrol.ExecutionFileDigestExpectation, error) {
+	if registration.Activity.Workflow != runcontrol.ExecutionWorkflowImplement {
+		return nil, nil
+	}
+	binding, _, ok := executionWorkflowControlPlaneBaseline(registration)
+	if !ok {
+		return nil, nil
+	}
+	paths := []string{binding.WorkflowRef, workflowMutationReceiptRef(binding.FeatureRef)}
+	expectations := make([]runcontrol.ExecutionFileDigestExpectation, 0, len(paths))
+	for _, ref := range paths {
+		raw, err := secureProjectReadFile(projectRoot, ref)
+		digest := "missing"
+		if err == nil {
+			digest = fileContentSHA256(raw)
+		} else if !os.IsNotExist(err) {
+			return nil, err
+		}
+		expectations = append(expectations, runcontrol.ExecutionFileDigestExpectation{Path: ref, SHA256: digest})
+	}
+	return expectations, nil
+}
+
+func executionWorkflowControlPlaneCompletionBlock(projectRoot string, registration runcontrol.ExecutionRegistration, changedPaths []string) (Envelope, bool) {
+	if registration.Activity.Workflow != runcontrol.ExecutionWorkflowImplement {
+		return Envelope{}, false
+	}
+	binding, captured, ok := executionWorkflowControlPlaneBaseline(registration)
+	if !ok {
+		return Envelope{}, false
+	}
+	changed := false
+	for _, path := range changedPaths {
+		if strings.EqualFold(filepath.ToSlash(path), binding.WorkflowRef) {
+			changed = true
+			break
+		}
+	}
+	workflowRaw, readErr := secureProjectReadFile(projectRoot, binding.WorkflowRef)
+	if readErr == nil && captured && fileContentSHA256(workflowRaw) == binding.StateSHA256 {
+		return Envelope{}, false
+	}
+	if readErr != nil && os.IsNotExist(readErr) && captured && binding.StateSHA256 == "" && !changed {
+		return Envelope{}, false
+	}
+	if !captured && !changed {
+		return Envelope{}, false
+	}
+	stateEnvelope := NewWorkflowService(projectRoot).Show(WorkflowShowRequest{FeatureDir: binding.FeatureRef})
+	validState := readErr == nil && stateEnvelope.Status == "ok" &&
+		strings.EqualFold(anyString(stateEnvelope.Data["feature_id"]), registration.Activity.SubjectID) &&
+		strings.EqualFold(anyString(stateEnvelope.Data["stage"]), "implement") &&
+		strings.EqualFold(anyString(stateEnvelope.Data["status"]), "active")
+	if validState {
+		receipt, receiptRaw, receiptRef, receiptErr := readWorkflowMutationReceipt(projectRoot, binding.FeatureRef)
+		workflowSHA256 := fileContentSHA256(workflowRaw)
+		validReceipt := receiptErr == nil && receiptRef == workflowMutationReceiptRef(binding.FeatureRef) &&
+			receipt.WorkflowRef == binding.WorkflowRef && receipt.WorkflowSHA256 == workflowSHA256 &&
+			receipt.Revision == intFromAny(stateEnvelope.Data["revision"]) && receipt.Stage == "implement" && receipt.Status == "active"
+		if captured {
+			validReceipt = validReceipt && receipt.Revision > binding.Revision &&
+				fileContentSHA256(receiptRaw) != binding.ReceiptSHA256
+		}
+		if validReceipt {
+			return Envelope{}, false
+		}
+	}
+	code := "workflow_control_plane_invalid"
+	stateErrorCode := strings.ToLower(strings.TrimSpace(anyString(stateEnvelope.Data["error_code"])))
+	if stateEnvelope.Status == "blocked" && stateErrorCode != "invalid-workflow-runtime" {
+		code = "workflow_control_plane_blocked"
+	}
+	env := NewEnvelope("blocked", "runtime-owned workflow control-plane state is not valid for execution completion")
+	env.Data["error_code"] = code
+	env.Data["owner"] = "agent"
+	env.Data["human_action_required"] = false
+	env.Data["workflow_ref"] = binding.WorkflowRef
+	env.Data["workflow_status"] = stateEnvelope.Status
+	env.Data["resolution_action"] = map[string]any{
+		"kind": "repair-or-resolve-workflow-control-plane", "owner": "agent", "human_action_required": false,
+		"show_argv": stateEnvelope.ShowArgv, "next_action": "use the specialized specify-runtime workflow action, then retry the same execution completion",
+		"unblock_criteria": "workflow show returns stage implement with status active and a matching runtime mutation receipt",
+	}
+	env.Blockers = []any{map[string]any{
+		"code": code, "owner": "agent", "human_action_required": false,
+		"workflow_ref": binding.WorkflowRef, "workflow_status": stateEnvelope.Status, "details": stateEnvelope.Blockers,
+	}}
+	env.ShowArgv = stateEnvelope.ShowArgv
+	return env, true
+}
+
+func executionWorkflowControlPlaneRefs(registration runcontrol.ExecutionRegistration) (string, string, bool) {
+	binding, _, ok := executionWorkflowControlPlaneBaseline(registration)
+	if !ok {
+		return "", "", false
+	}
+	return binding.FeatureRef, binding.WorkflowRef, true
+}
+
+func executionWorkflowControlPlaneBaseline(registration runcontrol.ExecutionRegistration) (runcontrol.WorkflowControlPlaneBinding, bool, bool) {
+	var baseline runcontrol.WorkspaceBaseline
+	if json.Unmarshal([]byte(registration.Activity.BaselineJSON), &baseline) != nil {
+		return runcontrol.WorkflowControlPlaneBinding{}, false, false
+	}
+	if baseline.WorkflowControlPlane != nil {
+		binding := *baseline.WorkflowControlPlane
+		binding.FeatureRef = filepath.ToSlash(strings.Trim(strings.TrimSpace(binding.FeatureRef), "/"))
+		binding.WorkflowRef = filepath.ToSlash(strings.Trim(strings.TrimSpace(binding.WorkflowRef), "/"))
+		if binding.FeatureRef == "" || binding.WorkflowRef != binding.FeatureRef+"/workflow.json" {
+			return runcontrol.WorkflowControlPlaneBinding{}, false, false
+		}
+		return binding, true, true
+	}
+	featureRef := ""
+	if baseline.WorkerPacket != nil {
+		packetRef := filepath.ToSlash(baseline.WorkerPacket.Path)
+		featureRef = filepath.ToSlash(filepath.Dir(filepath.Dir(filepath.Dir(filepath.FromSlash(packetRef)))))
+	} else if persistedFeatureRef, found := implementFeatureRefFromSourceRef(registration.Activity.SubjectID, registration.Activity.SourceRef); found {
+		featureRef = persistedFeatureRef
+	} else if safeSegment(registration.Activity.SubjectID) {
+		featureRef = filepath.ToSlash(filepath.Join(".specify", "features", registration.Activity.SubjectID))
+	}
+	if featureRef == "." || featureRef == "" {
+		return runcontrol.WorkflowControlPlaneBinding{}, false, false
+	}
+	return runcontrol.WorkflowControlPlaneBinding{
+		FeatureRef:  featureRef,
+		WorkflowRef: filepath.ToSlash(filepath.Join(filepath.FromSlash(featureRef), "workflow.json")),
+	}, false, true
+}
+
+func executionWorkflowControlPlaneChangedPaths(registration runcontrol.ExecutionRegistration, changedPaths []string) []string {
+	_, workflowRef, ok := executionWorkflowControlPlaneRefs(registration)
+	if !ok {
+		return []string{}
+	}
+	for _, path := range changedPaths {
+		if strings.EqualFold(filepath.ToSlash(path), workflowRef) {
+			return []string{workflowRef}
+		}
+	}
+	return []string{}
+}
+
+func bindExecutionScopeAuditRecovery(env *Envelope, err error, registration runcontrol.ExecutionRegistration, projectRoot string) {
+	if env == nil {
+		return
+	}
+	var scopeAudit *runcontrol.ExecutionScopeAuditError
+	if !errors.As(err, &scopeAudit) || len(scopeAudit.UnclaimedPaths) == 0 {
+		return
+	}
+	packetBound := false
+	var baseline runcontrol.WorkspaceBaseline
+	if json.Unmarshal([]byte(registration.Activity.BaselineJSON), &baseline) == nil && baseline.WorkerPacket != nil {
+		packetBound = true
+	}
+	env.Data["error_code"] = "unclaimed_changed_paths"
+	env.Data["resolution_action"] = map[string]any{
+		"kind":                  "refresh-overview-and-guard-scope",
+		"owner":                 "agent",
+		"human_action_required": false,
+		"activity_id":           registration.Activity.ActivityID,
+		"work_id":               registration.Work.WorkID,
+		"unclaimed_paths":       stringsToAny(scopeAudit.UnclaimedPaths),
+		"packet_bound":          packetBound,
+		"overview_argv": []string{
+			"specify-runtime", "execution", "overview", "--current-work-id", registration.Work.WorkID,
+			"--project-root", projectRoot, "--format", "json",
+		},
+		"guard_argv_prefix": []string{
+			"specify-runtime", "execution", "guard", registration.Activity.ActivityID,
+			"--expected-revision", fmt.Sprint(registration.Work.Revision), "--fence", fmt.Sprint(registration.Work.Fence),
+			"--project-root", projectRoot,
+		},
+		"next_action":      "prove whether each path is causally required; then refresh overview and reuse execution guard with the complete scope. Packet-bound recovery also supplies --scope-amendments-json and requires independent scope-drift-review evidence before retrying completion",
+		"unblock_criteria": "every actual changed path is covered by the same Activity's confirmed scope and any packet amendment is independently reviewed",
+	}
+}
+
+func bindExecutionControlPlaneDriftRecovery(env *Envelope, err error, registration runcontrol.ExecutionRegistration, projectRoot string) {
+	if env == nil {
+		return
+	}
+	var drift *runcontrol.ExecutionControlPlaneDriftError
+	if !errors.As(err, &drift) || len(drift.Paths) == 0 {
+		return
+	}
+	env.Status = "blocked"
+	env.Summary = "workflow control-plane state changed during execution completion"
+	env.Data["error_code"] = "workflow_control_plane_changed_during_completion"
+	env.Data["owner"] = "agent"
+	env.Data["human_action_required"] = false
+	env.Data["drifted_paths"] = stringsToAny(drift.Paths)
+	env.Data["resolution_action"] = map[string]any{
+		"kind":                  "refresh-workflow-and-retry-completion",
+		"owner":                 "agent",
+		"human_action_required": false,
+		"next_action":           "inspect the current workflow state, finish or resolve the runtime-owned mutation, then retry the same Activity completion",
+		"unblock_criteria":      "workflow state and mutation receipt remain unchanged through the atomic execution completion boundary",
+	}
+	env.Blockers = []any{map[string]any{
+		"code": "workflow_control_plane_changed_during_completion", "owner": "agent",
+		"human_action_required": false, "paths": stringsToAny(drift.Paths),
+	}}
+	env.ShowArgv = executionShowArgv(registration.Activity.ActivityID, projectRoot)
+}
+
+func executionTaskCompletionBlock(projectRoot string, registration runcontrol.ExecutionRegistration) (map[string]any, bool) {
+	activity := registration.Activity
 	switch activity.Workflow {
 	case runcontrol.ExecutionWorkflowQuick:
 		return executionQuickTaskCompletionBlock(projectRoot, activity)
 	case runcontrol.ExecutionWorkflowImplement:
-		return executionImplementTaskCompletionBlock(projectRoot, activity)
+		return executionImplementTaskCompletionBlock(projectRoot, registration)
 	default:
 		return nil, false
 	}
@@ -480,10 +838,13 @@ func executionQuickTaskCompletionBlock(projectRoot string, activity runcontrol.E
 	return nil, false
 }
 
-func executionImplementTaskCompletionBlock(projectRoot string, activity runcontrol.ExecutionActivity) (map[string]any, bool) {
-	sourceRef := filepath.ToSlash(filepath.Join(
-		".specify", "features", activity.SubjectID, "task-index.json",
-	))
+func executionImplementTaskCompletionBlock(projectRoot string, registration runcontrol.ExecutionRegistration) (map[string]any, bool) {
+	activity := registration.Activity
+	featureRef, _, ok := executionWorkflowControlPlaneRefs(registration)
+	if !ok {
+		featureRef = filepath.ToSlash(filepath.Join(".specify", "features", activity.SubjectID))
+	}
+	sourceRef := filepath.ToSlash(filepath.Join(filepath.FromSlash(featureRef), "task-index.json"))
 	raw, err := secureProjectReadFile(projectRoot, sourceRef)
 	if err != nil {
 		code := "task_source_unavailable"
@@ -579,6 +940,37 @@ func parseExecutionResourceSpecsJSON(raw string, defaultConfidence runcontrol.Wr
 	return resources, nil
 }
 
+func parseExecutionScopeAmendmentSpecsJSON(raw, fallbackReason string) ([]runcontrol.ExecutionScopeAmendmentSpec, error) {
+	var rows []map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &rows); err != nil {
+		return nil, fmt.Errorf("--scope-amendments-json must be an array of objects: %w", err)
+	}
+	result := make([]runcontrol.ExecutionScopeAmendmentSpec, 0, len(rows))
+	for index, row := range rows {
+		for key := range row {
+			if key != "path" && key != "operation" && key != "reason" {
+				return nil, fmt.Errorf("--scope-amendments-json entry %d contains unsupported field %q", index, key)
+			}
+		}
+		path := strings.TrimSpace(anyString(row["path"]))
+		reason := strings.TrimSpace(anyString(row["reason"]))
+		if reason == "" {
+			reason = strings.TrimSpace(fallbackReason)
+		}
+		if path == "" || reason == "" {
+			return nil, fmt.Errorf("--scope-amendments-json entry %d requires path and reason", index)
+		}
+		operation := runcontrol.WriteOperation(strings.TrimSpace(anyString(row["operation"])))
+		if operation == "" {
+			operation = runcontrol.WriteModify
+		}
+		result = append(result, runcontrol.ExecutionScopeAmendmentSpec{
+			Path: path, Operation: operation, Reason: reason,
+		})
+	}
+	return result, nil
+}
+
 func executionRegistrationDTO(registration runcontrol.ExecutionRegistration) map[string]any {
 	planned, confirmed := make([]string, 0), make([]string, 0)
 	for _, intent := range registration.WriteIntents {
@@ -616,6 +1008,7 @@ func executionRegistrationDTO(registration runcontrol.ExecutionRegistration) map
 	var baseline runcontrol.WorkspaceBaseline
 	if json.Unmarshal([]byte(registration.Activity.BaselineJSON), &baseline) == nil && baseline.WorkerPacket != nil {
 		dto["worker_packet"] = baseline.WorkerPacket
+		dto["scope_amendments"] = baseline.ScopeAmendments
 	}
 	return dto
 }
@@ -632,6 +1025,7 @@ func executionGuardDTO(guarded runcontrol.GuardedExecution) map[string]any {
 		"phase":                     dto["phase"],
 		"write_scope":               dto["confirmed_write_scope"],
 		"semantic_resources":        dto["semantic_resources"],
+		"scope_amendments":          dto["scope_amendments"],
 		"guarded_overview_revision": dto["guarded_overview_revision"],
 		"guarded_overview_sha256":   dto["guarded_overview_sha256"],
 		"coordination_revision":     guarded.CoordinationRevision,
@@ -639,18 +1033,33 @@ func executionGuardDTO(guarded runcontrol.GuardedExecution) map[string]any {
 }
 
 func executionCompletionDTO(completed runcontrol.CompletedExecution) map[string]any {
-	return map[string]any{
-		"schema":                executionCompletionSchema,
-		"activity_id":           completed.Activity.ActivityID,
-		"work_id":               completed.Work.WorkID,
-		"work_revision":         completed.Work.Revision,
-		"fence":                 completed.Work.Fence,
-		"phase":                 completed.Activity.Phase,
-		"work_status":           completed.Work.Status,
-		"actual_changed_paths":  stringsToAny(completed.ChangedPaths),
-		"completion_sha256":     completed.Activity.CompletionSHA256,
-		"coordination_revision": completed.CoordinationRevision,
+	controlPlanePaths := executionWorkflowControlPlaneChangedPaths(completed.ExecutionRegistration, completed.ChangedPaths)
+	dto := map[string]any{
+		"schema":                       executionCompletionSchema,
+		"activity_id":                  completed.Activity.ActivityID,
+		"work_id":                      completed.Work.WorkID,
+		"work_revision":                completed.Work.Revision,
+		"fence":                        completed.Work.Fence,
+		"phase":                        completed.Activity.Phase,
+		"work_status":                  completed.Work.Status,
+		"actual_changed_paths":         stringsToAny(completed.ChangedPaths),
+		"completion_sha256":            completed.Activity.CompletionSHA256,
+		"coordination_revision":        completed.CoordinationRevision,
+		"workflow_control_plane_paths": stringsToAny(controlPlanePaths),
+		"workflow_audit_preserved":     false,
 	}
+	if len(controlPlanePaths) > 0 {
+		featureRef, _, ok := executionWorkflowControlPlaneRefs(completed.ExecutionRegistration)
+		if ok {
+			_, receiptRaw, receiptRef, err := readWorkflowMutationReceipt(completed.Work.WorkspaceRoot, featureRef)
+			if err == nil {
+				dto["workflow_mutation_receipt_ref"] = receiptRef
+				dto["workflow_mutation_receipt_sha256"] = fileContentSHA256(receiptRaw)
+				dto["workflow_audit_preserved"] = true
+			}
+		}
+	}
+	return dto
 }
 
 func executionResourceDTOs(resources []runcontrol.ExecutionResourceIntent) []any {
@@ -668,6 +1077,9 @@ func executionResourceDTOs(resources []runcontrol.ExecutionResourceIntent) []any
 func executionControlErrorEnvelope(action string, err error) Envelope {
 	env := NewEnvelope("error", action+" failed")
 	env.Blockers = append(env.Blockers, err.Error())
+	if bindRunControlStoreAccess(&env, err) {
+		return env
+	}
 	var resourceConflict *runcontrol.ExecutionResourceConflictError
 	var taskConflict *runcontrol.ExecutionTaskConflictError
 	var scopeAudit *runcontrol.ExecutionScopeAuditError

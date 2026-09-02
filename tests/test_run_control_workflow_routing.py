@@ -117,6 +117,18 @@ def _assert_shared_execution_contract(content: str) -> None:
         "immutable baseline binding",
         "guard cannot widen",
         "recompile and reannounce",
+        "--scope-amendments-json",
+        "scope-drift-review",
+        "original packet",
+        "agent-owned recovery",
+        "exact future files",
+        "final /**",
+        "validation commands",
+        "official",
+        "workflow mutations",
+        "never edit it",
+        ".workflow.lock",
+        "same activity",
     ):
         assert token in lowered, token
     assert "fast|debug|implement|quick" in lowered
@@ -134,6 +146,7 @@ def _assert_shared_work_board_contract(content: str) -> None:
         "work scope-add",
         "work checkpoint",
         "work block",
+        "work unblock",
         "work finish",
         "work abandon",
         "work interrupt",
@@ -151,6 +164,9 @@ def _assert_shared_work_board_contract(content: str) -> None:
         "specify_work_id",
         "specify_work_fence",
         "not completion shortcuts",
+        ".specify/runtime/run-control/run-control.sqlite",
+        "legacy .git/specify-runtime/run-control.sqlite",
+        "agent-owned",
     ):
         assert token in lowered, token
 
@@ -331,6 +347,9 @@ def test_restart_recovery_never_steals_live_work_or_discards_dirty_scope() -> No
         assert "old owner/session has ended" in lowered
         assert "must not interrupt another live agent" in lowered
         assert "dirty recovery hold" in lowered
+        assert "work unblock" in lowered
+        assert "current live owner" in lowered
+        assert "preserves owner, fence" in lowered
         _assert_commands_in_order(lowered, ("work interrupt", "work resume"))
         assert "--expected-revision <n> --fence <n> --reason <reason>" in lowered
 
@@ -362,6 +381,14 @@ def test_packet_workers_register_exact_compiled_bytes_before_guard_and_native_di
             "native worker dispatch",
             "work_claim",
             "in_progress",
+            "--scope-amendments-json",
+            "scope-drift-review",
+            "same invocation",
+            "workflow.json",
+            "official",
+            "runtime mutation receipt",
+            ".workflow.lock",
+            "same activity",
         ):
             assert token in content, (relative, token)
         _assert_no_retired_run_surface(content)
@@ -403,6 +430,7 @@ def test_packet_template_keeps_bookkeeping_separate_from_product_and_ui_contract
         for canonical_path in (
             "task-index.json",
             "tasks.md",
+            "workflow.json",
             "implement-tracker.md",
             "implementation-review/execution-state.json",
             "implementation-review/tasks/<task-id>.json",

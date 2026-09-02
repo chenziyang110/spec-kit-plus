@@ -170,12 +170,19 @@ func teamsSubmitResult(args []string, stdout io.Writer) int {
 		return teamsWriteError(stdout, "usage-error", "--request-id is required unless --print-schema is used")
 	}
 	if hasFlag(args, "--result-file") {
-		return teamsWriteError(stdout, "usage-error", "submit-result does not accept agent-authored result files; pass the result inline with --result-json")
+		return teamsWriteError(stdout, "usage-error", "submit-result does not accept agent-authored result files through --result-file; pass bounded semantic JSON with --result-json (inline, @path, or - for stdin)")
 	}
 	if resultJSON == "" {
 		return teamsWriteError(stdout, "usage-error", "submit-result requires --result-json")
 	}
-	normalized, err := teamsNormalizeResultSubmission(root, requestID, []byte(resultJSON))
+	rawResult, err := resolveJSONInputBytesFrom(resultJSON, root, "teams submit-result", "--result-json", os.Stdin)
+	if err != nil {
+		return teamsWriteError(stdout, "usage-error", err.Error())
+	}
+	if len(rawResult) == 0 {
+		return teamsWriteError(stdout, "usage-error", "submit-result requires --result-json")
+	}
+	normalized, err := teamsNormalizeResultSubmission(root, requestID, rawResult)
 	if err != nil {
 		return teamsWriteError(stdout, "invalid", err.Error())
 	}

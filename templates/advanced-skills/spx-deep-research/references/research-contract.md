@@ -4,6 +4,16 @@ Research only questions that can change feasibility, architecture, dependency
 choice, security, operations, rollout, or verification. For each question,
 record the decision it controls and the evidence threshold for stopping.
 
+Deep Research consumes planning-ready Specify truth; it does not promote a
+draft contract or resolve a persisted Specify blocker. Runtime initialization,
+every mutation, publication, and handoff verification must fail closed to the
+typed Specify owner route unless the source remains planning-ready and its
+workflow can enter or resume Plan. A research result never authorizes `/sp.plan`
+by itself.
+Source-sensitive research commits hold the feature workflow lock and bind the
+exact spec/workflow bytes as transaction preconditions, so concurrent upstream
+changes roll back rather than publishing contradictory state.
+
 Prefer authoritative documentation, standards, release notes, source code, and
 reproducible runtime evidence. Separate quoted or observed facts from inference.
 Resolve disagreement by source authority, version applicability, and a focused

@@ -173,7 +173,7 @@ func (service evidenceService) sourceContinuityValidate(args []string, raw map[s
 	currentUI, _ := currentTask["ui_contract"].(map[string]any)
 	currentContinuity, _ := currentUI["source_continuity"].(map[string]any)
 	targetSnapshot, snapshotErr := sourceContinuityLabTargetSnapshot(root, sourceContinuityLabTaskWriteScope(currentTask))
-	if !sourceOK || indexErr != nil || taskErr != nil || snapshotErr != nil || strings.TrimSpace(anyString(source["task_index_sha256"])) != optionalFileSHA256(indexPath) || strings.TrimSpace(anyString(source["target_snapshot_sha256"])) != targetSnapshot || !reflect.DeepEqual(manifest["source_continuity"], currentContinuity) || anyString(manifest["source_continuity_sha256"]) != sourceContinuityLabContractSHA(currentContinuity) {
+	if !sourceOK || indexErr != nil || taskErr != nil || snapshotErr != nil || strings.TrimSpace(anyString(source["task_index_sha256"])) != sourceContinuityLabTaskIndexContractSHA(indexPath) || strings.TrimSpace(anyString(source["target_snapshot_sha256"])) != targetSnapshot || !reflect.DeepEqual(manifest["source_continuity"], currentContinuity) || anyString(manifest["source_continuity_sha256"]) != sourceContinuityLabContractSHA(currentContinuity) {
 		diagnostics = append(diagnostics, "stale-manifest")
 	}
 	adapterPlanRef := filepath.ToSlash(strings.TrimSpace(optionValue(args, "--adapter-plan", "")))
@@ -672,7 +672,7 @@ func validateCurrentFeatureSourceContinuityManifest(root, feature, taskID string
 	if err != nil {
 		return err
 	}
-	if manifest["schema"] != sourceContinuityLabManifestSchema || anyString(manifest["task_id"]) != taskID || !reflect.DeepEqual(manifest["source_continuity"], continuity) || anyString(manifest["source_continuity_sha256"]) != sourceContinuityLabContractSHA(continuity) || anyString(source["task_index_sha256"]) != optionalFileSHA256(indexPath) || anyString(source["target_snapshot_sha256"]) != targetSnapshot {
+	if manifest["schema"] != sourceContinuityLabManifestSchema || anyString(manifest["task_id"]) != taskID || !reflect.DeepEqual(manifest["source_continuity"], continuity) || anyString(manifest["source_continuity_sha256"]) != sourceContinuityLabContractSHA(continuity) || anyString(source["task_index_sha256"]) != sourceContinuityLabTaskIndexContractSHA(indexPath) || anyString(source["target_snapshot_sha256"]) != targetSnapshot {
 		return errors.New("source continuity manifest no longer matches the current task contract")
 	}
 	return nil
@@ -1056,10 +1056,40 @@ func buildSourceContinuityLabManifest(root, feature, taskID, indexPath string, t
 		"required_adapter_capabilities": stringsToAny(sourceContinuityLabCapabilities),
 		"required_evidence":             stringsToAny(sourceContinuityLabEvidenceKinds),
 		"source": map[string]any{
-			"task_index_ref": "task-index.json", "task_index_sha256": optionalFileSHA256(indexPath),
+			"task_index_ref": "task-index.json", "task_index_sha256": sourceContinuityLabTaskIndexContractSHA(indexPath),
 			"feature_ref": filepath.ToSlash(projectRelativeFeature), "target_snapshot_sha256": targetSnapshot,
 		},
 	}, nil
+}
+
+// sourceContinuityLabTaskIndexContractSHA binds the immutable task contract,
+// while excluding the small set of runtime-owned task fields that Implement
+// updates as it moves pending -> in_progress -> implemented -> accepted.
+// This keeps a report generated during execution valid after its own result
+// merge without ignoring authored scope, UI, acceptance, or dependency edits.
+func sourceContinuityLabTaskIndexContractSHA(indexPath string) string {
+	index, err := readImplementJSONMap(indexPath)
+	if err != nil {
+		return ""
+	}
+	projected := cloneJSONMap(index)
+	if tasks, ok := projected["tasks"].([]any); ok {
+		stableTasks := make([]any, len(tasks))
+		for i, raw := range tasks {
+			task, ok := raw.(map[string]any)
+			if !ok {
+				stableTasks[i] = cloneJSONValue(raw)
+				continue
+			}
+			stable := cloneJSONMap(task)
+			for field := range taskControlRuntimeFields {
+				delete(stable, field)
+			}
+			stableTasks[i] = stable
+		}
+		projected["tasks"] = stableTasks
+	}
+	return canonicalJSONSHA256(projected)
 }
 
 func validateSourceContinuityLabResult(taskID string, manifest map[string]any, manifestSHA string, raw map[string]any) ([]string, map[string]any) {
@@ -1664,7 +1694,7 @@ func validatePersistedSourceContinuityLabReport(feature string, task map[string]
 		diagnostics = append(diagnostics, validateSourceContinuityAdapterExecutionObservation(adapterExecution, adapterExecutionRef, adapterExecutionSHA, validationInput)...)
 	}
 	manifestSource, _ := manifest["source"].(map[string]any)
-	currentIndexSHA := optionalFileSHA256(indexPath)
+	currentIndexSHA := sourceContinuityLabTaskIndexContractSHA(indexPath)
 	projectRoot, rootErr := sourceContinuityLabProjectRoot(feature)
 	targetSnapshot, snapshotErr := sourceContinuityLabTargetSnapshot(projectRoot, sourceContinuityLabTaskWriteScope(currentTask))
 	if rootErr == nil {

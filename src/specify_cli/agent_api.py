@@ -308,6 +308,20 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
                 "items": _STRING,
             },
             "summary": {"type": "string"},
+            "reopen_to": {
+                "enum": ["specify", "plan", "tasks", "implement", "review"]
+            },
+            "reopen_reason": _STRING,
+            "reopen_evidence": {
+                "type": "array",
+                "minItems": 1,
+                "items": _STRING,
+            },
+            "invalidated_artifacts": {
+                "type": "array",
+                "minItems": 1,
+                "items": _STRING,
+            },
         },
         required=["feature_dir", "expected_revision", "resolution_evidence"],
     ),
@@ -400,6 +414,17 @@ _SCHEMAS["workflow-block-input"]["allOf"] = [
     },
 ]
 
+_RESOLVE_REOPEN_FIELDS = [
+    "reopen_to",
+    "reopen_reason",
+    "reopen_evidence",
+    "invalidated_artifacts",
+]
+_SCHEMAS["workflow-resolve-input"]["dependentRequired"] = {
+    field: [other for other in _RESOLVE_REOPEN_FIELDS if other != field]
+    for field in _RESOLVE_REOPEN_FIELDS
+}
+
 
 def validate_workflow_blocker_payload(payload: Mapping[str, Any]) -> list[str]:
     """Return compact schema errors for one persisted workflow blocker."""
@@ -487,7 +512,7 @@ _CAPABILITIES: tuple[dict[str, Any], ...] = (
     },
     {
         "id": "workflow.resolve",
-        "summary": "Resolve one persisted blocker and reactivate its owning stage.",
+        "summary": "Resolve one persisted blocker and either reactivate its owner or atomically reopen a requested earlier stage.",
         "input_schema": "workflow-resolve-input",
         "side_effect": "writes-workflow",
         "command": ["specify-runtime", "workflow", "resolve"],

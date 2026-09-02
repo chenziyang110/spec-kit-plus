@@ -20,9 +20,12 @@ transition, query the runtime-owned gate decision (`not_selected`, `selected`,
 or `required`) and use targeted `artifact list`/`artifact show` discovery for
 the feature Test Design root. When it exists, run `specify-runtime test-design
 status --feature-dir <feature-dir> --format json`. Route `selected` or
-`required` with no root, and active, blocked, stale,
-validated-but-unpublished/unprojected, or digest-mismatched state to
-`spx-test-design`. Route to `spx-tasks` only for `not_selected` with no root, or
+`required` with no root to `spx-test-design`. For an existing root, execute an
+agent-owned `recovery_action` exact base_argv in the same invocation. When
+`human_action_required=true`, wait only for genuine authority evidence; do not
+ask the user to repair state, and do not ask the user to re-invoke the workflow. After publication,
+execute `projection_action` and every returned next_argv through verification
+to the selected consumer. Route to `spx-tasks` only for `not_selected` with no root, or
 when the current compatibility test-design handoff exists and the Tasks
 projection passes `specify-runtime test-design projection-verify --feature-dir
 <feature-dir> --projection-ref <project-relative-ref> --expected-sha256
@@ -30,8 +33,11 @@ projection passes `specify-runtime test-design projection-verify --feature-dir
 artifacts. Never infer freshness by reading storage files.
 
 A blocked runtime intentionally has no `next_argv`. Preserve its tutorial and
-wait for the declared evidence; when available, fill only the required evidence
-input in `data.resolution_action` and execute its runtime-owned base argv.
+wait for the declared evidence. When a validated backward reopen is pending,
+use `data.pending_reopen_action`; otherwise use `data.resolution_action`. When
+evidence is available, fill only the selected action's required evidence input
+and execute its runtime-owned base argv. The pending action atomically resolves
+and reopens, while the ordinary action restores the same owner.
 `show_argv` refreshes state but does not resolve it.
 
 When rich state contains evidence that an upstream required stage is invalid,
@@ -40,8 +46,10 @@ the current revision, compact reason, sanitized evidence, and complete
 invalidated-artifact set when the record is sufficient. Resume an already active
 mapped owner; reactivate the same completed owner through reopen. Otherwise
 route to analyze or the current owner to establish a valid reopen decision. A
-blocked runtime must first use `specify-runtime workflow resolve` with evidence, and acceptance
-findings use `accept route-repair`.
+blocked runtime returns `pending_reopen_action`; preserve its blocker and keep
+the mapped owner unenterable until real resolution evidence executes that
+atomic resolve-and-reopen transaction. Acceptance findings use
+`accept route-repair`.
 
 Use an explicit feature selection or validated durable workflow binding in the
 current worktree and route only state belonging to that lineage. Work Board

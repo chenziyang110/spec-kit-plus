@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/filelock"
 	runtimecmd "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
@@ -29,17 +31,29 @@ const emptyGitTreeOID = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 // Git repository. Root is specific to the current worktree, while CommonDir
 // and DatabasePath are shared by the main and linked worktrees.
 type Repository struct {
-	Root         string
-	PrimaryRoot  string
-	CommonDir    string
-	DatabasePath string
+	Root               string
+	PrimaryRoot        string
+	CommonDir          string
+	DatabasePath       string
+	LegacyDatabasePath string
 }
 
 type WorkspaceBaseline struct {
-	HeadCommit   string               `json:"head_commit"`
-	DirtyPaths   []string             `json:"dirty_paths"`
-	PathDigests  map[string]string    `json:"path_digests"`
-	WorkerPacket *WorkerPacketBinding `json:"worker_packet,omitempty"`
+	HeadCommit           string                       `json:"head_commit"`
+	DirtyPaths           []string                     `json:"dirty_paths"`
+	PathDigests          map[string]string            `json:"path_digests"`
+	WorkerPacket         *WorkerPacketBinding         `json:"worker_packet,omitempty"`
+	WorkflowControlPlane *WorkflowControlPlaneBinding `json:"workflow_control_plane,omitempty"`
+	ScopeAmendments      []ExecutionScopeAmendment    `json:"scope_amendments,omitempty"`
+}
+
+type WorkflowControlPlaneBinding struct {
+	FeatureRef    string `json:"feature_ref"`
+	WorkflowRef   string `json:"workflow_ref"`
+	StateSHA256   string `json:"state_sha256,omitempty"`
+	Revision      int    `json:"revision"`
+	ReceiptRef    string `json:"receipt_ref,omitempty"`
+	ReceiptSHA256 string `json:"receipt_sha256,omitempty"`
 }
 
 // ResolveRepository discovers the current worktree root and the shared Git
@@ -82,11 +96,53 @@ func ResolveRepository(ctx context.Context, cwd string) (Repository, error) {
 	}
 
 	return Repository{
-		Root:         root,
-		PrimaryRoot:  primaryRoot,
-		CommonDir:    commonDir,
-		DatabasePath: filepath.Join(commonDir, "specify-runtime", "run-control.sqlite"),
+		Root:               root,
+		PrimaryRoot:        primaryRoot,
+		CommonDir:          commonDir,
+		DatabasePath:       filepath.Join(primaryRoot, ".specify", "runtime", "run-control", "run-control.sqlite"),
+		LegacyDatabasePath: filepath.Join(commonDir, "specify-runtime", "run-control.sqlite"),
 	}, nil
+}
+
+// OpenRepository opens the canonical repository-shared run-control store for an
+// already resolved repository and performs the one-time legacy snapshot
+// migration when the canonical store does not exist yet.
+func OpenRepository(ctx context.Context, repository Repository, options ...OpenOption) (*Store, error) {
+	canonicalPath, err := resolveCanonicalRepositoryDatabasePath(repository)
+	if err != nil {
+		return nil, fmt.Errorf("resolve canonical repository run control path: %w", err)
+	}
+	exists, err := pathExistsForRunControl(canonicalPath)
+	if err != nil {
+		return nil, fmt.Errorf("inspect canonical repository run control path: %w", err)
+	}
+	if exists {
+		store, err := Open(ctx, canonicalPath, options...)
+		if err != nil {
+			return nil, fmt.Errorf("open repository run control store: %w", err)
+		}
+		return store, nil
+	}
+	legacyPath := filepath.Clean(strings.TrimSpace(repository.LegacyDatabasePath))
+	if legacyPath != "" {
+		legacyExists, err := pathExistsForRunControl(legacyPath)
+		if err != nil {
+			return nil, fmt.Errorf("inspect legacy repository run control path: %w", err)
+		}
+		if legacyExists {
+			if err := migrateLegacyRepositoryStore(ctx, repository, canonicalPath, legacyPath, options...); err != nil {
+				if isStoreAccessFailure(err) {
+					return nil, &StoreAccessError{Stage: "migrate-legacy", Path: canonicalPath, Cause: err}
+				}
+				return nil, fmt.Errorf("migrate legacy repository run control store: %w", err)
+			}
+		}
+	}
+	store, err := Open(ctx, canonicalPath, options...)
+	if err != nil {
+		return nil, fmt.Errorf("open repository run control store: %w", err)
+	}
+	return store, nil
 }
 
 // OpenForRepository opens the run-control store shared by all worktrees in the
@@ -96,11 +152,7 @@ func OpenForRepository(ctx context.Context, cwd string, options ...OpenOption) (
 	if err != nil {
 		return nil, err
 	}
-	store, err := Open(ctx, repository.DatabasePath, options...)
-	if err != nil {
-		return nil, fmt.Errorf("open repository run control store: %w", err)
-	}
-	return store, nil
+	return OpenRepository(ctx, repository, options...)
 }
 
 // OpenViewForRepository opens a read-only run-control view shared by all
@@ -110,7 +162,36 @@ func OpenViewForRepository(ctx context.Context, cwd string) (*View, error) {
 	if err != nil {
 		return nil, err
 	}
-	view, err := OpenView(ctx, repository.DatabasePath)
+	canonicalPath, err := resolveCanonicalRepositoryDatabasePath(repository)
+	if err != nil {
+		return nil, fmt.Errorf("resolve canonical repository run control path: %w", err)
+	}
+	canonicalExists, err := pathExistsForRunControl(canonicalPath)
+	if err != nil {
+		return nil, fmt.Errorf("inspect canonical repository run control path: %w", err)
+	}
+	if canonicalExists {
+		view, err := OpenView(ctx, canonicalPath)
+		if err != nil {
+			return nil, fmt.Errorf("open repository run control view: %w", err)
+		}
+		return view, nil
+	}
+	legacyPath := filepath.Clean(strings.TrimSpace(repository.LegacyDatabasePath))
+	if legacyPath != "" {
+		legacyExists, err := pathExistsForRunControl(legacyPath)
+		if err != nil {
+			return nil, fmt.Errorf("inspect legacy repository run control path: %w", err)
+		}
+		if legacyExists {
+			view, err := OpenView(ctx, legacyPath)
+			if err != nil {
+				return nil, fmt.Errorf("open repository run control view: %w", err)
+			}
+			return view, nil
+		}
+	}
+	view, err := OpenView(ctx, canonicalPath)
 	if err != nil {
 		return nil, fmt.Errorf("open repository run control view: %w", err)
 	}
@@ -140,6 +221,9 @@ func InspectWorkspaceChanges(ctx context.Context, workspaceRoot string) ([]strin
 		pathValue, pathKey, err := normalizeWorkPath(value, runtime.GOOS == "windows")
 		if err != nil {
 			return fmt.Errorf("parse Git status path %q: %w", value, err)
+		}
+		if isRunControlRuntimePath(pathKey) || isWorkflowRuntimeLockPath(pathKey) || isWorkflowMutationReceiptPath(pathKey) {
+			return nil
 		}
 		if _, exists := seen[pathKey]; !exists {
 			seen[pathKey] = struct{}{}
@@ -303,6 +387,9 @@ func InspectWorkspaceDelta(ctx context.Context, workspaceRoot, baselineJSON stri
 // .specify/runtime paths and the directory roots themselves stay audit-visible.
 // This exception belongs only to execution delta auditing, never Work recovery.
 func isPrivateRuntimeTransportPath(pathKey string) bool {
+	if isWorkflowRuntimeLockPath(pathKey) || isWorkflowMutationReceiptPath(pathKey) {
+		return true
+	}
 	const root = ".specify/runtime/"
 	if !strings.HasPrefix(pathKey, root) {
 		return false
@@ -310,13 +397,43 @@ func isPrivateRuntimeTransportPath(pathKey string) bool {
 	privatePath := strings.TrimPrefix(pathKey, root)
 	for _, directory := range []string{
 		"receipts/", "transactions/", "leases/", "locks/", "artifact-trash/",
-		"deep-research/locks/", "test-design/locks/",
+		"deep-research/locks/", "test-design/locks/", "run-control/",
 	} {
 		if strings.HasPrefix(privatePath, directory) {
 			return true
 		}
 	}
 	return privatePath == "discussion/mutation.lock"
+}
+
+func isRunControlRuntimePath(pathKey string) bool {
+	const root = ".specify/runtime/run-control/"
+	return strings.HasPrefix(pathKey, root)
+}
+
+func isWorkflowRuntimeLockPath(pathKey string) bool {
+	parts := strings.Split(strings.Trim(pathKey, "/"), "/")
+	if len(parts) == 4 && parts[0] == ".specify" && (parts[1] == "features" || parts[1] == "specs") {
+		return parts[2] != "" && parts[3] == ".workflow.lock"
+	}
+	return len(parts) == 3 && parts[0] == "specs" && parts[1] != "" && parts[2] == ".workflow.lock"
+}
+
+func isWorkflowMutationReceiptPath(pathKey string) bool {
+	const root = ".specify/runtime/workflow-mutations/"
+	if !strings.HasPrefix(pathKey, root) {
+		return false
+	}
+	name := strings.TrimPrefix(pathKey, root)
+	if len(name) != 69 || !strings.HasSuffix(name, ".json") || strings.Contains(name, "/") {
+		return false
+	}
+	for _, char := range strings.TrimSuffix(name, ".json") {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 func inspectCommittedWorkspacePaths(ctx context.Context, workspaceRoot, baseCommit string) ([]string, error) {
@@ -501,4 +618,259 @@ func resolveGitPath(directory string, value string) (string, error) {
 		return "", err
 	}
 	return filepath.Clean(absolute), nil
+}
+
+func resolveCanonicalRepositoryDatabasePath(repository Repository) (string, error) {
+	primaryRoot := strings.TrimSpace(repository.PrimaryRoot)
+	if primaryRoot == "" {
+		return "", fmt.Errorf("%w: repository primary worktree root is required", ErrInvalidArgument)
+	}
+	resolvedRoot, err := filepath.Abs(primaryRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve repository primary worktree root: %w", err)
+	}
+	resolvedRoot, err = filepath.EvalSymlinks(resolvedRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve repository primary worktree root: %w", err)
+	}
+	path, err := secureRepositoryProjectPath(resolvedRoot, filepath.ToSlash(filepath.Join(".specify", "runtime", "run-control", "run-control.sqlite")))
+	if err != nil {
+		return "", err
+	}
+	if configured := strings.TrimSpace(repository.DatabasePath); configured != "" {
+		configuredPath, configErr := filepath.Abs(configured)
+		if configErr != nil {
+			return "", fmt.Errorf("resolve configured repository run control path: %w", configErr)
+		}
+		same := filepath.Clean(configuredPath) == filepath.Clean(path)
+		if runtime.GOOS == "windows" {
+			same = strings.EqualFold(filepath.Clean(configuredPath), filepath.Clean(path))
+		}
+		if !same {
+			return "", fmt.Errorf("%w: configured repository run control path %q does not match canonical path %q", ErrInvalidArgument, configuredPath, path)
+		}
+	}
+	return path, nil
+}
+
+func pathExistsForRunControl(path string) (bool, error) {
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return false, fmt.Errorf("%w: run control path %q must not be a symlink or junction", ErrInvalidArgument, path)
+	}
+	if !info.Mode().IsRegular() {
+		return false, fmt.Errorf("%w: run control path %q must be a regular file", ErrInvalidArgument, path)
+	}
+	return true, nil
+}
+
+func migrateLegacyRepositoryStore(ctx context.Context, repository Repository, canonicalPath, legacyPath string, options ...OpenOption) error {
+	if err := ensureSecureRunControlDirectory(repository.PrimaryRoot, filepath.Dir(canonicalPath)); err != nil {
+		return fmt.Errorf("prepare canonical run control directory: %w", err)
+	}
+	lockCandidate := filepath.Join(filepath.Dir(canonicalPath), ".run-control.migrate.lock")
+	lockRelative, err := filepath.Rel(repository.PrimaryRoot, lockCandidate)
+	if err != nil {
+		return fmt.Errorf("resolve run control migration lock: %w", err)
+	}
+	lockPath, err := secureRepositoryProjectPath(repository.PrimaryRoot, filepath.ToSlash(lockRelative))
+	if err != nil {
+		return fmt.Errorf("validate run control migration lock: %w", err)
+	}
+	if info, statErr := os.Lstat(lockPath); statErr == nil && !info.Mode().IsRegular() {
+		return fmt.Errorf("%w: run control migration lock %q must be a regular file", ErrInvalidArgument, lockPath)
+	} else if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+		return fmt.Errorf("inspect run control migration lock: %w", statErr)
+	}
+	release, err := filelock.Acquire(lockPath)
+	if err != nil {
+		return fmt.Errorf("acquire run control migration lock: %w", err)
+	}
+	defer release()
+	if _, err := secureRepositoryProjectPath(repository.PrimaryRoot, filepath.ToSlash(lockRelative)); err != nil {
+		return fmt.Errorf("revalidate run control migration lock: %w", err)
+	}
+	if info, err := os.Lstat(lockPath); err != nil || !info.Mode().IsRegular() {
+		return fmt.Errorf("%w: run control migration lock %q changed during acquisition", ErrInvalidArgument, lockPath)
+	}
+
+	exists, err := pathExistsForRunControl(canonicalPath)
+	if err != nil {
+		return fmt.Errorf("inspect canonical run control store: %w", err)
+	}
+	if exists {
+		return nil
+	}
+	legacyExists, err := pathExistsForRunControl(legacyPath)
+	if err != nil {
+		return fmt.Errorf("inspect legacy run control store: %w", err)
+	}
+	if !legacyExists {
+		return nil
+	}
+
+	temporaryFile, err := os.CreateTemp(filepath.Dir(canonicalPath), ".run-control-migrate-*.sqlite")
+	if err != nil {
+		return fmt.Errorf("create migration snapshot path: %w", err)
+	}
+	temporaryPath := temporaryFile.Name()
+	if closeErr := temporaryFile.Close(); closeErr != nil {
+		_ = os.Remove(temporaryPath)
+		return fmt.Errorf("close migration snapshot path: %w", closeErr)
+	}
+	if err := os.Remove(temporaryPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("prepare migration snapshot path: %w", err)
+	}
+	defer cleanupRunControlSnapshot(temporaryPath)
+
+	if err := copyLegacyRunControlSnapshot(ctx, legacyPath, temporaryPath); err != nil {
+		return err
+	}
+	destination, err := Open(ctx, temporaryPath, options...)
+	if err != nil {
+		return fmt.Errorf("validate canonical migration store: %w", err)
+	}
+	if err := checkpointRunControlSnapshot(ctx, destination.db); err != nil {
+		_ = destination.Close()
+		return err
+	}
+	if err := destination.Close(); err != nil {
+		return fmt.Errorf("close canonical migration store: %w", err)
+	}
+
+	exists, err = pathExistsForRunControl(canonicalPath)
+	if err != nil {
+		return fmt.Errorf("reinspect canonical run control store: %w", err)
+	}
+	if exists {
+		return nil
+	}
+	if err := os.Rename(temporaryPath, canonicalPath); err != nil {
+		return fmt.Errorf("publish canonical run control snapshot: %w", err)
+	}
+	return nil
+}
+
+func ensureSecureRunControlDirectory(primaryRoot, directory string) error {
+	resolvedRoot, err := filepath.Abs(strings.TrimSpace(primaryRoot))
+	if err != nil {
+		return fmt.Errorf("resolve repository primary worktree root: %w", err)
+	}
+	resolvedRoot, err = filepath.EvalSymlinks(resolvedRoot)
+	if err != nil {
+		return fmt.Errorf("resolve repository primary worktree root: %w", err)
+	}
+	relative, err := filepath.Rel(resolvedRoot, directory)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+		return fmt.Errorf("%w: canonical run control directory escapes the primary worktree root", ErrInvalidArgument)
+	}
+	secureDirectory, err := secureRepositoryProjectPath(resolvedRoot, filepath.ToSlash(relative))
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(secureDirectory, 0o755); err != nil {
+		return err
+	}
+	_, err = secureRepositoryProjectPath(resolvedRoot, filepath.ToSlash(relative))
+	return err
+}
+
+func secureRepositoryProjectPath(projectRoot, relative string) (string, error) {
+	root, err := filepath.Abs(projectRoot)
+	if err != nil {
+		return "", err
+	}
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	candidate := filepath.Join(root, filepath.FromSlash(strings.TrimSpace(relative)))
+	candidate, err = filepath.Abs(candidate)
+	if err != nil {
+		return "", err
+	}
+	relativeToRoot, err := filepath.Rel(root, candidate)
+	if err != nil || relativeToRoot == ".." || strings.HasPrefix(relativeToRoot, ".."+string(filepath.Separator)) || filepath.IsAbs(relativeToRoot) {
+		return "", fmt.Errorf("%w: path must stay inside the repository primary worktree", ErrInvalidArgument)
+	}
+	current := root
+	for _, component := range strings.Split(relativeToRoot, string(filepath.Separator)) {
+		if component == "" || component == "." {
+			continue
+		}
+		current = filepath.Join(current, component)
+		info, statErr := os.Lstat(current)
+		if errors.Is(statErr, os.ErrNotExist) {
+			break
+		}
+		if statErr != nil {
+			return "", statErr
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return "", fmt.Errorf("%w: project path crosses symlink or junction %q", ErrInvalidArgument, current)
+		}
+		resolved, resolveErr := filepath.EvalSymlinks(current)
+		if resolveErr != nil {
+			return "", resolveErr
+		}
+		resolved, resolveErr = filepath.Abs(resolved)
+		if resolveErr != nil {
+			return "", resolveErr
+		}
+		currentAbs, currentErr := filepath.Abs(current)
+		if currentErr != nil {
+			return "", currentErr
+		}
+		same := filepath.Clean(resolved) == filepath.Clean(currentAbs)
+		if runtime.GOOS == "windows" {
+			same = strings.EqualFold(filepath.Clean(resolved), filepath.Clean(currentAbs))
+		}
+		if !same {
+			return "", fmt.Errorf("%w: project path crosses reparse point %q", ErrInvalidArgument, current)
+		}
+	}
+	return candidate, nil
+}
+
+func copyLegacyRunControlSnapshot(ctx context.Context, legacyPath, destinationPath string) error {
+	source, err := sql.Open("sqlite", sqliteDataSource(legacyPath, "mode=ro"))
+	if err != nil {
+		return fmt.Errorf("open legacy run control snapshot: %w", err)
+	}
+	source.SetMaxOpenConns(1)
+	source.SetMaxIdleConns(1)
+	defer source.Close()
+	if _, err := source.ExecContext(ctx, fmt.Sprintf(`PRAGMA busy_timeout = %d`, sqliteBusyTimeoutMS)); err != nil {
+		return fmt.Errorf("configure legacy run control snapshot timeout: %w", err)
+	}
+	// VACUUM INTO reads a transactionally consistent snapshot, preserves
+	// retired/unknown history tables, and does not need write access to the
+	// legacy Git-administration directory.
+	if _, err := source.ExecContext(ctx, `VACUUM INTO ?`, destinationPath); err != nil {
+		return fmt.Errorf("snapshot legacy run control store: %w", err)
+	}
+	return nil
+}
+
+func checkpointRunControlSnapshot(ctx context.Context, db *sql.DB) error {
+	if _, err := db.ExecContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE)`); err != nil {
+		return fmt.Errorf("checkpoint canonical run control snapshot: %w", err)
+	}
+	return nil
+}
+
+func cleanupRunControlSnapshot(databasePath string) {
+	for _, path := range []string{
+		databasePath,
+		databasePath + "-wal",
+		databasePath + "-shm",
+	} {
+		_ = os.Remove(path)
+	}
 }

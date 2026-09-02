@@ -265,6 +265,8 @@ def test_materialize_project_runtime_uses_content_addressed_cache(
     assert runtime.content_addressed_runtime_path(digest).read_bytes() == source.read_bytes()
     assert project_binary.read_bytes() == source.read_bytes()
     assert source.is_file()
+    runtime_ignore = project / ".specify" / "runtime" / ".gitignore"
+    assert runtime_ignore.read_text(encoding="utf-8").splitlines() == ["*", "!.gitignore"]
     if os.name != "nt":
         assert os.access(project_binary, os.X_OK)
 

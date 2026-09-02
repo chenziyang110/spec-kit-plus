@@ -342,6 +342,7 @@ func scriptDomainError(domain string, err error) Envelope {
 	env := NewEnvelope(status, message)
 	env.Blockers = append(env.Blockers, err.Error())
 	env.Data["error_code"] = code
+	bindRunControlStoreAccess(&env, err)
 	return env
 }
 

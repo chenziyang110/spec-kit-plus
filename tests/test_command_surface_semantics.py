@@ -585,6 +585,29 @@ def test_classic_and_advanced_design_contracts_pin_exact_change_identity() -> No
         assert "never silently retarget" in content
 
 
+def test_classic_and_advanced_design_bind_large_handoff_from_runtime_sidecar() -> None:
+    classic = " ".join(
+        read_template("templates/command-partials/design/shell.md").lower().split()
+    )
+    advanced = " ".join(
+        read_template("templates/advanced-skills/spx-design/SKILL.md")
+        .lower()
+        .split()
+    )
+
+    expected = (
+        "specify-runtime artifact patch --lease <id> --frontmatter-pointer "
+        "/design_change/verification --value-json "
+        "@<change-dir>/previews/round-nn.handoff.json "
+        "--value-json-pointer /reproduction"
+    )
+    for content in (classic, advanced):
+        assert expected in content
+        assert "runtime-owned handoff sidecar" in content
+        assert "temporary authoring file" in content
+        assert "stdin" in content
+
+
 def test_classic_and_advanced_design_image_routes_import_external_outputs() -> None:
     classic = "\n".join(
         [
@@ -1159,7 +1182,7 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
         in readme
     )
     assert (
-        "sp-teams submit-result --request-id <request-id> --result-json '<inline-json>'"
+        "sp-teams submit-result --request-id <request-id> --result-json <inline-json|@path|->"
         in readme
     )
     assert (

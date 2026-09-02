@@ -57,8 +57,9 @@ def test_context_direct_skips_only_entry_discovery_and_keeps_safety_gates() -> N
         "post-change project cognition closeout",
         "cognition mutation-receipt",
         "--scope-dir",
-        "specify-runtime work begin",
-        "specify-runtime work claim",
+        "specify-runtime execution announce",
+        "specify-runtime execution guard",
+        "specify-runtime execution complete",
         "specify-runtime execution overview",
         "execution-overview-v1",
         "before source writes",
@@ -89,8 +90,9 @@ def test_advanced_quick_and_debug_read_shared_gate_first() -> None:
     assert "pre-intake context sufficiency gate" in shared
     assert "unknown means insufficient" in shared
     assert "post-change project cognition closeout" in shared
-    assert "specify-runtime work begin" in shared
-    assert "specify-runtime work claim" in shared
+    assert "specify-runtime execution announce" in shared
+    assert "specify-runtime execution guard" in shared
+    assert "specify-runtime execution complete" in shared
     assert "specify-runtime execution overview" in shared
     assert "execution-overview-v1" in shared
     assert "before source writes" in shared

@@ -139,7 +139,7 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "runtime-generated packet-local task ledger and result skeleton" in lowered
     assert "do not reproduce a stable json schema in the prompt" in lowered
     assert "worker returns concrete outcomes as one in-memory object" in lowered
-    assert "scan-checkpoint --result-json '<inline-json>'" in lowered
+    assert "scan-checkpoint --result-json <inline-json|@path|->" in lowered
     assert "the cli alone materializes the designated pending result" in lowered
     assert "do not reproduce a stable json schema in the prompt or create a temporary result file" in lowered
     assert "must not self-declare `acceptance: pass`" in lowered
@@ -691,6 +691,9 @@ def test_map_scan_worker_prompt_is_checkpointed_and_packet_local() -> None:
     assert "the runtime computes the authoritative remaining set" in lowered
     assert "keep worker-authored `acceptance` at `partial`" in lowered
     assert "runtime derives `pass`" in lowered
+    assert "use stdin `-` on windows" in lowered
+    assert "never create a temporary result file merely for transport" in lowered
+    assert "@tmp-result.json" not in lowered
 
 
 def test_map_scan_and_build_require_a_receipt_bound_v2_handoff() -> None:

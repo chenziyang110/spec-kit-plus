@@ -226,9 +226,13 @@ func runArtifact(args []string, stdout io.Writer) int {
 		if pathValue == "" || !hasFlag(args, "--input-json") {
 			return writeEnvelope(stdout, artifactUsageEnvelope("checklist", "artifact checklist requires --path and --input-json"))
 		}
+		inputRaw, err := resolveAgentJSONInputBytes(optionValue(args, "--input-json", ""), projectRoot, "artifact checklist")
+		if err != nil {
+			return writeEnvelope(stdout, artifactUsageEnvelope("checklist", err.Error()))
+		}
 		return writeEnvelope(stdout, service.UpsertChecklist(ArtifactChecklistRequest{
 			Path:      pathValue,
-			InputJSON: []byte(optionValue(args, "--input-json", "")),
+			InputJSON: inputRaw,
 		}))
 	case "registry":
 		if env, ok := validateArtifactOptions(args, "--format", "--project-root"); !ok {
@@ -332,9 +336,13 @@ func runArtifact(args []string, stdout io.Writer) int {
 		if hasRecoveryFile {
 			return writeEnvelope(stdout, service.SubmitRecoveryBackup(leaseID, optionValue(args, "--recovery-file", "")))
 		}
+		contentBytes, err := resolveTextInputBytes(optionValue(args, "--content", ""), projectRoot, "artifact submit", "--content")
+		if err != nil {
+			return writeEnvelope(stdout, artifactUsageEnvelope("submit", err.Error()))
+		}
 		env := service.Submit(ArtifactSubmitRequest{
 			LeaseID: leaseID,
-			Content: optionValue(args, "--content", ""),
+			Content: string(contentBytes),
 		})
 		return writeEnvelope(stdout, env)
 	case "delete":
@@ -356,43 +364,73 @@ func runArtifact(args []string, stdout io.Writer) int {
 		}
 		return writeEnvelope(stdout, service.Restore(ArtifactRestoreRequest{ArchiveID: archiveID}))
 	case "patch":
-		if env, ok := validateArtifactOptions(args, "--append-json", "--content", "--format", "--frontmatter-json", "--heading", "--json-pointer", "--lease", "--new-heading", "--preamble", "--project-root", "--section", "--value-json"); !ok {
+		if env, ok := validateArtifactOptions(args, "--append-json", "--content", "--format", "--frontmatter-json", "--frontmatter-pointer", "--heading", "--json-pointer", "--lease", "--new-heading", "--preamble", "--project-root", "--section", "--value-json", "--value-json-pointer"); !ok {
 			return writeEnvelope(stdout, env)
 		}
-		jsonMode := hasFlag(args, "--json-pointer") || hasFlag(args, "--value-json")
+		jsonMode := hasFlag(args, "--json-pointer")
+		frontmatterPointerMode := hasFlag(args, "--frontmatter-pointer")
+		valueJSONMode := hasFlag(args, "--value-json")
 		sectionMode := hasFlag(args, "--section") || hasFlag(args, "--content")
 		frontmatterMode := hasFlag(args, "--frontmatter-json")
 		headingMode := hasFlag(args, "--heading") || hasFlag(args, "--new-heading")
 		preambleMode := hasFlag(args, "--preamble")
 		appendMode := hasFlag(args, "--append-json")
 		modeCount := 0
-		for _, enabled := range []bool{jsonMode, sectionMode, frontmatterMode, headingMode, preambleMode, appendMode} {
+		for _, enabled := range []bool{jsonMode, frontmatterPointerMode, sectionMode, frontmatterMode, headingMode, preambleMode, appendMode} {
 			if enabled {
 				modeCount++
 			}
 		}
-		if modeCount != 1 || (jsonMode && (!hasFlag(args, "--json-pointer") || !hasFlag(args, "--value-json"))) || (sectionMode && (!hasFlag(args, "--section") || !hasFlag(args, "--content"))) || (headingMode && (!hasFlag(args, "--heading") || !hasFlag(args, "--new-heading"))) {
-			return writeEnvelope(stdout, artifactUsageEnvelope("patch", "choose exactly one complete patch mode: --json-pointer with --value-json, --section with --content, --frontmatter-json, --heading with --new-heading, --preamble, or --append-json"))
+		pointerMode := jsonMode || frontmatterPointerMode
+		if modeCount != 1 || (pointerMode && !valueJSONMode) || (!pointerMode && valueJSONMode) || (hasFlag(args, "--value-json-pointer") && !pointerMode) || (sectionMode && (!hasFlag(args, "--section") || !hasFlag(args, "--content"))) || (headingMode && (!hasFlag(args, "--heading") || !hasFlag(args, "--new-heading"))) {
+			return writeEnvelope(stdout, artifactUsageEnvelope("patch", "choose exactly one complete patch mode: --json-pointer with --value-json, --frontmatter-pointer with --value-json, --section with --content, --frontmatter-json, --heading with --new-heading, --preamble, or --append-json"))
 		}
 		request := ArtifactPatchRequest{
-			LeaseID:     optionValue(args, "--lease", ""),
-			JSONPointer: optionValue(args, "--json-pointer", ""),
-			Section:     optionValue(args, "--section", ""),
-			Content:     optionValue(args, "--content", ""),
-			Heading:     optionValue(args, "--heading", ""),
-			NewHeading:  optionValue(args, "--new-heading", ""),
+			LeaseID:            optionValue(args, "--lease", ""),
+			JSONPointer:        optionValue(args, "--json-pointer", ""),
+			FrontmatterPointer: optionValue(args, "--frontmatter-pointer", ""),
+			Section:            optionValue(args, "--section", ""),
+			Content:            optionValue(args, "--content", ""),
+			Heading:            optionValue(args, "--heading", ""),
+			NewHeading:         optionValue(args, "--new-heading", ""),
 		}
 		if preambleMode {
-			preamble := optionValue(args, "--preamble", "")
+			preambleBytes, err := resolveTextInputBytes(optionValue(args, "--preamble", ""), projectRoot, "artifact patch", "--preamble")
+			if err != nil {
+				return writeEnvelope(stdout, artifactUsageEnvelope("patch", err.Error()))
+			}
+			preamble := string(preambleBytes)
 			request.Preamble = &preamble
 		}
-		if jsonMode {
-			if err := json.Unmarshal([]byte(optionValue(args, "--value-json", "")), &request.Value); err != nil {
+		if sectionMode {
+			contentBytes, err := resolveTextInputBytes(optionValue(args, "--content", ""), projectRoot, "artifact patch", "--content")
+			if err != nil {
+				return writeEnvelope(stdout, artifactUsageEnvelope("patch", err.Error()))
+			}
+			request.Content = string(contentBytes)
+		}
+		if pointerMode {
+			raw, err := resolveJSONInputBytesFrom(optionValue(args, "--value-json", ""), projectRoot, "artifact patch", "--value-json", os.Stdin)
+			if err != nil {
+				return writeEnvelope(stdout, artifactUsageEnvelope("patch", err.Error()))
+			}
+			if err := json.Unmarshal(raw, &request.Value); err != nil {
 				return writeEnvelope(stdout, artifactUsageEnvelope("patch", "--value-json must be valid JSON: "+err.Error()))
+			}
+			if sourcePointer := strings.TrimSpace(optionValue(args, "--value-json-pointer", "")); sourcePointer != "" {
+				selected, err := resolveJSONPointer(request.Value, sourcePointer)
+				if err != nil {
+					return writeEnvelope(stdout, artifactUsageEnvelope("patch", "--value-json-pointer is invalid: "+err.Error()))
+				}
+				request.Value = selected
 			}
 		}
 		if frontmatterMode {
-			if err := json.Unmarshal([]byte(optionValue(args, "--frontmatter-json", "")), &request.Frontmatter); err != nil || request.Frontmatter == nil {
+			raw, err := resolveJSONInputBytesFrom(optionValue(args, "--frontmatter-json", ""), projectRoot, "artifact patch", "--frontmatter-json", os.Stdin)
+			if err != nil {
+				return writeEnvelope(stdout, artifactUsageEnvelope("patch", err.Error()))
+			}
+			if err := json.Unmarshal(raw, &request.Frontmatter); err != nil || request.Frontmatter == nil {
 				if err == nil {
 					err = fmt.Errorf("value must be a JSON object")
 				}
@@ -401,7 +439,11 @@ func runArtifact(args []string, stdout io.Writer) int {
 		}
 		if appendMode {
 			request.Append = true
-			if err := json.Unmarshal([]byte(optionValue(args, "--append-json", "")), &request.AppendJSON); err != nil {
+			raw, err := resolveJSONInputBytesFrom(optionValue(args, "--append-json", ""), projectRoot, "artifact patch", "--append-json", os.Stdin)
+			if err != nil {
+				return writeEnvelope(stdout, artifactUsageEnvelope("patch", err.Error()))
+			}
+			if err := json.Unmarshal(raw, &request.AppendJSON); err != nil {
 				return writeEnvelope(stdout, artifactUsageEnvelope("patch", "--append-json must be valid JSON: "+err.Error()))
 			}
 		}
@@ -463,7 +505,7 @@ func writeArtifactHelp(stdout io.Writer, subcommand string) int {
 		_, _ = fmt.Fprintln(stdout, "  --path is canonical; --out is a deprecated compatibility alias.")
 		_, _ = fmt.Fprintln(stdout, "  Run specify-runtime artifact catalog --format json for registered kinds and paths.")
 	case "checklist":
-		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact checklist --path <feature-dir>/checklists/<name>.md --input-json <object> [--format json]")
+		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact checklist --path <feature-dir>/checklists/<name>.md --input-json <object|@path|-> [--format json]")
 		_, _ = fmt.Fprintln(stdout, "  Creates or appends categories atomically and assigns the next CHK identifiers.")
 		_, _ = fmt.Fprintln(stdout, "  --input-json accepts inline JSON, @path, or - (stdin). Schema: title, purpose, feature, categories[{heading,items[]}].")
 	case "prepare":
@@ -471,8 +513,9 @@ func writeArtifactHelp(stdout io.Writer, subcommand string) int {
 		_, _ = fmt.Fprintln(stdout, "  Returns a one-shot lease_id for submit/patch/delete. There is no --operation flag.")
 		_, _ = fmt.Fprintln(stdout, "  Optional: --feature <id> --kind <kind> --project-root <path>.")
 	case "patch":
-		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact patch --lease <id> (--json-pointer <pointer> --value-json <json> | --section <heading> --content <text> | --frontmatter-json <object> | --heading <current> --new-heading <replacement> | --preamble <text> | --append-json <json>)")
+		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact patch --lease <id> (--json-pointer <pointer> --value-json <json|@path|-> [--value-json-pointer <source-pointer>] | --frontmatter-pointer <pointer> --value-json <json|@path|-> [--value-json-pointer <source-pointer>] | --section <heading> --content <text|@path|-> | --frontmatter-json <object|@path|-> | --heading <current> --new-heading <replacement> | --preamble <text|@path|-> | --append-json <json|@path|->)")
 		_, _ = fmt.Fprintln(stdout, "  Markdown --section must match an exact existing heading from artifact show (scaffold headings), not a free-form title.")
+		_, _ = fmt.Fprintln(stdout, "  --frontmatter-pointer replaces one existing nested YAML mapping field with the selected JSON value; --value-json-pointer can select a subtree such as /reproduction from a runtime-owned sidecar.")
 	case "patch-batch":
 		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact patch-batch --lease <id> --input-json <object|@path|-> [--format json]")
 		_, _ = fmt.Fprintln(stdout, "  Applies 1..32 JSON-pointer, Markdown-section, or frontmatter operations to one leased artifact and writes only when every operation validates.")
@@ -480,7 +523,8 @@ func writeArtifactHelp(stdout io.Writer, subcommand string) int {
 		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact show-many --input-json <object|@path|-> [--format json]")
 		_, _ = fmt.Fprintln(stdout, "  Executes 1..16 bounded artifact queries and returns independent per-query status in one envelope.")
 	case "submit":
-		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact submit --lease <id> --content <inline-payload> [--format json]")
+		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact submit --lease <id> --content <inline-payload|@path|-> [--format json]")
+		_, _ = fmt.Fprintln(stdout, "  Large or Windows-sensitive content may use a project-contained @path or - for stdin; prefix literal text that begins with @ as @@.")
 		_, _ = fmt.Fprintln(stdout, "  --recovery-file is reserved for a runtime-created human acceptance repair backup bound by its sibling journal.")
 	case "delete":
 		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact delete --lease <id> [--format json]")
@@ -554,7 +598,7 @@ func runWorkflow(args []string, stdout io.Writer) int {
 	}
 	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
 		_, _ = fmt.Fprintln(stdout, "specify-runtime workflow commands:")
-		for _, command := range []string{"show", "ensure", "enter", "next", "complete-stage", "transition", "reopen", "block", "resolve", "closeout"} {
+		for _, command := range []string{"show", "ensure", "enter", "next", "complete-stage", "transition", "reopen", "block", "reconcile-blocker", "resolve", "closeout"} {
 			_, _ = fmt.Fprintf(stdout, "  %s\n", command)
 		}
 		return 0
@@ -637,16 +681,34 @@ func runWorkflow(args []string, stdout io.Writer) int {
 			request.FeatureDir = override
 		}
 		return writeEnvelope(stdout, service.Block(request))
+	case "reconcile-blocker":
+		raw, err := readAgentJSONInput(args, projectRoot, "workflow reconcile-blocker")
+		if err != nil {
+			env := workflowInvalid("workflow blocker reconciliation input is invalid", "invalid-reconcile-blocker-input", err)
+			return writeEnvelope(stdout, env)
+		}
+		request, env, ok := decodeWorkflowReconcileBlockerInput(raw)
+		if !ok {
+			return writeEnvelope(stdout, env)
+		}
+		if override := optionValue(args, "--feature-dir", ""); strings.TrimSpace(override) != "" {
+			request.FeatureDir = override
+		}
+		return writeEnvelope(stdout, service.ReconcileBlocker(request))
 	case "resolve":
 		revision, env, ok := workflowRevisionOption(args, "--expected-revision", true, 0)
 		if !ok {
 			return writeEnvelope(stdout, env)
 		}
 		env = service.Resolve(WorkflowResolveRequest{
-			FeatureDir:         optionValue(args, "--feature-dir", ""),
-			ExpectedRevision:   revision,
-			ResolutionEvidence: optionValues(args, "--resolution-evidence"),
-			Summary:            optionValue(args, "--summary", ""),
+			FeatureDir:                 optionValue(args, "--feature-dir", ""),
+			ExpectedRevision:           revision,
+			ResolutionEvidence:         optionValues(args, "--resolution-evidence"),
+			Summary:                    optionValue(args, "--summary", ""),
+			ReopenTo:                   optionValue(args, "--reopen-to", ""),
+			ReopenReason:               optionValue(args, "--reopen-reason", ""),
+			ReopenEvidence:             optionValues(args, "--reopen-evidence"),
+			ReopenInvalidatedArtifacts: optionValues(args, "--invalidated-artifacts"),
 		})
 		return writeEnvelope(stdout, env)
 	case "closeout":
@@ -708,6 +770,35 @@ func decodeWorkflowBlockInput(raw []byte) (WorkflowBlockRequest, Envelope, bool)
 	}
 	if err := ensureJSONEOF(decoder); err != nil {
 		env := workflowInvalid("workflow block input is invalid", "invalid-block-input", err)
+		return request, env, false
+	}
+	return request, Envelope{}, true
+}
+
+func decodeWorkflowReconcileBlockerInput(raw []byte) (WorkflowReconcileBlockerRequest, Envelope, bool) {
+	var request WorkflowReconcileBlockerRequest
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		env := workflowInvalid("workflow blocker reconciliation input is invalid", "invalid-reconcile-blocker-input", err)
+		return request, env, false
+	}
+	for _, required := range []string{
+		"feature_dir", "expected_revision", "resolved_subcauses", "remaining_cause",
+		"remaining_evidence", "remaining_scope", "exact_next_action", "unblock_criteria",
+	} {
+		if _, ok := fields[required]; !ok {
+			env := workflowInvalid("workflow blocker reconciliation input is invalid", "invalid-reconcile-blocker-input", fmt.Errorf("missing required field %q", required))
+			return request, env, false
+		}
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		env := workflowInvalid("workflow blocker reconciliation input is invalid", "invalid-reconcile-blocker-input", err)
+		return request, env, false
+	}
+	if err := ensureJSONEOF(decoder); err != nil {
+		env := workflowInvalid("workflow blocker reconciliation input is invalid", "invalid-reconcile-blocker-input", err)
 		return request, env, false
 	}
 	return request, Envelope{}, true
@@ -1194,6 +1285,7 @@ func defaultCapabilities() []string {
 		"test-design.projection-build",
 		"test-design.projection-verify",
 		"test-design.publish",
+		"test-design.recover",
 		"test-design.status",
 		"test-design.synthesize",
 		"test-design.universe-build",
@@ -1320,12 +1412,14 @@ func defaultCapabilities() []string {
 		"workflow.ensure",
 		"workflow.next",
 		"workflow.reopen",
+		"workflow.reconcile-blocker",
 		"workflow.resolve",
 		"workflow.show",
 		"workflow.transition",
 		"work.abandon",
 		"work.begin",
 		"work.block",
+		"work.unblock",
 		"work.claim",
 		"work.checkpoint",
 		"work.finish",
@@ -1488,8 +1582,10 @@ func capabilitySummary(id string) string {
 		return "List artifact types, owners, roles, schemas, and allowed operations."
 	case "test-design.init":
 		return "Initialize a runtime-owned project or feature test-design workspace."
+	case "test-design.recover":
+		return "CAS-reenter the current test-design root from its runtime-owned boundary without inline payload reconstruction."
 	case "test-design.status":
-		return "Show resumable test-design state, lane counts, and the exact next action."
+		return "Show resumable test-design state, lane counts, exact recovery action, and next action."
 	case "test-design.universe-build":
 		return "Freeze and validate the current test universe against its declared sources."
 	case "test-design.lane-prepare":
@@ -1513,11 +1609,11 @@ func capabilitySummary(id string) string {
 	case "test-design.publish":
 		return "Publish one consumer-neutral, pointer-only binding for a validated test-design bundle."
 	case "test-design.projection-build":
-		return "Derive a digest-bound current Plan, Quick, Tasks, or Review pointer projection slot from the current publication."
+		return "Derive a digest-bound consumer projection and return its exact verification action."
 	case "test-design.projection-verify":
-		return "Fail closed unless a consumer projection, publication, basis, source, and selected closure are all current."
+		return "Verify the complete projection chain and return to the selected consumer."
 	case "test-design.handoff":
-		return "Atomically publish a pointer-only test-design handoff for Tasks."
+		return "Atomically publish the Tasks pointer handoff and continue to publication before Tasks."
 	case "artifact.prune":
 		return "Prune expired artifact leases."
 	case "evidence.allocate":
@@ -1537,7 +1633,7 @@ func capabilitySummary(id string) string {
 	case "execution.checkpoint":
 		return "Advance an Activity phase and atomically persist its lease, next action, and observed paths."
 	case "execution.guard":
-		return "Atomically claim confirmed file and semantic scope against one exact execution overview snapshot."
+		return "Atomically claim confirmed file and semantic scope, including audited causal packet amendments, against one exact execution overview snapshot."
 	case "execution.show":
 		return "Read one registered Activity with its Work, write intents, semantic resources, and lifecycle receipts."
 	case "execution.complete":
@@ -1566,10 +1662,12 @@ func capabilitySummary(id string) string {
 		return "Validate artifacts and advance one completed workflow stage."
 	case "workflow.reopen":
 		return "Reopen an invalidated earlier stage or route a guarded acceptance repair."
+	case "workflow.reconcile-blocker":
+		return "Remove proven-stale blocker subcauses while preserving the unresolved blocker and its audit."
 	case "workflow.block":
 		return "Persist one structured workflow blocker."
 	case "workflow.resolve":
-		return "Resolve a persisted workflow blocker with evidence."
+		return "Resolve a persisted workflow blocker with evidence and optionally reopen a strict earlier stage atomically."
 	case "workflow.closeout":
 		return "Atomically bind passed human acceptance to terminal workflow state."
 	case "cognition.mutation-receipt":
@@ -1618,6 +1716,8 @@ func capabilitySummary(id string) string {
 		return "Renew a task lease and record its next action and observed changed paths."
 	case "work.block":
 		return "Mark active work blocked without releasing its declared write scope."
+	case "work.unblock":
+		return "Resume live blocked work under the same owner and fence without interrupting the session."
 	case "work.finish":
 		return "Complete one task and release its write scope while retaining history."
 	case "work.abandon":

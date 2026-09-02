@@ -51,6 +51,7 @@ def test_required_runtime_contract_uses_the_current_workflow_surface() -> None:
         "workflow.transition",
         "workflow.reopen",
         "workflow.block",
+        "workflow.reconcile-blocker",
         "workflow.resolve",
         "workflow.closeout",
     }
@@ -581,6 +582,45 @@ def test_runtime_runner_returns_structured_cognition_blockers(
     )
 
     assert result == blocker
+
+
+@pytest.mark.parametrize("status", ["blocked", "repairable-block"])
+def test_runtime_runner_preserves_structured_non_cognition_blockers(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    status: str,
+) -> None:
+    runtime = _load_runtime()
+    binary = _write_executable(tmp_path / RUNTIME_BINARY_NAME)
+    monkeypatch.setattr(
+        runtime,
+        "resolve_specify_runtime_binary",
+        lambda project_root=None: [str(binary)],
+    )
+    envelope = {
+        "status": status,
+        "summary": "Work Board storage needs agent-owned recovery",
+        "data": {
+            "error_code": "run_control_store_unavailable",
+            "recovery_owner": "agent",
+        },
+        "items": [],
+        "blockers": [{"code": "run_control_store_unavailable"}],
+        "show_argv": ["specify-runtime", "board", "show", "--format", "json"],
+        "next_argv": [],
+    }
+
+    monkeypatch.setattr(
+        runtime.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=10, stdout=json.dumps(envelope), stderr=""
+        ),
+    )
+
+    assert runtime.run_specify_runtime(
+        ["board", "reconcile", "--format", "json"], cwd=tmp_path
+    ) == envelope
 
 
 def test_runtime_runner_still_raises_for_cognition_usage_errors(

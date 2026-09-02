@@ -18,10 +18,13 @@ Read `references/ui-quality-gate.md` when any dispatched task is UI-bearing.
 Select the backend from the agent hosting this Skill and corroborate it with
 `.specify/integration.json`; stop on a mismatch. Codex uses the project
 launcher-backed `sp-teams` runtime; Claude uses native Agent Teams.
-Other integrations have no equivalent durable backend in this profile: stop,
-state that boundary, and recommend `$spx-implement` without switching
-automatically. Never emulate durable state in chat or substitute ordinary
-subagents for an explicitly selected teams run.
+Other integrations have no equivalent durable backend in this profile. Treat
+that as an agent-owned execution-surface mismatch and return a structured
+`fallback_action` to `$spx-implement`, preserving the feature/task/revision
+context. The current orchestrator may execute it automatically when the user
+authorized implementation rather than specifically requiring Teams. Never
+emulate durable state in chat or silently override an explicit Teams-only
+requirement.
 
 Resolve the task-bearing feature with the installed prerequisite script using
 `--require-tasks --include-tasks`. Require a clean leader write boundary, valid

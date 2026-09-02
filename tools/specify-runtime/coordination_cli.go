@@ -280,5 +280,33 @@ func coordinationErrorEnvelope(action string, err error) Envelope {
 	}
 	env := NewEnvelope(status, action+" failed")
 	env.Blockers = append(env.Blockers, err.Error())
+	bindRunControlStoreAccess(&env, err)
 	return env
+}
+
+func bindRunControlStoreAccess(env *Envelope, err error) bool {
+	if env == nil {
+		return false
+	}
+	var access *runcontrol.StoreAccessError
+	if !errors.As(err, &access) {
+		return false
+	}
+	env.Status = "blocked"
+	env.Data["error_code"] = "run_control_store_unavailable"
+	env.Data["owner"] = "agent"
+	env.Data["human_action_required"] = false
+	env.Data["storage_stage"] = access.Stage
+	env.Data["storage_path"] = filepath.ToSlash(access.Path)
+	env.Data["resolution_action"] = map[string]any{
+		"kind":  "repair-project-local-run-control-store",
+		"owner": "agent",
+		"retry": "resume the exact interrupted Work/Activity action after the runtime state path is writable",
+	}
+	env.Blockers = []any{map[string]any{
+		"code": "run_control_store_unavailable", "owner": "agent",
+		"human_action_required": false, "stage": access.Stage,
+		"path": filepath.ToSlash(access.Path), "reason": access.Cause.Error(),
+	}}
+	return true
 }

@@ -76,6 +76,19 @@ func TestWorkflowUsesOneCurrentStateAndExactStageOrder(t *testing.T) {
 	if advanced.Status != "ok" || advanced.Data["revision"] != 3 || advanced.Data["stage"] != "plan" || advanced.Data["status"] != "active" {
 		t.Fatalf("transition = %#v", advanced)
 	}
+	receipt, receiptRaw, receiptRef, err := readWorkflowMutationReceipt(projectRoot, featureRel)
+	if err != nil {
+		t.Fatalf("read workflow mutation receipt: %v", err)
+	}
+	currentWorkflow, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if receiptRef != workflowMutationReceiptRef(featureRel) || receipt.Operation != "transition" ||
+		receipt.PreviousRevision != 2 || receipt.Revision != 3 || receipt.Stage != "plan" || receipt.Status != "active" ||
+		receipt.WorkflowSHA256 != fileContentSHA256(currentWorkflow) || fileContentSHA256(receiptRaw) == "" {
+		t.Fatalf("workflow mutation receipt = ref %q receipt %#v", receiptRef, receipt)
+	}
 
 	skipped := service.Transition(WorkflowTransitionRequest{
 		FeatureDir:       featureRel,
@@ -112,6 +125,27 @@ func TestWorkflowFeatureDirConfinementAndRelativeArgv(t *testing.T) {
 		}
 		assertRuntimeWorkflowArgv(t, result.NextArgv, "complete-stage", featureRel)
 	})
+
+	for _, legacyRoot := range []string{filepath.Join(".specify", "specs"), "specs"} {
+		legacyRoot := legacyRoot
+		t.Run("legacy "+filepath.ToSlash(legacyRoot), func(t *testing.T) {
+			projectRoot := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(projectRoot, ".specify"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			featureID := "006-legacy"
+			featureRel := filepath.ToSlash(filepath.Join(legacyRoot, featureID))
+			featureDir := filepath.Join(projectRoot, filepath.FromSlash(featureRel))
+			if err := os.MkdirAll(featureDir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			result := NewWorkflowService(projectRoot).Enter(WorkflowEnterRequest{FeatureDir: featureRel, Command: "specify"})
+			if result.Status != "ok" {
+				t.Fatalf("legacy enter %s = %#v", featureRel, result)
+			}
+			assertRuntimeWorkflowArgv(t, result.ShowArgv, "show", featureRel)
+		})
+	}
 
 	t.Run("outside", func(t *testing.T) {
 		projectRoot, _, _ := newWorkflowFeature(t, "003-inside")
@@ -506,6 +540,243 @@ func TestWorkflowBlockResolveAndStructuredBlocker(t *testing.T) {
 	if state["blocker"] != nil || state["last_blocker_resolution"] == nil {
 		t.Fatalf("resolved state = %#v", state)
 	}
+}
+
+func TestWorkflowReconcileBlockerRemovesStaleSubcauseAndPreservesRemainingAudit(t *testing.T) {
+	projectRoot, _, featureRel := newWorkflowFeature(t, "001-reconcile-blocker")
+	service := NewWorkflowService(projectRoot)
+	service.Enter(WorkflowEnterRequest{FeatureDir: featureRel, Command: "specify"})
+	blocked := service.Block(WorkflowBlockRequest{
+		FeatureDir: featureRel, ExpectedRevision: 1, Category: "human-decision", Owner: "maintainer",
+		Cause:             "Design evidence and security approval are missing.",
+		Evidence:          []string{"UD-001 is absent", "SEC-001 approval is absent"},
+		AttemptedRecovery: []WorkflowRecoveryAttempt{{Action: "inspect both dependencies", Result: "both were initially missing"}},
+		AffectedScope:     []string{"planning readiness", "security simulator"},
+		ExactNextAction:   "Obtain Design evidence and security approval.",
+		UnblockCriteria:   "Both UD-001 and SEC-001 are verified.",
+	})
+	if blocked.Status != "blocked" {
+		t.Fatalf("block = %#v", blocked)
+	}
+	originalGuide := cloneMap(blocked.Blockers[0].(map[string]any))["human_action_guide"]
+
+	reconciled := service.ReconcileBlocker(WorkflowReconcileBlockerRequest{
+		FeatureDir: featureRel, ExpectedRevision: 2,
+		ResolvedSubcauses: []string{"UD-001 is registered and its approval digest verifies."},
+		RemainingCause:    "SEC-001 security approval is still missing.",
+		RemainingEvidence: []string{"SEC-001 approval is absent"},
+		RemainingScope:    []string{"security simulator"},
+		ExactNextAction:   "Obtain and verify SEC-001 approval.",
+		UnblockCriteria:   "SEC-001 approval is verified.",
+	})
+	if reconciled.Status != "blocked" || reconciled.Data["revision"] != 3 || reconciled.Data["error_code"] != "blocked-stage-requires-resolution" {
+		t.Fatalf("reconcile blocker = %#v", reconciled)
+	}
+	current := reconciled.Blockers[0].(map[string]any)
+	if current["summary"] != "SEC-001 security approval is still missing." || strings.Contains(fmt.Sprint(current["evidence"]), "UD-001 is absent") {
+		t.Fatalf("reconciled blocker replayed stale subcause: %#v", current)
+	}
+	if !reflect.DeepEqual(current["evidence"], []any{"SEC-001 approval is absent"}) || !reflect.DeepEqual(current["affected_scope"], []any{"security simulator"}) {
+		t.Fatalf("reconciled blocker lost remaining evidence/scope: %#v", current)
+	}
+	if !reflect.DeepEqual(current["human_action_guide"], originalGuide) {
+		t.Fatalf("reconciled blocker replaced the existing human action guide: got %#v want %#v", current["human_action_guide"], originalGuide)
+	}
+	attempts := current["attempted_recovery"].([]any)
+	lastAttempt := attempts[len(attempts)-1].(map[string]any)
+	if !strings.Contains(fmt.Sprint(lastAttempt["action"]), "UD-001 is registered") || !strings.Contains(fmt.Sprint(lastAttempt["result"]), "workflow-specify-human-decision-r2") {
+		t.Fatalf("reconciliation audit = %#v", lastAttempt)
+	}
+	cliReconciled := runWorkflowCLI(t, projectRoot, "reconcile-blocker", "--input-json", string(mustJSONBytes(t, map[string]any{
+		"feature_dir": featureRel, "expected_revision": 3,
+		"resolved_subcauses": []any{"The first SEC-001 review step passed."},
+		"remaining_cause":    "SEC-001 final approval is still missing.",
+		"remaining_evidence": []any{"final approval receipt is absent"},
+		"remaining_scope":    []any{"security simulator approval"},
+		"exact_next_action":  "Obtain the final SEC-001 approval receipt.",
+		"unblock_criteria":   "The final SEC-001 approval receipt verifies.",
+	})))
+	cliData := requireObject(t, cliReconciled, "data")
+	if cliReconciled["status"] != "blocked" || cliData["revision"] != float64(4) {
+		t.Fatalf("CLI blocker reconciliation = %#v", cliReconciled)
+	}
+
+	before := readWorkflowBytes(t, projectRoot, featureRel)
+	invalid := service.ReconcileBlocker(WorkflowReconcileBlockerRequest{
+		FeatureDir: featureRel, ExpectedRevision: 4,
+		ResolvedSubcauses: []string{"SEC-001 is now approved."},
+	})
+	if invalid.Status != "invalid" || !reflect.DeepEqual(before, readWorkflowBytes(t, projectRoot, featureRel)) {
+		t.Fatalf("empty remaining blocker reconciliation mutated state: %#v", invalid)
+	}
+}
+
+func TestWorkflowBlockedStageOffersAtomicResolveAndReopenRecovery(t *testing.T) {
+	projectRoot, featureDir, featureRel := newWorkflowFeature(t, "001-blocked-reopen")
+	writeWorkflowStateFixture(t, featureDir, "001-blocked-reopen", 8, "implement", "active", nil)
+	service := NewWorkflowService(projectRoot)
+	blocked := service.Block(WorkflowBlockRequest{
+		FeatureDir:       featureRel,
+		ExpectedRevision: 8,
+		Category:         "human-decision",
+		Owner:            "maintainer",
+		Cause:            "TD-017/GAP-202 requires organization approval for the harmless security simulator.",
+		Evidence:         []string{"TD-017/GAP-202 approval evidence is absent"},
+		AffectedScope:    []string{"T016 security simulator fixture", "T031 integrated verification"},
+		ExactNextAction:  "Attach sanitized organization approval evidence for the harmless simulator.",
+		UnblockCriteria:  "Evidence proves the simulator is harmless, reproducible, isolated, and fail-closed.",
+	})
+	if blocked.Status != "blocked" || blocked.Data["revision"] != 9 {
+		t.Fatalf("block = %#v, want blocked revision 9", blocked)
+	}
+	before := readWorkflowBytes(t, projectRoot, featureRel)
+
+	reopened := service.Reopen(WorkflowReopenRequest{
+		FeatureDir:           featureRel,
+		To:                   "plan",
+		ExpectedRevision:     9,
+		Reason:               "The formal-post-specify design adoption receipt invalidated stale planning artifacts.",
+		Evidence:             []string{"UD-2601 formal-post-specify adoption receipt verified"},
+		InvalidatedArtifacts: []string{"plan-contract.json", "plan.md"},
+	})
+
+	if reopened.Status != "blocked" || reopened.Data["error_code"] != "blocked-stage-requires-resolution" {
+		t.Fatalf("blocked reopen = %#v, want persisted-blocker recovery", reopened)
+	}
+	if !reflect.DeepEqual(before, readWorkflowBytes(t, projectRoot, featureRel)) {
+		t.Fatal("blocked reopen changed workflow state")
+	}
+	action, ok := reopened.Data["pending_reopen_action"].(map[string]any)
+	if !ok {
+		t.Fatalf("blocked reopen did not expose pending_reopen_action: %#v", reopened.Data)
+	}
+	if action["capability_id"] != "workflow.resolve" {
+		t.Fatalf("pending reopen action = %#v, want workflow.resolve", action)
+	}
+	argv := stringSlice(t, action["base_argv"])
+	assertRuntimeWorkflowArgv(t, argv, "resolve", featureRel)
+	if optionValue(argv, "--reopen-to", "") != "plan" ||
+		optionValue(argv, "--reopen-reason", "") != "The formal-post-specify design adoption receipt invalidated stale planning artifacts." {
+		t.Fatalf("pending reopen argv = %#v", argv)
+	}
+	if action["blocked_by"] != "workflow-implement-human-decision-r9" {
+		t.Fatalf("pending reopen blocked_by = %#v", action["blocked_by"])
+	}
+
+	resolved := runWorkflowCLI(t, projectRoot, "resolve",
+		"--feature-dir", featureRel,
+		"--expected-revision", "9",
+		"--resolution-evidence", "SEC-42 approves the exact harmless simulator fixture",
+		"--reopen-to", "plan",
+		"--reopen-reason", "The formal-post-specify design adoption receipt invalidated stale planning artifacts.",
+		"--reopen-evidence", "UD-2601 formal-post-specify adoption receipt verified",
+		"--invalidated-artifacts", "plan-contract.json",
+		"--invalidated-artifacts", "plan.md",
+	)
+	data := requireObject(t, resolved, "data")
+	if resolved["status"] != "ok" || data["stage"] != "plan" || data["status"] != "active" || data["revision"] != float64(10) {
+		t.Fatalf("atomic resolve and reopen = %#v, want active plan revision 10", resolved)
+	}
+	state := readWorkflowStateMap(t, filepath.Join(featureDir, "workflow.json"))
+	if state["blocker"] != nil || state["last_blocker_resolution"] == nil {
+		t.Fatalf("resolved blocker audit = %#v", state)
+	}
+	resolution := state["last_blocker_resolution"].(map[string]any)
+	resolvedBlocker := resolution["blocker"].(map[string]any)
+	if resolvedBlocker["blocker_id"] != "workflow-implement-human-decision-r9" ||
+		resolvedBlocker["category"] != "human-decision" ||
+		resolution["stage"] != "implement" {
+		t.Fatalf("preserved blocker audit = %#v", resolution)
+	}
+	resolutionEvidence := resolution["resolution_evidence"].([]any)
+	if !reflect.DeepEqual(resolutionEvidence, []any{"SEC-42 approves the exact harmless simulator fixture"}) {
+		t.Fatalf("resolution evidence = %#v", resolutionEvidence)
+	}
+	lastReopen, ok := state["last_reopen"].(map[string]any)
+	if !ok || lastReopen["source_stage"] != "implement" || lastReopen["source_status"] != "blocked" || lastReopen["target_stage"] != "plan" {
+		t.Fatalf("atomic reopen audit = %#v", state["last_reopen"])
+	}
+}
+
+func TestWorkflowAtomicResolveAndReopenFailsClosed(t *testing.T) {
+	newBlockedWorkflow := func(t *testing.T, featureID, stage string) (string, string, string, *WorkflowService) {
+		t.Helper()
+		projectRoot, featureDir, featureRel := newWorkflowFeature(t, featureID)
+		writeWorkflowStateFixture(t, featureDir, featureID, 8, stage, "active", nil)
+		service := NewWorkflowService(projectRoot)
+		blocked := service.Block(WorkflowBlockRequest{
+			FeatureDir:        featureRel,
+			ExpectedRevision:  8,
+			Category:          "human-decision",
+			Owner:             "maintainer",
+			Cause:             "Organization approval is required.",
+			Evidence:          []string{"approval evidence is absent"},
+			AffectedScope:     []string{"security simulator"},
+			ExactNextAction:   "Attach sanitized approval evidence.",
+			UnblockCriteria:   "The exact fixture is approved.",
+			AttemptedRecovery: []WorkflowRecoveryAttempt{},
+		})
+		if blocked.Status != "blocked" {
+			t.Fatalf("block = %#v", blocked)
+		}
+		return projectRoot, featureDir, featureRel, service
+	}
+
+	t.Run("partial reopen intent is rejected without mutation", func(t *testing.T) {
+		projectRoot, _, featureRel, service := newBlockedWorkflow(t, "001-partial-resolve-reopen", "implement")
+		before := readWorkflowBytes(t, projectRoot, featureRel)
+		result := service.Resolve(WorkflowResolveRequest{
+			FeatureDir:         featureRel,
+			ExpectedRevision:   9,
+			ResolutionEvidence: []string{"SEC-42 approved the exact fixture"},
+			ReopenTo:           "plan",
+		})
+		if result.Status != "invalid" || result.Data["error_code"] != "invalid-resolution-reopen" {
+			t.Fatalf("partial resolve and reopen = %#v, want invalid", result)
+		}
+		if !reflect.DeepEqual(before, readWorkflowBytes(t, projectRoot, featureRel)) {
+			t.Fatal("partial resolve and reopen changed workflow state")
+		}
+	})
+
+	t.Run("forward reopen target is rejected without clearing blocker", func(t *testing.T) {
+		projectRoot, _, featureRel, service := newBlockedWorkflow(t, "002-forward-resolve-reopen", "implement")
+		before := readWorkflowBytes(t, projectRoot, featureRel)
+		result := service.Resolve(WorkflowResolveRequest{
+			FeatureDir:                 featureRel,
+			ExpectedRevision:           9,
+			ResolutionEvidence:         []string{"SEC-42 approved the exact fixture"},
+			ReopenTo:                   "review",
+			ReopenReason:               "invalid forward request",
+			ReopenEvidence:             []string{"finding F-1"},
+			ReopenInvalidatedArtifacts: []string{"review-state.json"},
+		})
+		if result.Status != "blocked" || result.Data["error_code"] != "invalid-reopen-target" {
+			t.Fatalf("forward resolve and reopen = %#v, want blocked", result)
+		}
+		if !reflect.DeepEqual(before, readWorkflowBytes(t, projectRoot, featureRel)) {
+			t.Fatal("forward resolve and reopen changed workflow state")
+		}
+	})
+
+	t.Run("review repair ownership is not bypassed", func(t *testing.T) {
+		projectRoot, _, featureRel, service := newBlockedWorkflow(t, "003-review-resolve-reopen", "review")
+		before := readWorkflowBytes(t, projectRoot, featureRel)
+		result := service.Reopen(WorkflowReopenRequest{
+			FeatureDir:           featureRel,
+			To:                   "implement",
+			ExpectedRevision:     9,
+			Reason:               "implementation repair",
+			Evidence:             []string{"finding F-2"},
+			InvalidatedArtifacts: []string{"implementation-handoff.json"},
+		})
+		if result.Status != "blocked" || result.Data["pending_reopen_action"] != nil {
+			t.Fatalf("review-to-implement blocked reopen = %#v", result)
+		}
+		if !reflect.DeepEqual(before, readWorkflowBytes(t, projectRoot, featureRel)) {
+			t.Fatal("review-to-implement blocked reopen changed workflow state")
+		}
+	})
 }
 
 func TestWorkflowReopenAndAcceptanceRepairMode(t *testing.T) {

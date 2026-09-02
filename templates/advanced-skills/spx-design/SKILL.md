@@ -252,6 +252,14 @@ projects the selected direction and complete capability model
 into the immutable handoff; never manually rewrite that artifact or replace it
 with a prose summary.
 
+Bind the complete verification contract from that runtime-owned handoff sidecar before
+ready lint: prepare a fresh lease for `<change-dir>/design-change.md`, then run
+`specify-runtime artifact patch --lease <id> --frontmatter-pointer /design_change/verification --value-json @<change-dir>/previews/round-NN.handoff.json --value-json-pointer /reproduction`.
+Patch the small approval metadata and status normally. Use stdin for large
+model-authored text and `@path` only for an existing runtime-owned or registered
+project artifact; never create a temporary authoring file merely to transport
+payload bytes.
+
 Complete `<change-dir>/design-change.md` from the approved round. Use
 `assets/design-change.md` as content guidance while the installed
 `design-change-template.md` owns the schema. Record only
@@ -305,7 +313,12 @@ design-first formal adoption through `$spx-specify`, post-Specify adoption
 through `formal-post-specify` directly to `$spx-plan`, and direct delivery
 through `$spx-quick`. A post-Specify route must not require a second Specify
 unless Design uncovered a requirements change. Resume an originally blocked
-workflow only after an audit pass proves its existing binding remains exact. A
+workflow only after an audit pass proves its existing binding remains exact.
+If Plan is the reconciliation target but a persisted later-stage blocker still
+owns the runtime, hand off Plan as the recovery owner rather than an enterable
+stage. Its first invocation requests and consumes `pending_reopen_action`; it
+must not ask the user to invoke Plan again before the blocker has real
+resolution evidence and the atomic resolve-and-reopen transaction succeeds. A
 new approval never silently retargets active delivery. The change-level preview owns decisions declared for its scope; the later
 feature-level `ui-target.html` owns one feature's concrete composition. This
 invocation authorizes only this workflow stage; do not invoke another workflow

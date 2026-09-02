@@ -99,9 +99,10 @@ jobs:
           bin/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"quick-status"'
           bin/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"plan-contract"'
           workflow_help="$(bin/specify-runtime-linux-amd64 workflow --help 2>&1)"
-          for command in show ensure enter next complete-stage transition reopen block resolve closeout; do
+          for command in show ensure enter next complete-stage transition reopen block reconcile-blocker resolve closeout; do
             grep -q "$command" <<<"$workflow_help"
           done
+          bin/specify-runtime-linux-amd64 work --help 2>&1 | grep -q -- "unblock"
           bin/specify-runtime-linux-amd64 cognition scan-prepare --help 2>&1 | grep -q -- "-force"
           bin/specify-runtime-linux-amd64 cognition scan-prepare --help 2>&1 | grep -q -- "-safety-percent"
           scan_formats_help="$(bin/specify-runtime-linux-amd64 cognition scan-formats --help 2>&1 || true)"

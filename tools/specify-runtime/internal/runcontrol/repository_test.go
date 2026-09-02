@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func TestResolveRepositoryUsesSharedGitCommonDirectory(t *testing.T) {
+func TestResolveRepositoryUsesPrimaryRuntimeStoreAndRetainsGitCommonIdentity(t *testing.T) {
 	mainRoot, worktreeRoot := createLinkedRepository(t)
 	nested := filepath.Join(mainRoot, "nested", "deeper")
 	if err := os.MkdirAll(nested, 0o755); err != nil {
@@ -36,7 +36,8 @@ func TestResolveRepositoryUsesSharedGitCommonDirectory(t *testing.T) {
 	mainRoot = absoluteCleanPath(t, mainRoot)
 	worktreeRoot = absoluteCleanPath(t, worktreeRoot)
 	expectedCommonDir := filepath.Join(mainRoot, ".git")
-	expectedDatabasePath := filepath.Join(expectedCommonDir, "specify-runtime", "run-control.sqlite")
+	expectedDatabasePath := filepath.Join(mainRoot, ".specify", "runtime", "run-control", "run-control.sqlite")
+	expectedLegacyDatabasePath := filepath.Join(expectedCommonDir, "specify-runtime", "run-control.sqlite")
 
 	if mainRepository.Root != mainRoot {
 		t.Fatalf("main repository root = %q, want %q", mainRepository.Root, mainRoot)
@@ -64,6 +65,9 @@ func TestResolveRepositoryUsesSharedGitCommonDirectory(t *testing.T) {
 		}
 		if repository.DatabasePath != expectedDatabasePath {
 			t.Errorf("%s database path = %q, want %q", name, repository.DatabasePath, expectedDatabasePath)
+		}
+		if repository.LegacyDatabasePath != expectedLegacyDatabasePath {
+			t.Errorf("%s legacy database path = %q, want %q", name, repository.LegacyDatabasePath, expectedLegacyDatabasePath)
 		}
 	}
 }
@@ -112,6 +116,159 @@ func TestOpenForRepositorySharesWorkAcrossWorktrees(t *testing.T) {
 	}
 	if !reflect.DeepEqual(loaded, created) || len(intents) != 1 || intents[0].Path != "src/shared.go" {
 		t.Fatalf("linked work = %#v, intents = %#v", loaded, intents)
+	}
+}
+
+func TestOpenForRepositoryMigratesLegacyGitStoreWithoutLosingWork(t *testing.T) {
+	mainRoot, worktreeRoot := createLinkedRepository(t)
+	ctx := context.Background()
+	repository, err := ResolveRepository(ctx, mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacyStore, err := Open(ctx, repository.LegacyDatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, _, err := legacyStore.BeginWork(ctx, BeginWorkParams{
+		WorkID: "legacy-shared-work", Summary: "legacy shared work", AgentID: "legacy-agent", AdapterID: "codex",
+		WorkspaceRoot: mainRoot, LeaseUntil: time.Now().UTC().Add(time.Hour),
+		WriteIntents: []WriteIntentSpec{{Path: "src/legacy.go", Operation: WriteModify, Confidence: IntentConfirmed}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	activity := announceExecutionTestActivity(
+		t, legacyStore, "legacy-activity", "implement:legacy#T002", "src/activity", ResourceFeature, "legacy-feature",
+	)
+	if _, err := legacyStore.db.Exec(`CREATE TABLE retired_run_history (run_id TEXT PRIMARY KEY, note TEXT NOT NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := legacyStore.db.Exec(`INSERT INTO retired_run_history(run_id, note) VALUES ('run-legacy', 'preserve me')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := legacyStore.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(repository.LegacyDatabasePath, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(repository.LegacyDatabasePath, 0o644) })
+
+	migratedStore, err := OpenForRepository(ctx, worktreeRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = migratedStore.Close() })
+	loaded, intents, err := migratedStore.GetWork(ctx, created.WorkID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(loaded, created) || len(intents) != 1 || intents[0].Path != "src/legacy.go" {
+		t.Fatalf("migrated work = %#v, intents = %#v", loaded, intents)
+	}
+	migratedActivity, err := migratedStore.GetExecutionActivity(ctx, activity.Activity.ActivityID)
+	if err != nil || migratedActivity.Activity.TaskRef != activity.Activity.TaskRef {
+		t.Fatalf("migrated activity = %#v, err = %v", migratedActivity, err)
+	}
+	var retiredNote string
+	if err := migratedStore.db.QueryRow(`SELECT note FROM retired_run_history WHERE run_id = 'run-legacy'`).Scan(&retiredNote); err != nil || retiredNote != "preserve me" {
+		t.Fatalf("retired history note = %q, err = %v", retiredNote, err)
+	}
+	if _, err := os.Stat(repository.DatabasePath); err != nil {
+		t.Fatalf("migrated database missing: %v", err)
+	}
+	if _, err := os.Stat(repository.LegacyDatabasePath); err != nil {
+		t.Fatalf("legacy database must remain as migration evidence: %v", err)
+	}
+}
+
+func TestOpenForRepositoryFreshStoreDoesNotWriteGitAdministrationDirectory(t *testing.T) {
+	mainRoot, _ := createLinkedRepository(t)
+	ctx := context.Background()
+	repository, err := ResolveRepository(ctx, mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := OpenForRepository(ctx, mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(repository.DatabasePath); err != nil {
+		t.Fatalf("project runtime database missing: %v", err)
+	}
+	if _, err := os.Stat(repository.LegacyDatabasePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("fresh store wrote Git administration directory: %v", err)
+	}
+}
+
+func TestOpenForRepositoryNeverFallsBackAfterCanonicalStoreExists(t *testing.T) {
+	mainRoot, _ := createLinkedRepository(t)
+	ctx := context.Background()
+	repository, err := ResolveRepository(ctx, mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := Open(ctx, repository.LegacyDatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := legacy.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(repository.DatabasePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(repository.DatabasePath, []byte("not a sqlite database"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenForRepository(ctx, mainRoot); err == nil {
+		t.Fatal("canonical corruption silently fell back to the legacy Git store")
+	}
+	if _, err := OpenViewForRepository(ctx, mainRoot); err == nil {
+		t.Fatal("canonical read failure silently fell back to the legacy Git store")
+	}
+}
+
+func TestLegacyMigrationRejectsSymlinkedLockFile(t *testing.T) {
+	mainRoot, _ := createLinkedRepository(t)
+	ctx := context.Background()
+	repository, err := ResolveRepository(ctx, mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := Open(ctx, repository.LegacyDatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := legacy.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(repository.DatabasePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside-lock-target")
+	const sentinel = "must remain unchanged\n"
+	if err := os.WriteFile(outside, []byte(sentinel), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lockPath := filepath.Join(filepath.Dir(repository.DatabasePath), ".run-control.migrate.lock")
+	if err := os.Symlink(outside, lockPath); err != nil {
+		t.Skipf("file symlinks are unavailable: %v", err)
+	}
+	if _, err := OpenForRepository(ctx, mainRoot); err == nil ||
+		(!strings.Contains(strings.ToLower(err.Error()), "symlink") && !strings.Contains(strings.ToLower(err.Error()), "reparse")) {
+		t.Fatalf("legacy migration lock error = %v, want explicit symlink/reparse rejection", err)
+	}
+	content, err := os.ReadFile(outside)
+	if err != nil || string(content) != sentinel {
+		t.Fatalf("outside lock target changed: %q, %v", content, err)
+	}
+	if _, err := os.Stat(repository.DatabasePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("rejected migration published canonical state: %v", err)
 	}
 }
 

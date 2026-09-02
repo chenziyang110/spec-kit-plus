@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from specify_cli import app
@@ -19,12 +20,16 @@ def _create_project(tmp_path: Path, *, integration: str) -> Path:
     return project
 
 
-def _invoke_in_project(project: Path, args: list[str]):
+def _invoke_in_project(
+    project: Path, args: list[str], *, input_text: str | None = None
+):
     runner = CliRunner()
     old_cwd = os.getcwd()
     try:
         os.chdir(project)
-        result = runner.invoke(app, args, catch_exceptions=False)
+        result = runner.invoke(
+            app, args, input=input_text, catch_exceptions=False
+        )
     finally:
         os.chdir(old_cwd)
     return result
@@ -103,6 +108,53 @@ def test_result_submit_normalizes_and_writes_quick_result(tmp_path: Path):
     assert stored["status"] == "success"
     assert stored["reported_status"] == "done_with_concerns"
     assert stored["concerns"] == ["follow-up cleanup remains"]
+
+
+@pytest.mark.parametrize("channel", ["at-path", "stdin"])
+def test_result_submit_accepts_bounded_result_json_channels(
+    tmp_path: Path, channel: str
+) -> None:
+    project = _create_project(tmp_path, integration="cursor-agent")
+    workspace = project / ".planning" / "quick" / "001-large-result"
+    workspace.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(
+        {
+            "task_id": "lane-large",
+            "status": "success",
+            "summary": "x" * 40_000,
+        }
+    )
+    input_text = None
+    if channel == "at-path":
+        source = project / "large-result.json"
+        source.write_text(payload, encoding="utf-8")
+        result_token = f"@{source.name}"
+    else:
+        result_token = "-"
+        input_text = payload
+
+    result = _invoke_in_project(
+        project,
+        [
+            "result",
+            "submit",
+            "--command",
+            "quick",
+            "--workspace",
+            str(workspace),
+            "--lane-id",
+            "lane-large",
+            "--result-json",
+            result_token,
+        ],
+        input_text=input_text,
+    )
+
+    assert result.exit_code == 0, result.output
+    receipt = json.loads(result.output)
+    stored = json.loads(Path(receipt["path"]).read_text(encoding="utf-8"))
+    assert stored["task_id"] == "lane-large"
+    assert len(stored["summary"]) == 40_000
 
 
 def test_result_submit_rejects_obsolete_ui_result_fields(tmp_path: Path) -> None:

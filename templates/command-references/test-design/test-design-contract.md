@@ -64,13 +64,13 @@ focus, selection, scrolling, overlays, or unsaved input is active.
 
 The Leader binds accepted search output to the content-addressed evidence store
 with `specify-runtime evidence register` for inline text/JSON and
-`specify-runtime evidence import` for external or binary files. Missing external
-feasibility, normative oracles, or disposable proof belongs to
-`sp-deep-research`; resume Test Design from its evidence-backed Planning Handoff.
-Verify that handoff, then have the Leader register or import the accepted object
-under evidence scope `test-design`, preserving the Deep Research record and
-Planning Handoff in provenance. Canonical Test Design rows cite the resulting
-`test-design` record ref; they do not cite another scope directly.
+`specify-runtime evidence import` for external or binary files. Bounded external
+research remains a Test Design lane. The current `sp-deep-research` runtime is
+plan-only and cannot return directly to this independent producer. A disposable
+proof or planning-feasibility gap returns as a typed blocker to the selected
+consumer owner; Plan may run Deep Research and then reselect Test Design, while
+Quick/Tasks/Review retain repair ownership. Never claim a plan-only handoff
+resumes Test Design.
 
 After validation, `specify-runtime test-design publish` creates the immutable
 content-addressed package. `specify-runtime test-design projection-build`
@@ -83,9 +83,15 @@ producer nor a consumer may patch a publication or projection, and a projection
 must not duplicate canonical case, data, coverage, gap, or audit bodies.
 For Tasks, preserve the exact revision order `validate -> handoff -> publish ->
 projection-build --consumer tasks -> projection-verify`; `handoff` increments
-revision, so publish uses the new handed-off revision. Plan, Quick, and a
+revision and its returned `next_argv` performs publish. Do not return to Tasks
+before projection verification. Plan, Quick, and a
 feature-scoped Review may publish/build directly from validated state. Never hand off after publish,
 because that revision change stales the publication.
+
+Blocked/stale status and validation return `recovery_action`; agent-owned
+repair executes it in the same invocation. Publication returns
+`projection_action`, projection build returns exact verification argv, and
+successful verification returns the selected consumer argv.
 
 The only completion states are `complete_against_frozen_scope`,
 `qualified_with_declared_gaps`, `blocked`, and `stale`. The workflow must never

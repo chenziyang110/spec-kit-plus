@@ -66,6 +66,12 @@ specify-runtime deep-research verify-handoff
 specify-runtime deep-research not-needed
 ```
 
+Before authoring any `--input-json` or `--result-json` payload, run
+`specify-runtime api show deep-research.<subcommand> --format json` and execute
+its returned `api schema` argv. Treat that machine-readable schema as the enum,
+required-field, and nested-shape contract; do not discover protocol structure
+through repeated validation failures or source-code reading.
+
 Use `not-needed` instead of the full track lifecycle only when repository
 evidence already proves every planning-critical implementation chain.
 
@@ -94,7 +100,7 @@ runtime lifecycle surfaces are present.
 
 ## Workflow Phase Lock
 
-- [AGENT] Before any artifact or rich-state write, run `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow.json` is CLI-owned and this auxiliary workflow must not write it. The expected required-stage owner is `specify`. If the runtime is missing, corrupt, at another stage, or already completed, stop with its blocker or a typed owner handoff naming the observed stage, expected owner, affected files, exact next action, unblock criteria, and resume argv; do not overwrite either state surface to force entry.
+- [AGENT] Entry gate: require `spec-contract.json.status: planning-ready`, then run `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow.json` is CLI-owned and this auxiliary workflow must not write it. A present required-stage state is enterable only at `stage: specify, status: completed`; a later verification may also observe `stage: plan, status: active` after the handoff is consumed. Draft source truth, active or blocked Specify, another stage, corrupt state, or a persisted blocker must return the runtime's typed owner handoff to `/sp.specify` and exact `workflow.resolve` action when applicable. Do not initialize research, publish `/sp.plan`, or overwrite either state surface to force entry.
 - [AGENT] Create `WORKFLOW_STATE_FILE` when absent with `{{specify-subcmd:specify-runtime artifact scaffold --kind workflow-state --path <feature-dir>/workflow-state.md --format json}}`; otherwise query it first with targeted `artifact show`. Mutate it only through fresh leases and `artifact patch` before substantial research.
 - Treat `WORKFLOW_STATE_FILE` as the resume/evidence source of truth after
   compaction for this research command: allowed writes, forbidden actions,
@@ -429,6 +435,8 @@ runtime lifecycle surfaces are present.
 10. **Publish the canonical handoff and compatible projection**:
    - Pass semantic findings into `deep-research synthesize`; do not create `synthesis.json` or `deep-research.md` directly.
    - Prepare and accept the identity-separated audit, then run `deep-research validate` and `deep-research publish` with the current `--expected-revision` returned by the preceding command.
+   - Every lifecycle mutation rechecks the unchanged planning-ready source and current workflow state. If Specify becomes blocked or non-enterable after initialization, follow the returned `/sp.specify` owner route, preserve the research workspace, and resume the same Deep Research revision only after the blocker is officially resolved. Never emit `/sp.plan` from draft or blocked source truth.
+   - Source-sensitive commits (`init`, `validate`, `publish`, and `not-needed`) hold the feature workflow lock and compare-and-swap the exact source-spec and workflow bytes with the research artifacts. Concurrent Specify/workflow drift rolls back the whole commit; it never leaves a newly initialized or published package behind.
    - The runtime writes canonical synthesis, audit, evidence, and `research/handoff-to-plan.json`, then derives `deep-research.md`. Query the projection for human review but never scaffold or patch it.
    - Use `.specify/templates/examples/deep-research/` only as semantic-quality guidance for constructing command payloads; never copy an example into a runtime-owned artifact.
 11. **Update upstream artifacts when research changes planning readiness**:
@@ -485,7 +493,7 @@ runtime lifecycle surfaces are present.
 
 14. **Report completion**:
     - [AGENT] first run `{{specify-subcmd:specify-runtime hook validate-artifacts --command deep-research --feature-dir <feature-dir> --format json}}`; refuse the planning handoff until the Go gate accepts the final research sections, cited evidence objects, and workflow state
-    - [AGENT] verify the runtime-published handoff before recommending `/sp.plan`; report the accepted handoff ref, source hash, revision, claim, and consumed `PH-###` / `EVD-###` / `SPK-###` ids
+    - [AGENT] verify the runtime-published handoff before recommending `/sp.plan`; verification must still observe `spec-contract.json.status: planning-ready` and a Plan-enterable workflow state. Report the accepted handoff ref, source hash, revision, claim, and consumed `PH-###` / `EVD-###` / `SPK-###` ids
     - branch or feature directory
     - deep-research artifact path
     - spike paths and command results, if any

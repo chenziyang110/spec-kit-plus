@@ -182,6 +182,35 @@ func TestResultSubmitAcceptsInlineJSONWithoutTemporaryFile(t *testing.T) {
 	}
 }
 
+func TestResultSubmitAcceptsFileBackedResultJSON(t *testing.T) {
+	project := createResultProject(t, "claude")
+	workspace := filepath.Join(project, ".planning", "quick", "001-file-backed")
+	mkdirAll(t, workspace)
+	inputPath := filepath.Join(project, ".specify", "runtime", "inputs", "quick-result.json")
+	mkdirAll(t, filepath.Dir(inputPath))
+	writeJSONFile(t, inputPath, map[string]any{
+		"task_id": "lane-file",
+		"status":  "success",
+		"summary": strings.Repeat("large result ", 4000),
+	})
+
+	code, payload := runResultInProject(t, project, []string{
+		"submit",
+		"--command", "quick",
+		"--workspace", workspace,
+		"--lane-id", "lane-file",
+		"--result-json", "@.specify/runtime/inputs/quick-result.json",
+	})
+
+	if code != 0 {
+		t.Fatalf("file-backed result submit code = %d payload=%#v", code, payload)
+	}
+	stored := readJSONFile(t, asString(requireObject(t, payload, "data")["path"]))
+	if stored["task_id"] != "lane-file" || !strings.Contains(asString(stored["summary"]), "large result") {
+		t.Fatalf("stored file-backed result = %#v", stored)
+	}
+}
+
 func TestResultSubmitRejectsAgentAuthoredResultFile(t *testing.T) {
 	project := createResultProject(t, "claude")
 	workspace := filepath.Join(project, ".planning", "quick", "001-inline")
@@ -199,7 +228,7 @@ func TestResultSubmitRejectsAgentAuthoredResultFile(t *testing.T) {
 		t.Fatalf("ambiguous result input unexpectedly passed: %#v", payload)
 	}
 	if !strings.Contains(asString(payload["summary"]), "does not accept agent-authored result files") {
-		t.Fatalf("summary = %q, want inline-only guidance", asString(payload["summary"]))
+		t.Fatalf("summary = %q, want runtime-owned file guidance", asString(payload["summary"]))
 	}
 }
 

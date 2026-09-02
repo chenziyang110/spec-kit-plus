@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runcontrol"
 )
@@ -56,9 +57,22 @@ func TestWorkBoardCLIRegistersShowsConflictsAndReleasesScopes(t *testing.T) {
 	if code != 10 || conflict["status"] != "blocked" {
 		t.Fatalf("conflicting work begin = code %d envelope %#v", code, conflict)
 	}
-	conflicts := requireObject(t, conflict, "data")["conflicts"].([]any)
+	conflictData := requireObject(t, conflict, "data")
+	conflicts := conflictData["conflicts"].([]any)
 	if len(conflicts) != 1 || requireObjectValue(t, conflicts[0])["owner_work_id"] != "work-cli-auth" {
 		t.Fatalf("work conflicts = %#v", conflicts)
+	}
+	showArgv := requireStringArray(t, conflict, "show_argv")
+	if len(showArgv) < 4 || showArgv[1] != "work" || showArgv[2] != "show" || showArgv[3] != "work-cli-auth" {
+		t.Fatalf("active conflict show_argv = %#v", showArgv)
+	}
+	resolution := requireObject(t, conflictData, "resolution_action")
+	if resolution["kind"] != "inspect-conflicting-work" ||
+		resolution["owner_work_id"] != "work-cli-auth" ||
+		resolution["owner_intent_status"] != "active" ||
+		resolution["agent_recovery_candidate"] != false ||
+		resolution["after_inspection"] != "wait-or-narrow-scope" {
+		t.Fatalf("active conflict resolution_action = %#v", resolution)
 	}
 
 	code, board := invokeCoordinationCLI(t, "board", "show", "--project-root", root, "--format", "json")
@@ -124,6 +138,163 @@ func TestWorkBoardCLIRegistersShowsConflictsAndReleasesScopes(t *testing.T) {
 	)
 	if code != 0 || len(owners["items"].([]any)) != 1 || requireObjectValue(t, owners["items"].([]any)[0])["work_id"] != "work-cli-login" {
 		t.Fatalf("board owner = code %d envelope %#v", code, owners)
+	}
+}
+
+func TestWorkBoardCLIUnblocksSameOwnerWithoutInterruptingSession(t *testing.T) {
+	root := initCoordinationCLIRepository(t)
+	intentsJSON := marshalWorkBoardCLIJSON(t, []map[string]any{{
+		"path": "src/same-owner", "operation": "modify", "reason": "same-owner repair", "confidence": "confirmed",
+	}})
+	code, created := invokeCoordinationCLI(t,
+		"work", "begin", "--project-root", root, "--work-id", "work-cli-same-owner",
+		"--summary", "Continue after local repair", "--agent-id", "codex-a", "--adapter-id", "codex",
+		"--lease-seconds", "1800", "--intents-json", intentsJSON, "--format", "json",
+	)
+	if code != 0 {
+		t.Fatalf("work begin = code %d payload %#v", code, created)
+	}
+	code, blocked := invokeCoordinationCLI(t,
+		"work", "block", "work-cli-same-owner", "--project-root", root,
+		"--expected-revision", "1", "--fence", "1", "--reason", "focused check failed",
+		"--next-action", "repair and unblock", "--format", "json",
+	)
+	blockedWork := requireObject(t, requireObject(t, blocked, "data"), "work")
+	if code != 0 || blockedWork["status"] != "blocked" || blockedWork["revision"] != float64(2) {
+		t.Fatalf("work block = code %d payload %#v", code, blocked)
+	}
+
+	code, resumed := invokeCoordinationCLI(t,
+		"work", "unblock", "work-cli-same-owner", "--project-root", root,
+		"--expected-revision", "2", "--fence", "1", "--reason", "focused check now passes",
+		"--next-action", "continue the same task", "--format", "json",
+	)
+	resumedWork := requireObject(t, requireObject(t, resumed, "data"), "work")
+	if code != 0 || resumedWork["status"] != "active" || resumedWork["revision"] != float64(3) || resumedWork["fence"] != float64(1) {
+		t.Fatalf("same-owner unblock = code %d payload %#v", code, resumed)
+	}
+	if resumedWork["agent_id"] != "codex-a" || resumedWork["adapter_id"] != "codex" {
+		t.Fatalf("same-owner unblock changed ownership: %#v", resumedWork)
+	}
+	code, shown := invokeCoordinationCLI(t, "work", "show", "work-cli-same-owner", "--project-root", root, "--format", "json")
+	if code != 0 {
+		t.Fatalf("work show after unblock = code %d payload %#v", code, shown)
+	}
+	shownWork := requireObject(t, requireObject(t, shown, "data"), "work")
+	intents := shownWork["write_intents"].([]any)
+	if len(intents) != 1 || requireObjectValue(t, intents[0])["status"] != "active" {
+		t.Fatalf("same-owner unblock lost declared scope: %#v", shownWork)
+	}
+
+	code, rejected := invokeCoordinationCLI(t,
+		"work", "unblock", "work-cli-same-owner", "--project-root", root,
+		"--expected-revision", "3", "--fence", "1", "--reason", "cannot unblock active work", "--format", "json",
+	)
+	if code == 0 || rejected["status"] != "blocked" {
+		t.Fatalf("active work accepted unblock: code=%d payload=%#v", code, rejected)
+	}
+}
+
+func TestLocalRunControlStoreFailuresRemainAgentOwned(t *testing.T) {
+	err := &runcontrol.StoreAccessError{
+		Stage: "enable-wal", Path: ".specify/runtime/run-control/run-control.sqlite",
+		Cause: fmt.Errorf("unable to open database file (14)"),
+	}
+	for name, env := range map[string]Envelope{
+		"work-board": workBoardErrorEnvelope("open Work Board", err),
+		"execution":  executionControlErrorEnvelope("open execution control store", err),
+		"overview":   executionOverviewErrorEnvelope(err),
+		"quick":      scriptDomainError("quick", err),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if env.Status != "blocked" || env.Data["error_code"] != "run_control_store_unavailable" {
+				t.Fatalf("envelope = %#v, want typed blocked storage failure", env)
+			}
+			if env.Data["owner"] != "agent" || env.Data["human_action_required"] != false {
+				t.Fatalf("storage failure ownership = %#v, want agent-owned recovery", env.Data)
+			}
+			if env.Data["storage_stage"] != "enable-wal" || env.Data["storage_path"] != ".specify/runtime/run-control/run-control.sqlite" {
+				t.Fatalf("storage diagnostics = %#v", env.Data)
+			}
+		})
+	}
+}
+
+func TestWorkBeginMigratesLegacyStoreBeforeRegisteringNewScope(t *testing.T) {
+	root := initCoordinationCLIRepository(t)
+	ctx := context.Background()
+	repository, err := runcontrol.ResolveRepository(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := runcontrol.Open(ctx, repository.LegacyDatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = legacy.BeginWork(ctx, runcontrol.BeginWorkParams{
+		WorkID: "legacy-owner", TaskRef: "implement:legacy#T001", Summary: "legacy owner",
+		AgentID: "legacy-agent", AdapterID: "codex", WorkspaceRoot: root,
+		LeaseUntil: time.Now().UTC().Add(time.Hour), WriteIntents: []runcontrol.WriteIntentSpec{{
+			Path: "src/shared", Operation: runcontrol.WriteModify, Confidence: runcontrol.IntentConfirmed,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := legacy.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	intentsJSON := marshalWorkBoardCLIJSON(t, []map[string]any{{
+		"path": "src/shared/new.go", "operation": "create", "reason": "new work", "confidence": "confirmed",
+	}})
+	code, envelope := invokeCoordinationCLI(t,
+		"work", "begin", "--project-root", root, "--work-id", "new-owner",
+		"--summary", "new owner", "--agent-id", "new-agent", "--adapter-id", "codex",
+		"--lease-seconds", "1800", "--intents-json", intentsJSON, "--format", "json",
+	)
+	if code != 10 || envelope["status"] != "blocked" {
+		t.Fatalf("legacy scope was not migrated before conflict check: code=%d envelope=%#v", code, envelope)
+	}
+	data := requireObject(t, envelope, "data")
+	if data["error_code"] != "work_intent_conflict" {
+		t.Fatalf("conflict data = %#v", data)
+	}
+	if _, err := os.Stat(repository.DatabasePath); err != nil {
+		t.Fatalf("canonical migrated database missing: %v", err)
+	}
+}
+
+func TestBindWorkIntentConflictRecoveryProjectsEveryOwner(t *testing.T) {
+	env := NewEnvelope("blocked", "begin work failed")
+	err := &runcontrol.WorkIntentConflictError{Conflicts: []runcontrol.WorkIntentConflict{
+		{
+			RequestedPath: "src", OwnerPath: "src/active.go", OwnerWorkID: "work-active",
+			OwnerAgentID: "codex-a", OwnerSummary: "active change", OwnerStatus: runcontrol.WriteIntentActive,
+		},
+		{
+			RequestedPath: "src", OwnerPath: "src/recovery.go", OwnerWorkID: "work-recovery",
+			OwnerAgentID: "codex-b", OwnerSummary: "recoverable change", OwnerStatus: runcontrol.WriteIntentRecovery,
+		},
+	}}
+
+	bindWorkIntentConflictRecovery(&env, err, ".")
+
+	resolution := env.Data["resolution_action"].(map[string]any)
+	owners := resolution["conflicting_owners"].([]any)
+	if len(owners) != 2 {
+		t.Fatalf("conflicting_owners = %#v, want both owners", owners)
+	}
+	first := owners[0].(map[string]any)
+	second := owners[1].(map[string]any)
+	if first["owner_work_id"] != "work-active" || first["agent_recovery_candidate"] != false {
+		t.Fatalf("active owner projection = %#v", first)
+	}
+	if second["owner_work_id"] != "work-recovery" || second["agent_recovery_candidate"] != true {
+		t.Fatalf("recovery owner projection = %#v", second)
+	}
+	if resolution["all_conflicts_must_be_resolved"] != true {
+		t.Fatalf("resolution action = %#v", resolution)
 	}
 }
 
@@ -574,9 +745,47 @@ func TestWorkBoardCLIInterruptSupportsImmediateRestartRecoveryBeforeLeaseExpiry(
 		interruptedWork["revision"] != float64(2) || interruptedWork["fence"] != float64(2) {
 		t.Fatalf("interrupted work = %#v", interruptedWork)
 	}
+	if interruptedWork["recovery_action"] != "resume_or_abandon_after_inspection" {
+		t.Fatalf("interrupted recovery_action = %#v", interruptedWork["recovery_action"])
+	}
+	if interruptedWork["recovery_detail"] != "inspect preserved workspace changes, then resume or abandon this work" {
+		t.Fatalf("interrupted recovery_detail = %#v", interruptedWork["recovery_detail"])
+	}
 	observed := interruptedWork["observed_paths"].([]any)
 	if len(observed) != 1 || observed[0] != "src/restart.go" {
 		t.Fatalf("interrupted observed paths = %#v", observed)
+	}
+
+	recoveryIntents := marshalWorkBoardCLIJSON(t, []map[string]any{{
+		"path": "src/restart.go", "operation": "modify", "reason": "replacement work", "confidence": "confirmed",
+	}})
+	code, recoveryConflict := invokeCoordinationCLI(t,
+		"work", "begin",
+		"--project-root", root,
+		"--work-id", "work-cli-restart-replacement",
+		"--summary", "Replacement after interrupted work",
+		"--agent-id", "codex-b",
+		"--adapter-id", "codex",
+		"--lease-seconds", "1800",
+		"--intents-json", recoveryIntents,
+		"--format", "json",
+	)
+	if code != 10 || recoveryConflict["status"] != "blocked" {
+		t.Fatalf("recovery conflict = code %d envelope %#v", code, recoveryConflict)
+	}
+	recoveryData := requireObject(t, recoveryConflict, "data")
+	recoveryResolution := requireObject(t, recoveryData, "resolution_action")
+	if recoveryResolution["owner_work_id"] != "work-cli-restart" ||
+		recoveryResolution["owner_intent_status"] != "recovery" ||
+		recoveryResolution["agent_recovery_candidate"] != true ||
+		recoveryResolution["requires_owner_termination_evidence"] != true ||
+		recoveryResolution["requires_preserved_change_inspection"] != true ||
+		recoveryResolution["after_inspection"] != "resume-or-abandon-after-inspection" {
+		t.Fatalf("recovery conflict resolution_action = %#v", recoveryResolution)
+	}
+	recoveryShowArgv := requireStringArray(t, recoveryConflict, "show_argv")
+	if len(recoveryShowArgv) < 4 || recoveryShowArgv[3] != "work-cli-restart" {
+		t.Fatalf("recovery conflict show_argv = %#v", recoveryShowArgv)
 	}
 
 	code, resumed := invokeCoordinationCLI(t,

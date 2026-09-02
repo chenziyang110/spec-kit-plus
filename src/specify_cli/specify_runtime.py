@@ -179,6 +179,7 @@ REQUIRED_CAPABILITIES = (
     "test-design.projection-build",
     "test-design.projection-verify",
     "test-design.publish",
+    "test-design.recover",
     "test-design.status",
     "test-design.synthesize",
     "test-design.universe-build",
@@ -305,6 +306,7 @@ REQUIRED_CAPABILITIES = (
     "workflow.ensure",
     "workflow.next",
     "workflow.reopen",
+    "workflow.reconcile-blocker",
     "workflow.resolve",
     "workflow.show",
     "workflow.transition",
@@ -318,6 +320,7 @@ REQUIRED_CAPABILITIES = (
     "work.resume",
     "work.scope-add",
     "work.show",
+    "work.unblock",
 )
 # A pre-retirement binary is not compatible merely because its old surface is
 # a superset: execution announce now accepts the packet-bound direct workflow.
@@ -338,6 +341,7 @@ RUNTIME_ENV = "SPECIFY_RUNTIME_BIN"
 RUNTIME_CACHE_ENV = "SPECIFY_RUNTIME_CACHE_DIR"
 ALLOW_DIRTY_ENV = "SPECIFY_RUNTIME_ALLOW_DIRTY"
 PROJECT_RUNTIME_RELATIVE_DIR = Path(".specify") / "bin"
+PROJECT_RUNTIME_STATE_RELATIVE_DIR = Path(".specify") / "runtime"
 RELEASE_VERSION_PATTERN = re.compile(
     r"^v[0-9]+(?:\.[0-9]+){2}(?:[-.][0-9A-Za-z.-]+)?$"
 )
@@ -532,6 +536,30 @@ def _ensure_project_runtime_gitignore(project_root: Path) -> None:
         atomic_write_text(ignore_path, content)
 
 
+def _ensure_project_runtime_state_gitignore(project_root: Path) -> None:
+    """Keep runtime-owned mutable state out of product source control."""
+
+    root = Path(os.path.abspath(os.fspath(project_root.expanduser())))
+    ignore_path = safe_local_state_path(
+        root / PROJECT_RUNTIME_STATE_RELATIVE_DIR / ".gitignore",
+        root=root,
+    )
+    ignore_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        existing = ignore_path.read_text(encoding="utf-8") if ignore_path.is_file() else ""
+    except OSError:
+        existing = ""
+    lines = existing.splitlines()
+    present = {line.strip() for line in lines}
+    changed = False
+    for entry in ("*", "!.gitignore"):
+        if entry not in present:
+            lines.append(entry)
+            changed = True
+    if changed or not ignore_path.exists():
+        atomic_write_text(ignore_path, "\n".join(lines).strip() + "\n")
+
+
 def materialize_project_runtime_entrypoint(project_root: Path, binary: str | Path) -> Path:
     """Pin a compatible runtime into the user cache and one project-local short path."""
 
@@ -567,6 +595,7 @@ def materialize_project_runtime_entrypoint(project_root: Path, binary: str | Pat
     if platform.system().lower() != "windows":
         os.chmod(project_binary, project_binary.stat().st_mode | 0o111)
     _ensure_project_runtime_gitignore(project_root)
+    _ensure_project_runtime_state_gitignore(project_root)
     return project_binary
 
 
@@ -969,26 +998,28 @@ def run_specify_runtime(
         ) from exc
     if not isinstance(payload, dict):
         raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} {' '.join(args)} returned non-object JSON")
-    if args[:1] == ["cognition"]:
-        data = payload.get("data")
-        if _is_runtime_envelope(payload):
-            envelope_status = str(payload.get("status") or "").strip().lower()
-            if (
-                check
-                and result.returncode != 0
-                and envelope_status not in {"blocked", "repairable-block"}
-            ):
-                detail = str(
-                    result.stderr
-                    or payload.get("summary")
-                    or output
-                    or f"{RUNTIME_COMMAND} failed"
-                ).strip()
-                raise SpecifyRuntimeError(
-                    f"{RUNTIME_COMMAND} {' '.join(args)} failed: {detail}"
-                )
+    if _is_runtime_envelope(payload):
+        envelope_status = str(payload.get("status") or "").strip().lower()
+        if (
+            check
+            and result.returncode != 0
+            and envelope_status not in {"blocked", "repairable-block"}
+        ):
+            detail = str(
+                result.stderr
+                or payload.get("summary")
+                or output
+                or f"{RUNTIME_COMMAND} failed"
+            ).strip()
+            raise SpecifyRuntimeError(
+                f"{RUNTIME_COMMAND} {' '.join(args)} failed: {detail}"
+            )
+        if args[:1] == ["cognition"]:
+            data = payload.get("data")
             if isinstance(data, dict):
                 return data
+        if result.returncode != 0 and envelope_status in {"blocked", "repairable-block"}:
+            return payload
     if check and result.returncode != 0:
         detail = str(
             result.stderr

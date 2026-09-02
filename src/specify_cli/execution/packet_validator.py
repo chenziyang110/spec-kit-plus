@@ -57,6 +57,8 @@ SURFACE_LIMIT_ANTI_GOAL_RE = re.compile(
     r"\b(do not|don't|must not)\b.*\b(add|introduce|modify|change|expand)\b.*\b(public\s+)?(command|commands|api|apis|route|routes|surface|surfaces|lifecycle)\b",
     re.IGNORECASE,
 )
+WRITE_SCOPE_PATTERN_CHARS_RE = re.compile(r"[\?\[\]]")
+WINDOWS_ABSOLUTE_SCOPE_RE = re.compile(r"^[A-Za-z]:")
 
 
 @dataclass(slots=True)
@@ -70,6 +72,27 @@ class PacketValidationError(ValueError):
 
 def _has_blank_entry(values: list[str]) -> bool:
     return any(not item.strip() for item in values)
+
+
+def _valid_write_scope_entry(value: str) -> bool:
+    normalized = value.strip().replace("\\", "/").strip("`'\"")
+    if not normalized or WRITE_SCOPE_PATTERN_CHARS_RE.search(normalized):
+        return False
+    path_without_subtree = normalized.removesuffix("/**")
+    if (
+        normalized.startswith("/")
+        or WINDOWS_ABSOLUTE_SCOPE_RE.match(normalized)
+        or any(part == ".." for part in path_without_subtree.split("/"))
+        or path_without_subtree in {"", "."}
+    ):
+        return False
+    if "*" not in normalized:
+        return True
+    return (
+        normalized.endswith("/**")
+        and normalized.count("*") == 2
+        and "*" not in normalized.removesuffix("/**")
+    )
 
 
 def _valid_comparison_tolerance(value: object) -> bool:
@@ -1306,6 +1329,11 @@ def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
     if not packet.scope.write_scope:
         raise PacketValidationError(
             "DP1", "write_scope is required for delegated execution"
+        )
+    if any(not _valid_write_scope_entry(item) for item in packet.scope.write_scope):
+        raise PacketValidationError(
+            "DP1",
+            "write_scope entries must be an exact future file path or bounded directory subtree; exact directory paths without globbing are also allowed, but filename globs such as *_test.go, ?, [], /*, or middle ** are not",
         )
     if not packet.context_bundle:
         raise PacketValidationError(

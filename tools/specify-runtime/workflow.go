@@ -40,6 +40,26 @@ type WorkflowService struct {
 	workflowArtifactGateRunner func(workflowFeature, string) Envelope
 }
 
+type workflowMutationReceipt struct {
+	Version                int    `json:"version"`
+	Owner                  string `json:"owner"`
+	FeatureRef             string `json:"feature_ref"`
+	WorkflowRef            string `json:"workflow_ref"`
+	Operation              string `json:"operation"`
+	PreviousRevision       int    `json:"previous_revision"`
+	Revision               int    `json:"revision"`
+	PreviousWorkflowSHA256 string `json:"previous_workflow_sha256"`
+	WorkflowSHA256         string `json:"workflow_sha256"`
+	Stage                  string `json:"stage"`
+	Status                 string `json:"status"`
+	MutationSHA256         string `json:"mutation_sha256"`
+}
+
+var workflowMutationOperations = map[string]bool{
+	"ensure-enter": true, "enter": true, "complete-stage": true, "transition": true,
+	"reopen": true, "resolve": true, "acceptance-repair": true, "block": true, "reconcile-blocker": true, "closeout": true,
+}
+
 type WorkflowEnterRequest struct {
 	FeatureDir       string
 	FeatureID        string
@@ -81,11 +101,15 @@ type WorkflowReopenRequest struct {
 }
 
 type WorkflowResolveRequest struct {
-	FeatureDir         string
-	FeatureID          string
-	ExpectedRevision   int
-	ResolutionEvidence []string
-	Summary            string
+	FeatureDir                 string
+	FeatureID                  string
+	ExpectedRevision           int
+	ResolutionEvidence         []string
+	Summary                    string
+	ReopenTo                   string
+	ReopenReason               string
+	ReopenEvidence             []string
+	ReopenInvalidatedArtifacts []string
 }
 
 type WorkflowCloseoutRequest struct {
@@ -184,7 +208,7 @@ func (service *WorkflowService) Ensure(request WorkflowEnterRequest) Envelope {
 		LastBlockerResolution:  nil,
 		AcceptanceSHA256:       nil,
 	}
-	if err := service.writeState(feature, state); err != nil {
+	if err := service.writeState(feature, state, "ensure-enter"); err != nil {
 		return workflowError("failed to write workflow state", err)
 	}
 	env = NewEnvelope("ok", "workflow entered")
@@ -246,7 +270,7 @@ func (service *WorkflowService) Enter(request WorkflowEnterRequest) Envelope {
 		LastBlockerResolution:  nil,
 		AcceptanceSHA256:       nil,
 	}
-	if err := service.writeState(feature, state); err != nil {
+	if err := service.writeState(feature, state, "enter"); err != nil {
 		return workflowError("failed to write workflow state", err)
 	}
 	env = NewEnvelope("ok", "workflow entered")
@@ -422,7 +446,7 @@ func (service *WorkflowService) CompleteStage(request WorkflowCompleteStageReque
 	} else {
 		state.Summary = fmt.Sprintf("Completed workflow stage %s.", state.Stage)
 	}
-	if err := service.writeState(feature, state); err != nil {
+	if err := service.writeState(feature, state, "complete-stage"); err != nil {
 		return workflowError("failed to write workflow state", err)
 	}
 	env = NewEnvelope("ok", "workflow stage completed")
@@ -523,7 +547,7 @@ func (service *WorkflowService) Transition(request WorkflowTransitionRequest) En
 	} else {
 		state.Summary = fmt.Sprintf("Entered workflow stage %s.", target)
 	}
-	if err := service.writeState(feature, state); err != nil {
+	if err := service.writeState(feature, state, "transition"); err != nil {
 		return workflowError("failed to write workflow state", err)
 	}
 	env = NewEnvelope("ok", "workflow state advanced")
@@ -589,7 +613,11 @@ func (service *WorkflowService) Reopen(request WorkflowReopenRequest) Envelope {
 		return workflowStateBlocked(feature, state, "terminal workflow is immutable", "terminal-workflow-immutable")
 	}
 	if state.Status == "blocked" {
-		return workflowPersistedBlock(feature, state)
+		env := workflowPersistedBlock(feature, state)
+		if !repairMode && workflowCanResolveAndReopen(state, target) {
+			env.Data["pending_reopen_action"] = workflowPendingReopenAction(feature, state, request)
+		}
+		return env
 	}
 	if repairMode {
 		return service.reopenAcceptanceRepairLocked(feature, state, request)
@@ -632,7 +660,7 @@ func (service *WorkflowService) Reopen(request WorkflowReopenRequest) Envelope {
 		"evidence":              evidence,
 		"invalidated_artifacts": invalidated,
 	}
-	if err := service.writeState(feature, state); err != nil {
+	if err := service.writeState(feature, state, "reopen"); err != nil {
 		return workflowError("failed to write workflow state", err)
 	}
 	env = NewEnvelope("ok", "workflow stage reopened")
@@ -651,6 +679,10 @@ func (service *WorkflowService) Resolve(request WorkflowResolveRequest) Envelope
 	if err != nil {
 		return workflowInvalid("workflow resolution evidence is invalid", "invalid-resolution-evidence", err)
 	}
+	reopenTarget, reopenReason, reopenEvidence, invalidatedArtifacts, reopenRequested, err := normalizeWorkflowResolveReopen(request)
+	if err != nil {
+		return workflowInvalid("workflow resolution reopen intent is invalid", "invalid-resolution-reopen", err)
+	}
 	release, env, ok := service.acquireWorkflowLock(feature)
 	if !ok {
 		return env
@@ -666,11 +698,15 @@ func (service *WorkflowService) Resolve(request WorkflowResolveRequest) Envelope
 	if state.Status != "blocked" || state.Blocker == nil {
 		return workflowStateBlocked(feature, state, "workflow resolve requires a persisted blocker", "no-blocker-to-resolve")
 	}
+	if reopenRequested && !workflowCanResolveAndReopen(state, reopenTarget) {
+		return workflowStateBlocked(feature, state, fmt.Sprintf("cannot resolve and reopen %s to %s", state.Stage, reopenTarget), "invalid-reopen-target")
+	}
 	summary := strings.TrimSpace(request.Summary)
 	if summary == "" {
 		summary = fmt.Sprintf("Resolved blocker %v.", state.Blocker["blocker_id"])
 	}
 	oldBlocker := cloneMap(state.Blocker)
+	sourceStage := state.Stage
 	state.Revision++
 	state.Status = "active"
 	state.Summary = summary
@@ -678,15 +714,34 @@ func (service *WorkflowService) Resolve(request WorkflowResolveRequest) Envelope
 	state.LastResolutionEvidence = append(state.LastResolutionEvidence, evidence...)
 	state.LastBlockerResolution = map[string]any{
 		"blocker":             oldBlocker,
-		"stage":               state.Stage,
+		"stage":               sourceStage,
 		"summary":             summary,
 		"resolved_revision":   state.Revision,
 		"resolution_evidence": evidence,
 	}
-	if err := service.writeState(feature, state); err != nil {
+	if reopenRequested {
+		state.Stage = reopenTarget
+		state.Summary = reopenReason
+		state.LastResolutionEvidence = append(state.LastResolutionEvidence,
+			fmt.Sprintf("resolved %s blocker and reopened to %s: %s", sourceStage, reopenTarget, reopenReason))
+		state.LastResolutionEvidence = append(state.LastResolutionEvidence, reopenEvidence...)
+		state.LastReopen = map[string]any{
+			"source_stage":          sourceStage,
+			"source_status":         "blocked",
+			"target_stage":          reopenTarget,
+			"reason":                reopenReason,
+			"evidence":              reopenEvidence,
+			"invalidated_artifacts": invalidatedArtifacts,
+		}
+	}
+	if err := service.writeState(feature, state, "resolve"); err != nil {
 		return workflowError("failed to write workflow state", err)
 	}
-	env = NewEnvelope("ok", "workflow blocker resolved")
+	envelopeSummary := "workflow blocker resolved"
+	if reopenRequested {
+		envelopeSummary = "workflow blocker resolved and stage reopened"
+	}
+	env = NewEnvelope("ok", envelopeSummary)
 	addWorkflowStateData(&env, state)
 	env.ShowArgv = workflowShowArgv(feature)
 	if state.Stage == "accept" {
@@ -725,7 +780,7 @@ func (service *WorkflowService) reopenAcceptanceRepairLocked(feature workflowFea
 		"evidence":              evidence,
 		"invalidated_artifacts": []string{"human-acceptance.json verdict", "review and downstream artifacts"},
 	}
-	if err := service.writeState(feature, state); err != nil {
+	if err := service.writeState(feature, state, "acceptance-repair"); err != nil {
 		return workflowError("failed to write workflow state", err)
 	}
 	env := NewEnvelope("ok", "acceptance repair routed")
@@ -800,13 +855,20 @@ func (service *WorkflowService) resolveFeature(featureDir, featureID string) (wo
 	if err != nil {
 		return feature, fmt.Errorf("resolve project root: %w", err)
 	}
-	featuresRoot := filepath.Join(root, ".specify", "features")
+	featureRoots := []struct {
+		rel string
+		abs string
+	}{
+		{rel: filepath.ToSlash(filepath.Join(".specify", "features")), abs: filepath.Join(root, ".specify", "features")},
+		{rel: filepath.ToSlash(filepath.Join(".specify", "specs")), abs: filepath.Join(root, ".specify", "specs")},
+		{rel: "specs", abs: filepath.Join(root, "specs")},
+	}
 	requested := strings.TrimSpace(featureDir)
 	if requested == "" {
 		if !safeSegment(featureID) {
 			return feature, fmt.Errorf("feature id %q must be a safe path segment", featureID)
 		}
-		requested = filepath.Join(featuresRoot, featureID)
+		requested = filepath.Join(featureRoots[0].abs, featureID)
 	} else if filepath.IsAbs(requested) || filepath.VolumeName(requested) != "" {
 		requested, err = filepath.Abs(requested)
 		if err != nil {
@@ -816,18 +878,28 @@ func (service *WorkflowService) resolveFeature(featureDir, featureID string) (wo
 		requested = filepath.Join(root, filepath.FromSlash(requested))
 	}
 	requested = filepath.Clean(requested)
-	relToFeatures, err := filepath.Rel(featuresRoot, requested)
-	if err != nil || relToFeatures == "." || relToFeatures == ".." || strings.HasPrefix(relToFeatures, ".."+string(filepath.Separator)) || strings.Contains(relToFeatures, string(filepath.Separator)) {
-		return feature, fmt.Errorf("feature directory must be a direct child of .specify/features")
+	selectedRoot := -1
+	featureSegment := ""
+	for index, candidate := range featureRoots {
+		relative, relativeErr := filepath.Rel(candidate.abs, requested)
+		if relativeErr != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || strings.Contains(relative, string(filepath.Separator)) {
+			continue
+		}
+		selectedRoot = index
+		featureSegment = relative
+		break
 	}
-	id := filepath.Base(relToFeatures)
+	if selectedRoot < 0 {
+		return feature, fmt.Errorf("feature directory must be a direct child of .specify/features, .specify/specs, or specs")
+	}
+	id := filepath.Base(featureSegment)
 	if !safeSegment(id) {
 		return feature, fmt.Errorf("feature id %q must be a safe path segment", id)
 	}
 	if strings.TrimSpace(featureID) != "" && !samePathSegment(featureID, id) {
 		return feature, fmt.Errorf("feature id %q does not match feature directory %q", featureID, id)
 	}
-	rel := filepath.ToSlash(filepath.Join(".specify", "features", id))
+	rel := filepath.ToSlash(filepath.Join(filepath.FromSlash(featureRoots[selectedRoot].rel), id))
 	secure, err := secureProjectPath(root, rel)
 	if err != nil {
 		return feature, err
@@ -961,9 +1033,13 @@ func validateWorkflowState(feature workflowFeature, state workflowState) error {
 	return nil
 }
 
-func (service *WorkflowService) writeState(feature workflowFeature, state workflowState) error {
+func (service *WorkflowService) writeState(feature workflowFeature, state workflowState, operation string) error {
 	if err := validateWorkflowState(feature, state); err != nil {
 		return err
+	}
+	operation = strings.TrimSpace(operation)
+	if !workflowMutationOperations[operation] {
+		return fmt.Errorf("unsupported workflow mutation operation %q", operation)
 	}
 	if service.beforeWorkflowStateWrite != nil {
 		if err := service.beforeWorkflowStateWrite(); err != nil {
@@ -978,7 +1054,109 @@ func (service *WorkflowService) writeState(feature workflowFeature, state workfl
 	if err != nil {
 		return err
 	}
-	return atomicWriteFile(path, append(raw, '\n'), 0o644)
+	stateBytes := append(raw, '\n')
+	previousBytes, previousErr := os.ReadFile(path)
+	previousRevision := 0
+	previousSHA256 := ""
+	statePrecondition := fileTransactionPrecondition{Path: path, MustNotExist: true}
+	if previousErr == nil {
+		var previous workflowState
+		if err := json.Unmarshal(previousBytes, &previous); err != nil {
+			return fmt.Errorf("decode previous workflow state before mutation: %w", err)
+		}
+		if err := validateWorkflowState(feature, previous); err != nil {
+			return fmt.Errorf("validate previous workflow state before mutation: %w", err)
+		}
+		if state.Revision != previous.Revision+1 {
+			return fmt.Errorf("workflow mutation revision must advance exactly once: previous %d, next %d", previous.Revision, state.Revision)
+		}
+		previousRevision = previous.Revision
+		previousSHA256 = fileContentSHA256(previousBytes)
+		statePrecondition = fileTransactionPrecondition{Path: path, ExpectedSHA256: previousSHA256}
+	} else if !os.IsNotExist(previousErr) {
+		return previousErr
+	} else if state.Revision != 1 {
+		return fmt.Errorf("new workflow state must begin at revision 1")
+	}
+	receiptRef := workflowMutationReceiptRef(feature.Rel)
+	receiptPath, err := secureProjectPath(service.projectRoot, receiptRef)
+	if err != nil {
+		return err
+	}
+	receipt := workflowMutationReceipt{
+		Version: 1, Owner: "specify-runtime workflow", FeatureRef: feature.Rel,
+		WorkflowRef: feature.Rel + "/workflow.json", Operation: operation,
+		PreviousRevision: previousRevision, Revision: state.Revision,
+		PreviousWorkflowSHA256: previousSHA256, WorkflowSHA256: fileContentSHA256(stateBytes),
+		Stage: state.Stage, Status: state.Status,
+	}
+	receipt.MutationSHA256 = workflowMutationReceiptDigest(receipt)
+	receiptBytes, err := json.MarshalIndent(receipt, "", "  ")
+	if err != nil {
+		return err
+	}
+	receiptBytes = append(receiptBytes, '\n')
+	receiptPrecondition := fileTransactionPrecondition{Path: receiptPath, MustNotExist: true}
+	if currentReceipt, readErr := os.ReadFile(receiptPath); readErr == nil {
+		receiptPrecondition = fileTransactionPrecondition{Path: receiptPath, ExpectedSHA256: fileContentSHA256(currentReceipt)}
+	} else if !os.IsNotExist(readErr) {
+		return readErr
+	}
+	_, err = applyFileTransactionWithPreconditions(
+		service.projectRoot, "workflow."+operation,
+		[]fileTransactionUpdate{
+			{Path: path, Content: stateBytes, Perm: 0o644},
+			{Path: receiptPath, Content: receiptBytes, Perm: 0o644},
+		},
+		[]fileTransactionPrecondition{statePrecondition, receiptPrecondition},
+	)
+	return err
+}
+
+func workflowMutationReceiptRef(featureRef string) string {
+	normalized := filepath.ToSlash(strings.Trim(strings.TrimSpace(featureRef), "/"))
+	digest := sha256.Sum256([]byte(normalized))
+	return filepath.ToSlash(filepath.Join(".specify", "runtime", "workflow-mutations", fmt.Sprintf("%x.json", digest)))
+}
+
+func workflowMutationReceiptDigest(receipt workflowMutationReceipt) string {
+	receipt.MutationSHA256 = ""
+	raw, _ := json.Marshal(receipt)
+	digest := sha256.Sum256(raw)
+	return fmt.Sprintf("%x", digest)
+}
+
+func readWorkflowMutationReceipt(projectRoot, featureRef string) (workflowMutationReceipt, []byte, string, error) {
+	var receipt workflowMutationReceipt
+	receiptRef := workflowMutationReceiptRef(featureRef)
+	raw, err := secureProjectReadFile(projectRoot, receiptRef)
+	if err != nil {
+		return receipt, nil, receiptRef, err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil || len(fields) != 12 {
+		return receipt, nil, receiptRef, fmt.Errorf("workflow mutation receipt fields are invalid")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&receipt); err != nil {
+		return receipt, nil, receiptRef, fmt.Errorf("decode workflow mutation receipt: %w", err)
+	}
+	if err := ensureJSONEOF(decoder); err != nil {
+		return receipt, nil, receiptRef, err
+	}
+	if receipt.Version != 1 || receipt.Owner != "specify-runtime workflow" || !workflowMutationOperations[receipt.Operation] ||
+		receipt.FeatureRef != filepath.ToSlash(strings.Trim(strings.TrimSpace(featureRef), "/")) ||
+		receipt.WorkflowRef != receipt.FeatureRef+"/workflow.json" || receipt.Revision < 1 ||
+		receipt.PreviousRevision != receipt.Revision-1 || !validWorkflowStage(receipt.Stage) ||
+		(receipt.Status != "active" && receipt.Status != "blocked" && receipt.Status != "completed") ||
+		!isLowerSHA256(receipt.WorkflowSHA256) ||
+		(receipt.PreviousRevision > 0 && !isLowerSHA256(receipt.PreviousWorkflowSHA256)) ||
+		(receipt.PreviousRevision == 0 && receipt.PreviousWorkflowSHA256 != "") ||
+		receipt.MutationSHA256 != workflowMutationReceiptDigest(receipt) {
+		return receipt, nil, receiptRef, fmt.Errorf("workflow mutation receipt contract is invalid")
+	}
+	return receipt, raw, receiptRef, nil
 }
 
 func (service *WorkflowService) stateReadFailure(feature workflowFeature, err error) Envelope {
@@ -1139,6 +1317,71 @@ func workflowResolutionAction(feature workflowFeature, revision int) map[string]
 			},
 		},
 	}
+}
+
+func workflowPendingReopenAction(feature workflowFeature, state workflowState, request WorkflowReopenRequest) map[string]any {
+	args := []string{
+		"--expected-revision", strconv.Itoa(state.Revision),
+		"--reopen-to", strings.ToLower(strings.TrimSpace(request.To)),
+		"--reopen-reason", strings.TrimSpace(request.Reason),
+	}
+	for _, value := range request.Evidence {
+		args = append(args, "--reopen-evidence", strings.TrimSpace(value))
+	}
+	for _, value := range request.InvalidatedArtifacts {
+		args = append(args, "--invalidated-artifacts", strings.TrimSpace(value))
+	}
+	return map[string]any{
+		"capability_id": "workflow.resolve",
+		"base_argv":     stringValuesAsAny(workflowArgv(feature, "resolve", args...)),
+		"required_inputs": []any{
+			map[string]any{
+				"field":      "resolution_evidence",
+				"flag":       "--resolution-evidence",
+				"repeatable": true,
+				"min_items":  1,
+				"source":     "sanitized evidence satisfying the persisted blocker unblock_criteria",
+			},
+		},
+		"blocked_by":              strings.TrimSpace(fmt.Sprint(state.Blocker["blocker_id"])),
+		"preserves_blocker_audit": true,
+		"effect":                  "Resolve the persisted blocker with evidence and atomically reopen the requested earlier stage.",
+	}
+}
+
+func workflowCanResolveAndReopen(state workflowState, target string) bool {
+	target = strings.ToLower(strings.TrimSpace(target))
+	if state.Stage == "accept" || !reopenableWorkflowStage(target) {
+		return false
+	}
+	if state.Stage == "review" && target == "implement" {
+		return false
+	}
+	return workflowStageIndex(target) < workflowStageIndex(state.Stage)
+}
+
+func normalizeWorkflowResolveReopen(request WorkflowResolveRequest) (string, string, []string, []string, bool, error) {
+	target := strings.ToLower(strings.TrimSpace(request.ReopenTo))
+	reason := strings.TrimSpace(request.ReopenReason)
+	requested := target != "" || reason != "" || len(request.ReopenEvidence) > 0 || len(request.ReopenInvalidatedArtifacts) > 0
+	if !requested {
+		return "", "", nil, nil, false, nil
+	}
+	if !reopenableWorkflowStage(target) {
+		return "", "", nil, nil, false, fmt.Errorf("reopen-to must be specify, plan, tasks, implement, or review")
+	}
+	if reason == "" {
+		return "", "", nil, nil, false, fmt.Errorf("reopen-reason is required")
+	}
+	evidence, err := requiredWorkflowStrings(request.ReopenEvidence, "reopen-evidence")
+	if err != nil {
+		return "", "", nil, nil, false, err
+	}
+	invalidated, err := requiredWorkflowStrings(request.ReopenInvalidatedArtifacts, "invalidated-artifacts")
+	if err != nil {
+		return "", "", nil, nil, false, err
+	}
+	return target, reason, evidence, invalidated, true, nil
 }
 
 func validWorkflowStage(stage string) bool {

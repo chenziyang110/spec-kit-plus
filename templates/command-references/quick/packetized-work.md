@@ -95,7 +95,7 @@ The following flags are available and composable:
 - The first actionable execution step after scope lock and understanding confirmation is to dispatch the first subagent batch, not to continue local deep-dive analysis or implement the first Q item leader-inline.
 - Use `.specify/templates/worker-prompts/quick-worker.md` as the default contract for quick-task subagents so the subagent returns enough state for the leader to keep `STATUS.md` accurate.
 - Prefer structured subagent results compatible with the shared `WorkerTaskResult` contract when the current runtime supports them.
-- Submit a structured result through `{{specify-subcmd:specify-runtime result submit --command quick --request-id <request-id> --result-json '<inline-json>'}}` when a runtime request exists, or use workspace/lane identifiers for an unmanaged lane. The runtime derives and writes the canonical destination. Never compute a result path, create a result file, or use `--result-file`; without a runtime channel, return the structured payload to the leader.
+- Submit a structured result through `{{specify-subcmd:specify-runtime result submit --command quick --request-id <request-id> --result-json <inline-json|@path|->}}` when a runtime request exists, or use workspace/lane identifiers for an unmanaged lane. Keep small payloads inline, use stdin for large model-authored JSON, and use `@path` only for an existing runtime-owned or registered project artifact. The runtime derives and writes the canonical destination. Never compute a result path, create a result file, or use `--result-file`; without a runtime channel, return the structured payload to the leader.
 - Preserve `reported_status` when normalizing subagent language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state.
 - Idle subagent is not an accepted result.
 - The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution.
@@ -377,7 +377,7 @@ The following flags are available and composable:
    - Before each dispatch, verify the target `work_item_id` is dependency-ready. After each join, patch its status and acceptance evidence into `STATUS.md` through a fresh `specify-runtime artifact patch` lease before selecting the next ordered item or ready parallel batch.
    - Keep changes tightly scoped to the quick-task goal.
    - Re-evaluate dispatch at each join point instead of assuming the first choice remains correct.
-- Only use `subagent-blocked` after the execution surfaces are unavailable, then patch the reason into `STATUS.md` through the artifact CLI.
+- Only use `subagent-blocked` after retrying discovery/redispatch in the same invocation. Treat unavailable execution surfaces as an agent-owned capability blocker; patch the reason and exact resume/fallback action into `STATUS.md` only through a leased `specify-runtime artifact patch`, and never ask the user to repair dispatch state.
 - When blocked, patch `blocked_dispatch` in `STATUS.md` through a leased `specify-runtime artifact patch` call.
    - At each join point, patch `done_or_progress_signal` in `STATUS.md` through `specify-runtime artifact patch` with the latest completion proof or next safe progress signal.
    - Continue automatically until the quick task is complete or a concrete blocker prevents further safe progress.

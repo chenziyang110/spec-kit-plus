@@ -415,6 +415,15 @@ unrelated visual systems for one review round.
   IDs, profile IDs, and specimen IDs. Later revisions require a new immutable
   round and renewed approval; edited artifacts or stale/missing sidecars are
   invalid.
+- After approval, bind the complete professional verification contract from
+  the runtime-owned handoff sidecar without copying it into argv or reauthoring
+  it. Prepare a fresh lease for `<change-dir>/design-change.md`, then run
+  `{{specify-subcmd:specify-runtime artifact patch --lease <id> --frontmatter-pointer /design_change/verification --value-json @<change-dir>/previews/round-NN.handoff.json --value-json-pointer /reproduction}}`.
+  Patch the small approval metadata and status through their normal bounded
+  operations, then run `design lint --level ready`. Use stdin for large
+  model-authored text; use `@path` only for an already-existing runtime-owned
+  or registered project artifact. Never create a temporary authoring file only
+  to transport payload bytes.
 
 ## HTML Preview Technology And Content Contract
 
@@ -508,6 +517,9 @@ confirmed brief, immutable image-primary or HTML-primary visual rounds, review a
 metadata and exact consumer bindings; it never contains design prose.
 Never write `<change-dir>/design-change.md` directly; patch only its named frontmatter
 fields and sections through fresh leased `specify-runtime artifact patch` calls.
+For a large runtime-owned sidecar, bind its exact project-relative `@path`;
+for large model-authored content, use stdin rather than creating a temporary
+authoring file or pushing the payload through argv.
 
 ## Required design-change.md Shape
 
@@ -575,7 +587,9 @@ Before closeout:
    `specify-runtime artifact scaffold --kind design-review --path <change-dir>/review.md`.
    Otherwise query it through `artifact show`. Patch only these named semantic
    sections through one same-checkpoint `artifact patch-batch`; older runtimes
-   fall back to a fresh `artifact patch` lease per section. Never submit or reconstruct the
+   fall back to a fresh `artifact patch` lease per section. Send large
+   model-authored section content through stdin; use `@path` only for an
+   existing runtime-owned or registered project artifact. Never submit or reconstruct the
    whole review document:
    - selected task type and input strategy
    - inputs read

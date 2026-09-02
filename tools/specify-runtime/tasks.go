@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -16,6 +17,7 @@ import (
 )
 
 var taskControlIDRE = regexp.MustCompile(`^T\d+$`)
+var taskControlWriteScopePatternCharsRE = regexp.MustCompile(`[\?\[\]]`)
 
 var taskControlTerminalStatuses = map[string]bool{"accepted": true, "deferred": true}
 
@@ -1215,8 +1217,71 @@ func validateTaskControlProductScope(taskID, field string, values []string) erro
 		if owner, owned := taskControlWorkflowScopeOwner(value); owned {
 			return fmt.Errorf("%s %s contains CLI-owned workflow artifact %q; use %s instead", taskID, field, value, owner)
 		}
+		if field == "expected_write_scope" {
+			if err := validateTaskControlExpectedWriteScopeEntry(taskID, value); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
+}
+
+func validateTaskControlExpectedWriteScopeEntry(taskID, value string) error {
+	normalized, subtree, err := normalizeTaskControlExpectedWriteScopeEntry(value)
+	if err != nil {
+		return fmt.Errorf("%s expected_write_scope entry %q must be an exact future file path or bounded directory subtree: %v", taskID, value, err)
+	}
+	if taskControlWriteScopePatternCharsRE.MatchString(normalized) {
+		return fmt.Errorf("%s expected_write_scope entry %q must be an exact future file path or bounded directory subtree; exact directory paths without globbing are also allowed, but filename globs are not", taskID, value)
+	}
+	if !strings.Contains(normalized, "*") {
+		return nil
+	}
+	if subtree &&
+		strings.Count(normalized, "*") == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s expected_write_scope entry %q must be an exact future file path or bounded directory subtree; exact directory paths without globbing are also allowed, but filename globs such as *_test.go, ?, [], /*, or middle ** are not", taskID, value)
+}
+
+func normalizeTaskControlExpectedWriteScopeEntry(value string) (string, bool, error) {
+	normalized := strings.Trim(strings.TrimSpace(strings.ReplaceAll(value, `\`, "/")), "`'\"")
+	if normalized == "" || strings.ContainsRune(normalized, '\x00') {
+		return "", false, fmt.Errorf("blank or NUL-containing expected_write_scope path")
+	}
+	if path.IsAbs(normalized) || filepath.IsAbs(filepath.FromSlash(normalized)) || filepath.VolumeName(filepath.FromSlash(normalized)) != "" {
+		return "", false, fmt.Errorf("expected_write_scope path must be repository-relative")
+	}
+	if taskControlWriteScopePatternCharsRE.MatchString(normalized) {
+		return normalized, false, nil
+	}
+	subtree := false
+	if strings.HasSuffix(normalized, "/**") &&
+		strings.Count(normalized, "*") == 2 &&
+		!strings.Contains(strings.TrimSuffix(normalized, "/**"), "*") {
+		subtree = true
+		normalized = strings.TrimSuffix(normalized, "/**")
+	}
+	normalized = strings.TrimSuffix(normalized, "/")
+	normalized = filepath.ToSlash(filepath.Clean(filepath.FromSlash(normalized)))
+	if normalized == "." || normalized == ".." || strings.HasPrefix(normalized, "../") {
+		return "", false, fmt.Errorf("expected_write_scope path must stay inside the repository")
+	}
+	return normalized, subtree, nil
+}
+
+func taskControlExpectedWriteScopeCoversPath(scope, candidate string) bool {
+	scopePath, _, err := normalizeTaskControlExpectedWriteScopeEntry(scope)
+	if err != nil || strings.Contains(scopePath, "*") || taskControlWriteScopePatternCharsRE.MatchString(scopePath) {
+		return false
+	}
+	candidatePath, candidateSubtree, err := normalizeTaskControlExpectedWriteScopeEntry(candidate)
+	if err != nil || candidateSubtree || strings.Contains(candidatePath, "*") ||
+		taskControlWriteScopePatternCharsRE.MatchString(candidatePath) ||
+		candidatePath == "." || candidatePath == ".." || strings.HasPrefix(candidatePath, "../") {
+		return false
+	}
+	return candidatePath == scopePath || strings.HasPrefix(candidatePath, scopePath+"/")
 }
 
 func taskControlStringList(value any, label string) ([]string, error) {

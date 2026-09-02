@@ -20,8 +20,10 @@ capacity rather than additional task budget.
   result skeleton.
 - Submit useful progress with the task brief's `scan-checkpoint --result-json`
   command before context, tool-output, or result-output capacity is exhausted.
-  Prefer `--result-json @tmp-result.json` (or stdin `-`) on Windows when the
-  packet JSON is large; do not rely on shell-quoted multi-10KB inline JSON.
+  Use stdin `-` on Windows when model-authored packet JSON is large; use
+  `@path` only when the source is an existing runtime-owned or registered
+  project artifact. Never create a temporary result file merely for transport,
+  and do not rely on shell-quoted multi-10KB inline JSON.
   A checkpoint is useful only after the runtime validates it.
 - Keep worker-authored `acceptance` at `partial`, including for a complete
   assignment. The runtime derives `pass` only after `scan-accept` validates the

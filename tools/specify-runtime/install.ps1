@@ -88,6 +88,7 @@ try {
         ($handshake -notmatch '"cognition\.run"') -or
         ($handshake -notmatch '"cognition\.scan-packet"') -or
         ($handshake -notmatch '"implement\.task-reopen"') -or
+        ($handshake -notmatch '"test-design\.recover"') -or
         ($handshake -notmatch '"validate\.spec"') -or
         ($handshake -notmatch '"workflow\.show"') -or
         ($handshake -notmatch '"workflow\.ensure"') -or
@@ -97,6 +98,7 @@ try {
         ($handshake -notmatch '"workflow\.transition"') -or
         ($handshake -notmatch '"workflow\.reopen"') -or
         ($handshake -notmatch '"workflow\.block"') -or
+        ($handshake -notmatch '"workflow\.reconcile-blocker"') -or
         ($handshake -notmatch '"workflow\.resolve"') -or
         ($handshake -notmatch '"workflow\.closeout"')) {
         throw "Downloaded binary failed the specify-runtime API handshake"

@@ -482,12 +482,13 @@ def scan_workflow_artifact_instructions(
                         artifact_id="temporary_authoring_payload",
                         artifact_hint=transient_option,
                         owner_cli=(
-                            "inline --content/--result-json or a specialized runtime owner",
+                            "inline/stdin semantic input, an existing registered @path, or a specialized runtime owner",
                         ),
                         line_text=line.strip(),
                         message=(
                             f"Agent-facing {transient_option} handoff requires a raw temporary "
-                            "file; use inline semantic input or a specialized runtime owner."
+                            "file; use inline/stdin semantic input, an existing registered "
+                            "project artifact, or a specialized runtime owner."
                         ),
                     )
                 )

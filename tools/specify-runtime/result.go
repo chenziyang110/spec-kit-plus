@@ -143,12 +143,19 @@ func runResultSubmit(args []string, stdout io.Writer) int {
 	}
 	resultJSON := strings.TrimSpace(optionValue(args, "--result-json", ""))
 	if hasFlag(args, "--result-file") {
-		return writeResultError(stdout, "usage-error", "result submit does not accept agent-authored result files; pass the result inline with --result-json")
+		return writeResultError(stdout, "usage-error", "result submit does not accept agent-authored result files through --result-file; pass bounded semantic JSON with --result-json (inline, @path, or - for stdin)")
 	}
 	if resultJSON == "" {
 		return writeResultError(stdout, "usage-error", "result submit requires --result-json")
 	}
-	normalized, err := normalizeWorkerTaskResult([]byte(resultJSON))
+	rawResult, err := resolveJSONInputBytesFrom(resultJSON, projectRoot, "result submit", "--result-json", os.Stdin)
+	if err != nil {
+		return writeResultError(stdout, "usage-error", err.Error())
+	}
+	if len(rawResult) == 0 {
+		return writeResultError(stdout, "usage-error", "result submit requires --result-json")
+	}
+	normalized, err := normalizeWorkerTaskResult(rawResult)
 	if err != nil {
 		return writeResultError(stdout, "invalid", err.Error())
 	}

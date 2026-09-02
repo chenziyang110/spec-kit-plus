@@ -4,7 +4,6 @@ import re
 import threading
 import time
 import os
-import tempfile
 
 import pytest
 
@@ -29,6 +28,7 @@ from specify_cli.codex_team.state_paths import (
     worker_heartbeat_path,
 )
 from specify_cli.execution import worker_task_result_payload
+from specify_cli.orchestration.state_store import write_json as atomic_write_json
 from specify_cli.execution.result_schema import (
     RuleAcknowledgement,
     ValidationResult,
@@ -77,6 +77,25 @@ def _write_feature_tasks(project_root: Path, content: str) -> Path:
                 "",
                 "- Do not create a parallel auth stack",
             ]
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "test_design_gate": {
+                    "decision": "not_selected",
+                    "reason_refs": ["fixture:no-test-design-selected"],
+                    "projection_binding": {
+                        "publication_ref": None,
+                        "publication_sha256": None,
+                        "projection_ref": None,
+                        "projection_sha256": None,
+                        "source_fingerprint": None,
+                        "state_revision": None,
+                    },
+                }
+            }
         ),
         encoding="utf-8",
     )
@@ -976,24 +995,7 @@ def test_route_ready_parallel_batch_agent_teams_executor_completes_end_to_end(
 
     def _tracking_write_json(path: Path, payload: dict) -> Path:
         write_calls.append(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path: Path | None = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                dir=path.parent,
-                prefix=f"{path.name}.",
-                suffix=".tmp",
-                delete=False,
-            ) as handle:
-                temp_path = Path(handle.name)
-                handle.write(json.dumps(payload, indent=2) + "\n")
-            os.replace(temp_path, path)
-        finally:
-            if temp_path is not None and temp_path.exists():
-                temp_path.unlink(missing_ok=True)
-        return path
+        return atomic_write_json(path, payload)
 
     monkeypatch.setattr(
         "specify_cli.codex_team.task_ops.write_json",

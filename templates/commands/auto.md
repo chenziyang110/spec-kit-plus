@@ -54,7 +54,13 @@ Its job is to read current repository state, identify the recommended next Spec 
 
 - For every feature-bearing candidate, first run `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`, then `{{specify-subcmd:specify-runtime workflow next --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow.json` is the required-stage phase lock. Consume the returned structured `next_argv`; never reconstruct or infer the required phase action from Markdown fields.
 - When `next_argv` names `specify-runtime workflow complete-stage`, route to the current required-stage owner so it can finish and validate that stage. When it names `specify-runtime workflow transition --to <stage>`, route to that destination stage and pass the exact argv. When active `accept` returns `specify-runtime workflow closeout`, route to the current accept owner so human acceptance can resume; only completed `accept` has no successor.
-- A blocked runtime intentionally has no `next_argv`. Preserve its tutorial and wait for the declared evidence; once present, fill only the required evidence input in `data.resolution_action` and execute its runtime-owned base argv. `show_argv` refreshes state but never resolves it.
+- A blocked runtime intentionally has no `next_argv`. Preserve its tutorial and
+  wait for the declared evidence. Use `data.pending_reopen_action` when a
+  validated backward reopen is also pending; otherwise use
+  `data.resolution_action`. Once evidence exists, fill only the action's
+  declared evidence input and execute its runtime-owned base argv. The pending
+  action atomically resolves and reopens; the ordinary action restores the same
+  owner. `show_argv` refreshes state but never resolves it.
 - Before a feature lineage moves to Tasks, apply the **Test Design intercept** below. A gate decision of `selected` or `required` routes to Test Design even when no root exists. Test Design is optional only for `not_selected` with no feature-scoped root; any existing or selected run is an upstream gate that `sp-auto` must finish rather than bypass.
 - Inspect the current repository state surfaces in priority order only after resolving the current workflow lineage.
 - When concurrent Runs exist, never inspect or resume another Run's subject from the current sandbox. Route only the current Run subject; an unbound invocation must stop when repository state exposes multiple safe candidates.
@@ -67,8 +73,8 @@ Before routing a feature from Plan to `/sp.tasks`:
 
 1. Query the current Plan gate through `specify-runtime artifact show` and classify its decision as exactly `not_selected`, `selected`, or `required`. Run `{{specify-subcmd:specify-runtime artifact list --path-prefix <feature-dir>/test-design/ --format json}}`. If it returns Test Design state, publication, projection, or the compatibility Tasks handoff, select the state summary first via `{{specify-subcmd:specify-runtime artifact show --path <feature-dir>/test-design/test-state.json --format json}}`, then select only the other required summaries through `specify-runtime artifact show`.
 2. For an existing root, run `{{specify-subcmd:specify-runtime test-design status --feature-dir <feature-dir> --format json}}` and use that verified runtime response, not the mere presence of a handoff filename.
-3. Route `selected` or `required` with no root to canonical `/sp.test-design`. Also treat `status=active|blocked`, the compatibility state `validated-unhanded`, validated-but-unpublished/unprojected state, `claim_status=stale`, or missing/stale publication, Tasks projection, compatibility handoff, or digest binding as Test Design recovery. In every such case, route to canonical `/sp.test-design`; do not route to Tasks or silently ignore the package.
-4. Allow `/sp.tasks` only when a selected/required root has an allowed non-stale claim, runtime status reports `handoff_freshness=current`, and the compatibility handoff's `state_revision`, `source_fingerprint`, and `artifact_digests` still match. Its Tasks projection must also pass `{{specify-subcmd:specify-runtime test-design projection-verify --feature-dir <feature-dir> --projection-ref <project-relative-ref> --expected-sha256 <sha256> --format json}}`. The verified projection and canonical Test Design remain read-only to Auto and Tasks. When decision is `not_selected` and no root exists, the optional default Plan-to-Tasks path remains legal.
+3. Route `selected` or `required` with no root to canonical `/sp.test-design`. For an existing root, do not bounce the user back to the same workflow: when status returns agent-owned `recovery_action`, execute its exact base_argv and continue Test Design in the same invocation. When `human_action_required=true`, preserve its guide and wait only for genuine authority evidence; never ask the user to repair state or re-invoke the workflow.
+4. After publication execute `projection_action`; execute every returned next_argv through projection verification and then the selected consumer. Do not ask the user to re-invoke Test Design or Tasks. Allow `/sp.tasks` only after the compatibility handoff and fresh Tasks projection both verify; for Plan/Quick/Review, return to that original consumer from projection verification.
 
 Project baseline is a separate scope. Inspect `.specify/test-design/` and run
 `{{specify-subcmd:specify-runtime test-design status --format json}}` only when
@@ -107,8 +113,10 @@ Inspect the available state surfaces in this order and prefer the most specific 
      `specify-runtime workflow reopen` with the current revision, reason, evidence, and complete
      invalidated-artifact set when that evidence is sufficient. A mapped stage
      already active resumes its owner; the same completed stage is reactivated
-     through reopen. Otherwise route to analyze or the current owner to produce
-     a valid reopen decision.
+     through reopen. If the current later stage is blocked, consume the returned
+     `pending_reopen_action` and keep the target workflow unenterable until its
+     real resolution evidence executes the atomic transaction. Otherwise route
+     to analyze or the current owner to produce a valid reopen decision.
 
 2. Active implementation execution state
 - Query `FEATURE_DIR/implement-tracker.md` and `workflow-state.md` through targeted `specify-runtime artifact show` calls.

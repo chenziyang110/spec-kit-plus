@@ -39,6 +39,8 @@ func runWork(args []string, stdout io.Writer) int {
 		return workCheckpoint(args[1:], stdout)
 	case "block":
 		return workTransition(args[1:], stdout, runcontrol.WorkBlocked)
+	case "unblock":
+		return workTransition(args[1:], stdout, runcontrol.WorkActive)
 	case "finish":
 		return workTransition(args[1:], stdout, runcontrol.WorkCompleted)
 	case "abandon":
@@ -77,7 +79,7 @@ func runBoard(args []string, stdout io.Writer) int {
 
 func writeWorkHelp(stdout io.Writer) int {
 	_, _ = fmt.Fprintln(stdout, "specify-runtime work commands:")
-	for _, command := range []string{"begin", "show", "claim", "scope-add", "checkpoint", "block", "finish", "abandon", "interrupt", "resume"} {
+	for _, command := range []string{"begin", "show", "claim", "scope-add", "checkpoint", "block", "unblock", "finish", "abandon", "interrupt", "resume"} {
 		_, _ = fmt.Fprintf(stdout, "  %s\n", command)
 	}
 	return 0
@@ -130,7 +132,7 @@ func workBegin(args []string, stdout io.Writer) int {
 	if baseCommit == "" {
 		baseCommit, _ = runcontrol.ReadHeadCommit(ctx, workspaceRoot)
 	}
-	store, err := runcontrol.Open(ctx, repository.DatabasePath)
+	store, err := runcontrol.OpenRepository(ctx, repository)
 	if err != nil {
 		return writeEnvelope(stdout, workBoardErrorEnvelope("open Work Board", err))
 	}
@@ -149,7 +151,9 @@ func workBegin(args []string, stdout io.Writer) int {
 	})
 	closeErr := store.Close()
 	if operationErr != nil {
-		return writeEnvelope(stdout, workBoardErrorEnvelope("begin work", operationErr))
+		env := workBoardErrorEnvelope("begin work", operationErr)
+		bindWorkIntentConflictRecovery(&env, operationErr, projectRoot)
+		return writeEnvelope(stdout, env)
 	}
 	if closeErr != nil {
 		return writeEnvelope(stdout, workBoardErrorEnvelope("close Work Board", closeErr))
@@ -476,7 +480,7 @@ func workResume(args []string, stdout io.Writer) int {
 	if err != nil {
 		return writeEnvelope(stdout, workBoardErrorEnvelope("resolve Work Board repository", err))
 	}
-	store, err := runcontrol.Open(ctx, repository.DatabasePath)
+	store, err := runcontrol.OpenRepository(ctx, repository)
 	if err != nil {
 		return writeEnvelope(stdout, workBoardErrorEnvelope("open Work Board", err))
 	}
@@ -752,7 +756,7 @@ func boardFeatureBootstrap(args []string, stdout io.Writer) int {
 		baseCommit, _ = runcontrol.ReadHeadCommit(ctx, workspaceRoot)
 	}
 
-	store, err := runcontrol.Open(ctx, repository.DatabasePath)
+	store, err := runcontrol.OpenRepository(ctx, repository)
 	if err != nil {
 		return writeEnvelope(stdout, workBoardErrorEnvelope("open Work Board", err))
 	}
@@ -869,6 +873,10 @@ func workItemDTO(work runcontrol.WorkItem, intents []runcontrol.WriteIntent) map
 		"created_at_ms":   work.CreatedAtMS,
 		"updated_at_ms":   work.UpdatedAtMS,
 	}
+	if work.RecoveryHold {
+		payload["recovery_action"] = "resume_or_abandon_after_inspection"
+		payload["recovery_detail"] = "inspect preserved workspace changes, then resume or abandon this work"
+	}
 	if intents != nil {
 		projected := make([]any, 0, len(intents))
 		for _, intent := range intents {
@@ -926,6 +934,52 @@ func workBoardErrorEnvelope(action string, err error) Envelope {
 		env.Data["conflicts"] = items
 	}
 	return env
+}
+
+func bindWorkIntentConflictRecovery(env *Envelope, err error, projectRoot string) {
+	if env == nil {
+		return
+	}
+	var conflict *runcontrol.WorkIntentConflictError
+	if !errors.As(err, &conflict) || len(conflict.Conflicts) == 0 {
+		return
+	}
+	owner := conflict.Conflicts[0]
+	showArgv := workShowArgv(owner.OwnerWorkID, projectRoot)
+	recoveryCandidate := owner.OwnerStatus == runcontrol.WriteIntentRecovery
+	conflictingOwners := make([]any, 0, len(conflict.Conflicts))
+	seenOwners := map[string]bool{}
+	for _, item := range conflict.Conflicts {
+		ownerKey := item.OwnerWorkID + "\x00" + string(item.OwnerStatus)
+		if seenOwners[ownerKey] {
+			continue
+		}
+		seenOwners[ownerKey] = true
+		conflictingOwners = append(conflictingOwners, map[string]any{
+			"owner_work_id":            item.OwnerWorkID,
+			"owner_agent_id":           item.OwnerAgentID,
+			"owner_summary":            item.OwnerSummary,
+			"owner_intent_status":      item.OwnerStatus,
+			"agent_recovery_candidate": item.OwnerStatus == runcontrol.WriteIntentRecovery,
+		})
+	}
+	afterInspection := "wait-or-narrow-scope"
+	if recoveryCandidate {
+		afterInspection = "resume-or-abandon-after-inspection"
+	}
+	env.ShowArgv = showArgv
+	env.Data["resolution_action"] = map[string]any{
+		"kind":                                 "inspect-conflicting-work",
+		"owner_work_id":                        owner.OwnerWorkID,
+		"owner_intent_status":                  owner.OwnerStatus,
+		"agent_recovery_candidate":             recoveryCandidate,
+		"requires_owner_termination_evidence":  true,
+		"requires_preserved_change_inspection": true,
+		"base_argv":                            showArgv,
+		"after_inspection":                     afterInspection,
+		"conflicting_owners":                   conflictingOwners,
+		"all_conflicts_must_be_resolved":       true,
+	}
 }
 
 func workBoardUsageEnvelope(summary string) Envelope {

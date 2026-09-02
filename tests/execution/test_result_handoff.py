@@ -51,7 +51,7 @@ def test_describe_result_handoff_template_matches_supported_workflows() -> None:
     )
 
 
-def test_describe_result_submit_template_uses_inline_cli_channels() -> None:
+def test_describe_result_submit_template_uses_file_backed_cli_channels() -> None:
     assert "implement result-merge" in describe_result_submit_template(
         command_name="implement", integration_key="claude"
     )
@@ -83,7 +83,7 @@ def test_describe_result_submit_template_for_codex_stage_commands_uses_generic_r
     assert f"result submit --command {command_name}" in template
     assert "--feature-dir <feature-dir>" in template
     assert "--lane-id <lane-id>" in template
-    assert "--result-json '<inline-json>'" in template
+    assert "--result-json <inline-json|@path|->" in template
     assert "sp-teams submit-result" not in template
     assert "--result-file" not in template
 
