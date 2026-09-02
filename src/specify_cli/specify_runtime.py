@@ -137,6 +137,7 @@ REQUIRED_CAPABILITIES = (
     "design.adopt",
     "design.adoption",
     "design.change",
+    "design.direction-confirm",
     "design.diff",
     "design.impact",
     "design.export",

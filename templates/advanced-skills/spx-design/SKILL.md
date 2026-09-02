@@ -58,7 +58,8 @@ feasibility. Complete coverage IDs, `surface_bindings`, `action_bindings`,
 `asset_bindings`, business outcomes, side effects, final states, and the
 ready-safe unresolved-gap ledger are contract-completion work after
 direction-confirmed. A ready contract still has no material unresolved gap
-disguised as `retire` or a cosmetic exception.
+disguised as `retire` or a cosmetic exception. Required icon and image asset
+bindings retain `forbid-character-substitution`.
 
 Determine `delivery_context` before authoring: `design-first` when no
 planning-ready feature spec exists, `post-specify` when an exact planning-ready

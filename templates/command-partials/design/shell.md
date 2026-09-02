@@ -263,15 +263,15 @@ and never require a colon subskill or explicit mode argument.
 4. Use the professional reference package bundled with `sp-design`.
    During Stage 1, read
    `.specify/templates/ui-professional-skills/router.md` (source-tree fallback:
-   `templates/ui-professional-skills/router.md`) and resolve
-   only `domain_skill_id`, `style_skill_id`, `specialist_skill_ids`,
-   `matched_signals`, and `loaded_refs`; pass the actual project root to the
-   deterministic router and load only the selected one domain, zero-or-one
-   style, and zero-to-two specialist references. Also inspect live
+   `templates/ui-professional-skills/router.md`) and persist the Stage 1
+   `professional_skill_route` with only `domain_skill_id`, `style_skill_id`,
+   `specialist_skill_ids`, `matched_signals`, and `loaded_refs`; pass the actual
+   project root to the deterministic router and load only the selected one
+   domain, zero-or-one style, and zero-to-two specialist references. Also inspect live
    style/component feasibility blockers that could make the visual direction
    impossible or force a different profile. Mature Web inventory, resource
-   selection, deterministic `component_adoption_plan`, official-resource
-   refresh, `smoothness_acceptance_ids`, and performance budgets are
+   selection, deterministic `component_adoption_plan`, official-resource refresh,
+   `smoothness_acceptance_ids`, and performance budgets are
    contract-completion work after direction-confirmed unless one of them is
    directly needed to decide whether the proposed visual direction is feasible.
    Pass the resolved `style_authority` to the deterministic router.
