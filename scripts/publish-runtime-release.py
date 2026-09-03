@@ -26,6 +26,10 @@ CHECKSUM_NAME = "SHA256SUMS"
 PUBLIC_RELEASE_ASSETS = (*ALLOWED_BINARY_ASSETS, CHECKSUM_NAME)
 MIN_BINARY_SIZE = 1024
 GH_TIMEOUT_SECONDS = 60
+# Uploading five cross-platform binaries can exceed one minute on ordinary
+# residential or proxied connections. Keep that operation bounded separately
+# so read/check/edit commands still fail quickly.
+GH_UPLOAD_TIMEOUT_SECONDS = 600
 TAG_RE = re.compile(r"^v[0-9]+(\.[0-9]+){2}([-.][0-9A-Za-z.-]+)?$")
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -200,6 +204,11 @@ def run_gh(
     env["GH_TOKEN"] = token
     env["GITHUB_TOKEN"] = ""
     env["GH_DEBUG"] = ""
+    timeout = (
+        GH_UPLOAD_TIMEOUT_SECONDS
+        if args[:2] == ["release", "upload"]
+        else GH_TIMEOUT_SECONDS
+    )
     result = subprocess.run(
         ["gh", *args],
         env=env,
@@ -208,7 +217,7 @@ def run_gh(
         encoding="utf-8",
         errors="replace",
         check=False,
-        timeout=GH_TIMEOUT_SECONDS,
+        timeout=timeout,
     )
     if check and result.returncode != 0:
         raise PublishRuntimeReleaseError(

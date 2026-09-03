@@ -22,6 +22,13 @@ def _write_runtime(path: Path, marker: str) -> None:
     path.write_bytes(payload)
 
 
+def test_release_helper_allows_a_bounded_full_asset_upload_window() -> None:
+    module = _load_module()
+
+    assert module.GH_TIMEOUT_SECONDS == 60
+    assert 300 <= module.GH_UPLOAD_TIMEOUT_SECONDS <= 900
+
+
 def test_validate_local_assets_generates_sha256sums_and_rejects_extras(tmp_path: Path):
     module = _load_module()
     revision = "a" * 40
