@@ -112,7 +112,7 @@ class ClaudeIntegration(SkillsIntegration):
                     ],
                 },
                 {
-                    "matcher": "Bash",
+                    "matcher": "Bash|PowerShell",
                     "hooks": [
                         cls._hook_dispatch_hook("pre-tool-bash", script_type=script_type)
                     ],

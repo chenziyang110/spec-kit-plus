@@ -91,11 +91,11 @@ func runDiscussion(args []string, stdout io.Writer) int {
 	case "checkpoint":
 		changes, err := resolveDiscussionCheckpointInput(args, projectRoot, value)
 		if err != nil {
-			return writeEnvelope(stdout, scriptDomainError("discussion", err))
+			return writeEnvelope(stdout, discussionCheckpointError(slug, err))
 		}
 		encoded, err := json.Marshal(changes)
 		if err != nil {
-			return writeEnvelope(stdout, scriptDomainError("discussion", err))
+			return writeEnvelope(stdout, discussionCheckpointError(slug, err))
 		}
 		value = string(encoded)
 	case "validate-handoff":
@@ -161,6 +161,9 @@ func runDiscussion(args []string, stdout io.Writer) int {
 	}
 	env, err := service.run(mode, slug, value, includeAll)
 	if err != nil {
+		if mode == "checkpoint" {
+			return writeEnvelope(stdout, discussionCheckpointError(slug, err))
+		}
 		return writeEnvelope(stdout, scriptDomainError("discussion", err))
 	}
 	return writeEnvelope(stdout, env)
@@ -343,6 +346,29 @@ func scriptDomainError(domain string, err error) Envelope {
 	env.Blockers = append(env.Blockers, err.Error())
 	env.Data["error_code"] = code
 	bindRunControlStoreAccess(&env, err)
+	return env
+}
+
+func discussionCheckpointError(slug string, err error) Envelope {
+	env := scriptDomainError("discussion", err)
+	env.Data["checkpoint_saved"] = false
+	env.Data["pending_progress"] = "retain-in-memory"
+	if env.Status == "invalid" {
+		env.Data["recovery_kind"] = "inspect-schema-and-retry"
+		env.ShowArgv = []string{
+			"specify-runtime", "api", "schema", "discussion-checkpoint-input", "--format", "json",
+		}
+		return env
+	}
+
+	env.Data["recovery_kind"] = "resolve-session-and-retry"
+	env.NextArgv = []string{
+		"specify-runtime", "discussion", "resolve", "--intent", "continue",
+	}
+	if strings.TrimSpace(slug) != "" {
+		env.NextArgv = append(env.NextArgv, "--slug", slug)
+	}
+	env.NextArgv = append(env.NextArgv, "--format", "json")
 	return env
 }
 

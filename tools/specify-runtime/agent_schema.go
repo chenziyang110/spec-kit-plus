@@ -257,7 +257,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "writes-discussion-state-and-log"
 		capability["usage"] = "specify-runtime discussion checkpoint <slug> --expected-state-sha256 <resolved-state-sha256> --input-json <object|@path|-> [--summary <text>] [--phase <phase>] [--user-goal <text>] --format json"
 		capability["input_schema"] = "discussion-checkpoint-input"
-		capability["input_contract"] = "persists turn_packet semantic fields (user_goal, context_boundary, topic_ownership, confirmed_decisions, open_questions, current_recommendation, ...); unknown fields are rejected; --expected-state-sha256 comes from discussion resolve; --input-json accepts inline, @path, or - (PowerShell should prefer @path/stdin)"
+		capability["input_contract"] = "persists turn_packet semantic fields (user_goal, context_boundary, topic_ownership, confirmed_decisions, open_questions, current_recommendation, ...); unknown fields are rejected; --expected-state-sha256 comes from discussion resolve; execute the exact project-local launcher without drive-letter reconstruction; on PowerShell prefer in-memory stdin with --input-json - instead of placing a here-string after the flag; invalid input returns show_argv for the schema and stale state returns a slug-bound next_argv for resolve"
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "discussion-checkpoint-input", "--format", "json"}
 	case "discussion.write-handoff":
 		capability["side_effect"] = "writes-discussion-handoff"

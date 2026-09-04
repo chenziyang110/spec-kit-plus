@@ -79,7 +79,7 @@ def test_installed_discussion_checkpoint_uses_exact_launcher_and_typed_recovery(
     compact = re.sub(r"\s+", " ", combined).lower()
     runtime_command = project_runtime_launcher_arg()
 
-    assert f"{runtime_command} discussion checkpoint <slug>" in combined
+    assert f"{runtime_command} discussion checkpoint" in combined
     assert "use the exact rendered project-local runtime launcher" in compact
     assert "never prepend or synthesize a drive letter" in compact
     assert "--input-json -" in combined

@@ -80,6 +80,13 @@ TRANSCRIPT_READ_LIMIT_BYTES = 512 * 1024
 TRANSCRIPT_LINE_LIMIT = 2000
 SHARED_HOOK_PAYLOAD_STATUSES = {"ok", "warn", "blocked", "repaired", "repairable-block"}
 SHARED_HOOK_BLOCKING_PAYLOAD_STATUSES = {"blocked", "repairable-block"}
+DRIVE_RELATIVE_SPECIFY_RUNTIME_RE = re.compile(
+    r"(?<![A-Za-z0-9_])"
+    r"(?P<path>[A-Za-z]:(?![\\/])(?:\.[\\/])?\.specify[\\/]bin[\\/]"
+    r"specify-runtime(?:\.exe)?)"
+    r"(?=$|[\s'\"`])",
+    re.IGNORECASE,
+)
 RUNTIME_OWNED_HOOK_SUBCOMMANDS = frozenset(
     {"validate-artifacts", "validate-commit", "validate-state"}
 )
@@ -1513,10 +1520,27 @@ def _handle_pre_tool_write(
 def _handle_pre_tool_bash(
     project_root: Path, payload: dict[str, Any]
 ) -> dict[str, Any] | None:
-    if _extract_tool_name(payload) != "Bash":
+    if _extract_tool_name(payload) not in {"Bash", "PowerShell"}:
         return None
-    context = _infer_active_context(project_root)
     command = str(_extract_tool_input(payload).get("command") or "").strip()
+    malformed_runtime = DRIVE_RELATIVE_SPECIFY_RUNTIME_RE.search(command)
+    if malformed_runtime:
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": (
+                    "Blocked a drive-relative Specify runtime path "
+                    f"`{malformed_runtime.group('path')}`. Run the command from "
+                    "the project root with the exact project-local launcher "
+                    "`.\\.specify\\bin\\specify-runtime.exe`; never prepend or "
+                    "synthesize a drive letter. This command did not run, so any "
+                    "requested checkpoint was not saved. Retry the same operation "
+                    "with the corrected launcher."
+                ),
+            }
+        }
+    context = _infer_active_context(project_root)
     policy_shared = _workflow_policy_shared(project_root, context, trigger="pre_tool")
     policy_output = _shared_to_claude_output(
         hook_event_name="PreToolUse", shared_payload=policy_shared

@@ -71,13 +71,41 @@ approval, or permission to widen scope. Without the prefix, continue normally
 unless another existing save trigger fires. Preserve standalone and legacy
 explicit save requests, including `save checkpoint` and `checkpoint, continue`.
 
-For the save, pass the compact semantic delta to `specify-runtime discussion checkpoint` with the resolver-returned `--expected-state-sha256` and `--input-json` (inline, `@path`, or `-` for stdin). The payload may include `summary`, `lifecycle_phase`/`phase`, `user_goal`, `context_boundary`, `confirmed_decisions`, `open_questions`, `current_recommendation`, and the other accepted turn_packet fields. The runtime persists those fields into `discussion-state.json` / `turn_packet` and appends `discussion-log.jsonl`; unknown fields are rejected instead of silently dropped. Expand the live schema with `specify-runtime api schema discussion-checkpoint-input --format json`. On Windows PowerShell, prefer `@path` or stdin because inline JSON quoting often strips double quotes. Never mutate those files directly.
+For the save, pass the compact semantic delta through the exact rendered command
+`{{specify-subcmd:specify-runtime discussion checkpoint <slug> --expected-state-sha256 <state_sha256> --input-json - --format json}}`.
+Use the exact rendered project-local runtime launcher at the start of that
+command. Never prepend or synthesize a drive letter, rebuild the launcher from
+the current directory, or replace it with an absolute path guessed by the
+agent. Run it from the project root. On Windows PowerShell, keep the payload in
+memory and pipe it to the command's stdin with `--input-json -`; do not place a
+PowerShell here-string directly after `--input-json`, and do not create a
+temporary authoring file only for transport.
 
-If saving fails, use the existing resolver/recovery guards, do not claim it was
-saved, and retain pending progress in memory. Continue answering the body where
-safe while reporting the save as pending; do not ask for routine confirmation
-just because the message included the optional prefix. A missing or ambiguous
-session still requires the existing identity guard before any durable write.
+The payload may include `summary`, `lifecycle_phase`/`phase`, `user_goal`,
+`context_boundary`, `confirmed_decisions`, `open_questions`,
+`current_recommendation`, and the other accepted turn_packet fields. Before the
+first checkpoint payload in a session, or whenever the field shape is uncertain,
+expand the live schema with
+`{{specify-subcmd:specify-runtime api schema discussion-checkpoint-input --format json}}`
+and obey it exactly instead of guessing object shapes. The runtime persists
+accepted fields into `discussion-state.json` / `turn_packet` and appends
+`discussion-log.jsonl`; unknown fields are rejected instead of silently
+dropped. Never mutate those files directly.
+
+If saving fails, no durable checkpoint exists. Do not dismiss the failure as
+harmless, claim it was saved, or cross a semantic, handoff, or lifecycle boundary
+that depends on the checkpoint. Retain pending progress in memory and perform
+one typed recovery before replying: for a path or executable lookup failure,
+retry the exact rendered launcher from the project root without varying path
+syntax; for invalid input, inspect returned `show_argv` or the live
+`discussion-checkpoint-input` schema and retry the corrected payload; for stale
+state, execute the returned slug-bound `next_argv`/resolve action and retry with
+its fresh digest. If that contract-correct retry still fails, report the save as
+pending with the exact blocker. A standalone `checkpoint` has no discussion body
+to continue, so stop there. With a prefixed ordinary body, only safe discussion
+that does not depend on the missing durable transition may continue, and the
+reply must keep the checkpoint visibly pending. A missing or ambiguous session
+still requires the existing identity guard before any durable write.
 
 ## Recovery Flow
 

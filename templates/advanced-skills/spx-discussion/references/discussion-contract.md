@@ -49,10 +49,31 @@ The prefix checkpoint excludes the new body until that body is processed.
 For a later write in the same turn, obtain a fresh resolver hash rather than
 reusing the pre-checkpoint hash; do not repeat the prefix save at reply closeout.
 Apply topic ownership, decision classification, and any handoff approval gates
-to the body independently; the prefix grants none of those permissions. If
-checkpointing fails, apply resolver/recovery guards, keep progress pending,
-and do not claim success. Continue safe discussion of the body without a routine
-confirmation round; ambiguous session identity still blocks durable writes.
+to the body independently; the prefix grants none of those permissions.
+
+Save through the exact rendered command
+`{{specify-subcmd:specify-runtime discussion checkpoint <slug> --expected-state-sha256 <state_sha256> --input-json - --format json}}`.
+Use the exact rendered project-local runtime launcher at the start of that
+command. Never prepend or synthesize a drive letter, rebuild the launcher from
+the current directory, or substitute an agent-guessed absolute path. Run it
+from the project root. On Windows PowerShell, keep the JSON in memory and pipe
+it to stdin with `--input-json -`; do not place a PowerShell here-string directly
+after `--input-json`. Before the first payload in a session, or whenever its
+shape is uncertain, inspect
+`{{specify-subcmd:specify-runtime api schema discussion-checkpoint-input --format json}}`
+and obey the live field types rather than inventing objects.
+
+If checkpointing fails, no durable checkpoint exists. Do not dismiss the
+failure as harmless or cross a semantic, handoff, or lifecycle boundary that
+depends on it. Keep progress pending and perform one typed recovery: retry the
+exact rendered launcher from the project root for a path or executable lookup
+failure; use returned `show_argv`/the live schema for invalid input; use the
+slug-bound `next_argv`/resolve action for stale state. Retry once with the
+corrected contract. If that retry still fails, report the exact pending blocker.
+A standalone `checkpoint` has no discussion body to continue, so stop there.
+For a prefixed ordinary body, only safe discussion independent of the missing
+durable transition may continue, with the checkpoint visibly pending. Ambiguous
+session identity still blocks durable writes.
 
 ## Discussion ownership and handoff
 
