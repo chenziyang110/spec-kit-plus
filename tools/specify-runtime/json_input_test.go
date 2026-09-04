@@ -147,7 +147,9 @@ func TestFormatJSONObjectErrorHintsPowerShellQuoting(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected decode error")
 	}
-	if !strings.Contains(err.Error(), "PowerShell") || !strings.Contains(err.Error(), "@payload.json") {
+	if !strings.Contains(err.Error(), "PowerShell") ||
+		!strings.Contains(err.Error(), "--input-json - with stdin") ||
+		!strings.Contains(strings.ToLower(err.Error()), "here-string") {
 		t.Fatalf("error = %v", err)
 	}
 }

@@ -590,6 +590,40 @@ func TestDiscussionCheckpointStaleStateReturnsResolveRecovery(t *testing.T) {
 	}
 }
 
+func TestDiscussionCheckpointArchivedDiscussionDoesNotAdvertiseResolveRetry(t *testing.T) {
+	root := t.TempDir()
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Archived Recovery", "Archived recovery"})
+	slug := env.Data["slug"].(string)
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "close", slug, "--status", "completed",
+	})
+	if env.Status != "ok" {
+		t.Fatalf("close discussion = %#v, want ok", env)
+	}
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "archive", slug,
+	})
+	if env.Status != "ok" {
+		t.Fatalf("archive discussion = %#v, want ok", env)
+	}
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "checkpoint", slug,
+		"--input-json", `{"summary":"should stay archived"}`,
+	})
+	if env.Status != "blocked" {
+		t.Fatalf("archived checkpoint = %#v, want blocked", env)
+	}
+	if recovery, _ := env.Data["recovery_kind"].(string); recovery == "resolve-session-and-retry" {
+		t.Fatalf("archived checkpoint recovery_kind = %q, want blocker-only recovery", recovery)
+	}
+	if len(env.NextArgv) != 0 {
+		t.Fatalf("archived checkpoint next argv = %#v, want no automatic resolve retry", env.NextArgv)
+	}
+}
+
 func TestDiscussionCheckpointRejectsStaleDigestAfterConcurrentWriterCommits(t *testing.T) {
 	root := t.TempDir()
 	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Serialized Checkpoint", "Serialized checkpoint"})
