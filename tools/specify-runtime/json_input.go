@@ -217,7 +217,7 @@ func formatJSONObjectError(label string, err error, raw []byte) error {
 	// {k:v} or bare tokens; surface a Windows-safe recovery path.
 	if strings.Contains(err.Error(), "invalid character") ||
 		(strings.HasPrefix(trimmed, "{") && !strings.Contains(trimmed, `"`) && strings.Contains(trimmed, ":")) {
-		hint = "; if you are in PowerShell/Windows, prefer --input-json @payload.json or --input-json - with stdin (inline single-quoted JSON often loses double quotes)"
+		hint = "; if you are in PowerShell/Windows, prefer --input-json - with stdin, or an existing project file via @path; do not place a here-string directly after --input-json, and remember inline single-quoted JSON often loses double quotes"
 	}
 	return fmt.Errorf("%s input must be a JSON object: %w%s", label, err, hint)
 }

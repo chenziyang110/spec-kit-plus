@@ -361,15 +361,30 @@ func discussionCheckpointError(slug string, err error) Envelope {
 		return env
 	}
 
-	env.Data["recovery_kind"] = "resolve-session-and-retry"
-	env.NextArgv = []string{
-		"specify-runtime", "discussion", "resolve", "--intent", "continue",
+	if discussionCheckpointNeedsResolveRetry(err) {
+		env.Data["recovery_kind"] = "resolve-session-and-retry"
+		env.NextArgv = []string{
+			"specify-runtime", "discussion", "resolve", "--intent", "continue",
+		}
+		if strings.TrimSpace(slug) != "" {
+			env.NextArgv = append(env.NextArgv, "--slug", slug)
+		}
+		env.NextArgv = append(env.NextArgv, "--format", "json")
+		return env
 	}
-	if strings.TrimSpace(slug) != "" {
-		env.NextArgv = append(env.NextArgv, "--slug", slug)
-	}
-	env.NextArgv = append(env.NextArgv, "--format", "json")
+
+	env.Data["recovery_kind"] = "report-blocker"
 	return env
+}
+
+func discussionCheckpointNeedsResolveRetry(err error) bool {
+	if err == nil {
+		return false
+	}
+	text := strings.ToLower(err.Error())
+	return strings.Contains(text, "discussion focus binding is stale") ||
+		strings.Contains(text, "state_sha256") ||
+		strings.Contains(text, "--expected-state-sha256 from discussion resolve or resume")
 }
 
 func positionalArg(args []string, index int, fallback string) string {
