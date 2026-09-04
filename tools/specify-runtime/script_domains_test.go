@@ -549,6 +549,47 @@ func TestDiscussionCheckpointRequiresExpectedStateSHAWhenMultipleDiscussionsAreI
 	}
 }
 
+func TestDiscussionCheckpointInvalidInputReturnsSchemaRecovery(t *testing.T) {
+	root := t.TempDir()
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Input Recovery", "Input recovery"})
+	slug := env.Data["slug"].(string)
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "checkpoint", slug,
+		"--input-json", `{"summary":`,
+	})
+	if env.Status != "invalid" {
+		t.Fatalf("invalid checkpoint input = %#v, want invalid", env)
+	}
+	if saved, ok := env.Data["checkpoint_saved"].(bool); !ok || saved {
+		t.Fatalf("invalid checkpoint saved marker = %#v, want false", env.Data)
+	}
+	if len(env.ShowArgv) < 6 || env.ShowArgv[1] != "api" || env.ShowArgv[2] != "schema" || env.ShowArgv[3] != "discussion-checkpoint-input" {
+		t.Fatalf("invalid checkpoint show argv = %#v, want checkpoint schema recovery", env.ShowArgv)
+	}
+}
+
+func TestDiscussionCheckpointStaleStateReturnsResolveRecovery(t *testing.T) {
+	root := t.TempDir()
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "State Recovery", "State recovery"})
+	slug := env.Data["slug"].(string)
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "checkpoint", slug,
+		"--expected-state-sha256", strings.Repeat("f", 64),
+		"--input-json", `{"summary":"stale"}`,
+	})
+	if env.Status != "blocked" {
+		t.Fatalf("stale checkpoint = %#v, want blocked", env)
+	}
+	if saved, ok := env.Data["checkpoint_saved"].(bool); !ok || saved {
+		t.Fatalf("stale checkpoint saved marker = %#v, want false", env.Data)
+	}
+	if len(env.NextArgv) < 8 || env.NextArgv[1] != "discussion" || env.NextArgv[2] != "resolve" || optionValue(env.NextArgv, "--slug", "") != slug {
+		t.Fatalf("stale checkpoint next argv = %#v, want slug-bound resolve recovery", env.NextArgv)
+	}
+}
+
 func TestDiscussionCheckpointRejectsStaleDigestAfterConcurrentWriterCommits(t *testing.T) {
 	root := t.TempDir()
 	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Serialized Checkpoint", "Serialized checkpoint"})

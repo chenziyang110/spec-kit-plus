@@ -214,6 +214,57 @@ def test_claude_commit_hook_binds_checkpoint_intent_to_active_blocked_feature(
     ]
 
 
+def test_claude_powershell_hook_blocks_drive_relative_runtime_path(
+    tmp_path, monkeypatch
+):
+    module = _load_claude_hook_dispatch_module()
+    monkeypatch.setattr(module, "_workflow_policy_shared", lambda *_args, **_kwargs: {})
+
+    output = module._handle_pre_tool_bash(
+        tmp_path,
+        {
+            "tool_name": "PowerShell",
+            "tool_input": {
+                "command": (
+                    "F:.specify\\bin\\specify-runtime.exe discussion checkpoint "
+                    "demo --input-json -"
+                )
+            },
+        },
+    )
+
+    hook_output = output["hookSpecificOutput"]
+    assert hook_output["hookEventName"] == "PreToolUse"
+    assert hook_output["permissionDecision"] == "deny"
+    reason = hook_output["permissionDecisionReason"]
+    assert "drive-relative" in reason
+    assert ".\\.specify\\bin\\specify-runtime.exe" in reason
+    assert "project root" in reason
+    assert "checkpoint was not saved" in reason
+
+
+def test_claude_powershell_hook_allows_absolute_project_runtime_path(
+    tmp_path, monkeypatch
+):
+    module = _load_claude_hook_dispatch_module()
+    monkeypatch.setattr(module, "_workflow_policy_shared", lambda *_args, **_kwargs: {})
+
+    output = module._handle_pre_tool_bash(
+        tmp_path,
+        {
+            "tool_name": "PowerShell",
+            "tool_input": {
+                "command": (
+                    "& 'F:\\repo\\.specify\\bin\\specify-runtime.exe' "
+                    "discussion checkpoint demo --input-json -"
+                )
+            },
+        },
+    )
+
+    assert output is None
+
+
 def test_claude_hook_infers_map_update_active_context(tmp_path):
     module = _load_claude_hook_dispatch_module()
     project_root = tmp_path / "claude-hook-map-update"
@@ -713,6 +764,10 @@ class TestClaudeIntegration:
         assert "hooks" in payload
         assert "UserPromptSubmit" in payload["hooks"]
         assert "PreToolUse" in payload["hooks"]
+        assert any(
+            entry.get("matcher") == "Bash|PowerShell"
+            for entry in payload["hooks"]["PreToolUse"]
+        )
 
         managed_hooks = [
             hook

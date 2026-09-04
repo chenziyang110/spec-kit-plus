@@ -7,6 +7,8 @@ import pytest
 from specify_cli import _render_spec_kit_managed_block
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
+from specify_cli.launcher import write_runtime_launcher_config
+from specify_cli.specify_runtime import project_runtime_launcher_arg
 from tests.template_utils import read_skill_with_references
 
 
@@ -55,3 +57,35 @@ def test_bootstrap_guidance_does_not_turn_reminder_into_a_save_gate(tmp_path):
     block = _render_spec_kit_managed_block(project_root=tmp_path, newline="\n")
     _assert_prefix_contract(block)
     assert "semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions" in block
+
+
+@pytest.mark.parametrize("agent", ["codex", "claude"])
+@pytest.mark.parametrize("profile", ["classic", "advanced"])
+def test_installed_discussion_checkpoint_uses_exact_launcher_and_typed_recovery(
+    tmp_path, agent, profile
+):
+    project = tmp_path / f"{agent}-{profile}-runtime"
+    project.mkdir()
+    runtime_source = tmp_path / f"{agent}-{profile}-specify-runtime.exe"
+    runtime_source.write_bytes(b"runtime fixture")
+    write_runtime_launcher_config(project, runtime_source)
+
+    integration = get_integration(agent)
+    manifest = IntegrationManifest(agent, project)
+    integration.setup(project, manifest, parsed_options={"workflow_profile": profile})
+    name = "sp-discussion" if profile == "classic" else "spx-discussion"
+    skill = integration.skills_dest(project) / name / "SKILL.md"
+    combined = read_skill_with_references(skill)
+    compact = re.sub(r"\s+", " ", combined).lower()
+    runtime_command = project_runtime_launcher_arg()
+
+    assert f"{runtime_command} discussion checkpoint <slug>" in combined
+    assert "use the exact rendered project-local runtime launcher" in compact
+    assert "never prepend or synthesize a drive letter" in compact
+    assert "--input-json -" in combined
+    assert "do not place a powershell here-string directly after `--input-json`" in compact
+    assert "retry the exact rendered launcher from the project root" in compact
+    assert "discussion-checkpoint-input" in combined
+    assert "standalone `checkpoint` has no discussion body to continue" in compact
+    assert "do not dismiss the failure as harmless" in compact
+    assert re.search(r"\b[a-z]:\.specify[\\/]", combined, re.IGNORECASE) is None
