@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runcontrol"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/specvalidate"
 )
 
 var implementTaskTerminalStatuses = map[string]bool{"accepted": true, "deferred": true}
@@ -156,7 +157,14 @@ func buildImplementTaskPacket(root, feature, taskID string, index map[string]any
 	packet["bookkeeping_write_scope"] = stringsToAny(implementTaskBookkeepingScope(filepath.ToSlash(featureRef), taskID))
 	packet["forbidden_drift"] = stringsToAny(anyStringSlice(task["forbidden_drift"]))
 	packetAcceptanceRefs := mergeImplementTaskLists(task["acceptance_refs"], task["required_refs"])
-	if len(packetAcceptanceRefs) == 0 {
+	if specvalidate.HasSourceRequirementCoverage(index) {
+		packetAcceptanceRefs = mergeImplementTaskLists(task["acceptance_refs"])
+		requirementRefs, err := specvalidate.SourceRequirementRefsForTask(index, task)
+		if err != nil {
+			return nil, err
+		}
+		packet["source_requirement_refs"] = stringsToAny(requirementRefs)
+	} else if len(packetAcceptanceRefs) == 0 {
 		packetAcceptanceRefs = mergeImplementTaskLists(index["acceptance_refs"])
 	}
 	packet["acceptance_refs"] = packetAcceptanceRefs
@@ -753,6 +761,9 @@ func loadReadyImplementTaskIndex(root, feature string) (map[string]any, error) {
 	}
 	if index["status"] != "ready" {
 		return nil, fmt.Errorf("task-index.json must use version 2 with status ready")
+	}
+	if err := validateTaskControlSourceRequirements(feature, index); err != nil {
+		return nil, err
 	}
 	validateBinding := taskControlValidateTestDesignBinding
 	if implementTaskIndexExecutionStarted(index) {

@@ -3,6 +3,7 @@
   "status": "draft",
   "source_contract": "plan-contract.json",
   "source_revision": null,
+  "source_requirement_coverage": [],
   "test_design_handoff_ref": null,
   "test_design_handoff_sha256": null,
   "test_design_source_fingerprint": null,

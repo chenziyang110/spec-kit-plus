@@ -2,6 +2,7 @@
   "workflow": "discussion",
   "source": "templates/commands/discussion.md",
   "entries": [
+    {"kind": "evidence", "source_excerpt": "Atomic requirements and reverse review", "target": "templates/command-references/discussion/source-material-consumption.md"},
     {"kind": "consequence", "source_excerpt": "Senior Consequence Analysis Gate", "target": "templates/command-references/discussion/senior-consequence-analysis.md"},
     {"kind": "boundary", "source_excerpt": "Context Boundary Gate", "target": "templates/commands/discussion.md"},
     {"kind": "evidence", "source_excerpt": "verified_project_facts", "target": "templates/command-references/discussion/context-boundary-and-truth.md"},

@@ -3,6 +3,7 @@
   "status": "draft",
   "source_contract": null,
   "source_revision": null,
+  "source_requirement_coverage": [],
   "decision_digest_ref": null,
   "target_need": null,
   "scope": {

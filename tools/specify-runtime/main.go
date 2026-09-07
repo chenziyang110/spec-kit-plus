@@ -1297,10 +1297,12 @@ func defaultCapabilities() []string {
 		"discussion.close",
 		"discussion.confirm-handoff",
 		"discussion.init",
+		"discussion.import-material",
 		"discussion.list",
 		"discussion.mark-consumed",
 		"discussion.mark-ready",
 		"discussion.resolve",
+		"discussion.read-material",
 		"discussion.resume",
 		"discussion.status",
 		"discussion.validate-handoff",
@@ -1478,11 +1480,15 @@ func capabilitySummary(id string) string {
 	case "artifact.show-many":
 		return "Execute multiple bounded artifact reads in one compact envelope."
 	case "discussion.bind-consumer":
-		return "Bind a ready discussion digest into a runtime-owned feature compatibility pointer."
+		return "Pin a confirmed source with --intake before Spec compilation, or finalize its compiled coverage into a ready feature pointer."
 	case "discussion.resolve":
 		return "Resolve one explicit discussion focus or downstream consumer binding without guessing among parallel discussions."
 	case "discussion.checkpoint":
 		return "Persist a durable discussion checkpoint and semantic turn_packet fields."
+	case "discussion.import-material":
+		return "Import a complete UTF-8 source snapshot and derive bounded reading units."
+	case "discussion.read-material":
+		return "Return one complete source unit and atomically record its delivery receipt."
 	case "discussion.write-handoff":
 		return "Materialize the canonical discussion handoff contract from a semantic draft."
 	case "review.target-bind":

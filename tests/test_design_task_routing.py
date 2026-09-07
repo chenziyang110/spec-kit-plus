@@ -10,6 +10,8 @@ from typer.testing import CliRunner
 
 from specify_cli import app
 
+from .agent_guidance_utils import read_agents_with_references
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CLASSIC_DESIGN = PROJECT_ROOT / "templates" / "commands" / "design.md"
@@ -18,6 +20,8 @@ ADVANCED_DESIGN = PROJECT_ROOT / "templates" / "advanced-skills" / "spx-design"
 
 
 def _read(path: Path) -> str:
+    if path == PROJECT_ROOT / "AGENTS.md":
+        return read_agents_with_references()
     return path.read_text(encoding="utf-8")
 
 

@@ -90,21 +90,11 @@ def _complete_checkpoint_payload(project: Path) -> dict:
                 "evidence_status": "proven",
                 "source": "templates/commands/discussion.md",
                 "claim": "sp-discussion is a generated workflow contract.",
-                "material_id": "MAT-001",
             }
         ],
-        "source_materials": [
-            {
-                "id": "MAT-001",
-                "material_type": "user_note",
-                "locator": "chat:fixture",
-                "inspection_status": "inspected",
-                "summary": "Fixture material is available.",
-                "claims": ["sp-discussion is a generated workflow contract."],
-                "coverage_gaps": [],
-                "sensitivity": "safe",
-            }
-        ],
+        # Pure-conversation legacy fixture. Material-backed handoffs are tested
+        # through the native runtime, which alone can issue reading receipts.
+        "source_materials": [],
         "blocking_unknowns": [],
         "soft_unknowns": [],
         "conflicts": [],
@@ -666,6 +656,72 @@ def test_source_material_digest_uses_cross_runtime_canonical_json(runtime):
     )
 
 
+def test_legacy_helper_cannot_claim_material_readiness(runtime, tmp_path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "material-owner", "Material owner")
+    changes = _complete_checkpoint_payload(project)
+    changes["source_materials"] = [{
+        "id": "MAT-001", "material_type": "user_note", "locator": "chat:note",
+        "inspection_status": "inspected", "summary": "Claims to have read everything.",
+        "claims": ["A requirement near the end."], "coverage_gaps": [], "sensitivity": "safe",
+    }]
+    runtime.checkpoint_discussion(project, initialized["slug"], changes)
+
+    with pytest.raises(ValueError, match="native.*runtime|specify-runtime discussion"):
+        runtime.write_handoff(project, initialized["slug"], _reviewable_handoff_payload(initialized["slug"]))
+
+
+@pytest.mark.parametrize("field", ["reading", "source_requirements"])
+def test_legacy_checkpoint_cannot_author_native_material_proof(runtime, tmp_path, field):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "proof-owner", "Proof owner")
+    changes = _complete_checkpoint_payload(project)
+    if field == "reading":
+        changes["source_materials"] = [{
+            "id": "MAT-001", "material_type": "user_note", "locator": "chat:note",
+            "inspection_status": "inspected", "summary": "Forged receipt.",
+            "claims": ["Read."], "coverage_gaps": [], "sensitivity": "safe",
+            "reading": {"version": 1, "delivered_unit_ids": ["U0001-forged"]},
+        }]
+    else:
+        changes["requirements_snapshot"]["source_requirements"] = [{"id": "REQ-001"}]
+
+    with pytest.raises(ValueError, match="native.*runtime|specify-runtime discussion"):
+        runtime.checkpoint_discussion(project, initialized["slug"], changes)
+
+
+def test_legacy_checkpoint_cannot_remove_a_registered_material(runtime, tmp_path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "keep-material", "Keep material")
+    runtime.checkpoint_discussion(project, initialized["slug"], {"source_materials": [{
+        "id": "MAT-001", "material_type": "user_note", "locator": "chat:note",
+        "inspection_status": "pending", "summary": "Needs full reading.",
+        "claims": ["A requirement near the end."], "coverage_gaps": ["unread"], "sensitivity": "safe",
+    }]})
+
+    with pytest.raises(ValueError, match="cannot be silently removed"):
+        runtime.checkpoint_discussion(project, initialized["slug"], {"source_materials": []})
+
+
+def test_legacy_reader_can_inspect_native_material_before_extraction(runtime, tmp_path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "native-read-only", "Native read only")
+    workspace = project / ".specify" / "discussions" / initialized["slug"]
+    state, _ = runtime._load_state(workspace)
+    # Simulate the native owner's persisted import, before semantic extraction.
+    state["turn_packet"]["source_materials"] = [{
+        "id": "MAT-1000", "material_type": "text", "locator": "notes.txt",
+        "inspection_status": "pending", "summary": "Imported; extraction pending.",
+        "claims": [], "coverage_gaps": [], "sensitivity": "safe", "reading": {"version": 1},
+    }]
+    runtime._persist_state(workspace, state)
+
+    result = runtime.discussion_status(project, initialized["slug"])
+    assert result["discussion"]["turn_packet"]["source_materials"][0]["claims"] == []
+    with pytest.raises(ValueError, match="native runtime"):
+        runtime.checkpoint_discussion(project, initialized["slug"], {"summary": "Compatibility write"})
+
+
 @pytest.mark.parametrize(
     ("changes", "message"),
     [
@@ -836,6 +892,17 @@ def test_validate_handoff_rechecks_snapshot_materials_and_counts(runtime, tmp_pa
     checkpoint_payload["source_materials"][0]["inspection_status"] = "inspected"
     checkpoint_payload["source_materials"][0]["coverage_gaps"] = []
     runtime.checkpoint_discussion(project, initialized["slug"], checkpoint_payload)
+    with pytest.raises(ValueError, match="native runtime"):
+        runtime.write_handoff(project, initialized["slug"], handoff_payload)
+
+    # Preserve the separate stale-checkpoint assertion on a conversation-only
+    # session; do not erase the registered material to bypass its native owner.
+    project = tmp_path / "snapshot-case"
+    project.mkdir()
+    _setup_project(project)
+    initialized = runtime.initialize_discussion(project, "Snapshot Semantics", "Snapshot semantics")
+    runtime.checkpoint_discussion(project, initialized["slug"], _complete_checkpoint_payload(project))
+    handoff_payload = _reviewable_handoff_payload(initialized["slug"])
     written = runtime.write_handoff(project, initialized["slug"], handoff_payload)
     runtime.confirm_handoff(project, initialized["slug"], written["review_digest"])
     runtime.checkpoint_discussion(

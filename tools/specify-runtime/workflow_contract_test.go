@@ -305,7 +305,7 @@ func TestWorkflowArtifactGateUsesRuntimeOwnedValidation(t *testing.T) {
 		t.Fatal(entered)
 	}
 	writeHookArtifactFixture(t, projectRoot, featureRel, "spec.md", "# Feature Specification\n\n## Requirements\n\n- FR-001: Runtime gate.\n")
-	writeHookArtifactFixture(t, projectRoot, featureRel, "spec-contract.json", `{"schema_version":1,"status":"ready"}`+"\n")
+	writeHookArtifactFixture(t, projectRoot, featureRel, "spec-contract.json", validLightSpecContract+"\n")
 	writeHookArtifactFixture(t, projectRoot, featureRel, "workflow-state.md", "# Workflow State\n")
 
 	completed := service.CompleteStage(WorkflowCompleteStageRequest{FeatureDir: featureRel, ExpectedRevision: 1})
@@ -1324,7 +1324,7 @@ func writeHookArtifactFixture(t *testing.T, projectRoot, featureRel, relativePat
 func writeValidSpecifyGateArtifacts(t *testing.T, projectRoot, featureRel string) {
 	t.Helper()
 	writeHookArtifactFixture(t, projectRoot, featureRel, "spec.md", "# Feature Specification\n\n## Requirements\n\n- FR-001: Runtime validation.\n")
-	writeHookArtifactFixture(t, projectRoot, featureRel, "spec-contract.json", "{\"schema_version\":1,\"status\":\"ready\"}\n")
+	writeHookArtifactFixture(t, projectRoot, featureRel, "spec-contract.json", validLightSpecContract+"\n")
 	writeHookArtifactFixture(t, projectRoot, featureRel, "workflow-state.md", "# Workflow State\n")
 }
 
@@ -1332,15 +1332,19 @@ func writeSpecifyDesignGateRequiredArtifacts(t *testing.T, projectRoot, featureR
 	t.Helper()
 	writeHookArtifactFixture(t, projectRoot, featureRel, "spec.md", "# Feature Specification\n\n## Requirements\n\n- FR-001: Large UI change requires visual review before planning.\n")
 	specContract := map[string]any{
-		"version":                     1,
-		"status":                      "planning-ready",
-		"source_contract":             nil,
-		"source_revision":             nil,
-		"decision_digest_ref":         nil,
-		"target_need":                 "Freeze the approved UI direction before implementation planning.",
-		"scope":                       map[string]any{"in": []any{"ui redesign"}, "out": []any{}, "deferred": []any{}},
-		"constraints":                 []any{"Do not skip the design review loop."},
-		"acceptance_criteria":         []any{"Plan starts only after the current visual direction is adopted."},
+		"version":             1,
+		"status":              "planning-ready",
+		"source_contract":     nil,
+		"source_revision":     nil,
+		"decision_digest_ref": nil,
+		"target_need":         "Freeze the approved UI direction before implementation planning.",
+		"scope":               map[string]any{"in": []any{"ui redesign"}, "out": []any{}, "deferred": []any{}},
+		"constraints":         []any{"Do not skip the design review loop."},
+		"acceptance_criteria": []any{"Plan starts only after the current visual direction is adopted."},
+		"acceptance_coverage": []any{map[string]any{
+			"requirement_ref": "spec-contract.json#/scope/in/0",
+			"acceptance_ref":  "spec-contract.json#/acceptance_criteria/0",
+		}},
 		"decisions":                   []any{},
 		"semantic_delta":              []any{},
 		"capability_operations":       []any{},

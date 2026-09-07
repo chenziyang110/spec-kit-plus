@@ -73,10 +73,24 @@ func ValidateSpec(request SpecValidationRequest) Envelope {
 		env.Blockers = append(env.Blockers, "spec.md must include a Requirements section")
 	}
 	contractPath := filepath.Join(request.FeatureDir, "spec-contract.json")
-	if raw, err := os.ReadFile(contractPath); err == nil && !json.Valid(raw) {
-		env.Status = "blocked"
-		env.Summary = "spec validation is blocked"
-		env.Blockers = append(env.Blockers, "spec-contract.json is not valid JSON")
+	if raw, err := os.ReadFile(contractPath); err == nil {
+		var contract map[string]any
+		if err := json.Unmarshal(raw, &contract); err != nil || contract == nil {
+			env.Status = "blocked"
+			env.Summary = "spec validation is blocked"
+			env.Blockers = append(env.Blockers, "spec-contract.json is not a valid JSON object")
+		} else {
+			for _, check := range []func() error{
+				func() error { return specvalidate.ValidateAcceptanceCoverage(contract) },
+				func() error { return specvalidate.ValidateSourceRequirementCoverage(request.FeatureDir) },
+			} {
+				if err := check(); err != nil {
+					env.Status = "blocked"
+					env.Summary = "spec validation is blocked"
+					env.Blockers = append(env.Blockers, err.Error())
+				}
+			}
+		}
 	}
 	if env.Status == "blocked" {
 		env.NextArgv = []string{"specify-runtime", "validate", "spec", "--feature-dir", request.FeatureDir, "--tier", tier}

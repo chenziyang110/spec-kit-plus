@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/specvalidate"
 	internalvalidation "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/validation"
 	"gopkg.in/yaml.v3"
 )
@@ -594,6 +595,13 @@ func validatePlanContract(projectRoot, featurePath, featureRef string) error {
 	specRaw, err := os.ReadFile(specContractPath)
 	if err != nil {
 		if os.IsNotExist(err) {
+			bound, bindingErr := specvalidate.HasBoundDiscussionSource(featurePath)
+			if bindingErr != nil {
+				return bindingErr
+			}
+			if bound || specvalidate.HasSourceRequirementCoverage(payload) {
+				return fmt.Errorf("plan source_requirement_coverage requires its source spec-contract.json")
+			}
 			return nil
 		}
 		return fmt.Errorf("spec-contract.json is unavailable: %w", err)
@@ -601,6 +609,12 @@ func validatePlanContract(projectRoot, featurePath, featureRef string) error {
 	var specContract map[string]any
 	if err := json.Unmarshal(specRaw, &specContract); err != nil || specContract == nil {
 		return fmt.Errorf("spec-contract.json is malformed")
+	}
+	if err := specvalidate.ValidateSourceCoverageInheritance(specContract, payload); err != nil {
+		return fmt.Errorf("plan-contract.json: %w", err)
+	}
+	if err := specvalidate.ValidateSourceRequirementCoverage(featurePath); err != nil {
+		return err
 	}
 	rawCriteria, ok := specContract["acceptance_criteria"].([]any)
 	if !ok {

@@ -33,6 +33,31 @@ If validation fails, return `blocked_by_handoff_integrity` with field errors, sa
 
 Derive the feature description from `handoff_goal` and implementation target, not the path or slug. If the target root differs from the current project, stop before creating the feature in the wrong repository.
 
+## Source intent before compilation
+
+After the feature is created and `FEATURE_DIR` is known, but before compiling
+the Spec body or its requirement/acceptance mappings, bind the selected source:
+
+`{{specify-subcmd:specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --review-digest <review_digest> --intake --input-json '<transition-json>' --format json}}`
+
+Use the resolver's current digest and the existing transition input shape:
+`semantic_delta: []`, `required_refs: []`, `blockers: []`, `recovery: null`.
+The source must already be complete, user-confirmed, currently ready, and
+selected for `sp-specify`. Intake creates `brainstorming/handoff-to-specify.json`
+with `status: pending` and all five lineage fields: `discussion_slug`,
+`source_contract`, `review_digest`, `state_sha256`, `recommended_consumer`.
+This declares source intent; it cannot be consumed and does not claim that
+the specification is complete. No additional human approval is required.
+
+On resume, a matching pending intake is idempotent. Reuse an already-ready
+matching binding without running intake again: intake must not downgrade it.
+A different source/digest blocks instead of replacing the binding. The Agent
+must not delete this source pointer, clear its fields, or detach
+`spec-contract.json.source_contract` / `source_revision` to make validation pass.
+Keep the canonical source path and digest while compiling the complete
+`source_requirement_coverage`. If intake fails, stop before compilation and
+repair the exact binding rather than proceeding as an unbound direct request.
+
 ## Compile Mode
 
 A confirmed discussion contract enters compile mode:
@@ -56,6 +81,44 @@ Project cognition is advisory navigation. Reuse fresh upstream evidence; run a n
 
 Scaffold canonical `spec-contract.json` first with `specify-runtime artifact scaffold --kind spec-contract` and fill only targeted JSON pointers through fresh leased patches. Render `spec.md` and conditional views through their registered owners only when triggered content has independent value.
 
-When compile mode requires `brainstorming/handoff-to-specify.json`, pass only `semantic_delta`, `required_refs`, `blockers`, and `recovery` to `specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --review-digest <review_digest> --input-json '<transition-json>'` (inline JSON, `@path`, or `-` for stdin). The `review_digest` must come from the resolver for this slug, not from a later artifact scan. The runtime validates the ready source contract and binds its digest, status, selected `recommended_consumer`, source `state_sha256`, and next action; do not generate or patch the pointer directly. A create-feature scaffold with `status: pending` and null `discussion_slug` / `source_contract` / `review_digest` is unbound and may receive the first bind; a pointer already bound to a different discussion is rejected.
+After complete Spec compilation and normal self-review, upgrade the existing
+pending intake with `specify-runtime discussion bind-consumer <slug>
+--feature-dir <feature-dir> --review-digest <review_digest>
+--input-json '<transition-json>'` without --intake. Pass only `semantic_delta`,
+`required_refs`, `blockers`, and `recovery`; use the resolver's exact digest.
+Default binding retains strict compiled-Spec acceptance/source-coverage checks
+before recording ready consumption evidence. Do not author or patch the pointer
+directly, wait until this point for the first source-intent bind, or bypass the
+pending stage's declared source. A different already-bound source is rejected.
 
 After deterministic schema, acceptance-coverage, traceability, contradiction, and scope-preservation checks pass, record the single next route. Mark the source discussion consumed only after canonical spec output exists and passes review.
+## Source requirement coverage
+
+For material-backed intake, validate the ready Discussion source before
+compilation. Require complete runtime-owned `reading`, full unit delivery,
+`unit_dispositions`, and `agent_requirement_contract.source_requirements`.
+Old material records without reading receipts must return to Discussion for
+import and rereading; never infer full consumption from `inspected`, empty
+gaps, a summary, or an old ready flag. Pure conversation with no materials
+retains its existing path. This check adds no duplicate human confirmation.
+
+Set `spec-contract.json.source_contract` to the canonical discussion handoff
+path and `source_revision` to its exact `review_digest`. Populate
+`source_requirement_coverage` with exactly one row per upstream REQ, preserving
+`requirement_id` and `disposition`. Every `in_scope` row has non-empty
+`requirement_refs` to real values such as
+`spec-contract.json#/scope/in/0` or
+`spec-contract.json#/capability_operations/0`, and `acceptance_refs` to real
+`spec-contract.json#/acceptance_criteria/N` values. Inspect those referenced
+values and preserve the source rule's conditions, negations, permissions,
+exceptions, and observable acceptance; pointing at generic scope prose is not
+semantic coverage. Keep each mapping consistent with `acceptance_coverage`.
+
+For `context`, `deferred`, `out_of_scope`, and `duplicate`, retain the source
+ID/disposition with empty `requirement_refs` and `acceptance_refs`; a duplicate
+also preserves exact `duplicate_of`, resolving to an existing retained REQ
+without cycles. Decision sources, reasons, and reopen conditions remain bound
+in the upstream source ledger. An unresolved source rule blocks readiness.
+Never remove an upstream REQ to make the coverage count agree. Do not retell or
+reextract unchanged original sources: verify complete mappings by stable refs
+and return true omissions or interpretation conflicts to their owning phase.

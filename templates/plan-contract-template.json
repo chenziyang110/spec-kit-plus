@@ -3,6 +3,7 @@
   "status": "draft",
   "source_contract": "spec-contract.json",
   "source_revision": null,
+  "source_requirement_coverage": [],
   "semantic_delta": [],
   "intent": null,
   "complexity_level": null,

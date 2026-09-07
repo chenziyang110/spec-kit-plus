@@ -70,6 +70,8 @@ try {
         ($handshake -notmatch '"protocol_version":"specify-runtime\.v1"') -or
         ($handshake -notmatch '"api\.ensure"') -or
         ($handshake -notmatch '"api\.pack"') -or
+        ($handshake -notmatch '"discussion\.import-material"') -or
+        ($handshake -notmatch '"discussion\.read-material"') -or
         ($handshake -notmatch '"artifact\.catalog"') -or
         ($handshake -notmatch '"artifact\.checklist"') -or
         ($handshake -notmatch '"artifact\.delete"') -or

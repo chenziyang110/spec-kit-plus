@@ -96,13 +96,39 @@ ls -l scripts | grep .sh
 
 On Windows you will instead use the `.ps1` scripts (no chmod needed).
 
-## 6. Run Lint / Basic Checks (Add Your Own)
+## 6. Run Tests and Lint
 
-Currently no enforced lint config is bundled, but you can quickly sanity check importability:
+Install the test extra as shown above, then run the tests for the files you
+changed. The Python integration tests also build the Go runtime, so install Go
+using the version declared in `tools/specify-runtime/go.mod` before running them.
+CI reads that file to select its Go toolchain.
 
 ```bash
-python -c "import specify_cli; print('Import OK')"
+# Focused regression example
+uv run pytest tests/test_specify_runtime.py -q
+
+# Full Python regression, including integration and template contracts
+uv run --extra test pytest -q -n auto
+
+# Python lint checks enforced by CI
+uvx ruff check src/ --select E4,E7,E9,F
 ```
+
+Python integration tests build and exercise the runtime, but do not execute its
+native Go tests. Run those checks separately when changing runtime code. The
+runtime suite creates many temporary project paths; `-count=1` disables test
+result caching to run fresh tests and avoid expensive cached-input checks.
+Go's compilation cache remains enabled.
+
+```bash
+cd tools/specify-runtime
+go test -count=1 ./...
+go vet ./...
+cd ../..
+```
+
+Pull requests and pushes to `main` run both the Python checks and the native Go
+checks in `.github/workflows/test.yml`.
 
 ## 7. Build a Wheel Locally (Optional)
 

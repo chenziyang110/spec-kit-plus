@@ -7,10 +7,19 @@ import (
 	"testing"
 )
 
+const validLightSpecContract = `{
+  "version": 1,
+  "status": "planning-ready",
+  "scope": {"in": ["Validate a runtime specification"]},
+  "capability_operations": [],
+  "acceptance_criteria": ["The runtime rejects incomplete specifications"],
+  "acceptance_coverage": [{"requirement_ref": "spec-contract.json#/scope/in/0", "acceptance_ref": "spec-contract.json#/acceptance_criteria/0"}]
+}`
+
 func TestValidateSpecReturnsUnifiedSuccessEnvelope(t *testing.T) {
 	featureDir := t.TempDir()
 	writeTestFile(t, featureDir, "spec.md", "# Feature Specification\n\n## Requirements\n\n- FR-001: The runtime validates a specification.\n")
-	writeTestFile(t, featureDir, "spec-contract.json", `{"schema_version":1,"status":"ready"}`+"\n")
+	writeTestFile(t, featureDir, "spec-contract.json", validLightSpecContract+"\n")
 
 	result := ValidateSpec(SpecValidationRequest{
 		FeatureDir: featureDir,
@@ -66,7 +75,7 @@ func TestValidateSpecReturnsRepairableBlockForMissingCoreArtifacts(t *testing.T)
 func TestRunValidateSpecAcceptsFeatureDirAlias(t *testing.T) {
 	featureDir := t.TempDir()
 	writeTestFile(t, featureDir, "spec.md", "# Feature Specification\n\n## Requirements\n\n- FR-001: The runtime validates a specification.\n")
-	writeTestFile(t, featureDir, "spec-contract.json", `{"schema_version":1,"status":"ready"}`+"\n")
+	writeTestFile(t, featureDir, "spec-contract.json", validLightSpecContract+"\n")
 
 	var out bytes.Buffer
 	if code := runValidate([]string{"spec", "--feature-dir", featureDir, "--tier", "light", "--format", "json"}, &out); code != 0 {

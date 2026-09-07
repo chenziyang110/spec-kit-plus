@@ -1,4 +1,4 @@
-name: Test & Lint Python
+name: Test & Lint
 
 permissions:
   contents: read
@@ -43,8 +43,37 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Set up Go for runtime integration tests
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/specify-runtime/go.mod
+          cache-dependency-path: tools/specify-runtime/go.sum
+
       - name: Install dependencies
         run: uv sync --extra test
 
       - name: Run tests
         run: uv run pytest -n auto
+
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/specify-runtime
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/specify-runtime/go.mod
+          cache-dependency-path: tools/specify-runtime/go.sum
+
+      - name: Run native runtime tests
+        # Tests create many temporary project paths. Disable result caching to
+        # execute every run and avoid expensive cached-input checks.
+        run: go test -count=1 ./...
+
+      - name: Run Go static checks
+        run: go vet ./...

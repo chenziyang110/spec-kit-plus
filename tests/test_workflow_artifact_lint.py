@@ -470,6 +470,7 @@ def test_default_scan_includes_live_guidance_but_not_historical_design_records()
     assert ROOT / "scripts" / "powershell" / "update-agent-context.ps1" in paths
     assert ROOT / "docs" / "upgrade.md" in paths
     assert ROOT / "docs" / "design" in paths
+    assert ROOT / "docs" / "agent-guidance" in paths
     assert all("superpowers" not in path.parts for path in paths)
 
 
@@ -484,6 +485,34 @@ def test_direct_read_instruction_for_registered_artifact_is_reported(
 
     assert [item.operation for item in report.violations] == ["read"]
     assert report.violations[0].artifact_id == "task_index"
+
+
+@pytest.mark.parametrize(
+    ("instruction", "artifact_id", "operation"),
+    (
+        ("Write `task-index.json` directly.\n", "task_index", "write"),
+        (
+            "Run `specify workflow transition --to review --feature-dir <feature-dir>`.\n",
+            "legacy_python_runtime",
+            "invoke",
+        ),
+    ),
+)
+def test_default_scan_enforces_runtime_ownership_in_agent_guidance(
+    tmp_path: Path, instruction: str, artifact_id: str, operation: str
+) -> None:
+    prompt = tmp_path / "docs" / "agent-guidance" / "workflow-maintenance.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text(instruction, encoding="utf-8")
+    registry = load_workflow_artifact_registry(REGISTRY_PATH)
+
+    report = scan_workflow_artifact_instructions(
+        default_workflow_artifact_scan_paths(tmp_path), registry
+    )
+
+    assert [(item.artifact_id, item.operation) for item in report.violations] == [
+        (artifact_id, operation)
+    ]
 
 
 def test_later_cli_reference_does_not_excuse_an_earlier_raw_read(

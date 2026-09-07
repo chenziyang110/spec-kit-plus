@@ -52,7 +52,12 @@ PowerShell `-KeepCurrentBranch` and do not create or switch branches. Only for
 unchanged. Stop on any dry-run, reservation, or real-script failure, and require
 the real `FEATURE_DIR` to exactly match the dry-run value. An existing feature
 directory requires explicit resume. Keep the same scoped Work owner and
-existing artifact leases. Then create
+existing artifact leases. For selected Discussion intake, before compiling the
+Spec body, declare source intent using `discussion bind-consumer --intake`
+and the exact pending-binding contract in `references/discussion-handoff.md`.
+Do not wait for a completed Spec to make this first binding. Reuse a matching
+ready binding without downgrading it. Default binding upgrades the pending
+intent only after complete Spec compilation and self-review. After intake, create
 the authoritative `spec-contract.json` with `specify-runtime artifact scaffold --kind spec-contract`, then fill targeted JSON pointers through leased `artifact patch` calls. For a new project-facing
 view, use this Skill's compact `assets/spec.md` only as section guidance for the
 prerequisite-script-created `spec.md` skeleton: query it through `artifact show`

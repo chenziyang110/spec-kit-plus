@@ -12,6 +12,8 @@ func allChecks() []check {
 		{name: "required-artifacts", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkRequiredArtifacts},
 		{name: "workflow-state-readiness", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkWorkflowStateReadiness},
 		{name: "handoff-json-schema", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkHandoffJSONSchema},
+		{name: "acceptance-coverage", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkAcceptanceCoverage},
+		{name: "source-requirement-coverage", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkSourceRequirementCoverage},
 		{name: "planning-gate-ready", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkPlanningGateReady},
 		{name: "source-signal-disposition", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkSourceSignalDisposition},
 		{name: "must-preserve-coverage", tiers: []string{"light", "standard", "deep"}, severity: statusFail, run: checkMustPreserveCoverage},
@@ -153,10 +155,13 @@ func checkHandoffJSONSchema(a artifactSet) checkResult {
 		if !versionOK || version != 1 {
 			return checkResult{status: statusFail, message: "spec-contract version must be 1"}
 		}
-		for _, key := range []string{"constraints", "acceptance_criteria", "decisions", "semantic_delta", "capability_operations", "must_preserve_refs", "consequence_obligation_refs", "open_items"} {
+		for _, key := range []string{"constraints", "acceptance_criteria", "decisions", "semantic_delta", "must_preserve_refs", "consequence_obligation_refs", "open_items"} {
 			if _, ok := arrayValue(contract[key]); !ok {
 				return checkResult{status: statusFail, message: fmt.Sprintf("spec-contract %s must be an array", key)}
 			}
+		}
+		if _, ok := capabilityOperationCount(contract["capability_operations"]); !ok {
+			return checkResult{status: statusFail, message: "spec-contract capability_operations must be an array or object"}
 		}
 		for _, key := range []string{"scope", "design_contract", "context_capsule", "artifact_refs", "transition"} {
 			if _, ok := objectValue(contract[key]); !ok {
@@ -353,11 +358,11 @@ func checkSourceSignalDisposition(a artifactSet) checkResult {
 		if result.status != statusPass {
 			return result
 		}
-		operations, ok := arrayValue(contract["capability_operations"])
+		operations, ok := capabilityOperationCount(contract["capability_operations"])
 		if !ok {
-			return checkResult{status: statusFail, message: "spec-contract capability_operations must be an array"}
+			return checkResult{status: statusFail, message: "spec-contract capability_operations must be an array or object"}
 		}
-		return checkResult{status: statusPass, message: fmt.Sprintf("%d capability operations checked", len(operations))}
+		return checkResult{status: statusPass, message: fmt.Sprintf("%d capability operations checked", operations)}
 	}
 
 	handoff, result := parseHandoff(a)
@@ -704,11 +709,11 @@ func checkCapabilityTriage(a artifactSet) checkResult {
 		if result.status != statusPass {
 			return result
 		}
-		operations, ok := arrayValue(contract["capability_operations"])
+		operations, ok := capabilityOperationCount(contract["capability_operations"])
 		if !ok {
-			return checkResult{status: statusFail, message: "spec-contract capability_operations must be an array"}
+			return checkResult{status: statusFail, message: "spec-contract capability_operations must be an array or object"}
 		}
-		return checkResult{status: statusPass, message: fmt.Sprintf("%d canonical capability operations recorded", len(operations))}
+		return checkResult{status: statusPass, message: fmt.Sprintf("%d canonical capability operations recorded", operations)}
 	}
 
 	if a.spec == "" {

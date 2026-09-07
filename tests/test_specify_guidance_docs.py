@@ -1,11 +1,19 @@
 from pathlib import Path
 import re
 
+from .agent_guidance_utils import (
+    GUIDANCE_ROOT,
+    agent_guidance_reference_paths,
+    read_agents_with_references,
+)
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _read(rel_path: str) -> str:
+    if rel_path == "AGENTS.md":
+        return read_agents_with_references()
     return (PROJECT_ROOT / rel_path).read_text(encoding="utf-8")
 
 
@@ -20,12 +28,11 @@ def _paragraphs_with(content: str, marker: str) -> list[str]:
 
 
 def test_agents_declares_classic_and_advanced_profile_contract() -> None:
-    agents = _read("AGENTS.md")
-    section = _section(
-        agents,
-        "## Workflow Profile Contract: Classic vs Advanced",
-        "# AGENTS.md",
-    )
+    agents = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    profile_reference = (GUIDANCE_ROOT / "workflow-profiles.md").resolve()
+    assert profile_reference in agent_guidance_reference_paths()
+    section = profile_reference.read_text(encoding="utf-8")
+    assert "## Workflow Profile Contract: Classic vs Advanced" in section
     normalized = " ".join(section.split())
 
     assert agents.index("## Workflow Profile Contract: Classic vs Advanced") < (

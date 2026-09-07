@@ -302,6 +302,7 @@ def default_workflow_artifact_scan_paths(root: Path) -> list[Path]:
     if docs.is_dir():
         paths.extend(sorted(docs.glob("*.md")))
         paths.append(docs / "design")
+        paths.append(docs / "agent-guidance")
     return [path for path in paths if path.exists()]
 
 
@@ -721,6 +722,8 @@ def _is_agent_instruction_product_path(path: str) -> bool:
         or "/templates/" in normalized
         or normalized.startswith("src/specify_cli/integrations/")
         or "/src/specify_cli/integrations/" in normalized
+        or normalized.startswith("docs/agent-guidance/")
+        or "/docs/agent-guidance/" in normalized
         or normalized.endswith("/AGENTS.md")
         or normalized == "AGENTS.md"
         or normalized.endswith("/PROJECT-HANDBOOK.md")

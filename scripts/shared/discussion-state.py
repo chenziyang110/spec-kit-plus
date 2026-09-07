@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Typed, cross-platform state runtime for ``sp-discussion``."""
+"""Legacy discussion compatibility helpers; material evidence is Go-runtime-owned."""
 
 from __future__ import annotations
 
@@ -1173,6 +1173,38 @@ def _validate_checkpoint_semantics(changes: dict[str, Any]) -> None:
         raise ValueError("discussion checkpoint invalid semantic fields: " + "; ".join(errors))
 
 
+def _require_legacy_checkpoint_scope(packet: dict[str, Any], changes: dict[str, Any]) -> None:
+    """Do not let the compatibility writer bypass native reading/coverage checks."""
+    for value in (packet, changes):
+        requirements = value.get("requirements_snapshot")
+        native_requirements = isinstance(requirements, dict) and requirements.get("source_requirements")
+        materials = value.get("source_materials", [])
+        native_materials = isinstance(materials, list) and any(
+            isinstance(material, dict)
+            and any(field in material for field in ("reading", "unit_dispositions", "version_history"))
+            for material in materials
+        )
+        if native_requirements or native_materials:
+            raise ValueError(
+                "Material reading evidence and source requirements are owned by the native runtime; "
+                "use the project-local specify-runtime discussion checkpoint command."
+            )
+    if "source_materials" in changes:
+        previous = {
+            material.get("id") for material in packet.get("source_materials", [])
+            if isinstance(material, dict)
+        }
+        current = {
+            material.get("id") for material in changes["source_materials"]
+            if isinstance(material, dict)
+        }
+        if previous - current:
+            raise ValueError(
+                "Source materials cannot be silently removed; retain their IDs and use "
+                "specify-runtime discussion checkpoint for explicit source dispositions."
+            )
+
+
 def checkpoint_discussion(
     project_root: Path,
     slug: str,
@@ -1199,6 +1231,7 @@ def checkpoint_discussion(
     _validate_checkpoint_semantics(changes)
     state, _legacy = _load_state(workspace)
     _require_expected_state_sha256(project_root, workspace, expected_state_sha256)
+    _require_legacy_checkpoint_scope(state["turn_packet"], changes)
     phase = changes.get("lifecycle_phase", changes.get("phase", state["lifecycle_phase"]))
     if isinstance(phase, str):
         phase = phase.strip().lower()
@@ -1407,6 +1440,9 @@ def write_handoff(
     preflight_errors: list[dict[str, str]] = []
     _validate_handoff_fields(payload, slug, preflight_errors, "draft", state)
     if preflight_errors:
+        for error in preflight_errors:
+            if error["code"] == "source_materials_require_native_runtime":
+                raise ValueError(error["code"] + ": " + error["message"])
         raise ValueError(
             "discussion handoff draft is invalid: "
             + ", ".join(error["code"] for error in preflight_errors)
@@ -1694,6 +1730,16 @@ def _validate_handoff_fields(
     if not str(payload.get("handoff_goal") or "").strip():
         errors.append(_error("missing_handoff_goal", "handoff_goal is required"))
     _validate_requirements(payload.get("agent_requirement_contract"), errors)
+    requirements = payload.get("agent_requirement_contract")
+    if payload.get("source_materials") or (
+        isinstance(requirements, dict) and requirements.get("source_requirements")
+    ):
+        errors.append(_error(
+            "source_materials_require_native_runtime",
+            "Material-backed handoffs require native runtime reading and requirement coverage checks; "
+            "use the project-local specify-runtime discussion write-handoff / validate-handoff commands. "
+            "Legacy inspected flags do not prove complete consumption.",
+        ))
     _validate_implementation_target(payload.get("implementation_target"), errors)
     _validate_boundary(payload.get("context_boundary"), errors)
     _validate_object_list(
@@ -2038,7 +2084,7 @@ def _validate_source_materials(value: Any, coverage_status: Any, errors: list[di
         missing = sorted(SOURCE_MATERIAL_FIELDS - set(item))
         if missing:
             errors.append(_error("incomplete_source_materials_item", f"source_materials[{index}] missing {', '.join(missing)}"))
-        if not re.match(r"^MAT-[0-9]{3}$", str(item.get("id") or "")):
+        if not re.match(r"^MAT-[0-9]{3,}$", str(item.get("id") or "")):
             errors.append(_error("invalid_source_materials_id", f"source_materials[{index}].id must match MAT-###"))
         material_id = str(item.get("id") or "")
         if material_id in seen:
@@ -2047,7 +2093,11 @@ def _validate_source_materials(value: Any, coverage_status: Any, errors: list[di
         for field in ("material_type", "locator", "summary"):
             if not str(item.get(field) or "").strip():
                 errors.append(_error(f"empty_source_materials_{field}", f"source_materials[{index}].{field} must be non-empty"))
-        if not _is_non_empty_string_list(item.get("claims")) or not item.get("claims"):
+        extraction_pending = item.get("inspection_status") in {"pending", "unavailable"}
+        native_reading = isinstance(item.get("reading"), dict)
+        if not _is_non_empty_string_list(item.get("claims")) or (
+            not item.get("claims") and not extraction_pending and not native_reading
+        ):
             errors.append(_error("empty_source_materials_claims", f"source_materials[{index}].claims must not be empty"))
         if not _is_non_empty_string_list(item.get("coverage_gaps")):
             errors.append(_error("invalid_source_materials_coverage_gaps", f"source_materials[{index}].coverage_gaps must be an array of non-empty strings"))

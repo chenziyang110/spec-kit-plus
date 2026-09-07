@@ -19,6 +19,7 @@ import (
 
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/filelock"
 	runtimecmd "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/specvalidate"
 )
 
 func runDiscussion(args []string, stdout io.Writer) int {
@@ -32,6 +33,8 @@ func runDiscussion(args []string, stdout io.Writer) int {
 			"status",
 			"resume",
 			"checkpoint",
+			"import-material",
+			"read-material",
 			"validate-handoff",
 			"write-handoff",
 			"bind-consumer",
@@ -51,6 +54,10 @@ func runDiscussion(args []string, stdout io.Writer) int {
 			"usage":  "specify-runtime discussion write-handoff <slug> --expected-state-sha256 <sha256> --input-json <object|@path|->",
 			"schema": "specify-runtime api schema discussion-write-handoff-input --format json",
 		}
+		env.Data["bind_consumer"] = map[string]any{
+			"usage":  "specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --review-digest <digest> [--intake] --input-json <transition-fields>",
+			"intake": "pins the confirmed source as pending before specification compilation; default binding validates the compiled specification before becoming ready",
+		}
 		return writeEnvelope(stdout, env)
 	}
 	mode := positionalArg(args, 0, "list")
@@ -58,6 +65,8 @@ func runDiscussion(args []string, stdout io.Writer) int {
 	value := positionalArg(args, 2, "")
 	includeAll := hasFlag(args, "--all")
 	switch mode {
+	case "import-material", "read-material":
+		return runDiscussionMaterial(args, stdout, mode, slug, projectRoot)
 	case "init":
 		if hasFlag(args, "--slug") {
 			topic := slug
@@ -132,6 +141,7 @@ func runDiscussion(args []string, stdout io.Writer) int {
 		service := discussionService{
 			projectRoot:          projectRoot,
 			expectedReviewDigest: strings.TrimSpace(optionValue(args, "--review-digest", "")),
+			consumerIntake:       hasFlag(args, "--intake"),
 		}
 		var data map[string]any
 		err = service.withMutationLock("bind-consumer", slug, func() error {
@@ -558,6 +568,7 @@ type discussionService struct {
 	projectRoot          string
 	expectedStateSHA256  string
 	expectedReviewDigest string
+	consumerIntake       bool
 }
 
 var discussionMutationBarrierForTest func(mode, slug string)
@@ -701,40 +712,7 @@ func decodeDiscussionHandoffPayload(raw []byte) (map[string]any, error) {
 }
 
 // discussionCheckpointPacketKeys are turn_packet fields agents may update via checkpoint.
-var discussionCheckpointPacketKeys = []string{
-	"user_goal",
-	"turn_class",
-	"requirements_snapshot",
-	"implementation_target",
-	"source_evidence",
-	"source_materials",
-	"blocking_unknowns",
-	"soft_unknowns",
-	"conflicts",
-	"downstream_instructions",
-	"discussion_decision_digest",
-	"must_preserve",
-	"truth_pass_status",
-	"verified_project_facts",
-	"evidence_checked",
-	"advice_confidence",
-	"discussion_compass_status",
-	"next_discussion_paths",
-	"ui_discussion_status",
-	"design_context",
-	"artifact_refs",
-	"confirmed_decisions",
-	"changed_recommendations",
-	"context_boundary",
-	"verified_fact_refs",
-	"open_assumptions",
-	"open_questions",
-	"current_recommendation",
-	"allowed_actions",
-	"next_gate",
-	"current_decision_frame",
-	"topic_ownership",
-}
+var discussionCheckpointPacketKeys = specvalidate.DiscussionCheckpointFields()
 
 var discussionCheckpointMetaKeys = map[string]bool{
 	"summary":         true,
@@ -963,6 +941,9 @@ func validateDiscussionCheckpointSemantics(changes map[string]any) error {
 		if requirements == nil {
 			errors = append(errors, "requirements_snapshot must be an object")
 		} else {
+			if err := validateDiscussionSourceRequirementShapes(requirements); err != nil {
+				errors = append(errors, err.Error())
+			}
 			for _, field := range []string{"actors", "scenarios", "constraints", "success_criteria", "design_direction", "optimal_solution_approach", "non_goals"} {
 				if item, exists := requirements[field]; exists && !discussionNonEmptyStringArray(item) {
 					errors = append(errors, "requirements_snapshot."+field+" must be an array of non-empty strings")
@@ -1983,6 +1964,9 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 		packet = map[string]any{}
 		state["turn_packet"] = packet
 	}
+	if err := validateDiscussionMaterialCheckpoint(packet, changes); err != nil {
+		return nil, err
+	}
 	if value, exists := changes["topic_ownership"]; exists {
 		ownership, ownershipErr := normalizeDiscussionTopicOwnership(value, slug, stringValue(state["topic"]))
 		if ownershipErr != nil {
@@ -1999,6 +1983,9 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 			packet[key] = value
 			changedFields = append(changedFields, key)
 		}
+	}
+	if err := service.validateSourceReadCoverage(slug, packet, false); err != nil {
+		return nil, err
 	}
 	ts := nowUTCString()
 	eventID, err := randomHex(16)
@@ -2057,22 +2044,11 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 }
 
 func discussionSemanticSnapshot(packet map[string]any) map[string]any {
-	snapshot := map[string]any{}
-	controlFields := map[string]bool{"allowed_actions": true, "lifecycle_phase": true, "next_gate": true, "persistence_mode": true, "turn_class": true}
-	for _, key := range discussionCheckpointPacketKeys {
-		if controlFields[key] {
-			continue
-		}
-		if value, exists := packet[key]; exists {
-			snapshot[key] = cloneAny(value)
-		}
-	}
-	snapshot["discussion_slug"] = packet["discussion_slug"]
-	return snapshot
+	return specvalidate.DiscussionSemanticSnapshot(packet)
 }
 
 func discussionSnapshotDigest(snapshot map[string]any) (string, error) {
-	return discussionCanonicalDigest(snapshot)
+	return specvalidate.DiscussionSnapshotDigest(snapshot)
 }
 
 func discussionCanonicalDigest(value any) (string, error) {
@@ -2368,6 +2344,10 @@ func (service discussionService) bindConsumer(slug, featureDir string, input map
 		status = "blocked"
 		nextAction = "/sp.specify"
 	}
+	if service.consumerIntake {
+		status = "pending"
+		nextAction = "/sp.specify"
+	}
 	sourceContract := fmt.Sprintf(".specify/discussions/%s/handoff-to-specify.json", slug)
 	payload := map[string]any{
 		"version":              3,
@@ -2399,8 +2379,20 @@ func (service discussionService) bindConsumer(slug, featureDir string, input map
 				return nil, fmt.Errorf("feature consumer handoff is already bound to a different discussion contract")
 			}
 		}
+		if service.consumerIntake && existing["status"] == "ready" {
+			return nil, fmt.Errorf("intake cannot downgrade an already ready consumer binding")
+		}
 	} else if !errors.Is(statErr, os.ErrNotExist) {
 		return nil, fmt.Errorf("feature consumer handoff cannot be inspected: %w", statErr)
+	}
+	if !service.consumerIntake {
+		spec, err := readJSONMap(filepath.Join(featurePath, "spec-contract.json"))
+		if err != nil {
+			return nil, fmt.Errorf("consumer binding requires a compiled spec-contract.json: %w", err)
+		}
+		if err := specvalidate.ValidateSourceRequirementCoverageAgainstHandoff(spec, source); err != nil {
+			return nil, fmt.Errorf("compiled specification lost Discussion source requirements: %w", err)
+		}
 	}
 	if err := writeScriptJSONFile(target, payload); err != nil {
 		return nil, err
@@ -2437,11 +2429,7 @@ func isUnboundConsumerHandoff(existing map[string]any) bool {
 }
 
 func computeDiscussionReviewDigest(payload map[string]any) (string, error) {
-	protected := cloneAnyMap(payload)
-	for _, field := range []string{"review_digest", "status", "handoff_integrity", "updated_at", "quality_gate"} {
-		delete(protected, field)
-	}
-	return discussionCanonicalDigest(protected)
+	return specvalidate.DiscussionReviewDigest(payload)
 }
 
 func (service discussionService) validateHandoff(slug, mode string) (map[string]any, error) {
@@ -2505,6 +2493,9 @@ func (service discussionService) validateHandoffFields(payload map[string]any, s
 	validateDiscussionSourceEvidence(payload["source_evidence"], errors)
 	validateSourceEvidenceMaterialCoverage(payload["source_evidence"], payload["source_materials"], errors)
 	validateSourceMaterials(payload["source_materials"], payload["coverage_status"], errors)
+	if err := service.validateSourceReadCoverage(slug, payload, true); err != nil {
+		*errors = append(*errors, discussionError("incomplete_source_reading_or_requirements", err.Error()))
+	}
 	validateDiscussionMustPreserve(payload["must_preserve"], errors)
 	if len(listValue(payload["must_preserve"])) == 0 {
 		*errors = append(*errors, discussionError("empty_must_preserve", "Must-Preserve coverage is required"))
@@ -2826,7 +2817,7 @@ func validateSourceMaterials(value any, coverageStatus any, errors *[]map[string
 				*errors = append(*errors, discussionError("incomplete_source_materials_item", fmt.Sprintf("source_materials[%d] missing %s", index, field)))
 			}
 		}
-		if matched, _ := regexp.MatchString(`^MAT-[0-9]{3}$`, stringValue(material["id"])); !matched {
+		if matched, _ := regexp.MatchString(`^MAT-[0-9]{3,}$`, stringValue(material["id"])); !matched {
 			*errors = append(*errors, discussionError("invalid_source_materials_id", fmt.Sprintf("source_materials[%d].id must match MAT-###", index)))
 		}
 		id := stringValue(material["id"])
@@ -2839,8 +2830,8 @@ func validateSourceMaterials(value any, coverageStatus any, errors *[]map[string
 				*errors = append(*errors, discussionError("empty_source_materials_"+field, fmt.Sprintf("source_materials[%d].%s must be non-empty", index, field)))
 			}
 		}
-		if len(listValue(material["claims"])) == 0 || !discussionNonEmptyStringArray(material["claims"]) {
-			*errors = append(*errors, discussionError("empty_source_materials_claims", fmt.Sprintf("source_materials[%d].claims must not be empty", index)))
+		if !discussionNonEmptyStringArray(material["claims"]) {
+			*errors = append(*errors, discussionError("invalid_source_materials_claims", fmt.Sprintf("source_materials[%d].claims must be an array of non-empty strings", index)))
 		}
 		if gaps, ok := material["coverage_gaps"].([]any); !ok {
 			*errors = append(*errors, discussionError("invalid_source_materials_coverage_gaps", fmt.Sprintf("source_materials[%d].coverage_gaps must be an array of non-empty strings", index)))
@@ -3301,6 +3292,9 @@ func (service discussionService) currentReadyDiscussionLineage(workspace, slug s
 
 func (service discussionService) validateConsumerEvidence(slug, sourceContract, digest, recommendedConsumer, stateSHA, evidencePath string) error {
 	if strings.EqualFold(filepath.Ext(evidencePath), ".md") {
+		if recommendedConsumer != "sp-quick" {
+			return fmt.Errorf("formal discussion consumption requires the compiled specification and its JSON consumer binding, not Markdown Quick evidence")
+		}
 		raw, err := os.ReadFile(evidencePath)
 		if err != nil {
 			return err
@@ -3334,6 +3328,14 @@ func (service discussionService) validateConsumerEvidence(slug, sourceContract, 
 	sort.Strings(mismatched)
 	if len(mismatched) > 0 {
 		return fmt.Errorf("consumer evidence does not reference the reviewed discussion: %s", strings.Join(mismatched, ", "))
+	}
+	if recommendedConsumer == "sp-specify" {
+		if payload["status"] != "ready" {
+			return fmt.Errorf("formal consumer binding is not ready; finalize the compiled specification with bind-consumer before mark-consumed")
+		}
+		if err := specvalidate.ValidateSourceRequirementCoverage(filepath.Dir(filepath.Dir(evidencePath))); err != nil {
+			return fmt.Errorf("consumer specification source coverage is incomplete: %w", err)
+		}
 	}
 	return nil
 }

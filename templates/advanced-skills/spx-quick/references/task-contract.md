@@ -166,3 +166,23 @@ the user explicitly replaces direct delivery with a formal spec-first workflow.
 At closeout, `SUMMARY.md` records outcome, changed paths, verification actually
 run, skipped checks, residual risk, and recovery state. `STATUS.md` points to it
 and reaches `resolved` or `blocked` truthfully.
+## Complete source consumption for direct delivery
+
+A Discussion handoff with materials must pass the same ready validator before
+Quick inherits it: every original extent accounted for, complete runtime
+`reading`/unit delivery, complete `unit_dispositions`, and every
+`agent_requirement_contract.source_requirements` record explicitly disposed.
+Query the full source ledger through the canonical handoff binding and map all
+in-scope REQ IDs into the existing work-item outcomes and acceptance; preserve
+negations, conditions, permissions, exceptions, corrections, and source-backed
+non-goals/deferrals. Do not shrink source scope because delivery uses Quick.
+Undelivered, unmapped, stale, unavailable, or unresolved material is a readiness
+blocker even if an old summary, status, or size-based eligibility override says
+ready. Legacy materials without runtime reading receipts return to Discussion
+for import and rereading, never automatic promotion from a summary. Context-
+direct selection cannot bypass these source gates: a material-backed handoff
+uses full Quick intake. New original-source material or a changed rule requires
+source reconciliation in its owning Discussion before relying on its old
+binding. When no semantic delta exists, inherit the already confirmed digest
+without another user confirmation; only a real decision change uses the existing
+amendment gate. Pure conversation without materials retains normal Quick rules.

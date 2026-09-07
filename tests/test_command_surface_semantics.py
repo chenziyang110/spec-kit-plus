@@ -172,6 +172,15 @@ def test_passive_routing_skills_require_manual_entry_for_restricted_workflows(
 ) -> None:
     normalized = " ".join(read_template(template_path).lower().split())
 
+    if template_path in {
+        "templates/passive-skills/dispatching-parallel-agents/SKILL.md",
+        "templates/passive-skills/subagent-driven-development/SKILL.md",
+    }:
+        assert "passive skill invocation must not enter any `sp-*` or `spx-*` workflow" in normalized
+        assert "do not require a workflow command merely to continue ordinary development" in normalized
+        assert "never relabel active workflow work as ordinary development to bypass a gate" in normalized
+        return
+
     assert "recommend" in normalized
     assert (
         "user-invoked only" in normalized

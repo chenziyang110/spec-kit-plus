@@ -102,10 +102,15 @@ Use the shared discussion runtime to initialize state and render `discussion-sta
 - `route: continue_current` means the turn belongs to this discussion and may update this discussion's confirmed decisions, owned scope, checkpoint state, or handoff.
 - `route: branch_new` means the user introduced a separate topic that needs its own discussion. Offer or create a new slug only after explicit user direction, and do not copy that side-topic decision into the current `owned_scope` or handoff.
 - `route: link_existing` means the side topic belongs to another known discussion. Record the required `target_slug` and optional `source_digest` as a routed-topic reference; the current discussion remains the sole owner of its own handoff.
-- `route: defer` means the topic is acknowledged but intentionally not owned by this discussion yet. Keep it out of `agent_requirement_contract`, `downstream_instructions`, `must_preserve`, and `discussion_decision_digest` until the user routes it.
+- `route: defer` means the topic is acknowledged but intentionally not owned by this discussion yet. Keep it out of delivery scope, `downstream_instructions`, `must_preserve`, and `discussion_decision_digest` until the user routes it. Preserve already-recorded materials and source REQ IDs with their explicit dispositions for provenance; source accounting does not grant delivery authority.
 - A handoff must have a single owner: `topic_ownership.owner_slug` must equal the resolved slug. Cross-discussion context is reference-only through slug/source digest; never duplicate another discussion's decisions into this handoff as if they were owned here.
 
 ## Main Flow
+
+Read `references/source-material-consumption.md` whenever the user provides
+original material, before source-grounded synthesis or handoff. Complete its
+runtime-owned reading and per-requirement reverse review; a material summary or
+cognition's minimal read set does not satisfy this gate.
 
 1. Resolve or create the session through `discussion resolve --intent continue [--slug <slug>]`. Separate any explicit checkpoint prefix from the discussion body and save prior pending progress first, following the persistence reference and its state-hash guard. Then classify the remaining body with the Topic Ownership Gate.
 2. Run the Context Boundary Gate before project-specific technical advice.
@@ -126,6 +131,7 @@ Read [Reference index](references/INDEX.md) before applying detailed contracts.
 
 - [Senior consequence analysis](references/senior-consequence-analysis.md)
 - [Context boundary and truth](references/context-boundary-and-truth.md)
+- [Complete source material consumption](references/source-material-consumption.md)
 - [Persistence](references/frontstage-backstage-persistence.md)
 - [Question and advice contract](references/question-and-advice-contract.md)
 - [UI design intelligence](references/ui-design-intelligence.md)

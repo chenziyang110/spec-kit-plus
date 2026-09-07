@@ -94,6 +94,13 @@ Design Carry-Forward and handoff `discussion_decision_digest.design_context`—
 not chat-only prose.
 
 User-provided source material is first-class state, not incidental context.
+Apply `source-material-consumption.md` before using its claims: import full
+source text, deliver every exact runtime unit, extract atomic
+`requirements_snapshot.source_requirements`, and perform semantic reverse
+review. Evidence links and inspected labels alone cannot prove full coverage.
+Snapshot/delivery writes are necessary evidence-handoff events; ordinary
+replies retain deferred persistence. Runtime owns reading progress and inspected
+status; checkpoint only semantic unit/requirement dispositions.
 Documents, screenshots, recordings, pasted notes, links, and other supplied
 materials must be checkpointed in `source_materials` before their claims are
 used downstream. Use stable `MAT-###` IDs with `material_type`, `locator`,
@@ -102,8 +109,10 @@ used downstream. Use stable `MAT-###` IDs with `material_type`, `locator`,
 `sensitivity` (`safe`, `sanitized`, `restricted`), and optional
 `content_sha256`/`version_ref`. Restricted material stores only a safe reference
 or sanitized summary. `source_evidence[].material_id` must point to existing
-materials, and every material must have evidence coverage before handoff; partial
-or uncovered material remains visible as a blocker or explicit coverage gap.
+materials, and every material must have full runtime-unit delivery and
+unit/requirement coverage before handoff; partial or uncovered material remains
+blocked. Retain routed-topic materials/REQ IDs with explicit scope dispositions
+for accounting, without treating them as owned delivery scope.
 
 Use deterministic discussion helpers for lifecycle changes. A handoff is
 eligible only when its evidence exists, product boundaries are explicit,

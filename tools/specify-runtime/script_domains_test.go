@@ -867,6 +867,7 @@ func TestDiscussionBindConsumerWritesDerivedFeaturePointerAndEnablesConsumption(
 	featureRel := ".specify/features/2026-07-29-checkout"
 	feature := filepath.Join(root, filepath.FromSlash(featureRel))
 	mustMkdirAllScriptDomainTest(t, feature)
+	writeDiscussionConsumerSpecFixture(t, root, slug, feature)
 	input := `{"semantic_delta":[],"required_refs":["MP-001"],"blockers":[],"recovery":null}`
 	env = runScriptDomainEnvelope(t, runDiscussion, []string{
 		"--project-root", root, "bind-consumer", slug,
@@ -925,6 +926,7 @@ func TestDiscussionBindConsumerRequiresReviewDigestWhenMultipleReadySpecifyHando
 	createReadyDiscussionForConsumer(t, root, "Payment Capture", "sp-specify")
 	featureRel := ".specify/features/2026-08-22-payment-auth"
 	mustMkdirAllScriptDomainTest(t, filepath.Join(root, filepath.FromSlash(featureRel)))
+	writeDiscussionConsumerSpecFixture(t, root, firstSlug, filepath.Join(root, filepath.FromSlash(featureRel)))
 	input := `{"semantic_delta":[],"required_refs":["MP-001"],"blockers":[],"recovery":null}`
 
 	env := runScriptDomainEnvelope(t, runDiscussion, []string{
@@ -952,6 +954,7 @@ func TestDiscussionBindConsumerRequiresReviewDigestEvenForSingleReadySpecifyHand
 	slug, digest := createReadyDiscussionForConsumer(t, root, "Single Ready", "sp-specify")
 	featureRel := ".specify/features/2026-08-22-single-ready"
 	mustMkdirAllScriptDomainTest(t, filepath.Join(root, filepath.FromSlash(featureRel)))
+	writeDiscussionConsumerSpecFixture(t, root, slug, filepath.Join(root, filepath.FromSlash(featureRel)))
 	input := `{"semantic_delta":[],"required_refs":["MP-001"],"blockers":[],"recovery":null}`
 
 	env := runScriptDomainEnvelope(t, runDiscussion, []string{
@@ -1153,6 +1156,7 @@ func TestDiscussionBindConsumerOverwritesUnboundCreateFeatureScaffold(t *testing
 		"recovery":        nil,
 	}
 	mustWriteJSONScriptDomainTest(t, pointer, scaffold)
+	writeDiscussionConsumerSpecFixture(t, root, slug, feature)
 
 	env = runScriptDomainEnvelope(t, runDiscussion, []string{
 		"--project-root", root, "bind-consumer", slug,
@@ -1184,6 +1188,7 @@ func TestDiscussionMarkConsumedRejectsMismatchedFormalConsumerStateSHA(t *testin
 	featureRel := ".specify/features/2026-08-22-formal-state-sha"
 	feature := filepath.Join(root, filepath.FromSlash(featureRel))
 	mustMkdirAllScriptDomainTest(t, feature)
+	writeDiscussionConsumerSpecFixture(t, root, slug, feature)
 	input := `{"semantic_delta":[],"required_refs":["MP-001"],"blockers":[],"recovery":null}`
 	env := runScriptDomainEnvelope(t, runDiscussion, []string{
 		"--project-root", root, "bind-consumer", slug,
@@ -1215,6 +1220,7 @@ func TestDiscussionMarkConsumedRejectsMismatchedFormalConsumerRecommendation(t *
 	featureRel := ".specify/features/2026-08-22-formal-recommendation"
 	feature := filepath.Join(root, filepath.FromSlash(featureRel))
 	mustMkdirAllScriptDomainTest(t, feature)
+	writeDiscussionConsumerSpecFixture(t, root, slug, feature)
 	input := `{"semantic_delta":[],"required_refs":["MP-001"],"blockers":[],"recovery":null}`
 	env := runScriptDomainEnvelope(t, runDiscussion, []string{
 		"--project-root", root, "bind-consumer", slug,
@@ -1246,6 +1252,7 @@ func TestDiscussionMarkConsumedRejectsNotReadySourceHandoffAfterBinding(t *testi
 	featureRel := ".specify/features/2026-08-22-formal-source-drift"
 	feature := filepath.Join(root, filepath.FromSlash(featureRel))
 	mustMkdirAllScriptDomainTest(t, feature)
+	writeDiscussionConsumerSpecFixture(t, root, slug, feature)
 	input := `{"semantic_delta":[],"required_refs":["MP-001"],"blockers":[],"recovery":null}`
 	env := runScriptDomainEnvelope(t, runDiscussion, []string{
 		"--project-root", root, "bind-consumer", slug,
@@ -1277,6 +1284,7 @@ func TestDiscussionMarkConsumedRejectsMismatchedStateHandoffContractPath(t *test
 	featureRel := ".specify/features/2026-08-22-formal-contract-path"
 	feature := filepath.Join(root, filepath.FromSlash(featureRel))
 	mustMkdirAllScriptDomainTest(t, feature)
+	writeDiscussionConsumerSpecFixture(t, root, slug, feature)
 	input := `{"semantic_delta":[],"required_refs":["MP-001"],"blockers":[],"recovery":null}`
 	env := runScriptDomainEnvelope(t, runDiscussion, []string{
 		"--project-root", root, "bind-consumer", slug,
@@ -1545,6 +1553,7 @@ func TestDiscussionCheckpointPersistsCompleteSemanticSnapshotAndResume(t *testin
 		"design_context":             map[string]any{"ui_involved": true, "surface_type": "product-workspace"},
 		"artifact_refs":              []any{".specify/discussions/" + slug + "/discussion-state.json"},
 	}
+	prepareDiscussionMaterialFixture(t, root, slug, payload)
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatal(err)
@@ -1586,6 +1595,7 @@ func TestDiscussionHandoffDerivesFromCheckpointAndRejectsSnapshotDrift(t *testin
 	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Derived Handoff", "Derived handoff"})
 	slug := env.Data["slug"].(string)
 	semantic := discussionCompleteSemanticCheckpoint(root)
+	prepareDiscussionMaterialFixture(t, root, slug, semantic)
 	raw, err := json.Marshal(semantic)
 	if err != nil {
 		t.Fatal(err)
@@ -1653,6 +1663,7 @@ func TestDiscussionHandoffRejectsFakeZeroUnknownConflictCountsAndMaterialDigestT
 	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Count Tamper", "Count tamper"})
 	slug := env.Data["slug"].(string)
 	semantic := discussionCompleteSemanticCheckpoint(root)
+	prepareDiscussionMaterialFixture(t, root, slug, semantic)
 	semantic["blocking_unknowns"] = []any{map[string]any{"id": "UNK-001", "question": "Which gateway?", "owner": "user", "status": "open", "latest_resolve_phase": "prepare"}}
 	semantic["conflicts"] = []any{map[string]any{"id": "CON-001", "claim": "Gateway conflict", "status": "open"}}
 	raw, err := json.Marshal(semantic)
@@ -1821,6 +1832,7 @@ func checkpointDiscussionForHandoffFixture(t *testing.T, root, slug string, hand
 		"discussion_compass_status": "current",
 		"next_discussion_paths":     []any{"handoff review"},
 	}
+	prepareDiscussionMaterialFixture(t, root, slug, payload)
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatal(err)
@@ -2094,7 +2106,7 @@ func TestDiscussionCheckpointPersistsSemanticFieldsAndInputJSON(t *testing.T) {
 			"material_type":     "uploaded_note",
 			"locator":           "notes/checkout.md",
 			"summary":           "User supplied checkout abandonment notes.",
-			"inspection_status": "partial",
+			"inspection_status": "pending",
 			"claims":            []any{"Users need wallet and card options compared."},
 			"coverage_gaps":     []any{"No payment provider named yet."},
 			"sensitivity":       "safe",
@@ -2187,6 +2199,7 @@ func TestDiscussionCheckpointPersistsFullSemanticSnapshot(t *testing.T) {
 		"evidence_checked":           []any{"tools/specify-runtime/script_domains.go"},
 		"advice_confidence":          "high",
 	}
+	prepareDiscussionMaterialFixture(t, root, slug, payload)
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatal(err)

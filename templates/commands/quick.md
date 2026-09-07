@@ -14,6 +14,10 @@ workflow_contract:
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
+[AGENT] A material-backed Discussion handoff requires full Quick intake and
+`references/handoff-consumption.md`; context-direct cannot bypass complete
+source reading, requirement mapping, or the source readiness gate.
+
 [AGENT] Apply the Pre-Intake Context Sufficiency Gate first. The full Quick
 branch creates or resumes its task workspace in the current worktree. The
 explicit user-selected context-direct branch creates no Quick workspace; both

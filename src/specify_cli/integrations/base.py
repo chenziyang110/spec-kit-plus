@@ -3143,8 +3143,16 @@ class SkillsIntegration(IntegrationBase):
             else "$ARGUMENTS"
         )
         restored: list[Path] = []
+        runtime_snapshot: CapabilitySnapshot | None = None
 
-        def restore_file(source: Path, destination: Path, *, render: bool) -> None:
+        def restore_file(
+            source: Path,
+            destination: Path,
+            *,
+            render: bool,
+            native_subagent_command: str | None = None,
+        ) -> None:
+            nonlocal runtime_snapshot
             relative = (
                 destination.resolve().relative_to(project_root_resolved).as_posix()
             )
@@ -3161,6 +3169,14 @@ class SkillsIntegration(IntegrationBase):
                     project_root=project_root,
                 )
                 content = self.render_advanced_invocations(content)
+                if native_subagent_command is not None:
+                    if runtime_snapshot is None:
+                        runtime_snapshot = self.runtime_capability_snapshot()
+                    content = self._render_advanced_native_subagent_reference(
+                        content=content,
+                        command_name=native_subagent_command,
+                        snapshot=runtime_snapshot,
+                    )
                 restored.append(
                     self.write_file_and_record(
                         content,
@@ -3175,10 +3191,13 @@ class SkillsIntegration(IntegrationBase):
             restored.append(destination)
 
         shared_references = sorted((advanced_dir / "_shared").glob("*.md"))
+        for source in shared_references:
+            restore_file(source, skills_dir / "references" / source.name, render=True)
         for template_dir in self.list_advanced_skill_templates():
             skill_dir = skills_dir / template_dir.name
             if not (skill_dir / "SKILL.md").is_file():
                 continue
+            raw = (template_dir / "SKILL.md").read_text(encoding="utf-8")
             for source in sorted(template_dir.rglob("*")):
                 if source.is_file() and source.name != "SKILL.md":
                     relative = source.relative_to(template_dir)
@@ -3192,7 +3211,17 @@ class SkillsIntegration(IntegrationBase):
                     )
             for source in shared_references:
                 destination = skill_dir / "references" / source.name
-                restore_file(source, destination, render=True)
+                restore_file(
+                    source,
+                    destination,
+                    render=True,
+                    native_subagent_command=(
+                        template_dir.name.removeprefix("spx-")
+                        if source.name == "native-subagents.md"
+                        and "references/native-subagents.md" in raw
+                        else None
+                    ),
+                )
         return restored
 
     def _copy_supporting_passive_files(

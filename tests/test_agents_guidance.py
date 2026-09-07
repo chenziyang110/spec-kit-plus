@@ -1,10 +1,40 @@
 from pathlib import Path
 
+from .agent_guidance_utils import (
+    GUIDANCE_ROOT,
+    agent_guidance_reference_paths,
+    read_agents_with_references,
+)
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
-def test_root_agents_documents_current_managed_context_and_schema_v5_rules() -> None:
+def test_root_agents_routes_all_guidance_references() -> None:
+    content = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    references = agent_guidance_reference_paths()
+    unmanaged = content.split("<!-- SPEC-KIT:BEGIN -->", 1)[0]
+
+    assert content.startswith("# AGENTS.md\n")
+    assert references
+    assert set(references) == {
+        path.resolve() for path in GUIDANCE_ROOT.rglob("*.md")
+    }
+    for path in references:
+        target = path.relative_to(PROJECT_ROOT.resolve()).as_posix()
+        routes = [
+            line.strip().strip("|").split("|")
+            for line in unmanaged.splitlines()
+            if line.lstrip().startswith("|") and f"]({target})" in line
+        ]
+        assert routes, f"Missing entrypoint read trigger for {target}"
+        assert any(
+            any(cell.strip() and target not in cell for cell in row)
+            for row in routes
+        ), f"Empty entrypoint read trigger for {target}"
+
+
+def test_root_agents_documents_current_managed_context() -> None:
     content = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
     lowered = content.lower()
 
@@ -31,6 +61,12 @@ def test_root_agents_documents_current_managed_context_and_schema_v5_rules() -> 
     assert "never auto-promote during workflow start" in lowered
     assert "## Workflow Activation Discipline" not in content
     assert "## Lane Recovery Rules" not in content
+
+
+def test_linked_agents_guidance_preserves_schema_v5_rules() -> None:
+    content = read_agents_with_references()
+    lowered = content.lower()
+
     assert "### Project Cognition Schema v5 Maintenance" in content
     assert (
         "schema v5 runtime readiness is graph, alias, and revision-bound typed graph-claim reconciliation first"

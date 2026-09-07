@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from .agent_guidance_utils import agent_guidance_reference_paths
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -27,6 +29,10 @@ def test_active_public_guidance_no_longer_advertises_retired_workflow_aliases() 
         "templates/project-map/root/WORKFLOWS.md",
         "docs/quickstart.md",
         "docs/installation.md",
+        *(
+            path.relative_to(ROOT.resolve()).as_posix()
+            for path in agent_guidance_reference_paths()
+        ),
     )
 
     violations: list[str] = []
@@ -41,7 +47,7 @@ def test_active_public_guidance_no_longer_advertises_retired_workflow_aliases() 
 
 
 def test_profile_documentation_uses_post_retirement_catalog_sizes() -> None:
-    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    agents = " ".join((ROOT / "AGENTS.md").read_text(encoding="utf-8").split())
 
     assert "27 one-to-one Classic command counterparts plus `spx-map-rebuild`" in agents
     assert "current topology is 28 SPX skills" in agents

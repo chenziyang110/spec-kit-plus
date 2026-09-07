@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from .agent_guidance_utils import read_agents_with_references
 from .template_utils import read_command_with_references
 
 
@@ -7,6 +8,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _read(relative_path: str) -> str:
+    if relative_path == "AGENTS.md":
+        return read_agents_with_references()
     return (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
 
 

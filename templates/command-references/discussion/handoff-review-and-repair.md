@@ -21,6 +21,14 @@ allowing ad hoc handoff input to override state truth.
 
 ## Deterministic Draft Review
 
+For supplied materials, first finish
+[source-material-consumption.md](source-material-consumption.md): every
+original-source extent accounted for, every runtime unit delivered, every unit
+explicitly disposed, every atomic REQ source-bound, and every unresolved
+interpretation surfaced. Perform semantic reverse review separately from the
+runtime's structural validation. Do not approve a context-only unit that hides
+a rule, or an exclusion/deferral without its actual decision source.
+
 Use `{{specify-subcmd:specify-runtime discussion validate-handoff <slug> --mode draft --json}}` before asking for approval. Validate schema/version, goal/scope, consumer eligibility, context boundary, implementation target, evidence shape, source material ledger coverage, `MP-*`/`CA-###` coverage, planning/coverage gates, unknown/conflict counts, agent self-review, state snapshot digest, and the protected digest. Draft validation intentionally does not require user confirmation.
 
 Use agent review only for judgment that deterministic validation cannot decide: whether the selected direction matches user intent, whether a soft unknown is genuinely non-blocking, or whether a tradeoff/reopen condition is truthful.

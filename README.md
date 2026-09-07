@@ -937,6 +937,22 @@ Use `discussion` before `specify` or `quick` when product direction, trade-offs,
 
 The discussion output is one canonical Agent-only JSON contract shared by eligible consumers.
 
+Supplied material is consumed completely before its requirements become ready:
+Discussion imports full UTF-8 source text or verified extraction, delivers every
+runtime-owned unit, and traces atomic `REQ-*` requirements back to material,
+unit, and original locator. Repository inputs include pinned first-party files
+beyond README; pagination, truncation, inaccessible content, and extraction gaps
+remain visible. A reverse review checks missed conditions, negations, exceptions,
+and corrections. Delivery receipts prove returned content, not understanding.
+Each requirement has an explicit scope/context/duplicate/deferral disposition;
+Spec maps every source requirement to real scope and acceptance references in
+`source_requirement_coverage`, Plan and Tasks preserve that mapping, and
+Implement receives its task-specific `source_requirement_refs`. Quick validates
+the same source completeness before inheriting an unchanged confirmed handoff,
+without asking for the same approval again. Old material records without native
+reading receipts require import and rereading; ordinary conversation without
+supplied materials keeps its existing path.
+
 `sp-discussion` continues by default, uses recommendation-first progression, and asks only for user-owned decisions. Its Context Boundary Gate locks the target project root before project-specific claims; current-project cognition is advisory navigation and cannot prove another project's implementation facts.
 
 The discussion workflow must continue by default, do not ask for continuation, and ask only when user judgment is genuinely required and no safe default exists.

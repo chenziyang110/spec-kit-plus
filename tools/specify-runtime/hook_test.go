@@ -171,7 +171,7 @@ func TestHookArtifactValidationRequiresCommandArtifacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"spec.md", "spec-contract.json"} {
-		content := "{}\n"
+		content := validLightSpecContract + "\n"
 		if name == "spec.md" {
 			content = "# Feature Specification\n\n## Requirements\n\n- FR-001: Hook validation.\n"
 		}

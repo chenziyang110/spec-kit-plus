@@ -441,6 +441,12 @@ var artifactTypePatterns = []artifactTypePattern{
 		},
 	},
 	{
+		metadata: ArtifactTypeMetadata{TypeID: "discussion-material", Owner: "specify-runtime discussion import-material/read-material", Role: "runtime-internal", Schema: "text/discussion-material", Operations: []string{"show", "list"}, SummaryAdapter: "text-lines"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/discussions/") && strings.Contains(path, "/materials/")
+		},
+	},
+	{
 		metadata: ArtifactTypeMetadata{TypeID: "discussion-log", Owner: "specify-runtime discussion checkpoint", Role: "canonical", Schema: "jsonl/discussion-log", Operations: []string{"show", "list"}, SummaryAdapter: "text-lines"},
 		match: func(path string) bool {
 			return strings.HasPrefix(path, ".specify/discussions/") && strings.HasSuffix(path, "/discussion-log.jsonl")

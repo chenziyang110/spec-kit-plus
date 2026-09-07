@@ -40,7 +40,9 @@ type fileTransactionEntry struct {
 	AfterSHA256  string `json:"after_sha256"`
 	StageRef     string `json:"stage_ref"`
 	BackupRef    string `json:"backup_ref,omitempty"`
-	Applied      bool   `json:"applied"`
+	// Applied is a write-ahead rollback obligation: the target may have changed.
+	// Existing v1 journals with post-write Applied flags remain recoverable.
+	Applied bool `json:"applied"`
 }
 
 type fileTransactionJournal struct {
@@ -206,7 +208,16 @@ func applyFileTransactionWithPreconditions(projectRoot, kind string, updates []f
 		return receipt, err
 	}
 	txRef := filepath.ToSlash(filepath.Join(".specify", "runtime", "transactions", transactionID))
-	txRoot, err := secureProjectPath(root, txRef)
+	publishedRoot, err := secureProjectPath(root, txRef)
+	if err != nil {
+		return receipt, err
+	}
+	// Preparation is not an active transaction. Publish the directory only
+	// after its staged bytes, backups, and prepared journal are all durable.
+	// A process interrupted while preparing must not leave a journal-less
+	// active transaction that blocks every subsequent workflow mutation.
+	preparingRef := filepath.ToSlash(filepath.Join(".specify", "runtime", "transactions", ".preparing", transactionID))
+	txRoot, err := secureProjectPath(root, preparingRef)
 	if err != nil {
 		return receipt, err
 	}
@@ -259,38 +270,44 @@ func applyFileTransactionWithPreconditions(projectRoot, kind string, updates []f
 		cleanup()
 		return receipt, err
 	}
+	if err := replaceFile(txRoot, publishedRoot); err != nil {
+		cleanup()
+		return receipt, fmt.Errorf("publish prepared file transaction: %w", err)
+	}
+	txRoot = publishedRoot
+	journalPath = filepath.Join(txRoot, "journal.json")
+	rollback := func(cause error) error {
+		rollbackErr := rollbackFileTransaction(root, txRoot, journal)
+		if rollbackErr == nil {
+			cleanup()
+		}
+		return combineFileTransactionErrors(cause, rollbackErr)
+	}
 
 	for index, update := range normalized {
 		secured, secureErr := secureProjectPath(root, update.rel)
 		if secureErr != nil {
-			rollbackErr := rollbackFileTransaction(root, txRoot, journal)
-			cleanup()
-			return receipt, combineFileTransactionErrors(secureErr, rollbackErr)
+			return receipt, rollback(secureErr)
 		}
 		update.path = secured
 		if err := os.MkdirAll(filepath.Dir(update.path), 0o755); err != nil {
-			rollbackErr := rollbackFileTransaction(root, txRoot, journal)
-			cleanup()
-			return receipt, combineFileTransactionErrors(err, rollbackErr)
+			return receipt, rollback(err)
 		}
-		if err := promoteTransactionFile(update.path, update.content, update.perm); err != nil {
-			rollbackErr := rollbackFileTransaction(root, txRoot, journal)
-			cleanup()
-			return receipt, combineFileTransactionErrors(err, rollbackErr)
-		}
+		// Persist the recovery obligation before replacing the target. A crash
+		// after replacement must not leave recovery unaware of the changed file.
 		journal.Entries[index].Applied = true
 		journal.Phase = "applying"
 		if err := writeFileTransactionJournal(journalPath, journal); err != nil {
-			rollbackErr := rollbackFileTransaction(root, txRoot, journal)
-			cleanup()
-			return receipt, combineFileTransactionErrors(err, rollbackErr)
+			return receipt, rollback(err)
+		}
+		if err := promoteTransactionFile(update.path, update.content, update.perm); err != nil {
+			return receipt, rollback(err)
 		}
 	}
 	journal.Phase = "committed"
 	if err := writeFileTransactionJournal(journalPath, journal); err != nil {
-		rollbackErr := rollbackFileTransaction(root, txRoot, journal)
-		cleanup()
-		return receipt, combineFileTransactionErrors(err, rollbackErr)
+		journal.Phase = "applying"
+		return receipt, rollback(err)
 	}
 
 	receipt = fileTransactionReceipt{
@@ -339,7 +356,7 @@ func recoverFileTransactionsLocked(root string) error {
 		return err
 	}
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if !entry.IsDir() || entry.Name() == ".preparing" {
 			continue
 		}
 		txRoot := filepath.Join(transactionsRoot, entry.Name())
@@ -370,35 +387,54 @@ func rollbackFileTransaction(root, txRoot string, journal fileTransactionJournal
 		if !entry.Applied {
 			continue
 		}
-		target, err := secureProjectPath(root, entry.Path)
-		if err != nil {
+		if err := rollbackFileTransactionEntry(root, txRoot, entry); err != nil {
 			failures = append(failures, entry.Path+": "+err.Error())
 			continue
 		}
-		if !entry.Existed {
-			if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
-				failures = append(failures, entry.Path+": "+err.Error())
-			}
-			continue
-		}
-		backupPath := filepath.Join(txRoot, filepath.FromSlash(entry.BackupRef))
-		backup, err := os.ReadFile(backupPath)
-		if err != nil {
-			failures = append(failures, entry.Path+": "+err.Error())
-			continue
-		}
-		if fileContentSHA256(backup) != entry.BeforeSHA256 {
-			failures = append(failures, entry.Path+": backup digest mismatch")
-			continue
-		}
-		if err := atomicWriteFile(target, backup, 0o644); err != nil {
-			failures = append(failures, entry.Path+": "+err.Error())
+		journal.Entries[index].Applied = false
+		if err := writeFileTransactionJournal(filepath.Join(txRoot, "journal.json"), journal); err != nil {
+			failures = append(failures, entry.Path+": persist rollback progress: "+err.Error())
 		}
 	}
 	if len(failures) > 0 {
 		return fmt.Errorf("rollback incomplete: %s", strings.Join(failures, "; "))
 	}
 	return nil
+}
+
+func rollbackFileTransactionEntry(root, txRoot string, entry fileTransactionEntry) error {
+	target, err := secureProjectPath(root, entry.Path)
+	if err != nil {
+		return err
+	}
+	current, err := os.ReadFile(target)
+	if !entry.Existed && os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	currentSHA256 := fileContentSHA256(current)
+	if entry.Existed && currentSHA256 == entry.BeforeSHA256 {
+		// Promotion may not have happened, or an earlier rollback restored the
+		// target before its progress could be persisted.
+		return nil
+	}
+	if currentSHA256 != entry.AfterSHA256 {
+		return fmt.Errorf("target digest changed; refusing to overwrite or remove unrelated content")
+	}
+	if !entry.Existed {
+		return os.Remove(target)
+	}
+	backupPath := filepath.Join(txRoot, filepath.FromSlash(entry.BackupRef))
+	backup, err := os.ReadFile(backupPath)
+	if err != nil {
+		return err
+	}
+	if fileContentSHA256(backup) != entry.BeforeSHA256 {
+		return fmt.Errorf("backup digest mismatch")
+	}
+	return atomicWriteFile(target, backup, 0o644)
 }
 
 func writeFileTransactionJournal(path string, journal fileTransactionJournal) error {

@@ -123,3 +123,19 @@ including exact component adoption rows, `smoothness_acceptance_ids`, and perfor
 assigns implementation/verification routes.
 Retain component governance and iconography. Plan risk-based or pairwise
 combinations without an unbounded Cartesian product.
+## Source requirement continuity
+
+For a source-backed specification, read `/source_requirement_coverage` from
+`spec-contract.json` only through `specify-runtime artifact show`. Write the
+complete verified array unchanged to `/source_requirement_coverage` in
+`plan-contract.json` only through a fresh leased `specify-runtime artifact patch`.
+Preserve every REQ disposition, requirement pointer, `acceptance_refs`, and any
+`duplicate_of`. Reference the exact upstream source;
+do not reconstruct a smaller list from the plan narrative or only the chosen
+capabilities. Plan still adds phase-owned architecture and verification
+choices, and its canonical acceptance denominator covers every Spec criterion.
+Resolve the referenced Spec values when planning their behavior; shallow REQ
+ID presence is not proof that conditions, negations, permissions, or exceptions
+survived. Changed source truth or a missing mapping returns to Specify rather
+than becoming an implicit planning deferral. Material-free input may carry an
+empty source coverage array.

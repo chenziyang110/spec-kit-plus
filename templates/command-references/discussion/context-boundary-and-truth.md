@@ -6,6 +6,11 @@ Preserved Contract: Migrated from `templates/commands/discussion.md`; this file 
 
 ## Truth Pass
 
+For user-provided original materials, first follow
+[source-material-consumption.md](source-material-consumption.md). Its complete
+source intake and reverse review are independent of this bounded fact lookup.
+Cognition/P2 read budgets cannot narrow the supplied material universe.
+
 When the user asks for advice that depends on current project reality, complete a bounded truth pass before giving project-specific technical options, affected-surface claims, testing strategy claims, or implementation-path recommendations.
 
 The truth pass is required when the turn involves current project behavior, command/template/script/test/documentation surfaces, implementation path or affected surface claims, existing capability reuse, cross-CLI propagation, compatibility, lifecycle, state, security, or downstream workflow risk.
@@ -77,7 +82,7 @@ Treat project cognition as advisory navigation and coverage metadata. Use it to 
 Readiness handling:
 
 - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
-- `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
+- `review`: perform the returned `minimal_live_reads` for this project-fact lookup and inspect `coverage_diagnostics`; these are not a limit on complete user-material consumption.
 - `needs_rebuild`: route by `recommended_next_action.action_id`, not readiness alone. Preserve resumable actions such as `complete_scan_packets`; only `action_id=project_cognition.rebuild` may use `rebuild_reasons[]` and `recommended_next_action.workflow_routes.classic.steps` for the rebuild handoff.
 - `readiness=blocked`: report project cognition as unavailable or degraded, continue with product framing or bounded live evidence when safe, and recommend a map maintenance workflow only when the user asks for map maintenance or handoff needs evidence that live reads cannot provide.
 

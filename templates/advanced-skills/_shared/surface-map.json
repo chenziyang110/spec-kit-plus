@@ -102,7 +102,7 @@
     },
     "spx-discussion": {
       "absorbs": ["discussion"],
-      "references": ["spx-discussion/references/discussion-contract.md"],
+      "references": ["spx-discussion/references/discussion-contract.md", "spx-discussion/references/source-material-consumption.md"],
       "assets": [],
       "optimization": "semantic checkpoints and an exact confirmed handoff replace transcript ceremony"
     },

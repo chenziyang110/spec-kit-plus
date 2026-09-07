@@ -90,6 +90,7 @@
             "design_direction": {"$ref": "#/$defs/stringList"},
             "optimal_solution_approach": {"$ref": "#/$defs/stringList"},
             "non_goals": {"$ref": "#/$defs/stringList"},
+            "source_requirements": {"type": "array", "items": {"$ref": "#/$defs/sourceRequirement"}},
             "scope": {
               "type": "object",
               "required": ["in", "out", "deferred"],
@@ -123,7 +124,7 @@
               "evidence_status": {"enum": ["verified", "proven", "confirmed", "inferred", "assumption", "stale-advisory", "missing", "conflict"]},
               "source": {"type": "string", "minLength": 1},
               "claim": {"type": "string", "minLength": 1},
-              "material_id": {"type": "string", "pattern": "^MAT-[0-9]{3}$"}
+              "material_id": {"type": "string", "pattern": "^MAT-[0-9]{3,}$"}
             },
             "additionalProperties": true
           }
@@ -134,12 +135,14 @@
             "type": "object",
             "required": ["id", "material_type", "locator", "summary", "inspection_status", "claims", "coverage_gaps", "sensitivity", "material_digest"],
             "properties": {
-              "id": {"type": "string", "pattern": "^MAT-[0-9]{3}$"},
+              "id": {"type": "string", "pattern": "^MAT-[0-9]{3,}$", "description": "Stable material ID with at least three digits; IDs continue beyond MAT-999."},
               "material_type": {"type": "string", "minLength": 1},
               "locator": {"type": "string", "minLength": 1},
               "summary": {"type": "string", "minLength": 1},
               "inspection_status": {"enum": ["pending", "inspected", "partial", "unavailable", "stale", "conflict"]},
-              "claims": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+              "claims": {"type": "array", "items": {"type": "string", "minLength": 1}},
+              "reading": {"$ref": "#/$defs/sourceReading", "readOnly": true},
+              "unit_dispositions": {"type": "array", "items": {"$ref": "#/$defs/sourceUnitDisposition"}},
               "coverage_gaps": {"$ref": "#/$defs/stringList"},
               "sensitivity": {"enum": ["safe", "sanitized", "restricted"]},
               "content_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
@@ -286,6 +289,318 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "sourceReading": {
+      "type": "object",
+      "description": "Runtime-owned source snapshot and delivered text units; delivery is not proof of semantic understanding.",
+      "required": [
+        "version",
+        "content_sha256",
+        "snapshot_ref",
+        "source_path",
+        "units",
+        "delivered_unit_ids"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "snapshot_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "units": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "start_rune",
+              "end_rune",
+              "sha256"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^U[0-9]{4,}-[a-f0-9]{12}$"
+              },
+              "start_rune": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "end_rune": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "delivered_unit_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^U[0-9]{4,}-[a-f0-9]{12}$"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "sourceUnitDisposition": {
+      "type": "object",
+      "required": [
+        "unit_id",
+        "requirement_ids",
+        "disposition"
+      ],
+      "properties": {
+        "unit_id": {
+          "type": "string",
+          "pattern": "^U[0-9]{4,}-[a-f0-9]{12}$"
+        },
+        "requirement_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^REQ-[0-9]{3,}$"
+          }
+        },
+        "disposition": {
+          "enum": [
+            "requirements",
+            "context"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "enum": [
+                  "requirements"
+                ]
+              }
+            },
+            "required": [
+              "disposition"
+            ]
+          },
+          "then": {
+            "properties": {
+              "requirement_ids": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "enum": [
+                  "context"
+                ]
+              }
+            },
+            "required": [
+              "disposition"
+            ]
+          },
+          "then": {
+            "required": [
+              "reason"
+            ],
+            "properties": {
+              "requirement_ids": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "sourceRequirement": {
+      "type": "object",
+      "required": [
+        "id",
+        "statement",
+        "source_refs",
+        "disposition"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^REQ-[0-9]{3,}$"
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": [
+              "material_id",
+              "unit_id",
+              "locator"
+            ],
+            "properties": {
+              "material_id": {
+                "type": "string",
+                "pattern": "^MAT-[0-9]{3,}$"
+              },
+              "unit_id": {
+                "type": "string",
+                "pattern": "^U[0-9]{4,}-[a-f0-9]{12}$"
+              },
+              "locator": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "disposition": {
+          "enum": [
+            "in_scope",
+            "context",
+            "duplicate",
+            "deferred",
+            "out_of_scope",
+            "unresolved"
+          ]
+        },
+        "acceptance_hint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reopen_condition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "duplicate_of": {
+          "type": "string",
+          "pattern": "^REQ-[0-9]{3,}$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "enum": [
+                  "in_scope"
+                ]
+              }
+            },
+            "required": [
+              "disposition"
+            ]
+          },
+          "then": {
+            "required": [
+              "acceptance_hint"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "enum": [
+                  "context",
+                  "duplicate",
+                  "deferred",
+                  "out_of_scope",
+                  "unresolved"
+                ]
+              }
+            },
+            "required": [
+              "disposition"
+            ]
+          },
+          "then": {
+            "required": [
+              "reason"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "enum": [
+                  "deferred",
+                  "out_of_scope"
+                ]
+              }
+            },
+            "required": [
+              "disposition"
+            ]
+          },
+          "then": {
+            "required": [
+              "decision_source",
+              "reopen_condition"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "enum": [
+                  "duplicate"
+                ]
+              }
+            },
+            "required": [
+              "disposition"
+            ]
+          },
+          "then": {
+            "required": [
+              "duplicate_of"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": true
+    },
     "stringList": {
       "type": "array",
       "items": {"type": "string", "minLength": 1}

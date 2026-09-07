@@ -89,6 +89,10 @@ fi
 chmod 0755 "$candidate"
 
 handshake="$("$candidate" api handshake --format json)"
+if [[ "$handshake" != *'"discussion.import-material"'* || "$handshake" != *'"discussion.read-material"'* ]]; then
+  echo "Downloaded binary lacks complete discussion source-material reading support" >&2
+  exit 1
+fi
 if [[ "$handshake" != *'"protocol_version":"specify-runtime.v1"'* || "$handshake" != *'"api.ensure"'* || "$handshake" != *'"api.pack"'* || "$handshake" != *'"artifact.catalog"'* || "$handshake" != *'"artifact.checklist"'* || "$handshake" != *'"artifact.delete"'* || "$handshake" != *'"artifact.list"'* || "$handshake" != *'"artifact.patch"'* || "$handshake" != *'"artifact.patch-batch"'* || "$handshake" != *'"artifact.prepare"'* || "$handshake" != *'"artifact.restore"'* || "$handshake" != *'"artifact.scaffold"'* || "$handshake" != *'"artifact.show"'* || "$handshake" != *'"artifact.show-many"'* || "$handshake" != *'"artifact.submit"'* || "$handshake" != *'"cognition.archive-incompatible-store"'* || "$handshake" != *'"cognition.closeout.inspect"'* || "$handshake" != *'"cognition.closeout.repair"'* || "$handshake" != *'"cognition.run"'* || "$handshake" != *'"cognition.scan-packet"'* || "$handshake" != *'"implement.task-reopen"'* || "$handshake" != *'"test-design.recover"'* || "$handshake" != *'"validate.spec"'* || "$handshake" != *'"workflow.show"'* || "$handshake" != *'"workflow.ensure"'* || "$handshake" != *'"workflow.enter"'* || "$handshake" != *'"workflow.next"'* || "$handshake" != *'"workflow.complete-stage"'* || "$handshake" != *'"workflow.transition"'* || "$handshake" != *'"workflow.reopen"'* || "$handshake" != *'"workflow.block"'* || "$handshake" != *'"workflow.reconcile-blocker"'* || "$handshake" != *'"workflow.resolve"'* || "$handshake" != *'"workflow.closeout"'* ]]; then
   echo "Downloaded binary failed the specify-runtime API handshake" >&2
   exit 1

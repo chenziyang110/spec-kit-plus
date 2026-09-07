@@ -1,5 +1,5 @@
 ---
-description: "Use when executing implementation plans, working on independent tasks, or when asked to dispatch subagents. Routes through sp-* workflows and dispatches native subagents from validated execution packets."
+description: "Use when executing implementation plans, working on independent tasks, or when asked to dispatch subagents. Supports ordinary development directly and preserves the contracts of explicitly invoked workflows."
 ---
 
 # Subagent-Driven Development (Spec Kit Plus)
@@ -21,14 +21,36 @@ Txx, dispatch, join, resume, or completion handoff.
 
 ## Core Rule
 
-Route first, choose the lightest safe execution surface, then packetize only selected delegated work.
+Identify the active execution context, then choose the lightest safe execution surface.
 
 Passive SKILL invocation must not enter any `sp-*` or `spx-*` workflow. Routing
-means recommending the projected invocation and waiting for the user to invoke
-it; this passive skill must not load or enter that workflow itself.
+is optional advice for ordinary development, not a prerequisite for doing the
+authorized work. Do not require a workflow command merely to continue ordinary
+development or dispatch native subagents.
 
-- Route into the smallest correct `sp-*` or `spx-*` workflow before
-  implementation or investigation begins.
+## Execution Context Boundary
+
+- **Ordinary development**: When no explicitly invoked workflow owns the work,
+  continue the authorized request directly. If an executable task graph is missing,
+  create a compact in-session task list with dependencies, write scopes, acceptance,
+  and verification, then proceed. Do not require `plan-contract.json`,
+  `task-index.json`, runtime packet compilation, or a workflow result channel.
+  Do not create or mutate canonical workflow artifacts for this ordinary path.
+- **Active workflow**: Resume an already explicitly invoked workflow without
+  requiring the user to repeat its command. Preserve its phase boundaries,
+  runtime-owned artifacts, validated packets, result channels, and approval gates.
+  Missing required artifacts stay with that workflow's recovery or upstream owner;
+  never relabel active workflow work as ordinary development to bypass a gate.
+- Existing workflow files alone do not activate a workflow. Missing implementation
+  targets, unresolved product decisions, credentials, and real approval gates still
+  require resolution; continue independent authorized work where possible.
+
+The workflow-specific rules below apply only inside an active workflow. For
+ordinary development, use a bounded in-session assignment and structured native
+result instead; record dispatch choices and verification in the current task.
+
+- Determine whether a user-invoked workflow already owns the request before
+  applying workflow-specific requirements.
 - Use leader-direct execution for a small or tightly coupled task when delegation
   adds no critical-path or quality benefit and the owning workflow permits it.
 - Compile and validate a `WorkerTaskPacket` just in time before selected delegated work.
@@ -51,14 +73,15 @@ it; this passive skill must not load or enter that workflow itself.
 
 ## Process
 
-1. **Select the owning workflow**: Recommend `sp-quick` for tracked direct
-   delivery or `sp-debug` for root-cause work when the request matches. When a
-   plan lacks an executable task graph, recommend `{{invoke:tasks}}` and stop.
-   For planned feature execution, recommend `{{invoke:implement}}` and stop.
-   Apply the same user-invoked only boundary to map/test workflows.
+1. **Identify the execution context**: Apply the Execution Context Boundary.
+   For ordinary development, fill in missing execution slicing and continue.
+   If the user wants a formal workflow, show `{{invoke:tasks}}` for an existing
+   plan needing a canonical graph or `{{invoke:implement}}` for a ready graph.
+   Advice does not activate a workflow or suspend ordinary authorized work.
 2. **Select the route**: Keep small/tightly coupled work leader-direct. For an
-   independent or parallel lane, compile a validated `WorkerTaskPacket` from the
-   current task, stable refs, and live code.
+   independent or parallel lane in an active workflow, compile a validated `WorkerTaskPacket`
+   from the current task, stable refs, and live code. For ordinary development,
+   prepare the bounded assignment described below.
 3. **Dispatch in the current runtime**: Use the `native-subagents` surface such
    as Codex `spawn_agent`, Cursor `Task`, Claude Task, or the active CLI's
    equivalent. The
@@ -69,26 +92,31 @@ it; this passive skill must not load or enter that workflow itself.
    require only the dispatch and join operations that runtime actually exposes.
 4. **Join on evidence**: Wait for every subagent's structured handoff. The
    handoff must name changed files, cheap task checks, test impact, accepted
-   gate-attempt refs, failures, open risks, and any spec or plan gaps. An idle or silent
+   gate-attempt refs when workflow-required, failures, open risks, and any spec or plan gaps. An idle or silent
    subagent is not completed work. An accepted terminal result completes its
    native lane without a separate cleanup operation; interrupt or cancel only
-   unfinished work through an operation the runtime exposes. Use the owning
-   workflow's stage result channel, never an implicit `sp-teams` result path.
+   unfinished work through an operation the runtime exposes. In an active workflow,
+   use the owning workflow's stage result channel, never an implicit `sp-teams` result path.
+   For ordinary development, accept the structured native result directly.
 5. **Review on triggers**: Run the single task reviewer only for drift, parallel
    joins, scope violations, validation failure, worker concerns, obligation
    conflicts, real-entrypoint gaps, or review-window triggers. Integrate verdict,
-   validation, and recovery into the task lifecycle record.
+   validation, and recovery into the task lifecycle record for an active workflow,
+   or the current task report for ordinary development.
 
 ## Dispatch Prompt Contract
 
 A subagent prompt must include:
 
-- The owning `sp-*` workflow and lane identifier.
-- The validated `WorkerTaskPacket` or equivalent packet summary.
+- The lane identifier and owning workflow, if active; otherwise ordinary development.
+- For an active workflow, the validated `WorkerTaskPacket` or equivalent packet summary.
+- For ordinary development, a bounded assignment: objective, dependencies,
+  authoritative live context, exact read/write scope, forbidden drift, acceptance,
+  verification, and recovery/escalation conditions. No runtime receipt is required.
 - Exact write set and paths the worker must not touch.
 - Stable authoritative refs from the current task, plan/spec contracts, live code,
   and memory rules actually needed by the lane.
-- Accepted change-set RED/baseline gate-attempt ref or test-authoring-only status,
+- Under workflow-owned validation, accepted change-set RED/baseline gate-attempt ref or test-authoring-only status,
   cheap task checks, and test impact for Leader-owned convergence.
 - For scan, build, PRD scan, and map-update evidence lanes, include explicit `assigned_paths` or changed paths. A subagent must not silently narrow assigned scope; if the set does not fit, the worker result returns top-level `acceptance=fail_gap`, marks affected paths with path-level `coverage[].outcome="overflow"` or `coverage[].outcome="blocked"`, and includes the smallest safe split or recovery suggestion. `overflow` and `blocked` are path or queue states, not top-level worker result acceptance values.
 - Worker results for mutable work must include changed paths, behavior surfaces, generated surfaces, state contracts, verification, known unknowns, and confidence notes so the parent workflow can build the inline project cognition update payload.
@@ -96,24 +124,28 @@ A subagent prompt must include:
 
 The leader must not dispatch from raw task text alone. If the packet is missing,
 ambiguous, or does not describe boundaries and verification, create or repair the
-packet before dispatch.
+packet before dispatch within the active workflow. For ordinary development,
+prepare the bounded assignment directly. Workflow-specific companion worker and
+reviewer templates are not prerequisites for ordinary assignments.
 
 ## Routing Rules
 
 - If the user says "execute the plan", "start building", "implement tasks", or
-  equivalent, tell the user to run `{{invoke:implement}}`, or
-  `{{invoke:tasks}}` first when the task graph is missing, then stop. Do not
-  passively invoke either workflow.
+  equivalent, this authorizes ordinary execution when no active workflow owns
+  the work; it does not implicitly invoke a workflow. Apply the boundary above.
 - If the user asks to "dispatch agents", "split this up", or "run subagents",
-  route to the workflow that owns the state, then dispatch native subagents from
-  validated packets.
+  prepare bounded assignments and dispatch native subagents directly for ordinary
+  development; use validated packets when an active workflow owns the work.
 - If the current workflow finds 2+ independent lanes, pair this skill with
   `dispatching-parallel-agents`.
-- If the task is truly trivial and tightly coupled, `sp-fast` may stay inline.
-  Do not use "small" as a reason to skip routing for non-trivial work.
+- Ordinary development may stay leader-inline when delegation adds no benefit.
+  In an active workflow, use its own leader-direct qualification rules.
 
 ## Red Flags
 
+- Stopping ordinary development solely to demand `{{invoke:tasks}}` or
+  `{{invoke:implement}}`, or requiring canonical workflow artifacts for a native assignment.
+- Bypassing an active workflow's unresolved gate by calling its work ordinary development.
 - Treating every implementation task as mandatory delegation even when a small,
   tightly coupled leader-direct route is safer and faster.
 - After a parallel write-scope conflict, implementing all serial tasks

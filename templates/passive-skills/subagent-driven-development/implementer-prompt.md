@@ -1,6 +1,9 @@
 # Implementer Subagent Prompt Template
 
-Use this template when dispatching an implementer subagent.
+Use this template for a workflow-owned implementer subagent whose packet provides
+the validation receipts below. For ordinary development, use the bounded
+assignment contract in [SKILL.md](SKILL.md) instead; this template's runtime gates
+are not prerequisites for ordinary native delegation.
 
 ## Workflow-Owned Validation
 

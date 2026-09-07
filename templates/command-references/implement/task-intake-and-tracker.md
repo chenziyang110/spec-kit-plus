@@ -46,3 +46,16 @@ On uncertain or terminal-looking resume, treat checked tasks as claims. Run `{{s
 If `task-next` or `resume-audit` returns `reason_code: task-reopen-required`, run the supplied `implement task-reopen` action with the reported task/workflow revisions plus explicit reason and evidence. The runtime archives the superseded result and resets only the named task; do not hand-edit canonical files or use generic `workflow reopen` as task repair.
 
 If audit fails, move to recovery/validation and continue from the smallest executable repair. Do not preserve resolved status from appearance alone.
+## Source requirement bindings
+
+For material-backed work, the runtime compiles `source_requirement_refs` into
+the current task packet from verified `source_requirement_coverage` and the
+task's `acceptance_refs`. Consume those exact REQ IDs with their linked Spec
+requirements and acceptance values; keep source negations, conditions,
+permissions, exceptions, and corrected decisions in the implemented behavior.
+Do not author or replace `source_requirement_refs`, choose a smaller set, or
+infer coverage from the task title. Missing, stale, or contradictory mappings
+block packet use and return to the appropriate Tasks/Spec/Discussion owner;
+they are not permission to invent a new interpretation in Implement. Ordinary
+material-free tasks may have an empty list. Use source refs for a specific
+ambiguity or drift rather than rereading the whole original package each task.

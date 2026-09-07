@@ -47,6 +47,9 @@ func runAPISchema(args []string, stdout io.Writer) int {
 	case "discussion-checkpoint-input":
 		schema = discussionCheckpointInputSchema()
 		capabilityID = "discussion.checkpoint"
+	case "discussion-import-material-input":
+		schema = discussionImportMaterialInputSchema()
+		capabilityID = "discussion.import-material"
 	case "discussion-write-handoff-input":
 		schema = discussionWriteHandoffInputSchema()
 		capabilityID = "discussion.write-handoff"
@@ -251,14 +254,24 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["input_contract"] = "resolves one canonical discussion lineage; multiple candidates return blocked/ambiguous and require an explicit slug; focus bindings carry discussion_slug and state_sha256, while consumer bindings also carry source_contract, review_digest, and recommended_consumer"
 	case "discussion.bind-consumer":
 		capability["side_effect"] = "writes-derived-consumer-handoff"
-		capability["usage"] = "specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --review-digest <resolved-review-digest> --input-json <transition-fields> --format json"
-		capability["input_contract"] = "semantic_delta, required_refs, blockers, and recovery only via --input-json (inline, @path, or -); runtime binds source contract, review digest, recommended consumer, state digest, status, and next action; --review-digest is always required from discussion resolve; unbound create-feature scaffolds may receive first bind"
+		capability["usage"] = "specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --review-digest <resolved-review-digest> [--intake] --input-json <transition-fields> --format json"
+		capability["input_contract"] = "semantic_delta, required_refs, blockers, and recovery only via --input-json (inline, @path, or -); runtime binds source contract, review digest, recommended consumer, state digest, status, and next action; --review-digest is always required from discussion resolve; unbound create-feature scaffolds may receive first bind; --intake pins a complete confirmed source as pending before Spec compilation and cannot replace foreign bindings or downgrade ready; default binding requires complete compiled Spec coverage, then mark-consumed requires a ready pointer"
 	case "discussion.checkpoint":
 		capability["side_effect"] = "writes-discussion-state-and-log"
 		capability["usage"] = "specify-runtime discussion checkpoint <slug> --expected-state-sha256 <resolved-state-sha256> --input-json <object|@path|-> [--summary <text>] [--phase <phase>] [--user-goal <text>] --format json"
 		capability["input_schema"] = "discussion-checkpoint-input"
 		capability["input_contract"] = "persists canonical turn_packet v2 semantic fields including requirements_snapshot, implementation_target, source_evidence, source_materials, unknowns/conflicts, downstream_instructions, discussion_decision_digest, must_preserve, truth/evidence/confidence, design_context, and artifact_refs; source_evidence may cite material_id and source_materials receive protected material_digest; unknown fields are rejected; --expected-state-sha256 comes from discussion resolve; execute the exact project-local launcher without drive-letter reconstruction; on PowerShell prefer in-memory stdin with --input-json - instead of placing a here-string after the flag; invalid input returns show_argv for the schema and stale state returns a slug-bound next_argv for resolve"
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "discussion-checkpoint-input", "--format", "json"}
+	case "discussion.import-material":
+		capability["side_effect"] = "writes-discussion-source-snapshot-and-state"
+		capability["usage"] = "specify-runtime discussion import-material <slug> --expected-state-sha256 <sha256> --input-json <object|@path|-> --format json"
+		capability["input_schema"] = "discussion-import-material-input"
+		capability["input_contract"] = "reads the complete local UTF-8 text as untrusted data; preserves original locator/version, hashes immutable snapshot, derives <=2000-rune units; no URL fetch or conversion; changed source resets delivery/extraction while retaining prior version and requirements; requires exact state CAS"
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "discussion-import-material-input", "--format", "json"}
+	case "discussion.read-material":
+		capability["side_effect"] = "writes-first-delivery-receipt-or-replays-read-only"
+		capability["usage"] = "specify-runtime discussion read-material <slug> --material-id MAT-001 --unit-id <content-bound-unit-id> [--expected-state-sha256 <sha256>] --format json"
+		capability["input_contract"] = "verifies the complete bound snapshot; first delivery also checks any still-present live source and requires exact state CAS plus a writable phase; already-delivered units replay the immutable snapshot read-only even when implementation later changes the original source, including after confirmation, consumption, closure or exact archive relocation, with replayed=true and no state/log/digest changes; optional replay CAS must match when supplied; returns compact reading_progress, full UTF-8 text and its original receipt; delivery is not proof of semantic understanding"
 	case "discussion.write-handoff":
 		capability["side_effect"] = "writes-discussion-handoff"
 		capability["usage"] = "specify-runtime discussion write-handoff <slug> --expected-state-sha256 <resolved-state-sha256> --input-json <object|@path|-> --format json"
@@ -1109,6 +1122,36 @@ func implementResultMergeInputSchema() map[string]any {
 	}
 }
 
+func discussionImportMaterialInputSchema() map[string]any {
+	properties := map[string]any{}
+	for _, field := range []string{"path", "locator", "material_type", "summary", "version_ref"} {
+		properties[field] = discussionJSONNonEmptyStringSchema()
+	}
+	for field, limit := range map[string]int{"locator": 2048, "material_type": 128, "summary": 1000, "version_ref": 512} {
+		properties[field].(map[string]any)["maxLength"] = limit
+	}
+	properties["id"] = map[string]any{"type": "string", "pattern": "^MAT-[0-9]{3,}$"}
+	properties["sensitivity"] = map[string]any{"type": "string", "enum": []any{"safe", "sanitized", "restricted"}}
+	return map[string]any{"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "specify://schemas/discussion-import-material-input/v1", "type": "object", "additionalProperties": false, "required": []string{"id", "path", "locator", "material_type", "summary", "sensitivity"}, "properties": properties}
+}
+
+func discussionSourceRequirementSchema() map[string]any {
+	properties := map[string]any{}
+	for _, field := range []string{"statement", "acceptance_hint", "reason", "decision_source", "reopen_condition", "duplicate_of"} {
+		properties[field] = discussionJSONNonEmptyStringSchema()
+	}
+	properties["id"] = map[string]any{"type": "string", "pattern": "^REQ-[0-9]{3,}$"}
+	properties["disposition"] = map[string]any{"type": "string", "enum": []any{"in_scope", "context", "duplicate", "deferred", "out_of_scope", "unresolved"}}
+	properties["source_refs"] = map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "object", "required": []string{"material_id", "unit_id", "locator"}, "properties": map[string]any{"material_id": map[string]any{"type": "string", "pattern": "^MAT-[0-9]{3,}$"}, "unit_id": map[string]any{"type": "string", "pattern": "^U[0-9]{4,}-[a-f0-9]{12}$"}, "locator": discussionJSONNonEmptyStringSchema()}}}
+	conditions := []any{}
+	requiredByDisposition := map[string][]string{"in_scope": {"acceptance_hint"}, "context": {"reason"}, "unresolved": {"reason"}, "duplicate": {"reason", "duplicate_of"}, "deferred": {"reason", "decision_source", "reopen_condition"}, "out_of_scope": {"reason", "decision_source", "reopen_condition"}}
+	for _, disposition := range []string{"in_scope", "context", "unresolved", "duplicate", "deferred", "out_of_scope"} {
+		required := requiredByDisposition[disposition]
+		conditions = append(conditions, map[string]any{"if": map[string]any{"properties": map[string]any{"disposition": map[string]any{"const": disposition}}}, "then": map[string]any{"required": required}})
+	}
+	return map[string]any{"type": "object", "required": []string{"id", "statement", "source_refs", "disposition"}, "properties": properties, "allOf": conditions}
+}
+
 func discussionCheckpointInputSchema() map[string]any {
 	nonEmptyString := discussionJSONNonEmptyStringSchema()
 	stringArray := discussionJSONStringArraySchema(0)
@@ -1312,6 +1355,7 @@ func discussionRequirementsSnapshotSchema(ready bool) map[string]any {
 					"deferred": stringArray,
 				},
 			},
+			"source_requirements": map[string]any{"type": "array", "items": discussionSourceRequirementSchema()},
 		},
 		"additionalProperties": true,
 	}
@@ -1341,7 +1385,7 @@ func discussionSourceEvidenceSchema() map[string]any {
 			"evidence_status": map[string]any{"type": "string", "enum": []any{"verified", "proven", "confirmed", "inferred", "assumption", "stale-advisory", "missing", "conflict"}},
 			"source":          nonEmptyString,
 			"claim":           nonEmptyString,
-			"material_id":     map[string]any{"type": "string", "pattern": "^MAT-[0-9]{3}$"},
+			"material_id":     map[string]any{"type": "string", "pattern": "^MAT-[0-9]{3,}$"},
 		},
 	}
 }
@@ -1352,17 +1396,20 @@ func discussionSourceMaterialSchema(includeDigest bool) map[string]any {
 		required = append(required, "material_digest")
 	}
 	properties := map[string]any{
-		"id":                map[string]any{"type": "string", "pattern": "^MAT-[0-9]{3}$"},
+		"id":                map[string]any{"type": "string", "pattern": "^MAT-[0-9]{3,}$"},
 		"material_type":     map[string]any{"type": "string", "minLength": 1},
 		"locator":           map[string]any{"type": "string", "minLength": 1},
 		"summary":           map[string]any{"type": "string", "minLength": 1},
 		"inspection_status": map[string]any{"type": "string", "enum": []any{"pending", "inspected", "partial", "unavailable", "stale", "conflict"}},
-		"claims":            map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string"}},
+		"claims":            map[string]any{"type": "array", "items": discussionJSONNonEmptyStringSchema()},
 		"coverage_gaps":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		"sensitivity":       map[string]any{"type": "string", "enum": []any{"safe", "sanitized", "restricted"}},
 		"content_sha256":    map[string]any{"type": "string", "pattern": "^[a-f0-9]{64}$"},
 		"version_ref":       map[string]any{"type": "string"},
 		"material_digest":   map[string]any{"type": "string", "pattern": "^[a-f0-9]{64}$", "readOnly": !includeDigest},
+		"reading":           map[string]any{"type": "object", "readOnly": true, "description": "Runtime import/read evidence: version, content_sha256, snapshot_ref, source_path, units and delivered_unit_ids. Checkpoint cannot author, alter or delete it."},
+		"version_history":   map[string]any{"type": "array", "readOnly": true},
+		"unit_dispositions": map[string]any{"type": "array", "items": map[string]any{"type": "object", "required": []string{"unit_id", "requirement_ids", "disposition"}, "properties": map[string]any{"unit_id": discussionJSONNonEmptyStringSchema(), "requirement_ids": discussionJSONStringArraySchema(0), "disposition": map[string]any{"enum": []any{"requirements", "context"}}, "reason": discussionJSONNonEmptyStringSchema()}}},
 	}
 	return map[string]any{
 		"type":                 "object",

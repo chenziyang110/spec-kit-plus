@@ -44,6 +44,10 @@
 - context_boundary: {}
 - requirements_snapshot: [current target_need, actors, scenarios, scope.in/out/deferred, success_criteria, optimal_solution_approach, non_goals]
 - source_materials: []
+- source_materials[].reading: [runtime-owned snapshots, exact units and delivered_unit_ids; never Agent-authored receipts]
+- source_materials[].unit_dispositions: [each unit maps to all extracted REQ IDs, or context with a reason]
+- requirements_snapshot.source_requirements: [stable REQ-###, original material/unit/locator, atomic statement, disposition, acceptance_hint or decision/reopen evidence]
+- Semantic source review: [complete original-unit reverse review; delivery receipts are not proof of understanding]
 - source_evidence: []
 - blocking_unknowns: []
 - conflicts: []

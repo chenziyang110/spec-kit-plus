@@ -20,7 +20,7 @@ The contract must contain the minimum sufficient inputs for the next agent:
 - `current_project_roles` / `target_project_roles` as objects with `role`, `scope`, `evidence_source`, `notes` (not bare string arrays);
 - `source_evidence[]` objects with `source_type`, `evidence_status`, `source`, `claim` (not `ref`/`authority`/`status` aliases);
 - `source_materials[]` for every user-provided document, screenshot, recording, pasted note, link, or other supplied material, using stable `MAT-###` IDs, `material_type`, `locator`, summary, `inspection_status`, `claims[]`, `coverage_gaps[]`, `sensitivity`, and safe references or sanitized summaries for restricted material;
-- `source_evidence[].material_id` links to existing `MAT-###` entries, and every material has at least one evidence link before handoff; uncovered, pending, partial, stale, unavailable, or conflicting material stays visible as a blocker or coverage gap;
+- `source_evidence[].material_id` links to existing `MAT-###` entries; an evidence link alone does not prove complete material consumption. Require runtime-owned full-unit delivery, complete `unit_dispositions`, and `agent_requirement_contract.source_requirements` from the source-consumption reference. Undelivered, stale, unavailable, conflicting, or unexplained source extent remains blocked;
 - hard and soft unknown handling;
 - settled decisions, task-relevant dependencies and planning constraints, deferred scope, and reopen conditions;
 - `consumer_eligibility.*.status` must be `ready` or `blocked`; draft/ready validation requires at least one `ready` consumer (`eligible` is rejected);
@@ -31,13 +31,19 @@ The contract must contain the minimum sufficient inputs for the next agent:
 
 Soft unknowns that remain open must be carried forward explicitly with owner or reopen condition; never disguise them as settled facts.
 
-Side topics are not soft unknowns and not downstream scope. If the Topic Ownership Gate classified a turn as `branch_new`, `link_existing`, or `defer`, keep that material out of this handoff's requirement contract except for a routed-topic reference containing the target slug/source digest when available.
+Side topics are not soft unknowns and not downstream delivery scope. If the Topic Ownership Gate classified a turn as `branch_new`, `link_existing`, or `defer`, preserve its routed-topic reference containing the target slug/source digest when available. Retain previously recorded material/REQ IDs and their explicit deferred/out-of-scope source dispositions for accounting; that does not authorize compiling them into current scope.
 
 Exclude human presentation, duplicated background prose, full discussion history, timestamps not required by confirmation, ordered execution plans, and fields that do not change downstream action, verification, or recovery.
 
 Store the protected digest under `discussion_decision_digest`: `locked_direction`, only relevant `rejected_alternatives`, `accepted_tradeoffs`, `experience_commitments`, `review_criteria_carried_forward`, and `must_not_dilute`. Downstream phases refer to this digest and must not rediscover or flatten it.
 
 ## Review Digest
+
+Before draft review, complete the source-material reference's semantic reverse
+review against every original unit. Carry all source requirements and explicit
+dispositions in the protected snapshot; delivery receipts are not proof of
+understanding. Do not drop unextracted rules behind a file-level summary or
+classify requirement-bearing units as context.
 
 Compute `review_digest` from protected semantic content only. Exclude status transitions, timestamps, confirmation bookkeeping, and integrity fields so approval binds to meaning.
 

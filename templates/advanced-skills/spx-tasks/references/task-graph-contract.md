@@ -120,3 +120,17 @@ tasks together cover Plan. Split risk-based or pairwise scenarios, never an
 unbounded Cartesian product, and keep target-user human review visible.
 Each selected surface copies one exact `entrypoint_id` from top-level
 `official_entrypoints`; missing, unknown, or multiple bindings block finalize.
+## Source requirement continuity
+
+Copy the Plan's entire `source_requirement_coverage` array unchanged into
+`task-index.json`, including every REQ disposition and `duplicate_of`; do not
+filter it to the first batch or only requirements that seem large. For every
+`in_scope` row, assign all of its `acceptance_refs` to concrete
+`tasks[].acceptance_refs`. Their union must cover every mapped source acceptance
+criterion, not just the task-index root denominator. Preserve the referenced
+behavior in task acceptance and verification, including negations, conditions,
+permissions, exceptions, and recovery paths. Several tasks may share a real
+criterion, and one task may cover several; neither permits an unmapped source
+requirement. Runtime derives packet `source_requirement_refs` from these
+assignments. An omission blocks finalize/dispatch until Tasks repairs the
+mapping, or the owning upstream phase resolves an actual truth change.

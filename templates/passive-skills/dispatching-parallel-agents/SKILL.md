@@ -1,5 +1,5 @@
 ---
-description: "Use when facing 2+ independent test failures, bugs, research questions, map lanes, or implementation tasks that can run without shared write state. Dispatch native subagents through the owning sp-* workflow."
+description: "Use when facing 2+ independent test failures, bugs, research questions, map lanes, or implementation tasks that can run without shared write state. Dispatch native subagents directly for ordinary development or through an explicitly invoked workflow."
 ---
 
 # Dispatching Parallel Agents (Spec Kit Plus)
@@ -11,6 +11,27 @@ write-sets.
 
 The stable default is current-runtime dispatch. Do not turn parallel work into a
 user coordination problem when native subagents are available.
+
+## Execution Context Boundary
+
+Ordinary development may dispatch native subagents directly. Do not require a
+workflow command merely to continue ordinary development. If an executable task
+graph is missing, create a compact in-session task list with dependencies, write
+scopes, acceptance, and verification, then proceed. No canonical workflow
+artifacts, runtime packet compilation, or workflow result channel are required;
+do not create or mutate canonical workflow artifacts for this ordinary path.
+
+Passive SKILL invocation must not enter any `sp-*` or `spx-*` workflow. Existing
+workflow files alone do not activate one. Resume an already explicitly invoked
+workflow without requiring the user to repeat its command. Preserve its phase
+boundaries, runtime-owned artifacts, validated packets, result channels, and
+approval gates. Never relabel active workflow work as ordinary development to
+bypass a gate. Missing targets or unresolved product decisions still require
+resolution; continue independent authorized work where possible.
+
+The workflow-specific rules below apply only inside an active workflow. For
+ordinary development, use bounded in-session assignments, structured native
+results, and record dispatch choices and verification in the current task.
 
 Current routing vocabulary:
 
@@ -38,11 +59,11 @@ Current routing vocabulary:
 
 ## Process
 
-1. **Route first**: Recommend the owning workflow before dispatch. Passive Skill
-   invocation must not enter any `sp-*` or `spx-*` workflow. When showing those
-   entrypoints to the user, use `{{invoke:quick}}`, `{{invoke:debug}}`,
-   `{{invoke:map-scan}}`, `{{invoke:map-build}}`, or `{{invoke:implement}}` as
-   appropriate, then stop until the user explicitly invokes it.
+1. **Identify the execution context**: Apply the Execution Context Boundary.
+   For ordinary development, split the authorized work and continue. Optional
+   workflow advice uses `{{invoke:quick}}`, `{{invoke:debug}}`,
+   `{{invoke:map-scan}}`, `{{invoke:map-build}}`, or `{{invoke:implement}}`.
+   Advice does not activate a workflow or suspend ordinary authorized work.
 2. **Split lanes**: Name each lane, purpose, read context, write-set, forbidden
    paths, shared surfaces, and verification target.
    `sp-debug` dispatches parallel agents only when the investigation exposes
@@ -53,7 +74,11 @@ Current routing vocabulary:
    documented join with exclusive ownership). Conflict detection is a sequencing
    signal, not a cue for unrecorded leader-inline multi-file edits.
 4. **Packetize just in time**: Compile validated packets only for the selected
-   current lanes. Raw task text is not enough and future batches stay unexpanded.
+   current lanes in an active workflow. For ordinary development, prepare a
+   bounded assignment with objective, dependencies, authoritative live context,
+   exact read/write scope, forbidden drift, acceptance, verification, and
+   recovery/escalation conditions. No runtime receipt is required. Raw task text
+   is not enough and future batches stay unexpanded.
 5. **Dispatch native subagents**: Use `parallel-subagents` on the
    `native-subagents` surface first, such as Codex `spawn_agent`/`wait_agent`,
    Cursor `Task` with background execution, Claude Task, or the active CLI's
@@ -65,7 +90,8 @@ Current routing vocabulary:
    met. Integrate only after the handoff is specific enough to review. An
    accepted terminal result completes the native lane without a separate cleanup
    operation; use an exposed interrupt or cancellation operation only for
-   unfinished work. Keep results on the owning workflow's stage channel.
+   unfinished work. In an active workflow, keep results on the owning workflow's
+   stage channel. For ordinary development, accept the structured native result directly.
 
 ## Fallbacks
 

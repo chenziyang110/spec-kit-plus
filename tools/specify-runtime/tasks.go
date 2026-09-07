@@ -14,6 +14,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/specvalidate"
 )
 
 var taskControlIDRE = regexp.MustCompile(`^T\d+$`)
@@ -377,6 +379,9 @@ func runTasksHandoff(args []string) (map[string]any, error) {
 	}
 	payload, _, err := loadTaskControlPackage(root, feature)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateTaskControlSourceRequirements(feature, payload); err != nil {
 		return nil, err
 	}
 	if err := taskControlValidateTestDesignBinding(root, feature, payload, false, true); err != nil {
@@ -1478,7 +1483,7 @@ func validateTaskControlAcceptance(feature string, payload map[string]any) error
 		planPath = filepath.Join(feature, "plan", "plan-contract.json")
 	}
 	if !pathExists(planPath) {
-		return nil
+		return validateTaskControlSourceRequirements(feature, payload)
 	}
 	plan, err := readImplementJSONMap(planPath)
 	if err != nil {
@@ -1499,6 +1504,9 @@ func validateTaskControlAcceptance(feature string, payload map[string]any) error
 	if err := rewriteAcceptanceSourceRefs(payload, expected, "plan-contract.json"); err != nil {
 		return err
 	}
+	if err := validateTaskControlSourceRequirements(feature, payload); err != nil {
+		return err
+	}
 	if len(expected) == 0 {
 		return nil
 	}
@@ -1512,6 +1520,52 @@ func validateTaskControlAcceptance(feature string, payload map[string]any) error
 		}
 	}
 	return nil
+}
+
+func validateTaskControlSourceRequirements(feature string, payload map[string]any) error {
+	planPath := filepath.Join(feature, "plan-contract.json")
+	if !pathExists(planPath) {
+		planPath = filepath.Join(feature, "plan", "plan-contract.json")
+	}
+	if !pathExists(planPath) {
+		bound, err := specvalidate.HasBoundDiscussionSource(feature)
+		if err != nil {
+			return err
+		}
+		if bound || specvalidate.HasSourceRequirementCoverage(payload) {
+			return fmt.Errorf("task source_requirement_coverage requires its upstream plan-contract.json")
+		}
+		return nil
+	}
+	plan, err := readImplementJSONMap(planPath)
+	if err != nil {
+		return err
+	}
+	if err := specvalidate.ValidateSourceCoverageInheritance(plan, payload); err != nil {
+		return fmt.Errorf("task-index.json: %w", err)
+	}
+	specPath := filepath.Join(feature, "spec-contract.json")
+	if !pathExists(specPath) {
+		bound, err := specvalidate.HasBoundDiscussionSource(feature)
+		if err != nil {
+			return err
+		}
+		if bound || specvalidate.HasSourceRequirementCoverage(plan) {
+			return fmt.Errorf("source requirement coverage requires spec-contract.json")
+		}
+		return nil
+	}
+	spec, err := readImplementJSONMap(specPath)
+	if err != nil {
+		return err
+	}
+	if err := specvalidate.ValidateSourceCoverageInheritance(spec, plan); err != nil {
+		return fmt.Errorf("plan-contract.json: %w", err)
+	}
+	if err := specvalidate.ValidateSourceRequirementCoverage(feature); err != nil {
+		return err
+	}
+	return specvalidate.ValidateTaskSourceRequirementCoverage(payload)
 }
 
 func normalizeTaskIndexAcceptanceRefs(actual any, expected []any, planLabel string) ([]any, error) {
@@ -1625,7 +1679,7 @@ func rewriteAcceptanceSourceRefs(payload map[string]any, expected []any, planLab
 		}
 		payload[field] = rows
 	}
-	for _, field := range []string{"system_review_scenarios", "human_acceptance_scenarios"} {
+	for _, field := range []string{"system_review_scenarios", "human_acceptance_scenarios", "tasks"} {
 		rows, ok := payload[field].([]any)
 		if !ok {
 			continue

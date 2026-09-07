@@ -6,6 +6,14 @@ Preserved Contract: Migrated from `templates/commands/discussion.md`; this file 
 
 ## Semantic Checkpoints
 
+Original-source snapshots and unit-delivery progress use the specialized
+`discussion import-material` / `discussion read-material` owners from
+[source-material-consumption.md](source-material-consumption.md). These are
+necessary `evidence-handoff` events, not an ordinary per-reply persistence loop.
+Checkpoint only semantic interpretation: complete `unit_dispositions` and
+`requirements_snapshot.source_requirements` with stable IDs and source refs.
+Never author runtime `reading`, delivered receipts, or inspected status.
+
 Refresh canonical state and optional structured files only at semantic checkpoints. A semantic checkpoint is a durable meaning change that affects the discussion's future course; it is not every user response, acknowledgement, minor preference, low-risk clarification, answer to a low-risk follow-up, or elapsed turn count.
 
 - user confirms a goal, non-goal, scope boundary, or important product decision that changes the discussion compass, target boundary, recommendation, handoff readiness, blocking unknowns, or downstream contract

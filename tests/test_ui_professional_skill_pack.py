@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from .agent_guidance_utils import read_agents_with_references
+
 
 ROOT = Path(__file__).resolve().parents[1]
 PACK = ROOT / "templates" / "ui-professional-skills"
@@ -25,6 +27,8 @@ def _load_route_module():
 
 
 def _read(path: Path) -> str:
+    if path == ROOT / "AGENTS.md":
+        return read_agents_with_references()
     return path.read_text(encoding="utf-8")
 
 

@@ -7,6 +7,11 @@ description: Tracked direct-delivery workflow for advanced coding models. Use wh
 
 ## Hard preflight stop
 
+A material-backed Discussion handoff requires full Quick intake and
+`references/task-contract.md`; classify it as insufficient for context-direct.
+That shortcut cannot bypass complete source reading, requirement mapping, or
+source readiness. Unchanged confirmed source meaning needs no extra approval.
+
 The invoking request is not a branch selection, even when it says to make the
 change. Before committing to any action, classify context sufficiency. If it is
 sufficient, render the evidence summary and exact two-option menu, then stop

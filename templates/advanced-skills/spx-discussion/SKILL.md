@@ -5,6 +5,11 @@ description: Resumable product and technical discussion for advanced coding mode
 
 # SPX Discussion
 
+Read `references/source-material-consumption.md` whenever original material is
+supplied, before its claims enter synthesis or handoff. Complete runtime-owned
+reading and per-requirement reverse review; summaries and minimal cognition
+reads cannot substitute for complete source consumption.
+
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/workflow-runtime.md`; its feature-state rules apply only after
 this discussion is bound to a resolved `FEATURE_DIR`.
@@ -61,9 +66,11 @@ handoff.
 Run a Topic Ownership Gate each turn with exactly one `route`:
 `continue_current`, `branch_new`, `link_existing`, or `defer`. Only
 `route: continue_current` may mutate this discussion's owned scope or handoff.
-`branch_new`, `link_existing`, and `defer` stay out of the current
-`owned_scope`, requirement contract, and decision digest; record only routed
-topic pointers such as `target_slug` and `source_digest` when available.
+`branch_new`, `link_existing`, and `defer` stay out of the current delivery
+`owned_scope` and decision digest; retain routed-topic pointers such as
+`target_slug` and `source_digest` when available. Preserve already-recorded
+material/REQ IDs and explicit source dispositions for provenance without
+granting those side topics delivery authority.
 Do not treat an already-active discussion as a new automatic workflow entry;
 topical acknowledgements and follow-ups continue this stage without requiring
 the user to repeat `$spx-discussion`. A contextual confirmation such as `yes`,

@@ -25,15 +25,18 @@ func TestCanonicalSpecContractPassesWithoutLegacyArtifactFanout(t *testing.T) {
 	dir := t.TempDir()
 	writeFileForTest(t, dir, "spec.md", "# Spec\n\n## Need\nA compact canonical specification.\n")
 	contract := map[string]any{
-		"version":                     1,
-		"status":                      "planning-ready",
-		"source_contract":             nil,
-		"source_revision":             nil,
-		"decision_digest_ref":         nil,
-		"target_need":                 "Produce a compact canonical specification.",
-		"scope":                       map[string]any{"in": []any{"canonical contract"}, "out": []any{}, "deferred": []any{}},
-		"constraints":                 []any{"Do not duplicate handoff truth."},
-		"acceptance_criteria":         []any{"Planner can consume spec-contract.json directly."},
+		"version":             1,
+		"status":              "planning-ready",
+		"source_contract":     nil,
+		"source_revision":     nil,
+		"decision_digest_ref": nil,
+		"target_need":         "Produce a compact canonical specification.",
+		"scope":               map[string]any{"in": []any{"canonical contract"}, "out": []any{}, "deferred": []any{}},
+		"constraints":         []any{"Do not duplicate handoff truth."},
+		"acceptance_criteria": []any{"Planner can consume spec-contract.json directly."},
+		"acceptance_coverage": []any{map[string]any{
+			"requirement_ref": "spec-contract.json#/scope/in/0", "acceptance_ref": "spec-contract.json#/acceptance_criteria/0",
+		}},
 		"decisions":                   []any{},
 		"semantic_delta":              []any{},
 		"capability_operations":       []any{},
@@ -76,6 +79,7 @@ func TestCanonicalSpecContractPassesWithoutLegacyArtifactFanout(t *testing.T) {
 	results := runLintForTest(t, dir, "standard")
 	for _, name := range []string{
 		"required-artifacts", "workflow-state-readiness", "handoff-json-schema",
+		"acceptance-coverage", "source-requirement-coverage",
 		"planning-gate-ready", "source-signal-disposition", "must-preserve-coverage",
 		"review-state-approved", "quality-gate-summary", "scout-summary",
 		"capability-triage", "execution-mode", "change-propagation",
