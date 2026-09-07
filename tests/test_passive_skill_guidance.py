@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -13,7 +14,6 @@ def test_project_to_prd_routes_existing_project_prd_extraction() -> None:
 
     assert "sp-prd-scan" in content
     assert "sp-prd-build" in content
-    assert "deprecated" in content
     assert "current-state prd suite" in content
     assert "repository evidence" in content
     assert "evidence, inference, and unknown" in content
@@ -48,7 +48,7 @@ def test_project_to_prd_skill_routes_to_prd_scan_then_prd_build() -> None:
 
     assert "sp-prd-scan" in content
     assert "sp-prd-build" in content
-    assert "deprecated" in lowered
+    assert re.search(r"\bsp-prd(?!-scan|-build)\b", lowered) is None
 
 
 def test_frontend_design_requires_design_workflow_for_high_visibility_unbound_ui() -> None:

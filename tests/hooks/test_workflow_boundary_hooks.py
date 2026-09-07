@@ -161,7 +161,7 @@ def test_workflow_boundary_keeps_tasks_to_analyze_legacy_route(tmp_path: Path):
     assert result.data == {"from_command": "tasks", "to_command": "analyze"}
 
 
-def test_workflow_boundary_normalizes_research_alias(tmp_path: Path):
+def test_workflow_boundary_rejects_retired_research_alias(tmp_path: Path):
     project = _create_project(tmp_path)
 
     result = run_quality_hook(
@@ -170,8 +170,8 @@ def test_workflow_boundary_normalizes_research_alias(tmp_path: Path):
         {"from_command": "research", "to_command": "plan"},
     )
 
-    assert result.status == "ok"
-    assert result.data == {"from_command": "deep-research", "to_command": "plan"}
+    assert result.status == "blocked"
+    assert any("research -> plan" in message for message in result.errors)
 
 
 def test_workflow_boundary_blocks_skipping_directly_to_implement(tmp_path: Path):
