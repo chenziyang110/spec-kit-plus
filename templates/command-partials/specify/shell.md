@@ -120,10 +120,17 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
   them from the preview. A later feature-level `ui-target.html` refines concrete
   composition and does not replace the approved preview or handoff.
 - Detect screenshots, HTML/CSS mockups, Tailwind/shadcn/React/Vue/Svelte snippets, Figma exports, reference URLs, existing product pages, or matching-language such as "make it like this", "basically the same", "copy this layout", or "use this as the design".
-- When UI reference input exists, ask for the fidelity mode unless the user already stated it:
-  - `approximate` by default: preserve layout, density, hierarchy, visual rhythm, component structure, and primary interactions.
-  - `high`: require visual comparison and deviation notes.
-  - `inspiration`: extract principles only and avoid similar-looking output.
+- Record fidelity per reference and exact governed surface as
+  `{ref, intent, fidelity, surface_ids}`; never let one global fidelity value
+  weaken a stronger live-product binding. Existing-product shell and shared
+  components default to `intent: exact`, `fidelity: exact`; an external
+  workbook or inspiration source may independently use `approximate`, `high`,
+  or `inspiration`. Keep `fidelity_mode` only as an aggregate summary.
+- If the requested feature would adapt, replace, merge, split, or retire an
+  existing navigator, shell region, or complete-page information architecture
+  and the user did not explicitly authorize that delta, ask one high-impact
+  question before marking the spec planning-ready. “Iteration”, “optimization”,
+  or creating a new design contract never implies page-overhaul permission.
 - Use `choose_ui_reference_lane_dispatch(command_name="specify", snapshot, workload_shape)` before dispatching UI reference work.
 - Record `lane_mode: ui-reference-artifact`, `dispatch_shape`, `execution_surface`, `workflow_status`, `blocked_reason`, and whether inline fallback was user approved.
 - The `sp-specify` leader must not directly parse UI references and write the UI contract when UI reference input is present. The leader dispatches and validates the lane.

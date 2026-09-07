@@ -8,7 +8,7 @@ description: Resumable product and technical discussion for advanced coding mode
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/workflow-runtime.md`; its feature-state rules apply only after
 this discussion is bound to a resolved `FEATURE_DIR`.
-Read `references/project-cognition.md`, using cognition intent `plan`, and
+Read `references/project-cognition.md`, using cognition intent `discussion`, and
 `references/discussion-contract.md`. Read `references/consequence-gate.md` on
 its triggers.
 Read `references/ui-quality-gate.md` when product experience, interface
@@ -48,7 +48,12 @@ transcript. A summary-only checkpoint is valid only for an explicit savepoint
 with no semantic change. When meaning changed since the last durable state,
 submit every changed semantic field needed to preserve current truth,
 especially confirmed decisions, the context boundary, the current
-recommendation, topic ownership, and open assumptions. Use the resolver-returned
+recommendation, topic ownership, source materials, open assumptions, conflicts,
+downstream instructions, and material coverage. User-provided documents,
+screenshots, recordings, pasted notes, links, or other source material must
+enter `source_materials` first with stable `MAT-###` IDs, `material_type`,
+`locator`, summary, inspection status, claims, coverage gaps, sensitivity, and a
+safe reference or sanitized summary for restricted content. Use the resolver-returned
 `state_sha256` as `--expected-state-sha256` on checkpoint and write-handoff
 writes. Do not report checkpoint success while leaving newly confirmed decisions
 only in chat memory. Stay in discussion until the user explicitly requests a
@@ -87,15 +92,23 @@ exists, ask one route-choice question and stay in this discussion. A contextual
 `yes`, `ok`, or `可以` selects the recommendation only when it directly answers
 that named route-choice question; it does not approve the later digest.
 Then set `recommended_consumer` to record that confirmed selection, build only
-one compact semantic contract input, and submit it with
+one compact semantic routing/review input, and submit it with
 `{{specify-subcmd:specify-runtime discussion write-handoff <slug> --expected-state-sha256 <state_sha256> --input-json '<semantic-json>' --json}}`.
-The runtime expands the installed stable template, binds metadata and blocked
-defaults, and computes the review digest. Never read or reproduce the template
-and never create a draft JSON file; the discussion runtime alone materializes
-the canonical handoff.
+Before calling write-handoff, create the latest semantic checkpoint so
+`latest_checkpoint.snapshot_sha256` matches the current state. Without that
+checkpoint, write-handoff blocks with `missing_semantic_checkpoint`; if the state
+changed after it, it blocks as stale. The runtime expands the installed stable
+template, derives state-owned semantics from canonical `discussion-state.json`
+(`requirements_snapshot` becomes `agent_requirement_contract`), binds only
+`discussion_snapshot_digest`, material coverage, runtime-derived counts, and
+blocked defaults, then computes the review digest. Never read or reproduce the
+template, never pass state-owned truth to override the checkpoint, and never
+create a draft JSON file; the discussion runtime alone materializes the
+canonical handoff.
 Run `{{specify-subcmd:specify-runtime discussion validate-handoff <slug> --mode draft --json}}`,
-review its boundary against confirmed decisions, and ask the user to confirm
-that exact revision. Then run
+review its boundary against confirmed decisions, source material coverage
+(covered `MAT-###` IDs and any uncovered or partially inspected materials),
+unknowns/conflicts, and ask the user to confirm that exact revision. Then run
 `{{specify-subcmd:specify-runtime discussion confirm-handoff <slug> --digest <review-digest> --json}}`
 before `{{specify-subcmd:specify-runtime discussion mark-ready <slug> --json}}`. Before every
 final response that names `$spx-quick` or `$spx-specify`, run

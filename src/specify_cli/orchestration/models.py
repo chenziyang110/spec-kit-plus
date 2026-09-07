@@ -103,7 +103,6 @@ _ORDINARY_SP_COMMANDS = frozenset(
         "plan",
         "quick",
         "review",
-        "research",
         "specify",
         "tasks",
         "test-design",

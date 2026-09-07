@@ -562,7 +562,7 @@ func renderStaticArtifactScaffold(kind artifactScaffoldKind, template []byte, va
 			"## Eliminated",
 			"## Evidence",
 		},
-		"design-brief":       {"design_brief:", "status: draft", "# Design Brief", "## Taste Intake", "## UI Professional Skill Route", "## Style Authority And Delivery Context", "## UI Evidence And System Model", "## Confirmed Experience", "## Approval", "active_command:", "phase_mode:", "current_stage:", "active_question:", "feedback_history:", "prototype_rounds:", "professional_skill_route:", "style_authority:", "delivery_context:", "design_read:", "dials:", "aesthetic_family:", "foundation_strategy:", "redesign_mode:", "anti_slop_locks:", "reference_board_intents:"},
+		"design-brief":       {"design_brief:", "status: draft", "# Design Brief", "## Taste Intake", "## UI Professional Skill Route", "## Style Authority And Delivery Context", "## UI Evidence And System Model", "## Confirmed Experience", "## Approval", "active_command:", "phase_mode:", "current_stage:", "contract_action:", "surface_posture:", "input_strategy:", "active_question:", "feedback_history:", "prototype_rounds:", "professional_skill_route:", "style_authority:", "delivery_context:", "design_read:", "dials:", "aesthetic_family:", "foundation_strategy:", "redesign_mode:", "anti_slop_locks:", "reference_board_intents:"},
 		"design-review":      {"# Design Review", "## Approved Direction", "## Immutable References", "## Recommended Next Workflow"},
 		"quick-plan":         {"# Quick Task Plan", "## Outcome and Boundaries", "## Acceptance and Verification"},
 		"quick-summary":      {"# Quick Task Summary", "## Outcome", "## Verification", "## Residual Risk"},

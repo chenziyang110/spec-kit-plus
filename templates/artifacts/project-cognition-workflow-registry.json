@@ -92,11 +92,6 @@
       "canonical_workflow": null,
       "reason": "Plan artifacts are planning-only."
     },
-    "prd": {
-      "mode": "no_closeout",
-      "canonical_workflow": null,
-      "reason": "PRD artifacts are planning-only."
-    },
     "prd-build": {
       "mode": "no_closeout",
       "canonical_workflow": null,
@@ -111,11 +106,6 @@
       "mode": "mutation_closeout",
       "canonical_workflow": "sp-quick",
       "reason": "Quick performs a tracked repository change."
-    },
-    "research": {
-      "mode": "no_closeout",
-      "canonical_workflow": null,
-      "reason": "Research routes to planning research artifacts."
     },
     "review": {
       "mode": "mutation_closeout",

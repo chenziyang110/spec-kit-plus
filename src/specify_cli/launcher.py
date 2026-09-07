@@ -189,7 +189,6 @@ _SPECIFY_RUNTIME_ROOTS = frozenset(
         "map-build",
         "map-scan",
         "map-update",
-        "prd",
         "prd-build",
         "prd-scan",
         "preset",

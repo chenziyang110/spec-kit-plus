@@ -34,7 +34,6 @@ REDIRECTABLE_WORKFLOW_COMMANDS = {
     "tasks",
     "analyze",
     "accept",
-    "prd",
 }
 
 

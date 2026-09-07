@@ -1321,10 +1321,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert not (skills_dir / "sp-test-scan" / "SKILL.md").exists()
     assert not (skills_dir / "sp-test-build" / "SKILL.md").exists()
 
-    prd_content = (skills_dir / "sp-prd" / "SKILL.md").read_text(encoding="utf-8").lower()
-    assert "deprecated compatibility entrypoint" in prd_content
-    assert "sp-prd-scan -> sp-prd-build" in prd_content
-    assert "do not describe `sp-prd` as the preferred workflow" in prd_content
+    assert not (skills_dir / "sp-prd" / "SKILL.md").exists()
 
     prd_scan_content = (skills_dir / "sp-prd-scan" / "SKILL.md").read_text(encoding="utf-8").lower()
     assert "current repository reality" in prd_scan_content
@@ -1454,7 +1451,7 @@ def test_codex_generated_skills_preserve_agent_required_marker_lines(tmp_path):
 
     assert result.exit_code == 0, result.output
 
-    for skill_name in ("sp-quick", "sp-map-scan", "sp-map-build", "sp-implement", "sp-specify", "sp-prd", "sp-plan", "sp-tasks", "sp-debug"):
+    for skill_name in ("sp-quick", "sp-map-scan", "sp-map-build", "sp-implement", "sp-specify", "sp-prd-scan", "sp-plan", "sp-tasks", "sp-debug"):
         content = (target / ".codex" / "skills" / skill_name / "SKILL.md").read_text(encoding="utf-8")
         assert "[agent]" in content.lower()
 

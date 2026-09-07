@@ -122,6 +122,45 @@ func TestPRDRecordCLIRejectsStaleDigestAndWholeDocumentPayload(t *testing.T) {
 	}
 }
 
+func TestPRDRecordMutationRejectsRetiredWorkflowIdentityButKeepsReadAccess(t *testing.T) {
+	projectRoot := t.TempDir()
+	service := prdService{projectRoot: projectRoot}
+	initialized, err := service.initRun("legacy-record-owner", "sp-prd-scan", "init-scan")
+	if err != nil {
+		t.Fatalf("init PRD run: %v", err)
+	}
+	runID := initialized["workspace"].(string)
+	runDir := filepath.Join(projectRoot, ".specify", "prd-runs", runID)
+	workflowPath := filepath.Join(runDir, "workflow-state.md")
+	raw, err := os.ReadFile(workflowPath)
+	if err != nil {
+		t.Fatalf("read workflow state: %v", err)
+	}
+	legacy := strings.Replace(string(raw), "sp-prd-scan", "sp-prd", 1)
+	if err := os.WriteFile(workflowPath, []byte(legacy), 0o644); err != nil {
+		t.Fatalf("write legacy workflow state: %v", err)
+	}
+
+	listed := runPRDRecordCLI(t, projectRoot, []string{
+		"record-list", runID, "--surface", "capability", "--format", "json",
+	})
+	if listed.Status != "ok" {
+		t.Fatalf("legacy record list = %#v, want read-only access", listed)
+	}
+
+	digests := initialized["record_digests"].(map[string]any)
+	mutation := runPRDRecordCLI(t, projectRoot, []string{
+		"record-upsert", runID,
+		"--surface", "capability",
+		"--expected-sha256", digests["capability"].(string),
+		"--input-json", `{"id":"CAP-LEGACY","tier":"high","status":"reconstruction-ready"}`,
+		"--format", "json",
+	})
+	if mutation.Status != "blocked" || !strings.Contains(fmt.Sprint(mutation.Blockers), "sp-prd-scan") {
+		t.Fatalf("legacy record mutation = %#v, want explicit canonical migration blocker", mutation)
+	}
+}
+
 func TestPRDRecordArtifactsRejectGenericPrepare(t *testing.T) {
 	projectRoot := t.TempDir()
 	service := prdService{projectRoot: projectRoot}

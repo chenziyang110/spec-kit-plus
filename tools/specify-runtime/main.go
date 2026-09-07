@@ -1253,6 +1253,7 @@ func defaultCapabilities() []string {
 		"design.preview",
 		"design.preview-manifest",
 		"design.preview-lint",
+		"design.prompt",
 		"design.profiles",
 		"design.register",
 		"design.resolve",
@@ -1522,6 +1523,8 @@ func capabilitySummary(id string) string {
 		return "Record an explicit non-consumable direction checkpoint for one exact draft concept round."
 	case "design.import":
 		return "Import an external image into one immutable draft design round."
+	case "design.prompt":
+		return "Prepare the runtime-owned prompt and generation binding for one draft image round."
 	case "design.iterate":
 		return "Create a digest-pinned successor of one immutable UI design change."
 	case "design.resolve":

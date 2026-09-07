@@ -2,7 +2,7 @@ Trigger: at every `sp-design` entry or resume, before asking design questions, s
 
 Purpose: route one public design skill from the user's natural-language prompt and current design state without exposing user-selected subcommands.
 
-Preserved Contract: `sp-design` remains the single public entry point; routing separates task type from reference-input strategy, resumes active work before reclassification, and hands domain-external work to its owning workflow.
+Preserved Contract: `sp-design` remains the single public entry point; routing separates contract action, surface posture, and reference-input strategy, resumes active work before reclassification, and hands domain-external work to its owning workflow.
 
 ## Single Public Entry Point
 
@@ -16,7 +16,8 @@ Preserved Contract: `sp-design` remains the single public entry point; routing s
 - Persist the compact route as:
 
 ```text
-task_type: create | refine | audit
+contract_action: create | refine | audit
+surface_posture: greenfield | inherit-existing | page-overhaul-authorized
 input_strategy: context | synthesize
 route_reason: <one evidence-based sentence>
 ```
@@ -26,8 +27,14 @@ scaffolds the workspace, use
 `specify-runtime artifact patch` to store the canonical route in
 `.specify/design/changes/<UD-ID>/brief.md`. If the derived design
 state exposes a selected-mode field, treat it only as a compatibility
-projection of `task_type`; do not invent a second writable workflow-state file.
+projection of `contract_action`; do not invent a second writable workflow-state file.
 Use the same owner CLI to repeat the route in review when it explains closeout.
+
+`contract_action` describes the `UD-*` artifact lifecycle, not permission to
+redraw a product. `surface_posture` describes visual authority and must exactly
+match `style_authority.mode`. Creating a missing design contract for a live
+product is therefore `contract_action: create` plus
+`surface_posture: inherit-existing`, never a greenfield page.
 
 ## Routing Dimensions
 
@@ -63,10 +70,12 @@ auto-add an unselected profile because a later matrix would be convenient.
 
 Before presenting a direction as ready to complete, call the advertised
 `preview-lint concept` capability through `specify-runtime design` using exact
-runtime names from preflight. Call the advertised `direction-confirm`
-capability only after both conditions hold: the named current concept passed
-that concept lint and the user gave explicit direction confirmation. A lint
-pass alone must not create the sidecar. The resulting direction-confirmed
+runtime names from preflight. Concept lint must create the current byte-bound
+concept receipt; when inspection is available, pass its protected-surface
+review through `--inspection-json`. Only after that receipt exists may the
+workflow ask for explicit direction confirmation, and only after that user
+confirmation may it call `direction-confirm`. A lint pass alone must not create
+the direction sidecar. The resulting direction-confirmed
 sidecar is non-consumable: it is not approval, not a register event, and not
 input that Plan, Tasks, Implement, Quick, or Review may adopt. It only proves
 that the single current concept is coherent enough to finish its contract.
@@ -88,8 +97,8 @@ direct delivery.
    `.specify/design/changes/<UD-ID>/brief.md` / `design-change.md` through
    `artifact show` first when they exist.
 2. If they record nonterminal work for the same objective, resume before
-   reclassification at the brief's exact `task_type` and `input_strategy` plus
-   the derived state's current stage.
+   reclassification at the brief's exact `contract_action`, `surface_posture`,
+   and `input_strategy` plus the derived state's current stage.
 3. Treat approval, feedback, and continuation messages as lifecycle events for
    that active task, not as new audit/create/refine prompts.
 4. Reclassify only when the user explicitly changes the objective or live

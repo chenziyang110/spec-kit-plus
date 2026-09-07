@@ -10,6 +10,7 @@ from specify_cli.design_intelligence.ui_migration import migration_adapter_targe
 
 from specify_cli.execution.ui_validation import (
     _source_continuity_target_snapshot,
+    _source_continuity_write_scope,
     validate_lifecycle_ui_verification,
 )
 
@@ -22,6 +23,94 @@ def _runtime_bytes(payload: dict[str, object]) -> bytes:
     return (
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     ).encode()
+
+
+def test_source_continuity_target_snapshot_rejects_explicit_runtime_owned_scope(
+    tmp_path: Path,
+) -> None:
+    product_path = tmp_path / "src" / "app.ts"
+    product_path.parent.mkdir(parents=True)
+    product_path.write_text("export const stable = true;\n", encoding="utf-8")
+    continuity_dir = (
+        tmp_path
+        / ".specify"
+        / "features"
+        / "009-source-continuity"
+        / "implementation-review"
+        / "source-continuity"
+    )
+    alternate_scope = (
+        "src/../.specify/features/009-source-continuity/"
+        "implementation-review/source-continuity/**"
+    )
+
+    continuity_dir.mkdir(parents=True)
+    for name in (
+        "source-continuity-manifest-T017.json",
+        "source-continuity-tool-inventory-T017.json",
+        "source-continuity-adapter-probe-T017.json",
+        "source-continuity-adapter-plan-T017.json",
+        "source-continuity-adapter-execution-T017.json",
+        "source-continuity-lab-T017.json",
+    ):
+        (continuity_dir / name).write_text(f'{{"name":"{name}"}}\n', encoding="utf-8")
+    for runtime_scope in (
+        alternate_scope,
+        "specs/009-source-continuity/implementation-review/source-continuity/**",
+    ):
+        assert _source_continuity_target_snapshot(tmp_path, [runtime_scope]) is None
+
+
+def test_source_continuity_target_snapshot_ignores_legacy_specs_runtime_root(
+    tmp_path: Path,
+) -> None:
+    product_path = tmp_path / "src" / "app.ts"
+    product_path.parent.mkdir(parents=True)
+    product_path.write_text("export const stable = true;\n", encoding="utf-8")
+    before = _source_continuity_target_snapshot(tmp_path, [])
+
+    runtime_path = (
+        tmp_path
+        / "specs"
+        / "009-source-continuity"
+        / "implementation-review"
+        / "source-continuity"
+        / "source-continuity-manifest-T017.json"
+    )
+    runtime_path.parent.mkdir(parents=True)
+    runtime_path.write_text('{"runtime_owned":true}\n', encoding="utf-8")
+
+    assert before is not None
+    assert _source_continuity_target_snapshot(tmp_path, []) == before
+
+
+def test_source_continuity_target_snapshot_keeps_product_named_source_continuity(
+    tmp_path: Path,
+) -> None:
+    product_path = (
+        tmp_path
+        / "src"
+        / "implementation-review"
+        / "source-continuity"
+        / "adapter.ts"
+    )
+    product_path.parent.mkdir(parents=True)
+    product_path.write_text("export const version = 1;\n", encoding="utf-8")
+    before = _source_continuity_target_snapshot(tmp_path, ["src/**"])
+    product_path.write_text("export const version = 2;\n", encoding="utf-8")
+
+    assert before is not None
+    assert _source_continuity_target_snapshot(tmp_path, ["src/**"]) != before
+
+
+def test_source_continuity_write_scope_uses_current_expected_write_scope() -> None:
+    task = {
+        "expected_write_scope": ["src/**"],
+        "write_scope": ["legacy-should-not-widen/**"],
+        "scope": {"write_scope": ["assets/**"]},
+    }
+
+    assert _source_continuity_write_scope(task) == ["src/**", "assets/**"]
 
 
 def _write_evidence_record(project_root: Path, label: str, adapter_id: str) -> str:
@@ -341,7 +430,7 @@ def test_lifecycle_requires_byte_bound_source_continuity_lab_report(
         "tasks": [
             {
                 "id": "T001",
-                "scope": {"write_scope": ["src/**"]},
+                "expected_write_scope": ["."],
                 "ui_contract": {
                     "source_continuity": continuity,
                     "usability_validation": {"smoothness_acceptance_ids": []},

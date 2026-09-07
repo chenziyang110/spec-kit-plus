@@ -75,6 +75,12 @@ source-continuity-adapter-bridge --feature-dir <feature-dir> --task-id <Txxx>
 --manifest <manifest-ref> --input-json '<live-tool-inventory>'`. The Bridge
 maps generic signals to the embedded `source-continuity-adapter-catalog` and
 atomically owns inventory, Probe, and Plan artifacts.
+The target snapshot hashes the current `expected_write_scope`; legacy
+`write_scope` is fallback-only. Runtime-owned workflow roots and Source
+Continuity outputs are excluded, so repeated manifests are byte-stable until
+an in-scope product source changes. Do not add `source-continuity` runtime
+artifacts to product or execution-guard scope as a recovery workaround;
+explicit runtime-owned scopes are invalid.
 `source-continuity-adapter-probe` is the lower-level provider-binding fallback;
 `source-continuity-adapter-plan` is the explicit last fallback for a verified
 tool the catalog cannot express. Next compile

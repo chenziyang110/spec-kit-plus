@@ -28,6 +28,14 @@ Checkpoint triggers do not refresh all files. Refresh only the targets whose dur
 - project-context.md only when source-grounding evidence, truth-pass evidence, assumptions, advice confidence, or cognition coverage changes.
 - open-questions.md only when blocking or soft unknowns materially change.
 
+The canonical `discussion-state.json` checkpoint is a complete current semantic
+snapshot, not merely the visible summary. It carries `requirements_snapshot`,
+implementation target, source evidence, every in-scope user-provided
+`source_materials` record, unknowns/conflicts, downstream instructions, decision
+digest, Must-Preserve obligations, Truth Pass/compass/UI state, and artifact
+references. The compact event log stores only the summary, changed fields, and
+snapshot digest.
+
 ## Checkpoint Prompting
 
 Do not persist only because an unsaved turn count changed. Recovery value and semantic change, not a hidden counter, determine whether a checkpoint is useful.
@@ -83,7 +91,13 @@ temporary authoring file only for transport.
 
 The payload may include `summary`, `lifecycle_phase`/`phase`, `user_goal`,
 `context_boundary`, `confirmed_decisions`, `open_questions`,
-`current_recommendation`, and the other accepted turn_packet fields. Before the
+`current_recommendation`, `requirements_snapshot`, implementation target,
+source evidence/materials, unknowns/conflicts, downstream instructions,
+decision digest, Must-Preserve obligations, Truth Pass/compass/UI state,
+artifact refs, and the other accepted turn_packet fields. Every user-provided
+document, screenshot, recording, pasted note, or link that shapes the current
+topic uses a stable `MAT-###` material record; restricted content stores only a
+safe locator and sanitized summary. Before the
 first checkpoint payload in a session, or whenever the field shape is uncertain,
 expand the live schema with
 `{{specify-subcmd:specify-runtime api schema discussion-checkpoint-input --format json}}`

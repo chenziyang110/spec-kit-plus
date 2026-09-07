@@ -166,7 +166,9 @@ class TestIntegrationInstall:
 
         # Claude uses skills directory (not commands)
         assert (project / ".claude" / "skills" / "sp-plan" / "SKILL.md").exists()
-        assert (project / ".claude" / "skills" / "sp-prd" / "SKILL.md").exists()
+        assert not (project / ".claude" / "skills" / "sp-prd" / "SKILL.md").exists()
+        assert (project / ".claude" / "skills" / "sp-prd-scan" / "SKILL.md").exists()
+        assert (project / ".claude" / "skills" / "sp-prd-build" / "SKILL.md").exists()
 
     def test_install_codex_into_bare_project_creates_team_assets(self, tmp_path):
         """Installing codex into a bare project should create codex team assets only there."""

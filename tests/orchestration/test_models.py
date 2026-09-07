@@ -477,7 +477,6 @@ def test_one_subagent_attempt_default_applies_to_ordinary_sp_commands():
         "map-update",
         "plan",
         "quick",
-        "research",
         "specify",
         "tasks",
         "taskstoissues",

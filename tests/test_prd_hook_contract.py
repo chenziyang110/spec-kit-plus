@@ -18,7 +18,7 @@ def _write_prd_workflow_state(run_dir: Path) -> None:
                 "",
                 "## Current Command",
                 "",
-                "- active_command: `sp-prd`",
+                "- active_command: `sp-prd-scan`",
                 "- status: `active`",
                 "",
                 "## Phase Mode",
@@ -56,7 +56,7 @@ def _write_prd_workflow_state(run_dir: Path) -> None:
                 "",
                 "## Next Command",
                 "",
-                "- `/sp.prd`",
+                "- `/sp.prd-build`",
                 "",
             ]
         ),
@@ -103,12 +103,12 @@ def test_prd_state_validation_accepts_analysis_only_workflow_state(tmp_path: Pat
     result = run_quality_hook(
         project,
         "workflow.state.validate",
-        {"command_name": "prd", "feature_dir": str(run_dir)},
+        {"command_name": "prd-scan", "feature_dir": str(run_dir)},
     )
 
     assert result.status == "ok"
     assert result.errors == []
-    assert result.data["checkpoint"]["active_command"] == "sp-prd"
+    assert result.data["checkpoint"]["active_command"] == "sp-prd-scan"
     assert result.data["checkpoint"]["phase_mode"] == "analysis-only"
 
 
@@ -126,7 +126,7 @@ def test_prd_state_validation_blocks_wrong_phase_mode(tmp_path: Path):
     result = run_quality_hook(
         project,
         "workflow.state.validate",
-        {"command_name": "prd", "feature_dir": str(run_dir)},
+        {"command_name": "prd-scan", "feature_dir": str(run_dir)},
     )
 
     assert result.status == "blocked"
@@ -142,7 +142,7 @@ def test_prd_artifact_validation_blocks_missing_prd_suite_artifacts(tmp_path: Pa
     result = run_quality_hook(
         project,
         "workflow.artifacts.validate",
-        {"command_name": "prd", "feature_dir": str(run_dir)},
+        {"command_name": "prd-scan", "feature_dir": str(run_dir)},
     )
 
     assert result.status == "blocked"
@@ -194,7 +194,7 @@ def test_prd_artifact_validation_accepts_complete_prd_suite(tmp_path: Path):
     result = run_quality_hook(
         project,
         "workflow.artifacts.validate",
-        {"command_name": "prd", "feature_dir": str(run_dir)},
+        {"command_name": "prd-scan", "feature_dir": str(run_dir)},
     )
 
     assert result.status == "ok"
@@ -210,7 +210,7 @@ def test_prd_artifact_validation_allows_missing_optional_control_artifacts(tmp_p
     result = run_quality_hook(
         project,
         "workflow.artifacts.validate",
-        {"command_name": "prd", "feature_dir": str(run_dir)},
+        {"command_name": "prd-scan", "feature_dir": str(run_dir)},
     )
 
     assert result.status == "ok"

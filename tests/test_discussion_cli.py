@@ -6,7 +6,11 @@ from typer.testing import CliRunner
 
 from specify_cli import app
 from tests.conftest import strip_ansi
-from tests.test_discussion_state_runtime import RUNTIME_PATH, _write_confirmed_handoff
+from tests.test_discussion_state_runtime import (
+    RUNTIME_PATH,
+    _complete_checkpoint_payload,
+    _write_confirmed_handoff,
+)
 
 
 runner = CliRunner()
@@ -42,6 +46,14 @@ def _setup_project(tmp_path: Path) -> tuple[Path, Path]:
     project = tmp_path
     discussion_root = project / ".specify" / "discussions"
     discussion_root.mkdir(parents=True, exist_ok=True)
+    template_dir = project / ".specify" / "templates"
+    template_dir.mkdir(parents=True, exist_ok=True)
+    (template_dir / "discussion-handoff-template.json").write_text(
+        (Path(__file__).resolve().parents[1] / "templates" / "discussion-handoff-template.json").read_text(
+            encoding="utf-8"
+        ),
+        encoding="utf-8",
+    )
     return project, discussion_root
 
 
@@ -130,28 +142,48 @@ def _create_ready_discussion(project: Path, slug: str) -> tuple[object, Path, st
     return runtime, feature_dir, initialized["slug"]
 
 
-def _handoff_draft(slug: str) -> dict:
+def _checkpoint_ready_discussion(project: Path, slug: str) -> None:
+    runtime = _load_discussion_runtime()
+    resolved = runtime.resolve_discussion(project, "continue", slug)
+    runtime.checkpoint_discussion(
+        project,
+        slug,
+        _complete_checkpoint_payload(project),
+        expected_state_sha256=resolved["binding"]["state_sha256"],
+    )
+
+
+def _handoff_draft(slug: str, project: Path) -> dict:
     payload = json.loads(
         (Path(__file__).resolve().parents[1] / "templates" / "discussion-handoff-template.json").read_text(
             encoding="utf-8"
         )
     )
+    semantics = _complete_checkpoint_payload(project)
     payload["discussion_slug"] = slug
     payload["handoff_goal"] = "Generate one canonical resolver-bound requirement contract."
+    payload["agent_requirement_contract"] = semantics["requirements_snapshot"]
     payload["agent_requirement_contract"]["target_need"] = "A deterministic handoff contract."
-    payload["must_preserve"] = [
-        {
-            "id": "MP-001",
-            "type": "decision",
-            "claim": "JSON remains canonical.",
-            "source": "user confirmation",
-            "downstream_requirement": "Preserve the agent-only JSON contract.",
-            "blocking_level": "hard",
-            "owner": "sp-discussion",
-            "latest_resolve_phase": "review",
-            "status": "confirmed",
-        }
-    ]
+    payload["context_boundary"] = semantics["context_boundary"]
+    payload["implementation_target"] = semantics["implementation_target"]
+    payload["source_evidence"] = semantics["source_evidence"]
+    payload["source_materials"] = semantics["source_materials"]
+    payload["blocking_unknowns"] = semantics["blocking_unknowns"]
+    payload["soft_unknowns"] = semantics["soft_unknowns"]
+    payload["conflicts"] = semantics["conflicts"]
+    payload["downstream_instructions"] = semantics["downstream_instructions"]
+    payload["discussion_decision_digest"] = semantics["discussion_decision_digest"]
+    payload["must_preserve"] = semantics["must_preserve"]
+    payload["truth_pass_status"] = semantics["truth_pass_status"]
+    payload["verified_project_facts"] = semantics["verified_project_facts"]
+    payload["evidence_checked"] = semantics["evidence_checked"]
+    payload["advice_confidence"] = semantics["advice_confidence"]
+    payload["consumer_eligibility"] = {
+        "sp-specify": {"status": "ready", "reason": "Fixture is complete."},
+        "sp-quick": {"status": "blocked", "reason": "Fixture selects formal handoff."},
+    }
+    payload["recommended_consumer"] = "sp-specify"
+    payload["quality_gate"]["self_reviewed_at"] = "2026-07-10T00:00:00Z"
     return payload
 
 
@@ -276,27 +308,8 @@ def test_discussion_write_handoff_writes_agent_only_contract(tmp_path: Path):
         project,
         ["discussion", "init", "Canonical handoff", "--slug", "canonical-handoff"],
     )
-    payload = json.loads(
-        (Path(__file__).resolve().parents[1] / "templates" / "discussion-handoff-template.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    payload["discussion_slug"] = "canonical-handoff"
-    payload["handoff_goal"] = "Generate one canonical requirement contract."
-    payload["agent_requirement_contract"]["target_need"] = "A deterministic handoff contract."
-    payload["must_preserve"] = [
-        {
-            "id": "MP-001",
-            "type": "decision",
-            "claim": "JSON remains canonical.",
-            "source": "user confirmation",
-            "downstream_requirement": "Preserve the agent-only JSON contract.",
-            "blocking_level": "hard",
-            "owner": "sp-discussion",
-            "latest_resolve_phase": "review",
-            "status": "confirmed",
-        }
-    ]
+    _checkpoint_ready_discussion(project, "canonical-handoff")
+    payload = _handoff_draft("canonical-handoff", project)
     result = _invoke_in_project(
         project,
         [
@@ -332,7 +345,7 @@ def test_discussion_write_handoff_requires_expected_state_sha_when_multiple_acti
             "write-handoff",
             "alpha",
             "--input-json",
-            json.dumps(_handoff_draft("alpha")),
+            json.dumps(_handoff_draft("alpha", project)),
             "--json",
         ],
     )
@@ -346,6 +359,14 @@ def test_discussion_write_handoff_uses_resolved_expected_state_sha(tmp_path: Pat
     _invoke_in_project(project, ["discussion", "init", "Alpha handoff", "--slug", "alpha"])
     _invoke_in_project(project, ["discussion", "init", "Beta handoff", "--slug", "beta"])
     resolved = _invoke_in_project(project, ["discussion", "resolve", "--intent", "continue", "--slug", "alpha"])
+    runtime = _load_discussion_runtime()
+    runtime.checkpoint_discussion(
+        project,
+        "alpha",
+        _complete_checkpoint_payload(project),
+        expected_state_sha256=json.loads(resolved.stdout)["binding"]["state_sha256"],
+    )
+    resolved = _invoke_in_project(project, ["discussion", "resolve", "--intent", "continue", "--slug", "alpha"])
     expected_sha = json.loads(resolved.stdout)["binding"]["state_sha256"]
     stale_sha = "f" * 64 if expected_sha != "f" * 64 else "e" * 64
 
@@ -356,7 +377,7 @@ def test_discussion_write_handoff_uses_resolved_expected_state_sha(tmp_path: Pat
             "write-handoff",
             "alpha",
             "--input-json",
-            json.dumps(_handoff_draft("alpha")),
+            json.dumps(_handoff_draft("alpha", project)),
             "--expected-state-sha256",
             stale_sha,
             "--json",
@@ -369,7 +390,7 @@ def test_discussion_write_handoff_uses_resolved_expected_state_sha(tmp_path: Pat
             "write-handoff",
             "alpha",
             "--input-json",
-            json.dumps(_handoff_draft("alpha")),
+            json.dumps(_handoff_draft("alpha", project)),
             "--expected-state-sha256",
             expected_sha,
             "--json",

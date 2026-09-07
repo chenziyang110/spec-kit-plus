@@ -14,6 +14,7 @@ Before execution require:
 
 - `entry_source: sp-discussion`;
 - `handoff_kind: discussion_requirement_contract`;
+- `version: 5` with a current `discussion_snapshot_digest`;
 - `status: handoff-ready`;
 - current `review_digest` matching `quality_gate.confirmed_digest`;
 - resolver-returned `recommended_consumer`, `review_digest`, and `state_sha256` matching the consumed source contract;
@@ -22,9 +23,11 @@ Before execution require:
 - zero hard unknowns and open conflicts;
 - `consumer_eligibility.sp-quick.status: ready`, except for the legacy size/breadth-only override defined below;
 - confirmed in/out scope and observable success evidence;
+- non-empty actors, scenarios, success criteria, and optimal solution approach in `agent_requirement_contract`;
+- every `source_materials` entry inspected with no coverage gaps and referenced by `source_evidence.material_id`;
 - no unresolved product decision, authority boundary, or reopen condition that blocks implementation from starting.
 
-Query the agent requirement contract, task-relevant `must_preserve`, decision digest, planning constraints, and reopen conditions through their CLI owners. Treat only source refs actually queried through `specify-runtime artifact show` as consumed; query supporting discussion files only when a named evidence reference is stale, missing, or contradictory.
+Query the agent requirement contract, source-material ledger and evidence links, task-relevant `must_preserve`, decision digest, planning constraints, and reopen conditions through their CLI owners. Treat only source refs actually queried through `specify-runtime artifact show` as consumed; query supporting discussion files only when a named evidence reference is stale, missing, or contradictory.
 
 Submit the resolver's exact `discussion_slug` as `source_discussion_slug`, plus `source_contract`, resolver-returned `review_digest`, resolver-returned `state_sha256`, resolver-returned `recommended_consumer`, confirmed scope, locked direction, obligations, and reopen conditions through the registered quick/status artifact CLI. Never seed `STATUS.md` with a direct write.
 

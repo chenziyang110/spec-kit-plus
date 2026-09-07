@@ -15,6 +15,7 @@ Set `SOURCE_CONTRACT` and `SOURCE_DISCUSSION_SLUG`. Require one canonical JSON c
 Before feature creation require:
 
 - `entry_source: sp-discussion` and `handoff_kind: discussion_requirement_contract`;
+- `version: 5` with a current `discussion_snapshot_digest` bound to the canonical checkpoint;
 - canonical status `handoff-ready`;
 - `consumer_eligibility.sp-specify.status: ready`;
 - complete coverage and ready planning gate;
@@ -22,6 +23,8 @@ Before feature creation require:
 - `recommended_consumer: sp-specify` and `topic_ownership.owner_slug` matching `SOURCE_DISCUSSION_SLUG`;
 - zero hard unknowns and open conflicts;
 - locked context boundary and confirmed implementation target;
+- non-empty actors, scenarios, scope, success criteria, and optimal solution approach in `agent_requirement_contract`;
+- every `source_materials` entry inspected, gap-free, and linked through `source_evidence.material_id`;
 - valid evidence refs and complete task-relevant `MP-*`/`CA-###` coverage.
 
 Treat these protected refs as the Must-Preserve Ledger. Keep `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count` distinct so an integrity or conflict blocker cannot be mistaken for ready planning state.
@@ -35,7 +38,7 @@ Derive the feature description from `handoff_goal` and implementation target, no
 A confirmed discussion contract enters compile mode:
 
 1. Query the canonical contract once through `specify-runtime artifact show`.
-2. Reuse its scope, decisions, tradeoffs, context capsule inputs, evidence refs, consumer boundary, and protected obligations.
+2. Reuse its scope, decisions, tradeoffs, context capsule inputs, source-material ledger and evidence links, consumer boundary, and protected obligations.
    Preserve `discussion_decision_digest` by `decision_digest_ref`, including locked direction, relevant rejected alternatives, accepted tradeoffs, experience commitments, review criteria, and `must_not_dilute`.
 3. Create `spec-contract.json` with `specify-runtime artifact scaffold --kind spec-contract`, patch its semantic fields through leased `artifact patch` calls, and compute `semantic_delta` between the confirmed requirement contract and the compiled specification.
 4. Query supporting discussion artifacts only through their artifact/evidence CLI owner and only for a named evidence reference that is stale, missing, or contradictory.

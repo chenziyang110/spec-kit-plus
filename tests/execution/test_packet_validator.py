@@ -847,6 +847,403 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
     )
     with pytest.raises(PacketValidationError, match="must be present together"):
         validate_worker_task_packet(sample_packet)
+
+
+def _scenario_matrix_entry() -> dict[str, object]:
+    return {
+        "id": "SCENARIO-001",
+        "surface_id": "SURFACE-001",
+        "name": "Settings ready keyboard save",
+        "risk": "medium",
+        "required": True,
+        "interaction_script": {
+            "preconditions": ["Settings are rendered with representative data."],
+            "start_state_id": "DATA-001",
+            "branches": [
+                {
+                    "conditions": ["success"],
+                    "setup": "Complete the save once.",
+                    "expected_state_id": "DATA-001",
+                    "expected_feedback": "Show saved values and confirmation.",
+                    "focus_behavior": "Keep focus on Save.",
+                    "announcement": "Announce success.",
+                    "continuation": "Remain on settings.",
+                },
+                {
+                    "conditions": ["failure", "timeout", "cancel"],
+                    "setup": "Interrupt the save.",
+                    "expected_state_id": "DATA-001",
+                    "expected_feedback": "Keep values and show recovery.",
+                    "focus_behavior": "Preserve useful focus.",
+                    "announcement": "Announce failure.",
+                    "continuation": "Allow retry.",
+                },
+                {
+                    "conditions": ["retry", "duplicate", "out_of_order"],
+                    "setup": "Repeat or reorder completion.",
+                    "expected_state_id": "DATA-001",
+                    "expected_feedback": "Apply one authoritative result.",
+                    "focus_behavior": "Preserve active control.",
+                    "announcement": "Announce the final result once.",
+                    "continuation": "Reconcile before another edit.",
+                },
+            ],
+            "steps": [
+                {
+                    "input": "pointer",
+                    "action": "Activate Save once.",
+                    "expected_feedback": "Show pending feedback.",
+                }
+            ],
+            "focus_checkpoint": "Focus remains visible.",
+            "announcement_checkpoint": "The result is announced.",
+            "completion_checkpoint": "Saved values remain visible.",
+            "recovery_checkpoint": "Unsaved values survive retry.",
+        },
+        "interaction_ids": ["INT-001"],
+        "editing_ids": ["EDIT-001"],
+        "data_state_ids": ["DATA-001"],
+        "accessibility_ids": ["A11Y-001"],
+        "navigation_ids": ["NAV-001"],
+        "content_ids": ["CONTENT-001"],
+        "responsive_ids": ["RESP-001"],
+        "motion_transition_ids": ["MOTION-001"],
+        "decision_ids": [
+            "DS-INT-001",
+            "DS-DATA-001",
+            "DS-ACCESS-001",
+            "DS-NAV-001",
+            "DS-CONTENT-001",
+            "DS-RESP-001",
+            "DS-COMP-001",
+            "DS-MOTION-001",
+        ],
+    }
+
+
+def _interaction_matrix_entry(identifier: str) -> dict[str, object]:
+    return _interaction_contract(
+        identifier,
+        "mouse" if identifier == "INT-001" else "keyboard",
+    )
+
+
+def _editing_matrix_entry() -> dict[str, object]:
+    return _editing_contract()
+
+
+def _data_state_matrix_entries() -> list[dict[str, object]]:
+    return [
+        {
+            "id": "DATA-001",
+            "surface": "settings form",
+            "state": "ready",
+            "data_condition": "settings data is present",
+            "expectation": "render saved values and controls",
+            "decision_ids": ["DS-DATA-001"],
+        },
+        {
+            "id": "DATA-002",
+            "surface": "settings form",
+            "state": "error",
+            "data_condition": "settings request fails",
+            "expectation": "keep layout stable and show recovery",
+            "decision_ids": ["DS-DATA-001"],
+        },
+    ]
+
+
+def _accessibility_matrix_entry() -> dict[str, object]:
+    return {
+        "id": "A11Y-001",
+        "surface": "settings form",
+        "semantics": ["form", "button"],
+        "reading_order": "heading, fields, actions",
+        "focus_order": "fields then Save",
+        "keyboard": ["Tab moves focus", "Enter saves"],
+        "announcements": ["announce save result"],
+        "target_size": "24x24 CSS px minimum",
+        "contrast": "WCAG 2.2 AA",
+        "zoom_reflow": "reflows at 400%",
+        "alternatives": ["text accompanies status"],
+        "decision_ids": ["DS-ACCESS-001"],
+    }
+
+
+def _navigation_matrix_entry() -> dict[str, object]:
+    return {
+        "id": "NAV-001",
+        "surface": "settings section",
+        "entry": "settings index",
+        "destination": "selected section",
+        "trigger": "activate section link",
+        "back_behavior": "restore prior section",
+        "deep_link_behavior": "open addressed section",
+        "interruption_recovery": "restore unsaved values",
+        "decision_ids": ["DS-NAV-001"],
+    }
+
+
+def _content_matrix_entry() -> dict[str, object]:
+    return {
+        "id": "CONTENT-001",
+        "surface": "save feedback",
+        "state": "success",
+        "purpose": "confirm saved preference",
+        "copy": "Preferences saved.",
+        "primary_action": "Continue editing",
+        "trust_requirement": "claim only the saved setting",
+        "localization": "support translated expansion",
+        "content_limits": ["message 120 characters"],
+        "decision_ids": ["DS-CONTENT-001"],
+    }
+
+
+def _motion_contract() -> dict[str, object]:
+    return {
+        "purpose": "show saved-state feedback",
+        "transitions": [
+            {
+                "id": "MOTION-001",
+                "surface": "save feedback",
+                "trigger": "save succeeds",
+                "response": "show confirmation without moving focus",
+                "duration_ms": 180,
+                "easing": "ease-out",
+                "interrupt_behavior": "replace with latest result",
+                "decision_ids": ["DS-MOTION-001"],
+            }
+        ],
+        "reduced_motion": "instant state change",
+        "feedback_timing": {
+            "immediate_ms": 100,
+            "progress_ms": 1000,
+            "timeout_ms": 10000,
+        },
+    }
+
+
+def _usability_validation() -> dict[str, object]:
+    return {
+        "risk_level": "medium",
+        "methods": ["cognitive walkthrough"],
+        "critical_tasks": ["update and save one preference"],
+        "success_criteria": ["save without losing context"],
+        "human_review_required": True,
+        "smoothness_acceptance_ids": [
+            "focus-continuity",
+            "pending-cancel-feedback",
+            "duplicate-activation",
+            "reduced-motion",
+        ],
+    }
+
+
+def _component_contract_entry(identifier: str) -> dict[str, object]:
+    return {
+        "id": identifier,
+        "component": "settings form",
+        "anatomy": ["heading", "fields", "actions"],
+        "required_states": ["ready", "error"],
+        "interaction_modes": ["mouse", "keyboard"],
+        "data_scenarios": [
+            {
+                "state": "ready",
+                "data_condition": "settings data is present",
+                "expectation": "render saved values and controls",
+            }
+        ],
+        "decision_ids": ["DS-COMP-001"],
+        "must_match": ["anatomy", "hierarchy"],
+        "variants": ["default", "compact"],
+        "content_constraints": ["labels wrap"],
+        "semantic_token_refs": ["color.feedback.success"],
+        "governance": "extend",
+        "iconography": "status icons include text",
+    }
+
+
+def _responsive_matrix_entry() -> dict[str, object]:
+    return {
+        "id": "RESP-001",
+        "label": "compact",
+        "target": {"width": 390, "height": 844, "unit": "px"},
+        "state": "ready",
+        "adaptation": "stack settings sections",
+        "stretch_behavior": "grow labels without clipping",
+        "overflow_behavior": "keep page scrollable",
+        "decision_ids": ["DS-RESP-001", "DS-COMP-001"],
+    }
+
+
+def _visual_acceptance_matrix_entry() -> dict[str, object]:
+    return {
+        "id": "VA-001",
+        "target_id": "RESP-001",
+        "states": ["ready", "error"],
+        "color_modes": ["light", "dark"],
+        "motion_modes": ["full", "reduced"],
+        "decision_ids": ["DS-COMP-001", "DS-RESP-001"],
+        "must_match": ["structure", "tokens", "content"],
+        "evidence": [
+            "structure_snapshot",
+            "visual_capture",
+            "runtime_diagnostics",
+            "visual_comparison_or_human_review",
+        ],
+    }
+
+
+def _comparison_tolerance() -> dict[str, object]:
+    return dict(COMPARISON_TOLERANCE)
+
+
+def test_validate_worker_task_packet_rejects_inherit_existing_surface_replacement(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    bypass_visual_ref = (
+        ".specify/design/changes/UD-0042/previews/round-01.html?view=1#direction-x"
+    )
+    bypass_handoff_ref = (
+        ".specify/design/changes/UD-0042/previews/round-01.handoff.json"
+    )
+    sample_packet.context_nav = [
+        {"kind": "ui_entrypoint", "value": "/settings", "source": "plan-contract.json"},
+        {"kind": "design_source", "value": "design-change.md", "source": "task-index.json"},
+    ]
+    sample_packet.ui_contract = UIContract(
+        fidelity_level="approximate",
+        ui_work_type="feature-extension",
+        surface_type="product-workspace",
+        platforms=["web"],
+        style_authority={
+            "mode": "inherit-existing",
+            "scope_level": "feature-partial",
+            "source_refs": ["src/ui/theme.ts", "src/ui/settings.tsx"],
+            "protected_surfaces": ["global-shell", "shared-components"],
+            "allowed_style_delta_surfaces": [],
+            "authorization_source": None,
+        },
+        subject="settings",
+        audience="account owners",
+        single_job="update preferences",
+        visual_thesis="compact hierarchy",
+        content_thesis="real preference labels and values",
+        interaction_thesis="immediate local feedback",
+        signature_element="persistent section progress",
+        approved_visual_ref="design-change.md#settings",
+        design_decision_ids=[
+            "DS-COMP-001",
+            "DS-RESP-001",
+            "DS-INT-001",
+            "DS-DATA-001",
+            "DS-ACCESS-001",
+            "DS-NAV-001",
+            "DS-CONTENT-001",
+            "DS-MOTION-001",
+        ],
+        design_sources=["design-change.md", "ui-brief.md"],
+        real_content_plan=[{"source_ref": "src/settings/schema.ts"}],
+        source_continuity={
+            "schema": "spec-kit-ui-source-continuity-v1",
+            "applicability": "required",
+            "mode": "implementation-backed",
+            "reason": "The existing settings implementation governs behavior and assets.",
+            "coverage": {
+                "surface_ids": ["SURFACE-001"],
+                "interaction_ids": ["INT-001", "INT-002"],
+                "component_ids": ["COMP-001"],
+            },
+            "authority_refs": ["src/settings/page.tsx", "src/settings/schema.ts"],
+            "surface_bindings": [
+                {
+                    "id": "SC-SURFACE-001",
+                    "surface_id": "SURFACE-001",
+                    "source_refs": ["src/settings/page.tsx"],
+                    "discovery": "measured",
+                    "disposition": "replace",
+                    "rationale": "This illegally replaces an inherit-existing surface.",
+                }
+            ],
+            "action_bindings": [
+                {
+                    "id": "SC-ACTION-001",
+                    "interaction_id": "INT-001",
+                    "source_refs": ["src/settings/page.tsx#save"],
+                    "user_promise": "Save the current preferences.",
+                    "business_outcome": "The current account preferences persist once.",
+                    "side_effects": ["write the current preferences once"],
+                    "final_state": "Saved values and confirmation remain visible.",
+                    "verification": "Run the source and target save click paths with equal input.",
+                },
+                {
+                    "id": "SC-ACTION-002",
+                    "interaction_id": "INT-002",
+                    "source_refs": ["src/settings/page.tsx#save"],
+                    "user_promise": "Save the current preferences by keyboard.",
+                    "business_outcome": "The current account preferences persist once.",
+                    "side_effects": ["write the current preferences once"],
+                    "final_state": "Saved values and confirmation remain visible.",
+                    "verification": "Run the source and target keyboard save path with equal input.",
+                },
+            ],
+            "asset_bindings": [
+                {
+                    "id": "SC-ASSET-001",
+                    "component_id": "COMP-001",
+                    "semantic_role": "primary control",
+                    "source_refs": ["src/settings/page.tsx#save-button"],
+                    "target_strategy": "preserve",
+                    "target_ref": "src/ui/settings.tsx#save-button",
+                    "provenance": "project-owned",
+                    "fallback": "Visible text label.",
+                    "placeholder_policy": "forbid-character-substitution",
+                }
+            ],
+            "unresolved_gaps": [],
+        },
+        surface_catalog=[
+            {
+                "id": "SURFACE-001",
+                "profile_id": "web",
+                "name": "Settings",
+                "kind": "form",
+                "entrypoint_id": "/settings",
+                "source_refs": ["src/settings/page.tsx"],
+                "specimen_ids": ["SP-WEB-001"],
+                "component_ids": ["COMP-001"],
+                "decision_ids": ["DS-COMP-001", "DS-RESP-001"],
+            }
+        ],
+        scenario_matrix=[_scenario_matrix_entry()],
+        interaction_matrix=[_interaction_matrix_entry("INT-001"), _interaction_matrix_entry("INT-002")],
+        editing_matrix=[_editing_matrix_entry()],
+        data_state_matrix=_data_state_matrix_entries(),
+        accessibility_matrix=[_accessibility_matrix_entry()],
+        navigation_matrix=[_navigation_matrix_entry()],
+        content_matrix=[_content_matrix_entry()],
+        motion_contract=_motion_contract(),
+        usability_validation=_usability_validation(),
+        color_modes=["light", "dark"],
+        component_contracts=[_component_contract_entry("COMP-001")],
+        responsive_matrix=[_responsive_matrix_entry()],
+        visual_acceptance_matrix=[_visual_acceptance_matrix_entry()],
+        comparison_tolerance=_comparison_tolerance(),
+        accepted_deviations=[],
+        required_states=["ready", "error"],
+        required_evidence=[
+            "structure_snapshot",
+            "visual_capture",
+            "runtime_diagnostics",
+            "visual_comparison_or_human_review",
+        ],
+    )
+
+    with pytest.raises(PacketValidationError, match="preserve or adapt"):
+        validate_worker_task_packet(sample_packet)
+    sample_packet.ui_contract.source_continuity["surface_bindings"][0][
+        "disposition"
+    ] = "adapt"
     sample_packet.ui_contract.approved_handoff_ref = ""
 
     sample_packet.ui_contract.approved_visual_ref = (

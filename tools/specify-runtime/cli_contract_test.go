@@ -306,6 +306,7 @@ func TestAPIDesignChangeCapabilitiesPublishMutationContracts(t *testing.T) {
 		"design.impact",
 		"design.import",
 		"design.iterate",
+		"design.prompt",
 		"design.register",
 		"design.resolve",
 	} {
@@ -568,6 +569,7 @@ func generatedRuntimeVerbCapabilities() []string {
 		"design.preview",
 		"design.preview-manifest",
 		"design.preview-lint",
+		"design.prompt",
 		"design.profiles",
 		"design.register",
 		"design.resolve",

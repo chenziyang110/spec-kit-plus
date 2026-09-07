@@ -115,6 +115,7 @@ class IntegrationBase(ABC):
     RUNTIME_SUBAGENT_CONTRACT_COMMANDS = frozenset(
         {"implement", "review", "debug", "quick"}
     )
+    RETIRED_WORKFLOW_COMMANDS = frozenset({"prd", "research"})
     SUBAGENT_DISCOVERY_EXCLUDED_COMMANDS = frozenset({"fast"})
     PROJECT_COGNITION_WORKFLOW_TOKEN = "{{project-cognition-workflow}}"
     PROJECT_COGNITION_WORKFLOW_REGISTRY = "project-cognition-workflow-registry.json"
@@ -406,6 +407,35 @@ class IntegrationBase(ABC):
             for f in cmd_dir.iterdir()
             if f.is_file() and f.suffix == ".md" and f.name not in excluded_templates
         )
+
+    def remove_retired_command_surfaces(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        commands_dir: Path,
+    ) -> list[Path]:
+        """Remove unchanged command files for workflows retired as entrypoints."""
+
+        project_root_resolved = project_root.resolve()
+        commands_prefix = commands_dir.resolve().relative_to(project_root_resolved)
+        retired_filenames = {
+            self.command_filename(command_name)
+            for command_name in self.RETIRED_WORKFLOW_COMMANDS
+        }
+        removed: list[Path] = []
+        for relative in sorted(manifest.files):
+            relative_path = Path(relative)
+            try:
+                command_relative = relative_path.relative_to(commands_prefix)
+            except ValueError:
+                continue
+            if len(command_relative.parts) != 1:
+                continue
+            if command_relative.name not in retired_filenames:
+                continue
+            if manifest.remove_file_if_unmodified(relative_path):
+                removed.append(project_root_resolved / relative_path)
+        return removed
 
     def list_command_reference_templates(self, command_name: str) -> list[Path]:
         """Return sorted reference template files for *command_name*."""
@@ -2302,6 +2332,7 @@ class MarkdownIntegration(IntegrationBase):
                 f"project root {project_root_resolved}"
             ) from exc
         dest.mkdir(parents=True, exist_ok=True)
+        self.remove_retired_command_surfaces(project_root, manifest, dest)
 
         script_type = opts.get("script_type", "sh")
         arg_placeholder = (
@@ -2540,6 +2571,7 @@ class TomlIntegration(IntegrationBase):
                 f"project root {project_root_resolved}"
             ) from exc
         dest.mkdir(parents=True, exist_ok=True)
+        self.remove_retired_command_surfaces(project_root, manifest, dest)
 
         script_type = opts.get("script_type", "sh")
         arg_placeholder = (
@@ -2688,6 +2720,9 @@ class SkillsIntegration(IntegrationBase):
     RETIRED_PASSIVE_SKILLS = frozenset(
         {"spec-kit-ui-design", "spec-kit-workflow-routing"}
     )
+    RETIRED_WORKFLOW_SKILLS = frozenset(
+        {"sp-prd", "sp-research", "spx-prd", "spx-research"}
+    )
 
     def skills_dest(self, project_root: Path) -> Path:
         """Return the absolute path to the skills output directory.
@@ -2752,6 +2787,32 @@ class SkillsIntegration(IntegrationBase):
             if (
                 not skill_relative.parts
                 or skill_relative.parts[0] not in self.RETIRED_PASSIVE_SKILLS
+            ):
+                continue
+            if manifest.remove_file_if_unmodified(relative_path):
+                removed.append(project_root_resolved / relative_path)
+        return removed
+
+    def remove_retired_workflow_skills(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        skills_dir: Path,
+    ) -> list[Path]:
+        """Remove unchanged skill files for workflows retired as entrypoints."""
+
+        project_root_resolved = project_root.resolve()
+        skills_prefix = skills_dir.resolve().relative_to(project_root_resolved)
+        removed: list[Path] = []
+        for relative in sorted(manifest.files):
+            relative_path = Path(relative)
+            try:
+                skill_relative = relative_path.relative_to(skills_prefix)
+            except ValueError:
+                continue
+            if (
+                not skill_relative.parts
+                or skill_relative.parts[0] not in self.RETIRED_WORKFLOW_SKILLS
             ):
                 continue
             if manifest.remove_file_if_unmodified(relative_path):
@@ -3418,6 +3479,7 @@ class SkillsIntegration(IntegrationBase):
             ) from exc
 
         self.remove_retired_passive_skills(project_root, manifest, skills_dir)
+        self.remove_retired_workflow_skills(project_root, manifest, skills_dir)
 
         script_type = opts.get("script_type", "sh")
         arg_placeholder = (

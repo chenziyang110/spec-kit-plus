@@ -32,7 +32,6 @@
           "sp-map-update",
           "sp-map-rebuild",
           "sp-plan",
-          "sp-prd",
           "sp-prd-build",
           "sp-prd-scan",
           "sp-quick",

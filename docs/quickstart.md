@@ -69,7 +69,8 @@ generated for the integration selected during `specify init`; for example, run
 extraction, use the same mapping for the canonical `prd-scan -> prd-build`
 workflow pair, such as `$sp-prd-scan -> $sp-prd-build`, `/skill:sp-prd-scan ->
 /skill:sp-prd-build`, `/sp-prd-scan -> /sp-prd-build`, or `/sp.prd-scan ->
-/sp.prd-build`. `prd` remains deprecated compatibility-only.
+/sp.prd-build`. The retired `prd` entrypoint is no longer generated; invoke the
+canonical `prd-scan -> prd-build` pair directly.
 
 The concrete chat snippets below use Claude-style `/sp-*` examples for
 readability. Translate them through the matrix above when you are using Codex,
@@ -179,7 +180,7 @@ workflow pair. It is the heavy reconstruction PRD lane: substantive
 contract surface, and `prd-build` compiles the expanded reconstruction archive
 from the scan package without performing a second repository scan. The workflow
 writes `.specify/prd-runs/<run-id>/` and does not automatically hand off to
-`plan`. `prd` remains a deprecated compatibility entrypoint only.
+`plan`. The old `prd` compatibility entrypoint has been retired.
 
 ```markdown
 /sp-prd-scan Extract the heavy reconstruction PRD scan package for this repository.
@@ -196,7 +197,7 @@ writes `.specify/prd-runs/<run-id>/` and does not automatically hand off to
 
 Run `specify` again when an existing spec needs a focused analysis or repair pass before planning.
 Use `deep-research` only when the requirements are clear but feasibility still needs proof before planning, for example an unproven API, library, integration, algorithm, performance envelope, or platform behavior. It can coordinate parallel research tracks and disposable demo spikes, then writes a traceable `Planning Handoff` with evidence IDs that `plan` must consume. Skip it for minor changes to an existing capability that already has a clear implementation path.
-Use `research` only as a compatibility alias for `deep-research`; it should route into the same gate and must not create separate workflow artifacts.
+The old `research` alias has been retired; invoke `deep-research` directly so the feasibility gate has one unambiguous owner.
 When `specify` records an unproven implementation chain after artifact review, the recommended pre-planning branch is `specify` -> `deep-research` -> `plan`.
 
 After `plan`, optionally run `test-design` when the feature needs a frozen,
@@ -268,7 +269,7 @@ When the feature touches an established boundary pattern in the target project, 
 After initialization, treat the generated commands as three groups:
 
 - **Core workflow skills**: `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept`
-- **Support skills**: `map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `deep-research` (`research` alias), `test-design`, `design`, `fast`, `quick`, `implement-teams`, `taskstoissues`, `checklist`, `analyze`, `debug`, `explain`
+- **Support skills**: `map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `deep-research`, `test-design`, `design`, `fast`, `quick`, `implement-teams`, `taskstoissues`, `checklist`, `analyze`, `debug`, `explain`
 - **Codex-only runtime**: terminal `specify sp-teams` commands and the `$sp-teams` skill when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:
@@ -325,11 +326,11 @@ Use support skills when they solve a specific gap:
 - Continue by default, do not ask for continuation, and ask only when user judgment is genuinely required and no safe default exists.
 - `sp-specify` compiles a confirmed formal-path discussion contract into `spec-contract.json`; `sp-quick` consumes the same JSON for direct delivery and reuses `review_digest` when no quick-stage semantic delta exists. Task size, capability count, architecture, migration, compatibility, rollout, consequence breadth, or acceptance depth do not disqualify Quick.
 - The main feature pipeline passes `handoff-to-specify.json` -> `spec-contract.json` -> `plan-contract.json` -> `task-index.json` -> per-task lifecycle records -> `implementation-handoff.json` -> `review-state.json` -> `human-acceptance.json`. WorkerTaskPackets remain just-in-time and task review remains event-triggered inside Implement. Mandatory system Review freezes a complete Review Universe, uses independent Audit, Fix, and Revalidation subagents under one Leader, and requires zero uncovered scope plus fresh real-entrypoint evidence before human acceptance.
-- `prd-scan` followed by `prd-build` as the existing-project reverse PRD lane when you need repository-first current-state product documentation; it is the heavy reconstruction workflow, substantive scans are subagent-mandatory, critical claims target `L4 Reconstruction-Ready`, `config-contracts.json` is part of the scan contract surface, `prd-build` must not perform a second repository scan, it writes `.specify/prd-runs/<run-id>/`, and it does not automatically hand off to `plan`. `prd` remains a deprecated compatibility entrypoint that should route into the same pair
+- `prd-scan` followed by `prd-build` as the existing-project reverse PRD lane when you need repository-first current-state product documentation; it is the heavy reconstruction workflow, substantive scans are subagent-mandatory, critical claims target `L4 Reconstruction-Ready`, `config-contracts.json` is part of the scan contract surface, `prd-build` must not perform a second repository scan, it writes `.specify/prd-runs/<run-id>/`, and it does not automatically hand off to `plan`. The retired `prd` entrypoint is no longer generated.
 - Treat the project cognition runtime as an advisory brownfield navigation index that gives agents dependency, claim, conflict, ownership, and change-impact context before deeper brownfield work starts.
 - `specify`, `deep-research`, `plan`, `test-design`, and `tasks` should not directly rewrite cognition content for artifact-only work. When they actually change source/runtime/template/config/test/generated-asset surfaces, they run planner-first project cognition update during closeout; recommend `map-update` only for external/manual changed-path map maintenance, ordinary existing-baseline gaps, and separate map-maintenance passes. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`
 - run `specify` again when an existing spec still needs deeper analysis before planning
-- `deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `plan`; `research` is only its compatibility alias
+- `deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `plan`; the retired `research` alias is no longer generated
 - `checklist` when you want to audit requirement quality after planning
 - `analyze` is an optional read-only diagnostic and legacy revalidation pass once `tasks.md` exists; run the cross-artifact consistency pass only when explicitly requested or recorded by existing state, while clean task packages hand off directly to `implement`
 - `debug` when you need to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered
@@ -546,7 +547,7 @@ constraints become plan inputs.
 /sp-deep-research Prove whether the notification provider can support the required retry and audit trail behavior with a small disposable spike, and produce a Planning Handoff for plan.
 ```
 
-`research` is accepted only as a compatibility alias for the same workflow.
+The retired `research` alias is no longer accepted; use `deep-research`.
 
 ### Step 4: Validate the Spec
 
@@ -590,7 +591,7 @@ fresh evidence to human acceptance:
 - **Don't focus on tech stack** during specification phase
 - **Use `specify -> plan` as the default path**
 - **Use `specify` again when an existing spec needs deeper analysis before planning**
-- **Use `deep-research` only when feasibility or the implementation chain must be proven before planning, and preserve its Planning Handoff as plan input; treat `research` as a compatibility alias, not a separate workflow**
+- **Use `deep-research` only when feasibility or the implementation chain must be proven before planning, and preserve its Planning Handoff as plan input; the retired `research` alias is no longer generated**
 - **Use failing test first** for `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug`; if the touched behavior has no viable automated test surface yet, add the smallest safe bootstrap in the owning workflow. Fast or Debug may move that work into Quick; Specify is used only when the user explicitly chooses a formal spec-first path.
 - **Validate** the plan before coding begins
 - **Let the AI agent handle** the implementation details

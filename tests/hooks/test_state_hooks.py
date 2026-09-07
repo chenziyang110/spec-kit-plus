@@ -629,7 +629,7 @@ def test_validate_state_accepts_matching_deep_research_workflow_state(tmp_path: 
     assert result.errors == []
 
 
-def test_validate_state_accepts_research_alias_for_deep_research_workflow_state(
+def test_validate_state_rejects_retired_research_alias(
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
@@ -675,14 +675,12 @@ def test_validate_state_accepts_research_alias_for_deep_research_workflow_state(
         encoding="utf-8",
     )
 
-    result = run_quality_hook(
-        project,
-        "workflow.state.validate",
-        {"command_name": "research", "feature_dir": str(feature_dir)},
-    )
-
-    assert result.status == "ok"
-    assert result.errors == []
+    with pytest.raises(QualityHookError, match="unsupported command_name 'research'"):
+        run_quality_hook(
+            project,
+            "workflow.state.validate",
+            {"command_name": "research", "feature_dir": str(feature_dir)},
+        )
 
 
 def test_validate_state_blocks_when_active_command_does_not_match(tmp_path: Path):

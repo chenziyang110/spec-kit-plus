@@ -1046,7 +1046,7 @@ func buildSourceContinuityLabManifest(root, feature, taskID, indexPath string, t
 	}
 	targetSnapshot, err := sourceContinuityLabTargetSnapshot(root, sourceContinuityLabTaskWriteScope(task))
 	if err != nil {
-		return nil, errors.New("source continuity target snapshot is unavailable")
+		return nil, fmt.Errorf("source continuity target snapshot is unavailable: %w", err)
 	}
 	return map[string]any{
 		"schema": sourceContinuityLabManifestSchema, "task_id": taskID,
@@ -1739,9 +1739,16 @@ func sourceContinuityLabContractSHA(continuity map[string]any) string {
 }
 
 func sourceContinuityLabTaskWriteScope(task map[string]any) []string {
-	values := anyStringSlice(task["write_scope"])
+	values := anyStringSlice(task["expected_write_scope"])
+	if len(values) == 0 {
+		values = anyStringSlice(task["write_scope"])
+	}
 	if scope, ok := task["scope"].(map[string]any); ok {
-		values = append(values, anyStringSlice(scope["write_scope"])...)
+		nested := anyStringSlice(scope["expected_write_scope"])
+		if len(nested) == 0 {
+			nested = anyStringSlice(scope["write_scope"])
+		}
+		values = append(values, nested...)
 	}
 	seen := map[string]bool{}
 	result := []string{}
@@ -1780,12 +1787,21 @@ func sourceContinuityLabTargetSnapshot(root string, declared []string) (string, 
 	}
 	paths := []string{}
 	seen := map[string]bool{}
-	addFile := func(path string) error {
+	relativePath := func(path string) (string, error) {
 		rel, err := filepath.Rel(rootAbs, path)
 		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return errors.New("source continuity snapshot path escapes project root")
+			return "", errors.New("source continuity snapshot path escapes project root")
 		}
-		rel = filepath.ToSlash(rel)
+		return filepath.ToSlash(filepath.Clean(rel)), nil
+	}
+	addFile := func(path string) error {
+		rel, err := relativePath(path)
+		if err != nil {
+			return err
+		}
+		if sourceContinuityLabRuntimeOwnedSnapshotPath(rel) {
+			return nil
+		}
 		if !seen[rel] {
 			seen[rel] = true
 			paths = append(paths, rel)
@@ -1798,7 +1814,14 @@ func sourceContinuityLabTargetSnapshot(root string, declared []string) (string, 
 				return walkErr
 			}
 			if entry.IsDir() {
-				if path != start && sourceContinuityLabIgnoredSnapshotDir(entry.Name()) {
+				rel, err := relativePath(path)
+				if err != nil {
+					return err
+				}
+				if sourceContinuityLabRuntimeOwnedSnapshotPath(rel) {
+					return filepath.SkipDir
+				}
+				if path != start && (sourceContinuityLabIgnoredSnapshotDir(entry.Name()) || sourceContinuityLabReservedSnapshotRoot(rel)) {
 					return filepath.SkipDir
 				}
 				return nil
@@ -1819,13 +1842,19 @@ func sourceContinuityLabTargetSnapshot(root string, declared []string) (string, 
 				normalized = strings.TrimSuffix(normalized, "/*")
 			}
 			normalized = strings.TrimSuffix(normalized, "/")
-			firstSegment := strings.ToLower(strings.Split(strings.TrimPrefix(normalized, "./"), "/")[0])
-			if firstSegment == ".specify" || firstSegment == ".planning" {
-				return "", errors.New("source continuity target scope cannot be runtime-owned")
-			}
 			path, err := secureProjectPath(rootAbs, normalized)
 			if err != nil {
 				return "", err
+			}
+			rel, err := relativePath(path)
+			if err != nil {
+				return "", err
+			}
+			if sourceContinuityLabRuntimeOwnedSnapshotPath(rel) {
+				return "", errors.New("source continuity target scope cannot be runtime-owned")
+			}
+			if sourceContinuityLabReservedSnapshotRoot(rel) {
+				return "", errors.New("source continuity target scope cannot be runtime-owned")
 			}
 			info, err := os.Stat(path)
 			if os.IsNotExist(err) {
@@ -1873,6 +1902,24 @@ func sourceContinuityLabIgnoredSnapshotDir(name string) bool {
 		return true
 	}
 	return strings.HasPrefix(normalized, ".codex-") || strings.HasPrefix(normalized, "pytest-") || strings.HasPrefix(normalized, "test-tmp") || strings.HasPrefix(normalized, "test-run-")
+}
+
+func sourceContinuityLabReservedSnapshotRoot(relative string) bool {
+	normalized := strings.ToLower(strings.TrimPrefix(filepath.ToSlash(filepath.Clean(filepath.FromSlash(relative))), "./"))
+	first := strings.Split(normalized, "/")[0]
+	return first == ".git" || first == ".specify" || first == ".planning" || first == "specs"
+}
+
+func sourceContinuityLabRuntimeOwnedSnapshotPath(relative string) bool {
+	normalized := strings.ToLower(strings.TrimPrefix(filepath.ToSlash(filepath.Clean(filepath.FromSlash(relative))), "./"))
+	parts := strings.Split(normalized, "/")
+	if len(parts) >= 5 && parts[0] == ".specify" && parts[1] == "features" && parts[2] != "" && parts[3] == "implementation-review" && parts[4] == "source-continuity" {
+		return true
+	}
+	if len(parts) >= 4 && parts[0] == "specs" && parts[1] != "" && parts[2] == "implementation-review" && parts[3] == "source-continuity" {
+		return true
+	}
+	return len(parts) >= 4 && parts[0] == ".planning" && parts[1] == "quick" && parts[2] != "" && parts[3] == "source-continuity"
 }
 
 func sourceContinuityLabStringList(value any) []string {

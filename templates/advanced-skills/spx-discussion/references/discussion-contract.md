@@ -93,11 +93,33 @@ dials, density, motion, references, anti-slop lean, `sp_design_required`) into
 Design Carry-Forward and handoff `discussion_decision_digest.design_context`—
 not chat-only prose.
 
+User-provided source material is first-class state, not incidental context.
+Documents, screenshots, recordings, pasted notes, links, and other supplied
+materials must be checkpointed in `source_materials` before their claims are
+used downstream. Use stable `MAT-###` IDs with `material_type`, `locator`,
+`summary`, `inspection_status` (`pending`, `inspected`, `partial`,
+`unavailable`, `stale`, `conflict`), `claims[]`, `coverage_gaps[]`,
+`sensitivity` (`safe`, `sanitized`, `restricted`), and optional
+`content_sha256`/`version_ref`. Restricted material stores only a safe reference
+or sanitized summary. `source_evidence[].material_id` must point to existing
+materials, and every material must have evidence coverage before handoff; partial
+or uncovered material remains visible as a blocker or explicit coverage gap.
+
 Use deterministic discussion helpers for lifecycle changes. A handoff is
 eligible only when its evidence exists, product boundaries are explicit,
 blocking contradictions are resolved or retained, and every material decision
 can become a requirement or constraint. Validation success is necessary but
 does not replace agent self-review or user confirmation.
+
+The latest semantic checkpoint is mandatory before `write-handoff`.
+`latest_checkpoint.snapshot_sha256` must match the current canonical discussion
+snapshot. If no such checkpoint exists, `write-handoff` blocks with
+`missing_semantic_checkpoint`; if the state changed afterward, it blocks as
+stale. Handoff v5 does not copy the full state snapshot and does not accept
+state truth from ad hoc input: the runtime derives `agent_requirement_contract`
+from state `requirements_snapshot`, carries the state-owned semantic fields, and
+binds them with `discussion_snapshot_digest`; counts, material digests, coverage,
+and planning status are runtime-derived.
 
 At handoff routing, show both consumers with their eligibility, explain any
 blocker, and recommend one eligible consumer from delivery complexity and
@@ -107,6 +129,11 @@ If no explicit choice exists, ask one route-choice question, remain in
 unresolved until that choice is explicit, then store the selected consumer in
 `recommended_consumer`; the protected digest reconfirms it with the rest of the
 handoff meaning.
+
+Human review must show material coverage alongside the decision package: covered
+`MAT-###` IDs, any uninspected or partially inspected materials, coverage gaps,
+unknowns/conflicts, and what would return the discussion from handoff review to
+ordinary clarification.
 
 If the conversation changes after a handoff draft, invalidate the draft rather
 than editing around its protected revision. Closing and archiving are separate

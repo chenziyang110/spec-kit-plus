@@ -122,7 +122,7 @@ class UIContract:
     design_sources: list[str] = field(default_factory=list)
     reference_notes: str = ""
     visual_target: str = ""
-    reference_intents: list[dict[str, str]] = field(default_factory=list)
+    reference_intents: list[dict[str, object]] = field(default_factory=list)
     real_content_plan: list[dict[str, object]] = field(default_factory=list)
     image_plan: list[dict[str, str]] = field(default_factory=list)
     source_continuity: dict[str, object] = field(default_factory=dict)

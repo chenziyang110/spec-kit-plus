@@ -113,7 +113,6 @@ KNOWN_COMMANDS = (
     "sp-implement-teams",
     *MAP_WORKFLOW_COMMANDS,
     "sp-plan",
-    "sp-prd",
     "sp-prd-build",
     "sp-prd-scan",
     "sp-quick",
@@ -123,9 +122,7 @@ KNOWN_COMMANDS = (
     "sp-team",
     "sp-test-design",
 )
-COMMAND_ALIASES = {
-    "sp-research": "sp-deep-research",
-}
+COMMAND_ALIASES: dict[str, str] = {}
 
 # Consumption is always read-only. Capture policy tells workflow prompts whether
 # closeout may write a candidate directly, must defer capture to an owning

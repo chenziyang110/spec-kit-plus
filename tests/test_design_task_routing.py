@@ -25,7 +25,8 @@ def _assert_router_contract(content: str, *, public_entry: str) -> None:
     lowered = content.lower()
     compact = " ".join(lowered.split())
     assert "single public entry point" in lowered
-    assert "task_type: create | refine | audit" in content
+    assert "contract_action: create | refine | audit" in content
+    assert "surface_posture: greenfield | inherit-existing | page-overhaul-authorized" in content
     assert "input_strategy: context | synthesize" in content
     assert "synthesize is an input strategy, not a terminal task type" in compact
     assert "resume before reclassification" in lowered
@@ -158,6 +159,15 @@ def test_workflow_registry_models_change_scoped_design_artifacts_without_design_
     ]
     assert "round-NN.direction.json" not in change["path_hints"]
     assert "specify-runtime artifact patch" not in checkpoint["owner_cli"]
+    prompt = entries["ui_design_generation_prompt"]
+    assert prompt["owner_cli"][0] == "specify-runtime design prompt"
+    assert "specify-runtime artifact patch" not in prompt["owner_cli"]
+    generation = entries["ui_design_generation_sidecar"]
+    assert generation["owner_cli"][0] == "specify-runtime design prompt"
+    assert "specify-runtime artifact patch" not in generation["owner_cli"]
+    concept = entries["ui_design_concept_receipt"]
+    assert concept["owner_cli"][0] == "specify-runtime design preview-lint"
+    assert "specify-runtime artifact patch" not in concept["owner_cli"]
     index_patterns = entries["ui_design_change_index"]["safe_instruction_patterns"]
     for command in (
         "specify-runtime design iterate",
@@ -202,7 +212,8 @@ def test_design_routing_is_documented_as_a_cross_profile_product_contract() -> N
 
 def test_design_brief_persists_the_prompt_route() -> None:
     content = _read(PROJECT_ROOT / "templates" / "design-brief-template.md")
-    assert "task_type: null" in content
+    assert "contract_action: null" in content
+    assert "surface_posture: null" in content
     assert "input_strategy: null" in content
     assert "route_reason: null" in content
     assert "design_read: null" in content

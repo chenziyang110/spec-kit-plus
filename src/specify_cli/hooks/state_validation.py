@@ -26,7 +26,6 @@ EXPECTED_WORKFLOW_STATE = {
     "analyze": ("sp-analyze", "analysis-only"),
     "prd-scan": ("sp-prd-scan", "analysis-only"),
     "prd-build": ("sp-prd-build", "analysis-only"),
-    "prd": ("sp-prd", "analysis-only"),
 }
 
 
@@ -483,12 +482,6 @@ def _autofix_sections_for_command(command_name: str, feature_dir: Path | None = 
             "forbidden": ["edit source code"],
             "authoritative": ["workflow-state.md"],
             "next_command": "/sp.specify",
-        },
-        "prd": {
-            "allowed": ["workflow-state.md"],
-            "forbidden": ["edit source code"],
-            "authoritative": ["workflow-state.md"],
-            "next_command": "/sp.prd",
         },
         "prd-scan": {
             "allowed": ["workflow-state.md"],

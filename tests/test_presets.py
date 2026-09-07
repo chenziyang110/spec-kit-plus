@@ -2154,7 +2154,7 @@ class TestPresetSkills:
         preset_dir = temp_dir / "kimi-new-skill"
         preset_dir.mkdir()
         (preset_dir / "commands").mkdir()
-        (preset_dir / "commands" / "sp.research.md").write_text(
+        (preset_dir / "commands" / "sp.custom-research.md").write_text(
             "---\n"
             "description: Kimi research workflow\n"
             "---\n\n"
@@ -2173,8 +2173,8 @@ class TestPresetSkills:
                 "templates": [
                     {
                         "type": "command",
-                        "name": "sp.research",
-                        "file": "commands/sp.research.md",
+                        "name": "sp.custom-research",
+                        "file": "commands/sp.custom-research.md",
                     }
                 ]
             },
@@ -2185,14 +2185,14 @@ class TestPresetSkills:
         manager = PresetManager(project_dir)
         manager.install_from_directory(preset_dir, "0.1.5")
 
-        skill_file = skills_dir / "sp-research" / "SKILL.md"
+        skill_file = skills_dir / "sp-custom-research" / "SKILL.md"
         assert skill_file.exists()
         content = skill_file.read_text()
         assert "preset:kimi-new-skill" in content
-        assert "name: sp-research" in content
+        assert "name: sp-custom-research" in content
 
         metadata = manager.registry.get("kimi-new-skill")
-        assert "sp-research" in metadata.get("registered_skills", [])
+        assert "sp-custom-research" in metadata.get("registered_skills", [])
 
     def test_kimi_preset_skill_override_resolves_script_placeholders(self, project_dir, temp_dir):
         """Kimi preset skill overrides should resolve placeholders and rewrite project paths."""

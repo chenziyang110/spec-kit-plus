@@ -377,8 +377,7 @@ def main() -> int:
     mode, payload_mode = canonical_mode(requested_mode)
 
     if mode == "init-scan":
-        active_command = "sp-prd" if payload_mode == "init" else "sp-prd-scan"
-        print(json.dumps(init_run(project_root, run_slug, active_command, payload_mode)))
+        print(json.dumps(init_run(project_root, run_slug, "sp-prd-scan", payload_mode)))
         return 0
     if mode == "status-scan":
         print(json.dumps(status_run(project_root, run_slug, payload_mode, SCAN_SURFACE_KEYS)))

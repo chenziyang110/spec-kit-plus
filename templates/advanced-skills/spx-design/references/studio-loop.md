@@ -21,9 +21,10 @@ Read for visual `create` and substantive `refine`.
 5. Present that exact round. Convert feedback into preserve/change/question
    records and revise the same direction in a new immutable round. Never
    overwrite a reviewed round and never branch into three unrelated concepts.
-6. After `preview-lint concept`, call `direction-confirm` only after explicit
-   user direction confirmation of the named concept. Do not create the sidecar
-   automatically from lint or agent confidence. Direction-confirmed is
+6. After `preview-lint concept` writes the current concept receipt, ask for
+   explicit direction confirmation of the named concept; only then call
+   `direction-confirm`. Do not create the direction sidecar automatically from
+   lint or agent confidence. Direction-confirmed is
    non-consumable: it is not approval, not register, and not a Plan/Implement
    input.
 7. Freeze only explicit approval of the named inspected round. Ambiguous praise

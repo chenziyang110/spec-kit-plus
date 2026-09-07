@@ -11,7 +11,8 @@ Keep `$spx-design` as the single public entry point. Do not register or expose
 colon-namespaced skills. Persist the compact classification:
 
 ```text
-task_type: create | refine | audit
+contract_action: create | refine | audit
+surface_posture: greenfield | inherit-existing | page-overhaul-authorized
 input_strategy: context | synthesize
 route_reason: <one evidence-based sentence>
 ```
@@ -21,8 +22,14 @@ Use `specify-runtime design change` for a new missing `UD-*` workspace or
 use `specify-runtime artifact patch` to store the canonical route in
 `.specify/design/changes/<UD-ID>/brief.md`. Treat
 any selected-mode field exposed by
-derived state only as a compatibility projection of `task_type`; use the same
+derived state only as a compatibility projection of `contract_action`; use the same
 owner CLI to repeat the route in review when it explains closeout.
+
+`contract_action` describes the `UD-*` artifact lifecycle, not permission to
+redraw a product. `surface_posture` describes visual authority and must exactly
+match `style_authority.mode`. Creating a missing design contract for a live
+product is `contract_action: create` plus `surface_posture: inherit-existing`,
+never a greenfield page.
 
 ## Classification
 
@@ -54,9 +61,11 @@ single job, taste, primary layout/signature, layout-changing critical state,
 accessibility contrast/focus feasibility, reduced-motion feasibility, and one
 stress target. Use 2-3 textual choices only to answer one material ambiguity;
 do not generate three full boards and do not auto-add an unselected profile.
-Call `direction-confirm` only after both conditions hold: the named concept
-passed `preview-lint concept` and the user gave explicit direction
-confirmation. A lint pass alone must not create the sidecar. The
+Run `preview-lint concept` first and require its current byte-bound concept
+receipt; when inspection is available, pass the protected-surface review
+through `--inspection-json`. Only after that receipt exists may the workflow
+ask for explicit direction confirmation, and only after the user confirms may
+it call `direction-confirm`. A lint pass alone must not create the direction sidecar. The
 direction-confirmed sidecar is non-consumable, not approval, not register, and
 not a downstream binding. Full source continuity denominator, mature adoption,
 complete matrices, and `DH-*` handoff rows wait for contract-completion.
@@ -72,8 +81,8 @@ through targeted `specify-runtime artifact show` calls only when they exist or
 registered metadata identifies them. Missing registration is legitimate
 discovery absence; do not blindly artifact-show a missing index.
 Never use an unregistered root design document as workflow input. Resume before reclassification when
-the same objective is nonterminal, using the brief's task type and input
-strategy plus the derived state's current stage. Approval, feedback, and
+the same objective is nonterminal, using the brief's contract action, surface
+posture, and input strategy plus the derived state's current stage. Approval, feedback, and
 continuation are lifecycle events for the active task. Reclassify only for an
 explicit objective change or evidence that the stored route cannot safely
 finish, and record that delta.

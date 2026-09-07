@@ -14,6 +14,8 @@ import (
 	"testing"
 )
 
+const exactTestDesignImagePrompt = "# Image Generation Prompt\n\nDirection: direction-main\n\nMust preserve the declared boundaries.\nMust not exceed the declared scope.\n"
+
 const validDesignForRuntime = `---
 design_system:
   schema: spec-kit-design-v1
@@ -291,14 +293,9 @@ func TestDesignPreviewReadyRequiresTruthfulHTMLCapabilityRoute(t *testing.T) {
 func TestDesignPreviewConceptLintAllowsAuthoredCandidateBeforeHandoffCompletion(t *testing.T) {
 	tmp := t.TempDir()
 	withCwd(t, tmp)
-	preview := filepath.Join(".specify", "design", "previews", "round-01.html")
+	preview, _ := createDirectionCheckpointFixture(t, "UD-0059", true)
 
 	var stdout bytes.Buffer
-	if exit := runDesign([]string{"preview", "--out", preview}, &stdout); exit != 0 {
-		t.Fatalf("preview scaffold failed: %d %s", exit, stdout.String())
-	}
-	configurePreviewCandidate(t, preview)
-	removePreviewHandoffField(t, preview, "editing_matrix")
 
 	stdout.Reset()
 	if exit := runDesign([]string{"preview-lint", preview, "--level", "ready"}, &stdout); exit != 2 {
@@ -326,6 +323,10 @@ func TestDesignDirectionConfirmCreatesNonConsumableIdempotentCheckpointAndReject
 	designBefore := readFile(t, designPath)
 
 	var stdout bytes.Buffer
+	if exit := runDesign([]string{"preview-lint", preview, "--level", "concept"}, &stdout); exit != 0 {
+		t.Fatalf("concept lint failed: %d %s", exit, stdout.String())
+	}
+	stdout.Reset()
 	if exit := runDesign([]string{"direction-confirm", preview, "--direction", "direction-main"}, &stdout); exit != 0 {
 		t.Fatalf("direction-confirm failed: %d %s", exit, stdout.String())
 	}
@@ -479,6 +480,10 @@ func TestDesignDirectionConfirmedRoundCannotBeApproved(t *testing.T) {
 	var stdout bytes.Buffer
 	if exit := runDesign([]string{"preview-lint", preview, "--level", "ready"}, &stdout); exit != 0 {
 		t.Fatalf("control fixture must be approval-ready before direction confirmation: %d %s", exit, stdout.String())
+	}
+	stdout.Reset()
+	if exit := runDesign([]string{"preview-lint", preview, "--level", "concept"}, &stdout); exit != 0 {
+		t.Fatalf("concept lint failed: %d %s", exit, stdout.String())
 	}
 	stdout.Reset()
 	if exit := runDesign([]string{"direction-confirm", preview, "--direction", "direction-main"}, &stdout); exit != 0 {
@@ -1619,6 +1624,38 @@ func TestDesignImportCopiesExternalImageIntoChangePreviewWorkspace(t *testing.T)
 	source := filepath.Join(externalRoot, "generated-candidate.PNG")
 	if err := os.WriteFile(source, pngBytes, 0o644); err != nil {
 		t.Fatal(err)
+	}
+	designPath := filepath.Join(".specify", "design", "changes", "UD-0001", "design-change.md")
+	design := strings.Replace(readFile(t, designPath), "    mode: unresolved", "    mode: greenfield", 1)
+	if err := os.WriteFile(designPath, []byte(design), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	preview := filepath.Join(".specify", "design", "changes", "UD-0001", "previews", "round-01.html")
+	stdout.Reset()
+	if exit := runDesign([]string{"preview", "--out", preview}, &stdout); exit != 0 {
+		t.Fatalf("preview scaffold failed: %d %s", exit, stdout.String())
+	}
+	configurePreviewCandidate(t, preview)
+	manifest, err := parseJSONObject(parseHTMLSummary(readFile(t, preview)).PreviewManifestText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest["visual_collaboration"] = map[string]any{
+		"primary_medium": "image-primary", "image_generation": "available",
+		"image_inspection": "available", "image_editing": "unavailable",
+		"inspection_owner": "agent-and-user", "prompt_strategy": "image-generation",
+	}
+	manifestPath := strings.TrimSuffix(preview, filepath.Ext(preview)) + ".manifest.json"
+	manifestText, err := marshalPretty(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifestPath, []byte(manifestText), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	if exit := runDesign([]string{"prompt", manifestPath, "--content", exactTestDesignImagePrompt}, &stdout); exit != 0 {
+		t.Fatalf("design prompt failed: %d %s", exit, stdout.String())
 	}
 
 	stdout.Reset()
@@ -2985,6 +3022,10 @@ func createDirectionCheckpointFixture(t *testing.T, changeID string, incompleteH
 		t.Fatalf("design change scaffold failed: %d %s", exit, stdout.String())
 	}
 	designPath := filepath.Join(".specify", "design", "changes", changeID, "design-change.md")
+	design := strings.Replace(readFile(t, designPath), "    mode: unresolved", "    mode: greenfield", 1)
+	if err := os.WriteFile(designPath, []byte(design), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	preview := filepath.Join(".specify", "design", "changes", changeID, "previews", "round-01.html")
 	stdout.Reset()
 	if exit := runDesign([]string{"preview", "--out", preview}, &stdout); exit != 0 {
@@ -3036,9 +3077,9 @@ func createDirectionImageCheckpointFixture(t *testing.T, changeID string) (strin
 		t.Fatal(err)
 	}
 	promptPath := base + ".prompt.md"
-	prompt := "# Image generation prompt\n\nOne product UI concept with a persistent recovery rail and representative operator states.\n"
-	if err := os.WriteFile(promptPath, []byte(prompt), 0o644); err != nil {
-		t.Fatal(err)
+	var promptOut bytes.Buffer
+	if exit := runDesign([]string{"prompt", manifestPath, "--content", exactTestDesignImagePrompt}, &promptOut); exit != 0 {
+		t.Fatalf("design prompt failed: %d %s", exit, promptOut.String())
 	}
 	return image, manifestPath, promptPath
 }

@@ -997,7 +997,7 @@ def test_hook_validate_state_supports_constitution_command(tmp_path: Path):
     assert payload["status"] == "ok"
 
 
-def test_hook_validate_state_supports_prd_command(tmp_path: Path):
+def test_hook_validate_state_supports_canonical_prd_scan_command(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260502-demo-prd"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -1008,7 +1008,7 @@ def test_hook_validate_state_supports_prd_command(tmp_path: Path):
                 "",
                 "## Current Command",
                 "",
-                "- active_command: `sp-prd`",
+                "- active_command: `sp-prd-scan`",
                 "- status: `active`",
                 "",
                 "## Phase Mode",
@@ -1035,7 +1035,7 @@ def test_hook_validate_state_supports_prd_command(tmp_path: Path):
                 "",
                 "## Next Command",
                 "",
-                "- `/sp.prd`",
+                "- `/sp.prd-build`",
                 "",
             ]
         ),
@@ -1048,7 +1048,7 @@ def test_hook_validate_state_supports_prd_command(tmp_path: Path):
             "hook",
             "validate-state",
             "--command",
-            "prd",
+            "prd-scan",
             "--feature-dir",
             str(run_dir),
         ],
@@ -1058,7 +1058,7 @@ def test_hook_validate_state_supports_prd_command(tmp_path: Path):
     payload = json.loads(result.output.strip())
     assert payload["event"] == "workflow.state.validate"
     assert payload["status"] == "ok"
-    assert payload["data"]["checkpoint"]["active_command"] == "sp-prd"
+    assert payload["data"]["checkpoint"]["active_command"] == "sp-prd-scan"
 
 
 def test_hook_validate_state_supports_prd_scan_command(tmp_path: Path):
@@ -1369,7 +1369,7 @@ def test_hook_checkpoint_supports_constitution_command(tmp_path: Path):
     assert payload["data"]["checkpoint"]["active_command"] == "sp-constitution"
 
 
-def test_hook_checkpoint_supports_prd_command(tmp_path: Path):
+def test_hook_checkpoint_supports_prd_scan_command(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260502-demo-prd"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -1380,7 +1380,7 @@ def test_hook_checkpoint_supports_prd_command(tmp_path: Path):
                 "",
                 "## Current Command",
                 "",
-                "- active_command: `sp-prd`",
+                "- active_command: `sp-prd-scan`",
                 "- status: `active`",
                 "",
                 "## Phase Mode",
@@ -1411,7 +1411,7 @@ def test_hook_checkpoint_supports_prd_command(tmp_path: Path):
                 "",
                 "## Next Command",
                 "",
-                "- `/sp.prd`",
+                "- `/sp.prd-build`",
                 "",
             ]
         ),
@@ -1424,7 +1424,7 @@ def test_hook_checkpoint_supports_prd_command(tmp_path: Path):
             "hook",
             "checkpoint",
             "--command",
-            "prd",
+            "prd-scan",
             "--feature-dir",
             str(run_dir),
         ],
@@ -1435,7 +1435,7 @@ def test_hook_checkpoint_supports_prd_command(tmp_path: Path):
     assert payload["event"] == "workflow.checkpoint"
     assert payload["status"] == "ok"
     assert payload["data"]["checkpoint"]["state_kind"] == "workflow-state"
-    assert payload["data"]["checkpoint"]["active_command"] == "sp-prd"
+    assert payload["data"]["checkpoint"]["active_command"] == "sp-prd-scan"
 
 
 def test_hook_checkpoint_supports_prd_build_command(tmp_path: Path):
@@ -2782,7 +2782,7 @@ def test_hook_validate_artifacts_blocks_specify_when_semantic_ready_state_is_mis
     assert any("spec-contract.json" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_supports_prd_command(tmp_path: Path):
+def test_hook_validate_artifacts_supports_canonical_prd_scan_command(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260502-demo-prd"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -2806,7 +2806,7 @@ def test_hook_validate_artifacts_supports_prd_command(tmp_path: Path):
             "hook",
             "validate-artifacts",
             "--command",
-            "prd",
+            "prd-scan",
             "--feature-dir",
             str(run_dir),
         ],
@@ -5351,7 +5351,7 @@ def test_hook_validate_artifacts_blocks_shallow_prd_suite(tmp_path: Path):
             "hook",
             "validate-artifacts",
             "--command",
-            "prd",
+            "prd-scan",
             "--feature-dir",
             str(run_dir),
         ],
@@ -5410,10 +5410,10 @@ def test_hook_validate_artifacts_blocks_prd_scan_when_json_artifact_path_is_dire
     )
 
 
-def test_prd_init_workspace_supports_compatibility_artifact_validation(tmp_path: Path):
+def test_prd_scan_workspace_supports_canonical_artifact_validation(tmp_path: Path):
     project = _create_project(tmp_path)
 
-    init_result = _run_module_in_project(project, ["prd", "Portal Audit", "--json"])
+    init_result = _run_module_in_project(project, ["prd-scan", "Portal Audit", "--json"])
 
     assert init_result.returncode == 0, init_result.stderr or init_result.stdout
     init_payload = json.loads(init_result.stdout.strip())
@@ -5425,7 +5425,7 @@ def test_prd_init_workspace_supports_compatibility_artifact_validation(tmp_path:
             "hook",
             "validate-artifacts",
             "--command",
-            "prd",
+            "prd-scan",
             "--feature-dir",
             str(run_dir),
         ],
@@ -6211,18 +6211,13 @@ def test_hook_validate_prompt_module_entrypoint_accepts_stdin_payload(tmp_path: 
     assert payload["status"] == "blocked"
 
 
-def test_prd_command_supports_python_module_entrypoint(tmp_path: Path):
+def test_retired_prd_command_is_not_available_from_python_module(tmp_path: Path):
     project = _create_project(tmp_path)
 
     result = _run_module_in_project(project, ["prd", "Portal Audit", "--json"])
 
-    assert result.returncode == 0, result.stderr or result.stdout
-    payload = json.loads(result.stdout.strip())
-    assert payload["mode"] == "init"
-    assert payload["slug"] == "portal-audit"
-    run_dir = Path(payload["workspace_path"])
-    assert (run_dir / "workflow-state.md").is_file()
-    assert (run_dir / "prd-scan.md").is_file()
+    assert result.returncode != 0
+    assert "No such command 'prd'" in (result.stderr or result.stdout)
 
 
 def test_prd_scan_command_supports_python_module_entrypoint(tmp_path: Path):
@@ -6407,20 +6402,13 @@ def test_prd_build_command_json_entrypoint_reports_incomplete_readiness(tmp_path
     assert payload["surfaces"]["runtime_behaviors"] is False
 
 
-def test_prd_command_help_marks_compatibility_only(tmp_path: Path):
+def test_retired_prd_command_has_no_help_surface(tmp_path: Path):
     project = _create_project(tmp_path)
 
     result = _run_module_in_project(project, ["prd", "--help"])
 
-    assert result.returncode == 0, result.stderr or result.stdout
-    help_text = result.stdout
-    assert "Deprecated compatibility entrypoint" in help_text
-    assert "prd-scan" in help_text
-    assert "prd-build" in help_text
-    assert "heavy reconstruction" in help_text.lower()
-    assert "L4 Reconstruction-Ready" in help_text
-    assert "subagent-mandatory" in help_text
-    assert "config-contracts.json" in help_text
+    assert result.returncode != 0
+    assert "No such command 'prd'" in (result.stderr or result.stdout)
 
 
 def test_prd_build_command_help_mentions_build_only_reconstruction_contract(

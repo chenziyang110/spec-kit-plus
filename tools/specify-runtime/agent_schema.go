@@ -257,13 +257,13 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "writes-discussion-state-and-log"
 		capability["usage"] = "specify-runtime discussion checkpoint <slug> --expected-state-sha256 <resolved-state-sha256> --input-json <object|@path|-> [--summary <text>] [--phase <phase>] [--user-goal <text>] --format json"
 		capability["input_schema"] = "discussion-checkpoint-input"
-		capability["input_contract"] = "persists turn_packet semantic fields (user_goal, context_boundary, topic_ownership, confirmed_decisions, open_questions, current_recommendation, ...); unknown fields are rejected; --expected-state-sha256 comes from discussion resolve; execute the exact project-local launcher without drive-letter reconstruction; on PowerShell prefer in-memory stdin with --input-json - instead of placing a here-string after the flag; invalid input returns show_argv for the schema and stale state returns a slug-bound next_argv for resolve"
+		capability["input_contract"] = "persists canonical turn_packet v2 semantic fields including requirements_snapshot, implementation_target, source_evidence, source_materials, unknowns/conflicts, downstream_instructions, discussion_decision_digest, must_preserve, truth/evidence/confidence, design_context, and artifact_refs; source_evidence may cite material_id and source_materials receive protected material_digest; unknown fields are rejected; --expected-state-sha256 comes from discussion resolve; execute the exact project-local launcher without drive-letter reconstruction; on PowerShell prefer in-memory stdin with --input-json - instead of placing a here-string after the flag; invalid input returns show_argv for the schema and stale state returns a slug-bound next_argv for resolve"
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "discussion-checkpoint-input", "--format", "json"}
 	case "discussion.write-handoff":
 		capability["side_effect"] = "writes-discussion-handoff"
 		capability["usage"] = "specify-runtime discussion write-handoff <slug> --expected-state-sha256 <resolved-state-sha256> --input-json <object|@path|-> --format json"
 		capability["input_schema"] = "discussion-write-handoff-input"
-		capability["input_contract"] = "semantic draft merged into the installed handoff template; topic_ownership owner_slug is runtime-bound to the resolved slug; roles/evidence/must_preserve are object lists; consumer status ready (not eligible); quality_gate needs self_reviewed_at; --expected-state-sha256 comes from discussion resolve; --input-json accepts inline, @path, or -"
+		capability["input_contract"] = "requires latest_checkpoint.snapshot_sha256 to match the current canonical semantic snapshot; runtime derives and overwrites agent_requirement_contract, implementation_target, source_evidence/source_materials, unknown/conflict counts, downstream_instructions, decision digest, must_preserve, context boundary, and discussion_snapshot_digest from checkpoint state; input supplies only handoff_goal, consumer_eligibility/recommended_consumer, and quality_gate self-review hints; consumer status ready (not eligible); --expected-state-sha256 comes from discussion resolve; --input-json accepts inline, @path, or -"
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "discussion-write-handoff-input", "--format", "json"}
 	case "validate.spec":
 		capability["side_effect"] = "read-only"
@@ -296,7 +296,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "evidence.source-continuity-manifest":
 		capability["side_effect"] = "writes-derived-source-continuity-manifest"
 		capability["usage"] = "specify-runtime evidence source-continuity-manifest (--feature-dir <feature-dir> --task-id <Txxx> | --quick-id <quick-id> --item-id <Qn>) --format json"
-		capability["input_contract"] = "derives the exact surface/action/asset universe from the immutable source_continuity contract and binds either the current task-index digest or the digest-protected Quick decision"
+		capability["input_contract"] = "derives the exact surface/action/asset universe from the immutable source_continuity contract and binds either the current task-index digest or the digest-protected Quick decision. Formal target snapshots use current expected_write_scope with legacy write_scope only as fallback; Quick uses the confirmed item write_scope. Both exclude runtime-owned workflow roots and Source Continuity outputs encountered during product traversal, stay byte-stable when product sources are unchanged, and change when an in-scope product source changes. Explicit runtime-owned scopes are invalid."
 	case "evidence.source-continuity-adapter-catalog":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime evidence source-continuity-adapter-catalog --format json"
@@ -334,8 +334,14 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "design.import":
 		capability["side_effect"] = "imports-external-image-into-draft-design-round"
 		capability["usage"] = "specify-runtime design import <external-image-path> --change <UD-ID> --round <positive-integer> [--notes <text>] --format json"
-		capability["input_contract"] = "the source must be a regular PNG, JPEG, or WEBP file no larger than 32 MiB; the named change must be an existing draft. Runtime copies identical bytes atomically to .specify/design/changes/<UD-ID>/previews/round-NN.<ext>, records source and SHA-256 in change-local references.md, permits byte-identical retry, and rejects replacement or registered changes. Omit --change/--round only for legacy URL/path reference recording."
+		capability["input_contract"] = "the source must be a regular PNG, JPEG, or WEBP file no larger than 32 MiB; the named change must be an existing draft. Image-round import also requires the current runtime-owned .generation.json sidecar to still match the adjacent manifest, prompt, canonical draft design-change digest, and any available input-image digests before bytes are copied atomically to .specify/design/changes/<UD-ID>/previews/round-NN.<ext>. Omit --change/--round only for legacy URL/path reference recording."
 		capability["file_input"] = "external generated image only; approval still requires the adjacent manifest and exact prompt"
+	case "design.prompt":
+		capability["summary"] = "Persist the exact professional image prompt and generation sidecar for one draft image-primary round."
+		capability["side_effect"] = "writes-runtime-owned-image-prompt-and-generation-sidecar"
+		capability["usage"] = "specify-runtime design prompt <round.manifest.json|round.png|round.jpg|round.jpeg|round.webp> --content <inline|@path|-> --format json"
+		capability["input_contract"] = "create-only specialized producer for one canonical draft .specify/design/changes/<UD-ID>/previews/round-* workspace. --content persists the exact professional ImageGen prompt; use stdin - for large agent-authored prompts, while @path accepts only an existing project-contained regular file. Runtime validates the adjacent image-primary manifest plus canonical draft design-change, atomically writes round-NN.prompt.md and round-NN.generation.json, returns their paths and SHA-256 receipts, treats identical replay as idempotent, and rejects different or partial existing bytes. inherit-existing requires edit-source input_images coverage for protected surfaces and records their digests."
+		capability["file_input"] = "--content @path accepts only an existing project-contained regular UTF-8 file without symlink or reparse traversal; prefer stdin - for agent-authored prompts"
 	case "design.iterate":
 		capability["side_effect"] = "creates-digest-pinned-successor-workspace"
 		capability["usage"] = "specify-runtime design iterate <SOURCE-UD-ID> <SUCCESSOR-UD-ID> --title <title> [--type preserve|overhaul|extension] [--scope <surface>]... [--profiles <csv>] --format json"
@@ -363,11 +369,11 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "design.direction-confirm":
 		capability["side_effect"] = "writes-non-consumable-direction-checkpoint"
 		capability["usage"] = "specify-runtime design direction-confirm <change-local-round.html|png|jpg|jpeg|webp> --direction direction-main [--manifest <round.manifest.json> --prompt <round.prompt.md> --image-inspection available|unavailable --image-editing available|unavailable] --format json"
-		capability["input_contract"] = "requires the canonical previews/round-* path inside one indexed draft .specify/design/changes/<UD-ID> workspace. Concept-level validation binds the exact draft contract, scope, selected profiles, preview, adjacent manifest, direction, and review round into runtime-owned .direction.json with authority non-consumable; image rounds also byte-bind the adjacent prompt and exact declared capability route without mutating the manifest. Identical replay is idempotent, drift is rejected, index.json is unchanged, and the checkpoint cannot satisfy approve, register, Plan, Implement, or Quick consumption."
+		capability["input_contract"] = "requires the canonical previews/round-* path inside one indexed draft .specify/design/changes/<UD-ID> workspace and a current runtime-owned .concept.json receipt from concept-level preview-lint before writing non-consumable .direction.json. Concept receipt drift, missing prompt, or mismatched manifest/capability route blocks direction confirmation. Identical replay is idempotent, drift is rejected, index.json is unchanged, and the checkpoint cannot satisfy approve, register, Plan, Implement, or Quick consumption."
 	case "design.preview-lint":
-		capability["side_effect"] = "read-only"
-		capability["usage"] = "specify-runtime design preview-lint <round.html|round.png|round.jpg|round.jpeg|round.webp> --level structural|concept|ready --format json"
-		capability["input_contract"] = "concept is preview-only and validates one authored candidate, selected visual profiles, minimum specimens/critical states, reduced/high-contrast direction feasibility, and at least one selected-profile stress target while deferring complete DH matrices and acceptance. ready retains the full immutable manifest, prompt, capability, approval, and handoff requirements."
+		capability["side_effect"] = "writes-concept-receipt-on-concept-pass"
+		capability["usage"] = "specify-runtime design preview-lint <round.html|round.png|round.jpg|round.jpeg|round.webp> --level structural|concept|ready [--inspection-json <object|@path|->] --format json"
+		capability["input_contract"] = "concept is preview-only and validates one authored candidate, selected visual profiles, minimum specimens/critical states, reduced/high-contrast direction feasibility, and at least one selected-profile stress target while deferring complete DH matrices and acceptance. A passing concept run writes runtime-owned round-NN.concept.json; image-primary concept lint may also bind --inspection-json <object|@path|-> when actual inspection is available. ready retains the full immutable manifest, prompt, capability, approval, and handoff requirements."
 	case "design.adopt":
 		capability["side_effect"] = "appends-cas-guarded-consumer-adoption"
 		capability["usage"] = "specify-runtime design adopt <consumer-ref> --change <UD-ID> --scope <surface> --mode formal|formal-post-specify|quick --binding-ref <path> --binding-sha256 <sha256> --expected-change <UD-ID|none> --format json"
@@ -1104,37 +1110,64 @@ func implementResultMergeInputSchema() map[string]any {
 }
 
 func discussionCheckpointInputSchema() map[string]any {
-	nonEmptyString := map[string]any{"type": "string", "minLength": 1}
-	stringArray := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+	nonEmptyString := discussionJSONNonEmptyStringSchema()
+	stringArray := discussionJSONStringArraySchema(0)
+	materialObject := discussionSourceMaterialSchema(false)
+	evidenceObject := discussionSourceEvidenceSchema()
 	return map[string]any{
 		"$schema":              "https://json-schema.org/draft/2020-12/schema",
-		"$id":                  "specify://schemas/discussion-checkpoint-input/v1",
+		"$id":                  "specify://schemas/discussion-checkpoint-input/v2",
 		"type":                 "object",
 		"additionalProperties": false,
 		"description":          "Semantic checkpoint payload for specify-runtime discussion checkpoint. Unknown fields are rejected. Pass via --input-json (inline, @path, or -).",
 		"properties": map[string]any{
-			"summary":                 nonEmptyString,
-			"lifecycle_phase":         map[string]any{"type": "string", "enum": []any{"explore", "ground", "decide", "prepare", "review"}},
-			"phase":                   map[string]any{"type": "string", "description": "Alias for lifecycle_phase"},
-			"user_goal":               nonEmptyString,
-			"turn_class":              nonEmptyString,
-			"current_decision_frame":  nonEmptyString,
-			"topic_ownership":         discussionTopicOwnershipSchema(),
-			"confirmed_decisions":     stringArray,
-			"changed_recommendations": stringArray,
-			"context_boundary":        map[string]any{"type": "object"},
-			"verified_fact_refs":      map[string]any{"type": "array"},
-			"open_assumptions":        map[string]any{"type": "array"},
-			"open_questions":          map[string]any{"type": "array"},
-			"current_recommendation":  nonEmptyString,
-			"allowed_actions":         stringArray,
-			"next_gate":               nonEmptyString,
+			"summary":                    nonEmptyString,
+			"lifecycle_phase":            map[string]any{"type": "string", "enum": []any{"explore", "ground", "decide", "prepare", "review"}},
+			"phase":                      map[string]any{"type": "string", "description": "Alias for lifecycle_phase"},
+			"user_goal":                  nonEmptyString,
+			"turn_class":                 nonEmptyString,
+			"current_decision_frame":     nonEmptyString,
+			"requirements_snapshot":      discussionRequirementsSnapshotSchema(false),
+			"implementation_target":      discussionImplementationTargetSchema(),
+			"source_evidence":            map[string]any{"type": "array", "items": evidenceObject},
+			"source_materials":           map[string]any{"type": "array", "items": materialObject},
+			"blocking_unknowns":          map[string]any{"type": "array"},
+			"soft_unknowns":              map[string]any{"type": "array"},
+			"conflicts":                  map[string]any{"type": "array"},
+			"downstream_instructions":    discussionDownstreamInstructionsSchema(false),
+			"discussion_decision_digest": map[string]any{"type": "object"},
+			"must_preserve":              map[string]any{"type": "array", "items": discussionMustPreserveSchema()},
+			"truth_pass_status":          map[string]any{"type": "string", "enum": []any{"not-needed", "needed", "in-progress", "complete", "blocked"}},
+			"verified_project_facts":     stringArray,
+			"evidence_checked":           stringArray,
+			"advice_confidence": map[string]any{"oneOf": []any{
+				map[string]any{"type": "string", "enum": []any{"high", "medium", "low", "blocked", "none"}},
+				map[string]any{"type": "object", "required": []string{"level", "reason"}, "properties": map[string]any{
+					"level":  map[string]any{"type": "string", "enum": []any{"high", "medium", "low", "blocked", "none"}},
+					"reason": nonEmptyString,
+				}},
+			}},
+			"discussion_compass_status": map[string]any{"type": "string", "enum": []any{"missing", "current", "stale"}},
+			"next_discussion_paths":     stringArray,
+			"ui_discussion_status":      map[string]any{"type": "string", "enum": []any{"not_applicable", "offered", "accepted", "skipped", "completed", "deferred"}},
+			"design_context":            map[string]any{"type": "object"},
+			"artifact_refs":             stringArray,
+			"topic_ownership":           discussionTopicOwnershipSchema(),
+			"confirmed_decisions":       stringArray,
+			"changed_recommendations":   stringArray,
+			"context_boundary":          map[string]any{"type": "object"},
+			"verified_fact_refs":        map[string]any{"type": "array"},
+			"open_assumptions":          map[string]any{"type": "array"},
+			"open_questions":            map[string]any{"type": "array"},
+			"current_recommendation":    nonEmptyString,
+			"allowed_actions":           stringArray,
+			"next_gate":                 nonEmptyString,
 		},
 	}
 }
 
 func discussionWriteHandoffInputSchema() map[string]any {
-	nonEmptyString := map[string]any{"type": "string", "minLength": 1}
+	nonEmptyString := discussionJSONNonEmptyStringSchema()
 	roleObject := map[string]any{
 		"type":                 "object",
 		"additionalProperties": true,
@@ -1144,33 +1177,6 @@ func discussionWriteHandoffInputSchema() map[string]any {
 			"scope":           nonEmptyString,
 			"evidence_source": nonEmptyString,
 			"notes":           nonEmptyString,
-		},
-	}
-	evidenceObject := map[string]any{
-		"type":                 "object",
-		"additionalProperties": true,
-		"required":             []string{"source_type", "evidence_status", "source", "claim"},
-		"properties": map[string]any{
-			"source_type":     nonEmptyString,
-			"evidence_status": nonEmptyString,
-			"source":          nonEmptyString,
-			"claim":           nonEmptyString,
-		},
-	}
-	mustPreserveObject := map[string]any{
-		"type":                 "object",
-		"additionalProperties": true,
-		"required":             []string{"id", "type", "claim", "source", "downstream_requirement", "blocking_level", "owner", "latest_resolve_phase", "status"},
-		"properties": map[string]any{
-			"id":                     nonEmptyString,
-			"type":                   nonEmptyString,
-			"claim":                  nonEmptyString,
-			"source":                 nonEmptyString,
-			"downstream_requirement": nonEmptyString,
-			"blocking_level":         nonEmptyString,
-			"owner":                  nonEmptyString,
-			"latest_resolve_phase":   nonEmptyString,
-			"status":                 nonEmptyString,
 		},
 	}
 	consumerEntry := map[string]any{
@@ -1188,33 +1194,27 @@ func discussionWriteHandoffInputSchema() map[string]any {
 	}
 	return map[string]any{
 		"$schema":              "https://json-schema.org/draft/2020-12/schema",
-		"$id":                  "specify://schemas/discussion-write-handoff-input/v1",
+		"$id":                  "specify://schemas/discussion-write-handoff-input/v2",
 		"type":                 "object",
 		"additionalProperties": true,
-		"description":          "Semantic draft merged into discussion-handoff-template.json. Runtime owns version/status/digest defaults. Pass via --input-json (inline, @path, or -). On Windows PowerShell prefer @path or stdin.",
-		"required":             []string{"handoff_goal"},
+		"description":          "Discussion handoff control input. Runtime requires a current semantic checkpoint and derives/overwrites state-owned requirement, material, evidence, unknown, conflict, downstream, decision, and digest fields from discussion-state.json. Pass via --input-json (inline, @path, or -). On Windows PowerShell prefer @path or stdin.",
+		"required":             []string{"handoff_goal", "consumer_eligibility", "recommended_consumer", "quality_gate"},
 		"properties": map[string]any{
-			"handoff_goal": nonEmptyString,
-			"agent_requirement_contract": map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"target_need":               nonEmptyString,
-					"constraints":               map[string]any{"type": "array"},
-					"success_criteria":          map[string]any{"type": "array"},
-					"design_direction":          map[string]any{"type": "array"},
-					"optimal_solution_approach": map[string]any{"type": "array"},
-					"scope": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"in":       map[string]any{"type": "array"},
-							"out":      map[string]any{"type": "array"},
-							"deferred": map[string]any{"type": "array"},
-						},
-					},
-				},
-			},
+			"handoff_goal":               nonEmptyString,
+			"agent_requirement_contract": map[string]any{"type": "object", "readOnly": true, "description": "Ignored/overwritten from checkpoint requirements_snapshot."},
+			"source_evidence":            map[string]any{"type": "array", "readOnly": true, "description": "Ignored/overwritten from checkpoint; use discussion checkpoint for material_id evidence links."},
+			"source_materials":           map[string]any{"type": "array", "readOnly": true, "description": "Ignored/overwritten from checkpoint; runtime protects material_digest."},
+			"implementation_target":      map[string]any{"type": "object", "readOnly": true, "description": "Ignored/overwritten from checkpoint."},
+			"blocking_unknowns":          map[string]any{"type": "array", "readOnly": true},
+			"soft_unknowns":              map[string]any{"type": "array", "readOnly": true},
+			"conflicts":                  map[string]any{"type": "array", "readOnly": true},
+			"downstream_instructions":    map[string]any{"type": "object", "readOnly": true},
+			"discussion_decision_digest": map[string]any{"type": "object", "readOnly": true},
+			"must_preserve":              map[string]any{"type": "array", "readOnly": true},
 			"context_boundary": map[string]any{
-				"type": "object",
+				"type":        "object",
+				"readOnly":    true,
+				"description": "Ignored/overwritten from checkpoint; validation requires locked boundary in canonical state.",
 				"properties": map[string]any{
 					"status": map[string]any{"type": "string", "enum": []any{"locked"}, "description": "validation requires locked"},
 					"current_project_roles": map[string]any{
@@ -1229,8 +1229,6 @@ func discussionWriteHandoffInputSchema() map[string]any {
 					"target_project_root":  nonEmptyString,
 				},
 			},
-			"source_evidence": map[string]any{"type": "array", "items": evidenceObject},
-			"must_preserve":   map[string]any{"type": "array", "minItems": 1, "items": mustPreserveObject},
 			"consumer_eligibility": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -1240,7 +1238,8 @@ func discussionWriteHandoffInputSchema() map[string]any {
 			},
 			"recommended_consumer": map[string]any{"type": "string", "enum": []any{"sp-specify", "sp-quick"}},
 			"quality_gate": map[string]any{
-				"type": "object",
+				"type":     "object",
+				"required": []string{"self_reviewed_at"},
 				"properties": map[string]any{
 					"status": map[string]any{
 						"type":        "string",
@@ -1250,34 +1249,164 @@ func discussionWriteHandoffInputSchema() map[string]any {
 					"notes":            nonEmptyString,
 				},
 			},
-			"downstream_instructions": map[string]any{
-				"type": "object",
+			"topic_ownership":      discussionTopicOwnershipSchema(),
+			"coverage_status":      map[string]any{"type": "string", "readOnly": true, "description": "Derived by runtime from canonical content."},
+			"planning_gate_status": map[string]any{"type": "string", "readOnly": true, "description": "Derived by runtime from canonical content."},
+			"hard_unknown_count":   map[string]any{"type": "integer", "readOnly": true, "description": "Derived from unresolved blocking_unknowns."},
+			"open_conflict_count":  map[string]any{"type": "integer", "readOnly": true, "description": "Derived from unresolved conflicts and conflicts_requiring_return."},
+		},
+	}
+}
+
+func discussionJSONNonEmptyStringSchema() map[string]any {
+	return map[string]any{"type": "string", "minLength": 1}
+}
+
+func discussionJSONStringArraySchema(minItems int) map[string]any {
+	schema := map[string]any{
+		"type":  "array",
+		"items": discussionJSONNonEmptyStringSchema(),
+	}
+	if minItems > 0 {
+		schema["minItems"] = minItems
+	}
+	return schema
+}
+
+func discussionRequirementsSnapshotSchema(ready bool) map[string]any {
+	minItems := 0
+	if ready {
+		minItems = 1
+	}
+	array := discussionJSONStringArraySchema(minItems)
+	scopeIn := discussionJSONStringArraySchema(minItems)
+	stringArray := discussionJSONStringArraySchema(0)
+	return map[string]any{
+		"type": "object",
+		"required": []string{
+			"target_need",
+			"actors",
+			"scenarios",
+			"constraints",
+			"success_criteria",
+			"design_direction",
+			"optimal_solution_approach",
+			"non_goals",
+			"scope",
+		},
+		"properties": map[string]any{
+			"target_need":               discussionJSONNonEmptyStringSchema(),
+			"actors":                    array,
+			"scenarios":                 array,
+			"constraints":               stringArray,
+			"success_criteria":          array,
+			"design_direction":          stringArray,
+			"optimal_solution_approach": array,
+			"non_goals":                 stringArray,
+			"scope": map[string]any{
+				"type":     "object",
+				"required": []string{"in", "out", "deferred"},
 				"properties": map[string]any{
-					"settled_decisions":          map[string]any{"type": "array"},
-					"preserved_assumptions":      map[string]any{"type": "array"},
-					"conflicts_requiring_return": map[string]any{"type": "array"},
-					"capability_map":             map[string]any{"type": "array"},
-					"dependencies":               map[string]any{"type": "array"},
-					"planning_constraints":       map[string]any{"type": "array"},
-					"deferred_scope":             map[string]any{"type": "array"},
-					"reopen_conditions":          map[string]any{"type": "array"},
+					"in":       scopeIn,
+					"out":      stringArray,
+					"deferred": stringArray,
 				},
 			},
-			"discussion_decision_digest": map[string]any{"type": "object"},
-			"topic_ownership":            discussionTopicOwnershipSchema(),
-			"implementation_target":      map[string]any{"type": "object"},
-			"blocking_unknowns":          map[string]any{"type": "array"},
-			"soft_unknowns":              map[string]any{"type": "array"},
-			"coverage_status":            map[string]any{"type": "string", "enum": []any{"complete"}},
-			"planning_gate_status":       map[string]any{"type": "string", "enum": []any{"ready"}},
-			"hard_unknown_count":         map[string]any{"type": "integer", "const": 0},
-			"open_conflict_count":        map[string]any{"type": "integer", "const": 0},
+		},
+		"additionalProperties": true,
+	}
+}
+
+func discussionImplementationTargetSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"actual_project":                  map[string]any{"type": []any{"string", "null"}},
+			"target_root":                     map[string]any{"type": []any{"string", "null"}},
+			"target_paths":                    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"required_target_paths_to_verify": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		},
+		"additionalProperties": true,
+	}
+}
+
+func discussionSourceEvidenceSchema() map[string]any {
+	nonEmptyString := discussionJSONNonEmptyStringSchema()
+	return map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"required":             []string{"source_type", "evidence_status", "source", "claim"},
+		"properties": map[string]any{
+			"source_type":     nonEmptyString,
+			"evidence_status": map[string]any{"type": "string", "enum": []any{"verified", "proven", "confirmed", "inferred", "assumption", "stale-advisory", "missing", "conflict"}},
+			"source":          nonEmptyString,
+			"claim":           nonEmptyString,
+			"material_id":     map[string]any{"type": "string", "pattern": "^MAT-[0-9]{3}$"},
+		},
+	}
+}
+
+func discussionSourceMaterialSchema(includeDigest bool) map[string]any {
+	required := []string{"id", "material_type", "locator", "summary", "inspection_status", "claims", "coverage_gaps", "sensitivity"}
+	if includeDigest {
+		required = append(required, "material_digest")
+	}
+	properties := map[string]any{
+		"id":                map[string]any{"type": "string", "pattern": "^MAT-[0-9]{3}$"},
+		"material_type":     map[string]any{"type": "string", "minLength": 1},
+		"locator":           map[string]any{"type": "string", "minLength": 1},
+		"summary":           map[string]any{"type": "string", "minLength": 1},
+		"inspection_status": map[string]any{"type": "string", "enum": []any{"pending", "inspected", "partial", "unavailable", "stale", "conflict"}},
+		"claims":            map[string]any{"type": "array", "minItems": 1, "items": map[string]any{"type": "string"}},
+		"coverage_gaps":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		"sensitivity":       map[string]any{"type": "string", "enum": []any{"safe", "sanitized", "restricted"}},
+		"content_sha256":    map[string]any{"type": "string", "pattern": "^[a-f0-9]{64}$"},
+		"version_ref":       map[string]any{"type": "string"},
+		"material_digest":   map[string]any{"type": "string", "pattern": "^[a-f0-9]{64}$", "readOnly": !includeDigest},
+	}
+	return map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"required":             required,
+		"properties":           properties,
+	}
+}
+
+func discussionDownstreamInstructionsSchema(requireAll bool) map[string]any {
+	fields := []string{"settled_decisions", "preserved_assumptions", "conflicts_requiring_return", "capability_map", "dependencies", "planning_constraints", "deferred_scope", "reopen_conditions"}
+	required := []string{}
+	if requireAll {
+		required = fields
+	}
+	properties := map[string]any{}
+	for _, field := range fields {
+		properties[field] = map[string]any{"type": "array"}
+	}
+	return map[string]any{"type": "object", "required": required, "properties": properties, "additionalProperties": false}
+}
+
+func discussionMustPreserveSchema() map[string]any {
+	nonEmptyString := discussionJSONNonEmptyStringSchema()
+	return map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"required":             []string{"id", "type", "claim", "source", "downstream_requirement", "blocking_level", "owner", "latest_resolve_phase", "status"},
+		"properties": map[string]any{
+			"id":                     nonEmptyString,
+			"type":                   nonEmptyString,
+			"claim":                  nonEmptyString,
+			"source":                 nonEmptyString,
+			"downstream_requirement": nonEmptyString,
+			"blocking_level":         nonEmptyString,
+			"owner":                  nonEmptyString,
+			"latest_resolve_phase":   nonEmptyString,
+			"status":                 nonEmptyString,
 		},
 	}
 }
 
 func discussionTopicOwnershipSchema() map[string]any {
-	nonEmptyString := map[string]any{"type": "string", "minLength": 1}
+	nonEmptyString := discussionJSONNonEmptyStringSchema()
 	routedTopic := map[string]any{
 		"type":                 "object",
 		"additionalProperties": true,

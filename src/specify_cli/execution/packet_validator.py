@@ -1032,10 +1032,18 @@ def validate_ui_contract(contract: UIContract) -> None:
             not isinstance(item, dict)
             or not str(item.get("ref") or "").strip()
             or str(item.get("intent") or "").strip() not in UI_REFERENCE_INTENTS
+            or str(item.get("fidelity") or "").strip()
+            not in {"exact", "high", "approximate", "inspiration"}
+            or not isinstance(item.get("surface_ids"), list)
+            or not item.get("surface_ids")
+            or any(
+                not isinstance(surface_id, str) or not surface_id.strip()
+                for surface_id in item.get("surface_ids", [])
+            )
         ):
             raise PacketValidationError(
                 "DP1",
-                "UI contract reference_intents entries require ref and valid intent",
+                "UI contract reference_intents entries require ref, intent, fidelity, and governed surface_ids",
             )
     for item in contract.image_plan:
         if (
@@ -1189,6 +1197,17 @@ def validate_ui_contract(contract: UIContract) -> None:
                 raise PacketValidationError(
                     "DP1",
                     "UI contract source_continuity surface_bindings must reference selected surface_catalog IDs",
+                )
+        if contract.style_authority.get("mode") == "inherit-existing":
+            disallowed = {
+                str(row.get("disposition") or "").strip()
+                for row in contract.source_continuity.get("surface_bindings") or []
+                if isinstance(row, dict)
+            } & {"replace", "merge", "split", "retire"}
+            if disallowed:
+                raise PacketValidationError(
+                    "DP1",
+                    "UI contract inherit-existing style_authority requires source_continuity surface_bindings to preserve or adapt existing surfaces",
                 )
         for row in contract.source_continuity.get("action_bindings") or []:
             if not isinstance(row, dict) or str(row.get("interaction_id") or "").strip() not in interaction_ids:

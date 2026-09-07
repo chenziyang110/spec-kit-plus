@@ -18,6 +18,8 @@ consequential findings. For each finding record:
 
 Repair blocking craft issues before showing the round. Do not ask the user to
 review a known seed, broken layout, or uninspected file.
+Run concept lint with the actual inspection record and require its current
+concept receipt before presenting the round as confirmable.
 
 ## Present one current direction
 

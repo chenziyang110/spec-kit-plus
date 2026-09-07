@@ -273,7 +273,9 @@ class TestBuiltInSkillGeneration:
         assert not (skills_dir / "sp-test" / "SKILL.md").exists()
         assert (skills_dir / "sp-fast" / "SKILL.md").exists()
         assert (skills_dir / "sp-quick" / "SKILL.md").exists()
-        assert (skills_dir / "sp-prd" / "SKILL.md").exists()
+        assert not (skills_dir / "sp-prd" / "SKILL.md").exists()
+        assert (skills_dir / "sp-prd-scan" / "SKILL.md").exists()
+        assert (skills_dir / "sp-prd-build" / "SKILL.md").exists()
         assert (project_dir / ".specify" / "templates" / "context-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-rules-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-confirmed-learnings-template.md").exists()
@@ -410,17 +412,10 @@ class TestBuiltInSkillGeneration:
         assert "manual override/fallback" in specify_body.lower()
         assert "run `/sp-map-scan` followed by `/sp-map-build`" in specify_body
 
-        prd_body = _skill_body("sp-prd")
-        prd_lower = prd_body.lower()
-        assert "deprecated compatibility entrypoint" in prd_lower
-        assert "compatibility-only" in prd_lower
-        assert "route the work through the canonical flow instead" in prd_lower
-        assert "sp-prd-scan" in prd_body
-        assert "sp-prd-build" in prd_body
-        assert ".specify/prd-runs/<run-id>/prd-scan.md" in prd_body
-        assert "exports/prd.md" in prd_body
-        assert "old one-step semantics" in prd_lower
-        assert "do not skip `sp-prd-scan` and jump straight to `sp-prd-build`" in prd_lower
+        prd_scan_body = _skill_body("sp-prd-scan")
+        prd_build_body = _skill_body("sp-prd-build")
+        assert ".specify/prd-runs/<run-id>/prd-scan.md" in prd_scan_body
+        assert "exports/prd.md" in prd_build_body
         plan_body = _skill_body("sp-plan")
         assert "Add `Implementation Constitution`" in plan_body
         assert "spec-contract.json" in plan_body
@@ -668,14 +663,12 @@ class TestSkillDescriptions:
 
     def test_skill_descriptions_include_new_surfaces(self):
         for name, description in SKILL_DESCRIPTIONS.items():
-            if name == "prd":
-                continue
             assert description.startswith("Use when"), f"{name} description should be trigger-oriented"
 
         assert "guided requirement discovery" in SKILL_DESCRIPTIONS["specify"].lower()
         assert "planning-ready specification package" in SKILL_DESCRIPTIONS["specify"].lower()
-        assert "current-state prd extraction" in SKILL_DESCRIPTIONS["prd"].lower()
-        assert "without automatically handing off to planning" in SKILL_DESCRIPTIONS["prd"].lower()
+        assert "heavy reconstruction scan" in SKILL_DESCRIPTIONS["prd-scan"].lower()
+        assert "final prd suite" in SKILL_DESCRIPTIONS["prd-build"].lower()
         assert "clarify" not in SKILL_DESCRIPTIONS
         assert "feasibility risk" in SKILL_DESCRIPTIONS["deep-research"].lower()
         assert "planning handoff" in SKILL_DESCRIPTIONS["deep-research"].lower()

@@ -35,8 +35,8 @@ def test_agents_declares_classic_and_advanced_profile_contract() -> None:
     assert "install the other profile additively" in normalized
     assert "`templates/commands/**`" in section
     assert "`templates/advanced-skills/**`" in section
-    assert "30 SPX skills" in normalized
-    assert "29 one-to-one Classic command counterparts" in normalized
+    assert "28 SPX skills" in normalized
+    assert "27 one-to-one Classic command counterparts" in normalized
     assert "does **not** install the Classic passive-skill prompt bundle" in normalized
     for skill_name in (
         "sp-map-scan",
@@ -343,7 +343,8 @@ def test_guidance_docs_explain_skill_groups():
     assert "`discussion`" in readme
     assert "`clarify`" not in readme
     assert "`deep-research`" in readme
-    assert "`prd`" in readme
+    assert "`prd-scan`" in readme
+    assert "`prd-build`" in readme
     assert "`checklist`" in readme
     assert "`analyze`" in readme
     assert "`debug`" in readme

@@ -64,7 +64,7 @@ var prdValidationBuildSurfaceKeys = []string{"master_pack", "package_readme", "p
 
 func validatePRDStageArtifacts(projectRoot, featurePath, command string) error {
 	stage := strings.ToLower(strings.TrimSpace(command))
-	if stage != "prd-scan" && stage != "prd-build-ready" && stage != "prd-build" && stage != "prd" {
+	if stage != "prd-scan" && stage != "prd-build-ready" && stage != "prd-build" {
 		return fmt.Errorf("unsupported prd validation command %q", command)
 	}
 
@@ -100,7 +100,7 @@ func validatePRDStageArtifacts(projectRoot, featurePath, command string) error {
 
 func validatePRDRunArtifacts(runDir, stage string) error {
 	stage = strings.ToLower(strings.TrimSpace(stage))
-	if stage != "prd-scan" && stage != "prd-build-ready" && stage != "prd-build" && stage != "prd" {
+	if stage != "prd-scan" && stage != "prd-build-ready" && stage != "prd-build" {
 		return fmt.Errorf("unsupported prd validation stage %q", stage)
 	}
 	runID := filepath.Base(filepath.Clean(runDir))
@@ -365,13 +365,6 @@ func validatePRDWorkflowDocument(doc prdWorkflowDocument, runID string, stage st
 		}
 		if doc.fields["status"] != "ready-for-build" {
 			return fmt.Errorf("workflow-state.md status must be ready-for-build for prd-scan")
-		}
-	case "prd":
-		if doc.fields["active_command"] != "sp-prd" {
-			return fmt.Errorf("workflow-state.md active_command must be sp-prd")
-		}
-		if doc.fields["status"] != "ready-for-build" {
-			return fmt.Errorf("workflow-state.md status must be ready-for-build for prd compatibility")
 		}
 	case "prd-build":
 		if doc.fields["active_command"] != "sp-prd-build" {
@@ -939,7 +932,7 @@ func allDecimalDigits(value string) bool {
 func validatePRDReadyBinding(doc prdWorkflowDocument, stage string) error {
 	nextCommand := strings.TrimSpace(doc.fields["next_command"])
 	switch stage {
-	case "prd-scan", "prd":
+	case "prd-scan":
 		if nextCommand == "" || !strings.Contains(strings.ToLower(nextCommand), "prd-build") {
 			return fmt.Errorf("workflow-state.md next_command must hand off to prd-build")
 		}

@@ -28,6 +28,8 @@ const (
 	designPreviewApprovalSchema           = "spec-kit-design-preview-approval-v1"
 	designImageApprovalSchema             = "spec-kit-design-image-approval-v1"
 	designDirectionCheckpointSchema       = "spec-kit-design-direction-checkpoint-v1"
+	designConceptReceiptSchema            = "spec-kit-design-concept-lint-receipt-v1"
+	designGenerationSchema                = "spec-kit-design-image-generation-v1"
 	designHandoffSchema                   = "spec-kit-design-handoff-v1"
 	designChangeSchema                    = "spec-kit-ui-design-change-v1"
 	designChangeIndexSchema               = "spec-kit-ui-design-index-v1"
@@ -39,10 +41,26 @@ const (
 	uiTargetManifestSchema                = "spec-kit-ui-target-manifest-v1"
 	uiTargetManifestID                    = "ui-target-manifest"
 	maxDesignImageImportBytes       int64 = 32 << 20
+	maxDesignImagePromptBytes             = 256 << 10
 )
 
 var designImageSuffixes = map[string]bool{
 	".png": true, ".jpg": true, ".jpeg": true, ".webp": true,
+}
+
+var designImageInputRoles = map[string]bool{
+	"edit-source":      true,
+	"exact-content":    true,
+	"layout-reference": true,
+	"style-reference":  true,
+	"inspiration":      true,
+}
+
+var designImageInputFidelity = map[string]bool{
+	"exact":       true,
+	"high":        true,
+	"approximate": true,
+	"inspiration": true,
 }
 
 func acquireDesignIndexLock(root string) (func(), error) {
@@ -112,6 +130,20 @@ type designDraftPreviewBinding struct {
 	AdjacentBasePath string
 }
 
+type designDraftRoundBinding struct {
+	Root             string
+	ChangeID         string
+	DesignPath       string
+	DesignRef        string
+	DesignBytes      []byte
+	Scopes           []string
+	ProfileIDs       []string
+	ReviewRound      string
+	AdjacentBasePath string
+	ManifestPath     string
+	ManifestRef      string
+}
+
 type htmlParseSummary struct {
 	HTMLLang            string
 	PreviewAttrs        map[string]string
@@ -158,6 +190,8 @@ func runDesign(args []string, stdout io.Writer) int {
 		return runDesignPreviewManifest(args[1:], stdout)
 	case "preview-lint":
 		return runDesignPreviewLint(args[1:], stdout)
+	case "prompt":
+		return runDesignPrompt(args[1:], stdout)
 	case "direction-confirm":
 		return runDesignDirectionConfirm(args[1:], stdout)
 	case "profiles":
@@ -209,6 +243,7 @@ func writeDesignHelp(stdout io.Writer) int {
 		"preview",
 		"preview-manifest",
 		"preview-lint",
+		"prompt",
 		"direction-confirm",
 		"profiles",
 		"ui-target",
@@ -374,7 +409,84 @@ func runDesignPreviewLint(args []string, stdout io.Writer) int {
 	} else {
 		diagnostics = lintDesignImageBundle(target, level)
 	}
+	if len(diagnostics) == 0 && strings.EqualFold(level, "concept") {
+		inspectionArg := strings.TrimSpace(optionValue(args, "--inspection-json", ""))
+		receipt, receiptPath, err := writeDesignConceptReceipt(target, inspectionArg)
+		if err != nil {
+			return writeDesignError(stdout, "blocked", err.Error())
+		}
+		env = NewEnvelope("ok", fmt.Sprintf("%s is valid at %s level", filepath.ToSlash(args[0]), level))
+		env.Data["ok"] = true
+		env.Data["concept_receipt"] = receipt
+		env.Data["concept_receipt_path"] = receiptPath
+		return writeEnvelope(stdout, env)
+	}
 	return writeDesignDiagnostics(stdout, diagnostics, fmt.Sprintf("%s is valid at %s level", filepath.ToSlash(args[0]), level))
+}
+
+func runDesignPrompt(args []string, stdout io.Writer) int {
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
+		return writeDesignError(stdout, "usage-error", "design prompt requires a round manifest or image path")
+	}
+	if err := validateDesignPromptArgs(args); err != nil {
+		return writeDesignError(stdout, "usage-error", err.Error())
+	}
+	target, env, ok := designContainedPath(args[0], false)
+	if !ok {
+		return writeEnvelope(stdout, env)
+	}
+	projectRoot, err := os.Getwd()
+	if err != nil {
+		return writeDesignError(stdout, "blocked", "cannot resolve project root: "+err.Error())
+	}
+	promptBytes, err := resolveTextInputBytes(optionValue(args, "--content", ""), projectRoot, "design prompt", "--content")
+	if err != nil {
+		return writeDesignError(stdout, "blocked", err.Error())
+	}
+	promptPath, generationPath, err := renderDesignImagePrompt(target, promptBytes)
+	if err != nil {
+		return writeDesignError(stdout, "blocked", err.Error())
+	}
+	generationBytes, err := os.ReadFile(generationPath)
+	if err != nil {
+		return writeDesignError(stdout, "blocked", "cannot read design generation receipt: "+err.Error())
+	}
+	var receipt map[string]any
+	if err := json.Unmarshal(generationBytes, &receipt); err != nil {
+		return writeDesignError(stdout, "blocked", "cannot decode design generation receipt: "+err.Error())
+	}
+	env = NewEnvelope("ok", "design image prompt written")
+	env.Data["path"] = promptPath
+	env.Data["sha256"] = sha256Bytes(promptBytes)
+	env.Data["generation_path"] = generationPath
+	env.Data["generation_sha256"] = sha256Bytes(generationBytes)
+	env.Data["receipt"] = receipt
+	return writeEnvelope(stdout, env)
+}
+
+func validateDesignPromptArgs(args []string) error {
+	seenContent := false
+	for index := 1; index < len(args); index++ {
+		switch args[index] {
+		case "--content":
+			if seenContent || index+1 >= len(args) {
+				return fmt.Errorf("design prompt requires exactly one --content <inline|@path|->")
+			}
+			seenContent = true
+			index++
+		case "--format":
+			if index+1 >= len(args) {
+				return fmt.Errorf("design prompt --format requires a value")
+			}
+			index++
+		default:
+			return fmt.Errorf("design prompt does not support %s", args[index])
+		}
+	}
+	if !seenContent {
+		return fmt.Errorf("design prompt requires --content <inline|@path|->; use - for stdin")
+	}
+	return nil
 }
 
 func runDesignDirectionConfirm(args []string, stdout io.Writer) int {
@@ -675,6 +787,9 @@ func runDesignImageImport(source, changeID, roundValue, notes string, stdout io.
 	targetPath, err := resolveProjectContainedPath(root, targetRef)
 	if err != nil {
 		return writeDesignError(stdout, "blocked", "design image target is invalid: "+err.Error())
+	}
+	if err := validateCurrentDesignGenerationSidecar(targetPath); err != nil {
+		return writeDesignError(stdout, "blocked", err.Error())
 	}
 	referencesRef := filepath.ToSlash(filepath.Join(".specify", "design", "changes", changeID, "references.md"))
 	referencesPath, err := resolveProjectContainedPath(root, referencesRef)
@@ -1247,6 +1362,105 @@ func loadDesignDraftPreviewBinding(path string) (designDraftPreviewBinding, erro
 	}, nil
 }
 
+func loadDesignDraftRoundBinding(path string) (designDraftRoundBinding, error) {
+	root, err := os.Getwd()
+	if err != nil {
+		return designDraftRoundBinding{}, err
+	}
+	root, err = filepath.Abs(root)
+	if err != nil {
+		return designDraftRoundBinding{}, err
+	}
+	path, err = filepath.Abs(path)
+	if err != nil {
+		return designDraftRoundBinding{}, err
+	}
+	relative, err := filepath.Rel(root, path)
+	if err != nil {
+		return designDraftRoundBinding{}, err
+	}
+	relative = filepath.ToSlash(relative)
+	parts := strings.Split(relative, "/")
+	if len(parts) != 6 || parts[0] != ".specify" || parts[1] != "design" || parts[2] != "changes" || parts[4] != "previews" {
+		return designDraftRoundBinding{}, fmt.Errorf("design round must stay inside .specify/design/changes/<UD-ID>/previews/")
+	}
+	changeID := parts[3]
+	if !designChangeIDRE.MatchString(changeID) {
+		return designDraftRoundBinding{}, fmt.Errorf("design round path must contain a canonical UD-* change ID")
+	}
+	baseName := parts[5]
+	roundMatch := regexp.MustCompile(`^round-([0-9]{1,4})\.(?:html|png|jpg|jpeg|webp|manifest\.json|prompt\.md|generation\.json|concept\.json)$`).FindStringSubmatch(baseName)
+	if roundMatch == nil {
+		return designDraftRoundBinding{}, fmt.Errorf("design round filename must use round-<positive-integer>.*")
+	}
+	roundToken := "round-" + roundMatch[1]
+	roundNumber, err := strconv.Atoi(roundMatch[1])
+	if err != nil || roundNumber < 1 {
+		return designDraftRoundBinding{}, fmt.Errorf("design round must be greater than zero")
+	}
+	_, _, records, err := loadDesignChangeIndex(root)
+	if err != nil {
+		return designDraftRoundBinding{}, err
+	}
+	record := records[changeID]
+	if record == nil {
+		return designDraftRoundBinding{}, fmt.Errorf("design change %s does not exist", changeID)
+	}
+	if strings.TrimSpace(fmt.Sprint(record["status"])) != "draft" || designRecordIsRegistered(record) || nonEmpty(record["approval_sha256"]) {
+		return designDraftRoundBinding{}, fmt.Errorf("design change %s is immutable; runtime-owned round artifacts require its draft workspace", changeID)
+	}
+	designRef := filepath.ToSlash(filepath.Join(".specify", "design", "changes", changeID, "design-change.md"))
+	if filepath.ToSlash(strings.TrimSpace(fmt.Sprint(record["design_ref"]))) != designRef {
+		return designDraftRoundBinding{}, fmt.Errorf("design change %s index path is not canonical", changeID)
+	}
+	designPath, err := resolveProjectContainedPath(root, designRef)
+	if err != nil {
+		return designDraftRoundBinding{}, fmt.Errorf("design change workspace is invalid: %w", err)
+	}
+	designBytes, err := os.ReadFile(designPath)
+	if err != nil {
+		return designDraftRoundBinding{}, fmt.Errorf("cannot read draft design change %s: %w", changeID, err)
+	}
+	doc, err := parseDesignMarkdown(string(designBytes), designPath)
+	if err != nil {
+		return designDraftRoundBinding{}, err
+	}
+	if doc.DesignSystem["schema"] != designChangeSchema || strings.TrimSpace(fmt.Sprint(doc.DesignSystem["id"])) != changeID {
+		return designDraftRoundBinding{}, fmt.Errorf("draft design change identity does not match its canonical workspace")
+	}
+	scope, ok := doc.DesignSystem["scope"].(map[string]any)
+	if !ok {
+		return designDraftRoundBinding{}, fmt.Errorf("draft design change scope is invalid")
+	}
+	scopes := stringList(record["scope"])
+	if len(scopes) == 0 || !reflect.DeepEqual(scopes, stringList(scope["surfaces"])) {
+		return designDraftRoundBinding{}, fmt.Errorf("draft design change scope does not match index.json")
+	}
+	profileIDs := stringList(doc.DesignSystem["capability_profiles"])
+	if len(profileIDs) == 0 {
+		return designDraftRoundBinding{}, fmt.Errorf("draft design change must select at least one capability profile")
+	}
+	adjacentBasePath := filepath.Join(filepath.Dir(path), roundToken)
+	manifestPath := adjacentBasePath + ".manifest.json"
+	manifestRef, err := designProjectRelativeRef(root, manifestPath)
+	if err != nil {
+		return designDraftRoundBinding{}, err
+	}
+	return designDraftRoundBinding{
+		Root:             root,
+		ChangeID:         changeID,
+		DesignPath:       designPath,
+		DesignRef:        designRef,
+		DesignBytes:      designBytes,
+		Scopes:           scopes,
+		ProfileIDs:       profileIDs,
+		ReviewRound:      strconv.Itoa(roundNumber),
+		AdjacentBasePath: adjacentBasePath,
+		ManifestPath:     manifestPath,
+		ManifestRef:      manifestRef,
+	}, nil
+}
+
 func designProjectRelativeRef(root, path string) (string, error) {
 	relative, err := filepath.Rel(root, path)
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
@@ -1315,6 +1529,80 @@ func designDirectionCheckpointBase(binding designDraftPreviewBinding, directionI
 	}
 }
 
+func designConceptReceiptBase(binding designDraftRoundBinding, visualMedium string, previewPath string, previewBytes []byte, manifest map[string]any, manifestBytes []byte) map[string]any {
+	previewRef, _ := designProjectRelativeRef(binding.Root, previewPath)
+	doc, _ := parseDesignMarkdown(string(binding.DesignBytes), binding.DesignPath)
+	designSystem := map[string]any{}
+	if doc.Source != "" {
+		designSystem = doc.DesignSystem
+	}
+	payload := map[string]any{
+		"schema":                 designConceptReceiptSchema,
+		"status":                 "passed",
+		"authority":              "non-consumable",
+		"consumer_eligible":      false,
+		"lint_level":             "concept",
+		"design_change_id":       binding.ChangeID,
+		"design_change_ref":      binding.DesignRef,
+		"design_change_sha256":   sha256Bytes(binding.DesignBytes),
+		"scope":                  binding.Scopes,
+		"capability_profile_ids": manifestCapabilityProfileIDs(manifest),
+		"visual_medium":          visualMedium,
+		"preview_file":           filepath.Base(previewPath),
+		"preview_ref":            previewRef,
+		"preview_sha256":         sha256Bytes(previewBytes),
+		"review_round":           binding.ReviewRound,
+		"manifest_ref":           binding.ManifestRef,
+		"manifest_sha256":        sha256Bytes(manifestBytes),
+	}
+	if visualReview, err := normalizeConceptVisualReview(previewPath, designSystem, manifest, nil); err == nil {
+		payload["visual_review"] = visualReview
+	}
+	if visualMedium == "image" {
+		promptPath := binding.AdjacentBasePath + ".prompt.md"
+		promptBytes, _ := os.ReadFile(promptPath)
+		promptRef, _ := designProjectRelativeRef(binding.Root, promptPath)
+		generationPath := binding.AdjacentBasePath + ".generation.json"
+		generationBytes, _ := os.ReadFile(generationPath)
+		generationRef, _ := designProjectRelativeRef(binding.Root, generationPath)
+		payload["prompt_ref"] = promptRef
+		payload["prompt_sha256"] = sha256Bytes(promptBytes)
+		payload["generation_ref"] = generationRef
+		payload["generation_sha256"] = sha256Bytes(generationBytes)
+	}
+	return payload
+}
+
+func writeOrVerifyDesignConceptReceipt(path string, payload map[string]any) error {
+	rendered, err := marshalPretty(payload)
+	if err != nil {
+		return err
+	}
+	existing, err := os.ReadFile(path)
+	switch {
+	case err == nil && bytes.Equal(existing, []byte(rendered)):
+		return nil
+	case err == nil:
+		return fmt.Errorf("concept receipt already exists with different bytes")
+	case os.IsNotExist(err):
+		return writeTextAtomic(path, rendered)
+	default:
+		return err
+	}
+}
+
+func loadManifestForRoundBinding(binding designDraftRoundBinding) (map[string]any, []byte, error) {
+	manifestBytes, err := os.ReadFile(binding.ManifestPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot read design preview manifest: %w", err)
+	}
+	var manifest map[string]any
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		return nil, nil, fmt.Errorf("cannot read design preview manifest: %w", err)
+	}
+	return manifest, manifestBytes, nil
+}
+
 func writeDesignDirectionCheckpoint(path string, payload map[string]any) error {
 	rendered, err := marshalPretty(payload)
 	if err != nil {
@@ -1332,6 +1620,110 @@ func writeDesignDirectionCheckpoint(path string, payload map[string]any) error {
 	default:
 		return fmt.Errorf("cannot inspect design direction checkpoint: %w", err)
 	}
+}
+
+func writeDesignConceptReceipt(path, inspectionJSON string) (map[string]any, string, error) {
+	binding, err := loadDesignDraftRoundBinding(path)
+	if err != nil {
+		return nil, "", err
+	}
+	manifest, manifestBytes, err := loadManifestForRoundBinding(binding)
+	if err != nil {
+		return nil, "", err
+	}
+	if _, exists := manifest["style_authority"]; exists {
+		return nil, "", fmt.Errorf("concept receipt must derive style_authority from the canonical design-change, not manifest.style_authority")
+	}
+	previewPath := path
+	if strings.HasSuffix(strings.ToLower(path), ".manifest.json") {
+		previewPath = binding.AdjacentBasePath + ".html"
+	}
+	previewBytes, err := os.ReadFile(previewPath)
+	if err != nil {
+		return nil, "", fmt.Errorf("cannot read design preview: %w", err)
+	}
+	visualMedium := "html"
+	if designImageSuffixes[strings.ToLower(filepath.Ext(previewPath))] {
+		visualMedium = "image"
+		if err := validateCurrentDesignGenerationSidecar(previewPath); err != nil {
+			return nil, "", err
+		}
+	}
+	doc, err := parseDesignMarkdown(string(binding.DesignBytes), binding.DesignPath)
+	if err != nil {
+		return nil, "", err
+	}
+	var inspection map[string]any
+	if strings.TrimSpace(inspectionJSON) != "" {
+		inspection, err = resolveDesignInspectionPayload(binding.Root, inspectionJSON)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+	visualReview, err := normalizeConceptVisualReview(previewPath, doc.DesignSystem, manifest, inspection)
+	if err != nil {
+		return nil, "", err
+	}
+	payload := designConceptReceiptBase(binding, visualMedium, previewPath, previewBytes, manifest, manifestBytes)
+	payload["visual_review"] = visualReview
+	receiptPath := binding.AdjacentBasePath + ".concept.json"
+	if err := writeOrVerifyDesignConceptReceipt(receiptPath, payload); err != nil {
+		return nil, "", fmt.Errorf("cannot write design concept receipt: %w", err)
+	}
+	return payload, receiptPath, nil
+}
+
+func readDesignConceptReceipt(previewPath string) (map[string]any, error) {
+	receiptPath := strings.TrimSuffix(previewPath, filepath.Ext(previewPath)) + ".concept.json"
+	raw, err := os.ReadFile(receiptPath)
+	if err != nil {
+		return nil, fmt.Errorf("design direction confirmation requires a current concept receipt; rerun preview-lint --level concept: %w", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, fmt.Errorf("design direction confirmation requires a current concept receipt; rerun preview-lint --level concept: %w", err)
+	}
+	if payload["schema"] != designConceptReceiptSchema {
+		return nil, fmt.Errorf("design direction confirmation requires a current concept receipt; rerun preview-lint --level concept")
+	}
+	return payload, nil
+}
+
+func loadRequiredDesignConceptReceipt(previewPath string, expected map[string]any) error {
+	payload, err := readDesignConceptReceipt(previewPath)
+	if err != nil {
+		return err
+	}
+	binding, err := loadDesignDraftRoundBinding(previewPath)
+	if err != nil {
+		return err
+	}
+	manifest, _, err := loadManifestForRoundBinding(binding)
+	if err != nil {
+		return err
+	}
+	doc, err := parseDesignMarkdown(string(binding.DesignBytes), binding.DesignPath)
+	if err != nil {
+		return err
+	}
+	visualReview, ok := payload["visual_review"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("design direction confirmation requires a current concept receipt; rerun preview-lint --level concept")
+	}
+	normalizedReview, err := normalizeConceptVisualReview(previewPath, doc.DesignSystem, manifest, visualReview)
+	if err != nil {
+		return fmt.Errorf("design direction confirmation requires a current concept receipt: %w", err)
+	}
+	expected["visual_review"] = normalizedReview
+	if designImageSuffixes[strings.ToLower(filepath.Ext(previewPath))] {
+		if err := validateCurrentDesignGenerationSidecar(previewPath); err != nil {
+			return err
+		}
+	}
+	if canonicalJSONSHA256(payload) != canonicalJSONSHA256(expected) {
+		return fmt.Errorf("design direction confirmation requires a current concept receipt; rerun preview-lint --level concept")
+	}
+	return nil
 }
 
 func confirmDesignHTMLDirection(path, directionID string) (map[string]any, string, error) {
@@ -1377,6 +1769,22 @@ func confirmDesignHTMLDirection(path, directionID string) (map[string]any, strin
 	}
 	manifestRef, err := designProjectRelativeRef(binding.Root, manifestPath)
 	if err != nil {
+		return nil, "", err
+	}
+	expectedReceipt := designConceptReceiptBase(designDraftRoundBinding{
+		Root:             binding.Root,
+		ChangeID:         binding.ChangeID,
+		DesignPath:       binding.DesignPath,
+		DesignRef:        binding.DesignRef,
+		DesignBytes:      binding.DesignBytes,
+		Scopes:           binding.Scopes,
+		ProfileIDs:       binding.ProfileIDs,
+		ReviewRound:      binding.ReviewRound,
+		AdjacentBasePath: binding.AdjacentBasePath,
+		ManifestPath:     manifestPath,
+		ManifestRef:      manifestRef,
+	}, "html", path, binding.PreviewBytes, manifest, manifestBytes)
+	if err := loadRequiredDesignConceptReceipt(path, expectedReceipt); err != nil {
 		return nil, "", err
 	}
 	payload := designDirectionCheckpointBase(binding, directionID, "html", manifestRef, manifestBytes, profileIDs)
@@ -1462,6 +1870,24 @@ func confirmDesignImageDirection(path, manifestPath, promptPath, directionID, im
 	}
 	promptRef, err := designProjectRelativeRef(binding.Root, promptPath)
 	if err != nil {
+		return nil, "", err
+	}
+	expectedReceipt := designConceptReceiptBase(designDraftRoundBinding{
+		Root:             binding.Root,
+		ChangeID:         binding.ChangeID,
+		DesignPath:       binding.DesignPath,
+		DesignRef:        binding.DesignRef,
+		DesignBytes:      binding.DesignBytes,
+		Scopes:           binding.Scopes,
+		ProfileIDs:       binding.ProfileIDs,
+		ReviewRound:      binding.ReviewRound,
+		AdjacentBasePath: binding.AdjacentBasePath,
+		ManifestPath:     manifestPath,
+		ManifestRef:      manifestRef,
+	}, "image", path, binding.PreviewBytes, manifest, manifestBytes)
+	expectedReceipt["prompt_ref"] = promptRef
+	expectedReceipt["prompt_sha256"] = sha256Bytes(promptBytes)
+	if err := loadRequiredDesignConceptReceipt(path, expectedReceipt); err != nil {
 		return nil, "", err
 	}
 	payload := designDirectionCheckpointBase(binding, directionID, "image", manifestRef, manifestBytes, profileIDs)
@@ -1654,6 +2080,557 @@ func adjacentDesignImageBundlePath(imagePath, candidate, expectedName, label str
 		return "", fmt.Errorf("design image %s must be the adjacent %s", label, expectedName)
 	}
 	return candidate, nil
+}
+
+func resolveDesignPromptSource(source string) (string, string, error) {
+	suffix := strings.ToLower(filepath.Ext(source))
+	switch {
+	case strings.HasSuffix(strings.ToLower(source), ".manifest.json"):
+		return source, strings.TrimSuffix(source, ".manifest.json") + ".prompt.md", nil
+	case designImageSuffixes[suffix]:
+		base := strings.TrimSuffix(source, filepath.Ext(source))
+		return base + ".manifest.json", base + ".prompt.md", nil
+	default:
+		return "", "", fmt.Errorf("design prompt requires a round manifest or image path")
+	}
+}
+
+func normalizedDesignInputImages(manifest map[string]any, binding designDraftRoundBinding) ([]map[string]any, error) {
+	raw, ok := manifest["input_images"]
+	if !ok || raw == nil {
+		return []map[string]any{}, nil
+	}
+	items, ok := raw.([]any)
+	if !ok {
+		return nil, fmt.Errorf("manifest.input_images must be an array")
+	}
+	normalized := make([]map[string]any, 0, len(items))
+	for index, rawItem := range items {
+		item, ok := rawItem.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("manifest.input_images[%d] must be an object", index)
+		}
+		expectedFields := map[string]bool{"ref": true, "role": true, "surface_ids": true, "fidelity": true}
+		if len(item) != len(expectedFields) {
+			return nil, fmt.Errorf("manifest.input_images[%d] must contain exactly ref, role, surface_ids, and fidelity", index)
+		}
+		for field := range item {
+			if !expectedFields[field] {
+				return nil, fmt.Errorf("manifest.input_images[%d] must contain exactly ref, role, surface_ids, and fidelity", index)
+			}
+		}
+		ref := strings.TrimSpace(fmt.Sprint(item["ref"]))
+		role := strings.TrimSpace(fmt.Sprint(item["role"]))
+		fidelity := strings.TrimSpace(fmt.Sprint(item["fidelity"]))
+		surfaceIDs := stringList(item["surface_ids"])
+		if ref == "" || !designImageInputRoles[role] || !designImageInputFidelity[fidelity] || len(surfaceIDs) == 0 || hasDuplicates(surfaceIDs) {
+			return nil, fmt.Errorf("manifest.input_images[%d] has invalid ref, role, surface_ids, or fidelity", index)
+		}
+		candidate, err := resolveProjectContainedPath(binding.Root, ref)
+		if err != nil {
+			return nil, fmt.Errorf("manifest.input_images[%d].ref must stay inside the project root", index)
+		}
+		info, err := os.Stat(candidate)
+		if err != nil || !info.Mode().IsRegular() {
+			if err == nil {
+				err = fmt.Errorf("%s is not a regular file", ref)
+			}
+			return nil, fmt.Errorf("manifest.input_images[%d].ref is not an inspectable project file: %s", index, filepath.ToSlash(ref))
+		}
+		imageBytes, diagnostics := designImageArtifactDiagnostics(candidate)
+		if len(diagnostics) > 0 {
+			return nil, fmt.Errorf("manifest.input_images[%d].ref is not a valid image: %s", index, joinDiagnostics(diagnostics))
+		}
+		relativeRef, err := designProjectRelativeRef(binding.Root, candidate)
+		if err != nil {
+			return nil, fmt.Errorf("manifest.input_images[%d].ref must stay inside the project root", index)
+		}
+		normalized = append(normalized, map[string]any{
+			"ref":         relativeRef,
+			"role":        role,
+			"surface_ids": surfaceIDs,
+			"fidelity":    fidelity,
+			"sha256":      sha256Bytes(imageBytes),
+		})
+	}
+	return normalized, nil
+}
+
+func validateInheritedSurfaceBaselines(designSystem, manifest map[string]any, imageInputs []map[string]any) (string, []string, []string, error) {
+	authority, _ := designSystem["style_authority"].(map[string]any)
+	posture := strings.TrimSpace(fmt.Sprint(authority["mode"]))
+	protected := stringList(authority["protected_surfaces"])
+	editable := []string{}
+	if scope, ok := designSystem["scope"].(map[string]any); ok {
+		editable = stringList(scope["surfaces"])
+	}
+	if posture != "greenfield" && posture != "inherit-existing" && posture != "page-overhaul-authorized" {
+		return "", nil, nil, fmt.Errorf("design prompt requires a resolved surface posture before image generation")
+	}
+	if posture != "inherit-existing" {
+		operation := "generate"
+		for _, item := range imageInputs {
+			if strings.TrimSpace(fmt.Sprint(item["role"])) == "edit-source" {
+				operation = "edit"
+				break
+			}
+		}
+		return operation, protected, editable, nil
+	}
+	protectedSet := stringSliceSet(protected)
+	if !protectedSet["global-shell"] || !protectedSet["shared-components"] {
+		return "", nil, nil, fmt.Errorf("inherit-existing image work must protect global-shell and shared-components")
+	}
+	collaboration, _ := manifest["visual_collaboration"].(map[string]any)
+	if strings.TrimSpace(fmt.Sprint(collaboration["image_editing"])) != "available" {
+		return "", nil, nil, fmt.Errorf("inherit-existing image work requires image_editing available; use the HTML-primary lane when editing is unavailable")
+	}
+	editCoverage := map[string]bool{}
+	editRefsBySurface := map[string]map[string]bool{}
+	for _, item := range imageInputs {
+		if strings.TrimSpace(fmt.Sprint(item["role"])) != "edit-source" || strings.TrimSpace(fmt.Sprint(item["fidelity"])) != "exact" {
+			continue
+		}
+		ref := strings.TrimSpace(fmt.Sprint(item["ref"]))
+		for _, surfaceID := range stringList(item["surface_ids"]) {
+			editCoverage[surfaceID] = true
+			if editRefsBySurface[surfaceID] == nil {
+				editRefsBySurface[surfaceID] = map[string]bool{}
+			}
+			editRefsBySurface[surfaceID][ref] = true
+		}
+	}
+	var missing []string
+	for _, surface := range protected {
+		if !editCoverage[surface] {
+			missing = append(missing, surface)
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		return "", nil, nil, fmt.Errorf("inherit-existing image work requires exact edit-source coverage for protected surfaces: %s", strings.Join(missing, ", "))
+	}
+	handoff, _ := manifest["handoff"].(map[string]any)
+	continuity, ok := handoff["source_continuity"].(map[string]any)
+	if !ok {
+		return "", nil, nil, fmt.Errorf("inherit-existing image work requires manifest.handoff.source_continuity")
+	}
+	rows, _ := continuity["surface_bindings"].([]any)
+	for _, surface := range protected {
+		matches := []map[string]any{}
+		for _, raw := range rows {
+			row, ok := raw.(map[string]any)
+			if ok && strings.TrimSpace(fmt.Sprint(row["surface_id"])) == surface {
+				matches = append(matches, row)
+			}
+		}
+		if len(matches) != 1 {
+			return "", nil, nil, fmt.Errorf("inherit-existing protected surface %s requires exactly one source-continuity binding", surface)
+		}
+		row := matches[0]
+		refs := stringList(row["source_refs"])
+		if strings.TrimSpace(fmt.Sprint(row["disposition"])) != "preserve" || strings.TrimSpace(fmt.Sprint(row["use_intent"])) != "exact" || strings.TrimSpace(fmt.Sprint(row["fidelity"])) != "exact" || len(refs) == 0 {
+			return "", nil, nil, fmt.Errorf("inherit-existing protected surface %s must be exact/preserve and cite its edit-source baseline", surface)
+		}
+		found := false
+		for _, ref := range refs {
+			if editRefsBySurface[surface][ref] {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return "", nil, nil, fmt.Errorf("inherit-existing protected surface %s must be exact/preserve and cite its edit-source baseline", surface)
+		}
+	}
+	return "edit", protected, editable, nil
+}
+
+func normalizeConceptVisualReview(previewPath string, designSystem, manifest map[string]any, visualReview map[string]any) (map[string]any, error) {
+	authority, _ := designSystem["style_authority"].(map[string]any)
+	posture := strings.TrimSpace(fmt.Sprint(authority["mode"]))
+	protected := stringList(authority["protected_surfaces"])
+	editable := stringSliceSet(nil)
+	if scope, ok := designSystem["scope"].(map[string]any); ok {
+		editable = stringSliceSet(stringList(scope["surfaces"]))
+	}
+	collaboration, _ := manifest["visual_collaboration"].(map[string]any)
+	inspectionAvailable := strings.TrimSpace(fmt.Sprint(collaboration["image_inspection"])) == "available"
+	if posture != "inherit-existing" {
+		return map[string]any{
+			"verdict":              "not-required",
+			"reviewer":             "runtime",
+			"protected_surfaces":   []any{},
+			"observed_differences": []any{},
+		}, nil
+	}
+	protectedSet := stringSliceSet(protected)
+	if !protectedSet["global-shell"] || !protectedSet["shared-components"] {
+		return nil, fmt.Errorf("inherit-existing concept review must protect global-shell and shared-components")
+	}
+	handoff, _ := manifest["handoff"].(map[string]any)
+	continuity, _ := handoff["source_continuity"].(map[string]any)
+	rows, _ := continuity["surface_bindings"].([]any)
+	baselineRefs := map[string]map[string]bool{}
+	for _, surfaceID := range protected {
+		matches := []map[string]any{}
+		for _, raw := range rows {
+			row, ok := raw.(map[string]any)
+			if ok && strings.TrimSpace(fmt.Sprint(row["surface_id"])) == surfaceID {
+				matches = append(matches, row)
+			}
+		}
+		if len(matches) != 1 {
+			return nil, fmt.Errorf("protected surface %s requires exactly one source-continuity binding before concept review", surfaceID)
+		}
+		row := matches[0]
+		refs := stringSliceSet(stringList(row["source_refs"]))
+		if strings.TrimSpace(fmt.Sprint(row["disposition"])) != "preserve" || strings.TrimSpace(fmt.Sprint(row["use_intent"])) != "exact" || strings.TrimSpace(fmt.Sprint(row["fidelity"])) != "exact" || len(refs) == 0 {
+			return nil, fmt.Errorf("protected surface %s must be exact/preserve before concept review", surfaceID)
+		}
+		baselineRefs[surfaceID] = refs
+	}
+	if !inspectionAvailable {
+		return map[string]any{
+			"verdict":              "pending-user",
+			"reviewer":             "user",
+			"protected_surfaces":   []any{},
+			"observed_differences": []any{},
+		}, nil
+	}
+	if visualReview == nil {
+		return nil, fmt.Errorf("inherit-existing concept lint requires --inspection-json when image inspection is available")
+	}
+	requiredFields := map[string]bool{"verdict": true, "reviewer": true, "protected_surfaces": true, "observed_differences": true}
+	if len(visualReview) != len(requiredFields) {
+		return nil, fmt.Errorf("concept inspection must contain exactly verdict, reviewer, protected_surfaces, and observed_differences")
+	}
+	for field := range visualReview {
+		if !requiredFields[field] {
+			return nil, fmt.Errorf("concept inspection must contain exactly verdict, reviewer, protected_surfaces, and observed_differences")
+		}
+	}
+	reviewer := strings.TrimSpace(fmt.Sprint(visualReview["reviewer"]))
+	if strings.TrimSpace(fmt.Sprint(visualReview["verdict"])) != "pass" || (reviewer != "agent" && reviewer != "agent-and-user") {
+		return nil, fmt.Errorf("concept inspection must record verdict pass by agent or agent-and-user")
+	}
+	if designImageSuffixes[strings.ToLower(filepath.Ext(previewPath))] {
+		binding, err := loadDesignDraftRoundBinding(previewPath)
+		if err != nil {
+			return nil, err
+		}
+		imageInputs, err := normalizedDesignInputImages(manifest, binding)
+		if err != nil {
+			return nil, err
+		}
+		_, _, _, err = validateInheritedSurfaceBaselines(designSystem, manifest, imageInputs)
+		if err != nil {
+			return nil, err
+		}
+		imageRefsBySurface := map[string]map[string]bool{}
+		for _, item := range imageInputs {
+			if strings.TrimSpace(fmt.Sprint(item["role"])) != "edit-source" || strings.TrimSpace(fmt.Sprint(item["fidelity"])) != "exact" {
+				continue
+			}
+			ref := strings.TrimSpace(fmt.Sprint(item["ref"]))
+			for _, surfaceID := range stringList(item["surface_ids"]) {
+				if imageRefsBySurface[surfaceID] == nil {
+					imageRefsBySurface[surfaceID] = map[string]bool{}
+				}
+				imageRefsBySurface[surfaceID][ref] = true
+			}
+		}
+		for _, surfaceID := range protected {
+			intersection := map[string]bool{}
+			for ref := range baselineRefs[surfaceID] {
+				if imageRefsBySurface[surfaceID][ref] {
+					intersection[ref] = true
+				}
+			}
+			baselineRefs[surfaceID] = intersection
+			if len(intersection) == 0 {
+				return nil, fmt.Errorf("protected surface %s has no exact edit-source baseline", surfaceID)
+			}
+		}
+	}
+	rawProtected, ok := visualReview["protected_surfaces"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("concept inspection protected_surfaces must be an array")
+	}
+	seen := map[string]bool{}
+	normalizedProtected := make([]any, 0, len(rawProtected))
+	for index, raw := range rawProtected {
+		row, ok := raw.(map[string]any)
+		if !ok || len(row) != 4 {
+			return nil, fmt.Errorf("concept inspection protected_surfaces[%d] has an invalid shape", index)
+		}
+		surfaceID := strings.TrimSpace(fmt.Sprint(row["surface_id"]))
+		baselineRef := strings.TrimSpace(fmt.Sprint(row["baseline_ref"]))
+		evidence := strings.TrimSpace(fmt.Sprint(row["evidence"]))
+		if !stringSliceSet(protected)[surfaceID] || seen[surfaceID] || strings.TrimSpace(fmt.Sprint(row["status"])) != "preserved" || !baselineRefs[surfaceID][baselineRef] || evidence == "" {
+			return nil, fmt.Errorf("concept inspection protected_surfaces[%d] does not prove an exact preserved baseline", index)
+		}
+		seen[surfaceID] = true
+		normalizedProtected = append(normalizedProtected, map[string]any{
+			"surface_id":   surfaceID,
+			"baseline_ref": baselineRef,
+			"status":       "preserved",
+			"evidence":     evidence,
+		})
+	}
+	var missing []string
+	for _, surfaceID := range protected {
+		if !seen[surfaceID] {
+			missing = append(missing, surfaceID)
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		return nil, fmt.Errorf("concept inspection must cover every protected surface: %s", strings.Join(missing, ", "))
+	}
+	rawDiffs, ok := visualReview["observed_differences"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("concept inspection observed_differences must be an array")
+	}
+	normalizedDiffs := make([]any, 0, len(rawDiffs))
+	for index, raw := range rawDiffs {
+		row, ok := raw.(map[string]any)
+		if !ok || len(row) != 3 {
+			return nil, fmt.Errorf("concept inspection observed_differences[%d] has an invalid shape", index)
+		}
+		surfaceID := strings.TrimSpace(fmt.Sprint(row["surface_id"]))
+		summary := strings.TrimSpace(fmt.Sprint(row["summary"]))
+		authorized := row["authorized"] == true
+		if stringSliceSet(protected)[surfaceID] {
+			return nil, fmt.Errorf("concept inspection found drift in protected surface %s", surfaceID)
+		}
+		if !editable[surfaceID] || summary == "" || !authorized {
+			return nil, fmt.Errorf("concept inspection difference %s is outside the authorized editable scope", surfaceID)
+		}
+		normalizedDiffs = append(normalizedDiffs, map[string]any{
+			"surface_id": surfaceID,
+			"summary":    summary,
+			"authorized": true,
+		})
+	}
+	return map[string]any{
+		"verdict":              "pass",
+		"reviewer":             reviewer,
+		"protected_surfaces":   normalizedProtected,
+		"observed_differences": normalizedDiffs,
+	}, nil
+}
+
+func validateDesignPromptContent(promptBytes []byte) error {
+	if len(promptBytes) == 0 || strings.TrimSpace(string(promptBytes)) == "" {
+		return fmt.Errorf("design prompt content must not be empty")
+	}
+	if len(promptBytes) > maxDesignImagePromptBytes {
+		return fmt.Errorf("design prompt content exceeds the %d-byte limit", maxDesignImagePromptBytes)
+	}
+	if !utf8.Valid(promptBytes) {
+		return fmt.Errorf("design prompt content must be valid UTF-8 text")
+	}
+	if bytes.IndexByte(promptBytes, 0) >= 0 {
+		return fmt.Errorf("design prompt content must not contain NUL bytes")
+	}
+	return nil
+}
+
+func renderDesignImagePrompt(source string, exactPromptBytes []byte) (string, string, error) {
+	if err := validateDesignPromptContent(exactPromptBytes); err != nil {
+		return "", "", err
+	}
+	manifestPath, promptPath, err := resolveDesignPromptSource(source)
+	if err != nil {
+		return "", "", err
+	}
+	binding, err := loadDesignDraftRoundBinding(manifestPath)
+	if err != nil {
+		return "", "", err
+	}
+	manifest, manifestBytes, err := loadManifestForRoundBinding(binding)
+	if err != nil {
+		return "", "", err
+	}
+	if _, exists := manifest["style_authority"]; exists {
+		return "", "", fmt.Errorf("design prompt must derive style_authority from the canonical design-change, not manifest.style_authority")
+	}
+	collaboration, _ := manifest["visual_collaboration"].(map[string]any)
+	if strings.TrimSpace(fmt.Sprint(collaboration["primary_medium"])) != "image-primary" {
+		return "", "", fmt.Errorf("design prompt requires an image-primary manifest.visual_collaboration route")
+	}
+	directions, ok := manifest["directions"].([]any)
+	if !ok || len(directions) != 1 {
+		return "", "", fmt.Errorf("design prompt requires exactly one current concept")
+	}
+	if _, ok := directions[0].(map[string]any); !ok {
+		return "", "", fmt.Errorf("design prompt requires a valid current concept")
+	}
+	doc, parseErr := parseDesignMarkdown(string(binding.DesignBytes), binding.DesignPath)
+	if parseErr != nil {
+		return "", "", parseErr
+	}
+	designSystem := doc.DesignSystem
+	styleAuthority, _ := designSystem["style_authority"].(map[string]any)
+	inputImages, err := normalizedDesignInputImages(manifest, binding)
+	if err != nil {
+		return "", "", err
+	}
+	operation, protected, editable, err := validateInheritedSurfaceBaselines(designSystem, manifest, inputImages)
+	if err != nil {
+		return "", "", err
+	}
+	posture := strings.TrimSpace(fmt.Sprint(styleAuthority["mode"]))
+	promptText := string(exactPromptBytes)
+	if previewPlaceholderRE.MatchString(promptText) {
+		return "", "", fmt.Errorf("design prompt content must not contain unresolved placeholders")
+	}
+	review, _ := manifest["review"].(map[string]any)
+	roundNumber := strings.TrimSpace(fmt.Sprint(review["round"]))
+	if roundNumber != binding.ReviewRound {
+		return "", "", fmt.Errorf("manifest.review.round must match the round-NN filename")
+	}
+	promptBytes := []byte(promptText)
+	generationPath := binding.AdjacentBasePath + ".generation.json"
+	promptRef, err := designProjectRelativeRef(binding.Root, promptPath)
+	if err != nil {
+		return "", "", err
+	}
+	payload := map[string]any{
+		"schema":               designGenerationSchema,
+		"status":               "prepared",
+		"authority":            "runtime-owned",
+		"content_authority":    "agent-authored-exact",
+		"design_change_id":     binding.ChangeID,
+		"design_change_ref":    binding.DesignRef,
+		"design_change_sha256": sha256Bytes(binding.DesignBytes),
+		"round":                roundNumber,
+		"manifest_ref":         binding.ManifestRef,
+		"manifest_sha256":      sha256Bytes(manifestBytes),
+		"prompt_ref":           promptRef,
+		"prompt_sha256":        sha256Bytes(promptBytes),
+		"operation":            operation,
+		"surface_posture":      posture,
+		"protected_surfaces":   protected,
+		"editable_surfaces":    editable,
+		"input_images":         inputImages,
+	}
+	generationText, err := marshalPretty(payload)
+	if err != nil {
+		return "", "", fmt.Errorf("cannot render design generation sidecar: %w", err)
+	}
+	promptExisting, promptErr := os.ReadFile(promptPath)
+	generationExisting, generationErr := os.ReadFile(generationPath)
+	if promptErr != nil && !os.IsNotExist(promptErr) {
+		return "", "", fmt.Errorf("cannot inspect design prompt: %w", promptErr)
+	}
+	if generationErr != nil && !os.IsNotExist(generationErr) {
+		return "", "", fmt.Errorf("cannot inspect design generation sidecar: %w", generationErr)
+	}
+	if promptErr == nil && generationErr == nil && bytes.Equal(promptExisting, promptBytes) && bytes.Equal(generationExisting, []byte(generationText)) {
+		return promptPath, generationPath, nil
+	}
+	if promptErr == nil || generationErr == nil {
+		return "", "", fmt.Errorf("design prompt bundle is create-only; existing or partial bytes differ. Create a new numbered round")
+	}
+	if _, err := applyFileTransactionWithPreconditions(binding.Root, "design.prompt", []fileTransactionUpdate{
+		{Path: promptPath, Content: promptBytes, Perm: 0o644},
+		{Path: generationPath, Content: []byte(generationText), Perm: 0o644},
+	}, []fileTransactionPrecondition{
+		{Path: promptPath, MustNotExist: true},
+		{Path: generationPath, MustNotExist: true},
+	}); err != nil {
+		return "", "", fmt.Errorf("cannot write design prompt bundle: %w", err)
+	}
+	return promptPath, generationPath, nil
+}
+
+func resolveDesignInspectionPayload(projectRoot, raw string) (map[string]any, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, fmt.Errorf("inspection-json must not be empty")
+	}
+	input, err := resolveAgentJSONInputBytes(raw, projectRoot, "design preview-lint")
+	if err != nil {
+		return nil, fmt.Errorf("design preview-lint --inspection-json is invalid: %w", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(input, &payload); err != nil {
+		return nil, fmt.Errorf("design preview-lint --inspection-json must be one JSON object: %w", err)
+	}
+	return payload, nil
+}
+
+func validateCurrentDesignGenerationSidecar(targetPath string) error {
+	binding, err := loadDesignDraftRoundBinding(targetPath)
+	if err != nil {
+		return err
+	}
+	generationPath := binding.AdjacentBasePath + ".generation.json"
+	raw, err := os.ReadFile(generationPath)
+	if err != nil {
+		return fmt.Errorf("design image import requires a current generation sidecar; run design prompt %s --content - before image generation: %w", binding.ManifestPath, err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return fmt.Errorf("design image import requires a current generation sidecar; create a new numbered round and run design prompt --content -: %w", err)
+	}
+	if payload["schema"] != designGenerationSchema {
+		return fmt.Errorf("design image import requires a current generation sidecar")
+	}
+	manifest, manifestBytes, err := loadManifestForRoundBinding(binding)
+	if err != nil {
+		return err
+	}
+	if _, exists := manifest["style_authority"]; exists {
+		return fmt.Errorf("design image import requires generation from canonical design-change style_authority, not manifest.style_authority")
+	}
+	promptPath := binding.AdjacentBasePath + ".prompt.md"
+	promptBytes, err := os.ReadFile(promptPath)
+	if err != nil {
+		return fmt.Errorf("design image import requires a current generation prompt: %w", err)
+	}
+	if err := validateDesignPromptContent(promptBytes); err != nil {
+		return fmt.Errorf("design image import requires a current generation prompt: %w", err)
+	}
+	if previewPlaceholderRE.Match(promptBytes) {
+		return fmt.Errorf("design image import requires a current generation prompt without unresolved placeholders")
+	}
+	expected := map[string]any{
+		"schema":               designGenerationSchema,
+		"status":               "prepared",
+		"authority":            "runtime-owned",
+		"content_authority":    "agent-authored-exact",
+		"design_change_id":     binding.ChangeID,
+		"design_change_ref":    binding.DesignRef,
+		"design_change_sha256": sha256Bytes(binding.DesignBytes),
+		"round":                binding.ReviewRound,
+		"manifest_ref":         binding.ManifestRef,
+		"manifest_sha256":      sha256Bytes(manifestBytes),
+		"prompt_ref":           filepath.ToSlash(strings.TrimPrefix(promptPath, binding.Root+string(filepath.Separator))),
+		"prompt_sha256":        sha256Bytes(promptBytes),
+	}
+	doc, err := parseDesignMarkdown(string(binding.DesignBytes), binding.DesignPath)
+	if err != nil {
+		return err
+	}
+	inputImages, err := normalizedDesignInputImages(manifest, binding)
+	if err != nil {
+		return err
+	}
+	operation, protected, editable, err := validateInheritedSurfaceBaselines(doc.DesignSystem, manifest, inputImages)
+	if err != nil {
+		return err
+	}
+	expected["operation"] = operation
+	expected["surface_posture"] = strings.TrimSpace(fmt.Sprint(doc.DesignSystem["style_authority"].(map[string]any)["mode"]))
+	expected["protected_surfaces"] = protected
+	expected["editable_surfaces"] = editable
+	expected["input_images"] = inputImages
+	if canonicalJSONSHA256(payload) != canonicalJSONSHA256(expected) {
+		return fmt.Errorf("design image import requires a current generation sidecar")
+	}
+	return nil
 }
 
 func approveDesignImage(path, manifestPath, promptPath, directionID, imageInspection, imageEditing string) (map[string]any, error) {
@@ -5490,7 +6467,7 @@ func designImportedAssetReferenceContent(source, notes, importedRef, digest stri
 		"- Notes: " + notes + "\n\n" +
 		"## Synthesis Instructions\n\n" +
 		"- Preserve the imported bytes as one immutable candidate round.\n" +
-		"- Bind the adjacent manifest and exact prompt only through `design approve` after explicit user approval.\n" +
+		"- Preserve the runtime-owned manifest, prompt, and generation binding; `design approve` freezes them only after explicit user approval.\n" +
 		"- Write original scoped guidance into the change-local `design-change.md` only after user approval in `sp-design`.\n"
 }
 

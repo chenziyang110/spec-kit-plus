@@ -14,8 +14,7 @@ explicit user invocation too.
 Use `sp-specify` when the user wants to align a new or changed feature intent
 before planning. Use `sp-prd-scan -> sp-prd-build` when the user wants a
 professional current-state PRD suite reconstructed from the repository that
-already exists. `sp-prd` is deprecated and remains compatibility-only for older
-surfaces that have not been updated yet.
+already exists.
 
 The canonical PRD lane is a heavy reconstruction workflow:
 `sp-prd-scan` runs with `execution_model: subagent-mandatory`, critical claims
@@ -39,8 +38,6 @@ evidence is still missing.
   `subagent-mandatory` scan execution, not leader-only summarization.
 - Treat `sp-prd-build` as a build-only compilation step. It must not reread the
   repository, and it must refuse completion when critical evidence gaps remain.
-- Treat `sp-prd` as a deprecated compatibility-only entrypoint that must route
-  into the canonical `sp-prd-scan -> sp-prd-build` flow.
 - Ground the PRD in current implementation reality: code, docs, tests, routes,
   UI surfaces, service/API surfaces, configuration, data models, domain terms,
   `PROJECT-HANDBOOK.md`, and project cognition evidence when present.

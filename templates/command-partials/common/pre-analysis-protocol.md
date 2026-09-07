@@ -1,7 +1,7 @@
 ## Pre-Analysis Protocol
 
-Shared "understand before acting" framework. Used by sp-specify and sp-debug.
-Each command defines only its specialized phases; this format is the common output.
+Shared "understand before acting" framework. Used by sp-debug. Each command
+defines only its specialized phases; this format is the common output.
 
 ### Required Output Fields
 
@@ -17,4 +17,4 @@ If a pre-analysis output already exists from a prior command (e.g., sp-specify c
 
 ### Debug Note
 
-`sp-debug` now uses a project-map-backed intake contract by default and deep Stage 1A/1B intake as fallback. Do not use this shared partial to justify bypassing the debug workflow's completed intake fields. Reproduction, log review, test inspection, source-code reads, evidence collection, and fixing still wait on the canonical intake artifacts described by the debug workflow itself.
+`sp-debug` now uses a project-cognition-backed intake contract by default and deep Stage 1A/1B intake as fallback. Do not use this shared partial to justify bypassing the debug workflow's completed intake fields. Reproduction, log review, test inspection, source-code reads, evidence collection, and fixing still wait on the canonical intake artifacts described by the debug workflow itself.

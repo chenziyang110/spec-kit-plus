@@ -5,7 +5,8 @@ design_brief:
   active_command: sp-design
   phase_mode: design-only
   current_stage: context-intake
-  task_type: null
+  contract_action: null
+  surface_posture: null
   input_strategy: null
   route_reason: null
   review_round: 0

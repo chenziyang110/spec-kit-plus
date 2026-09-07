@@ -2,7 +2,7 @@
 
 ## Current Command
 
-- active_command: [sp-specify | sp-plan | sp-tasks | sp-implement | sp-review | sp-accept | sp-debug | sp-analyze | sp-deep-research | sp-constitution | sp-prd | sp-prd-scan | sp-prd-build]
+- active_command: [sp-specify | sp-plan | sp-tasks | sp-implement | sp-review | sp-accept | sp-debug | sp-analyze | sp-deep-research | sp-constitution | sp-prd-scan | sp-prd-build]
 - status: [active | completed | blocked]
 
 ## Phase Mode

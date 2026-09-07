@@ -175,7 +175,7 @@ func TestValidatePRDStageArtifactsRejectsNoncanonicalWorkerResult(t *testing.T) 
 	}
 }
 
-func TestValidatePRDStageArtifactsRejectsCompatibilityReadyWithoutBuildHandoff(t *testing.T) {
+func TestValidatePRDStageArtifactsRejectsRetiredCompatibilityStage(t *testing.T) {
 	projectRoot := t.TempDir()
 	runID := "260729-prd-compat"
 	runDir := seedPRDRunFixture(t, projectRoot, runID, prdFixtureOptions{
@@ -191,8 +191,8 @@ func TestValidatePRDStageArtifactsRejectsCompatibilityReadyWithoutBuildHandoff(t
 	})
 
 	err := validatePRDStageArtifacts(projectRoot, runDir, "prd")
-	if err == nil || !strings.Contains(err.Error(), "next_command") {
-		t.Fatalf("validatePRDStageArtifacts compatibility error = %v, want next_command blocker", err)
+	if err == nil || !strings.Contains(err.Error(), "unsupported prd validation command") {
+		t.Fatalf("validatePRDStageArtifacts compatibility error = %v, want retired-stage blocker", err)
 	}
 }
 

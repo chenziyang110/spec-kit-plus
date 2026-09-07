@@ -6,6 +6,7 @@ import pytest
 
 from specify_cli.hooks import artifact_validation
 from specify_cli.hooks.engine import run_quality_hook
+from specify_cli.hooks.types import QualityHookError
 from specify_cli.hooks.artifact_validation import (
     _ui_contract_valid_component_adoption,
     _validate_spec_contract_artifacts,
@@ -2128,8 +2129,15 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
             {
                 "ref": ".specify/design/changes/UD-0042/design-change.md#settings",
                 "intent": "preserve-structure",
+                "fidelity": "high",
+                "surface_ids": ["SURFACE-001"],
             },
-            {"ref": "ui-brief.md#interaction", "intent": "exact"},
+            {
+                "ref": "ui-brief.md#interaction",
+                "intent": "exact",
+                "fidelity": "exact",
+                "surface_ids": ["SURFACE-001"],
+            },
         ],
         "real_content_plan": [
             {
@@ -2586,6 +2594,8 @@ def _write_ui_continuity_fixture(
             {
                 "ref": ".specify/design/changes/UD-0042/design-change.md#settings",
                 "intent": "preserve-structure",
+                "fidelity": "high",
+                "surface_ids": ["SURFACE-001"],
             }
         ],
         "real_content_plan": [
@@ -6414,7 +6424,7 @@ def test_validate_artifacts_blocks_tampered_runtime_deep_research_evidence(
     assert any("digest changed" in message.lower() for message in result.errors)
 
 
-def test_validate_artifacts_accepts_research_alias_for_deep_research_outputs(
+def test_validate_artifacts_rejects_retired_research_alias(
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
@@ -6427,14 +6437,12 @@ def test_validate_artifacts_accepts_research_alias_for_deep_research_outputs(
         "# Workflow State\n", encoding="utf-8"
     )
 
-    result = run_quality_hook(
-        project,
-        "workflow.artifacts.validate",
-        {"command_name": "research", "feature_dir": str(feature_dir)},
-    )
-
-    assert result.status == "ok"
-    assert result.errors == []
+    with pytest.raises(QualityHookError, match="unsupported command_name 'research'"):
+        run_quality_hook(
+            project,
+            "workflow.artifacts.validate",
+            {"command_name": "research", "feature_dir": str(feature_dir)},
+        )
 
 
 def test_validate_artifacts_blocks_ambiguous_deep_research_not_needed_outputs(

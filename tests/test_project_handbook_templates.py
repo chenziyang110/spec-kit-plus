@@ -136,7 +136,7 @@ def test_project_map_templates_require_full_detail_sections_for_high_value_facts
     assert "## Runtime Data and Event Flows" in workflows
     assert "## State and Entity Lifecycles" in workflows
     assert "`sp-prd-scan -> sp-prd-build` as the canonical peer workflow path to" in workflows
-    assert "`sp-prd` is deprecated compatibility-only" in workflows
+    assert "`sp-prd`" not in workflows
     assert "automatically hand off to planning" in workflows
     assert "## Contract Verification Surfaces" in testing
     assert "## Build, Runtime, and Recovery Verification" in testing

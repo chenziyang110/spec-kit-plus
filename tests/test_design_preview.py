@@ -1377,6 +1377,8 @@ def test_design_preview_asset_is_packaged_and_installed_by_shared_template_copy(
         '"specify_cli/core_pack/templates/design-preview-template.html"'
     ) in pyproject
     assert '"templates/design-preview-manifest.schema.json"' in pyproject
+    assert '"templates/design-concept-lint-receipt.schema.json"' in pyproject
+    assert '"templates/design-image-generation.schema.json"' in pyproject
     assert '"templates/design-handoff-schema.json"' in pyproject
     assert '"templates/design-capability-profiles.json"' in pyproject
     assert 'packages = ["src/specify_cli"]' in pyproject

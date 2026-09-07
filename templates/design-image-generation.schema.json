@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.dev/schemas/design-image-generation.schema.json",
+  "title": "Spec Kit Plus runtime-owned image generation binding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "authority",
+    "content_authority",
+    "design_change_id",
+    "design_change_ref",
+    "design_change_sha256",
+    "round",
+    "manifest_ref",
+    "manifest_sha256",
+    "prompt_ref",
+    "prompt_sha256",
+    "operation",
+    "surface_posture",
+    "protected_surfaces",
+    "editable_surfaces",
+    "input_images"
+  ],
+  "properties": {
+    "schema": {"const": "spec-kit-design-image-generation-v1"},
+    "status": {"const": "prepared"},
+    "authority": {"const": "runtime-owned"},
+    "content_authority": {"const": "agent-authored-exact"},
+    "design_change_id": {"type": "string", "pattern": "^UD-[0-9]{4,}$"},
+    "design_change_ref": {"type": "string", "minLength": 1},
+    "design_change_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "round": {"type": "string", "pattern": "^[1-9][0-9]{0,3}$"},
+    "manifest_ref": {"type": "string", "minLength": 1},
+    "manifest_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "prompt_ref": {"type": "string", "minLength": 1},
+    "prompt_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "operation": {"enum": ["generate", "edit"]},
+    "surface_posture": {"enum": ["greenfield", "inherit-existing", "page-overhaul-authorized"]},
+    "protected_surfaces": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "editable_surfaces": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "input_images": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref", "role", "surface_ids", "fidelity", "sha256"],
+        "properties": {
+          "ref": {"type": "string", "minLength": 1},
+          "role": {"enum": ["edit-source", "exact-content", "layout-reference", "style-reference", "inspiration"]},
+          "surface_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "fidelity": {"enum": ["exact", "high", "approximate", "inspiration"]},
+          "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        }
+      }
+    }
+  }
+}

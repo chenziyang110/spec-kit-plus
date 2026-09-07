@@ -11,9 +11,7 @@ from .types import QualityHookError
 
 
 SECTION_RE = re.compile(r"(?ms)^##+\s+(?P<title>.+?)\n(?P<body>.*?)(?=^##+\s+|\Z)")
-COMMAND_ALIASES = {
-    "research": "deep-research",
-}
+COMMAND_ALIASES: dict[str, str] = {}
 
 
 def normalize_command_name(command_name: str) -> str:

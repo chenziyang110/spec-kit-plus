@@ -108,8 +108,10 @@ visual comparison. A verbal hybrid is not approvable; render it as a new
 direction in a new immutable round.
 
 For a new or high-visibility direction, persist an inspectable approved visual
-reference in `approval.visual_refs`. Assign each source an explicit use intent;
-reference intent and fidelity are separate decisions. Use real product content
+reference in `approval.visual_refs`. Assign each source an explicit use intent,
+governed `surface_ids`, and per-surface fidelity; reference intent and fidelity
+are separate decisions. Protected live-product surfaces remain exact even when
+an external reference is approximate. Use real product content
 and owned/licensed imagery plans instead of lorem ipsum or decorative
 placeholders that mask layout risk.
 

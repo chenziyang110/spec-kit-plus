@@ -18,19 +18,23 @@ reference-only and must not be silently compiled into this spec.
 
 Before consuming, run
 `{{specify-subcmd:specify-runtime discussion validate-handoff <slug> --mode ready --json}}`. Require `status:
-handoff-ready`, `recommended_consumer: sp-specify`,
+handoff-ready`, `version: 5`, a current `discussion_snapshot_digest`, `recommended_consumer: sp-specify`,
 `consumer_eligibility.sp-specify.status: ready`,
 `planning_gate_status: ready`, `quality_gate.status: user_confirmed`,
 matching `quality_gate.confirmed_digest` and `review_digest`, zero hard
-unknowns, zero open conflicts, complete protected obligations, and a target
-project root matching the active project. Require `topic_ownership.owner_slug`
+unknowns, zero open conflicts, complete protected obligations, non-empty actors,
+scenarios, scope, success criteria, and optimal solution approach, and a target
+project root matching the active project. Require every `source_materials` entry
+to be inspected, gap-free, and linked through `source_evidence.material_id`.
+Require `topic_ownership.owner_slug`
 to match the resolved slug; routed topics are cross-discussion pointers, not
 specification input. Fail closed to `$spx-discussion` with field errors and a
 safe retry; do not reconstruct or patch upstream truth.
 
 Keep one compact decision digest containing confirmed scope, rejected options,
-assumptions, unresolved user-owned decisions, UI/reference inputs, and the
-current semantic delta. Confirm the digest before treating it as authoritative.
+assumptions, unresolved user-owned decisions, source-material/evidence links,
+UI/reference inputs, and the current semantic delta. Confirm the digest before
+treating it as authoritative.
 
 A handoff is usable only when its referenced evidence exists, blocking
 questions are resolved or explicitly retained, and the specification can trace

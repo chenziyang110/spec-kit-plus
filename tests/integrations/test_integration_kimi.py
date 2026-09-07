@@ -109,7 +109,9 @@ class TestKimiLegacyMigration:
         assert (skills_dir / "sp-oldcmd" / "SKILL.md").exists()
         # New skills from templates should also exist
         assert (skills_dir / "sp-specify" / "SKILL.md").exists()
-        assert (skills_dir / "sp-prd" / "SKILL.md").exists()
+        assert not (skills_dir / "sp-prd" / "SKILL.md").exists()
+        assert (skills_dir / "sp-prd-scan" / "SKILL.md").exists()
+        assert (skills_dir / "sp-prd-build" / "SKILL.md").exists()
 
 
 class TestKimiNextSteps:

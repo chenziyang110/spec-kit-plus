@@ -126,8 +126,10 @@ adoption; it does not authorize reinterpretation.
 - UI reference notes: ui-reference-notes.md | none
 - Visual target: ui-target.html | none
 - Original inspectable assets:
-- Reference intents: [{ref, intent: exact | preserve-structure | inspiration | extract-tokens | do-not-copy}]
+- Reference intents: [{ref, intent: exact | preserve-structure | inspiration | extract-tokens | do-not-copy, fidelity: exact | high | approximate | inspiration, surface_ids: []}]
 - Fidelity mode: approximate | high | inspiration
+- Fidelity rule: this aggregate value cannot weaken an exact live-product
+  surface binding; shell and shared-component references stay per-surface exact.
 - Fidelity criteria and human review condition:
 - Ownership and forbidden copying:
 

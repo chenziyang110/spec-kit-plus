@@ -98,9 +98,10 @@ formal-approval -> register`.
   target. Full matrices are deferred to contract-completion. Offer 2-3 textual
   choices only when that helps the user answer one decision; do not generate
   three full boards.
-- `direction-confirmed`: after the concept passes the advertised
-  `preview-lint concept` check, call the advertised `direction-confirm`
-  capability. Its sidecar is non-consumable: not approval, not register, and not
+- `direction-confirmed`: after `preview-lint concept` writes the current
+  concept receipt and the user explicitly confirms that exact reviewed round,
+  call the advertised `direction-confirm` capability. Its sidecar is
+  non-consumable: not approval, not register, and not
   a Plan/Tasks/Implement/Quick/Review input.
 - `contract-completion`: after direction-confirmed, complete the full source
   continuity denominator when applicable, mature Web adoption rows, scenario /
@@ -137,8 +138,12 @@ formal-approval -> register`.
 ## Prompt Routing
 
 Read `references/task-router.md` at every entry or resume. Infer
-`task_type: create | refine | audit` from the prompt and current approval state;
-infer `input_strategy: context | synthesize` independently. Resume nonterminal
+`contract_action: create | refine | audit` from the prompt and current approval
+state; derive
+`surface_posture: greenfield | inherit-existing | page-overhaul-authorized`
+from live UI authority independently, then infer
+`input_strategy: context | synthesize`. Creating a new `UD-*` is an artifact
+action and never authorizes a greenfield page. Resume nonterminal
 design work before reclassification. Keep `sp-design` as the only public entry
 and never require a colon subskill or explicit mode argument.
 
@@ -369,8 +374,10 @@ unrelated visual systems for one review round.
   `visual_collaboration` with the exact live probe before authoring the visual;
   ready lint rejects a missing, contradictory, or medium-mismatched route.
 - **Image-primary lane:** read
-  `references/image-generation-studio.md`. Use the design CLI to persist the exact
-  professional generate/edit request for the numbered round, then generate one
+  `references/image-generation-studio.md`. Author the exact professional
+  generate/edit request in memory and pass it on stdin to the create-only
+  `specify-runtime design prompt <manifest> --content - --format json`
+  producer for the numbered round, then use the persisted bytes to generate one
   composite image board for the current concept. Image prompts own
   subject, context, style, composition, aspect ratio, exact text, reference
   roles, and edit invariants; they are not HTML/DOM/CSS prompts. When image
@@ -591,7 +598,7 @@ Before closeout:
    model-authored section content through stdin; use `@path` only for an
    existing runtime-owned or registered project artifact. Never submit or reconstruct the
    whole review document:
-   - selected task type and input strategy
+   - selected contract action, surface posture, and input strategy
    - inputs read
    - design question decisions
    - preview round and validation result

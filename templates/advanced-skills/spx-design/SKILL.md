@@ -99,9 +99,12 @@ Set `<change-dir>` to `.specify/design/changes/<UD-ID>`. Resume it through
 `feedback_history`, `prototype_rounds`, approval state, lint result, next action,
 and next command. Use
 `specify-runtime artifact patch` to store the canonical
-`task_type: create | refine | audit`, `input_strategy: context | synthesize`,
-and route reason in the design brief; treat any selected mode in derived state
-only as a compatibility projection.
+`contract_action: create | refine | audit`,
+`surface_posture: greenfield | inherit-existing | page-overhaul-authorized`,
+`input_strategy: context | synthesize`, and route reason in the design brief.
+Contract action only describes the `UD-*` lifecycle and never widens visual
+authority. Surface posture must exactly match `style_authority.mode`; treat any
+selected mode in derived state only as a compatibility projection.
 Resume the stored route before reclassification. The `allowed_writes` are only
 `.specify/design/index.json` through `design change/iterate/register`,
 `.specify/design/changes/<UD-ID>/design-change.md`, `<change-dir>/brief.md`,
@@ -169,10 +172,10 @@ taste, primary layout/signature, layout-changing critical state coverage,
 contrast/focus/reduced-motion feasibility, and one stress target. Offer 2-3
 textual choices only to resolve a single ambiguity; do not generate three full
 boards, three complete HTML alternatives, or auto-add an unselected profile.
-Call the advertised `direction-confirm` capability only after both conditions
-hold: the named concept passed the advertised `preview-lint concept` capability
-and the user gave explicit direction confirmation. A lint pass alone must not
-create the sidecar. The direction-confirmed sidecar is non-consumable: not approval, not register, and not a
+Run the advertised `preview-lint concept` capability first and require its
+current concept receipt. Only then ask for explicit direction confirmation;
+call `direction-confirm` only after the user confirms. A lint pass alone must
+not create the direction sidecar. The direction-confirmed sidecar is non-consumable: not approval, not register, and not a
 Plan/Tasks/Implement/Quick/Review input. Full source continuity denominator,
 mature Web adoption rows, complete matrices, and `DH-*` handoff rows are
 deferred to contract-completion after direction-confirmed. Always start
@@ -210,8 +213,10 @@ contract-completion. Patch `visual_collaboration` with the exact live
 generation/inspection/editing probe; ready lint rejects missing,
 contradictory, or medium-mismatched capability truth.
 
-For `image-primary`, read `references/image-round.md`, use the design CLI to
-persist the exact generate/edit prompt for the numbered round, and generate one
+For `image-primary`, read `references/image-round.md`, author the exact
+professional generate/edit prompt in memory, pass it on stdin to the
+create-only `specify-runtime design prompt <manifest> --content - --format
+json` producer, use the persisted bytes unchanged, and generate one
 composite image board for that round. Image prompts own subject, context, style,
 composition, aspect ratio, exact text, input-image roles, and invariants; they
 are not HTML authoring prompts. Inspect actual saved pixels when possible; when

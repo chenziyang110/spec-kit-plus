@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://spec-kit-plus.local/schemas/discussion-handoff-v4.json",
+  "$id": "https://spec-kit-plus.local/schemas/discussion-handoff-v5.json",
   "title": "Spec Kit Plus Discussion Requirement Contract",
   "type": "object",
   "required": [
@@ -18,7 +18,16 @@
     "context_boundary",
     "implementation_target",
     "source_evidence",
+    "source_materials",
+    "truth_pass_status",
+    "verified_project_facts",
+    "evidence_checked",
+    "advice_confidence",
+    "ui_discussion_status",
+    "artifact_refs",
     "blocking_unknowns",
+    "soft_unknowns",
+    "conflicts",
     "downstream_instructions",
     "quality_gate",
     "discussion_decision_digest",
@@ -27,10 +36,12 @@
     "planning_gate_status",
     "hard_unknown_count",
     "open_conflict_count",
-    "review_digest"
+    "discussion_snapshot_digest",
+    "review_digest",
+    "handoff_integrity"
   ],
   "properties": {
-    "version": {"const": 4},
+    "version": {"const": 5},
     "handoff_kind": {"const": "discussion_requirement_contract"},
     "status": {"enum": ["draft", "handoff-ready"]},
     "entry_source": {"const": "sp-discussion"},
@@ -81,10 +92,33 @@
     },
     "source_contract": {"type": "string", "minLength": 1},
     "handoff_goal": {"type": "string", "minLength": 1},
-    "agent_requirement_contract": {"type": "object"},
+    "agent_requirement_contract": {
+      "type": "object",
+      "required": ["target_need", "actors", "scenarios", "constraints", "scope", "success_criteria", "design_direction", "optimal_solution_approach", "non_goals"],
+      "properties": {
+        "target_need": {"type": "string", "minLength": 1},
+        "actors": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "scenarios": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "scope": {
+          "type": "object",
+          "required": ["in", "out", "deferred"],
+          "properties": {
+            "in": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+            "out": {"type": "array", "items": {"type": "string", "minLength": 1}},
+            "deferred": {"type": "array", "items": {"type": "string", "minLength": 1}}
+          }
+        },
+        "success_criteria": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "design_direction": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "optimal_solution_approach": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "non_goals": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      },
+      "additionalProperties": true
+    },
     "consumer_eligibility": {
       "type": "object",
       "description": "Each consumer status must be ready or blocked. Validation requires at least one ready consumer; eligible is not accepted.",
+      "required": ["sp-specify", "sp-quick"],
       "properties": {
         "sp-specify": {
           "type": "object",
@@ -108,35 +142,118 @@
     "context_boundary": {
       "type": "object",
       "description": "Validation requires status locked. Roles are objects with role/scope/evidence_source/notes, not string arrays.",
+      "required": ["status", "current_project_roles", "target_project_roles"],
       "properties": {
-        "status": {"type": "string"},
+        "status": {"const": "locked"},
         "current_project_roles": {
           "type": "array",
+          "minItems": 1,
           "items": {
             "type": "object",
-            "required": ["role", "scope", "evidence_source", "notes"]
+            "required": ["role", "scope", "evidence_source", "notes"],
+            "properties": {
+              "role": {"type": "string", "minLength": 1},
+              "scope": {"type": "string", "minLength": 1},
+              "evidence_source": {"type": "string", "minLength": 1},
+              "notes": {"type": "string", "minLength": 1}
+            }
           }
         },
         "target_project_roles": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["role", "scope", "evidence_source", "notes"]
+            "required": ["role", "scope", "evidence_source", "notes"],
+            "properties": {
+              "role": {"type": "string", "minLength": 1},
+              "scope": {"type": "string", "minLength": 1},
+              "evidence_source": {"type": "string", "minLength": 1},
+              "notes": {"type": "string", "minLength": 1}
+            }
           }
         }
       }
     },
-    "implementation_target": {"type": "object"},
+    "implementation_target": {
+      "type": "object",
+      "required": ["actual_project", "target_root", "target_paths", "required_target_paths_to_verify"],
+      "properties": {
+        "actual_project": {"type": ["string", "null"]},
+        "target_root": {"type": ["string", "null"]},
+        "target_paths": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "required_target_paths_to_verify": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      },
+      "additionalProperties": true
+    },
     "source_evidence": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "type": "object",
         "required": ["source_type", "evidence_status", "source", "claim"],
-        "description": "Do not use ref/authority/status aliases; runtime requires source_type/evidence_status/source/claim."
+        "properties": {
+          "source_type": {"type": "string", "minLength": 1},
+          "evidence_status": {"enum": ["verified", "proven", "confirmed", "inferred", "assumption", "stale-advisory", "missing", "conflict"]},
+          "source": {"type": "string", "minLength": 1},
+          "claim": {"type": "string", "minLength": 1},
+          "material_id": {"type": "string", "pattern": "^MAT-[0-9]{3}$"}
+        },
+        "description": "Do not use ref/authority/status aliases; runtime requires source_type/evidence_status/source/claim.",
+        "additionalProperties": true
       }
     },
-    "blocking_unknowns": {"type": "array"},
-    "soft_unknowns": {"type": "array"},
+    "source_materials": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "material_type", "locator", "summary", "inspection_status", "claims", "coverage_gaps", "sensitivity", "material_digest"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^MAT-[0-9]{3}$"},
+          "material_type": {"type": "string", "minLength": 1},
+          "locator": {"type": "string", "minLength": 1},
+          "summary": {"type": "string", "minLength": 1},
+          "inspection_status": {"enum": ["pending", "inspected", "partial", "unavailable", "stale", "conflict"]},
+          "claims": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "coverage_gaps": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "sensitivity": {"enum": ["safe", "sanitized", "restricted"]},
+          "content_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "version_ref": {"type": "string", "minLength": 1},
+          "material_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "truth_pass_status": {"enum": ["not-needed", "needed", "in-progress", "complete", "blocked"]},
+    "verified_project_facts": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "evidence_checked": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "advice_confidence": {
+      "oneOf": [
+        {"enum": ["none", "low", "medium", "high", "blocked"]},
+        {
+          "type": "object",
+          "required": ["level", "reason"],
+          "properties": {
+            "level": {"enum": ["none", "low", "medium", "high", "blocked"]},
+            "reason": {"type": "string", "minLength": 1}
+          }
+        }
+      ]
+    },
+    "ui_discussion_status": {"enum": ["not_applicable", "offered", "accepted", "completed", "skipped", "deferred"]},
+    "artifact_refs": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "blocking_unknowns": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/unknownRecord"}
+    },
+    "soft_unknowns": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {"type": "string", "minLength": 1},
+          {"$ref": "#/$defs/unknownRecord"}
+        ]
+      }
+    },
     "downstream_instructions": {
       "type": "object",
       "required": [
@@ -150,20 +267,21 @@
         "reopen_conditions"
       ],
       "properties": {
-        "settled_decisions": {"type": "array"},
-        "preserved_assumptions": {"type": "array"},
-        "conflicts_requiring_return": {"type": "array"},
+        "settled_decisions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "preserved_assumptions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "conflicts_requiring_return": {"type": "array", "items": {"type": "string", "minLength": 1}},
         "capability_map": {"type": "array"},
         "dependencies": {"type": "array"},
-        "planning_constraints": {"type": "array"},
-        "deferred_scope": {"type": "array"},
-        "reopen_conditions": {"type": "array"}
+        "planning_constraints": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "deferred_scope": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "reopen_conditions": {"type": "array", "items": {"type": "string", "minLength": 1}}
       },
       "additionalProperties": false
     },
     "quality_gate": {
       "type": "object",
       "description": "Draft validation requires self-review evidence. Provide self_reviewed_at; notes alone are insufficient.",
+      "required": ["status", "self_reviewed_at", "user_review_required", "user_confirmed_at", "confirmed_digest"],
       "properties": {
         "status": {"type": "string"},
         "self_reviewed_at": {"type": ["string", "null"]},
@@ -172,7 +290,22 @@
         "confirmed_digest": {"type": ["string", "null"]}
       }
     },
-    "discussion_decision_digest": {"type": "object"},
+    "discussion_decision_digest": {
+      "type": "object",
+      "required": ["locked_direction", "rejected_alternatives", "accepted_tradeoffs", "experience_commitments", "design_system_requirements", "design_system_status", "design_risk_level", "review_criteria_carried_forward", "must_not_dilute", "design_context"],
+      "properties": {
+        "locked_direction": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "rejected_alternatives": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "accepted_tradeoffs": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "experience_commitments": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "design_system_requirements": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "design_system_status": {"type": "string", "minLength": 1},
+        "design_risk_level": {"enum": ["none", "low", "medium", "high"]},
+        "review_criteria_carried_forward": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "must_not_dilute": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "design_context": {"type": "object"}
+      }
+    },
     "must_preserve": {
       "type": "array",
       "minItems": 1,
@@ -188,10 +321,25 @@
           "owner",
           "latest_resolve_phase",
           "status"
-        ]
+        ],
+        "properties": {
+          "id": {"type": "string", "pattern": "^(MP|CA)-[0-9]{3}$"},
+          "type": {"type": "string", "minLength": 1},
+          "claim": {"type": "string", "minLength": 1},
+          "source": {"type": "string", "minLength": 1},
+          "downstream_requirement": {"type": "string", "minLength": 1},
+          "blocking_level": {"enum": ["hard", "soft"]},
+          "owner": {"type": "string", "minLength": 1},
+          "latest_resolve_phase": {"type": "string", "minLength": 1},
+          "status": {"enum": ["active", "confirmed", "resolved", "deferred", "superseded", "dropped"]},
+          "resolution_evidence": {"type": "string", "minLength": 1},
+          "stop_and_reopen_condition": {"type": "string", "minLength": 1},
+          "superseded_by": {"type": "string", "minLength": 1},
+          "user_decision_source": {"type": "string", "minLength": 1}
+        }
       }
     },
-    "conflicts": {"type": "array"},
+    "conflicts": {"type": "array", "items": {"$ref": "#/$defs/conflictRecord"}},
     "coverage_status": {
       "enum": ["not_started", "in_progress", "complete", "blocked_by_handoff_integrity"]
     },
@@ -200,10 +348,47 @@
     },
     "hard_unknown_count": {"type": "integer", "minimum": 0},
     "open_conflict_count": {"type": "integer", "minimum": 0},
-    "review_digest": {"type": ["string", "null"]},
+    "review_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "discussion_snapshot_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "handoff_integrity": {"type": "string"}
   },
   "additionalProperties": true,
+  "$defs": {
+    "unknownRecord": {
+      "type": "object",
+      "required": ["id", "question", "owner", "status", "latest_resolve_phase"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "question": {"type": "string", "minLength": 1},
+        "owner": {"type": "string", "minLength": 1},
+        "status": {"enum": ["open", "resolved", "closed", "deferred", "superseded", "dropped"]},
+        "latest_resolve_phase": {"type": "string", "minLength": 1},
+        "resolution_evidence": {"type": "string", "minLength": 1},
+        "stop_and_reopen_condition": {"type": "string", "minLength": 1},
+        "superseded_by": {"type": "string", "minLength": 1},
+        "user_decision_source": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": true
+    },
+    "conflictRecord": {
+      "type": "object",
+      "required": ["id", "claim", "status"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "claim": {"type": "string", "minLength": 1},
+        "status": {"enum": ["open", "resolved", "closed", "deferred", "superseded", "dropped"]},
+        "resolution": {"type": "string", "minLength": 1},
+        "resolution_evidence": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": true
+    }
+  },
+  "not": {
+    "anyOf": [
+      {"required": ["requirements_snapshot"]},
+      {"required": ["discussion_snapshot"]}
+    ]
+  },
   "allOf": [
     {
       "if": {

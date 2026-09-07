@@ -306,6 +306,30 @@
       "safe_instruction_patterns": ["specify-runtime design direction-confirm", "artifact show", "artifact list", "runtime-owned", "non-consumable", "immutable"]
     },
     {
+      "id": "ui_design_generation_prompt",
+      "path_patterns": [".specify/design/changes/*/previews/round-*.prompt.md"],
+      "owner_cli": ["specify-runtime design prompt", "specify-runtime artifact show", "specify-runtime artifact list"],
+      "path_hints": ["round-NN.prompt.md", ".prompt.md", "image generation prompt"],
+      "forbidden_cli_patterns": ["artifact\\s+(?:prepare|submit|patch|delete)"],
+      "safe_instruction_patterns": ["specify-runtime design prompt", "artifact show", "artifact list", "runtime-owned", "non-consumable"]
+    },
+    {
+      "id": "ui_design_generation_sidecar",
+      "path_patterns": [".specify/design/changes/*/previews/round-*.generation.json"],
+      "owner_cli": ["specify-runtime design prompt", "specify-runtime artifact show", "specify-runtime artifact list"],
+      "path_hints": ["round-NN.generation.json", ".generation.json", "generation sidecar"],
+      "forbidden_cli_patterns": ["artifact\\s+(?:prepare|submit|patch|delete)"],
+      "safe_instruction_patterns": ["specify-runtime design prompt", "artifact show", "artifact list", "runtime-owned", "non-consumable"]
+    },
+    {
+      "id": "ui_design_concept_receipt",
+      "path_patterns": [".specify/design/changes/*/previews/round-*.concept.json"],
+      "owner_cli": ["specify-runtime design preview-lint", "specify-runtime artifact show", "specify-runtime artifact list"],
+      "path_hints": ["round-NN.concept.json", ".concept.json", "concept lint receipt"],
+      "forbidden_cli_patterns": ["artifact\\s+(?:prepare|submit|patch|delete)"],
+      "safe_instruction_patterns": ["specify-runtime design preview-lint", "artifact show", "artifact list", "runtime-owned", "non-consumable"]
+    },
+    {
       "id": "ui_design_change_contract",
       "path_patterns": [".specify/design/changes/*/design-change.md", ".specify/design/changes/*/design-contract.json", ".specify/design/changes/*/previews/**"],
       "owner_cli": ["specify-runtime design", "specify-runtime artifact patch before design register"],

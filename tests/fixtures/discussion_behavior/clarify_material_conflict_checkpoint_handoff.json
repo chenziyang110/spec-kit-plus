@@ -1,0 +1,56 @@
+{
+  "id": "sp-discussion.clarify-material-conflict-checkpoint-handoff",
+  "description": "Multi-turn discussion behavior: fuzzy idea, user material intake, conflict, user correction, semantic checkpoint, resume, and handoff readiness.",
+  "conversation": [
+    {"role": "user", "content": "我想做个团队知识库助手，但还没想清楚。"},
+    {"role": "assistant", "content": "Clarifies actors, scenarios, scope, and success criteria without jumping to implementation."},
+    {"role": "user", "content": "我有一份访谈笔记和截图，里面说搜索要支持权限隔离。"},
+    {"role": "assistant", "content": "Records the supplied notes/screenshots as MAT-001/MAT-002 source_materials before using their claims."},
+    {"role": "user", "content": "等等，截图里的移动端不是第一版，先只做 Web。"},
+    {"role": "assistant", "content": "Records the conflict and then the corrected non-goal/deferred scope."},
+    {"role": "user", "content": "checkpoint，然后继续。"},
+    {"role": "assistant", "content": "Persists a complete semantic checkpoint and later resumes from canonical state."},
+    {"role": "user", "content": "可以，交给下一步。"},
+    {"role": "assistant", "content": "Only writes handoff after latest checkpoint matches state and selected consumer is explicit."}
+  ],
+  "good_transcript": [
+    "先把目标捋清：actors 是知识库管理员和团队成员；核心 scenarios 是上传资料、权限隔离搜索与结果追溯；success criteria 是无越权结果且答案能回到来源。",
+    "访谈笔记与截图已进入 source_materials，分别为 MAT-001 和 MAT-002。material coverage 显示两份资料均已检查，并由 source evidence 关联。",
+    "截图曾包含移动端范围，这是一个 conflict；按用户修正，当前只做 Web，移动端进入 non_goals。仍保留一个 soft unknown，由后续 owner 按 reopen condition 处理。",
+    "checkpoint 已保存完整语义快照；resume 将读取 canonical state，latest_checkpoint.snapshot_sha256 与当前状态一致。",
+    "在 selected consumer 明确后，runtime 从 checkpoint 派生 agent_requirement_contract，并用 discussion_snapshot_digest 绑定当前讨论；此时才允许进入 handoff review。"
+  ],
+  "required_good_terms": [
+    "actors",
+    "scenarios",
+    "success criteria",
+    "source_materials",
+    "MAT-001",
+    "MAT-002",
+    "material coverage",
+    "conflict",
+    "unknown",
+    "Web",
+    "non_goals",
+    "checkpoint",
+    "latest_checkpoint.snapshot_sha256",
+    "resume",
+    "agent_requirement_contract",
+    "discussion_snapshot_digest",
+    "selected consumer"
+  ],
+  "bad_transcripts": {
+    "missing_material": [
+      "做团队知识库助手，需求是搜索和权限隔离。",
+      "我会直接交给 sp-quick，截图和笔记内容已经理解。"
+    ],
+    "missing_unknown": [
+      "已记录 MAT-001 和 MAT-002，目标是 Web 知识库助手。",
+      "所有问题都清楚了，移动端也一起算作后续实现。"
+    ],
+    "premature_handoff": [
+      "我还没 checkpoint，但可以先写 handoff。",
+      "handoff 已 ready，下一步直接进入实现。"
+    ]
+  }
+}

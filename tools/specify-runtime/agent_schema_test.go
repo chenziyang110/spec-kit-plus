@@ -281,6 +281,56 @@ func TestAPIShowDesignPreviewLintPublishesConceptLevel(t *testing.T) {
 	}
 }
 
+func TestAPIShowDesignPromptPublishesGenerationContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "design.prompt", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show design.prompt exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	usage := fmt.Sprint(capability["usage"])
+	contract := fmt.Sprint(capability["input_contract"])
+	fileInput := fmt.Sprint(capability["file_input"])
+	if !strings.Contains(usage, "design prompt") || !strings.Contains(contract, ".generation.json") {
+		t.Fatalf("design.prompt contract missing: usage=%q input_contract=%q", usage, contract)
+	}
+	if !strings.Contains(usage, "--content") || strings.Contains(usage, "--force") || !strings.Contains(contract, "stdin") || !strings.Contains(contract, "create-only") {
+		t.Fatalf("design.prompt must expose exact create-only stdin transport: usage=%q input_contract=%q", usage, contract)
+	}
+	if !strings.Contains(fileInput, "project-contained") || !strings.Contains(fileInput, "reparse") {
+		t.Fatalf("design.prompt file input safety contract missing: %q", fileInput)
+	}
+	metadata, ok := LookupArtifactType(".specify/design/changes/UD-0042/previews/round-01.generation.json")
+	if !ok || metadata.TypeID != "ui-design-generation-sidecar" || metadata.Owner != "specify-runtime design prompt" {
+		t.Fatalf("generation sidecar artifact metadata = %#v, ok=%v", metadata, ok)
+	}
+	prompt, ok := LookupArtifactType(".specify/design/changes/UD-0042/previews/round-01.prompt.md")
+	if !ok || prompt.TypeID != "ui-design-generation-prompt" || prompt.Owner != "specify-runtime design prompt" {
+		t.Fatalf("generation prompt artifact metadata = %#v, ok=%v", prompt, ok)
+	}
+	receipt, ok := LookupArtifactType(".specify/design/changes/UD-0042/previews/round-01.concept.json")
+	if !ok || receipt.TypeID != "ui-design-concept-receipt" || receipt.Owner != "specify-runtime design preview-lint" {
+		t.Fatalf("concept receipt artifact metadata = %#v, ok=%v", receipt, ok)
+	}
+}
+
+func TestAPIShowSourceContinuityManifestPublishesStableSnapshotContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "evidence.source-continuity-manifest", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show source continuity manifest exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	contract := fmt.Sprint(capability["input_contract"])
+	for _, marker := range []string{"expected_write_scope", "runtime-owned", "byte-stable", "product source", "Explicit runtime-owned scopes are invalid"} {
+		if !strings.Contains(contract, marker) {
+			t.Fatalf("source continuity manifest snapshot contract missing %q: %s", marker, contract)
+		}
+	}
+}
+
 func TestAPIShowWorkflowResolvePublishesAtomicReopenContract(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"api", "show", "workflow.resolve", "--format", "json"}, &stdout, &stderr, "test")
@@ -757,6 +807,36 @@ func TestAPISchemaDiscussionWriteHandoffAndCheckpoint(t *testing.T) {
 		if !foundTargetSlugGuard {
 			t.Fatalf("%s topic_ownership items missing branch/link target_slug type guard: %#v", schemaID, items)
 		}
+		if schemaID == "discussion-checkpoint-input" {
+			for _, field := range []string{"requirements_snapshot", "implementation_target", "source_evidence", "source_materials", "blocking_unknowns", "conflicts", "downstream_instructions", "discussion_decision_digest", "must_preserve", "truth_pass_status", "advice_confidence", "discussion_compass_status", "design_context", "artifact_refs"} {
+				if _, ok := properties[field]; !ok {
+					t.Fatalf("%s missing semantic checkpoint field %q: %#v", schemaID, field, properties)
+				}
+			}
+			sourceEvidence := requireObject(t, properties, "source_evidence")
+			evidenceItems := requireObject(t, sourceEvidence, "items")
+			evidenceProps := requireObject(t, evidenceItems, "properties")
+			if _, ok := evidenceProps["material_id"]; !ok {
+				t.Fatalf("%s source_evidence missing material_id: %#v", schemaID, sourceEvidence)
+			}
+			sourceMaterials := requireObject(t, properties, "source_materials")
+			materialItems := requireObject(t, sourceMaterials, "items")
+			materialProps := requireObject(t, materialItems, "properties")
+			if _, ok := materialProps["material_digest"]; !ok {
+				t.Fatalf("%s source_materials missing runtime material_digest: %#v", schemaID, sourceMaterials)
+			}
+		}
+		if schemaID == "discussion-write-handoff-input" {
+			if !strings.Contains(fmt.Sprint(schema["description"]), "current semantic checkpoint") {
+				t.Fatalf("%s schema should explain checkpoint-derived handoff fields: %#v", schemaID, schema["description"])
+			}
+			for _, field := range []string{"agent_requirement_contract", "source_evidence", "source_materials", "hard_unknown_count", "open_conflict_count"} {
+				entry := requireObject(t, properties, field)
+				if entry["readOnly"] != true {
+					t.Fatalf("%s field %q should be marked state-derived/readOnly: %#v", schemaID, field, entry)
+				}
+			}
+		}
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -769,8 +849,10 @@ func TestAPISchemaDiscussionWriteHandoffAndCheckpoint(t *testing.T) {
 		t.Fatalf("write-handoff capability = %#v", capability)
 	}
 	contract, _ := capability["input_contract"].(string)
-	if !strings.Contains(contract, "ready") || !strings.Contains(contract, "@path") {
-		t.Fatalf("write-handoff input contract = %#v", capability)
+	for _, fragment := range []string{"latest_checkpoint.snapshot_sha256", "discussion_snapshot_digest", "source_evidence/source_materials", "@path"} {
+		if !strings.Contains(contract, fragment) {
+			t.Fatalf("write-handoff input contract = %#v, missing %q", capability, fragment)
+		}
 	}
 }
 

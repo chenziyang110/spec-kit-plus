@@ -77,9 +77,14 @@ planning-ready source spec and requirements remain unchanged, do not rerun
 Specify or patch the spec. Design adopts with `formal-post-specify`; Plan
 verifies the receipt against the unchanged source spec digest.
 
-When original UI references exist, preserve inspectable source paths or URLs and
-record fidelity as `approximate` by default, `high`, or `inspiration`.
-`approximate` and `high` activate Reference-Implementation evidence: reference
+When original UI references exist, preserve inspectable source paths or URLs
+and record each as `{ref, intent, fidelity, surface_ids}`. Live-product shell
+and shared components default to `exact` intent/fidelity; external references
+may independently use `approximate`, `high`, or `inspiration`. The aggregate
+`fidelity_mode` never weakens a stronger per-surface binding. If an existing
+navigator, shell region, or complete-page information architecture would be
+adapted or replaced without explicit authorization, ask one high-impact
+question before planning-ready handoff. `approximate` and `high` activate Reference-Implementation evidence: reference
 source evidence, fidelity criteria, verification entry points, difference
 inventory, and accepted deviations. `high` requires explicit visual comparison
 and deviation recording.

@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "handoff_kind": "discussion_requirement_contract",
   "status": "draft",
   "entry_source": "sp-discussion",
@@ -14,10 +14,13 @@
   "handoff_goal": null,
   "agent_requirement_contract": {
     "target_need": null,
+    "actors": [],
+    "scenarios": [],
     "constraints": [],
     "success_criteria": [],
     "design_direction": [],
     "optimal_solution_approach": [],
+    "non_goals": [],
     "scope": {"in": [], "out": [], "deferred": []}
   },
   "consumer_eligibility": {
@@ -43,6 +46,13 @@
     "required_target_paths_to_verify": []
   },
   "source_evidence": [],
+  "source_materials": [],
+  "truth_pass_status": "not-needed",
+  "verified_project_facts": [],
+  "evidence_checked": [],
+  "advice_confidence": "none",
+  "ui_discussion_status": "not_applicable",
+  "artifact_refs": [],
   "blocking_unknowns": [],
   "soft_unknowns": [],
   "downstream_instructions": {
@@ -96,6 +106,7 @@
   "planning_gate_status": "blocked_by_incomplete_coverage",
   "hard_unknown_count": 0,
   "open_conflict_count": 0,
+  "discussion_snapshot_digest": null,
   "review_digest": null,
   "handoff_integrity": "not-checked"
 }

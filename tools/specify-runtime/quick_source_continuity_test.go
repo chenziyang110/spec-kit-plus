@@ -166,3 +166,29 @@ func TestQuickSourceContinuityRejectsUnsupportedRuntimeFields(t *testing.T) {
 		t.Fatalf("unsupported source continuity field was not rejected: %v", err)
 	}
 }
+
+func TestQuickSourceContinuityValidatesPerSurfaceIntentAndFidelity(t *testing.T) {
+	input := sourceContinuityQuickInput()
+	ui := mapValue(mapValue(input["decision"])["ui_confirmation"])
+	continuity := mapValue(ui["source_continuity"])
+	surface := continuity["surface_bindings"].([]any)[0].(map[string]any)
+	surface["use_intent"] = "exact"
+	surface["fidelity"] = "exact"
+
+	doc, err := normalizeQuickConfirmationInput(input, "260826-005", nil, false)
+	if err != nil {
+		t.Fatalf("normalize per-surface fidelity checkpoint: %v", err)
+	}
+	if err := validateQuickConfirmation(doc); err != nil {
+		t.Fatalf("valid per-surface fidelity was rejected: %v", err)
+	}
+
+	surface["fidelity"] = "global-approximate"
+	doc, err = normalizeQuickConfirmationInput(input, "260826-006", nil, false)
+	if err != nil {
+		t.Fatalf("normalize invalid per-surface fidelity checkpoint: %v", err)
+	}
+	if err := validateQuickConfirmation(doc); err == nil || !strings.Contains(err.Error(), "fidelity") {
+		t.Fatalf("invalid per-surface fidelity was not rejected: %v", err)
+	}
+}

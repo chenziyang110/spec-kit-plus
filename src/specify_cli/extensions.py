@@ -32,7 +32,6 @@ _FALLBACK_CORE_COMMAND_NAMES = frozenset({
     "debug",
     "deep-research",
     "discussion",
-    "research",
     "explain",
     "implement",
     "map-scan",

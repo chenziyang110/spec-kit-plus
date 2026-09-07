@@ -206,13 +206,17 @@ appending `--slug <slug>` when an exact slug was supplied.
 If multiple candidates are returned, ask for the exact slug; never guess, never
 select latest, and never infer an unstated slug from a name, title, topic, or
 keyword similarity. Query the resolved contract through `specify-runtime artifact show`
-and consume it only when it is handoff-ready, its digests are current, the
+and consume it only when it is handoff v5 and handoff-ready, its review and
+`discussion_snapshot_digest` values are current, the
 resolver's exact `discussion_slug` maps to `source_discussion_slug`,
 `source_contract` is bound, resolver-returned `review_digest`,
 `state_sha256`, and `recommended_consumer` match, `topic_ownership.owner_slug`
 equals the selected slug, it has zero
 blocking decisions, and `consumer_eligibility.sp-quick.status: ready`, except
-for the legacy size/breadth-only override below. With no semantic
+for the legacy size/breadth-only override below. Require non-empty actors,
+scenarios, scope, success criteria, and optimal solution approach, plus every
+source material inspected, gap-free, and linked through
+`source_evidence.material_id`. With no semantic
 delta, stage inheritance with the handoff `review_digest` and continue without
 re-confirmation; show the binding summary plus Delivery Map/Pulse. With a
 semantic delta, retain the complete resulting decision, stage

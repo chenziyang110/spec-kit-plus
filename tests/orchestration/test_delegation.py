@@ -5,12 +5,14 @@ from specify_cli.orchestration.adapters import (
 )
 
 
-def test_research_alias_normalizes_to_deep_research_for_orchestration_support() -> None:
-    assert normalize_command_name("research") == "deep-research"
-    assert normalize_command_name("sp-research") == "deep-research"
-    assert normalize_command_name("sp.research") == "deep-research"
+def test_research_alias_is_not_a_supported_orchestration_command() -> None:
+    assert normalize_command_name("research") == "research"
+    assert normalize_command_name("sp-research") == "research"
+    assert normalize_command_name("sp.research") == "research"
+    assert normalize_command_name("deep-research") == "deep-research"
     assert normalize_command_name("/sp.plan") == "plan"
-    assert supports_workflow_command("sp-research") is True
+    assert supports_workflow_command("sp-research") is False
+    assert supports_workflow_command("sp-deep-research") is True
 
 
 def test_ask_command_is_supported_by_orchestration_adapter() -> None:

@@ -24,46 +24,35 @@ def runtime():
 
 def _setup_project(tmp_path: Path) -> Path:
     (tmp_path / ".specify").mkdir()
+    template_dir = tmp_path / ".specify" / "templates"
+    template_dir.mkdir()
+    (template_dir / "discussion-handoff-template.json").write_text(
+        (PROJECT_ROOT / "templates" / "discussion-handoff-template.json").read_text(
+            encoding="utf-8"
+        ),
+        encoding="utf-8",
+    )
     return tmp_path
 
 
-def _write_confirmed_handoff(
-    runtime,
-    project: Path,
-    slug: str,
-    *,
-    recommended_consumer: str = "sp-specify",
-) -> tuple[Path, str]:
-    workspace = project / ".specify" / "discussions" / slug
-    json_path = workspace / "handoff-to-specify.json"
-    source_contract = f".specify/discussions/{slug}/handoff-to-specify.json"
-    payload = {
-        "version": 4,
-        "handoff_kind": "discussion_requirement_contract",
-        "status": "draft",
-        "entry_source": "sp-discussion",
-        "discussion_slug": slug,
-        "source_contract": source_contract,
-        "handoff_goal": "Make discussion state deterministic and agent-efficient.",
-        "agent_requirement_contract": {
+def _complete_checkpoint_payload(project: Path) -> dict:
+    return {
+        "summary": "Requirement contract is ready for deterministic handoff.",
+        "lifecycle_phase": "prepare",
+        "requirements_snapshot": {
             "target_need": "A compact and reliable discussion workflow.",
+            "actors": ["agent", "user"],
+            "scenarios": ["resume a discussion after compaction"],
             "constraints": ["Human replies remain human-centered."],
             "success_criteria": ["Invalid handoffs cannot become ready."],
             "design_direction": ["Typed backstage with a natural frontstage."],
             "optimal_solution_approach": ["Use a shared runtime and schema-driven handoff."],
-            "scope": {"in": ["discussion workflow"], "out": ["implementation planning"], "deferred": []},
-        },
-        "consumer_eligibility": {
-            "sp-specify": {
-                "status": "ready" if recommended_consumer == "sp-specify" else "blocked",
-                "reason": "Requirement contract is complete.",
-            },
-            "sp-quick": {
-                "status": "ready" if recommended_consumer == "sp-quick" else "blocked",
-                "reason": "The selected consumer owns this exact lineage.",
+            "scope": {
+                "in": ["discussion workflow"],
+                "out": ["implementation planning"],
+                "deferred": [],
             },
         },
-        "recommended_consumer": recommended_consumer,
         "context_boundary": {
             "status": "locked",
             "current_project_root": str(project.resolve()),
@@ -101,10 +90,24 @@ def _write_confirmed_handoff(
                 "evidence_status": "proven",
                 "source": "templates/commands/discussion.md",
                 "claim": "sp-discussion is a generated workflow contract.",
+                "material_id": "MAT-001",
+            }
+        ],
+        "source_materials": [
+            {
+                "id": "MAT-001",
+                "material_type": "user_note",
+                "locator": "chat:fixture",
+                "inspection_status": "inspected",
+                "summary": "Fixture material is available.",
+                "claims": ["sp-discussion is a generated workflow contract."],
+                "coverage_gaps": [],
+                "sensitivity": "safe",
             }
         ],
         "blocking_unknowns": [],
         "soft_unknowns": [],
+        "conflicts": [],
         "downstream_instructions": {
             "settled_decisions": ["Separate human frontstage from agent backstage."],
             "preserved_assumptions": [],
@@ -114,14 +117,6 @@ def _write_confirmed_handoff(
             "planning_constraints": ["Do not expose state machinery to humans."],
             "deferred_scope": [],
             "reopen_conditions": [],
-        },
-        "quality_gate": {
-            "status": "user_confirmed",
-            "self_reviewed_at": "2026-07-10T00:00:00Z",
-            "user_review_required": True,
-            "user_confirmed_at": "2026-07-10T00:01:00Z",
-            "confirmed_digest": None,
-            "blocked_reasons": [],
         },
         "discussion_decision_digest": {
             "locked_direction": ["Layered agent-native architecture."],
@@ -144,13 +139,56 @@ def _write_confirmed_handoff(
                 "status": "confirmed",
             }
         ],
-        "conflicts": [],
-        "coverage_status": "complete",
-        "planning_gate_status": "ready",
-        "hard_unknown_count": 0,
-        "open_conflict_count": 0,
-        "review_digest": None,
+        "truth_pass_status": "complete",
+        "verified_project_facts": ["discussion runtime writes checkpoint state"],
+        "evidence_checked": ["scripts/shared/discussion-state.py"],
+        "advice_confidence": "high",
     }
+
+
+def _reviewable_handoff_payload(slug: str, recommended_consumer: str = "sp-specify") -> dict:
+    return {
+        "handoff_goal": "Make discussion state deterministic and agent-efficient.",
+        "consumer_eligibility": {
+            "sp-specify": {
+                "status": "ready" if recommended_consumer == "sp-specify" else "blocked",
+                "reason": "Requirement contract is complete.",
+            },
+            "sp-quick": {
+                "status": "ready" if recommended_consumer == "sp-quick" else "blocked",
+                "reason": "The selected consumer owns this exact lineage.",
+            },
+        },
+        "recommended_consumer": recommended_consumer,
+        "quality_gate": {
+            "status": "self_reviewed",
+            "self_reviewed_at": "2026-07-10T00:00:00Z",
+            "user_review_required": True,
+            "user_confirmed_at": None,
+            "confirmed_digest": None,
+            "blocked_reasons": [],
+        },
+        "discussion_slug": slug,
+    }
+
+
+def _write_confirmed_handoff(
+    runtime,
+    project: Path,
+    slug: str,
+    *,
+    recommended_consumer: str = "sp-specify",
+) -> tuple[Path, str]:
+    workspace = project / ".specify" / "discussions" / slug
+    json_path = workspace / "handoff-to-specify.json"
+    resolved_checkpoint = runtime.resolve_discussion(project, "continue", slug)
+    runtime.checkpoint_discussion(
+        project,
+        slug,
+        _complete_checkpoint_payload(project),
+        expected_state_sha256=resolved_checkpoint["binding"]["state_sha256"],
+    )
+    payload = _reviewable_handoff_payload(slug, recommended_consumer)
     resolved = runtime.resolve_discussion(project, "continue", slug)
     written = runtime.write_handoff(
         project,
@@ -172,7 +210,7 @@ def test_initialize_discussion_creates_minimal_typed_state(runtime, tmp_path: Pa
     state = json.loads((workspace / "discussion-state.json").read_text(encoding="utf-8"))
     markdown = (workspace / "discussion-state.md").read_text(encoding="utf-8")
     assert payload["slug"] == "agent-friendly-discussion"
-    assert state["version"] == 2
+    assert state["version"] == 3
     assert state["status_family"] == "discussion"
     assert state["status"] == "active"
     assert state["lifecycle_phase"] == "explore"
@@ -315,8 +353,125 @@ def test_checkpoint_updates_typed_state_and_compact_event_log(runtime, tmp_path:
     assert state["turn_packet"]["open_questions"] == ["What is the handoff consumer?"]
     assert state["turn_packet"]["current_recommendation"] == "Use typed state."
     assert events[-1]["kind"] == "durable-checkpoint"
-    assert events[-1]["user_goal"] == "Ship durable discussion recovery."
+    assert events[-1]["version"] == 2
+    assert events[-1]["snapshot_sha256"] == state["latest_checkpoint"]["snapshot_sha256"]
     assert "Human frontstage" in events[-1]["summary"]
+
+
+def test_checkpoint_records_full_semantic_snapshot(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Semantic Snapshot", "Semantic snapshot")
+
+    payload = runtime.checkpoint_discussion(
+        project,
+        initialized["slug"],
+        {
+            "summary": "Material, target, and advice state are durable.",
+            "lifecycle_phase": "ground",
+            "requirements_snapshot": {
+                "target_need": "Preserve user-provided discussion material.",
+                "success_criteria": ["Checkpoint can reconstruct the decision."],
+            },
+            "implementation_target": {
+                "actual_project": "spec-kit-plus",
+                "target_root": str(project.resolve()),
+                "target_paths": ["templates/commands/discussion.md"],
+            },
+            "source_materials": [
+                {
+                    "id": "MAT-001",
+                    "material_type": "user_note",
+                    "locator": "chat:turn-1",
+                    "inspection_status": "inspected",
+                    "summary": "User asked whether discussion clarifies intent and records materials.",
+                    "claims": ["Discussion must record user-provided material."],
+                    "coverage_gaps": [],
+                    "sensitivity": "safe",
+                }
+            ],
+            "blocking_unknowns": [],
+            "soft_unknowns": ["Exact prose can stay compact."],
+            "conflicts": [],
+            "downstream_instructions": {
+                "planning_constraints": ["Carry MAT-001 forward."],
+            },
+            "discussion_decision_digest": {
+                "locked_direction": ["Use a source material ledger."],
+            },
+            "must_preserve": [
+                {
+                    "id": "MP-001",
+                    "type": "requirement",
+                    "claim": "Preserve material ledger",
+                    "source": "chat",
+                    "downstream_requirement": "Plan sees material provenance",
+                    "blocking_level": "hard",
+                    "owner": "sp-discussion",
+                    "latest_resolve_phase": "ground",
+                    "status": "active",
+                }
+            ],
+            "verified_project_facts": ["discussion runtime writes checkpoint state"],
+            "evidence_checked": ["scripts/shared/discussion-state.py"],
+            "advice_confidence": "high",
+        },
+    )
+
+    event = payload["event"]
+    checkpoint = payload["discussion"]["latest_checkpoint"]
+    assert payload["turn_packet"]["version"] == 2
+    assert event["version"] == 2
+    assert event["snapshot_sha256"] == checkpoint["snapshot_sha256"]
+    assert payload["turn_packet"]["source_materials"][0]["id"] == "MAT-001"
+    assert "source_materials" in event["changed_fields"]
+
+
+def test_state_markdown_summarizes_semantics_without_restricted_material(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Restricted Material", "Restricted material")
+    workspace = Path(initialized["workspace_path"])
+
+    runtime.checkpoint_discussion(
+        project,
+        initialized["slug"],
+        {
+            **_complete_checkpoint_payload(project),
+            "requirements_snapshot": {
+                **_complete_checkpoint_payload(project)["requirements_snapshot"],
+                "target_need": "Clarify a sensitive user-provided goal.",
+            },
+            "source_materials": [
+                {
+                    "id": "MAT-001",
+                    "material_type": "private_note",
+                    "locator": "secret://do-not-render",
+                    "inspection_status": "inspected",
+                    "summary": "Do not render this restricted summary.",
+                    "claims": ["Sensitive note was inspected."],
+                    "coverage_gaps": [],
+                    "sensitivity": "restricted",
+                }
+            ],
+            "source_evidence": [
+                {
+                    "source_type": "discussion",
+                    "evidence_status": "verified",
+                    "source": "chat",
+                    "claim": "Sensitive note was inspected.",
+                    "material_id": "MAT-001",
+                }
+            ],
+        },
+    )
+
+    markdown = (workspace / "discussion-state.md").read_text(encoding="utf-8")
+
+    assert "## Requirements Snapshot" in markdown
+    assert "Clarify a sensitive user-provided goal." in markdown
+    assert "MAT-001(inspected) [restricted]" in markdown
+    assert "snapshot_sha256:" in markdown
+    assert "secret://do-not-render" not in markdown
+    assert "Do not render this restricted summary." not in markdown
 
 
 def test_checkpoint_persists_topic_ownership(runtime, tmp_path: Path):
@@ -398,19 +553,18 @@ def test_write_handoff_helper_uses_expected_state_sha_before_mutating(runtime, t
     first = runtime.initialize_discussion(project, "First Handoff", "First handoff")
     runtime.initialize_discussion(project, "Second Handoff", "Second handoff")
     resolved = runtime.resolve_discussion(project, "continue", first["slug"])
+    runtime.checkpoint_discussion(
+        project,
+        first["slug"],
+        _complete_checkpoint_payload(project),
+        expected_state_sha256=resolved["binding"]["state_sha256"],
+    )
+    resolved = runtime.resolve_discussion(project, "continue", first["slug"])
     expected_sha = resolved["binding"]["state_sha256"]
     stale_sha = "f" * 64 if expected_sha != "f" * 64 else "e" * 64
     workspace = Path(first["workspace_path"])
-    handoff_payload = json.loads(
-        (PROJECT_ROOT / "templates" / "discussion-handoff-template.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    handoff_payload["discussion_slug"] = first["slug"]
+    handoff_payload = _reviewable_handoff_payload(first["slug"])
     handoff_payload["handoff_goal"] = "Write only when the focus binding is current."
-    handoff_payload["agent_requirement_contract"][
-        "target_need"
-    ] = "A resolver-bound handoff mutation."
 
     with pytest.raises(ValueError, match="expected-state-sha256|state sha|stale"):
         runtime.write_handoff(
@@ -430,6 +584,187 @@ def test_write_handoff_helper_uses_expected_state_sha_before_mutating(runtime, t
 
     assert written["review_digest"]
     assert (workspace / "handoff-to-specify.json").is_file()
+
+
+def test_write_handoff_requires_current_semantic_checkpoint(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "No Checkpoint", "No checkpoint")
+
+    with pytest.raises(ValueError, match="missing_semantic_checkpoint"):
+        runtime.write_handoff(
+            project,
+            initialized["slug"],
+            _reviewable_handoff_payload(initialized["slug"]),
+        )
+
+
+def test_write_handoff_rejects_checkpoint_with_empty_core_requirements(
+    runtime, tmp_path: Path
+):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(
+        project, "Incomplete Requirements", "Incomplete requirements"
+    )
+    runtime.checkpoint_discussion(
+        project,
+        initialized["slug"],
+        {"summary": "A savepoint exists, but the requirement contract is incomplete."},
+    )
+
+    with pytest.raises(ValueError, match="missing_requirements"):
+        runtime.write_handoff(
+            project,
+            initialized["slug"],
+            _reviewable_handoff_payload(initialized["slug"]),
+        )
+
+
+def test_write_handoff_allows_no_material_when_user_supplied_none(
+    runtime, tmp_path: Path
+):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(
+        project, "No Supplied Material", "No supplied material"
+    )
+    checkpoint_payload = _complete_checkpoint_payload(project)
+    checkpoint_payload["source_materials"] = []
+    checkpoint_payload["source_evidence"] = [
+        {
+            "source_type": "user_confirmation",
+            "evidence_status": "confirmed",
+            "source": "discussion",
+            "claim": "The user supplied no external material for this topic.",
+        }
+    ]
+    runtime.checkpoint_discussion(project, initialized["slug"], checkpoint_payload)
+
+    written = runtime.write_handoff(
+        project,
+        initialized["slug"],
+        _reviewable_handoff_payload(initialized["slug"]),
+    )
+    payload = json.loads(Path(written["json_path"]).read_text(encoding="utf-8"))
+
+    assert payload["source_materials"] == []
+
+
+def test_source_material_digest_uses_cross_runtime_canonical_json(runtime):
+    material = {
+        "id": "MAT-001",
+        "material_type": "user_note",
+        "locator": "https://example.test/a?x=1&y=2",
+        "summary": "Use <safe> reference",
+        "inspection_status": "inspected",
+        "claims": ["A & B"],
+        "coverage_gaps": [],
+        "sensitivity": "safe",
+    }
+
+    assert (
+        runtime._material_digest(material)
+        == "43dbbb0c92e0d1fc7f66430bf2d280417906aef09e12d43d670e36d910519aa2"
+    )
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"advice_confidence": "certain"}, "advice_confidence"),
+        ({"source_evidence": "not-a-list"}, "source_evidence"),
+        (
+            {
+                "source_evidence": [
+                    {
+                        "source_type": "discussion",
+                        "evidence_status": "verified",
+                        "source": "",
+                        "claim": "A claim without a source must not persist.",
+                    }
+                ]
+            },
+            "source_evidence",
+        ),
+    ],
+)
+def test_checkpoint_rejects_invalid_semantic_shapes(
+    runtime, tmp_path: Path, changes: dict, message: str
+):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Invalid Semantic Shape", "Invalid semantic shape")
+
+    with pytest.raises(ValueError, match=message):
+        runtime.checkpoint_discussion(project, initialized["slug"], changes)
+
+
+def test_legacy_state_nested_semantics_receive_v3_defaults(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Legacy Nested State", "Legacy nested state")
+    state_path = Path(initialized["workspace_path"]) / "discussion-state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["version"] = 2
+    state["turn_packet"]["version"] = 1
+    state["turn_packet"]["requirements_snapshot"] = {"target_need": "Preserve a partial legacy snapshot."}
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    resumed = runtime.resume_context(project, initialized["slug"])
+    requirements = resumed["turn_packet"]["requirements_snapshot"]
+
+    assert resumed["turn_packet"]["version"] == 2
+    assert requirements["target_need"] == "Preserve a partial legacy snapshot."
+    assert requirements["actors"] == []
+    assert requirements["non_goals"] == []
+    assert requirements["scope"] == {"in": [], "out": [], "deferred": []}
+
+
+def test_resolved_unknowns_and_conflicts_do_not_fake_open_counts(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Resolved Readiness", "Resolved readiness")
+    checkpoint_payload = _complete_checkpoint_payload(project)
+    checkpoint_payload["blocking_unknowns"] = [
+        {
+            "id": "UQ-001",
+            "question": "Which target owns the change?",
+            "owner": "user",
+            "status": "resolved",
+            "latest_resolve_phase": "prepare",
+            "resolution_evidence": "The user selected spec-kit-plus.",
+        }
+    ]
+    checkpoint_payload["conflicts"] = [
+        {
+            "id": "CF-001",
+            "claim": "Two target roots were proposed.",
+            "status": "resolved",
+            "resolution": "Use the active repository.",
+            "resolution_evidence": "The target boundary was locked.",
+        }
+    ]
+    runtime.checkpoint_discussion(project, initialized["slug"], checkpoint_payload)
+
+    written = runtime.write_handoff(
+        project,
+        initialized["slug"],
+        _reviewable_handoff_payload(initialized["slug"]),
+    )
+    payload = json.loads(Path(written["json_path"]).read_text(encoding="utf-8"))
+    handoff_schema = json.loads(
+        (PROJECT_ROOT / "templates" / "discussion-handoff-schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert payload["hard_unknown_count"] == 0
+    assert payload["open_conflict_count"] == 0
+    Draft202012Validator(handoff_schema).validate(payload)
+    markdown = (
+        project
+        / ".specify"
+        / "discussions"
+        / initialized["slug"]
+        / "discussion-state.md"
+    ).read_text(encoding="utf-8")
+    assert "blocking_unknown_count: 0" in markdown
+    assert "open_conflict_count: 0" in markdown
 
 
 def test_checkpoint_rejects_unknown_fields(runtime, tmp_path: Path):
@@ -462,6 +797,57 @@ def test_validate_and_mark_ready_require_exact_confirmed_digest(runtime, tmp_pat
     assert ready["discussion"]["lifecycle_phase"] == "ready"
     handoff = json.loads(json_path.read_text(encoding="utf-8"))
     assert handoff["status"] == "handoff-ready"
+
+
+def test_validate_handoff_rechecks_snapshot_materials_and_counts(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Readiness Semantics", "Readiness semantics")
+    checkpoint_payload = {
+        **_complete_checkpoint_payload(project),
+        "source_evidence": [
+                {
+                    "source_type": "discussion",
+                    "evidence_status": "verified",
+                    "source": "chat",
+                    "claim": "Handoff readiness must be semantic.",
+                    "material_id": "MAT-001",
+                }
+            ],
+        "source_materials": [
+                {
+                    "id": "MAT-001",
+                    "material_type": "user_note",
+                    "locator": "chat:turn-1",
+                    "inspection_status": "pending",
+                    "summary": "User supplied a note.",
+                    "claims": ["The note must be read."],
+                    "coverage_gaps": ["not inspected"],
+                    "sensitivity": "safe",
+                }
+            ],
+    }
+    runtime.checkpoint_discussion(project, initialized["slug"], checkpoint_payload)
+    handoff_payload = _reviewable_handoff_payload(initialized["slug"])
+    handoff_payload["handoff_goal"] = "Preserve semantic readiness."
+
+    with pytest.raises(ValueError, match="source_materials|draft is invalid"):
+        runtime.write_handoff(project, initialized["slug"], handoff_payload)
+
+    checkpoint_payload["source_materials"][0]["inspection_status"] = "inspected"
+    checkpoint_payload["source_materials"][0]["coverage_gaps"] = []
+    runtime.checkpoint_discussion(project, initialized["slug"], checkpoint_payload)
+    written = runtime.write_handoff(project, initialized["slug"], handoff_payload)
+    runtime.confirm_handoff(project, initialized["slug"], written["review_digest"])
+    runtime.checkpoint_discussion(
+        project,
+        initialized["slug"],
+        {"summary": "State changed", "soft_unknowns": ["new soft unknown"]},
+    )
+
+    stale = runtime.validate_handoff(project, initialized["slug"])
+
+    assert stale["valid"] is False
+    assert "discussion_snapshot_digest_mismatch" in stale["error_codes"]
 
 
 def test_draft_validation_and_digest_confirmation_are_separate_transitions(runtime, tmp_path: Path):
@@ -576,6 +962,8 @@ def test_write_handoff_persists_only_agent_contract(runtime, tmp_path: Path):
     assert payload["review_digest"] == review_digest
     assert payload["quality_gate"]["confirmed_digest"] == review_digest
     assert payload["source_contract"] == json_path.relative_to(project).as_posix()
+    assert "design_context" not in payload
+    assert isinstance(payload["discussion_decision_digest"]["design_context"], dict)
     assert not json_path.with_suffix(".md").exists()
 
 
@@ -1019,6 +1407,10 @@ def test_discussion_templates_define_typed_state_and_consumer_neutral_handoff():
         (PROJECT_ROOT / "templates" / "discussion-handoff-template.json").read_text(encoding="utf-8")
     )
 
+    Draft202012Validator.check_schema(state_schema)
+    Draft202012Validator.check_schema(handoff_schema)
+    assert state_schema["properties"]["version"]["const"] == 3
+    assert handoff_schema["properties"]["version"]["const"] == 5
     assert state_schema["properties"]["lifecycle_phase"]["enum"] == [
         "explore",
         "ground",

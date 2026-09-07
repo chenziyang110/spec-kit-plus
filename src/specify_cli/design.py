@@ -58,6 +58,8 @@ DESIGN_PREVIEW_MANIFEST_SCHEMA = "spec-kit-design-preview-manifest-v1"
 DESIGN_PREVIEW_APPROVAL_SCHEMA = "spec-kit-design-preview-approval-v1"
 DESIGN_IMAGE_APPROVAL_SCHEMA = "spec-kit-design-image-approval-v1"
 DESIGN_DIRECTION_CHECKPOINT_SCHEMA = "spec-kit-design-direction-checkpoint-v1"
+DESIGN_CONCEPT_RECEIPT_SCHEMA = "spec-kit-design-concept-lint-receipt-v1"
+DESIGN_IMAGE_GENERATION_SCHEMA = "spec-kit-design-image-generation-v1"
 DESIGN_HANDOFF_SCHEMA = "spec-kit-design-handoff-v1"
 DESIGN_CHANGE_SCHEMA = "spec-kit-ui-design-change-v1"
 DESIGN_CHANGE_INDEX_SCHEMA = "spec-kit-ui-design-index-v1"
@@ -68,7 +70,16 @@ DESIGN_PREVIEW_MANIFEST_ID = "design-preview-manifest"
 DESIGN_PREVIEW_DIRECTION_RE = re.compile(r"^direction-[a-z0-9][a-z0-9-]*$")
 DESIGN_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 DESIGN_IMAGE_CAPABILITY_VALUES = {"available", "unavailable"}
+DESIGN_IMAGE_INPUT_ROLES = {
+    "edit-source",
+    "exact-content",
+    "layout-reference",
+    "style-reference",
+    "inspiration",
+}
+DESIGN_IMAGE_INPUT_FIDELITY = {"exact", "high", "approximate", "inspiration"}
 MAX_DESIGN_IMAGE_IMPORT_BYTES = 32 * 1024 * 1024
+MAX_DESIGN_IMAGE_PROMPT_BYTES = 256 * 1024
 DESIGN_VISUAL_COLLABORATION_FIELDS = (
     "image_generation",
     "image_inspection",
@@ -2527,6 +2538,12 @@ def design_preview_direction_checkpoint_path(path: Path) -> Path:
     return path.with_suffix(".direction.json")
 
 
+def design_preview_concept_receipt_path(path: Path) -> Path:
+    """Return the deterministic concept-lint receipt sidecar path."""
+
+    return path.with_suffix(".concept.json")
+
+
 def _sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
@@ -3305,7 +3322,7 @@ def _preview_change_context(
         or bool(str(record.get("approval_sha256") or "").strip())
     ):
         raise DesignLintError(
-            f"design preview direction checkpoint requires a draft change workspace: {change_id}"
+            f"runtime-owned design round artifacts require a draft change workspace: {change_id}"
         )
     design_path = (project_root / str(record.get("design_ref") or "")).resolve()
     expected_design_ref = f".specify/design/changes/{change_id}/design-change.md"
@@ -5864,6 +5881,435 @@ def _build_direction_checkpoint_payload(
     return payload
 
 
+def _protected_surface_baseline_refs(
+    protected: list[str],
+    manifest: dict[str, Any],
+) -> dict[str, set[str]]:
+    handoff = manifest.get("handoff")
+    continuity = handoff.get("source_continuity") if isinstance(handoff, dict) else None
+    continuity = continuity if isinstance(continuity, dict) else {}
+    surface_bindings = continuity.get("surface_bindings")
+    surface_bindings = surface_bindings if isinstance(surface_bindings, list) else []
+    baseline_refs: dict[str, set[str]] = {}
+    for surface_id in protected:
+        rows = [
+            row
+            for row in surface_bindings
+            if isinstance(row, dict)
+            and str(row.get("surface_id") or "").strip() == surface_id
+        ]
+        if len(rows) != 1:
+            raise DesignLintError(
+                f"protected surface {surface_id} requires exactly one source-continuity binding before concept review"
+            )
+        row = rows[0]
+        refs = {
+            str(item).strip()
+            for item in row.get("source_refs", [])
+            if isinstance(item, str) and item.strip()
+        }
+        if (
+            str(row.get("disposition") or "").strip() != "preserve"
+            or str(row.get("use_intent") or "").strip() != "exact"
+            or str(row.get("fidelity") or "").strip() != "exact"
+            or not refs
+        ):
+            raise DesignLintError(
+                f"protected surface {surface_id} must be exact/preserve before concept review"
+            )
+        baseline_refs[surface_id] = refs
+    return baseline_refs
+
+
+def _normalize_concept_visual_review(
+    path: Path,
+    design_system: dict[str, Any],
+    manifest: dict[str, Any],
+    visual_review: dict[str, Any] | None,
+) -> dict[str, Any]:
+    authority = design_system.get("style_authority")
+    authority = authority if isinstance(authority, dict) else {}
+    posture = str(authority.get("mode") or "unresolved").strip()
+    protected = [
+        str(item).strip()
+        for item in authority.get("protected_surfaces", [])
+        if isinstance(item, str) and item.strip()
+    ]
+    scope = design_system.get("scope")
+    editable = {
+        str(item).strip()
+        for item in (scope.get("surfaces") if isinstance(scope, dict) else []) or []
+        if isinstance(item, str) and item.strip()
+    }
+    collaboration = manifest.get("visual_collaboration")
+    collaboration = collaboration if isinstance(collaboration, dict) else {}
+    inspection_available = (
+        str(collaboration.get("image_inspection") or "").strip() == "available"
+    )
+    if posture != "inherit-existing":
+        return {
+            "verdict": "not-required",
+            "reviewer": "runtime",
+            "protected_surfaces": [],
+            "observed_differences": [],
+        }
+    if not {"global-shell", "shared-components"} <= set(protected):
+        raise DesignLintError(
+            "inherit-existing concept review must protect global-shell and shared-components"
+        )
+    baseline_refs = _protected_surface_baseline_refs(protected, manifest)
+    if not inspection_available:
+        return {
+            "verdict": "pending-user",
+            "reviewer": "user",
+            "protected_surfaces": [],
+            "observed_differences": [],
+        }
+    if not isinstance(visual_review, dict):
+        raise DesignLintError(
+            "inherit-existing concept lint requires --inspection-json when image inspection is available"
+        )
+    expected_fields = {
+        "verdict",
+        "reviewer",
+        "protected_surfaces",
+        "observed_differences",
+    }
+    if set(visual_review) != expected_fields:
+        raise DesignLintError(
+            "concept inspection must contain exactly verdict, reviewer, protected_surfaces, and observed_differences"
+        )
+    reviewer = str(visual_review.get("reviewer") or "").strip()
+    if str(visual_review.get("verdict") or "").strip() != "pass" or reviewer not in {
+        "agent",
+        "agent-and-user",
+    }:
+        raise DesignLintError(
+            "concept inspection must record verdict pass by agent or agent-and-user"
+        )
+
+    if path.suffix.lower() in DESIGN_IMAGE_SUFFIXES:
+        project_root = _preview_project_root(path)
+        image_inputs = _normalized_image_inputs(manifest, project_root=project_root)
+        _validate_inherited_surface_baselines(design_system, manifest, image_inputs)
+        image_refs_by_surface: dict[str, set[str]] = {}
+        for item in image_inputs:
+            if item["role"] != "edit-source" or item["fidelity"] != "exact":
+                continue
+            for surface_id in item["surface_ids"]:
+                image_refs_by_surface.setdefault(surface_id, set()).add(item["ref"])
+        for surface_id in protected:
+            baseline_refs[surface_id] &= image_refs_by_surface.get(surface_id, set())
+            if not baseline_refs[surface_id]:
+                raise DesignLintError(
+                    f"protected surface {surface_id} has no exact edit-source baseline"
+                )
+
+    raw_reviews = visual_review.get("protected_surfaces")
+    if not isinstance(raw_reviews, list):
+        raise DesignLintError("concept inspection protected_surfaces must be an array")
+    normalized_reviews: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for index, raw in enumerate(raw_reviews):
+        if not isinstance(raw, dict) or set(raw) != {
+            "surface_id",
+            "baseline_ref",
+            "status",
+            "evidence",
+        }:
+            raise DesignLintError(
+                f"concept inspection protected_surfaces[{index}] has an invalid shape"
+            )
+        surface_id = str(raw.get("surface_id") or "").strip()
+        baseline_ref = str(raw.get("baseline_ref") or "").strip()
+        evidence = str(raw.get("evidence") or "").strip()
+        if (
+            surface_id not in protected
+            or surface_id in seen
+            or str(raw.get("status") or "").strip() != "preserved"
+            or baseline_ref not in baseline_refs.get(surface_id, set())
+            or not evidence
+        ):
+            raise DesignLintError(
+                f"concept inspection protected_surfaces[{index}] does not prove an exact preserved baseline"
+            )
+        seen.add(surface_id)
+        normalized_reviews.append(
+            {
+                "surface_id": surface_id,
+                "baseline_ref": baseline_ref,
+                "status": "preserved",
+                "evidence": evidence,
+            }
+        )
+    missing = sorted(set(protected) - seen)
+    if missing:
+        raise DesignLintError(
+            "concept inspection must cover every protected surface: "
+            + ", ".join(missing)
+        )
+
+    raw_differences = visual_review.get("observed_differences")
+    if not isinstance(raw_differences, list):
+        raise DesignLintError("concept inspection observed_differences must be an array")
+    normalized_differences: list[dict[str, Any]] = []
+    for index, raw in enumerate(raw_differences):
+        if not isinstance(raw, dict) or set(raw) != {
+            "surface_id",
+            "summary",
+            "authorized",
+        }:
+            raise DesignLintError(
+                f"concept inspection observed_differences[{index}] has an invalid shape"
+            )
+        surface_id = str(raw.get("surface_id") or "").strip()
+        summary = str(raw.get("summary") or "").strip()
+        authorized = raw.get("authorized") is True
+        if surface_id in protected:
+            raise DesignLintError(
+                f"concept inspection found drift in protected surface {surface_id}"
+            )
+        if surface_id not in editable or not summary or not authorized:
+            raise DesignLintError(
+                f"concept inspection difference {surface_id or index} is outside the authorized editable scope"
+            )
+        normalized_differences.append(
+            {
+                "surface_id": surface_id,
+                "summary": summary,
+                "authorized": True,
+            }
+        )
+    return {
+        "verdict": "pass",
+        "reviewer": reviewer,
+        "protected_surfaces": normalized_reviews,
+        "observed_differences": normalized_differences,
+    }
+
+
+def _build_design_concept_receipt_payload(
+    path: Path,
+    *,
+    manifest: dict[str, Any],
+    visual_medium: str,
+    prompt_path: Path | None = None,
+    visual_review: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    project_root, design_path, change_id, record, preview_ref, document = (
+        _preview_change_context(path)
+    )
+    contract_profile_ids = [
+        str(value)
+        for value in document.design_system.get("capability_profiles", [])
+        if str(value).strip()
+    ]
+    manifest_profile_ids = _design_capability_profile_ids(manifest)
+    if manifest_profile_ids != contract_profile_ids:
+        raise DesignLintError(
+            "concept receipt capability profiles do not match the draft design change"
+        )
+    review = manifest.get("review")
+    review = review if isinstance(review, dict) else {}
+    review_round = str(review.get("round") or "").strip()
+    expected_round = _design_preview_round_number(path)
+    if review_round != expected_round:
+        raise DesignLintError(
+            "design preview review.round must match its round-NN filename"
+        )
+    payload: dict[str, Any] = {
+        "schema": DESIGN_CONCEPT_RECEIPT_SCHEMA,
+        "status": "passed",
+        "authority": "non-consumable",
+        "consumer_eligible": False,
+        "lint_level": "concept",
+        "design_change_id": change_id,
+        "design_change_ref": str(record.get("design_ref") or "").strip(),
+        "design_change_sha256": _sha256_bytes(design_path.read_bytes()),
+        "scope": deepcopy(record.get("scope", [])),
+        "capability_profile_ids": manifest_profile_ids,
+        "visual_medium": visual_medium,
+        "preview_file": path.name,
+        "preview_ref": preview_ref,
+        "preview_sha256": _sha256_bytes(path.read_bytes()),
+        "review_round": review_round,
+        "manifest_ref": path.with_suffix(".manifest.json").resolve(strict=False)
+        .relative_to(project_root)
+        .as_posix(),
+        "manifest_sha256": _sha256_bytes(path.with_suffix(".manifest.json").read_bytes()),
+        "visual_review": _normalize_concept_visual_review(
+            path,
+            document.design_system,
+            manifest,
+            visual_review,
+        ),
+    }
+    if prompt_path is not None:
+        collaboration = manifest.get("visual_collaboration")
+        collaboration = collaboration if isinstance(collaboration, dict) else {}
+        manifest_path = path.with_suffix(".manifest.json")
+        generation_path = design_image_generation_plan_path(manifest_path)
+        try:
+            actual_prompt = prompt_path.read_text(encoding="utf-8")
+            expected_prompt, expected_generation = _render_design_image_prompt_payload(
+                manifest_path,
+                prompt_text=actual_prompt,
+            )
+            actual_generation = json.loads(
+                generation_path.read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise DesignLintError(
+                "image concept receipt requires the current runtime-owned generation bundle"
+            ) from exc
+        if actual_prompt != expected_prompt or actual_generation != expected_generation:
+            raise DesignLintError(
+                "image concept receipt requires a current runtime-owned generation bundle"
+            )
+        payload.update(
+            {
+                "prompt_ref": prompt_path.resolve(strict=False)
+                .relative_to(project_root)
+                .as_posix(),
+                "prompt_sha256": _sha256_bytes(prompt_path.read_bytes()),
+                "image_generation": str(collaboration.get("image_generation") or "").strip(),
+                "image_inspection": str(collaboration.get("image_inspection") or "").strip(),
+                "image_editing": str(collaboration.get("image_editing") or "").strip(),
+                "inspection_owner": str(collaboration.get("inspection_owner") or "").strip(),
+                "prompt_strategy": str(collaboration.get("prompt_strategy") or "").strip(),
+                "generation_ref": generation_path.resolve(strict=False)
+                .relative_to(project_root)
+                .as_posix(),
+                "generation_sha256": _sha256_bytes(generation_path.read_bytes()),
+            }
+        )
+    return payload
+
+
+def _write_or_verify_concept_receipt(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    receipt_path = design_preview_concept_receipt_path(path)
+    diagnostics = _json_schema_diagnostics(
+        payload,
+        schema_name="design-concept-lint-receipt.schema.json",
+        code="concept-receipt-schema-error",
+        root_path="concept_receipt",
+    )
+    if diagnostics:
+        raise DesignLintError(
+            "; ".join(
+                f"{diagnostic.path}: {diagnostic.message}"
+                for diagnostic in diagnostics
+            )
+        )
+    rendered = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    if receipt_path.exists():
+        existing = receipt_path.read_text(encoding="utf-8")
+        if existing == rendered:
+            return payload
+        raise DesignLintError(
+            f"concept receipt already exists with different bytes: {receipt_path}"
+        )
+    atomic_write_text(receipt_path, rendered)
+    return payload
+
+
+def record_design_concept_receipt(
+    path: Path,
+    *,
+    visual_review: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if path.suffix.lower() == ".html":
+        diagnostics = lint_design_preview_file(path, level="concept")
+        if diagnostics:
+            raise DesignLintError(
+                "design preview is not ready for concept receipt: "
+                + "; ".join(f"{diagnostic.code}: {diagnostic.message}" for diagnostic in diagnostics)
+            )
+        content = path.read_text(encoding="utf-8")
+        parser = _DesignPreviewHTMLParser()
+        parser.feed(content)
+        parser.close()
+        manifest = _parse_preview_manifest(parser)
+        if manifest is None:
+            raise DesignLintError("design preview has no embedded manifest")
+        adjacent_manifest = json.loads(path.with_suffix(".manifest.json").read_text(encoding="utf-8"))
+        if not isinstance(adjacent_manifest, dict):
+            raise DesignLintError("adjacent design preview manifest must be a JSON object")
+        if _canonical_json_sha256(adjacent_manifest) != _canonical_json_sha256(manifest):
+            raise DesignLintError(
+                "adjacent design preview manifest must exactly match the embedded manifest before concept receipt"
+            )
+        payload = _build_design_concept_receipt_payload(
+            path,
+            manifest=manifest,
+            visual_medium="html",
+            visual_review=visual_review,
+        )
+        return _write_or_verify_concept_receipt(path, payload)
+
+    diagnostics = lint_design_image_bundle(path, level="concept")
+    if diagnostics:
+        raise DesignLintError(
+            "design image is not ready for concept receipt: "
+            + "; ".join(f"{diagnostic.code}: {diagnostic.message}" for diagnostic in diagnostics)
+        )
+    manifest_path = path.with_suffix(".manifest.json")
+    prompt_path = path.with_suffix(".prompt.md")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise DesignLintError("design image manifest must be a JSON object")
+    payload = _build_design_concept_receipt_payload(
+        path,
+        manifest=manifest,
+        visual_medium="image",
+        prompt_path=prompt_path,
+        visual_review=visual_review,
+    )
+    return _write_or_verify_concept_receipt(path, payload)
+
+
+def _load_required_concept_receipt(path: Path) -> dict[str, Any]:
+    receipt_path = design_preview_concept_receipt_path(path)
+    try:
+        payload = json.loads(receipt_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DesignLintError(
+            "design direction confirmation requires a passing concept receipt; "
+            f"rerun design preview-lint {path} --level concept ({exc})"
+        ) from exc
+    if not isinstance(payload, dict) or payload.get("schema") != DESIGN_CONCEPT_RECEIPT_SCHEMA:
+        raise DesignLintError(
+            "design direction confirmation requires a passing concept receipt; "
+            f"rerun design preview-lint {path} --level concept"
+        )
+    return payload
+
+
+def _verify_concept_receipt(
+    path: Path,
+    *,
+    receipt: dict[str, Any],
+    manifest: dict[str, Any],
+    visual_medium: str,
+    prompt_path: Path | None = None,
+) -> None:
+    expected = _build_design_concept_receipt_payload(
+        path,
+        manifest=manifest,
+        visual_medium=visual_medium,
+        prompt_path=prompt_path,
+        visual_review=(
+            receipt.get("visual_review")
+            if isinstance(receipt.get("visual_review"), dict)
+            else None
+        ),
+    )
+    if receipt != expected:
+        raise DesignLintError(
+            "concept receipt no longer matches the current preview bundle; rerun design preview-lint --level concept"
+        )
+
+
 def _write_or_verify_direction_checkpoint(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
     checkpoint_path = design_preview_direction_checkpoint_path(path)
     diagnostics = _json_schema_diagnostics(
@@ -6414,6 +6860,12 @@ def _confirm_design_preview_direction_locked(
         raise DesignLintError(
             "adjacent design preview manifest must exactly match the embedded manifest before direction confirmation"
         )
+    _verify_concept_receipt(
+        path,
+        receipt=_load_required_concept_receipt(path),
+        manifest=manifest,
+        visual_medium="html",
+    )
     payload = _build_direction_checkpoint_payload(
         path,
         direction_id=direction_id,
@@ -6524,6 +6976,13 @@ def _confirm_design_image_direction_locked(
             "design image is not ready for direction confirmation: "
             + "; ".join(f"{diagnostic.code}: {diagnostic.message}" for diagnostic in diagnostics)
         )
+    _verify_concept_receipt(
+        path,
+        receipt=_load_required_concept_receipt(path),
+        manifest=manifest,
+        visual_medium="image",
+        prompt_path=prompt_path,
+    )
     payload = _build_direction_checkpoint_payload(
         path,
         direction_id=direction_id,
@@ -7190,7 +7649,6 @@ def render_design_preview(
         ) from exc
     if not isinstance(manifest, dict):
         raise DesignLintError("design preview manifest must be a JSON object")
-
     round_match = re.fullmatch(r"round-(\d+)", out_path.stem, re.IGNORECASE)
     review = manifest.get("review")
     if not isinstance(review, dict):
@@ -7327,6 +7785,365 @@ def scaffold_design_preview(
     finally:
         if validation_path is not None:
             validation_path.unlink(missing_ok=True)
+    return out_path
+
+
+def design_image_generation_plan_path(manifest_path: Path) -> Path:
+    """Return the runtime-owned generation sidecar for one image round."""
+
+    return manifest_path.with_name(
+        manifest_path.name.removesuffix(".manifest.json") + ".generation.json"
+    )
+
+
+def _image_prompt_context(
+    manifest_path: Path,
+) -> tuple[Path, Path, dict[str, Any], dict[str, Any], DesignDocument]:
+    base_name = manifest_path.name.removesuffix(".manifest.json")
+    preview_path = manifest_path.with_name(base_name + ".png")
+    project_root, design_path, _change_id, record, _preview_ref, document = (
+        _preview_change_context(preview_path)
+    )
+    return project_root, design_path, record, document.design_system, document
+
+
+def _normalized_image_inputs(
+    manifest: dict[str, Any],
+    *,
+    project_root: Path,
+) -> list[dict[str, Any]]:
+    raw_inputs = manifest.get("input_images", [])
+    if not isinstance(raw_inputs, list):
+        raise DesignLintError("manifest.input_images must be an array")
+    normalized: list[dict[str, Any]] = []
+    for index, raw in enumerate(raw_inputs):
+        if not isinstance(raw, dict):
+            raise DesignLintError(f"manifest.input_images[{index}] must be an object")
+        expected_fields = {"ref", "role", "surface_ids", "fidelity"}
+        if set(raw) != expected_fields:
+            raise DesignLintError(
+                f"manifest.input_images[{index}] must contain exactly ref, role, surface_ids, and fidelity"
+            )
+        ref = str(raw.get("ref") or "").strip()
+        role = str(raw.get("role") or "").strip()
+        fidelity = str(raw.get("fidelity") or "").strip()
+        surface_ids = raw.get("surface_ids")
+        if (
+            not ref
+            or role not in DESIGN_IMAGE_INPUT_ROLES
+            or fidelity not in DESIGN_IMAGE_INPUT_FIDELITY
+            or not isinstance(surface_ids, list)
+            or not surface_ids
+            or any(not isinstance(item, str) or not item.strip() for item in surface_ids)
+            or len(surface_ids) != len(set(surface_ids))
+        ):
+            raise DesignLintError(
+                f"manifest.input_images[{index}] has invalid ref, role, surface_ids, or fidelity"
+            )
+        candidate = (project_root / ref).resolve(strict=False)
+        try:
+            relative_ref = candidate.relative_to(project_root).as_posix()
+        except ValueError as exc:
+            raise DesignLintError(
+                f"manifest.input_images[{index}].ref must stay inside the project root"
+            ) from exc
+        if not candidate.is_file():
+            raise DesignLintError(
+                f"manifest.input_images[{index}].ref is not an inspectable project file: {relative_ref}"
+            )
+        image_bytes, diagnostics = _design_image_artifact_diagnostics(candidate)
+        if diagnostics:
+            raise DesignLintError(
+                f"manifest.input_images[{index}].ref is not a valid image: "
+                + "; ".join(
+                    f"{diagnostic.code}: {diagnostic.message}"
+                    for diagnostic in diagnostics
+                )
+            )
+        normalized.append(
+            {
+                "ref": relative_ref,
+                "role": role,
+                "surface_ids": [str(item).strip() for item in surface_ids],
+                "fidelity": fidelity,
+                "sha256": _sha256_bytes(image_bytes),
+            }
+        )
+    return normalized
+
+
+def _validate_inherited_surface_baselines(
+    design_system: dict[str, Any],
+    manifest: dict[str, Any],
+    image_inputs: list[dict[str, Any]],
+) -> tuple[str, list[str], list[str]]:
+    authority = design_system.get("style_authority")
+    authority = authority if isinstance(authority, dict) else {}
+    posture = str(authority.get("mode") or "unresolved").strip()
+    protected = [
+        str(item).strip()
+        for item in authority.get("protected_surfaces", [])
+        if isinstance(item, str) and item.strip()
+    ]
+    scope = design_system.get("scope")
+    editable = [
+        str(item).strip()
+        for item in (scope.get("surfaces") if isinstance(scope, dict) else []) or []
+        if isinstance(item, str) and item.strip()
+    ]
+    if posture not in {
+        "greenfield",
+        "inherit-existing",
+        "page-overhaul-authorized",
+    }:
+        raise DesignLintError(
+            "design prompt requires a resolved surface posture before image generation"
+        )
+    if posture != "inherit-existing":
+        operation = "edit" if any(item["role"] == "edit-source" for item in image_inputs) else "generate"
+        return operation, protected, editable
+
+    expected_protected = {"global-shell", "shared-components"}
+    if not expected_protected <= set(protected):
+        raise DesignLintError(
+            "inherit-existing image work must protect global-shell and shared-components"
+        )
+    collaboration = manifest.get("visual_collaboration")
+    collaboration = collaboration if isinstance(collaboration, dict) else {}
+    if str(collaboration.get("image_editing") or "").strip() != "available":
+        raise DesignLintError(
+            "inherit-existing image work requires image_editing available; use the HTML-primary lane when editing is unavailable"
+        )
+    edit_coverage: set[str] = set()
+    edit_refs_by_surface: dict[str, set[str]] = {}
+    for item in image_inputs:
+        if item["role"] != "edit-source" or item["fidelity"] != "exact":
+            continue
+        for surface_id in item["surface_ids"]:
+            edit_coverage.add(surface_id)
+            edit_refs_by_surface.setdefault(surface_id, set()).add(item["ref"])
+    missing = sorted(set(protected) - edit_coverage)
+    if missing:
+        raise DesignLintError(
+            "inherit-existing image work requires exact edit-source coverage for protected surfaces: "
+            + ", ".join(missing)
+        )
+
+    handoff = manifest.get("handoff")
+    continuity = handoff.get("source_continuity") if isinstance(handoff, dict) else None
+    if not isinstance(continuity, dict):
+        raise DesignLintError(
+            "inherit-existing image work requires manifest.handoff.source_continuity"
+        )
+    surface_rows = continuity.get("surface_bindings")
+    surface_rows = surface_rows if isinstance(surface_rows, list) else []
+    for surface_id in protected:
+        rows = [
+            row
+            for row in surface_rows
+            if isinstance(row, dict)
+            and str(row.get("surface_id") or "").strip() == surface_id
+        ]
+        if len(rows) != 1:
+            raise DesignLintError(
+                f"inherit-existing protected surface {surface_id} requires exactly one source-continuity binding"
+            )
+        row = rows[0]
+        refs = {
+            str(item).strip()
+            for item in row.get("source_refs", [])
+            if isinstance(item, str) and item.strip()
+        }
+        if (
+            str(row.get("disposition") or "").strip() != "preserve"
+            or str(row.get("use_intent") or "").strip() != "exact"
+            or str(row.get("fidelity") or "").strip() != "exact"
+            or not (refs & edit_refs_by_surface.get(surface_id, set()))
+        ):
+            raise DesignLintError(
+                f"inherit-existing protected surface {surface_id} must be exact/preserve and cite its edit-source baseline"
+            )
+    return "edit", protected, editable
+
+
+def _validated_design_image_prompt(prompt_text: str) -> tuple[str, bytes]:
+    if not isinstance(prompt_text, str) or not prompt_text.strip():
+        raise DesignLintError("design prompt content must not be empty")
+    if "\x00" in prompt_text:
+        raise DesignLintError("design prompt content must not contain NUL bytes")
+    try:
+        prompt_bytes = prompt_text.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise DesignLintError("design prompt content must be valid UTF-8 text") from exc
+    if len(prompt_bytes) > MAX_DESIGN_IMAGE_PROMPT_BYTES:
+        raise DesignLintError(
+            "design prompt content exceeds the "
+            f"{MAX_DESIGN_IMAGE_PROMPT_BYTES}-byte limit"
+        )
+    return prompt_text, prompt_bytes
+
+
+def _render_design_image_prompt_payload(
+    manifest_path: Path,
+    *,
+    prompt_text: str,
+) -> tuple[str, dict[str, Any]]:
+    try:
+        manifest_bytes = manifest_path.read_bytes()
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DesignLintError(
+            f"cannot read design preview manifest {manifest_path}: {exc}"
+        ) from exc
+    if not isinstance(manifest, dict):
+        raise DesignLintError("design preview manifest must be a JSON object")
+    if "style_authority" in manifest:
+        raise DesignLintError(
+            "design prompt must derive style_authority from the canonical design-change, not manifest.style_authority"
+        )
+    collaboration = manifest.get("visual_collaboration")
+    if not isinstance(collaboration, dict) or str(
+        collaboration.get("primary_medium") or ""
+    ).strip() != "image-primary":
+        raise DesignLintError(
+            "design prompt requires an image-primary manifest.visual_collaboration route"
+        )
+    directions = manifest.get("directions")
+    direction = (
+        directions[0]
+        if isinstance(directions, list)
+        and len(directions) == 1
+        and isinstance(directions[0], dict)
+        else None
+    )
+    if direction is None:
+        raise DesignLintError("design prompt requires exactly one current concept")
+    project_root, design_path, record, design_system, _document = (
+        _image_prompt_context(manifest_path)
+    )
+    image_inputs = _normalized_image_inputs(manifest, project_root=project_root)
+    operation, protected, editable = _validate_inherited_surface_baselines(
+        design_system, manifest, image_inputs
+    )
+    posture = str(
+        (design_system.get("style_authority") or {}).get("mode")
+        if isinstance(design_system.get("style_authority"), dict)
+        else "unresolved"
+    ).strip()
+    prompt, prompt_bytes = _validated_design_image_prompt(prompt_text)
+    if DESIGN_PREVIEW_PLACEHOLDER_RE.search(prompt):
+        raise DesignLintError(
+            "design prompt content must not contain unresolved placeholders"
+        )
+    review = manifest.get("review")
+    review = review if isinstance(review, dict) else {}
+    round_number = str(review.get("round") or "").strip()
+    if round_number != _design_preview_round_number(manifest_path.with_name(manifest_path.name.removesuffix(".manifest.json") + ".png")):
+        raise DesignLintError("manifest.review.round must match the round-NN filename")
+    prompt_path = manifest_path.with_name(
+        manifest_path.name.removesuffix(".manifest.json") + ".prompt.md"
+    )
+    generation = {
+        "schema": DESIGN_IMAGE_GENERATION_SCHEMA,
+        "status": "prepared",
+        "authority": "runtime-owned",
+        "content_authority": "agent-authored-exact",
+        "design_change_id": str(record.get("id") or "").strip(),
+        "design_change_ref": str(record.get("design_ref") or "").strip(),
+        "design_change_sha256": _sha256_bytes(design_path.read_bytes()),
+        "round": round_number,
+        "manifest_ref": manifest_path.resolve().relative_to(project_root).as_posix(),
+        "manifest_sha256": _sha256_bytes(manifest_bytes),
+        "prompt_ref": prompt_path.resolve().relative_to(project_root).as_posix(),
+        "prompt_sha256": _sha256_bytes(prompt_bytes),
+        "operation": operation,
+        "surface_posture": posture,
+        "protected_surfaces": protected,
+        "editable_surfaces": editable,
+        "input_images": image_inputs,
+    }
+    diagnostics = _json_schema_diagnostics(
+        generation,
+        schema_name="design-image-generation.schema.json",
+        code="image-generation-schema-error",
+        root_path="generation",
+    )
+    if diagnostics:
+        raise DesignLintError(
+            "; ".join(
+                f"{diagnostic.path}: {diagnostic.message}"
+                for diagnostic in diagnostics
+            )
+        )
+    return prompt, generation
+
+
+def render_design_image_prompt(
+    source_path: Path,
+    *,
+    prompt_text: str,
+    out_path: Path | None = None,
+) -> Path:
+    """Create and bind the exact agent-authored prompt for an image-primary round."""
+
+    if source_path.name.lower().endswith(".manifest.json"):
+        manifest_path = source_path
+    elif source_path.suffix.lower() in DESIGN_IMAGE_SUFFIXES:
+        manifest_path = source_path.with_suffix(".manifest.json")
+    else:
+        raise DesignLintError(
+            "design prompt requires a round-NN.manifest.json or round-NN.<png|jpg|jpeg|webp> path"
+        )
+    manifest_path = manifest_path.resolve(strict=False)
+    canonical_prompt = manifest_path.with_name(
+        manifest_path.name.removesuffix(".manifest.json") + ".prompt.md"
+    )
+    if out_path is not None and out_path.resolve(strict=False) != canonical_prompt:
+        raise DesignLintError(
+            "design prompt output must be the canonical adjacent round-NN.prompt.md"
+        )
+    out_path = canonical_prompt
+    prompt, generation = _render_design_image_prompt_payload(
+        manifest_path,
+        prompt_text=prompt_text,
+    )
+    generation_path = design_image_generation_plan_path(manifest_path)
+    rendered = {
+        out_path: prompt.encode("utf-8"),
+        generation_path: (
+            json.dumps(generation, ensure_ascii=False, indent=2) + "\n"
+        ).encode("utf-8"),
+    }
+    current: dict[Path, bytes | None] = {}
+    for path in rendered:
+        try:
+            current[path] = path.read_bytes()
+        except FileNotFoundError:
+            current[path] = None
+        except OSError as exc:
+            raise DesignLintError(f"cannot inspect design prompt bundle: {exc}") from exc
+    if all(current[path] == desired for path, desired in rendered.items()):
+        return out_path
+    if any(value is not None for value in current.values()):
+        raise DesignLintError(
+            "design prompt bundle is create-only; existing or partial bytes differ. "
+            "Create a new numbered round"
+        )
+    if rendered:
+        project_root, _design_path, _record, _design_system, _document = (
+            _image_prompt_context(manifest_path)
+        )
+        try:
+            apply_workflow_transaction(
+                project_root,
+                kind="design.prepare-image-generation",
+                updates=rendered,
+                expected_before={path: None for path in rendered},
+            )
+        except WorkflowTransactionError as exc:
+            raise DesignLintError(
+                f"cannot prepare design image prompt bundle: {exc}"
+            ) from exc
     return out_path
 
 
@@ -7987,6 +8804,31 @@ def _import_design_image_round(
             f"design change {normalized_change} workspace is not canonical"
         )
 
+    manifest_path = workspace / "previews" / f"round-{normalized_round}.manifest.json"
+    prompt_path = workspace / "previews" / f"round-{normalized_round}.prompt.md"
+    generation_path = design_image_generation_plan_path(manifest_path)
+    if not generation_path.is_file():
+        raise DesignLintError(
+            "design image import requires the runtime-owned generation sidecar; "
+            f"run design prompt {manifest_path} --content - before image generation"
+        )
+    try:
+        actual_prompt = prompt_path.read_text(encoding="utf-8")
+        prompt_text, expected_generation = _render_design_image_prompt_payload(
+            manifest_path,
+            prompt_text=actual_prompt,
+        )
+        actual_generation = json.loads(generation_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DesignLintError(
+            "design image import requires the current runtime-owned generation bundle; "
+            f"run design prompt {manifest_path} --content - before image generation ({exc})"
+        ) from exc
+    if actual_prompt != prompt_text or actual_generation != expected_generation:
+        raise DesignLintError(
+            "design image generation bundle is stale; create a new numbered round and run design prompt --content -"
+        )
+
     target = workspace / "previews" / (
         f"round-{normalized_round}{source_path.suffix.lower()}"
     )
@@ -8004,7 +8846,7 @@ def _import_design_image_round(
         f"- Notes: {notes_line}\n\n"
         "## Synthesis Instructions\n\n"
         "- Preserve the imported bytes as one immutable candidate round.\n"
-        "- Bind the adjacent manifest and exact prompt only through `design approve` after explicit user approval.\n"
+        "- Preserve the runtime-owned manifest, prompt, and generation binding; `design approve` freezes them only after explicit user approval.\n"
         "- Write original scoped guidance into the change-local `design-change.md` only after user approval in `sp-design`.\n"
     )
 

@@ -44,7 +44,7 @@ var knownLearningCommands = []string{
 	"sp-accept", "sp-analyze", "sp-ask", "sp-auto", "sp-checklist", "sp-constitution",
 	"sp-debug", "sp-deep-research", "sp-design", "sp-discussion", "sp-explain", "sp-fast", "sp-implement",
 	"sp-implement-teams", "sp-map-scan", "sp-map-build", "sp-map-update", "sp-map-rebuild",
-	"sp-plan", "sp-prd", "sp-prd-build", "sp-prd-scan", "sp-quick", "sp-specify", "sp-tasks", "sp-taskstoissues", "sp-team", "sp-test-design",
+	"sp-plan", "sp-prd-build", "sp-prd-scan", "sp-quick", "sp-specify", "sp-tasks", "sp-taskstoissues", "sp-team", "sp-test-design",
 }
 
 var workflowStateAutoCaptureCommands = map[string]bool{
@@ -1820,9 +1820,6 @@ func normalizeLearningCommand(commandName string) (string, error) {
 		raw = "sp-" + raw[3:]
 	} else if !strings.HasPrefix(raw, "sp-") {
 		raw = "sp-" + raw
-	}
-	if raw == "sp-research" {
-		raw = "sp-deep-research"
 	}
 	if !regexp.MustCompile(`^sp-[a-z0-9][a-z0-9-]*$`).MatchString(raw) {
 		return "", fmt.Errorf("invalid command name %q", commandName)

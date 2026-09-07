@@ -239,6 +239,12 @@ run `source-continuity-manifest`, inspect the current tool inventory, then call
 It maps signals through `source-continuity-adapter-catalog` and owns inventory,
 Probe, and Plan. `source-continuity-adapter-probe` and
 `source-continuity-adapter-plan` remain progressively lower-level fallbacks.
+The target snapshot hashes current `expected_write_scope`, using legacy
+`write_scope` only as fallback. Runtime-owned workflow roots and Source
+Continuity outputs are excluded, keeping repeated manifests byte-stable until
+an in-scope product source changes. Do not add `source-continuity` artifacts to
+product or execution-guard scope as a workaround; explicit runtime-owned scopes
+are invalid.
 Compile `source-continuity-adapter-execution` from the returned plan ref/SHA,
 then execute only its bounded per-adapter packets, business binding targets,
 evidence requirements, permissions, preconditions, and stop conditions. Register

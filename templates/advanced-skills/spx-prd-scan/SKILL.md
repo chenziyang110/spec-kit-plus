@@ -56,9 +56,7 @@ of the build phase.
 Hand off to `$spx-prd-build` only when the CLI-owned scan package passes the contract's
 reconstruction-ready gate. Otherwise persist `blocked-by-gap` with the exact
 missing evidence and smallest recovery lane. This invocation authorizes only
-this workflow stage; do not invoke another workflow in this run. The explicit
-`$spx-prd` compatibility route owns scan-to-build continuation when it was the
-user-authorized entrypoint.
+this workflow stage; do not invoke another workflow in this run.
 
 After a leased workflow-state patch records `status: ready-for-build`,
 `scan_status: complete`, `build_status: pending`, and the build handoff, run

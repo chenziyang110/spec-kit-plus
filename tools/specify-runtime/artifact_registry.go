@@ -494,6 +494,21 @@ var artifactTypePatterns = []artifactTypePattern{
 	},
 	{
 		metadata: ArtifactTypeMetadata{
+			TypeID:         "ui-design-generation-prompt",
+			Owner:          "specify-runtime design prompt",
+			Role:           "derived",
+			Authority:      "non-consumable",
+			Schema:         "markdown/design-image-generation-prompt",
+			Operations:     []string{"show", "list"},
+			SummaryAdapter: "markdown-headings",
+		},
+		match: func(path string) bool {
+			parts := strings.Split(path, "/")
+			return len(parts) == 6 && parts[0] == ".specify" && parts[1] == "design" && parts[2] == "changes" && designChangeIDRE.MatchString(parts[3]) && parts[4] == "previews" && strings.HasSuffix(parts[5], ".prompt.md")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{
 			TypeID:         "design-markdown",
 			Owner:          "specify-runtime design",
 			Role:           "derived",
@@ -520,6 +535,35 @@ var artifactTypePatterns = []artifactTypePattern{
 		match: func(path string) bool {
 			parts := strings.Split(path, "/")
 			return len(parts) == 6 && parts[0] == ".specify" && parts[1] == "design" && parts[2] == "changes" && designChangeIDRE.MatchString(parts[3]) && parts[4] == "previews" && strings.HasSuffix(parts[5], ".direction.json")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{
+			TypeID:         "ui-design-concept-receipt",
+			Owner:          "specify-runtime design preview-lint",
+			Role:           "derived",
+			Authority:      "non-consumable",
+			Schema:         "json/design-concept-receipt",
+			Operations:     []string{"show", "list"},
+			SummaryAdapter: "json-top-level-keys",
+		},
+		match: func(path string) bool {
+			parts := strings.Split(path, "/")
+			return len(parts) == 6 && parts[0] == ".specify" && parts[1] == "design" && parts[2] == "changes" && designChangeIDRE.MatchString(parts[3]) && parts[4] == "previews" && strings.HasSuffix(parts[5], ".concept.json")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{
+			TypeID:         "ui-design-generation-sidecar",
+			Owner:          "specify-runtime design prompt",
+			Role:           "derived",
+			Schema:         "json/design-generation",
+			Operations:     []string{"show", "list"},
+			SummaryAdapter: "json-top-level-keys",
+		},
+		match: func(path string) bool {
+			parts := strings.Split(path, "/")
+			return len(parts) == 6 && parts[0] == ".specify" && parts[1] == "design" && parts[2] == "changes" && designChangeIDRE.MatchString(parts[3]) && parts[4] == "previews" && strings.HasSuffix(parts[5], ".generation.json")
 		},
 	},
 	{

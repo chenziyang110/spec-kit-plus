@@ -704,6 +704,25 @@ func decodeDiscussionHandoffPayload(raw []byte) (map[string]any, error) {
 var discussionCheckpointPacketKeys = []string{
 	"user_goal",
 	"turn_class",
+	"requirements_snapshot",
+	"implementation_target",
+	"source_evidence",
+	"source_materials",
+	"blocking_unknowns",
+	"soft_unknowns",
+	"conflicts",
+	"downstream_instructions",
+	"discussion_decision_digest",
+	"must_preserve",
+	"truth_pass_status",
+	"verified_project_facts",
+	"evidence_checked",
+	"advice_confidence",
+	"discussion_compass_status",
+	"next_discussion_paths",
+	"ui_discussion_status",
+	"design_context",
+	"artifact_refs",
 	"confirmed_decisions",
 	"changed_recommendations",
 	"context_boundary",
@@ -721,6 +740,77 @@ var discussionCheckpointMetaKeys = map[string]bool{
 	"summary":         true,
 	"lifecycle_phase": true,
 	"phase":           true, // alias for lifecycle_phase
+}
+
+var discussionCheckpointEnumFields = map[string]map[string]bool{
+	"truth_pass_status":         {"not-needed": true, "needed": true, "in-progress": true, "complete": true, "blocked": true},
+	"discussion_compass_status": {"current": true, "stale": true, "missing": true},
+	"ui_discussion_status":      {"not_applicable": true, "offered": true, "accepted": true, "skipped": true, "completed": true, "deferred": true},
+}
+
+var discussionCheckpointEnumFieldOrder = []string{
+	"truth_pass_status",
+	"discussion_compass_status",
+	"ui_discussion_status",
+}
+
+var discussionAdviceConfidenceLevels = map[string]bool{
+	"blocked": true,
+	"high":    true,
+	"low":     true,
+	"medium":  true,
+	"none":    true,
+}
+
+var discussionCheckpointStringListFields = []string{
+	"confirmed_decisions",
+	"changed_recommendations",
+	"next_discussion_paths",
+	"allowed_actions",
+	"artifact_refs",
+}
+
+var discussionCheckpointArrayFields = []string{
+	"blocking_unknowns",
+	"soft_unknowns",
+	"conflicts",
+	"open_assumptions",
+	"open_questions",
+	"verified_fact_refs",
+}
+
+var discussionCheckpointObjectFields = []string{
+	"context_boundary",
+	"implementation_target",
+	"downstream_instructions",
+	"discussion_decision_digest",
+	"design_context",
+}
+
+var discussionSourceEvidenceStatuses = map[string]bool{
+	"assumption":     true,
+	"confirmed":      true,
+	"conflict":       true,
+	"inferred":       true,
+	"missing":        true,
+	"proven":         true,
+	"stale-advisory": true,
+	"verified":       true,
+}
+
+var discussionSourceMaterialStatuses = map[string]bool{
+	"conflict":    true,
+	"inspected":   true,
+	"partial":     true,
+	"pending":     true,
+	"stale":       true,
+	"unavailable": true,
+}
+
+var discussionSourceMaterialSensitivities = map[string]bool{
+	"restricted": true,
+	"safe":       true,
+	"sanitized":  true,
 }
 
 func resolveDiscussionCheckpointInput(args []string, projectRoot, positional string) (map[string]any, error) {
@@ -787,7 +877,170 @@ func validateDiscussionCheckpointFields(changes map[string]any) error {
 			strings.Join(accepted, ", "),
 		)
 	}
+	if value, ok := changes["advice_confidence"]; ok {
+		if err := validateDiscussionCheckpointAdviceConfidence(value); err != nil {
+			return err
+		}
+	}
+	if value, ok := changes["source_evidence"]; ok {
+		errors := []map[string]string{}
+		validateObjectList(value, []string{"source_type", "evidence_status", "source", "claim"}, "source_evidence", &errors)
+		if len(errors) > 0 {
+			return fmt.Errorf("%s", strings.Join(discussionErrorCodes(errors), ", "))
+		}
+	}
 	return nil
+}
+
+func validateDiscussionCheckpointAdviceConfidence(value any) error {
+	if confidence := mapValue(value); confidence != nil {
+		if !discussionAdviceConfidenceLevels[strings.TrimSpace(stringValue(confidence["level"]))] {
+			return fmt.Errorf("discussion checkpoint advice_confidence.level must be none, low, medium, high, or blocked")
+		}
+		if strings.TrimSpace(stringValue(confidence["reason"])) == "" {
+			return fmt.Errorf("discussion checkpoint advice_confidence.reason is required")
+		}
+		return nil
+	}
+	if !discussionAdviceConfidenceLevels[strings.TrimSpace(stringValue(value))] {
+		return fmt.Errorf("discussion checkpoint advice_confidence must be none, low, medium, high, or blocked")
+	}
+	return nil
+}
+
+func validateDiscussionCheckpointSemantics(changes map[string]any) error {
+	errors := []string{}
+	for _, field := range []string{"user_goal", "turn_class", "current_decision_frame", "current_recommendation", "next_gate"} {
+		if value, exists := changes[field]; exists && strings.TrimSpace(stringValue(value)) == "" {
+			errors = append(errors, field+" must be a non-empty string")
+		}
+	}
+	for _, field := range discussionCheckpointEnumFieldOrder {
+		allowed := discussionCheckpointEnumFields[field]
+		if value, exists := changes[field]; exists && !allowed[strings.TrimSpace(stringValue(value))] {
+			errors = append(errors, field+" has an invalid value")
+		}
+	}
+
+	if confidence, exists := changes["advice_confidence"]; exists {
+		if object := mapValue(confidence); object != nil {
+			if !discussionAdviceConfidenceLevels[strings.TrimSpace(stringValue(object["level"]))] {
+				errors = append(errors, "advice_confidence.level has an invalid value")
+			}
+			if strings.TrimSpace(stringValue(object["reason"])) == "" {
+				errors = append(errors, "advice_confidence.reason is required")
+			}
+		} else if !discussionAdviceConfidenceLevels[strings.TrimSpace(stringValue(confidence))] {
+			errors = append(errors, "advice_confidence has an invalid value")
+		}
+	}
+
+	for _, field := range discussionCheckpointStringListFields {
+		value, exists := changes[field]
+		if !exists {
+			continue
+		}
+		if !discussionNonEmptyStringArray(value) {
+			errors = append(errors, field+" must be an array of non-empty strings")
+		}
+	}
+
+	for _, field := range discussionCheckpointArrayFields {
+		if value, exists := changes[field]; exists {
+			if _, ok := value.([]any); !ok {
+				errors = append(errors, field+" must be an array")
+			}
+		}
+	}
+	for _, field := range discussionCheckpointObjectFields {
+		if value, exists := changes[field]; exists && mapValue(value) == nil {
+			errors = append(errors, field+" must be an object")
+		}
+	}
+
+	if value, exists := changes["requirements_snapshot"]; exists {
+		requirements := mapValue(value)
+		if requirements == nil {
+			errors = append(errors, "requirements_snapshot must be an object")
+		} else {
+			for _, field := range []string{"actors", "scenarios", "constraints", "success_criteria", "design_direction", "optimal_solution_approach", "non_goals"} {
+				if item, exists := requirements[field]; exists && !discussionNonEmptyStringArray(item) {
+					errors = append(errors, "requirements_snapshot."+field+" must be an array of non-empty strings")
+				}
+			}
+			if scopeValue, exists := requirements["scope"]; exists {
+				scope := mapValue(scopeValue)
+				if scope == nil {
+					errors = append(errors, "requirements_snapshot.scope must be an object")
+				} else {
+					for _, field := range []string{"in", "out", "deferred"} {
+						if item, exists := scope[field]; exists && !discussionNonEmptyStringArray(item) {
+							errors = append(errors, "requirements_snapshot.scope."+field+" must be an array of non-empty strings")
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if value, exists := changes["source_evidence"]; exists {
+		structured := []map[string]string{}
+		validateObjectList(value, []string{"source_type", "evidence_status", "source", "claim"}, "source_evidence", &structured)
+		for index, item := range listValue(value) {
+			evidence := mapValue(item)
+			if evidence != nil && !discussionSourceEvidenceStatuses[strings.TrimSpace(stringValue(evidence["evidence_status"]))] {
+				structured = append(structured, discussionError("invalid_source_evidence_status", fmt.Sprintf("source_evidence[%d].evidence_status is invalid", index)))
+			}
+		}
+		appendDiscussionStructuredMessages(&errors, structured)
+	}
+	if value, exists := changes["source_materials"]; exists {
+		normalizeDiscussionSourceMaterialDigests(value)
+		structured := []map[string]string{}
+		validateSourceMaterials(value, "in_progress", &structured)
+		appendDiscussionStructuredMessages(&errors, structured)
+	}
+	if value, exists := changes["must_preserve"]; exists {
+		structured := []map[string]string{}
+		validateDiscussionMustPreserve(value, &structured)
+		appendDiscussionStructuredMessages(&errors, structured)
+	}
+	for _, field := range []string{"blocking_unknowns", "soft_unknowns"} {
+		if value, exists := changes[field]; exists {
+			structured := []map[string]string{}
+			validateDiscussionUnknownRecords(value, field, &structured)
+			appendDiscussionStructuredMessages(&errors, structured)
+		}
+	}
+	if value, exists := changes["conflicts"]; exists {
+		structured := []map[string]string{}
+		validateDiscussionConflictRecords(value, &structured)
+		appendDiscussionStructuredMessages(&errors, structured)
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("discussion checkpoint invalid semantic fields: %s", strings.Join(errors, "; "))
+	}
+	return nil
+}
+
+func appendDiscussionStructuredMessages(errors *[]string, structured []map[string]string) {
+	for _, item := range structured {
+		*errors = append(*errors, item["message"])
+	}
+}
+
+func discussionNonEmptyStringArray(value any) bool {
+	items, ok := value.([]any)
+	if !ok {
+		return false
+	}
+	for _, item := range items {
+		if _, ok := item.(string); !ok || strings.TrimSpace(stringValue(item)) == "" {
+			return false
+		}
+	}
+	return true
 }
 
 func (service discussionService) root() (string, error) {
@@ -800,7 +1053,7 @@ func (service discussionService) state(slug, topic string) map[string]any {
 		topic = slug
 	}
 	return map[string]any{
-		"version":           float64(2),
+		"version":           float64(3),
 		"status_family":     "discussion",
 		"slug":              slug,
 		"topic":             topic,
@@ -815,23 +1068,48 @@ func (service discussionService) state(slug, topic string) map[string]any {
 		"latest_checkpoint": nil,
 		"next_command":      "none",
 		"turn_packet": map[string]any{
-			"version":                 float64(1),
+			"version":                 float64(2),
 			"discussion_slug":         slug,
 			"lifecycle_phase":         "explore",
 			"turn_class":              "product_intent",
 			"user_goal":               topic,
 			"current_decision_frame":  topic,
-			"topic_ownership":         defaultDiscussionTopicOwnership(slug, topic),
-			"confirmed_decisions":     []any{},
-			"changed_recommendations": []any{},
-			"context_boundary":        map[string]any{"status": "not-started"},
-			"verified_fact_refs":      []any{},
-			"open_assumptions":        []any{},
-			"open_questions":          []any{},
-			"current_recommendation":  "Shape the goal and context boundary.",
-			"allowed_actions":         []any{"discuss", "ground", "checkpoint", "close"},
-			"persistence_mode":        "frontstage-only",
-			"next_gate":               "context-boundary",
+			"requirements_snapshot":   map[string]any{"target_need": topic, "actors": []any{}, "scenarios": []any{}, "scope": map[string]any{"in": []any{}, "out": []any{}, "deferred": []any{}}, "success_criteria": []any{}, "constraints": []any{}, "design_direction": []any{}, "optimal_solution_approach": []any{}, "non_goals": []any{}},
+			"implementation_target":   map[string]any{"actual_project": nil, "target_root": nil, "target_paths": []any{}, "required_target_paths_to_verify": []any{}},
+			"source_evidence":         []any{},
+			"source_materials":        []any{},
+			"blocking_unknowns":       []any{},
+			"soft_unknowns":           []any{},
+			"conflicts":               []any{},
+			"downstream_instructions": map[string]any{"settled_decisions": []any{}, "preserved_assumptions": []any{}, "conflicts_requiring_return": []any{}, "capability_map": []any{}, "dependencies": []any{}, "planning_constraints": []any{}, "deferred_scope": []any{}, "reopen_conditions": []any{}},
+			"discussion_decision_digest": map[string]any{
+				"locked_direction": []any{}, "rejected_alternatives": []any{}, "accepted_tradeoffs": []any{}, "experience_commitments": []any{}, "design_system_requirements": []any{}, "design_system_status": "not-applicable", "design_risk_level": "none", "review_criteria_carried_forward": []any{}, "must_not_dilute": []any{},
+			},
+			"must_preserve":             []any{},
+			"truth_pass_status":         "not-needed",
+			"verified_project_facts":    []any{},
+			"evidence_checked":          []any{},
+			"advice_confidence":         "none",
+			"discussion_compass_status": "missing",
+			"next_discussion_paths":     []any{},
+			"ui_discussion_status":      "not_applicable",
+			"design_context":            map[string]any{"ui_involved": false},
+			"artifact_refs":             []any{},
+			"topic_ownership":           defaultDiscussionTopicOwnership(slug, topic),
+			"confirmed_decisions":       []any{},
+			"changed_recommendations":   []any{},
+			"context_boundary": map[string]any{
+				"status": "not-started", "current_project_root": nil, "current_project_roles": []any{},
+				"target_project_root": nil, "target_project_roles": []any{}, "reference_sources": []any{},
+				"external_systems": []any{}, "boundary_blockers": []any{}, "path_status": "unknown", "boundary_confidence": "unknown",
+			},
+			"verified_fact_refs":     []any{},
+			"open_assumptions":       []any{},
+			"open_questions":         []any{},
+			"current_recommendation": "Shape the goal and context boundary.",
+			"allowed_actions":        []any{"discuss", "ground", "checkpoint", "close"},
+			"persistence_mode":       "frontstage-only",
+			"next_gate":              "context-boundary",
 		},
 		"handoff": map[string]any{
 			"review_status":        "not-started",
@@ -915,10 +1193,14 @@ func normalizeDiscussionTopicOwnership(value any, slug, topic string) (map[strin
 }
 
 func normalizeDiscussionState(state map[string]any) {
+	if intValue(state["version"]) < 3 {
+		state["version"] = float64(3)
+	}
 	packet := mapValue(state["turn_packet"])
 	if packet == nil {
 		return
 	}
+	ensureDiscussionTurnPacketDefaults(packet, stringValue(state["slug"]), firstNonEmpty(stringValue(state["topic"]), stringValue(state["summary"]), stringValue(state["slug"])))
 	ownership, err := normalizeDiscussionTopicOwnership(
 		packet["topic_ownership"],
 		stringValue(state["slug"]),
@@ -927,6 +1209,106 @@ func normalizeDiscussionState(state map[string]any) {
 	if err == nil {
 		packet["topic_ownership"] = ownership
 	}
+}
+
+func ensureDiscussionTurnPacketDefaults(packet map[string]any, slug, topic string) {
+	packet["version"] = float64(2)
+	if strings.TrimSpace(stringValue(packet["discussion_slug"])) == "" {
+		packet["discussion_slug"] = slug
+	}
+	if strings.TrimSpace(stringValue(packet["lifecycle_phase"])) == "" {
+		packet["lifecycle_phase"] = "explore"
+	}
+	if strings.TrimSpace(stringValue(packet["turn_class"])) == "" {
+		packet["turn_class"] = "product_intent"
+	}
+	if strings.TrimSpace(stringValue(packet["user_goal"])) == "" {
+		packet["user_goal"] = topic
+	}
+	if strings.TrimSpace(stringValue(packet["current_decision_frame"])) == "" {
+		packet["current_decision_frame"] = topic
+	}
+	defaults := map[string]any{
+		"requirements_snapshot": map[string]any{"target_need": topic, "actors": []any{}, "scenarios": []any{}, "constraints": []any{}, "success_criteria": []any{}, "design_direction": []any{}, "optimal_solution_approach": []any{}, "non_goals": []any{}, "scope": map[string]any{"in": []any{}, "out": []any{}, "deferred": []any{}}},
+		"implementation_target": map[string]any{"actual_project": nil, "target_root": nil, "target_paths": []any{}, "required_target_paths_to_verify": []any{}},
+		"context_boundary": map[string]any{
+			"status": "not-started", "current_project_root": nil, "current_project_roles": []any{},
+			"target_project_root": nil, "target_project_roles": []any{}, "reference_sources": []any{},
+			"external_systems": []any{}, "boundary_blockers": []any{}, "path_status": "unknown", "boundary_confidence": "unknown",
+		},
+		"source_evidence":            []any{},
+		"source_materials":           []any{},
+		"blocking_unknowns":          []any{},
+		"soft_unknowns":              []any{},
+		"conflicts":                  []any{},
+		"downstream_instructions":    map[string]any{"settled_decisions": []any{}, "preserved_assumptions": []any{}, "conflicts_requiring_return": []any{}, "capability_map": []any{}, "dependencies": []any{}, "planning_constraints": []any{}, "deferred_scope": []any{}, "reopen_conditions": []any{}},
+		"discussion_decision_digest": map[string]any{"locked_direction": []any{}, "rejected_alternatives": []any{}, "accepted_tradeoffs": []any{}, "experience_commitments": []any{}, "design_system_requirements": []any{}, "design_system_status": "not-applicable", "design_risk_level": "none", "review_criteria_carried_forward": []any{}, "must_not_dilute": []any{}},
+		"must_preserve":              []any{},
+		"truth_pass_status":          "not-needed",
+		"verified_project_facts":     []any{},
+		"evidence_checked":           []any{},
+		"advice_confidence":          "none",
+		"discussion_compass_status":  "missing",
+		"next_discussion_paths":      []any{},
+		"ui_discussion_status":       "not_applicable",
+		"design_context":             map[string]any{"ui_involved": false},
+		"artifact_refs":              []any{},
+	}
+	for key, value := range defaults {
+		if existing, exists := packet[key]; exists {
+			if existingMap := mapValue(existing); existingMap != nil {
+				if defaultMap := mapValue(value); defaultMap != nil {
+					mergeDiscussionDefaults(existingMap, defaultMap)
+				}
+			}
+		} else {
+			packet[key] = cloneAny(value)
+		}
+	}
+	packet["source_materials"] = normalizeDiscussionSourceMaterials(listValue(packet["source_materials"]))
+}
+
+func mergeDiscussionDefaults(target, defaults map[string]any) {
+	for key, value := range defaults {
+		if existing, exists := target[key]; exists {
+			if existingMap := mapValue(existing); existingMap != nil {
+				if defaultMap := mapValue(value); defaultMap != nil {
+					mergeDiscussionDefaults(existingMap, defaultMap)
+				}
+			}
+			continue
+		}
+		if value == nil {
+			target[key] = nil
+		} else {
+			target[key] = cloneAny(value)
+		}
+	}
+}
+
+func normalizeDiscussionSourceMaterials(items []any) []any {
+	normalized := make([]any, 0, len(items))
+	for _, item := range items {
+		material := mapValue(item)
+		if material == nil {
+			normalized = append(normalized, item)
+			continue
+		}
+		copy := cloneAnyMap(material)
+		if strings.TrimSpace(stringValue(copy["material_type"])) == "" && strings.TrimSpace(stringValue(copy["source_type"])) != "" {
+			copy["material_type"] = copy["source_type"]
+			delete(copy, "source_type")
+		}
+		if strings.TrimSpace(stringValue(copy["locator"])) == "" && strings.TrimSpace(stringValue(copy["source"])) != "" {
+			copy["locator"] = copy["source"]
+			delete(copy, "source")
+		}
+		if digest, err := discussionSourceMaterialDigest(copy); err == nil {
+			copy["material_digest"] = digest
+		}
+		normalized = append(normalized, copy)
+	}
+	return normalized
 }
 
 func (service discussionService) initialize(requestedSlug, topic string) (map[string]any, error) {
@@ -1022,6 +1404,9 @@ func (service discussionService) loadState(workspace string) (map[string]any, bo
 			delete(handoff, "markdown_path")
 		}
 		normalizeDiscussionState(state)
+		if err := validateDiscussionState(state); err != nil {
+			return nil, false, err
+		}
 		return state, false, nil
 	}
 	if !os.IsNotExist(err) {
@@ -1077,7 +1462,7 @@ func (service discussionService) persistState(workspace string, state map[string
 }
 
 func validateDiscussionState(state map[string]any) error {
-	if intValue(state["version"]) != 2 || state["status_family"] != "discussion" {
+	if intValue(state["version"]) != 3 || state["status_family"] != "discussion" {
 		return fmt.Errorf("unsupported discussion state version")
 	}
 	phase := stringValue(state["lifecycle_phase"])
@@ -1093,6 +1478,15 @@ func validateDiscussionState(state map[string]any) error {
 		return fmt.Errorf("discussion turn packet does not match state slug")
 	}
 	if _, err := normalizeDiscussionTopicOwnership(packet["topic_ownership"], stringValue(state["slug"]), stringValue(state["topic"])); err != nil {
+		return err
+	}
+	semantic := map[string]any{}
+	for _, key := range discussionCheckpointPacketKeys {
+		if value, exists := packet[key]; exists {
+			semantic[key] = value
+		}
+	}
+	if err := validateDiscussionCheckpointSemantics(semantic); err != nil {
 		return err
 	}
 	return nil
@@ -1119,9 +1513,25 @@ func renderDiscussionMarkdown(state map[string]any) string {
 		"- current_decision_frame: " + stringValue(packet["current_decision_frame"]),
 		"- topic_owner_slug: " + stringValue(ownership["owner_slug"]),
 		"- topic_anchor: " + stringValue(ownership["anchor"]),
+		"- confirmed_decisions: " + discussionCompactList(packet["confirmed_decisions"]),
+		"- open_questions: " + discussionCompactList(packet["open_questions"]),
+		"- blocking_unknown_count: " + fmt.Sprint(derivedDiscussionHardUnknownCount(packet)),
+		"- open_conflict_count: " + fmt.Sprint(derivedDiscussionOpenConflictCount(packet)),
 		"- current_recommendation: " + stringValue(packet["current_recommendation"]),
 		"- next_gate: " + stringValue(packet["next_gate"]),
 		"- blocker_reason: " + noneText(state["blocker_reason"]), "",
+		"## Requirements Snapshot", "",
+		"- target_need: " + stringValue(mapValue(packet["requirements_snapshot"])["target_need"]),
+		"- scope_in: " + discussionCompactList(mapValue(mapValue(packet["requirements_snapshot"])["scope"])["in"]),
+		"- success_criteria: " + discussionCompactList(mapValue(packet["requirements_snapshot"])["success_criteria"]),
+		"- optimal_solution_approach: " + discussionCompactList(mapValue(packet["requirements_snapshot"])["optimal_solution_approach"]), "",
+		"## Evidence Snapshot", "",
+		"- truth_pass_status: " + stringValue(packet["truth_pass_status"]),
+		"- advice_confidence: " + stringValue(packet["advice_confidence"]),
+		"- evidence_checked: " + discussionCompactList(packet["evidence_checked"]),
+		"- source_evidence: " + discussionCompactList(packet["source_evidence"]),
+		"- source_materials: " + discussionSourceMaterialsSummary(packet["source_materials"]),
+		"- latest_snapshot_sha256: " + noneText(mapValue(state["latest_checkpoint"])["snapshot_sha256"]), "",
 		"## Handoff", "",
 		"- handoff_review_status: " + stringValue(handoff["review_status"]),
 		"- quality_gate_status: " + stringValue(handoff["quality_gate_status"]),
@@ -1136,6 +1546,60 @@ func renderDiscussionMarkdown(state map[string]any) string {
 		"Canonical machine state: `discussion-state.json`.", "",
 	}
 	return strings.Join(lines, "\n")
+}
+
+func discussionCompactList(value any) string {
+	items := listValue(value)
+	if len(items) == 0 {
+		return "none"
+	}
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		text := strings.TrimSpace(stringValue(item))
+		if object := mapValue(item); object != nil {
+			text = firstNonEmpty(stringValue(object["id"]), stringValue(object["claim"]), stringValue(object["summary"]), stringValue(object["question"]))
+		}
+		if text != "" {
+			parts = append(parts, text)
+		}
+	}
+	if len(parts) == 0 {
+		return fmt.Sprint(len(items)) + " item(s)"
+	}
+	return strings.Join(parts, "; ")
+}
+
+func discussionSourceMaterialsSummary(value any) string {
+	items := listValue(value)
+	if len(items) == 0 {
+		return "none"
+	}
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		material := mapValue(item)
+		if material == nil {
+			continue
+		}
+		id := firstNonEmpty(stringValue(material["id"]), "MAT-???")
+		status := firstNonEmpty(stringValue(material["inspection_status"]), "unknown")
+		if stringValue(material["sensitivity"]) == "restricted" {
+			parts = append(parts, id+"("+status+") [restricted]")
+			continue
+		}
+		summary := strings.TrimSpace(stringValue(material["summary"]))
+		if len(summary) > 72 {
+			summary = summary[:72] + "..."
+		}
+		if summary == "" {
+			parts = append(parts, id+"("+status+")")
+		} else {
+			parts = append(parts, id+"("+status+"): "+summary)
+		}
+	}
+	if len(parts) == 0 {
+		return fmt.Sprint(len(items)) + " material(s)"
+	}
+	return strings.Join(parts, "; ")
 }
 
 func (service discussionService) record(workspace string, state map[string]any, archived bool) map[string]any {
@@ -1495,6 +1959,9 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 	if err := validateDiscussionCheckpointFields(changes); err != nil {
 		return nil, err
 	}
+	if err := validateDiscussionCheckpointSemantics(changes); err != nil {
+		return nil, err
+	}
 	state, _, err := service.loadState(workspace)
 	if err != nil {
 		return nil, err
@@ -1523,9 +1990,14 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 		}
 		changes["topic_ownership"] = ownership
 	}
+	changedFields := []any{}
 	for _, key := range discussionCheckpointPacketKeys {
 		if value, exists := changes[key]; exists {
+			if key == "source_materials" {
+				normalizeDiscussionSourceMaterialDigests(value)
+			}
 			packet[key] = value
+			changedFields = append(changedFields, key)
 		}
 	}
 	ts := nowUTCString()
@@ -1539,20 +2011,24 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 	state["summary"] = summary
 	state["lifecycle_phase"] = phase
 	state["updated_at"] = ts
-	state["latest_checkpoint"] = map[string]any{"event_id": eventID, "timestamp": ts}
+	normalizeDiscussionState(state)
+	packet = mapValue(state["turn_packet"])
+	snapshot := discussionSemanticSnapshot(packet)
+	snapshotSHA, err := discussionSnapshotDigest(snapshot)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(changedFields, func(i, j int) bool { return stringValue(changedFields[i]) < stringValue(changedFields[j]) })
+	state["latest_checkpoint"] = map[string]any{"event_id": eventID, "timestamp": ts, "snapshot_sha256": snapshotSHA, "changed_fields": changedFields}
 	event := map[string]any{
-		"version":                float64(1),
-		"event_id":               eventID,
-		"timestamp":              ts,
-		"kind":                   "durable-checkpoint",
-		"lifecycle_phase":        phase,
-		"summary":                summary,
-		"user_goal":              packet["user_goal"],
-		"confirmed_decisions":    packet["confirmed_decisions"],
-		"open_questions":         packet["open_questions"],
-		"current_recommendation": packet["current_recommendation"],
-		"context_boundary":       packet["context_boundary"],
-		"topic_ownership":        packet["topic_ownership"],
+		"version":         float64(2),
+		"event_id":        eventID,
+		"timestamp":       ts,
+		"kind":            "durable-checkpoint",
+		"lifecycle_phase": phase,
+		"summary":         summary,
+		"snapshot_sha256": snapshotSHA,
+		"changed_fields":  changedFields,
 	}
 	raw, _ := canonicalJSON(event)
 	logPath := filepath.Join(workspace, "discussion-log.jsonl")
@@ -1580,6 +2056,35 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 	return map[string]any{"discussion": mergeMap(service.record(workspace, state, false), state), "event": event, "turn_packet": packet, "binding": binding}, nil
 }
 
+func discussionSemanticSnapshot(packet map[string]any) map[string]any {
+	snapshot := map[string]any{}
+	controlFields := map[string]bool{"allowed_actions": true, "lifecycle_phase": true, "next_gate": true, "persistence_mode": true, "turn_class": true}
+	for _, key := range discussionCheckpointPacketKeys {
+		if controlFields[key] {
+			continue
+		}
+		if value, exists := packet[key]; exists {
+			snapshot[key] = cloneAny(value)
+		}
+	}
+	snapshot["discussion_slug"] = packet["discussion_slug"]
+	return snapshot
+}
+
+func discussionSnapshotDigest(snapshot map[string]any) (string, error) {
+	return discussionCanonicalDigest(snapshot)
+}
+
+func discussionCanonicalDigest(value any) (string, error) {
+	raw, err := canonicalJSON(value)
+	if err != nil {
+		return "", err
+	}
+	raw = bytes.TrimSuffix(raw, []byte{'\n'})
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:]), nil
+}
+
 func (service discussionService) writeHandoff(slug string, input map[string]any) (map[string]any, error) {
 	workspace, archived, err := service.findWorkspace(slug, false)
 	if err != nil {
@@ -1595,23 +2100,53 @@ func (service discussionService) writeHandoff(slug string, input map[string]any)
 	if err := service.requireExpectedStateSHA(workspace); err != nil {
 		return nil, err
 	}
+	packet := mapValue(state["turn_packet"])
+	ensureDiscussionTurnPacketDefaults(packet, slug, stringValue(state["topic"]))
+	checkpoint := mapValue(state["latest_checkpoint"])
+	if checkpoint == nil || strings.TrimSpace(stringValue(checkpoint["snapshot_sha256"])) == "" {
+		return nil, fmt.Errorf("missing_semantic_checkpoint: run discussion checkpoint with a complete semantic snapshot before write-handoff")
+	}
+	currentSnapshotSHA, err := discussionSnapshotDigest(discussionSemanticSnapshot(packet))
+	if err != nil {
+		return nil, err
+	}
+	if stringValue(checkpoint["snapshot_sha256"]) != currentSnapshotSHA {
+		return nil, fmt.Errorf("stale_semantic_checkpoint: latest checkpoint snapshot does not match current discussion state")
+	}
 	payload, err := service.renderHandoffInput(input)
 	if err != nil {
 		return nil, err
 	}
-	payload["version"] = float64(4)
+	payload["version"] = float64(5)
 	payload["handoff_kind"] = "discussion_requirement_contract"
 	payload["status"] = "draft"
 	payload["entry_source"] = "sp-discussion"
 	payload["discussion_slug"] = slug
 	payload["source_contract"] = fmt.Sprintf(".specify/discussions/%s/handoff-to-specify.json", slug)
 	payload["handoff_integrity"] = "not-checked"
-	packet := mapValue(state["turn_packet"])
 	ownership, err := normalizeDiscussionTopicOwnership(packet["topic_ownership"], slug, stringValue(state["topic"]))
 	if err != nil {
 		return nil, err
 	}
 	payload["topic_ownership"] = ownership
+	packet["lifecycle_phase"] = "review"
+	packet["persistence_mode"] = "lifecycle-transition"
+	packet["allowed_actions"] = []any{"review-handoff", "request-changes", "mark-ready"}
+	packet["next_gate"] = "handoff-draft-validation"
+	overlayDiscussionHandoffFromState(payload, packet)
+	normalizeDiscussionSourceMaterialDigests(payload["source_materials"])
+	normalizeDiscussionState(state)
+	payload["discussion_snapshot_digest"] = currentSnapshotSHA
+	payload["hard_unknown_count"] = float64(derivedDiscussionHardUnknownCount(payload))
+	payload["open_conflict_count"] = float64(derivedDiscussionOpenConflictCount(payload))
+	if intValue(payload["hard_unknown_count"]) == 0 && intValue(payload["open_conflict_count"]) == 0 {
+		payload["coverage_status"] = "complete"
+		payload["planning_gate_status"] = "ready"
+	} else {
+		payload["coverage_status"] = "blocked_by_handoff_integrity"
+		payload["planning_gate_status"] = "blocked_by_handoff_integrity"
+		return nil, fmt.Errorf("discussion handoff is not ready: blocking_unknowns and conflicts must be resolved before write-handoff")
+	}
 	quality := mapValue(payload["quality_gate"])
 	if quality == nil {
 		quality = map[string]any{}
@@ -1630,6 +2165,11 @@ func (service discussionService) writeHandoff(slug string, input map[string]any)
 		return nil, err
 	}
 	payload["review_digest"] = digest
+	preflightErrors := []map[string]string{}
+	service.validateHandoffFields(payload, slug, "draft", state, &preflightErrors)
+	if len(preflightErrors) > 0 {
+		return nil, fmt.Errorf("discussion handoff draft is invalid: %s", strings.Join(discussionErrorCodes(preflightErrors), ", "))
+	}
 	jsonPath := filepath.Join(workspace, "handoff-to-specify.json")
 	if err := writeScriptJSONFile(jsonPath, payload); err != nil {
 		return nil, err
@@ -1639,11 +2179,7 @@ func (service discussionService) writeHandoff(slug string, input map[string]any)
 	state["lifecycle_phase"] = "review"
 	state["updated_at"] = ts
 	packet = mapValue(state["turn_packet"])
-	packet["lifecycle_phase"] = "review"
 	packet["context_boundary"] = payload["context_boundary"]
-	packet["persistence_mode"] = "lifecycle-transition"
-	packet["allowed_actions"] = []any{"review-handoff", "request-changes", "mark-ready"}
-	packet["next_gate"] = "handoff-draft-validation"
 	handoff := mapValue(state["handoff"])
 	if quality["status"] == "self_reviewed" {
 		handoff["review_status"] = "self-reviewed"
@@ -1688,8 +2224,8 @@ func (service discussionService) renderHandoffInput(input map[string]any) (map[s
 }
 
 func validateDiscussionHandoffTemplate(template map[string]any) error {
-	if intValue(template["version"]) != 4 || stringValue(template["handoff_kind"]) != "discussion_requirement_contract" {
-		return fmt.Errorf("discussion handoff template must use version 4 discussion_requirement_contract")
+	if intValue(template["version"]) != 5 || stringValue(template["handoff_kind"]) != "discussion_requirement_contract" {
+		return fmt.Errorf("discussion handoff template must use version 5 discussion_requirement_contract")
 	}
 	if stringValue(template["status"]) != "draft" || stringValue(template["planning_gate_status"]) != "blocked_by_incomplete_coverage" {
 		return fmt.Errorf("discussion handoff template must preserve blocked draft readiness")
@@ -1705,6 +2241,38 @@ func validateDiscussionHandoffTemplate(template map[string]any) error {
 		}
 	}
 	return nil
+}
+
+func overlayDiscussionHandoffFromState(payload, packet map[string]any) {
+	payload["agent_requirement_contract"] = cloneAny(packet["requirements_snapshot"])
+	delete(payload, "requirements_snapshot")
+	for _, key := range []string{
+		"implementation_target",
+		"source_evidence",
+		"source_materials",
+		"blocking_unknowns",
+		"soft_unknowns",
+		"conflicts",
+		"downstream_instructions",
+		"discussion_decision_digest",
+		"must_preserve",
+		"truth_pass_status",
+		"verified_project_facts",
+		"evidence_checked",
+		"advice_confidence",
+		"ui_discussion_status",
+		"artifact_refs",
+	} {
+		if value, exists := packet[key]; exists {
+			payload[key] = cloneAny(value)
+		}
+	}
+	if value, exists := packet["context_boundary"]; exists {
+		payload["context_boundary"] = cloneAny(value)
+	}
+	if digest := mapValue(payload["discussion_decision_digest"]); digest != nil {
+		digest["design_context"] = cloneAny(packet["design_context"])
+	}
 }
 
 func mergeDiscussionHandoffTemplate(template, input map[string]any) map[string]any {
@@ -1873,12 +2441,7 @@ func computeDiscussionReviewDigest(payload map[string]any) (string, error) {
 	for _, field := range []string{"review_digest", "status", "handoff_integrity", "updated_at", "quality_gate"} {
 		delete(protected, field)
 	}
-	raw, err := canonicalJSON(protected)
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:]), nil
+	return discussionCanonicalDigest(protected)
 }
 
 func (service discussionService) validateHandoff(slug, mode string) (map[string]any, error) {
@@ -1904,7 +2467,12 @@ func (service discussionService) validateHandoff(slug, mode string) (map[string]
 		errors = append(errors, discussionError("invalid_handoff_json", "handoff JSON is not valid JSON"))
 		return discussionValidationPayload(workspace, errors, nil, validationMode), nil
 	}
-	service.validateHandoffFields(payload, slug, validationMode, &errors)
+	state, _, stateErr := service.loadState(workspace)
+	if stateErr != nil {
+		errors = append(errors, discussionError("invalid_discussion_state", stateErr.Error()))
+		return discussionValidationPayload(workspace, errors, payload, validationMode), nil
+	}
+	service.validateHandoffFields(payload, slug, validationMode, state, &errors)
 	return discussionValidationPayload(workspace, errors, payload, validationMode), nil
 }
 
@@ -1916,8 +2484,8 @@ func (service discussionService) handoffPaths(slug string) (string, string, erro
 	return workspace, filepath.Join(workspace, "handoff-to-specify.json"), nil
 }
 
-func (service discussionService) validateHandoffFields(payload map[string]any, slug, mode string, errors *[]map[string]string) {
-	expected := map[string]any{"version": float64(4), "handoff_kind": "discussion_requirement_contract", "entry_source": "sp-discussion", "discussion_slug": slug, "source_contract": fmt.Sprintf(".specify/discussions/%s/handoff-to-specify.json", slug), "coverage_status": "complete", "planning_gate_status": "ready", "hard_unknown_count": float64(0), "open_conflict_count": float64(0)}
+func (service discussionService) validateHandoffFields(payload map[string]any, slug, mode string, state map[string]any, errors *[]map[string]string) {
+	expected := map[string]any{"version": float64(5), "handoff_kind": "discussion_requirement_contract", "entry_source": "sp-discussion", "discussion_slug": slug, "source_contract": fmt.Sprintf(".specify/discussions/%s/handoff-to-specify.json", slug), "coverage_status": "complete", "planning_gate_status": "ready", "hard_unknown_count": float64(0), "open_conflict_count": float64(0)}
 	for field, value := range expected {
 		if payload[field] != value {
 			*errors = append(*errors, discussionError("invalid_"+field, fmt.Sprintf("%s must be %q", field, value)))
@@ -1926,23 +2494,454 @@ func (service discussionService) validateHandoffFields(payload map[string]any, s
 	if strings.TrimSpace(stringValue(payload["handoff_goal"])) == "" {
 		*errors = append(*errors, discussionError("missing_handoff_goal", "handoff_goal is required"))
 	}
+	validateRequirementsSnapshot(payload["agent_requirement_contract"], errors)
+	validateImplementationTarget(payload["implementation_target"], errors)
 	validateHandoffTopicOwnership(payload["topic_ownership"], slug, errors)
 	validateBoundary(payload["context_boundary"], errors)
 	validateObjectList(payload["source_evidence"], []string{"source_type", "evidence_status", "source", "claim"}, "source_evidence", errors)
-	validateObjectList(payload["must_preserve"], []string{"id", "type", "claim", "source", "downstream_requirement", "blocking_level", "owner", "latest_resolve_phase", "status"}, "must_preserve", errors)
+	if len(listValue(payload["source_evidence"])) == 0 {
+		*errors = append(*errors, discussionError("empty_source_evidence", "source_evidence must record at least one checked claim"))
+	}
+	validateDiscussionSourceEvidence(payload["source_evidence"], errors)
+	validateSourceEvidenceMaterialCoverage(payload["source_evidence"], payload["source_materials"], errors)
+	validateSourceMaterials(payload["source_materials"], payload["coverage_status"], errors)
+	validateDiscussionMustPreserve(payload["must_preserve"], errors)
 	if len(listValue(payload["must_preserve"])) == 0 {
 		*errors = append(*errors, discussionError("empty_must_preserve", "Must-Preserve coverage is required"))
 	}
-	downstream := mapValue(payload["downstream_instructions"])
-	if downstream == nil {
-		*errors = append(*errors, discussionError("missing_planning_constraints", "planning_constraints are required"))
-	} else if _, ok := downstream["planning_constraints"]; !ok {
-		*errors = append(*errors, discussionError("missing_planning_constraints", "planning_constraints are required"))
-	} else if _, ok := downstream["recommended_sequence"]; ok {
-		*errors = append(*errors, discussionError("legacy_recommended_sequence", "recommended_sequence is not allowed"))
+	validateDiscussionUnknownRecords(payload["blocking_unknowns"], "blocking_unknowns", errors)
+	validateDiscussionUnknownRecords(payload["soft_unknowns"], "soft_unknowns", errors)
+	validateDiscussionConflictRecords(payload["conflicts"], errors)
+	derivedHardUnknowns := derivedDiscussionHardUnknownCount(payload)
+	if intValue(payload["hard_unknown_count"]) != derivedHardUnknowns {
+		*errors = append(*errors, discussionError("derived_hard_unknown_count_mismatch", "hard_unknown_count must equal unresolved blocking_unknowns"))
 	}
+	derivedConflicts := derivedDiscussionOpenConflictCount(payload)
+	if intValue(payload["open_conflict_count"]) != derivedConflicts {
+		*errors = append(*errors, discussionError("derived_open_conflict_count_mismatch", "open_conflict_count must equal unresolved conflicts"))
+	}
+	validateDiscussionSnapshotDigest(payload, state, errors)
+	validateDiscussionDownstreamInstructions(payload["downstream_instructions"], errors)
+	validateDiscussionDecisionDigest(payload["discussion_decision_digest"], errors)
 	service.validateConsumers(payload, errors)
 	service.validateReviewDigest(payload, mode, errors)
+}
+
+func validateDiscussionSourceEvidence(value any, errors *[]map[string]string) {
+	for index, item := range listValue(value) {
+		evidence := mapValue(item)
+		if evidence == nil {
+			continue
+		}
+		status := strings.TrimSpace(stringValue(evidence["evidence_status"]))
+		if status != "" && !discussionSourceEvidenceStatuses[status] {
+			*errors = append(*errors, discussionError("invalid_source_evidence_status", fmt.Sprintf("source_evidence[%d].evidence_status is invalid", index)))
+		} else if status == "missing" || status == "conflict" || status == "stale-advisory" {
+			*errors = append(*errors, discussionError("unresolved_source_evidence", fmt.Sprintf("source_evidence[%d] is not ready for handoff", index)))
+		}
+	}
+}
+
+func validateDiscussionMustPreserve(value any, errors *[]map[string]string) {
+	required := []string{"id", "type", "claim", "source", "downstream_requirement", "blocking_level", "owner", "latest_resolve_phase", "status"}
+	validateObjectList(value, required, "must_preserve", errors)
+	seen := map[string]bool{}
+	for index, item := range listValue(value) {
+		record := mapValue(item)
+		if record == nil {
+			continue
+		}
+		id := strings.TrimSpace(stringValue(record["id"]))
+		matched, _ := regexp.MatchString(`^(MP|CA)-[0-9]{3}$`, id)
+		if !matched {
+			*errors = append(*errors, discussionError("invalid_must_preserve_id", fmt.Sprintf("must_preserve[%d].id must match MP-### or CA-###", index)))
+		}
+		if id != "" && seen[id] {
+			*errors = append(*errors, discussionError("duplicate_must_preserve_id", fmt.Sprintf("must_preserve[%d].id duplicates %s", index, id)))
+		}
+		seen[id] = true
+		blockingLevel := strings.TrimSpace(stringValue(record["blocking_level"]))
+		if blockingLevel != "hard" && blockingLevel != "soft" {
+			*errors = append(*errors, discussionError("invalid_must_preserve_blocking_level", fmt.Sprintf("must_preserve[%d].blocking_level is invalid", index)))
+		}
+		status := strings.ToLower(strings.TrimSpace(stringValue(record["status"])))
+		if status != "active" && status != "confirmed" && status != "resolved" && status != "deferred" && status != "superseded" && status != "dropped" {
+			*errors = append(*errors, discussionError("invalid_must_preserve_status", fmt.Sprintf("must_preserve[%d].status is invalid", index)))
+		}
+		if status == "resolved" && strings.TrimSpace(stringValue(record["resolution_evidence"])) == "" {
+			*errors = append(*errors, discussionError("incomplete_must_preserve_resolution", fmt.Sprintf("must_preserve[%d].resolution_evidence is required", index)))
+		}
+		if status == "deferred" && strings.TrimSpace(stringValue(record["stop_and_reopen_condition"])) == "" {
+			*errors = append(*errors, discussionError("incomplete_must_preserve_deferral", fmt.Sprintf("must_preserve[%d].stop_and_reopen_condition is required", index)))
+		}
+		if status == "superseded" && strings.TrimSpace(stringValue(record["superseded_by"])) == "" {
+			*errors = append(*errors, discussionError("incomplete_must_preserve_supersession", fmt.Sprintf("must_preserve[%d].superseded_by is required", index)))
+		}
+		if status == "dropped" && strings.TrimSpace(stringValue(record["user_decision_source"])) == "" {
+			*errors = append(*errors, discussionError("incomplete_must_preserve_drop", fmt.Sprintf("must_preserve[%d].user_decision_source is required", index)))
+		}
+	}
+}
+
+var discussionClosedItemStatuses = map[string]bool{
+	"closed": true, "resolved": true, "deferred": true, "superseded": true, "dropped": true,
+}
+
+func discussionItemIsOpen(item any) bool {
+	record := mapValue(item)
+	if record == nil {
+		return true
+	}
+	status := strings.ToLower(strings.TrimSpace(stringValue(record["status"])))
+	return status == "" || !discussionClosedItemStatuses[status]
+}
+
+func validateDiscussionUnknownRecords(value any, label string, errors *[]map[string]string) {
+	items, ok := value.([]any)
+	if !ok {
+		*errors = append(*errors, discussionError("invalid_"+label, label+" must be a list"))
+		return
+	}
+	for index, item := range items {
+		record := mapValue(item)
+		if record == nil {
+			if label == "blocking_unknowns" {
+				*errors = append(*errors, discussionError("invalid_"+label+"_item", fmt.Sprintf("%s[%d] must be a structured object", label, index)))
+			}
+			continue
+		}
+		for _, field := range []string{"id", "question", "owner", "status", "latest_resolve_phase"} {
+			if strings.TrimSpace(stringValue(record[field])) == "" {
+				*errors = append(*errors, discussionError("incomplete_"+label+"_item", fmt.Sprintf("%s[%d].%s is required", label, index, field)))
+			}
+		}
+		status := strings.ToLower(strings.TrimSpace(stringValue(record["status"])))
+		if status != "open" && status != "resolved" && status != "closed" && status != "deferred" && status != "superseded" && status != "dropped" {
+			*errors = append(*errors, discussionError("invalid_"+label+"_status", fmt.Sprintf("%s[%d].status is invalid", label, index)))
+		}
+		if (status == "resolved" || status == "closed") && strings.TrimSpace(stringValue(record["resolution_evidence"])) == "" {
+			*errors = append(*errors, discussionError("incomplete_"+label+"_resolution", fmt.Sprintf("%s[%d].resolution_evidence is required", label, index)))
+		}
+		if status == "deferred" && strings.TrimSpace(stringValue(record["stop_and_reopen_condition"])) == "" {
+			*errors = append(*errors, discussionError("incomplete_"+label+"_deferral", fmt.Sprintf("%s[%d].stop_and_reopen_condition is required", label, index)))
+		}
+		if status == "superseded" && strings.TrimSpace(stringValue(record["superseded_by"])) == "" {
+			*errors = append(*errors, discussionError("incomplete_"+label+"_supersession", fmt.Sprintf("%s[%d].superseded_by is required", label, index)))
+		}
+		if status == "dropped" && strings.TrimSpace(stringValue(record["user_decision_source"])) == "" {
+			*errors = append(*errors, discussionError("incomplete_"+label+"_drop", fmt.Sprintf("%s[%d].user_decision_source is required", label, index)))
+		}
+	}
+}
+
+func validateDiscussionConflictRecords(value any, errors *[]map[string]string) {
+	items, ok := value.([]any)
+	if !ok {
+		*errors = append(*errors, discussionError("invalid_conflicts", "conflicts must be a list"))
+		return
+	}
+	for index, item := range items {
+		record := mapValue(item)
+		if record == nil {
+			*errors = append(*errors, discussionError("invalid_conflicts_item", fmt.Sprintf("conflicts[%d] must be an object", index)))
+			continue
+		}
+		for _, field := range []string{"id", "claim", "status"} {
+			if strings.TrimSpace(stringValue(record[field])) == "" {
+				*errors = append(*errors, discussionError("incomplete_conflicts_item", fmt.Sprintf("conflicts[%d].%s is required", index, field)))
+			}
+		}
+		status := strings.ToLower(strings.TrimSpace(stringValue(record["status"])))
+		if status != "open" && status != "resolved" && status != "closed" && status != "deferred" && status != "superseded" && status != "dropped" {
+			*errors = append(*errors, discussionError("invalid_conflicts_status", fmt.Sprintf("conflicts[%d].status is invalid", index)))
+		}
+		if discussionClosedItemStatuses[status] {
+			if strings.TrimSpace(stringValue(record["resolution"])) == "" || strings.TrimSpace(stringValue(record["resolution_evidence"])) == "" {
+				*errors = append(*errors, discussionError("incomplete_conflicts_resolution", fmt.Sprintf("conflicts[%d] requires resolution and resolution_evidence", index)))
+			}
+		}
+	}
+}
+
+func validateDiscussionDownstreamInstructions(value any, errors *[]map[string]string) {
+	downstream := mapValue(value)
+	if downstream == nil {
+		*errors = append(*errors, discussionError("missing_downstream_instructions", "downstream_instructions is required"))
+		return
+	}
+	if _, exists := downstream["recommended_sequence"]; exists {
+		*errors = append(*errors, discussionError("legacy_recommended_sequence", "recommended_sequence is not allowed"))
+	}
+	fields := []string{"settled_decisions", "preserved_assumptions", "conflicts_requiring_return", "capability_map", "dependencies", "planning_constraints", "deferred_scope", "reopen_conditions"}
+	for _, field := range fields {
+		if _, ok := downstream[field].([]any); !ok {
+			*errors = append(*errors, discussionError("invalid_downstream_instructions", "downstream_instructions."+field+" must be a list"))
+		}
+	}
+	if len(listValue(downstream["settled_decisions"])) == 0 {
+		*errors = append(*errors, discussionError("empty_settled_decisions", "downstream_instructions.settled_decisions must not be empty"))
+	}
+}
+
+func validateDiscussionDecisionDigest(value any, errors *[]map[string]string) {
+	digest := mapValue(value)
+	if digest == nil {
+		*errors = append(*errors, discussionError("missing_discussion_decision_digest", "discussion_decision_digest is required"))
+		return
+	}
+	fields := []string{"locked_direction", "rejected_alternatives", "accepted_tradeoffs", "experience_commitments", "design_system_requirements", "review_criteria_carried_forward", "must_not_dilute"}
+	for _, field := range fields {
+		if _, ok := digest[field].([]any); !ok {
+			*errors = append(*errors, discussionError("invalid_discussion_decision_digest", "discussion_decision_digest."+field+" must be a list"))
+		}
+	}
+	for _, field := range []string{"locked_direction", "review_criteria_carried_forward"} {
+		if len(listValue(digest[field])) == 0 {
+			*errors = append(*errors, discussionError("incomplete_discussion_decision_digest", "discussion_decision_digest."+field+" must not be empty"))
+		}
+	}
+	if strings.TrimSpace(stringValue(digest["design_system_status"])) == "" {
+		*errors = append(*errors, discussionError("incomplete_discussion_decision_digest", "discussion_decision_digest.design_system_status is required"))
+	}
+	risk := strings.TrimSpace(stringValue(digest["design_risk_level"]))
+	if risk != "none" && risk != "low" && risk != "medium" && risk != "high" {
+		*errors = append(*errors, discussionError("invalid_discussion_decision_digest", "discussion_decision_digest.design_risk_level is invalid"))
+	}
+	if mapValue(digest["design_context"]) == nil {
+		*errors = append(*errors, discussionError("incomplete_discussion_decision_digest", "discussion_decision_digest.design_context is required"))
+	}
+}
+
+func validateRequirementsSnapshot(value any, errors *[]map[string]string) {
+	requirements := mapValue(value)
+	if requirements == nil {
+		*errors = append(*errors, discussionError("missing_requirements_snapshot", "requirements_snapshot is required"))
+		return
+	}
+	if strings.TrimSpace(stringValue(requirements["target_need"])) == "" {
+		*errors = append(*errors, discussionError("missing_requirements_target_need", "requirements_snapshot.target_need is required"))
+	}
+	scope := mapValue(requirements["scope"])
+	if scope == nil || len(listValue(scope["in"])) == 0 || !discussionNonEmptyStringArray(scope["in"]) {
+		*errors = append(*errors, discussionError("missing_requirements_scope", "requirements_snapshot.scope.in is required"))
+	}
+	for _, field := range []string{"actors", "scenarios", "success_criteria", "optimal_solution_approach"} {
+		if len(listValue(requirements[field])) == 0 || !discussionNonEmptyStringArray(requirements[field]) {
+			*errors = append(*errors, discussionError("missing_requirements_"+field, "requirements_snapshot."+field+" is required"))
+		}
+	}
+	for _, field := range []string{"constraints", "design_direction", "non_goals"} {
+		if items, ok := requirements[field].([]any); !ok {
+			*errors = append(*errors, discussionError("invalid_requirements_"+field, "requirements_snapshot."+field+" must be an array of non-empty strings"))
+		} else if len(items) > 0 && !discussionNonEmptyStringArray(items) {
+			*errors = append(*errors, discussionError("invalid_requirements_"+field, "requirements_snapshot."+field+" must be an array of non-empty strings"))
+		}
+	}
+	if scope != nil {
+		for _, field := range []string{"out", "deferred"} {
+			if items, ok := scope[field].([]any); !ok {
+				*errors = append(*errors, discussionError("invalid_requirements_scope_"+field, "requirements_snapshot.scope."+field+" must be an array of non-empty strings"))
+			} else if len(items) > 0 && !discussionNonEmptyStringArray(items) {
+				*errors = append(*errors, discussionError("invalid_requirements_scope_"+field, "requirements_snapshot.scope."+field+" must be an array of non-empty strings"))
+			}
+		}
+	}
+}
+
+func validateImplementationTarget(value any, errors *[]map[string]string) {
+	target := mapValue(value)
+	if target == nil {
+		*errors = append(*errors, discussionError("missing_implementation_target", "implementation_target is required"))
+		return
+	}
+	if strings.TrimSpace(stringValue(target["target_root"])) == "" &&
+		strings.TrimSpace(stringValue(target["actual_project"])) == "" &&
+		strings.TrimSpace(stringValue(target["target_project_root"])) == "" {
+		*errors = append(*errors, discussionError("missing_implementation_target_root", "implementation_target must identify the actual project or target_root"))
+	}
+	if len(listValue(target["target_paths"])) == 0 && len(listValue(target["required_target_paths_to_verify"])) == 0 {
+		*errors = append(*errors, discussionError("missing_implementation_target_paths", "implementation_target must name target paths or required verification paths"))
+	}
+	for _, field := range []string{"target_paths", "required_target_paths_to_verify"} {
+		if items, ok := target[field].([]any); !ok {
+			*errors = append(*errors, discussionError("invalid_implementation_target_paths", "implementation_target."+field+" must be an array of non-empty strings"))
+		} else if len(items) > 0 && !discussionNonEmptyStringArray(items) {
+			*errors = append(*errors, discussionError("invalid_implementation_target_paths", "implementation_target."+field+" must be an array of non-empty strings"))
+		}
+	}
+}
+
+func validateSourceEvidenceMaterialCoverage(evidenceValue, materialsValue any, errors *[]map[string]string) {
+	materials := listValue(materialsValue)
+	if len(materials) == 0 {
+		return
+	}
+	materialIDs := map[string]bool{}
+	referenced := map[string]bool{}
+	for _, item := range materials {
+		if id := stringValue(mapValue(item)["id"]); id != "" {
+			materialIDs[id] = true
+		}
+	}
+	for index, item := range listValue(evidenceValue) {
+		evidence := mapValue(item)
+		if evidence == nil {
+			continue
+		}
+		materialID := strings.TrimSpace(stringValue(evidence["material_id"]))
+		if materialID == "" {
+			continue
+		}
+		if !materialIDs[materialID] {
+			*errors = append(*errors, discussionError("unknown_source_evidence_material", fmt.Sprintf("source_evidence[%d].material_id references unknown material %s", index, materialID)))
+			continue
+		}
+		referenced[materialID] = true
+	}
+	for id := range materialIDs {
+		if !referenced[id] {
+			*errors = append(*errors, discussionError("unreferenced_source_material", id+" must be referenced by source_evidence.material_id"))
+		}
+	}
+}
+
+func validateSourceMaterials(value any, coverageStatus any, errors *[]map[string]string) {
+	materials, ok := value.([]any)
+	if !ok {
+		*errors = append(*errors, discussionError("missing_source_materials", "source_materials must be a list"))
+		return
+	}
+	if len(materials) == 0 {
+		return
+	}
+	seen := map[string]bool{}
+	for index, item := range materials {
+		material := mapValue(item)
+		if material == nil {
+			*errors = append(*errors, discussionError("invalid_source_materials_item", fmt.Sprintf("source_materials[%d] must be an object", index)))
+			continue
+		}
+		for _, field := range []string{"id", "material_type", "locator", "summary", "inspection_status", "claims", "coverage_gaps", "sensitivity"} {
+			if _, ok := material[field]; !ok {
+				*errors = append(*errors, discussionError("incomplete_source_materials_item", fmt.Sprintf("source_materials[%d] missing %s", index, field)))
+			}
+		}
+		if matched, _ := regexp.MatchString(`^MAT-[0-9]{3}$`, stringValue(material["id"])); !matched {
+			*errors = append(*errors, discussionError("invalid_source_materials_id", fmt.Sprintf("source_materials[%d].id must match MAT-###", index)))
+		}
+		id := stringValue(material["id"])
+		if seen[id] {
+			*errors = append(*errors, discussionError("duplicate_source_materials_id", fmt.Sprintf("source_materials[%d].id duplicates %s", index, id)))
+		}
+		seen[id] = true
+		for _, field := range []string{"material_type", "locator", "summary", "sensitivity"} {
+			if strings.TrimSpace(stringValue(material[field])) == "" {
+				*errors = append(*errors, discussionError("empty_source_materials_"+field, fmt.Sprintf("source_materials[%d].%s must be non-empty", index, field)))
+			}
+		}
+		if len(listValue(material["claims"])) == 0 || !discussionNonEmptyStringArray(material["claims"]) {
+			*errors = append(*errors, discussionError("empty_source_materials_claims", fmt.Sprintf("source_materials[%d].claims must not be empty", index)))
+		}
+		if gaps, ok := material["coverage_gaps"].([]any); !ok {
+			*errors = append(*errors, discussionError("invalid_source_materials_coverage_gaps", fmt.Sprintf("source_materials[%d].coverage_gaps must be an array of non-empty strings", index)))
+		} else if len(gaps) > 0 && !discussionNonEmptyStringArray(gaps) {
+			*errors = append(*errors, discussionError("invalid_source_materials_coverage_gaps", fmt.Sprintf("source_materials[%d].coverage_gaps must be an array of non-empty strings", index)))
+		}
+		status := stringValue(material["inspection_status"])
+		if !discussionSourceMaterialStatuses[status] {
+			*errors = append(*errors, discussionError("invalid_source_materials_status", fmt.Sprintf("source_materials[%d].inspection_status is invalid", index)))
+		}
+		if sensitivity := stringValue(material["sensitivity"]); !discussionSourceMaterialSensitivities[sensitivity] {
+			*errors = append(*errors, discussionError("invalid_source_materials_sensitivity", fmt.Sprintf("source_materials[%d].sensitivity is invalid", index)))
+		}
+		if contentSHA, exists := material["content_sha256"]; exists && contentSHA != nil {
+			matched, _ := regexp.MatchString(`^[a-f0-9]{64}$`, stringValue(contentSHA))
+			if !matched {
+				*errors = append(*errors, discussionError("invalid_source_materials_content_sha256", fmt.Sprintf("source_materials[%d].content_sha256 must be a sha256 digest", index)))
+			}
+		}
+		if coverageStatus == "complete" && (status != "inspected" || len(listValue(material["coverage_gaps"])) > 0) {
+			*errors = append(*errors, discussionError("unresolved_source_materials", fmt.Sprintf("source_materials[%d] must be inspected with no coverage gaps before handoff-ready", index)))
+		}
+		expectedDigest, digestErr := discussionSourceMaterialDigest(material)
+		if digestErr != nil {
+			*errors = append(*errors, discussionError("invalid_source_materials_digest", digestErr.Error()))
+		} else if stringValue(material["material_digest"]) != expectedDigest {
+			*errors = append(*errors, discussionError("source_materials_digest_mismatch", fmt.Sprintf("source_materials[%d].material_digest does not match protected material content", index)))
+		}
+	}
+}
+
+func normalizeDiscussionSourceMaterialDigests(value any) {
+	materials, ok := value.([]any)
+	if !ok {
+		return
+	}
+	for _, item := range materials {
+		material := mapValue(item)
+		if material == nil {
+			continue
+		}
+		digest, err := discussionSourceMaterialDigest(material)
+		if err == nil {
+			material["material_digest"] = digest
+		}
+	}
+}
+
+func discussionSourceMaterialDigest(material map[string]any) (string, error) {
+	protected := cloneAnyMap(material)
+	delete(protected, "material_digest")
+	return discussionCanonicalDigest(protected)
+}
+
+func derivedDiscussionHardUnknownCount(payload map[string]any) int {
+	count := 0
+	for _, item := range listValue(payload["blocking_unknowns"]) {
+		if discussionItemIsOpen(item) {
+			count++
+		}
+	}
+	return count
+}
+
+func derivedDiscussionOpenConflictCount(payload map[string]any) int {
+	count := 0
+	for _, item := range listValue(payload["conflicts"]) {
+		if discussionItemIsOpen(item) {
+			count++
+		}
+	}
+	downstream := mapValue(payload["downstream_instructions"])
+	count += len(listValue(downstream["conflicts_requiring_return"]))
+	return count
+}
+
+func validateDiscussionSnapshotDigest(payload map[string]any, state map[string]any, errors *[]map[string]string) {
+	checkpoint := mapValue(state["latest_checkpoint"])
+	if checkpoint == nil || strings.TrimSpace(stringValue(checkpoint["snapshot_sha256"])) == "" {
+		*errors = append(*errors, discussionError("missing_semantic_checkpoint", "latest_checkpoint.snapshot_sha256 is required before handoff"))
+		return
+	}
+	packet := mapValue(state["turn_packet"])
+	if packet == nil {
+		*errors = append(*errors, discussionError("invalid_discussion_snapshot", "state turn_packet is required"))
+		return
+	}
+	snapshot := discussionSemanticSnapshot(packet)
+	currentDigest, err := discussionSnapshotDigest(snapshot)
+	if err != nil {
+		*errors = append(*errors, discussionError("invalid_discussion_snapshot", err.Error()))
+		return
+	}
+	if stringValue(checkpoint["snapshot_sha256"]) != currentDigest {
+		*errors = append(*errors, discussionError("stale_semantic_checkpoint", "latest_checkpoint.snapshot_sha256 must match the current discussion semantic snapshot"))
+	}
+	if strings.TrimSpace(stringValue(payload["discussion_snapshot_digest"])) == "" {
+		*errors = append(*errors, discussionError("missing_discussion_snapshot_digest", "discussion_snapshot_digest is required"))
+	} else if stringValue(payload["discussion_snapshot_digest"]) != currentDigest {
+		*errors = append(*errors, discussionError("discussion_snapshot_digest_mismatch", "discussion_snapshot_digest must match the current discussion semantic snapshot"))
+	}
 }
 
 func validateHandoffTopicOwnership(value any, slug string, errors *[]map[string]string) {
@@ -1967,8 +2966,14 @@ func validateBoundary(value any, errors *[]map[string]string) {
 		return
 	}
 	validateObjectList(boundary["current_project_roles"], []string{"role", "scope", "evidence_source", "notes"}, "current_project_roles", errors)
+	if len(listValue(boundary["current_project_roles"])) == 0 {
+		*errors = append(*errors, discussionError("empty_current_project_roles", "context_boundary.current_project_roles must not be empty"))
+	}
 	if stringValue(boundary["target_project_root"]) != "" {
 		validateObjectList(boundary["target_project_roles"], []string{"role", "scope", "evidence_source", "notes"}, "target_project_roles", errors)
+		if len(listValue(boundary["target_project_roles"])) == 0 {
+			*errors = append(*errors, discussionError("empty_target_project_roles", "context_boundary.target_project_roles must not be empty when target_project_root is set"))
+		}
 	}
 }
 
@@ -1991,6 +2996,10 @@ func validateObjectList(value any, fields []string, label string, errors *[]map[
 		missing := []string{}
 		for field := range required {
 			if _, ok := object[field]; !ok {
+				missing = append(missing, field)
+				continue
+			}
+			if strings.TrimSpace(stringValue(object[field])) == "" {
 				missing = append(missing, field)
 			}
 		}
@@ -2715,9 +3724,6 @@ func (service prdService) runScan(mode, runSlug string) (Envelope, error) {
 	var data map[string]any
 	if canonical == "init-scan" {
 		activeCommand := "sp-prd-scan"
-		if payloadMode == "init" {
-			activeCommand = "sp-prd"
-		}
 		data, err = service.initRun(runSlug, activeCommand, payloadMode)
 	} else if canonical == "finalize-scan" {
 		data, err = service.finalizeRun(runSlug, payloadMode)
@@ -3827,6 +4833,15 @@ func mapsToAny(values []map[string]string) []any {
 	for i, value := range values {
 		result[i] = value
 	}
+	return result
+}
+
+func discussionErrorCodes(values []map[string]string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		result = append(result, value["code"])
+	}
+	sort.Strings(result)
 	return result
 }
 

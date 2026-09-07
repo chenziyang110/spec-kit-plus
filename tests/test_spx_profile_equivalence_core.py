@@ -85,6 +85,8 @@ def test_spx_discussion_preserves_truth_consequence_and_ui_handoff_inputs() -> N
     content = _text("spx-discussion", "discussion-contract.md")
 
     assert "discussion resolve --intent continue" in content
+    assert "cognition intent `discussion`" in content
+    assert "cognition intent `plan`" not in content
     assert (
         "discussion write-handoff <slug> --expected-state-sha256 "
         "<state_sha256> --input-json '<semantic-json>' --json"
@@ -96,6 +98,12 @@ def test_spx_discussion_preserves_truth_consequence_and_ui_handoff_inputs() -> N
     assert "truth pass" in content
     assert "target_project_root" in content
     assert "verified_project_facts" in content
+    assert "source_materials" in content
+    assert "mat-###" in content
+    assert "material coverage" in content
+    assert "missing_semantic_checkpoint" in content
+    assert "discussion_snapshot_digest" in content
+    assert "agent_requirement_contract" in content
     assert "consequence obligations" in content
     assert "original ui reference" in content
     assert "deferred ui" in content
@@ -105,6 +113,10 @@ def test_spx_specify_fails_closed_on_handoff_and_artifact_validation() -> None:
     content = _text("spx-specify", "discussion-handoff.md")
 
     assert "discussion validate-handoff <slug> --mode ready --json" in content
+    assert "version: 5" in content
+    assert "discussion_snapshot_digest" in content
+    assert "source_materials" in content
+    assert "source_evidence.material_id" in content
     assert "status: handoff-ready" in content
     assert "recommended_consumer: sp-specify" in content
     assert "consumer_eligibility.sp-specify.status: ready" in content
@@ -120,6 +132,15 @@ def test_spx_specify_fails_closed_on_handoff_and_artifact_validation() -> None:
         "--format json"
     ) in content
     assert "fail closed" in content
+
+
+def test_spx_quick_consumes_v5_material_bound_discussion_handoffs() -> None:
+    content = _text("spx-quick", "task-contract.md")
+
+    assert "handoff v5" in content
+    assert "discussion_snapshot_digest" in content
+    assert "source material" in content
+    assert "source_evidence.material_id" in content
 
 
 def test_spx_plan_requires_ready_input_and_conditional_design_outputs() -> None:

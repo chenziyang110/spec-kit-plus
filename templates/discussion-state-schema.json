@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://spec-kit-plus.local/schemas/discussion-state-v2.json",
+  "$id": "https://spec-kit-plus.local/schemas/discussion-state-v3.json",
   "title": "Spec Kit Plus Discussion State",
   "type": "object",
   "required": [
@@ -15,7 +15,7 @@
     "consumption"
   ],
   "properties": {
-    "version": {"const": 2},
+    "version": {"const": 3},
     "status_family": {"const": "discussion"},
     "slug": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
     "topic": {"type": "string", "minLength": 1},
@@ -40,8 +40,30 @@
         "turn_class",
         "user_goal",
         "current_decision_frame",
+        "requirements_snapshot",
+        "implementation_target",
+        "source_evidence",
+        "source_materials",
+        "blocking_unknowns",
+        "soft_unknowns",
+        "conflicts",
+        "downstream_instructions",
+        "discussion_decision_digest",
+        "must_preserve",
+        "truth_pass_status",
+        "verified_project_facts",
+        "evidence_checked",
+        "advice_confidence",
+        "discussion_compass_status",
+        "next_discussion_paths",
+        "ui_discussion_status",
+        "design_context",
+        "artifact_refs",
         "confirmed_decisions",
+        "changed_recommendations",
         "context_boundary",
+        "verified_fact_refs",
+        "open_assumptions",
         "topic_ownership",
         "open_questions",
         "current_recommendation",
@@ -50,6 +72,157 @@
         "next_gate"
       ],
       "properties": {
+        "version": {"const": 2},
+        "discussion_slug": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+        "lifecycle_phase": {"enum": ["explore", "ground", "decide", "prepare", "review", "ready", "consumed", "closed"]},
+        "turn_class": {"type": "string", "minLength": 1},
+        "user_goal": {"type": "string", "minLength": 1},
+        "current_decision_frame": {"type": "string", "minLength": 1},
+        "requirements_snapshot": {
+          "type": "object",
+          "required": ["target_need", "actors", "scenarios", "constraints", "success_criteria", "design_direction", "optimal_solution_approach", "non_goals", "scope"],
+          "properties": {
+            "target_need": {"type": ["string", "null"]},
+            "actors": {"$ref": "#/$defs/stringList"},
+            "scenarios": {"$ref": "#/$defs/stringList"},
+            "constraints": {"$ref": "#/$defs/stringList"},
+            "success_criteria": {"$ref": "#/$defs/stringList"},
+            "design_direction": {"$ref": "#/$defs/stringList"},
+            "optimal_solution_approach": {"$ref": "#/$defs/stringList"},
+            "non_goals": {"$ref": "#/$defs/stringList"},
+            "scope": {
+              "type": "object",
+              "required": ["in", "out", "deferred"],
+              "properties": {
+                "in": {"$ref": "#/$defs/stringList"},
+                "out": {"$ref": "#/$defs/stringList"},
+                "deferred": {"$ref": "#/$defs/stringList"}
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        },
+        "implementation_target": {
+          "type": "object",
+          "properties": {
+            "actual_project": {"type": ["string", "null"]},
+            "target_root": {"type": ["string", "null"]},
+            "target_paths": {"$ref": "#/$defs/stringList"},
+            "required_target_paths_to_verify": {"$ref": "#/$defs/stringList"}
+          },
+          "additionalProperties": true
+        },
+        "source_evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["source_type", "evidence_status", "source", "claim"],
+            "properties": {
+              "source_type": {"type": "string", "minLength": 1},
+              "evidence_status": {"enum": ["verified", "proven", "confirmed", "inferred", "assumption", "stale-advisory", "missing", "conflict"]},
+              "source": {"type": "string", "minLength": 1},
+              "claim": {"type": "string", "minLength": 1},
+              "material_id": {"type": "string", "pattern": "^MAT-[0-9]{3}$"}
+            },
+            "additionalProperties": true
+          }
+        },
+        "source_materials": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "material_type", "locator", "summary", "inspection_status", "claims", "coverage_gaps", "sensitivity", "material_digest"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^MAT-[0-9]{3}$"},
+              "material_type": {"type": "string", "minLength": 1},
+              "locator": {"type": "string", "minLength": 1},
+              "summary": {"type": "string", "minLength": 1},
+              "inspection_status": {"enum": ["pending", "inspected", "partial", "unavailable", "stale", "conflict"]},
+              "claims": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+              "coverage_gaps": {"$ref": "#/$defs/stringList"},
+              "sensitivity": {"enum": ["safe", "sanitized", "restricted"]},
+              "content_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "version_ref": {"type": "string", "minLength": 1},
+              "material_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+            },
+            "additionalProperties": true
+          }
+        },
+        "blocking_unknowns": {"type": "array", "items": {"$ref": "#/$defs/unknownRecord"}},
+        "soft_unknowns": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {"type": "string", "minLength": 1},
+              {"$ref": "#/$defs/unknownRecord"}
+            ]
+          }
+        },
+        "conflicts": {"type": "array", "items": {"$ref": "#/$defs/conflictRecord"}},
+        "downstream_instructions": {
+          "type": "object",
+          "required": ["settled_decisions", "preserved_assumptions", "conflicts_requiring_return", "capability_map", "dependencies", "planning_constraints", "deferred_scope", "reopen_conditions"],
+          "properties": {
+            "settled_decisions": {"$ref": "#/$defs/stringList"},
+            "preserved_assumptions": {"$ref": "#/$defs/stringList"},
+            "conflicts_requiring_return": {"$ref": "#/$defs/stringList"},
+            "capability_map": {"type": "array"},
+            "dependencies": {"type": "array"},
+            "planning_constraints": {"$ref": "#/$defs/stringList"},
+            "deferred_scope": {"$ref": "#/$defs/stringList"},
+            "reopen_conditions": {"$ref": "#/$defs/stringList"}
+          },
+          "additionalProperties": true
+        },
+        "discussion_decision_digest": {
+          "type": "object",
+          "required": ["locked_direction", "rejected_alternatives", "accepted_tradeoffs", "experience_commitments", "design_system_requirements", "design_system_status", "design_risk_level", "review_criteria_carried_forward", "must_not_dilute"],
+          "properties": {
+            "locked_direction": {"$ref": "#/$defs/stringList"},
+            "rejected_alternatives": {"$ref": "#/$defs/stringList"},
+            "accepted_tradeoffs": {"$ref": "#/$defs/stringList"},
+            "experience_commitments": {"$ref": "#/$defs/stringList"},
+            "design_system_requirements": {"$ref": "#/$defs/stringList"},
+            "design_system_status": {"type": "string", "minLength": 1},
+            "design_risk_level": {"enum": ["none", "low", "medium", "high"]},
+            "review_criteria_carried_forward": {"$ref": "#/$defs/stringList"},
+            "must_not_dilute": {"$ref": "#/$defs/stringList"}
+          }
+        },
+        "must_preserve": {"type": "array", "items": {"$ref": "#/$defs/mustPreserveRecord"}},
+        "truth_pass_status": {"enum": ["not-needed", "needed", "in-progress", "complete", "blocked"]},
+        "verified_project_facts": {"$ref": "#/$defs/stringList"},
+        "evidence_checked": {"$ref": "#/$defs/stringList"},
+        "advice_confidence": {
+          "oneOf": [
+            {"enum": ["none", "low", "medium", "high", "blocked"]},
+            {
+              "type": "object",
+              "required": ["level", "reason"],
+              "properties": {
+                "level": {"enum": ["none", "low", "medium", "high", "blocked"]},
+                "reason": {"type": "string", "minLength": 1}
+              },
+              "additionalProperties": true
+            }
+          ]
+        },
+        "discussion_compass_status": {"enum": ["missing", "current", "stale"]},
+        "next_discussion_paths": {"$ref": "#/$defs/stringList"},
+        "ui_discussion_status": {"enum": ["not_applicable", "offered", "accepted", "completed", "skipped", "deferred"]},
+        "design_context": {"type": "object", "additionalProperties": true},
+        "artifact_refs": {"$ref": "#/$defs/stringList"},
+        "confirmed_decisions": {"$ref": "#/$defs/stringList"},
+        "changed_recommendations": {"$ref": "#/$defs/stringList"},
+        "context_boundary": {"type": "object"},
+        "verified_fact_refs": {"type": "array"},
+        "open_assumptions": {"type": "array"},
+        "open_questions": {"type": "array"},
+        "current_recommendation": {"type": "string", "minLength": 1},
+        "allowed_actions": {"$ref": "#/$defs/stringList"},
+        "persistence_mode": {"enum": ["frontstage-only", "durable-checkpoint", "evidence-handoff", "lifecycle-transition"]},
+        "next_gate": {"type": "string", "minLength": 1},
         "topic_ownership": {
           "type": "object",
           "required": ["owner_slug", "anchor", "owned_scope", "routed_topics"],
@@ -96,12 +269,74 @@
           },
           "additionalProperties": true
         }
-      }
+      },
+      "additionalProperties": true
     },
-    "latest_checkpoint": {"type": ["object", "null"]},
+    "latest_checkpoint": {
+      "type": ["object", "null"],
+      "properties": {
+        "snapshot_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "changed_fields": {"$ref": "#/$defs/stringList"}
+      },
+      "additionalProperties": true
+    },
     "handoff": {"type": "object"},
     "consumption": {"type": "object"},
     "next_command": {"type": "string"}
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "unknownRecord": {
+      "type": "object",
+      "required": ["id", "question", "owner", "status", "latest_resolve_phase"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "question": {"type": "string", "minLength": 1},
+        "owner": {"type": "string", "minLength": 1},
+        "status": {"enum": ["open", "resolved", "closed", "deferred", "superseded", "dropped"]},
+        "latest_resolve_phase": {"type": "string", "minLength": 1},
+        "resolution_evidence": {"type": "string", "minLength": 1},
+        "stop_and_reopen_condition": {"type": "string", "minLength": 1},
+        "superseded_by": {"type": "string", "minLength": 1},
+        "user_decision_source": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": true
+    },
+    "conflictRecord": {
+      "type": "object",
+      "required": ["id", "claim", "status"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "claim": {"type": "string", "minLength": 1},
+        "status": {"enum": ["open", "resolved", "closed", "deferred", "superseded", "dropped"]},
+        "resolution": {"type": "string", "minLength": 1},
+        "resolution_evidence": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": true
+    },
+    "mustPreserveRecord": {
+      "type": "object",
+      "required": ["id", "type", "claim", "source", "downstream_requirement", "blocking_level", "owner", "latest_resolve_phase", "status"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^(MP|CA)-[0-9]{3}$"},
+        "type": {"type": "string", "minLength": 1},
+        "claim": {"type": "string", "minLength": 1},
+        "source": {"type": "string", "minLength": 1},
+        "downstream_requirement": {"type": "string", "minLength": 1},
+        "blocking_level": {"enum": ["hard", "soft"]},
+        "owner": {"type": "string", "minLength": 1},
+        "latest_resolve_phase": {"type": "string", "minLength": 1},
+        "status": {"enum": ["active", "confirmed", "resolved", "deferred", "superseded", "dropped"]},
+        "resolution_evidence": {"type": "string", "minLength": 1},
+        "stop_and_reopen_condition": {"type": "string", "minLength": 1},
+        "superseded_by": {"type": "string", "minLength": 1},
+        "user_decision_source": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": true
+    }
+  }
 }

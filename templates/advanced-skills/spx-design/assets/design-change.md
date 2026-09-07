@@ -175,6 +175,9 @@ protected, and do not load a professional style skill. Only an explicitly
 authorized full-page overhaul may use `page-overhaul-authorized`; its allowed
 style delta must name the exact page surface and may not silently restyle the
 product shell or shared components.
+Every protected surface has its own source-continuity binding with
+`disposition: preserve`, `use_intent: exact`, and `fidelity: exact`; an adapt
+binding cannot cite protected shell/shared-component sources.
 
 ## Design Direction
 
@@ -352,8 +355,10 @@ bans.
 
 ## Reference Fidelity
 
-Record each baseline/reference, its intent, what must be preserved, what may
-adapt, and what must not be copied.
+Record each baseline/reference, governed `surface_ids`, intent, and
+per-surface fidelity, plus what must be preserved, may adapt, or must not be
+copied. Inherited image rounds bind an exact `edit-source` for every protected
+surface through `input_images`.
 
 Source controls with distinct states bind `surface_bindings[].component_states`
 to separate behavior and per-part visual expectations. Source image variants

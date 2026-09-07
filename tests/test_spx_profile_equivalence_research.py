@@ -39,14 +39,6 @@ def test_spx_deep_research_preserves_durable_stage_and_refusal_gates() -> None:
     assert "evidence import` is reserved for external or binary proof" in content
 
 
-def test_spx_research_keeps_generic_web_research_out_of_feature_artifacts() -> None:
-    content = _skill("spx-research").lower()
-
-    assert "generic web research" in content
-    assert "external/web research skill" in content
-    assert "do not create feature artifacts" in content
-
-
 def test_spx_design_preserves_change_local_support_artifacts_and_final_review() -> None:
     content = _skill("spx-design")
 
@@ -112,14 +104,6 @@ def test_spx_prd_build_consumes_semantic_status_and_preserves_build_state() -> N
         "surface presence alone is not completion",
     ):
         assert required in content
-
-
-def test_spx_prd_compatibility_route_propagates_child_blockers() -> None:
-    content = _skill("spx-prd")
-
-    assert "If scan blocks, stop" in content
-    assert "If build blocks, stop" in content
-    assert "never report the compatibility route complete" in content
 
 
 def test_spx_constitution_uses_native_artifact_gate() -> None:

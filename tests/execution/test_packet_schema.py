@@ -197,6 +197,8 @@ def test_worker_task_packet_captures_ui_contract_and_result_verification() -> No
                 {
                     "ref": "specs/001-feature/ui-target.html",
                     "intent": "preserve-structure",
+                    "fidelity": "high",
+                    "surface_ids": ["SURFACE-001"],
                 }
             ],
             real_content_plan=[

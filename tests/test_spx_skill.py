@@ -46,12 +46,10 @@ SPX_SKILLS = {
     "spx-map-scan",
     "spx-map-update",
     "spx-plan",
-    "spx-prd",
     "spx-prd-build",
     "spx-prd-scan",
     "spx-quick",
     "spx-review",
-    "spx-research",
     "spx-specify",
     "spx-tasks",
     "spx-taskstoissues",
@@ -274,6 +272,15 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "artifact scaffold --kind design-review" in skills["spx-design"]
     assert "design-brief-template.md` in memory" not in skills["spx-design"]
     assert "do not edit application source" in skills["spx-design"]
+    assert "contract_action: create | refine | audit" in skills["spx-design"]
+    assert "surface_posture: greenfield | inherit-existing" in skills["spx-design"]
+    image_round = (
+        ADVANCED_SKILLS / "spx-design" / "references" / "image-round.md"
+    ).read_text(encoding="utf-8")
+    assert "specify-runtime design prompt" in image_round
+    assert "--content -" in image_round
+    assert "create-only" in image_round
+    assert "edit-source" in image_round
 
     assert "create-new-feature" in skills["spx-specify"]
     assert "artifact scaffold --kind spec-contract" in skills["spx-specify"]
@@ -323,7 +330,6 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "artifact scaffold --kind deep-research" not in skills["spx-deep-research"]
     assert "planning handoff" in skills["spx-deep-research"]
     assert "do not implement production" in skills["spx-deep-research"]
-    assert "not a separate artifact lifecycle" in skills["spx-research"]
 
     assert "tasks build" in skills["spx-tasks"]
     assert "tasks finalize" in skills["spx-tasks"]
@@ -459,8 +465,6 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "natural-language summary is not acceptance evidence" in scan_worker_compact
     assert "the runtime computes the authoritative remaining set" in scan_worker_compact
 
-    assert "prd-scan" in skills["spx-prd"]
-    assert "prd-build" in skills["spx-prd"]
     assert "read-only" in skills["spx-prd-scan"]
     assert "lowest-cost capable" in skills["spx-prd-scan"]
     assert "do not synthesize the final prd" in skills["spx-prd-scan"]
@@ -521,17 +525,11 @@ def test_spx_preplan_routes_stop_after_the_authorized_stage() -> None:
             " ",
             (ADVANCED_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").lower(),
         )
-        for name in ("spx-auto", "spx-research", "spx-deep-research")
+        for name in ("spx-auto", "spx-deep-research")
     }
 
     assert "stop after that workflow returns" in skills["spx-auto"]
     assert "do not invoke a second workflow" in skills["spx-auto"]
-
-    assert (
-        "authorizes only the deep-research compatibility route"
-        in skills["spx-research"]
-    )
-    assert "do not continue to `$spx-plan`" in skills["spx-research"]
 
     assert (
         "this invocation authorizes only this workflow stage"

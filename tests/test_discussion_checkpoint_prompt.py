@@ -29,6 +29,23 @@ def _assert_prefix_contract(content: str) -> None:
     assert "after several unsaved" not in compact
 
 
+def _assert_semantic_snapshot_contract(content: str) -> None:
+    compact = re.sub(r"\s+", " ", content).lower()
+    assert "source_materials" in content
+    assert "MAT-###" in content
+    assert "material_type" in content
+    assert "locator" in content
+    assert "inspection_status" in content
+    assert "coverage_gaps" in content
+    assert "sensitivity" in content
+    assert "requirements_snapshot" in content
+    assert "agent_requirement_contract" in content
+    assert "discussion_snapshot_digest" in content
+    assert "missing_semantic_checkpoint" in content
+    assert "material coverage" in compact
+    assert "uncovered" in compact
+
+
 @pytest.mark.parametrize("agent", ["codex", "claude"])
 @pytest.mark.parametrize("profile", ["classic", "advanced"])
 def test_installed_discussion_keeps_prefix_and_body_independent(tmp_path, agent, profile):
@@ -41,6 +58,7 @@ def test_installed_discussion_keeps_prefix_and_body_independent(tmp_path, agent,
     combined = read_skill_with_references(skill)
 
     _assert_prefix_contract(combined)
+    _assert_semantic_snapshot_contract(combined)
     assert "需要保存讨论进度时，可在下一条回复前加 `checkpoint`。" in combined
     assert "需要保存进度时，可在下一条回复前加 `checkpoint`。" not in combined
     assert "checkpoint，这个方案的成本怎么算？" in combined

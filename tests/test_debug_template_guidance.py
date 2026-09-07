@@ -37,7 +37,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "use `leader-inline` when the investigation is small, focused, and has a short evidence chain" in content
     assert "use `subagent-assisted` when the investigation has multiple independent evidence lanes" in content
     assert "structured handoff" in content
-    assert "project-map first" in content
+    assert "project cognition first" in content
     assert "map-backed minimum intake" in content
     assert "deep intake is fallback, not the default" in content
     assert "stage 1a: causal map" in content

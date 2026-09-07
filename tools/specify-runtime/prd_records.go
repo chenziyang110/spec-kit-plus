@@ -271,7 +271,10 @@ func (service prdService) requirePRDScanRecordMutation(runDir string) error {
 		return err
 	}
 	active := strings.ToLower(strings.TrimSpace(document.fields["active_command"]))
-	if active != "sp-prd-scan" && active != "sp-prd" {
+	if active == "sp-prd" {
+		return fmt.Errorf("legacy sp-prd workspaces are read-only; migrate or restart the scan through sp-prd-scan before mutating PRD records")
+	}
+	if active != "sp-prd-scan" {
 		return fmt.Errorf("PRD scan contracts are immutable while active_command is %q", active)
 	}
 	return nil

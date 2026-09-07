@@ -39,6 +39,10 @@
     },
     "capability_model": {"$ref": "#/$defs/capabilityModel"},
     "visual_collaboration": {"$ref": "#/$defs/visualCollaboration"},
+    "input_images": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/inputImage"}
+    },
     "review": {
       "type": "object",
       "additionalProperties": false,
@@ -99,6 +103,17 @@
         "image_editing": {"enum": ["available", "unavailable"]},
         "inspection_owner": {"enum": ["agent-and-user", "user"]},
         "prompt_strategy": {"enum": ["image-generation", "html-authoring"]}
+      }
+    },
+    "inputImage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "role", "surface_ids", "fidelity"],
+      "properties": {
+        "ref": {"type": "string", "minLength": 1},
+        "role": {"enum": ["edit-source", "exact-content", "layout-reference", "style-reference", "inspiration"]},
+        "surface_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "fidelity": {"enum": ["exact", "high", "approximate", "inspiration"]}
       }
     },
     "interactionStep": {
@@ -619,6 +634,8 @@
         "source_refs": {"$ref": "#/$defs/nonEmptyStrings"},
         "discovery": {"enum": ["measured", "inferred", "assumption"]},
         "disposition": {"enum": ["preserve", "adapt", "replace", "merge", "split", "retire"]},
+        "use_intent": {"enum": ["exact", "preserve-structure", "inspiration", "extract-tokens", "do-not-copy"]},
+        "fidelity": {"enum": ["exact", "high", "approximate", "inspiration"]},
         "rationale": {"type": "string", "minLength": 1}
       }
     },

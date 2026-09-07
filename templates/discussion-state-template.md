@@ -42,6 +42,15 @@
 - current_decision_frame: [current decision boundary]
 - confirmed_decisions: []
 - context_boundary: {}
+- requirements_snapshot: [current target_need, actors, scenarios, scope.in/out/deferred, success_criteria, optimal_solution_approach, non_goals]
+- source_materials: []
+- source_evidence: []
+- blocking_unknowns: []
+- conflicts: []
+- downstream_instructions: [settled decisions, preserved assumptions, dependencies, planning constraints, deferred scope, reopen conditions]
+- discussion_decision_digest: [locked direction, rejected alternatives, accepted tradeoffs, experience commitments, must-not-dilute]
+- must_preserve: []
+- artifact_refs: []
 - open_questions: []
 - current_recommendation: [recommended direction]
 - allowed_actions: []
@@ -85,6 +94,7 @@
 ## Lightweight Recovery
 
 - latest_event_checkpoint: [discussion-log.jsonl event timestamp or none]
+- latest_snapshot_sha256: [latest_checkpoint.snapshot_sha256 or none]
 - last_compaction_checkpoint: [ISO-8601 timestamp or none]
 - compact_summary_status: current | stale | missing
 - ordinary_turn_write_policy: deferred-checkpoint

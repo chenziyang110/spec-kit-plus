@@ -1,46 +1,24 @@
 from pathlib import Path
 
-import yaml
-
 from .template_utils import read_template
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PRD_TEMPLATE = PROJECT_ROOT / "templates" / "commands" / "prd.md"
+PRD_ALIAS_TEMPLATE = PROJECT_ROOT / "templates" / "commands" / "prd.md"
 
 
-def _content() -> str:
-    return read_template(PRD_TEMPLATE.relative_to(PROJECT_ROOT).as_posix())
+def test_prd_alias_template_is_retired() -> None:
+    assert not PRD_ALIAS_TEMPLATE.exists()
 
 
-def _frontmatter() -> dict:
-    parts = _content().split("---", 2)
-    return yaml.safe_load(parts[1])
+def test_canonical_prd_scan_and_build_templates_remain_available() -> None:
+    scan = read_template("templates/commands/prd-scan.md")
+    build = read_template("templates/commands/prd-build.md")
 
-
-def test_prd_template_defines_deprecated_compatibility_contract() -> None:
-    frontmatter = _frontmatter()
-    contract = frontmatter["workflow_contract"]
-
-    assert frontmatter["description"].startswith("Use when")
-    assert "deprecated `sp-prd` compatibility entrypoint" in frontmatter["description"]
-    assert "deprecated compatibility" in contract["when_to_use"].lower()
-    assert "sp-prd-scan" in contract["primary_objective"]
-    assert "sp-prd-build" in contract["primary_objective"]
-    assert ".specify/prd-runs/<run-id>/prd-scan.md" in contract["primary_outputs"]
-    assert ".specify/prd-runs/<run-id>/exports/prd.md" in contract["primary_outputs"]
-    assert "sp-prd-scan" in contract["default_handoff"]
-    assert "sp-prd-build" in contract["default_handoff"]
-
-
-def test_prd_template_body_mentions_compatibility_reconstruction_wording() -> None:
-    content = _content()
-    lowered = content.lower()
-
-    assert "deprecated" in lowered
-    assert "compatibility" in lowered
-    assert "sp-prd-scan" in content
-    assert "sp-prd-build" in content
-    assert "reconstruction" in lowered
-    assert "L4 Reconstruction-Ready" in content
-    assert "instead" in lowered or "no longer" in lowered
+    assert "sp-prd-scan" in scan
+    assert "L4 Reconstruction-Ready" in scan
+    assert "config-contracts.json" in scan
+    assert "sp-prd-build" in build
+    assert "do not reread the repository to fill gaps" in build.lower()
+    assert "must not become a second repository scan" in build.lower()
+    assert ".specify/prd-runs/<run-id>/exports/prd.md" in build

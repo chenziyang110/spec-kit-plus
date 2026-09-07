@@ -254,7 +254,8 @@ subagent-mandatory, critical claims target `L4 Reconstruction-Ready`,
 `config-contracts.json` is part of the scan contract surface, and `prd-build`
 compiles from the scan package without a second repository scan. It remains a
 peer workflow path to `specify` and does not automatically hand off to `plan`.
-`prd` remains a deprecated compatibility entrypoint only.
+The retired `prd` compatibility entrypoint is no longer generated; use the
+canonical pair directly.
 
 Use `discussion` for rough ideas that need product/technical shaping before formal specification or direct Quick delivery. At handoff it presents both paths and their eligibility, explains any blocker, gives a complexity-informed recommendation among eligible paths from delivery complexity and consequence profile, and requires the user's final choice of route. Quick is recommended for bounded, well-understood work; Specify is recommended for high ambiguity/complexity, interacting systems, architecture/data migration/security/compliance/rollout concerns, broad acceptance obligations, or durable traceability. Task size alone is not a hard routing ceiling, and either eligible user choice wins. Only then does it submit the confirmed semantic contract through `specify-runtime discussion write-handoff`; the runtime materializes one canonical Agent-only `handoff-to-specify.json`, and the confirmed `recommended_consumer` records that selection.
 

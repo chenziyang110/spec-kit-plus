@@ -59,6 +59,15 @@ exact complete page; only that page may appear in
 `allowed_style_delta_surfaces`, while shell/shared components stay protected.
 Adding or refactoring one function page does not authorize a new visual
 language. `greenfield` requires evidence that no live UI style applies.
+For `inherit-existing`, split every protected surface into its own source
+continuity binding with `disposition: preserve`, `use_intent: exact`, and
+`fidelity: exact`. Image-primary work additionally requires a project-contained
+exact `edit-source` for every protected surface, a runtime-owned `design
+prompt` generation binding created from the exact professional prompt via
+`--content -` stdin, and a protected-surface inspection bound into the concept
+receipt. The prompt producer is create-only and never synthesizes or overwrites
+the Agent-authored request. If image editing is unavailable, use HTML-primary inside the
+inherited shell instead of regenerating the page.
 For substantive create/refine, read
 `.specify/templates/ui-professional-skills/router.md` and preserve the resolved
 `professional_skill_route`: `domain_skill_id`, `style_skill_id`,
@@ -336,9 +345,11 @@ does not replace `accessibility_matrix`.
 Use risk-based or pairwise coverage rather than an unbounded Cartesian product;
 retain every high-severity accessibility, trust, recovery, and usability path.
 When references
-exist, keep the original inspectable assets and assign each a use intent; prose
-alone is not a fidelity source. Default reference fidelity is
-`approximate`; `high` requires comparison and a difference/deviation record.
+exist, keep the original inspectable assets and assign each a use intent,
+governed surface set, and fidelity; prose alone is not a fidelity source.
+Third-party reference fidelity defaults to `approximate`, while protected
+live-product surfaces remain `exact`; `high` requires comparison and a
+difference/deviation record.
 Treat third-party source as evidence, not a license to copy protected brand,
 artwork, trade dress, or proprietary implementation.
 

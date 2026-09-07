@@ -45,7 +45,7 @@
 - must_not: []
 - source_refs: []
 - source_continuity: {schema: spec-kit-ui-source-continuity-v1, applicability: not-assessed | not-applicable | required, mode: none | reference-grounded | live-product | implementation-backed | mixed, reason:, coverage:{surface_ids:[], interaction_ids:[], component_ids:[]}, authority_refs:[], surface_bindings:[], action_bindings:[], asset_bindings:[], unresolved_gaps:[]}
-- reference_intents: [{ref:, intent: exact | preserve-structure | inspiration | extract-tokens | do-not-copy}]
+- reference_intents: [{ref:, intent: exact | preserve-structure | inspiration | extract-tokens | do-not-copy, fidelity: exact | high | approximate | inspiration, surface_ids: []}]
 - fidelity_mode: approximate | high | inspiration
 - fidelity_criteria:
 - component_contracts: [{exact selected immutable DH-* component row including required_states, interaction_modes, data_scenarios, variants, content_constraints, semantic_token_refs, governance, adoption, iconography, decision_ids}]

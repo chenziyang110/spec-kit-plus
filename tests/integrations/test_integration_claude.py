@@ -3586,7 +3586,7 @@ class TestClaudeIntegration:
         preset_dir = tmp_path / "claude-skill-command"
         preset_dir.mkdir()
         (preset_dir / "commands").mkdir()
-        (preset_dir / "commands" / "sp.research.md").write_text(
+        (preset_dir / "commands" / "sp.custom-research.md").write_text(
             "---\ndescription: Research workflow\n---\n\npreset:claude-skill-command\n"
         )
         manifest_data = {
@@ -3602,8 +3602,8 @@ class TestClaudeIntegration:
                 "templates": [
                     {
                         "type": "command",
-                        "name": "sp.research",
-                        "file": "commands/sp.research.md",
+                        "name": "sp.custom-research",
+                        "file": "commands/sp.custom-research.md",
                     }
                 ]
             },
@@ -3614,16 +3614,16 @@ class TestClaudeIntegration:
         manager = PresetManager(project)
         manager.install_from_directory(preset_dir, "0.1.5")
 
-        skill_file = skills_dir / "sp-research" / "SKILL.md"
+        skill_file = skills_dir / "sp-custom-research" / "SKILL.md"
         assert skill_file.exists()
         content = skill_file.read_text(encoding="utf-8")
         assert "preset:claude-skill-command" in content
-        assert "name: sp-research" in content
+        assert "name: sp-custom-research" in content
         assert "user-invocable: true" in content
         assert "disable-model-invocation: true" in content
 
         metadata = manager.registry.get("claude-skill-command")
-        assert "sp-research" in metadata.get("registered_skills", [])
+        assert "sp-custom-research" in metadata.get("registered_skills", [])
 
 
 class TestClaudeArgumentHints:

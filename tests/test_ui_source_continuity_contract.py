@@ -94,6 +94,27 @@ def test_ui_source_continuity_schema_and_validator_accept_complete_contract() ->
     assert result.valid is True
 
 
+def test_ui_source_continuity_carries_per_surface_intent_and_fidelity() -> None:
+    payload = _valid_contract()
+    surface = payload["surface_bindings"][0]
+    assert isinstance(surface, dict)
+    surface.update({"use_intent": "exact", "fidelity": "exact"})
+
+    accepted = design_intelligence.validate_ui_source_continuity(
+        payload,
+        require_ready=True,
+    )
+    assert accepted.valid is True
+
+    surface["fidelity"] = "global-approximate"
+    rejected = design_intelligence.validate_ui_source_continuity(
+        payload,
+        require_ready=True,
+    )
+    assert rejected.valid is False
+    assert any("fidelity" in error.path for error in rejected.errors)
+
+
 def test_ui_source_continuity_rejects_missing_business_action_and_open_gaps() -> None:
     validate = getattr(
         design_intelligence,
@@ -383,6 +404,19 @@ def test_source_continuity_lab_is_executable_across_formal_quick_and_review() ->
         assert "source-continuity-validate" in content, relative
         assert "source_continuity_lab_report_ref" in content, relative
         assert "source_continuity_adapter_plan_ref" in content, relative
+
+
+def test_source_continuity_snapshot_contract_is_stable_across_profiles() -> None:
+    for relative in (
+        "templates/command-references/implement/ui-design-intelligence.md",
+        "templates/advanced-skills/spx-implement/SKILL.md",
+        "templates/project-handbook-template.md",
+    ):
+        content = " ".join(_read(relative).lower().split())
+        assert "expected_write_scope" in content, relative
+        assert "runtime-owned" in content, relative
+        assert "byte-stable" in content, relative
+        assert "do not add" in content and "source-continuity" in content, relative
 
 
 def test_user_invoked_design_surfaces_own_source_continuity_without_passive_gate() -> None:

@@ -130,6 +130,14 @@
           "type": "string",
           "enum": ["preserve", "adapt", "replace", "merge", "split", "retire"]
         },
+        "use_intent": {
+          "type": "string",
+          "enum": ["exact", "preserve-structure", "inspiration", "extract-tokens", "do-not-copy"]
+        },
+        "fidelity": {
+          "type": "string",
+          "enum": ["exact", "high", "approximate", "inspiration"]
+        },
         "rationale": { "$ref": "#/$defs/nonEmptyString" },
         "component_states": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/migrationComponentStates" } }
       }

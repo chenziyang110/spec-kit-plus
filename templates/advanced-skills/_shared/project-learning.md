@@ -19,7 +19,7 @@ For every non-trivial workflow, run:
 ```
 
 SPX and Classic share one namespace: pass `implement` for `spx-implement` and
-`deep-research` for `spx-research`. Select by compact `summary`, `action`,
+`deep-research` for `spx-deep-research`. Select by compact `summary`, `action`,
 `applies_to`, and `trigger_signals`. Use `learning list` only to filter or page
 more summaries. Execute one selected card's `show_argv` only when its triggers
 match the active work. Live evidence overrides stale Learning.

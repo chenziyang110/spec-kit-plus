@@ -26,6 +26,7 @@ Or install globally:
 
 import os
 import re
+import hashlib
 import subprocess
 import sys
 import zipfile
@@ -101,6 +102,7 @@ from specify_cli.agent_api import (
 from specify_cli.command_catalog import list_command_catalog, show_catalog_command
 from specify_cli.design import (
     DESIGN_DIRECTION_CHECKPOINT_SCHEMA,
+    MAX_DESIGN_IMAGE_PROMPT_BYTES,
     DesignDiagnostic,
     DesignLintError,
     adopt_design_change,
@@ -119,6 +121,8 @@ from specify_cli.design import (
     lint_ui_target_file,
     parse_design_capability_profile_ids,
     register_design_change,
+    record_design_concept_receipt,
+    render_design_image_prompt,
     render_design_preview,
     scaffold_design_change,
     scaffold_design_iteration,
@@ -1348,6 +1352,66 @@ def design_preview(
     print(f"Wrote {_display_path(out_path)}")
 
 
+@design_app.command("prompt")
+def design_prompt(
+    source: Path = typer.Argument(
+        ...,
+        help="Path to an image-primary round manifest or image file",
+    ),
+    out: Optional[Path] = typer.Option(
+        None,
+        "--out",
+        help="Must name the canonical adjacent round-NN.prompt.md when supplied",
+    ),
+    content: str = typer.Option(
+        ...,
+        "--content",
+        help="Exact professional ImageGen prompt: inline, @project-path, or - for stdin",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+) -> None:
+    """Create the runtime-owned exact prompt and generation binding for an image round."""
+
+    try:
+        prompt_text = resolve_agent_text_input(
+            content,
+            project_root=Path.cwd(),
+            label="design prompt --content",
+            max_bytes=MAX_DESIGN_IMAGE_PROMPT_BYTES,
+        )
+        out_path = render_design_image_prompt(
+            source,
+            prompt_text=prompt_text,
+            out_path=out,
+        )
+    except (DesignLintError, ValueError) as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    generation_path = out_path.with_name(
+        out_path.name.removesuffix(".prompt.md") + ".generation.json"
+    )
+    generation = json.loads(generation_path.read_text(encoding="utf-8"))
+    payload = {
+        "status": "ok",
+        "path": str(out_path.resolve()),
+        "sha256": generation["prompt_sha256"],
+        "generation_path": str(generation_path.resolve()),
+        "generation_sha256": hashlib.sha256(generation_path.read_bytes()).hexdigest(),
+        "receipt": generation,
+    }
+    if output_format == TextJsonFormat.json:
+        print_json(payload)
+        return
+    print(
+        f"Wrote {_display_path(out_path)} ({payload['sha256']}) and "
+        f"{_display_path(generation_path)} ({payload['generation_sha256']})"
+    )
+
+
 @design_app.command("preview-lint")
 def design_preview_lint(
     path: Path = typer.Argument(
@@ -1364,8 +1428,16 @@ def design_preview_lint(
         "--level",
         help="Validation level: structural, concept, or ready",
     ),
+    inspection_json: Optional[str] = typer.Option(
+        None,
+        "--inspection-json",
+        help=(
+            "Concept visual inspection object as inline JSON, @project-path, or - "
+            "for stdin; required for inspectable inherit-existing rounds"
+        ),
+    ),
 ) -> None:
-    """Validate a self-contained single-concept HTML design preview."""
+    """Validate a visual round and bind a concept receipt at concept level."""
 
     normalized_format = output_format.lower()
     normalized_level = level.lower()
@@ -1381,8 +1453,36 @@ def design_preview_lint(
         if path.suffix.lower() == ".html"
         else lint_design_image_bundle(path, level=normalized_level)
     )
+    concept_receipt: dict[str, object] | None = None
+    if not diagnostics and normalized_level == "concept":
+        try:
+            visual_review = (
+                resolve_agent_json_object(
+                    inspection_json,
+                    project_root=Path.cwd(),
+                    label="design preview-lint --inspection-json",
+                )
+                if inspection_json is not None
+                else None
+            )
+            concept_receipt = record_design_concept_receipt(
+                path,
+                visual_review=visual_review,
+            )
+        except (DesignLintError, ValueError) as exc:
+            diagnostics = [
+                DesignDiagnostic(
+                    code="concept-receipt-blocked",
+                    message=str(exc),
+                    path=str(path.with_suffix(".concept.json")),
+                    layer="concept",
+                )
+            ]
     if normalized_format == "json":
-        print_json(_diagnostics_payload(diagnostics))
+        payload = _diagnostics_payload(diagnostics)
+        if concept_receipt is not None:
+            payload["concept_receipt"] = concept_receipt
+        print_json(payload)
         if diagnostics:
             raise typer.Exit(1)
         return
@@ -2628,25 +2728,6 @@ def prd_build_command(
     """Inspect a validated heavy reconstruction PRD build workspace; compile exports from the scan package without a second repository scan and block when critical-evidence gaps remain."""
     _require_spec_kit_plus_project(Path.cwd())
     payload = _run_prd_helper("status-build", run_slug=run_slug)
-    _render_prd_payload(payload, json_output=json_output)
-
-
-@app.command("prd")
-def prd_command(
-    run_slug: str = typer.Argument(
-        "prd-run",
-        help="Compatibility entrypoint for the heavy reconstruction lane: run slug to initialize, or run ID when using --status",
-    ),
-    status: bool = typer.Option(
-        False, "--status", help="Show status; requires L4 Reconstruction-Ready."
-    ),
-    json_output: bool = typer.Option(
-        False, "--json", help="Print the helper payload as JSON"
-    ),
-):
-    """Deprecated compatibility entrypoint; prefer `prd-scan` then `prd-build` for heavy reconstruction, subagent-mandatory scan evidence, L4 Reconstruction-Ready critical claims, and config-contracts.json."""
-    _require_spec_kit_plus_project(Path.cwd())
-    payload = _run_prd_helper("status" if status else "init", run_slug=run_slug)
     _render_prd_payload(payload, json_output=json_output)
 
 
@@ -6562,9 +6643,7 @@ SKILL_DESCRIPTIONS = {
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
     "prd-scan": "Use when an existing repository needs read-only heavy reconstruction scan outputs before final PRD synthesis; execution is subagent-mandatory and critical claims target L4 Reconstruction-Ready.",
     "prd-build": "Use when a validated PRD scan package exists and the final PRD suite must be compiled from it without a second repository scan.",
-    "prd": "Use when an existing repository needs current-state PRD extraction without automatically handing off to planning; route legacy one-step habits through prd-scan followed by prd-build and the heavy reconstruction contract surface.",
     "deep-research": "Use when a planning-ready spec still has feasibility risk and needs coordinated research, evidence packets, a Planning Handoff, or a disposable demo before implementation planning.",
-    "research": "Use when a compatibility alias is needed for deep-research; route to the canonical feasibility research gate without creating separate sp-research artifacts.",
     "explain": "Use when the user needs the current stage artifact or project cognition/runtime artifact explained in plain language without changing the underlying files.",
     "fast": "Use when a truly trivial, local, low-risk change can be completed leader-direct with consume-only Learning, Project Cognition, targeted verification, and a lightweight review.",
     "quick": "Use when a non-trivial task needs tracked direct delivery, scalable task-local planning, validation, or resumable execution without first creating a formal feature specification.",
@@ -7603,11 +7682,9 @@ def init(
             ("map-scan", "low-cost cognition evidence scan"),
             ("map-update", "incremental cognition maintenance"),
             ("plan", "technical design from a ready specification"),
-            ("prd", "legacy PRD compatibility route"),
             ("prd-build", "compile a PRD suite from scan evidence"),
             ("prd-scan", "collect reconstruction-grade PRD evidence"),
             ("quick", "resumable direct delivery at any size"),
-            ("research", "deep-research compatibility route"),
             ("specify", "requirements and acceptance"),
             ("test-design", "optional test universe and data pack before tasks"),
             ("tasks", "dependency-aware execution task graph"),
@@ -7690,9 +7767,6 @@ def init(
         f"   - [cyan]{_display_cmd('prd-build')}[/] - Compile the final PRD suite from a validated PRD scan package without a second repository scan"
     )
     steps_lines.append(
-        f"   - [cyan]{_display_cmd('prd')}[/] - Deprecated compatibility entrypoint; routes older reverse-PRD habits to the scan/build flow"
-    )
-    steps_lines.append(
         f"   - [cyan]{_display_cmd('deep-research')}[/] - Coordinate research, evidence packets, and disposable demos into a traceable Planning Handoff before planning"
     )
     steps_lines.append(
@@ -7748,7 +7822,6 @@ def init(
             f"○ [cyan]{_display_cmd('discussion')}[/] [bright_black](pre-spec discussion)[/bright_black] - Preserve senior product-engineering discussion state before explicit handoff to [cyan]{_display_cmd('specify')}[/]",
             f"○ [cyan]{_display_cmd('prd-scan')}[/] [bright_black](existing-project PRD scan)[/bright_black] - Produce the heavy reconstruction scan package for reverse-PRD work before final synthesis, including subagent-mandatory evidence and config-contracts.json",
             f"○ [cyan]{_display_cmd('prd-build')}[/] [bright_black](after prd-scan)[/bright_black] - Compile the final PRD suite from a validated scan package without turning build back into an ad hoc scan",
-            f"○ [cyan]{_display_cmd('prd')}[/] [bright_black](deprecated compatibility)[/bright_black] - Compatibility entrypoint only; prefer the canonical [cyan]{_display_cmd('prd-scan')}[/] -> [cyan]{_display_cmd('prd-build')}[/] flow",
             f"○ [cyan]{_display_cmd('deep-research')}[/] [bright_black](optional feasibility gate)[/bright_black] - Bind the current spec, verify unproven capability chains through evidence or disposable spikes, independently audit them, and publish a digest-bound handoff for [cyan]{_display_cmd('plan')}[/]",
             f"○ [cyan]{_display_cmd('test-design')}[/] [bright_black](optional after plan)[/bright_black] - Compile an evidence-backed test universe, professional case catalog, data/material decisions, gaps, and a pointer-only handoff before [cyan]{_display_cmd('tasks')}[/]",
             f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional diagnostic / legacy revalidation)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift when explicitly requested or recorded in existing state",

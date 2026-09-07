@@ -86,8 +86,8 @@ present in a test project.
   independent `spx-*` catalog from `templates/advanced-skills/**`. It is
   command-equivalent and prompt-optimized for advanced models: every Classic
   command has an independent SPX counterpart, while `spx-map-rebuild` is an
-  additional convenience orchestrator. The current topology is 30 SPX skills:
-  29 one-to-one Classic command counterparts plus `spx-map-rebuild`. Advanced
+  additional convenience orchestrator. The current topology is 28 SPX skills:
+  27 one-to-one Classic command counterparts plus `spx-map-rebuild`. Advanced
   keeps command ownership, read/write boundaries, resumable stops, and
   external-side-effect gates; it removes repeated tutorials, fixed role chains,
   unnecessary mandatory delegation, long examples, and model-authored stable
@@ -296,6 +296,19 @@ present in a test project.
   `page-overhaul-authorized`; only that page may change style, while shell and
   shared components stay protected. Carry `style_authority` unchanged through
   Design, UI brief, Spec/Plan, Tasks, worker packets, and Review.
+- Brownfield routing separates the design artifact lifecycle from visual
+  authority: `contract_action: create|refine|audit` never widens
+  `surface_posture: greenfield|inherit-existing|page-overhaul-authorized`.
+  `inherit-existing` image rounds require exact project-contained edit-source
+  coverage and exact/preserve source-continuity bindings for every protected
+  surface. Keep the exact professional prompt in memory and pass it through
+  stdin to `specify-runtime design prompt <manifest> --content -` before image
+  generation/import.
+- The adjacent image prompt and generation sidecar are runtime-owned outputs of
+  that create-only specialized command. Their content remains byte-identical;
+  a different request uses a new numbered round. Concept lint owns a
+  byte-bound receipt and, when inspection is available, its protected-surface
+  comparison; `direction-confirm` rejects missing or stale receipts.
 - `specify-runtime design approve` freezes one exact change-local direction
   with a byte-bound approval sidecar, visual/manifest SHA-256 digests, the
   image-generation prompt digest when image-primary, a
@@ -334,7 +347,13 @@ present in a test project.
   bounded execution packet per selected adapter. Observations, Lab reports,
   Formal acceptance, and Quick `item-accept` bind the exact inventory/probe/plan/
   execution chain; no packet may contain command, argv, env, script, or install
-  fields.
+  fields. Formal target snapshots use current `expected_write_scope` with
+  legacy `write_scope` only as fallback; Quick uses confirmed item
+  `write_scope`. Both exclude runtime-owned workflow roots and Source Continuity
+  outputs and remain byte-stable until an in-scope product source changes. Do
+  not add `source-continuity` artifacts to product or
+  execution-guard scope as a recovery workaround; explicit runtime-owned scopes
+  are invalid.
 - The single current UI contract separates work type, surface type, and platform. It preserves
   subject, audience, single job, visual/content/interaction theses, a signature
   element, an inspectable approved visual reference, per-reference use intent,
@@ -1059,8 +1078,8 @@ this historical note as a permanent or current status assertion.
   - Shared scripts: `scripts/bash/project-cognition-freshness.sh` and `scripts/powershell/project-cognition-freshness.ps1`
   - Tests/docs: `tests/test_map_scan_build_template_guidance.py`, `tests/test_map_runtime_template_guidance.py`, `tests/test_project_cognition_runtime_install.py`, `tests/test_runtime_handbook_contract.py`, `tests/test_project_map_*`, `tests/hooks/test_project_map_hooks.py`, `tests/test_project_handbook_templates.py`, `PROJECT-HANDBOOK.md`, and `templates/project-map/QUICK-NAV.md`
 
-- `sp-prd`, `sp-constitution`, `sp-checklist`, and `sp-auto`
-  - Templates: `templates/commands/{prd,constitution,checklist,auto}.md`, matching `templates/command-partials/**`, and `templates/workflow-state-template.md`
+- `sp-prd-scan`, `sp-prd-build`, `sp-constitution`, `sp-checklist`, and `sp-auto`
+  - Templates: `templates/commands/{prd-scan,prd-build,constitution,checklist,auto}.md`, matching `templates/command-partials/**`, and `templates/workflow-state-template.md`
   - Runtime/code: `scripts/bash/prd-state.sh`, `scripts/powershell/prd-state.ps1`, `src/specify_cli/__init__.py` auto entrypoints, and launcher/learning helpers when state routing changes
   - Tests/docs: `tests/test_prd_hook_contract.py`, `tests/contract/test_hook_cli_surface.py`, `tests/test_launcher.py`, `tests/test_alignment_templates.py`, and `README.md`
 

@@ -323,6 +323,8 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                                 {
                                     "ref": "specs/001-ui-feature/ui-target.html",
                                     "intent": "preserve-structure",
+                                    "fidelity": "high",
+                                    "surface_ids": ["SURFACE-001"],
                                 }
                             ],
                             "real_content_plan": [

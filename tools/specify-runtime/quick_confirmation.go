@@ -794,7 +794,7 @@ func validateQuickSourceContinuity(continuity map[string]any) error {
 	seenBindingIDs := map[string]string{}
 	for index, row := range surfaces {
 		rowPath := fmt.Sprintf("%s.surface_bindings[%d]", path, index)
-		if err := validateQuickContinuityKnownFields(row, rowPath, "id", "surface_id", "source_refs", "discovery", "disposition", "rationale", "component_states"); err != nil {
+		if err := validateQuickContinuityKnownFields(row, rowPath, "id", "surface_id", "source_refs", "discovery", "disposition", "rationale", "use_intent", "fidelity", "component_states"); err != nil {
 			return err
 		}
 		if err := validateQuickContinuityStrings(row, rowPath, "id", "surface_id", "discovery", "disposition", "rationale"); err != nil {
@@ -810,6 +810,18 @@ func validateQuickSourceContinuity(continuity map[string]any) error {
 		disposition := strings.TrimSpace(stringValue(row["disposition"]))
 		if !quickContains([]string{"preserve", "adapt", "replace", "merge", "split", "retire"}, disposition) {
 			return fmt.Errorf("%s.disposition is unsupported", rowPath)
+		}
+		if rawIntent, exists := row["use_intent"]; exists {
+			intent := strings.TrimSpace(stringValue(rawIntent))
+			if !quickContains([]string{"exact", "preserve-structure", "inspiration", "extract-tokens", "do-not-copy"}, intent) {
+				return fmt.Errorf("%s.use_intent is unsupported", rowPath)
+			}
+		}
+		if rawFidelity, exists := row["fidelity"]; exists {
+			fidelity := strings.TrimSpace(stringValue(rawFidelity))
+			if !quickContains([]string{"exact", "high", "approximate", "inspiration"}, fidelity) {
+				return fmt.Errorf("%s.fidelity is unsupported", rowPath)
+			}
 		}
 		refs, ok := quickContinuityStringList(row["source_refs"])
 		if !ok || len(refs) == 0 {

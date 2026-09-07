@@ -123,7 +123,7 @@ flowchart LR
 | Layer | Canonical workflows |
 | --- | --- |
 | Core workflow skills | `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept` |
-| Support skills | `auto`, `ask`, `discussion`, `deep-research` (`research` compatibility alias), `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues` |
+| Support skills | `auto`, `ask`, `discussion`, `deep-research`, `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `implement-teams`, `prd-scan`, `prd-build`, `map-scan`, `map-build`, `map-update`, `taskstoissues` |
 | Codex-only runtime | `sp-teams` for durable managed-team state and `team` for runtime operations inside the generated agent catalog |
 
 The generated `ask` workflow is read-only, evidence-backed project Q&A. `prd-scan -> prd-build` reconstructs current product documentation from an existing repository and is a peer workflow, not an automatic handoff to `plan`.
@@ -616,10 +616,10 @@ $spx-constitution         $spx-debug                $spx-deep-research
 $spx-design               $spx-discussion           $spx-explain
 $spx-fast                 $spx-implement            $spx-implement-teams
 $spx-map-build            $spx-map-rebuild          $spx-map-scan
-$spx-map-update           $spx-plan                 $spx-prd
-$spx-prd-build            $spx-prd-scan             $spx-quick
-$spx-research             $spx-specify              $spx-tasks
-$spx-taskstoissues        $spx-team                 $spx-test-design
+$spx-map-update           $spx-plan                 $spx-prd-build
+$spx-prd-scan             $spx-quick                $spx-review
+$spx-specify              $spx-tasks                $spx-taskstoissues
+$spx-team                 $spx-test-design
 ```
 
 Advanced installs also include the unchanged Classic map companions:
@@ -785,6 +785,23 @@ when the `classic` profile is selected.
   confirmation, `specify-runtime design direction-confirm` freezes a
   non-consumable `round-NN.direction.json` checkpoint. It is neither approval
   nor registration and cannot be read by Plan, Tasks, or implementation.
+
+  Design routing separates `contract_action` (`create/refine/audit`) from
+  `surface_posture` (`greenfield/inherit-existing/page-overhaul-authorized`),
+  so creating a missing `UD-*` contract never implies permission to redraw an
+  existing product. For inherited image rounds, the manifest must bind exact
+  project-contained edit-source images for every protected surface. Keep the
+  exact professional prompt in memory and send it through stdin with
+  `specify-runtime design prompt <round-NN.manifest.json> --content - --format json`
+  before generation.
+
+  The resulting `round-NN.prompt.md` and `round-NN.generation.json` are
+  runtime-owned outputs of that create-only command; Prompt content remains
+  byte-identical, and a different request uses a new numbered round. Image
+  import rejects stale or missing generation bindings. Passing concept
+  lint writes `round-NN.concept.json`; inspectable inherited rounds require a
+  protected-surface comparison through `--inspection-json`, and direction
+  confirmation rejects a missing or stale receipt.
   Contract completion starts in the next numbered round and adds the full
   continuity, component-adoption, state, interaction, editing, accessibility,
   responsive, evidence, and `DH-*` contracts. If those expose a necessary
@@ -814,7 +831,12 @@ when the `classic` profile is selected.
   contract, and passes it unchanged into worker packets and real-entrypoint
   source-target Review. Source Continuity Lab turns that contract into executable
   proof: `evidence source-continuity-manifest` derives the immutable denominator
-  for a formal task or Quick Q item. `evidence
+  for a formal task from current `expected_write_scope`, with legacy
+  `write_scope` used only as fallback; Quick uses its confirmed item
+  `write_scope`. Runtime-owned workflow roots and
+  Source Continuity outputs are excluded, so unchanged product sources produce
+  byte-stable manifests; do not add `source-continuity` artifacts to product or
+  execution-guard scope, because explicit runtime-owned scopes are invalid. `evidence
   source-continuity-adapter-catalog` exposes the embedded generic provider
   packs. `evidence source-continuity-adapter-bridge` accepts the live session's
   tool refs and generic signals, derives truthful image capability availability,
@@ -954,7 +976,6 @@ implementation reality and compiles a reconstruction archive with two reader
 entry layers: `exports/README.md` as the package navigation entry and
 `exports/prd.md` as the primary reader-facing PRD. It is a peer workflow path
 to `specify` and does not automatically hand off to `plan`.
-`prd` remains as a deprecated compatibility entrypoint only.
 
 Built-in constitution profiles:
 
@@ -1105,7 +1126,7 @@ Kimi.
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept`
-- Support skills: `auto`, `ask`, `discussion`, `deep-research` (`research` alias), `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues`
+- Support skills: `auto`, `ask`, `discussion`, `deep-research`, `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `implement-teams`, `prd-scan`, `prd-build`, `map-scan`, `map-build`, `map-update`, `taskstoissues`
 - Codex-only runtime: terminal `specify sp-teams` operations plus the generated `sp-teams` and `team` catalog entries
 
 Conditional gates and follow-up commands:
@@ -1182,9 +1203,9 @@ Conditional gates and follow-up commands:
 - `auto` routes from explicit feature selection or a validated durable workflow binding in the current worktree; an unbound read-only invocation stops when more than one safe candidate remains instead of guessing from branch recency or Work Board activity
 - `ask` for read-only evidence-backed project Q&A. Use it when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. `sp-ask` is independent from `sp-discussion`; it creates no ask state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. Do not teach a `specify ask` helper in v1.
 - `discussion` to shape a rough idea before formal specification or direct quick delivery. At handoff it presents both paths and their eligibility, explains any blocker, recommends one eligible path from delivery complexity and consequence profile, and leaves the final choice to the user. It favors Quick for bounded, well-understood work and Specify for high ambiguity/complexity, interacting systems, architecture/data migration/security/compliance/rollout concerns, broad acceptance obligations, or durable specification traceability; size alone is not a hard routing ceiling. Only after that choice does it submit the confirmed semantic contract through `specify-runtime discussion write-handoff`; the runtime materializes the single machine-oriented `handoff-to-specify.json`. When the contract introduces no quick-stage `semantic_delta`, Quick binds understanding to the confirmed `review_digest` and does not ask for the same confirmation again.
-- `prd-scan` followed by `prd-build` reverse-extracts a repository-first current-state PRD reconstruction archive from an existing project. Substantive `prd-scan` runs are subagent-mandatory; workers inspect implementation reality, docs, tests, routes, UI/API surfaces, project cognition evidence, and memory, while `specify-runtime prd-scan`, `specify-runtime prd-build`, and the artifact/evidence CLIs alone materialize `.specify/prd-runs/<run-id>/`. The ten growing scan ledger/contract JSON files use `prd-scan record-upsert|record-remove|record-show|record-list`, so agents send or inspect one semantic row while the Go runtime owns each envelope, ordering, optimistic digest, and atomic write. `prd-build scaffold` then expands all missing master/export boilerplate from installed templates in one transaction; agents patch only semantic sections and never reconstruct or replace those large documents. Critical reconstruction claims target `L4 Reconstruction-Ready`, and `config-contracts.json` is part of the scan contract surface. `prd-build` compiles from the scan package into the expanded archive, including config/protocol/state/error/verification/risk exports. The exported suite includes `exports/README.md` as the package navigation entry and `exports/prd.md` as the main reader-facing PRD, and `prd-build` must not perform a second repository scan. `prd` remains a deprecated compatibility entrypoint that should route into the same pair.
+- `prd-scan` followed by `prd-build` reverse-extracts a repository-first current-state PRD reconstruction archive from an existing project. Substantive `prd-scan` runs are subagent-mandatory; workers inspect implementation reality, docs, tests, routes, UI/API surfaces, project cognition evidence, and memory, while `specify-runtime prd-scan`, `specify-runtime prd-build`, and the artifact/evidence CLIs alone materialize `.specify/prd-runs/<run-id>/`. The ten growing scan ledger/contract JSON files use `prd-scan record-upsert|record-remove|record-show|record-list`, so agents send or inspect one semantic row while the Go runtime owns each envelope, ordering, optimistic digest, and atomic write. `prd-build scaffold` then expands all missing master/export boilerplate from installed templates in one transaction; agents patch only semantic sections and never reconstruct or replace those large documents. Critical reconstruction claims target `L4 Reconstruction-Ready`, and `config-contracts.json` is part of the scan contract surface. `prd-build` compiles from the scan package into the expanded archive, including config/protocol/state/error/verification/risk exports. The exported suite includes `exports/README.md` as the package navigation entry and `exports/prd.md` as the main reader-facing PRD, and `prd-build` must not perform a second repository scan.
 - `specify` also owns focused repair of an existing spec when analysis, references, or gaps need more work before planning
-- `deep-research` is the conditional pre-Plan feasibility gate for clear requirements whose implementation chain is still unproven. The runtime binds the exact source spec/capabilities, coordinates bounded research workers, validates repository/external/spike provenance, records leader acceptance or rejection with one bounded retry, closes capability-to-handoff-to-evidence coverage, requires an independent audit, and publishes a revision/hash-bound `Planning Handoff` that `plan` verifies. It does not own requirement discovery, final architecture design, executable tests, or production implementation. Skip it for minor changes to already-proven behavior; `research` is only a compatibility alias and creates no separate artifacts
+- `deep-research` is the conditional pre-Plan feasibility gate for clear requirements whose implementation chain is still unproven. The runtime binds the exact source spec/capabilities, coordinates bounded research workers, validates repository/external/spike provenance, records leader acceptance or rejection with one bounded retry, closes capability-to-handoff-to-evidence coverage, requires an independent audit, and publishes a revision/hash-bound `Planning Handoff` that `plan` verifies. It does not own requirement discovery, final architecture design, executable tests, or production implementation. Skip it for minor changes to already-proven behavior.
 - `checklist` to generate requirement-quality checklists after planning so the written requirements can be audited before implementation
 - `analyze` is an optional read-only diagnostic and legacy revalidation pass once `tasks.md` exists; run the cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md` only when explicitly requested or recorded by existing state
 - `debug` to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered. It now defaults to project-cognition-backed minimum intake; the heavier Stage 1A/1B observer-contract flow is reserved for missing/ambiguous/stale map coverage, competing truth owners, or failed verification loops.
@@ -1647,9 +1668,15 @@ Maintainer note:
   PATH --direction <direction-id>` writes its non-consumable direction
   checkpoint. Continue contract completion in the next numbered round, where
   `specify-runtime design preview-lint PATH --level ready` validates the full
-  candidate. When live image generation is available, generate one
-  `round-NN.png|jpg|jpeg|webp` concept plus `round-NN.prompt.md` beside the same
-  manifest, then approve it with `--manifest`, `--prompt`,
+  candidate. When live image generation is available, keep the exact
+  professional prompt in memory and pass it on stdin to
+  `specify-runtime design prompt <round-NN.manifest.json> --content - --format json`
+  before generation. The returned paths and SHA-256 values identify the
+  runtime-owned adjacent `.prompt.md` and `.generation.json` binding. The
+  specialized producer is create-only and never synthesizes Prompt content. Generate
+  one `round-NN.png|jpg|jpeg|webp` concept through that exact binding, and run
+  concept lint; require its current `.concept.json` receipt before requesting
+  direction confirmation. Then approve it with `--manifest`, `--prompt`,
   `--image-inspection`, and `--image-editing`. `specify-runtime design approve`
   freezes either selected medium and materializes both its byte-bound approval
   sidecar and immutable `.handoff.json` implementation contract, including the

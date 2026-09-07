@@ -863,13 +863,13 @@ def test_learning_custom_sensitive_command_is_canonicalized_to_sp_other(
     assert "zephyr" not in storage
 
 
-def test_learning_normalizes_research_alias_to_deep_research() -> None:
-    assert normalize_command_name("research") == "sp-deep-research"
-    assert normalize_command_name("sp-research") == "sp-deep-research"
-    assert normalize_command_name("sp.research") == "sp-deep-research"
+def test_learning_does_not_normalize_retired_research_alias() -> None:
+    assert normalize_command_name("research") == "sp-research"
+    assert normalize_command_name("sp-research") == "sp-research"
+    assert normalize_command_name("sp.research") == "sp-research"
     assert normalize_command_name("/sp.plan") == "sp-plan"
     assert normalize_command_name("spx-implement") == "sp-implement"
-    assert normalize_command_name("spx.research") == "sp-deep-research"
+    assert normalize_command_name("spx.research") == "sp-research"
 
 
 @pytest.mark.parametrize("command_name", ["", "/", "sp-", "spx-", "plan now"])
@@ -3354,7 +3354,6 @@ def test_learning_start_exposes_confirmed_project_constraint_for_all_workflows(
         "map-scan",
         "map-update",
         "plan",
-        "prd",
         "prd-build",
         "prd-scan",
         "quick",

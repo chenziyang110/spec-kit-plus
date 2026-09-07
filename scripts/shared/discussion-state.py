@@ -26,8 +26,8 @@ else:
     import fcntl
 
 
-STATE_VERSION = 2
-HANDOFF_VERSION = 4
+STATE_VERSION = 3
+HANDOFF_VERSION = 5
 TERMINAL_STATUSES = {"completed", "abandoned"}
 INCOMPLETE_STATUSES = {"active", "blocked", "handoff-ready"}
 HANDOFF_VALIDATION_MODES = {"draft", "ready"}
@@ -45,6 +45,35 @@ LIFECYCLE_PHASES = {
 FIELD_RE = re.compile(r"^\s*-\s*([A-Za-z0-9_]+)\s*:\s*(.*?)\s*$")
 ROLE_FIELDS = {"role", "scope", "evidence_source", "notes"}
 EVIDENCE_FIELDS = {"source_type", "evidence_status", "source", "claim"}
+SOURCE_EVIDENCE_STATUSES = {
+    "assumption",
+    "confirmed",
+    "conflict",
+    "inferred",
+    "missing",
+    "proven",
+    "stale-advisory",
+    "verified",
+}
+SOURCE_MATERIAL_FIELDS = {
+    "id",
+    "material_type",
+    "locator",
+    "summary",
+    "inspection_status",
+    "claims",
+    "coverage_gaps",
+    "sensitivity",
+}
+SOURCE_MATERIAL_STATUSES = {
+    "conflict",
+    "inspected",
+    "partial",
+    "pending",
+    "stale",
+    "unavailable",
+}
+SOURCE_MATERIAL_SENSITIVITIES = {"restricted", "safe", "sanitized"}
 MUST_PRESERVE_FIELDS = {
     "id",
     "type",
@@ -67,6 +96,43 @@ MUTATION_MODES = {
     "archive",
     "rebuild-index",
 }
+CHECKPOINT_ENUM_FIELDS = {
+    "truth_pass_status": {"not-needed", "needed", "in-progress", "complete", "blocked"},
+    "discussion_compass_status": {"current", "stale", "missing"},
+    "ui_discussion_status": {
+        "not_applicable",
+        "offered",
+        "accepted",
+        "skipped",
+        "completed",
+        "deferred",
+    },
+}
+ADVICE_CONFIDENCE_LEVELS = {"high", "medium", "low", "blocked", "none"}
+CHECKPOINT_STRING_LIST_FIELDS = {
+    "confirmed_decisions",
+    "changed_recommendations",
+    "next_discussion_paths",
+    "allowed_actions",
+    "artifact_refs",
+    "verified_project_facts",
+    "evidence_checked",
+}
+CHECKPOINT_ARRAY_FIELDS = (
+    "blocking_unknowns",
+    "soft_unknowns",
+    "conflicts",
+    "open_assumptions",
+    "open_questions",
+    "verified_fact_refs",
+)
+CHECKPOINT_OBJECT_FIELDS = (
+    "context_boundary",
+    "implementation_target",
+    "downstream_instructions",
+    "discussion_decision_digest",
+    "design_context",
+)
 LOCK_RETRY_SECONDS = 0.05
 LOCK_TIMEOUT_SECONDS = 30.0
 
@@ -194,17 +260,129 @@ def _extract_markdown_fields(text: str) -> dict[str, str]:
     return fields
 
 
+def _compact_list(value: Any) -> str:
+    if not isinstance(value, list) or not value:
+        return "none"
+    rendered: list[str] = []
+    for item in value:
+        if isinstance(item, dict):
+            label = item.get("id") or item.get("claim") or item.get("topic") or item.get("source") or item.get("summary")
+            rendered.append(str(label or "[object]").strip())
+        else:
+            rendered.append(str(item).strip())
+    return "; ".join(item for item in rendered if item) or "none"
+
+
+def _source_materials_summary(value: Any) -> str:
+    if not isinstance(value, list) or not value:
+        return "none"
+    summaries: list[str] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        material_id = str(item.get("id") or "MAT-???")
+        status = str(item.get("inspection_status") or "unknown")
+        if item.get("sensitivity") == "restricted":
+            summaries.append(f"{material_id}({status}) [restricted]")
+            continue
+        summary = str(item.get("summary") or item.get("locator") or "").strip()
+        suffix = f": {summary[:120]}" if summary else ""
+        summaries.append(f"{material_id}({status}){suffix}")
+    return "; ".join(summaries) or "none"
+
+
+def _requirements_summary(requirements: Any) -> dict[str, str]:
+    if not isinstance(requirements, dict):
+        return {
+            "target": "none",
+            "scope_in": "none",
+            "success": "none",
+            "optimal": "none",
+        }
+    scope = requirements.get("scope") if isinstance(requirements.get("scope"), dict) else {}
+    return {
+        "target": str(requirements.get("target_need") or "none"),
+        "scope_in": _compact_list(scope.get("in")),
+        "success": _compact_list(requirements.get("success_criteria")),
+        "optimal": _compact_list(requirements.get("optimal_solution_approach")),
+    }
+
+
 def _default_turn_packet(slug: str, topic: str) -> dict[str, Any]:
     return {
-        "version": 1,
+        "version": 2,
         "discussion_slug": slug,
         "lifecycle_phase": "explore",
         "turn_class": "product_intent",
         "user_goal": topic,
         "current_decision_frame": topic,
+        "requirements_snapshot": {
+            "target_need": topic,
+            "actors": [],
+            "scenarios": [],
+            "constraints": [],
+            "success_criteria": [],
+            "design_direction": [],
+            "optimal_solution_approach": [],
+            "non_goals": [],
+            "scope": {"in": [], "out": [], "deferred": []},
+        },
+        "implementation_target": {
+            "actual_project": None,
+            "target_root": None,
+            "target_paths": [],
+            "required_target_paths_to_verify": [],
+        },
+        "source_evidence": [],
+        "source_materials": [],
+        "blocking_unknowns": [],
+        "soft_unknowns": [],
+        "conflicts": [],
+        "downstream_instructions": {
+            "settled_decisions": [],
+            "preserved_assumptions": [],
+            "conflicts_requiring_return": [],
+            "capability_map": [],
+            "dependencies": [],
+            "planning_constraints": [],
+            "deferred_scope": [],
+            "reopen_conditions": [],
+        },
+        "discussion_decision_digest": {
+            "locked_direction": [],
+            "rejected_alternatives": [],
+            "accepted_tradeoffs": [],
+            "experience_commitments": [],
+            "design_system_requirements": [],
+            "design_system_status": "not-applicable",
+            "design_risk_level": "none",
+            "review_criteria_carried_forward": [],
+            "must_not_dilute": [],
+        },
+        "must_preserve": [],
+        "truth_pass_status": "not-needed",
+        "verified_project_facts": [],
+        "evidence_checked": [],
+        "advice_confidence": "none",
+        "discussion_compass_status": "missing",
+        "next_discussion_paths": [],
+        "ui_discussion_status": "not_applicable",
+        "design_context": {"ui_involved": False},
+        "artifact_refs": [],
         "confirmed_decisions": [],
         "changed_recommendations": [],
-        "context_boundary": {"status": "not-started"},
+        "context_boundary": {
+            "status": "not-started",
+            "current_project_root": None,
+            "current_project_roles": [],
+            "target_project_root": None,
+            "target_project_roles": [],
+            "reference_sources": [],
+            "external_systems": [],
+            "boundary_blockers": [],
+            "path_status": "unknown",
+            "boundary_confidence": "unknown",
+        },
         "verified_fact_refs": [],
         "open_assumptions": [],
         "open_questions": [],
@@ -340,6 +518,8 @@ def _render_state_markdown(state: dict[str, Any]) -> str:
     handoff = state["handoff"]
     consumption = state["consumption"]
     packet = state["turn_packet"]
+    requirements = _requirements_summary(packet.get("requirements_snapshot"))
+    checkpoint = state.get("latest_checkpoint") if isinstance(state.get("latest_checkpoint"), dict) else {}
     lines = [
         f"# Discussion State: {state['topic']}",
         "",
@@ -361,6 +541,27 @@ def _render_state_markdown(state: dict[str, Any]) -> str:
         f"- current_recommendation: {packet['current_recommendation']}",
         f"- next_gate: {packet['next_gate']}",
         f"- blocker_reason: {state['blocker_reason'] or 'none'}",
+        f"- confirmed_decisions: {_compact_list(packet.get('confirmed_decisions'))}",
+        f"- open_questions: {_compact_list(packet.get('open_questions'))}",
+        f"- blocking_unknown_count: {_derived_hard_unknown_count(packet)}",
+        f"- soft_unknown_count: {len(packet.get('soft_unknowns') or [])}",
+        f"- open_conflict_count: {_derived_open_conflict_count(packet)}",
+        "",
+        "## Requirements Snapshot",
+        "",
+        f"- target_need: {requirements['target']}",
+        f"- scope_in: {requirements['scope_in']}",
+        f"- success_criteria: {requirements['success']}",
+        f"- optimal_solution_approach: {requirements['optimal']}",
+        "",
+        "## Grounding",
+        "",
+        f"- truth_pass_status: {packet.get('truth_pass_status') or 'none'}",
+        f"- advice_confidence: {packet.get('advice_confidence') or 'none'}",
+        f"- evidence_checked: {_compact_list(packet.get('evidence_checked'))}",
+        f"- source_evidence: {_compact_list(packet.get('source_evidence'))}",
+        f"- source_materials: {_source_materials_summary(packet.get('source_materials'))}",
+        f"- latest_snapshot_sha256: {checkpoint.get('snapshot_sha256') or 'none'}",
         "",
         "## Handoff",
         "",
@@ -399,6 +600,16 @@ def _load_state(workspace: Path) -> tuple[dict[str, Any], bool]:
             handoff.pop("markdown_path", None)
         packet = payload.get("turn_packet")
         if isinstance(packet, dict):
+            _ensure_turn_packet_defaults(
+                packet,
+                str(payload.get("slug") or workspace.name),
+                str(
+                    payload.get("topic")
+                    or payload.get("summary")
+                    or payload.get("slug")
+                    or workspace.name
+                ),
+            )
             packet["topic_ownership"] = _normalize_topic_ownership(
                 packet.get("topic_ownership"),
                 str(payload.get("slug") or workspace.name),
@@ -409,6 +620,9 @@ def _load_state(workspace: Path) -> tuple[dict[str, Any], bool]:
                     or workspace.name
                 ),
             )
+        if int(payload.get("version") or 0) < STATE_VERSION:
+            payload["version"] = STATE_VERSION
+        _validate_state(payload)
         return payload, False
     markdown_path = workspace / "discussion-state.md"
     if not markdown_path.is_file():
@@ -443,6 +657,27 @@ def _validate_state(state: dict[str, Any]) -> None:
         packet.get("topic_ownership"),
         state.get("slug", ""),
         state.get("topic") or state.get("summary") or state.get("slug", ""),
+    )
+    _validate_checkpoint_semantics(
+        {key: packet[key] for key in CHECKPOINT_PACKET_KEYS if key in packet}
+    )
+
+
+def _ensure_turn_packet_defaults(packet: dict[str, Any], slug: str, topic: str) -> None:
+    defaults = _default_turn_packet(slug, topic)
+    packet["version"] = 2
+    packet.setdefault("discussion_slug", slug)
+
+    def merge_defaults(target: dict[str, Any], fallback: dict[str, Any]) -> None:
+        for key, value in fallback.items():
+            if key not in target:
+                target[key] = copy.deepcopy(value)
+            elif isinstance(target[key], dict) and isinstance(value, dict):
+                merge_defaults(target[key], value)
+
+    merge_defaults(packet, defaults)
+    packet["source_materials"] = _normalize_source_materials(
+        packet.get("source_materials", [])
     )
 
 
@@ -770,6 +1005,25 @@ def resume_context(project_root: Path, slug: str) -> dict[str, Any]:
 CHECKPOINT_PACKET_KEYS = (
     "user_goal",
     "turn_class",
+    "requirements_snapshot",
+    "implementation_target",
+    "source_evidence",
+    "source_materials",
+    "blocking_unknowns",
+    "soft_unknowns",
+    "conflicts",
+    "downstream_instructions",
+    "discussion_decision_digest",
+    "must_preserve",
+    "truth_pass_status",
+    "verified_project_facts",
+    "evidence_checked",
+    "advice_confidence",
+    "discussion_compass_status",
+    "next_discussion_paths",
+    "ui_discussion_status",
+    "design_context",
+    "artifact_refs",
     "confirmed_decisions",
     "changed_recommendations",
     "context_boundary",
@@ -799,6 +1053,126 @@ def _validate_checkpoint_fields(changes: dict[str, Any]) -> None:
         )
 
 
+def _extend_error_messages(
+    errors: list[str], structured_errors: list[dict[str, str]]
+) -> None:
+    errors.extend(item["message"] for item in structured_errors)
+
+
+def _is_non_empty_string_list(value: Any) -> bool:
+    return isinstance(value, list) and all(
+        isinstance(item, str) and item.strip() for item in value
+    )
+
+
+def _validate_checkpoint_semantics(changes: dict[str, Any]) -> None:
+    errors: list[str] = []
+    for field in (
+        "user_goal",
+        "turn_class",
+        "current_decision_frame",
+        "current_recommendation",
+        "next_gate",
+    ):
+        if field in changes and not str(changes[field] or "").strip():
+            errors.append(f"{field} must be a non-empty string")
+    for field, allowed in CHECKPOINT_ENUM_FIELDS.items():
+        if field in changes and changes[field] not in allowed:
+            errors.append(f"{field} must be one of {', '.join(sorted(allowed))}")
+
+    confidence = changes.get("advice_confidence")
+    if confidence is not None:
+        if isinstance(confidence, str):
+            if confidence not in ADVICE_CONFIDENCE_LEVELS:
+                errors.append("advice_confidence has an invalid level")
+        elif isinstance(confidence, dict):
+            if confidence.get("level") not in ADVICE_CONFIDENCE_LEVELS:
+                errors.append("advice_confidence.level has an invalid value")
+            if not str(confidence.get("reason") or "").strip():
+                errors.append("advice_confidence.reason is required")
+        else:
+            errors.append("advice_confidence must be a level string or object")
+
+    for field in CHECKPOINT_STRING_LIST_FIELDS:
+        if field in changes and not _is_non_empty_string_list(changes[field]):
+            errors.append(f"{field} must be an array of non-empty strings")
+
+    for field in CHECKPOINT_ARRAY_FIELDS:
+        if field in changes and not isinstance(changes[field], list):
+            errors.append(f"{field} must be an array")
+
+    for field in CHECKPOINT_OBJECT_FIELDS:
+        if field in changes and not isinstance(changes[field], dict):
+            errors.append(f"{field} must be an object")
+
+    requirements = changes.get("requirements_snapshot")
+    if requirements is not None:
+        if not isinstance(requirements, dict):
+            errors.append("requirements_snapshot must be an object")
+        else:
+            if "target_need" in requirements and not str(requirements["target_need"] or "").strip():
+                errors.append("requirements_snapshot.target_need must be non-empty")
+            for field in (
+                "actors",
+                "scenarios",
+                "constraints",
+                "success_criteria",
+                "design_direction",
+                "optimal_solution_approach",
+                "non_goals",
+            ):
+                if field in requirements and not _is_non_empty_string_list(requirements[field]):
+                    errors.append(f"requirements_snapshot.{field} must be an array of non-empty strings")
+            scope = requirements.get("scope")
+            if scope is not None:
+                if not isinstance(scope, dict):
+                    errors.append("requirements_snapshot.scope must be an object")
+                else:
+                    for field in ("in", "out", "deferred"):
+                        if field in scope and not _is_non_empty_string_list(scope[field]):
+                            errors.append(f"requirements_snapshot.scope.{field} must be an array of non-empty strings")
+
+    if "source_evidence" in changes:
+        evidence_errors: list[dict[str, str]] = []
+        _validate_object_list(
+            changes["source_evidence"], EVIDENCE_FIELDS, "source_evidence", evidence_errors
+        )
+        if isinstance(changes["source_evidence"], list):
+            for index, item in enumerate(changes["source_evidence"]):
+                if isinstance(item, dict) and item.get("evidence_status") not in SOURCE_EVIDENCE_STATUSES:
+                    evidence_errors.append(
+                        _error(
+                            "invalid_source_evidence_status",
+                            f"source_evidence[{index}].evidence_status is invalid",
+                        )
+                    )
+        _extend_error_messages(errors, evidence_errors)
+
+    if "source_materials" in changes:
+        material_errors: list[dict[str, str]] = []
+        normalized = _normalize_source_materials(changes["source_materials"])
+        _validate_source_materials(normalized, "in_progress", material_errors)
+        _extend_error_messages(errors, material_errors)
+
+    if "must_preserve" in changes:
+        preserve_errors: list[dict[str, str]] = []
+        _validate_must_preserve(changes["must_preserve"], preserve_errors)
+        _extend_error_messages(errors, preserve_errors)
+
+    for field in ("blocking_unknowns", "soft_unknowns"):
+        if field in changes:
+            unknown_errors: list[dict[str, str]] = []
+            _validate_unknown_records(changes[field], field, unknown_errors)
+            _extend_error_messages(errors, unknown_errors)
+    if "conflicts" in changes:
+        conflict_errors: list[dict[str, str]] = []
+        _validate_conflict_records(changes["conflicts"], conflict_errors)
+        _extend_error_messages(errors, conflict_errors)
+
+    if errors:
+        raise ValueError("discussion checkpoint invalid semantic fields: " + "; ".join(errors))
+
+
 def checkpoint_discussion(
     project_root: Path,
     slug: str,
@@ -822,6 +1196,7 @@ def checkpoint_discussion(
     if not isinstance(changes, dict):
         raise ValueError("checkpoint payload must be an object")
     _validate_checkpoint_fields(changes)
+    _validate_checkpoint_semantics(changes)
     state, _legacy = _load_state(workspace)
     _require_expected_state_sha256(project_root, workspace, expected_state_sha256)
     phase = changes.get("lifecycle_phase", changes.get("phase", state["lifecycle_phase"]))
@@ -833,6 +1208,7 @@ def checkpoint_discussion(
     event_id = uuid.uuid4().hex
     summary = str(changes.get("summary") or state["summary"]).strip()
     packet = state["turn_packet"]
+    changed_fields: list[str] = []
     for key in CHECKPOINT_PACKET_KEYS:
         if key in changes:
             if key == "topic_ownership":
@@ -841,26 +1217,39 @@ def checkpoint_discussion(
                     state["slug"],
                     state.get("topic") or state.get("summary") or state["slug"],
                 )
+            elif key == "source_materials":
+                packet[key] = _normalize_source_materials(changes[key])
             else:
                 packet[key] = copy.deepcopy(changes[key])
+            changed_fields.append(key)
     packet["lifecycle_phase"] = phase
     packet["persistence_mode"] = "durable-checkpoint"
     state.update(
         {"summary": summary, "lifecycle_phase": phase, "updated_at": timestamp}
     )
-    state["latest_checkpoint"] = {"event_id": event_id, "timestamp": timestamp}
+    _ensure_turn_packet_defaults(
+        packet,
+        state["slug"],
+        state.get("topic") or state.get("summary") or state["slug"],
+    )
+    snapshot = _discussion_semantic_snapshot(packet)
+    snapshot_sha256 = _snapshot_digest(snapshot)
+    changed_fields = sorted(changed_fields)
+    state["latest_checkpoint"] = {
+        "event_id": event_id,
+        "timestamp": timestamp,
+        "snapshot_sha256": snapshot_sha256,
+        "changed_fields": changed_fields,
+    }
     event = {
-        "version": 1,
+        "version": 2,
         "event_id": event_id,
         "timestamp": timestamp,
         "kind": "durable-checkpoint",
         "lifecycle_phase": phase,
         "summary": summary,
-        "user_goal": copy.deepcopy(packet.get("user_goal")),
-        "confirmed_decisions": copy.deepcopy(packet["confirmed_decisions"]),
-        "open_questions": copy.deepcopy(packet["open_questions"]),
-        "current_recommendation": copy.deepcopy(packet.get("current_recommendation")),
-        "context_boundary": copy.deepcopy(packet.get("context_boundary")),
+        "snapshot_sha256": snapshot_sha256,
+        "changed_fields": changed_fields,
     }
     with (workspace / "discussion-log.jsonl").open(
         "a", encoding="utf-8", newline="\n"
@@ -886,6 +1275,52 @@ def compute_review_digest(payload: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _canonical_digest(payload: dict[str, Any]) -> str:
+    canonical = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _material_digest(material: dict[str, Any]) -> str:
+    protected = copy.deepcopy(material)
+    protected.pop("material_digest", None)
+    return _canonical_digest(protected)
+
+
+def _normalize_source_materials(value: Any) -> list[Any]:
+    if not isinstance(value, list):
+        return value
+    normalized: list[Any] = []
+    for item in value:
+        if not isinstance(item, dict):
+            normalized.append(item)
+            continue
+        material = copy.deepcopy(item)
+        if not material.get("material_type") and material.get("source_type"):
+            material["material_type"] = material.pop("source_type")
+        if not material.get("locator") and material.get("source"):
+            material["locator"] = material.pop("source")
+        material["material_digest"] = _material_digest(material)
+        normalized.append(material)
+    return normalized
+
+
+def _discussion_semantic_snapshot(packet: dict[str, Any]) -> dict[str, Any]:
+    excluded = {"allowed_actions", "lifecycle_phase", "next_gate", "persistence_mode", "turn_class"}
+    snapshot = {
+        key: copy.deepcopy(packet[key])
+        for key in CHECKPOINT_PACKET_KEYS
+        if key in packet and key not in excluded
+    }
+    snapshot["discussion_slug"] = packet.get("discussion_slug")
+    return snapshot
+
+
+def _snapshot_digest(snapshot: dict[str, Any]) -> str:
+    return _canonical_digest(snapshot)
+
+
 def write_handoff(
     project_root: Path,
     slug: str,
@@ -908,7 +1343,7 @@ def write_handoff(
         raise ValueError("archived discussion cannot write a handoff")
     state, _legacy = _load_state(workspace)
     _require_expected_state_sha256(project_root, workspace, expected_state_sha256)
-    payload = copy.deepcopy(handoff_payload)
+    payload = _merge_handoff_template(project_root, handoff_payload)
     payload.update(
         {
             "version": HANDOFF_VERSION,
@@ -925,6 +1360,34 @@ def write_handoff(
         slug,
         state.get("topic") or state.get("summary") or slug,
     )
+    packet = state["turn_packet"]
+    checkpoint = state.get("latest_checkpoint") if isinstance(state.get("latest_checkpoint"), dict) else None
+    snapshot = _discussion_semantic_snapshot(packet)
+    current_snapshot_sha256 = _snapshot_digest(snapshot)
+    if not isinstance(checkpoint, dict) or not checkpoint.get("snapshot_sha256"):
+        raise ValueError(
+            "missing_semantic_checkpoint: write-handoff requires a current checkpoint before handoff"
+        )
+    if checkpoint.get("snapshot_sha256") != current_snapshot_sha256:
+        raise ValueError(
+            "stale_semantic_checkpoint: latest_checkpoint.snapshot_sha256 does not match current discussion state"
+        )
+    _overlay_handoff_from_state(payload, packet)
+    payload["source_materials"] = _normalize_source_materials(
+        payload.get("source_materials", [])
+    )
+    payload["discussion_snapshot_digest"] = current_snapshot_sha256
+    payload["hard_unknown_count"] = _derived_hard_unknown_count(payload)
+    payload["open_conflict_count"] = _derived_open_conflict_count(payload)
+    if payload["hard_unknown_count"] == 0 and payload["open_conflict_count"] == 0:
+        payload["coverage_status"] = "complete"
+        payload["planning_gate_status"] = "ready"
+    else:
+        payload["coverage_status"] = "blocked_by_handoff_integrity"
+        payload["planning_gate_status"] = "blocked_by_handoff_integrity"
+        raise ValueError(
+            "discussion handoff is not ready: blocking_unknowns and conflicts must be resolved before write-handoff"
+        )
     quality_gate = payload.get("quality_gate")
     if not isinstance(quality_gate, dict):
         quality_gate = {}
@@ -941,6 +1404,13 @@ def write_handoff(
     )
     review_digest = compute_review_digest(payload)
     payload["review_digest"] = review_digest
+    preflight_errors: list[dict[str, str]] = []
+    _validate_handoff_fields(payload, slug, preflight_errors, "draft", state)
+    if preflight_errors:
+        raise ValueError(
+            "discussion handoff draft is invalid: "
+            + ", ".join(error["code"] for error in preflight_errors)
+        )
     json_path = workspace / "handoff-to-specify.json"
     _atomic_write_json(json_path, payload)
     timestamp = now_utc()
@@ -979,6 +1449,92 @@ def write_handoff(
     }
 
 
+def _merge_dict(base: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    result = copy.deepcopy(base)
+    for key, value in incoming.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = _merge_dict(result[key], value)
+        else:
+            result[key] = copy.deepcopy(value)
+    return result
+
+
+def _merge_handoff_template(project_root: Path, handoff_payload: dict[str, Any]) -> dict[str, Any]:
+    template_path = project_root / ".specify" / "templates" / "discussion-handoff-template.json"
+    if not template_path.is_file():
+        raise ValueError(f"discussion handoff template is unavailable: {template_path}")
+    template = json.loads(template_path.read_text(encoding="utf-8"))
+    if not isinstance(template, dict):
+        raise ValueError("discussion handoff template must be an object")
+    if template.get("version") != HANDOFF_VERSION or template.get("handoff_kind") != "discussion_requirement_contract":
+        raise ValueError("discussion handoff template must use version 5 discussion_requirement_contract")
+    return _merge_dict(template, handoff_payload)
+
+
+def _overlay_handoff_from_state(payload: dict[str, Any], packet: dict[str, Any]) -> None:
+    payload["agent_requirement_contract"] = copy.deepcopy(packet.get("requirements_snapshot"))
+    payload.pop("requirements_snapshot", None)
+    for key in (
+        "implementation_target",
+        "source_evidence",
+        "source_materials",
+        "blocking_unknowns",
+        "soft_unknowns",
+        "conflicts",
+        "downstream_instructions",
+        "discussion_decision_digest",
+        "must_preserve",
+        "truth_pass_status",
+        "verified_project_facts",
+        "evidence_checked",
+        "advice_confidence",
+        "ui_discussion_status",
+        "artifact_refs",
+    ):
+        if key in packet:
+            payload[key] = copy.deepcopy(packet[key])
+    if "context_boundary" in packet:
+        payload["context_boundary"] = copy.deepcopy(packet["context_boundary"])
+    decision_digest = payload.get("discussion_decision_digest")
+    if isinstance(decision_digest, dict):
+        decision_digest["design_context"] = copy.deepcopy(packet.get("design_context"))
+
+
+_CLOSED_DISCUSSION_ITEM_STATUSES = {
+    "closed",
+    "resolved",
+    "deferred",
+    "superseded",
+    "dropped",
+}
+
+
+def _is_unresolved_discussion_item(item: Any) -> bool:
+    if not isinstance(item, dict):
+        return True
+    return str(item.get("status") or "").strip().lower() not in _CLOSED_DISCUSSION_ITEM_STATUSES
+
+
+def _derived_hard_unknown_count(payload: dict[str, Any]) -> int:
+    return sum(
+        1
+        for item in payload.get("blocking_unknowns") or []
+        if _is_unresolved_discussion_item(item)
+    )
+
+
+def _derived_open_conflict_count(payload: dict[str, Any]) -> int:
+    downstream = payload.get("downstream_instructions")
+    conflicts = sum(
+        1
+        for item in payload.get("conflicts") or []
+        if _is_unresolved_discussion_item(item)
+    )
+    if isinstance(downstream, dict):
+        conflicts += len(downstream.get("conflicts_requiring_return") or [])
+    return conflicts
+
+
 def _validate_object_list(
     payload: Any,
     required_fields: set[str],
@@ -994,7 +1550,11 @@ def _validate_object_list(
                 _error(f"invalid_{label}_item", f"{label}[{index}] must be an object")
             )
             continue
-        missing = sorted(required_fields - set(item))
+        missing = sorted(
+            field
+            for field in required_fields
+            if field not in item or not str(item.get(field) or "").strip()
+        )
         if missing:
             errors.append(
                 _error(
@@ -1002,6 +1562,55 @@ def _validate_object_list(
                     f"{label}[{index}] missing {', '.join(missing)}",
                 )
             )
+
+
+def _validate_must_preserve(value: Any, errors: list[dict[str, str]]) -> None:
+    _validate_object_list(value, MUST_PRESERVE_FIELDS, "must_preserve", errors)
+    if not isinstance(value, list):
+        return
+    seen: set[str] = set()
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            continue
+        item_id = str(item.get("id") or "")
+        if not re.fullmatch(r"(?:MP|CA)-[0-9]{3}", item_id):
+            errors.append(
+                _error(
+                    "invalid_must_preserve_id",
+                    f"must_preserve[{index}].id must match MP-### or CA-###",
+                )
+            )
+        if item_id in seen:
+            errors.append(
+                _error(
+                    "duplicate_must_preserve_id",
+                    f"must_preserve[{index}].id duplicates {item_id}",
+                )
+            )
+        seen.add(item_id)
+        if item.get("blocking_level") not in {"hard", "soft"}:
+            errors.append(
+                _error(
+                    "invalid_must_preserve_blocking_level",
+                    f"must_preserve[{index}].blocking_level is invalid",
+                )
+            )
+        status = str(item.get("status") or "").strip().lower()
+        if status not in {"active", "confirmed", "resolved", "deferred", "superseded", "dropped"}:
+            errors.append(
+                _error(
+                    "invalid_must_preserve_status",
+                    f"must_preserve[{index}].status is invalid",
+                )
+            )
+        if status == "resolved" and not str(item.get("resolution_evidence") or "").strip():
+            errors.append(_error("incomplete_must_preserve_resolution", f"must_preserve[{index}].resolution_evidence is required"))
+        if status == "deferred" and not str(item.get("stop_and_reopen_condition") or "").strip():
+            errors.append(_error("incomplete_must_preserve_deferral", f"must_preserve[{index}].stop_and_reopen_condition is required"))
+        if status == "superseded" and not str(item.get("superseded_by") or "").strip():
+            errors.append(_error("incomplete_must_preserve_supersession", f"must_preserve[{index}].superseded_by is required"))
+        if status == "dropped" and not str(item.get("user_decision_source") or "").strip():
+            errors.append(_error("incomplete_must_preserve_drop", f"must_preserve[{index}].user_decision_source is required"))
 
 
 def _error(code: str, message: str) -> dict[str, str]:
@@ -1040,7 +1649,8 @@ def validate_handoff(
             _error("invalid_handoff_payload", "handoff JSON must be an object")
         )
         return _validation_payload(workspace, errors, None, normalized_mode)
-    _validate_handoff_fields(payload, slug, errors, normalized_mode)
+    state, _legacy = _load_state(workspace)
+    _validate_handoff_fields(payload, slug, errors, normalized_mode, state)
     return _validation_payload(workspace, errors, payload, normalized_mode)
 
 
@@ -1049,6 +1659,7 @@ def _validate_handoff_fields(
     slug: str,
     errors: list[dict[str, str]],
     validation_mode: str,
+    state: dict[str, Any],
 ) -> None:
     expected_values = {
         "version": HANDOFF_VERSION,
@@ -1082,28 +1693,259 @@ def _validate_handoff_fields(
         errors.append(_error("invalid_topic_ownership", str(exc)))
     if not str(payload.get("handoff_goal") or "").strip():
         errors.append(_error("missing_handoff_goal", "handoff_goal is required"))
+    _validate_requirements(payload.get("agent_requirement_contract"), errors)
+    _validate_implementation_target(payload.get("implementation_target"), errors)
     _validate_boundary(payload.get("context_boundary"), errors)
     _validate_object_list(
         payload.get("source_evidence"), EVIDENCE_FIELDS, "source_evidence", errors
     )
-    _validate_object_list(
-        payload.get("must_preserve"), MUST_PRESERVE_FIELDS, "must_preserve", errors
-    )
+    if not payload.get("source_evidence"):
+        errors.append(_error("empty_source_evidence", "source_evidence must record at least one checked claim"))
+    _validate_source_evidence(payload.get("source_evidence"), errors)
+    _validate_source_materials(payload.get("source_materials"), payload.get("coverage_status"), errors)
+    _validate_source_material_evidence_links(payload.get("source_materials"), payload.get("source_evidence"), errors)
+    _validate_must_preserve(payload.get("must_preserve"), errors)
     if not payload.get("must_preserve"):
         errors.append(
             _error("empty_must_preserve", "Must-Preserve coverage is required")
         )
-    downstream = payload.get("downstream_instructions")
-    if not isinstance(downstream, dict) or "planning_constraints" not in downstream:
+    _validate_unknown_records(payload.get("blocking_unknowns"), "blocking_unknowns", errors)
+    _validate_unknown_records(payload.get("soft_unknowns"), "soft_unknowns", errors)
+    _validate_conflict_records(payload.get("conflicts"), errors)
+    _validate_downstream_instructions(payload.get("downstream_instructions"), errors)
+    _validate_decision_digest(payload.get("discussion_decision_digest"), errors)
+    if payload.get("hard_unknown_count") != _derived_hard_unknown_count(payload):
+        errors.append(_error("hard_unknown_count_mismatch", "hard_unknown_count must equal unresolved blocking_unknowns"))
+    if payload.get("open_conflict_count") != _derived_open_conflict_count(payload):
+        errors.append(_error("open_conflict_count_mismatch", "open_conflict_count must equal unresolved conflicts"))
+    _validate_discussion_snapshot_digest(payload, state, errors)
+    _validate_consumers(payload, errors)
+    _validate_review_digest(payload, errors, validation_mode)
+
+
+def _validate_source_evidence(value: Any, errors: list[dict[str, str]]) -> None:
+    if not isinstance(value, list):
+        return
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            continue
+        status = str(item.get("evidence_status") or "").strip()
+        if status and status not in SOURCE_EVIDENCE_STATUSES:
+            errors.append(
+                _error(
+                    "invalid_source_evidence_status",
+                    f"source_evidence[{index}].evidence_status is invalid",
+                )
+            )
+        elif status in {"missing", "conflict", "stale-advisory"}:
+            errors.append(
+                _error(
+                    "unresolved_source_evidence",
+                    f"source_evidence[{index}] is not ready for handoff",
+                )
+            )
+
+
+def _validate_unknown_records(
+    value: Any, label: str, errors: list[dict[str, str]]
+) -> None:
+    if not isinstance(value, list):
+        errors.append(_error(f"invalid_{label}", f"{label} must be a list"))
+        return
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            if label == "blocking_unknowns":
+                errors.append(
+                    _error(
+                        f"invalid_{label}_item",
+                        f"{label}[{index}] must be a structured object",
+                    )
+                )
+            continue
+        for field in ("id", "question", "owner", "status", "latest_resolve_phase"):
+            if not str(item.get(field) or "").strip():
+                errors.append(
+                    _error(
+                        f"incomplete_{label}_item",
+                        f"{label}[{index}].{field} is required",
+                    )
+                )
+        status = str(item.get("status") or "").strip().lower()
+        if status not in {"open", "resolved", "closed", "deferred", "superseded", "dropped"}:
+            errors.append(
+                _error(
+                    f"invalid_{label}_status",
+                    f"{label}[{index}].status is invalid",
+                )
+            )
+        if status in {"resolved", "closed"} and not str(
+            item.get("resolution_evidence") or ""
+        ).strip():
+            errors.append(
+                _error(
+                    f"incomplete_{label}_resolution",
+                    f"{label}[{index}].resolution_evidence is required",
+                )
+            )
+        if status == "deferred" and not str(
+            item.get("stop_and_reopen_condition") or ""
+        ).strip():
+            errors.append(
+                _error(
+                    f"incomplete_{label}_deferral",
+                    f"{label}[{index}].stop_and_reopen_condition is required",
+                )
+            )
+        if status == "superseded" and not str(item.get("superseded_by") or "").strip():
+            errors.append(
+                _error(
+                    f"incomplete_{label}_supersession",
+                    f"{label}[{index}].superseded_by is required",
+                )
+            )
+        if status == "dropped" and not str(item.get("user_decision_source") or "").strip():
+            errors.append(
+                _error(
+                    f"incomplete_{label}_drop",
+                    f"{label}[{index}].user_decision_source is required",
+                )
+            )
+
+
+def _validate_conflict_records(value: Any, errors: list[dict[str, str]]) -> None:
+    if not isinstance(value, list):
+        errors.append(_error("invalid_conflicts", "conflicts must be a list"))
+        return
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            errors.append(
+                _error("invalid_conflicts_item", f"conflicts[{index}] must be an object")
+            )
+            continue
+        for field in ("id", "claim", "status"):
+            if not str(item.get(field) or "").strip():
+                errors.append(
+                    _error(
+                        "incomplete_conflicts_item",
+                        f"conflicts[{index}].{field} is required",
+                    )
+                )
+        status = str(item.get("status") or "").strip().lower()
+        if status not in {"open", "resolved", "closed", "deferred", "superseded", "dropped"}:
+            errors.append(
+                _error(
+                    "invalid_conflicts_status",
+                    f"conflicts[{index}].status is invalid",
+                )
+            )
+        if status in _CLOSED_DISCUSSION_ITEM_STATUSES:
+            if not str(item.get("resolution") or "").strip():
+                errors.append(
+                    _error(
+                        "incomplete_conflicts_resolution",
+                        f"conflicts[{index}].resolution is required",
+                    )
+                )
+            if not str(item.get("resolution_evidence") or "").strip():
+                errors.append(
+                    _error(
+                        "incomplete_conflicts_resolution",
+                        f"conflicts[{index}].resolution_evidence is required",
+                    )
+                )
+
+
+def _validate_downstream_instructions(
+    value: Any, errors: list[dict[str, str]]
+) -> None:
+    fields = (
+        "settled_decisions",
+        "preserved_assumptions",
+        "conflicts_requiring_return",
+        "capability_map",
+        "dependencies",
+        "planning_constraints",
+        "deferred_scope",
+        "reopen_conditions",
+    )
+    if not isinstance(value, dict):
         errors.append(
-            _error("missing_planning_constraints", "planning_constraints are required")
+            _error("missing_downstream_instructions", "downstream_instructions is required")
         )
-    elif "recommended_sequence" in downstream:
+        return
+    if "recommended_sequence" in value:
         errors.append(
             _error("legacy_recommended_sequence", "recommended_sequence is not allowed")
         )
-    _validate_consumers(payload, errors)
-    _validate_review_digest(payload, errors, validation_mode)
+    for field in fields:
+        if not isinstance(value.get(field), list):
+            errors.append(
+                _error(
+                    "invalid_downstream_instructions",
+                    f"downstream_instructions.{field} must be a list",
+                )
+            )
+    if not value.get("settled_decisions"):
+        errors.append(
+            _error(
+                "empty_settled_decisions",
+                "downstream_instructions.settled_decisions must not be empty",
+            )
+        )
+
+
+def _validate_decision_digest(value: Any, errors: list[dict[str, str]]) -> None:
+    fields = (
+        "locked_direction",
+        "rejected_alternatives",
+        "accepted_tradeoffs",
+        "experience_commitments",
+        "design_system_requirements",
+        "review_criteria_carried_forward",
+        "must_not_dilute",
+    )
+    if not isinstance(value, dict):
+        errors.append(
+            _error("missing_discussion_decision_digest", "discussion_decision_digest is required")
+        )
+        return
+    for field in fields:
+        if not isinstance(value.get(field), list):
+            errors.append(
+                _error(
+                    "invalid_discussion_decision_digest",
+                    f"discussion_decision_digest.{field} must be a list",
+                )
+            )
+    for field in ("locked_direction", "review_criteria_carried_forward"):
+        if not value.get(field):
+            errors.append(
+                _error(
+                    "incomplete_discussion_decision_digest",
+                    f"discussion_decision_digest.{field} must not be empty",
+                )
+            )
+    if not str(value.get("design_system_status") or "").strip():
+        errors.append(
+            _error(
+                "incomplete_discussion_decision_digest",
+                "discussion_decision_digest.design_system_status is required",
+            )
+        )
+    if value.get("design_risk_level") not in {"none", "low", "medium", "high"}:
+        errors.append(
+            _error(
+                "invalid_discussion_decision_digest",
+                "discussion_decision_digest.design_risk_level is invalid",
+            )
+        )
+    if not isinstance(value.get("design_context"), dict):
+        errors.append(
+            _error(
+                "incomplete_discussion_decision_digest",
+                "discussion_decision_digest.design_context is required",
+            )
+        )
 
 
 def _validate_boundary(boundary: Any, errors: list[dict[str, str]]) -> None:
@@ -1118,6 +1960,13 @@ def _validate_boundary(boundary: Any, errors: list[dict[str, str]]) -> None:
         "current_project_roles",
         errors,
     )
+    if not boundary.get("current_project_roles"):
+        errors.append(
+            _error(
+                "empty_current_project_roles",
+                "context_boundary.current_project_roles must not be empty",
+            )
+        )
     if boundary.get("target_project_root"):
         _validate_object_list(
             boundary.get("target_project_roles"),
@@ -1125,6 +1974,136 @@ def _validate_boundary(boundary: Any, errors: list[dict[str, str]]) -> None:
             "target_project_roles",
             errors,
         )
+        if not boundary.get("target_project_roles"):
+            errors.append(
+                _error(
+                    "empty_target_project_roles",
+                    "context_boundary.target_project_roles must not be empty when target_project_root is set",
+                )
+            )
+
+
+def _validate_requirements(requirements: Any, errors: list[dict[str, str]]) -> None:
+    if not isinstance(requirements, dict):
+        errors.append(_error("missing_requirements_snapshot", "agent_requirement_contract is required"))
+        return
+    if not str(requirements.get("target_need") or "").strip():
+        errors.append(_error("missing_requirements_target_need", "agent_requirement_contract.target_need is required"))
+    scope = requirements.get("scope")
+    if (
+        not isinstance(scope, dict)
+        or not scope.get("in")
+        or not _is_non_empty_string_list(scope.get("in"))
+    ):
+        errors.append(_error("missing_requirements_scope", "agent_requirement_contract.scope.in is required"))
+    for field in ("actors", "scenarios", "success_criteria", "optimal_solution_approach"):
+        if not requirements.get(field) or not _is_non_empty_string_list(requirements.get(field)):
+            errors.append(_error(f"missing_requirements_{field}", f"agent_requirement_contract.{field} is required"))
+    for field in ("constraints", "design_direction", "non_goals"):
+        if not _is_non_empty_string_list(requirements.get(field)):
+            errors.append(_error(f"invalid_requirements_{field}", f"agent_requirement_contract.{field} must be an array of non-empty strings"))
+    if isinstance(scope, dict):
+        for field in ("out", "deferred"):
+            if not _is_non_empty_string_list(scope.get(field)):
+                errors.append(_error(f"invalid_requirements_scope_{field}", f"agent_requirement_contract.scope.{field} must be an array of non-empty strings"))
+
+
+def _validate_implementation_target(target: Any, errors: list[dict[str, str]]) -> None:
+    if not isinstance(target, dict):
+        errors.append(_error("missing_implementation_target", "implementation_target is required"))
+        return
+    if not str(target.get("target_root") or target.get("actual_project") or target.get("target_project_root") or "").strip():
+        errors.append(_error("missing_implementation_target_root", "implementation_target must identify the actual project or target_root"))
+    if not (target.get("target_paths") or target.get("required_target_paths_to_verify")):
+        errors.append(_error("missing_implementation_target_paths", "implementation_target must name target paths or required verification paths"))
+    for field in ("target_paths", "required_target_paths_to_verify"):
+        if not _is_non_empty_string_list(target.get(field)):
+            errors.append(
+                _error(
+                    "invalid_implementation_target_paths",
+                    f"implementation_target.{field} must be an array of non-empty strings",
+                )
+            )
+
+
+def _validate_source_materials(value: Any, coverage_status: Any, errors: list[dict[str, str]]) -> None:
+    if not isinstance(value, list):
+        errors.append(_error("invalid_source_materials", "source_materials must be a list"))
+        return
+    seen: set[str] = set()
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            errors.append(_error("invalid_source_materials_item", f"source_materials[{index}] must be an object"))
+            continue
+        missing = sorted(SOURCE_MATERIAL_FIELDS - set(item))
+        if missing:
+            errors.append(_error("incomplete_source_materials_item", f"source_materials[{index}] missing {', '.join(missing)}"))
+        if not re.match(r"^MAT-[0-9]{3}$", str(item.get("id") or "")):
+            errors.append(_error("invalid_source_materials_id", f"source_materials[{index}].id must match MAT-###"))
+        material_id = str(item.get("id") or "")
+        if material_id in seen:
+            errors.append(_error("duplicate_source_materials_id", f"source_materials[{index}].id duplicates {material_id}"))
+        seen.add(material_id)
+        for field in ("material_type", "locator", "summary"):
+            if not str(item.get(field) or "").strip():
+                errors.append(_error(f"empty_source_materials_{field}", f"source_materials[{index}].{field} must be non-empty"))
+        if not _is_non_empty_string_list(item.get("claims")) or not item.get("claims"):
+            errors.append(_error("empty_source_materials_claims", f"source_materials[{index}].claims must not be empty"))
+        if not _is_non_empty_string_list(item.get("coverage_gaps")):
+            errors.append(_error("invalid_source_materials_coverage_gaps", f"source_materials[{index}].coverage_gaps must be an array of non-empty strings"))
+        status = str(item.get("inspection_status") or "")
+        if status not in SOURCE_MATERIAL_STATUSES:
+            errors.append(_error("invalid_source_materials_status", f"source_materials[{index}].inspection_status is invalid"))
+        if item.get("sensitivity") not in SOURCE_MATERIAL_SENSITIVITIES:
+            errors.append(_error("invalid_source_materials_sensitivity", f"source_materials[{index}].sensitivity is invalid"))
+        content_sha256 = item.get("content_sha256")
+        if content_sha256 is not None and not re.fullmatch(r"[a-f0-9]{64}", str(content_sha256)):
+            errors.append(_error("invalid_source_materials_content_sha256", f"source_materials[{index}].content_sha256 must be a sha256 digest"))
+        if coverage_status == "complete" and (status != "inspected" or item.get("coverage_gaps")):
+            errors.append(_error("unresolved_source_materials", f"source_materials[{index}] must be inspected with no coverage gaps before handoff-ready"))
+        if item.get("material_digest") != _material_digest(item):
+            errors.append(_error("source_materials_digest_mismatch", f"source_materials[{index}].material_digest does not match protected material content"))
+
+
+def _validate_source_material_evidence_links(
+    materials: Any, evidence: Any, errors: list[dict[str, str]]
+) -> None:
+    if not isinstance(materials, list) or not materials:
+        return
+    material_ids = {
+        str(item.get("id"))
+        for item in materials
+        if isinstance(item, dict) and item.get("id")
+    }
+    referenced: set[str] = set()
+    for index, item in enumerate(evidence if isinstance(evidence, list) else []):
+        if not isinstance(item, dict) or not item.get("material_id"):
+            continue
+        material_id = str(item["material_id"])
+        if material_id not in material_ids:
+            errors.append(_error("unknown_source_evidence_material", f"source_evidence[{index}].material_id references unknown material {material_id}"))
+            continue
+        referenced.add(material_id)
+    for material_id in sorted(material_ids - referenced):
+        errors.append(_error("unreferenced_source_material", f"{material_id} must be referenced by source_evidence.material_id"))
+
+
+def _validate_discussion_snapshot_digest(
+    payload: dict[str, Any], state: dict[str, Any], errors: list[dict[str, str]]
+) -> None:
+    checkpoint = state.get("latest_checkpoint")
+    if not isinstance(checkpoint, dict) or not checkpoint.get("snapshot_sha256"):
+        errors.append(_error("missing_semantic_checkpoint", "latest_checkpoint.snapshot_sha256 is required before handoff"))
+        return
+    packet = state.get("turn_packet")
+    if not isinstance(packet, dict):
+        errors.append(_error("invalid_discussion_snapshot", "state turn_packet is required"))
+        return
+    digest = _snapshot_digest(_discussion_semantic_snapshot(packet))
+    if checkpoint.get("snapshot_sha256") != digest:
+        errors.append(_error("stale_semantic_checkpoint", "latest_checkpoint.snapshot_sha256 must match the current discussion semantic snapshot"))
+    if payload.get("discussion_snapshot_digest") != digest:
+        errors.append(_error("discussion_snapshot_digest_mismatch", "discussion_snapshot_digest must match the current discussion semantic snapshot"))
 
 
 def _validate_consumers(payload: dict[str, Any], errors: list[dict[str, str]]) -> None:

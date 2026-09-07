@@ -47,7 +47,7 @@ Command shape: `{{specify-subcmd:specify-runtime learning list --command <comman
 and then `{{specify-subcmd:specify-runtime learning show --ref <ref> --format json}}`.
 
 SPX names map to the same Classic namespace: `spx-implement` consumes
-`--command implement`; `spx-research` consumes `--command deep-research`.
+`--command implement`; `spx-deep-research` consumes `--command deep-research`.
 
 `start`, `list`, and `show` are read-only. They must not capture, merge, confirm,
 promote, update age, or increment metrics.

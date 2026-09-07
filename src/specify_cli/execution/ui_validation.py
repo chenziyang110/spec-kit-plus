@@ -165,7 +165,14 @@ def _source_continuity_contract_sha(value: dict[str, Any]) -> str:
 
 def _source_continuity_write_scope(task: dict[str, Any]) -> list[str]:
     values: list[str] = []
-    for candidate in (task.get("write_scope"), (task.get("scope") or {}).get("write_scope") if isinstance(task.get("scope"), dict) else None):
+    scope = task.get("scope") if isinstance(task.get("scope"), dict) else {}
+    task_scope = task.get("expected_write_scope")
+    if not isinstance(task_scope, list) or not task_scope:
+        task_scope = task.get("write_scope")
+    nested_scope = scope.get("expected_write_scope")
+    if not isinstance(nested_scope, list) or not nested_scope:
+        nested_scope = scope.get("write_scope")
+    for candidate in (task_scope, nested_scope):
         if isinstance(candidate, list):
             values.extend(
                 item.strip()
@@ -190,10 +197,45 @@ def _source_continuity_ignored_snapshot_dir(name: str) -> bool:
     } or normalized.startswith((".codex-", "pytest-", "test-tmp", "test-run-"))
 
 
+def _source_continuity_reserved_snapshot_root(relative: Path) -> bool:
+    return bool(relative.parts) and relative.parts[0].lower() in {
+        ".git",
+        ".specify",
+        ".planning",
+        "specs",
+    }
+
+
+def _source_continuity_runtime_owned_snapshot_path(relative: Path) -> bool:
+    parts = tuple(part.lower() for part in relative.parts)
+    if (
+        len(parts) >= 5
+        and parts[0] == ".specify"
+        and parts[1] == "features"
+        and parts[2]
+        and parts[3:5] == ("implementation-review", "source-continuity")
+    ):
+        return True
+    if (
+        len(parts) >= 4
+        and parts[0] == "specs"
+        and parts[1]
+        and parts[2:4] == ("implementation-review", "source-continuity")
+    ):
+        return True
+    return (
+        len(parts) >= 4
+        and parts[0:2] == (".planning", "quick")
+        and bool(parts[2])
+        and parts[3] == "source-continuity"
+    )
+
+
 def _source_continuity_target_snapshot(
     project_root: Path, declared: list[str]
 ) -> str | None:
     paths: set[Path] = set()
+    root = project_root.resolve()
     try:
         if declared:
             for raw in declared:
@@ -203,26 +245,37 @@ def _source_continuity_target_snapshot(
                 elif normalized.endswith("/*"):
                     normalized = normalized[:-2]
                 normalized = normalized.rstrip("/")
-                first_segment = normalized.removeprefix("./").split("/", 1)[0].lower()
-                if first_segment in {".specify", ".planning"}:
+                target = (root / Path(normalized)).resolve()
+                relative_target = target.relative_to(root)
+                if _source_continuity_runtime_owned_snapshot_path(relative_target):
                     return None
-                target = (project_root / Path(normalized)).resolve()
-                target.relative_to(project_root.resolve())
+                if _source_continuity_reserved_snapshot_root(relative_target):
+                    return None
                 if target.is_dir():
                     paths.update(
                         path
                         for path in target.rglob("*")
                         if path.is_file()
+                        and not _source_continuity_runtime_owned_snapshot_path(
+                            path.relative_to(root)
+                        )
+                        and not _source_continuity_reserved_snapshot_root(
+                            path.relative_to(root)
+                        )
                         and not any(
                             _source_continuity_ignored_snapshot_dir(part)
-                            for part in path.relative_to(project_root).parts[:-1]
+                            for part in path.relative_to(root).parts[:-1]
                         )
                     )
                 else:
                     paths.add(target)
         else:
-            for path in project_root.rglob("*"):
-                relative = path.relative_to(project_root)
+            for path in root.rglob("*"):
+                relative = path.relative_to(root)
+                if _source_continuity_runtime_owned_snapshot_path(relative):
+                    continue
+                if _source_continuity_reserved_snapshot_root(relative):
+                    continue
                 if any(_source_continuity_ignored_snapshot_dir(part) for part in relative.parts[:-1]):
                     continue
                 if path.is_file():
@@ -233,7 +286,7 @@ def _source_continuity_target_snapshot(
     digest.update(b"source-continuity-target-snapshot-v1\n")
     for path in sorted(paths, key=lambda item: item.as_posix()):
         try:
-            relative = path.relative_to(project_root).as_posix()
+            relative = path.relative_to(root).as_posix()
         except ValueError:
             return None
         digest.update(f"PATH\n{relative}\n".encode())

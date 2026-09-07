@@ -25,6 +25,33 @@ The image is the visual review
 surface; the manifest remains the authority for interactions, editing behavior,
 accessibility, motion, data branches, and exact implementation handoff.
 
+Before calling the image tool, configure `manifest.input_images`, author the
+exact professional generate/edit prompt in memory using the contract below,
+and pass those bytes on stdin to
+`specify-runtime design prompt <change-dir>/previews/round-NN.manifest.json --content - --format json`.
+This is the create-only specialized producer: the runtime does not synthesize
+or reconstruct the creative request. It atomically creates the adjacent prompt
+and byte-bound generation sidecar, returns both paths and SHA-256 receipts, and
+allows only a byte-identical retry. Different or partial existing bytes require
+a new numbered round. Send the returned prompt bytes unchanged to the image
+tool. `design import` rejects an image without that current generation binding.
+
+Legacy draft recovery is bounded: when an unchanged image was already imported
+by an older runtime and both managed files are absent, the same
+`specify-runtime design prompt <manifest> --content - --format json` owner may
+bind it only while the exact prompt bytes remain available. Do not import the
+image again. If the exact prompt bytes are unavailable, or only one managed
+file exists, use a new numbered round rather than reconstructing provenance.
+
+For `surface_posture: inherit-existing`, image-primary is permitted only when
+image editing is available. Set `operation: edit`; attach at least one
+project-contained `edit-source` with `fidelity: exact` whose `surface_ids`
+cover every protected surface, including `global-shell` and
+`shared-components`. Bind those same surfaces as `disposition: preserve`,
+`use_intent: exact`, and `fidelity: exact` in source continuity. Never generate
+the whole page from text. When image editing is unavailable, route to the
+HTML-primary lane inside the inherited shell.
+
 ## Image prompt contract
 
 Write a generation or edit prompt with these explicit sections:
@@ -68,6 +95,10 @@ JavaScript, component-library implementation instructions, or production code.
    and inspect hierarchy, crop, alignment, type/text legibility, palette,
    platform authenticity, content credibility, state coverage, and invariants.
    Use focused crops or higher-detail inspection for dense text and small UI.
+   Pass that comparison through `--inspection-json` to
+   `preview-lint --level concept`: every protected surface must cite its exact
+   baseline and pass as preserved, and every observed difference must belong to
+   an editable exact scope.
 4. Repair one consequential issue at a time. When editing is available, name
    the exact region/change and repeat all invariants. Otherwise regenerate with
    the same prompt contract plus a compact change block.

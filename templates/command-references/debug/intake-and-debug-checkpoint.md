@@ -51,7 +51,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Control state is not observation state**: Keep scheduling, admission, allocation, and ownership state separate from UI, logs, event streams, caches, and snapshots.
 - **Persistence is memory**: The debug session file in `.planning/debug/[slug].md` is the source of truth. Query it through `specify-runtime artifact show` and patch it through a fresh lease before each action that changes durable meaning.
 - **Leader-led investigation**: The leader integrates evidence and decides what happens next. Delegated helpers only gather bounded facts.
-- **Project-map first**: When the project cognition compass packet returns usable task-local navigation, use it as the default intake surface instead of rebuilding a broad outsider map from scratch.
+- **Project cognition first**: When the project cognition compass packet returns usable task-local navigation, use it as the default intake surface instead of rebuilding a broad outsider map from scratch.
 - **Map-backed minimum intake**: A ready/review cognition bundle may supply a minimum causal map, investigation contract, log plan, transition memo, primary candidate, and contrarian candidate; persist that package only through a fresh `specify-runtime artifact patch` lease.
 - **Deep intake is fallback, not the default**: Use Stage 1A and Stage 1B only when project cognition is missing, stale, ambiguous, insufficient for the failing area, or the lightweight investigation exposes competing truth owners.
 - **Stage 1A: Causal Map**: In fallback/deep mode, the first subagent builds a family-spanning causal map before contract generation begins.

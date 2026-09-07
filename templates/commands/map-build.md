@@ -216,7 +216,7 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 
 ## Project Cognition Workbench State Protocol
 
-- Project Map State Protocol remains active during build acceptance.
+- Project Cognition Workbench State Protocol remains active during build acceptance.
 - Validate Scan Inputs Before Execution.
 - Typed runtime recovery owns stale or incompatible workbench repair. If an old
   workbench must be discarded, do it only through the runtime's typed recovery

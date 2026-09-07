@@ -169,12 +169,6 @@
       "assets": ["spx-plan/assets/plan.md"],
       "optimization": "repository-grounded design decisions without research, task, or issue side effects"
     },
-    "spx-prd": {
-      "absorbs": ["prd"],
-      "references": [],
-      "assets": [],
-      "optimization": "thin compatibility route to the canonical reconstruction scan and build skills"
-    },
     "spx-prd-build": {
       "absorbs": ["prd-build"],
       "references": ["spx-prd-build/references/prd-build-contract.md"],
@@ -204,12 +198,6 @@
       ],
       "assets": [],
       "optimization": "real-entrypoint system validation with bounded repair, adaptive independent review lanes, and a fresh fingerprint gate"
-    },
-    "spx-research": {
-      "absorbs": ["research"],
-      "references": [],
-      "assets": [],
-      "optimization": "thin compatibility route to spx-deep-research without duplicate state"
     },
     "spx-specify": {
       "absorbs": ["specify"],

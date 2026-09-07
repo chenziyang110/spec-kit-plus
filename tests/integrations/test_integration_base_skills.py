@@ -503,6 +503,8 @@ def test_collected_skills_integrations_generate_design_workflow(tmp_path):
         assert design_path.exists(), integration_key
         design_content = design_path.read_text(encoding="utf-8")
         _assert_design_contract(design_content)
+        assert "contract_action: create | refine | audit" in design_content
+        assert "surface_posture: greenfield | inherit-existing" in design_content
         frontmatter = yaml.safe_load(design_content.split("---", 2)[1])
         assert frontmatter["description"].startswith(
             "User-invoked workflow only"
@@ -538,6 +540,16 @@ def test_collected_skills_integrations_install_ui_design_studio_references(tmp_p
         assert expected_references.issubset(installed_references), integration_key
         assert "references/discovery-dialogue.md" in skill_content, integration_key
         assert "references/prototype-craft.md" in skill_content, integration_key
+        image_round = (references_dir / "image-generation-studio.md").read_text(
+            encoding="utf-8"
+        )
+        assert "specify-runtime design prompt" in image_round, integration_key
+        assert "--content -" in image_round, integration_key
+        assert "create-only" in image_round, integration_key
+        assert "edit-source" in image_round, integration_key
+        assert "concept receipt" in (
+            references_dir / "critique-loop.md"
+        ).read_text(encoding="utf-8"), integration_key
         assert not (skills_dir / "spec-kit-ui-design").exists(), integration_key
         for reference in references_dir.glob("*.md"):
             assert reference.relative_to(project).as_posix() in manifest.files, (
@@ -1009,21 +1021,14 @@ class SkillsIntegrationTests:
         assert actual_commands == expected_commands
         assert actual_passive_skills == expected_passive_skills
 
-    def test_research_alias_skill_routes_to_deep_research(self, tmp_path):
+    def test_research_alias_skill_is_not_installed(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         i.setup(tmp_path, m)
 
         alias_path = i.skills_dest(tmp_path) / "sp-research" / "SKILL.md"
-        assert alias_path.exists()
-        content = alias_path.read_text(encoding="utf-8")
-        lowered = content.lower()
-
-        assert "name: \"sp-research\"" in content
-        assert "compatibility alias" in lowered
-        assert "sp-deep-research" in content
-        assert "active_command: sp-deep-research" in content
-        assert "active_command: sp-research" not in content
+        assert not alias_path.exists()
+        assert (i.skills_dest(tmp_path) / "sp-deep-research" / "SKILL.md").exists()
 
     def test_discussion_skill_preserves_pre_specification_contract(self, tmp_path):
         i = get_integration(self.KEY)

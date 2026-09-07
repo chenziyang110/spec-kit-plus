@@ -126,15 +126,6 @@ FILE_REQUIRED_ARTIFACTS = {
         "exports/integration-contracts.md",
         "exports/runtime-behaviors.md",
     ),
-    "prd": (
-        "workflow-state.md",
-        "prd-scan.md",
-        "coverage-ledger.md",
-        "coverage-ledger.json",
-        "capability-ledger.json",
-        "artifact-contracts.json",
-        "reconstruction-checklist.json",
-    ),
 }
 
 DIRECTORY_REQUIRED_ARTIFACTS = {
@@ -146,7 +137,6 @@ DIRECTORY_REQUIRED_ARTIFACTS = {
     "map-scan": ("evidence",),
     "prd-scan": ("scan-packets", "evidence", "worker-results"),
     "prd-build": ("scan-packets", "evidence", "worker-results"),
-    "prd": ("scan-packets", "evidence", "worker-results"),
 }
 
 
@@ -232,18 +222,6 @@ REQUIRED_ARTIFACTS = {
         "master/master-pack.md",
         "exports/README.md",
         "exports/prd.md",
-    ),
-    "prd": (
-        "workflow-state.md",
-        "prd-scan.md",
-        "coverage-ledger.md",
-        "coverage-ledger.json",
-        "capability-ledger.json",
-        "artifact-contracts.json",
-        "reconstruction-checklist.json",
-        "scan-packets",
-        "evidence",
-        "worker-results",
     ),
 }
 
@@ -3424,6 +3402,12 @@ UI_CONTRACT_REFERENCE_INTENTS = {
     "extract-tokens",
     "do-not-copy",
 }
+UI_CONTRACT_REFERENCE_FIDELITIES = {
+    "exact",
+    "high",
+    "approximate",
+    "inspiration",
+}
 UI_CONTRACT_EVIDENCE = {
     "structure_snapshot",
     "visual_capture",
@@ -4167,9 +4151,17 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
                 or not str(item.get("ref") or "").strip()
                 or str(item.get("intent") or "").strip()
                 not in UI_CONTRACT_REFERENCE_INTENTS
+                or str(item.get("fidelity") or "").strip()
+                not in UI_CONTRACT_REFERENCE_FIDELITIES
+                or not isinstance(item.get("surface_ids"), list)
+                or not item.get("surface_ids")
+                or any(
+                    not isinstance(surface_id, str) or not surface_id.strip()
+                    for surface_id in item.get("surface_ids", [])
+                )
             ):
                 errors.append(
-                    f"{label}.reference_intents entries require ref and valid intent"
+                    f"{label}.reference_intents entries require ref, intent, fidelity, and governed surface_ids"
                 )
                 break
     real_content_plan = contract.get("real_content_plan")
@@ -7916,8 +7908,6 @@ def validate_artifacts_hook(
         )
     if command_name == "prd-build":
         validation_errors.extend(_validate_prd_build_artifacts(feature_dir))
-    if command_name == "prd":
-        validation_errors.extend(_validate_prd_scan_artifacts(feature_dir))
     if validation_errors:
         return HookResult(
             event=WORKFLOW_ARTIFACTS_VALIDATE,

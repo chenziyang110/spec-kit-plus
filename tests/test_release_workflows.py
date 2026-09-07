@@ -78,6 +78,10 @@ def test_release_workflow_uploads_unified_runtime_binaries():
     assert "design --help 2>&1" in content
     assert 'grep -q -- "direction-confirm"' in content
     assert "api show design.preview-lint --format json" in content
+    assert "api show design.prompt --format json" in content
+    assert 'grep -q -- "--content"' in content
+    assert "api show evidence.source-continuity-manifest --format json" in content
+    assert 'grep -q -- "byte-stable"' in content
     assert 'grep -q -- "concept"' in content
     for capability in (
         '"api.ensure"',
@@ -210,6 +214,10 @@ def test_runtime_fallback_release_smokes_namespaced_cognition_commands():
     assert "design --help 2>&1" in content
     assert 'grep -q -- "direction-confirm"' in content
     assert "api show design.preview-lint --format json" in content
+    assert "api show design.prompt --format json" in content
+    assert 'grep -q -- "--content"' in content
+    assert "api show evidence.source-continuity-manifest --format json" in content
+    assert 'grep -q -- "byte-stable"' in content
     assert 'grep -q -- "concept"' in content
 
 

@@ -147,6 +147,7 @@ REQUIRED_CAPABILITIES = (
     "design.preview",
     "design.preview-manifest",
     "design.preview-lint",
+    "design.prompt",
     "design.profiles",
     "design.register",
     "design.resolve",

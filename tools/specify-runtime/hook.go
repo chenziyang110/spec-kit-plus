@@ -33,7 +33,6 @@ var hookExpectedWorkflowState = map[string]struct {
 	"analyze":       {"sp-analyze", "analysis-only"},
 	"prd-scan":      {"sp-prd-scan", "analysis-only"},
 	"prd-build":     {"sp-prd-build", "analysis-only"},
-	"prd":           {"sp-prd", "analysis-only"},
 }
 
 var hookValidTrackerStatuses = map[string]bool{
@@ -444,14 +443,12 @@ func hookRequiredArtifacts(command string) ([]hookRequiredArtifact, bool) {
 		"map-update":    {"status.json", "project-cognition.db"},
 		"prd-scan":      {"workflow-state.md", "prd-scan.md", "coverage-ledger.md", "coverage-ledger.json", "capability-ledger.json", "artifact-contracts.json", "reconstruction-checklist.json"},
 		"prd-build":     {"workflow-state.md", "prd-scan.md", "coverage-ledger.json", "capability-ledger.json", "artifact-contracts.json", "reconstruction-checklist.json", "master/master-pack.md", "exports/README.md", "exports/prd.md"},
-		"prd":           {"workflow-state.md", "prd-scan.md", "coverage-ledger.md", "coverage-ledger.json", "capability-ledger.json", "artifact-contracts.json", "reconstruction-checklist.json"},
 	}
 	dirs := map[string][]string{
 		"review":    {"review-evidence"},
 		"map-scan":  {"evidence"},
 		"prd-scan":  {"scan-packets", "evidence", "worker-results"},
 		"prd-build": {"scan-packets", "evidence", "worker-results"},
-		"prd":       {"scan-packets", "evidence", "worker-results"},
 	}
 	fileList, ok := files[command]
 	if !ok {
@@ -528,7 +525,7 @@ func validateHookArtifactSemantics(projectRoot, featurePath, featureRel, command
 			return hookSemanticError(command, featureRel, err)
 		}
 		return hookSemanticOK(command, featureRel)
-	case "prd-scan", "prd-build", "prd":
+	case "prd-scan", "prd-build":
 		if err := validatePRDStageArtifacts(projectRoot, featurePath, command); err != nil {
 			return hookSemanticError(command, featureRel, err)
 		}

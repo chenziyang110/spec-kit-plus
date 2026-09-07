@@ -16,7 +16,6 @@ FIRST_RELEASE_WORKFLOW_COMMANDS = frozenset(
         "explain",
         "debug",
         "deep-research",
-        "research",
         "plan",
         "tasks",
         "test-design",
@@ -31,9 +30,7 @@ FIRST_RELEASE_WORKFLOW_COMMANDS = frozenset(
         "taskstoissues",
     }
 )
-COMMAND_ALIASES = {
-    "research": "deep-research",
-}
+COMMAND_ALIASES: dict[str, str] = {}
 
 _MODEL_ENV_KEYS: dict[str, tuple[str, ...]] = {
     "claude": ("CLAUDE_CODE_SUBAGENT_MODEL", "ANTHROPIC_MODEL"),

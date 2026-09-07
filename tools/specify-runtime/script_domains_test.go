@@ -267,7 +267,9 @@ func TestDiscussionHandoffLifecycleParity(t *testing.T) {
 		t.Fatalf("init status = %s, blockers=%v", env.Status, env.Blockers)
 	}
 	slug := env.Data["slug"].(string)
-	raw, err := json.Marshal(discussionHandoffFixture())
+	handoff := discussionHandoffFixture()
+	checkpointDiscussionForHandoffFixture(t, root, slug, handoff)
+	raw, err := json.Marshal(handoff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +331,9 @@ func TestDiscussionHandoffAcceptsInlineJSONWithoutDraftFile(t *testing.T) {
 		t.Fatalf("init status = %s, blockers=%v", env.Status, env.Blockers)
 	}
 	slug := env.Data["slug"].(string)
-	raw, err := json.Marshal(discussionHandoffFixture())
+	handoff := discussionHandoffFixture()
+	checkpointDiscussionForHandoffFixture(t, root, slug, handoff)
+	raw, err := json.Marshal(handoff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,6 +357,88 @@ func TestDiscussionHandoffAcceptsInlineJSONWithoutDraftFile(t *testing.T) {
 	}
 }
 
+func TestDiscussionStateInitializesSemanticSnapshotContract(t *testing.T) {
+	root := t.TempDir()
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Semantic Snapshot", "Clarify checkout requirements"})
+	if env.Status != "ok" {
+		t.Fatalf("init status = %s, blockers=%v", env.Status, env.Blockers)
+	}
+	slug := env.Data["slug"].(string)
+	discussion, err := readJSONMap(filepath.Join(root, ".specify", "discussions", slug, "discussion-state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if intValue(discussion["version"]) != 3 {
+		t.Fatalf("state version = %#v, want 3", discussion["version"])
+	}
+	packet := discussion["turn_packet"].(map[string]any)
+	if intValue(packet["version"]) != 2 {
+		t.Fatalf("turn_packet version = %#v, want 2", packet["version"])
+	}
+	for _, field := range []string{
+		"requirements_snapshot",
+		"implementation_target",
+		"source_materials",
+		"blocking_unknowns",
+		"soft_unknowns",
+		"conflicts",
+		"evidence_checked",
+		"advice_confidence",
+		"discussion_compass_status",
+		"next_discussion_paths",
+		"artifact_refs",
+		"design_context",
+		"ui_discussion_status",
+	} {
+		if _, ok := packet[field]; !ok {
+			t.Fatalf("turn_packet missing durable semantic field %q: %#v", field, packet)
+		}
+	}
+}
+
+func TestDiscussionHandoffValidationRejectsMissingCheckpointSemantics(t *testing.T) {
+	root := t.TempDir()
+	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Missing Materials", "Capture uploaded notes before handoff"})
+	if env.Status != "ok" {
+		t.Fatalf("init status = %s, blockers=%v", env.Status, env.Blockers)
+	}
+	slug := env.Data["slug"].(string)
+	handoff := discussionHandoffFixture()
+	raw, err := json.Marshal(handoff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "write-handoff", slug, "--input-json", string(raw)})
+	if env.Status == "ok" || !strings.Contains(fmt.Sprint(env.Blockers), "missing_semantic_checkpoint") {
+		t.Fatalf("missing checkpoint semantics should block write-handoff: %#v", env)
+	}
+}
+
+func TestDiscussionHandoffValidationDerivesUnknownAndConflictCounts(t *testing.T) {
+	root := t.TempDir()
+	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Derived Counts", "Do not trust authored counters"})
+	if env.Status != "ok" {
+		t.Fatalf("init status = %s, blockers=%v", env.Status, env.Blockers)
+	}
+	slug := env.Data["slug"].(string)
+	handoff := discussionHandoffFixture()
+	handoff["blocking_unknowns"] = []any{map[string]any{"id": "UNK-001", "question": "Which payment provider?", "owner": "user", "status": "open", "latest_resolve_phase": "prepare"}}
+	handoff["conflicts"] = []any{map[string]any{"id": "CON-001", "claim": "Card-only vs wallet support", "status": "open"}}
+	handoff["hard_unknown_count"] = float64(0)
+	handoff["open_conflict_count"] = float64(0)
+	checkpointDiscussionForHandoffFixture(t, root, slug, handoff)
+	raw, err := json.Marshal(handoff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "write-handoff", slug, "--input-json", string(raw)})
+	if env.Status == "ok" || !strings.Contains(fmt.Sprint(env.Blockers), "blocking_unknowns and conflicts") {
+		t.Fatalf("open unknowns/conflicts should block write-handoff even when counters claim zero: %#v", env)
+	}
+}
+
 func TestDiscussionHandoffAllowsBothEligibleConsumersAndLocksSelectedConsumer(t *testing.T) {
 	for _, selected := range []string{"sp-quick", "sp-specify"} {
 		t.Run(selected, func(t *testing.T) {
@@ -370,6 +456,7 @@ func TestDiscussionHandoffAllowsBothEligibleConsumersAndLocksSelectedConsumer(t 
 				"sp-quick":   map[string]any{"status": "ready"},
 			}
 			handoff["recommended_consumer"] = selected
+			checkpointDiscussionForHandoffFixture(t, root, slug, handoff)
 			raw, err := json.Marshal(handoff)
 			if err != nil {
 				t.Fatal(err)
@@ -674,8 +761,10 @@ func TestDiscussionWriteHandoffRequiresExpectedStateSHAWhenMultipleDiscussionsAr
 	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
 	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Primary Handoff", "Primary"})
 	slug := env.Data["slug"].(string)
+	handoff := discussionHandoffFixture()
+	stateDigest := checkpointDiscussionForHandoffFixture(t, root, slug, handoff)
 	runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Secondary Handoff", "Secondary"})
-	raw, err := json.Marshal(discussionHandoffFixture())
+	raw, err := json.Marshal(handoff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -687,10 +776,6 @@ func TestDiscussionWriteHandoffRequiresExpectedStateSHAWhenMultipleDiscussionsAr
 		t.Fatalf("write-handoff without expected state digest = %#v, want blocked", env)
 	}
 
-	stateDigest, err := fileSHA256(filepath.Join(root, ".specify", "discussions", slug, "discussion-state.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	env = runScriptDomainEnvelope(t, runDiscussion, []string{
 		"--project-root", root, "write-handoff", slug, "--expected-state-sha256", stateDigest,
 		"--input-json", string(raw),
@@ -705,11 +790,9 @@ func TestDiscussionWriteHandoffRejectsStaleDigestAfterConcurrentWriterCommits(t 
 	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
 	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Serialized Handoff", "Serialized handoff"})
 	slug := env.Data["slug"].(string)
-	stateDigest, err := fileSHA256(filepath.Join(root, ".specify", "discussions", slug, "discussion-state.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	raw, err := json.Marshal(discussionHandoffFixture())
+	handoff := discussionHandoffFixture()
+	stateDigest := checkpointDiscussionForHandoffFixture(t, root, slug, handoff)
+	raw, err := json.Marshal(handoff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -761,11 +844,8 @@ func TestDiscussionBindConsumerWritesDerivedFeaturePointerAndEnablesConsumption(
 		"sp-quick":   map[string]any{"status": "blocked"},
 	}
 	handoff["recommended_consumer"] = "sp-specify"
+	stateDigest := checkpointDiscussionForHandoffFixture(t, root, slug, handoff)
 	raw, err := json.Marshal(handoff)
-	if err != nil {
-		t.Fatal(err)
-	}
-	stateDigest, err := fileSHA256(filepath.Join(root, ".specify", "discussions", slug, "discussion-state.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -905,6 +985,7 @@ func TestDiscussionBindConsumerRejectsFeatureBoundToDifferentDiscussion(t *testi
 		"sp-quick":   map[string]any{"status": "blocked"},
 	}
 	handoff["recommended_consumer"] = "sp-specify"
+	checkpointDiscussionForHandoffFixture(t, root, slug, handoff)
 	raw, err := json.Marshal(handoff)
 	if err != nil {
 		t.Fatal(err)
@@ -1001,7 +1082,9 @@ func TestDiscussionHandoffCarriesTopicOwnershipFromCurrentState(t *testing.T) {
 		"routed_topics": []any{map[string]any{"topic": "billing export", "route": "branch_new", "target_slug": "billing-export"}},
 	}
 	mustWriteJSONScriptDomainTest(t, statePath, state)
-	raw, err := json.Marshal(discussionHandoffFixture())
+	handoff := discussionHandoffFixture()
+	checkpointDiscussionForHandoffFixture(t, root, slug, handoff)
+	raw, err := json.Marshal(handoff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1012,13 +1095,13 @@ func TestDiscussionHandoffCarriesTopicOwnershipFromCurrentState(t *testing.T) {
 	if env.Status != "ok" {
 		t.Fatalf("write-handoff = %#v", env)
 	}
-	handoff, err := readJSONMap(filepath.Join(root, ".specify", "discussions", slug, "handoff-to-specify.json"))
+	storedHandoff, err := readJSONMap(filepath.Join(root, ".specify", "discussions", slug, "handoff-to-specify.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	ownership, ok := handoff["topic_ownership"].(map[string]any)
+	ownership, ok := storedHandoff["topic_ownership"].(map[string]any)
 	if !ok {
-		t.Fatalf("handoff missing topic_ownership: %#v", handoff)
+		t.Fatalf("handoff missing topic_ownership: %#v", storedHandoff)
 	}
 	if ownership["owner_slug"] != slug {
 		t.Fatalf("handoff topic ownership = %#v, want owner_slug %q", ownership, slug)
@@ -1036,6 +1119,7 @@ func TestDiscussionBindConsumerOverwritesUnboundCreateFeatureScaffold(t *testing
 		"sp-quick":   map[string]any{"status": "blocked"},
 	}
 	handoff["recommended_consumer"] = "sp-specify"
+	checkpointDiscussionForHandoffFixture(t, root, slug, handoff)
 	raw, err := json.Marshal(handoff)
 	if err != nil {
 		t.Fatal(err)
@@ -1311,7 +1395,9 @@ func TestDiscussionHandoffRequiresSafeInstalledTemplate(t *testing.T) {
 			}
 			env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Template Gate", "Template requirements"})
 			slug := env.Data["slug"].(string)
-			raw, err := json.Marshal(discussionHandoffFixture())
+			handoff := discussionHandoffFixture()
+			checkpointDiscussionForHandoffFixture(t, root, slug, handoff)
+			raw, err := json.Marshal(handoff)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1323,15 +1409,470 @@ func TestDiscussionHandoffRequiresSafeInstalledTemplate(t *testing.T) {
 	}
 }
 
+func TestDiscussionHandoffReadyRechecksSnapshotMaterialCoverageAndCounts(t *testing.T) {
+	root := t.TempDir()
+	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Readiness Semantics", "Readiness semantics"})
+	if env.Status != "ok" {
+		t.Fatalf("init status = %s, blockers=%v", env.Status, env.Blockers)
+	}
+	slug := env.Data["slug"].(string)
+
+	handoff := discussionHandoffFixture()
+	handoff["source_materials"] = []any{map[string]any{
+		"id":                "MAT-001",
+		"material_type":     "user_note",
+		"locator":           "chat:turn-1",
+		"inspection_status": "pending",
+		"summary":           "User supplied a requirement note.",
+		"claims":            []any{"The note must be considered."},
+		"coverage_gaps":     []any{"not inspected"},
+		"sensitivity":       "safe",
+	}}
+	checkpointDiscussionForHandoffFixture(t, root, slug, handoff)
+	raw, err := json.Marshal(handoff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "write-handoff", slug, "--input-json", string(raw)})
+	if env.Status != "blocked" || !strings.Contains(fmt.Sprint(env.Blockers), "source_materials") {
+		t.Fatalf("uninspected materials should block write-handoff: %#v", env)
+	}
+
+	handoff["source_materials"].([]any)[0].(map[string]any)["inspection_status"] = "inspected"
+	handoff["source_materials"].([]any)[0].(map[string]any)["coverage_gaps"] = []any{}
+	checkpointDiscussionForHandoffFixture(t, root, slug, handoff)
+	raw, err = json.Marshal(handoff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "write-handoff", slug, "--input-json", string(raw)})
+	if env.Status != "ok" {
+		t.Fatalf("write-handoff after inspected material = %#v", env)
+	}
+	digest := env.Data["review_digest"].(string)
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "confirm-handoff", slug, "--digest", digest})
+	if env.Status != "ok" {
+		t.Fatalf("confirm after inspected material = %#v", env)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "checkpoint", slug, "--input-json", `{"summary":"changed after handoff","soft_unknowns":["new softer unknown"]}`})
+	if env.Status != "ok" {
+		t.Fatalf("checkpoint after handoff = %#v", env)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "mark-ready", slug})
+	if env.Status != "blocked" || !strings.Contains(fmt.Sprint(env.Blockers), "discussion_snapshot_digest") {
+		t.Fatalf("stale discussion snapshot should block ready: %#v", env)
+	}
+}
+
+func TestDiscussionHandoffRejectsEmptyRequirementContractEvenWithReadyCounts(t *testing.T) {
+	root := t.TempDir()
+	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Thin Handoff", "Thin requirements"})
+	if env.Status != "ok" {
+		t.Fatalf("init = %#v", env)
+	}
+	slug := env.Data["slug"].(string)
+	thin := discussionHandoffFixture()
+	thin["agent_requirement_contract"] = map[string]any{
+		"target_need":               "",
+		"actors":                    []any{},
+		"scenarios":                 []any{},
+		"constraints":               []any{},
+		"success_criteria":          []any{},
+		"optimal_solution_approach": []any{},
+		"scope":                     map[string]any{"in": []any{}},
+	}
+	checkpointDiscussionForHandoffFixture(t, root, slug, thin)
+	raw, err := json.Marshal(thin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "write-handoff", slug, "--input-json", string(raw),
+	})
+	if env.Status == "ok" {
+		t.Fatalf("write-handoff accepted empty semantic requirement contract: %#v", env)
+	}
+}
+
+func TestDiscussionCheckpointPersistsCompleteSemanticSnapshotAndResume(t *testing.T) {
+	root := t.TempDir()
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Semantic Recovery", "Recover details"})
+	if env.Status != "ok" {
+		t.Fatalf("init = %#v", env)
+	}
+	slug := env.Data["slug"].(string)
+	payload := map[string]any{
+		"summary": "Ready to hand off validated discussion state.",
+		"phase":   "prepare",
+		"requirements_snapshot": map[string]any{
+			"target_need":               "Operators need a recoverable checkout discussion package.",
+			"actors":                    []any{"shopper", "operator"},
+			"scenarios":                 []any{"resume after compaction"},
+			"constraints":               []any{"do not rely on chat memory"},
+			"success_criteria":          []any{"resume shows preserved decisions"},
+			"design_direction":          []any{"quiet operational UI"},
+			"optimal_solution_approach": []any{"use runtime checkpoint and handoff contracts"},
+			"non_goals":                 []any{"rewrite checkout implementation"},
+			"scope":                     map[string]any{"in": []any{"discussion state"}, "out": []any{"payment gateway"}, "deferred": []any{"analytics"}},
+		},
+		"implementation_target": map[string]any{
+			"actual_project":                  "checkout-service",
+			"target_root":                     root,
+			"target_paths":                    []any{"src/checkout"},
+			"required_target_paths_to_verify": []any{"src/checkout"},
+		},
+		"source_evidence": []any{
+			map[string]any{"source_type": "discussion", "evidence_status": "verified", "source": "chat", "claim": "checkout recovery is required", "material_id": "MAT-001"},
+		},
+		"source_materials": []any{
+			map[string]any{"id": "MAT-001", "material_type": "chat", "locator": "user message", "summary": "User requested recoverable discussion state.", "inspection_status": "inspected", "claims": []any{"checkout recovery is required"}, "coverage_gaps": []any{}, "sensitivity": "safe"},
+		},
+		"blocking_unknowns":          []any{},
+		"soft_unknowns":              []any{"deployment date"},
+		"conflicts":                  []any{},
+		"downstream_instructions":    map[string]any{"planning_constraints": []any{"preserve runtime checkpoint contract"}, "settled_decisions": []any{"use v3 discussion state"}, "preserved_assumptions": []any{}, "conflicts_requiring_return": []any{}, "capability_map": []any{}, "dependencies": []any{}, "deferred_scope": []any{"analytics"}, "reopen_conditions": []any{"new payment requirement"}},
+		"discussion_decision_digest": map[string]any{"locked_direction": []any{"runtime-owned state"}, "must_not_dilute": []any{"material evidence"}},
+		"must_preserve":              []any{map[string]any{"id": "MP-001", "type": "requirement", "claim": "State must resume without chat memory", "source": "MAT-001", "downstream_requirement": "Consumers must read handoff JSON", "blocking_level": "hard", "owner": "agent", "latest_resolve_phase": "discussion", "status": "active"}},
+		"truth_pass_status":          "complete",
+		"verified_project_facts":     []any{"runtime stores discussion-state.json"},
+		"evidence_checked":           []any{"tools/specify-runtime/script_domains.go"},
+		"advice_confidence":          "high",
+		"discussion_compass_status":  "current",
+		"next_discussion_paths":      []any{"handoff assessment"},
+		"ui_discussion_status":       "offered",
+		"design_context":             map[string]any{"ui_involved": true, "surface_type": "product-workspace"},
+		"artifact_refs":              []any{".specify/discussions/" + slug + "/discussion-state.json"},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "checkpoint", slug, "--input-json", string(raw)})
+	if env.Status != "ok" {
+		t.Fatalf("checkpoint = %#v", env)
+	}
+	packet := env.Data["turn_packet"].(map[string]any)
+	if packet["version"] != float64(2) {
+		t.Fatalf("checkpoint did not migrate turn_packet version: %#v", packet)
+	}
+	if packet["truth_pass_status"] != "complete" || packet["discussion_compass_status"] != "current" {
+		t.Fatalf("checkpoint lost truth/compass state: %#v", packet)
+	}
+	materials := packet["source_materials"].([]any)
+	material := materials[0].(map[string]any)
+	if stringValue(material["material_digest"]) == "" {
+		t.Fatalf("checkpoint did not protect source material digest: %#v", material)
+	}
+	checkpoint := env.Data["discussion"].(map[string]any)["latest_checkpoint"].(map[string]any)
+	if stringValue(checkpoint["snapshot_sha256"]) == "" || len(checkpoint["changed_fields"].([]any)) == 0 {
+		t.Fatalf("latest checkpoint missing semantic snapshot metadata: %#v", checkpoint)
+	}
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "resume", slug})
+	if env.Status != "ok" {
+		t.Fatalf("resume = %#v", env)
+	}
+	resumePacket := env.Data["turn_packet"].(map[string]any)
+	if resumePacket["truth_pass_status"] != "complete" || len(resumePacket["source_materials"].([]any)) != 1 {
+		t.Fatalf("resume lost complete semantic packet: %#v", resumePacket)
+	}
+}
+
+func TestDiscussionHandoffDerivesFromCheckpointAndRejectsSnapshotDrift(t *testing.T) {
+	root := t.TempDir()
+	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Derived Handoff", "Derived handoff"})
+	slug := env.Data["slug"].(string)
+	semantic := discussionCompleteSemanticCheckpoint(root)
+	raw, err := json.Marshal(semantic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "checkpoint", slug, "--input-json", string(raw)})
+	if env.Status != "ok" {
+		t.Fatalf("checkpoint = %#v", env)
+	}
+	stateDigest := env.Data["binding"].(map[string]any)["state_sha256"].(string)
+	draft := map[string]any{
+		"handoff_goal": "Implement checkout recovery",
+		"quality_gate": map[string]any{"self_reviewed_at": "2026-07-24T00:00:00Z"},
+		"consumer_eligibility": map[string]any{
+			"sp-specify": map[string]any{"status": "blocked"},
+			"sp-quick":   map[string]any{"status": "ready"},
+		},
+		"recommended_consumer": "sp-quick",
+	}
+	raw, err = json.Marshal(draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "write-handoff", slug, "--expected-state-sha256", stateDigest, "--input-json", string(raw)})
+	if env.Status != "ok" {
+		t.Fatalf("write-handoff = %#v", env)
+	}
+	handoffPath := filepath.Join(root, ".specify", "discussions", slug, "handoff-to-specify.json")
+	handoff, err := readJSONMap(handoffPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stringValue(handoff["discussion_snapshot_digest"]) == "" {
+		t.Fatalf("handoff did not bind discussion snapshot digest: %#v", handoff)
+	}
+	materials := handoff["source_materials"].([]any)
+	if len(materials) != 1 || stringValue(materials[0].(map[string]any)["material_digest"]) == "" {
+		t.Fatalf("handoff did not carry protected source materials: %#v", handoff["source_materials"])
+	}
+	if mapValue(handoff["agent_requirement_contract"])["target_need"] != "Operators need a recoverable checkout discussion package." {
+		t.Fatalf("handoff did not derive requirements from checkpoint: %#v", handoff["agent_requirement_contract"])
+	}
+
+	reviewDigest := env.Data["review_digest"].(string)
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "confirm-handoff", slug, "--digest", reviewDigest})
+	if env.Status != "ok" {
+		t.Fatalf("confirm = %#v", env)
+	}
+	statePath := filepath.Join(root, ".specify", "discussions", slug, "discussion-state.json")
+	state, err := readJSONMap(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	packet := mapValue(state["turn_packet"])
+	packet["current_recommendation"] = "Different recommendation after the handoff draft."
+	mustWriteJSONScriptDomainTest(t, statePath, state)
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "mark-ready", slug})
+	if env.Status == "ok" {
+		t.Fatalf("mark-ready accepted stale discussion snapshot: %#v", env)
+	}
+}
+
+func TestDiscussionHandoffRejectsFakeZeroUnknownConflictCountsAndMaterialDigestTamper(t *testing.T) {
+	root := t.TempDir()
+	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Count Tamper", "Count tamper"})
+	slug := env.Data["slug"].(string)
+	semantic := discussionCompleteSemanticCheckpoint(root)
+	semantic["blocking_unknowns"] = []any{map[string]any{"id": "UNK-001", "question": "Which gateway?", "owner": "user", "status": "open", "latest_resolve_phase": "prepare"}}
+	semantic["conflicts"] = []any{map[string]any{"id": "CON-001", "claim": "Gateway conflict", "status": "open"}}
+	raw, err := json.Marshal(semantic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "checkpoint", slug, "--input-json", string(raw)})
+	if env.Status != "ok" {
+		t.Fatalf("checkpoint = %#v", env)
+	}
+	draft := discussionHandoffFixture()
+	draft["hard_unknown_count"] = float64(0)
+	draft["open_conflict_count"] = float64(0)
+	raw, err = json.Marshal(draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "write-handoff", slug, "--input-json", string(raw)})
+	if env.Status == "ok" {
+		t.Fatalf("write-handoff accepted fake zero unknown/conflict counts: %#v", env)
+	}
+
+	semantic["blocking_unknowns"] = []any{}
+	semantic["conflicts"] = []any{}
+	raw, err = json.Marshal(semantic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "checkpoint", slug, "--input-json", string(raw)})
+	if env.Status != "ok" {
+		t.Fatalf("checkpoint clean semantic = %#v", env)
+	}
+	stateDigest := env.Data["binding"].(map[string]any)["state_sha256"].(string)
+	raw, err = json.Marshal(discussionHandoffFixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "write-handoff", slug, "--expected-state-sha256", stateDigest, "--input-json", string(raw)})
+	if env.Status != "ok" {
+		t.Fatalf("write-handoff clean = %#v", env)
+	}
+	handoffPath := filepath.Join(root, ".specify", "discussions", slug, "handoff-to-specify.json")
+	handoff, err := readJSONMap(handoffPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	material := handoff["source_materials"].([]any)[0].(map[string]any)
+	material["summary"] = "tampered summary"
+	mustWriteJSONScriptDomainTest(t, handoffPath, handoff)
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "validate-handoff", slug, "draft"})
+	if env.Data["valid"] == true {
+		t.Fatalf("validate-handoff accepted tampered source material digest: %#v", env)
+	}
+}
+
+func TestDiscussionLegacyV2StateMigratesOnWrite(t *testing.T) {
+	root := t.TempDir()
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Legacy V2", "Legacy V2"})
+	slug := env.Data["slug"].(string)
+	statePath := filepath.Join(root, ".specify", "discussions", slug, "discussion-state.json")
+	state, err := readJSONMap(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state["version"] = float64(2)
+	packet := mapValue(state["turn_packet"])
+	packet["version"] = float64(1)
+	mustWriteJSONScriptDomainTest(t, statePath, state)
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "checkpoint", slug, "--input-json", `{"summary":"migrated","lifecycle_phase":"decide"}`,
+	})
+	if env.Status != "ok" {
+		t.Fatalf("checkpoint legacy v2 = %#v", env)
+	}
+	updated, err := readJSONMap(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated["version"] != float64(3) || mapValue(updated["turn_packet"])["version"] != float64(2) {
+		t.Fatalf("legacy v2 state was not migrated on write: %#v", updated)
+	}
+}
+
+func discussionCompleteSemanticCheckpoint(root string) map[string]any {
+	return map[string]any{
+		"summary": "Ready to hand off validated discussion state.",
+		"phase":   "prepare",
+		"requirements_snapshot": map[string]any{
+			"target_need":               "Operators need a recoverable checkout discussion package.",
+			"actors":                    []any{"shopper", "operator"},
+			"scenarios":                 []any{"resume after compaction"},
+			"constraints":               []any{"do not rely on chat memory"},
+			"success_criteria":          []any{"resume shows preserved decisions"},
+			"design_direction":          []any{"quiet operational UI"},
+			"optimal_solution_approach": []any{"use runtime checkpoint and handoff contracts"},
+			"non_goals":                 []any{"rewrite checkout implementation"},
+			"scope":                     map[string]any{"in": []any{"discussion state"}, "out": []any{"payment gateway"}, "deferred": []any{"analytics"}},
+		},
+		"implementation_target": map[string]any{
+			"actual_project":                  "checkout-service",
+			"target_root":                     root,
+			"target_paths":                    []any{"src/checkout"},
+			"required_target_paths_to_verify": []any{"src/checkout"},
+		},
+		"context_boundary": map[string]any{
+			"status": "locked",
+			"current_project_roles": []any{
+				map[string]any{"role": "implementation_target", "scope": "checkout", "evidence_source": "live repository", "notes": "same project"},
+			},
+			"target_project_root": root,
+			"target_project_roles": []any{
+				map[string]any{"role": "implementation_target", "scope": "checkout", "evidence_source": "live repository", "notes": "verified target"},
+			},
+		},
+		"source_evidence":         []any{map[string]any{"source_type": "discussion", "evidence_status": "verified", "source": "MAT-001", "claim": "checkout recovery is required", "material_id": "MAT-001"}},
+		"source_materials":        []any{map[string]any{"id": "MAT-001", "material_type": "chat", "locator": "user message", "summary": "User requested recoverable discussion state.", "inspection_status": "inspected", "claims": []any{"checkout recovery is required"}, "coverage_gaps": []any{}, "sensitivity": "safe"}},
+		"blocking_unknowns":       []any{},
+		"soft_unknowns":           []any{},
+		"conflicts":               []any{},
+		"downstream_instructions": map[string]any{"planning_constraints": []any{"preserve runtime checkpoint contract"}, "settled_decisions": []any{"use v3 discussion state"}, "preserved_assumptions": []any{}, "conflicts_requiring_return": []any{}, "capability_map": []any{}, "dependencies": []any{}, "deferred_scope": []any{"analytics"}, "reopen_conditions": []any{"new payment requirement"}},
+		"discussion_decision_digest": map[string]any{
+			"locked_direction":                []any{"runtime-owned state"},
+			"rejected_alternatives":           []any{"chat-only memory"},
+			"accepted_tradeoffs":              []any{"compact state over transcript"},
+			"experience_commitments":          []any{},
+			"design_system_requirements":      []any{},
+			"review_criteria_carried_forward": []any{"preserve material evidence"},
+			"must_not_dilute":                 []any{"material evidence"},
+		},
+		"must_preserve": []any{map[string]any{"id": "MP-001", "type": "requirement", "claim": "State must resume without chat memory", "source": "MAT-001", "downstream_requirement": "Consumers must read handoff JSON", "blocking_level": "hard", "owner": "agent", "latest_resolve_phase": "discussion", "status": "active"}},
+	}
+}
+
+func checkpointDiscussionForHandoffFixture(t *testing.T, root, slug string, handoff map[string]any) string {
+	t.Helper()
+	requirements := handoff["agent_requirement_contract"]
+	if _, ok := handoff["agent_requirement_contract"]; !ok {
+		requirements = handoff["requirements_snapshot"]
+	}
+	payload := map[string]any{
+		"summary":                 firstNonEmpty(stringValue(handoff["handoff_goal"]), "discussion handoff fixture"),
+		"lifecycle_phase":         "prepare",
+		"requirements_snapshot":   requirements,
+		"implementation_target":   handoff["implementation_target"],
+		"context_boundary":        handoff["context_boundary"],
+		"source_evidence":         handoff["source_evidence"],
+		"source_materials":        handoff["source_materials"],
+		"blocking_unknowns":       firstAny(handoff["blocking_unknowns"], []any{}),
+		"soft_unknowns":           firstAny(handoff["soft_unknowns"], []any{}),
+		"conflicts":               firstAny(handoff["conflicts"], []any{}),
+		"downstream_instructions": handoff["downstream_instructions"],
+		"discussion_decision_digest": firstAny(handoff["discussion_decision_digest"], map[string]any{
+			"locked_direction":                []any{"fixture direction"},
+			"rejected_alternatives":           []any{},
+			"accepted_tradeoffs":              []any{},
+			"experience_commitments":          []any{},
+			"design_system_requirements":      []any{},
+			"review_criteria_carried_forward": []any{"preserve fixture direction"},
+			"must_not_dilute":                 []any{},
+		}),
+		"must_preserve":             handoff["must_preserve"],
+		"truth_pass_status":         "complete",
+		"verified_project_facts":    []any{"fixture fact"},
+		"evidence_checked":          firstAny(handoff["evidence_checked"], []any{"fixture evidence"}),
+		"advice_confidence":         "high",
+		"discussion_compass_status": "current",
+		"next_discussion_paths":     []any{"handoff review"},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateDigest, err := fileSHA256(filepath.Join(root, ".specify", "discussions", slug, "discussion-state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "checkpoint", slug,
+		"--expected-state-sha256", stateDigest,
+		"--input-json", string(raw),
+	})
+	if env.Status != "ok" {
+		t.Fatalf("checkpoint handoff fixture = %#v", env)
+	}
+	return env.Data["binding"].(map[string]any)["state_sha256"].(string)
+}
+
 func discussionHandoffFixture() map[string]any {
 	role := map[string]any{"role": "source", "scope": "checkout", "evidence_source": "discussion", "notes": "confirmed"}
 	return map[string]any{
 		"handoff_goal": "Implement checkout flow",
+		"agent_requirement_contract": map[string]any{
+			"target_need":               "Checkout users need a payment collection flow.",
+			"actors":                    []any{"shopper"},
+			"scenarios":                 []any{"shopper submits payment during checkout"},
+			"constraints":               []any{"preserve payment collection"},
+			"success_criteria":          []any{"checkout can collect payment"},
+			"design_direction":          []any{},
+			"optimal_solution_approach": []any{"plan payment collection as a first-class requirement"},
+			"non_goals":                 []any{},
+			"scope":                     map[string]any{"in": []any{"payment collection"}, "out": []any{}, "deferred": []any{}},
+		},
+		"implementation_target": map[string]any{"target_kind": "feature", "actual_project": "spec-kit-plus", "target_root": "<current-project>", "target_project_root": "<current-project>", "target_paths": []any{"templates/commands/discussion.md"}, "required_target_paths_to_verify": []any{}},
 		"context_boundary": map[string]any{
 			"status":                "locked",
 			"current_project_roles": []any{role},
 		},
-		"source_evidence": []any{map[string]any{"source_type": "discussion", "evidence_status": "verified", "source": "chat", "claim": "checkout is required"}},
+		"source_materials": []any{map[string]any{
+			"id":                "MAT-001",
+			"material_type":     "chat",
+			"locator":           "chat",
+			"summary":           "User confirmed checkout payment need.",
+			"inspection_status": "inspected",
+			"claims":            []any{"checkout is required"},
+			"coverage_gaps":     []any{},
+			"sensitivity":       "safe",
+		}},
+		"source_evidence":   []any{map[string]any{"source_type": "discussion", "evidence_status": "verified", "source": "chat", "claim": "checkout is required", "material_id": "MAT-001"}},
+		"evidence_checked":  []any{"chat", "MAT-001"},
+		"advice_confidence": map[string]any{"level": "high", "reason": "User confirmed the handoff goal and preserve rule."},
 		"must_preserve": []any{map[string]any{
 			"id":                     "MP-001",
 			"type":                   "requirement",
@@ -1347,8 +1888,27 @@ func discussionHandoffFixture() map[string]any {
 		"planning_gate_status": "ready",
 		"hard_unknown_count":   float64(0),
 		"open_conflict_count":  float64(0),
+		"blocking_unknowns":    []any{},
+		"soft_unknowns":        []any{},
+		"conflicts":            []any{},
 		"downstream_instructions": map[string]any{
-			"planning_constraints": []any{"Preserve payment collection."},
+			"settled_decisions":          []any{"Checkout must collect payment."},
+			"preserved_assumptions":      []any{},
+			"conflicts_requiring_return": []any{},
+			"capability_map":             []any{},
+			"dependencies":               []any{},
+			"planning_constraints":       []any{"Preserve payment collection."},
+			"deferred_scope":             []any{},
+			"reopen_conditions":          []any{},
+		},
+		"discussion_decision_digest": map[string]any{
+			"locked_direction":                []any{"Treat payment collection as first-class checkout scope."},
+			"rejected_alternatives":           []any{},
+			"accepted_tradeoffs":              []any{"Keep discussion handoff consumer-neutral."},
+			"experience_commitments":          []any{},
+			"design_system_requirements":      []any{},
+			"review_criteria_carried_forward": []any{"Payment collection cannot be dropped downstream."},
+			"must_not_dilute":                 []any{"Must preserve checkout payment collection."},
 		},
 		"consumer_eligibility": map[string]any{
 			"sp-specify": map[string]any{"status": "blocked"},
@@ -1358,6 +1918,100 @@ func discussionHandoffFixture() map[string]any {
 		"quality_gate": map[string]any{
 			"self_reviewed_at": "2026-07-24T00:00:00Z",
 		},
+	}
+}
+
+func TestDiscussionSourceMaterialDigestUsesCrossRuntimeCanonicalJSON(t *testing.T) {
+	material := map[string]any{
+		"id":                "MAT-001",
+		"material_type":     "user_note",
+		"locator":           "https://example.test/a?x=1&y=2",
+		"summary":           "Use <safe> reference",
+		"inspection_status": "inspected",
+		"claims":            []any{"A & B"},
+		"coverage_gaps":     []any{},
+		"sensitivity":       "safe",
+	}
+
+	digest, err := discussionSourceMaterialDigest(material)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if digest != "43dbbb0c92e0d1fc7f66430bf2d280417906aef09e12d43d670e36d910519aa2" {
+		t.Fatalf("material digest = %s, want cross-runtime canonical digest", digest)
+	}
+}
+
+func TestDiscussionCheckpointRejectsInvalidSemanticShapes(t *testing.T) {
+	root := t.TempDir()
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Invalid Semantic Shape", "Invalid semantic shape"})
+	if env.Status != "ok" {
+		t.Fatalf("init = %#v", env)
+	}
+	slug := env.Data["slug"].(string)
+
+	for _, payload := range []string{
+		`{"advice_confidence":"certain"}`,
+		`{"source_evidence":"not-a-list"}`,
+		`{"source_evidence":[{"source_type":"discussion","evidence_status":"verified","source":"","claim":"missing source"}]}`,
+	} {
+		env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "checkpoint", slug, "--input-json", payload})
+		if env.Status != "blocked" {
+			t.Fatalf("invalid checkpoint payload %s = %#v, want blocked", payload, env)
+		}
+	}
+}
+
+func TestDiscussionSnapshotValidationRequiresCheckpoint(t *testing.T) {
+	state := discussionService{}.state("missing-checkpoint", "Missing checkpoint")
+	errors := []map[string]string{}
+	validateDiscussionSnapshotDigest(map[string]any{"discussion_snapshot_digest": strings.Repeat("0", 64)}, state, &errors)
+	if len(errors) == 0 || errors[0]["code"] != "missing_semantic_checkpoint" {
+		t.Fatalf("snapshot validation errors = %#v, want missing_semantic_checkpoint", errors)
+	}
+}
+
+func TestDiscussionObjectListRejectsBlankRequiredValues(t *testing.T) {
+	errors := []map[string]string{}
+	validateObjectList(
+		[]any{map[string]any{"source_type": "discussion", "evidence_status": "verified", "source": "", "claim": "claim"}},
+		[]string{"source_type", "evidence_status", "source", "claim"},
+		"source_evidence",
+		&errors,
+	)
+	if len(errors) == 0 {
+		t.Fatal("blank required source_evidence value must be rejected")
+	}
+}
+
+func TestDiscussionHandoffSemanticValidatorsRejectHollowContent(t *testing.T) {
+	errors := []map[string]string{}
+	validateDiscussionMustPreserve(
+		[]any{map[string]any{
+			"id": "decision-1", "type": "decision", "claim": "claim", "source": "chat",
+			"downstream_requirement": "preserve", "blocking_level": "hard", "owner": "discussion",
+			"latest_resolve_phase": "prepare", "status": "confirmed",
+		}},
+		&errors,
+	)
+	validateDiscussionDownstreamInstructions(
+		map[string]any{
+			"settled_decisions": []any{}, "preserved_assumptions": []any{}, "conflicts_requiring_return": []any{},
+			"capability_map": []any{}, "dependencies": []any{}, "planning_constraints": []any{},
+			"deferred_scope": []any{}, "reopen_conditions": []any{},
+		},
+		&errors,
+	)
+	validateDiscussionDecisionDigest(
+		map[string]any{
+			"locked_direction": []any{}, "rejected_alternatives": []any{}, "accepted_tradeoffs": []any{},
+			"experience_commitments": []any{}, "design_system_requirements": []any{},
+			"review_criteria_carried_forward": []any{}, "must_not_dilute": []any{},
+		},
+		&errors,
+	)
+	if len(errors) < 3 {
+		t.Fatalf("semantic validation errors = %#v, want MP id, settled decision, and decision digest failures", errors)
 	}
 }
 
@@ -1382,6 +2036,7 @@ func createReadyDiscussionForConsumer(t *testing.T, root, title, consumer string
 		}
 	}
 	handoff["recommended_consumer"] = consumer
+	checkpointDiscussionForHandoffFixture(t, root, slug, handoff)
 	raw, err := json.Marshal(handoff)
 	if err != nil {
 		t.Fatal(err)
@@ -1426,6 +2081,27 @@ func TestDiscussionCheckpointPersistsSemanticFieldsAndInputJSON(t *testing.T) {
 		"open_questions":         []any{"Which consumer?"},
 		"current_recommendation": "Keep typed state durable.",
 		"context_boundary":       map[string]any{"status": "in-progress"},
+		"requirements_snapshot": map[string]any{
+			"status":           "partial",
+			"actors":           []any{"shopper"},
+			"scenarios":        []any{"shopper compares payment options"},
+			"scope":            map[string]any{"in": []any{"checkout payment choice"}},
+			"success_criteria": []any{"payment choice is ready for planning"},
+		},
+		"implementation_target": map[string]any{"target_kind": "feature", "target_project_root": "<current-project>"},
+		"source_materials": []any{map[string]any{
+			"id":                "MAT-001",
+			"material_type":     "uploaded_note",
+			"locator":           "notes/checkout.md",
+			"summary":           "User supplied checkout abandonment notes.",
+			"inspection_status": "partial",
+			"claims":            []any{"Users need wallet and card options compared."},
+			"coverage_gaps":     []any{"No payment provider named yet."},
+			"sensitivity":       "safe",
+		}},
+		"blocking_unknowns": []any{map[string]any{"id": "UNK-001", "question": "Which payment provider?", "owner": "user", "status": "open", "latest_resolve_phase": "prepare"}},
+		"evidence_checked":  []any{"notes/checkout.md"},
+		"advice_confidence": map[string]any{"level": "medium", "reason": "One user material reviewed; provider still unknown."},
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -1453,6 +2129,10 @@ func TestDiscussionCheckpointPersistsSemanticFieldsAndInputJSON(t *testing.T) {
 	if boundary["status"] != "in-progress" {
 		t.Fatalf("context_boundary not persisted: %#v", packet)
 	}
+	materials := packet["source_materials"].([]any)
+	if len(materials) != 1 || materials[0].(map[string]any)["id"] != "MAT-001" {
+		t.Fatalf("source_materials not persisted: %#v", packet)
+	}
 
 	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "resume", slug})
 	if env.Status != "ok" {
@@ -1474,6 +2154,65 @@ func TestDiscussionCheckpointPersistsSemanticFieldsAndInputJSON(t *testing.T) {
 	}
 }
 
+func TestDiscussionCheckpointPersistsFullSemanticSnapshot(t *testing.T) {
+	root := t.TempDir()
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Semantic Snapshot", "Clarify semantic handoff"})
+	if env.Status != "ok" {
+		t.Fatalf("init status = %s, blockers=%v", env.Status, env.Blockers)
+	}
+	slug := env.Data["slug"].(string)
+
+	payload := map[string]any{
+		"summary":               "Semantic material and target are durable.",
+		"lifecycle_phase":       "ground",
+		"requirements_snapshot": map[string]any{"target_need": "Preserve user material", "success_criteria": []any{"handoff is complete"}},
+		"implementation_target": map[string]any{"actual_project": "spec-kit-plus", "target_root": root, "target_paths": []any{"templates/commands/discussion.md"}},
+		"source_materials": []any{map[string]any{
+			"id":                "MAT-001",
+			"material_type":     "user_note",
+			"locator":           "chat:turn-1",
+			"inspection_status": "inspected",
+			"summary":           "User asked whether discussion clarifies intent and records materials.",
+			"claims":            []any{"Discussion must record user-provided material."},
+			"coverage_gaps":     []any{},
+			"sensitivity":       "safe",
+		}},
+		"blocking_unknowns":          []any{},
+		"soft_unknowns":              []any{"Exact wording can stay compact."},
+		"conflicts":                  []any{},
+		"downstream_instructions":    map[string]any{"planning_constraints": []any{"Carry MAT-001 forward."}},
+		"discussion_decision_digest": map[string]any{"locked_direction": []any{"Use source material ledger."}},
+		"must_preserve":              []any{map[string]any{"id": "MP-001", "type": "requirement", "claim": "Preserve material ledger", "source": "chat", "downstream_requirement": "Plan sees material provenance", "blocking_level": "hard", "owner": "sp-discussion", "latest_resolve_phase": "ground", "status": "active"}},
+		"verified_project_facts":     []any{"discussion runtime writes checkpoint state"},
+		"evidence_checked":           []any{"tools/specify-runtime/script_domains.go"},
+		"advice_confidence":          "high",
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "checkpoint", slug, "--input-json", string(raw)})
+	if env.Status != "ok" {
+		t.Fatalf("checkpoint status = %s, blockers=%v", env.Status, env.Blockers)
+	}
+	event := env.Data["event"].(map[string]any)
+	checkpoint := env.Data["discussion"].(map[string]any)["latest_checkpoint"].(map[string]any)
+	packet := env.Data["turn_packet"].(map[string]any)
+	if packet["version"] != float64(2) || event["version"] != float64(2) {
+		t.Fatalf("semantic checkpoint versions not upgraded: packet=%#v event=%#v", packet["version"], event["version"])
+	}
+	if strings.TrimSpace(fmt.Sprint(event["snapshot_sha256"])) == "" || event["snapshot_sha256"] != checkpoint["snapshot_sha256"] {
+		t.Fatalf("checkpoint snapshot digest missing or not recorded: event=%#v checkpoint=%#v", event, checkpoint)
+	}
+	if len(event["changed_fields"].([]any)) == 0 {
+		t.Fatalf("checkpoint did not record changed fields: %#v", event)
+	}
+	materials := packet["source_materials"].([]any)
+	if materials[0].(map[string]any)["id"] != "MAT-001" {
+		t.Fatalf("source materials not included in turn packet: %#v", packet)
+	}
+}
+
 func TestDiscussionWriteHandoffAcceptsAtPathInputJSON(t *testing.T) {
 	root := t.TempDir()
 	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
@@ -1482,7 +2221,9 @@ func TestDiscussionWriteHandoffAcceptsAtPathInputJSON(t *testing.T) {
 		t.Fatalf("init status = %s", env.Status)
 	}
 	slug := env.Data["slug"].(string)
-	raw, err := json.Marshal(discussionHandoffFixture())
+	handoff := discussionHandoffFixture()
+	checkpointDiscussionForHandoffFixture(t, root, slug, handoff)
+	raw, err := json.Marshal(handoff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1532,6 +2273,15 @@ func runScriptDomainEnvelope(t *testing.T, runner scriptDomainRunner, args []str
 		t.Fatalf("exit code %d does not match status %s", code, env.Status)
 	}
 	return env
+}
+
+func hasString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func mustMkdirAllScriptDomainTest(t *testing.T, path string) {

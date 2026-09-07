@@ -199,7 +199,7 @@ def test_bash_prd_init_creates_run_workspace_and_emits_json(tmp_path: Path, unif
     _assert_scan_artifacts_created(run_dir)
     _assert_workflow_state_scan_contract(
         (run_dir / "workflow-state.md").read_text(encoding="utf-8"),
-        "sp-prd",
+        "sp-prd-scan",
     )
     assert payload["surfaces"] == _expected_surfaces(INIT_SCAN_PRESENT_KEYS)
     assert payload["complete"] is True
@@ -255,7 +255,7 @@ def test_powershell_prd_helper_matches_bash_init_contract(tmp_path: Path, unifie
     _assert_scan_artifacts_created(run_dir)
     _assert_workflow_state_scan_contract(
         (run_dir / "workflow-state.md").read_text(encoding="utf-8"),
-        "sp-prd",
+        "sp-prd-scan",
     )
     assert payload["surfaces"] == _expected_surfaces(INIT_SCAN_PRESENT_KEYS)
     assert payload["complete"] is True
@@ -314,7 +314,7 @@ def test_python_prd_helper_wrapper_runs_go_runtime_from_current_project(
     ):
         assert payload["surfaces"][key] is True
     state_path = Path(payload["workspace_path"]) / "workflow-state.md"
-    _assert_workflow_state_scan_contract(state_path.read_text(encoding="utf-8"), "sp-prd")
+    _assert_workflow_state_scan_contract(state_path.read_text(encoding="utf-8"), "sp-prd-scan")
 
 
 def test_python_prd_helper_wrapper_supports_prd_scan_mode(tmp_path: Path, unified_runtime_env):

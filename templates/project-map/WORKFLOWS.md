@@ -32,7 +32,7 @@
 [Record `sp-prd-scan -> sp-prd-build` as the canonical peer workflow path to
 `sp-specify` when supported. It starts from current repository reality and
 reverse-extracts a PRD suite into `.specify/prd-runs/<run-id>/`; it does not
-automatically hand off to planning. `sp-prd` is deprecated compatibility-only.]
+automatically hand off to planning.]
 
 ## State Transitions and Compatibility Notes
 
@@ -48,5 +48,4 @@ automatically hand off to planning. `sp-prd` is deprecated compatibility-only.]
 
 [Include the `prd-scan` and `prd-build` entry commands when present. Describe
 them as the canonical existing-project current-state PRD extraction pair
-grounded in repository evidence, not as a required pre-plan step. If `prd` is
-present, describe it as deprecated compatibility-only routing into that pair.]
+grounded in repository evidence, not as a required pre-plan step.]
