@@ -29,6 +29,16 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 	workspace := stringValue(task["workspace"])
 	itemID := firstNonEmpty(optionValue(args, "--item", ""), positionalArg(args, 2, ""))
 
+	// Keep legacy output byte-compatible by default. Compact presentation is
+	// applied only after the existing ownership, state, and acceptance gates.
+	respond := func(env Envelope, doc *quickConfirmationDoc) (Envelope, error) {
+		if hasFlag(args, "--compact") && env.Status == "ok" && doc != nil {
+			ref := filepath.ToSlash(filepath.Join(".planning", "quick", workspace, quickConfirmationFileName))
+			env.Data = compactQuickExecutionData(env.Data, ref, doc.ConfirmationState, doc.ConfirmationDigest)
+		}
+		return env, nil
+	}
+
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case "item-start":
 		if strings.TrimSpace(itemID) == "" {
@@ -52,7 +62,7 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 			"requires_worker":  true,
 			"next_action":      "spawn subagent for write_scope, then result submit --lane-id " + itemID + ", then item-accept",
 		}
-		return env, nil
+		return respond(env, doc)
 	case "allow-inline":
 		if strings.TrimSpace(itemID) == "" {
 			return Envelope{}, fmt.Errorf("allow-inline requires --item Qn")
@@ -76,7 +86,7 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 			"ready_item_ids":   readyQuickItemIDs(doc),
 			"blocked_item_ids": blockedQuickItemIDs(doc),
 		}
-		return env, nil
+		return respond(env, doc)
 	case "item-accept":
 		if strings.TrimSpace(itemID) == "" {
 			return Envelope{}, fmt.Errorf("item-accept requires --item Qn")
@@ -105,7 +115,7 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 			"all_accepted":     allQuickItemsAccepted(doc),
 			"worker_proof":     proof,
 		}
-		return env, nil
+		return respond(env, doc)
 	case "packet-compile":
 		if strings.TrimSpace(itemID) == "" {
 			return Envelope{}, fmt.Errorf("packet-compile requires --item Qn")
@@ -137,7 +147,7 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 			"packet":       packet,
 			"packet_path":  quickPacketRelPath(workspace, itemID),
 		}
-		return env, nil
+		return respond(env, doc)
 	case "item-status":
 		doc, err := service.loadConfirmation(workspacePath)
 		if err != nil {
@@ -154,7 +164,7 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 			"all_accepted":     allQuickItemsAccepted(doc),
 			"worker_gates":     quickWorkerGateSummary(doc),
 		}
-		return env, nil
+		return respond(env, doc)
 	default:
 		return Envelope{}, fmt.Errorf("unknown execution mode: %s", mode)
 	}
@@ -204,8 +214,12 @@ func (service quickService) startWorkItem(workspacePath, workspace, quickID, ite
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		_ = service.persistConfirmation(workspacePath, doc)
-		_ = service.projectConfirmationIntoStatus(workspacePath, doc)
+		if err := persistQuickExecutionResume(
+			func() error { return service.persistConfirmation(workspacePath, doc) },
+			func() error { return service.projectConfirmationIntoStatus(workspacePath, doc) },
+		); err != nil {
+			return nil, nil, nil, err
+		}
 		return doc, packet, claim, nil
 	}
 	unmet := unmetQuickDeps(item.DependsOn, statusByID)
