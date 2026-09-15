@@ -746,56 +746,6 @@ func quickLaneMatchRank(laneID, itemID string) int {
 	return -1
 }
 
-func validateQuickChangedFilesInScope(changedFiles, writeScope []string) error {
-	if len(writeScope) == 0 {
-		return nil
-	}
-	outOfScope := []string{}
-	for _, file := range changedFiles {
-		file = filepath.ToSlash(strings.TrimSpace(file))
-		if file == "" {
-			continue
-		}
-		if !quickPathInWriteScope(file, writeScope) {
-			outOfScope = append(outOfScope, file)
-		}
-	}
-	if len(outOfScope) > 0 {
-		return fmt.Errorf("changed_files outside packet write_scope: %s", strings.Join(outOfScope, ", "))
-	}
-	return nil
-}
-
-func quickPathInWriteScope(path string, writeScope []string) bool {
-	path = filepath.ToSlash(strings.TrimPrefix(path, "./"))
-	for _, scope := range writeScope {
-		scope = filepath.ToSlash(strings.TrimSpace(strings.TrimPrefix(scope, "./")))
-		if scope == "" {
-			continue
-		}
-		if path == scope {
-			return true
-		}
-		if strings.HasSuffix(scope, "/") {
-			if strings.HasPrefix(path, scope) {
-				return true
-			}
-			continue
-		}
-		if strings.HasPrefix(path, scope+"/") {
-			return true
-		}
-		if strings.HasSuffix(scope, "/**") || strings.HasSuffix(scope, "/*") {
-			prefix := strings.TrimSuffix(strings.TrimSuffix(scope, "/**"), "/*")
-			prefix = strings.TrimSuffix(prefix, "/")
-			if path == prefix || strings.HasPrefix(path, prefix+"/") {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func quickWorkerGateSummary(doc *quickConfirmationDoc) []map[string]any {
 	if doc == nil {
 		return nil
