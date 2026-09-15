@@ -1,6 +1,6 @@
 ---
 name: spx-quick
-description: Tracked direct-delivery workflow for advanced coding models. Use when non-trivial work of any size needs resumable planning, implementation, and verification without first creating a formal feature specification. After item-start, MUST spawn_subagent before any write_scope file edit; item-accept requires worker result submit (or quick allow-inline).
+description: Tracked direct-delivery workflow for advanced coding models. Use when non-trivial work of any size needs resumable planning, implementation, and verification without first creating a formal feature specification. Select a guarded leader-direct executor for low-risk well-understood items when the runtime advertises it; otherwise delegate. Both normal paths require structured result submission before acceptance.
 ---
 
 # SPX Quick
@@ -84,26 +84,61 @@ the legal optional path and carries no invented binding.
 
 ## Hard Q Loop (do not skip in the full Quick branch)
 
-After checkpoint confirmation, every in-progress `Qn` uses this hard order.
-Leader owns scope, `STATUS.md`, join, accept—not `write_scope` edits.
+After checkpoint confirmation, choose the executor, not a weaker acceptance
+standard. Query `{{specify-subcmd:specify-runtime api show quick.item-start --format json}}`
+once per pinned runtime identity (or reuse its entry in an already loaded API
+pack). Require `execution_contract.schema: quick-item-dispatch-v1`,
+`flag: --leader-direct`, `selected_mode: leader-direct`, and
+`result_submit_required: true` before using direct execution. Missing, unknown,
+or conflicting metadata means the existing delegated path; never probe support
+by starting an item or inventing a spawn failure. If resuming a recorded
+leader-direct item, missing runtime support blocks until its compatible pinned
+runtime is restored; never downgrade or redispatch that active item.
 
-1. `quick packet-compile --item Qn`
-2. `quick item-start --item Qn` (`requires_worker: true`)
-3. **Spawn subagent** for the Qn write scope (required; no Edit/Write first)
-4. Wait / join
-5. `result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id Qn --result-json <inline-json|@path|->`
-6. `quick item-accept --item Qn --evidence '...'` (runtime requires worker result)
-7. Only then start the next Q
+Prefer leader-direct only for one bounded, low-risk, already-understood item:
+exact ownership and consumers are known, meaningful checks are available,
+no unresolved decision remains, and independent implementation is not required.
+Use a worker for substantial investigation, high-risk or cross-cutting changes,
+required implementation isolation, or unclear consequences. Use parallel workers
+only when dependencies, product scopes and shared resources permit it. File count
+alone is not a risk assessment. Keep independently required review, Test Design,
+UI/source-continuity, RED and final integration gates in either route.
+
+1. Record the chosen executor and evidence-backed reason in the existing
+   agent-owned `STATUS.md` execution plan via its artifact owner. For a direct
+   item, descriptive dispatch fields may use `execution_model: adaptive`,
+   `dispatch_shape: leader-inline`, `execution_surface: leader-inline`;
+   runtime-owned per-item `execution_mode: leader-direct` is authoritative.
+   This is ordinary selection, not `blocked_dispatch` or `allow-inline`.
+2. Start exactly one ready Q: `quick item-start <id> --item Qn --leader-direct`
+   for the negotiated direct route, or omit the flag to require a worker.
+   Read the returned packet and matching `work_claim`; the existing execution
+   guard is mandatory. `requires_worker: false` alone is not permission.
+   Start already compiles and returns the packet, so do not immediately repeat
+   `packet-compile` unless a pre-dispatch preview or explicit refresh is needed.
+3. Direct: require both response and packet `execution_mode: leader-direct`
+   and `requires_worker: false`, then Leader performs only that guarded item.
+   Delegated: spawn a worker before its first product write and join its result;
+   Leader never edits an active worker scope.
+4. Both routes use `result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id Qn --result-json <inline-json|@path|->`.
+   For direct execution include non-empty `validation_results`, all commands
+   actually passed, and empty blockers; a prose success claim is insufficient.
+5. `quick item-accept <id> --item Qn --evidence '...'`. Only accepted prerequisites
+   permit dependent Q items to start. Independent delegated items may run in the
+   same safe batch; accepting one item is not permission to skip its siblings.
+
+Resume preserves the selected executor without repeating the direct flag. Never
+relabel an in-progress worker, hand-edit execution audit fields, or use
+`allow-inline` to waive direct-mode results. If a direct item outgrows its safe
+boundary, pause it and reconcile the task/authority; do not silently spawn a
+second writer or change executors under an active claim. Genuine dispatch/tool
+failure on the delegated route still uses
+`quick allow-inline --item Qn --reason "spawn_failed: ..."`; docs-only, few files,
+serial order and time-saving are not fallback reasons.
 
 Keep small result payloads inline, send large model-authored JSON through stdin,
 and reserve `@path` for an existing runtime-owned or registered project
 artifact. Never create a temporary result file merely for transport.
-
-**Forbidden** between item-start and item-accept: Leader mutation of that item's
-`write_scope`. **Illegal excuses:** docs-only, few files, serial order, save
-time. **Legal leader-inline only via**
-`quick allow-inline --item Qn --reason "spawn_failed: ..."` after real spawn/tool
-failure, then accept.
 
 Accept non-trivial direct-delivery work whose outcome can be confirmed at the
 Quick Checkpoint. Task size, capability count, architecture, migration,
@@ -244,25 +279,19 @@ The `--feature-dir` spelling is retained for compatibility and accepts the Quick
 workspace; do not mark consumption before the binding evidence exists.
 
 Inspect the current diff and cognition-selected paths, then execute the full
-confirmed scope with mandatory native-subagent execution. When durable
+confirmed scope with the negotiated executor policy above. When durable
 planning no longer fits compact state, create an absent task-local `PLAN.md`
 with `specify-runtime artifact scaffold --kind quick-plan`, query it on resume,
 and patch only named sections; never submit or reconstruct the whole plan.
 Scale that plan, dependency-aware lanes, and multiple ready batches to the
 workload.
 
-After checkpoint confirmation, the first substantive step is the **Hard Q Loop**
-above—not Leader implementation. Default shapes:
-
-- non-overlapping ready items → `parallel-subagents`;
-- one lane, dependent Q items, or **shared/overlapping write scopes** →
-  `one-subagent` serial;
-- native dispatch unavailable → `quick allow-inline --reason "spawn_failed: ..."`
-  only after real attempts (never docs-only).
-
-A narrow single-file or docs-only change does **not** waive subagent-first.
-Runtime refuses `item-accept` without a matching `result submit` (or prior
-`allow-inline`). Close refuses items missing `execution_mode` worker/inline
+After checkpoint confirmation, follow the **Hard Q Loop** above. A narrow
+single-file or docs-only task may use negotiated leader-direct when its actual
+risk and context satisfy that policy, not by fabricating a worker failure.
+Unknown or unsupported runtime behavior retains delegated execution. Serial
+conflicts require sequencing, not relabelling an active owner. Close requires
+a runtime-audited `worker`, `leader-direct`, or genuine `leader-inline` fallback
 proof. A behavior change must run and record RED before production edits. If no
 reliable automated surface exists, build the smallest viable harness as its own
 Quick lane; if blocked, record the blocker rather than a `$spx-specify` handoff.

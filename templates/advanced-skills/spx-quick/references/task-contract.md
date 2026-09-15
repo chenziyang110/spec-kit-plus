@@ -124,29 +124,34 @@ matching execution guard. The
 default Quick-level owner claims the active batch and workers inherit that
 Quick-level Work authority rather than creating overlapping registrations.
 
-Execute confirmed work items in dependency order through the hard Q loop:
-`quick packet-compile --item Qn` → `quick item-start --item Qn`
-(`requires_worker: true`) → **spawn subagent** (no Leader write_scope Edit/Write
-first) → join → `result submit --command quick --lane-id Qn` →
-`quick item-accept --item Qn --evidence ...`. Runtime rejects starting or
-compiling a dependent item until every prerequisite is `accepted`, rejects
-`item-accept` without a matching worker result (or prior
-`quick allow-inline --reason` after spawn/tool failure), and rejects
-`quick close ... resolved` until every work item is accepted with
-`execution_mode` worker or audited leader-inline. A worker packet names one
-`work_item_id`, its `depends_on` ids, prerequisite evidence, and its exact
-work-item acceptance. Each `work_item_status` is `pending`, `ready`,
-`in_progress`, `blocked`, or `accepted`; only `accepted` satisfies a dependency.
+Execute confirmed work items in dependency order through the owning Skill's
+capability-negotiated hard Q loop. A supported low-risk, well-understood item
+may select `quick item-start <id> --item Qn --leader-direct` before its first
+start. Otherwise retain delegated `worker` execution. The returned task packet
+and `work_claim` are required in both routes; `requires_worker: false` is not
+write authority. Start returns its compiled packet, so a separate
+`packet-compile` is optional preview/refresh, not repeated dispatch boilerplate.
+Direct execution is distinct from the no-workspace context-direct intake branch:
+it preserves the full confirmed Quick workspace, task graph and closeout.
 
-Independent ready items may share a batch only with non-overlapping write
-scopes. When Q items share a file or otherwise conflict, keep
-`dispatch_shape: one-subagent` and run serial hard-loop cycles—optionally
-resuming the same subagent. Docs-only, few files, serial order, and time-saving
-are **not** valid leader-inline reasons. If Leader must implement after real
-spawn failure, run `quick allow-inline --item Qn --reason "spawn_failed: ..."`
-before the first source edit. One completed batch is progress, not task
-completion; close only after every work item is accepted and the overall
-completion evidence passes.
+Both normal routes submit one matching result through `result submit --command
+quick --lane-id Qn` and then `quick item-accept --item Qn --evidence ...`.
+Direct results require non-empty passed `validation_results`, empty blockers,
+and all existing scope, identity, reuse and source-continuity checks. Legacy
+`quick allow-inline --reason` remains only for real delegated spawn/tool failure;
+it cannot waive direct proof. Close requires every item accepted with an audited
+`worker`, `leader-direct`, or genuine `leader-inline` mode plus overall evidence.
+Do not author canonical execution fields to select or change an executor.
+
+A packet still names one `work_item_id`, its `depends_on` ids, prerequisite
+evidence and exact work-item acceptance. Each `work_item_status` is `pending`,
+`ready`, `in_progress`, `blocked`, or `accepted`; only `accepted` satisfies a
+dependency. Independent delegated items may share a batch only when write scopes
+and shared resources do not conflict. Conflicting work is serial; an active
+worker cannot be relabelled leader-direct to escape its claim. Resume preserves
+the recorded mode. A direct item whose assumptions no longer hold pauses for
+reconciliation rather than changing executor in place. One completed batch is
+progress, not task completion.
 
 Scale up task-local planning when the task develops cross-capability behavior,
 architectural or migration decisions, compatibility or rollout obligations, or

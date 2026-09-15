@@ -112,8 +112,16 @@ class QuickConfirmationExecutionSchemaTests(unittest.TestCase):
                 with self.subTest(key=key, value=value):
                     self.assert_invalid(confirmation(execution_row(**{key: value})), "type")
 
-    def test_unimplemented_execution_mode_is_not_advertised_by_schema(self) -> None:
-        for mode in ("leader-direct", "anything", "", "WORKER"):
+    def test_direct_execution_mode_retains_result_audit_shape(self) -> None:
+        doc = confirmation(execution_row(
+            status="accepted", execution_mode="leader-direct", requires_worker=False,
+            worker_result_ref=".planning/quick/example/worker-results/Q1.json",
+            worker_lane_id="Q1", worker_result_id="Q1",
+        ))
+        self.assert_valid(doc)
+
+    def test_unknown_execution_mode_is_not_advertised_by_schema(self) -> None:
+        for mode in ("unimplemented-mode", "anything", "", "WORKER"):
             with self.subTest(mode=mode):
                 self.assert_invalid(confirmation(execution_row(execution_mode=mode)), "enum")
 

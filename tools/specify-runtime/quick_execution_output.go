@@ -58,6 +58,7 @@ func quickCompactUsage(mode string) string {
 // Preserve an owning descriptor's output contract, including explicit null.
 // Quick's fallback fills only absent metadata; it never replaces upstream data.
 func addQuickPackOutputContract(capabilityID string, descriptor, item map[string]any) {
+	addQuickItemDispatchContract(capabilityID, descriptor, item)
 	if item == nil {
 		return
 	}
@@ -81,14 +82,7 @@ func parseQuickExecutionCompactOption(mode string, args []string) (bool, error) 
 	requested := false
 	for index := 0; index < len(args); index++ {
 		arg := args[index]
-		switch arg {
-		case "--project-root", "--format", "--item", "--current-work-id",
-			"--current-work-fence", "--reason", "--evidence", "--input-json",
-			"--digest", "--view", "--status", "--result-state", "--evidence-json",
-			"--update-id", "--slug", "--intent", "--summary", "--phase",
-			"--decision", "--recommendation", "--mode", "--input", "--review-digest",
-			"--expected-state-sha256", "--feature-dir", "--surface", "--record-id",
-			"--expected-sha256", "--limit":
+		if quickExecutionOptionTakesValue(arg) {
 			if index+1 < len(args) {
 				index++
 			}
@@ -128,6 +122,7 @@ func addQuickHelpOutputContracts(data map[string]any) {
 	if !ok {
 		return
 	}
+	addQuickHelpDispatchContract(data)
 	contracts := map[string]any{}
 	for _, mode := range commands {
 		id := "quick." + mode
@@ -138,4 +133,19 @@ func addQuickHelpOutputContracts(data map[string]any) {
 	if len(contracts) > 0 {
 		data["output_contracts"] = contracts
 	}
+}
+
+// Shared option-value classification keeps literal flag-shaped evidence as data.
+func quickExecutionOptionTakesValue(arg string) bool {
+	switch arg {
+	case "--project-root", "--format", "--item", "--current-work-id",
+		"--current-work-fence", "--reason", "--evidence", "--input-json",
+		"--digest", "--view", "--status", "--result-state", "--evidence-json",
+		"--update-id", "--slug", "--intent", "--summary", "--phase",
+		"--decision", "--recommendation", "--mode", "--input", "--review-digest",
+		"--expected-state-sha256", "--feature-dir", "--surface", "--record-id",
+		"--expected-sha256", "--limit":
+		return true
+	}
+	return false
 }

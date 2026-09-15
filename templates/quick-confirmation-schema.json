@@ -463,7 +463,7 @@
               "worker_result_id": { "type": "string" },
               "worker_result_ref": { "type": "string" },
               "worker_lane_id": { "type": "string" },
-              "execution_mode": { "type": "string", "enum": ["worker", "leader-inline"] },
+              "execution_mode": { "type": "string", "enum": ["worker", "leader-inline", "leader-direct"] },
               "inline_reason": { "type": "string" },
               "inline_approved": { "type": "boolean" }
             },

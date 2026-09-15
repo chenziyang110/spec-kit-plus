@@ -56,9 +56,12 @@ files: it uses overlapping helper names and older strict baselines. Do not
 apply it on top of this source. The later Help/Show-only pending patch has also
 been integrated; do not reapply it. Source integration is not runtime publication.
 
-Classic/Advanced generated consumers are not enabled automatically. Installation,
-public distribution, adaptive delegation and cross-stage execution are unchanged.
-No merge, release or public source publication is authorized by this document.
+Generated consumers are not automatically opted into compact output. Advanced's
+separate capability-gated executor selection is described in
+[Quick executor selection](quick-adaptive-dispatch.md); `execution_contract` is
+not the presentation `output_contract`. Classic delegated defaults, installation,
+public distribution and cross-stage execution remain unchanged. No merge, release
+or public source publication is authorized by this document.
 
 ## Persisted execution-state schema
 
@@ -82,9 +85,9 @@ The exact output-contract/parser/projection functions and existing lazy-renderin
 tests can be tested without external dependencies:
 
 ```sh
-GO111MODULE=off go test -race -count=1 -v quick_execution_output.go quick_execution_response.go quick_execution_output_test.go quick_execution_help_test.go quick_execution_lazy_test.go
-GO111MODULE=off go vet quick_execution_output.go quick_execution_response.go quick_execution_output_test.go quick_execution_help_test.go quick_execution_lazy_test.go
-GO111MODULE=off go test -run '^$' -fuzz '^FuzzQuickOutputLiteralValues$' -fuzztime=3s -parallel=2 quick_execution_output.go quick_execution_response.go quick_execution_output_test.go
+GO111MODULE=off go test -race -count=1 -v quick_execution_output.go quick_execution_dispatch.go quick_execution_response.go quick_execution_output_test.go quick_execution_help_test.go quick_execution_lazy_test.go
+GO111MODULE=off go vet quick_execution_output.go quick_execution_dispatch.go quick_execution_response.go quick_execution_output_test.go quick_execution_help_test.go quick_execution_lazy_test.go
+GO111MODULE=off go test -run '^$' -fuzz '^FuzzQuickOutputLiteralValues$' -fuzztime=3s -parallel=2 quick_execution_output.go quick_execution_dispatch.go quick_execution_response.go quick_execution_output_test.go
 ```
 
 These tests check the exact supported denominator, producer-schema agreement,
@@ -102,7 +105,7 @@ establish their outcome.
 Required before rollout:
 
 ```sh
-go test -count=1 -run 'TestQuick(Confirmation|Output|Help|Show|Scope|Queue|Lazy|Compact|Resume)' .
+go test -count=1 -run 'TestQuick(Direct|Confirmation|Output|Help|Show|Scope|Queue|Lazy|Compact|Resume)' .
 go test -count=1 ./...
 go vet ./...
 ```
