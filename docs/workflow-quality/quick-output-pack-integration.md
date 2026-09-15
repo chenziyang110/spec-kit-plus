@@ -152,3 +152,47 @@ Before distributing the policy, also run full Go/Python/lint and installed
 Classic/Advanced rendering/upgrade tests, including older-runtime fallback.
 A standalone source-contract pass does not establish full-package, installed
 consumer, Work/SQLite, cloud CI, real-agent behavior or token savings.
+
+## Complete-checkout verification entrypoint
+
+`tools/workflow-quality/verify_quick_rollout.py` is developer tooling, not a
+workflow stage or installed runtime dependency. Run it from a clean, isolated,
+complete Git checkout with the matching Go toolchain/dependencies already cached
+and a Python environment containing this checkout of `specify_cli`, test extras,
+pytest-xdist and Ruff. It does not prepare or install that environment.
+
+```sh
+python tools/workflow-quality/verify_quick_rollout.py --output-dir ../quick-rollout-evidence
+```
+
+The output directory must be new, have an existing parent and be outside the
+checkout. The runner never resets local modifications or overwrites prior
+reports. It checks tracked-file presence, a clean source revision and the Python
+import origin; performs an offline Go dependency preflight; then executes the
+complete Go tests, Go vet, complete Python tests and the existing CI Ruff scope.
+Child Go commands use `GOWORK=off`, `GOTOOLCHAIN=local`, `GOPROXY=off` and
+`GOFLAGS=-mod=readonly`. Existing test code can spawn its own subprocesses; this
+runner is not a sandbox, an offline-network enforcement boundary or a guarantee
+that tests have no side effects. Per-command timeouts terminate the process group
+on POSIX and attempt process-tree cleanup on Windows.
+
+Exit codes: `0` means the requested checks passed, `1` means a completed gate
+failed, and `2` means validation was blocked/incomplete. Read `summary.json` and
+per-command stdout/stderr logs for the exact scope. Go JSON must contain actual
+passing terminal events for the named Quick lifecycle tests, including all four
+worker/direct x full/compact scenarios. Pytest JUnit must contain all seven named
+installation/repair cases from `test_quick_optimization_installation.py`, passed
+rather than skipped. Empty selection, missing tests, malformed reports, wrong
+module identities or a changed source revision cannot produce a green result.
+Other platform skips are counted explicitly. A successful subprocess exit alone
+is insufficient.
+
+The new installation tests call the real integration setup/repair owners for
+Codex and Cursor, including sh/ps rendering, Classic default isolation, missing
+policy restoration and preservation of user modifications. They do not invoke
+an actual model, exercise every host, prove a released binary upgrade, or replace
+an independent acceptance/cost evaluation. Runner unit tests include synthetic
+reports and tiny real Go/pytest fixtures; those tests do not establish a product
+runtime or installation pass. A runner pass is never merge/release authorization.
+Logs may contain private test output; inspect them before sharing. No upload,
+telemetry, source publication, Git mutation or release is performed by the runner.
