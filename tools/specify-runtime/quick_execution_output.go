@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// quickCompactOutputContract is additive api.pack metadata. It does not change
+// quickCompactOutputContract is additive discovery metadata. It does not change
 // a capability's existing usage, input contract, or side-effect classification.
 // Each call returns fresh collections, never shared mutable discovery state.
 func quickCompactOutputContract(capabilityID string) map[string]any {
@@ -113,4 +113,29 @@ func parseQuickExecutionCompactOption(mode string, args []string) (bool, error) 
 		return false, fmt.Errorf("--compact is supported by item-start, allow-inline, item-accept and item-status only")
 	}
 	return requested, nil
+}
+
+// Help uses the same per-capability producer as api show and api pack.
+// Derive membership from the command list the owning help already publishes.
+func addQuickHelpOutputContracts(data map[string]any) {
+	if data == nil {
+		return
+	}
+	if _, exists := data["output_contracts"]; exists {
+		return
+	}
+	commands, ok := data["commands"].([]string)
+	if !ok {
+		return
+	}
+	contracts := map[string]any{}
+	for _, mode := range commands {
+		id := "quick." + mode
+		if contract := quickCompactOutputContract(id); contract != nil {
+			contracts[id] = contract
+		}
+	}
+	if len(contracts) > 0 {
+		data["output_contracts"] = contracts
+	}
 }

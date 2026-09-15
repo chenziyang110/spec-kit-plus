@@ -532,6 +532,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["usage"] = "specify-runtime work resume <work-id> --expected-revision <revision> --agent-id <id> --adapter-id <id> [--workspace-root <path>] [--lease-seconds <seconds>] [--next-action <text>] [--project-root <path>] --format json"
 		capability["input_contract"] = "explicitly reclaims interrupted intents after atomic conflict checks, clears recovery holds, and advances the fence; defaults to the interrupted worktree, while an unavailable worktree blocks until an inspected same-repository replacement is passed with --workspace-root or the work is abandoned"
 	}
+	addQuickPackOutputContract(capabilityID, capability, capability)
 	env.Data["capability"] = capability
 	return writeEnvelope(stdout, env)
 }
