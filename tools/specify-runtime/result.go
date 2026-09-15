@@ -155,7 +155,7 @@ func runResultSubmit(args []string, stdout io.Writer) int {
 	if len(rawResult) == 0 {
 		return writeResultError(stdout, "usage-error", "result submit requires --result-json")
 	}
-	normalized, err := normalizeWorkerTaskResult(rawResult)
+	normalized, err := normalizeSubmittedTaskResult(commandName, rawResult)
 	if err != nil {
 		return writeResultError(stdout, "invalid", err.Error())
 	}

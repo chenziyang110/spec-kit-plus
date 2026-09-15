@@ -70,3 +70,32 @@ go vet ./...
 Complete runtime/profile/install tests, real-host agent A/B and passing cloud CI
 remain rollout gates, not consequences of a standalone helper pass. No production
 token, cost, latency or quality-retention improvement is quantified here.
+
+## Lossless reported-check boundary
+
+Quick result submission validates every supplied `validation_results` or
+`validationResults` row before the shared normalizer runs. A row must be an
+object with a non-empty string `command`/`cmd` and `status`/`result`. Conflicting
+aliases are rejected; equivalent pass/fail/skip aliases remain supported.
+Valid failed/skipped checks are stored as such, not rejected as malformed;
+leader-direct acceptance still rejects any non-passing check. Missing/null/empty
+lists remain compatible with legacy worker results but cannot pass direct
+acceptance. Other result channels retain their previous normalization behavior.
+
+The Quick result reader applies the same validation and no longer retries a
+rejected normalization by accepting the raw JSON. Invalid matching results block
+rather than silently selecting a lower-priority successful result. Correct and
+resubmit the result through its owner; do not delete checks or rewrite history.
+Unrelated lane filenames are excluded before file reads and normalization.
+
+These checks cannot recover rows already discarded by an older runtime, prove
+that commands ran, audit duplicate JSON object keys, or replace actual tests,
+result freshness, independent review, Work authorization, or final closeout.
+An older normalized success is not newly verified by this fix; when its raw
+observations are unavailable, rerun the required checks before resubmitting.
+
+`quick_result_validation_test.go` covers raw normalization, JSON persistence
+round trips, direct reported-check verdicts, compatibility, and filesystem result
+selection. `quick_result_submit_integration_test.go` additionally exercises the
+real result-submit route with Work/Quick fixtures when run in the full package.
+Standalone extraction tests do not establish full CLI or lifecycle coverage.

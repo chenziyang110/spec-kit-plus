@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -737,7 +736,7 @@ func findQuickWorkerResult(workspacePath, itemID string) (map[string]any, string
 		laneID := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
 		rank := quickLaneMatchRank(laneID, itemID)
 		if rank < 0 {
-			rank = 100
+			continue // An unrelated lane can never satisfy this item.
 		}
 		candidates = append(candidates, candidate{
 			laneID: laneID,
@@ -762,21 +761,10 @@ func findQuickWorkerResult(workspacePath, itemID string) (map[string]any, string
 			lastErr = err
 			continue
 		}
-		normalized, err := normalizeWorkerTaskResult(raw)
+		normalized, err := normalizeSubmittedTaskResult("quick", raw)
 		if err != nil {
-			var payload map[string]any
-			if jsonErr := json.Unmarshal(raw, &payload); jsonErr != nil {
-				lastErr = err
-				continue
-			}
-			normalized = payload
-			if status := strings.ToLower(strings.TrimSpace(asString(pick(payload, "status", "reported_status")))); status != "" {
-				if alias, ok := resultStatusAliases[status]; ok {
-					normalized["status"] = alias
-				} else {
-					normalized["status"] = status
-				}
-			}
+			// Do not bypass validation or fall back to an older successful lane.
+			return nil, "", "", fmt.Errorf("invalid worker result for %s: %w", itemID, err)
 		}
 		payloadItem := firstNonEmpty(
 			asString(pick(normalized, "work_item_id", "workItemId")),
