@@ -105,6 +105,57 @@ command. Repository evidence may resolve
 technical questions; ask the user only for product choices or authority the
 repository cannot supply.
 
+## Compact execution responses
+
+In the full Quick branch, prefer compact responses after complete intake, not
+instead of it. Reuse already loaded Help/Show/Pack metadata. When none is loaded,
+replace the Skill's separate executor lookup with one
+`{{specify-subcmd:specify-runtime api pack --capabilities quick.item-start,quick.allow-inline,quick.item-accept,quick.item-status --format json}}`.
+If Pack is unavailable, use an available read-only Show/Help route or stay full;
+optimization discovery must not block otherwise supported work. Reuse metadata
+only under the same pinned runtime identity, not on the basis of a capability id.
+
+For each operation independently, require its `output_contract` to advertise
+`response_schema: quick-execution-compact-v1`, `flag: --compact`,
+`flag_type: standalone_boolean`, `scope: response_presentation_only`,
+`default: full`, `fallback: full`, `requires_full_intake: true`,
+`mutates_canonical_state: false`, `binding_kind: decision_digest_not_file_hash`,
+and exactly `omitted_fields: [confirmation, pulse]`. Missing, null, unknown or
+conflicting support means omit the flag for that operation. This is independent
+of `execution_contract`: compact output never authorizes leader-direct.
+
+At entry/resume, read the complete current confirmation from the existing
+checkpoint response or `quick item-status` without the flag. Keep its exact
+project root, workspace, confirmation ref, decision digest and confirmed or
+inherited state in the active context. Then append one standalone `--compact`
+to negotiated item-start, allow-inline, item-accept and item-status calls while
+that context is current; preserve all original selectors, evidence and Work
+arguments. Never add it to checkpoint, packet-compile, result, close or archive.
+
+Check the envelope status and blockers first. A compact success must match
+`response_schema`, `confirmation_ref`, `confirmation_digest` and
+`confirmation_state` to the current intake. Always consume the fresh packet,
+`work_claim`, executor flags, `worker_proof` and queue fields when returned.
+The digest binds decisions, not current write scope, execution state or authority;
+never reuse those merely because the digest matches. Missing required receipts
+still block execution. An ordinary full fallback is valid: consume it without
+retrying to obtain compact output.
+
+After context loss, a runtime change, binding mismatch, material amendment or
+scope reconciliation, refresh through
+`{{specify-subcmd:specify-runtime quick item-status <id> --format json}}`
+without `--compact`, in the same project root. Reconcile before further writes;
+a staged checkpoint still needs its normal confirmation. An unknown response or
+ambiguous mutation outcome also requires status reconciliation, never automatic
+replay of item-start, allow-inline or item-accept merely to change presentation.
+
+Use returned progress for updates; do not fetch a full pulse after every compact
+response. Request `checkpoint-show --view pulse` only when a human-readable
+rerender is needed. No polling, new state file, repeated reference read or extra
+per-item discovery is needed. Existing verification and terminal gates remain.
+
+## Execution coordination and delivery
+
 Use the event-driven coordination gate alongside those durable transitions:
 run `specify-runtime execution overview --format json` before the first
 `quick item-start`, after each join before selecting more work, and before

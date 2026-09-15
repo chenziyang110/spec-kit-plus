@@ -56,12 +56,24 @@ files: it uses overlapping helper names and older strict baselines. Do not
 apply it on top of this source. The later Help/Show-only pending patch has also
 been integrated; do not reapply it. Source integration is not runtime publication.
 
-Generated consumers are not automatically opted into compact output. Advanced's
-separate capability-gated executor selection is described in
+Advanced SPX Quick's required `references/task-contract.md` now conditionally
+opts execution calls into compact output after full intake and per-operation
+contract negotiation. It reuses already loaded discovery or replaces the separate
+executor query with one Pack request; unsupported discovery/metadata retains full
+output. Resume/context loss, changed runtime identity or decision binding, and
+scope reconciliation require full read-only status before further writes. A full
+fallback is consumed as returned, never retried to force compact presentation.
+Returned progress replaces unnecessary follow-up pulse reads.
+
+The decision digest is not a file hash or an execution/permission cache key.
+Current packets, claims, executor flags, proofs, blockers and queues must still
+be consumed. A transport failure after mutation is not permission to replay it.
+Advanced's separate executor selection is described in
 [Quick executor selection](quick-adaptive-dispatch.md); `execution_contract` is
-not the presentation `output_contract`. Classic delegated defaults, installation,
-public distribution and cross-stage execution remain unchanged. No merge, release
-or public source publication is authorized by this document.
+not the presentation `output_contract`. No Classic source, runtime default,
+installer, existing installation or public distribution is changed here.
+This source policy is not an installed-agent or production rollout claim.
+No merge, release or public source publication is authorized by this document.
 
 ## Persisted execution-state schema
 
@@ -113,3 +125,30 @@ go vet ./...
 A helper pass is not a complete runtime, Work/SQLite, installed-profile, cloud
 CI or real-agent pass. This increment supplies no measured production token,
 latency or quality-retention percentage.
+
+## Consumer-policy regression coverage
+
+`quick_compact_consumer_contract_test.go` checks the required SPX reference's
+negotiation anchors against the actual shared producer metadata, and preserves
+full-intake, recovery and authority boundaries. It is a source/producer contract
+test, not an interpreter or an evaluation of model instruction following.
+
+`quick_compact_consumer_integration_test.go` exercises worker and direct execution
+with full and compact responses using the real Work/Quick fixtures and
+`result submit` route. Each scenario starts once, refuses missing result evidence,
+submits a synthetic successful result, accepts once and queries full/compact
+status without replaying a mutation. It compares every non-omitted data field and
+checks confirmation/STATUS bytes remain unchanged across read-only refreshes.
+Reported check statuses in these fixtures do not prove product checks ran.
+
+Run the full-package test in a complete checkout:
+
+```sh
+cd tools/specify-runtime
+go test -count=1 -run '^TestQuickCompactConsumer' .
+```
+
+Before distributing the policy, also run full Go/Python/lint and installed
+Classic/Advanced rendering/upgrade tests, including older-runtime fallback.
+A standalone source-contract pass does not establish full-package, installed
+consumer, Work/SQLite, cloud CI, real-agent behavior or token savings.
