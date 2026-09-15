@@ -99,6 +99,7 @@ func runAPIPack(args []string, stdout io.Writer, cliVersion string) int {
 			"side_effect":    descriptor.capability["side_effect"],
 			"input_contract": descriptor.capability["input_contract"],
 		}
+		addQuickPackOutputContract(capabilityID, descriptor.capability, item)
 		if schemaID, ok := descriptor.capability["input_schema"].(string); ok && strings.TrimSpace(schemaID) != "" {
 			item["schema_ref"] = schemaID
 			if includeSchema {

@@ -2,6 +2,8 @@ package main
 
 import "strings"
 
+const quickExecutionCompactSchema = "quick-execution-compact-v1"
+
 // compactQuickExecutionData is an opt-in presentation projection. It never
 // mutates canonical state or removes dispatch authority, blockers, worker proof,
 // the current packet, or the complete ready/blocked/active item sets.
@@ -16,7 +18,7 @@ func compactQuickExecutionData(data map[string]any, confirmationRef, state, dige
 		return data
 	}
 	bindings := map[string]string{
-		"response_schema":     "quick-execution-compact-v1",
+		"response_schema":     quickExecutionCompactSchema,
 		"confirmation_ref":    confirmationRef,
 		"confirmation_state":  state,
 		"confirmation_digest": digest,

@@ -13,6 +13,13 @@ import (
 const quickWorkerPacketSchema = "quick-worker-packet-v1"
 
 func (service quickService) runExecution(mode, quickID string, args []string) (Envelope, error) {
+	compact, err := parseQuickExecutionCompactOption(mode, args)
+	if err != nil {
+		env := NewEnvelope("usage-error", "quick execution output option is invalid")
+		env.Data["error_code"] = "quick-output-option-invalid"
+		env.Blockers = append(env.Blockers, err.Error())
+		return env, nil
+	}
 	root, err := service.root()
 	if err != nil {
 		return Envelope{}, err
@@ -35,7 +42,7 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 		if env.Status == "ok" && doc != nil {
 			ref := filepath.ToSlash(filepath.Join(".planning", "quick", workspace, quickConfirmationFileName))
 			env.Data = quickExecutionResponseData(env.Data, ref, doc.ConfirmationState, doc.ConfirmationDigest,
-				hasFlag(args, "--compact"), func() any { return renderQuickPulseView(doc) })
+				compact, func() any { return renderQuickPulseView(doc) })
 		}
 		return env, nil
 	}
