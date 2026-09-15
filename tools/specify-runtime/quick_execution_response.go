@@ -40,3 +40,27 @@ func compactQuickExecutionData(data map[string]any, confirmationRef, state, dige
 	}
 	return out
 }
+
+// quickExecutionResponseData materializes the human pulse only if the caller
+// will receive it. Canonical confirmation is still loaded by the owning action;
+// this optimization never skips validation, packet compilation, or Work claims.
+func quickExecutionResponseData(data map[string]any, ref, state, digest string, compact bool, buildPulse func() any) map[string]any {
+	out := data
+	if compact {
+		out = compactQuickExecutionData(data, ref, state, digest)
+	}
+	if _, hasConfirmation := out["confirmation"]; !hasConfirmation {
+		// Includes both a successful compact projection and packet-only output.
+		return out
+	}
+	if _, hasPulse := out["pulse"]; hasPulse {
+		return out
+	}
+	// Do not mutate the input map when the projection falls back to full output.
+	full := make(map[string]any, len(out)+1)
+	for key, value := range out {
+		full[key] = value
+	}
+	full["pulse"] = buildPulse()
+	return full
+}

@@ -32,9 +32,10 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 	// Keep legacy output byte-compatible by default. Compact presentation is
 	// applied only after the existing ownership, state, and acceptance gates.
 	respond := func(env Envelope, doc *quickConfirmationDoc) (Envelope, error) {
-		if hasFlag(args, "--compact") && env.Status == "ok" && doc != nil {
+		if env.Status == "ok" && doc != nil {
 			ref := filepath.ToSlash(filepath.Join(".planning", "quick", workspace, quickConfirmationFileName))
-			env.Data = compactQuickExecutionData(env.Data, ref, doc.ConfirmationState, doc.ConfirmationDigest)
+			env.Data = quickExecutionResponseData(env.Data, ref, doc.ConfirmationState, doc.ConfirmationDigest,
+				hasFlag(args, "--compact"), func() any { return renderQuickPulseView(doc) })
 		}
 		return env, nil
 	}
@@ -56,7 +57,6 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 			"packet":           packet,
 			"packet_path":      quickPacketRelPath(workspace, itemID),
 			"work_claim":       claim,
-			"pulse":            renderQuickPulseView(doc),
 			"ready_item_ids":   readyQuickItemIDs(doc),
 			"blocked_item_ids": blockedQuickItemIDs(doc),
 			"requires_worker":  true,
@@ -80,7 +80,6 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 			"task":             task,
 			"work_item_id":     itemID,
 			"confirmation":     doc,
-			"pulse":            renderQuickPulseView(doc),
 			"requires_worker":  false,
 			"inline_reason":    reason,
 			"ready_item_ids":   readyQuickItemIDs(doc),
@@ -109,7 +108,6 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 			"task":             task,
 			"work_item_id":     itemID,
 			"confirmation":     doc,
-			"pulse":            renderQuickPulseView(doc),
 			"ready_item_ids":   readyQuickItemIDs(doc),
 			"blocked_item_ids": blockedQuickItemIDs(doc),
 			"all_accepted":     allQuickItemsAccepted(doc),
@@ -157,7 +155,6 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 		env.Data = map[string]any{
 			"task":             task,
 			"confirmation":     doc,
-			"pulse":            renderQuickPulseView(doc),
 			"ready_item_ids":   readyQuickItemIDs(doc),
 			"blocked_item_ids": blockedQuickItemIDs(doc),
 			"active_item_ids":  append([]string{}, doc.Execution.ActiveItemIDs...),
@@ -949,7 +946,7 @@ func readyQuickItemIDs(doc *quickConfirmationDoc) []string {
 	ready := []string{}
 	for _, item := range doc.Decision.Items {
 		st := strings.ToLower(statusByID[item.ID].Status)
-		if st == "accepted" || st == "in_progress" {
+		if st == "accepted" || st == "in_progress" || st == "blocked" {
 			continue
 		}
 		if len(unmetQuickDeps(item.DependsOn, statusByID)) == 0 {
@@ -967,7 +964,7 @@ func blockedQuickItemIDs(doc *quickConfirmationDoc) []string {
 		if st == "accepted" || st == "in_progress" {
 			continue
 		}
-		if len(unmetQuickDeps(item.DependsOn, statusByID)) > 0 {
+		if st == "blocked" || len(unmetQuickDeps(item.DependsOn, statusByID)) > 0 {
 			blocked = append(blocked, item.ID)
 		}
 	}
