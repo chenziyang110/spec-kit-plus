@@ -60,6 +60,22 @@ Classic/Advanced generated consumers are not enabled automatically. Installation
 public distribution, adaptive delegation and cross-stage execution are unchanged.
 No merge, release or public source publication is authorized by this document.
 
+## Persisted execution-state schema
+
+The shipped `quick-confirmation-schema.json` declares the runtime's worker lock,
+result ID/reference/lane, execution mode, inline approval/reason, and optional
+`blocked_dispatch` audit record. These fields remain optional for legacy and
+pre-dispatch documents. Unknown execution fields are still rejected; decision,
+UI/source-continuity and delivery contracts are unchanged.
+
+This schema describes persisted state, not permission to author runtime-owned
+fields. Passing shape validation does not prove a result exists, verify a digest,
+authorize inline execution, or replace Work, acceptance and closeout gates.
+`TestQuickConfirmationExecutionSchemaMatchesRuntime` reflects the actual Go
+serialization fields; `test_quick_confirmation_execution_schema.py` validates
+positive and negative synthetic documents with Draft 2020-12 JSON Schema.
+Run both in a complete checkout before consumer rollout.
+
 ## Validation
 
 The exact output-contract/parser/projection functions and existing lazy-rendering
@@ -86,7 +102,7 @@ establish their outcome.
 Required before rollout:
 
 ```sh
-go test -count=1 -run 'TestQuick(Output|Help|Show|Scope|Queue|Lazy|Compact|Resume)' .
+go test -count=1 -run 'TestQuick(Confirmation|Output|Help|Show|Scope|Queue|Lazy|Compact|Resume)' .
 go test -count=1 ./...
 go vet ./...
 ```
