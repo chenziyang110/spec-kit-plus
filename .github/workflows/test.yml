@@ -7,6 +7,11 @@ on:
   push:
     branches: ["main"]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   ruff:
@@ -14,66 +19,132 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
       - name: Install uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
-
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-
       - name: Run ruff check
         run: uvx ruff check src/ --select E4,E7,E9,F
 
   pytest:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
       - name: Install uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
-
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-
       - name: Set up Go for runtime integration tests
         uses: actions/setup-go@v7
         with:
           go-version-file: tools/specify-runtime/go.mod
           cache-dependency-path: tools/specify-runtime/go.sum
-
+      - name: Bind evidence to source
+        run: git rev-parse HEAD > test-source.txt
       - name: Install dependencies
         run: uv sync --extra test
-
       - name: Run tests
-        run: uv run pytest -n auto
+        run: uv run pytest -n auto --junitxml=pytest-results.xml
+      - name: Preserve test evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pytest-${{ matrix.python-version }}-${{ github.run_attempt }}
+          path: |
+            test-source.txt
+            pytest-results.xml
+          retention-days: 14
+          if-no-files-found: error
 
+  # Keep the original required-check name; native jobs are additive.
   go:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: tools/specify-runtime
+        shell: bash
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
           go-version-file: tools/specify-runtime/go.mod
           cache-dependency-path: tools/specify-runtime/go.sum
-
+      - name: Bind evidence to source
+        run: git rev-parse HEAD > test-source.txt
       - name: Run native runtime tests
-        # Tests create many temporary project paths. Disable result caching to
-        # execute every run and avoid expensive cached-input checks.
-        run: go test -count=1 ./...
-
+        # Explicit bash retains pipefail; tee must never hide a failing test.
+        run: go test -count=1 -json ./... | tee go-test-results.jsonl
       - name: Run Go static checks
+        if: ${{ !cancelled() }}
         run: go vet ./...
+      - name: Preserve runtime evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: go-linux-${{ github.run_attempt }}
+          path: |
+            tools/specify-runtime/test-source.txt
+            tools/specify-runtime/go-test-results.jsonl
+          retention-days: 14
+          if-no-files-found: error
+
+  native:
+    name: Native runtime and installer (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Set up native Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/specify-runtime/go.mod
+          cache-dependency-path: tools/specify-runtime/go.sum
+      - name: Bind evidence to source
+        run: git rev-parse HEAD > test-source.txt
+      - name: Install dependencies
+        run: uv sync --extra test
+      - name: Exercise real integration installer and repair
+        run: uv run pytest tests/integrations/test_quick_optimization_installation.py --junitxml=native-installer-results.xml
+      - name: Run native runtime tests
+        if: ${{ !cancelled() }}
+        working-directory: tools/specify-runtime
+        run: go test -count=1 -json ./... | tee go-test-results.jsonl
+      - name: Run native Go static checks
+        if: ${{ !cancelled() }}
+        working-directory: tools/specify-runtime
+        run: go vet ./...
+      - name: Preserve native evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-${{ matrix.os }}-${{ github.run_attempt }}
+          path: |
+            test-source.txt
+            native-installer-results.xml
+            tools/specify-runtime/go-test-results.jsonl
+          retention-days: 14
+          if-no-files-found: error

@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from quick_adaptive_eval import MODES, summarize, validate_record
+from quick_adaptive_eval import MODES as MODES, summarize as summarize, validate_record
 
 
 def _object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
