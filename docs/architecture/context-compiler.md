@@ -82,6 +82,26 @@ owners and preserve all existing permission, Review and human acceptance gates.
 Repeated reads detect observable drift, not every ABA race; this is not a
 transaction, filesystem security sandbox or hostile-writer isolation boundary.
 
+## Exact state reads and ready successors
+
+The Quick shadow decoder preserves dynamic numeric metadata as `json.Number`;
+it does not round a source identifier or decimal before checking the existing
+confirmation digest. Typed owner fields must use their exact JSON names: a
+`Confirmation_State` alias cannot overwrite `confirmation_state`, and a nested
+`Status` alias cannot clear a blocked status. The existing bounded JSON validator
+still rejects exact duplicate keys, lossy Unicode and trailing input. Dynamic
+metadata maps retain their own case-sensitive keys; unknown non-alias fields
+retain the typed owner's compatibility behavior and remain bound by raw bytes.
+
+The original item-accept owner marks unblocked successors `ready`. Diagnostic
+admission therefore accepts `pending`, `ready` and `in_progress`, while retaining
+its ambiguity/terminal/dispatch checks and the original packet builder's
+confirmation and accepted-prerequisite gates. A `ready` label is not permission
+to execute or evidence that dependencies passed. No source file or stored digest
+is rewritten to make either check pass. See the
+[state-read checkpoint](../workflow-quality/quick-shadow-state-read-2026-09-17.md)
+for reproduced failures, executed tests and remaining full-runtime validation.
+
 ## Rollout still required
 
 The adapter and optional `quick.context-shadow` diagnostic capability now exist.

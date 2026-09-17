@@ -21,7 +21,7 @@ const quickShadowReadLimit = 128 * 1024
 
 // contextShadow is the compatibility wrapper for the read-only diagnostic.
 // Internal callers can supply cancellation through the variant below.
-// The top-level Quick route is unchanged until the separate registration gate passes.
+// The public CLI uses the context-aware variant; no executor consumes its report.
 // Inputs select one existing workspace/item, never agent-authored state/hashes.
 func (service quickService) contextShadow(workspace, itemID string) (contextpacket.QuickShadowReport, error) {
 	return service.contextShadowWithContext(stdcontext.Background(), workspace, itemID)
@@ -96,14 +96,11 @@ func (service quickService) contextShadowSnapshotWithContext(ctx stdcontext.Cont
 	if err != nil {
 		return zero, err
 	}
-	if err := contextpacket.ValidateQuickShadowJSON(before); err != nil {
-		return zero, err
-	}
-	// Decode the bounded captured bytes into the owning Quick type. Calling the
-	// legacy loader here would reopen the file with an unbounded os.ReadFile,
-	// breaking this diagnostic's read budget if a writer replaces it mid-read.
-	var doc quickConfirmationDoc
-	if err := json.Unmarshal(before, &doc); err != nil {
+	// Decode captured bytes through the strict shadow boundary, not the
+	// unbounded legacy loader. Keep exact dynamic numbers and reject typed-field
+	// aliases before they can overwrite confirmation or execution state.
+	doc, err := decodeQuickShadowConfirmation(before)
+	if err != nil {
 		return zero, err
 	}
 	if doc.Schema != quickConfirmationSchema {
@@ -161,7 +158,8 @@ func (service quickService) contextShadowSnapshotWithContext(ctx stdcontext.Cont
 // This admits a diagnostic snapshot, not executable work. The legacy packet
 // builder treats absent rows as pending but does not reject duplicate rows or
 // every blocked/unknown selected status. Never turn that ambiguity into a
-// runnable-looking shadow. No source state is changed to make admission pass.
+// runnable-looking shadow. The owner marks newly unblocked successors ready.
+// No source state is changed to make admission pass.
 func validateQuickShadowSelection(doc *quickConfirmationDoc, selected string) error {
 	ids := make(map[string]bool, len(doc.Decision.Items))
 	for _, item := range doc.Decision.Items {
@@ -184,8 +182,8 @@ func validateQuickShadowSelection(doc *quickConfirmationDoc, selected string) er
 			status = row.Status
 		}
 	}
-	if status != "pending" && status != "in_progress" {
-		return fmt.Errorf("quick_shadow_owner_blocked: selected item is not pending or in_progress")
+	if status != "pending" && status != "ready" && status != "in_progress" {
+		return fmt.Errorf("quick_shadow_owner_blocked: selected item is not pending, ready or in_progress")
 	}
 	if blocked := doc.Execution.BlockedDispatch; blocked != nil &&
 		blocked.Status == "subagent-blocked" && (blocked.ItemID == "" || blocked.ItemID == selected) {
