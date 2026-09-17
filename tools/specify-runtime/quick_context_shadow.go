@@ -9,11 +9,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	contextpacket "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/context"
@@ -21,23 +19,61 @@ import (
 
 const quickShadowReadLimit = 128 * 1024
 
-// contextShadow is the runtime-owned, read-only bridge, intentionally not yet
-// registered as a public CLI command or consumed by generated workflows.
+// contextShadow is the compatibility wrapper for the read-only diagnostic.
+// Internal callers can supply cancellation through the variant below.
+// The top-level Quick route is unchanged until the separate registration gate passes.
 // Inputs select one existing workspace/item, never agent-authored state/hashes.
 func (service quickService) contextShadow(workspace, itemID string) (contextpacket.QuickShadowReport, error) {
-	return contextpacket.BuildQuickShadow(func() (contextpacket.QuickShadowSource, error) {
-		return service.contextShadowSnapshot(workspace, itemID)
+	return service.contextShadowWithContext(stdcontext.Background(), workspace, itemID)
+}
+
+// Cancellation is cooperative between bounded reads and inherited by each Git
+// child. Ordinary filesystem calls are not made asynchronously or force-killed.
+func (service quickService) contextShadowWithContext(ctx stdcontext.Context, workspace, itemID string) (contextpacket.QuickShadowReport, error) {
+	if ctx == nil {
+		return contextpacket.QuickShadowReport{}, fmt.Errorf("quick_shadow_context_missing")
+	}
+	report, err := contextpacket.BuildQuickShadow(func() (contextpacket.QuickShadowSource, error) {
+		return service.contextShadowSnapshotWithContext(ctx, workspace, itemID)
 	})
+	if ctx.Err() != nil {
+		return contextpacket.QuickShadowReport{}, ctx.Err()
+	}
+	return report, err
 }
 
 func (service quickService) verifyContextShadow(workspace, itemID string, report contextpacket.QuickShadowReport) error {
-	return contextpacket.VerifyQuickShadow(report, func() (contextpacket.QuickShadowSource, error) {
-		return service.contextShadowSnapshot(workspace, itemID)
+	return service.verifyContextShadowWithContext(stdcontext.Background(), workspace, itemID, report)
+}
+
+func (service quickService) verifyContextShadowWithContext(ctx stdcontext.Context, workspace, itemID string, report contextpacket.QuickShadowReport) error {
+	if ctx == nil {
+		return fmt.Errorf("quick_shadow_context_missing")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	err := contextpacket.VerifyQuickShadow(report, func() (contextpacket.QuickShadowSource, error) {
+		return service.contextShadowSnapshotWithContext(ctx, workspace, itemID)
 	})
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return err
 }
 
 func (service quickService) contextShadowSnapshot(workspace, itemID string) (contextpacket.QuickShadowSource, error) {
+	return service.contextShadowSnapshotWithContext(stdcontext.Background(), workspace, itemID)
+}
+
+func (service quickService) contextShadowSnapshotWithContext(ctx stdcontext.Context, workspace, itemID string) (contextpacket.QuickShadowSource, error) {
 	zero := contextpacket.QuickShadowSource{}
+	if ctx == nil {
+		return zero, fmt.Errorf("quick_shadow_context_missing")
+	}
+	if err := ctx.Err(); err != nil {
+		return zero, err
+	}
 	if !utf8.ValidString(workspace) || strings.TrimSpace(workspace) != workspace || workspace == "" ||
 		workspace == "." || workspace == ".." || strings.ContainsAny(workspace, "/\\:\x00\r\n") ||
 		!quickWorkItemIDPattern.MatchString(itemID) {
@@ -51,12 +87,12 @@ func (service quickService) contextShadowSnapshot(workspace, itemID string) (con
 	if err != nil {
 		return zero, err
 	}
-	revision, err := quickShadowRevision(root)
+	revision, err := quickShadowRevisionWithContext(ctx, root)
 	if err != nil {
 		return zero, err
 	}
 	stateRef := filepath.ToSlash(filepath.Join(".planning", "quick", workspace, quickConfirmationFileName))
-	before, err := readQuickShadowState(root, stateRef)
+	before, err := readQuickShadowStateWithContext(ctx, root, stateRef)
 	if err != nil {
 		return zero, err
 	}
@@ -94,11 +130,14 @@ func (service quickService) contextShadowSnapshot(workspace, itemID string) (con
 	if err != nil {
 		return zero, err
 	}
-	after, err := readQuickShadowState(root, stateRef)
-	if err != nil || !bytes.Equal(before, after) {
+	after, err := readQuickShadowStateWithContext(ctx, root, stateRef)
+	if err != nil {
+		return zero, err
+	}
+	if !bytes.Equal(before, after) {
 		return zero, fmt.Errorf("quick_shadow_source_changed: confirmation bytes changed")
 	}
-	currentRevision, err := quickShadowRevision(root)
+	currentRevision, err := quickShadowRevisionWithContext(ctx, root)
 	if err != nil {
 		return zero, err
 	}
@@ -108,6 +147,9 @@ func (service quickService) contextShadowSnapshot(workspace, itemID string) (con
 	identityRoot := filepath.Clean(root)
 	if runtime.GOOS == "windows" {
 		identityRoot = strings.ToLower(identityRoot)
+	}
+	if err := ctx.Err(); err != nil {
+		return zero, err
 	}
 	return contextpacket.QuickShadowSource{
 		ProjectIdentity: quickShadowBytesHash([]byte("quick-shadow-project-v1\x00" + identityRoot)),
@@ -153,6 +195,16 @@ func validateQuickShadowSelection(doc *quickConfirmationDoc, selected string) er
 }
 
 func readQuickShadowState(root, relative string) ([]byte, error) {
+	return readQuickShadowStateWithContext(stdcontext.Background(), root, relative)
+}
+
+func readQuickShadowStateWithContext(ctx stdcontext.Context, root, relative string) ([]byte, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("quick_shadow_context_missing")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	filename, err := secureProjectPath(root, relative)
 	if err != nil {
 		return nil, err
@@ -160,6 +212,9 @@ func readQuickShadowState(root, relative string) ([]byte, error) {
 	before, err := os.Lstat(filename)
 	if err != nil || !before.Mode().IsRegular() || before.Size() > quickShadowReadLimit {
 		return nil, fmt.Errorf("quick_shadow_state_invalid: require a bounded regular file")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	file, err := os.Open(filename)
 	if err != nil {
@@ -174,50 +229,10 @@ func readQuickShadowState(root, relative string) ([]byte, error) {
 	if err != nil || len(raw) > quickShadowReadLimit {
 		return nil, fmt.Errorf("quick_shadow_state_invalid: bounded read failed")
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return raw, nil
-}
-
-// A single local read-only Git invocation identifies BOTH the project and HEAD.
-// Ambient GIT_DIR/config overrides cannot silently redirect the selected repo.
-func quickShadowRevision(root string) (string, error) {
-	ctx, cancel := stdcontext.WithTimeout(stdcontext.Background(), 5*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", "--no-optional-locks", "-C", root,
-		"rev-parse", "--show-toplevel", "--verify", "HEAD")
-	cmd.WaitDelay = time.Second
-	for _, entry := range os.Environ() {
-		key, _, _ := strings.Cut(entry, "=")
-		if !strings.HasPrefix(strings.ToUpper(key), "GIT_") {
-			cmd.Env = append(cmd.Env, entry)
-		}
-	}
-	cmd.Env = append(cmd.Env, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull,
-		"GIT_TERMINAL_PROMPT=0", "GIT_NO_LAZY_FETCH=1")
-	raw, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("quick_shadow_git_unavailable: require a local Git root with HEAD; no fallback identity")
-	}
-	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
-	if len(lines) != 2 {
-		return "", fmt.Errorf("quick_shadow_git_identity_invalid")
-	}
-	top, err := filepath.EvalSymlinks(strings.TrimSuffix(lines[0], "\r"))
-	if err != nil {
-		return "", err
-	}
-	same := filepath.Clean(top) == filepath.Clean(root)
-	if runtime.GOOS == "windows" {
-		same = strings.EqualFold(filepath.Clean(top), filepath.Clean(root))
-	}
-	if !same {
-		return "", fmt.Errorf("quick_shadow_git_root_mismatch: do not bind a parent repository")
-	}
-	revision := strings.TrimSuffix(lines[1], "\r")
-	decoded, err := hex.DecodeString(revision)
-	if err != nil || (len(decoded) != 20 && len(decoded) != 32) || strings.ToLower(revision) != revision {
-		return "", fmt.Errorf("quick_shadow_git_revision_invalid")
-	}
-	return revision, nil
 }
 
 func quickShadowBytesHash(raw []byte) string {
