@@ -50,7 +50,7 @@ separate from local tests and CI; follow the existing release checklist.
 ## Verify that the required tests actually ran
 
 The existing rollout verifier now emits `quick-rollout-verification-v2` and
-requires the thirteen registered shadow entrypoint/state cases, the existing
+requires the sixteen registered shadow entrypoint/state/process cases, the existing
 Quick lifecycle cases and core context checks. It inventories packages with
 host-applicable Go test files before execution, then requires every inventoried
 package to pass. Every package/test observed in the event stream must terminate.
@@ -112,3 +112,9 @@ calls to `Run`/`RunContext` into watchdog-protected process invocations. A faile
 output destination can also truncate a timeout envelope; that is exit 1, not a
 successful blocked-response delivery. The query/command timeout defaults and
 configured maximum are unchanged.
+
+## Optimization handoff
+
+See [the current optimization status](workflow-quality/optimization-status.md)
+for the consolidated implementation, validation and release boundaries. Historical
+checkpoint counts are not substitutes for a complete current-source run.

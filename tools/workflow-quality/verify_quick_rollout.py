@@ -29,6 +29,9 @@ INSTALL_CASES = (
     "test_quick_policy_repair_preserves_user_changes",
 )
 SHADOW_ENTRYPOINT_CASES = (
+    "TestQuickShadowCLIProcessRoundTripReadOnly",
+    "TestQuickShadowCLIProcessClosedPipeIsFailure",
+    "TestQuickShadowCLIProcessTimeoutCancelsStartedGit",
     "TestQuickShadowCLIEntrypointReadsRealOwnerWithoutWrites",
     "TestQuickShadowCLIEntrypointBlocksDependenciesWithoutRepair",
     "TestQuickShadowCLIEntrypointHelpBeforeRepositoryAccess",

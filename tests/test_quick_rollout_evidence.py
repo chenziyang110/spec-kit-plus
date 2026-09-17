@@ -30,9 +30,9 @@ def write_log(path, rows):
     return path
 
 
-def test_all_thirteen_shadow_entrypoints_are_required():
-    assert len(runner.SHADOW_ENTRYPOINT_CASES) == 13
-    assert len(set(runner.SHADOW_ENTRYPOINT_CASES)) == 13
+def test_all_shadow_entrypoints_and_process_cases_are_required():
+    assert len(runner.SHADOW_ENTRYPOINT_CASES) == 16
+    assert len(set(runner.SHADOW_ENTRYPOINT_CASES)) == 16
     assert set(runner.SHADOW_ENTRYPOINT_CASES) <= set(runner.GO_CASES)
 
 
