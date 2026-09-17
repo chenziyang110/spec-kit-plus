@@ -1,80 +1,64 @@
-"""Generate conservative Quick adaptive execution benchmark reports.
+"""Read validated JSONL observations and write an offline evaluation report.
 
-This tool aggregates already collected evidence. It does not execute agents,
-decide acceptance, or infer quality from lower token usage.
+No Agent is executed; recorded acceptance is not independently verified here.
+Use --strict for auditable identity fields. Existing output is never overwritten.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
-MODES = {
-    "worker-full",
-    "worker-compact",
-    "direct-full",
-    "direct-compact",
-}
+from quick_adaptive_eval import MODES, summarize, validate_record
 
 
-def load_records(path: Path) -> list[dict[str, Any]]:
+def _object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key!r}")
+        result[key] = value
+    return result
+
+
+def _nonfinite(value: str) -> None:
+    raise ValueError(f"non-finite JSON number: {value}")
+
+
+def load_records(path: Path, *, strict: bool = False) -> list[dict[str, Any]]:
     records = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            item = json.loads(line)
-            if not isinstance(item, dict):
-                raise ValueError("record must be an object")
-            records.append(item)
+    with path.open(encoding="utf-8") as source:
+        for number, line in enumerate(source, 1):
+            if not line.strip():
+                continue
+            try:
+                item = json.loads(line, object_pairs_hook=_object, parse_constant=_nonfinite)
+                records.append(validate_record(item, strict=strict))
+            except (ValueError, TypeError) as exc:
+                raise ValueError(f"{path.name}:{number}: {exc}") from exc
     return records
 
 
-def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
-    groups: dict[str, dict[str, Any]] = {}
-    for record in records:
-        mode = record.get("mode")
-        if mode not in MODES:
-            raise ValueError(f"unsupported mode: {mode}")
-        group = groups.setdefault(mode, {
-            "runs": 0,
-            "tokens": 0,
-            "accepted": 0,
-            "human_intervention": 0,
-            "duration_ms": 0,
-            "unknown_quality": 0,
-        })
-        group["runs"] += 1
-        group["tokens"] += record.get("input_tokens", 0) + record.get("output_tokens", 0)
-        group["duration_ms"] += record.get("duration_ms", 0)
-        if record.get("accepted") is True:
-            group["accepted"] += 1
-        elif record.get("accepted") is None:
-            group["unknown_quality"] += 1
-        if record.get("human_intervention") is True:
-            group["human_intervention"] += 1
-
-    for group in groups.values():
-        runs = group["runs"]
-        group["accepted_rate"] = None if runs == 0 else group["accepted"] / runs
-        group["tokens_per_run"] = None if runs == 0 else group["tokens"] / runs
-
-    return {
-        "schema": "quick-adaptive-eval-report-v1",
-        "groups": groups,
-        "rules": {
-            "quality_from_tokens": False,
-            "missing_acceptance_is_unknown": True,
-        },
-    }
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser()
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path)
     parser.add_argument("--output", type=Path, required=True)
-    args = parser.parse_args()
-    report = summarize(load_records(args.input))
-    args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    parser.add_argument("--strict", action="store_true", help="Require complete run identity")
+    args = parser.parse_args(argv)
+    try:
+        records = load_records(args.input, strict=args.strict)
+        if not records:
+            raise ValueError("no observations: empty input is not a benchmark")
+        report = summarize(records, strict=args.strict)
+        payload = json.dumps(report, indent=2, allow_nan=False) + "\n"
+        # Exclusive creation also rejects input/output aliasing and symlinks.
+        with args.output.open("x", encoding="utf-8") as destination:
+            destination.write(payload)
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(f"quick-eval: {exc}", file=sys.stderr)
+        return 2
     return 0
 
 
