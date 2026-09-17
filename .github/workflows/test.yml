@@ -75,6 +75,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+      - name: Set up Python for evidence inspection
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
@@ -82,9 +86,19 @@ jobs:
           cache-dependency-path: tools/specify-runtime/go.sum
       - name: Bind evidence to source
         run: git rev-parse HEAD > test-source.txt
+      - name: Inventory runtime test packages
+        run: go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./... > go-test-packages.txt
       - name: Run native runtime tests
         # Explicit bash retains pipefail; tee must never hide a failing test.
         run: go test -count=1 -json ./... | tee go-test-results.jsonl
+      - name: Verify required runtime evidence
+        if: ${{ !cancelled() }}
+        run: >-
+          python ../workflow-quality/verify_quick_rollout.py
+          --inspect-go-log go-test-results.jsonl
+          --go-packages go-test-packages.txt
+          --module github.com/chenziyang110/spec-kit-plus/tools/specify-runtime
+          > go-evidence-audit.json
       - name: Run Go static checks
         if: ${{ !cancelled() }}
         run: go vet ./...
@@ -96,6 +110,8 @@ jobs:
           path: |
             tools/specify-runtime/test-source.txt
             tools/specify-runtime/go-test-results.jsonl
+            tools/specify-runtime/go-test-packages.txt
+            tools/specify-runtime/go-evidence-audit.json
           retention-days: 14
           if-no-files-found: error
 
@@ -129,10 +145,23 @@ jobs:
         run: uv sync --extra test
       - name: Exercise real integration installer and repair
         run: uv run pytest tests/integrations/test_quick_optimization_installation.py --junitxml=native-installer-results.xml
+      - name: Inventory runtime test packages
+        if: ${{ !cancelled() }}
+        working-directory: tools/specify-runtime
+        run: go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./... > go-test-packages.txt
       - name: Run native runtime tests
         if: ${{ !cancelled() }}
         working-directory: tools/specify-runtime
         run: go test -count=1 -json ./... | tee go-test-results.jsonl
+      - name: Verify required runtime evidence
+        if: ${{ !cancelled() }}
+        working-directory: tools/specify-runtime
+        run: >-
+          python ../workflow-quality/verify_quick_rollout.py
+          --inspect-go-log go-test-results.jsonl
+          --go-packages go-test-packages.txt
+          --module github.com/chenziyang110/spec-kit-plus/tools/specify-runtime
+          > go-evidence-audit.json
       - name: Run native Go static checks
         if: ${{ !cancelled() }}
         working-directory: tools/specify-runtime
@@ -146,5 +175,7 @@ jobs:
             test-source.txt
             native-installer-results.xml
             tools/specify-runtime/go-test-results.jsonl
+            tools/specify-runtime/go-test-packages.txt
+            tools/specify-runtime/go-evidence-audit.json
           retention-days: 14
           if-no-files-found: error

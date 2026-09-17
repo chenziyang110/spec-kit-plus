@@ -46,3 +46,38 @@ as a complete runtime, installation, operating-system or actual Agent evaluation
 
 Keep source private. Merge/release and anonymous consumer verification remain
 separate from local tests and CI; follow the existing release checklist.
+
+## Verify that the required tests actually ran
+
+The existing rollout verifier now emits `quick-rollout-verification-v2` and
+requires the thirteen registered shadow entrypoint/state cases, the existing
+Quick lifecycle cases and core context checks. It inventories packages with
+host-applicable Go test files before execution, then requires every inventoried
+package to pass. Every package/test observed in the event stream must terminate.
+A truncated log, skipped required case, duplicate JSON key or missing package
+cannot be a passing result. Optional platform-test skips remain visible counts;
+they do not replace required cases or another platform's native execution.
+
+The Linux and Windows/macOS jobs use this same checker after `go test ./...`.
+Their artifacts retain `test-source.txt`, the original Go JSON log, the host's
+`go-test-packages.txt` inventory and `go-evidence-audit.json`. The test command's
+exit status and the evidence audit are separate required steps; neither ignores
+errors. A supplied workflow is still not evidence that a runner started.
+
+To inspect existing artifacts without running or modifying the project:
+
+```bash
+python tools/workflow-quality/verify_quick_rollout.py --inspect-go-log go-test-results.jsonl --go-packages go-test-packages.txt --module github.com/chenziyang110/spec-kit-plus/tools/specify-runtime
+```
+
+This read-only mode returns 0 only for complete required Go evidence and 1 for
+invalid/missing evidence. It emits `quick-go-evidence-v1`, explicitly says it did
+not execute tests, and never authorizes a release. It is not a full-checkout,
+Python/install, native-host or source-authenticity attestation. Preserve the
+source/run metadata alongside both inputs; a manually altered log and inventory
+are not independently authenticated by an offline parser.
+
+Full local validation still uses the original `--output-dir` invocation above
+in a clean, prepared checkout. Git inspection and child commands isolate ambient
+`GIT_*` overrides so a foreign Git directory cannot silently replace its source
+identity. This changes neither repository settings nor any user credentials.

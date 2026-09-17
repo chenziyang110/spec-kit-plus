@@ -203,9 +203,16 @@ class RolloutVerificationTests(unittest.TestCase):
 
         def fake_execute(argv, cwd, output, name, timeout, env):
             observed.append((name, argv, env))
-            if name == "go-tests":
+            if name == "go-packages":
+                (output / "go-packages.stdout.log").write_text(
+                    self.package + "\n" + self.package + "/context\n")
+            elif name == "go-tests":
+                context_events = [
+                    {"Action": "pass", "Package": self.package + "/context", "Test": test}
+                    for test in runner.CONTEXT_CASES
+                ] + [{"Action": "pass", "Package": self.package + "/context"}]
                 (output / "go-tests.stdout.log").write_text(
-                    "".join(json.dumps(event) + "\n" for event in self.go_events())
+                    "".join(json.dumps(event) + "\n" for event in self.go_events() + context_events)
                 )
             elif name == "pytest":
                 self.write_xml(self.xml_tree())
@@ -219,9 +226,9 @@ class RolloutVerificationTests(unittest.TestCase):
                 report = runner.verify(self.root, self.root, 60)
             self.assertEqual(report["status"], expected)
             self.assertEqual([name for name, _, _ in observed],
-                             ["go-preflight", "go-tests", "go-vet", "pytest", "ruff"])
-            self.assertEqual(observed[1][1], ["go", "test", "-json", "-count=1", "./..."])
-            self.assertEqual(observed[1][2]["GOPROXY"], "off")
+                             ["go-preflight", "go-packages", "go-tests", "go-vet", "pytest", "ruff"])
+            self.assertEqual(observed[2][1], ["go", "test", "-json", "-count=1", "./..."])
+            self.assertEqual(observed[2][2]["GOPROXY"], "off")
             self.assertFalse(report["release_authorized"])
 
     def test_python_environment_from_other_checkout_is_blocked(self):
