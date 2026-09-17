@@ -1,63 +1,57 @@
 # Runtime Context Compiler
 
-## Goal
+## Purpose and current boundary
 
-Reduce agent context loading by compiling a task-specific context packet instead of requiring every workflow to read the complete knowledge surface.
+Compile a task-specific view while keeping workflow state, permissions and
+acceptance owned by the existing runtime. This is a tested library foundation,
+not yet a generated-workflow command or an installed Quick consumer.
 
-## Design principle
+The model reasons about intent and implementation. Deterministic assembly retains
+exact task, scope, state, source, artifact, restriction and acceptance bindings.
+The packet is never a new source of truth or a permission grant.
 
-The model should reason about product intent and implementation choices.
-The runtime should own deterministic context assembly:
+## Implemented API
 
-- workflow state
-- permissions
-- active task contract
-- acceptance requirements
-- relevant references
-- execution boundaries
+`StateResolver` and `ArtifactResolver` preserve explicit owner-selected inputs.
+`Resolver.Resolve` preserves scope as well as all supplied constraints.
+`ResolvedContext.ToCompileRequest().ToCompilerInput()` preserves task/workflow
+identity, artifact paths AND reasons/digests, forbidden actions and state identity.
+Slices are copied so later caller mutation cannot change a compiled packet.
 
-## Input
+`Compiler.Compile` is the backward-compatible, unbound inspection API.
+`Compiler.CompileBound` validates a complete request and returns a v2 packet.
+`Packet.VerifyAgainst` compares packet integrity with a fresh owner-resolved
+request. Missing bindings, changed obligations, tampering, duplicate artifacts,
+invalid portable paths and output-budget overflow fail with explicit errors.
 
-A compiler request contains:
+## Required inputs for bound compilation
 
-```json
-{
-  "task_id": "...",
-  "workflow": "quick",
-  "intent": "...",
-  "changed_scope": [],
-  "risk": "low|medium|high"
-}
-```
+| Input | Meaning |
+| --- | --- |
+| Task ID and workflow | Exact selected task and owning workflow |
+| Goal, scope and acceptance | Current contract, never inferred from filenames |
+| State reference and SHA-256 | Exact state bytes resolved by the owning runtime |
+| Source revision | Exact Git revision; live artifact digests also cover working-tree changes |
+| Artifact path, reason and SHA-256 | Why each live input is selected and its content identity |
+| Constraints, skills and forbidden actions | Preserved as supplied, not invented by the compiler |
 
-## Output
+The output schema is `schemas/context-packet.schema.json`. `bound: true` means
+structural binding only; it does not prove live verification, permission,
+acceptance, readiness or `claim_ready`. Hashes are integrity checks, not signatures.
+The runtime owner must obtain facts through its trusted APIs and re-resolve them
+before consumption. An Agent supplying matching strings is not verification.
 
-The compiler emits a bounded context packet:
+`generated_at` is informational and excluded from the content digest. It is not
+an authorization clock. The default output ceiling is 128 KiB; a caller may set
+a smaller budget, never a larger ceiling. Overflow returns no partial packet.
+No rule, approval or acceptance obligation is removed to meet a budget.
 
-```json
-{
-  "goal": "",
-  "constraints": [],
-  "required_skills": [],
-  "relevant_artifacts": [],
-  "acceptance": [],
-  "forbidden_actions": [],
-  "runtime_state_ref": ""
-}
-```
+## Rollout still required
 
-## Rules
-
-- The packet is a derived view, not a new source of truth.
-- Permissions come from runtime state, never from generated context.
-- Missing evidence stays missing.
-- Context reduction cannot remove security, ownership, or acceptance checks.
-- Full state inspection remains available for reconciliation.
-
-## Migration path
-
-1. Introduce packet schema.
-2. Add runtime compiler command.
-3. Migrate Quick first.
-4. Measure context reduction.
-5. Expand to other workflows.
+First add a read-only Quick shadow adapter using its real state/artifact owners.
+Compare it against existing task packets on identical snapshots before switching
+any consumer. Preserve existing permission, result, Review and human acceptance
+gates. Test installed Classic/Advanced behavior and the complete runtime before
+claiming workflow integration or cost reduction. Other workflows follow only
+after measured Quick evidence. No CLI command or production consumer is claimed
+by this library change.

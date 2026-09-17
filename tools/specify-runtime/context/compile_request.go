@@ -1,31 +1,36 @@
 package context
 
-// CompileRequest is the runtime-owned input boundary for producing a context
-// packet. It intentionally contains facts already resolved by runtime layers.
-// It is not a permission grant and it does not prove acceptance.
+// CompileRequest contains facts resolved by the owning runtime. It is not a
+// permission grant, and caller-supplied hashes alone do not prove live facts.
 type CompileRequest struct {
-	TaskID      string
-	Workflow    string
-	Goal        string
-	Artifacts   []Artifact
-	Skills      []string
-	Constraints []string
-	Acceptance  []string
-	StateRef    string
+	TaskID, Workflow, Goal                string
+	Scope                                 []string
+	Artifacts                             []Artifact
+	Skills, Constraints, Acceptance       []string
+	ForbiddenActions                      []string
+	StateRef, StateDigest, SourceRevision string
+}
+
+func (r ResolvedContext) ToCompileRequest() CompileRequest {
+	return CompileRequest{
+		TaskID: r.TaskID, Workflow: r.Workflow, Goal: r.Goal,
+		Scope: clone(r.Scope), Artifacts: append([]Artifact(nil), r.Artifacts...),
+		Skills: clone(r.Skills), Constraints: clone(r.Constraints),
+		Acceptance: clone(r.Acceptance), ForbiddenActions: clone(r.ForbiddenActions),
+		StateRef: r.StateRef, StateDigest: r.StateDigest, SourceRevision: r.SourceRevision,
+	}
 }
 
 func (r CompileRequest) ToCompilerInput() Input {
-	artifactPaths := make([]string, 0, len(r.Artifacts))
+	paths := make([]string, 0, len(r.Artifacts))
 	for _, artifact := range r.Artifacts {
-		artifactPaths = append(artifactPaths, artifact.Path)
+		paths = append(paths, artifact.Path)
 	}
-
 	return Input{
-		Goal:       r.Goal,
-		Skills:     append([]string(nil), r.Skills...),
-		Artifacts:  artifactPaths,
-		Rules:      append([]string(nil), r.Constraints...),
-		Acceptance: append([]string(nil), r.Acceptance...),
-		StateRef:   r.StateRef,
+		TaskID: r.TaskID, Workflow: r.Workflow, Goal: r.Goal, Scope: clone(r.Scope),
+		Skills: clone(r.Skills), Artifacts: paths,
+		ArtifactDetails: append([]Artifact(nil), r.Artifacts...), Rules: clone(r.Constraints),
+		Acceptance: clone(r.Acceptance), ForbiddenActions: clone(r.ForbiddenActions),
+		StateRef: r.StateRef, StateDigest: r.StateDigest, SourceRevision: r.SourceRevision,
 	}
 }

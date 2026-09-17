@@ -1,26 +1,29 @@
 package context
 
-// Compiler builds bounded context packets from runtime-owned facts.
-// The initial implementation intentionally accepts explicit inputs only.
-// Repository scanning, permission checks and state lookup stay owned by the
-// runtime and will be added behind this boundary.
-type Compiler struct{}
+// Compiler assembles runtime-supplied context. MaxBytes is an output budget:
+// a bound compilation fails rather than truncating any required constraint.
+type Compiler struct{ MaxBytes int }
 
 type Input struct {
-	Goal       string
-	Skills     []string
-	Artifacts  []string
-	Rules      []string
-	Acceptance []string
-	StateRef   string
+	Goal, TaskID, Workflow                string
+	Scope, Skills, Artifacts              []string
+	ArtifactDetails                       []Artifact
+	Rules, Acceptance, ForbiddenActions   []string
+	StateRef, StateDigest, SourceRevision string
 }
 
+// Compile preserves the original inspection-only API. Its output is unbound
+// and must not be consumed as an executable contract. Use CompileBound and
+// VerifyAgainst with fresh owner-resolved inputs at the consumption boundary.
 func (Compiler) Compile(in Input) Packet {
 	packet := New(in.Goal)
-	packet.RequiredSkills = append([]string(nil), in.Skills...)
-	packet.RelevantArtifacts = append([]string(nil), in.Artifacts...)
-	packet.Constraints = append([]string(nil), in.Rules...)
-	packet.Acceptance = append([]string(nil), in.Acceptance...)
-	packet.RuntimeStateRef = in.StateRef
+	packet.TaskID, packet.Workflow = in.TaskID, in.Workflow
+	packet.Scope, packet.RequiredSkills = clone(in.Scope), clone(in.Skills)
+	packet.RelevantArtifacts = clone(in.Artifacts)
+	packet.ArtifactDetails = append([]Artifact(nil), in.ArtifactDetails...)
+	packet.Constraints, packet.Acceptance = clone(in.Rules), clone(in.Acceptance)
+	packet.ForbiddenActions = clone(in.ForbiddenActions)
+	packet.RuntimeStateRef, packet.StateDigest = in.StateRef, in.StateDigest
+	packet.SourceRevision = in.SourceRevision
 	return packet
 }

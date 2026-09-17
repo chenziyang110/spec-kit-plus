@@ -1,50 +1,42 @@
 package context
 
-// Resolver converts explicit runtime inputs into resolved context.
-// It intentionally does not inspect arbitrary repository state, grant
-// permissions, or decide acceptance. Those remain runtime-owned concerns.
+// Resolver copies explicit runtime inputs; it neither discovers facts nor grants authority.
 type Resolver struct{}
 
-// ResolveInput is the bounded input contract for context compilation.
 type ResolveInput struct {
-	TaskID       string
-	Workflow     string
-	Goal         string
-	Scope        []string
-	Artifacts    []Artifact
-	Acceptance   []string
-	Constraints  []string
-	Skills       []string
-	StateRef     string
+	TaskID, Workflow, Goal                string
+	Scope                                 []string
+	Artifacts                             []Artifact
+	Acceptance, Constraints, Skills       []string
+	ForbiddenActions                      []string
+	StateRef, StateDigest, SourceRevision string
 }
 
-// Artifact is an explicitly supplied context candidate.
+// Artifact retains the reason and exact content identity selected by the runtime.
+// A digest supplied here must be rechecked by the owner against live bytes.
 type Artifact struct {
-	Path   string
-	Reason string
+	Path   string `json:"path"`
+	Reason string `json:"reason"`
+	Digest string `json:"digest,omitempty"`
 }
 
-// ResolvedContext is a compiler-ready semantic view.
 type ResolvedContext struct {
-	TaskID      string
-	Workflow    string
-	Goal        string
-	Artifacts   []Artifact
-	Acceptance  []string
-	Constraints []string
-	Skills      []string
-	StateRef    string
+	TaskID, Workflow, Goal                string
+	Scope                                 []string
+	Artifacts                             []Artifact
+	Acceptance, Constraints, Skills       []string
+	ForbiddenActions                      []string
+	StateRef, StateDigest, SourceRevision string
 }
 
-func (Resolver) Resolve(input ResolveInput) ResolvedContext {
+func (Resolver) Resolve(in ResolveInput) ResolvedContext {
 	return ResolvedContext{
-		TaskID: input.TaskID,
-		Workflow: input.Workflow,
-		Goal: input.Goal,
-		Artifacts: append([]Artifact(nil), input.Artifacts...),
-		Acceptance: append([]string(nil), input.Acceptance...),
-		Constraints: append([]string(nil), input.Constraints...),
-		Skills: append([]string(nil), input.Skills...),
-		StateRef: input.StateRef,
+		TaskID: in.TaskID, Workflow: in.Workflow, Goal: in.Goal,
+		Scope: clone(in.Scope), Artifacts: append([]Artifact(nil), in.Artifacts...),
+		Acceptance: clone(in.Acceptance), Constraints: clone(in.Constraints),
+		Skills: clone(in.Skills), ForbiddenActions: clone(in.ForbiddenActions),
+		StateRef: in.StateRef, StateDigest: in.StateDigest, SourceRevision: in.SourceRevision,
 	}
 }
+
+func clone(values []string) []string { return append([]string(nil), values...) }

@@ -1,25 +1,19 @@
 package context
 
-// StateResolver extracts runtime-owned state references into context inputs.
-// It does not grant permissions or decide lifecycle transitions.
+// StateResolver preserves explicit state identity without granting transitions.
 type StateResolver struct{}
 
 type StateInput struct {
-	TaskID   string
-	Workflow string
-	StateRef string
+	TaskID, Workflow, StateRef, StateDigest, SourceRevision string
 }
 
 type RuntimeState struct {
-	TaskID   string
-	Workflow string
-	StateRef string
+	TaskID, Workflow, StateRef, StateDigest, SourceRevision string
 }
 
-func (StateResolver) Resolve(input StateInput) RuntimeState {
+func (StateResolver) Resolve(in StateInput) RuntimeState {
 	return RuntimeState{
-		TaskID:   input.TaskID,
-		Workflow: input.Workflow,
-		StateRef: input.StateRef,
+		TaskID: in.TaskID, Workflow: in.Workflow, StateRef: in.StateRef,
+		StateDigest: in.StateDigest, SourceRevision: in.SourceRevision,
 	}
 }
