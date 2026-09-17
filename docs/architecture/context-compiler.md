@@ -3,8 +3,9 @@
 ## Purpose and current boundary
 
 Compile a task-specific view while keeping workflow state, permissions and
-acceptance owned by the existing runtime. The library now has an internal,
-read-only Quick shadow adapter, not a public CLI or installed workflow consumer.
+acceptance owned by the existing runtime. The read-only Quick shadow adapter
+has an explicit diagnostic CLI; it is not an installed workflow consumer.
+See [Quick shadow command](quick-shadow-cli.md) for invocation and limits.
 
 The model reasons about intent and implementation. Deterministic assembly retains
 exact task, scope, state, source, artifact, restriction and acceptance bindings.
@@ -83,9 +84,10 @@ transaction, filesystem security sandbox or hostile-writer isolation boundary.
 
 ## Rollout still required
 
-The internal adapter and source-level tests now exist. Public command discovery,
-capability negotiation and installed Classic/Advanced consumers remain unchanged.
-Before enabling any consumer, run the complete runtime and install regressions
+The adapter and optional `quick.context-shadow` diagnostic capability now exist.
+Command help, API show and API pack share the same non-authority contract.
+Installed Classic/Advanced consumers and their existing capability minimums remain
+unchanged. Before enabling any consumer, run the complete runtime and install regressions
 and verify live artifact/approval inputs on real projects. Test both profiles;
 then measure actual Agent cost and accepted outcomes. A synthetic assembly
 benchmark is not a production speedup or token-saving result. See the

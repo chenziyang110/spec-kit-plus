@@ -6,9 +6,8 @@ import (
 	"io"
 )
 
-// Internal command adapter prepared for the separate quick context-shadow
-// registration change. Run/RunContext and capability discovery do not call or
-// advertise it yet. No generated workflow or existing executor consumes it.
+// Optional read-only diagnostic called by Run/RunContext. No generated
+// workflow or executor consumes the shadow projection as an execution contract.
 func runQuickContextShadow(args []string, stdout io.Writer) int {
 	return runQuickContextShadowWithContext(context.Background(), args, stdout)
 }
@@ -16,6 +15,9 @@ func runQuickContextShadow(args []string, stdout io.Writer) int {
 func runQuickWithContext(ctx context.Context, args []string, stdout io.Writer) int {
 	if len(args) > 0 && args[0] == "context-shadow" {
 		return runQuickContextShadowWithContext(ctx, args[1:], stdout)
+	}
+	if hasFlag(args, "--help") || hasFlag(args, "-h") {
+		return writeQuickHelpWithShadow(ctx, args, stdout, runQuick, writeEnvelope)
 	}
 	return runQuick(args, stdout)
 }

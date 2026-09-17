@@ -51,6 +51,9 @@ func isShortRuntimeQuery(args []string) bool {
 	if len(args) < 2 {
 		return false
 	}
+	if topLevel == "quick" && args[1] == "context-shadow" {
+		return true
+	}
 	switch strings.ToLower(strings.TrimSpace(args[1])) {
 	case "catalog", "checkpoint-show", "handshake", "item-status", "list", "registry", "resume", "schema", "show", "show-many", "status":
 		return true

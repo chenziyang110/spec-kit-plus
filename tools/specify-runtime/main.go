@@ -98,7 +98,7 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, cl
 	case "prd-scan":
 		return runPRDScan(args[1:], stdout)
 	case "quick":
-		return runQuick(args[1:], stdout)
+		return runQuickWithContext(ctx, args[1:], stdout)
 	default:
 		env := NewEnvelope("usage-error", fmt.Sprintf("unknown command %q", args[0]))
 		return writeEnvelope(stdout, env)
@@ -193,7 +193,7 @@ func runAPI(args []string, stdout, stderr io.Writer, cliVersion string) int {
 	case "schema":
 		return runAPISchema(args[1:], stdout)
 	case "show":
-		return runAPIShow(args[1:], stdout)
+		return runAPIShowWithQuickShadow(args[1:], stdout)
 	default:
 		_ = stderr
 		return writeEnvelope(stdout, NewEnvelope("usage-error", fmt.Sprintf("unknown api subcommand %q", args[0])))
@@ -1398,6 +1398,7 @@ func defaultCapabilities() []string {
 		"quick.item-status",
 		"quick.list",
 		"quick.packet-compile",
+		quickShadowCapability,
 		"quick.preflight",
 		"quick.resume",
 		"quick.status",
@@ -1449,6 +1450,8 @@ func defaultCapabilityCards() []map[string]string {
 
 func capabilitySummary(id string) string {
 	switch id {
+	case quickShadowCapability:
+		return quickShadowSummary
 	case "api.handshake":
 		return "Publish runtime protocol, version, and capability ids."
 	case "api.ensure":
@@ -1599,10 +1602,10 @@ func capabilitySummary(id string) string {
 		return "Freeze and validate the current test universe against its declared sources."
 	case "test-design.lane-prepare":
 		return "Create bounded discovery lanes from leader-authored structured input."
-	case "test-design.lane-lease":
-		return "Lease one pending test-design lane and return its runtime-owned packet."
 	case "test-design.lane-checkpoint":
 		return "Validate and persist one packet-local cumulative worker checkpoint."
+	case "test-design.lane-lease":
+		return "Lease one pending test-design lane and return its runtime-owned packet."
 	case "test-design.lane-yield":
 		return "Release a leased lane while preserving its accepted checkpoint cursor."
 	case "test-design.lane-accept":

@@ -100,6 +100,7 @@ func runAPIPack(args []string, stdout io.Writer, cliVersion string) int {
 			"input_contract": descriptor.capability["input_contract"],
 		}
 		addQuickPackOutputContract(capabilityID, descriptor.capability, item)
+		addQuickShadowPackContract(capabilityID, item)
 		if schemaID, ok := descriptor.capability["input_schema"].(string); ok && strings.TrimSpace(schemaID) != "" {
 			item["schema_ref"] = schemaID
 			if includeSchema {
@@ -261,7 +262,7 @@ func presentOrRequested(ids []string) []string {
 
 func apiCapabilityDescriptor(capabilityID string) (apiCapabilityDescriptorRecord, bool) {
 	var stdout bytes.Buffer
-	if code := runAPIShow([]string{capabilityID}, &stdout); code != 0 {
+	if code := runAPIShowWithQuickShadow([]string{capabilityID}, &stdout); code != 0 {
 		return apiCapabilityDescriptorRecord{}, false
 	}
 	payload := map[string]any{}

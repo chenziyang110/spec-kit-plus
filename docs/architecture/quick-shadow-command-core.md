@@ -1,24 +1,22 @@
-# Quick shadow command core: internal, not registered
+# Quick shadow command core
 
 ## Current boundary
 
-This increment lands the independently checked command core, Git subprocess
-reader and cancellation-aware state-reader variants from the earlier local v2
-patch. It does NOT apply that patch's top-level routing or capability-registration
-hunks. `Run`, `RunContext`, `runQuick`, default capabilities, `api show`, `api pack`
-and query-timeout classification remain unchanged in this commit.
+The command core landed at 70d846c and is now connected to the optional
+`quick.context-shadow` diagnostic capability. `Run` and `RunContext` select the
+context-aware Quick router; API Handshake/List/Ensure/Show/Pack expose the same
+read-only contract. Source registration is not a published binary release or
+installed workflow adoption. No generated consumer has switched.
 
-Consequently `specify-runtime quick context-shadow` is NOT an available public
-command at this checkpoint. The internal handler and descriptor helpers are
-prepared for a separate registration increment; function names are not proof
-that users or generated workflows can invoke them.
+The older local cumulative v1/v2 and remaining-only registration archives are
+superseded. Do not apply them over the current branch.
 
 ## Landed implementation
 
 - `quick_context_shadow_command.go` owns exact selectors, bounded errors,
   shadow-only envelopes, cancellation checks, and complete encoded-output limits.
-- `quick_context_shadow_cli.go` supplies the internal typed-owner adapter and
-  contextual routing helper. They are not called by the top-level router yet.
+- `quick_context_shadow_cli.go` supplies the typed-owner adapter and
+  contextual routing helper. The top-level router now calls the contextual helper.
 - `quick_context_shadow_git.go` owns the existing Git identity query, now with
   caller cancellation, the five-second local deadline and a 16 KiB output bound.
 - `quick_context_shadow.go` retains its old method signatures as background-context
@@ -51,14 +49,20 @@ acceptance. `authorizes_execution`, `live_code_verified`, `acceptance_verified`
 and `claim_ready` remain false. The full owner packet remains required; the
 projection alone is not executable.
 
-## Registration and verification still pending
+## Registration ownership and pending verification
 
-The remaining source registration touches script_domains.go, main.go,
-agent_schema.go, capability_efficiency.go and command_timeout.go, plus the public
-command guide and entrypoint tests from the local v2 package. Apply these as one
-coherent follow-up, verify Help/Handshake/Show/Pack agreement, and execute the real
-Run/RunContext tests in a complete checkout before any consumer switch.
+`quick_context_shadow_discovery.go` owns the optional descriptor dispatcher and
+augments the existing Quick help response without changing its legacy fields.
+Both `runAPI` and `apiCapabilityDescriptor` call that dispatcher; non-shadow
+capabilities delegate unchanged to `runAPIShow`. Compact packs retain the same
+output contract rather than stripping non-authority fields. The small registry,
+summary and query-timeout additions are source-owned, not prompt instructions.
 
-Do not apply the older cumulative v2 package on top of this commit: it includes
-already-landed paths and pins a different base. Preserve any user-owned edits.
-The delivery checkpoint records precisely what was rerun and what remains open.
+This separation leaves `script_domains.go` and `agent_schema.go` unchanged;
+ordinary Quick execution and existing descriptors keep their original owners.
+The complete-checkout entrypoint suite checks mixed read/write capability packs,
+legacy descriptor equivalence, real state reads and cancellation propagation.
+Those complete integration gates, native OS checks and install/regression tests
+must pass before release or consumer adoption. See the
+[registration checkpoint](../workflow-quality/quick-shadow-registration-2026-09-17.md)
+for the tests actually executed and [command guide](quick-shadow-cli.md) for use.
