@@ -1,69 +1,57 @@
 # Spec Kit Plus
 
-*Build high-quality software faster.*
+Spec-Driven Development for local AI coding agents: carry product intent through
+implementation, integrated review and human acceptance without losing state.
 
-**An effort to allow organizations to focus on product scenarios rather than writing undifferentiated code with the help of Spec-Driven Development.**
+## Start with your goal
 
-## What is Spec-Driven Development?
+You do not need to learn the whole workflow catalog before starting.
+[Start Here](start-here.md) explains setup and the first interaction.
 
-Spec-Driven Development **flips the script** on traditional software development. For decades, code has been king — specifications were just scaffolding we built and discarded once the "real work" of coding began. Spec-Driven Development changes this: **specifications become executable**, directly generating working implementations rather than just guiding them.
+| What you need now | Existing workflow | Boundary |
+| --- | --- | --- |
+| Understand the repository | `ask` | Read-only, evidence-backed answers |
+| Shape an idea | `discussion` | Clarify intent before choosing delivery |
+| Deliver an already-clear outcome | `quick` | Resumable direct delivery; not limited to small tasks |
+| Build a formal specification | `specify` | Start the formal artifact and acceptance chain |
+| Continue unfinished work | `auto` | Resume an existing, unambiguously bound state; never guess a new task |
 
-## Getting Started
+These are canonical workflow names, not shell commands. Your selected Agent
+integration determines whether invocation uses `$sp-*`, `/sp-*`, `/skill:sp-*`
+or `/sp.*`. Use the exact Start Here panel printed by `specify init`.
 
-- [Installation Guide](installation.md)
-- [Quick Start Guide](quickstart.md)
-- [Upgrade Guide](upgrade.md)
-- [Local Development](local-development.md)
-- [Constitution Profiles](constitution-profiles.md)
-- [Project Cognition Compatibility Inventory](project-cognition-compatibility-inventory.md)
+## Delivery paths
 
-## Core Philosophy
+The normal formal route is `specify -> plan -> tasks -> implement -> review -> accept`.
+Substantive UI without an applicable registered design uses the conditional
+`specify -> design -> plan` gate. Design approval remains user-owned.
+Feasibility research and Test Design are conditional branches, not universal
+extra steps. Quick is a different delivery path, not permission to skip evidence.
 
-Spec-Driven Development is a structured process that emphasizes:
+## Installation, upgrade and recovery
 
-- **Intent-driven development** where specifications define the "*what*" before the "*how*"
-- **Rich specification creation** using guardrails and organizational principles
-- **Multi-step refinement** rather than one-shot code generation from prompts
-- **Heavy reliance** on advanced AI model capabilities for specification interpretation
+| Goal | Guide |
+| --- | --- |
+| Install and pin a compatible CLI/runtime | [Installation](installation.md) |
+| Complete a first workflow | [Quick Start](quickstart.md) |
+| Upgrade or repair generated assets | [Upgrade](upgrade.md) |
+| Diagnose tools and installed project compatibility | Run `specify check` |
+| Investigate missing or failing CI evidence | [CI troubleshooting](ci-troubleshooting.md) |
 
-## Development Phases
+An untagged Git installation follows development head. Prefer an explicitly
+selected published source tag for reproducible use. Source access is required
+for private Git installs; public runtime binaries do not make the source public.
 
-| Phase | Focus | Key Activities |
-|-------|-------|----------------|
-| **0-to-1 Development** ("Greenfield") | Generate from scratch | <ul><li>Start with high-level requirements</li><li>Generate specifications</li><li>Plan implementation steps</li><li>Build production-ready applications</li></ul> |
-| **Creative Exploration** | Parallel implementations | <ul><li>Explore diverse solutions</li><li>Support multiple technology stacks & architectures</li><li>Experiment with UX patterns</li></ul> |
-| **Iterative Enhancement** ("Brownfield") | Brownfield modernization | <ul><li>Add features iteratively</li><li>Modernize legacy systems</li><li>Adapt processes</li></ul> |
+## Maintainer and reference documentation
 
-## Experimental Goals
+- [Local Development](local-development.md): source setup and verification.
+- [Project Handbook](../PROJECT-HANDBOOK.md): architecture and product contracts.
+- [Repository Guidance](../AGENTS.md): source ownership and change propagation.
+- [Workflow Profiles](agent-guidance/workflow-profiles.md): separate Classic and Advanced prompt products over shared runtime contracts.
+- [Constitution Profiles](constitution-profiles.md): governance defaults.
+- [Cognition Compatibility](project-cognition-compatibility-inventory.md): navigation compatibility; live source remains authoritative.
+- [Workflow Quality](workflow-quality/README.md): measure full-chain cost and retained behavior; a target is not an achieved metric.
 
-Our research and experimentation focus on:
-
-### Technology Independence
-
-- Create applications using diverse technology stacks
-- Validate the hypothesis that Spec-Driven Development is a process not tied to specific technologies, programming languages, or frameworks
-
-### Enterprise Constraints
-
-- Demonstrate mission-critical application development
-- Incorporate organizational constraints (cloud providers, tech stacks, engineering practices)
-- Support enterprise design systems and compliance requirements
-
-### User-Centric Development
-
-- Build applications for different user cohorts and preferences
-- Support various development approaches (from vibe-coding to AI-native development)
-
-### Creative & Iterative Processes
-
-- Validate the concept of parallel implementation exploration
-- Provide robust iterative feature development workflows
-- Extend processes to handle upgrades and modernization tasks
-
-## Contributing
-
-See [Local Development](local-development.md) for contributor setup and verification guidance.
-
-## Support
-
-For support, open an issue in the [Spec Kit Plus repository](https://github.com/chenziyang110/spec-kit-plus/issues).
+The [repository README](../README.md) retains the extended command/reference
+material. Product questions and reproducible defects belong in the
+[private repository issue tracker](https://github.com/chenziyang110/spec-kit-plus/issues).

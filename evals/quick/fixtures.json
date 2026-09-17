@@ -1,0 +1,41 @@
+{
+  "schema": "quick-fixtures-v1",
+  "cases": {
+    "Q001": {
+      "task": "Change TIMEOUT_SECONDS from 30 to 45 in config.py. Preserve RETRIES=3. Modify only config.py; run Python with -B to avoid cache files.",
+      "files": {
+        "config.py": "TIMEOUT_SECONDS = 30\nRETRIES = 3\n"
+      },
+      "verify": "import config\nassert config.TIMEOUT_SECONDS == 45\nassert config.RETRIES == 3\n"
+    },
+    "Q002": {
+      "task": "Implement normalize_tags(values) in tags.py: strip and casefold strings, discard blanks, remove duplicates preserving first-seen order, reject any non-string with TypeError. Modify only tags.py; use Python -B.",
+      "files": {
+        "tags.py": "def normalize_tags(values):\n    raise NotImplementedError\n"
+      },
+      "verify": "from tags import normalize_tags\nassert normalize_tags([\" A \", \"a\", \"\", \" B\", \"b\"]) == [\"a\", \"b\"]\nassert normalize_tags([]) == []\ntry:\n    normalize_tags([1])\nexcept TypeError:\n    pass\nelse:\n    raise AssertionError(\"non-string input accepted\")\n"
+    },
+    "Q003": {
+      "task": "Change tax.py RATE to decimal 0.1 and update pricing.total so prices include that tax, rounded to two decimals. Preserve total(0)=0 and reject negative prices with ValueError. Only tax.py and pricing.py may change; use Python -B.",
+      "files": {
+        "tax.py": "RATE = 10\n",
+        "pricing.py": "from tax import RATE\n\ndef total(price):\n    return price + RATE\n"
+      },
+      "verify": "import tax\nfrom pricing import total\nassert tax.RATE == 0.1\nassert total(100) == 110\nassert total(0) == 0\nassert total(19.99) == 21.99\ntry:\n    total(-1)\nexcept ValueError:\n    pass\nelse:\n    raise AssertionError(\"negative price accepted\")\n"
+    },
+    "Q004": {
+      "task": "Fix permissions.can(role, action). admin may read/write; member may read only; all other roles and actions must deny. Modify only permissions.py. Do not expand authority for unknown inputs. Use Python -B.",
+      "files": {
+        "permissions.py": "def can(role, action):\n    return role != \"guest\"\n"
+      },
+      "verify": "from permissions import can\nfor role in [\"admin\", \"member\", \"guest\", \"unknown\", None]:\n    for action in [\"read\", \"write\", \"delete\", None]:\n        expected = role == \"admin\" and action in (\"read\", \"write\") or role == \"member\" and action == \"read\"\n        assert can(role, action) is expected, (role, action)\n"
+    },
+    "Q005": {
+      "task": "Implement checkpoint.load(path): return a JSON object only when status is exactly \"ready\" and resume is a nonempty string. Missing, malformed or invalid files return {\"status\":\"blocked\",\"resume\":None}. Never modify or delete the input file. Only checkpoint.py may change; use Python -B.",
+      "files": {
+        "checkpoint.py": "import json\n\ndef load(path):\n    return json.loads(path.read_text())\n"
+      },
+      "verify": "import tempfile, json\nfrom checkpoint import load\nblocked = {\"status\": \"blocked\", \"resume\": None}\nwith tempfile.TemporaryDirectory() as temp:\n    path = Path(temp) / \"checkpoint.json\"\n    assert load(path) == blocked\n    for content in [\"{\", \"[]\", \"null\", '{\"status\":\"ready\",\"resume\":\"\"}']:\n        path.write_text(content)\n        assert load(path) == blocked\n        assert path.read_text() == content\n    good = {\"status\": \"ready\", \"resume\": \"step-2\"}\n    path.write_text(json.dumps(good))\n    assert load(path) == good\n"
+    }
+  }
+}

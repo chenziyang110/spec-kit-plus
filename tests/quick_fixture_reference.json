@@ -1,0 +1,18 @@
+{
+  "Q001": {
+    "config.py": "TIMEOUT_SECONDS = 45\nRETRIES = 3\n"
+  },
+  "Q002": {
+    "tags.py": "def normalize_tags(values):\n    result = []\n    for value in values:\n        if not isinstance(value, str):\n            raise TypeError(\"string required\")\n        value = value.strip().casefold()\n        if value and value not in result:\n            result.append(value)\n    return result\n"
+  },
+  "Q003": {
+    "tax.py": "RATE = 0.1\n",
+    "pricing.py": "from tax import RATE\n\ndef total(price):\n    if price < 0:\n        raise ValueError(\"negative\")\n    return round(price * (1 + RATE), 2)\n"
+  },
+  "Q004": {
+    "permissions.py": "def can(role, action):\n    return (role == \"admin\" and action in (\"read\", \"write\")) or (role == \"member\" and action == \"read\")\n"
+  },
+  "Q005": {
+    "checkpoint.py": "import json\n\ndef load(path):\n    blocked = {\"status\": \"blocked\", \"resume\": None}\n    try:\n        value = json.loads(path.read_text())\n    except (OSError, ValueError):\n        return blocked\n    if isinstance(value, dict) and value.get(\"status\") == \"ready\" and isinstance(value.get(\"resume\"), str) and value[\"resume\"]:\n        return value\n    return blocked\n"
+  }
+}
