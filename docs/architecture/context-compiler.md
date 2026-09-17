@@ -3,8 +3,8 @@
 ## Purpose and current boundary
 
 Compile a task-specific view while keeping workflow state, permissions and
-acceptance owned by the existing runtime. This is a tested library foundation,
-not yet a generated-workflow command or an installed Quick consumer.
+acceptance owned by the existing runtime. The library now has an internal,
+read-only Quick shadow adapter, not a public CLI or installed workflow consumer.
 
 The model reasons about intent and implementation. Deterministic assembly retains
 exact task, scope, state, source, artifact, restriction and acceptance bindings.
@@ -46,15 +46,50 @@ an authorization clock. The default output ceiling is 128 KiB; a caller may set
 a smaller budget, never a larger ceiling. Overflow returns no partial packet.
 No rule, approval or acceptance obligation is removed to meet a budget.
 
+## Internal Quick shadow adapter
+
+`quickService.contextShadow(workspace, itemID)` reads the selected project's
+actual confirmation file and local Git identity. It uses `secureProjectPath`,
+the existing Quick confirmation type, `computeQuickConfirmationDigest` and
+`compileQuickWorkerPacket`. Input bytes are bounded before decoding; the legacy
+unbounded loader is not used for this diagnostic. Tests compare the result with
+the existing loader and packet builder on the same fixture.
+
+`BuildQuickShadow` preserves the complete legacy owner packet, including its
+UI/design bindings, exclusions, dependencies and result requirements. Its small
+projection is NOT a replacement contract. The raw confirmation digest, complete
+owner packet, project/worktree identity and Git HEAD bind the report. Empty or
+unprojectable file scopes fail this diagnostic without changing the legacy path.
+A second owner snapshot must match; matching inputs do not need a second bound
+compilation. `VerifyQuickShadow` requires fresh owner reads and checks all report
+fields except the informational generation time. Neither function writes state,
+retries a blocked operation, repairs data, claims work or changes executors.
+
+Duplicate or undeclared item/status rows and blocked, unknown or empty selected
+statuses are refused; absent rows keep the owner's pending default. Dependencies
+must satisfy the legacy packet builder, and an accepted item is not restarted.
+Global/selected dispatch blockers remain blockers. Git overrides are cleared for
+the read-only identity command; linked worktrees remain separate, and a parent
+repository or missing HEAD is never a substitute identity.
+
+Both `authorizes_execution` and `live_code_verified` are false. Only the selected
+confirmation bytes and owner packet are read: referenced source files, registered
+design approvals, live UI and real acceptance evidence are NOT independently
+verified here. In particular, unchanged Git HEAD does not prove an unchanged
+working tree. Future consumers must resolve those exact artifacts through their
+owners and preserve all existing permission, Review and human acceptance gates.
+Repeated reads detect observable drift, not every ABA race; this is not a
+transaction, filesystem security sandbox or hostile-writer isolation boundary.
+
 ## Rollout still required
 
-First add a read-only Quick shadow adapter using its real state/artifact owners.
-Compare it against existing task packets on identical snapshots before switching
-any consumer. Preserve existing permission, result, Review and human acceptance
-gates. Test installed Classic/Advanced behavior and the complete runtime before
-claiming workflow integration or cost reduction. Other workflows follow only
-after measured Quick evidence. No CLI command or production consumer is claimed
-by this library change.
+The internal adapter and source-level tests now exist. Public command discovery,
+capability negotiation and installed Classic/Advanced consumers remain unchanged.
+Before enabling any consumer, run the complete runtime and install regressions
+and verify live artifact/approval inputs on real projects. Test both profiles;
+then measure actual Agent cost and accepted outcomes. A synthetic assembly
+benchmark is not a production speedup or token-saving result. See the
+[Quick shadow checkpoint](../workflow-quality/quick-shadow-checkpoint-2026-09-17.md).
 
 ## Wire decoding and distribution
 
@@ -76,5 +111,5 @@ The wheel force-includes the canonical schema under
 `specify_cli/core_pack/schemas/context-packet.schema.json`. Distribution tests
 run the actual context package at that declared layout and validate Go-produced
 JSON with the canonical schema. They are not a full wheel/install or Quick
-integration test. See the [repair checkpoint](../workflow-quality/repair-status-2026-09-17.md)
-for measured validation and the still-open rollout boundary.
+integration test. See the [earlier repair checkpoint](../workflow-quality/repair-status-2026-09-17.md)
+for its historical validation; do not count those runs as repeated in this increment.
