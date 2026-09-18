@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import contextmanager
 import hashlib
 import importlib.metadata as importlib_metadata
 import json
@@ -13,13 +14,14 @@ import shutil
 import shlex
 import subprocess
 import sys
-from typing import Any, Callable, TYPE_CHECKING
+from typing import Any, Callable, Iterator, TYPE_CHECKING
 from urllib.parse import urlsplit
 import uuid
 
 from .atomic_io import (
     atomic_write_bytes,
     atomic_write_text,
+    interprocess_lock,
     read_local_state_text,
     safe_local_state_path,
 )
@@ -1149,13 +1151,31 @@ def install_shared_hook_launcher_assets(
 
 
 def _load_config(path: Path) -> dict[str, Any] | None:
+    """Reject malformed configuration instead of rewriting ambiguous user data."""
+
     if not path.exists():
         return {}
+
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate configuration key")
+            result[key] = value
+        return result
+
     try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+        loaded = json.loads(
+            path.read_text(encoding="utf-8"), object_pairs_hook=unique_object,
+        )
+        if not isinstance(loaded, dict):
+            return None
+        # Reject non-finite numbers and unpaired surrogate escapes before any
+        # caller publishes files based on data that cannot be written faithfully.
+        json.dumps(loaded, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except (ValueError, OSError, RecursionError):
         return None
-    return loaded if isinstance(loaded, dict) else None
+    return loaded
 
 
 def _payload_argv(payload: Any) -> tuple[str, ...] | None:
@@ -2000,6 +2020,39 @@ def rebind_unavailable_specify_runtime_commands(
     return rebound
 
 
+@contextmanager
+def _locked_project_launcher_config(
+    project_root: Path,
+) -> Iterator[tuple[Path, dict[str, Any] | None]]:
+    """Serialize cooperating launcher writers and reread config under the lock.
+
+    Keep the lock file: unlinking it can split waiters across different inodes.
+    Readers, external editors, low-level binary copies and crashes are not made
+    transactional. In particular, a later config-save failure can leave a new
+    binary with its previous binding; the existing loader rejects that mismatch.
+    """
+
+    config_path = safe_local_state_path(
+        project_root / SPECIFY_CONFIG_FILE, root=project_root,
+    )
+    # Reject bad existing input before creating cache, binary or binding files.
+    if _load_config(config_path) is None:
+        yield config_path, None
+        return
+    lock_path = safe_local_state_path(
+        project_root / ".specify" / "runtime" / "launcher-config.lock",
+        root=project_root,
+    )
+    with interprocess_lock(lock_path):
+        safe_local_state_path(config_path, root=project_root)
+        payload = _load_config(config_path)
+        if payload is not None:
+            from .specify_runtime import _ensure_project_runtime_state_gitignore
+
+            _ensure_project_runtime_state_gitignore(project_root)
+        yield config_path, payload
+
+
 def write_project_specify_launcher_config(
     project_root: Path,
     launcher: SpecifyLauncherSpec | None = None,
@@ -2021,77 +2074,76 @@ def write_project_specify_launcher_config(
     if resolved.argv == default_specify_launcher_spec().argv:
         return None
 
-    config_path = project_root / SPECIFY_CONFIG_FILE
-    payload = _load_config(config_path)
-    if payload is None:
-        return None
-    existing_payload = payload.get(SPECIFY_LAUNCHER_CONFIG_KEY)
-    existing = _normalize_specify_launcher_payload(existing_payload)
-    if not explicit_launcher and isinstance(existing_payload, dict):
-        raw_runtime_id = existing_payload.get("runtime_id")
-        raw_argv = _payload_argv(existing_payload)
-        recognized_legacy_source = (
-            raw_argv is not None
-            and _source_bound_specify_launcher_spec(raw_argv) is not None
-        )
-        owned_by_this_runtime = (
-            raw_runtime_id == SPECIFY_RUNTIME_ID or recognized_legacy_source
-        )
-        if not owned_by_this_runtime:
-            # An unknown or explicitly foreign record is not ours to replace
-            # during ordinary init/repair. An explicit caller may intentionally
-            # take ownership by supplying a trusted launcher.
+    with _locked_project_launcher_config(project_root) as (config_path, payload):
+        if payload is None:
+            return None
+        existing_payload = payload.get(SPECIFY_LAUNCHER_CONFIG_KEY)
+        existing = _normalize_specify_launcher_payload(existing_payload)
+        if not explicit_launcher and isinstance(existing_payload, dict):
+            raw_runtime_id = existing_payload.get("runtime_id")
+            raw_argv = _payload_argv(existing_payload)
+            recognized_legacy_source = (
+                raw_argv is not None
+                and _source_bound_specify_launcher_spec(raw_argv) is not None
+            )
+            owned_by_this_runtime = (
+                raw_runtime_id == SPECIFY_RUNTIME_ID or recognized_legacy_source
+            )
+            if not owned_by_this_runtime:
+                # An unknown or explicitly foreign record is not ours to replace
+                # during ordinary init/repair. An explicit caller may intentionally
+                # take ownership by supplying a trusted launcher.
+                return config_path
+
+        persisted = _source_bound_specify_launcher_spec(resolved.argv)
+        if resolved.source == "local_environment":
+            expected_local = current_environment_specify_launcher_spec()
+            if resolved.argv != expected_local.argv or resolved.runtime_id != SPECIFY_RUNTIME_ID:
+                raise ValueError(
+                    "local_environment launcher must match the currently loaded Specify runtime"
+                )
+            binding_id = (
+                existing.binding_id
+                if existing is not None
+                and existing.kind == "machine_binding"
+                and existing.runtime_id == SPECIFY_RUNTIME_ID
+                and SPECIFY_BINDING_ID_RE.fullmatch(existing.binding_id)
+                else uuid.uuid4().hex
+            )
+            _write_project_launcher_binding(binding_id, resolved)
+            if not _machine_binding_probe(binding_id):
+                raise RuntimeError(
+                    "the machine-local Spec Kit Plus binding failed its runtime identity probe; "
+                    "the project launcher and configuration were not changed"
+                )
+            try:
+                install_project_specify_launcher(project_root, binding_id)
+            except RuntimeError:
+                if (
+                    not preserve_conflicting_wrapper
+                    or existing is None
+                    or existing.kind != "machine_binding"
+                    or existing.binding_id != binding_id
+                ):
+                    raise
+            persisted = project_local_specify_launcher_spec(binding_id)
+        elif persisted is None:
+            raise ValueError(
+                "Specify launchers must use the current local environment or the "
+                "canonical commit-pinned Spec Kit Plus uvx source"
+            )
+
+        desired = _launcher_payload(persisted)
+        if payload.get(SPECIFY_LAUNCHER_CONFIG_KEY) == desired:
             return config_path
 
-    persisted = _source_bound_specify_launcher_spec(resolved.argv)
-    if resolved.source == "local_environment":
-        expected_local = current_environment_specify_launcher_spec()
-        if resolved.argv != expected_local.argv or resolved.runtime_id != SPECIFY_RUNTIME_ID:
-            raise ValueError(
-                "local_environment launcher must match the currently loaded Specify runtime"
-            )
-        binding_id = (
-            existing.binding_id
-            if existing is not None
-            and existing.kind == "machine_binding"
-            and existing.runtime_id == SPECIFY_RUNTIME_ID
-            and SPECIFY_BINDING_ID_RE.fullmatch(existing.binding_id)
-            else uuid.uuid4().hex
+        payload[SPECIFY_LAUNCHER_CONFIG_KEY] = desired
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(
+            config_path,
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         )
-        _write_project_launcher_binding(binding_id, resolved)
-        if not _machine_binding_probe(binding_id):
-            raise RuntimeError(
-                "the machine-local Spec Kit Plus binding failed its runtime identity probe; "
-                "the project launcher and configuration were not changed"
-            )
-        try:
-            install_project_specify_launcher(project_root, binding_id)
-        except RuntimeError:
-            if (
-                not preserve_conflicting_wrapper
-                or existing is None
-                or existing.kind != "machine_binding"
-                or existing.binding_id != binding_id
-            ):
-                raise
-        persisted = project_local_specify_launcher_spec(binding_id)
-    elif persisted is None:
-        raise ValueError(
-            "Specify launchers must use the current local environment or the "
-            "canonical commit-pinned Spec Kit Plus uvx source"
-        )
-
-    desired = _launcher_payload(persisted)
-    if payload.get(SPECIFY_LAUNCHER_CONFIG_KEY) == desired:
         return config_path
-
-    payload[SPECIFY_LAUNCHER_CONFIG_KEY] = desired
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(
-        config_path,
-        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-    )
-    return config_path
 
 
 def write_runtime_launcher_config(project_root: Path, binary: str | Path) -> Path | None:
@@ -2104,37 +2156,40 @@ def write_runtime_launcher_config(project_root: Path, binary: str | Path) -> Pat
         project_runtime_launcher_arg,
     )
 
-    project_binary = materialize_project_runtime_entrypoint(project_root, binary)
-    launcher_arg = project_runtime_launcher_arg()
-    launcher = SpecifyLauncherSpec(
-        command=render_command((launcher_arg,)),
-        argv=(launcher_arg,),
-    )
-    config_path = project_root / SPECIFY_CONFIG_FILE
-    payload = _load_config(config_path)
-    if payload is None:
-        return None
+    with _locked_project_launcher_config(project_root) as (config_path, payload):
+        if payload is None:
+            return None
+        metadata = current_runtime_binding_metadata()
+        if not isinstance(metadata, dict):
+            raise ValueError("runtime binding metadata must be an object")
+        # Source identity / metadata errors must precede replacement of a working pin.
+        json.dumps(metadata, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        project_binary = materialize_project_runtime_entrypoint(project_root, binary)
+        launcher_arg = project_runtime_launcher_arg()
+        launcher = SpecifyLauncherSpec(
+            command=render_command((launcher_arg,)),
+            argv=(launcher_arg,),
+        )
+        desired = _launcher_payload(launcher)
+        binding = {
+            **metadata,
+            "runtime_binary_sha256": _sha256_file(project_binary),
+            "runtime_entrypoint": launcher_arg,
+        }
+        if (
+            payload.get(RUNTIME_LAUNCHER_CONFIG_KEY) == desired
+            and payload.get(RUNTIME_LAUNCHER_BINDING_CONFIG_KEY) == binding
+        ):
+            return config_path
 
-    desired = _launcher_payload(launcher)
-    binding = {
-        **current_runtime_binding_metadata(),
-        "runtime_binary_sha256": _sha256_file(project_binary),
-        "runtime_entrypoint": launcher_arg,
-    }
-    if (
-        payload.get(RUNTIME_LAUNCHER_CONFIG_KEY) == desired
-        and payload.get(RUNTIME_LAUNCHER_BINDING_CONFIG_KEY) == binding
-    ):
+        payload[RUNTIME_LAUNCHER_CONFIG_KEY] = desired
+        payload[RUNTIME_LAUNCHER_BINDING_CONFIG_KEY] = binding
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(
+            config_path,
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        )
         return config_path
-
-    payload[RUNTIME_LAUNCHER_CONFIG_KEY] = desired
-    payload[RUNTIME_LAUNCHER_BINDING_CONFIG_KEY] = binding
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(
-        config_path,
-        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-    )
-    return config_path
 
 
 def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str, str]]:
