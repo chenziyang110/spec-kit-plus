@@ -1,7 +1,7 @@
 # Spec Kit Plus optimization status
 
-Updated: 2026-09-18 (Asia/Tokyo). This compatibility increment follows
-`2e9db45e29463996fdc2120711a8054b7a7b2116` on PR #120.
+Updated: 2026-09-18 (Asia/Tokyo). This installer-isolation increment follows
+`b81a19b6e7ffca3dc9c640658bab87af6043bb04` on PR #120.
 
 ## Current decision
 
@@ -10,8 +10,9 @@ path checks have progressed, but complete-runtime, installation, native-host and
 release verification have not passed. Keep the PR draft; do not merge, publish,
 upgrade installed projects or switch generated consumers based on this document.
 
-This increment changes tests and this status page only. It adds no production
-behavior, workflow, capability minimum, executor default or permission.
+This increment repairs Python runtime materialization and adds its regression
+tests. No workflow, capability minimum, executor default or permission changes.
+Existing installed binaries are not upgraded merely by this source commit.
 
 ## Implemented work
 
@@ -22,6 +23,7 @@ behavior, workflow, capability minimum, executor default or permission.
 | Context | Bound compilation, strict decoding, exact state numbers and identifiers | Permission, live-source correctness or design approval |
 | Shadow diagnostic | Optional CLI, explicit owner selection, shared capability discovery | A replacement executable contract or installed consumer adoption |
 | Runtime reliability | Bounded/cancellable reads, output delivery and timeout handling | Rollback, descendant-process isolation or full-platform validation |
+| Installation | Independent verified binary copies and selected legacy-hardlink repair | A complete wheel/init/release or native-platform pass |
 | Evidence | Required named tests, host package inventory and complete-log checks | Authenticity of edited logs or a run that never started |
 
 The shadow report retains the complete owner packet. It does not authorize
@@ -29,43 +31,55 @@ execution, waive result submission, verify registered design approval or decide
 product acceptance. Classic and Advanced remain separate prompt products with
 unchanged defaults and minimum capability requirements.
 
-## Latest compatibility checks
+## Latest installer isolation repair
 
-The new `quick_context_shadow_compatibility_test.go` adds three checks:
+The former hardlink optimization made the source, content-addressed cache and
+multiple project binaries share writable file data. A real-file reproduction
+showed that editing project A changed the cache, source and project B, and that
+making the copy executable also changed source permissions.
 
-1. Remove only the explicitly added shadow help section/command, then compare
-   the **whole** response with the legacy help owner for both --help and -h.
-2. Put the shadow capability at every position in a mixed pack. Compare each
-   item's usage, side effects, input/output and execution contracts with Show,
-   preserving order, worker default, result submission and independent review.
-3. Inspect a real fixture through help, Ensure, Pack, Show and the shadow reader;
-   require unchanged project/Git files and no automatic execution action.
+`materialize_project_runtime_entrypoint` now uses independent copies. The private
+helper retains its old name for compatibility but no longer creates hardlinks.
+It keeps an exclusive candidate file open while copying, flushes/syncs it, checks
+source identity and observable metadata drift, and verifies its expected SHA-256
+before atomic replacement. Source permission bits are not modified and special
+POSIX mode bits are not propagated. Candidate failures leave the old destination
+intact and remove the temporary file. The cache uses the same existing safe-path
+owner as project pins to reject symlink/junction traversal.
 
-Linux amd64 / Go 1.23.2 selected-source results:
+A matching digest is not sufficient for reuse: a multiply linked cache or
+selected project pin is recopied on its next normal materialization. Independent
+matching files remain reusable without a new copy. Other project directories are
+not scanned or silently upgraded. An old, unselected linked project still needs
+its own normal materialization before its remaining links are detached.
 
-| Executed check | Result | Scope |
-| --- | --- | --- |
-| Prior baseline | 99 regular tests and one fuzz seed target passed with race detection | Rerun of the previous selected suite |
-| Formerly excluded compatibility test bodies | 3 passed | General help, four selected legacy descriptors and mixed packs |
-| New compatibility cases | 3 passed | Whole-help preservation, mixed contracts and read-only discovery |
-| Combined selected suite | 105 regular tests plus one fuzz seed target passed; 220 passing events including subtests; no failures/skips | Not a complete runtime build |
-| Same-scope go vet and new-file gofmt | Passed | Not whole-repository static checks |
-| Deliberately broken local copies | Both rejected by the new tests | Synthetic help drift and missing worker contract, not discovered production bugs |
+There is a storage/copying cost per independent project binary. This is deliberate
+isolation, not a performance improvement claim. Already corrupted old pins are
+not certified safe by detachment; use the existing validated runtime source and
+installation/repair path. This is not hostile-writer isolation or a transaction
+across cache, project binary, ignore files and launcher configuration. A verified
+cache copy may remain when a later project write fails; no rollback is claimed.
 
-The local fixture now runs all sixteen named shadow entrypoint/state/process
-case bodies. **This does not satisfy their complete-runtime gate.** The fixture
-uses the retrieved legacy Quick help function and a deliberately restricted
-legacy descriptor slice for api.ensure, quick.item-start, quick.item-accept and
-artifact.show. Other descriptors, schema handlers and mutation owners are poison
-seams and must not execute. SQLite is not linked. Those fixture slices/stubs are
-not committed as replacement production implementations.
+Current Linux / Python 3.13.5 / Go 1.23.2 checks: **25 new test cases and three
+unchanged existing materialization test bodies passed**, with zero failures or
+skips. They use actual files, hardlinks, modes, symlinks, injected copy/flush/
+replacement failures and the original atomic_io implementation. A tiny native
+Go executable was built, pinned and executed successfully; it is a test fixture,
+not the complete Specify runtime or a release asset. The earlier original-code
+run of the initial 22 cases had 15 failures and seven passes, including expected
+failures for the new API/guards as well as the reproduced shared-file defects.
 
-The three formerly excluded bodies are DiscoveryAgrees,
-PreservesLegacyDescriptors and ShowSelectorsAndMixedPack (under the existing
-TestQuickShadowCLIEntrypoint prefix). Their selected-path result is now known;
-they still need execution against the fully linked runtime. Historical a59d67a
-and 2e9db45 counts were 75 and 99 regular tests respectively, each plus a fuzz
-seed target. Repetitions and subtests are not additional independent tests.
+The full installer module was imported and syntax-checked, not replaced by
+extracted helper implementations. Local package initialization and two unrelated
+launcher entrypoints are poison seams; they are not used by materialization and
+are not committed. Whole `specify init`, launcher persistence, wheel construction,
+public download and Windows/macOS execution remain unverified. No network
+installation, credential lookup, profile switch or publication ran in these tests.
+
+Historical compatibility checkpoint b81a19b: 105 selected Go cases plus a fuzz
+seed target passed. All sixteen named shadow test bodies ran only against a
+partial fixture with restricted legacy descriptors and no SQLite link. Those
+results were not rerun or upgraded to complete-runtime evidence by this change.
 
 ## Remaining acceptance gates
 

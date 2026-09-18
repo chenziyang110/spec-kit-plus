@@ -10,6 +10,7 @@ import os
 import platform
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -494,28 +495,77 @@ def content_addressed_runtime_path(digest: str) -> Path:
     return cache_dir() / "runtimes" / normalized / runtime_executable_name()
 
 
-def _atomic_link_or_copy(source: Path, destination: Path) -> None:
-    """Materialize one regular file atomically, preferring a hardlink."""
+def _atomic_link_or_copy(
+    source: Path, destination: Path, *, expected_sha256: str | None = None,
+) -> None:
+    """Publish an independent verified copy; the legacy name is compatibility only.
 
+    Hardlinks make source, cache and project binaries mutually writable. Never
+    create them here. Verify a private candidate before replacing a live pin;
+    these observations do not provide hostile-writer isolation or a transaction
+    across the cache, project pin and launcher configuration.
+    """
+
+    destination = safe_local_state_path(destination)
+    before = source.lstat()
+    if not stat.S_ISREG(before.st_mode):
+        raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} source must be a regular non-link file")
+    expected = expected_sha256 if expected_sha256 is not None else _sha256_file(source)
+    if not isinstance(expected, str) or re.fullmatch(r"[0-9a-f]{64}", expected) is None:
+        raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} copy requires a valid SHA-256")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{destination.name}.",
-        suffix=".candidate",
-        dir=destination.parent,
-    )
-    os.close(descriptor)
-    temporary = Path(temporary_name)
-    temporary.unlink(missing_ok=True)
+    safe_local_state_path(destination)
+    temporary: Path | None = None
     try:
-        try:
-            os.link(source, temporary)
-        except OSError:
-            shutil.copy2(source, temporary)
+        with source.open("rb") as reader:
+            opened = os.fstat(reader.fileno())
+            if not stat.S_ISREG(opened.st_mode) or not os.path.samestat(before, opened):
+                raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} source changed before copying")
+            # Keep the exclusive file open: do not unlink/reopen the candidate.
+            with tempfile.NamedTemporaryFile(
+                mode="wb", prefix=f".{destination.name}.", suffix=".candidate",
+                dir=destination.parent, delete=False,
+            ) as writer:
+                temporary = Path(writer.name)
+                shutil.copyfileobj(reader, writer, length=1024 * 1024)
+                writer.flush()
+                os.fsync(writer.fileno())
+            after = os.fstat(reader.fileno())
+            current = source.lstat()
+
+            def version(info: os.stat_result) -> tuple[int, int, int]:
+                return info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+            if (not stat.S_ISREG(current.st_mode) or
+                    not os.path.samestat(opened, current) or
+                    version(opened) != version(after) or version(opened) != version(current)):
+                raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} source changed while copying")
+        if _sha256_file(temporary) != expected:
+            raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} candidate failed integrity check")
         if platform.system().lower() != "windows":
-            os.chmod(temporary, temporary.stat().st_mode | 0o111)
+            # Permissions apply only to the independent copy, never the source.
+            # Do not propagate setuid, setgid or sticky bits from an input file.
+            os.chmod(temporary, (stat.S_IMODE(opened.st_mode) & 0o777) | 0o111)
+        safe_local_state_path(destination)
         os.replace(temporary, destination)
+        temporary = None
     finally:
-        temporary.unlink(missing_ok=True)
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def _runtime_copy_is_current(path: Path, digest: str) -> bool:
+    """A digest match alone does not make a legacy shared inode independent."""
+
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return False
+    return (
+        stat.S_ISREG(metadata.st_mode)
+        and metadata.st_nlink == 1
+        and _sha256_file(path) == digest
+    )
 
 
 def _ensure_project_runtime_gitignore(project_root: Path) -> None:
@@ -575,25 +625,19 @@ def materialize_project_runtime_entrypoint(project_root: Path, binary: str | Pat
     if not source.is_file():
         raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} source must be a regular file: {source}")
 
+    # Check both destinations before writing either. Keep the existing path owner
+    # for project pins and apply the same link/junction rejection to cache paths.
+    project_binary = project_runtime_entrypoint_path(project_root)
     digest = _sha256_file(source)
-    cached = content_addressed_runtime_path(digest)
-    if not cached.is_file() or cached.is_symlink() or _sha256_file(cached) != digest:
-        _atomic_link_or_copy(source, cached)
-    if cached.is_symlink() or not cached.is_file() or _sha256_file(cached) != digest:
+    cached = safe_local_state_path(content_addressed_runtime_path(digest), root=cache_dir())
+    if not _runtime_copy_is_current(cached, digest):
+        _atomic_link_or_copy(source, cached, expected_sha256=digest)
+    if not _runtime_copy_is_current(cached, digest):
         raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} cache materialization failed integrity check")
 
-    project_binary = project_runtime_entrypoint_path(project_root)
-    if (
-        not project_binary.is_file()
-        or project_binary.is_symlink()
-        or _sha256_file(project_binary) != digest
-    ):
-        _atomic_link_or_copy(cached, project_binary)
-    if (
-        project_binary.is_symlink()
-        or not project_binary.is_file()
-        or _sha256_file(project_binary) != digest
-    ):
+    if not _runtime_copy_is_current(project_binary, digest):
+        _atomic_link_or_copy(cached, project_binary, expected_sha256=digest)
+    if not _runtime_copy_is_current(project_binary, digest):
         raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} project entrypoint failed integrity check")
     if platform.system().lower() != "windows":
         os.chmod(project_binary, project_binary.stat().st_mode | 0o111)
