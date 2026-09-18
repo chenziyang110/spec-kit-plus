@@ -118,3 +118,32 @@ configured maximum are unchanged.
 See [the current optimization status](workflow-quality/optimization-status.md)
 for the consolidated implementation, validation and release boundaries. Historical
 checkpoint counts are not substitutes for a complete current-source run.
+
+## Capability API input and complete-response bounds
+
+`api ensure` and `api pack` retain their existing flags, capability selection
+order, 32-ID maximum and read-only behavior. Capability selection now has a
+128 KiB input ceiling for CSV, inline JSON, project-contained `@path` and stdin.
+File/stdin input uses the existing bounded input owner with that smaller limit;
+other commands retain their existing input budgets and path restrictions.
+
+JSON requires one object with an exact `capabilities` field. Duplicate top-level
+keys, including escape-equivalent names, and case aliases of `capabilities` are
+rejected instead of silently choosing or ignoring a competing selector. Invalid
+raw UTF-8, trailing data and invalid array members are also rejected. Unrelated
+valid metadata stays compatible and is not interpreted or returned by selection.
+
+The 128 KiB output ceiling now includes the entire encoded Ensure/Pack response:
+items, requested/missing IDs, runtime identity, pinned argv and the final newline.
+Previously only Pack's items were measured. Oversized responses return exit 2 and
+`api-capability-output-limit` without partial items or automatic next actions.
+The input need not be oversized for the resulting response to exceed its bound.
+Normal responses preserve the existing per-status exit codes and encoded bytes.
+Serializer failure returns exit 1 without buffered partial JSON. A failed or
+short external write also returns 1 without retrying or appending a second JSON
+response; already delivered external bytes cannot be retracted.
+
+These are input/output reliability checks, not authorization or acceptance.
+The registered shadow capability still has the same non-authorizing contract.
+No workflow consumer, profile minimum, schema owner or installed binary changes
+merely because this development-source repair exists.

@@ -9,13 +9,15 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo"
 )
 
 const (
-	maxAPICapabilitySelection = 32
-	maxAPIPackOutputBytes     = 128 * 1024
+	maxAPICapabilitySelection  = 32
+	maxAPICapabilityInputBytes = 128 * 1024
+	maxAPIPackOutputBytes      = 128 * 1024
 )
 
 type apiCapabilityDescriptorRecord struct {
@@ -42,11 +44,11 @@ func apiRuntimeIdentity(cliVersion string) map[string]any {
 
 func runAPIEnsure(args []string, stdout io.Writer, cliVersion string) int {
 	if env, ok := validateAPIEfficiencyOptions(args, "api ensure", nil, "--capabilities", "--requires-json", "--project-root", "--format"); !ok {
-		return writeEnvelope(stdout, env)
+		return writeAPICapabilityEnvelope(stdout, env)
 	}
 	requested, env, ok := apiRequestedCapabilities(args, optionValue(args, "--project-root", "."), "api ensure")
 	if !ok {
-		return writeEnvelope(stdout, env)
+		return writeAPICapabilityEnvelope(stdout, env)
 	}
 	present := make([]string, 0, len(requested))
 	missing := make([]string, 0)
@@ -71,16 +73,16 @@ func runAPIEnsure(args []string, stdout io.Writer, cliVersion string) int {
 	env.Data["capability_set_sha256"] = capabilitySetSHA256()
 	env.Data["runtime"] = apiRuntimeIdentity(cliVersion)
 	env.ShowArgv = []string{"specify-runtime", "api", "list", "--format", "json"}
-	return writeEnvelope(stdout, env)
+	return writeAPICapabilityEnvelope(stdout, env)
 }
 
 func runAPIPack(args []string, stdout io.Writer, cliVersion string) int {
 	if env, ok := validateAPIEfficiencyOptions(args, "api pack", map[string]bool{"--include-schema": true}, "--capabilities", "--requires-json", "--project-root", "--format"); !ok {
-		return writeEnvelope(stdout, env)
+		return writeAPICapabilityEnvelope(stdout, env)
 	}
 	requested, env, ok := apiRequestedCapabilities(args, optionValue(args, "--project-root", "."), "api pack")
 	if !ok {
-		return writeEnvelope(stdout, env)
+		return writeAPICapabilityEnvelope(stdout, env)
 	}
 	includeSchema := hasFlag(args, "--include-schema")
 	items := make([]any, 0, len(requested))
@@ -89,7 +91,7 @@ func runAPIPack(args []string, stdout io.Writer, cliVersion string) int {
 		if !ok {
 			env := NewEnvelope("usage-error", fmt.Sprintf("unknown capability %q", capabilityID))
 			env.Blockers = append(env.Blockers, "request only capabilities published by api list")
-			return writeEnvelope(stdout, env)
+			return writeAPICapabilityEnvelope(stdout, env)
 		}
 		item := map[string]any{
 			"id":             descriptor.capability["id"],
@@ -108,23 +110,12 @@ func runAPIPack(args []string, stdout io.Writer, cliVersion string) int {
 				if !found {
 					env := NewEnvelope("error", fmt.Sprintf("schema %q could not be resolved", schemaID))
 					env.Blockers = append(env.Blockers, "published capability input_schema is missing its runtime descriptor")
-					return writeEnvelope(stdout, env)
+					return writeAPICapabilityEnvelope(stdout, env)
 				}
 				item["schema"] = schema
 			}
 		}
 		items = append(items, item)
-	}
-	encoded, err := json.Marshal(items)
-	if err != nil {
-		env := NewEnvelope("error", "capability pack could not be encoded")
-		env.Blockers = append(env.Blockers, err.Error())
-		return writeEnvelope(stdout, env)
-	}
-	if len(encoded) > maxAPIPackOutputBytes {
-		env := NewEnvelope("usage-error", "requested capability pack exceeds the bounded output limit")
-		env.Blockers = append(env.Blockers, fmt.Sprintf("capability pack exceeds %d bytes; request fewer capabilities or omit --include-schema", maxAPIPackOutputBytes))
-		return writeEnvelope(stdout, env)
 	}
 	env = NewEnvelope("ok", "capability pack assembled")
 	env.Data["requested"] = presentOrRequested(requested)
@@ -132,7 +123,7 @@ func runAPIPack(args []string, stdout io.Writer, cliVersion string) int {
 	env.Data["capability_set_sha256"] = capabilitySetSHA256()
 	env.Data["runtime"] = apiRuntimeIdentity(cliVersion)
 	env.Items = items
-	return writeEnvelope(stdout, env)
+	return writeAPICapabilityEnvelope(stdout, env)
 }
 
 func validateAPIEfficiencyOptions(args []string, label string, booleanOptions map[string]bool, valueOptions ...string) (Envelope, bool) {
@@ -178,7 +169,7 @@ func apiRequestedCapabilities(args []string, projectRoot, label string) ([]strin
 	if hasCSV {
 		return parseCapabilityCSV(optionValue(args, "--capabilities", ""), label)
 	}
-	raw, err := resolveJSONInputBytesFrom(optionValue(args, "--requires-json", ""), projectRoot, label, "--requires-json", os.Stdin)
+	raw, err := resolveFileBackedInputBytesFrom(optionValue(args, "--requires-json", ""), projectRoot, label, "--requires-json", os.Stdin, maxAPICapabilityInputBytes)
 	if err != nil {
 		env := NewEnvelope("usage-error", label+" input is invalid")
 		env.Blockers = append(env.Blockers, err.Error())
@@ -194,6 +185,11 @@ func apiRequestedCapabilities(args []string, projectRoot, label string) ([]strin
 }
 
 func parseCapabilityCSV(raw, label string) ([]string, Envelope, bool) {
+	if len(raw) > maxAPICapabilityInputBytes || !utf8.ValidString(raw) {
+		env := NewEnvelope("usage-error", label+" capabilities are invalid")
+		env.Blockers = append(env.Blockers, "capability selection must be valid UTF-8 and at most 128 KiB")
+		return nil, env, false
+	}
 	parts := strings.Split(raw, ",")
 	ids := make([]string, 0, len(parts))
 	seen := map[string]bool{}
@@ -225,12 +221,49 @@ func parseCapabilityCSV(raw, label string) ([]string, Envelope, bool) {
 }
 
 func parseCapabilityRequirementsJSON(raw []byte, label string) ([]string, error) {
-	request := map[string]any{}
-	if err := json.Unmarshal(raw, &request); err != nil {
-		return nil, fmt.Errorf("%s --requires-json must be a JSON object: %w", label, err)
+	if len(raw) > maxAPICapabilityInputBytes || !utf8.Valid(raw) {
+		return nil, fmt.Errorf("%s --requires-json must be valid UTF-8 and at most 128 KiB", label)
 	}
-	values, ok := request["capabilities"].([]any)
-	if !ok {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	opening, err := decoder.Token()
+	if err != nil || opening != json.Delim('{') {
+		return nil, fmt.Errorf("%s --requires-json must be a JSON object", label)
+	}
+	seenFields := map[string]bool{}
+	var selected json.RawMessage
+	for decoder.More() {
+		token, err := decoder.Token()
+		key, ok := token.(string)
+		if err != nil || !ok {
+			return nil, fmt.Errorf("%s --requires-json has an invalid object key", label)
+		}
+		// Token decodes escapes first, so capabilities and capabiliti\u0065s
+		// cannot silently become two competing selectors.
+		if seenFields[key] {
+			return nil, fmt.Errorf("%s --requires-json has a duplicate object key", label)
+		}
+		seenFields[key] = true
+		if key != "capabilities" && strings.EqualFold(key, "capabilities") {
+			return nil, fmt.Errorf("%s --requires-json requires the exact capabilities field name", label)
+		}
+		var value json.RawMessage
+		if err := decoder.Decode(&value); err != nil {
+			return nil, fmt.Errorf("%s --requires-json contains invalid JSON: %w", label, err)
+		}
+		if key == "capabilities" {
+			selected = value
+		}
+		// Preserve compatibility with unrelated top-level metadata: validate
+		// its JSON syntax but do not decode numbers, retain or interpret it.
+	}
+	if closing, err := decoder.Token(); err != nil || closing != json.Delim('}') {
+		return nil, fmt.Errorf("%s --requires-json has an incomplete object", label)
+	}
+	if err := decoder.Decode(new(json.RawMessage)); err != io.EOF {
+		return nil, fmt.Errorf("%s --requires-json must contain exactly one JSON object", label)
+	}
+	var values []any
+	if len(selected) == 0 || json.Unmarshal(selected, &values) != nil || values == nil {
 		return nil, fmt.Errorf("%s --requires-json must include capabilities[]", label)
 	}
 	if len(values) == 0 {
@@ -318,4 +351,35 @@ func stringSliceFromAny(value any) []string {
 		result = append(result, text)
 	}
 	return result
+}
+
+// The bound applies to the complete encoded response, not only Items. The
+// ordinary writer binds the runtime argv and metadata before this size check.
+// Nothing is emitted until serialization succeeds. A failed/short destination
+// write returns 1 without retrying, appending another response or rerunning work.
+func writeAPICapabilityEnvelope(stdout io.Writer, env Envelope) int {
+	if stdout == nil {
+		return 1
+	}
+	var buffer bytes.Buffer
+	code := writeEnvelope(&buffer, env)
+	if code != ExitCodeForStatus(env.Status) || !json.Valid(buffer.Bytes()) {
+		return 1
+	}
+	if buffer.Len() > maxAPIPackOutputBytes {
+		buffer.Reset()
+		env = NewEnvelope("usage-error", "requested capability response exceeds the bounded output limit")
+		env.Data["error_code"] = "api-capability-output-limit"
+		env.Data["max_output_bytes"] = maxAPIPackOutputBytes
+		env.Blockers = append(env.Blockers, "Request fewer capabilities or omit --include-schema; no partial capability contract was returned.")
+		code = writeEnvelope(&buffer, env)
+		if code != 2 || buffer.Len() > maxAPIPackOutputBytes || !json.Valid(buffer.Bytes()) {
+			return 1
+		}
+	}
+	n, err := stdout.Write(buffer.Bytes())
+	if err != nil || n != buffer.Len() {
+		return 1
+	}
+	return code
 }

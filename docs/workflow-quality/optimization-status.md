@@ -1,8 +1,8 @@
 # Spec Kit Plus optimization status
 
 Checkpoint: 2026-09-18 (Asia/Tokyo). Baseline: `48cc022d52668a7433d0a8167585433883946c9c`.
-This document consolidates the current workstream; earlier dated checkpoints are
-historical measurements, not current whole-product acceptance.
+The latest follow-up below supersedes the validation summary for changed API
+paths. Earlier checkpoint measurements are historical, not whole-product acceptance.
 
 ## Delivery boundary
 
@@ -18,7 +18,7 @@ complete-test evidence inspection; cancellable reads and watchdog delivery fixes
 These implementations do not establish measured Agent cost reductions or final
 product acceptance. No new feature/default change is introduced by this checkpoint.
 
-## This increment: connect the tested pieces
+## Historical a59d67a change: connect the tested pieces
 
 Three new process-path regressions call the existing watchdog with **RunContext**,
 not a replacement runner. They cover:
@@ -36,12 +36,12 @@ The existing rollout verifier now requires **16** named shadow cases: the prior
 context, package-inventory and installation gates remain intact. Missing any of
 the newly required cases is tested as a failure. No additional verifier is added.
 
-## Validation executed at this checkpoint
+## Historical a59d67a integration validation
 
 Environment: Linux amd64, Go 1.23.2, Python 3.13.5, Git 2.47.3.
 UTC timestamps in logs can fall on September 17; this checkpoint uses Tokyo time.
 
-| Scope | Current result | Boundary |
+| Scope | Result at that checkpoint | Boundary |
 | --- | --- | --- |
 | Combined selected-source Go suite | 75 regular top-level tests and one fuzz seed target passed with race detection | Not the complete runtime package or all repository tests |
 | Original entrypoint/state cases in that suite | 10 of the prior 13 executed successfully | The three API/general-help cases below were not selected |
@@ -109,3 +109,44 @@ The complete rollout checker, original CI checks and native jobs remain the
 acceptance path. A partial reproduction package is not a substitute checkout.
 Keep source private, preserve existing state and user edits, and do not reapply
 old cumulative patches over the feature branch.
+
+## 2026-09-18 follow-up: capability API boundaries
+
+Parent source: `a59d67a0e82df0900eb2310eb69e33dabe2bc2cf`. The production change
+is limited to the existing capability API owner; no new command or workflow.
+
+Reproduced at the actual selected Run -> API path: a duplicate JSON selector
+silently replaced an unavailable capability with an available one; Pack emitted
+132,788 bytes when its runtime-identity metadata was expanded; Ensure emitted
+143,912 bytes for an input below its limit that repeated an unknown ID in output.
+The previous items-only limit missed both complete-response cases.
+
+The repair rejects duplicate/alias selectors and invalid UTF-8, bounds all
+capability-input forms through the existing reader, and checks final serialized
+Ensure/Pack envelopes. Oversize responses contain no partial contracts. External
+write failures are reported without retry; bytes already written cannot be
+retracted. Caller data is not changed. Normal selection order,
+metadata compatibility, output contracts, status codes and argv binding remain.
+The old separate items serialization is removed; no speedup metric is claimed.
+
+Validation: 24 new top-level tests passed (18 boundary/real-file/stdin checks and
+six Run/API-route cases). The combined selected-source suite passed **99 regular
+top-level tests plus one fuzz seed target**, with race detection, 212 passing
+events including subtests, zero failures/skips; same-scope vet passed. Counts
+include previous integration reruns, not 99 new tests. Fuzz seeds are not a new
+randomized fuzz run. Before-fix failures are preserved in the delivery evidence.
+
+This run type-checks the whole modified capability_efficiency.go, the unchanged
+buildinfo implementation, shared JSON input and original output/path owners.
+The Run/API dispatcher, flags, registry and contract helpers are exact selected
+source. Store contributes only its retrieved SchemaVersion constant; SQLite is
+not linked. Unselected legacy descriptor, schema and non-Quick owners remain
+poison test stubs in the LOCAL fixture and are not committed. Valid shadow
+Show/Pack/Ensure/help interaction did execute without those stubs being called.
+This is stronger selected-path validation, not a complete runtime build.
+
+The three original legacy/general-help entrypoint cases listed above, complete
+repository regressions, wheel/install, native hosts, CI execution and live
+artifact/approval consumption remain unverified. No named verification gate is
+removed or relabelled. Prior partial-source preflight blockers still apply;
+source changes stay on PR #120 without main merge, release or consumer adoption.
