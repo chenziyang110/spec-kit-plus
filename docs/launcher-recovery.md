@@ -24,6 +24,28 @@ is not accepted merely because its updated hash matches or it prints the expecte
 identity. Owned-script symlinks and malformed scripts are rejected. Ordinary
 virtual-environment interpreter symlinks remain supported.
 
+## Invalid project configuration
+
+`invalid-project-config` is a blocking compatibility diagnostic. It means
+`.specify/config.json` could not be read safely as a regular, non-link UTF-8
+JSON object. Malformed JSON, duplicate keys, non-finite values, invalid Unicode,
+access errors and special files are not an empty/unconfigured project.
+
+Preserve the configuration and `.specify/bin`, stop concurrent writers, and
+inspect the file type and permissions before reading the contents. Do not follow
+links or read named pipes as JSON. Restore a known-good regular configuration or
+correct the syntax without editing launcher bindings or stored digests. Then run
+`check` through the intended trusted installation before resuming `integration
+repair`. Do not delete the binding to enable environment/PATH fallback.
+
+The compatibility diagnostic stops at this configuration error rather than
+issuing misleading missing-runtime instructions or probing other launchers.
+Missing regular configuration remains the existing unbound/bootstrap case; a
+dangling configuration link does not. Config readers and both cooperating
+launcher writers use the existing safe state reader and preserve invalid inputs.
+Other local JSON inspected through the launcher's configuration loader, including
+hook settings and integration manifests, now uses the same non-link file checks.
+
 ## Exact wrapper with missing execution permission
 
 On POSIX hosts, an unchanged project wrapper without execution permission is

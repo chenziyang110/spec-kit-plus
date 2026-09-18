@@ -1170,10 +1170,7 @@ def install_shared_hook_launcher_assets(
 
 
 def _load_config(path: Path) -> dict[str, Any] | None:
-    """Reject malformed configuration instead of rewriting ambiguous user data."""
-
-    if not path.exists():
-        return {}
+    """Load regular, non-link JSON state; distinguish absent from invalid input."""
 
     def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         result: dict[str, Any] = {}
@@ -1185,13 +1182,15 @@ def _load_config(path: Path) -> dict[str, Any] | None:
 
     try:
         loaded = json.loads(
-            path.read_text(encoding="utf-8"), object_pairs_hook=unique_object,
+            read_local_state_text(path), object_pairs_hook=unique_object,
         )
         if not isinstance(loaded, dict):
             return None
         # Reject non-finite numbers and unpaired surrogate escapes before any
         # caller publishes files based on data that cannot be written faithfully.
         json.dumps(loaded, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except FileNotFoundError:
+        return {}
     except (ValueError, OSError, RecursionError):
         return None
     return loaded
@@ -2214,6 +2213,31 @@ def write_runtime_launcher_config(project_root: Path, binary: str | Path) -> Pat
 def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str, str]]:
     """Inspect persisted launcher and generated runtime surfaces for stale or broken state."""
 
+    launcher_config = _load_config(project_root / SPECIFY_CONFIG_FILE)
+    if launcher_config is None:
+        # Do not diagnose an unreadable binding as an unconfigured installation,
+        # or probe other launchers before the configuration boundary is usable.
+        return [
+            {
+                "code": "invalid-project-config",
+                "severity": "repairable-block",
+                "summary": (
+                    "Project configuration `.specify/config.json` cannot be read "
+                    "safely as an unambiguous UTF-8 JSON object."
+                ),
+                "repair": (
+                    "Preserve `.specify/config.json` and `.specify/bin`. Stop "
+                    "concurrent writers and inspect the configuration's file type "
+                    "and permissions before reading it. Do not follow links, read "
+                    "named pipes, or delete bindings to enable fallback. Restore "
+                    "a known-good regular configuration or correct its JSON "
+                    "without changing launcher bindings or stored digests, then "
+                    "run `check` through the intended trusted installation before "
+                    "resuming `integration repair`."
+                ),
+            }
+        ]
+
     issues: list[dict[str, str]] = []
     issues.extend(diagnose_claude_personal_skill_shadows(project_root))
     learning_index = project_root / ".specify" / "memory" / "learnings" / "INDEX.md"
@@ -2263,7 +2287,6 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
             )
         return False
 
-    launcher_config = _load_config(project_root / SPECIFY_CONFIG_FILE)
     raw_launcher_present = (
         isinstance(launcher_config, dict)
         and SPECIFY_LAUNCHER_CONFIG_KEY in launcher_config
