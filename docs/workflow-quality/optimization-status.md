@@ -1,152 +1,116 @@
 # Spec Kit Plus optimization status
 
-Checkpoint: 2026-09-18 (Asia/Tokyo). Baseline: `48cc022d52668a7433d0a8167585433883946c9c`.
-The latest follow-up below supersedes the validation summary for changed API
-paths. Earlier checkpoint measurements are historical, not whole-product acceptance.
+Updated: 2026-09-18 (Asia/Tokyo). This compatibility increment follows
+`2e9db45e29463996fdc2120711a8054b7a7b2116` on PR #120.
 
-## Delivery boundary
+## Current decision
 
-The dependency chain is #116 -> #119 -> #120. Changes remain on their existing
-feature branches. Main merge, release publication, installed upgrades and
-switching generated consumers are separate, uncompleted gates.
+Keep the dependency order **#116 -> #119 -> #120**. Implementation and selected
+path checks have progressed, but complete-runtime, installation, native-host and
+release verification have not passed. Keep the PR draft; do not merge, publish,
+upgrade installed projects or switch generated consumers based on this document.
 
-Implemented in the chain: Quick output/execution improvements and usage tools;
-validated evaluation records and reproducible fixtures; bound context assembly
-and strict decoding; the optional read-only `quick.context-shadow` command and
-its discovery contract; precise state decoding and ready-successor handling;
-complete-test evidence inspection; cancellable reads and watchdog delivery fixes.
-These implementations do not establish measured Agent cost reductions or final
-product acceptance. No new feature/default change is introduced by this checkpoint.
+This increment changes tests and this status page only. It adds no production
+behavior, workflow, capability minimum, executor default or permission.
 
-## Historical a59d67a change: connect the tested pieces
+## Implemented work
 
-Three new process-path regressions call the existing watchdog with **RunContext**,
-not a replacement runner. They cover:
-
-- Exact large integers/decimals and the complete owner packet across the actual
-  Quick read path and final JSON output, with unchanged project/Git files.
-- A real closed operating-system pipe returning delivery failure without
-  changing the existing Quick state.
-- An observed Git helper process that blocks, receives the real parent timeout,
-  and returns through the adapter. The final response has no late report, no
-  automatic retry, and does not claim rollback or descendant cleanup.
-
-The existing rollout verifier now requires **16** named shadow cases: the prior
-13 entrypoint/state cases plus these three process cases. Existing lifecycle,
-context, package-inventory and installation gates remain intact. Missing any of
-the newly required cases is tested as a failure. No additional verifier is added.
-
-## Historical a59d67a integration validation
-
-Environment: Linux amd64, Go 1.23.2, Python 3.13.5, Git 2.47.3.
-UTC timestamps in logs can fall on September 17; this checkpoint uses Tokyo time.
-
-| Scope | Result at that checkpoint | Boundary |
+| Area | Implemented | Not established by that implementation |
 | --- | --- | --- |
-| Combined selected-source Go suite | 75 regular top-level tests and one fuzz seed target passed with race detection | Not the complete runtime package or all repository tests |
-| Original entrypoint/state cases in that suite | 10 of the prior 13 executed successfully | The three API/general-help cases below were not selected |
-| New watchdog -> RunContext -> Quick process cases | 3 of 3 executed successfully | Test-file additions still need the full-checkout run |
-| Same selected-source Go static checks | Passed | Not full runtime vet |
-| Verification-tool Python suite | 65 pytest cases and 29 unittest subtests passed | Tests the verifier, not product Go/Python/install suites |
-| Full-source rollout preflight | Blocked before product gates | Complete source and prepared dependencies are unavailable here |
+| Quick execution/output | Explicit direct/worker selection, compact output, usage tools | A measured improvement in real accepted deliveries |
+| Evaluation | Validated observations, unknown-value handling, fixed task fixtures | Actual Agent runs or independent human acceptance |
+| Context | Bound compilation, strict decoding, exact state numbers and identifiers | Permission, live-source correctness or design approval |
+| Shadow diagnostic | Optional CLI, explicit owner selection, shared capability discovery | A replacement executable contract or installed consumer adoption |
+| Runtime reliability | Bounded/cancellable reads, output delivery and timeout handling | Rollback, descendant-process isolation or full-platform validation |
+| Evidence | Required named tests, host package inventory and complete-log checks | Authenticity of edited logs or a run that never started |
 
-The Go fixture contains byte-verified production adapter/command/Git/decoder,
-context and watchdog files, original Envelope/path owners, and exact selected
-function bodies for Run/RunContext, JSON/argv binding, Quick types/digest/packet
-and prerequisite checks. It uses real temporary files and Git processes.
-**Unrelated command/API owners are poison stubs and must never run.** Therefore
-this is integrated selected-source execution, not a complete source build. Those
-stubs and the partial fixture are delivery evidence only; they are not committed
-as a replacement runtime or used to satisfy the full-source verifier.
+The shadow report retains the complete owner packet. It does not authorize
+execution, waive result submission, verify registered design approval or decide
+product acceptance. Classic and Advanced remain separate prompt products with
+unchanged defaults and minimum capability requirements.
 
-The three original entrypoint tests not executed in the combined fixture are:
-`TestQuickShadowCLIEntrypointDiscoveryAgrees`,
-`TestQuickShadowCLIEntrypointPreservesLegacyDescriptors`, and
-`TestQuickShadowCLIEntrypointShowSelectorsAndMixedPack`.
-Their narrower discovery-helper tests did run, but do not replace these cases.
-All 16 required cases must be rerun together in the complete real runtime before
-claiming whole-runtime verification. Repetition and subtest counts are not added
-to the number of independent tests.
+## Latest compatibility checks
 
-## Remaining work: do not relabel as completed
+The new `quick_context_shadow_compatibility_test.go` adds three checks:
 
-| Gate | Actual state | Resume condition |
+1. Remove only the explicitly added shadow help section/command, then compare
+   the **whole** response with the legacy help owner for both --help and -h.
+2. Put the shadow capability at every position in a mixed pack. Compare each
+   item's usage, side effects, input/output and execution contracts with Show,
+   preserving order, worker default, result submission and independent review.
+3. Inspect a real fixture through help, Ensure, Pack, Show and the shadow reader;
+   require unchanged project/Git files and no automatic execution action.
+
+Linux amd64 / Go 1.23.2 selected-source results:
+
+| Executed check | Result | Scope |
 | --- | --- | --- |
-| Complete Go runtime, SQLite/Work and all entrypoints | Not validated | Prepared complete source checkout, dependencies and clean worktree |
-| Full Python, wheel/install and installed profiles | Not validated | Run existing suites against the same source revision |
-| Native Windows/macOS | Not executed here | Obtain real native job logs; configuration/cross-compilation is not native execution |
-| Cloud CI | Latest observed baseline run failed before returned steps | Read the Actions annotation and resolve its actual cause; do not infer billing |
-| Live source/registered design input verification | Not implemented by the shadow diagnostic | Use the existing owners before any generated consumer adopts its projection |
-| Real Agent quality/cost benchmark | Not executed | Comparable runs, actual instrumentation, independent acceptance; unknown cost is not zero |
-| Main merge/release/distributed consumer verification | Not performed | Passing gates and separate authorization |
+| Prior baseline | 99 regular tests and one fuzz seed target passed with race detection | Rerun of the previous selected suite |
+| Formerly excluded compatibility test bodies | 3 passed | General help, four selected legacy descriptors and mixed packs |
+| New compatibility cases | 3 passed | Whole-help preservation, mixed contracts and read-only discovery |
+| Combined selected suite | 105 regular tests plus one fuzz seed target passed; 220 passing events including subtests; no failures/skips | Not a complete runtime build |
+| Same-scope go vet and new-file gofmt | Passed | Not whole-repository static checks |
+| Deliberately broken local copies | Both rejected by the new tests | Synthetic help drift and missing worker contract, not discovered production bugs |
 
-The broader initial review also proposed large-file/document restructuring and
-measured adaptive execution rollout. Those are not completed merely because the
-read-only diagnostic works. Avoid starting another speculative feature while the
-integration and CI gates above remain unresolved.
+The local fixture now runs all sixteen named shadow entrypoint/state/process
+case bodies. **This does not satisfy their complete-runtime gate.** The fixture
+uses the retrieved legacy Quick help function and a deliberately restricted
+legacy descriptor slice for api.ensure, quick.item-start, quick.item-accept and
+artifact.show. Other descriptors, schema handlers and mutation owners are poison
+seams and must not execute. SQLite is not linked. Those fixture slices/stubs are
+not committed as replacement production implementations.
 
-## Resume with the existing commands
+The three formerly excluded bodies are DiscoveryAgrees,
+PreservesLegacyDescriptors and ShowSelectorsAndMixedPack (under the existing
+TestQuickShadowCLIEntrypoint prefix). Their selected-path result is now known;
+they still need execution against the fully linked runtime. Historical a59d67a
+and 2e9db45 counts were 75 and 99 regular tests respectively, each plus a fuzz
+seed target. Repetitions and subtests are not additional independent tests.
 
-In a prepared complete checkout at the desired source revision:
+## Remaining acceptance gates
+
+| Gate | Current state | Required next evidence |
+| --- | --- | --- |
+| Complete Go runtime, SQLite/Work, API and all named tests | Not validated | Clean complete checkout, prepared dependencies, original full suite |
+| Python, wheel/install and installed Classic/Advanced | Not validated | Existing suites against the same source revision |
+| Native Windows/macOS | Not executed in this environment | Actual native run logs, not cross-compilation or workflow configuration |
+| Cloud CI | Latest inspected baseline failed without returned steps | Accessible Actions annotation and actual execution; root cause remains unknown |
+| Live source and registered design inputs | Not verified by the diagnostic | Existing source/design owners before any projection adoption |
+| Real Agent quality/cost | Not measured | Comparable repeated runs, real instrumentation and independent acceptance |
+| Main/release/distributed consumer path | Not performed | Passing gates, separate authorization and consumer verification |
+
+The container still has no complete source/dependency checkout and cannot resolve
+GitHub/Go-proxy hosts. Reading the failure annotation through the available
+connector was rejected. No billing diagnosis, disabled check, repeated rerun or
+permission change is justified by those observations. The current focused tests
+cannot replace the complete-checkout verifier.
+
+The initial review's broader document/large-file restructuring and measured
+adaptive-execution rollout are also not implicitly complete. This page replaces
+repetitive progress narration, not any runtime, release or acceptance contract.
+
+## Resume through the existing validation path
+
+In a clean prepared checkout, with a new output directory outside the repository:
 
 ```sh
 python tools/workflow-quality/verify_quick_rollout.py --output-dir ../quick-rollout-evidence
 ```
 
-The output directory must be new and outside the checkout. The checker requires
-the existing prepared Python environment (including Ruff and this checkout's
-specify_cli) and cached Go dependencies. It neither installs dependencies nor
-changes repository settings. For targeted race checks before the full run:
+Targeted race checks before that full run:
 
 ```sh
 cd tools/specify-runtime
-go test -race -count=1 -run '^TestQuickShadowCLI' .
+go test -race -count=1 -run '^TestQuickShadow(CLI|Compatibility)' .
 go test -count=1 ./...
 go vet ./...
 ```
 
-The complete rollout checker, original CI checks and native jobs remain the
-acceptance path. A partial reproduction package is not a substitute checkout.
-Keep source private, preserve existing state and user edits, and do not reapply
-old cumulative patches over the feature branch.
+The verifier requires prepared Python tools, this checkout's specify_cli and
+cached Go dependencies. It does not install dependencies, authorize release or
+accept partial source as a complete checkout. Keep source private, preserve user
+changes and do not reapply superseded cumulative patches.
 
-## 2026-09-18 follow-up: capability API boundaries
-
-Parent source: `a59d67a0e82df0900eb2310eb69e33dabe2bc2cf`. The production change
-is limited to the existing capability API owner; no new command or workflow.
-
-Reproduced at the actual selected Run -> API path: a duplicate JSON selector
-silently replaced an unavailable capability with an available one; Pack emitted
-132,788 bytes when its runtime-identity metadata was expanded; Ensure emitted
-143,912 bytes for an input below its limit that repeated an unknown ID in output.
-The previous items-only limit missed both complete-response cases.
-
-The repair rejects duplicate/alias selectors and invalid UTF-8, bounds all
-capability-input forms through the existing reader, and checks final serialized
-Ensure/Pack envelopes. Oversize responses contain no partial contracts. External
-write failures are reported without retry; bytes already written cannot be
-retracted. Caller data is not changed. Normal selection order,
-metadata compatibility, output contracts, status codes and argv binding remain.
-The old separate items serialization is removed; no speedup metric is claimed.
-
-Validation: 24 new top-level tests passed (18 boundary/real-file/stdin checks and
-six Run/API-route cases). The combined selected-source suite passed **99 regular
-top-level tests plus one fuzz seed target**, with race detection, 212 passing
-events including subtests, zero failures/skips; same-scope vet passed. Counts
-include previous integration reruns, not 99 new tests. Fuzz seeds are not a new
-randomized fuzz run. Before-fix failures are preserved in the delivery evidence.
-
-This run type-checks the whole modified capability_efficiency.go, the unchanged
-buildinfo implementation, shared JSON input and original output/path owners.
-The Run/API dispatcher, flags, registry and contract helpers are exact selected
-source. Store contributes only its retrieved SchemaVersion constant; SQLite is
-not linked. Unselected legacy descriptor, schema and non-Quick owners remain
-poison test stubs in the LOCAL fixture and are not committed. Valid shadow
-Show/Pack/Ensure/help interaction did execute without those stubs being called.
-This is stronger selected-path validation, not a complete runtime build.
-
-The three original legacy/general-help entrypoint cases listed above, complete
-repository regressions, wheel/install, native hosts, CI execution and live
-artifact/approval consumption remain unverified. No named verification gate is
-removed or relabelled. Prior partial-source preflight blockers still apply;
-source changes stay on PR #120 without main merge, release or consumer adoption.
+See [CI recovery](../ci-troubleshooting.md),
+[command usage](../architecture/quick-shadow-cli.md) and
+[runtime maintenance](../agent-guidance/workflow-maintenance.md).
