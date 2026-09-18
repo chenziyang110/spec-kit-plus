@@ -1,107 +1,109 @@
 # Spec Kit Plus optimization status
 
-Updated: 2026-09-18 (Asia/Tokyo). This installer-isolation increment follows
-`b81a19b6e7ffca3dc9c640658bab87af6043bb04` on PR #120.
+Updated: 2026-09-18 (Asia/Tokyo). This Python consumer/compatibility increment
+follows `ce0b897f4edec05111bd31551c66adc3f3759710` on PR #120.
 
 ## Current decision
 
-Keep the dependency order **#116 -> #119 -> #120**. Implementation and selected
-path checks have progressed, but complete-runtime, installation, native-host and
-release verification have not passed. Keep the PR draft; do not merge, publish,
-upgrade installed projects or switch generated consumers based on this document.
+Keep dependency order **#116 -> #119 -> #120** and keep the PR draft.
+Selected components have been verified; full runtime, installation, native-host
+and release verification remain open. Do not merge, publish, upgrade installed
+projects or switch generated consumers based on these component results.
 
-This increment repairs Python runtime materialization and adds its regression
-tests. No workflow, capability minimum, executor default or permission changes.
-Existing installed binaries are not upgraded merely by this source commit.
+The current change fixes Python runtime response handling and installation-time
+compatibility checks. It does not change minimum capabilities, release selection,
+workflow defaults, launcher configuration ownership or permissions.
 
 ## Implemented work
 
-| Area | Implemented | Not established by that implementation |
+| Area | Implemented | Still not established |
 | --- | --- | --- |
-| Quick execution/output | Explicit direct/worker selection, compact output, usage tools | A measured improvement in real accepted deliveries |
-| Evaluation | Validated observations, unknown-value handling, fixed task fixtures | Actual Agent runs or independent human acceptance |
-| Context | Bound compilation, strict decoding, exact state numbers and identifiers | Permission, live-source correctness or design approval |
-| Shadow diagnostic | Optional CLI, explicit owner selection, shared capability discovery | A replacement executable contract or installed consumer adoption |
-| Runtime reliability | Bounded/cancellable reads, output delivery and timeout handling | Rollback, descendant-process isolation or full-platform validation |
-| Installation | Independent verified binary copies and selected legacy-hardlink repair | A complete wheel/init/release or native-platform pass |
-| Evidence | Required named tests, host package inventory and complete-log checks | Authenticity of edited logs or a run that never started |
+| Quick execution/output | Explicit direct/worker selection, compact output, usage tools | Measured improvements in accepted real deliveries |
+| Evaluation | Validated observations, unknown values and fixed fixtures | Actual Agent runs and independent acceptance |
+| Context/shadow | Bound compilation, strict state decoding, optional non-authorizing CLI and discovery | Live-source/design approval or an executable replacement contract |
+| Runtime reliability | Bounded/cancellable reads, delivery and timeout checks | Rollback, process-tree isolation or whole-platform validation |
+| Installation | Independent verified copies and selected legacy-hardlink repair | Complete init, wheel, release download or native-platform validation |
+| Python consumer | Exit-aware blockers, unambiguous JSON and single-snapshot compatibility | Executable authenticity, atomic check/use or full launcher integration |
+| Evidence | Named tests, host package inventory and complete-log checks | Authenticity of edited logs or execution of unstarted jobs |
 
-The shadow report retains the complete owner packet. It does not authorize
-execution, waive result submission, verify registered design approval or decide
-product acceptance. Classic and Advanced remain separate prompt products with
-unchanged defaults and minimum capability requirements.
+The complete owner packet and existing result/review/acceptance gates remain.
+Shadow stays optional and non-authorizing. Classic and Advanced retain their
+separate prompt products and unchanged installed minimum requirements.
 
-## Latest installer isolation repair
+## Latest Python boundary repair
 
-The former hardlink optimization made the source, content-addressed cache and
-multiple project binaries share writable file data. A real-file reproduction
-showed that editing project A changed the cache, source and project B, and that
-making the copy executable also changed source permissions.
+A real child process returning a `blocked` envelope with exit 1 was incorrectly
+returned as a normal structured blocker. With the default `check=True`, blocked
+and repairable-block envelopes now require exit **10**. Exit 1, contradictory
+exit 0, other errors and POSIX signal termination cannot be hidden by a blocker
+label. Validation happens before the legacy cognition-data unwrap. Valid exit-10
+cognition/non-cognition responses preserve their respective existing shapes.
 
-`materialize_project_runtime_entrypoint` now uses independent copies. The private
-helper retains its old name for compatibility but no longer creates hardlinks.
-It keeps an exclusive candidate file open while copying, flushes/syncs it, checks
-source identity and observable metadata drift, and verifies its expected SHA-256
-before atomic replacement. Source permission bits are not modified and special
-POSIX mode bits are not propagated. Candidate failures leave the old destination
-intact and remove the temporary file. The cache uses the same existing safe-path
-owner as project pins to reject symlink/junction traversal.
+`check=False` remains an explicit diagnostic opt-out from exit checking, not a
+permission grant. It does not opt out of JSON integrity. Normal legacy plain
+objects remain supported. Response decoding rejects duplicate decoded keys,
+non-finite numbers and malformed UTF-8 instead of replacing or silently choosing
+values. Integers stay exact; ordinary decimals retain the existing Python float
+type. This is not arbitrary-precision decimal transport or bounded streaming IO.
 
-A matching digest is not sufficient for reuse: a multiply linked cache or
-selected project pin is recopied on its next normal materialization. Independent
-matching files remain reusable without a new copy. Other project directories are
-not scanned or silently upgraded. An old, unselected linked project still needs
-its own normal materialization before its remaining links are detached.
+Binary, exact-release and latest-clean checks previously read capabilities from
+one handshake and identity from a second. Controlled alternating responses showed
+that two individually incompatible snapshots could combine into an accepted one.
+Each check now validates capabilities and identity from **one** observed handshake.
+This removes one subprocess per such check, not a measured product speedup.
 
-There is a storage/copying cost per independent project binary. This is deliberate
-isolation, not a performance improvement claim. Already corrupted old pins are
-not certified safe by detachment; use the existing validated runtime source and
-installation/repair path. This is not hostile-writer isolation or a transaction
-across cache, project binary, ignore files and launcher configuration. A verified
-cache copy may remain when a later project write fails; no rollback is claimed.
+Handshake error/block statuses and malformed data cannot supply a usable identity.
+Legacy flat/nested handshake shapes and legacy protocol/capability field names
+remain supported. Malformed capability members are rejected rather than converted
+to strings. Retired-command rejection, explicit development-dirty permission,
+concrete release pins and clean-release fallback remain enforced. A single
+handshake is not authentication of an executable or a lock against later changes.
 
-Current Linux / Python 3.13.5 / Go 1.23.2 checks: **25 new test cases and three
-unchanged existing materialization test bodies passed**, with zero failures or
-skips. They use actual files, hardlinks, modes, symlinks, injected copy/flush/
-replacement failures and the original atomic_io implementation. A tiny native
-Go executable was built, pinned and executed successfully; it is a test fixture,
-not the complete Specify runtime or a release asset. The earlier original-code
-run of the initial 22 cases had 15 failures and seven passes, including expected
-failures for the new API/guards as well as the reproduced shared-file defects.
+## Validation actually executed for this increment
 
-The full installer module was imported and syntax-checked, not replaced by
-extracted helper implementations. Local package initialization and two unrelated
-launcher entrypoints are poison seams; they are not used by materialization and
-are not committed. Whole `specify init`, launcher persistence, wheel construction,
-public download and Windows/macOS execution remain unverified. No network
-installation, credential lookup, profile switch or publication ran in these tests.
+Linux amd64, Python 3.13.5, local Go 1.23.2 for the retained native-copy fixture.
+The original installer and atomic_io bytes were checked against Git blob IDs.
 
-Historical compatibility checkpoint b81a19b: 105 selected Go cases plus a fuzz
-seed target passed. All sixteen named shadow test bodies ran only against a
-partial fixture with restricted legacy descriptors and no SQLite link. Those
-results were not rerun or upgraded to complete-runtime evidence by this change.
+| Executed scope | Result | Boundary |
+| --- | --- | --- |
+| Before-fix targeted regressions | All 11 failed as expected | Eight blocker/exit cases and three mixed-snapshot cases |
+| New response/handshake cases | 54 passed | Parameterized cases using real isolated Python child processes |
+| Retained materialization cases | 28 passed | 25 previous cases and three unchanged legacy test bodies |
+| Final combined selected Python run | 82 passed; no failures or skips | Not the whole repository or complete CLI |
+| Python compilation and source scope | Passed | Full changed module parsed; six existing functions changed, two helpers added |
+
+Tests count subprocess invocations and prohibit response validation from invoking
+installation/retry. They cover actual signal termination on Linux, invalid UTF-8,
+duplicate keys, ordinary success/blocker compatibility, dirty/release constraints
+and the optional shadow capability. Child interpreters use isolated stdlib-only
+startup; no network, credentials, published binaries or paid Agent execution.
+
+The full `specify_runtime.py` and `atomic_io.py` modules load. Local package
+initialization and two unselected launcher imports remain poison seams; they are
+not used or committed as production replacements. The handshake seam in binary
+checks only redirects argv to a real child; it does not fabricate subprocess
+results. This is component integration, not full `specify init`, configuration
+persistence, concurrent initialization, wheel installation or a built Go runtime.
+Earlier 105-case selected Go results are historical and were not rerun here.
+Ruff is unavailable locally; no Ruff or complete-CI pass is claimed.
 
 ## Remaining acceptance gates
 
-| Gate | Current state | Required next evidence |
+| Gate | Current state | Required evidence |
 | --- | --- | --- |
-| Complete Go runtime, SQLite/Work, API and all named tests | Not validated | Clean complete checkout, prepared dependencies, original full suite |
-| Python, wheel/install and installed Classic/Advanced | Not validated | Existing suites against the same source revision |
-| Native Windows/macOS | Not executed in this environment | Actual native run logs, not cross-compilation or workflow configuration |
-| Cloud CI | Latest inspected baseline failed without returned steps | Accessible Actions annotation and actual execution; root cause remains unknown |
-| Live source and registered design inputs | Not verified by the diagnostic | Existing source/design owners before any projection adoption |
-| Real Agent quality/cost | Not measured | Comparable repeated runs, real instrumentation and independent acceptance |
-| Main/release/distributed consumer path | Not performed | Passing gates, separate authorization and consumer verification |
+| Full Go runtime, SQLite/Work, API and all named tests | Not validated | Complete clean checkout, prepared dependencies and original full suite |
+| Full Python, wheel/init/launcher and installed profiles | Not validated | Existing suites against the same source revision |
+| Native Windows/macOS | Not executed here | Actual native logs, not cross-compilation or configuration |
+| Cloud CI | Latest inspected baseline failed without returned steps | Accessible failure detail and actual execution; root cause remains unknown |
+| Live source and registered design inputs | Not verified by shadow | Existing source/design owners before projection adoption |
+| Real Agent quality/cost | Not measured | Comparable runs, real instrumentation and independent acceptance |
+| Main/release/distributed consumer | Not performed | Passing gates, separate authorization and consumer verification |
 
-The container still has no complete source/dependency checkout and cannot resolve
-GitHub/Go-proxy hosts. Reading the failure annotation through the available
-connector was rejected. No billing diagnosis, disabled check, repeated rerun or
-permission change is justified by those observations. The current focused tests
-cannot replace the complete-checkout verifier.
-
-The initial review's broader document/large-file restructuring and measured
-adaptive-execution rollout are also not implicitly complete. This page replaces
-repetitive progress narration, not any runtime, release or acceptance contract.
+Direct container name resolution for GitHub and Go-proxy hosts still failed at
+this checkpoint. There is no prepared complete checkout. No billing diagnosis,
+repeated rerun, disabled gate or permission change follows from missing CI steps.
+Broader large-file/document restructuring and measured adaptive rollout from the
+original review are not implicitly complete. Keep user changes and source private.
 
 ## Resume through the existing validation path
 
@@ -111,19 +113,15 @@ In a clean prepared checkout, with a new output directory outside the repository
 python tools/workflow-quality/verify_quick_rollout.py --output-dir ../quick-rollout-evidence
 ```
 
-Targeted race checks before that full run:
+For the current Python regression in a complete development environment:
 
 ```sh
-cd tools/specify-runtime
-go test -race -count=1 -run '^TestQuickShadow(CLI|Compatibility)' .
-go test -count=1 ./...
-go vet ./...
+python -m pytest tests/test_runtime_response_integrity.py tests/test_runtime_materialization_isolation.py
 ```
 
-The verifier requires prepared Python tools, this checkout's specify_cli and
-cached Go dependencies. It does not install dependencies, authorize release or
-accept partial source as a complete checkout. Keep source private, preserve user
-changes and do not reapply superseded cumulative patches.
+Neither a partial reproduction bundle nor a supplied test replaces complete
+checkout verification. Existing Go, Python, native/install and release gates
+remain required. Do not reapply superseded cumulative patches.
 
 See [CI recovery](../ci-troubleshooting.md),
 [command usage](../architecture/quick-shadow-cli.md) and

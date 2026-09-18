@@ -1022,7 +1022,7 @@ def run_specify_runtime(
             capture_output=True,
             text=True,
             encoding="utf-8",
-            errors="replace",
+            errors="strict",
             check=False,
             timeout=timeout,
         )
@@ -1031,6 +1031,10 @@ def run_specify_runtime(
             f"{RUNTIME_COMMAND} {_runtime_operation(args)} timed out after "
             f"{timeout:g} seconds; inspect the runtime command's locks and child processes"
         ) from exc
+    except UnicodeError as exc:
+        raise SpecifyRuntimeError(
+            f"{RUNTIME_COMMAND} {_runtime_operation(args)} returned invalid UTF-8"
+        ) from exc
     output = (result.stdout or "").strip()
     if not output:
         if result.returncode != 0:
@@ -1038,19 +1042,34 @@ def run_specify_runtime(
             raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} {' '.join(args)} failed: {detail}")
         return {}
     try:
-        payload = json.loads(output)
-    except json.JSONDecodeError as exc:
+        payload = _decode_runtime_response(output)
+    except (ValueError, TypeError, RecursionError) as exc:
         raise SpecifyRuntimeError(
-            f"{RUNTIME_COMMAND} {' '.join(args)} returned invalid JSON: {exc}"
+            f"{RUNTIME_COMMAND} {_runtime_operation(args)} returned invalid JSON"
         ) from exc
     if not isinstance(payload, dict):
         raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} {' '.join(args)} returned non-object JSON")
     if _is_runtime_envelope(payload):
         envelope_status = str(payload.get("status") or "").strip().lower()
+        structured_block = (
+            result.returncode == 10
+            and envelope_status in {"blocked", "repairable-block"}
+        )
+        # A diagnostic block is an explicit protocol result, not a blanket
+        # exemption for delivery errors, signals, or a contradictory exit 0.
+        if (
+            check
+            and envelope_status in {"blocked", "repairable-block"}
+            and not structured_block
+        ):
+            raise SpecifyRuntimeError(
+                f"{RUNTIME_COMMAND} {_runtime_operation(args)} returned "
+                f"{envelope_status} with unexpected exit code {result.returncode}"
+            )
         if (
             check
             and result.returncode != 0
-            and envelope_status not in {"blocked", "repairable-block"}
+            and not structured_block
         ):
             detail = str(
                 result.stderr
@@ -1065,7 +1084,7 @@ def run_specify_runtime(
             data = payload.get("data")
             if isinstance(data, dict):
                 return data
-        if result.returncode != 0 and envelope_status in {"blocked", "repairable-block"}:
+        if structured_block:
             return payload
     if check and result.returncode != 0:
         detail = str(
@@ -1093,6 +1112,38 @@ def _is_runtime_envelope(payload: dict[str, Any]) -> bool:
     )
 
 
+def _decode_runtime_response(output: str) -> Any:
+    """Read a single unambiguous JSON value from the runtime process.
+
+    Keep existing Python number types (including exact integers). Reject
+    duplicate decoded keys and non-finite floats instead of silently changing
+    capability or result facts. This is parsing, not source authentication.
+    """
+
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate runtime JSON key")
+            result[key] = value
+        return result
+
+    def invalid_constant(value: str) -> None:
+        raise ValueError("non-finite runtime JSON number")
+
+    def finite_float(value: str) -> float:
+        result = float(value)
+        if not math.isfinite(result):
+            raise ValueError("non-finite runtime JSON number")
+        return result
+
+    return json.loads(
+        output, object_pairs_hook=unique_object,
+        parse_constant=invalid_constant, parse_float=finite_float,
+    )
+
+
+
 def _runtime_handshake(
     argv: Sequence[str],
     *,
@@ -1107,23 +1158,27 @@ def _runtime_handshake(
             capture_output=True,
             check=False,
             encoding="utf-8",
-            errors="replace",
+            errors="strict",
             text=True,
             timeout=10,
         )
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError, UnicodeError):
         return None
     if result.returncode != 0:
         return None
     try:
-        payload = json.loads(result.stdout)
-    except (json.JSONDecodeError, TypeError):
+        payload = _decode_runtime_response(result.stdout)
+    except (ValueError, TypeError, RecursionError):
         return None
     if not isinstance(payload, dict):
         return None
-    data = payload.get("data")
-    if isinstance(data, dict):
-        return data
+    if "status" in payload:
+        status = payload["status"]
+        if not isinstance(status, str) or status.strip().lower() != "ok":
+            return None
+    if "data" in payload:
+        data = payload["data"]
+        return data if isinstance(data, dict) else None
     return payload
 
 
@@ -1134,14 +1189,24 @@ def launcher_supports_required_commands(
 ) -> bool:
     """Require the current surface, including retirement of old Run commands."""
 
-    info = _runtime_handshake(argv, cwd=cwd)
+    return _runtime_supports_required_commands(_runtime_handshake(argv, cwd=cwd))
+
+
+def _runtime_supports_required_commands(info: dict[str, object] | None) -> bool:
+    """Validate one observed handshake without executing another subprocess."""
+
     if info is None:
         return False
     protocol = info.get("protocol_version") or info.get("runtime_protocol")
     capabilities = info.get("capability_ids") or info.get("capabilities")
     if protocol != EXPECTED_RUNTIME_PROTOCOL or not isinstance(capabilities, list):
         return False
-    capability_set = {str(capability) for capability in capabilities}
+    if not all(
+        isinstance(capability, str) and capability and capability.strip() == capability
+        for capability in capabilities
+    ):
+        return False
+    capability_set = set(capabilities)
     if any(
         capability.startswith(_RETIRED_CAPABILITY_PREFIXES)
         or capability in _RETIRED_CAPABILITIES
@@ -1182,21 +1247,22 @@ def _release_identity_is_compatible(
 def _binary_is_compatible(binary: Path, *, allow_dirty: bool = False) -> bool:
     if not binary.is_file():
         return False
-    if not launcher_supports_required_commands((str(binary),)):
-        return False
     info = _runtime_handshake((str(binary),))
-    if info is None:
-        return False
-    return _runtime_identity_is_compatible(info, allow_dirty=allow_dirty)
+    return (
+        info is not None
+        and _runtime_supports_required_commands(info)
+        and _runtime_identity_is_compatible(info, allow_dirty=allow_dirty)
+    )
 
 
 def _release_binary_is_compatible(binary: Path, version: str) -> bool:
-    if not binary.is_file() or not launcher_supports_required_commands((str(binary),)):
+    if not binary.is_file():
         return False
     info = _runtime_handshake((str(binary),))
-    return info is not None and _release_identity_is_compatible(
-        info,
-        expected_version=version,
+    return (
+        info is not None
+        and _runtime_supports_required_commands(info)
+        and _release_identity_is_compatible(info, expected_version=version)
     )
 
 
@@ -1210,12 +1276,14 @@ def _clean_release_binary_meets_contract(binary: Path) -> bool:
     required protocol and capabilities.
     """
 
-    if not binary.is_file() or not launcher_supports_required_commands((str(binary),)):
+    if not binary.is_file():
         return False
     info = _runtime_handshake((str(binary),))
-    if info is None:
-        return False
-    return _release_identity_is_compatible(info, expected_version="latest")
+    return (
+        info is not None
+        and _runtime_supports_required_commands(info)
+        and _release_identity_is_compatible(info, expected_version="latest")
+    )
 
 
 def _allow_dirty_runtime() -> bool:
