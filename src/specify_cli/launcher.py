@@ -22,6 +22,7 @@ from .atomic_io import (
     atomic_write_bytes,
     atomic_write_text,
     interprocess_lock,
+    read_local_state_bytes,
     read_local_state_text,
     safe_local_state_path,
 )
@@ -823,6 +824,8 @@ def project_specify_launcher_is_available(
     try:
         if read_local_state_text(destination, root=project_root) != expected:
             return False
+        if os.name != "nt" and not os.access(destination, os.X_OK):
+            return False
     except (OSError, ValueError):
         return False
     return _machine_binding_probe(launcher.binding_id)
@@ -840,24 +843,26 @@ def _machine_binding_probe(binding_id: str) -> bool:
     invoke_path = Path(binding["invoke_path"])
     dispatch_path = Path(dispatch["dispatch_path"])
     dispatch_repair_argv = tuple(dispatch["repair_argv"])
-    binding_dir = _project_launcher_binding_dir(binding_id).resolve()
-    entry_path = binding_dir / SPECIFY_BINDING_ENTRY
-    expected_invoke = _project_launcher_native_binding_path(binding_id).resolve()
-    expected_dispatch = _project_launcher_dispatch_path().resolve()
     try:
+        binding_dir = _project_launcher_binding_dir(binding_id).resolve()
+        entry_path = binding_dir / SPECIFY_BINDING_ENTRY
+        expected_invoke = _project_launcher_native_binding_path(binding_id).resolve()
+        expected_dispatch = _project_launcher_dispatch_path().resolve()
         recorded_entry = Path(entry_argv[1]).resolve()
         recorded_invoke = invoke_path.resolve()
         recorded_dispatch = dispatch_path.resolve()
         recorded_import_root = package_import_root.resolve()
-    except OSError:
+    except (OSError, ValueError, RuntimeError):
         return False
+    # The shared dispatcher embeds the last writer's repair hint, not the
+    # selected binding's interpreter. Another environment disappearing must
+    # not disable this binding; its own entry interpreter is still required.
     if (
         recorded_entry != entry_path
         or recorded_invoke != expected_invoke
         or recorded_dispatch != expected_dispatch
         or recorded_import_root != package_import_root
         or not _launcher_entry_exists(entry_argv[0])
-        or not _launcher_entry_exists(dispatch_repair_argv[0])
         or not entry_path.is_file()
         or not invoke_path.is_file()
         or not dispatch_path.is_file()
@@ -866,9 +871,16 @@ def _machine_binding_probe(binding_id: str) -> bool:
     try:
         package_init = package_import_root / "specify_cli" / "__init__.py"
         package_launcher = package_import_root / "specify_cli" / "launcher.py"
-        entry_hash = hashlib.sha256(entry_path.read_bytes()).hexdigest()
-        invoke_hash = hashlib.sha256(invoke_path.read_bytes()).hexdigest()
-        dispatch_hash = hashlib.sha256(dispatch_path.read_bytes()).hexdigest()
+        # Hash and compare the same bytes. Reject links in owned scripts via
+        # the shared path owner before any subprocess; interpreter symlinks
+        # belonging to a virtual environment are not treated as owned scripts.
+        state_root = _project_launcher_state_root()
+        entry_bytes = read_local_state_bytes(entry_path, root=state_root)
+        invoke_bytes = read_local_state_bytes(invoke_path, root=state_root)
+        dispatch_bytes = read_local_state_bytes(dispatch_path, root=state_root)
+        entry_hash = hashlib.sha256(entry_bytes).hexdigest()
+        invoke_hash = hashlib.sha256(invoke_bytes).hexdigest()
+        dispatch_hash = hashlib.sha256(dispatch_bytes).hexdigest()
         package_init_hash = hashlib.sha256(package_init.read_bytes()).hexdigest()
         package_launcher_hash = hashlib.sha256(package_launcher.read_bytes()).hexdigest()
         repair_command = render_command(_binding_repair_argv(entry_argv[0]))
@@ -879,14 +891,16 @@ def _machine_binding_probe(binding_id: str) -> bool:
             package_launcher_sha256,
             repair_command,
         )
+        expected_entry_bytes = expected_entry.encode("utf-8")
         expected_dispatch = _binding_dispatch_source(
             render_command(dispatch_repair_argv)
         ).encode(
             "utf-8-sig" if os.name == "nt" else "utf-8"
         )
-        actual_entry = entry_path.read_text(encoding="utf-8")
-        actual_dispatch = dispatch_path.read_bytes()
-    except OSError:
+        expected_invoke_bytes = _binding_invoke_source(
+            entry_argv[0], entry_path,
+        ).encode("utf-8-sig" if os.name == "nt" else "utf-8")
+    except (OSError, ValueError):
         return False
     if (
         entry_hash != binding["entry_sha256"]
@@ -894,8 +908,9 @@ def _machine_binding_probe(binding_id: str) -> bool:
         or dispatch_hash != dispatch["dispatch_sha256"]
         or package_init_hash != package_init_sha256
         or package_launcher_hash != package_launcher_sha256
-        or actual_entry != expected_entry
-        or actual_dispatch != expected_dispatch
+        or entry_bytes != expected_entry_bytes
+        or invoke_bytes != expected_invoke_bytes
+        or dispatch_bytes != expected_dispatch
     ):
         return False
     try:
@@ -904,11 +919,11 @@ def _machine_binding_probe(binding_id: str) -> bool:
             capture_output=True,
             text=True,
             encoding="utf-8",
-            errors="replace",
+            errors="strict",
             check=False,
             timeout=10,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired, UnicodeError):
         return False
     return probe.returncode == 0 and probe.stdout.strip() == SPECIFY_RUNTIME_ID
 
@@ -980,7 +995,11 @@ def install_project_specify_launcher(project_root: Path, binding_id: str) -> Pat
                 f"preserved {destination}. Back up the file, compare it with the installed "
                 "Spec Kit Plus launcher template, then run the trusted `specify integration repair` command."
             )
-        return destination
+        if os.name == "nt" or os.access(destination, os.X_OK):
+            return destination
+        # Repair only an exact generated wrapper. Republish an independent file
+        # rather than chmod a possibly hardlinked backup or another project.
+        # Modified contents above still require an explicit user merge.
     atomic_write_text(destination, rendered)
     if os.name != "nt":
         destination.chmod(0o700)

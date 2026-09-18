@@ -1,151 +1,101 @@
 # Spec Kit Plus optimization status
 
-Updated: 2026-09-18 (Asia/Tokyo). This project-runtime resolution increment follows
-`eac9f58ce968e396f4085314bb5664cc835af59c` on PR #120.
+Updated: 2026-09-18 (Asia/Tokyo). This increment follows
+`a6519ff6cd61f86654fd8ae3cc7d70c1b498cb7d` in PR #120 and includes the previously
+local machine-binding repair plus the project-wrapper permission repair.
 
 ## Current decision
 
-Keep the dependency order **#116 -> #119 -> #120** and the PR draft. No main
-merge, release, installed-project upgrade, permission change or generated
-consumer adoption is authorized by these component results.
+Keep dependency order **#116 -> #119 -> #120** and keep the PR draft. No main
+merge, release, installed upgrade or generated-consumer switch is implied.
+Classic/Advanced defaults, capability minimums and result/review/acceptance gates
+remain unchanged. The broader restructuring and measured adaptive rollout from
+the original review are not implicitly complete.
 
-Implemented work includes explicit Quick execution/output controls; validated
-observations and task fixtures; bound context compilation and precise state
-reading; optional non-authorizing shadow CLI/discovery; cancellation and output
-checks; independent runtime copies; and exit-aware, single-handshake Python
-consumption. These implementations do not establish measured Agent savings,
-live-source correctness, design approval or independent product acceptance.
-Classic/Advanced products, required capabilities and result/review gates remain.
+Retained implementation includes Quick execution/output controls, evaluation
+fixtures, bound context and strict state reads, optional non-authorizing shadow
+discovery, cancellation/output checks, independent runtime copies, single-handshake
+Python validation, cooperating launcher-writer locks and project-pin resolution
+without silent fallback. These are not evidence of real Agent savings, verified
+live-source/design inputs or independent human acceptance.
 
-## Latest: project pins cannot silently fall back
+## Latest repair
 
-The Python consumer now distinguishes a genuinely unbound directory from a
-broken project binding. A failed digest/launcher check, malformed config,
-orphaned pin, unreadable state or unsafe project path raises
-`SpecifyRuntimeBindingError` before environment/PATH selection or automatic
-installation. `install_if_missing=True` and `check=False` do not waive this
-selection boundary. Explicit bootstrap without a project remains supported.
+Machine-binding probes require the selected binding's interpreter, not the last
+writer's interpreter embedded in a shared repair hint. Entry, invoke and dispatch
+scripts must match generated content and hashes; updating the invoke hash and
+printing the expected identity cannot substitute for the verified entry. The
+same script bytes are hashed and compared. Owned-script links, malformed bytes,
+invalid recorded paths and invalid child responses fail the probe. Virtual-
+environment interpreter symlinks remain supported.
 
-Subdirectory calls use the nearest `.specify` boundary and its existing validated
-launcher owner. Nested projects do not borrow an enclosing project's pin. The
-executable becomes absolute while the original command arguments and working
-directory stay unchanged. Resolution does not write, repair, install or probe.
-The actual config-save-failure path is covered: the mismatched pin blocks calls,
-then a deliberate existing-writer repair restores normal project-local execution.
-This is still not a filesystem transaction, signature check or atomic check/use.
+On POSIX hosts, an exact project wrapper without execution permission is no
+longer reported available. Normal repair republishes only identical generated
+content as an independent file and restores the existing executable mode. User-
+modified wrappers retain conflict/preserve behavior, hardlinked external backups
+retain bytes/mode/mtime, and replacement-write errors are reported.
 
-Current Linux evidence: **32 new parameterized cases and 113 retained cases
-passed (145 total), with zero failures/skips**. The same 32 new cases on the
-original runtime produced 26 failures and six passes, with no collection errors
-or skips. Real native Go fixtures verified the executable path, cwd and argv;
-these are small test programs, not the full Specify Go runtime. The complete
-launcher/runtime/atomic_io/hook_artifacts modules run, with only heavy package
-initialization bypassed by the local driver. All top-level constants/imports
-and unrelated runtime definitions were checked unchanged. Only two existing
-runtime functions change; one private resolver and one error subtype are added.
+Only three existing production functions change: `_machine_binding_probe`,
+`project_specify_launcher_is_available` and `install_project_specify_launcher`,
+plus one existing safe-read import. Script generators, commands, dependencies,
+capability requirements and workflow defaults are unchanged. Operator recovery
+is consolidated in [Project launcher recovery](../launcher-recovery.md).
 
-The [installation guide](../installation.md) now explains recovery and corrects
-its obsolete hardlink description. Complete CLI init, machine binding probes,
-wheel/profile installation, full Go/Python suites and native Windows/macOS remain
-unverified. Prior cloud failures do not become passes from these local results.
+## Verification executed in this increment
 
-## Retained launcher persistence repair
+Linux amd64, Python 3.13.5, Go 1.23.2 for the retained small native fixtures.
+The original launcher matches Git blob `f488d07c7d4030c71463cdba353bc7992484a4f4`.
 
-The original runtime-config writer materialized a new binary before loading the
-existing config or resolving binding metadata. Bad configuration or a metadata
-exception could leave a changed binary and an old binding. Both Specify and
-runtime config writers also performed unlocked whole-object read/modify/write.
-Controlled real subprocesses reproduced a second installation modifying the pin
-while the first writer was paused just before its config write.
+| Scope | Actual result |
+| --- | --- |
+| Original remote code, 20 binding cases | 8 expected failures, 12 passes, no errors/skips |
+| Previous local patch, 7 wrapper cases | 4 expected failures, 3 passes, no errors/skips |
+| Final binding and wrapper cases | 27 passed |
+| Configuration/concurrency regressions | 31 passed |
+| Response/handshake regressions | 54 passed |
+| Materialization and project resolution | 60 passed, including three legacy test bodies |
+| Final total across four completed groups | 172 passed, zero failures/errors/skips |
 
-The two writers now share the existing OS lock primitive at
-`.specify/runtime/launcher-config.lock`, covering config reread, owned file work
-and binding publication. The file is retained (not unlinked on release) and
-ignored with the existing runtime-owned state directory. Different projects do
-not share a lock. Existing default-launcher no-ops still create no project state.
+The 172 cases comprise seven wrapper additions, 20 carried-forward local binding
+cases and 145 retained cases. Repeated runs are not additional independent tests.
+The full launcher, runtime installer, atomic_io and hook_artifacts modules load.
+The local driver bypasses only heavy CLI package initialization. Generated binding
+children use a small instrumented CLI with production launcher/IO owners; the
+canonical POSIX project template is unchanged and blob-checked. Public writer,
+binding generation/probe, config loader, wrapper execution from a nested directory,
+Unicode/space/literal arguments and failure recovery are exercised. This is
+component integration, not full CLI initialization or a production Go release.
 
-Existing malformed configuration is rejected before materialization or binding
-writes. Config JSON rejects duplicate decoded keys, non-finite values, invalid
-UTF-8 and unpaired surrogate escapes; legitimate Unicode, exact integer user
-values, existing fields and ordinary JSON-number behavior are retained. Binding
-metadata is obtained and checked for JSON representability before replacing the
-project binary. Foreign Specify ownership and explicit trusted-source selection
-keep the original rules. No credentials are read or release assets downloaded.
+## Remaining gates
 
-## What the lock does not guarantee
+| Gate | Required evidence still missing |
+| --- | --- |
+| Full Go/SQLite/Work/API/Python | Prepared complete checkout and original full suites |
+| Full CLI/init/wheel and installed profiles | Complete initializer and installation/repair acceptance |
+| Native Windows/macOS | Actual native execution, not cross-compilation or configured jobs |
+| Cloud CI | Successful current-head execution and accessible failure details |
+| Live-source/design and Agent quality/cost | Existing owners, comparable real runs and independent acceptance |
+| Main/release/distribution | Passing gates and separately authorized publication |
 
-This is serialization for the **two cooperating launcher writers**, not a global
-init transaction. Readers, low-level binary-copy callers and external editors do
-not acquire this lock. A later config-save failure can still leave a new binary
-with the old binding; the write raises, and the existing loader rejects the
-mismatched pin instead of certifying it. A deliberate subsequent repair can
-restore a matching binding. No rollback or crash-atomic multi-file commit is
-claimed. A killed process releases its OS lock, not its completed side effects.
+At the parent revision, checks remain failed. The Go check reports two failure
+annotations, but the available connector rejects the annotation endpoint; the
+root cause is not established. Do not infer billing, disable checks, repeatedly
+rerun jobs or change permissions based on missing logs. Inspect the new head's
+actual results separately. Ruff is unavailable locally; no Ruff pass is claimed.
 
-Do not delete a lock file to unlock it. The existing platform primitive owns its
-wait/release policy; no new timeout or platform-isolation claim is introduced.
-Machine-wide local binding dispatchers and complete concurrent `specify init`
-remain separate validation work.
+Project locks do not serialize every machine-global binding write. Access checks
+are not atomic check/use; no executable signing, hostile-writer isolation,
+multi-file crash transaction or rollback is claimed.
 
-## Historical eac9f58 verification
-
-Environment: Linux amd64, Python 3.13.5, Go 1.23.2 (the retained tiny executable
-copy fixture). Exact original launcher blob:
-`eddbc7bb2ed5e02e4577fc8849125037e8e496e6`.
-
-| Executed scope | Result | Interpretation |
-| --- | --- | --- |
-| Original-code regressions | 9 expected failures | Six bad-config cases, one metadata failure, two real-process interleavings |
-| New launcher persistence cases | 31 passed | Includes parameterization, not 31 new test functions |
-| Retained response and materialization cases | 82 passed | Reruns of 54 response and 28 materialization cases |
-| Combined selected Python run | 113 passed, zero failures/skips | Component integration, not complete repository verification |
-| Python compilation and AST scope checks | Passed | Three existing launcher functions change, one lock helper added; constants preserved |
-
-Real-process tests pause one writer before config publication, observe the
-second waiting, then release and check final binary/config agreement and retained
-user fields. Other tests cover actual process termination and lock release,
-different-project progress, symlink path refusal, both binding loaders, pinned
-runtime precedence, idempotence, and explicit config-save failure/recovery.
-
-The complete launcher, runtime installer, atomic_io and hook_artifacts modules
-are loaded. Unlike earlier fixtures, launcher imports are no longer replaced.
-Only the heavyweight CLI package initializer is bypassed in the local test
-driver. Source-bound Specify persistence is exercised without running uvx;
-machine-local binding generation/probing and full init are not asserted tested.
-The committed tests use normal imports in a prepared complete checkout; the
-partial-package driver is delivery evidence only, not production code.
-
-The prior selected Go results remain historical and were not rerun here. Ruff
-is unavailable locally; no Ruff, wheel, native Windows/macOS or full CI pass is
-claimed. Repeated reproduction runs are not extra independent test coverage.
-
-## Remaining acceptance gates
-
-| Gate | Current state | Required evidence |
-| --- | --- | --- |
-| Complete Go/SQLite/Work/API and all named cases | Not validated | Complete clean checkout, prepared dependencies, original suites |
-| Full Python/init/launcher/wheel and profiles | Not validated | Entire installed consumer path, including machine-local bindings |
-| Native Windows/macOS | Not executed here | Actual native execution, not configured jobs or cross-compilation |
-| Cloud CI | Prior jobs failed without readable steps | Actual job execution and accessible failure detail; do not infer billing |
-| Live source/design input consumption | Not verified by shadow | Existing source/design owners before projection adoption |
-| Real Agent quality/cost | Not measured | Comparable runs and independent acceptance |
-| Main/release/distribution | Not performed | Passing gates and separately authorized publication |
-
-A complete checkout/dependency environment remains unavailable locally. Broader
-restructuring and adaptive rollout from the initial review are not implicitly
-finished. Preserve private source and user changes; do not weaken existing gates.
-
-## Resume through the existing validation path
-
-In a prepared complete checkout:
+## Complete-checkout validation
 
 ```sh
-python -m pytest tests/test_launcher_config_persistence.py tests/test_runtime_response_integrity.py tests/test_runtime_materialization_isolation.py
+python -m pytest tests/test_launcher_machine_binding_integrity.py tests/test_launcher_config_persistence.py tests/test_runtime_response_integrity.py tests/test_runtime_materialization_isolation.py tests/test_runtime_project_resolution.py
 python tools/workflow-quality/verify_quick_rollout.py --output-dir ../quick-rollout-evidence
 ```
 
-The evidence directory must be new and outside the repository. A scoped
-reproduction bundle is not an installation package or complete checkout.
-See [CI recovery](../ci-troubleshooting.md),
-[shadow usage](../architecture/quick-shadow-cli.md) and
+Use a new evidence directory outside the repository. A scoped reproduction bundle
+is not a complete checkout or installation package. Preserve user changes; do not
+apply the older local machine-binding patch over this increment. See
+[CI recovery](../ci-troubleshooting.md) and
 [runtime maintenance](../agent-guidance/workflow-maintenance.md).
