@@ -371,6 +371,18 @@ class SpecifyRuntimeError(RuntimeError):
     """Raised when the unified runtime cannot be resolved or invoked."""
 
 
+class SpecifyRuntimeBindingError(SpecifyRuntimeError):
+    """A project binding is unusable; automatic bootstrap must not bypass it."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            f"Project-pinned {RUNTIME_COMMAND} binding is unavailable or inconsistent. "
+            "Preserve .specify/config.json and .specify/bin, then run integration "
+            "repair through a trusted Spec Kit Plus launcher. Refusing "
+            f"{RUNTIME_ENV}/PATH fallback and automatic installation for this project."
+        )
+
+
 def _is_short_runtime_query(args: Sequence[str]) -> bool:
     if not args or args[0] in {"version", "help", "--help", "-h", "api"}:
         return True
@@ -976,13 +988,85 @@ def _env_argv() -> list[str] | None:
     return [override]
 
 
-def resolve_specify_runtime_binary(project_root: Path | None = None) -> list[str]:
-    """Resolve the runtime argv with project config > env > PATH precedence."""
+def _resolve_project_runtime_argv(project_root: Path) -> list[str] | None:
+    """Resolve the nearest project without confusing broken pins with bootstrap.
 
-    if project_root is not None:
-        launcher = resolve_runtime_launcher_argv(project_root)
+    The nearest .specify entry is a boundary, even when it is incomplete. Reuse
+    the existing launcher owner for digest/argv checks. No repair, lock, writes
+    or subprocesses happen here. These reads are not an atomic check/use against
+    concurrent or hostile changes to the config or executable.
+    """
+
+    from .launcher import (
+        RUNTIME_LAUNCHER_BINDING_CONFIG_KEY,
+        RUNTIME_LAUNCHER_CONFIG_KEY,
+        SPECIFY_CONFIG_FILE,
+        _load_config,
+    )
+
+    try:
+        start = Path(os.path.abspath(os.fspath(project_root.expanduser())))
+        selected: Path | None = None
+        for candidate in (start, *start.parents):
+            marker = candidate / ".specify"
+            try:
+                metadata = marker.lstat()
+            except FileNotFoundError:
+                continue
+            safe_local_state_path(start, root=candidate)
+            safe_local_state_path(marker, root=candidate)
+            if not stat.S_ISDIR(metadata.st_mode):
+                raise SpecifyRuntimeBindingError()
+            selected = candidate
+            break
+
+        if selected is None:
+            # Preserve the existing explicit resolver seam for bootstrap callers.
+            launcher = resolve_runtime_launcher_argv(project_root)
+            return list(launcher) if launcher else None
+
+        config = safe_local_state_path(selected / SPECIFY_CONFIG_FILE, root=selected)
+        try:
+            config_metadata = config.lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            if not stat.S_ISREG(config_metadata.st_mode):
+                raise SpecifyRuntimeBindingError()
+        launcher = resolve_runtime_launcher_argv(selected)
         if launcher:
             return list(launcher)
+
+        # Reinspect after failed resolution rather than silently choosing a
+        # different binary. Malformed state cannot prove absence of a binding.
+        payload = _load_config(config)
+        if payload is None or any(key in payload for key in (
+            RUNTIME_LAUNCHER_CONFIG_KEY, RUNTIME_LAUNCHER_BINDING_CONFIG_KEY,
+        )):
+            raise SpecifyRuntimeBindingError()
+        # An orphaned pin also indicates interrupted/deleted binding state,
+        # including a pin left by a different native platform.
+        for filename in (RUNTIME_COMMAND, f"{RUNTIME_COMMAND}.exe"):
+            pin = safe_local_state_path(
+                selected / PROJECT_RUNTIME_RELATIVE_DIR / filename, root=selected,
+            )
+            try:
+                pin.lstat()
+            except FileNotFoundError:
+                continue
+            raise SpecifyRuntimeBindingError()
+        return None
+    except (OSError, ValueError) as exc:
+        raise SpecifyRuntimeBindingError() from exc
+
+
+def resolve_specify_runtime_binary(project_root: Path | None = None) -> list[str]:
+    """Prefer the nearest project pin; only unbound callers may use env/PATH."""
+
+    if project_root is not None:
+        launcher = _resolve_project_runtime_argv(project_root)
+        if launcher:
+            return launcher
 
     env_argv = _env_argv()
     if env_argv:
@@ -1009,6 +1093,10 @@ def run_specify_runtime(
 
     try:
         runtime_argv = resolve_specify_runtime_binary(cwd)
+    except SpecifyRuntimeBindingError:
+        # An unusable configured pin is not permission to install or execute
+        # another runtime, even when a caller enables bootstrap installation.
+        raise
     except SpecifyRuntimeError:
         if not install_if_missing:
             raise

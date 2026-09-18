@@ -1,7 +1,7 @@
 # Spec Kit Plus optimization status
 
-Updated: 2026-09-18 (Asia/Tokyo). This launcher-persistence increment follows
-`17c6a338e621d52af5ae8757df01d30fcfee8adc` on PR #120.
+Updated: 2026-09-18 (Asia/Tokyo). This project-runtime resolution increment follows
+`eac9f58ce968e396f4085314bb5664cc835af59c` on PR #120.
 
 ## Current decision
 
@@ -17,7 +17,39 @@ consumption. These implementations do not establish measured Agent savings,
 live-source correctness, design approval or independent product acceptance.
 Classic/Advanced products, required capabilities and result/review gates remain.
 
-## Latest launcher persistence repair
+## Latest: project pins cannot silently fall back
+
+The Python consumer now distinguishes a genuinely unbound directory from a
+broken project binding. A failed digest/launcher check, malformed config,
+orphaned pin, unreadable state or unsafe project path raises
+`SpecifyRuntimeBindingError` before environment/PATH selection or automatic
+installation. `install_if_missing=True` and `check=False` do not waive this
+selection boundary. Explicit bootstrap without a project remains supported.
+
+Subdirectory calls use the nearest `.specify` boundary and its existing validated
+launcher owner. Nested projects do not borrow an enclosing project's pin. The
+executable becomes absolute while the original command arguments and working
+directory stay unchanged. Resolution does not write, repair, install or probe.
+The actual config-save-failure path is covered: the mismatched pin blocks calls,
+then a deliberate existing-writer repair restores normal project-local execution.
+This is still not a filesystem transaction, signature check or atomic check/use.
+
+Current Linux evidence: **32 new parameterized cases and 113 retained cases
+passed (145 total), with zero failures/skips**. The same 32 new cases on the
+original runtime produced 26 failures and six passes, with no collection errors
+or skips. Real native Go fixtures verified the executable path, cwd and argv;
+these are small test programs, not the full Specify Go runtime. The complete
+launcher/runtime/atomic_io/hook_artifacts modules run, with only heavy package
+initialization bypassed by the local driver. All top-level constants/imports
+and unrelated runtime definitions were checked unchanged. Only two existing
+runtime functions change; one private resolver and one error subtype are added.
+
+The [installation guide](../installation.md) now explains recovery and corrects
+its obsolete hardlink description. Complete CLI init, machine binding probes,
+wheel/profile installation, full Go/Python suites and native Windows/macOS remain
+unverified. Prior cloud failures do not become passes from these local results.
+
+## Retained launcher persistence repair
 
 The original runtime-config writer materialized a new binary before loading the
 existing config or resolving binding metadata. Bad configuration or a metadata
@@ -55,7 +87,7 @@ wait/release policy; no new timeout or platform-isolation claim is introduced.
 Machine-wide local binding dispatchers and complete concurrent `specify init`
 remain separate validation work.
 
-## Verification executed for this increment
+## Historical eac9f58 verification
 
 Environment: Linux amd64, Python 3.13.5, Go 1.23.2 (the retained tiny executable
 copy fixture). Exact original launcher blob:
