@@ -1,141 +1,113 @@
 # Spec Kit Plus optimization status
 
-Updated: 2026-09-18 (Asia/Tokyo). This guidance-diagnostics increment follows
-`7894242e821816e8de61e24e8cfa3b6c8c92f5e2` on draft PR #120.
+Updated: 2026-09-18 (Asia/Tokyo). This Hook installation increment follows
+`032d49bcb26cfa9f7b35e44c8b5629e9d9cc7b3b` on draft PR #120.
 
 ## Current decision
 
-Keep dependency order **#116 -> #119 -> #120** and keep the PR draft. No main
-merge, release, installed upgrade or generated-consumer switch is implied.
-Classic/Advanced defaults, capability minimums and result/review/acceptance gates
-remain unchanged. Broader restructuring and measured adaptive rollout are not
-implicitly complete.
+Keep dependency order **#116 -> #119 -> #120** and the PR draft. No main merge,
+release, installed upgrade, permission change or generated-consumer adoption is
+implied. Classic/Advanced defaults, capability minimums and result/review/human
+acceptance gates remain unchanged. The wider structural/adaptive optimization
+request is not implicitly finished.
 
-Retained work includes bounded context/shadow discovery, strict runtime responses,
-independent executable copies, project writer locks, no silent project fallback,
-machine-binding checks, wrapper permission repair and regular-file state I/O.
-These do not establish real Agent savings, live-source/design approval or human
-acceptance.
+Retained implementation includes bounded context and optional non-authorizing
+shadow discovery, strict runtime responses, independent executable copies,
+project writer locks, no silent project-pin fallback, machine-binding checks,
+wrapper permission repair, safe state/config reads and single-pass diagnostics.
+Those changes do not establish real Agent savings, verified live-source/design
+inputs or independent product acceptance.
 
-## Latest: safe, single-pass generated guidance diagnostics
+## Latest: independent shared Hook publication
 
-The diagnostic's document/script reader still used ordinary `Path.read_text`.
-Invalid UTF-8 aborted diagnosis, fixed-path FIFOs waited for peers, discovery
-silently skipped some special paths/access errors, and linked generated roots
-could lead the scan outside the project. Two launcher checks rediscovered and
-reread the same guidance separately.
+The shared Hook installer still used `shutil.copy2` directly on live destinations.
+Real-file reproductions showed that destination symlinks and hardlinks changed
+external files. A directory at an expected filename could also be interpreted as
+a copy folder. Source links were followed and special source files skipped.
 
-The scan now uses the existing safe state reader, reports each uninspected path
-as `unreadable-generated-guidance` / `repairable-block`, and continues checking
-readable files. Discovery explicitly reports inaccessible or linked directories,
-does not descend directory links, includes special-file candidates for rejection,
-and sorts/deduplicates the resulting paths. Missing optional assets stay optional;
-a discovered file lost before reading is reported. User bytes/modes are not changed.
+`install_shared_hook_launcher_assets` now validates the asset/destination paths,
+reads source bytes through the existing safe reader and publishes through the
+existing atomic byte writer. Destination parents are checked before mkdir or
+manifest inspection. Existing final-path user links still follow the explicit
+preserve-and-report policy when `preserve_modified=True`; ordinary installs reject
+them. Hardlinked data destinations become independent files before metadata is
+copied, so external backups keep their bytes, permissions and modification time.
 
-Both checks reuse derived findings from one discovery/read pass. The cache lasts
-only for one invocation and stores findings rather than all document contents;
-only repeatedly used fixed helper text is cached. Managed context-block and YAML
-frontmatter boundaries and existing diagnostic predicates remain intact.
+The existing metadata-copy and POSIX executable-bit rules, `include_node`, skip
+list, manifest recording and four shipped payloads are retained. Only this one
+production function changes; imports, constants, signatures, public commands,
+dependencies, shared I/O, script generators and integration registrations do not.
 
-Current Linux/Python 3.13.5 component evidence: **27 new cases plus 243 retained
-cases passed (270 total), zero failures/errors/skips**, across seven completed
-non-overlapping groups. The same 27 cases on the exact parent launcher produced
-21 failures and six passes, no errors/skips. These are scenario counts, not 21
-independent defects. Larger retained invocations hit the tool execution limit;
-only separately completed XML/logs are counted. The isolated driver disabled
-unrelated installed pytest-plugin autoload for the retained groups, not repository
-CI checks. Full package initialization is still bypassed by that delivery driver.
+Atomic byte publication is per file. A later metadata or manifest error can leave
+new content with a previous manifest digest; it raises instead of certifying
+success. Earlier files in the call are not rolled back. See
+[shared Hook recovery](../launcher-recovery.md#shared-hook-asset-installation).
 
-A 64-document fixture counted discovery calls **2 -> 1** and document reads
-**128 -> 64**, with identical diagnostic codes. Only executable-compatibility
-probes were stubbed in this count fixture; discovery/reads/assembly ran normally.
-This measures avoided scan I/O, not installed CLI latency or Agent cost. The new
-suite covers real invalid bytes/FIFOs/symlinks, controlled access failures, per-call
-refresh, disappeared files, preserved user files and existing content boundaries.
+## Verification executed in this increment
 
-Only `_generated_guidance_files` and `diagnose_project_runtime_compatibility`
-change in production. The private discovery helper gains an optional reporting
-callback; public signatures, imports, constants and unrelated definitions remain
-unchanged. No runtime capabilities, defaults, dependencies or generators change.
+Linux amd64, Python 3.13.5, Node 22.16.0 and Go 1.23.2 for retained native fixtures.
+Original launcher blob: `01fdbdfc002096ac2872586ffa7d9069060cb541`.
 
-## Previous: connect project config to the safe state reader
-
-The launcher's JSON loader still used `Path.exists()` and `Path.read_text()`.
-As a result, FIFO project configuration blocked six real loader/diagnostic/writer
-entrypoints despite the previous shared-reader fix. Existing and parent links
-were followed, while dangling links were treated as absent configuration.
-
-`_load_config` now uses the existing `read_local_state_text` owner. Only a missing
-file returns the original unbound `{}` value; unsafe/unreadable paths and invalid
-JSON remain `None`. Unique-key, finite-number, strict Unicode and exact integer
-handling are retained. The loader does not write, install, retry or add a parser.
-Other launcher-owned JSON consumers inherit the same file checks.
-
-Compatibility diagnosis now returns one `invalid-project-config` repairable block
-before unrelated scans or launcher probes when the project configuration is
-invalid. This avoids misleading missing-runtime recovery advice. Missing or empty
-valid configuration still produces the existing unbound-project diagnostics.
-Recovery preserves configuration and binary pins; it does not delete bindings or
-edit stored digests. See [launcher recovery](../launcher-recovery.md).
-
-Only `_load_config` and `diagnose_project_runtime_compatibility` change in the
-production launcher. Imports, constants, public signatures, unrelated functions,
-shared I/O implementation, runtime capabilities and generators remain unchanged.
-
-## Historical parent verification
-
-Linux amd64, Python 3.13.5, Go 1.23.2 for retained small native fixtures. The
-original launcher matches Git blob `287468d1d9e9e9b170d0897366ce228fa5fbf108`.
-
-| Completed scope | Result |
+| Completed scope | Actual result |
 | --- | --- |
-| Same 30 new cases against the original launcher | 14 failures, 16 passes; no errors/skips |
-| New config-read/diagnostic cases | 30 passed |
-| Retained machine binding/wrapper cases | 27 passed |
-| Retained configuration/concurrency cases | 31 passed |
-| Retained response and shared state I/O cases | 95 passed |
-| Retained materialization/project resolution | 60 passed |
-| Final total across completed groups | 243 passed, zero failures/errors/skips |
+| Exact original launcher, same 40 new cases | 17 failures, 23 passes; zero errors/skips |
+| New Hook publication and real launcher-chain cases | 40 passed |
+| Retained diagnostics/config reads/responses/state I/O | 152 passed |
+| Retained machine bindings and config concurrency | 58 passed |
+| Retained materialization and project resolution | 60 passed |
+| Final total across four completed groups | **310 passed; zero failures/errors/skips** |
 
-The baseline includes six actual FIFO timeouts, three link-policy checks and
-injected access/probe-order requirements. It is not 14 independent defects.
-The 213 retained cases are reruns, not new tests; the file group still contains
-three unchanged legacy test bodies. One combined retained-group attempt reached
-the tool timeout without a complete report; it is not counted. Its scopes were
-subsequently run in separate completed groups above.
+The 310 total is 40 new cases plus 270 reruns, not 310 additions. Baseline failures
+include new fault hooks and rejection requirements, not 17 independent bugs.
+Twenty-eight new cases cover publication, hardlink isolation, path refusal,
+preservation, metadata, real manifest save/load, selection and fault injection.
+Twelve use the unchanged shipped Python, POSIX shell and Node launcher chains for
+Claude/Gemini routes, checking stdin, literal/Unicode arguments, project cwd and
+both successful/nonzero exits. Only the final downstream dispatcher is an
+instrumented test leaf; no real agent or workflow mutation runs.
 
-Complete production launcher/runtime/atomic_io/hook_artifacts modules execute;
-the local driver bypasses heavy CLI package initialization. Generated binding
-children and native Go programs remain small fixtures. Tests call the actual
-loader, compatibility diagnostic and both public launcher writers, not the full
-`specify check` or `specify init` CLI. Regular JSON, Unicode/CRLF/exact integers,
-missing state, invalid JSON, links, special files and non-mutating failure paths
-are covered. Compilation, AST scope and byte-identity checks accompany the logs.
+The complete production launcher/runtime/atomic_io/hook_artifacts and integration
+manifest modules execute. The fetched manifest and four Hook payloads match the
+pinned Git blob bytes. The bundle driver omits the heavyweight CLI initializer
+and integration registry; its absent registry package uses the manifest module
+through the namespace path. This is not full `specify init` or integration/profile
+acceptance. Retained native Go programs and generated binding CLIs are fixtures.
+The original three legacy materialization test bodies remain included.
 
-## Remaining gates
+Source syntax/public-surface and preimage checks accompany the logs. Rerunning a
+group does not increase independent coverage. Tests do not use real credentials,
+release downloads or network services. The complete source checkout is not present.
 
-Full Go/SQLite/Work/API/Python suites, complete CLI/init/wheel/profile acceptance,
-native Windows/macOS, successful cloud CI, live-source/design verification and
-comparable real Agent quality/cost measurements remain open. Main publication
-requires passing gates and separate authorization.
+## Remaining gates and limits
 
-The container cannot resolve github.com, so a complete clone was not obtained.
-An earlier Go job log request returned 404 BlobNotFound; historical jobs
-remain failed and their root cause is unknown. Inspect new-head CI separately. Ruff is not installed locally and is not claimed passed.
+| Gate | Evidence still required |
+| --- | --- |
+| Full Go/SQLite/Work/API/Python | Prepared complete checkout and original full suites |
+| CLI/init/wheel and both installed profiles | Complete initialization, install and repair acceptance |
+| Native Windows/macOS | Actual execution, not syntax checks or copied script bytes |
+| Cloud CI | Successful current-head execution and accessible failure details |
+| Live-source/design and Agent cost/quality | Existing owners, comparable runs and independent acceptance |
+| Main/release/distribution | Passing gates and separate publication authorization |
 
-These reads are not atomic check/use, signatures, a sandbox, regular-file size
-limits or a filesystem-wide timeout. Concurrent changes after observation remain
-possible. No new installation transaction or automatic rollback is introduced.
+Parent CI still reports failures without job steps. The check-run API lists
+annotations, but the current connector rejects their endpoint, so the cause is
+not established. Inspect the final commit's runs separately; do not infer billing
+or weaken checks. Ruff is not installed locally and is not claimed passed.
+
+These local checks do not provide an atomic check/use guarantee, filesystem-wide
+deadline, regular-file size bound, signature check or hostile-writer isolation.
+Project writer locks do not serialize every integration install, machine-global
+update or external editor. No multi-file crash transaction or rollback is claimed.
 
 ## Complete-checkout validation
 
 ```sh
-uv run pytest tests/test_launcher_guidance_diagnostics.py tests/test_launcher_config_read_boundary.py -q
-uv run pytest tests/test_launcher_machine_binding_integrity.py tests/test_launcher_config_persistence.py tests/test_runtime_response_integrity.py tests/test_atomic_io.py tests/test_atomic_io_file_types.py tests/test_runtime_materialization_isolation.py tests/test_runtime_project_resolution.py -q
+uv run pytest tests/test_hook_asset_installation.py tests/test_launcher.py -q
+uv run pytest tests/integrations -q
 python tools/workflow-quality/verify_quick_rollout.py --output-dir ../quick-rollout-evidence
 ```
 
-Use a prepared complete checkout and a new evidence directory outside it. A
-scoped reproduction bundle is not an installation package or complete checkout.
-Preserve user changes and do not reapply superseded patches. See
+Use a new external evidence directory. A scoped reproduction
+bundle is not an installation package or a complete repository. Preserve user
+changes and do not reapply its patch over a head that already contains it. See
 [local development](../local-development.md) and [CI recovery](../ci-troubleshooting.md).

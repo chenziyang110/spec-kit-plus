@@ -1135,18 +1135,23 @@ def install_shared_hook_launcher_assets(
     if not assets_dir:
         return []
 
+    safe_local_state_path(assets_dir)
     created: list[Path] = []
     dest_dir = project_root / ".specify" / "bin"
+    # Validate before mkdir or manifest inspection can follow an external parent.
+    safe_local_state_path(dest_dir, root=project_root)
     dest_dir.mkdir(parents=True, exist_ok=True)
+    safe_local_state_path(dest_dir, root=project_root)
     modified = (
         set(manifest.check_modified())
         if preserve_modified and manifest is not None
         else set()
     )
     for src_file in sorted(assets_dir.iterdir()):
-        if not src_file.is_file():
-            continue
         if not include_node and src_file.name == HOOK_LAUNCHER_NODE:
+            continue
+        safe_local_state_path(src_file, root=assets_dir)
+        if src_file.is_dir():
             continue
         dst_file = dest_dir / src_file.name
         relative = dst_file.relative_to(project_root).as_posix()
@@ -1160,7 +1165,16 @@ def install_shared_hook_launcher_assets(
                 if skipped_modified is not None:
                     skipped_modified.append(relative)
                 continue
-        shutil.copy2(src_file, dst_file)
+        # Read before publication and replace an independent file: copy2 writes
+        # through destination symlinks/hardlinks and can truncate a live hook.
+        content = read_local_state_bytes(src_file, root=assets_dir)
+        safe_local_state_path(dst_file, root=project_root)
+        atomic_write_bytes(dst_file, content)
+        # Preserve the previous copy2 metadata contract. Metadata/manifest errors
+        # after publication raise; this is not a multi-file rollback transaction.
+        safe_local_state_path(src_file, root=assets_dir)
+        safe_local_state_path(dst_file, root=project_root)
+        shutil.copystat(src_file, dst_file)
         if dst_file.name == HOOK_LAUNCHER_POSIX:
             dst_file.chmod(dst_file.stat().st_mode | 0o111)
         if manifest is not None:

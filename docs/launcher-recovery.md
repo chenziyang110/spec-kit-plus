@@ -118,6 +118,34 @@ from another deleted environment is not a reason to modify healthy bindings.
 After recovery, verify the selected launcher's runtime identity and re-run the
 project compatibility checks before resuming work.
 
+## Shared Hook asset installation
+
+Shared Hook repair now reads packaged assets through the safe file reader and
+publishes each destination using an independent atomic byte replacement. A
+symbolic-link destination or linked `.specify/bin` parent is refused instead of
+redirecting writes outside the project. A regular destination sharing a hardlink
+with another file is replaced independently, leaving the other file unchanged.
+Directories are not interpreted as copy folders, and damaged packaged links or
+special files are reported rather than silently omitted.
+
+The existing `preserve_modified` behavior remains: modified or untracked user
+hooks, including final-path links, are retained and reported in the skipped list.
+An unmodified manifest-owned hook may be refreshed and its new digest recorded.
+The `include_node` selection and the four shipped script contents are unchanged.
+Metadata copying and the POSIX executable-bit rule remain in effect.
+
+Read, staging flush and replacement errors leave the current file and its
+manifest record unchanged. Metadata or manifest errors after byte replacement
+still raise, but the replacement may already exist. Previously completed files
+in the same call are not rolled back. Preserve the failed installation, inspect
+the reported error and rerun the trusted repair after resolving it; do not treat
+an exception as successful installation or delete user hooks to force progress.
+
+This is per-file publication, not a crash-atomic four-file installation or a
+hostile-writer sandbox. Concurrent path changes between checks, cross-profile
+installation races, full integration initialization and native Windows/macOS
+execution remain separate validation boundaries.
+
 ## Limits
 
 These are local installation consistency checks, not signatures or a sandbox.
