@@ -46,6 +46,29 @@ launcher writers use the existing safe state reader and preserve invalid inputs.
 Other local JSON inspected through the launcher's configuration loader, including
 hook settings and integration manifests, now uses the same non-link file checks.
 
+## Unreadable generated guidance
+
+`unreadable-generated-guidance` means a generated workflow document, script,
+context file or discovery directory could not be inspected safely. It is a
+`repairable-block`, not a finding that the unseen contents are compatible.
+Diagnosis reports the affected project-relative path once and continues checking
+other readable inputs. Malformed UTF-8, special files and inaccessible paths no
+longer abort or silently disappear from this scan. Linked directories are not
+traversed; linked assets are left untouched and reported as uninspected.
+
+Preserve the listed path and inspect its file type and permissions before
+reading it. Restore the intended ordinary UTF-8 asset or directory through the
+trusted installation, merging user modifications deliberately. Do not read pipes,
+follow links or delete user content just to silence the diagnostic. Re-run `check`
+after recovery. An optional asset that was never present is not an error, but a
+file discovered and then lost before reading makes that scan incomplete.
+
+Both launcher checks share one sorted, deduplicated discovery and the resulting
+findings. Documents are read once per diagnostic invocation; only findings and
+reused helper text are retained, not a persistent cache of whole documents.
+A later invocation rereads changed files. This is not a filesystem snapshot,
+regular-file size limit, deadline guarantee or installed-CLI performance claim.
+
 ## Exact wrapper with missing execution permission
 
 On POSIX hosts, an unchanged project wrapper without execution permission is

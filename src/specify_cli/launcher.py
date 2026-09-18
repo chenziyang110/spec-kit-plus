@@ -1776,24 +1776,72 @@ def _contains_unbound_unified_runtime_call(text: str) -> bool:
     return count > 0
 
 
-def _generated_guidance_files(project_root: Path) -> list[Path]:
-    files: list[Path] = []
+def _generated_guidance_files(
+    project_root: Path,
+    *,
+    on_error: Callable[[Path], None] | None = None,
+) -> list[Path]:
+    """Discover guidance once without following links; report incomplete scans."""
+
+    files: set[Path] = set()
+
+    def report(path: Path) -> None:
+        if on_error is not None:
+            on_error(path)
+
     for rel_root in GENERATED_GUIDANCE_ROOTS:
         root = project_root / rel_root
-        if not root.is_dir():
+        try:
+            safe_local_state_path(root, root=project_root)
+            root.lstat()
+            if not root.is_dir():
+                report(root)
+                continue
+        except FileNotFoundError:
             continue
-        for path in root.rglob("*"):
-            if path.is_file() and path.suffix.lower() in GENERATED_GUIDANCE_SUFFIXES:
-                files.append(path)
-    for rel_path in GENERATED_CONTEXT_FILES:
-        path = project_root / rel_path
-        if path.is_file():
-            files.append(path)
-    for rel_path in GENERATED_GUIDANCE_FILES:
-        path = project_root / rel_path
-        if path.is_file():
-            files.append(path)
-    return files
+        except (OSError, ValueError):
+            report(root)
+            continue
+
+        def walk_error(error: OSError) -> None:
+            failed = Path(error.filename) if error.filename else root
+            report(failed if failed.is_relative_to(project_root) else root)
+
+        for directory, subdirectories, filenames in os.walk(
+            root, followlinks=False, onerror=walk_error,
+        ):
+            current = Path(directory)
+            # os.walk does not follow directory links; prune them explicitly so
+            # their uninspected contents are reported, not mistaken for a pass.
+            allowed: list[str] = []
+            for name in sorted(subdirectories):
+                child = current / name
+                try:
+                    safe_local_state_path(child, root=project_root)
+                except (OSError, ValueError):
+                    report(child)
+                else:
+                    allowed.append(name)
+            subdirectories[:] = allowed
+            for name in filenames:
+                path = current / name
+                if path.suffix.lower() in GENERATED_GUIDANCE_SUFFIXES:
+                    # Keep special-file candidates: the shared reader rejects
+                    # them without waiting, and diagnosis reports the failure.
+                    files.add(path)
+
+    for relative in (*GENERATED_CONTEXT_FILES, *GENERATED_GUIDANCE_FILES):
+        path = project_root / relative
+        try:
+            safe_local_state_path(path, root=project_root)
+            path.lstat()
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError):
+            report(path)
+            continue
+        files.add(path)
+    return sorted(files, key=lambda path: path.as_posix())
 
 
 def _markdown_body_for_runtime_scan(text: str) -> str:
@@ -2242,11 +2290,75 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
     issues.extend(diagnose_claude_personal_skill_shadows(project_root))
     learning_index = project_root / ".specify" / "memory" / "learnings" / "INDEX.md"
 
-    def _read_text_if_exists(path: Path) -> str:
+    unreadable_paths: set[Path] = set()
+    text_cache: dict[Path, str] = {}
+    guidance_cache: tuple[list[str], list[str], list[str], list[str]] | None = None
+
+    def _report_unreadable(path: Path) -> None:
+        if path in unreadable_paths:
+            return
+        unreadable_paths.add(path)
+        relative = path.relative_to(project_root).as_posix()
+        issues.append(
+            {
+                "code": "unreadable-generated-guidance",
+                "severity": "repairable-block",
+                "summary": f"Generated guidance could not be inspected safely: `{relative}`.",
+                "repair": (
+                    "Preserve the listed path and inspect its file type and permissions. "
+                    "Do not follow links or read pipes as text. Restore the intended "
+                    "regular UTF-8 file or directory through the trusted installation, "
+                    "merging user changes deliberately. Re-run `check`; an incomplete "
+                    "guidance scan is not a compatibility pass."
+                ),
+            }
+        )
+
+    def _read_text_if_exists(
+        path: Path, *, required: bool = False, cache: bool = True,
+    ) -> str:
+        if path in text_cache:
+            return text_cache[path]
         try:
-            return path.read_text(encoding="utf-8")
-        except OSError:
-            return ""
+            text = read_local_state_text(path, root=project_root)
+        except FileNotFoundError:
+            if required:
+                _report_unreadable(path)
+            text = ""
+        except (OSError, ValueError):
+            _report_unreadable(path)
+            text = ""
+        if cache:
+            text_cache[path] = text
+        return text
+
+    def _guidance_findings() -> tuple[list[str], list[str], list[str], list[str]]:
+        nonlocal guidance_cache
+        if guidance_cache is None:
+            stale: list[str] = []
+            unbound: list[str] = []
+            markers: list[str] = []
+            unbound_runtime: list[str] = []
+            for path in _generated_guidance_files(
+                project_root, on_error=_report_unreadable,
+            ):
+                text = _generated_guidance_text(
+                    project_root, path,
+                    _read_text_if_exists(path, required=True, cache=False),
+                )
+                relative = path.relative_to(project_root).as_posix()
+                if _stale_source_bound_specify_launchers(text, launcher):
+                    stale.append(relative)
+                if launcher is not None and _contains_unbound_specify_runtime_call(text):
+                    unbound.append(relative)
+                if f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime" in text:
+                    markers.append(relative)
+                if _contains_unbound_unified_runtime_call(text):
+                    unbound_runtime.append(relative)
+            # Retain findings, not every document's contents, for the second
+            # launcher check. Nothing is cached across diagnostic invocations.
+            guidance_cache = stale, unbound, markers, unbound_runtime
+        return guidance_cache
 
     def _uses_legacy_feature_root_contract(text: str) -> bool:
         lowered = text.lower()
@@ -2325,20 +2437,7 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                     "repair": "Repair `.specify/config.json`. If regeneration is required, use the `specify init --here --force` command surface from a trusted launcher source and supply the same integration-specific options that originally bootstrapped the project.",
                 }
             )
-        stale_launcher_files: list[str] = []
-        unbound_launcher_files: list[str] = []
-        for path in _generated_guidance_files(project_root):
-            text = _generated_guidance_text(
-                project_root,
-                path,
-                _read_text_if_exists(path),
-            )
-            if _stale_source_bound_specify_launchers(text, launcher):
-                stale_launcher_files.append(path.relative_to(project_root).as_posix())
-            if _contains_unbound_specify_runtime_call(text):
-                unbound_launcher_files.append(
-                    path.relative_to(project_root).as_posix()
-                )
+        stale_launcher_files, unbound_launcher_files, _, _ = _guidance_findings()
         if stale_launcher_files:
             preview = ", ".join(stale_launcher_files[:5])
             if len(stale_launcher_files) > 5:
@@ -2382,19 +2481,7 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
         runtime_compatible = runtime_launcher_is_compatible(
             project_root, runtime_launcher
         )
-        marker_files: list[str] = []
-        unbound_runtime_files: list[str] = []
-        for path in _generated_guidance_files(project_root):
-            text = _generated_guidance_text(
-                project_root,
-                path,
-                _read_text_if_exists(path),
-            )
-            relative = path.relative_to(project_root).as_posix()
-            if f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime" in text:
-                marker_files.append(relative)
-            if runtime_compatible and _contains_unbound_unified_runtime_call(text):
-                unbound_runtime_files.append(relative)
+        _, _, marker_files, unbound_runtime_files = _guidance_findings()
 
         if not runtime_compatible:
             repair = project_specify_subcommand(
@@ -2434,7 +2521,7 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                     ),
                 }
             )
-        if unbound_runtime_files:
+        if runtime_compatible and unbound_runtime_files:
             preview = ", ".join(unbound_runtime_files[:5])
             if len(unbound_runtime_files) > 5:
                 preview += f", +{len(unbound_runtime_files) - 5} more"

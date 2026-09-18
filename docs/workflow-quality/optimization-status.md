@@ -1,7 +1,7 @@
 # Spec Kit Plus optimization status
 
-Updated: 2026-09-18 (Asia/Tokyo). This project-config increment follows
-`cb67c0e7517fe83fa944ba03c485f88e2886c080` on draft PR #120.
+Updated: 2026-09-18 (Asia/Tokyo). This guidance-diagnostics increment follows
+`7894242e821816e8de61e24e8cfa3b6c8c92f5e2` on draft PR #120.
 
 ## Current decision
 
@@ -17,7 +17,48 @@ machine-binding checks, wrapper permission repair and regular-file state I/O.
 These do not establish real Agent savings, live-source/design approval or human
 acceptance.
 
-## Latest: connect project config to the safe state reader
+## Latest: safe, single-pass generated guidance diagnostics
+
+The diagnostic's document/script reader still used ordinary `Path.read_text`.
+Invalid UTF-8 aborted diagnosis, fixed-path FIFOs waited for peers, discovery
+silently skipped some special paths/access errors, and linked generated roots
+could lead the scan outside the project. Two launcher checks rediscovered and
+reread the same guidance separately.
+
+The scan now uses the existing safe state reader, reports each uninspected path
+as `unreadable-generated-guidance` / `repairable-block`, and continues checking
+readable files. Discovery explicitly reports inaccessible or linked directories,
+does not descend directory links, includes special-file candidates for rejection,
+and sorts/deduplicates the resulting paths. Missing optional assets stay optional;
+a discovered file lost before reading is reported. User bytes/modes are not changed.
+
+Both checks reuse derived findings from one discovery/read pass. The cache lasts
+only for one invocation and stores findings rather than all document contents;
+only repeatedly used fixed helper text is cached. Managed context-block and YAML
+frontmatter boundaries and existing diagnostic predicates remain intact.
+
+Current Linux/Python 3.13.5 component evidence: **27 new cases plus 243 retained
+cases passed (270 total), zero failures/errors/skips**, across seven completed
+non-overlapping groups. The same 27 cases on the exact parent launcher produced
+21 failures and six passes, no errors/skips. These are scenario counts, not 21
+independent defects. Larger retained invocations hit the tool execution limit;
+only separately completed XML/logs are counted. The isolated driver disabled
+unrelated installed pytest-plugin autoload for the retained groups, not repository
+CI checks. Full package initialization is still bypassed by that delivery driver.
+
+A 64-document fixture counted discovery calls **2 -> 1** and document reads
+**128 -> 64**, with identical diagnostic codes. Only executable-compatibility
+probes were stubbed in this count fixture; discovery/reads/assembly ran normally.
+This measures avoided scan I/O, not installed CLI latency or Agent cost. The new
+suite covers real invalid bytes/FIFOs/symlinks, controlled access failures, per-call
+refresh, disappeared files, preserved user files and existing content boundaries.
+
+Only `_generated_guidance_files` and `diagnose_project_runtime_compatibility`
+change in production. The private discovery helper gains an optional reporting
+callback; public signatures, imports, constants and unrelated definitions remain
+unchanged. No runtime capabilities, defaults, dependencies or generators change.
+
+## Previous: connect project config to the safe state reader
 
 The launcher's JSON loader still used `Path.exists()` and `Path.read_text()`.
 As a result, FIFO project configuration blocked six real loader/diagnostic/writer
@@ -41,7 +82,7 @@ Only `_load_config` and `diagnose_project_runtime_compatibility` change in the
 production launcher. Imports, constants, public signatures, unrelated functions,
 shared I/O implementation, runtime capabilities and generators remain unchanged.
 
-## Verification executed here
+## Historical parent verification
 
 Linux amd64, Python 3.13.5, Go 1.23.2 for retained small native fixtures. The
 original launcher matches Git blob `287468d1d9e9e9b170d0897366ce228fa5fbf108`.
@@ -79,9 +120,8 @@ comparable real Agent quality/cost measurements remain open. Main publication
 requires passing gates and separate authorization.
 
 The container cannot resolve github.com, so a complete clone was not obtained.
-The available Go job log endpoint for the parent returned 404 BlobNotFound;
-prior jobs remain failed and their root cause is unknown. Inspect new-head CI
-separately. Ruff is not installed locally and is not claimed passed.
+An earlier Go job log request returned 404 BlobNotFound; historical jobs
+remain failed and their root cause is unknown. Inspect new-head CI separately. Ruff is not installed locally and is not claimed passed.
 
 These reads are not atomic check/use, signatures, a sandbox, regular-file size
 limits or a filesystem-wide timeout. Concurrent changes after observation remain
@@ -90,7 +130,7 @@ possible. No new installation transaction or automatic rollback is introduced.
 ## Complete-checkout validation
 
 ```sh
-uv run pytest tests/test_launcher_config_read_boundary.py -q
+uv run pytest tests/test_launcher_guidance_diagnostics.py tests/test_launcher_config_read_boundary.py -q
 uv run pytest tests/test_launcher_machine_binding_integrity.py tests/test_launcher_config_persistence.py tests/test_runtime_response_integrity.py tests/test_atomic_io.py tests/test_atomic_io_file_types.py tests/test_runtime_materialization_isolation.py tests/test_runtime_project_resolution.py -q
 python tools/workflow-quality/verify_quick_rollout.py --output-dir ../quick-rollout-evidence
 ```
