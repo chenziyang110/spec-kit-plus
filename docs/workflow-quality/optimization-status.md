@@ -1,8 +1,7 @@
 # Spec Kit Plus optimization status
 
-Updated: 2026-09-18 (Asia/Tokyo). This increment follows
-`a6519ff6cd61f86654fd8ae3cc7d70c1b498cb7d` in PR #120 and includes the previously
-local machine-binding repair plus the project-wrapper permission repair.
+Updated: 2026-09-18 (Asia/Tokyo). This local-state I/O increment follows
+`a71552cfeff510717062c3385c7170a3c58478ec` on draft PR #120.
 
 ## Current decision
 
@@ -12,61 +11,68 @@ Classic/Advanced defaults, capability minimums and result/review/acceptance gate
 remain unchanged. The broader restructuring and measured adaptive rollout from
 the original review are not implicitly complete.
 
-Retained implementation includes Quick execution/output controls, evaluation
-fixtures, bound context and strict state reads, optional non-authorizing shadow
-discovery, cancellation/output checks, independent runtime copies, single-handshake
-Python validation, cooperating launcher-writer locks and project-pin resolution
-without silent fallback. These are not evidence of real Agent savings, verified
-live-source/design inputs or independent human acceptance.
+Retained work includes bounded context/shadow discovery, strict runtime response
+checks, independent executable copies, project writer locks, no silent project
+fallback, machine-binding verification and exact-wrapper permission repair.
+These are not evidence of real Agent savings, verified live-source/design inputs
+or independent human acceptance.
 
-## Latest repair
+## Latest: regular-file state I/O and lock identity
 
-Machine-binding probes require the selected binding's interpreter, not the last
-writer's interpreter embedded in a shared repair hint. Entry, invoke and dispatch
-scripts must match generated content and hashes; updating the invoke hash and
-printing the expected identity cannot substitute for the verified entry. The
-same script bytes are hashed and compared. Owned-script links, malformed bytes,
-invalid recorded paths and invalid child responses fail the probe. Virtual-
-environment interpreter symlinks remain supported.
+The shared `atomic_io` readers previously blocked on a POSIX FIFO, while atomic
+writes could replace an existing FIFO or filesystem socket with a regular file.
+An empty lock hardlinked to another file could initialize that external file.
+A waiting process could acquire an obsolete lock inode after its path changed.
 
-On POSIX hosts, an exact project wrapper without execution permission is no
-longer reported available. Normal repair republishes only identical generated
-content as an independent file and restores the existing executable mode. User-
-modified wrappers retain conflict/preserve behavior, hardlinked external backups
-retain bytes/mode/mtime, and replacement-write errors are reported.
+State reads now validate both pathname and opened descriptor before reading.
+POSIX nonblocking open prevents a swapped FIFO from waiting for a peer; final-
+component no-follow is used where available. Locks require a regular unshared
+inode and recheck pathname identity after acquisition, before the protected body.
+Descriptors are closed on validation, wrapping and body errors. Atomic writers
+reject special destinations both before staging and immediately before replace.
 
-Only three existing production functions change: `_machine_binding_probe`,
-`project_specify_launcher_is_available` and `install_project_specify_launcher`,
-plus one existing safe-read import. Script generators, commands, dependencies,
-capability requirements and workflow defaults are unchanged. Operator recovery
-is consolidated in [Project launcher recovery](../launcher-recovery.md).
+Normal missing-file creation, byte/text encoding, file modes, retained locks,
+platform lock wait policies and regular-file atomic replacement are preserved.
+Regular hardlinked data may still be read or replaced independently; only locks
+require a single hardlink. The existing launcher metadata readers inherit the
+new rejection without adding a parallel parser or repair path. Recovery guidance
+is in [Project launcher recovery](../launcher-recovery.md).
 
-## Verification executed in this increment
+Production changes are confined to `src/specify_cli/atomic_io.py`: four existing
+function bodies, three private helpers and one typing import. No public signature,
+export list, workflow, generator, dependency or capability requirement changes.
 
-Linux amd64, Python 3.13.5, Go 1.23.2 for the retained small native fixtures.
-The original launcher matches Git blob `f488d07c7d4030c71463cdba353bc7992484a4f4`.
+## Verification actually executed
+
+Linux amd64, Python 3.13.5 and Go 1.23.2 for retained small executable fixtures.
+Original atomic I/O blob: `4d5bd8bfc22163fb4f4cb8602b0ac768d0b82374`.
 
 | Scope | Actual result |
 | --- | --- |
-| Original remote code, 20 binding cases | 8 expected failures, 12 passes, no errors/skips |
-| Previous local patch, 7 wrapper cases | 4 expected failures, 3 passes, no errors/skips |
-| Final binding and wrapper cases | 27 passed |
-| Configuration/concurrency regressions | 31 passed |
-| Response/handshake regressions | 54 passed |
-| Materialization and project resolution | 60 passed, including three legacy test bodies |
-| Final total across four completed groups | 172 passed, zero failures/errors/skips |
+| Same 38 new cases against original I/O owner | 26 failures, 12 passes; no errors/skips |
+| New special-file, descriptor and lock cases | 38 passed |
+| Original atomic I/O test file, unchanged | 3 passed |
+| Retained launcher/configuration/response cases | 112 passed |
+| Retained materialization/project resolution | 60 passed, including three legacy test bodies |
+| Completed final component groups | 213 passed, zero failures/errors/skips |
 
-The 172 cases comprise seven wrapper additions, 20 carried-forward local binding
-cases and 145 retained cases. Repeated runs are not additional independent tests.
+The baseline includes desired rejection/error types and new descriptor fault
+hooks as well as concrete reproduced defects; it is not 26 independent bugs.
+FIFO regressions run in bounded child processes and time out on the original
+reader. Real filesystem sockets, hardlinks, a real waiting flock process, and
+injected open/wrap/flush/publication failures cover rejection and cleanup. Real
+launcher binding/dispatcher metadata reads now return unavailable instead of
+hanging on a FIFO. No network, release download or credential access is used.
+
 The full launcher, runtime installer, atomic_io and hook_artifacts modules load.
-The local driver bypasses only heavy CLI package initialization. Generated binding
-children use a small instrumented CLI with production launcher/IO owners; the
-canonical POSIX project template is unchanged and blob-checked. Public writer,
-binding generation/probe, config loader, wrapper execution from a nested directory,
-Unicode/space/literal arguments and failure recovery are exercised. This is
-component integration, not full CLI initialization or a production Go release.
+The bundle-only driver bypasses heavy CLI initialization. Generated launcher
+children use a small instrumented CLI and retained native programs are fixtures,
+not the product runtime. The 172 retained cases are reruns; three old atomic I/O
+cases are newly included in this scoped run but are not new tests. Compilation,
+AST/public-surface checks and exact source/preimage hashes accompany the logs.
+Repeated reproduction runs do not increase independent coverage.
 
-## Remaining gates
+## Remaining gates and limits
 
 | Gate | Required evidence still missing |
 | --- | --- |
@@ -77,25 +83,26 @@ component integration, not full CLI initialization or a production Go release.
 | Live-source/design and Agent quality/cost | Existing owners, comparable real runs and independent acceptance |
 | Main/release/distribution | Passing gates and separately authorized publication |
 
-At the parent revision, checks remain failed. The Go check reports two failure
-annotations, but the available connector rejects the annotation endpoint; the
-root cause is not established. Do not infer billing, disable checks, repeatedly
-rerun jobs or change permissions based on missing logs. Inspect the new head's
-actual results separately. Ruff is unavailable locally; no Ruff pass is claimed.
+Parent CI jobs failed without execution steps. Their cause is not established;
+inspect the new head independently without inferring billing or weakening gates.
+Ruff is unavailable locally; no Ruff pass is claimed.
 
-Project locks do not serialize every machine-global binding write. Access checks
-are not atomic check/use; no executable signing, hostile-writer isolation,
-multi-file crash transaction or rollback is claimed.
+These checks are not a complete hostile-writer defense, atomic check/use,
+filesystem-wide deadline or regular-file size bound. Parent-path races, external
+edits and changes after observation remain possible. A directory-sync failure
+after successful replace still reports an error without undoing that replacement.
+Project locks do not serialize all machine-global writes or provide multi-file
+rollback. Readers outside the shared state helpers are not changed by this repair.
 
 ## Complete-checkout validation
 
 ```sh
+python -m pytest tests/test_atomic_io.py tests/test_atomic_io_file_types.py
 python -m pytest tests/test_launcher_machine_binding_integrity.py tests/test_launcher_config_persistence.py tests/test_runtime_response_integrity.py tests/test_runtime_materialization_isolation.py tests/test_runtime_project_resolution.py
 python tools/workflow-quality/verify_quick_rollout.py --output-dir ../quick-rollout-evidence
 ```
 
 Use a new evidence directory outside the repository. A scoped reproduction bundle
-is not a complete checkout or installation package. Preserve user changes; do not
-apply the older local machine-binding patch over this increment. See
-[CI recovery](../ci-troubleshooting.md) and
+is not a complete checkout or installation package. Preserve user changes and do
+not reapply superseded patches. See [CI recovery](../ci-troubleshooting.md) and
 [runtime maintenance](../agent-guidance/workflow-maintenance.md).

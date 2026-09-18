@@ -36,6 +36,30 @@ the normal executable mode. It does not chmod another project or an external
 backup sharing the old inode. An already executable, identical wrapper is reused.
 A failure to write the replacement is reported, not counted as successful repair.
 
+## State path is a pipe, socket, directory or shared lock
+
+The shared local-state readers and writers expect regular files. They reject
+named pipes, sockets, directories and other special file types instead of waiting
+for a pipe peer or replacing an IPC endpoint with a state file. Machine-binding
+and dispatcher metadata readers using these helpers report unavailable when their
+metadata path is a pipe; they do not consume the pipe or rewrite it.
+
+Locks must also be regular files with a single hardlink. Initializing a shared
+empty lock inode would otherwise modify an unrelated file. A waiter checks that
+the lock pathname still identifies its acquired file before entering the protected
+operation. A replaced or multiply linked lock is an error, not a reason to retry
+work under a different lock. Ordinary hardlinked data files remain readable and
+atomic data replacement continues to leave external backups intact.
+
+Stop the cooperating processes and establish why the unexpected file type or
+link exists before using the trusted repair path. Preserve user data and IPC
+endpoints; do not read a suspect pipe as if it were a JSON file, delete a live
+lock to force progress, or replace special files automatically. Descriptor checks
+and POSIX nonblocking open narrow specific races but do not provide a general
+hostile-writer sandbox, a deadline for every filesystem operation, or a size limit
+for regular-file contents. Readers not using these shared helpers are outside
+this change.
+
 ## Modified wrapper or damaged installation
 
 A user-modified wrapper retains the existing conflict behavior. Back it up,

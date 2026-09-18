@@ -10,6 +10,7 @@ from pathlib import Path
 import stat
 import tempfile
 import time
+from typing import BinaryIO
 
 
 def _absolute_path_without_link_resolution(path: Path) -> Path:
@@ -60,11 +61,73 @@ def safe_local_state_path(path: Path, *, root: Path | None = None) -> Path:
     return target
 
 
+def _regular_state_stat(
+    path: Path, *, missing_ok: bool = False, for_lock: bool = False,
+) -> os.stat_result | None:
+    """Inspect a file, not an IPC endpoint or device, without following links."""
+
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        if missing_ok:
+            return None
+        raise
+    _check_regular_state_stat(path, metadata, for_lock=for_lock)
+    return metadata
+
+
+def _check_regular_state_stat(
+    path: Path, metadata: os.stat_result, *, for_lock: bool = False,
+) -> None:
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or getattr(metadata, "st_file_attributes", 0) & reparse_flag
+    ):
+        raise ValueError(f"local state requires a regular non-link file: {path}")
+    if for_lock and metadata.st_nlink != 1:
+        # Initializing a shared empty inode would modify somebody else's file.
+        raise ValueError(f"local state lock must not have multiple hardlinks: {path}")
+
+
+@contextmanager
+def _open_regular_state_file(
+    path: Path, *, for_lock: bool = False,
+) -> Iterator[BinaryIO]:
+    """Check both pathname and opened descriptor before reading or initializing.
+
+    Nonblocking open prevents a swapped POSIX FIFO from waiting for a peer.
+    NOFOLLOW protects the final component where available. These observations
+    do not make ancestor changes or later file mutations into a transaction.
+    """
+
+    before = _regular_state_stat(path, missing_ok=for_lock, for_lock=for_lock)
+    flags = (os.O_RDWR | os.O_CREAT | os.O_APPEND) if for_lock else os.O_RDONLY
+    for name in ("O_BINARY", "O_NONBLOCK", "O_NOFOLLOW", "O_NOCTTY"):
+        flags |= getattr(os, name, 0)
+    fd = os.open(path, flags, 0o666)
+    try:
+        opened = os.fstat(fd)
+        _check_regular_state_stat(path, opened, for_lock=for_lock)
+        _reject_link_components(path)
+        current = _regular_state_stat(path, for_lock=for_lock)
+        if (
+            (before is not None and not os.path.samestat(before, opened))
+            or not os.path.samestat(opened, current)
+        ):
+            raise ValueError(f"local state file changed while opening: {path}")
+        # Keep raw-descriptor ownership even when wrapping or validation fails.
+        with os.fdopen(fd, "a+b" if for_lock else "rb", closefd=False) as handle:
+            yield handle
+    finally:
+        os.close(fd)
+
+
 def read_local_state_bytes(path: Path, *, root: Path | None = None) -> bytes:
-    """Read local state only through a lexical, non-link path."""
+    """Read a regular local state file through a lexical, non-link path."""
 
     target = safe_local_state_path(path, root=root)
-    with target.open("rb") as handle:
+    with _open_regular_state_file(target) as handle:
         return handle.read()
 
 
@@ -87,7 +150,7 @@ def interprocess_lock(path: Path) -> Iterator[None]:
     _reject_link_components(lock_path)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     _reject_link_components(lock_path)
-    with lock_path.open("a+b") as handle:
+    with _open_regular_state_file(lock_path, for_lock=True) as handle:
         handle.seek(0, os.SEEK_END)
         if handle.tell() == 0:
             handle.write(b"\0")
@@ -119,6 +182,12 @@ def interprocess_lock(path: Path) -> Iterator[None]:
 
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
         try:
+            # A waiter may have acquired an old inode after the lock path was
+            # replaced. Do not enter the transaction under that obsolete lock.
+            _reject_link_components(lock_path)
+            current = _regular_state_stat(lock_path, for_lock=True)
+            if not os.path.samestat(os.fstat(handle.fileno()), current):
+                raise ValueError(f"local state lock changed while waiting: {lock_path}")
             yield
         finally:
             handle.seek(0)
@@ -139,10 +208,8 @@ def atomic_write_text(path: Path, content: str, *, encoding: str = "utf-8") -> N
     _reject_link_components(target)
     target.parent.mkdir(parents=True, exist_ok=True)
     _reject_link_components(target)
-    try:
-        target_mode = stat.S_IMODE(target.stat().st_mode)
-    except FileNotFoundError:
-        target_mode = 0o644
+    metadata = _regular_state_stat(target, missing_ok=True)
+    target_mode = stat.S_IMODE(metadata.st_mode) if metadata is not None else 0o644
     temp_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -160,6 +227,7 @@ def atomic_write_text(path: Path, content: str, *, encoding: str = "utf-8") -> N
             os.fsync(handle.fileno())
         os.chmod(temp_path, target_mode)
         _reject_link_components(target)
+        _regular_state_stat(target, missing_ok=True)
         os.replace(temp_path, target)
         temp_path = None
         if os.name != "nt":
@@ -180,10 +248,8 @@ def atomic_write_bytes(path: Path, content: bytes) -> None:
     _reject_link_components(target)
     target.parent.mkdir(parents=True, exist_ok=True)
     _reject_link_components(target)
-    try:
-        target_mode = stat.S_IMODE(target.stat().st_mode)
-    except FileNotFoundError:
-        target_mode = 0o644
+    metadata = _regular_state_stat(target, missing_ok=True)
+    target_mode = stat.S_IMODE(metadata.st_mode) if metadata is not None else 0o644
     temp_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -199,6 +265,7 @@ def atomic_write_bytes(path: Path, content: bytes) -> None:
             os.fsync(handle.fileno())
         os.chmod(temp_path, target_mode)
         _reject_link_components(target)
+        _regular_state_stat(target, missing_ok=True)
         os.replace(temp_path, target)
         temp_path = None
         if os.name != "nt":
