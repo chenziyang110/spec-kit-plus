@@ -313,7 +313,7 @@ spec.loader.exec_module(module)
 lock, ready = pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
 original = fcntl.flock
 def observed(fd, operation):
-    if operation == fcntl.LOCK_EX: ready.touch()
+    if operation & fcntl.LOCK_EX: ready.touch()
     return original(fd, operation)
 fcntl.flock = observed
 try:

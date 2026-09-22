@@ -10,7 +10,11 @@ from pathlib import Path
 import stat
 import tempfile
 import time
-from typing import BinaryIO
+import uuid
+from typing import BinaryIO, Callable, TypeVar
+
+
+_StagingResult = TypeVar("_StagingResult")
 
 
 def _absolute_path_without_link_resolution(path: Path) -> Path:
@@ -143,8 +147,24 @@ def read_local_state_text(
 
 
 @contextmanager
-def interprocess_lock(path: Path) -> Iterator[None]:
-    """Hold an OS-released exclusive lock for one local state transaction."""
+def interprocess_lock(path: Path, *, timeout: float = 120.0) -> Iterator[None]:
+    """Hold an OS-released exclusive lock with a bounded acquisition wait.
+
+    ``timeout`` is a finite, nonnegative number of seconds; zero attempts once.
+    The default matches the existing Windows wait budget on every platform.
+    This bounds contention polling, not filesystem open/fsync or the protected
+    operation. A timeout closes the waiting descriptor, never removes the lock
+    file, terminates its owner, or enters the protected operation without a lock.
+    """
+
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+        raise ValueError("lock timeout must be a finite nonnegative number")
+    try:
+        timeout = float(timeout)
+    except OverflowError as exc:
+        raise ValueError("lock timeout must be a finite nonnegative number") from exc
+    if not 0.0 <= timeout < float("inf"):
+        raise ValueError("lock timeout must be a finite nonnegative number")
 
     lock_path = _absolute_path_without_link_resolution(path)
     _reject_link_components(lock_path)
@@ -160,27 +180,34 @@ def interprocess_lock(path: Path) -> Iterator[None]:
         if os.name == "nt":
             import msvcrt
 
-            deadline = time.monotonic() + 120.0
-            while True:
-                try:
-                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-                    break
-                except OSError as exc:
-                    if exc.errno not in {
-                        errno.EACCES,
-                        errno.EAGAIN,
-                        errno.EDEADLK,
-                    }:
-                        raise
-                    if time.monotonic() >= deadline:
-                        raise TimeoutError(
-                            f"timed out waiting for local state lock: {lock_path}"
-                        ) from exc
-                    time.sleep(0.025)
+            retryable = {errno.EACCES, errno.EAGAIN, errno.EDEADLK}
         else:
             import fcntl
 
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            retryable = {errno.EACCES, errno.EAGAIN, errno.EINTR}
+
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                if os.name == "nt":
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError as exc:
+                if exc.errno not in retryable:
+                    raise
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(
+                        f"timed out waiting for local state lock: {lock_path}"
+                    ) from exc
+                time.sleep(min(0.025, remaining))
+                # An overscheduled sleep must not authorize a late acquisition.
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"timed out waiting for local state lock: {lock_path}"
+                    ) from exc
         try:
             # A waiter may have acquired an old inode after the lock path was
             # replaced. Do not enter the transaction under that obsolete lock.
@@ -201,8 +228,45 @@ def interprocess_lock(path: Path) -> Iterator[None]:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
-def atomic_write_text(path: Path, content: str, *, encoding: str = "utf-8") -> None:
-    """Flush and atomically replace a text file in its destination directory."""
+def _create_state_stage(
+    target: Path, create: Callable[[str], _StagingResult],
+) -> _StagingResult:
+    """Create same-directory staging, shortening only an overlong temp name.
+
+    A valid destination leaf can exceed the filesystem limit once a random
+    suffix is appended. Keep ordinary staging names unchanged; retry exclusive
+    creation once with a fixed short prefix only for ENAMETOOLONG. The factory
+    must only allocate staging, never write content or publish the destination.
+    Collisions, access errors and later failures are not retried by this helper.
+    A long directory path can still fail: this does not enable long-path support.
+    """
+
+    try:
+        return create(f"{target.name}.")
+    except OSError as exc:
+        if exc.errno != errno.ENAMETOOLONG:
+            raise
+    # The failed creation owns no file. Recheck before the bounded fallback;
+    # never let a concurrent parent redirect turn it into an external write.
+    _reject_link_components(target)
+    _regular_state_stat(target, missing_ok=True)
+    return create(".specify-")
+
+
+def atomic_write_text(
+    path: Path, content: str, *, encoding: str = "utf-8",
+    new_file_mode: int | None = None,
+) -> None:
+    """Flush and atomically replace text, optionally respecting creation umask.
+
+    Existing callers retain their original text-writing and permission behavior.
+    The opt-in mode uses the byte publisher's exclusive, OS-masked staging path;
+    existing destination modes are preserved. Never read or change process umask.
+    """
+
+    if new_file_mode is not None:
+        atomic_write_bytes(path, content.encode(encoding), new_file_mode=new_file_mode)
+        return
 
     target = _absolute_path_without_link_resolution(path)
     _reject_link_components(target)
@@ -212,14 +276,12 @@ def atomic_write_text(path: Path, content: str, *, encoding: str = "utf-8") -> N
     target_mode = stat.S_IMODE(metadata.st_mode) if metadata is not None else 0o644
     temp_path: Path | None = None
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding=encoding,
-            newline="\n",
-            dir=target.parent,
-            prefix=f"{target.name}.",
-            suffix=".tmp",
-            delete=False,
+        with _create_state_stage(
+            target,
+            lambda prefix: tempfile.NamedTemporaryFile(
+                mode="w", encoding=encoding, newline="\n", dir=target.parent,
+                prefix=prefix, suffix=".tmp", delete=False,
+            ),
         ) as handle:
             temp_path = Path(handle.name)
             handle.write(content)
@@ -236,34 +298,74 @@ def atomic_write_text(path: Path, content: str, *, encoding: str = "utf-8") -> N
                 os.fsync(directory_fd)
             finally:
                 os.close(directory_fd)
-    finally:
+    except BaseException as error:
+        # Cleanup is best-effort after a failed publication. In particular, a
+        # watcher/permission error must not turn ENOSPC or cancellation into a
+        # retryable write failure. Keep the original exception and its traceback.
         if temp_path is not None:
-            temp_path.unlink(missing_ok=True)
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError as cleanup_error:
+                error.add_note(
+                    f"Temporary state file cleanup failed: {temp_path}: {cleanup_error}"
+                )
+        raise
 
 
-def atomic_write_bytes(path: Path, content: bytes) -> None:
-    """Flush and atomically replace a binary file without newline conversion."""
+def atomic_write_bytes(
+    path: Path, content: bytes, *, new_file_mode: int | None = None,
+) -> None:
+    """Flush and replace bytes without newline conversion.
+
+    Existing modes and the default 0644 creation policy are unchanged. Supplying
+    new_file_mode requests OS/umask-filtered creation permissions only for a new
+    destination, without reading or changing the process-global umask.
+    """
+
+    if new_file_mode is not None and (
+        type(new_file_mode) is not int or not 0 <= new_file_mode <= 0o777
+    ):
+        raise ValueError("new_file_mode must contain only permission bits")
 
     target = _absolute_path_without_link_resolution(path)
     _reject_link_components(target)
     target.parent.mkdir(parents=True, exist_ok=True)
     _reject_link_components(target)
     metadata = _regular_state_stat(target, missing_ok=True)
-    target_mode = stat.S_IMODE(metadata.st_mode) if metadata is not None else 0o644
+    target_mode = stat.S_IMODE(metadata.st_mode) if metadata is not None else (
+        0o644 if new_file_mode is None else None
+    )
     temp_path: Path | None = None
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="wb",
-            dir=target.parent,
-            prefix=f"{target.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as handle:
+        if target_mode is None:
+            # Exclusive creation applies umask on the staging inode. A collision
+            # fails without deleting that other file; never truncate a candidate.
+            def create_exclusive(prefix: str) -> tuple[int, Path]:
+                candidate = target.with_name(f"{prefix}{uuid.uuid4().hex}.tmp")
+                flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+                return os.open(candidate, flags, new_file_mode), candidate
+
+            fd, temp_path = _create_state_stage(target, create_exclusive)
+            try:
+                handle = os.fdopen(fd, "wb")
+            except BaseException:
+                os.close(fd)
+                raise
+        else:
+            handle = _create_state_stage(
+                target,
+                lambda prefix: tempfile.NamedTemporaryFile(
+                    mode="wb", dir=target.parent, prefix=prefix,
+                    suffix=".tmp", delete=False,
+                ),
+            )
             temp_path = Path(handle.name)
+        with handle:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
-        os.chmod(temp_path, target_mode)
+        if target_mode is not None:
+            os.chmod(temp_path, target_mode)
         _reject_link_components(target)
         _regular_state_stat(target, missing_ok=True)
         os.replace(temp_path, target)
@@ -274,9 +376,18 @@ def atomic_write_bytes(path: Path, content: bytes) -> None:
                 os.fsync(directory_fd)
             finally:
                 os.close(directory_fd)
-    finally:
+    except BaseException as error:
+        # Cleanup is best-effort after a failed publication. In particular, a
+        # watcher/permission error must not turn ENOSPC or cancellation into a
+        # retryable write failure. Keep the original exception and its traceback.
         if temp_path is not None:
-            temp_path.unlink(missing_ok=True)
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError as cleanup_error:
+                error.add_note(
+                    f"Temporary state file cleanup failed: {temp_path}: {cleanup_error}"
+                )
+        raise
 
 
 __all__ = [
