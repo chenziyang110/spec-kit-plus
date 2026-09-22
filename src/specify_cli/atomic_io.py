@@ -208,6 +208,7 @@ def interprocess_lock(path: Path, *, timeout: float = 120.0) -> Iterator[None]:
                     raise TimeoutError(
                         f"timed out waiting for local state lock: {lock_path}"
                     ) from exc
+        primary_error: BaseException | None = None
         try:
             # A waiter may have acquired an old inode after the lock path was
             # replaced. Do not enter the transaction under that obsolete lock.
@@ -216,16 +217,29 @@ def interprocess_lock(path: Path, *, timeout: float = 120.0) -> Iterator[None]:
             if not os.path.samestat(os.fstat(handle.fileno()), current):
                 raise ValueError(f"local state lock changed while waiting: {lock_path}")
             yield
+        except BaseException as error:
+            primary_error = error
+            raise
         finally:
-            handle.seek(0)
-            if os.name == "nt":
-                import msvcrt
+            try:
+                handle.seek(0)
+                if os.name == "nt":
+                    import msvcrt
 
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-            else:
-                import fcntl
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
 
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            except OSError as release_error:
+                if primary_error is None:
+                    raise
+                # An unlock failure must not turn cancellation or a fatal
+                # publication error into a retryable permission/IO failure.
+                # The descriptor owner still closes the handle on exit.
+                primary_error.add_note(
+                    f"Lock release failed: {lock_path}: {release_error}"
+                )
 
 
 def _create_state_stage(
