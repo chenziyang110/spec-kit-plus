@@ -2572,7 +2572,7 @@ def test_design_lint_cli_does_not_implicitly_select_a_root_design_file(
     result = runner.invoke(app, ["design", "lint"])
 
     assert result.exit_code == 2
-    assert "PATH" in result.output
+    assert re.search(r"missing argument [\'\"]path[\'\"]", result.output, re.IGNORECASE)
 
 
 def test_design_cli_exposes_explicit_iteration_commands() -> None:

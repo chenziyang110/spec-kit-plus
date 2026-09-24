@@ -8,7 +8,7 @@ Introduce the context packet contract without changing existing workflows.
 
 Add a runtime-owned compiler:
 
-```
+```text
 task state + workflow + permissions
           |
           v

@@ -222,6 +222,7 @@ the user explicitly replaces direct delivery with a formal spec-first workflow.
 At closeout, `SUMMARY.md` records outcome, changed paths, verification actually
 run, skipped checks, residual risk, and recovery state. `STATUS.md` points to it
 and reaches `resolved` or `blocked` truthfully.
+
 ## Complete source consumption for direct delivery
 
 A Discussion handoff with materials must pass the same ready validator before

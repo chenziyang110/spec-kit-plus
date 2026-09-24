@@ -56,6 +56,9 @@ func runAPISchema(args []string, stdout io.Writer) int {
 	case "implement-result-merge-input":
 		schema = implementResultMergeInputSchema()
 		capabilityID = "implement.result-merge"
+	case "tasks-rebind-updates-input":
+		schema = tasksRebindUpdatesInputSchema()
+		capabilityID = "tasks.rebind"
 	case "deep-research-track-prepare-input":
 		schema = deepResearchTrackPrepareInputSchema()
 		capabilityID = "deep-research.track-prepare"
@@ -129,6 +132,13 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["usage"] = "specify-runtime workflow reconcile-blocker --input-json <object|@path|-> [--feature-dir <feature-dir>] --format json"
 		capability["input_contract"] = "requires a current blocked revision, one or more evidence-backed resolved_subcauses, and a complete remaining cause/evidence/scope/recovery contract. It keeps the same owner/category and blocked status, appends reconciliation audit, removes stale text from the current blocker, and returns workflow.resolve when no blocker remains"
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "workflow-reconcile-blocker-input", "--format", "json"}
+	case "tasks.rebind":
+		capability["input_schema"] = "tasks-rebind-updates-input"
+		capability["side_effect"] = "rebinds-task-package"
+		capability["usage"] = tasksRebindUsage
+		capability["input_contract"] = "requires the current version-2 task-index SHA-256, workflow revision (0 only when workflow.json is absent), verified current Test Design handoff SHA-256, and a non-empty reason; a present workflow must be in tasks or implement. Optional task-updates-json accepts inline JSON, project-contained @path, or stdin and is keyed by existing pending/ready task IDs with only test_case_refs, test_data_refs, and non-empty ui_contract. The runtime validates all-and-only case/data coverage, refreshes pending UI against the exact adopted Plan/registered Design, preserves accepted/deferred task, lifecycle, and result bytes, refuses unresolved started work, and atomically refreshes task projections, downstream handoffs, pending packets, and an immutable audit under compare-and-swap guards. Missing or stale upstream truth must be repaired by its producer; rebind never grants approval or weakens readiness."
+		capability["output_contract"] = tasksRebindOutputContract
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "tasks-rebind-updates-input", "--format", "json"}
 	case "deep-research.init":
 		capability["side_effect"] = "creates-deep-research-workspace"
 		capability["usage"] = "specify-runtime deep-research init --feature-dir <feature-dir> --leader-id <leader-id> --mode <repo-only|external-enabled|external-blocked> [--expected-revision <revision>] --format json"

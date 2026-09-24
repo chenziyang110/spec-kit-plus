@@ -1346,8 +1346,8 @@ def test_plan_tasks_frontmatter_outputs_are_conditional_for_adaptive_modes() -> 
         "primary_outputs: '`FEATURE_DIR/task-index.json` as the canonical task graph in every "
         "execution mode plus rendered `tasks.md`; light non-UI leader-direct work keeps the same "
         "CLI-owned package compact. `handoff-to-tasks.json` and `handoff-to-implement.json` are "
-        "compact pointer-only transitions created only by `specify-runtime tasks handoff` when "
-        "required. Worker packets are compiled just in time by "
+        "compact pointer-only transitions created by `specify-runtime tasks handoff` when "
+        "required or refreshed atomically by guarded `tasks rebind`. Worker packets are compiled just in time by "
         "`sp-implement`; task-generation lane records exist only when lanes were actually delegated.'"
     ) in tasks
 

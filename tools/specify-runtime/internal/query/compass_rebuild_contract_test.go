@@ -177,7 +177,13 @@ func TestCompassLegacyBlockedGreenfieldRepairsToRebuildAndUsesRecordedStalePaths
 	status.Dirty = true
 	status.StalePaths = []string{
 		"../outside.go",
+		`..\outside.go`,
+		"/outside.go",
 		`C:\outside.go`,
+		"C:/outside.go",
+		"c:outside.go",
+		`\\server\share\outside.go`,
+		"//server/share/outside.go",
 		"backend/internal/bom/arrival.go",
 		"backend/internal/bom/service.go",
 		"frontend/src/views/BomPage.vue",
@@ -221,8 +227,18 @@ func TestCompassLegacyBlockedGreenfieldRepairsToRebuildAndUsesRecordedStalePaths
 	if !hasString(payload.MinimalLiveReads, "backend/internal/bom/arrival.go") || !hasString(payload.MinimalLiveReads, "frontend/src/views/BomPage.vue") {
 		t.Fatalf("minimal_live_reads = %#v, want recorded BOM stale paths", payload.MinimalLiveReads)
 	}
-	if hasString(payload.MinimalLiveReads, "../outside.go") || hasString(payload.MinimalLiveReads, "C:/outside.go") {
-		t.Fatalf("minimal_live_reads = %#v, want repository-relative paths only", payload.MinimalLiveReads)
+	wantReads := []string{
+		"backend/internal/bom/arrival.go",
+		"backend/internal/bom/service.go",
+		"frontend/src/views/BomPage.vue",
+		"frontend/src/api/bom.ts",
+		"backend/internal/project/service.go",
+		"backend/internal/auth/permissions.go",
+	}
+	for i, want := range wantReads {
+		if payload.MinimalLiveReads[i] != want {
+			t.Fatalf("minimal_live_reads = %#v, want bounded repository-relative paths %#v", payload.MinimalLiveReads, wantReads)
+		}
 	}
 }
 

@@ -60,7 +60,8 @@ references are evidence only and never grant write authority.
 
 The graph and its Markdown projection are CLI-owned. Pass semantic task/root
 objects inline to the Tasks CLI; use `build`, `upsert`, `set-root`, `remove`,
-and `finalize` for every mutation. Read targeted fields through
+and `finalize` for ordinary mutations; use guarded `rebind` from
+[rebind recovery](rebind.md) for a verified Test Design refresh or adopted Plan UI contract that leaves an existing package stale. Read targeted fields through
 `specify-runtime artifact show --json-pointer ...`. Direct filesystem writes,
 whole-file rewrites, and temporary authoring payloads are invalid workflow
 operations.
@@ -120,6 +121,7 @@ tasks together cover Plan. Split risk-based or pairwise scenarios, never an
 unbounded Cartesian product, and keep target-user human review visible.
 Each selected surface copies one exact `entrypoint_id` from top-level
 `official_entrypoints`; missing, unknown, or multiple bindings block finalize.
+
 ## Source requirement continuity
 
 Copy the Plan's entire `source_requirement_coverage` array unchanged into

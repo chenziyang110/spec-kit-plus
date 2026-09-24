@@ -82,6 +82,9 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, cl
 	case "hook":
 		return runHook(args[1:], stdout)
 	case "tasks":
+		if len(args) > 1 && args[1] == "rebind" && (hasFlag(args[2:], "--help") || hasFlag(args[2:], "-h")) {
+			return runAPIShow([]string{"tasks.rebind", "--format", "json"}, stdout)
+		}
 		return runTasks(args[1:], stdout)
 	case "implement":
 		return runImplement(args[1:], stdout)
@@ -1405,6 +1408,7 @@ func defaultCapabilities() []string {
 		"tasks.build",
 		"tasks.finalize",
 		"tasks.handoff",
+		"tasks.rebind",
 		"tasks.remove",
 		"tasks.set-root",
 		"tasks.upsert",
@@ -1702,6 +1706,8 @@ func capabilitySummary(id string) string {
 		return "Apply a current-evidence-bound path identity repair and revalidate query readiness."
 	case "implement.result-merge":
 		return "Merge a leader-submitted WorkerTaskResult with validation_results into task lifecycle state."
+	case "tasks.rebind":
+		return "Refresh Test Design bindings and pending UI contracts while preserving accepted/deferred task history."
 	case "implement.task-start":
 		return "Atomically claim a task's expected write scope before starting its implementation lifecycle."
 	case "implement.task-reopen":

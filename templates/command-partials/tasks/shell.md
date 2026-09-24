@@ -7,7 +7,7 @@ Compile a ready plan contract into the smallest dependency-safe execution graph 
 ## Context
 
 - Primary authority: `plan-contract.json`; `tasks.md` is the project-facing view and `task-index.json` is canonical in every execution mode.
-- Artifact authority: `specify-runtime tasks build|upsert|set-root|remove|finalize|handoff` exclusively owns both task projections and task transition handoffs. Read them through `specify-runtime artifact show`; never mutate them with an editor, shell redirection, or generic artifact submit.
+- Artifact authority: `specify-runtime tasks build|upsert|set-root|remove|finalize|handoff|rebind` exclusively owns both task projections and task transition handoffs. Read them through `specify-runtime artifact show`; never mutate them with an editor, shell redirection, or generic artifact submit.
 - Read conditional plan/spec views only through a required ref or stale condition.
 - Task generation is artifact-only and does not authorize source/test edits.
 

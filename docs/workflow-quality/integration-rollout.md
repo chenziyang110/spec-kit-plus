@@ -2,7 +2,7 @@
 
 Updated: 2026-09-22. Source maintenance on draft PR #120, not a release,
 main merge, installed upgrade or full product acceptance. Keep dependency order
-#116 -> #119 -> #120 and preserve Classic/Advanced contracts.
+PR #116 -> #119 -> #120 and preserve Classic/Advanced contracts.
 
 ## Source checkpoints
 

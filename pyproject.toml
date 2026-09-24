@@ -5,12 +5,12 @@ description = "Specify CLI for Spec Kit Plus. A tool to bootstrap projects for S
 requires-python = ">=3.11"
 dependencies = [
     "typer",
-    "click>=8.4.2",
+    "click>=8.5.0",
     "rich",
     "platformdirs",
     "readchar>=4.2.2",
     "pyyaml>=6.0.3",
-    "packaging>=26.2",
+    "packaging>=26.3",
     "pathspec>=1.1.1",
     "json5>=0.15.0",
     "jsonschema>=4.26.0",
@@ -141,7 +141,7 @@ packages = ["src/specify_cli"]
 
 [project.optional-dependencies]
 mcp = [
-    "mcp[cli]>=2.0.0,<3",
+    "mcp[cli]>=2.2.0,<3",
 ]
 test = [
     "pytest>=9.1.1",

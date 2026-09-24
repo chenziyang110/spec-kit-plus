@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-import socket
 import stat
 import subprocess
 import sys
@@ -74,25 +73,19 @@ def test_config_links_are_invalid_not_missing_or_trusted(config_path: Path, kind
 
 
 @pytest.mark.parametrize("kind", ["directory", "socket"])
-def test_special_configuration_is_rejected_without_replacement(config_path: Path, kind: str):
-    server = None
+def test_special_configuration_is_rejected_without_replacement(
+    config_path: Path, kind: str, create_filesystem_socket,
+):
     if kind == "directory":
         config_path.mkdir()
     else:
-        if os.name == "nt" or not hasattr(socket, "AF_UNIX"):
-            pytest.skip("filesystem socket fixture requires POSIX")
-        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         # Keep the path within the Unix-domain socket length limit.
         config_path = config_path.parents[2] / "sock"
-        server.bind(str(config_path))
+        create_filesystem_socket(config_path)
     before = config_path.lstat()
-    try:
-        assert launcher._load_config(config_path) is None
-        assert os.path.samestat(before, config_path.lstat())
-        assert config_path.lstat().st_mode == before.st_mode
-    finally:
-        if server is not None:
-            server.close()
+    assert launcher._load_config(config_path) is None
+    assert os.path.samestat(before, config_path.lstat())
+    assert config_path.lstat().st_mode == before.st_mode
 
 
 def test_unreadable_config_is_not_treated_as_empty(config_path: Path, monkeypatch):

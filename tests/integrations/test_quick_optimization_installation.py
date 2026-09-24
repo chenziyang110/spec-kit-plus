@@ -65,7 +65,12 @@ def test_classic_quick_keeps_worker_default(tmp_path, integration_key):
     skills = integration.skills_dest(tmp_path)
     entry = skills / "sp-quick" / "SKILL.md"
     text = normalized(entry)
-    assert "subagent-mandatory" in text
+    for anchor in (
+        "must spawn a subagent before any write_scope file edit",
+        "requires_worker: true",
+        "runtime requires matching worker result",
+    ):
+        assert anchor in text, anchor
     assert "--leader-direct" not in text
     assert not (skills / "spx-quick").exists()
     assert manifest.check_modified() == []

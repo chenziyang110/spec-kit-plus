@@ -4,7 +4,7 @@ Context Resolver is the first stage of Runtime Context Compiler.
 
 Flow:
 
-```
+```text
 Task Input
     |
     v

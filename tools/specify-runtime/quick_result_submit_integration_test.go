@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,7 +42,7 @@ func TestQuickDirectResultSubmitPreservesValidationFailure(t *testing.T) {
 	}
 	path := filepath.Join(workspace, "worker-results", "Q1.json")
 	bad := `{"task_id":"Q1","status":"success","changed_files":["src/a.go"],"validation_results":[{"command":"unit","status":"passed"},{"status":"failed","output":"integration failed"}]}`
-	if got := submit(bad); got.Status != "invalid" || !strings.Contains(strings.Join(got.Blockers, " "), "validation_results[1]") {
+	if got := submit(bad); got.Status != "invalid" || !strings.Contains(fmt.Sprint(got.Blockers), "validation_results[1]") {
 		t.Fatalf("submit: %#v", got)
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {

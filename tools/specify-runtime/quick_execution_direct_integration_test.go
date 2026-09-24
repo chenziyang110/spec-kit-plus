@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,7 +96,7 @@ func TestQuickDirectCannotRelabelActiveWorker(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := runScriptDomainEnvelope(t, runQuick, append(start, "--leader-direct"))
-	if got.Status == "ok" || !strings.Contains(strings.Join(got.Blockers, " "), "before first start") {
+	if got.Status == "ok" || !strings.Contains(fmt.Sprint(got.Blockers), "before first start") {
 		t.Fatal(got)
 	}
 	after, err := os.ReadFile(path)

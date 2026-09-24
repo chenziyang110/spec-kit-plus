@@ -4,6 +4,7 @@ import json
 import os
 import re
 import stat
+import subprocess
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -73,7 +74,32 @@ def test_required_runtime_contract_matches_the_shipped_agent_surface() -> None:
         )
     )
 
-    assert set(runtime.REQUIRED_CAPABILITIES) == shipped
+    # Recovery is negotiated when needed; existing installations need not
+    # support it to keep running unrelated workflows.
+    assert set(runtime.REQUIRED_CAPABILITIES) | {"tasks.rebind"} == shipped
+
+
+def test_tasks_rebind_is_discoverable_without_raising_installation_minimum(
+    built_unified_runtime: Path,
+) -> None:
+    runtime = _load_runtime()
+    assert "tasks.rebind" not in runtime.REQUIRED_CAPABILITIES
+
+    result = subprocess.run(
+        [
+            str(built_unified_runtime), "api", "ensure",
+            "--capabilities", "tasks.rebind", "--format", "json",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "ok"
+    assert payload["data"]["present"] == ["tasks.rebind"]
+    assert payload["data"]["missing"] == []
 
 
 def test_required_runtime_contract_retires_run_without_retiring_shared_execution() -> None:

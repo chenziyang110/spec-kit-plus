@@ -103,6 +103,9 @@ func runAPIPack(args []string, stdout io.Writer, cliVersion string) int {
 		}
 		addQuickPackOutputContract(capabilityID, descriptor.capability, item)
 		addQuickShadowPackContract(capabilityID, item)
+		if capabilityID == "tasks.rebind" {
+			item["output_contract"] = descriptor.capability["output_contract"]
+		}
 		if schemaID, ok := descriptor.capability["input_schema"].(string); ok && strings.TrimSpace(schemaID) != "" {
 			item["schema_ref"] = schemaID
 			if includeSchema {

@@ -20,6 +20,9 @@ func TestTaskControlWriteScopeRejectsFilenameGlobsBeforePacketCompilation(t *tes
 		"../outside.go",
 		"/outside.go",
 		"C:/outside.go",
+		`C:\outside.go`,
+		"C:relative.go",
+		"z:relative/subtree/**",
 	} {
 		t.Run(scope, func(t *testing.T) {
 			_, err := normalizeTaskControlTask(map[string]any{

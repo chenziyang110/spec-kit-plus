@@ -20,6 +20,7 @@ import (
 
 var taskControlIDRE = regexp.MustCompile(`^T\d+$`)
 var taskControlWriteScopePatternCharsRE = regexp.MustCompile(`[\?\[\]]`)
+var taskControlWindowsDriveRE = regexp.MustCompile(`^[A-Za-z]:`)
 
 var taskControlTerminalStatuses = map[string]bool{"accepted": true, "deferred": true}
 
@@ -104,6 +105,9 @@ func runTasks(args []string, stdout io.Writer) int {
 	case "handoff":
 		payload, err = runTasksHandoff(args[1:])
 		summary = "task handoff materialized"
+	case "rebind":
+		payload, err = runTasksRebind(args[1:])
+		summary = "task package rebound with lifecycle history preserved"
 	default:
 		return writeImplementError(stdout, "usage-error", fmt.Sprintf("unknown tasks subcommand %q", args[0]))
 	}
@@ -944,7 +948,7 @@ func taskControlCompareTestDesignBinding(payload map[string]any, binding testDes
 		strings.TrimSpace(anyString(payload["test_design_handoff_sha256"])) != binding.SHA256 ||
 		strings.TrimSpace(anyString(payload["test_design_source_fingerprint"])) != binding.SourceFingerprint ||
 		intFromAny(payload["test_design_state_revision"]) != binding.StateRevision {
-		return fmt.Errorf("task-index test-design binding is stale; rebuild tasks against the current handoff")
+		return fmt.Errorf("task-index test-design binding is stale; verify the current handoff and use guarded tasks rebind to preserve lifecycle history")
 	}
 	actual, ok := payload["test_design_artifact_digests"].(map[string]any)
 	if !ok || len(actual) != len(binding.ArtifactDigests) {
@@ -1254,7 +1258,7 @@ func normalizeTaskControlExpectedWriteScopeEntry(value string) (string, bool, er
 	if normalized == "" || strings.ContainsRune(normalized, '\x00') {
 		return "", false, fmt.Errorf("blank or NUL-containing expected_write_scope path")
 	}
-	if path.IsAbs(normalized) || filepath.IsAbs(filepath.FromSlash(normalized)) || filepath.VolumeName(filepath.FromSlash(normalized)) != "" {
+	if path.IsAbs(normalized) || filepath.IsAbs(filepath.FromSlash(normalized)) || filepath.VolumeName(filepath.FromSlash(normalized)) != "" || taskControlWindowsDriveRE.MatchString(normalized) {
 		return "", false, fmt.Errorf("expected_write_scope path must be repository-relative")
 	}
 	if taskControlWriteScopePatternCharsRE.MatchString(normalized) {

@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-import socket
 import stat
 import subprocess
 import sys
@@ -79,26 +78,20 @@ def test_fifo_is_rejected_without_waiting_for_a_peer(tmp_path, operation):
 
 @pytest.mark.parametrize("operation", ["write-bytes", "write-text"])
 @pytest.mark.parametrize("kind", ["fifo", "socket"])
-def test_atomic_write_does_not_replace_ipc_endpoints(tmp_path, operation, kind):
+def test_atomic_write_does_not_replace_ipc_endpoints(
+    tmp_path, operation, kind, create_filesystem_socket,
+):
     path = tmp_path / "state"
-    server = None
     if kind == "fifo":
         fifo(path)
     else:
-        if os.name == "nt" or not hasattr(socket, "AF_UNIX"):
-            pytest.skip("Unix filesystem socket fixture requires POSIX")
-        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        server.bind(str(path))
+        create_filesystem_socket(path)
     before = path.lstat()
-    try:
-        with pytest.raises(ValueError, match="regular"):
-            operate(path, operation)
-        assert os.path.samestat(before, path.lstat())
-        assert path.lstat().st_mode == before.st_mode
-        assert not list(tmp_path.glob("state.*.tmp"))
-    finally:
-        if server is not None:
-            server.close()
+    with pytest.raises(ValueError, match="regular"):
+        operate(path, operation)
+    assert os.path.samestat(before, path.lstat())
+    assert path.lstat().st_mode == before.st_mode
+    assert not list(tmp_path.glob("state.*.tmp"))
 
 
 @pytest.mark.parametrize("operation", _OPERATIONS)

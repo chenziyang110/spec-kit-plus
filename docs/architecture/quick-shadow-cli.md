@@ -138,7 +138,6 @@ regressions. Source additions and supplied tests are not executed-test evidence.
 Real Agent measurement, source/approval verification and release checks remain
 separate. No generated consumer should switch based only on this diagnostic.
 
-
 The source suite now contains ten complete-checkout entrypoint tests. Current
 selected-source checks are documented in the
 [registration checkpoint](../workflow-quality/quick-shadow-registration-2026-09-17.md).

@@ -4,7 +4,7 @@
 
 The dependency chain remains #116 -> #119 -> #120. Source main and public
 releases are unchanged. #119 head d62766ea contains the five runnable fixtures;
-#120 now incorporates that head without discarding its existing context work.
+PR #120 now incorporates that head without discarding its existing context work.
 Context source inspection began at 8937de27; original source/test blobs and
 pyproject.toml were checked against GitHub Git blob identities before editing.
 This checkpoint is not authorization to merge, publish or change permissions.

@@ -28,6 +28,12 @@ Route upstream when repair changes goal, confirmed scope, architecture, feasibil
 
 Completed task IDs remain stable. New repair/refinement tasks append and reference the task they repair.
 
+For stale Test Design bindings or pending UI contracts after valid upstream
+refresh, follow [rebind recovery](rebind.md). The runtime-owned `tasks rebind`
+operation preserves accepted/deferred lifecycle history and atomically updates
+derived handoffs. Do not bypass stale-binding validation through ordinary
+mutations or delete the package to make `tasks build` available.
+
 ## Ready Transition
 
 Set ready only after deterministic validation passes. Transition to `sp-implement` with canonical task ref, semantic delta, required refs, blockers, and recovery. Do not attach duplicate task bodies or pre-generated packets.
