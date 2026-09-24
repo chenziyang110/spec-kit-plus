@@ -2972,6 +2972,7 @@ func normalizedIdentityString(value any) string {
 
 func normalizedString(value any) string {
 	text, _ := value.(string)
-	text = filepath.ToSlash(strings.TrimSpace(text))
+	// Scan artifacts may be produced on a different OS than the validator.
+	text = strings.ReplaceAll(strings.TrimSpace(text), `\`, "/")
 	return strings.TrimPrefix(text, "./")
 }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import contextmanager
 import hashlib
 import importlib.metadata as importlib_metadata
 import json
@@ -13,13 +14,15 @@ import shutil
 import shlex
 import subprocess
 import sys
-from typing import Any, Callable, TYPE_CHECKING
+from typing import Any, Callable, Iterator, TYPE_CHECKING
 from urllib.parse import urlsplit
 import uuid
 
 from .atomic_io import (
     atomic_write_bytes,
     atomic_write_text,
+    interprocess_lock,
+    read_local_state_bytes,
     read_local_state_text,
     safe_local_state_path,
 )
@@ -821,6 +824,8 @@ def project_specify_launcher_is_available(
     try:
         if read_local_state_text(destination, root=project_root) != expected:
             return False
+        if os.name != "nt" and not os.access(destination, os.X_OK):
+            return False
     except (OSError, ValueError):
         return False
     return _machine_binding_probe(launcher.binding_id)
@@ -838,24 +843,26 @@ def _machine_binding_probe(binding_id: str) -> bool:
     invoke_path = Path(binding["invoke_path"])
     dispatch_path = Path(dispatch["dispatch_path"])
     dispatch_repair_argv = tuple(dispatch["repair_argv"])
-    binding_dir = _project_launcher_binding_dir(binding_id).resolve()
-    entry_path = binding_dir / SPECIFY_BINDING_ENTRY
-    expected_invoke = _project_launcher_native_binding_path(binding_id).resolve()
-    expected_dispatch = _project_launcher_dispatch_path().resolve()
     try:
+        binding_dir = _project_launcher_binding_dir(binding_id).resolve()
+        entry_path = binding_dir / SPECIFY_BINDING_ENTRY
+        expected_invoke = _project_launcher_native_binding_path(binding_id).resolve()
+        expected_dispatch = _project_launcher_dispatch_path().resolve()
         recorded_entry = Path(entry_argv[1]).resolve()
         recorded_invoke = invoke_path.resolve()
         recorded_dispatch = dispatch_path.resolve()
         recorded_import_root = package_import_root.resolve()
-    except OSError:
+    except (OSError, ValueError, RuntimeError):
         return False
+    # The shared dispatcher embeds the last writer's repair hint, not the
+    # selected binding's interpreter. Another environment disappearing must
+    # not disable this binding; its own entry interpreter is still required.
     if (
         recorded_entry != entry_path
         or recorded_invoke != expected_invoke
         or recorded_dispatch != expected_dispatch
         or recorded_import_root != package_import_root
         or not _launcher_entry_exists(entry_argv[0])
-        or not _launcher_entry_exists(dispatch_repair_argv[0])
         or not entry_path.is_file()
         or not invoke_path.is_file()
         or not dispatch_path.is_file()
@@ -864,9 +871,16 @@ def _machine_binding_probe(binding_id: str) -> bool:
     try:
         package_init = package_import_root / "specify_cli" / "__init__.py"
         package_launcher = package_import_root / "specify_cli" / "launcher.py"
-        entry_hash = hashlib.sha256(entry_path.read_bytes()).hexdigest()
-        invoke_hash = hashlib.sha256(invoke_path.read_bytes()).hexdigest()
-        dispatch_hash = hashlib.sha256(dispatch_path.read_bytes()).hexdigest()
+        # Hash and compare the same bytes. Reject links in owned scripts via
+        # the shared path owner before any subprocess; interpreter symlinks
+        # belonging to a virtual environment are not treated as owned scripts.
+        state_root = _project_launcher_state_root()
+        entry_bytes = read_local_state_bytes(entry_path, root=state_root)
+        invoke_bytes = read_local_state_bytes(invoke_path, root=state_root)
+        dispatch_bytes = read_local_state_bytes(dispatch_path, root=state_root)
+        entry_hash = hashlib.sha256(entry_bytes).hexdigest()
+        invoke_hash = hashlib.sha256(invoke_bytes).hexdigest()
+        dispatch_hash = hashlib.sha256(dispatch_bytes).hexdigest()
         package_init_hash = hashlib.sha256(package_init.read_bytes()).hexdigest()
         package_launcher_hash = hashlib.sha256(package_launcher.read_bytes()).hexdigest()
         repair_command = render_command(_binding_repair_argv(entry_argv[0]))
@@ -877,14 +891,16 @@ def _machine_binding_probe(binding_id: str) -> bool:
             package_launcher_sha256,
             repair_command,
         )
+        expected_entry_bytes = expected_entry.encode("utf-8")
         expected_dispatch = _binding_dispatch_source(
             render_command(dispatch_repair_argv)
         ).encode(
             "utf-8-sig" if os.name == "nt" else "utf-8"
         )
-        actual_entry = entry_path.read_text(encoding="utf-8")
-        actual_dispatch = dispatch_path.read_bytes()
-    except OSError:
+        expected_invoke_bytes = _binding_invoke_source(
+            entry_argv[0], entry_path,
+        ).encode("utf-8-sig" if os.name == "nt" else "utf-8")
+    except (OSError, ValueError):
         return False
     if (
         entry_hash != binding["entry_sha256"]
@@ -892,8 +908,9 @@ def _machine_binding_probe(binding_id: str) -> bool:
         or dispatch_hash != dispatch["dispatch_sha256"]
         or package_init_hash != package_init_sha256
         or package_launcher_hash != package_launcher_sha256
-        or actual_entry != expected_entry
-        or actual_dispatch != expected_dispatch
+        or entry_bytes != expected_entry_bytes
+        or invoke_bytes != expected_invoke_bytes
+        or dispatch_bytes != expected_dispatch
     ):
         return False
     try:
@@ -902,11 +919,11 @@ def _machine_binding_probe(binding_id: str) -> bool:
             capture_output=True,
             text=True,
             encoding="utf-8",
-            errors="replace",
+            errors="strict",
             check=False,
             timeout=10,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired, UnicodeError):
         return False
     return probe.returncode == 0 and probe.stdout.strip() == SPECIFY_RUNTIME_ID
 
@@ -978,7 +995,11 @@ def install_project_specify_launcher(project_root: Path, binding_id: str) -> Pat
                 f"preserved {destination}. Back up the file, compare it with the installed "
                 "Spec Kit Plus launcher template, then run the trusted `specify integration repair` command."
             )
-        return destination
+        if os.name == "nt" or os.access(destination, os.X_OK):
+            return destination
+        # Repair only an exact generated wrapper. Republish an independent file
+        # rather than chmod a possibly hardlinked backup or another project.
+        # Modified contents above still require an explicit user merge.
     atomic_write_text(destination, rendered)
     if os.name != "nt":
         destination.chmod(0o700)
@@ -1114,18 +1135,23 @@ def install_shared_hook_launcher_assets(
     if not assets_dir:
         return []
 
+    safe_local_state_path(assets_dir)
     created: list[Path] = []
     dest_dir = project_root / ".specify" / "bin"
+    # Validate before mkdir or manifest inspection can follow an external parent.
+    safe_local_state_path(dest_dir, root=project_root)
     dest_dir.mkdir(parents=True, exist_ok=True)
+    safe_local_state_path(dest_dir, root=project_root)
     modified = (
         set(manifest.check_modified())
         if preserve_modified and manifest is not None
         else set()
     )
     for src_file in sorted(assets_dir.iterdir()):
-        if not src_file.is_file():
-            continue
         if not include_node and src_file.name == HOOK_LAUNCHER_NODE:
+            continue
+        safe_local_state_path(src_file, root=assets_dir)
+        if src_file.is_dir():
             continue
         dst_file = dest_dir / src_file.name
         relative = dst_file.relative_to(project_root).as_posix()
@@ -1139,7 +1165,16 @@ def install_shared_hook_launcher_assets(
                 if skipped_modified is not None:
                     skipped_modified.append(relative)
                 continue
-        shutil.copy2(src_file, dst_file)
+        # Read before publication and replace an independent file: copy2 writes
+        # through destination symlinks/hardlinks and can truncate a live hook.
+        content = read_local_state_bytes(src_file, root=assets_dir)
+        safe_local_state_path(dst_file, root=project_root)
+        atomic_write_bytes(dst_file, content)
+        # Preserve the previous copy2 metadata contract. Metadata/manifest errors
+        # after publication raise; this is not a multi-file rollback transaction.
+        safe_local_state_path(src_file, root=assets_dir)
+        safe_local_state_path(dst_file, root=project_root)
+        shutil.copystat(src_file, dst_file)
         if dst_file.name == HOOK_LAUNCHER_POSIX:
             dst_file.chmod(dst_file.stat().st_mode | 0o111)
         if manifest is not None:
@@ -1149,13 +1184,30 @@ def install_shared_hook_launcher_assets(
 
 
 def _load_config(path: Path) -> dict[str, Any] | None:
-    if not path.exists():
-        return {}
+    """Load regular, non-link JSON state; distinguish absent from invalid input."""
+
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate configuration key")
+            result[key] = value
+        return result
+
     try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+        loaded = json.loads(
+            read_local_state_text(path), object_pairs_hook=unique_object,
+        )
+        if not isinstance(loaded, dict):
+            return None
+        # Reject non-finite numbers and unpaired surrogate escapes before any
+        # caller publishes files based on data that cannot be written faithfully.
+        json.dumps(loaded, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except FileNotFoundError:
+        return {}
+    except (ValueError, OSError, RecursionError):
         return None
-    return loaded if isinstance(loaded, dict) else None
+    return loaded
 
 
 def _payload_argv(payload: Any) -> tuple[str, ...] | None:
@@ -1738,24 +1790,72 @@ def _contains_unbound_unified_runtime_call(text: str) -> bool:
     return count > 0
 
 
-def _generated_guidance_files(project_root: Path) -> list[Path]:
-    files: list[Path] = []
+def _generated_guidance_files(
+    project_root: Path,
+    *,
+    on_error: Callable[[Path], None] | None = None,
+) -> list[Path]:
+    """Discover guidance once without following links; report incomplete scans."""
+
+    files: set[Path] = set()
+
+    def report(path: Path) -> None:
+        if on_error is not None:
+            on_error(path)
+
     for rel_root in GENERATED_GUIDANCE_ROOTS:
         root = project_root / rel_root
-        if not root.is_dir():
+        try:
+            safe_local_state_path(root, root=project_root)
+            root.lstat()
+            if not root.is_dir():
+                report(root)
+                continue
+        except FileNotFoundError:
             continue
-        for path in root.rglob("*"):
-            if path.is_file() and path.suffix.lower() in GENERATED_GUIDANCE_SUFFIXES:
-                files.append(path)
-    for rel_path in GENERATED_CONTEXT_FILES:
-        path = project_root / rel_path
-        if path.is_file():
-            files.append(path)
-    for rel_path in GENERATED_GUIDANCE_FILES:
-        path = project_root / rel_path
-        if path.is_file():
-            files.append(path)
-    return files
+        except (OSError, ValueError):
+            report(root)
+            continue
+
+        def walk_error(error: OSError) -> None:
+            failed = Path(error.filename) if error.filename else root
+            report(failed if failed.is_relative_to(project_root) else root)
+
+        for directory, subdirectories, filenames in os.walk(
+            root, followlinks=False, onerror=walk_error,
+        ):
+            current = Path(directory)
+            # os.walk does not follow directory links; prune them explicitly so
+            # their uninspected contents are reported, not mistaken for a pass.
+            allowed: list[str] = []
+            for name in sorted(subdirectories):
+                child = current / name
+                try:
+                    safe_local_state_path(child, root=project_root)
+                except (OSError, ValueError):
+                    report(child)
+                else:
+                    allowed.append(name)
+            subdirectories[:] = allowed
+            for name in filenames:
+                path = current / name
+                if path.suffix.lower() in GENERATED_GUIDANCE_SUFFIXES:
+                    # Keep special-file candidates: the shared reader rejects
+                    # them without waiting, and diagnosis reports the failure.
+                    files.add(path)
+
+    for relative in (*GENERATED_CONTEXT_FILES, *GENERATED_GUIDANCE_FILES):
+        path = project_root / relative
+        try:
+            safe_local_state_path(path, root=project_root)
+            path.lstat()
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError):
+            report(path)
+            continue
+        files.add(path)
+    return sorted(files, key=lambda path: path.as_posix())
 
 
 def _markdown_body_for_runtime_scan(text: str) -> str:
@@ -2000,6 +2100,39 @@ def rebind_unavailable_specify_runtime_commands(
     return rebound
 
 
+@contextmanager
+def _locked_project_launcher_config(
+    project_root: Path,
+) -> Iterator[tuple[Path, dict[str, Any] | None]]:
+    """Serialize cooperating launcher writers and reread config under the lock.
+
+    Keep the lock file: unlinking it can split waiters across different inodes.
+    Readers, external editors, low-level binary copies and crashes are not made
+    transactional. In particular, a later config-save failure can leave a new
+    binary with its previous binding; the existing loader rejects that mismatch.
+    """
+
+    config_path = safe_local_state_path(
+        project_root / SPECIFY_CONFIG_FILE, root=project_root,
+    )
+    # Reject bad existing input before creating cache, binary or binding files.
+    if _load_config(config_path) is None:
+        yield config_path, None
+        return
+    lock_path = safe_local_state_path(
+        project_root / ".specify" / "runtime" / "launcher-config.lock",
+        root=project_root,
+    )
+    with interprocess_lock(lock_path):
+        safe_local_state_path(config_path, root=project_root)
+        payload = _load_config(config_path)
+        if payload is not None:
+            from .specify_runtime import _ensure_project_runtime_state_gitignore
+
+            _ensure_project_runtime_state_gitignore(project_root)
+        yield config_path, payload
+
+
 def write_project_specify_launcher_config(
     project_root: Path,
     launcher: SpecifyLauncherSpec | None = None,
@@ -2021,77 +2154,76 @@ def write_project_specify_launcher_config(
     if resolved.argv == default_specify_launcher_spec().argv:
         return None
 
-    config_path = project_root / SPECIFY_CONFIG_FILE
-    payload = _load_config(config_path)
-    if payload is None:
-        return None
-    existing_payload = payload.get(SPECIFY_LAUNCHER_CONFIG_KEY)
-    existing = _normalize_specify_launcher_payload(existing_payload)
-    if not explicit_launcher and isinstance(existing_payload, dict):
-        raw_runtime_id = existing_payload.get("runtime_id")
-        raw_argv = _payload_argv(existing_payload)
-        recognized_legacy_source = (
-            raw_argv is not None
-            and _source_bound_specify_launcher_spec(raw_argv) is not None
-        )
-        owned_by_this_runtime = (
-            raw_runtime_id == SPECIFY_RUNTIME_ID or recognized_legacy_source
-        )
-        if not owned_by_this_runtime:
-            # An unknown or explicitly foreign record is not ours to replace
-            # during ordinary init/repair. An explicit caller may intentionally
-            # take ownership by supplying a trusted launcher.
+    with _locked_project_launcher_config(project_root) as (config_path, payload):
+        if payload is None:
+            return None
+        existing_payload = payload.get(SPECIFY_LAUNCHER_CONFIG_KEY)
+        existing = _normalize_specify_launcher_payload(existing_payload)
+        if not explicit_launcher and isinstance(existing_payload, dict):
+            raw_runtime_id = existing_payload.get("runtime_id")
+            raw_argv = _payload_argv(existing_payload)
+            recognized_legacy_source = (
+                raw_argv is not None
+                and _source_bound_specify_launcher_spec(raw_argv) is not None
+            )
+            owned_by_this_runtime = (
+                raw_runtime_id == SPECIFY_RUNTIME_ID or recognized_legacy_source
+            )
+            if not owned_by_this_runtime:
+                # An unknown or explicitly foreign record is not ours to replace
+                # during ordinary init/repair. An explicit caller may intentionally
+                # take ownership by supplying a trusted launcher.
+                return config_path
+
+        persisted = _source_bound_specify_launcher_spec(resolved.argv)
+        if resolved.source == "local_environment":
+            expected_local = current_environment_specify_launcher_spec()
+            if resolved.argv != expected_local.argv or resolved.runtime_id != SPECIFY_RUNTIME_ID:
+                raise ValueError(
+                    "local_environment launcher must match the currently loaded Specify runtime"
+                )
+            binding_id = (
+                existing.binding_id
+                if existing is not None
+                and existing.kind == "machine_binding"
+                and existing.runtime_id == SPECIFY_RUNTIME_ID
+                and SPECIFY_BINDING_ID_RE.fullmatch(existing.binding_id)
+                else uuid.uuid4().hex
+            )
+            _write_project_launcher_binding(binding_id, resolved)
+            if not _machine_binding_probe(binding_id):
+                raise RuntimeError(
+                    "the machine-local Spec Kit Plus binding failed its runtime identity probe; "
+                    "the project launcher and configuration were not changed"
+                )
+            try:
+                install_project_specify_launcher(project_root, binding_id)
+            except RuntimeError:
+                if (
+                    not preserve_conflicting_wrapper
+                    or existing is None
+                    or existing.kind != "machine_binding"
+                    or existing.binding_id != binding_id
+                ):
+                    raise
+            persisted = project_local_specify_launcher_spec(binding_id)
+        elif persisted is None:
+            raise ValueError(
+                "Specify launchers must use the current local environment or the "
+                "canonical commit-pinned Spec Kit Plus uvx source"
+            )
+
+        desired = _launcher_payload(persisted)
+        if payload.get(SPECIFY_LAUNCHER_CONFIG_KEY) == desired:
             return config_path
 
-    persisted = _source_bound_specify_launcher_spec(resolved.argv)
-    if resolved.source == "local_environment":
-        expected_local = current_environment_specify_launcher_spec()
-        if resolved.argv != expected_local.argv or resolved.runtime_id != SPECIFY_RUNTIME_ID:
-            raise ValueError(
-                "local_environment launcher must match the currently loaded Specify runtime"
-            )
-        binding_id = (
-            existing.binding_id
-            if existing is not None
-            and existing.kind == "machine_binding"
-            and existing.runtime_id == SPECIFY_RUNTIME_ID
-            and SPECIFY_BINDING_ID_RE.fullmatch(existing.binding_id)
-            else uuid.uuid4().hex
+        payload[SPECIFY_LAUNCHER_CONFIG_KEY] = desired
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(
+            config_path,
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         )
-        _write_project_launcher_binding(binding_id, resolved)
-        if not _machine_binding_probe(binding_id):
-            raise RuntimeError(
-                "the machine-local Spec Kit Plus binding failed its runtime identity probe; "
-                "the project launcher and configuration were not changed"
-            )
-        try:
-            install_project_specify_launcher(project_root, binding_id)
-        except RuntimeError:
-            if (
-                not preserve_conflicting_wrapper
-                or existing is None
-                or existing.kind != "machine_binding"
-                or existing.binding_id != binding_id
-            ):
-                raise
-        persisted = project_local_specify_launcher_spec(binding_id)
-    elif persisted is None:
-        raise ValueError(
-            "Specify launchers must use the current local environment or the "
-            "canonical commit-pinned Spec Kit Plus uvx source"
-        )
-
-    desired = _launcher_payload(persisted)
-    if payload.get(SPECIFY_LAUNCHER_CONFIG_KEY) == desired:
         return config_path
-
-    payload[SPECIFY_LAUNCHER_CONFIG_KEY] = desired
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(
-        config_path,
-        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-    )
-    return config_path
 
 
 def write_runtime_launcher_config(project_root: Path, binary: str | Path) -> Path | None:
@@ -2104,51 +2236,143 @@ def write_runtime_launcher_config(project_root: Path, binary: str | Path) -> Pat
         project_runtime_launcher_arg,
     )
 
-    project_binary = materialize_project_runtime_entrypoint(project_root, binary)
-    launcher_arg = project_runtime_launcher_arg()
-    launcher = SpecifyLauncherSpec(
-        command=render_command((launcher_arg,)),
-        argv=(launcher_arg,),
-    )
-    config_path = project_root / SPECIFY_CONFIG_FILE
-    payload = _load_config(config_path)
-    if payload is None:
-        return None
+    with _locked_project_launcher_config(project_root) as (config_path, payload):
+        if payload is None:
+            return None
+        metadata = current_runtime_binding_metadata()
+        if not isinstance(metadata, dict):
+            raise ValueError("runtime binding metadata must be an object")
+        # Source identity / metadata errors must precede replacement of a working pin.
+        json.dumps(metadata, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        project_binary = materialize_project_runtime_entrypoint(project_root, binary)
+        launcher_arg = project_runtime_launcher_arg()
+        launcher = SpecifyLauncherSpec(
+            command=render_command((launcher_arg,)),
+            argv=(launcher_arg,),
+        )
+        desired = _launcher_payload(launcher)
+        binding = {
+            **metadata,
+            "runtime_binary_sha256": _sha256_file(project_binary),
+            "runtime_entrypoint": launcher_arg,
+        }
+        if (
+            payload.get(RUNTIME_LAUNCHER_CONFIG_KEY) == desired
+            and payload.get(RUNTIME_LAUNCHER_BINDING_CONFIG_KEY) == binding
+        ):
+            return config_path
 
-    desired = _launcher_payload(launcher)
-    binding = {
-        **current_runtime_binding_metadata(),
-        "runtime_binary_sha256": _sha256_file(project_binary),
-        "runtime_entrypoint": launcher_arg,
-    }
-    if (
-        payload.get(RUNTIME_LAUNCHER_CONFIG_KEY) == desired
-        and payload.get(RUNTIME_LAUNCHER_BINDING_CONFIG_KEY) == binding
-    ):
+        payload[RUNTIME_LAUNCHER_CONFIG_KEY] = desired
+        payload[RUNTIME_LAUNCHER_BINDING_CONFIG_KEY] = binding
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(
+            config_path,
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        )
         return config_path
-
-    payload[RUNTIME_LAUNCHER_CONFIG_KEY] = desired
-    payload[RUNTIME_LAUNCHER_BINDING_CONFIG_KEY] = binding
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(
-        config_path,
-        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-    )
-    return config_path
 
 
 def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str, str]]:
     """Inspect persisted launcher and generated runtime surfaces for stale or broken state."""
 
+    launcher_config = _load_config(project_root / SPECIFY_CONFIG_FILE)
+    if launcher_config is None:
+        # Do not diagnose an unreadable binding as an unconfigured installation,
+        # or probe other launchers before the configuration boundary is usable.
+        return [
+            {
+                "code": "invalid-project-config",
+                "severity": "repairable-block",
+                "summary": (
+                    "Project configuration `.specify/config.json` cannot be read "
+                    "safely as an unambiguous UTF-8 JSON object."
+                ),
+                "repair": (
+                    "Preserve `.specify/config.json` and `.specify/bin`. Stop "
+                    "concurrent writers and inspect the configuration's file type "
+                    "and permissions before reading it. Do not follow links, read "
+                    "named pipes, or delete bindings to enable fallback. Restore "
+                    "a known-good regular configuration or correct its JSON "
+                    "without changing launcher bindings or stored digests, then "
+                    "run `check` through the intended trusted installation before "
+                    "resuming `integration repair`."
+                ),
+            }
+        ]
+
     issues: list[dict[str, str]] = []
     issues.extend(diagnose_claude_personal_skill_shadows(project_root))
     learning_index = project_root / ".specify" / "memory" / "learnings" / "INDEX.md"
 
-    def _read_text_if_exists(path: Path) -> str:
+    unreadable_paths: set[Path] = set()
+    text_cache: dict[Path, str] = {}
+    guidance_cache: tuple[list[str], list[str], list[str], list[str]] | None = None
+
+    def _report_unreadable(path: Path) -> None:
+        if path in unreadable_paths:
+            return
+        unreadable_paths.add(path)
+        relative = path.relative_to(project_root).as_posix()
+        issues.append(
+            {
+                "code": "unreadable-generated-guidance",
+                "severity": "repairable-block",
+                "summary": f"Generated guidance could not be inspected safely: `{relative}`.",
+                "repair": (
+                    "Preserve the listed path and inspect its file type and permissions. "
+                    "Do not follow links or read pipes as text. Restore the intended "
+                    "regular UTF-8 file or directory through the trusted installation, "
+                    "merging user changes deliberately. Re-run `check`; an incomplete "
+                    "guidance scan is not a compatibility pass."
+                ),
+            }
+        )
+
+    def _read_text_if_exists(
+        path: Path, *, required: bool = False, cache: bool = True,
+    ) -> str:
+        if path in text_cache:
+            return text_cache[path]
         try:
-            return path.read_text(encoding="utf-8")
-        except OSError:
-            return ""
+            text = read_local_state_text(path, root=project_root)
+        except FileNotFoundError:
+            if required:
+                _report_unreadable(path)
+            text = ""
+        except (OSError, ValueError):
+            _report_unreadable(path)
+            text = ""
+        if cache:
+            text_cache[path] = text
+        return text
+
+    def _guidance_findings() -> tuple[list[str], list[str], list[str], list[str]]:
+        nonlocal guidance_cache
+        if guidance_cache is None:
+            stale: list[str] = []
+            unbound: list[str] = []
+            markers: list[str] = []
+            unbound_runtime: list[str] = []
+            for path in _generated_guidance_files(
+                project_root, on_error=_report_unreadable,
+            ):
+                text = _generated_guidance_text(
+                    project_root, path,
+                    _read_text_if_exists(path, required=True, cache=False),
+                )
+                relative = path.relative_to(project_root).as_posix()
+                if _stale_source_bound_specify_launchers(text, launcher):
+                    stale.append(relative)
+                if launcher is not None and _contains_unbound_specify_runtime_call(text):
+                    unbound.append(relative)
+                if f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime" in text:
+                    markers.append(relative)
+                if _contains_unbound_unified_runtime_call(text):
+                    unbound_runtime.append(relative)
+            # Retain findings, not every document's contents, for the second
+            # launcher check. Nothing is cached across diagnostic invocations.
+            guidance_cache = stale, unbound, markers, unbound_runtime
+        return guidance_cache
 
     def _uses_legacy_feature_root_contract(text: str) -> bool:
         lowered = text.lower()
@@ -2189,7 +2413,6 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
             )
         return False
 
-    launcher_config = _load_config(project_root / SPECIFY_CONFIG_FILE)
     raw_launcher_present = (
         isinstance(launcher_config, dict)
         and SPECIFY_LAUNCHER_CONFIG_KEY in launcher_config
@@ -2228,20 +2451,7 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                     "repair": "Repair `.specify/config.json`. If regeneration is required, use the `specify init --here --force` command surface from a trusted launcher source and supply the same integration-specific options that originally bootstrapped the project.",
                 }
             )
-        stale_launcher_files: list[str] = []
-        unbound_launcher_files: list[str] = []
-        for path in _generated_guidance_files(project_root):
-            text = _generated_guidance_text(
-                project_root,
-                path,
-                _read_text_if_exists(path),
-            )
-            if _stale_source_bound_specify_launchers(text, launcher):
-                stale_launcher_files.append(path.relative_to(project_root).as_posix())
-            if _contains_unbound_specify_runtime_call(text):
-                unbound_launcher_files.append(
-                    path.relative_to(project_root).as_posix()
-                )
+        stale_launcher_files, unbound_launcher_files, _, _ = _guidance_findings()
         if stale_launcher_files:
             preview = ", ".join(stale_launcher_files[:5])
             if len(stale_launcher_files) > 5:
@@ -2285,19 +2495,7 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
         runtime_compatible = runtime_launcher_is_compatible(
             project_root, runtime_launcher
         )
-        marker_files: list[str] = []
-        unbound_runtime_files: list[str] = []
-        for path in _generated_guidance_files(project_root):
-            text = _generated_guidance_text(
-                project_root,
-                path,
-                _read_text_if_exists(path),
-            )
-            relative = path.relative_to(project_root).as_posix()
-            if f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime" in text:
-                marker_files.append(relative)
-            if runtime_compatible and _contains_unbound_unified_runtime_call(text):
-                unbound_runtime_files.append(relative)
+        _, _, marker_files, unbound_runtime_files = _guidance_findings()
 
         if not runtime_compatible:
             repair = project_specify_subcommand(
@@ -2337,7 +2535,7 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                     ),
                 }
             )
-        if unbound_runtime_files:
+        if runtime_compatible and unbound_runtime_files:
             preview = ", ".join(unbound_runtime_files[:5])
             if len(unbound_runtime_files) > 5:
                 preview += f", +{len(unbound_runtime_files) - 5} more"

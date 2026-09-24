@@ -95,8 +95,10 @@ Windows, Linux, and macOS in the public
 [`spec-kit-plus-releases`](https://github.com/chenziyang110/spec-kit-plus-releases/releases)
 distribution repository. CLI source remains in the separate source repository;
 runtime downloads do not require source-repository access. `specify init`
-best-effort downloads the matching release asset into a content-addressed user cache, then hardlinks or copies it
-to `.specify/bin/specify-runtime` (`.exe` on Windows). The generated project's
+best-effort downloads the matching release asset, verifies an independent copy in
+the content-addressed user cache, then copies it independently to
+`.specify/bin/specify-runtime` (`.exe` on Windows). The source, cache and project
+pins do not share writable hardlinks. The generated project's
 `.specify/config.json` stores only that relative entrypoint and its digest. If
 automatic download is unavailable, a human may use the installers below or set
 `SPECIFY_RUNTIME_BIN` as a bootstrap seed; that user-scoped value is not
@@ -281,6 +283,33 @@ Discussion sessions remain visible to resume while their status is `active`, `bl
 The `.specify/scripts` directory will contain both `.sh` and `.ps1` scripts.
 
 ## Troubleshooting
+
+### Project-pinned runtime is unavailable or inconsistent
+
+The Python runtime wrapper resolves the nearest ancestor containing `.specify`,
+including calls from a project subdirectory. It uses that project's validated
+pin without changing the caller's working directory or command arguments. A
+nested `.specify` boundary never borrows an enclosing project's runtime.
+
+A missing or modified executable, malformed configuration, incomplete binding,
+unreadable state or unsafe path is not permission to switch versions. When a
+binding exists or an orphaned pin remains, resolution raises
+`SpecifyRuntimeBindingError` (a `SpecifyRuntimeError`) and does not try
+`SPECIFY_RUNTIME_BIN`, PATH or automatic installation. `install_if_missing=True`
+and `check=False` do not bypass this boundary. Truly unbound directories retain
+the existing operator bootstrap precedence and optional installation path.
+
+Preserve `.specify/config.json` and `.specify/bin` before recovery. From the
+project root, use the trusted Spec Kit Plus launcher to run `integration repair`,
+then `check`; follow its guidance for user-modified files. Do not edit stored
+binary digests or delete bindings just to enable fallback. Configuration-save
+failure may leave a new binary with its previous binding; subsequent calls now
+stop rather than executing another runtime. Repair is explicit, not automatic
+rollback. Recheck compatibility after repair before resuming work.
+
+These checks are not an atomic check/use against concurrent file changes, a
+signature check or a process sandbox. Source-only changes do not upgrade an
+installed CLI; use the matching verified installation before relying on them.
 
 ### Enterprise / Air-Gapped Installation
 

@@ -205,6 +205,13 @@ Load the UI reference before editing any part of their artifact/evidence chain.
   Keep source private and distinguish local tests, cloud CI, publication, and
   anonymous consumer verification.
 
+## Maintenance Record
+
+The [2026-09-24 main consolidation](docs/main-consolidation-2026-09-24.md)
+records reviewed PR/issue decisions, branch recovery identifiers, equivalence
+evidence, and validation limits. Use live GitHub state to determine whether a
+remote PR, issue, or branch still needs cleanup.
+
 ## Generated Context (Renderer-Owned)
 
 The following block is maintained by the shared Bash/PowerShell renderers.

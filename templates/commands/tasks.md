@@ -2,8 +2,8 @@
 description: Use when plan artifacts exist and `specify-runtime tasks` must create a dependency-aware task graph, guardrails, and parallelization guidance.
 workflow_contract:
   when_to_use: Planning artifacts already exist and the remaining gap is concrete execution slicing rather than more design work.
-  primary_objective: Submit task definitions to `specify-runtime tasks build|upsert|set-root|finalize|handoff`, which owns `task-index.json`, the derived `tasks.md` projection, and task transition handoffs.
-  primary_outputs: '`FEATURE_DIR/task-index.json` as the canonical task graph in every execution mode plus rendered `tasks.md`; light non-UI leader-direct work keeps the same CLI-owned package compact. `handoff-to-tasks.json` and `handoff-to-implement.json` are compact pointer-only transitions created only by `specify-runtime tasks handoff` when required. Worker packets are compiled just in time by `sp-implement`; task-generation lane records exist only when lanes were actually delegated.'
+  primary_objective: Submit task definitions to `specify-runtime tasks build|upsert|set-root|finalize|handoff`, or recover existing bindings with guarded `tasks rebind`; the runtime owns `task-index.json`, the derived `tasks.md` projection, and task transition handoffs.
+  primary_outputs: '`FEATURE_DIR/task-index.json` as the canonical task graph in every execution mode plus rendered `tasks.md`; light non-UI leader-direct work keeps the same CLI-owned package compact. `handoff-to-tasks.json` and `handoff-to-implement.json` are compact pointer-only transitions created by `specify-runtime tasks handoff` when required or refreshed atomically by guarded `tasks rebind`. Worker packets are compiled just in time by `sp-implement`; task-generation lane records exist only when lanes were actually delegated.'
   default_handoff: '/sp.implement for a clean completed task package; /sp.analyze only when a persisted legacy or diagnostic state explicitly records that route; /sp.specify, /sp.plan, or /sp.deep-research when escalated remediation exposes missing upstream truth.'
 handoffs:
   - label: Analyze For Consistency
@@ -60,6 +60,17 @@ authorize user-authored `test_design_*` fields.
 This compatibility **test-design handoff** remains pointer-only and subordinate
 to the verified Tasks projection.
 
+## Recover Existing Bindings
+
+When a refreshed Test Design bundle or an adopted Plan UI contract leaves an
+existing task package stale, read [rebind recovery](references/rebind.md) before
+ordinary task mutations or readiness checks. Verify current upstream truth,
+then use `specify-runtime tasks rebind` with exact digest/revision guards.
+Preserve accepted/deferred task IDs and lifecycle/result evidence; never delete
+the package for a rebuild or hand-edit runtime-owned bindings. A missing
+`tasks.rebind` capability requires runtime repair/upgrade; it does not authorize
+a fallback write. Resume normal Tasks validation only after recovery succeeds.
+
 ## Main Flow
 
 1. Run `{SCRIPT}` to resolve `FEATURE_DIR` and prerequisites without task writes, then enter `tasks` through the deterministic `specify-runtime workflow transition` command. The CLI owns phase state; keep implementation blocked until this task-generation stage completes.
@@ -84,6 +95,7 @@ Read [Reference index](references/INDEX.md) before applying detailed contracts.
 - [dependencies and parallel safety](references/dependencies-and-parallel-safety.md)
 - [must preserve ledger](references/must-preserve-ledger.md)
 - [review and repair](references/review-and-repair.md)
+- [rebind recovery](references/rebind.md)
 
 ## Professional UI Contract Continuity
 

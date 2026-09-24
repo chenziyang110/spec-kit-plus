@@ -5,6 +5,8 @@ import json
 import os
 import re
 import shutil
+import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -44,6 +46,36 @@ _install_safe_windows_tmpdir_root()
 def strip_ansi(text: str) -> str:
     """Remove ANSI escape codes from Rich-formatted CLI output."""
     return _ANSI_ESCAPE_RE.sub("", text)
+
+
+@pytest.fixture
+def create_filesystem_socket():
+    """Create a real socket inode for file-type checks, not transport tests."""
+
+    servers = []
+
+    def create(path: Path) -> None:
+        if os.name == "nt" or not hasattr(socket, "AF_UNIX"):
+            pytest.skip("Unix filesystem socket fixture requires POSIX")
+        try:
+            server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        except PermissionError:
+            # Some containers deny socket() while allowing socket filesystem
+            # nodes. These tests exercise lstat/file preservation, not I/O.
+            # mknod creates a real S_IFSOCK inode and never replaces a path.
+            if not hasattr(os, "mknod"):
+                raise
+            os.mknod(path, stat.S_IFSOCK | 0o600)
+        else:
+            servers.append(server)
+            server.bind(str(path))
+        assert stat.S_ISSOCK(path.lstat().st_mode)
+
+    try:
+        yield create
+    finally:
+        for server in servers:
+            server.close()
 
 
 def seed_existing_workflow_state(

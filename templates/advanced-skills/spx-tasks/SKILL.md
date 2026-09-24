@@ -48,6 +48,12 @@ Tasks. Tasks verifies its separate feature projection for read-only
 decomposition; the fresh feature handoff plus runtime-owned task-index binding
 provides final authorization and all-and-only ref enforcement.
 
+If an existing package becomes stale after a verified Test Design refresh or
+adopted Plan UI contract, read `references/rebind.md` before ordinary Tasks
+mutations or readiness checks. Use guarded `specify-runtime tasks rebind`;
+preserve accepted/deferred history and never delete/rebuild the package or edit
+its binding fields. Missing capability routes to runtime repair/upgrade.
+
 Run
 `{{specify-subcmd:specify-runtime hook validate-state --command tasks --feature-dir <feature-dir> --autofix --format json}}`
 and stop if it remains invalid. Require the plan's ready transition to

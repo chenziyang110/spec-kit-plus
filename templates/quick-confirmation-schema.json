@@ -458,7 +458,14 @@
                 "type": "string",
                 "enum": ["pending", "ready", "in_progress", "blocked", "accepted"]
               },
-              "acceptance_evidence": { "type": "array", "items": { "type": "string" } }
+              "acceptance_evidence": { "type": "array", "items": { "type": "string" } },
+              "requires_worker": { "type": "boolean" },
+              "worker_result_id": { "type": "string" },
+              "worker_result_ref": { "type": "string" },
+              "worker_lane_id": { "type": "string" },
+              "execution_mode": { "type": "string", "enum": ["worker", "leader-inline", "leader-direct"] },
+              "inline_reason": { "type": "string" },
+              "inline_approved": { "type": "boolean" }
             },
             "additionalProperties": false
           }
@@ -468,7 +475,20 @@
           "items": { "type": "string", "pattern": "^Q[1-9][0-9]*$" }
         },
         "join_point": { "type": "string" },
-        "blockers": { "type": "array", "items": { "type": "string" } }
+        "blockers": { "type": "array", "items": { "type": "string" } },
+        "blocked_dispatch": {
+          "type": ["object", "null"],
+          "description": "Runtime-owned dispatch/fallback audit. Schema validity does not grant inline permission or prove task acceptance.",
+          "properties": {
+            "status": { "type": "string" },
+            "reason": { "type": "string" },
+            "attempted_shape": { "type": "string" },
+            "chosen_shape": { "type": "string" },
+            "item_id": { "type": "string" },
+            "approved_at": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     },

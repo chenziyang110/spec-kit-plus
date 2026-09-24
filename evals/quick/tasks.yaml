@@ -1,0 +1,41 @@
+schema: quick-eval-tasks-v1
+
+tasks:
+  - id: Q001
+    name: trivial-config-change
+    category: trivial_fix
+    description: Change one bounded configuration value and update its test.
+    expected_modes:
+      - direct-compact
+      - direct-full
+
+  - id: Q002
+    name: bounded-feature-addition
+    category: feature_add
+    description: Add one isolated feature with implementation and tests.
+    expected_modes:
+      - direct-full
+      - worker-compact
+
+  - id: Q003
+    name: cross-module-change
+    category: cross_module
+    description: Modify multiple independent modules with coordinated validation.
+    expected_modes:
+      - worker-full
+      - worker-compact
+
+  - id: Q004
+    name: risky-change
+    category: risky_change
+    description: Change behavior affecting compatibility, permissions, or shared state.
+    expected_modes:
+      - worker-full
+
+  - id: Q005
+    name: recovery-flow
+    category: recovery
+    description: Recover from invalid result, stale state, or interrupted execution.
+    expected_modes:
+      - worker-full
+      - direct-full

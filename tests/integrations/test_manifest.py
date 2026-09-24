@@ -32,18 +32,19 @@ class TestManifestRecordFile:
         self, tmp_path, monkeypatch
     ):
         destination = tmp_path / "watched.md"
-        real_write_bytes = Path.write_bytes
+        real_replace = os.replace
         attempts = 0
 
-        def fail_once(path, data):
+        def fail_once(source, target):
             nonlocal attempts
-            if path == destination:
+            if Path(target) == destination:
                 attempts += 1
                 if attempts == 1:
-                    raise OSError(errno.EINVAL, "Invalid argument", str(path))
-            return real_write_bytes(path, data)
+                    raise OSError(errno.EINVAL, "Invalid argument", str(target))
+            return real_replace(source, target)
 
-        monkeypatch.setattr(Path, "write_bytes", fail_once)
+        # Watcher contention now occurs at atomic publication, not live truncation.
+        monkeypatch.setattr(os, "replace", fail_once)
 
         manifest = IntegrationManifest("test", tmp_path)
         result = manifest.record_file("watched.md", b"content")
@@ -58,12 +59,12 @@ class TestManifestRecordFile:
     ):
         attempts = 0
 
-        def fail_write(path, _data):
+        def fail_write(_source, path):
             nonlocal attempts
             attempts += 1
             raise OSError(errno.ENOSPC, "No space left on device", str(path))
 
-        monkeypatch.setattr(Path, "write_bytes", fail_write)
+        monkeypatch.setattr(os, "replace", fail_write)
         manifest = IntegrationManifest("test", tmp_path)
 
         with pytest.raises(OSError) as exc_info:
@@ -76,12 +77,12 @@ class TestManifestRecordFile:
     def test_record_file_bounds_transient_error_retries(self, tmp_path, monkeypatch):
         attempts = 0
 
-        def fail_write(path, _data):
+        def fail_write(_source, path):
             nonlocal attempts
             attempts += 1
             raise OSError(errno.EINVAL, "Invalid argument", str(path))
 
-        monkeypatch.setattr(Path, "write_bytes", fail_write)
+        monkeypatch.setattr(os, "replace", fail_write)
         monkeypatch.setattr(
             "specify_cli.integrations.manifest.time.sleep",
             lambda _delay: None,

@@ -10,6 +10,7 @@ import os
 import platform
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -370,6 +371,18 @@ class SpecifyRuntimeError(RuntimeError):
     """Raised when the unified runtime cannot be resolved or invoked."""
 
 
+class SpecifyRuntimeBindingError(SpecifyRuntimeError):
+    """A project binding is unusable; automatic bootstrap must not bypass it."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            f"Project-pinned {RUNTIME_COMMAND} binding is unavailable or inconsistent. "
+            "Preserve .specify/config.json and .specify/bin, then run integration "
+            "repair through a trusted Spec Kit Plus launcher. Refusing "
+            f"{RUNTIME_ENV}/PATH fallback and automatic installation for this project."
+        )
+
+
 def _is_short_runtime_query(args: Sequence[str]) -> bool:
     if not args or args[0] in {"version", "help", "--help", "-h", "api"}:
         return True
@@ -494,28 +507,77 @@ def content_addressed_runtime_path(digest: str) -> Path:
     return cache_dir() / "runtimes" / normalized / runtime_executable_name()
 
 
-def _atomic_link_or_copy(source: Path, destination: Path) -> None:
-    """Materialize one regular file atomically, preferring a hardlink."""
+def _atomic_link_or_copy(
+    source: Path, destination: Path, *, expected_sha256: str | None = None,
+) -> None:
+    """Publish an independent verified copy; the legacy name is compatibility only.
 
+    Hardlinks make source, cache and project binaries mutually writable. Never
+    create them here. Verify a private candidate before replacing a live pin;
+    these observations do not provide hostile-writer isolation or a transaction
+    across the cache, project pin and launcher configuration.
+    """
+
+    destination = safe_local_state_path(destination)
+    before = source.lstat()
+    if not stat.S_ISREG(before.st_mode):
+        raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} source must be a regular non-link file")
+    expected = expected_sha256 if expected_sha256 is not None else _sha256_file(source)
+    if not isinstance(expected, str) or re.fullmatch(r"[0-9a-f]{64}", expected) is None:
+        raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} copy requires a valid SHA-256")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{destination.name}.",
-        suffix=".candidate",
-        dir=destination.parent,
-    )
-    os.close(descriptor)
-    temporary = Path(temporary_name)
-    temporary.unlink(missing_ok=True)
+    safe_local_state_path(destination)
+    temporary: Path | None = None
     try:
-        try:
-            os.link(source, temporary)
-        except OSError:
-            shutil.copy2(source, temporary)
+        with source.open("rb") as reader:
+            opened = os.fstat(reader.fileno())
+            if not stat.S_ISREG(opened.st_mode) or not os.path.samestat(before, opened):
+                raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} source changed before copying")
+            # Keep the exclusive file open: do not unlink/reopen the candidate.
+            with tempfile.NamedTemporaryFile(
+                mode="wb", prefix=f".{destination.name}.", suffix=".candidate",
+                dir=destination.parent, delete=False,
+            ) as writer:
+                temporary = Path(writer.name)
+                shutil.copyfileobj(reader, writer, length=1024 * 1024)
+                writer.flush()
+                os.fsync(writer.fileno())
+            after = os.fstat(reader.fileno())
+            current = source.lstat()
+
+            def version(info: os.stat_result) -> tuple[int, int, int]:
+                return info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+            if (not stat.S_ISREG(current.st_mode) or
+                    not os.path.samestat(opened, current) or
+                    version(opened) != version(after) or version(opened) != version(current)):
+                raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} source changed while copying")
+        if _sha256_file(temporary) != expected:
+            raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} candidate failed integrity check")
         if platform.system().lower() != "windows":
-            os.chmod(temporary, temporary.stat().st_mode | 0o111)
+            # Permissions apply only to the independent copy, never the source.
+            # Do not propagate setuid, setgid or sticky bits from an input file.
+            os.chmod(temporary, (stat.S_IMODE(opened.st_mode) & 0o777) | 0o111)
+        safe_local_state_path(destination)
         os.replace(temporary, destination)
+        temporary = None
     finally:
-        temporary.unlink(missing_ok=True)
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def _runtime_copy_is_current(path: Path, digest: str) -> bool:
+    """A digest match alone does not make a legacy shared inode independent."""
+
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return False
+    return (
+        stat.S_ISREG(metadata.st_mode)
+        and metadata.st_nlink == 1
+        and _sha256_file(path) == digest
+    )
 
 
 def _ensure_project_runtime_gitignore(project_root: Path) -> None:
@@ -575,25 +637,19 @@ def materialize_project_runtime_entrypoint(project_root: Path, binary: str | Pat
     if not source.is_file():
         raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} source must be a regular file: {source}")
 
+    # Check both destinations before writing either. Keep the existing path owner
+    # for project pins and apply the same link/junction rejection to cache paths.
+    project_binary = project_runtime_entrypoint_path(project_root)
     digest = _sha256_file(source)
-    cached = content_addressed_runtime_path(digest)
-    if not cached.is_file() or cached.is_symlink() or _sha256_file(cached) != digest:
-        _atomic_link_or_copy(source, cached)
-    if cached.is_symlink() or not cached.is_file() or _sha256_file(cached) != digest:
+    cached = safe_local_state_path(content_addressed_runtime_path(digest), root=cache_dir())
+    if not _runtime_copy_is_current(cached, digest):
+        _atomic_link_or_copy(source, cached, expected_sha256=digest)
+    if not _runtime_copy_is_current(cached, digest):
         raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} cache materialization failed integrity check")
 
-    project_binary = project_runtime_entrypoint_path(project_root)
-    if (
-        not project_binary.is_file()
-        or project_binary.is_symlink()
-        or _sha256_file(project_binary) != digest
-    ):
-        _atomic_link_or_copy(cached, project_binary)
-    if (
-        project_binary.is_symlink()
-        or not project_binary.is_file()
-        or _sha256_file(project_binary) != digest
-    ):
+    if not _runtime_copy_is_current(project_binary, digest):
+        _atomic_link_or_copy(cached, project_binary, expected_sha256=digest)
+    if not _runtime_copy_is_current(project_binary, digest):
         raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} project entrypoint failed integrity check")
     if platform.system().lower() != "windows":
         os.chmod(project_binary, project_binary.stat().st_mode | 0o111)
@@ -932,13 +988,85 @@ def _env_argv() -> list[str] | None:
     return [override]
 
 
-def resolve_specify_runtime_binary(project_root: Path | None = None) -> list[str]:
-    """Resolve the runtime argv with project config > env > PATH precedence."""
+def _resolve_project_runtime_argv(project_root: Path) -> list[str] | None:
+    """Resolve the nearest project without confusing broken pins with bootstrap.
 
-    if project_root is not None:
-        launcher = resolve_runtime_launcher_argv(project_root)
+    The nearest .specify entry is a boundary, even when it is incomplete. Reuse
+    the existing launcher owner for digest/argv checks. No repair, lock, writes
+    or subprocesses happen here. These reads are not an atomic check/use against
+    concurrent or hostile changes to the config or executable.
+    """
+
+    from .launcher import (
+        RUNTIME_LAUNCHER_BINDING_CONFIG_KEY,
+        RUNTIME_LAUNCHER_CONFIG_KEY,
+        SPECIFY_CONFIG_FILE,
+        _load_config,
+    )
+
+    try:
+        start = Path(os.path.abspath(os.fspath(project_root.expanduser())))
+        selected: Path | None = None
+        for candidate in (start, *start.parents):
+            marker = candidate / ".specify"
+            try:
+                metadata = marker.lstat()
+            except FileNotFoundError:
+                continue
+            safe_local_state_path(start, root=candidate)
+            safe_local_state_path(marker, root=candidate)
+            if not stat.S_ISDIR(metadata.st_mode):
+                raise SpecifyRuntimeBindingError()
+            selected = candidate
+            break
+
+        if selected is None:
+            # Preserve the existing explicit resolver seam for bootstrap callers.
+            launcher = resolve_runtime_launcher_argv(project_root)
+            return list(launcher) if launcher else None
+
+        config = safe_local_state_path(selected / SPECIFY_CONFIG_FILE, root=selected)
+        try:
+            config_metadata = config.lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            if not stat.S_ISREG(config_metadata.st_mode):
+                raise SpecifyRuntimeBindingError()
+        launcher = resolve_runtime_launcher_argv(selected)
         if launcher:
             return list(launcher)
+
+        # Reinspect after failed resolution rather than silently choosing a
+        # different binary. Malformed state cannot prove absence of a binding.
+        payload = _load_config(config)
+        if payload is None or any(key in payload for key in (
+            RUNTIME_LAUNCHER_CONFIG_KEY, RUNTIME_LAUNCHER_BINDING_CONFIG_KEY,
+        )):
+            raise SpecifyRuntimeBindingError()
+        # An orphaned pin also indicates interrupted/deleted binding state,
+        # including a pin left by a different native platform.
+        for filename in (RUNTIME_COMMAND, f"{RUNTIME_COMMAND}.exe"):
+            pin = safe_local_state_path(
+                selected / PROJECT_RUNTIME_RELATIVE_DIR / filename, root=selected,
+            )
+            try:
+                pin.lstat()
+            except FileNotFoundError:
+                continue
+            raise SpecifyRuntimeBindingError()
+        return None
+    except (OSError, ValueError) as exc:
+        raise SpecifyRuntimeBindingError() from exc
+
+
+def resolve_specify_runtime_binary(project_root: Path | None = None) -> list[str]:
+    """Prefer the nearest project pin; only unbound callers may use env/PATH."""
+
+    if project_root is not None:
+        launcher = _resolve_project_runtime_argv(project_root)
+        if launcher:
+            return launcher
 
     env_argv = _env_argv()
     if env_argv:
@@ -965,6 +1093,10 @@ def run_specify_runtime(
 
     try:
         runtime_argv = resolve_specify_runtime_binary(cwd)
+    except SpecifyRuntimeBindingError:
+        # An unusable configured pin is not permission to install or execute
+        # another runtime, even when a caller enables bootstrap installation.
+        raise
     except SpecifyRuntimeError:
         if not install_if_missing:
             raise
@@ -978,7 +1110,7 @@ def run_specify_runtime(
             capture_output=True,
             text=True,
             encoding="utf-8",
-            errors="replace",
+            errors="strict",
             check=False,
             timeout=timeout,
         )
@@ -987,6 +1119,10 @@ def run_specify_runtime(
             f"{RUNTIME_COMMAND} {_runtime_operation(args)} timed out after "
             f"{timeout:g} seconds; inspect the runtime command's locks and child processes"
         ) from exc
+    except UnicodeError as exc:
+        raise SpecifyRuntimeError(
+            f"{RUNTIME_COMMAND} {_runtime_operation(args)} returned invalid UTF-8"
+        ) from exc
     output = (result.stdout or "").strip()
     if not output:
         if result.returncode != 0:
@@ -994,19 +1130,34 @@ def run_specify_runtime(
             raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} {' '.join(args)} failed: {detail}")
         return {}
     try:
-        payload = json.loads(output)
-    except json.JSONDecodeError as exc:
+        payload = _decode_runtime_response(output)
+    except (ValueError, TypeError, RecursionError) as exc:
         raise SpecifyRuntimeError(
-            f"{RUNTIME_COMMAND} {' '.join(args)} returned invalid JSON: {exc}"
+            f"{RUNTIME_COMMAND} {_runtime_operation(args)} returned invalid JSON"
         ) from exc
     if not isinstance(payload, dict):
         raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} {' '.join(args)} returned non-object JSON")
     if _is_runtime_envelope(payload):
         envelope_status = str(payload.get("status") or "").strip().lower()
+        structured_block = (
+            result.returncode == 10
+            and envelope_status in {"blocked", "repairable-block"}
+        )
+        # A diagnostic block is an explicit protocol result, not a blanket
+        # exemption for delivery errors, signals, or a contradictory exit 0.
+        if (
+            check
+            and envelope_status in {"blocked", "repairable-block"}
+            and not structured_block
+        ):
+            raise SpecifyRuntimeError(
+                f"{RUNTIME_COMMAND} {_runtime_operation(args)} returned "
+                f"{envelope_status} with unexpected exit code {result.returncode}"
+            )
         if (
             check
             and result.returncode != 0
-            and envelope_status not in {"blocked", "repairable-block"}
+            and not structured_block
         ):
             detail = str(
                 result.stderr
@@ -1021,7 +1172,7 @@ def run_specify_runtime(
             data = payload.get("data")
             if isinstance(data, dict):
                 return data
-        if result.returncode != 0 and envelope_status in {"blocked", "repairable-block"}:
+        if structured_block:
             return payload
     if check and result.returncode != 0:
         detail = str(
@@ -1049,6 +1200,38 @@ def _is_runtime_envelope(payload: dict[str, Any]) -> bool:
     )
 
 
+def _decode_runtime_response(output: str) -> Any:
+    """Read a single unambiguous JSON value from the runtime process.
+
+    Keep existing Python number types (including exact integers). Reject
+    duplicate decoded keys and non-finite floats instead of silently changing
+    capability or result facts. This is parsing, not source authentication.
+    """
+
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate runtime JSON key")
+            result[key] = value
+        return result
+
+    def invalid_constant(value: str) -> None:
+        raise ValueError("non-finite runtime JSON number")
+
+    def finite_float(value: str) -> float:
+        result = float(value)
+        if not math.isfinite(result):
+            raise ValueError("non-finite runtime JSON number")
+        return result
+
+    return json.loads(
+        output, object_pairs_hook=unique_object,
+        parse_constant=invalid_constant, parse_float=finite_float,
+    )
+
+
+
 def _runtime_handshake(
     argv: Sequence[str],
     *,
@@ -1063,23 +1246,27 @@ def _runtime_handshake(
             capture_output=True,
             check=False,
             encoding="utf-8",
-            errors="replace",
+            errors="strict",
             text=True,
             timeout=10,
         )
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError, UnicodeError):
         return None
     if result.returncode != 0:
         return None
     try:
-        payload = json.loads(result.stdout)
-    except (json.JSONDecodeError, TypeError):
+        payload = _decode_runtime_response(result.stdout)
+    except (ValueError, TypeError, RecursionError):
         return None
     if not isinstance(payload, dict):
         return None
-    data = payload.get("data")
-    if isinstance(data, dict):
-        return data
+    if "status" in payload:
+        status = payload["status"]
+        if not isinstance(status, str) or status.strip().lower() != "ok":
+            return None
+    if "data" in payload:
+        data = payload["data"]
+        return data if isinstance(data, dict) else None
     return payload
 
 
@@ -1090,14 +1277,24 @@ def launcher_supports_required_commands(
 ) -> bool:
     """Require the current surface, including retirement of old Run commands."""
 
-    info = _runtime_handshake(argv, cwd=cwd)
+    return _runtime_supports_required_commands(_runtime_handshake(argv, cwd=cwd))
+
+
+def _runtime_supports_required_commands(info: dict[str, object] | None) -> bool:
+    """Validate one observed handshake without executing another subprocess."""
+
     if info is None:
         return False
     protocol = info.get("protocol_version") or info.get("runtime_protocol")
     capabilities = info.get("capability_ids") or info.get("capabilities")
     if protocol != EXPECTED_RUNTIME_PROTOCOL or not isinstance(capabilities, list):
         return False
-    capability_set = {str(capability) for capability in capabilities}
+    if not all(
+        isinstance(capability, str) and capability and capability.strip() == capability
+        for capability in capabilities
+    ):
+        return False
+    capability_set = set(capabilities)
     if any(
         capability.startswith(_RETIRED_CAPABILITY_PREFIXES)
         or capability in _RETIRED_CAPABILITIES
@@ -1138,21 +1335,22 @@ def _release_identity_is_compatible(
 def _binary_is_compatible(binary: Path, *, allow_dirty: bool = False) -> bool:
     if not binary.is_file():
         return False
-    if not launcher_supports_required_commands((str(binary),)):
-        return False
     info = _runtime_handshake((str(binary),))
-    if info is None:
-        return False
-    return _runtime_identity_is_compatible(info, allow_dirty=allow_dirty)
+    return (
+        info is not None
+        and _runtime_supports_required_commands(info)
+        and _runtime_identity_is_compatible(info, allow_dirty=allow_dirty)
+    )
 
 
 def _release_binary_is_compatible(binary: Path, version: str) -> bool:
-    if not binary.is_file() or not launcher_supports_required_commands((str(binary),)):
+    if not binary.is_file():
         return False
     info = _runtime_handshake((str(binary),))
-    return info is not None and _release_identity_is_compatible(
-        info,
-        expected_version=version,
+    return (
+        info is not None
+        and _runtime_supports_required_commands(info)
+        and _release_identity_is_compatible(info, expected_version=version)
     )
 
 
@@ -1166,12 +1364,14 @@ def _clean_release_binary_meets_contract(binary: Path) -> bool:
     required protocol and capabilities.
     """
 
-    if not binary.is_file() or not launcher_supports_required_commands((str(binary),)):
+    if not binary.is_file():
         return False
     info = _runtime_handshake((str(binary),))
-    if info is None:
-        return False
-    return _release_identity_is_compatible(info, expected_version="latest")
+    return (
+        info is not None
+        and _runtime_supports_required_commands(info)
+        and _release_identity_is_compatible(info, expected_version="latest")
+    )
 
 
 def _allow_dirty_runtime() -> bool:

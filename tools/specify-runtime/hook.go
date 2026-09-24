@@ -488,6 +488,9 @@ func validateHookArtifactSemantics(projectRoot, featurePath, featureRel, command
 		if err := validateTaskControlAcceptance(featurePath, payload); err != nil {
 			return hookSemanticError(command, featureRel, err)
 		}
+		if err := validateTaskControlFreshness(projectRoot, featurePath, payload); err != nil {
+			return hookSemanticError(command, featureRel, err)
+		}
 		return hookSemanticOK(command, featureRel)
 	case "review":
 		service := reviewAcceptService{projectRoot: projectRoot}

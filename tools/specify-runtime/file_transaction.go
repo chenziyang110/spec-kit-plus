@@ -60,6 +60,13 @@ func applyFileTransaction(projectRoot, kind string, updates []fileTransactionUpd
 }
 
 func applyFileTransactionWithPreconditions(projectRoot, kind string, updates []fileTransactionUpdate, preconditions []fileTransactionPrecondition) (fileTransactionReceipt, error) {
+	return applyFileTransactionWithVerification(projectRoot, kind, updates, preconditions, nil)
+}
+
+// verify is a read-only check of non-file predicates (for example directory
+// membership in a frozen source fingerprint). It runs under the transaction
+// lock after digest CAS and before any publication. Existing callers use nil.
+func applyFileTransactionWithVerification(projectRoot, kind string, updates []fileTransactionUpdate, preconditions []fileTransactionPrecondition, verify func() error) (fileTransactionReceipt, error) {
 	var receipt fileTransactionReceipt
 	root, err := filepath.Abs(projectRoot)
 	if err != nil {
@@ -200,6 +207,11 @@ func applyFileTransactionWithPreconditions(projectRoot, kind string, updates []f
 		actual := fileContentSHA256(current)
 		if actual != precondition.expectedSHA256 {
 			return receipt, fmt.Errorf("file transaction precondition failed for %s: expected sha256 %s but found %s", precondition.rel, precondition.expectedSHA256, actual)
+		}
+	}
+	if verify != nil {
+		if err := verify(); err != nil {
+			return receipt, fmt.Errorf("file transaction verification failed: %w", err)
 		}
 	}
 

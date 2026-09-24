@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +12,19 @@ import (
 const quickWorkerPacketSchema = "quick-worker-packet-v1"
 
 func (service quickService) runExecution(mode, quickID string, args []string) (Envelope, error) {
+	compact, err := parseQuickExecutionCompactOption(mode, args)
+	if err != nil {
+		env := NewEnvelope("usage-error", "quick execution output option is invalid")
+		env.Data["error_code"] = "quick-output-option-invalid"
+		env.Blockers = append(env.Blockers, err.Error())
+		return env, nil
+	}
+	if _, err := parseQuickLeaderDirectOption(mode, args); err != nil {
+		env := NewEnvelope("usage-error", "quick executor selection is invalid")
+		env.Data["error_code"] = "quick-execution-mode-invalid"
+		env.Blockers = append(env.Blockers, err.Error())
+		return env, nil
+	}
 	root, err := service.root()
 	if err != nil {
 		return Envelope{}, err
@@ -28,6 +40,17 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 	workspacePath := stringValue(task["workspace_path"])
 	workspace := stringValue(task["workspace"])
 	itemID := firstNonEmpty(optionValue(args, "--item", ""), positionalArg(args, 2, ""))
+
+	// Keep legacy output byte-compatible by default. Compact presentation is
+	// applied only after the existing ownership, state, and acceptance gates.
+	respond := func(env Envelope, doc *quickConfirmationDoc) (Envelope, error) {
+		if env.Status == "ok" && doc != nil {
+			ref := filepath.ToSlash(filepath.Join(".planning", "quick", workspace, quickConfirmationFileName))
+			env.Data = quickExecutionResponseData(env.Data, ref, doc.ConfirmationState, doc.ConfirmationDigest,
+				compact, func() any { return renderQuickPulseView(doc) })
+		}
+		return env, nil
+	}
 
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case "item-start":
@@ -46,13 +69,16 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 			"packet":           packet,
 			"packet_path":      quickPacketRelPath(workspace, itemID),
 			"work_claim":       claim,
-			"pulse":            renderQuickPulseView(doc),
 			"ready_item_ids":   readyQuickItemIDs(doc),
 			"blocked_item_ids": blockedQuickItemIDs(doc),
-			"requires_worker":  true,
+			"requires_worker":  packet["requires_worker"],
 			"next_action":      "spawn subagent for write_scope, then result submit --lane-id " + itemID + ", then item-accept",
 		}
-		return env, nil
+		if packet["execution_mode"] == quickLeaderDirectMode {
+			env.Data["execution_mode"] = quickLeaderDirectMode
+			env.Data["next_action"] = "execute leader-direct inside guarded write_scope, then result submit --lane-id " + itemID + ", then item-accept"
+		}
+		return respond(env, doc)
 	case "allow-inline":
 		if strings.TrimSpace(itemID) == "" {
 			return Envelope{}, fmt.Errorf("allow-inline requires --item Qn")
@@ -70,13 +96,12 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 			"task":             task,
 			"work_item_id":     itemID,
 			"confirmation":     doc,
-			"pulse":            renderQuickPulseView(doc),
 			"requires_worker":  false,
 			"inline_reason":    reason,
 			"ready_item_ids":   readyQuickItemIDs(doc),
 			"blocked_item_ids": blockedQuickItemIDs(doc),
 		}
-		return env, nil
+		return respond(env, doc)
 	case "item-accept":
 		if strings.TrimSpace(itemID) == "" {
 			return Envelope{}, fmt.Errorf("item-accept requires --item Qn")
@@ -99,13 +124,12 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 			"task":             task,
 			"work_item_id":     itemID,
 			"confirmation":     doc,
-			"pulse":            renderQuickPulseView(doc),
 			"ready_item_ids":   readyQuickItemIDs(doc),
 			"blocked_item_ids": blockedQuickItemIDs(doc),
 			"all_accepted":     allQuickItemsAccepted(doc),
 			"worker_proof":     proof,
 		}
-		return env, nil
+		return respond(env, doc)
 	case "packet-compile":
 		if strings.TrimSpace(itemID) == "" {
 			return Envelope{}, fmt.Errorf("packet-compile requires --item Qn")
@@ -137,7 +161,7 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 			"packet":       packet,
 			"packet_path":  quickPacketRelPath(workspace, itemID),
 		}
-		return env, nil
+		return respond(env, doc)
 	case "item-status":
 		doc, err := service.loadConfirmation(workspacePath)
 		if err != nil {
@@ -147,14 +171,13 @@ func (service quickService) runExecution(mode, quickID string, args []string) (E
 		env.Data = map[string]any{
 			"task":             task,
 			"confirmation":     doc,
-			"pulse":            renderQuickPulseView(doc),
 			"ready_item_ids":   readyQuickItemIDs(doc),
 			"blocked_item_ids": blockedQuickItemIDs(doc),
 			"active_item_ids":  append([]string{}, doc.Execution.ActiveItemIDs...),
 			"all_accepted":     allQuickItemsAccepted(doc),
 			"worker_gates":     quickWorkerGateSummary(doc),
 		}
-		return env, nil
+		return respond(env, doc)
 	default:
 		return Envelope{}, fmt.Errorf("unknown execution mode: %s", mode)
 	}
@@ -188,14 +211,23 @@ func (service quickService) startWorkItem(workspacePath, workspace, quickID, ite
 		return nil, nil, nil, fmt.Errorf("unknown work item %s", itemID)
 	}
 	statusByID := quickStatusMap(doc)
-	current := strings.ToLower(statusByID[itemID].Status)
+	directRequested, err := parseQuickLeaderDirectOption("item-start", args)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	row := statusByID[itemID]
+	executionMode, err := resolveQuickItemExecutionMode(row.Status, row.ExecutionMode, row.InlineApproved, directRequested)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	current := strings.ToLower(row.Status)
 	if current == "accepted" {
 		return nil, nil, nil, fmt.Errorf("work item %s is already accepted", itemID)
 	}
 	if current == "in_progress" {
 		// Re-assert worker lock if still open.
 		doc = ensureQuickExecutionRows(doc)
-		setQuickItemWorkerLock(doc, itemID, true)
+		setQuickItemWorkerLock(doc, itemID, executionMode != quickLeaderDirectMode)
 		packet, _, _, err := compileQuickWorkerPacket(doc, itemID)
 		if err != nil {
 			return nil, nil, nil, err
@@ -204,8 +236,12 @@ func (service quickService) startWorkItem(workspacePath, workspace, quickID, ite
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		_ = service.persistConfirmation(workspacePath, doc)
-		_ = service.projectConfirmationIntoStatus(workspacePath, doc)
+		if err := persistQuickExecutionResume(
+			func() error { return service.persistConfirmation(workspacePath, doc) },
+			func() error { return service.projectConfirmationIntoStatus(workspacePath, doc) },
+		); err != nil {
+			return nil, nil, nil, err
+		}
 		return doc, packet, claim, nil
 	}
 	unmet := unmetQuickDeps(item.DependsOn, statusByID)
@@ -214,6 +250,13 @@ func (service quickService) startWorkItem(workspacePath, workspace, quickID, ite
 	}
 
 	doc = ensureQuickExecutionRows(doc)
+	if executionMode == quickLeaderDirectMode {
+		for i := range doc.Execution.WorkItemStatus {
+			if doc.Execution.WorkItemStatus[i].WorkItemID == itemID {
+				doc.Execution.WorkItemStatus[i].ExecutionMode = quickLeaderDirectMode
+			}
+		}
+	}
 	packet, ready, blockers, err := compileQuickWorkerPacket(doc, itemID)
 	if err != nil {
 		return nil, nil, nil, err
@@ -227,7 +270,7 @@ func (service quickService) startWorkItem(workspacePath, workspace, quickID, ite
 	}
 
 	setQuickItemStatus(doc, itemID, "in_progress", nil)
-	setQuickItemWorkerLock(doc, itemID, true)
+	setQuickItemWorkerLock(doc, itemID, executionMode != quickLeaderDirectMode)
 	if !quickContains(doc.Execution.ActiveItemIDs, itemID) {
 		doc.Execution.ActiveItemIDs = append(doc.Execution.ActiveItemIDs, itemID)
 		sort.Strings(doc.Execution.ActiveItemIDs)
@@ -280,6 +323,9 @@ func (service quickService) allowInlineWorkItem(workspacePath, workspace, itemID
 	}
 	statusByID := quickStatusMap(doc)
 	st := strings.ToLower(statusByID[itemID].Status)
+	if statusByID[itemID].ExecutionMode == quickLeaderDirectMode {
+		return nil, fmt.Errorf("leader-direct requires result submit; allow-inline cannot waive its proof")
+	}
 	if st == "accepted" {
 		return nil, fmt.Errorf("work item %s is already accepted", itemID)
 	}
@@ -316,7 +362,7 @@ func (service quickService) allowInlineWorkItem(workspacePath, workspace, itemID
 }
 
 type quickWorkerAcceptProof struct {
-	Mode         string   `json:"mode"` // worker | leader-inline
+	Mode         string   `json:"mode"` // worker | leader-inline | leader-direct
 	LaneID       string   `json:"lane_id,omitempty"`
 	ResultPath   string   `json:"result_path,omitempty"`
 	ResultStatus string   `json:"result_status,omitempty"`
@@ -470,8 +516,12 @@ func setQuickItemWorkerProof(doc *quickConfirmationDoc, itemID string, proof *qu
 }
 
 func requireQuickWorkerAcceptProof(workspacePath, workspace, itemID string, item quickConfirmationItem, doc *quickConfirmationDoc, row quickWorkItemStatus) (*quickWorkerAcceptProof, error) {
-	// Audited leader-inline path.
-	if row.InlineApproved && !row.RequiresWorker && strings.TrimSpace(row.InlineReason) != "" {
+	direct := row.ExecutionMode == quickLeaderDirectMode
+	if direct && (row.InlineApproved || row.RequiresWorker || strings.TrimSpace(row.InlineReason) != "") {
+		return nil, fmt.Errorf("worker_result_required: inconsistent leader-direct execution record")
+	}
+	// Audited legacy fallback; never a substitute for direct-mode result proof.
+	if !direct && row.InlineApproved && !row.RequiresWorker && strings.TrimSpace(row.InlineReason) != "" {
 		normalizedReason, err := normalizeQuickInlineReason(row.InlineReason)
 		if err != nil {
 			return nil, fmt.Errorf("worker_result_required: %w", err)
@@ -487,7 +537,15 @@ func requireQuickWorkerAcceptProof(workspacePath, workspace, itemID string, item
 
 	result, absPath, laneID, err := findQuickWorkerResult(workspacePath, itemID)
 	if err != nil {
+		if direct {
+			return nil, fmt.Errorf("worker_result_required: %w; leader-direct must submit a matching stage-owned result with passing validation_results", err)
+		}
 		return nil, fmt.Errorf("worker_result_required: %w; submit with `specify-runtime result submit --command quick --workspace %s --lane-id %s --result-json '...'` (status success/DONE/DONE_WITH_CONCERNS), or run `quick allow-inline --item %s --reason \"spawn_failed: ...\"` first", err, filepath.ToSlash(filepath.Join(".planning", "quick", workspace)), itemID, itemID)
+	}
+	if direct {
+		if err := validateQuickLeaderDirectResult(result); err != nil {
+			return nil, fmt.Errorf("worker_result_required: %w", err)
+		}
 	}
 	status := strings.ToLower(strings.TrimSpace(asString(result["status"])))
 	if status != "success" {
@@ -510,8 +568,12 @@ func requireQuickWorkerAcceptProof(workspacePath, workspace, itemID string, item
 	if err := validateQuickSourceContinuityAcceptance(workspacePath, itemID, doc, result); err != nil {
 		return nil, fmt.Errorf("worker_result_required: %w", err)
 	}
+	proofMode := "worker"
+	if direct {
+		proofMode = quickLeaderDirectMode
+	}
 	return &quickWorkerAcceptProof{
-		Mode:         "worker",
+		Mode:         proofMode,
 		LaneID:       laneID,
 		ResultPath:   rel,
 		ResultStatus: status,
@@ -583,8 +645,22 @@ func revalidateAcceptedQuickSourceContinuity(workspacePath, itemID string, doc *
 	if mode == "leader-inline" {
 		return validateQuickSourceContinuityAcceptance(workspacePath, itemID, doc, nil)
 	}
+	if mode == quickLeaderDirectMode {
+		item, ok := findQuickItem(doc, itemID)
+		if !ok {
+			return fmt.Errorf("accepted leader-direct item is missing")
+		}
+		proof, err := requireQuickWorkerAcceptProof(workspacePath, filepath.Base(workspacePath), itemID, item, doc, row)
+		if err != nil {
+			return err
+		}
+		if proof.Mode != quickLeaderDirectMode || proof.ResultPath != row.WorkerResultRef || proof.LaneID != row.WorkerLaneID {
+			return fmt.Errorf("accepted leader-direct result binding changed")
+		}
+		return nil
+	}
 	if mode != "worker" {
-		return fmt.Errorf("source continuity lab report requires an audited worker or inline execution mode")
+		return fmt.Errorf("source continuity lab report requires an audited worker, direct or inline execution mode")
 	}
 	result, _, _, err := findQuickWorkerResult(workspacePath, itemID)
 	if err != nil {
@@ -660,7 +736,7 @@ func findQuickWorkerResult(workspacePath, itemID string) (map[string]any, string
 		laneID := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
 		rank := quickLaneMatchRank(laneID, itemID)
 		if rank < 0 {
-			rank = 100
+			continue // An unrelated lane can never satisfy this item.
 		}
 		candidates = append(candidates, candidate{
 			laneID: laneID,
@@ -685,21 +761,10 @@ func findQuickWorkerResult(workspacePath, itemID string) (map[string]any, string
 			lastErr = err
 			continue
 		}
-		normalized, err := normalizeWorkerTaskResult(raw)
+		normalized, err := normalizeSubmittedTaskResult("quick", raw)
 		if err != nil {
-			var payload map[string]any
-			if jsonErr := json.Unmarshal(raw, &payload); jsonErr != nil {
-				lastErr = err
-				continue
-			}
-			normalized = payload
-			if status := strings.ToLower(strings.TrimSpace(asString(pick(payload, "status", "reported_status")))); status != "" {
-				if alias, ok := resultStatusAliases[status]; ok {
-					normalized["status"] = alias
-				} else {
-					normalized["status"] = status
-				}
-			}
+			// Do not bypass validation or fall back to an older successful lane.
+			return nil, "", "", fmt.Errorf("invalid worker result for %s: %w", itemID, err)
 		}
 		payloadItem := firstNonEmpty(
 			asString(pick(normalized, "work_item_id", "workItemId")),
@@ -733,56 +798,6 @@ func quickLaneMatchRank(laneID, itemID string) int {
 		return 1
 	}
 	return -1
-}
-
-func validateQuickChangedFilesInScope(changedFiles, writeScope []string) error {
-	if len(writeScope) == 0 {
-		return nil
-	}
-	outOfScope := []string{}
-	for _, file := range changedFiles {
-		file = filepath.ToSlash(strings.TrimSpace(file))
-		if file == "" {
-			continue
-		}
-		if !quickPathInWriteScope(file, writeScope) {
-			outOfScope = append(outOfScope, file)
-		}
-	}
-	if len(outOfScope) > 0 {
-		return fmt.Errorf("changed_files outside packet write_scope: %s", strings.Join(outOfScope, ", "))
-	}
-	return nil
-}
-
-func quickPathInWriteScope(path string, writeScope []string) bool {
-	path = filepath.ToSlash(strings.TrimPrefix(path, "./"))
-	for _, scope := range writeScope {
-		scope = filepath.ToSlash(strings.TrimSpace(strings.TrimPrefix(scope, "./")))
-		if scope == "" {
-			continue
-		}
-		if path == scope {
-			return true
-		}
-		if strings.HasSuffix(scope, "/") {
-			if strings.HasPrefix(path, scope) {
-				return true
-			}
-			continue
-		}
-		if strings.HasPrefix(path, scope+"/") {
-			return true
-		}
-		if strings.HasSuffix(scope, "/**") || strings.HasSuffix(scope, "/*") {
-			prefix := strings.TrimSuffix(strings.TrimSuffix(scope, "/**"), "/*")
-			prefix = strings.TrimSuffix(prefix, "/")
-			if path == prefix || strings.HasPrefix(path, prefix+"/") {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func quickWorkerGateSummary(doc *quickConfirmationDoc) []map[string]any {
@@ -867,6 +882,11 @@ func compileQuickWorkerPacket(doc *quickConfirmationDoc, itemID string) (map[str
 			"status_md_leader_owned":           true,
 		},
 	}
+	if statusByID[itemID].ExecutionMode == quickLeaderDirectMode {
+		packet["requires_worker"] = false
+		packet["execution_mode"] = quickLeaderDirectMode
+		packet["requires_result_submit"] = true
+	}
 	return packet, len(blockers) == 0, blockers, nil
 }
 
@@ -935,7 +955,7 @@ func readyQuickItemIDs(doc *quickConfirmationDoc) []string {
 	ready := []string{}
 	for _, item := range doc.Decision.Items {
 		st := strings.ToLower(statusByID[item.ID].Status)
-		if st == "accepted" || st == "in_progress" {
+		if st == "accepted" || st == "in_progress" || st == "blocked" {
 			continue
 		}
 		if len(unmetQuickDeps(item.DependsOn, statusByID)) == 0 {
@@ -953,7 +973,7 @@ func blockedQuickItemIDs(doc *quickConfirmationDoc) []string {
 		if st == "accepted" || st == "in_progress" {
 			continue
 		}
-		if len(unmetQuickDeps(item.DependsOn, statusByID)) > 0 {
+		if st == "blocked" || len(unmetQuickDeps(item.DependsOn, statusByID)) > 0 {
 			blocked = append(blocked, item.ID)
 		}
 	}
@@ -1022,7 +1042,7 @@ func (service quickService) validateCloseAgainstConfirmation(workspacePath, stat
 		row := statusByID[item.ID]
 		mode := strings.ToLower(strings.TrimSpace(row.ExecutionMode))
 		switch mode {
-		case "worker":
+		case "worker", quickLeaderDirectMode:
 			if strings.TrimSpace(row.WorkerResultRef) == "" && strings.TrimSpace(row.WorkerLaneID) == "" {
 				missing = append(missing, item.ID+"(worker_result_missing)")
 			}

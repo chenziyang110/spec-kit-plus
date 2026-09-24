@@ -69,6 +69,7 @@ var artifactTypePatterns = []artifactTypePattern{
 		},
 	},
 	newFeatureWorkspacePattern("task-index.json", ArtifactTypeMetadata{TypeID: "feature-task-index", Owner: "specify-runtime tasks", Role: "canonical", Schema: "json/task-index", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newFeatureWorkspaceNestedPattern("task-rebind-history/", ".json", ArtifactTypeMetadata{TypeID: "task-rebind-history", Owner: "specify-runtime tasks rebind", Role: "canonical", Schema: "json/task-rebind-history", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newFeatureWorkspacePattern("tasks.md", ArtifactTypeMetadata{TypeID: "feature-tasks", Owner: "specify-runtime tasks", Role: "derived", Schema: "markdown/tasks", Operations: []string{"show", "list"}, SummaryAdapter: "markdown-headings"}),
 	newFeatureWorkspacePattern("implementation-handoff.json", ArtifactTypeMetadata{TypeID: "feature-implementation-handoff", Owner: "specify-runtime implement closeout", Role: "derived", Schema: "json/implementation-handoff", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newFeatureWorkspacePattern("implementation-summary.md", ArtifactTypeMetadata{TypeID: "feature-implementation-summary", Owner: "specify-runtime implement closeout", Role: "derived", Schema: "markdown/implementation-summary", Operations: []string{"show", "list"}, SummaryAdapter: "markdown-headings"}),

@@ -214,7 +214,10 @@
     },
     "spx-tasks": {
       "absorbs": ["tasks"],
-      "references": ["spx-tasks/references/task-graph-contract.md"],
+      "references": [
+        "spx-tasks/references/task-graph-contract.md",
+        "spx-tasks/references/rebind.md"
+      ],
       "assets": [
         "spx-tasks/assets/ui-task.md",
         "spx-tasks/assets/ui-task-index-entry.json"

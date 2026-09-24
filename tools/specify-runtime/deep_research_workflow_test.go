@@ -433,7 +433,7 @@ func TestDeepResearchInitRejectsSymlinkedSourceWorkflowLock(t *testing.T) {
 		"deep-research", "init", "--feature-dir", fixture.featureRel,
 		"--mode", "repo-only", "--leader-id", "leader-1",
 	})
-	if exit == 0 || blocked.Status != "blocked" {
+	if exit == 0 || (blocked.Status != "blocked" && blocked.Status != "error") || !strings.Contains(fmt.Sprint(blocked.Blockers), "symlink") {
 		t.Fatalf("symlinked workflow lock was accepted: exit=%d env=%#v", exit, blocked)
 	}
 	content, err := os.ReadFile(outside)

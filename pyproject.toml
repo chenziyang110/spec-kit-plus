@@ -128,6 +128,7 @@ packages = ["src/specify_cli"]
 "scripts/powershell" = "specify_cli/core_pack/scripts/powershell"
 "scripts/shared" = "specify_cli/core_pack/scripts/shared"
 "tools/specify-runtime" = "specify_cli/core_pack/tools/specify-runtime"
+"schemas/context-packet.schema.json" = "specify_cli/core_pack/schemas/context-packet.schema.json"
 "extensions/agent-teams/engine/Cargo.toml" = "specify_cli/core_pack/extensions/agent-teams/engine/Cargo.toml"
 "extensions/agent-teams/engine/Cargo.lock" = "specify_cli/core_pack/extensions/agent-teams/engine/Cargo.lock"
 "extensions/agent-teams/engine/package.json" = "specify_cli/core_pack/extensions/agent-teams/engine/package.json"

@@ -208,6 +208,7 @@ func runQuick(args []string, stdout io.Writer) int {
 		env.Data["item_accept_usage"] = "specify-runtime quick item-accept <id> --item Qn --evidence <text> [--allow-inline --reason <spawn_failed:...>] --format json"
 		env.Data["item_accept_requires"] = "matching worker-results/<lane-id>.json from result submit, or prior allow-inline / --allow-inline after spawn/tool failure; docs-only is invalid"
 		env.Data["allow_inline_usage"] = "specify-runtime quick allow-inline <id> --item Qn --reason 'spawn_failed: ...' --format json"
+		addQuickHelpOutputContracts(env.Data)
 		return writeEnvelope(stdout, env)
 	}
 	mode := positionalArg(args, 0, "list")

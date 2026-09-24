@@ -7,3 +7,4 @@
 - [dependencies-and-parallel-safety.md](dependencies-and-parallel-safety.md): Trigger: when assigning dependencies, `[P]` markers, write sets, parallel batches, and join points.
 - [must-preserve-ledger.md](must-preserve-ledger.md): Trigger: when carrying planning decisions, consequence obligations, capability operations, reference fidelity, or user-observable paths into tasks.
 - [review-and-repair.md](review-and-repair.md): Trigger: before finalizing tasks.md, repairing task-layer defects, or handing off to implementation.
+- [rebind.md](rebind.md): Trigger: when a current Test Design handoff or adopted Plan UI contract leaves an existing Tasks package stale.
