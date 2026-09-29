@@ -121,6 +121,7 @@ def test_e2e_command_based_rendering(key, extension, tmp_path):
 
 @pytest.mark.parametrize("profile,prefix", [("classic", "sp"), ("advanced", "spx")])
 @pytest.mark.parametrize("script_type", ["sh", "ps"])
+@pytest.mark.usefixtures("unified_runtime_env")
 def test_real_init_installs_helpers_and_advertises_e2e(profile, prefix, script_type, tmp_path, monkeypatch):
     project = tmp_path / f"init-{profile}-{script_type}"
     project.mkdir()
@@ -134,6 +135,7 @@ def test_real_init_installs_helpers_and_advertises_e2e(profile, prefix, script_t
 
 
 @pytest.mark.parametrize("first,second", [("classic", "advanced"), ("advanced", "classic")])
+@pytest.mark.usefixtures("unified_runtime_env")
 def test_real_init_additive_profiles_preserve_user_edits(first, second, tmp_path, monkeypatch):
     project = tmp_path / "coexistence"
     project.mkdir()
