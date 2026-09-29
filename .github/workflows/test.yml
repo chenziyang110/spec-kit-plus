@@ -144,7 +144,11 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra test
       - name: Exercise real integration installer and repair
-        run: uv run pytest tests/integrations/test_quick_optimization_installation.py --junitxml=native-installer-results.xml
+        run: >-
+          uv run pytest
+          tests/integrations/test_quick_optimization_installation.py
+          tests/integrations/test_manifest_stat_observations.py
+          --junitxml=native-installer-results.xml
       - name: Inventory runtime test packages
         if: ${{ !cancelled() }}
         working-directory: tools/specify-runtime

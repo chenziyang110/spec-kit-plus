@@ -67,13 +67,18 @@ def _hash_regular_file(path: Path) -> str:
     h = hashlib.sha256()
     with _open_regular_state_file(target) as fh:
         before = os.fstat(fh.fileno())
+        # Windows fstat/lstat can disagree on ctime semantics and mode bits.
+        # Keep a baseline per API, but require both to identify the same file.
+        path_before = target.lstat()
+        if not os.path.samestat(before, path_before):
+            raise ValueError(f"Manifest file changed while hashing: {target}")
         for chunk in iter(lambda: fh.read(8192), b""):
             h.update(chunk)
         safe_local_state_path(target)
         opened, current = os.fstat(fh.fileno()), target.lstat()
-        for observed in (opened, current):
-            if not os.path.samestat(before, observed) or (
-                before.st_mode, before.st_size, before.st_mtime_ns, before.st_ctime_ns
+        for initial, observed in ((before, opened), (path_before, current)):
+            if not os.path.samestat(initial, observed) or (
+                initial.st_mode, initial.st_size, initial.st_mtime_ns, initial.st_ctime_ns
             ) != (
                 observed.st_mode, observed.st_size, observed.st_mtime_ns, observed.st_ctime_ns
             ):
@@ -102,12 +107,18 @@ def _matches_recorded_hash(path: Path, expected_hash: str) -> bool:
     target = safe_local_state_path(path)
     with _open_regular_state_file(target) as handle:
         before = os.fstat(handle.fileno())
+        # As in _hash_regular_file, compare metadata only within the same API.
+        path_before = target.lstat()
+        if not os.path.samestat(before, path_before):
+            raise ValueError(f"Manifest file changed while hashing: {target}")
 
         def ensure_unchanged() -> None:
             safe_local_state_path(target)
-            for observed in (os.fstat(handle.fileno()), target.lstat()):
-                if not os.path.samestat(before, observed) or (
-                    before.st_mode, before.st_size, before.st_mtime_ns, before.st_ctime_ns
+            for initial, observed in (
+                (before, os.fstat(handle.fileno())), (path_before, target.lstat()),
+            ):
+                if not os.path.samestat(initial, observed) or (
+                    initial.st_mode, initial.st_size, initial.st_mtime_ns, initial.st_ctime_ns
                 ) != (
                     observed.st_mode, observed.st_size,
                     observed.st_mtime_ns, observed.st_ctime_ns
