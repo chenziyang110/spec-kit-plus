@@ -1,80 +1,88 @@
 # SP E2E implementation readiness
 
-## Product direction
+## Product contract
 
 E2E is scenario-first test analysis/design across desktop/mobile clients, web,
 CLI and services. A visual model with actual inspection/interaction tools is a
 first-class execution route; browser runners and executable test files are not
-entry requirements. The model derives semantics; deterministic helpers account
-for declared coverage and evidence. Test Design remains a read-only optional
-producer, while Review/Accept retain their existing authority.
+entry requirements. Models derive semantics; deterministic helpers account for
+declared coverage and evidence. Test Design remains optional read-only input;
+formal delivery still requires `tasks -> implement -> review -> accept`.
 
-## Implemented in this branch
+The scenario book covers operation assumptions, fourteen applicability
+categories, source-bound requirements, concrete actions/oracles, and every
+selected external-event/checkpoint pair. The rename guide contains 26 candidate
+families. A missing interaction tool or unknown oracle is a gap, never a reason
+to drop the case. Visual observations do not replace independent effect readback.
 
-- Independent Classic/Advanced workflows for operation inventories, assumptions,
-  error guessing, input classes/boundaries, state transitions, event order,
-  external mutations, visual interaction, recovery and cross-feature effects.
-- A shared standard-library scenario helper with a 14-dimension question catalog,
-  book/trace JSON Schemas, event/checkpoint obligation expansion, design gap
-  checks, source/evidence hashing and visual/mixed trace accounting.
-- Exact scenario cards with ordered actions, perturbation steps, assertions,
-  observation channels, safe setup/cleanup and explicit execution routes.
-  Screenshots cannot fill independent durable-effect oracles. Failed/skipped/
-  blocked/not-run/flaky cases and cleanup failures cannot close the run.
-- A rename derivation example with 26 candidate families and a concrete visual
-  scenario card; explicit platform-limit, object-identity and oracle-gap rules.
-- The existing constrained t-way planner/audit and native pytest/Playwright
-  wrappers remain an optional lane. No changes to their implementation were
-  made in the scenario-first continuation.
+## Implemented source and integration
 
-## Verification recorded by revision
+- Classic and independent Advanced workflows, the scenario helper and schemas,
+  constrained t-way helper, optional pytest/Playwright adapters, and desktop
+  Tk/filesystem sample are committed on the E2E feature branch.
+- `21795c7` registers test-asset cognition closeout in the matching Go and JSON
+  owners, preserving adjacent workflow ownership and adding alias/copy tests.
+- `4b2c0e6` integrates Python/Go Learning, dispatch, reserved command names,
+  Claude argument hints, the Advanced surface map and original expected SPX
+  catalog. It updates profile counts, README/handbook and both prompt closeouts.
+  The original `tests/test_spx_skill.py` gains one catalog entry; no existing
+  assertion or test was removed. The complete diff is 13 files, +76/-5 lines.
+- Init guidance uses the existing native display mapper for E2E. The shared
+  `_install_shared_infra` copies the four helper files recursively and records
+  them in the `speckit` manifest; the agent's `setup()` alone is only rendering.
+- New regressions separate 38 native-rendering cases from six real init/upgrade
+  cases, including modified skills/helpers and additive profile installation.
+  Five additional registration/source checks protect catalog, packaging inputs,
+  ownership and init guidance. These are executable tests, not passing results.
 
-The initial `0dbc55d` implementation recorded 57 coverage-helper tests and 4
-workflow-source tests passing. The native-runner continuation ending at
-`2a8ad1f` recorded 48 runner tests passing in two local batches, including a real
-disposable CLI/SQLite sample. These are historical local results, not later
-full-repository or installed-profile evidence. Playwright checks were parser
-fixtures, not browser runs.
+The helpers write ordinary test assets/results, not workflow state. Retained
+test-asset mutations use canonical `sp-e2e`; disposable run data does not justify
+a fabricated mutation receipt. An old runtime rejecting that identity remains
+an explicit compatibility blocker. This branch is not a published runtime.
 
-The scenario-first continuation locally ran:
+## Verification by revision and boundary
 
-```text
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest tests/test_e2e_scenarios.py tests/test_e2e_workflow_contract.py tests/test_e2e_scenario_workflow_contract.py -q
-74 passed
-```
+| Evidence | What actually ran | What it does not establish |
+| --- | --- | --- |
+| Initial `0dbc55d` | 57 helper and four source tests, recorded historically | Current full-repository or installed-profile validation |
+| Native runner through `2a8ad1f` | 48 local tests including a disposable CLI/SQLite application | Actual Playwright browser execution or downstream acceptance |
+| Scenario-first `f9ee966` | 65 helper/schema/CLI, five new source and four unchanged source tests | Real visual-model execution; observations were synthetic checker fixtures |
+| Desktop `57b6f779` and integration continuation | 34 real Tk event-loop/filesystem tests, rerun with required display under Xvfb; zero skips | 34 visual-model executions or native Windows/macOS validation |
+| Registry `21795c7` and integration continuation | Five top-level tests including original JSON/Go consistency tests, rerun in the isolated package | Full runtime module, Learning CLI or runtime release compatibility |
+| New installation/registration suites | Both files parsed successfully and uploaded blobs matched local bytes | The 44 installation/rendering and five registration tests have not run in a complete repository environment |
 
-That is 65 new helper/schema/CLI tests, 5 new cross-profile source checks and the
-4 existing E2E source tests, in an isolated Linux/Python 3.13.5/pytest 9.0.2
-workspace. The original source test file was preserved byte-for-byte. Book and
-trace examples are explicitly labeled synthetic fixtures. No actual desktop,
-mobile, visual-model or browser E2E execution is claimed. Tests establish the
-helper's declared accounting, not truthful perception or complete discovery.
+Current local reruns used Linux, Python 3.13.5 / pytest 9.0.2 and Go 1.23.2.
+The standalone registry check used `GO111MODULE=off`; it is deliberately not a
+claim that the full module supports that toolchain. The desktop check used
+`SPECIFY_E2E_REQUIRE_DESKTOP=1` and `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1` under Xvfb.
+No historical/isolated counts should be added and relabeled full-product E2E.
 
-The environment could not clone the private source through container Git
-(network DNS resolution failed). Focused files were read through the authorized
-GitHub connector; the whole repository/dependency environment was not present.
-No full-repository Python/Go or installation suite was run. Do not add isolated
-and historical counts together and relabel them product readiness.
+The environment could not clone the private source via container Git because
+DNS resolution failed. Authorized connector reads/writes supplied bounded live
+source. Original full trees and minimal diffs were preserved; temporary assembly
+ancestry is not included in the delivered feature commits. Whole-repository
+imports, dependency sync, rendering/init runs and wheel build remain unverified.
 
-## Still required before merge
+## Required before merge
 
-1. Register e2e in shared cognition closeout policy and its Go owner; audit
-   Learning, workflow-name validation, reserved names, orchestration and argument
-   hints. Preserve the existing Work Board route, not an unsupported Activity.
-2. Add spx-e2e and its scenario-design reference to the Advanced surface map and
-   expected SPX catalog; synchronize profile counts, README, PROJECT-HANDBOOK,
-   profile guidance and init Start Here. Source directories alone are not enough.
-3. Verify Classic/Advanced installation, helper copying, generated commands,
-   sidecars, manifests, hooks, dual-profile coexistence and wheel contents.
-   Existing scripts/shared force-inclusion alone is not installed availability.
-4. Execute a real client sample through available visual inspection/interaction
-   and independent state tools. Verify deletion/rename/replacement timing and
-   invalid/boundary inputs against that sample's actual contract. This is a
-   distinct gate from an actual browser run of the optional Playwright adapter.
-5. Run affected/full Python and Go suites, Python 3.11/3.12, native Windows/macOS,
-   final diff checks and real cloud CI. Distributed pytest/shard merging remain
-   explicitly unsupported, never silently treated as complete coverage.
+1. In a complete source checkout, run `uv sync --extra test`, then execute the
+   existing SPX, integration, hook, cognition-closeout-generation and packaging
+   suites plus `tests/test_e2e_registration.py` and
+   `tests/integrations/test_e2e_installation.py`. Fix actual failures without
+   weakening the original catalog or user-modification preservation checks.
+2. Build/install the wheel in an isolated project; exercise Classic, Advanced,
+   helpers, manifests, native invocation, repair and both installation orders.
+   Source force-includes and inspected copier code are not installation evidence.
+3. Run the complete Go module on the toolchain declared by `go.mod`, the complete
+   Python suite, Python 3.11/3.12, and supported Windows/macOS environments.
+4. Preserve the real-client visual inspection/interaction and independent-state
+   verification boundary. The committed widget-driven sample is not evidence
+   of perception. Actual browser execution for the optional Playwright adapter
+   remains distinct. Distributed pytest and cross-shard merging are unsupported.
+5. Require successful CI for the final feature commit. The previously inspected
+   desktop run `36563979338` failed before retrievable steps/logs; log retrieval
+   returned 404. Its cause was not established. Recheck current jobs rather than
+   assuming billing, dependency or assertion failures from that historical run.
 
-Keep the PR draft until these gates are closed. Preserve existing tests; do not
-weaken catalog checks, fabricate perception evidence, change repository
-visibility, merge or publish a release as part of this maintenance request.
+Keep PR #125 draft until these gates close. Do not merge, publish, change source
+visibility or claim downstream E2E success on the strength of isolated tests.
