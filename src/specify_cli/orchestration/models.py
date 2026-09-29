@@ -6,6 +6,7 @@ _ORDINARY_SP_COMMANDS = frozenset(
         "constitution",
         "debug",
         "deep-research",
+        "e2e",
         "explain",
         "fast",
         "implement",

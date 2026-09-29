@@ -4,6 +4,12 @@
       "assets": [],
       "optimization": "semantic checkpoints and an exact confirmed handoff replace transcript ceremony"
     },
+    "spx-e2e": {
+      "absorbs": ["e2e"],
+      "references": ["spx-e2e/references/scenario-design.md"],
+      "assets": [],
+      "optimization": "operation-level scenario derivation with explicit boundary and timing obligations, visual-first client execution, independent readback, and optional native runners"
+    },
     "spx-explain": {
       "absorbs": ["explain"],
       "references": ["spx-explain/references/artifact-explanation.md"],
