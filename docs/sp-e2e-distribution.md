@@ -18,10 +18,15 @@ renderer, preservation assertion or required check is mocked out.
 Run with the repository's declared Python/Go toolchains:
 
 ```sh
+if [ -e uv.lock ] || [ -L uv.lock ]; then
+  uv lock --check
+else
+  uv lock
+fi
 uv sync --frozen --extra test
-uv run pytest tests/integrations/test_e2e_installation.py \
+uv run --frozen --extra test pytest tests/integrations/test_e2e_installation.py \
   tests/test_e2e_registration.py tests/test_e2e_wheel_verifier.py \
-  tests/test_e2e_wheel_snapshot.py
+  tests/test_e2e_wheel_snapshot.py tests/test_e2e_distribution_lock.py
 ```
 
 ## Archive verification
@@ -37,7 +42,7 @@ or executed-product claim. Its checks remain enabled under Python `-O`.
 
 ```sh
 uv build --wheel --out-dir /tmp/e2e-wheel-dist
-uv run python tools/workflow-quality/verify_e2e_wheel.py \
+uv run --frozen --extra test python tools/workflow-quality/verify_e2e_wheel.py \
   --wheel /tmp/e2e-wheel-dist/<built-wheel>.whl --source-root .
 ```
 
@@ -119,13 +124,50 @@ zero skips on Linux/Python 3.13.5/pytest 9.0.2. Archive/source payloads remain
 explicitly synthetic; the tests synchronize actual temporary-file mutations.
 This is not a completed Specify wheel installation or native-platform CI pass.
 
+## Dependency lock preparation and continuity
+
+The inspected source revision has no committed `uv.lock`. Running
+`uv sync --frozen` directly from that checkout fails before the installation
+suite can start. The distribution workflow now explicitly resolves a missing
+lock once for its job. When a lock already exists, `uv lock --check` must succeed;
+a stale or malformed lock fails rather than being silently regenerated.
+
+The job snapshots the resulting lock with create-only writes and records its
+SHA-256, the `pyproject.toml` hash, checkout revision and whether it validated an
+existing lock or resolved one for this run. Sync, project `uv run` commands and
+export then use `--frozen`; test commands also explicitly retain `--extra test`.
+After the actual wheel probe, a separate guard compares the current lock,
+snapshot, hashes and source revision before the job can succeed. The private
+run artifact retains `uv.lock` and `dependency-lock.json` beside earlier evidence.
+This does not remove or weaken installation, catalog, no-skip or wheel gates.
+
+A generated lock is per-job evidence, not a newly committed repository lock.
+Different matrix jobs or later runs may resolve different versions when no
+repository lock is supplied; compare their recorded digests rather than claiming
+one identical dependency matrix. Build-backend isolation and the external package
+index are not made hermetic by this check. Resolution/network failures remain
+real failures, not reasons to use fabricated versions or skip validation.
+
+`tests/test_e2e_distribution_lock.py` executes the actual workflow shell blocks
+with real uv in dependency-free, offline temporary projects, including paths with
+spaces. Its 13 local checks passed with zero skips on Linux/Python 3.13.5,
+pytest 9.0.2 and uv 0.10.0. They cover missing/valid/stale/malformed locks, real
+frozen sync/run/export, previous-evidence preservation and post-run input drift.
+No Specify dependencies or wheel are installed by these fixture tests. They prove
+the lock precondition and recovery path, not a full installation or cloud CI pass.
+The missing-lock defect is independently reproduced; it does not establish the
+cause of earlier cloud jobs whose steps and logs could not be retrieved.
+
+Lock creation and checks follow the official
+[uv locking and syncing contract](https://docs.astral.sh/uv/concepts/projects/sync/).
+
 ## CI and evidence boundaries
 
 `.github/workflows/e2e-distribution.yml` runs the source tests, wheel build,
 archive check, locked dependency installation and isolated wheel probe on Linux
 with Python 3.11/3.12/3.13, plus Windows and macOS with Python 3.13. Every case
 uses the Go version declared by `go.mod`; no public runtime release is needed.
-Artifacts contain the source revision, JUnit results, wheel hash/asset report,
+Artifacts contain the source revision, dependency lock and binding, JUnit results, wheel hash/asset report,
 actual process logs and success/failure report. They do not upload disposable
 project trees, credentials, source archives or publishable releases.
 
