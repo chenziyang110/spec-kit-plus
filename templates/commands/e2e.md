@@ -1,233 +1,234 @@
 ---
-description: Execute real end-to-end journeys against a frozen feature inventory, verify constrained combinations, and expose every missing, skipped, failed, or stale test instead of claiming sampled happy paths are complete.
+description: Systematically derive E2E tests for desktop, mobile, web, CLI, and service operations; cover abnormal inputs, boundaries, external changes and event order, then execute through available visual-model or runner tools without hiding gaps.
 workflow_contract:
-  when_to_use: Explicitly requested project-wide, feature-scoped, or regression E2E execution after runnable implementation exists.
-  primary_objective: Discover the complete declared test boundary independently of existing tests, implement missing executable E2E assets, run the real product, and audit requirement, interaction, and execution coverage separately.
-  primary_outputs: Versioned E2E manifest and executable test assets in the existing test tree, plus immutable per-run runner evidence, normalized results, coverage audit, and explicit gaps under the project's test-results directory.
-  default_handoff: Return the evidence and unresolved gaps to the caller; formal delivery still requires /sp.review followed by /sp.accept.
+  when_to_use: Explicitly requested project-wide, feature-scoped, or regression E2E work; scenario design can precede execution and does not require a web project or an automation harness.
+  primary_objective: Identify the complete declared operation inventory, challenge its assumptions, design concrete observable scenarios, execute feasible scenarios through the actual product, and account for every unverified obligation.
+  primary_outputs: A source-bound scenario book in the existing test tree, immutable per-run visual/action/readback evidence and audit, plus executable assets and native runner reports only for selected automation lanes.
+  default_handoff: Return scenario-design and execution coverage separately with precise gaps; formal delivery still requires /sp.review followed by /sp.accept.
 ---
 
 {{spec-kit-include: ../command-partials/common/user-input.md}}
 
-# End-to-End Execution with Coverage Accounting
+# Scenario-First End-to-End Testing
 
-This is the user-invoked `sp-e2e` execution lane, not Test Design, a unit-test
-checklist, or human acceptance. Do the work: discover, model, implement missing
-tests, execute, and reconcile evidence. A plan or green smoke test is not the
-requested result. Support browser, API, CLI, desktop, or service journeys using
-the project's actual supported harness; do not assume Playwright is installed.
+The primary capability is **test analysis and design**, not a web-runner wrapper.
+Desktop/mobile clients, web products, command-line tools, and services are equal
+subjects. Use the model's reasoning to discover what should be tested and, when
+available, its visual understanding with real interaction tools to execute it.
+A visual-model test does not need a Playwright selector or executable test file.
+A plan is not a test execution, and a green smoke suite is not full coverage.
 
 {{spec-kit-include: ../command-partials/common/execution-bootstrap.md}}
 
-## Ownership and Safe Entry
+## Ownership, Scope, and Capabilities
 
-1. Resolve the explicitly selected project/feature and inspect the working tree.
-   Default an unqualified request for full E2E to the entire current product,
-   not just the latest diff. A feature or changed-only request must name the
-   narrower boundary and retain affected cross-feature regression journeys.
-   Never infer a feature from a branch name. Preserve unrelated changes.
-2. Read relevant Learning and use project cognition as navigation, then verify
-   against live code, contracts, configuration, and official entrypoints. Use
-   supported runtime discovery/help; do not invent `specify e2e`,
-   `specify-runtime e2e`, a Test Design `e2e` projection consumer, or an
-   `execution announce --workflow e2e` enum. If a runtime rejects an unsupported
-   workflow token, report a capability gap rather than impersonating another
-   workflow. Apply the shared bootstrap's **other modifying workflows** Work
-   Board route before test-asset writes; E2E does not own a new Activity type.
-3. Own only the scoped E2E tests, deterministic fixtures, adapters, manifest,
-   and necessary test-harness configuration. Product behavior, migrations,
-   design approval, Test Design publications, and feature workflow state remain
-   outside this write boundary. Report product defects with reproducible cases
-   to the original owner; do not weaken assertions or patch production code
-   merely to obtain green tests. Do not invoke another workflow implicitly.
-4. Establish an isolated local/test environment, safe test accounts/roles,
-   deterministic seeds and clocks where needed, per-worker namespaces, reset
-   and cleanup, and service readiness checks. Record actual URLs/entrypoints,
-   build identity, dependency modes, and unavailable resources. Never operate
-   on production data, send real payments/messages, install/upgrade dependencies,
-   accept licenses, or use credentials beyond authorization. Genuine external
-   boundaries stay blocked; never substitute a mock and label it full-stack E2E.
+1. Resolve the explicit project/feature and inspect the working tree. Unqualified
+   full E2E means the current product, not just the latest diff. A narrower
+   feature/regression scope retains affected cross-feature journeys. Never infer
+   a feature from a branch name; preserve unrelated work.
+2. Read relevant Learning and use project cognition as navigation, verifying
+   claims against current requirements, code/configuration, and official product
+   entrypoints. Test Design is optional read-only input through its supported
+   verification routes; retain its IDs/gaps. Do not create a Test Design `e2e`
+   projection, mutate its publications, or require a feature Plan to start.
+3. Probe live image inspection, screenshot capture, UI interaction, accessibility,
+   filesystem/API observation, fixture setup, and installed runners separately.
+   Do not infer them from the agent name. Inspection without interaction cannot
+   execute a scenario; interaction without inspection cannot prove visual quality.
+   Missing browser automation must not block a usable desktop visual route.
+4. Own only scoped test plans, fixtures, tests, adapters, and necessary harness
+   configuration. Product source, migrations, design approvals, feature state,
+   deployment and production data are outside scope. Never weaken assertions to
+   get green. Product defects return to their owner with a reproduction; do not
+   silently invoke another workflow. Runtime help/discovery is authoritative:
+   never invent `specify e2e`, `specify-runtime e2e`, or an `execution announce`
+   E2E enum. Use the bootstrap's **other modifying workflows** Work Board route;
+   unsupported runtime/cognition tokens are capability gaps, not permission to
+   impersonate another workflow or hand-write runtime state.
+5. Use isolated test accounts/data, deterministic setup, per-worker namespaces,
+   reset/cleanup, service readiness and actual build/OS/device/entrypoint notes.
+   External deletion/rename/permission changes target only explicit disposable
+   fixtures. Production transactions, real payments/messages, credentials,
+   dependency installation/upgrades, licenses and external writes require their
+   existing authorization. An unavailable external dependency is a blocked test,
+   never a reason to substitute a mock and call it full-stack coverage.
 
-## 1. Discover the Denominator Before Choosing Tests
+## 1. Discover Operations Before Selecting Test Cases
 
-Reconcile two independent inventories: intended behavior from specifications,
-acceptance criteria, registered design contracts, and a current Test Design
-publication when present; implemented behavior from routes, menus, APIs/CLI
-commands, permissions, jobs, integrations, configuration, and persisted state.
-Existing tests are evidence about coverage, never the universe of features.
-Read a Test Design publication only through its supported read/verification
-routes and preserve its source IDs and gaps; do not create a new producer
-projection type or mutate that package. It is optional, not an entry gate.
+Reconcile intended requirements/acceptance/design contracts with implemented
+menus, routes, commands, permissions, objects, jobs, integrations and persisted
+state. Existing tests do not define the denominator. Give operations and
+requirements stable IDs and source refs; record unread/unknown surfaces and
+contradictions as discovery gaps rather than silently shrinking scope.
 
-Record stable requirement IDs and source refs for every user-visible capability,
-business rule, failure/recovery outcome, and applicable regression obligation.
-Disagreements between intended and implemented behavior are defects or explicit
-scope decisions, not reasons to remove requirements. Track unread paths and
-unknown surfaces as discovery gaps. Audit all discovered entrypoints against
-this inventory before declaring the boundary frozen.
+For each operation describe its user goal, real entrypoint, object identity,
+preconditions, assumed invariants, lifecycle, dependencies and observable effects.
+Write assumptions explicitly: for example, the file still exists, still denotes
+the same object, has the required permissions, and the destination is available.
+Challenge each assumption: false initially, invalidated during the operation,
+restored before retry, or invalidated together with a related assumption.
 
-Build complete journeys from real entrypoint through externally observable
-outcome and durable side effect: setup -> user actions -> authorization ->
-service/storage boundary -> reload or independent readback -> cleanup. Include
-cross-feature handoffs. Represent success, denial, invalid/boundary/empty data,
-timeout/cancel/retry, duplicate submission, state transitions, conflict,
-concurrent actors, and interrupted/resumed execution as separate journeys when
-they need different oracles. A route loading or HTTP 200 is not an adequate
-business-outcome assertion. UI journeys preserve design/source-continuity IDs;
-automation never replaces visual/interaction judgment.
+Use the installed Python 3.11+ interpreter to retrieve the shared question set:
 
-## 2. Freeze and Compile the Combination Model
+```text
+python .specify/scripts/shared/e2e_scenarios.py catalog
+python .specify/scripts/shared/e2e_scenarios.py schema
+```
 
-Keep the manifest in the project's existing test tree, for example
-`tests/e2e/coverage-manifest.json`. Use the JSON contract documented by the
-installed helper and this command's output contract below. Hash every selected
-source/contract/config/fixture defining the tested behavior; record the Git
-revision plus dirty-tree/build identity in the run notes. Maintain explicit
-excluded scopes with reasons and owners; exclusions remain visible in reports.
+For **every operation**, decide applicability for `happy_path`,
+`input_partitions`, `input_boundaries`, `object_lifecycle`, `external_mutation`,
+`event_order`, `permissions`, `conflict_concurrency`, `repeat_cancel_retry`,
+`interruption_recovery`, `persistence_consistency`, `environment_compatibility`,
+`visual_interaction`, and `cross_feature`. Add product-specific dimensions when
+needed. A not-applicable decision needs a concrete reason and bound source;
+missing tools, fixtures, time, or oracle knowledge are gaps, not inapplicability.
+Do not label one happy-path case with every dimension to satisfy a checker.
 
-For each journey define factors and concrete values: roles/tenants, lifecycle
-states, data classes, flags/configurations, browser/device/viewport, locale,
-network/dependency outcomes, and relevant concurrent actors. Select only
-applicable factors but explain omitted dimensions. Use `strength: 2` for ordinary
-pairwise coverage, explicit mandatory three-or-more-factor combinations for
-known risks, and `strength: 3` or `"exhaustive"` for critical bounded matrices.
-Pairwise is not exhaustive and cannot cover ordered events; encode event order
-as distinct journeys with explicit steps and postconditions.
+## 2. Derive Concrete Scenarios, Including Event Order
 
-`exclude` constraints may remove only genuinely infeasible configurations, with
-an evidence-backed reason. An invalid input or forbidden user action that the
-product must reject is a **required negative test**, not an infeasible scenario.
-Never exclude failures, lack of fixtures, time budgets, or unsupported test
-infrastructure. Keep these as gaps/blocked cases. The helper rejects dead factor
-values, impossible mandatory combinations, and unbounded matrices.
+Apply error guessing to assumptions and failure history; equivalence partitioning
+to valid/invalid input classes; boundary value analysis to exact discovered limits
+and units; decision tables to interacting business rules; state-transition and
+event-sequence analysis to lifecycle and ordering. Use these as complementary
+ways to discover test conditions, not synonyms for pairwise parameter coverage.
+Unknown expected behavior is an oracle gap, not an invented product rule.
 
-Run the deterministic planner from the project root, using the installed Python
-3.11+ interpreter (`python`, `python3`, or the verified Windows launcher):
+For rename, ask about missing/moved/externally renamed/replaced objects, a new
+object at the old path, target-name conflicts, permission/lock changes, invalid
+names, exact length boundaries, duplicate confirmation, cancel/retry, interruption,
+other windows/search/open documents, and persisted contents/identity. Determine
+actual OS/filesystem/product rules first; never hard-code a universal illegal
+character set, maximum length, or whether length counts bytes or characters.
+Include keyboard/IME composition, focus and pending feedback when applicable.
+
+Separate these scenarios: absent before entry; deleted after opening the dialog;
+deleted after editing but before confirming; change during a pending operation;
+and change after commit but before UI refresh. Define observable checkpoints and
+external events independently. Each selected **event x checkpoint** is a separate
+coverage obligation. Prove that the change actually occurred at that checkpoint
+before continuing. Use deterministic barriers or supported test hooks for a
+narrow race; a guessed sleep or fast click is not proof of race coverage. If the
+checkpoint cannot be reached or observed, keep its case blocked. A check/use
+race may be a TOCTOU risk; do not diagnose a vulnerability from timing alone.
+
+Freeze `tests/e2e/scenarios.json` (or the project's established equivalent) with
+source_revision and hashes of every selected source/contract/config/fixture.
+The ordinary test-asset book contains sources, requirements, operations,
+applicability decisions, checkpoints/events, scenarios, discovery_gaps and
+exclusions with scope/reason/owner. It is not runtime-owned workflow state.
+Each scenario contains stable ID, operation, requirements, dimensions, technique,
+priority, preconditions, ordered actor/action/observation steps, exact perturbation
+step bindings, visual and independent-effect oracles, execution route, safety,
+and cleanup. Each oracle names an assertion and how to observe it. Keep clear
+expected and actual observations in different records.
+
+```text
+python .specify/scripts/shared/e2e_scenarios.py derive tests/e2e/scenarios.json --root .
+python .specify/scripts/shared/e2e_scenarios.py check tests/e2e/scenarios.json --root .
+```
+
+`derive` expands timing obligations and exposes gaps; it does not invent correct
+scenarios. `check` verifies declared accounting. `scenario_design_ready` is only
+planning readiness, never tests passed. Review the generated gaps, author missing
+scenarios, and rerun. Preserve high-risk compound situations explicitly; budgets
+may prioritize execution but must never remove the unexecuted denominator.
+
+## 3. Execute Through the Available Product Surface
+
+Choose `visual`, `runner`, `hybrid`, or `human` per scenario, based on actual
+capabilities and required observations. Default client interaction work to visual
+model + UI tools when available; auxiliary tools may prepare fixtures and verify
+side effects. Do not spend the task building a new automation framework when
+real client interaction and evidence capture already suffice.
+
+For a visual/hybrid scenario, observe the initial screen and selected object;
+perform a bounded action; capture the resulting state; compare it with the
+specific expected checkpoint; continue only from the actually observed state.
+Reacquire controls after layout changes instead of replaying stale coordinates.
+Record screenshots and action observations at relevant checkpoints, including
+external-change proof, final feedback, focus/recovery and cleanup. Preserve
+registered design/source-continuity IDs. A screenshot is visual evidence, not
+proof of file identity, durable storage, server state, or correct background work:
+verify those through independent filesystem/API/CLI/database/log readback.
+Unavailable effect oracles remain blocked or pending, even if the UI looks right.
+
+Retain every attempt; fail-then-pass is flaky. Failed, skipped, blocked, disabled,
+quarantined and not_run scenarios are not passes. Bounded test-harness repair is
+agent-owned; product bugs keep their failed evidence. New discoveries append
+scenarios and invalidate the old book binding; never manufacture old observations
+for new cases. Source/config/test changes require fresh evidence. Keep immutable
+run IDs, actual target/build identity, capture times, hashes, action observations,
+oracle observations and cleanup in a new run-specific trace.
+
+```text
+python .specify/scripts/shared/e2e_scenarios.py audit tests/e2e/scenarios.json --root . --trace test-results/e2e/run-001/trace.json
+```
+
+Bind book_sha256 to the exact scenario book. This is a visual/mixed trace
+consistency audit, not an assertion that the model
+really acted or saw pixels. It requires every declared step/oracle of a passing
+case, matching evidence channels, verified cleanup and current source binding.
+No test_ref, pytest result or Playwright project is required for visual cases.
+Do not fabricate native-runner reports from visual observations.
+
+## 4. Optional Combination and Native Automation Lanes
+
+After discovering the dimensions and ordered scenarios, use the existing
+`e2e_coverage.py plan` for applicable constrained factor combinations. Ordinary
+pairwise strength is not exhaustive; known high-risk higher-order combinations
+remain mandatory. Use higher strength or exhaustive bounded matrices where
+needed. Invalid actions the product must reject are required negative tests,
+not infeasible exclusions. Exclude only proven impossible configurations.
+Budget failure requires explicit partition/budget/scope decisions retaining
+cross-feature journeys, never silent sampling or strength reduction.
 
 ```text
 python .specify/scripts/shared/e2e_coverage.py plan tests/e2e/coverage-manifest.json --root . --max-cases 1000
 ```
 
-Save stdout as a new run's `plan.json`; check the exit code first. Do not change
-case IDs, omit generated rows, lower interaction strength, or silently sample
-to fit a budget. Split a large model into auditable scopes only when cross-scope
-journeys are preserved, or explicitly agree the revised boundary. Every
-requirement must map to at least one executable journey; every generated case
-must become a parameterized runnable test with its stable `E2E-*` ID.
-
-## 3. Implement and Execute the Real Suite
-
-Reuse the actual runner, selectors, fixture conventions, isolation, and CI
-entrypoint. Implement missing cases and a deterministic runner-report adapter
-inside the declared test-asset scope. The adapter maps collected test IDs and
-actual attempts to generated case IDs, assertion requirements, test sources,
-and original evidence; it never synthesizes passing outcomes. Each selected
-case must have observable assertions for every referenced requirement.
-
-Compare runner **collection** with `plan.json` before execution. Fail on missing,
-unknown, or duplicate case IDs. Retain the entire denominator across shards;
-merge only disjoint shards from the exact same manifest, source/build,
-environment, and run identity. Missing shards remain `not_run`. A filtered smoke
-or changed-only run must not close a full manifest.
-
-Start from official product entrypoints and execute the commands, not simulated
-interactions or snippets disconnected from the application. Assert public
-outcomes and independent persistence/readback where relevant. Mocks needed for
-external sandbox boundaries must be explicit per journey, with the corresponding
-live integration gap retained. Preserve process exit codes and original runner
-reports, timestamps, test/build hashes, diagnostics, screenshots/traces when
-available, and cleanup outcomes. Do not let shell pipelines hide runner failure.
-
-Retain every attempt: fail-then-pass is `flaky`, not clean `passed`; disabled,
-quarantined, unsupported, blocked, skipped, and never-run tests are not passes.
-Repair test-harness issues within scope and rerun affected cases plus shared
-fixture regressions. Product defects remain failed with a reproduction and
-owner. After any relevant source/test/config change, refresh the manifest
-binding and rerun; previous evidence must not silently carry over.
-
-## 4. Audit Coverage and Close Truthfully
-
-Normalize only actual runner evidence into `results.json` and run:
-
-```text
-python .specify/scripts/shared/e2e_coverage.py audit tests/e2e/coverage-manifest.json --root . --results test-results/e2e/<run-id>/results.json --max-cases 1000
-```
-
-The helper independently rebuilds the case denominator and feasible interactions,
-checks source/test/evidence hashes, and reports missing cases and tuples. Exit 0
-means consistency and completion against **this frozen model**; exit 1 means
-incomplete execution; exit 2 means invalid/stale input. A planner exit 0 means
-`planned_only`, never tests passed. Do not overwrite previous run evidence or
-hand-edit the audit to change a claim.
-
-Have an independent read-only reviewer reconcile the original entrypoint and
-requirement inventories, constraints, negative/ordered journeys, assertions,
-runner collection, and report provenance. When an independent reviewer is
-unavailable, perform a second explicit audit pass and report that independence
-is unverified; do not claim independently audited completeness. The helper
-checks a supplied model and evidence bindings, not whether the model omitted a
-feature or whether a report is truthful.
-
-Report requirement coverage, planned/executed/passed cases, feasible t-way
-interaction coverage, mandatory risky combinations, skips/blocked/flaky cases,
-source freshness, discovery gaps, exclusions, and evidence refs separately.
-A bounded completion claim requires zero unresolved discovery gaps, all
-in-scope cases passed, all mandatory combinations exercised, fresh evidence,
-and the original runner succeeded. UI visual comparison that could not be
-performed remains `pending-human-review`, even with automation green.
-Never claim absolute completeness, release safety, or accepted product status.
-Formal delivery remains `tasks -> implement -> review -> accept`; E2E evidence
-is an additional input, not permission to bypass Review or human acceptance.
-
-At a blocked exit name stage, category, owner, exact cause, sanitized evidence,
-recovery attempted, affected IDs, next action, observable unblock criteria, and
-exact resume point. Agent-capable test-harness recovery stays agent-owned;
-never ask for secrets or make the user reconstruct state. On resume rerun the
-planner/hash checks before using old artifacts. Close Work only after the
-required validation; do not fabricate a terminal pass to release ownership.
-
-## Machine Input Contract
-
-The manifest has `schema_version: 1`, `scope`, `source_revision`, nonempty
-`sources: [{path, sha256}]`, `exclusions: [{scope, reason}]`,
-`requirements: [{id, source, assertion}]`, and
-`journeys: [{id, requirements, steps, factors, strength, exclude, mandatory}]`.
-`factors` maps names to nonempty arrays of distinct strings; `exclude` entries
-are `{when: {factor: value}, reason}`; `mandatory` entries are partial factor
-assignments. All paths in hashed file records are project-relative.
-
-Results have `schema_version: 1`, the planner's `manifest_sha256`, matching
-`source_revision`, actual `run_id`, `target`, `started_at`, `finished_at`,
-`command` argv, `exit_code`, `test_sources` and run-level `evidence` arrays of
-`{path, sha256}`, and `cases: [{id, status, test_ref, asserted_requirements,
-evidence}]`. Status is `passed|failed|skipped|blocked|not_run|flaky`. A passed case
-must bind its executable `test_ref` to a hashed test source, assert exactly its
-planned requirements, and cite nonempty hashed original evidence. Missing cases
-are `not_run`. These are ordinary test assets/results, **not** runtime-owned
-workflow state, publications, acceptance receipts, or a new runtime command.
-
-## Supplied Native Runner Adapters
-
-For serial pytest and Playwright Test, reuse
-`.specify/scripts/shared/e2e_runner.py` instead of authoring normalized passing
-results or rebuilding an adapter. Freeze a bindings JSON with `schema_version`,
-`manifest_sha256`, hashed `test_sources`, and a `cases` array containing every
-planned `id`, `test_ref`, `selector`, and `asserted_requirements`. The selector
-contains exactly one complete generated case ID. pytest uses its full nodeid;
-Playwright uses its exact test title plus the exact `project` name. Browser and
-project combinations require distinct planned IDs. Independently inspect the
-bound assertions; bindings are not proof of assertion quality.
+Preserve every generated E2E-* ID/variant and requirement mapping when expanding
+scenario cards or runnable tests. Independently reconcile the full generated
+case set to the scenario book; the scenario checker does not calculate t-way
+coverage. For runner execution compare actual collection with the complete plan,
+reject missing/unknown/duplicate IDs, and use the supplied e2e_runner.py for
+serial pytest or local Playwright Test. Do not rebuild a supported adapter or
+install a runner without authorization. Keep native reports, actual argv and exit
+status, timestamps, test_sources hashes, manifest_sha256 and source_revision.
+The native wrapper checks before/after source/test bytes and retains all phases,
+retries and global failures. It does not support distributed pytest or shard
+merging; a partial shard cannot close a full manifest. Other harnesses require
+validated adapters. Never let shell pipelines hide runner failure.
 
 ```text
 python .specify/scripts/shared/e2e_runner.py tests/e2e/coverage-manifest.json --bindings tests/e2e/bindings.json --root . --runner pytest --target local-test-build --output-dir test-results/e2e/run-001 -- tests/e2e -q
-python .specify/scripts/shared/e2e_runner.py tests/e2e/coverage-manifest.json --bindings tests/e2e/bindings.json --root . --runner playwright --target local-test-build --output-dir test-results/e2e/run-002 -- node node_modules/@playwright/test/cli.js test tests/e2e
+python .specify/scripts/shared/e2e_coverage.py audit tests/e2e/coverage-manifest.json --root . --results test-results/e2e/run-001/results.json --max-cases 1000
 ```
 
-Use only an already installed, authorized runner and a new output directory.
-The wrapper preserves native reports, all pytest phases/attempts, actual process
-exit status, and fresh source/test bindings, then runs the coverage audit.
-Untracked collected tests, stale evidence, duplicates, and missing reports fail
-closed. It does not support distributed pytest or shard merging; a partial
-shard cannot complete a full manifest. Other harnesses require an explicitly
-validated adapter. Do not silently install missing helpers or runners, fall back
-to invented results, or treat these adapters as product acceptance.
+A scenario trace cannot override a failed native audit or certify t-way coverage.
+These optional adapters are implementation choices, not entry gates for clients.
+
+## 5. Independent Review and Truthful Closeout
+
+Independently reconcile the original operation/requirement inventory, assumptions,
+applicability decisions, boundaries, negative cases, event order, compound risks,
+assertions, original observations and constraints. If no independent reviewer
+exists, perform a documented second pass and retain the unverified-independence
+qualification. Machine checks cannot prove that a feature or oracle was not
+omitted. Test design completeness, execution coverage, observed outcomes,
+combination coverage and visual/interaction acceptance are separate claims.
+
+An explicit planning-only request returns the book and design gaps without
+pretending execution occurred. Otherwise continue through feasible execution;
+missing interaction/observation tools leave named execution blockers, not a
+reason to abandon test design. Final reports include all failed/skipped/blocked/
+flaky/not_run IDs, discovery gaps, exclusions, evidence refs and fresh hashes.
+Missing visual comparison remains pending-human-review. Never claim absolute
+completeness, product acceptance or release safety. Formal delivery remains
+`tasks -> implement -> review -> accept`; E2E is additional evidence, not a bypass.
+
+At a blocked exit preserve stage, category, owner, exact cause, sanitized evidence,
+attempted recovery, affected IDs, next action, observable unblock criteria and
+exact resume point. Keep agent-capable repair agent-owned; never request secrets
+or ask the user to reconstruct runtime state. Resume by checking source/book
+hashes and obligations; do not reuse stale evidence or silently retarget scope.
+Close Work only after its actual supported verification, never a fabricated pass.

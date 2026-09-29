@@ -1,6 +1,6 @@
 interface:
   display_name: "SPX E2E"
-  short_description: "Run end-to-end tests with auditable combination coverage"
-  default_prompt: "Use $spx-e2e to discover the test scope, implement and run real E2E journeys, and audit requirement, combination, and execution gaps."
+  short_description: "Design scenario coverage and verify real client journeys"
+  default_prompt: "Use $spx-e2e to derive operation-level abnormal, boundary, state-change and timing scenarios, then execute using available visual-model tools or suitable runners and report every gap."
 policy:
   allow_implicit_invocation: false
