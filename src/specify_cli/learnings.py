@@ -2,6 +2,7 @@
     "sp-deep-research",
     "sp-design",
     "sp-discussion",
+    "sp-e2e",
     "sp-explain",
     "sp-fast",
     "sp-implement",

@@ -2,6 +2,7 @@
     "debug",
     "deep-research",
     "discussion",
+    "e2e",
     "explain",
     "implement",
     "map-scan",
