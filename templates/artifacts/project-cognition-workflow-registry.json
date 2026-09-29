@@ -52,6 +52,11 @@
       "canonical_workflow": null,
       "reason": "Discussion writes planning state only."
     },
+    "e2e": {
+      "mode": "mutation_closeout",
+      "canonical_workflow": "sp-e2e",
+      "reason": "E2E may change scoped test assets; product behavior and acceptance remain outside its write boundary."
+    },
     "explain": {
       "mode": "no_closeout",
       "canonical_workflow": null,
