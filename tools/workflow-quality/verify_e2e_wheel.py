@@ -12,9 +12,12 @@ import csv
 import hashlib
 import io
 import json
+import os
 from pathlib import Path, PurePosixPath
+import stat
 import sys
 import zipfile
+from typing import BinaryIO
 
 HELPERS = ("e2e_scenarios.py", "e2e_coverage.py", "e2e_runner.py", "e2e_pytest_reporter.py")
 ASSET_TREES = {
@@ -77,33 +80,73 @@ def read_record(archive: zipfile.ZipFile) -> dict[str, tuple[str, str]]:
     return result
 
 
+def _file_signature(value: os.stat_result) -> tuple[int, ...]:
+    return (value.st_dev, value.st_ino, value.st_mode, value.st_size,
+            value.st_mtime_ns, value.st_ctime_ns)
+
+
+def _check_wheel_snapshot(wheel: Path, stream: BinaryIO, expected: os.stat_result) -> None:
+    """Check both the opened descriptor and the current named file."""
+    for current in (os.fstat(stream.fileno()), wheel.stat()):
+        require(stat.S_ISREG(current.st_mode), "wheel must be a regular file")
+        require(_file_signature(current) == _file_signature(expected),
+                "wheel changed during verification; rebuild or retry on a stable file")
+
+
+def _stream_sha256(stream: BinaryIO) -> str:
+    """Hash the checked descriptor in bounded chunks, never reopen its path."""
+    stream.seek(0)
+    result = hashlib.sha256()
+    for chunk in iter(lambda: stream.read(65536), b""):
+        result.update(chunk)
+    stream.seek(0)
+    return result.hexdigest()
+
+
 def verify_wheel(wheel: Path, root: Path) -> dict:
     expected = source_assets(root)
     checked = []
-    with zipfile.ZipFile(wheel) as archive:
-        names = archive.namelist()
-        require(len(names) == len(set(names)), "duplicate ZIP member")
-        for name in names:
-            clean = name.rstrip("/")
-            path = PurePosixPath(clean)
-            require(bool(clean) and not path.is_absolute() and ".." not in path.parts
-                    and "\\" not in name and ":" not in name and path.as_posix() == clean,
-                    f"noncanonical ZIP member: {name}")
-        record = read_record(archive)
-        for name, wanted in sorted(expected.items()):
-            require(name in names, f"missing wheel asset: {name}")
-            info = archive.getinfo(name)
-            require(info.file_size == len(wanted), f"wheel asset size mismatch: {name}")
-            actual = archive.read(name)
-            require(actual == wanted, f"wheel asset bytes mismatch: {name}")
-            encoded = base64.urlsafe_b64encode(hashlib.sha256(actual).digest()).rstrip(b"=").decode("ascii")
-            require(record.get(name) == ("sha256=" + encoded, str(len(actual))),
-                    f"RECORD hash/size mismatch: {name}")
-            checked.append({"path": name, "sha256": sha256(actual), "size": len(actual)})
+    before = wheel.stat()
+    require(stat.S_ISREG(before.st_mode), "wheel must be a regular file")
+    # Nonblocking open prevents an observed regular file swapped for a FIFO
+    # from hanging on POSIX. O_BINARY keeps archive bytes unchanged on Windows.
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
+    with os.fdopen(os.open(wheel, flags), "rb") as stream:
+        _check_wheel_snapshot(wheel, stream, before)
+        wheel_digest = _stream_sha256(stream)
+        with zipfile.ZipFile(stream) as archive:
+            names = archive.namelist()
+            require(len(names) == len(set(names)), "duplicate ZIP member")
+            for name in names:
+                clean = name.rstrip("/")
+                path = PurePosixPath(clean)
+                require(bool(clean) and not path.is_absolute() and ".." not in path.parts
+                        and "\\" not in name and ":" not in name and path.as_posix() == clean,
+                        f"noncanonical ZIP member: {name}")
+            record = read_record(archive)
+            for name, wanted in sorted(expected.items()):
+                require(name in names, f"missing wheel asset: {name}")
+                info = archive.getinfo(name)
+                require(info.file_size == len(wanted), f"wheel asset size mismatch: {name}")
+                actual = archive.read(name)
+                require(actual == wanted, f"wheel asset bytes mismatch: {name}")
+                encoded = base64.urlsafe_b64encode(hashlib.sha256(actual).digest()).rstrip(b"=").decode("ascii")
+                require(record.get(name) == ("sha256=" + encoded, str(len(actual))),
+                        f"RECORD hash/size mismatch: {name}")
+                checked.append({"path": name, "sha256": sha256(actual), "size": len(actual)})
+        _check_wheel_snapshot(wheel, stream, before)
+        require(_stream_sha256(stream) == wheel_digest,
+                "wheel bytes changed during verification")
+        # Re-enumeration also catches newly added/removed required references;
+        # rechecking only the old file list could silently shrink the boundary.
+        require(source_assets(root) == expected,
+                "source assets changed during verification; rebuild the wheel")
+        _check_wheel_snapshot(wheel, stream, before)
     return {
-        "claim": "wheel_e2e_assets_verified", "wheel_sha256": sha256(wheel.read_bytes()),
+        "claim": "wheel_e2e_assets_verified", "wheel_sha256": wheel_digest,
         "asset_count": len(checked), "assets": checked,
-        "qualification": "Source/archive/RECORD consistency only; not installation, execution or product acceptance.",
+        "qualification": "Source/archive/RECORD consistency only; not installation, execution or product acceptance. "
+                         "Observed stability checks are not an atomic snapshot or a hostile-writer sandbox.",
     }
 
 

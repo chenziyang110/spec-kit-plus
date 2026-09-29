@@ -65,6 +65,7 @@ jobs:
         run: >-
           uv run pytest tests/integrations/test_e2e_installation.py
           tests/test_e2e_registration.py tests/test_e2e_wheel_verifier.py
+          tests/test_e2e_wheel_snapshot.py
           --junitxml="$E2E_WORK/installation-results.xml" -q
       - name: Reject missing, skipped or failing installation results
         run: |
@@ -97,9 +98,11 @@ jobs:
       - name: Exercise wheel-only init, both upgrade orders, user edits and repair
         run: |
           wheels=("$E2E_WORK"/dist/*.whl)
+          wheel_sha="$(python -c 'import json, os; from pathlib import Path; print(json.loads((Path(os.environ["E2E_WORK"]) / "wheel-assets.json").read_text(encoding="utf-8"))["wheel_sha256"])')"
           "$E2E_WHEEL_PYTHON" -I tests/e2e_samples/wheel_install_probe.py \
             --wheel "${wheels[0]}" --runtime "$E2E_RUNTIME" \
-            --output "$E2E_WORK/probe" --expected-revision "$(git rev-parse HEAD)"
+            --output "$E2E_WORK/probe" --expected-revision "$(git rev-parse HEAD)" \
+            --expected-wheel-sha256 "$wheel_sha"
       - name: Preserve results, including partial execution diagnostics
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

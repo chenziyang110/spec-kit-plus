@@ -20,7 +20,8 @@ Run with the repository's declared Python/Go toolchains:
 ```sh
 uv sync --frozen --extra test
 uv run pytest tests/integrations/test_e2e_installation.py \
-  tests/test_e2e_registration.py tests/test_e2e_wheel_verifier.py
+  tests/test_e2e_registration.py tests/test_e2e_wheel_verifier.py \
+  tests/test_e2e_wheel_snapshot.py
 ```
 
 ## Archive verification
@@ -76,6 +77,7 @@ Example after creating and populating the wheel-only virtualenv:
   --wheel /tmp/e2e-wheel-dist/<built-wheel>.whl \
   --runtime /tmp/specify-runtime \
   --expected-revision "$(git rev-parse HEAD)" \
+  --expected-wheel-sha256 "<wheel_sha256 from wheel-assets.json>" \
   --output /tmp/e2e-wheel-run-001
 ```
 
@@ -87,6 +89,35 @@ codes in `commands.json` and separate logs. Only a successful whole probe writes
 `result.json`; failures retain `error.json` and whatever diagnostics exist.
 The test-local dirty-build allowance follows the existing runtime test fixture;
 it does not authorize publishing a dirty or mismatched runtime.
+
+## Input identity across verification stages
+
+The archive verifier keeps one regular-file descriptor open throughout member
+validation. It hashes that descriptor in bounded chunks before and after the
+ZIP reads and rechecks both descriptor metadata and the current named file.
+It also re-enumerates the selected source assets before returning, so edits,
+removals and newly added references during validation invalidate the result.
+The reported wheel digest comes from the checked descriptor, never a new
+pathname read after the archive has closed.
+
+Pass `--expected-wheel-sha256` from the source/archive report into the installed
+probe. CI supplies this binding explicitly. Standalone callers may omit it for
+compatibility, but then establish only a probe-local wheel binding, not continuity
+with an earlier archive report. In either mode the probe freezes the wheel hash,
+checks the original installed asset bytes before and after all project operations,
+and reports the original hash only when the checks succeed. A wheel replaced
+between archive verification and the probe fails before any project is initialized.
+These are observed stability checks, not an atomic snapshot or protection against
+a hostile process deliberately coordinating undetectable changes. Use isolated
+build directories and do not rewrite inputs during verification.
+
+The snapshot repair reproduced two false-success cases in the previous verifier:
+replacement of the wheel after ZIP reads, and a source edit after inventory.
+Both now fail closed. The original 29 verifier/probe-guard tests are unchanged;
+24 new snapshot, binding and CLI checks bring the focused local run to 53 passes,
+zero skips on Linux/Python 3.13.5/pytest 9.0.2. Archive/source payloads remain
+explicitly synthetic; the tests synchronize actual temporary-file mutations.
+This is not a completed Specify wheel installation or native-platform CI pass.
 
 ## CI and evidence boundaries
 

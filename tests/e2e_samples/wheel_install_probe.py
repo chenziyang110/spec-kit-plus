@@ -33,6 +33,27 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def freeze_wheel_hash(wheel: Path, expected: str | None = None) -> str:
+    """Optionally bind the probe to the preceding source/archive check."""
+    if expected is not None:
+        require(len(expected) == 64 and all(c in "0123456789abcdef" for c in expected),
+                "expected wheel SHA-256 must be 64 lowercase hexadecimal characters")
+    actual = digest(wheel)
+    require(expected is None or actual == expected,
+            "wheel differs from the source/archive verification report")
+    return actual
+
+
+def verify_asset_snapshot(wheel: Path, wheel_hash: str, package: Path,
+                          assets: dict[str, bytes]) -> None:
+    """Check observed input stability; this is not an atomic snapshot."""
+    require(digest(wheel) == wheel_hash, "wheel changed during installation verification")
+    for name, expected in assets.items():
+        actual = package.parent / name
+        require(actual.is_file() and actual.read_bytes() == expected,
+                f"installed assets changed during verification: {name}")
+
+
 def installed_assets(wheel: Path) -> tuple[Path, dict[str, bytes]]:
     """Refuse editable/source imports even when their version strings match."""
     require(sys.flags.isolated == 1, "launch the wheel interpreter with -I")
@@ -77,9 +98,12 @@ def clean_environment(output: Path, runtime: Path) -> dict[str, str]:
     return env
 
 
-def run_probe(wheel: Path, runtime: Path, output: Path, expected_revision: str) -> dict:
+def run_probe(wheel: Path, runtime: Path, output: Path, expected_revision: str,
+              expected_wheel_sha256: str | None = None) -> dict:
     require(runtime.is_file(), "missing locally built runtime")
+    wheel_hash = freeze_wheel_hash(wheel, expected_wheel_sha256)
     package, assets = installed_assets(wheel)
+    verify_asset_snapshot(wheel, wheel_hash, package, assets)
     from specify_cli.integrations.manifest import IntegrationManifest
     from specify_cli.specify_runtime import project_runtime_launcher_arg
     runtime_hash = digest(runtime)
@@ -185,7 +209,8 @@ def run_probe(wheel: Path, runtime: Path, output: Path, expected_revision: str) 
             run(cli + ["integration", "repair"], project, "repair")
             verify(project, {first, second}, edits)
             completed.append({"script_type": script_type, "order": [first, second], "repair": "verified"})
-    return {"claim": "installed_e2e_wheel_verified", "wheel_sha256": digest(wheel),
+    verify_asset_snapshot(wheel, wheel_hash, package, assets)
+    return {"claim": "installed_e2e_wheel_verified", "wheel_sha256": wheel_hash,
             "runtime_sha256": runtime_hash, "source_revision": expected_revision,
             "package_root": str(package), "python": sys.version, "cases": completed,
             "qualification": "Wheel/init/upgrade/repair verification only; not native shell execution, GUI perception or product acceptance."}
@@ -196,12 +221,15 @@ def main(argv: list[str] | None = None) -> int:
     for name in ("wheel", "runtime", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--expected-revision", required=True)
+    parser.add_argument("--expected-wheel-sha256",
+                        help="wheel_sha256 from the preceding source/archive verification report")
     args = parser.parse_args(argv)
     output = args.output.resolve()
     require(not output.is_relative_to(Path(__file__).resolve().parents[2]), "probe output must be outside the source checkout")
     output.mkdir(parents=True, exist_ok=False)
     try:
-        result = run_probe(args.wheel.resolve(), args.runtime.resolve(), output, args.expected_revision)
+        result = run_probe(args.wheel.resolve(), args.runtime.resolve(), output, args.expected_revision,
+                           args.expected_wheel_sha256)
     except (OSError, ValueError, RuntimeError, KeyError, ImportError, subprocess.SubprocessError, zipfile.BadZipFile) as exc:
         (output / "error.json").write_text(json.dumps({"claim": "failed", "error": str(exc)}, indent=2) + "\n", encoding="utf-8")
         print(str(exc), file=sys.stderr)
