@@ -118,15 +118,47 @@ checks, not remote attestation or proof of complete discovery. Keep independent
 inventory/assertion review, explicit discovery gaps, external-boundary gaps,
 visual acceptance, and the existing Review/Accept gates.
 
+## Empty selection is still an accounted run
+
+For serial pytest, a fresh native report with `collected: []`, no events or
+collection/internal errors, and matching process/report exit code 5 (no tests
+collected) is **incomplete**, not malformed evidence. An explicit harness that
+normalizes that exit to 0 still receives no coverage credit. Every frozen case
+appears as `not_run` in `coverage.json`, together with missing requirements and
+interactions; `results.json` retains an empty actual-case list. The wrapper exits
+1 and preserves the original runner exit code, report, log and hashes.
+
+This covers a `-k` expression that matches nothing, deselecting every case,
+filtered collect-only execution, and a module-level skip that collects no tests.
+A skipped module does not prove that any individual frozen case executed: its
+reason remains in the original runner log while those cases remain `not_run`.
+Correct the selection or capability gap and run again into a new output directory;
+do not remove the missing cases from the manifest to get a passing report.
+
+Missing or malformed collection fields, foreign run IDs, exit mismatches,
+collection/internal errors, events for uncollected cases, and other error exits
+remain invalid. Missing reports and timeouts still fail closed. The Playwright
+adapter's empty-report validation is unchanged; no equivalent native collection
+proof is inferred from an empty Playwright report.
+
 ## Verification boundary
 
-`tests/test_e2e_runner.py` has 48 tests at this revision. Linux/Python 3.13.5/
-pytest 9.0.2 was used for the local run. The sample is a disposable CLI backed by
+`tests/test_e2e_runner.py` contains the original 48 tests plus 19 empty-selection
+and error-preservation regressions. Linux/Python 3.13.5/pytest 9.0.2 was used for
+the local run. The sample is a disposable CLI backed by
 SQLite, exercised through real subprocess entrypoints for role denial and
 idempotent repeated submission. It does not modify or verify a user product.
 Playwright cases are explicitly labeled parser fixtures; no browser was run.
 Full repository, installation, wheel, Go, Python 3.11/3.12, and native Windows/
 macOS verification remain separate readiness gates.
+
+The 67 runner checks were also executed in one invocation with the unchanged
+34 desktop-sample and four desktop/native-runner checks under required Xvfb:
+**105 passed, zero skipped**. Six new real-process/CLI reproductions first failed
+against the previous runner with `pytest collection: empty array`; after repair
+they preserve all four planned cases as not-run and keep pytest's exit code 5.
+This is focused runner/client validation in a partial source workspace, not a
+full dependency installation, scenario-v2/model-perception pass or cloud CI.
 
 The native Playwright contract follows its official
 [JSON reporter documentation](https://playwright.dev/docs/test-reporters#json-reporter)

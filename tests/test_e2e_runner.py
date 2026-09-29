@@ -342,3 +342,97 @@ def test_unknown_collection_is_not_ignored(project):
               "errors": [], "collected": ["test_app.py::untracked_test"], "events": []}
     with pytest.raises(coverage.CoverageError, match="exactly one"):
         runner.pytest_outcomes(report, bindings, "fixture", 0)
+
+
+@pytest.mark.parametrize("selection", ["filter", "collect-only", "deselect-all", "module-skip"])
+def test_empty_native_selection_preserves_every_planned_gap(project, selection):
+    """A real empty pytest run is valid incomplete evidence, not a lost ledger."""
+    root, model, planned, bindings = project
+    if selection == "module-skip":
+        path = root / "test_app.py"
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "PARAMS =", 'pytest.skip("fixture module unavailable", allow_module_level=True)\nPARAMS =',
+        ), encoding="utf-8")
+        bindings["test_sources"] = [runner.file_record(root, "test_app.py")]
+        extra = []
+    elif selection == "deselect-all":
+        extra = [arg for binding in bindings["cases"]
+                 for arg in ("--deselect", binding["selector"])]
+    else:
+        extra = ["-k", "nothing_matches_this_selection"]
+        if selection == "collect-only":
+            extra.append("--collect-only")
+    report = launch(project, extra=extra)
+    assert report["claim"] == "incomplete"
+    assert report["statuses"]["not_run"] == len(planned["cases"]) == 4
+    assert report["statuses"]["passed"] == 0
+    assert {gap["id"] for gap in report["gaps"]} == {case["id"] for case in planned["cases"]}
+    assert report["requirements"]["missing"] == ["R1"]
+    assert report["journeys"][0]["missing_interactions"]
+    native = coverage.load(root / "test-results/run/native-report.json")
+    saved = coverage.load(root / "test-results/run/results.json")
+    assert native["collected"] == [] and native["events"] == []
+    assert native["exit_code"] == saved["exit_code"] == report["runner_exit_code"] == 5
+    assert saved["cases"] == []  # Never manufacture execution records for the gaps.
+    coverage.verify_files(root, saved["evidence"], "empty-run evidence")
+    assert coverage.audit(model, saved, root) == report
+    assert coverage.load(root / "test-results/run/coverage.json") == report
+    assert not (root / "test-results/run/error.json").exists()
+    assert not list(root.rglob("orders.db"))
+
+
+@pytest.mark.parametrize("optimized", [False, True])
+def test_empty_selection_wrapper_cli_returns_incomplete_not_invalid(project, optimized):
+    root = project[0]
+    command = [sys.executable, *(["-O"] if optimized else []), str(SHARED / "e2e_runner.py"),
+               str(root / "manifest.json"), "--bindings", str(root / "bindings.json"),
+               "--root", str(root), "--runner", "pytest", "--target", "empty-selection-fixture",
+               "--output-dir", "test-results/empty-cli", "--", "test_app.py", "-q",
+               "-k", "nothing_matches_this_selection"]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 1, result.stderr
+    report = json.loads(result.stdout)
+    assert report["claim"] == "incomplete"
+    assert report["statuses"]["not_run"] == 4
+    assert report["runner_exit_code"] == 5
+
+
+@pytest.mark.parametrize("exit_code", [0, 5])
+def test_empty_native_collection_parser_keeps_no_execution_records(project, exit_code):
+    # Parser fixture: a harness may explicitly normalize an empty run to exit 0.
+    bindings = {item["id"]: item for item in project[3]["cases"]}
+    native = {"schema_version": 1, "runner": "pytest", "run_id": "fixture",
+              "exit_code": exit_code, "errors": [], "collected": [], "events": []}
+    assert runner.pytest_outcomes(native, bindings, "fixture", exit_code) == {}
+
+
+@pytest.mark.parametrize("mutation", ["missing", "wrong-type", "collection-error", "event", "stale", "exit-mismatch"])
+def test_empty_collection_does_not_accept_invalid_native_evidence(project, mutation):
+    bindings = {item["id"]: item for item in project[3]["cases"]}
+    native = {"schema_version": 1, "runner": "pytest", "run_id": "fixture",
+              "exit_code": 5, "errors": [], "collected": [], "events": []}
+    if mutation == "missing":
+        del native["collected"]
+    elif mutation == "wrong-type":
+        native["collected"] = {}
+    elif mutation == "collection-error":
+        native["errors"] = ["test_app.py"]
+    elif mutation == "event":
+        binding = next(iter(bindings.values()))
+        native["events"] = [{"nodeid": binding["selector"], "file": "test_app.py",
+                             "phase": "call", "outcome": "passed", "wasxfail": False}]
+    elif mutation == "stale":
+        native["run_id"] = "another-run"
+    else:
+        native["exit_code"] = 0
+    with pytest.raises(coverage.CoverageError):
+        runner.pytest_outcomes(native, bindings, "fixture", 5)
+
+
+@pytest.mark.parametrize("exit_code", [1, 2, 3, 4, -9])
+def test_empty_collection_error_exits_remain_invalid(project, exit_code):
+    bindings = {item["id"]: item for item in project[3]["cases"]}
+    native = {"schema_version": 1, "runner": "pytest", "run_id": "fixture",
+              "exit_code": exit_code, "errors": [], "collected": [], "events": []}
+    with pytest.raises(coverage.CoverageError):
+        runner.pytest_outcomes(native, bindings, "fixture", exit_code)

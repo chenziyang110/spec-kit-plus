@@ -102,7 +102,15 @@ def pytest_outcomes(report: dict, bindings: dict, run_id: str, exit_code: int) -
     coverage.require(type(report.get("exit_code")) is int and report["exit_code"] == exit_code,
                      "pytest report/process exit mismatch")
     coverage.require(report.get("errors") == [], "pytest collection or internal error; see runner.log")
-    collected = coverage.unique_strings(report.get("collected"), "pytest collection")
+    collected = coverage.array(report.get("collected"), "pytest collection", nonempty=False)
+    if collected:
+        collected = coverage.unique_strings(collected, "pytest collection")
+    else:
+        # No selected tests is a real outcome, not malformed native evidence.
+        # Keep every planned case not_run in the coverage audit, including when
+        # a harness normalizes pytest's NO_TESTS_COLLECTED (5) to success (0).
+        # Usage, interruption and internal-error exits must still fail closed.
+        coverage.require(exit_code in {0, 5}, "pytest empty collection has an error exit; see runner.log")
     collected_ids = {match_binding(bindings, title, title.split("::", 1)[0]) for title in collected}
     grouped = defaultdict(list)
     for event in coverage.array(report.get("events"), "pytest events", nonempty=False):
