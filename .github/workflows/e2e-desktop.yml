@@ -1,0 +1,62 @@
+name: E2E desktop sample
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - 'tests/e2e_samples/**'
+      - 'tests/test_e2e_desktop_sample.py'
+      - '.github/workflows/e2e-desktop.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-desktop-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/specify-runtime/go.mod
+          cache-dependency-path: tools/specify-runtime/go.sum
+      - name: Install display support
+        run: sudo apt-get update && sudo apt-get install -y xvfb xauth python3-tk
+      - name: Install repository test environment
+        run: uv sync --extra test
+      - name: Bind evidence to source
+        run: git rev-parse HEAD > desktop-source.txt
+      - name: Run real Tk event-loop and filesystem checks
+        env:
+          SPECIFY_E2E_REQUIRE_DESKTOP: '1'
+          PYTEST_ADDOPTS: ''
+        run: xvfb-run -a uv run pytest tests/test_e2e_desktop_sample.py --junitxml=desktop-results.xml
+      - name: Reject empty or skipped sample execution
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          cases = list(ET.parse('desktop-results.xml').getroot().iter('testcase'))
+          assert cases, 'No desktop cases were executed'
+          for case in cases:
+              assert not any(case.find(tag) is not None for tag in ('skipped', 'failure', 'error')), case.attrib
+          print(f'{len(cases)} desktop/sample cases executed without failures or skips')
+          PY
+      - name: Preserve actual results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-desktop-${{ github.run_attempt }}
+          path: |
+            desktop-source.txt
+            desktop-results.xml
+          retention-days: 14
+          if-no-files-found: error
