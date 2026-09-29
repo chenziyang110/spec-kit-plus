@@ -1,6 +1,7 @@
         "constitution",
         "debug",
         "deep-research",
+        "e2e",
         "explain",
         "fast",
         "implement",

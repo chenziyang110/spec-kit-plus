@@ -1,6 +1,7 @@
         "explain",
         "debug",
         "deep-research",
+        "e2e",
         "plan",
         "tasks",
         "test-design",

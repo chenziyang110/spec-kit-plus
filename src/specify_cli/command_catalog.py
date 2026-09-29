@@ -1,4 +1,5 @@
         "discussion.validate-handoff",
+        "e2e",
         "eval.status",
         "extension.catalog.list",
         "extension.info",
