@@ -55,9 +55,9 @@ Pairwise factors do not discover missing conditions or establish event order.
 
 ```text
 python .specify/scripts/shared/e2e_scenarios.py catalog
-python .specify/scripts/shared/e2e_scenarios.py schema
-python .specify/scripts/shared/e2e_scenarios.py derive tests/e2e/scenarios.json --root .
-python .specify/scripts/shared/e2e_scenarios.py check tests/e2e/scenarios.json --root .
+python .specify/scripts/shared/e2e_scenarios.py schema --schema-version 2
+python .specify/scripts/shared/e2e_scenarios.py derive tests/e2e/scenarios.json --root . --require-v2
+python .specify/scripts/shared/e2e_scenarios.py check tests/e2e/scenarios.json --root . --require-v2
 ```
 
 Decide every catalog dimension for every operation, with concrete source-backed
@@ -85,6 +85,24 @@ Prioritize risk without deleting the unexecuted denominator. Explicit
 planning-only requests stop after the book; otherwise continue through feasible
 execution and retain concrete capability blockers for the remainder.
 
+## Condition-level denominator
+
+New books use `schema_version: 2` and source/requirement-bound `conditions`.
+Enumerate `variants: [{id, input, expected}]` for partition/state/rule/sequence/
+example families. A boundary declares `{limit, unit, expectations: {below, at,
+above}}` under `boundary`; derive L-1/L/L+1 in the verified discrete unit, never
+guess a universal filename limit or an unknown oracle. Every applicable
+dimension needs a family unless event x checkpoint accounting already owns it.
+
+Every scenario includes `condition_bindings: [{condition, variant, step_ids,
+oracle_ids}]`: ordered stimulus IDs and exact outcome assertions, with distinct
+steps/oracles for sibling variants. Labels alone cannot close a dimension.
+Use `--require-v2` on all book gates; v1 remains explicit legacy inspection,
+not a downgrade escape. New conditions invalidate the book/trace binding and
+need fresh execution. Report condition_coverage and timing_coverage separately;
+failed/skipped/blocked/not_run/flaky scenarios never credit clean coverage.
+Neither equality checks nor accounting prove semantic or perceptual truth.
+
 ## Execute with visual tools or an appropriate runner
 
 Select visual, runner, hybrid or human execution per card. For clients prefer
@@ -106,7 +124,7 @@ new immutable run with actual target/build, capture times, step/oracle evidence,
 and cleanup; do not convert visual observations into invented runner output.
 
 ```text
-python .specify/scripts/shared/e2e_scenarios.py audit tests/e2e/scenarios.json --root . --trace test-results/e2e/run-001/trace.json
+python .specify/scripts/shared/e2e_scenarios.py audit tests/e2e/scenarios.json --root . --trace test-results/e2e/run-001/trace.json --require-v2
 ```
 
 The audit checks book_sha256, source_revision, current source/evidence hashes,

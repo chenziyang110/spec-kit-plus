@@ -72,7 +72,7 @@ Use the installed Python 3.11+ interpreter to retrieve the shared question set:
 
 ```text
 python .specify/scripts/shared/e2e_scenarios.py catalog
-python .specify/scripts/shared/e2e_scenarios.py schema
+python .specify/scripts/shared/e2e_scenarios.py schema --schema-version 2
 ```
 
 For **every operation**, decide applicability for `happy_path`,
@@ -123,8 +123,8 @@ and cleanup. Each oracle names an assertion and how to observe it. Keep clear
 expected and actual observations in different records.
 
 ```text
-python .specify/scripts/shared/e2e_scenarios.py derive tests/e2e/scenarios.json --root .
-python .specify/scripts/shared/e2e_scenarios.py check tests/e2e/scenarios.json --root .
+python .specify/scripts/shared/e2e_scenarios.py derive tests/e2e/scenarios.json --root . --require-v2
+python .specify/scripts/shared/e2e_scenarios.py check tests/e2e/scenarios.json --root . --require-v2
 ```
 
 `derive` expands timing obligations and exposes gaps; it does not invent correct
@@ -132,6 +132,33 @@ scenarios. `check` verifies declared accounting. `scenario_design_ready` is only
 planning readiness, never tests passed. Review the generated gaps, author missing
 scenarios, and rerun. Preserve high-risk compound situations explicitly; budgets
 may prioritize execution but must never remove the unexecuted denominator.
+
+### Concrete condition coverage, not dimension labels
+
+Author new books as `schema_version: 2`. Add `conditions` with stable ID,
+operation, dimension, kind, title, bound source_refs and requirements. For
+`partition`, `state`, `rule`, `sequence` or `example`, enumerate distinct
+`variants: [{id, input, expected}]`. A `boundary` instead declares
+`boundary: {limit, unit, expectations: {below, at, above}}`; the helper derives
+L-1, L and L+1 as distinct obligations in that verified discrete unit. It does
+not generate suitable strings or choose the expected business rule. Unknown
+limits, units, variants or outcomes remain discovery gaps, not guessed values.
+
+Every scenario has `condition_bindings: [{condition, variant, step_ids,
+oracle_ids}]`. Bind the actual stimulus steps in order and specific oracle IDs;
+at least one bound oracle assertion must exactly equal the variant's expected
+outcome. Sibling variants need distinct steps and oracles; a generic happy-path
+step cannot satisfy all boundary points. Every applicable dimension needs a
+condition family, except timing already accounted by event x checkpoint pairs.
+A scenario's dimension label without a condition or timing binding remains a gap.
+
+Use `--require-v2` at every derive/check/audit gate. The helper retains v1 reads
+for explicit legacy inspection only; never silently downgrade, relabel a v1 book,
+or carry old trace observations into new conditions. Author missing conditions,
+rebind the whole book and run fresh evidence. Report `condition_coverage` and
+`timing_coverage` separately: only cleanly passed scenarios credit obligations;
+failed/skipped/blocked/not_run/flaky variants remain visible. These checks bind
+declared semantics, not proof of correct discovery, perception or t-way coverage.
 
 ## 3. Execute Through the Available Product Surface
 
@@ -161,7 +188,7 @@ run IDs, actual target/build identity, capture times, hashes, action observation
 oracle observations and cleanup in a new run-specific trace.
 
 ```text
-python .specify/scripts/shared/e2e_scenarios.py audit tests/e2e/scenarios.json --root . --trace test-results/e2e/run-001/trace.json
+python .specify/scripts/shared/e2e_scenarios.py audit tests/e2e/scenarios.json --root . --trace test-results/e2e/run-001/trace.json --require-v2
 ```
 
 Bind book_sha256 to the exact scenario book. This is a visual/mixed trace

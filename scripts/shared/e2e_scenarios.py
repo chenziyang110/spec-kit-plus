@@ -119,8 +119,11 @@ def stamp(value: Any) -> datetime:
 
 
 def structure(book: dict, root: Path) -> tuple[dict, dict, dict, list]:
-    obj(book, "schema_version scope source_revision sources requirements operations scenarios discovery_gaps exclusions", "book")
-    need(type(book.get("schema_version")) is int and book["schema_version"] == 1, "book: schema_version must be 1")
+    need(isinstance(book, dict), "book: object required")
+    version = book.get("schema_version")
+    need(type(version) is int and version in {1, 2}, "book: schema_version must be 1 or 2")
+    obj(book, "schema_version scope source_revision sources requirements operations scenarios discovery_gaps exclusions"
+        + (" conditions" if version == 2 else ""), "book")
     text(book.get("scope"), "scope")
     text(book.get("source_revision"), "source_revision")
     source_paths = files(book.get("sources"), root)
@@ -168,7 +171,8 @@ def structure(book: dict, root: Path) -> tuple[dict, dict, dict, list]:
                 need(len(obligations) <= MAX_RECORDS, "timing obligation budget exceeded; split scope explicitly")
     scenarios = indexed(book.get("scenarios"), "scenarios", False)
     for identity, scenario in scenarios.items():
-        obj(scenario, "id operation title dimensions requirements technique priority preconditions steps perturbations oracles execution cleanup safety", identity)
+        obj(scenario, "id operation title dimensions requirements technique priority preconditions steps perturbations oracles execution cleanup safety"
+            + (" condition_bindings" if version == 2 else ""), identity)
         operation_id = text(scenario.get("operation"), f"{identity}.operation")
         need(operation_id in operations, f"{identity}: unknown operation")
         operation = operations[operation_id]
@@ -221,6 +225,116 @@ def structure(book: dict, root: Path) -> tuple[dict, dict, dict, list]:
     return operations, requirements, scenarios, sorted(obligations, key=lambda o: o["id"])
 
 
+def condition_coverage(book: dict, operations: dict, scenarios: dict) -> tuple[list, list]:
+    """Expand v2 test conditions without inventing semantics or execution evidence.
+
+    Boundary points are discrete quantities in an explicitly named unit. Other
+    families enumerate agent-authored partitions, states, rules or sequences.
+    IDs are stable under reordering; the full book digest binds changed meaning.
+    """
+    if book["schema_version"] == 1:
+        return [], []
+    sources = {row["path"] for row in book["sources"]}
+    requirements = {row["id"] for row in book["requirements"]}
+    conditions = indexed(book.get("conditions"), "conditions", False)
+    obligations = {}
+    gaps = []
+    family_dimensions = set()
+    for identity, condition in conditions.items():
+        obj(condition, "id operation dimension kind title source_refs requirements variants boundary", "condition")
+        op = text(condition.get("operation"), "condition.operation")
+        dimension = text(condition.get("dimension"), "condition.dimension")
+        need(op in operations, "condition: unknown operation")
+        decisions = operations[op]["dimensions"]
+        need(dimension in decisions and decisions[dimension]["disposition"] == "applicable",
+             "condition: unknown or not_applicable dimension")
+        text(condition.get("title"), "condition.title")
+        refs(condition.get("source_refs"), sources, "condition.source_refs")
+        required = refs(condition.get("requirements"), requirements, "condition.requirements")
+        kind = text(condition.get("kind"), "condition.kind")
+        need(kind in {"boundary", "partition", "state", "rule", "sequence", "example"}, "unknown condition kind")
+        family_dimensions.add((op, dimension))
+        if kind == "boundary":
+            need("variants" not in condition, "boundary variants are derived, not supplied")
+            boundary = obj(condition.get("boundary"), "limit unit expectations", "boundary")
+            limit = boundary.get("limit")
+            need(type(limit) is int and abs(limit) <= 10**12, "boundary.limit: bounded integer required")
+            unit = text(boundary.get("unit"), "boundary.unit")
+            expectations = obj(boundary.get("expectations"), "below at above", "boundary.expectations")
+            variants = [{"id": name, "input": f"{limit + offset} {unit}",
+                         "expected": text(expectations.get(name), f"boundary.{name}")}
+                        for name, offset in (("below", -1), ("at", 0), ("above", 1))]
+        else:
+            need("boundary" not in condition, "non-boundary conditions cannot supply boundary")
+            variants = list(indexed(condition.get("variants"), "condition.variants").values())
+        for variant in variants:
+            obj(variant, "id input expected", "variant")
+            variant_id = text(variant.get("id"), "variant.id")
+            stimulus = text(variant.get("input"), "variant.input")
+            expected = text(variant.get("expected"), "variant.expected")
+            key = (identity, variant_id)
+            obligations[key] = {
+                "id": "COND-" + sha([op, identity, variant_id])[:24],
+                "operation": op, "condition": identity, "dimension": dimension,
+                "variant": variant_id, "input": stimulus, "expected": expected,
+                "requirements": sorted(required), "scenario_ids": [],
+            }
+            need(len(obligations) <= MAX_RECORDS, "condition obligation budget exceeded; split scope explicitly")
+    for op, operation in operations.items():
+        for dimension, decision in operation["dimensions"].items():
+            # Event/checkpoint obligations already provide the timing denominator.
+            timing_owned = dimension in {"external_mutation", "event_order"} and bool(operation["events"])
+            if decision["disposition"] == "applicable" and not timing_owned and (op, dimension) not in family_dimensions:
+                gaps.append({"kind": "condition_family", "operation": op, "dimension": dimension})
+    for scenario_id, scenario in scenarios.items():
+        steps = indexed(scenario["steps"], "steps")
+        oracles = indexed(scenario["oracles"], "oracles")
+        seen = set()
+        used_steps = {}
+        used_oracles = {}
+        credited_dimensions = set()
+        for binding in rows(scenario.get("condition_bindings"), "condition_bindings", False):
+            obj(binding, "condition variant step_ids oracle_ids", "condition binding")
+            condition_id = text(binding.get("condition"), "binding.condition")
+            key = (condition_id, text(binding.get("variant"), "binding.variant"))
+            need(key in obligations and key not in seen, "unknown/duplicate condition binding")
+            seen.add(key)
+            obligation = obligations[key]
+            need(obligation["operation"] == scenario["operation"], "cross-operation condition binding")
+            need(obligation["dimension"] in scenario["dimensions"], "condition binding needs its dimension")
+            need(set(obligation["requirements"]) <= set(scenario["requirements"]), "condition requirements missing from scenario")
+            step_ids = refs(binding.get("step_ids"), steps, "binding.step_ids")
+            oracle_ids = refs(binding.get("oracle_ids"), oracles, "binding.oracle_ids")
+            need(step_ids == [step for step in steps if step in step_ids], "condition step order differs from scenario")
+            need(obligation["expected"] in [oracles[o]["assertion"] for o in oracle_ids],
+                 "condition expected outcome needs an exact bound oracle assertion")
+            # Below/at/above and sibling partitions need distinct stimuli and
+            # observations, even when one longer scenario exercises them all.
+            for used, selected in ((used_steps, step_ids), (used_oracles, oracle_ids)):
+                previous = used.setdefault(condition_id, set())
+                need(not previous.intersection(selected), "sibling variants require distinct steps and oracles")
+                previous.update(selected)
+            credited_dimensions.add(obligation["dimension"])
+            obligation["scenario_ids"].append(scenario_id)
+        if scenario["perturbations"]:
+            credited_dimensions.update({"external_mutation", "event_order"})
+        for dimension in sorted(set(scenario["dimensions"]) - credited_dimensions):
+            gaps.append({"kind": "unbound_scenario_dimension", "scenario": scenario_id, "dimension": dimension})
+    result = sorted(obligations.values(), key=lambda row: row["id"])
+    for obligation in result:
+        obligation["scenario_ids"].sort()
+        if not obligation["scenario_ids"]:
+            gaps.append({"kind": "condition", **obligation})
+    return result, gaps
+
+
+def execution_coverage(obligations: list, outcomes: dict) -> dict:
+    """Only cleanly passed scenarios satisfy a declared obligation at audit."""
+    missing = [dict(row) for row in obligations
+               if not any(outcomes.get(identity) == "passed" for identity in row["scenario_ids"])]
+    return {"total": len(obligations), "passed": len(obligations) - len(missing), "missing": missing}
+
+
 def check(book: dict, root: Path) -> dict:
     operations, requirements, scenarios, obligations = structure(book, root)
     gaps = []
@@ -240,7 +354,10 @@ def check(book: dict, root: Path) -> dict:
         if not matches:
             gaps.append({"kind": "timing", **obligation})
     gaps.extend({"kind": "discovery", **gap} for gap in book["discovery_gaps"])
-    return {"schema_version": 1, "claim": "scenario_design_ready" if not gaps else "design_incomplete",
+    conditions, condition_gaps = condition_coverage(book, operations, scenarios)
+    gaps.extend(condition_gaps)
+    extra = {"condition_obligations": conditions} if book["schema_version"] == 2 else {}
+    return {**extra, "schema_version": book["schema_version"], "claim": "scenario_design_ready" if not gaps else "design_incomplete",
             "book_sha256": sha(book), "scenario_count": len(scenarios), "timing_obligations": obligations,
             "gaps": gaps, "exclusions": book["exclusions"],
             "qualification": "Declared design accounting only: not executed tests, discovery completeness, semantic oracle correctness, visual acceptance, or release safety."}
@@ -314,7 +431,11 @@ def audit(book: dict, trace: dict, root: Path) -> dict:
         if status != "passed":
             gaps.append({"id": identity, "status": status})
     complete = bool(scenarios) and not design["gaps"] and not gaps
-    return {"schema_version": 1, "claim": "evidence_complete_against_declared_scenarios" if complete else "incomplete",
+    extra = {}
+    if book["schema_version"] == 2:
+        extra = {"condition_coverage": execution_coverage(design["condition_obligations"], outcomes),
+                 "timing_coverage": execution_coverage(design["timing_obligations"], outcomes)}
+    return {**extra, "schema_version": book["schema_version"], "claim": "evidence_complete_against_declared_scenarios" if complete else "incomplete",
             "book_sha256": design["book_sha256"], "run_id": trace["run_id"], "target": trace["target"],
             "executor": executor, "statuses": statuses, "execution_gaps": gaps, "design_gaps": design["gaps"],
             "exclusions": book["exclusions"],
@@ -333,8 +454,9 @@ def load(path: Path) -> dict:
                          parse_constant=lambda value: need(False, f"invalid JSON constant: {value}"))
 
 
-def schemas() -> dict:
+def schemas(version: int = 1) -> dict:
     """Publish exact field shapes; cross-links/freshness remain code-owned checks."""
+    need(type(version) is int and version in {1, 2}, "schema_version must be 1 or 2")
     string = {"type": "string", "minLength": 1}
 
     def array_of(item, nonempty=True):
@@ -376,6 +498,23 @@ def schemas() -> dict:
         "discovery_gaps": array_of(record({"id": string, "description": string, "owner": string, "next_action": string}), False),
         "exclusions": array_of(record({"scope": string, "reason": string, "owner": string}), False),
     })
+    if version == 2:
+        variant = record({"id": string, "input": string, "expected": string})
+        boundary = record({"limit": {"type": "integer", "minimum": -(10**12), "maximum": 10**12},
+                           "unit": string, "expectations": record({k: string for k in ("below", "at", "above")})})
+        common = {"id": string, "operation": string, "dimension": string, "title": string,
+                  "source_refs": texts, "requirements": texts}
+        condition = {"oneOf": [
+            record({**common, "kind": {"const": "boundary"}, "boundary": boundary}),
+            record({**common, "kind": enum({"partition", "state", "rule", "sequence", "example"}),
+                    "variants": array_of(variant)}),
+        ]}
+        scenario["properties"]["condition_bindings"] = array_of(record({
+            "condition": string, "variant": string, "step_ids": texts, "oracle_ids": texts}), False)
+        scenario["required"].append("condition_bindings")
+        book["properties"]["schema_version"]["const"] = 2
+        book["properties"]["conditions"] = array_of(condition, False)
+        book["required"].append("conditions")
     observation = record({"id": string, "observation": string, "evidence_ids": texts})
     observed_oracle = record({"id": string, "observation": string, "evidence_ids": texts,
                               "outcome": enum({"passed", "failed", "unobserved"})})
@@ -405,17 +544,26 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("book", type=Path, nargs="?")
     parser.add_argument("--trace", type=Path)
     parser.add_argument("--root", type=Path, default=Path.cwd())
+    parser.add_argument("--schema-version", type=int, choices=(1, 2), default=None,
+                        help="Schema output only; default 1 preserves existing consumers")
+    parser.add_argument("--require-v2", action="store_true",
+                        help="Reject legacy books instead of silently omitting condition coverage")
     args = parser.parse_args(argv)
     try:
+        need(args.schema_version is None or args.mode == "schema", "--schema-version is only for schema")
+        need(not args.require_v2 or args.mode in {"derive", "check", "audit"}, "--require-v2 requires a book")
         need((args.mode in {"catalog", "schema"}) == (args.book is None), "only catalog/schema omit the book")
         need((args.mode == "audit") == (args.trace is not None), "only audit requires --trace")
         if args.mode == "schema":
-            report = schemas()
+            report = schemas(args.schema_version or 1)
         elif args.mode == "catalog":
             report = {"claim": "questions_only", "dimensions": DIMENSIONS}
         else:
             root = args.root.resolve()
             book = load(root / args.book)
+            need(not args.require_v2 or (isinstance(book, dict) and type(book.get("schema_version")) is int
+                 and book["schema_version"] == 2),
+                 "condition coverage requires schema_version 2; author conditions and rebind evidence, never relabel old traces")
             if args.mode == "audit":
                 report = audit(book, load(root / args.trace), root)
             else:

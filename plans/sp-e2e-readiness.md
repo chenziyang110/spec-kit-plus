@@ -86,3 +86,42 @@ imports, dependency sync, rendering/init runs and wheel build remain unverified.
 
 Keep PR #125 draft until these gates close. Do not merge, publish, change source
 visibility or claim downstream E2E success on the strength of isolated tests.
+
+## Condition-level continuation after 98c6c0f
+
+Scenario book v2 adds source/requirement-bound condition families before cases
+are chosen. Explicit partitions, states, rules and sequences retain every
+variant; discrete boundary declarations derive L-1/L/L+1 with verified units
+and separate expected outcomes. Specific scenario step/oracle bindings prevent
+a broad dimension tag from hiding a missing boundary point. Sibling variants
+cannot share the same stimulus step or oracle. Timing obligations stay separate.
+
+Both profiles now require v2 for derive/check/audit; v1 data and default schema
+remain readable for explicit compatibility inspection. Never relabel old books
+or transplant old passing evidence. Audit reports condition and timing coverage
+separately, crediting only clean passed scenarios; all unexecuted/failed/skipped/
+blocked/flaky cases remain visible. No executable test file is required for the
+visual route. See [condition-level coverage](../docs/sp-e2e-conditions.md).
+
+This continuation ran two completed, exit-zero subprocess test batches in an
+isolated Linux/Python 3.13.5/pytest 9.0.2 workspace with plugin autoload disabled:
+
+```text
+python -m pytest tests/test_e2e_scenarios.py -q
+65 passed, zero skipped
+python -m pytest tests/test_e2e_conditions.py -q
+66 passed, zero skipped
+```
+
+JUnit reports and explicit child exit codes were checked. The original 65-test
+file stayed byte-identical to blob `48d1b5c44efbc2efa40cb79c9e4c8c8289c31db3`.
+The 66 new tests exercise detailed gaps, invalid/missing inputs, requirement/
+source/oracle links, variant isolation, stale evidence, every nonpass outcome,
+v1/v2 schemas, fail-closed CLI gates, both workflow source contracts, and a copied
+standalone helper in generated-style paths including spaces. That helper-copy
+smoke test is not real init, manifest coexistence, repair or wheel installation.
+
+All new observations are explicitly synthetic checker fixtures, not fresh
+client/model/browser execution. No full-repository, Go, other-Python-version,
+Windows/macOS or successful cloud CI result is claimed by these 131 focused
+checks. The installation, release-compatibility and CI gates above still apply.

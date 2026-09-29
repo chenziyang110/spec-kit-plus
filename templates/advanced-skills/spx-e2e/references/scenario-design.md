@@ -51,7 +51,7 @@ confirmed TOCTOU vulnerability.
 
 ## Scenario book and helper
 
-Use `e2e_scenarios.py schema` for the exact book and trace JSON Schemas and
+Use `e2e_scenarios.py schema --schema-version 2` for the exact book and trace JSON Schemas and
 `catalog` for the question set. `check` also enforces cross-links and fresh
 project-contained source hashes. Every operation has every standard dimension;
 custom dimensions are additive. Each not-applicable decision carries a reason
@@ -71,10 +71,34 @@ an independent-effect oracle; visual/accessibility/human judgment alone does
 not close durable-state proof. A missing readback tool is a blocked execution,
 not permission to delete the oracle from the design.
 
-`derive` only expands declared timing obligations and reports design gaps. It
+`derive` only expands declared condition/timing obligations and reports design gaps. It
 cannot invent an operation or infer the correct behavior. `check` returning
 scenario_design_ready is planning accounting only. Keep original expected
 behavior separate from actual observations; never prefill passing outcomes.
+
+## Version 2 condition ledger
+
+New books use schema_version 2. The conditions array enumerates each source-
+and requirement-bound operation/dimension family before cases are selected.
+A boundary supplies its discrete limit, explicit unit and below/at/above expected
+outcomes; the helper generates all three obligations. Other families enumerate
+partition/state/rule/sequence/example variants with exact input and expected
+outcome descriptions. The model must discover those variants; no generic
+checklist or algorithm can certify missing product semantics.
+
+Scenario condition_bindings name each condition/variant and its ordered stimulus
+step_ids plus oracle_ids. Expected outcomes must match specific bound oracle
+assertions. Sibling variants use distinct steps and oracles, not one action
+relabelled three ways. Every declared dimension needs condition bindings or the
+existing explicit perturbation coverage. Missing families and individual variants
+stay visible even when a broad dimension has some test coverage.
+
+Use --require-v2 for derive/check/audit; legacy v1 schemas and reads remain
+available only for explicit compatibility inspection. Never relabel an old book
+or transplant old passes: author conditions, refreeze the book and execute new
+observations. Condition and timing coverage credit cleanly passed scenarios
+only; global run completion still rejects any failed/skipped/blocked/not-run/
+flaky scenario, even when another scenario covers an overlapping obligation.
 
 ## Visual execution protocol
 
