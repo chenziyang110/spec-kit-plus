@@ -7,13 +7,6 @@ Missing visual comparison remains pending-human-review. Never claim absolute
 completeness, product acceptance or release safety. Formal delivery remains
 `tasks -> implement -> review -> accept`; E2E is additional evidence, not a bypass.
 
-At a blocked exit preserve stage, category, owner, exact cause, sanitized evidence,
-attempted recovery, affected IDs, next action, observable unblock criteria and
-exact resume point. Keep agent-capable repair agent-owned; never request secrets
-or ask the user to reconstruct runtime state. Resume by checking source/book
-hashes and obligations; do not reuse stale evidence or silently retarget scope.
-Close Work only after its actual supported verification, never a fabricated pass.
-
 ## Test-only asset mutation closeout
 
 When this invocation changes retained test assets, harness configuration or
@@ -26,3 +19,10 @@ blocker, never a reason to impersonate Implement or Review.
 {{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
 
 {{spec-kit-include: ../command-partials/common/learning-layer.md}}
+
+At a blocked exit preserve stage, category, owner, exact cause, sanitized evidence,
+attempted recovery, affected IDs, next action, observable unblock criteria and
+exact resume point. Keep agent-capable repair agent-owned; never request secrets
+or ask the user to reconstruct runtime state. Resume by checking source/book
+hashes and obligations; do not reuse stale evidence or silently retarget scope.
+Close Work only after its actual supported verification, never a fabricated pass.
