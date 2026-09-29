@@ -226,6 +226,19 @@ Missing visual comparison remains pending-human-review. Never claim absolute
 completeness, product acceptance or release safety. Formal delivery remains
 `tasks -> implement -> review -> accept`; E2E is additional evidence, not a bypass.
 
+## Test-only asset mutation closeout
+
+When this invocation changes retained test assets, harness configuration or
+behavior-bearing test documentation, apply the shared closeout below using only
+those explicitly owned changed paths. Disposable run data and read-only
+planning/inspection do not justify a fabricated mutation receipt. The canonical
+identity is `sp-e2e`; an older runtime rejecting it remains a compatibility
+blocker, never a reason to impersonate Implement or Review.
+
+{{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
+
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
+
 At a blocked exit preserve stage, category, owner, exact cause, sanitized evidence,
 attempted recovery, affected IDs, next action, observable unblock criteria and
 exact resume point. Keep agent-capable repair agent-owned; never request secrets

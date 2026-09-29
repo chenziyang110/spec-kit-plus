@@ -152,6 +152,17 @@ exclusions, hashes and evidence refs. Missing visual comparison remains
 pending-human-review. No absolute completeness, release safety or acceptance
 claim. Formal delivery remains tasks -> implement -> review -> accept.
 
+## Test-only asset mutation closeout
+
+When retained test assets, harness configuration or behavior-bearing test docs
+change, use `references/project-cognition.md` with canonical workflow `sp-e2e`
+and the exact owned changed paths. Consume the supported planner/apply/recovery
+contract; do not hand-write a receipt or invent an E2E stage/Activity. Disposable
+run data and read-only planning do not justify a mutation receipt. Runtime
+rejection is a compatibility blocker, not permission to impersonate a different
+workflow. Use `references/project-learning.md` for relevant, evidence-backed
+lessons; preserve explicit rule-promotion approval.
+
 At a blocked exit retain stage, category, owner, exact cause, sanitized evidence,
 attempted recovery, affected IDs, next action, observable unblock criteria and
 exact resume point. Do not request secrets or transfer agent-capable repair to
