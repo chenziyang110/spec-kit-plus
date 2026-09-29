@@ -8,6 +8,13 @@ on:
     paths:
       - 'tests/e2e_samples/**'
       - 'tests/test_e2e_desktop_sample.py'
+      - 'tests/test_e2e_desktop_runner.py'
+      - 'scripts/shared/e2e_coverage.py'
+      - 'scripts/shared/e2e_runner.py'
+      - 'scripts/shared/e2e_pytest_reporter.py'
+      - 'tests/conftest.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - '.github/workflows/e2e-desktop.yml'
   workflow_dispatch:
 
@@ -39,7 +46,11 @@ jobs:
         env:
           SPECIFY_E2E_REQUIRE_DESKTOP: '1'
           PYTEST_ADDOPTS: ''
-        run: xvfb-run -a uv run pytest tests/test_e2e_desktop_sample.py --junitxml=desktop-results.xml
+          E2E_DESKTOP_TMP: ${{ runner.temp }}/e2e-desktop-${{ github.run_id }}-${{ github.run_attempt }}
+        run: >-
+          xvfb-run -a uv run pytest tests/test_e2e_desktop_sample.py
+          tests/test_e2e_desktop_runner.py --basetemp="$E2E_DESKTOP_TMP"
+          --junitxml=desktop-results.xml
       - name: Reject empty or skipped sample execution
         run: |
           python - <<'PY'
@@ -58,5 +69,7 @@ jobs:
           path: |
             desktop-source.txt
             desktop-results.xml
+            ${{ runner.temp }}/e2e-desktop-${{ github.run_id }}-${{ github.run_attempt }}/**/test-results/run/*.json
+            ${{ runner.temp }}/e2e-desktop-${{ github.run_id }}-${{ github.run_attempt }}/**/test-results/run/runner.log
           retention-days: 14
           if-no-files-found: error

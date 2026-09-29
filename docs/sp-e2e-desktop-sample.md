@@ -104,3 +104,65 @@ uv run pytest tests/test_e2e_coverage.py tests/test_e2e_runner.py tests/test_e2e
 Then run package/build checks and the Go suites documented in
 [Local Development](local-development.md). See
 [E2E readiness](../plans/sp-e2e-readiness.md) for the remaining integration gates.
+
+## Real desktop execution through the native coverage lane
+
+`tests/test_e2e_desktop_runner.py` connects the existing planner, native pytest
+reporter, process runner and coverage audit to the real Tk sample. It does not
+mock those owners or manufacture a passing native report. Each isolated project
+contains exact copies of the existing helpers and sample, a frozen manifest,
+complete pre-run bindings and an ordinary parameterized pytest child test.
+Copying helpers here is test setup, not evidence of `specify init` installation.
+
+The declared sample inventory has **34 client conditions**, all driven through
+Tk widgets: five valid/Unicode/boundary names, fourteen invalid name classes,
+eight external-event/checkpoint pairs, destination conflict, pre-entry absence,
+error recovery/duplicate confirmation, same-name behavior, and three explicit
+compound failures. The compound cases check the sample's validation precedence:
+invalid length plus missing source plus occupied target; missing source plus
+occupied target; replaced source plus occupied target. These are source-grounded
+sample rules, not proposed rules for other products.
+
+Each event/checkpoint has its own ordered journey; unordered factor coverage
+cannot stand in for the event sequence. The child verifies that the exact input
+reaches the widget, observes actual feedback, independently reads file bytes,
+checks visible status bounds, and destroys the window/removes its disposable
+store during teardown. Callback exceptions cannot hide behind a passing body.
+Native collection, setup/call/teardown events, process exit, fingerprints and
+original logs feed the existing coverage audit.
+
+Four outer regressions exercise the same declared denominator:
+
+| Invocation | Passed | Failed | Not run | Required wrapper outcome |
+| --- | ---: | ---: | ---: | --- |
+| Full client run | 34 | 0 | 0 | Exit 0, complete against this frozen sample scope |
+| Select only deletion immediately before confirmation | 1 | 0 | 33 | Exit 1, incomplete despite child exit 0 |
+| Collect only | 0 | 0 | 34 | Exit 1, incomplete despite child exit 0 |
+| Deliberately delete the source in an expected-success case | 33 | 1 | 0 | Exit 1, preserve the original failed case |
+
+The final row is an explicit negative control for failure propagation: the
+sample correctly rejects the injected deletion, so the expected-success test
+fails. It is not a discovered product defect, a changed acceptance criterion,
+or a reason to weaken the assertion. Every client sandbox must still be cleaned.
+
+```sh
+SPECIFY_E2E_REQUIRE_DESKTOP=1 xvfb-run -a uv run pytest \
+  tests/test_e2e_desktop_sample.py tests/test_e2e_desktop_runner.py \
+  --junitxml=desktop-results.xml
+```
+
+The dedicated CI keeps the original no-empty/no-skip gate and original sample
+suite, runs the new native chain, and retains native reports/logs without
+uploading test source or disposable project trees. Changes to the planner,
+runner, reporter and shared test environment now also trigger that workflow.
+
+On 2026-09-29, a partial Linux/Python 3.13.5/pytest 9.0.2 workspace with Xvfb
+executed the original 34 tests and these four new regressions together:
+**38 outer tests passed, zero skipped**. The nested child runs are the table
+above, not 38 additional model-perception executions. The helpers, original
+sample and original test module were byte-checked against their Git blobs.
+This adds real desktop-to-native-audit integration evidence. It does not verify
+scenario-book-v2 trace execution, wheel installation, full source imports, Go,
+Windows/macOS, Playwright Test, visual-model perception or downstream acceptance.
+Those existing readiness gates remain separate; clients still do not need a
+runner or this sample to use the primary scenario-first visual workflow.
