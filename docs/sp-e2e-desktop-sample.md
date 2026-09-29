@@ -166,3 +166,75 @@ scenario-book-v2 trace execution, wheel installation, full source imports, Go,
 Windows/macOS, Playwright Test, visual-model perception or downstream acceptance.
 Those existing readiness gates remain separate; clients still do not need a
 runner or this sample to use the primary scenario-first visual workflow.
+
+## Real client execution with a scenario-book-v2 trace
+
+`tests/e2e_samples/desktop_scenario_trace.py` now exercises the primary scenario
+book and trace format directly, independently of the optional native-runner
+manifest. It is an opt-in repository sample, not a new installed framework.
+It authors a fixed **22-scenario regression subset** before execution: normal
+and Unicode names, empty/whitespace/disallowed inputs, 31/32/33-code-point names,
+occupied targets, same-name/cancel-reopen, eight external-change/checkpoint
+pairs, and three compound failure rules. The existing 34-condition native suite
+is unchanged; these denominators describe different deliberately selected sets.
+
+The book binds input-source hashes, condition variants, actual ordered steps
+and outcome assertions. The driver operates real Tk widgets and checks files
+without using the application's readback method. At each external mutation it
+checks the current input/checkpoint and records independent before/after file
+state, including file device/inode identity. The replacement cases deliberately
+use identical contents in a new object: matching bytes alone cannot satisfy the
+original-selection contract. Successful renames and unrelated files also retain
+their independently observed object identities. Feedback, refreshed list and
+mapped control geometry are recorded as
+`accessibility`, never as screenshots or model perception. No passing attempt
+is finalized until the observations match and window/sandbox cleanup succeeds.
+
+```sh
+# --output must be NEW. No existing evidence or user project is overwritten.
+SPECIFY_E2E_REQUIRE_DESKTOP=1 xvfb-run -a uv run python \
+  tests/e2e_samples/desktop_scenario_trace.py --output /tmp/desktop-v2-run-001
+
+# Re-audit the real trace with the unchanged helper used by both profiles.
+uv run python scripts/shared/e2e_scenarios.py audit book.json --require-v2 \
+  --root /tmp/desktop-v2-run-001 --trace trace.json
+```
+
+`--case deleted-before-confirm` executes one case but keeps all 22 in the book:
+1 passed and 21 not-run returns exit 1. `--plan-only` needs no display, writes a
+valid design with no action/evidence records, and also returns exit 1 because
+execution remains incomplete. Exit 0 requires all declared scenarios to pass;
+invalid arguments or an existing output directory return exit 2. Every attempt
+retains its own observations, including failed attempts and cleanup failures.
+A failed-then-passed negative-control run remains flaky, never cleanly passed.
+
+Outputs are `book.json`, `design.json`, `trace.json`, `audit.json`, `inputs.json`,
+source snapshots in `inputs/`, and per-attempt JSON observations with timestamps
+and hashes. The source revision is explicitly a content-snapshot digest, not an
+invented Git commit. The existing desktop CI retains the full successful trace
+and observations plus its checkout revision; it does not upload Python source
+snapshots. For offline re-audit of those CI artifacts, restore the three files
+listed in `inputs.json` from that exact checkout to their snapshot paths and
+verify the recorded hashes first. Never overwrite a mismatched file to hide drift.
+
+This subset explicitly excludes OS permission changes, crash/syscall durability,
+other environments, unselected input/recovery families and visual acceptance.
+Those scoped exclusions are fixed before probing tools. They must not be copied
+as not-applicable decisions into a full-product plan: there, applicable missing
+cases remain gaps. Missing Tk/display leaves selected cases blocked, rather
+than silently removing them. The 88 condition obligations include per-scenario
+file/list/feedback checks; they are not 88 independent scenarios. The eight
+timing obligations remain separate. No claim of exhaustive discovery, visual
+quality, native-platform compatibility or product acceptance follows from this
+bounded trace audit.
+
+`tests/test_e2e_desktop_scenarios.py` verifies the real complete/filtered/failed/
+retried executions and schema/CLI consumption, then separately tests stale
+sources, changed evidence, reversed steps, wrong oracle channels, missing exact
+boundary cases, unavailable capabilities and cleanup failure. At authoring,
+these 19 checks plus the original unchanged 34 sample checks ran on local
+Linux/Python 3.13.5/pytest 9.0.2 under Xvfb: **53 passed, zero skipped**. This is
+not a full dependency-environment, installation/wheel, Go, Windows/macOS or
+cloud-CI pass. The earlier four native-runner tests are retained in CI and were
+not included in this particular local rerun. All remaining installation and
+final-CI gates in the readiness document still apply.

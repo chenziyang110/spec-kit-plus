@@ -9,6 +9,8 @@ on:
       - 'tests/e2e_samples/**'
       - 'tests/test_e2e_desktop_sample.py'
       - 'tests/test_e2e_desktop_runner.py'
+      - 'tests/test_e2e_desktop_scenarios.py'
+      - 'scripts/shared/e2e_scenarios.py'
       - 'scripts/shared/e2e_coverage.py'
       - 'scripts/shared/e2e_runner.py'
       - 'scripts/shared/e2e_pytest_reporter.py'
@@ -49,7 +51,7 @@ jobs:
           E2E_DESKTOP_TMP: ${{ runner.temp }}/e2e-desktop-${{ github.run_id }}-${{ github.run_attempt }}
         run: >-
           xvfb-run -a uv run pytest tests/test_e2e_desktop_sample.py
-          tests/test_e2e_desktop_runner.py --basetemp="$E2E_DESKTOP_TMP"
+          tests/test_e2e_desktop_runner.py tests/test_e2e_desktop_scenarios.py --basetemp="$E2E_DESKTOP_TMP"
           --junitxml=desktop-results.xml
       - name: Reject empty or skipped sample execution
         run: |
@@ -71,5 +73,7 @@ jobs:
             desktop-results.xml
             ${{ runner.temp }}/e2e-desktop-${{ github.run_id }}-${{ github.run_attempt }}/**/test-results/run/*.json
             ${{ runner.temp }}/e2e-desktop-${{ github.run_id }}-${{ github.run_attempt }}/**/test-results/run/runner.log
+            ${{ runner.temp }}/e2e-desktop-${{ github.run_id }}-${{ github.run_attempt }}/**/desktop-v2*/full/*.json
+            ${{ runner.temp }}/e2e-desktop-${{ github.run_id }}-${{ github.run_attempt }}/**/desktop-v2*/full/*-attempt-*/*.json
           retention-days: 14
           if-no-files-found: error
