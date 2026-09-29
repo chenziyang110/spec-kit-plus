@@ -1,3 +1,31 @@
+import json
+import os
+import re
+import tomllib
+from pathlib import Path
+
+import pytest
+import yaml
+from jsonschema import Draft202012Validator
+from typer.testing import CliRunner
+
+import specify_cli
+from specify_cli import app
+from specify_cli.agents import CommandRegistrar
+from specify_cli.design import lint_design_file
+from specify_cli.integrations import get_integration
+from specify_cli.integrations.manifest import IntegrationManifest
+from specify_cli.launcher import (
+    SpecifyLauncherSpec,
+    diagnose_project_runtime_compatibility,
+    write_runtime_launcher_config,
+)
+from specify_cli.orchestration import CapabilitySnapshot
+from specify_cli.specify_runtime import project_runtime_launcher_arg
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+ADVANCED_SKILLS = PROJECT_ROOT / "templates" / "advanced-skills"
 SPX_SKILLS = {
     "spx-accept",
     "spx-analyze",
@@ -33,3 +61,2441 @@ CLASSIC_MAP_COMPANION_SKILLS = {
     "sp-map-scan",
     "sp-map-update",
 }
+SKILLS_INTEGRATIONS = (
+    "agy",
+    "claude",
+    "codex",
+    "cursor-agent",
+    "grok",
+    "kimi",
+    "trae",
+    "vibe",
+    "zcode",
+)
+TEST_SPECIFY_COMMIT = "a" * 40
+TEST_SPECIFY_SOURCE = (
+    f"git+https://github.com/chenziyang110/spec-kit-plus.git@{TEST_SPECIFY_COMMIT}"
+)
+TEST_SPECIFY_COMMAND = f"uvx --from {TEST_SPECIFY_SOURCE} specify"
+
+
+def _test_specify_launcher_payload() -> dict[str, object]:
+    return {
+        "command": TEST_SPECIFY_COMMAND,
+        "argv": ["uvx", "--from", TEST_SPECIFY_SOURCE, "specify"],
+        "source": "git",
+        "kind": "source_bound",
+        "runtime_id": "chenziyang110/spec-kit-plus",
+    }
+
+
+def _frontmatter(path: Path) -> dict:
+    raw = path.read_text(encoding="utf-8")
+    assert raw.startswith("---\n")
+    return yaml.safe_load(raw.split("---", 2)[1])
+
+
+def test_spx_design_asset_passes_the_real_design_linter() -> None:
+    diagnostics = lint_design_file(
+        ADVANCED_SKILLS / "spx-design" / "assets" / "design-change.md"
+    )
+
+    assert diagnostics == []
+
+
+def test_canonical_quick_status_scaffold_is_readable_by_the_real_quick_helper(
+    monkeypatch, tmp_path: Path
+) -> None:
+    quick_id = "20260714-001"
+    workspace = tmp_path / ".planning" / "quick" / f"{quick_id}-parser-contract"
+    workspace.mkdir(parents=True)
+    content = (
+        PROJECT_ROOT / "templates" / "artifacts" / "quick-status.md"
+    ).read_text(encoding="utf-8")
+    for placeholder, value in {
+        "{{id}}": quick_id,
+        "{{slug}}": "parser-contract",
+        "{{title}}": "Parser contract",
+        "{{trigger}}": "verify the canonical quick scaffold",
+    }.items():
+        content = content.replace(placeholder, value)
+    content = content.replace(
+        'current_focus: ""', "current_focus: verify the canonical quick scaffold"
+    ).replace('next_action: ""', "next_action: establish scope and acceptance")
+    (workspace / "STATUS.md").write_text(content, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    task = specify_cli._run_quick_helper("status", quick_id=quick_id)["task"]
+
+    assert task["current_focus"] == "verify the canonical quick scaffold"
+    assert task["next_action"] == "establish scope and acceptance"
+
+
+def _expected_installed_files(skill_name: str) -> set[str]:
+    skill_source = ADVANCED_SKILLS / skill_name
+    files = {
+        path.relative_to(skill_source).as_posix()
+        for path in skill_source.rglob("*")
+        if path.is_file()
+    }
+    files.update(
+        f"references/{path.name}" for path in (ADVANCED_SKILLS / "_shared").glob("*.md")
+    )
+    return files
+
+
+def test_spx_sources_are_independent_and_discoverable() -> None:
+    skill_dirs = {
+        path.name
+        for path in ADVANCED_SKILLS.iterdir()
+        if path.is_dir() and (path / "SKILL.md").exists()
+    }
+    assert skill_dirs == SPX_SKILLS
+    assert not (ADVANCED_SKILLS / "spx" / "SKILL.md").exists()
+
+    bodies = []
+    for skill_name in SPX_SKILLS:
+        skill_dir = ADVANCED_SKILLS / skill_name
+        skill = skill_dir / "SKILL.md"
+        frontmatter = _frontmatter(skill)
+        assert frontmatter.keys() == {"name", "description"}
+        assert frontmatter["name"] == skill_name
+        assert "advanced" in frontmatter["description"].lower()
+        body = skill.read_text(encoding="utf-8")
+        bodies.append(body)
+        assert "references/project-cognition.md" in body
+        assert "references/project-learning.md" in body
+        for relative in re.findall(
+            r"`((?:references|assets)/[^`\s]+\.md)`",
+            body,
+        ):
+            local = skill_dir / relative
+            shared = ADVANCED_SKILLS / "_shared" / Path(relative).name
+            assert local.is_file() or shared.is_file(), (skill_name, relative)
+
+        openai_yaml = yaml.safe_load(
+            (skill_dir / "agents" / "openai.yaml").read_text(encoding="utf-8")
+        )
+        assert openai_yaml["policy"]["allow_implicit_invocation"] is False
+        assert f"${skill_name}" in openai_yaml["interface"]["default_prompt"]
+
+    cognition = ADVANCED_SKILLS / "_shared" / "project-cognition.md"
+    assert cognition.exists()
+    learning = ADVANCED_SKILLS / "_shared" / "project-learning.md"
+    assert learning.exists()
+    blocker_resolution = ADVANCED_SKILLS / "_shared" / "blocker-resolution.md"
+    assert blocker_resolution.exists()
+    assert "references/blocker-resolution.md" in cognition.read_text(encoding="utf-8")
+    native_subagents = ADVANCED_SKILLS / "_shared" / "native-subagents.md"
+    assert native_subagents.exists()
+    native_contract = native_subagents.read_text(encoding="utf-8").lower()
+    assert "dispatch and join operations" in native_contract
+    assert "accepted terminal result completes" in native_contract
+    assert "explicitly selected durable-team workflow" in native_contract
+
+    for source_file in ADVANCED_SKILLS.rglob("*"):
+        if not source_file.is_file():
+            continue
+        content = source_file.read_text(encoding="utf-8").lower()
+        assert "templates/command-references" not in content
+        assert "{{spec-kit-include:" not in content
+
+    combined = "\n".join([*bodies, cognition.read_text(encoding="utf-8")]).lower()
+    for forbidden in (
+        "close_agent",
+        "subagent-mandatory",
+        "claim_retrieval_contract_version",
+        "candidate_universe_version",
+        "v1.3.",
+        "understanding_confirmed",
+    ):
+        assert forbidden.lower() not in combined
+
+
+def test_spx_blocked_exit_requires_detailed_human_recovery_only_at_human_boundaries() -> (
+    None
+):
+    contract = re.sub(
+        r"\s+",
+        " ",
+        (ADVANCED_SKILLS / "_shared" / "blocker-resolution.md")
+        .read_text(encoding="utf-8")
+        .lower(),
+    )
+    for required in (
+        "exact cause",
+        "sanitized evidence",
+        "recovery attempted",
+        "unblock criteria",
+        "exact resume point",
+        "human_action_required: true",
+        "expected visible result",
+        "safe failure branch",
+        "protected ci",
+        "visual review",
+        "product decision",
+        "never ask for secrets",
+    ):
+        assert required in contract
+
+
+def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
+    skills = {
+        name: (ADVANCED_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").lower()
+        for name in SPX_SKILLS
+    }
+    compact_skills = {
+        name: re.sub(r"\s+", " ", content) for name, content in skills.items()
+    }
+
+    assert "read-only" in skills["spx-ask"]
+    assert "live repository" in skills["spx-ask"]
+    assert "spx-explain" in skills["spx-ask"]
+
+    assert "contextless human" in skills["spx-accept"]
+    assert "one current scenario step" in skills["spx-accept"]
+    assert "human product acceptance, not code review" in skills["spx-accept"]
+    assert (
+        "every failed observation first goes to the review leader"
+        in skills["spx-accept"]
+    )
+    assert "accept does not diagnose" in skills["spx-accept"]
+    assert "accept closeout" in skills["spx-accept"]
+
+    assert "exactly one next spx workflow" in skills["spx-auto"]
+    assert "create no separate auto state" in skills["spx-auto"]
+
+    assert "design-change.md" in skills["spx-design"]
+    assert "specify-runtime design change <ud-id>" in skills["spx-design"]
+    assert "<change-dir>/brief.md" in skills["spx-design"]
+    assert "artifact scaffold --kind design-brief" not in skills["spx-design"]
+    assert "artifact scaffold --kind design-review" in skills["spx-design"]
+    assert "design-brief-template.md` in memory" not in skills["spx-design"]
+    assert "do not edit application source" in skills["spx-design"]
+    assert "contract_action: create | refine | audit" in skills["spx-design"]
+    assert "surface_posture: greenfield | inherit-existing" in skills["spx-design"]
+    image_round = (
+        ADVANCED_SKILLS / "spx-design" / "references" / "image-round.md"
+    ).read_text(encoding="utf-8")
+    assert "specify-runtime design prompt" in image_round
+    assert "--content -" in image_round
+    assert "create-only" in image_round
+    assert "edit-source" in image_round
+
+    assert "create-new-feature" in skills["spx-specify"]
+    assert "artifact scaffold --kind spec-contract" in skills["spx-specify"]
+    assert "artifact scaffold --kind ui-brief" in skills["spx-specify"]
+    assert "artifact scaffold --kind ui-reference-notes" in skills["spx-specify"]
+    assert "spec-contract-template.json" not in skills["spx-specify"]
+    assert "do not implement" in skills["spx-specify"]
+    assert "spx-prd-scan" in skills["spx-specify"]
+
+    assert ".specify/memory/constitution.md" in skills["spx-constitution"]
+    assert "owns the constitution only" in skills["spx-constitution"]
+
+    assert "discussion resume" in skills["spx-discussion"]
+    assert "discussion mark-ready" in skills["spx-discussion"]
+    assert "discussion confirm-handoff" in skills["spx-discussion"]
+    assert "do not create feature state" in skills["spx-discussion"]
+    discussion_lower = skills["spx-discussion"].lower()
+    discussion_compact = " ".join(discussion_lower.split())
+    assert "present both routes and their eligibility" in discussion_compact
+    assert "complexity-informed recommendation" in discussion_compact
+    assert "user owns the final consumer choice" in discussion_compact
+    assert "do not write the handoff until the user has selected" in discussion_compact
+    assert "ask one route-choice question and stay in this discussion" in discussion_compact
+    assert "record that confirmed selection" in discussion_compact
+
+    assert "remain read-only" in skills["spx-explain"]
+    assert "what the artifact\nclaims" in skills["spx-explain"]
+
+    assert "setup-plan" in skills["spx-plan"]
+    assert "artifact scaffold --kind plan-contract" in compact_skills["spx-plan"]
+    assert "artifact scaffold --kind data-model" in compact_skills["spx-plan"]
+    assert "artifact scaffold --kind quickstart" in compact_skills["spx-plan"]
+    assert "plan-contract-template.json" not in skills["spx-plan"]
+    assert "assets/plan.md" in skills["spx-plan"]
+    assert "artifact scaffold --kind research" in skills["spx-plan"]
+    assert "artifact scaffold --kind planning-lane-manifest" in skills["spx-plan"]
+    assert "do not create tasks" in skills["spx-plan"]
+    assert "spx-deep-research" in skills["spx-plan"]
+    assert "spx-tasks" in skills["spx-plan"]
+    assert "production source" in skills["spx-plan"]
+
+    assert "deep-research.md" in skills["spx-deep-research"]
+    assert "deep-research init" in skills["spx-deep-research"]
+    assert "deep-research not-needed" in skills["spx-deep-research"]
+    assert "api show deep-research.<subcommand>" in skills["spx-deep-research"]
+    assert "spec-contract.json.status: planning-ready" in skills["spx-deep-research"]
+    assert "artifact scaffold --kind deep-research" not in skills["spx-deep-research"]
+    assert "planning handoff" in skills["spx-deep-research"]
+    assert "do not implement production" in skills["spx-deep-research"]
+
+    assert "tasks build" in skills["spx-tasks"]
+    assert "tasks finalize" in skills["spx-tasks"]
+    assert "artifact scaffold --kind task-generation-lane-manifest" in skills["spx-tasks"]
+    assert "task-index-template.json" not in skills["spx-tasks"]
+    assert "dependency" in skills["spx-tasks"]
+    assert "do not implement" in skills["spx-tasks"]
+
+    assert "non-destructive gate" in skills["spx-analyze"]
+    assert "do not edit `spec.md`" in skills["spx-analyze"]
+
+    assert "requirements or planning decisions" in compact_skills["spx-checklist"]
+    assert "artifact checklist" in skills["spx-checklist"]
+    assert "assigns globally unique ids" in compact_skills["spx-checklist"]
+    assert "no markdown checkbox or `chk###` prefix" in compact_skills["spx-checklist"]
+    assert "checklist completion does not by itself prove" in skills["spx-checklist"]
+
+    assert "artifact scaffold --kind debug-session" in compact_skills["spx-debug"]
+    assert "artifact patch" in skills["spx-debug"]
+
+    assert "artifact scaffold --kind quick-plan" in compact_skills["spx-quick"]
+
+    assert "external write" in skills["spx-taskstoissues"]
+    assert "safe retry boundary" in skills["spx-taskstoissues"]
+
+    assert "check-prerequisites" in skills["spx-implement"]
+    assert "run the relevant verification" in skills["spx-implement"]
+    assert "delegate only" in skills["spx-implement"]
+
+    assert "integration.json" in skills["spx-implement-teams"]
+    assert "codex" in skills["spx-implement-teams"]
+    assert "claude" in skills["spx-implement-teams"]
+    assert "emulate durable state" in skills["spx-implement-teams"]
+
+    assert "codex-only runtime" in skills["spx-team"]
+    assert "cleanup" in skills["spx-team"]
+
+    assert "reproduce" in skills["spx-debug"]
+    assert "ranked hypotheses" in skills["spx-debug"]
+    assert "regression" in skills["spx-debug"]
+
+    assert "leader-direct" in skills["spx-fast"]
+    assert "no spec" in skills["spx-fast"]
+    assert "spx-quick" in skills["spx-fast"]
+
+    assert ".planning/quick/" in skills["spx-quick"]
+    assert "status.md" in skills["spx-quick"]
+    assert "summary.md" in skills["spx-quick"]
+    assert "artifact scaffold --kind quick-summary" in skills["spx-quick"]
+    assert "spx-specify" in skills["spx-quick"]
+    assert "discussion mark-consumed" in skills["spx-quick"]
+    assert "accepts the quick" in skills["spx-quick"]
+    assert "quick preflight" in skills["spx-quick"]
+    assert "empty work board does not mean" in skills["spx-quick"]
+    assert "write_overlap" in skills["spx-quick"]
+    assert "unfinished_quick_untracked" in skills["spx-quick"]
+    assert "do not poll" in skills["spx-quick"]
+    assert "same_quick_active_owner" in skills["spx-quick"]
+    assert "--current-work-fence" in skills["spx-quick"]
+    assert "all-or-none" in skills["spx-quick"]
+    assert "workers inherit that quick-level work authority" in skills["spx-quick"]
+
+    assert "spx-map-scan" in skills["spx-map-rebuild"]
+    assert "spx-map-build" in skills["spx-map-rebuild"]
+    assert "scan-prepare" not in skills["spx-map-rebuild"]
+    assert "build-from-scan" not in skills["spx-map-rebuild"]
+
+    assert "scan-prepare" in skills["spx-map-scan"]
+    assert "scan-accept" in skills["spx-map-scan"]
+    assert "validate-scan" in skills["spx-map-scan"]
+    assert "lowest-cost capable" in skills["spx-map-scan"]
+    assert "build-from-scan" in skills["spx-map-scan"]
+    assert "do not run" in skills["spx-map-scan"]
+
+    assert "validate-scan" in skills["spx-map-build"]
+    assert "build-from-scan" in skills["spx-map-build"]
+    assert "validate-build" in skills["spx-map-build"]
+    assert "scan-prepare" not in skills["spx-map-build"]
+    assert "hand-edit sqlite" in skills["spx-map-build"]
+    assert "closeout-plan" in skills["spx-map-update"]
+
+    scan_worker = (
+        (ADVANCED_SKILLS / "spx-map-scan" / "references" / "scan-worker.md")
+        .read_text(encoding="utf-8")
+        .lower()
+    )
+    for required in (
+        "lowest-cost model",
+        "assigned_paths",
+        "scan-checkpoint --result-json",
+        "nodes[].paths",
+        "acceptance: pass",
+        "never silently omit",
+        "do not run `scan-accept`",
+    ):
+        assert required in scan_worker
+    assert "pending-results/<packet-id>.json" not in scan_worker
+
+    scan_gates = re.sub(
+        r"\s+",
+        " ",
+        (
+            ADVANCED_SKILLS
+            / "spx-map-scan"
+            / "references"
+            / "scan-gates.md"
+        ).read_text(encoding="utf-8").lower(),
+    )
+    scan_worker_compact = re.sub(r"\s+", " ", scan_worker)
+    assert "runtime alone materializes pending-result" in scan_worker_compact
+    for command in (
+        "scan-formats",
+        "scan-policy-stage",
+        "scan-policy-confirm",
+        "scan-prepare",
+        "scan-lease",
+        "scan-checkpoint",
+        "scan-yield",
+        "scan-requeue",
+        "scan-accept",
+        "scan-status",
+    ):
+        assert command in skills["spx-map-scan"] or command in scan_gates
+        assert command in scan_worker or command in scan_gates
+
+    assert "effective worker context budget" in scan_gates
+    assert "--worker-capacity-tokens" in scan_gates
+    assert "estimated token cost" in scan_gates
+    assert "assigned paths minus runtime-accepted terminal paths" in scan_gates
+    assert "global queue, handoff, coverage, evidence, provisional, and status artifacts" in scan_gates
+    assert "cli-generated self-contained task brief" in scan_worker_compact
+    assert "minimum inherited conversation context" in scan_gates
+    assert "natural-language summary is not acceptance evidence" in scan_worker_compact
+    assert "the runtime computes the authoritative remaining set" in scan_worker_compact
+
+    assert "read-only" in skills["spx-prd-scan"]
+    assert "lowest-cost capable" in skills["spx-prd-scan"]
+    assert "do not synthesize the final prd" in skills["spx-prd-scan"]
+    assert "only product-fact source" in skills["spx-prd-build"]
+    assert "do not crawl or reread the repository" in skills["spx-prd-build"]
+
+
+def test_spx_core_pipeline_requires_an_explicit_stop_between_stages() -> None:
+    skills = {
+        name: re.sub(
+            r"\s+",
+            " ",
+            (ADVANCED_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").lower(),
+        )
+        for name in ("spx-specify", "spx-plan", "spx-tasks")
+    }
+
+    for skill in skills.values():
+        assert "this invocation authorizes only this workflow stage" in skill
+
+    specify = skills["spx-specify"]
+    assert (
+        "do not create `plan-contract.json`, `plan.md`, `research.md`, "
+        "`data-model.md`, `contracts/`, `quickstart.md`, `tasks.md`, or "
+        "`task-index.json`"
+    ) in specify
+    assert "do not invoke `$spx-plan`" in specify
+
+    plan = skills["spx-plan"]
+    assert "do not create tasks or task artifacts" in plan
+    assert "`tasks.md`" in plan
+    assert "`task-index.json`" in plan
+    assert "do not invoke `$spx-tasks`" in plan
+
+    tasks = skills["spx-tasks"]
+    assert (
+        "query `plan-contract.json` first through `specify-runtime artifact show`"
+        in tasks
+    )
+    assert "do not implement or edit production source/tests" in tasks
+    assert "do not invoke `$spx-implement`" in tasks
+
+    implement = re.sub(
+        r"\s+",
+        " ",
+        (ADVANCED_SKILLS / "spx-implement" / "SKILL.md")
+        .read_text(encoding="utf-8")
+        .lower(),
+    )
+    assert "--require-tasks --include-tasks" in implement
+    assert "`$spx-accept`" in implement
+
+
+def test_spx_preplan_routes_stop_after_the_authorized_stage() -> None:
+    skills = {
+        name: re.sub(
+            r"\s+",
+            " ",
+            (ADVANCED_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").lower(),
+        )
+        for name in ("spx-auto", "spx-deep-research")
+    }
+
+    assert "stop after that workflow returns" in skills["spx-auto"]
+    assert "do not invoke a second workflow" in skills["spx-auto"]
+
+    assert (
+        "this invocation authorizes only this workflow stage"
+        in skills["spx-deep-research"]
+    )
+    assert "do not invoke `$spx-plan`" in skills["spx-deep-research"]
+
+
+def test_spx_read_only_and_runtime_probe_boundaries_are_explicit() -> None:
+    explain_reference = (
+        (ADVANCED_SKILLS / "spx-explain" / "references" / "artifact-explanation.md")
+        .read_text(encoding="utf-8")
+        .lower()
+    )
+    team = re.sub(
+        r"\s+",
+        " ",
+        (ADVANCED_SKILLS / "spx-team" / "SKILL.md").read_text(encoding="utf-8").lower(),
+    )
+
+    assert "--ensure-worktree" not in explain_reference
+    assert "inspection and diagnosis authorize only `status` and `doctor`" in team
+    assert "never run `live-probe` implicitly" in team
+    assert "explicit operator authorization" in team
+
+
+def test_spx_fast_and_quick_keep_broad_consequential_work_in_quick() -> None:
+    skills = {
+        name: re.sub(
+            r"\s+",
+            " ",
+            (ADVANCED_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").lower(),
+        )
+        for name in ("spx-fast", "spx-quick")
+    }
+
+    for content in skills.values():
+        assert "references/consequence-gate.md" in content
+        for trigger in (
+            "lifecycle operations",
+            "running objects",
+            "concurrent work",
+            "destructive behavior",
+            "shared state",
+            "downstream consumers",
+            "compatibility",
+            "security-sensitive behavior",
+            "multiple plausible product behaviors",
+        ):
+            assert trigger in content
+
+    assert (
+        "route every consequence-bearing implementation to `$spx-quick`"
+        in skills["spx-fast"]
+    )
+    assert (
+        "route broader or user-owned consequences to `$spx-specify`"
+        not in skills["spx-fast"]
+    )
+    assert "--result-json <inline-json|@path|->" in skills["spx-quick"]
+    assert "large model-authored json through stdin" in skills["spx-quick"]
+    assert "temporary result file merely for transport" in skills["spx-quick"]
+    assert "record every consequence obligation" in skills["spx-quick"]
+    assert (
+        "quick can handle larger" in skills["spx-quick"]
+        or "quick may handle larger" in skills["spx-quick"]
+    )
+    assert "deeper task-local planning" in skills["spx-quick"]
+    assert "multiple batches" in skills["spx-quick"]
+    assert "architecture" in skills["spx-quick"]
+    assert "migration" in skills["spx-quick"]
+    assert "compatibility" in skills["spx-quick"]
+    assert (
+        "acceptance-heavy" in skills["spx-quick"]
+        or "acceptance heavy" in skills["spx-quick"]
+    )
+    assert "multi-capability" in skills["spx-quick"]
+    assert "route unbounded consequences to `$spx-specify`" not in skills["spx-quick"]
+    assert "must escalate to `$spx-specify`" not in skills["spx-quick"]
+    assert "required handoff to `$spx-specify`" not in skills["spx-quick"]
+
+
+def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
+    ui_gate = (ADVANCED_SKILLS / "_shared" / "ui-quality-gate.md").read_text(
+        encoding="utf-8"
+    )
+    assert "does not\nrequire an external screenshot" in ui_gate
+    assert ".specify/design/index.json" in ui_gate
+    assert "exact registered design change" in ui_gate
+    assert 'Never resolve "latest"' in ui_gate
+    assert "unregistered root design document" in ui_gate
+    assert "read-only legacy baseline" not in ui_gate
+    assert "real entry point" in ui_gate
+    assert "pending-human-review" in ui_gate
+
+    for skill_name in (
+        "spx-accept",
+        "spx-analyze",
+        "spx-auto",
+        "spx-debug",
+        "spx-design",
+        "spx-fast",
+        "spx-implement",
+        "spx-implement-teams",
+        "spx-plan",
+        "spx-quick",
+        "spx-specify",
+        "spx-tasks",
+    ):
+        content = (ADVANCED_SKILLS / skill_name / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        assert "references/ui-quality-gate.md" in content, skill_name
+
+    assert "--level ready" in (ADVANCED_SKILLS / "spx-design" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    specify_skill = re.sub(
+        r"\s+",
+        " ",
+        (ADVANCED_SKILLS / "spx-specify" / "SKILL.md").read_text(encoding="utf-8"),
+    )
+    assert "substantive UI work" in specify_skill
+    assert "ui_design_contract" in (
+        ADVANCED_SKILLS / "spx-plan" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert "assets/ui-task.md" in (
+        ADVANCED_SKILLS / "spx-tasks" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert "assets/ui-task-index-entry.json" in (
+        ADVANCED_SKILLS / "spx-tasks" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    ui_task = (ADVANCED_SKILLS / "spx-tasks" / "assets" / "ui-task.md").read_text(
+        encoding="utf-8"
+    )
+    assert "### Scope Boundaries" in ui_task
+    assert "### UI Implementation Contract" in ui_task
+    assert "required_evidence" in ui_task
+    assert "ui_required_evidence" not in ui_task
+    ui_task_index = json.loads(
+        (
+            ADVANCED_SKILLS / "spx-tasks" / "assets" / "ui-task-index-entry.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert set(ui_task_index) == {"ui_contract"}
+    assert "contract_version" not in ui_task_index["ui_contract"]
+    current_packet = json.loads(
+        (PROJECT_ROOT / "templates" / "task-packet-template.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert set(ui_task_index["ui_contract"]) == set(current_packet["ui_contract"])
+    for field in (
+        "surface_type",
+        "platforms",
+        "subject",
+        "audience",
+        "single_job",
+        "visual_thesis",
+        "content_thesis",
+        "interaction_thesis",
+        "signature_element",
+        "approved_visual_ref",
+        "reference_intents",
+        "real_content_plan",
+        "image_plan",
+    ):
+        assert field in ui_task_index["ui_contract"]
+    assert ui_task_index["ui_contract"]["required_evidence"] == [
+        "structure_snapshot",
+        "visual_capture",
+        "runtime_diagnostics",
+        "visual_comparison_or_human_review",
+    ]
+    assert "visual convergence loop" in (
+        ADVANCED_SKILLS / "spx-implement" / "references" / "execution-contract.md"
+    ).read_text(encoding="utf-8")
+    design_asset = (
+        ADVANCED_SKILLS / "spx-design" / "assets" / "design-change.md"
+    ).read_text(encoding="utf-8")
+    for generic_anchor in ('value: "8px"', 'value: "16px"', 'value: "14px"'):
+        assert generic_anchor not in design_asset
+
+
+def test_spx_shared_project_cognition_contract_is_tool_driven() -> None:
+    content = (
+        (ADVANCED_SKILLS / "_shared" / "project-cognition.md")
+        .read_text(encoding="utf-8")
+        .lower()
+    )
+
+    for required in (
+        "specify-runtime cognition compass",
+        "minimal_live_reads",
+        "first_pass_paths",
+        "coverage_diagnostics",
+        "expansion_ref",
+        "live repository",
+        "specify-runtime cognition closeout-plan",
+        "update_argv",
+        "needs_rebuild",
+        "spx-map-rebuild",
+        "spx-map-update",
+    ):
+        assert required in content
+
+
+def test_spx_shared_project_learning_contract_is_cli_progressive_and_read_only() -> (
+    None
+):
+    content = (
+        (ADVANCED_SKILLS / "_shared" / "project-learning.md")
+        .read_text(encoding="utf-8")
+        .lower()
+    )
+
+    for required in (
+        "learning start",
+        "learning list",
+        "show_argv",
+        "read-only",
+        "capture-auto",
+        "consume-only",
+        "trigger signals",
+        "never silently promote",
+    ):
+        assert required in content
+    assert ".specify/memory/learnings/index.md" not in content
+
+
+def test_spx_project_learning_contract_keeps_sanitized_candidate_lifecycle() -> None:
+    content = (
+        (ADVANCED_SKILLS / "_shared" / "project-learning.md")
+        .read_text(encoding="utf-8")
+        .lower()
+    )
+    normalized = " ".join(content.split())
+
+    for required in (
+        "summary, trigger_signals, and evidence are sanitized agent-facing projections",
+        "raw sensitive values must not enter learning storage, registry, or read api",
+        "trigger_signals are canonical tags",
+        "redaction_labels",
+        "personal_identifier",
+        "business_identifier",
+        "organization_sensitive",
+        "[redacted_phone]",
+        "[redacted_business_id]",
+        "[redacted_org_term]",
+        "mature learning protection",
+        "bounded candidate slot",
+        "reading does not promote",
+        "candidate cannot become a rule directly",
+        "confirmed learning before explicit project-rule promotion",
+        "abstract and retain the reusable lesson",
+        "assess learning value independently from sensitivity",
+        "sensitivity alone is never an eligibility veto",
+        "capture-safe",
+        "capture-sanitized",
+        "--dry-run",
+        "without changing candidates, registries, review state, or metrics",
+        "never invent a regex detector",
+        "limited to 64 distinct literals of 1..128 characters",
+        "none|captured|auto-captured|deferred|manual-capture-needed",
+        "`deferred` and `manual-capture-needed` require rationale",
+        "`captured`/`auto-captured` succeeds only after that match is verified",
+        "`none` is blocked while a matching deferred/manual decision remains pending",
+        "status returns only aggregate pending/due/age buckets",
+        "omits rationale, learning refs, recurrence keys, and timestamps",
+        "metrics exposes aggregate totals, decisions, value/risk tiers, reason/label counts",
+        "derived confirmation rate",
+        "neither may store or expose evidence text or learning refs",
+    ):
+        assert required in normalized
+
+
+def test_advanced_profile_installs_project_learning_contract_schemas(tmp_path) -> None:
+    project = tmp_path / "advanced-learning-schemas"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--force",
+                "--ai",
+                "codex",
+                "--workflow-profile",
+                "advanced",
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+
+    templates = project / ".specify" / "templates"
+    for name in (
+        "project-learning-record-schema.json",
+        "project-learning-policy-schema.json",
+        "project-learning-metrics-schema.json",
+    ):
+        installed = templates / name
+        assert installed.exists()
+        Draft202012Validator.check_schema(json.loads(installed.read_text(encoding="utf-8")))
+
+
+def test_advanced_profile_installs_spx_with_only_classic_map_companions(
+    tmp_path,
+) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    manifest = IntegrationManifest("codex", project)
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+
+    skills_dir = integration.skills_dest(project)
+    installed = {path.parent.name for path in skills_dir.glob("spx-*/SKILL.md")}
+    assert installed == SPX_SKILLS
+
+    for skill_name in SPX_SKILLS:
+        skill_dir = skills_dir / skill_name
+        skill = skill_dir / "SKILL.md"
+        assert (skill_dir / "agents" / "openai.yaml").exists()
+        assert (skill_dir / "references" / "project-cognition.md").exists()
+        assert (skill_dir / "references" / "project-learning.md").exists()
+        assert (skill_dir / "references" / "consequence-gate.md").exists()
+        assert (skill_dir / "references" / "ui-quality-gate.md").exists()
+
+        frontmatter = _frontmatter(skill)
+        assert frontmatter["name"] == skill_name
+        assert frontmatter["metadata"]["source"] == (
+            f"templates/advanced-skills/{skill_name}/SKILL.md"
+        )
+
+        content = skill.read_text(encoding="utf-8")
+        assert "Subagent Dispatch Contract" not in content
+        assert "Project Cognition Gate" not in content
+        assert "{{spec-kit-include:" not in content
+
+        for path in skill_dir.rglob("*"):
+            if path.is_file():
+                assert path.relative_to(project).as_posix() in manifest.files
+            if path.is_file() and path.suffix == ".md":
+                installed_content = path.read_text(encoding="utf-8")
+                assert "{{specify-subcmd:" not in installed_content
+
+        installed_files = {
+            path.relative_to(skill_dir).as_posix()
+            for path in skill_dir.rglob("*")
+            if path.is_file()
+        }
+        assert installed_files == _expected_installed_files(skill_name)
+
+    installed_scan_worker = (
+        skills_dir / "spx-map-scan" / "references" / "scan-worker.md"
+    )
+    assert installed_scan_worker.exists()
+    installed_scan_worker_content = installed_scan_worker.read_text(encoding="utf-8").lower()
+    assert "lowest-cost model" in installed_scan_worker_content
+    installed_scan_contract = "\n".join(
+        (
+            (skills_dir / "spx-map-scan" / "SKILL.md").read_text(encoding="utf-8"),
+            (
+                skills_dir
+                / "spx-map-scan"
+                / "references"
+                / "scan-gates.md"
+            ).read_text(encoding="utf-8"),
+            installed_scan_worker_content,
+        )
+    )
+    for command in (
+        "scan-formats",
+        "scan-policy-stage",
+        "scan-policy-confirm",
+        "scan-prepare",
+        "scan-lease",
+        "scan-checkpoint",
+        "scan-yield",
+        "scan-accept",
+        "scan-status",
+    ):
+        assert command in installed_scan_contract
+    for policy_marker in (
+        "confirm-ignore",
+        "--include-gitignored",
+        "recommended_parallel_workers",
+    ):
+        assert policy_marker in installed_scan_contract
+
+    assert not (skills_dir / "sp-plan" / "SKILL.md").exists()
+    assert not (skills_dir / "tdd-workflow" / "SKILL.md").exists()
+    installed_classic = {path.parent.name for path in skills_dir.glob("sp-*/SKILL.md")}
+    assert installed_classic == CLASSIC_MAP_COMPANION_SKILLS
+    for skill_name in CLASSIC_MAP_COMPANION_SKILLS:
+        skill = skills_dir / skill_name / "SKILL.md"
+        command_name = skill_name.removeprefix("sp-")
+        assert _frontmatter(skill)["metadata"]["source"] == (
+            f"templates/commands/{command_name}.md"
+        )
+        assert "Mandatory Subagent Execution" in skill.read_text(encoding="utf-8")
+
+
+def test_classic_codex_openai_metadata_requires_explicit_invocation(
+    tmp_path,
+) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "classic-openai-policy"
+    manifest = IntegrationManifest("codex", project)
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "classic"},
+        script_type="sh",
+    )
+
+    skills_dir = integration.skills_dest(project)
+    installed_sp_skills = {
+        path.parent.name for path in skills_dir.glob("sp-*/SKILL.md")
+    }
+    metadata_by_skill = {
+        path.parents[1].name: yaml.safe_load(path.read_text(encoding="utf-8"))
+        for path in skills_dir.glob("sp-*/agents/openai.yaml")
+    }
+
+    assert set(metadata_by_skill) == installed_sp_skills
+    for skill_name, metadata in metadata_by_skill.items():
+        assert metadata["policy"]["allow_implicit_invocation"] is False
+        assert f"${skill_name}" in metadata["interface"]["default_prompt"]
+
+
+def test_advanced_local_references_use_the_project_pinned_launcher(tmp_path) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    config = project / ".specify" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps(
+            {
+                "specify_launcher": _test_specify_launcher_payload(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    binary_name = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
+    runtime_source = tmp_path / "runtime-source" / binary_name
+    runtime_source.parent.mkdir()
+    runtime_source.write_bytes(b"runtime fixture")
+    write_runtime_launcher_config(project, runtime_source)
+    manifest = IntegrationManifest("codex", project)
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+
+    execution = (
+        integration.skills_dest(project)
+        / "spx-implement"
+        / "references"
+        / "execution-contract.md"
+    ).read_text(encoding="utf-8")
+    teams = (
+        integration.skills_dest(project)
+        / "spx-implement-teams"
+        / "references"
+        / "codex-teams.md"
+    ).read_text(encoding="utf-8")
+    cognition = (
+        integration.skills_dest(project)
+        / "spx-ask"
+        / "references"
+        / "project-cognition.md"
+    ).read_text(encoding="utf-8")
+
+    normalized_execution = execution.replace("\\", "/")
+    normalized_teams = teams.replace("\\", "/")
+    normalized_cognition = cognition.replace("\\", "/")
+    runtime_command = project_runtime_launcher_arg().replace("\\", "/")
+    assert f"{runtime_command} implement resume-audit" in normalized_execution
+    assert f"{runtime_command} sp-teams auto-dispatch" in normalized_teams
+    assert runtime_command in normalized_cognition
+    assert TEST_SPECIFY_COMMAND not in execution + teams + cognition
+    assert "{{specify-subcmd:" not in execution + teams + cognition
+
+
+@pytest.mark.parametrize("profile", ("classic", "advanced"))
+def test_codex_skill_frontmatter_is_not_rewritten_by_project_launcher(
+    tmp_path,
+    profile: str,
+) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / profile
+    runtime_source = tmp_path / f"{profile}-specify-runtime.exe"
+    runtime_source.write_bytes(b"runtime fixture")
+    write_runtime_launcher_config(project, runtime_source)
+    manifest = IntegrationManifest("codex", project)
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": profile},
+        script_type="ps",
+    )
+
+    generated_bodies: list[str] = []
+    skill_files = sorted(integration.skills_dest(project).glob("*/SKILL.md"))
+    assert skill_files
+    for skill_file in skill_files:
+        content = skill_file.read_text(encoding="utf-8")
+        frontmatter_text, body = integration._split_frontmatter(content)
+        frontmatter = yaml.safe_load(frontmatter_text)
+        source_path = PROJECT_ROOT / frontmatter["metadata"]["source"]
+        source_text = source_path.read_text(encoding="utf-8")
+        source_frontmatter_text, _ = integration._split_frontmatter(source_text)
+        source_frontmatter = yaml.safe_load(source_frontmatter_text)
+
+        expected_description = CommandRegistrar.apply_classic_skill_invocation_policy(
+            skill_file.parent.name,
+            source_frontmatter["description"],
+        )
+        assert " ".join(frontmatter["description"].split()) == " ".join(
+            expected_description.split()
+        ), skill_file
+        assert project_runtime_launcher_arg() not in frontmatter_text, skill_file
+        generated_bodies.append(body)
+
+    assert project_runtime_launcher_arg() in "\n".join(generated_bodies)
+    assert not any(
+        issue["code"] == "unbound-generated-specify-runtime-launcher"
+        for issue in diagnose_project_runtime_compatibility(project)
+    )
+
+
+def test_codex_runtime_repair_rebinds_only_skill_bodies(tmp_path) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    manifest = IntegrationManifest("codex", project)
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "classic"},
+        script_type="ps",
+    )
+    skill_files = sorted(integration.skills_dest(project).glob("*/SKILL.md"))
+    original_frontmatter = {
+        skill_file: integration._split_frontmatter(
+            skill_file.read_text(encoding="utf-8")
+        )[0]
+        for skill_file in skill_files
+    }
+
+    runtime_source = tmp_path / "specify-runtime.exe"
+    runtime_source.write_bytes(b"runtime fixture")
+    write_runtime_launcher_config(project, runtime_source)
+    integration.rebind_unavailable_specify_runtime_commands(project, manifest)
+
+    generated_bodies: list[str] = []
+    for skill_file in skill_files:
+        content = skill_file.read_text(encoding="utf-8")
+        frontmatter_text, body = integration._split_frontmatter(content)
+        yaml.safe_load(frontmatter_text)
+        assert frontmatter_text == original_frontmatter[skill_file]
+        generated_bodies.append(body)
+
+    assert project_runtime_launcher_arg() in "\n".join(generated_bodies)
+
+
+def test_codex_runtime_repair_restores_legacy_rewritten_frontmatter(tmp_path) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    runtime_source = tmp_path / "specify-runtime.exe"
+    runtime_source.write_bytes(b"runtime fixture")
+    write_runtime_launcher_config(project, runtime_source)
+    manifest = IntegrationManifest("codex", project)
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "classic"},
+        script_type="ps",
+    )
+    skill_file = integration.skills_dest(project) / "sp-accept" / "SKILL.md"
+    content = skill_file.read_text(encoding="utf-8")
+    _, body = integration._split_frontmatter(content)
+    body_start = len(content) - len(body)
+    legacy_content = content[:body_start].replace(
+        "specify-runtime accept",
+        f"{project_runtime_launcher_arg()} accept",
+    ) + body
+    skill_file.write_text(legacy_content, encoding="utf-8")
+    manifest.record_existing(skill_file.relative_to(project))
+
+    integration.rebind_unavailable_specify_runtime_commands(project, manifest)
+
+    repaired = skill_file.read_text(encoding="utf-8")
+    frontmatter_text, repaired_body = integration._split_frontmatter(repaired)
+    frontmatter = yaml.safe_load(frontmatter_text)
+    assert "specify-runtime accept" in frontmatter["description"]
+    assert project_runtime_launcher_arg() not in frontmatter_text
+    assert project_runtime_launcher_arg() in repaired_body
+
+
+def _fresh_codex_init(monkeypatch, tmp_path, profile: str):
+    project = tmp_path / f"fresh-{profile}-project"
+    project.mkdir()
+    assert not (project / ".specify" / "config.json").exists()
+    pinned_command = TEST_SPECIFY_COMMAND
+    pinned_launcher = SpecifyLauncherSpec(
+        command=pinned_command,
+        argv=(
+            "uvx",
+            "--from",
+            TEST_SPECIFY_SOURCE,
+            "specify",
+        ),
+    )
+    monkeypatch.setattr(specify_cli, "check_tool", lambda tool, tracker=None: True)
+    monkeypatch.setattr(
+        "specify_cli.launcher.resolve_specify_launcher_spec",
+        lambda: pinned_launcher,
+    )
+    monkeypatch.setattr(
+        "specify_cli.specify_runtime.ensure_binary",
+        lambda: (_ for _ in ()).throw(RuntimeError("offline runtime fixture")),
+    )
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        initialized = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--force",
+                "--ai",
+                "codex",
+                "--workflow-profile",
+                profile,
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert initialized.exit_code == 0, initialized.output
+    context = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime learning start "
+        "--command '<workflow>' --format json"
+    ) in context
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime api list --format json"
+        in context
+    )
+    managed = context.split("<!-- SPEC-KIT:BEGIN -->", 1)[1].split(
+        "<!-- SPEC-KIT:END -->",
+        1,
+    )[0]
+    assert pinned_launcher.command not in managed
+    assert "Python `specify` is human-only for bootstrap" in context
+    return project, pinned_launcher
+
+
+def test_fresh_advanced_codex_init_keeps_agent_flows_off_source_launcher(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    project, pinned_launcher = _fresh_codex_init(monkeypatch, tmp_path, "advanced")
+    config = json.loads(
+        (project / ".specify" / "config.json").read_text(encoding="utf-8")
+    )
+    assert config["specify_launcher"]["argv"] == list(pinned_launcher.argv)
+    discussion = (
+        project / ".codex" / "skills" / "spx-discussion" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    learning = (
+        project
+        / ".codex"
+        / "skills"
+        / "spx-discussion"
+        / "references"
+        / "project-learning.md"
+    ).read_text(encoding="utf-8")
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime discussion resolve "
+        "--intent continue --json"
+        in discussion
+    )
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime discussion init "
+        "'<slug>' --json"
+    ) in discussion
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime learning start "
+        "--command '<classic-command-name>' --format json"
+    ) in learning
+    assert pinned_launcher.command not in discussion + learning
+    assert "`specify discussion" not in discussion
+    assert "\nspecify learning" not in learning
+    manifest = IntegrationManifest.load("codex", project)
+    assert ".codex/skills/spx-discussion/SKILL.md" in manifest.files
+    assert ".specify/config.json" not in manifest.files
+    assert manifest.check_modified() == []
+    diagnostic_codes = {
+        issue["code"] for issue in diagnose_project_runtime_compatibility(project)
+    }
+    assert "unbound-generated-specify-launcher" not in diagnostic_codes
+
+
+def test_fresh_classic_codex_init_keeps_all_agent_flows_off_source_launcher(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    project, pinned_launcher = _fresh_codex_init(monkeypatch, tmp_path, "classic")
+
+    discussion = (
+        project / ".codex" / "skills" / "sp-discussion" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime discussion "
+        "mark-consumed '<slug>' --feature-dir '<consumer-workspace>'"
+    ) in discussion
+    assert pinned_launcher.command not in discussion
+    assert "{{specify-subcmd:" not in discussion
+
+    map_scan = (
+        project / ".codex" / "skills" / "sp-map-scan" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    for command in (
+        "confirm-ignore",
+        "scan-formats",
+        "scan-policy-stage",
+        "scan-policy-confirm",
+        "scan-prepare",
+        "scan-lease",
+        "scan-checkpoint",
+        "scan-yield",
+        "scan-accept",
+        "scan-status",
+    ):
+        assert (
+            f"SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime cognition {command}"
+            in map_scan
+        )
+    assert "--include-gitignored" in map_scan
+    assert "recommended_parallel_workers" in map_scan
+    assert "{{specify-subcmd:" not in map_scan
+
+    map_scan_worker = (
+        project
+        / ".specify"
+        / "templates"
+        / "worker-prompts"
+        / "map-scan-worker.md"
+    )
+    assert map_scan_worker.exists()
+    worker_content = map_scan_worker.read_text(encoding="utf-8")
+    assert "scan-checkpoint" in worker_content
+    assert "scan-yield" in worker_content
+
+    diagnostic_codes = {
+        issue["code"] for issue in diagnose_project_runtime_compatibility(project)
+    }
+    assert "unbound-generated-specify-launcher" not in diagnostic_codes
+
+
+def test_runtime_repair_does_not_rebind_agent_flows_to_changed_source_launcher(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    project, old_launcher = _fresh_codex_init(monkeypatch, tmp_path, "advanced")
+    integration = get_integration("codex")
+    manifest = IntegrationManifest.load("codex", project)
+    config_path = project / ".specify" / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    new_source = "git+https://github.com/chenziyang110/spec-kit-plus.git@" + "b" * 40
+    new_command = f"uvx --from {new_source} specify"
+    config["specify_launcher"].update(
+        {
+            "command": new_command,
+            "argv": ["uvx", "--from", new_source, "specify"],
+        }
+    )
+    config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    discussion = project / ".codex" / "skills" / "spx-discussion" / "SKILL.md"
+    original = discussion.read_text(encoding="utf-8")
+    assert old_launcher.command not in original
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime" in original
+
+    integration.repair_runtime_assets(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    content = discussion.read_text(encoding="utf-8")
+    assert old_launcher.command not in content
+    assert new_command not in content
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime" in content
+    assert manifest.check_modified() == []
+    assert not any(
+        issue["code"]
+        in {
+            "stale-generated-specify-launcher",
+            "unbound-generated-specify-launcher",
+        }
+        and ".codex/skills/spx-discussion/SKILL.md" in issue["summary"]
+        for issue in diagnose_project_runtime_compatibility(project)
+    )
+
+
+def test_runtime_repair_preserves_modified_source_bound_guidance(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    project, old_launcher = _fresh_codex_init(monkeypatch, tmp_path, "advanced")
+    integration = get_integration("codex")
+    manifest = IntegrationManifest.load("codex", project)
+    discussion = project / ".codex" / "skills" / "spx-discussion" / "SKILL.md"
+    original = discussion.read_text(encoding="utf-8") + "\nUser-owned note.\n"
+    discussion.write_text(original, encoding="utf-8")
+    config_path = project / ".specify" / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    new_source = "git+https://github.com/chenziyang110/spec-kit-plus.git@" + "b" * 40
+    config["specify_launcher"].update(
+        {
+            "command": f"uvx --from {new_source} specify",
+            "argv": ["uvx", "--from", new_source, "specify"],
+        }
+    )
+    config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+
+    repaired = integration.repair_runtime_assets(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    assert discussion not in repaired
+    assert discussion.read_text(encoding="utf-8") == original
+    assert old_launcher.command not in original
+    assert ".codex/skills/spx-discussion/SKILL.md" in getattr(
+        integration,
+        "_last_repair_skipped_modified",
+    )
+    assert ".codex/skills/spx-discussion/SKILL.md" in manifest.check_modified()
+
+
+def test_advanced_local_references_without_cognition_launcher_use_recovery_contract(
+    tmp_path,
+) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    config = project / ".specify" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps({"specify_launcher": _test_specify_launcher_payload()}),
+        encoding="utf-8",
+    )
+    manifest = IntegrationManifest("codex", project)
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+
+    cognition_references = [
+        (skill_dir / "references" / "project-cognition.md").read_text(encoding="utf-8")
+        for skill_dir in integration.skills_dest(project).glob("spx-*")
+    ]
+
+    assert cognition_references
+    assert len(set(cognition_references)) == 1
+    cognition = cognition_references[0]
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" in cognition
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime doctor --format json" in cognition
+    assert TEST_SPECIFY_COMMAND not in cognition
+    assert "human" in cognition.lower()
+    assert "bootstrap" in cognition.lower()
+    assert "do not" in cognition.lower()
+    assert "{{specify-subcmd:" not in cognition
+
+
+def test_advanced_runtime_repair_rebinds_unavailable_cognition_references(
+    tmp_path,
+) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    config = project / ".specify" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps({"specify_launcher": _test_specify_launcher_payload()}),
+        encoding="utf-8",
+    )
+    manifest = IntegrationManifest("codex", project)
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+    references = sorted(
+        integration.skills_dest(project).glob("spx-*/references/project-cognition.md")
+    )
+    assert references
+    assert all(
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE"
+        in reference.read_text(encoding="utf-8")
+        for reference in references
+    )
+
+    binary = project / ".specify" / "bin" / "specify-runtime"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("binary", encoding="utf-8")
+    write_runtime_launcher_config(project, binary)
+
+    repaired = integration.repair_runtime_assets(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    repaired_references = [
+        reference.read_text(encoding="utf-8") for reference in references
+    ]
+    assert set(references).issubset(set(repaired))
+    assert len(set(repaired_references)) == 1
+    runtime_command = project_runtime_launcher_arg()
+    assert all(runtime_command in content for content in repaired_references)
+    assert all(str(binary) not in content for content in repaired_references)
+    assert all(
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" not in content
+        for content in repaired_references
+    )
+
+
+def test_runtime_repair_preserves_user_modified_cognition_guidance(tmp_path) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    config = project / ".specify" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps({"specify_launcher": _test_specify_launcher_payload()}),
+        encoding="utf-8",
+    )
+    manifest = IntegrationManifest("codex", project)
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+    reference = (
+        integration.skills_dest(project)
+        / "spx-implement"
+        / "references"
+        / "project-cognition.md"
+    )
+    reference.write_text(
+        reference.read_text(encoding="utf-8") + "\nUser-owned recovery note.\n",
+        encoding="utf-8",
+    )
+
+    binary = project / ".specify" / "bin" / "specify-runtime"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("binary", encoding="utf-8")
+    write_runtime_launcher_config(project, binary)
+
+    repaired = integration.repair_runtime_assets(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    content = reference.read_text(encoding="utf-8")
+    assert reference not in repaired
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" in content
+    assert "User-owned recovery note." in content
+
+
+def test_advanced_integration_repair_installs_and_rebinds_missing_cognition_runtime(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.setattr(specify_cli, "check_tool", lambda tool, tracker=None: True)
+    monkeypatch.setattr(
+        "specify_cli.specify_runtime.ensure_binary",
+        lambda: (_ for _ in ()).throw(RuntimeError("offline runtime fixture")),
+    )
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        initialized = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--force",
+                "--ai",
+                "codex",
+                "--workflow-profile",
+                "advanced",
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+        assert initialized.exit_code == 0, initialized.output
+        installed_reference = (
+            project
+            / ".codex"
+            / "skills"
+            / "spx-ask"
+            / "references"
+            / "project-cognition.md"
+        )
+        assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" in (
+            installed_reference.read_text(encoding="utf-8")
+        )
+        (project / "user-notes.md").write_text(
+            "# User notes\n\nDo not replace this file.\n",
+            encoding="utf-8",
+        )
+
+        binary = tmp_path / "cache" / "specify-runtime"
+        binary.parent.mkdir(parents=True)
+        binary.write_text("binary", encoding="utf-8")
+        monkeypatch.setattr(
+            "specify_cli.specify_runtime.ensure_binary", lambda force=False: binary
+        )
+        repaired = runner.invoke(
+            app,
+            ["integration", "repair"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert repaired.exit_code == 0, repaired.output
+    project_config = json.loads(
+        (project / ".specify" / "config.json").read_text(encoding="utf-8")
+    )
+    runtime_command = project_runtime_launcher_arg()
+    assert project_config["runtime_launcher"]["argv"] == [runtime_command]
+    project_runtime = project / ".specify" / "bin" / (
+        "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
+    )
+    assert project_runtime.exists()
+    assert (project / "user-notes.md").read_text(encoding="utf-8") == (
+        "# User notes\n\nDo not replace this file.\n"
+    )
+    cognition_references = [
+        reference.read_text(encoding="utf-8")
+        for reference in (project / ".codex" / "skills").glob(
+            "spx-*/references/project-cognition.md"
+        )
+    ]
+    assert cognition_references
+    assert all(runtime_command in content for content in cognition_references)
+    assert all(str(binary) not in content for content in cognition_references)
+    assert all(
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" not in content
+        for content in cognition_references
+    )
+
+
+def test_classic_missing_cognition_launcher_has_equivalent_recovery_and_rebinds(
+    tmp_path,
+) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    config = project / ".specify" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps({"specify_launcher": _test_specify_launcher_payload()}),
+        encoding="utf-8",
+    )
+    manifest = IntegrationManifest("codex", project)
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "classic"},
+        script_type="sh",
+    )
+
+    skills = integration.skills_dest(project)
+    implement = skills / "sp-implement" / "SKILL.md"
+    implement_content = implement.read_text(encoding="utf-8")
+    cognition_gate = (
+        skills / "spec-kit-project-cognition-gate" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime cognition compass"
+        in implement_content
+    )
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" in cognition_gate
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime doctor --format json"
+        in cognition_gate
+    )
+    assert TEST_SPECIFY_COMMAND not in cognition_gate
+    assert "human" in cognition_gate.lower()
+    assert "bootstrap" in cognition_gate.lower()
+    assert "do not" in cognition_gate.lower()
+
+    binary = project / ".specify" / "bin" / "specify-runtime"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("binary", encoding="utf-8")
+    write_runtime_launcher_config(project, binary)
+    repaired = integration.repair_runtime_assets(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    assert implement in repaired
+    repaired_implement = implement.read_text(encoding="utf-8")
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" not in repaired_implement
+    assert (
+        f"{project_runtime_launcher_arg()} cognition compass --intent implement"
+        in repaired_implement
+    )
+    assert str(binary) not in repaired_implement
+
+
+def test_markdown_command_integration_installs_and_rebinds_cognition_recovery(
+    tmp_path,
+) -> None:
+    integration = get_integration("qwen")
+    project = tmp_path / "project"
+    config = project / ".specify" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps({"specify_launcher": _test_specify_launcher_payload()}),
+        encoding="utf-8",
+    )
+    manifest = IntegrationManifest("qwen", project)
+
+    integration.setup(project, manifest, script_type="sh")
+
+    commands = integration.commands_dest(project)
+    implement = (commands / "sp.implement.md").read_text(encoding="utf-8")
+    semantic_contract = (
+        commands / "references" / "implement" / "semantic-work-contract.md"
+    ).read_text(encoding="utf-8")
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime cognition" in implement
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" in semantic_contract
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime doctor --format json"
+        in semantic_contract
+    )
+    assert TEST_SPECIFY_COMMAND not in semantic_contract
+    assert "human" in semantic_contract.lower()
+    assert "bootstrap" in semantic_contract.lower()
+    assert "do not" in semantic_contract.lower()
+
+    binary = project / ".specify" / "bin" / "specify-runtime"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("binary", encoding="utf-8")
+    write_runtime_launcher_config(project, binary)
+
+    repaired = integration.repair_runtime_assets(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    implement_path = commands / "sp.implement.md"
+    assert implement_path in repaired
+    repaired_implement = implement_path.read_text(encoding="utf-8")
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" not in repaired_implement
+    assert (
+        f"{project_runtime_launcher_arg()} cognition compass --intent implement"
+        in repaired_implement
+    )
+    assert str(binary) not in repaired_implement
+
+
+def test_toml_command_integration_rebinds_cognition_recovery_as_valid_toml(
+    tmp_path,
+) -> None:
+    integration = get_integration("gemini")
+    project = tmp_path / "project"
+    config = project / ".specify" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        json.dumps({"specify_launcher": _test_specify_launcher_payload()}),
+        encoding="utf-8",
+    )
+    manifest = IntegrationManifest("gemini", project)
+
+    integration.setup(project, manifest, script_type="sh")
+
+    implement_path = integration.commands_dest(project) / "sp.implement.toml"
+    initial = tomllib.loads(implement_path.read_text(encoding="utf-8"))
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime cognition" in initial["prompt"]
+    )
+
+    binary = project / ".specify" / "tools" / "specify-runtime.exe"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("binary", encoding="utf-8")
+    write_runtime_launcher_config(project, binary)
+
+    repaired = integration.repair_runtime_assets(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    assert implement_path in repaired
+    repaired_payload = tomllib.loads(implement_path.read_text(encoding="utf-8"))
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" not in repaired_payload["prompt"]
+    assert (
+        f"{project_runtime_launcher_arg()} cognition compass --intent implement"
+        in repaired_payload["prompt"]
+    )
+    assert str(binary) not in repaired_payload["prompt"]
+
+
+def test_advanced_upgrade_prunes_only_unmodified_retired_spx_files(tmp_path) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    manifest = IntegrationManifest("codex", project)
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+    skills = integration.skills_dest(project)
+    retired = skills / "spx-plan" / "references" / "retired.md"
+    customized = skills / "spx-plan" / "references" / "customized-retired.md"
+    retired.write_text("managed old reference\n", encoding="utf-8")
+    customized.write_text("managed old reference\n", encoding="utf-8")
+    manifest.record_existing(retired.relative_to(project))
+    manifest.record_existing(customized.relative_to(project))
+    customized.write_text("user-customized reference\n", encoding="utf-8")
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+
+    assert not retired.exists()
+    assert customized.read_text(encoding="utf-8") == "user-customized reference\n"
+    assert customized.relative_to(project).as_posix() in manifest.files
+
+
+def test_advanced_surface_map_covers_classic_commands_and_declared_files() -> None:
+    surface_map = json.loads(
+        (ADVANCED_SKILLS / "_shared" / "surface-map.json").read_text(encoding="utf-8")
+    )
+    assert surface_map["schema_version"] == 2
+    assert surface_map["design"]["equivalence"] == (
+        "command-equivalent, prompt-optimized"
+    )
+    assert set(surface_map["classic_companion_skills"]) == (
+        CLASSIC_MAP_COMPANION_SKILLS
+    )
+    assert surface_map["skills"].keys() == SPX_SKILLS
+
+    mapped_commands = []
+    for skill_name, contract in surface_map["skills"].items():
+        mapped_commands.extend(contract["absorbs"])
+        declared = {*contract["references"], *contract["assets"]}
+        for relative in declared:
+            assert (ADVANCED_SKILLS / relative).is_file(), (
+                skill_name,
+                relative,
+            )
+        skill_dir = ADVANCED_SKILLS / skill_name
+        actual = {
+            path.relative_to(ADVANCED_SKILLS).as_posix()
+            for directory in ("references", "assets")
+            for path in (skill_dir / directory).glob("*")
+            if path.is_file()
+        }
+        assert declared == actual, skill_name
+
+    classic_commands = {
+        path.stem for path in (PROJECT_ROOT / "templates" / "commands").glob("*.md")
+    }
+    assert len(mapped_commands) == len(set(mapped_commands))
+    assert set(mapped_commands) == classic_commands
+    for command in classic_commands:
+        assert surface_map["skills"][f"spx-{command}"]["absorbs"] == [command]
+    assert surface_map["skills"]["spx-map-rebuild"]["absorbs"] == []
+
+    for relative in surface_map["shared_references"]:
+        assert (ADVANCED_SKILLS / relative).is_file()
+
+
+def test_advanced_views_do_not_fork_canonical_machine_contracts() -> None:
+    forbidden_machine_copies = {
+        "spec-contract.json",
+        "plan-contract.json",
+        "task-index.json",
+        "execution-state.json",
+        "lifecycle.json",
+    }
+    assert not {path.name for path in ADVANCED_SKILLS.rglob("*.json")}.intersection(
+        forbidden_machine_copies
+    )
+
+    for required in (
+        "spx-specify/assets/spec.md",
+        "spx-plan/assets/plan.md",
+    ):
+        assert (ADVANCED_SKILLS / required).is_file()
+
+    for removed_duplicate in (
+        "spx-tasks/assets/tasks.md",
+        "spx-checklist/assets/checklist.md",
+        "spx-debug/assets/debug-session.md",
+    ):
+        assert not (ADVANCED_SKILLS / removed_duplicate).exists()
+
+
+def test_advanced_map_phases_keep_independent_write_boundaries() -> None:
+    scan = (ADVANCED_SKILLS / "spx-map-scan" / "SKILL.md").read_text(encoding="utf-8")
+    build = (ADVANCED_SKILLS / "spx-map-build" / "SKILL.md").read_text(encoding="utf-8")
+    rebuild = (ADVANCED_SKILLS / "spx-map-rebuild" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+
+    for required in (
+        "scan-formats",
+        "scan-policy-stage",
+        "scan-policy-confirm",
+        "scan-prepare",
+        "scan-accept",
+        "validate-scan",
+    ):
+        assert required in scan
+    assert "Do not run\n`build-from-scan`" in scan
+    assert "validate-build" not in scan
+
+    for required in ("validate-scan", "build-from-scan", "validate-build"):
+        assert required in build
+    for forbidden in ("scan-set", "scan-prepare", "scan-accept"):
+        assert forbidden not in build
+    assert "complete-refresh" in build
+    assert "Do not ask a model" in build
+
+    assert "$spx-map-scan" in rebuild
+    assert "$spx-map-build" in rebuild
+    for forbidden in ("scan-prepare", "scan-accept", "build-from-scan"):
+        assert forbidden not in rebuild
+
+
+def test_advanced_source_commands_use_launcher_placeholders() -> None:
+    bare_command = re.compile(r"`(?:specify|sp-teams)\s+[^`]+`")
+    for path in ADVANCED_SKILLS.rglob("*.md"):
+        if "assets" in path.parts:
+            continue
+        content = path.read_text(encoding="utf-8")
+        assert bare_command.search(content) is None, path
+
+    assert "{{specify-subcmd:specify-runtime implement resume-audit" in (
+        ADVANCED_SKILLS / "spx-implement" / "references" / "execution-contract.md"
+    ).read_text(encoding="utf-8")
+    assert "{{specify-subcmd:specify-runtime sp-teams auto-dispatch" in (
+        ADVANCED_SKILLS / "spx-implement-teams" / "references" / "codex-teams.md"
+    ).read_text(encoding="utf-8")
+
+
+def test_spx_test_design_gap_reconcile_uses_renderer_safe_json_placeholder() -> None:
+    content = (ADVANCED_SKILLS / "spx-test-design" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "test-design gap-reconcile" in content
+    assert "--input-json <gap-json>" in content
+    assert "--input-json '{\"gaps\"" not in content
+    assert "lane-checkpoint" in content
+    assert "--result-json <inline-json|@path|->" in content
+    assert "large model-authored json through stdin" in content.lower()
+
+
+def test_classic_profile_keeps_existing_skills_and_does_not_install_spx(
+    tmp_path,
+) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    manifest = IntegrationManifest("codex", project)
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "classic"},
+        script_type="sh",
+    )
+
+    skills_dir = integration.skills_dest(project)
+    legacy_plan = skills_dir / "sp-plan" / "SKILL.md"
+    assert legacy_plan.exists()
+    assert _frontmatter(legacy_plan)["metadata"]["source"] == (
+        "templates/commands/plan.md"
+    )
+    assert not any(skills_dir.glob("spx-*/SKILL.md"))
+
+
+@pytest.mark.parametrize("integration_key", SKILLS_INTEGRATIONS)
+def test_all_skills_integrations_require_explicit_classic_invocation(
+    tmp_path,
+    integration_key,
+) -> None:
+    integration = get_integration(integration_key)
+    project = tmp_path / integration_key
+    manifest = IntegrationManifest(integration_key, project)
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "classic"},
+        script_type="sh",
+    )
+
+    skill_files = sorted(integration.skills_dest(project).glob("sp-*/SKILL.md"))
+    assert skill_files, integration_key
+    for skill_file in skill_files:
+        frontmatter = _frontmatter(skill_file)
+        assert frontmatter["description"].startswith(
+            CommandRegistrar.USER_INVOKED_DESCRIPTION_PREFIX
+        ), (integration_key, skill_file.parent.name)
+        metadata_path = skill_file.parent / "agents" / "openai.yaml"
+        if integration_key == "codex":
+            assert metadata_path.exists(), skill_file.parent.name
+        if metadata_path.exists():
+            metadata = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))
+            assert metadata["policy"]["allow_implicit_invocation"] is False
+        if integration_key in {"claude", "cursor-agent", "grok", "kimi"}:
+            assert frontmatter["disable-model-invocation"] is True
+
+
+@pytest.mark.parametrize("integration_key", SKILLS_INTEGRATIONS)
+def test_all_skills_integrations_support_the_advanced_profile(
+    tmp_path,
+    integration_key,
+) -> None:
+    integration = get_integration(integration_key)
+    project = tmp_path / integration_key
+    manifest = IntegrationManifest(integration_key, project)
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+
+    skills_dir = integration.skills_dest(project)
+    installed = {path.parent.name for path in skills_dir.glob("spx-*/SKILL.md")}
+    assert installed == SPX_SKILLS, integration_key
+    installed_classic = {path.parent.name for path in skills_dir.glob("sp-*/SKILL.md")}
+    assert installed_classic == CLASSIC_MAP_COMPANION_SKILLS, integration_key
+    assert not (skills_dir / "sp-plan" / "SKILL.md").exists(), integration_key
+    assert not (skills_dir / "spec-kit-workflow-routing" / "SKILL.md").exists(), (
+        integration_key
+    )
+
+    if integration_key in {"claude", "vibe", "grok"}:
+        for skill_name in SPX_SKILLS:
+            skill = skills_dir / skill_name / "SKILL.md"
+            assert _frontmatter(skill)["user-invocable"] is True
+
+    for skill_name in SPX_SKILLS | CLASSIC_MAP_COMPANION_SKILLS:
+        skill_dir = skills_dir / skill_name
+        frontmatter = _frontmatter(skill_dir / "SKILL.md")
+        assert frontmatter["description"].startswith(
+            CommandRegistrar.USER_INVOKED_DESCRIPTION_PREFIX
+        ), (integration_key, skill_name)
+        metadata = yaml.safe_load(
+            (skill_dir / "agents" / "openai.yaml").read_text(encoding="utf-8")
+        )
+        assert metadata["policy"]["allow_implicit_invocation"] is False
+        if integration_key in {"claude", "cursor-agent", "grok", "kimi"}:
+            assert frontmatter["disable-model-invocation"] is True
+
+    cognition_reference = (
+        skills_dir / "spx-ask" / "references" / "project-cognition.md"
+    ).read_text(encoding="utf-8")
+    expected_handoff = (
+        "/skill:spx-map-rebuild"
+        if integration_key == "kimi"
+        else (
+            "$spx-map-rebuild"
+            if integration_key in {"agy", "codex", "trae", "zcode"}
+            else "/spx-map-rebuild"
+        )
+    )
+    assert expected_handoff in cognition_reference
+    if not expected_handoff.startswith("$"):
+        assert "$spx-map-rebuild" not in cognition_reference
+
+    invocation_prefix = (
+        "/skill:"
+        if integration_key == "kimi"
+        else "$"
+        if integration_key in {"agy", "codex", "trae", "zcode"}
+        else "/"
+    )
+    for skill_name, next_skill in (
+        ("spx-specify", "spx-plan"),
+        ("spx-plan", "spx-tasks"),
+        ("spx-tasks", "spx-implement"),
+    ):
+        installed_skill = re.sub(
+            r"\s+",
+            " ",
+            (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower(),
+        )
+        assert "this invocation authorizes only this workflow stage" in installed_skill
+        expected_next = f"{invocation_prefix}{next_skill}"
+        assert f"do not invoke `{expected_next}`" in installed_skill
+
+
+def test_cursor_advanced_implement_reference_uses_native_task_lifecycle(tmp_path) -> None:
+    integration = get_integration("cursor-agent")
+    project = tmp_path / "cursor-advanced-native-task"
+    manifest = IntegrationManifest("cursor-agent", project)
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+
+    reference = (
+        integration.skills_dest(project)
+        / "spx-implement"
+        / "references"
+        / "native-subagents.md"
+    ).read_text(encoding="utf-8")
+
+    assert "## Cursor Native Subagent Surface" in reference
+    assert "`Task`" in reference
+    assert "Task(" in reference
+    assert "`description`" in reference
+    assert "`prompt`" in reference
+    assert "`subagent_type`" in reference
+    assert "`run_in_background`" in reference
+    assert "`agent_id`" in reference
+    assert "`resume`" in reference
+    assert "spawn_agent" not in reference
+    assert "wait_agent" not in reference
+    assert "close_agent" not in reference
+
+
+def test_advanced_native_subagent_renderer_keeps_cli_surfaces_isolated() -> None:
+    source = (ADVANCED_SKILLS / "_shared" / "native-subagents.md").read_text(
+        encoding="utf-8"
+    )
+    cursor = get_integration("cursor-agent")
+    codex = get_integration("codex")
+
+    cursor_reference = cursor._render_advanced_native_subagent_reference(
+        content=source,
+        command_name="implement",
+        snapshot=CapabilitySnapshot(
+            integration_key="cursor-agent",
+            native_subagents=True,
+            native_worker_surface="cursor-task",
+        ),
+    )
+    codex_reference = codex._render_advanced_native_subagent_reference(
+        content=source,
+        command_name="implement",
+        snapshot=CapabilitySnapshot(
+            integration_key="codex",
+            native_subagents=True,
+            native_worker_surface="spawn_agent",
+        ),
+    )
+
+    assert "## Cursor Native Subagent Surface" in cursor_reference
+    assert "Task(" in cursor_reference
+    assert "spawn_agent" not in cursor_reference
+    assert "## Codex Native Subagent Surface" in codex_reference
+    assert "spawn_agent" in codex_reference
+    assert "wait_agent" in codex_reference
+    assert "Task(" not in codex_reference
+
+
+def test_classic_then_advanced_profiles_are_additive_in_the_manifest(tmp_path) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+
+    classic_manifest = IntegrationManifest("codex", project)
+    integration.setup(
+        project,
+        classic_manifest,
+        parsed_options={"workflow_profile": "classic"},
+        script_type="sh",
+    )
+    skills_dir = integration.skills_dest(project)
+    classic_map_bytes = {
+        skill_name: {
+            path.relative_to(skills_dir / skill_name).as_posix(): path.read_bytes()
+            for path in (skills_dir / skill_name).rglob("*")
+            if path.is_file()
+        }
+        for skill_name in CLASSIC_MAP_COMPANION_SKILLS
+    }
+    classic_manifest.save()
+
+    advanced_manifest = IntegrationManifest.load("codex", project)
+    integration.setup(
+        project,
+        advanced_manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+    advanced_manifest.save()
+
+    assert (skills_dir / "sp-plan" / "SKILL.md").exists()
+    assert (skills_dir / "spx-plan" / "SKILL.md").exists()
+    advanced_map_bytes = {
+        skill_name: {
+            path.relative_to(skills_dir / skill_name).as_posix(): path.read_bytes()
+            for path in (skills_dir / skill_name).rglob("*")
+            if path.is_file()
+        }
+        for skill_name in CLASSIC_MAP_COMPANION_SKILLS
+    }
+    assert advanced_map_bytes == classic_map_bytes
+
+    tracked = IntegrationManifest.load("codex", project).files
+    assert ".codex/skills/sp-plan/SKILL.md" in tracked
+    assert ".codex/skills/spx-plan/SKILL.md" in tracked
+
+
+def test_profile_metadata_is_isolated_between_skills_integrations(tmp_path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        classic = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--force",
+                "--ai",
+                "claude",
+                "--workflow-profile",
+                "classic",
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+        advanced = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--force",
+                "--ai",
+                "codex",
+                "--workflow-profile",
+                "advanced",
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert classic.exit_code == 0, classic.output
+    assert advanced.exit_code == 0, advanced.output
+    for skill_name in SPX_SKILLS:
+        assert f"${skill_name}" in advanced.output
+    for skill_name in CLASSIC_MAP_COMPANION_SKILLS:
+        assert f"${skill_name}" in advanced.output
+    options = json.loads(
+        (project / ".specify" / "init-options.json").read_text(encoding="utf-8")
+    )
+    assert options["workflow_profiles_by_integration"] == {
+        "claude": ["classic"],
+        "codex": ["advanced"],
+    }
+    integration_state = json.loads(
+        (project / ".specify" / "integration.json").read_text(encoding="utf-8")
+    )
+    assert integration_state["integration"] == "codex"
+    assert integration_state["workflow_profiles"] == ["advanced"]
+    assert not (project / ".codex" / "skills" / "sp-plan").exists()
+
+
+def test_non_skills_integrations_do_not_install_spx(tmp_path) -> None:
+    integration = get_integration("gemini")
+    project = tmp_path / "project"
+    manifest = IntegrationManifest("gemini", project)
+
+    integration.setup(project, manifest, script_type="sh")
+
+    assert not any(path.name.startswith("spx-") for path in project.rglob("spx-*"))
+
+
+@pytest.mark.parametrize(
+    "profile_order",
+    [("advanced", "classic"), ("classic", "advanced")],
+)
+def test_init_can_install_both_profiles_without_losing_either(
+    tmp_path,
+    profile_order,
+    unified_runtime_env,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        results = []
+        for profile in profile_order:
+            results.append(
+                runner.invoke(
+                    app,
+                    [
+                        "init",
+                        "--here",
+                        "--force",
+                        "--ai",
+                        "codex",
+                        "--workflow-profile",
+                        profile,
+                        "--script",
+                        "sh",
+                        "--no-git",
+                        "--ignore-agent-tools",
+                    ],
+                    catch_exceptions=False,
+                )
+            )
+    finally:
+        os.chdir(old_cwd)
+
+    for result in results:
+        assert result.exit_code == 0, result.output
+
+    skills_dir = project / ".codex" / "skills"
+    assert (skills_dir / "spx-plan" / "SKILL.md").exists()
+    assert (skills_dir / "spx-fast" / "SKILL.md").exists()
+    assert (skills_dir / "spx-quick" / "SKILL.md").exists()
+    assert (skills_dir / "sp-plan" / "SKILL.md").exists()
+
+    project_config = json.loads(
+        (project / ".specify" / "config.json").read_text(encoding="utf-8")
+    )
+    cognition_binary = project_config["runtime_launcher"]["argv"][0]
+    installed_cognition = (
+        skills_dir / "spx-ask" / "references" / "project-cognition.md"
+    ).read_text(encoding="utf-8")
+    assert cognition_binary in installed_cognition
+    assert "{{specify-subcmd:" not in installed_cognition
+
+    init_options = json.loads(
+        (project / ".specify" / "init-options.json").read_text(encoding="utf-8")
+    )
+    assert init_options["workflow_profile"] == profile_order[-1]
+    assert init_options["installed_workflow_profiles"] == list(profile_order)
+
+    manifest = json.loads(
+        (project / ".specify" / "integrations" / "codex.manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert ".codex/skills/spx-plan/SKILL.md" in manifest["files"]
+    assert ".codex/skills/spx-fast/SKILL.md" in manifest["files"]
+    assert ".codex/skills/spx-quick/SKILL.md" in manifest["files"]
+    assert ".codex/skills/sp-plan/SKILL.md" in manifest["files"]
+
+    integration_state = json.loads(
+        (project / ".specify" / "integration.json").read_text(encoding="utf-8")
+    )
+    assert integration_state["workflow_profiles"] == list(profile_order)
+    assert integration_state["team"]["surface"] == "sp-teams"
+
+
+def test_advanced_only_codex_repair_restores_runtime_without_unrelated_classic_skill(
+    tmp_path,
+    unified_runtime_env,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        initialized = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--force",
+                "--ai",
+                "codex",
+                "--workflow-profile",
+                "advanced",
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+        missing_reference = (
+            project
+            / ".codex"
+            / "skills"
+            / "spx-implement"
+            / "references"
+            / "execution-contract.md"
+        )
+        missing_asset = (
+            project / ".codex" / "skills" / "spx-tasks" / "assets" / "ui-task.md"
+        )
+        missing_reference.unlink()
+        missing_asset.unlink()
+        repaired = runner.invoke(
+            app,
+            ["integration", "repair", "--script", "sh"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert initialized.exit_code == 0, initialized.output
+    assert repaired.exit_code == 0, repaired.output
+    assert missing_reference.exists()
+    assert "{{specify-subcmd:" not in missing_reference.read_text(encoding="utf-8")
+    assert missing_asset.exists()
+    assert not (project / ".codex" / "skills" / "sp-plan").exists()
+    assert not (project / ".codex" / "skills" / "sp-teams").exists()
+    for skill_name in CLASSIC_MAP_COMPANION_SKILLS:
+        assert (project / ".codex" / "skills" / skill_name / "SKILL.md").exists()
+
+    integration_state = json.loads(
+        (project / ".specify" / "integration.json").read_text(encoding="utf-8")
+    )
+    assert integration_state["workflow_profiles"] == ["advanced"]
+    assert integration_state["team"]["surface"] == "sp-teams"
+    assert (project / ".specify" / "teams" / "runtime.json").is_file()
+
+
+def test_uninstall_clears_workflow_profile_metadata(tmp_path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        initialized = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--force",
+                "--ai",
+                "codex",
+                "--workflow-profile",
+                "advanced",
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+        uninstalled = runner.invoke(
+            app,
+            ["integration", "uninstall", "codex", "--force"],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert initialized.exit_code == 0, initialized.output
+    assert uninstalled.exit_code == 0, uninstalled.output
+
+    init_options = json.loads(
+        (project / ".specify" / "init-options.json").read_text(encoding="utf-8")
+    )
+    assert "workflow_profile" not in init_options
+    assert "installed_workflow_profiles" not in init_options
+
+
+def test_advanced_profile_is_rejected_for_non_skills_integration(tmp_path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--force",
+                "--ai",
+                "gemini",
+                "--workflow-profile",
+                "advanced",
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 1
+    assert "advanced workflow profile requires a skills-based integration" in (
+        result.output.lower()
+    )

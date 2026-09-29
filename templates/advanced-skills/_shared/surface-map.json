@@ -1,3 +1,105 @@
+{
+  "schema_version": 2,
+  "profile": "advanced",
+  "design": {
+    "equivalence": "command-equivalent, prompt-optimized",
+    "prompt_shape": "short leader skill plus triggered advanced references and compact views",
+    "machine_contracts": "shared canonical schemas, validators, scripts, lifecycle state, and specify-runtime cognition runtime",
+    "passive_skills": "classic passive prompt bundles are not installed; essential gates live in the owning SPX skill or advanced reference",
+    "classic_sources": "audit inputs for SPX prompts; only the three classic map companion skills are also installed through the unchanged classic renderer"
+  },
+  "optimization_policy": [
+    "preserve every classic command entrypoint, write boundary, state owner, explicit side-effect gate, and resumable stop point",
+    "preserve classic stage inputs, triggered outputs, state ownership, resume transitions, blocker semantics, failure recovery, and final-claim gates while leaving implementation strategy to the advanced agent",
+    "use no hard word or token ceiling; reduce duplication and tutorials only after required workflow semantics are represented in the owning skill, a triggered reference, or deterministic runtime",
+    "remove repeated cognition tutorials, fixed role chains, mandatory delegation, long examples, and model-authored stable boilerplate",
+    "delegate bounded bulk scanning to the lowest-cost capable worker while advanced leaders own scope, acceptance, conflicts, and escalation",
+    "use deterministic templates and runtimes for stable artifacts, validation, graph construction, and lifecycle transitions",
+    "install the unchanged classic sp-map-scan, sp-map-build, and sp-map-update skills beside SPX so low-cost models can run the established map workflow"
+  ],
+  "shared_references": [
+    "_shared/project-cognition.md",
+    "_shared/project-learning.md",
+    "_shared/consequence-gate.md",
+    "_shared/ui-quality-gate.md",
+    "_shared/human-confirmation.md",
+    "_shared/blocker-resolution.md",
+    "_shared/autonomous-blocker-recovery.md",
+    "_shared/execution-bootstrap.md",
+    "_shared/native-subagents.md",
+    "_shared/workflow-runtime.md"
+  ],
+  "classic_companion_skills": [
+    "sp-map-scan",
+    "sp-map-build",
+    "sp-map-update"
+  ],
+  "skills": {
+    "spx-accept": {
+      "absorbs": ["accept"],
+      "references": ["spx-accept/references/acceptance-contract.md"],
+      "assets": [],
+      "optimization": "context-restoring guided human end-to-end acceptance over a frozen requirement universe and Review-approved runtime targets, with every non-access failure routed first to a fresh Leader-owned Review/Fix/revalidation cycle"
+    },
+    "spx-analyze": {
+      "absorbs": ["analyze"],
+      "references": ["spx-analyze/references/analysis-gate.md"],
+      "assets": [],
+      "optimization": "read-only obligation analysis with stable blockers and one repair route"
+    },
+    "spx-ask": {
+      "absorbs": ["ask"],
+      "references": ["spx-ask/references/evidence-contract.md"],
+      "assets": [],
+      "optimization": "one bounded live-evidence pass without workflow state"
+    },
+    "spx-auto": {
+      "absorbs": ["auto"],
+      "references": ["spx-auto/references/routing-contract.md"],
+      "assets": [],
+      "optimization": "one evidence-based continuation decision without a parallel state machine"
+    },
+    "spx-checklist": {
+      "absorbs": ["checklist"],
+      "references": ["spx-checklist/references/checklist-contract.md"],
+      "assets": [],
+      "optimization": "focused unit tests for written requirements, never implementation tests"
+    },
+    "spx-constitution": {
+      "absorbs": ["constitution"],
+      "references": ["spx-constitution/references/constitution-contract.md"],
+      "assets": [],
+      "optimization": "constitution-only writes with targeted downstream impact reporting"
+    },
+    "spx-debug": {
+      "absorbs": ["debug"],
+      "references": [
+        "spx-debug/references/investigation-contract.md",
+        "spx-debug/references/investigator-worker.md"
+      ],
+      "assets": [],
+      "optimization": "ranked evidence-separating hypotheses replace a fixed multi-role chain"
+    },
+    "spx-deep-research": {
+      "absorbs": ["deep-research"],
+      "references": ["spx-deep-research/references/research-contract.md"],
+      "assets": [],
+      "optimization": "decision-scoped primary evidence and disposable spikes with a durable planning handoff"
+    },
+    "spx-design": {
+      "absorbs": ["design"],
+      "references": [
+        "spx-design/references/task-router.md",
+        "spx-design/references/design-contract.md",
+        "spx-design/references/consumer-contract.md",
+        "spx-design/references/studio-loop.md",
+        "spx-design/references/platform-guidance.md",
+        "spx-design/references/image-round.md",
+        "spx-design/references/html-round.md"
+      ],
+      "assets": ["spx-design/assets/design-change.md"],
+      "optimization": "one prompt-routed change-scoped collaborative single-concept studio with platform guidance, immutable registration, and exact formal/direct consumer bindings"
+    },
     "spx-discussion": {
       "absorbs": ["discussion"],
       "references": ["spx-discussion/references/discussion-contract.md", "spx-discussion/references/source-material-consumption.md"],
@@ -16,3 +118,132 @@
       "assets": [],
       "optimization": "consume-only learning, leader-direct local edit, targeted verification, and lightweight self-review"
     },
+    "spx-implement": {
+      "absorbs": ["implement"],
+      "references": [
+        "spx-implement/references/execution-contract.md",
+        "spx-implement/references/worker-contract.md"
+      ],
+      "assets": ["spx-implement/assets/implementation-summary.md"],
+      "optimization": "adaptive direct or native-subagent execution with evidence-backed Review handoff"
+    },
+    "spx-implement-teams": {
+      "absorbs": ["implement-teams"],
+      "references": [
+        "spx-implement-teams/references/codex-teams.md",
+        "spx-implement-teams/references/claude-agent-teams.md"
+      ],
+      "assets": [],
+      "optimization": "one implementation contract with explicit Codex and Claude durable-team backends"
+    },
+    "spx-map-build": {
+      "absorbs": ["map-build"],
+      "references": ["spx-map-build/references/build-gates.md"],
+      "assets": [],
+      "optimization": "validated scan input feeds deterministic graph construction and publication"
+    },
+    "spx-map-rebuild": {
+      "absorbs": [],
+      "references": ["spx-map-rebuild/references/rebuild-gates.md"],
+      "assets": [],
+      "optimization": "optional orchestration of the independent scan and build skills"
+    },
+    "spx-map-scan": {
+      "absorbs": ["map-scan"],
+      "references": [
+        "spx-map-scan/references/scan-gates.md",
+        "spx-map-scan/references/scan-worker.md"
+      ],
+      "assets": [],
+      "optimization": "strict runtime packets send complete bulk reads to the lowest-cost capable workers"
+    },
+    "spx-map-update": {
+      "absorbs": ["map-update"],
+      "references": ["spx-map-update/references/update-gates.md"],
+      "assets": [],
+      "optimization": "leader-direct exact-path incremental maintenance with result-state gates"
+    },
+    "spx-plan": {
+      "absorbs": ["plan"],
+      "references": ["spx-plan/references/planning-contract.md"],
+      "assets": ["spx-plan/assets/plan.md"],
+      "optimization": "repository-grounded design decisions without research, task, or issue side effects"
+    },
+    "spx-prd-build": {
+      "absorbs": ["prd-build"],
+      "references": ["spx-prd-build/references/prd-build-contract.md"],
+      "assets": [],
+      "optimization": "template-driven synthesis from a frozen validated scan package without rereading the repository"
+    },
+    "spx-prd-scan": {
+      "absorbs": ["prd-scan"],
+      "references": ["spx-prd-scan/references/prd-scan-contract.md"],
+      "assets": [],
+      "optimization": "low-cost evidence lanes with leader-owned L4 coverage and acceptance"
+    },
+    "spx-quick": {
+      "absorbs": ["quick"],
+      "references": [
+        "spx-quick/references/task-contract.md",
+        "spx-quick/references/worker-contract.md"
+      ],
+      "assets": [],
+      "optimization": "compact resumable state with delegation only when it adds value"
+    },
+    "spx-review": {
+      "absorbs": ["review"],
+      "references": [
+        "spx-review/references/review-contract.md",
+        "spx-review/references/worker-contract.md"
+      ],
+      "assets": [],
+      "optimization": "real-entrypoint system validation with bounded repair, adaptive independent review lanes, and a fresh fingerprint gate"
+    },
+    "spx-specify": {
+      "absorbs": ["specify"],
+      "references": [
+        "spx-specify/references/requirements-contract.md",
+        "spx-specify/references/discussion-handoff.md",
+        "spx-specify/references/ui-and-handoffs.md"
+      ],
+      "assets": [
+        "spx-specify/assets/spec.md",
+        "spx-specify/assets/ui-brief.md"
+      ],
+      "optimization": "planning-ready feature truth with a compact UI contract for every substantive UI change"
+    },
+    "spx-tasks": {
+      "absorbs": ["tasks"],
+      "references": [
+        "spx-tasks/references/task-graph-contract.md",
+        "spx-tasks/references/rebind.md"
+      ],
+      "assets": [
+        "spx-tasks/assets/ui-task.md",
+        "spx-tasks/assets/ui-task-index-entry.json"
+      ],
+      "optimization": "deterministic task-graph validation, structured UI task contracts, and just-in-time worker packet generation"
+    },
+    "spx-taskstoissues": {
+      "absorbs": ["taskstoissues"],
+      "references": ["spx-taskstoissues/references/issue-export-contract.md"],
+      "assets": [],
+      "optimization": "explicit idempotent external export with a partial-retry boundary"
+    },
+    "spx-team": {
+      "absorbs": ["team"],
+      "references": ["spx-team/references/runtime-boundary.md"],
+      "assets": [],
+      "optimization": "thin supported Codex runtime entrypoint separated from feature execution"
+    },
+    "spx-test-design": {
+      "absorbs": ["test-design"],
+      "references": [
+        "spx-test-design/references/test-design-contract.md",
+        "spx-test-design/references/worker-contract.md"
+      ],
+      "assets": [],
+      "optimization": "scope-frozen test intelligence with bounded discovery, explicit material dispositions, and independent audit"
+    }
+  }
+}
