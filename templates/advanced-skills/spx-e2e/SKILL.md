@@ -131,3 +131,29 @@ Results: `schema_version: 1`, exact `manifest_sha256`, `source_revision`, actual
 `passed|failed|skipped|blocked|not_run|flaky`. A passed case binds a hashed test
 source, all its exact requirement assertions, and nonempty hashed evidence.
 These files are ordinary test assets/results, not runtime workflow state.
+
+## Supplied native runner adapters
+
+For serial pytest and Playwright Test, reuse
+`.specify/scripts/shared/e2e_runner.py` instead of authoring normalized passing
+results or rebuilding an adapter. Freeze a bindings JSON with `schema_version`,
+`manifest_sha256`, hashed `test_sources`, and a `cases` array containing every
+planned `id`, `test_ref`, `selector`, and `asserted_requirements`. The selector
+contains exactly one complete generated case ID. pytest uses its full nodeid;
+Playwright uses its exact test title plus the exact `project` name. Browser and
+project combinations require distinct planned IDs. Independently inspect the
+bound assertions; bindings are not proof of assertion quality.
+
+```text
+python .specify/scripts/shared/e2e_runner.py tests/e2e/coverage-manifest.json --bindings tests/e2e/bindings.json --root . --runner pytest --target local-test-build --output-dir test-results/e2e/run-001 -- tests/e2e -q
+python .specify/scripts/shared/e2e_runner.py tests/e2e/coverage-manifest.json --bindings tests/e2e/bindings.json --root . --runner playwright --target local-test-build --output-dir test-results/e2e/run-002 -- node node_modules/@playwright/test/cli.js test tests/e2e
+```
+
+Use only an already installed, authorized runner and a new output directory.
+The wrapper preserves native reports, all pytest phases/attempts, actual process
+exit status, and fresh source/test bindings, then runs the coverage audit.
+Untracked collected tests, stale evidence, duplicates, and missing reports fail
+closed. It does not support distributed pytest or shard merging; a partial
+shard cannot complete a full manifest. Other harnesses require an explicitly
+validated adapter. Do not silently install missing helpers or runners, fall back
+to invented results, or treat these adapters as product acceptance.
