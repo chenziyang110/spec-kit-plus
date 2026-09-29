@@ -13,16 +13,3 @@ exact resume point. Keep agent-capable repair agent-owned; never request secrets
 or ask the user to reconstruct runtime state. Resume by checking source/book
 hashes and obligations; do not reuse stale evidence or silently retarget scope.
 Close Work only after its actual supported verification, never a fabricated pass.
-
-## Test-only asset mutation closeout
-
-When this invocation changes retained test assets, harness configuration or
-behavior-bearing test documentation, apply the shared closeout below using only
-those explicitly owned changed paths. Disposable run data and read-only
-planning/inspection do not justify a fabricated mutation receipt. The canonical
-identity is `sp-e2e`; an older runtime rejecting it remains a compatibility
-blocker, never a reason to impersonate Implement or Review.
-
-{{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
-
-{{spec-kit-include: ../command-partials/common/learning-layer.md}}
