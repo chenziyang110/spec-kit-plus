@@ -214,6 +214,19 @@ def test_probe_preserves_matching_external_archive_binding(tmp_path):
     assert probe.freeze_wheel_hash(wheel, expected) == expected
 
 
+def test_probe_console_logs_are_utf8_without_inheriting_python_paths(tmp_path, monkeypatch):
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path / "foreign-package"))
+    monkeypatch.setenv("PYTHONIOENCODING", "ascii")
+    env = probe.clean_environment(tmp_path, tmp_path / "runtime")
+    assert "PYTHONPATH" not in env
+    result = subprocess.run(
+        [sys.executable, "-c", "print('\u4e2d\u6587 \u2192 E2E')"],
+        env=env, capture_output=True, encoding="utf-8", timeout=20,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "\u4e2d\u6587 \u2192 E2E"
+
+
 @pytest.mark.parametrize("mutation", ["none", "wheel", "installed", "missing-installed"])
 def test_probe_rechecks_original_installed_assets_at_closeout(tmp_path, mutation):
     package = tmp_path / "site-packages/specify_cli"

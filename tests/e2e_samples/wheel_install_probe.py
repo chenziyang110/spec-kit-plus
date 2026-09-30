@@ -94,6 +94,9 @@ def clean_environment(output: Path, runtime: Path) -> dict[str, str]:
         "SPECIFY_PROJECT_LAUNCHER_STATE_DIR": str(output / "launcher-state"),
         "CLAUDE_CONFIG_DIR": str(output / "claude-config"),
         "NO_COLOR": "1", "COLUMNS": "240", "CI": "true",
+        # The console entrypoint writes raw bytes to redirected log handles.
+        # Bind its encoding to the UTF-8 evidence readers on every host locale.
+        "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8",
     })
     return env
 

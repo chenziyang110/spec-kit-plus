@@ -7672,6 +7672,7 @@ def init(
                 "create, refine, or audit one prompt-routed design system; design-first formal adoption through spx-specify, post-Specify return to spx-plan without a second Specify, direct delivery through spx-quick",
             ),
             ("discussion", "resumable product and technical discussion"),
+            ("e2e", "scenario-first E2E with explicit coverage and gap accounting"),
             ("explain", "plain-language workflow artifact explanation"),
             ("fast", "trivial leader-direct changes with lightweight review"),
             ("implement", "planned implementation"),
