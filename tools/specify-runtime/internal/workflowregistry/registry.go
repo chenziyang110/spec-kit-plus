@@ -33,6 +33,7 @@ var policies = map[string]Policy{
 	"deep-research":   {Mode: ModeNoCloseout, Reason: "Research findings and isolated spikes are planning inputs."},
 	"design":          {Mode: ModeNoCloseout, Reason: "Design writes design artifacts, not implementation."},
 	"discussion":      {Mode: ModeNoCloseout, Reason: "Discussion writes planning state only."},
+	"e2e":             {Mode: ModeMutationCloseout, CanonicalWorkflow: "sp-e2e", Reason: "E2E may change scoped test assets; product behavior and acceptance remain outside its write boundary."},
 	"explain":         {Mode: ModeNoCloseout, Reason: "Explain is read-only."},
 	"fast":            {Mode: ModeMutationCloseout, CanonicalWorkflow: "sp-fast", Reason: "Fast performs a bounded repository change."},
 	"implement":       {Mode: ModeMutationCloseout, CanonicalWorkflow: "sp-implement", Reason: "Implement owns repository changes."},

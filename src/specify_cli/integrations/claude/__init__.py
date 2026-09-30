@@ -36,6 +36,7 @@ ARGUMENT_HINTS: dict[str, str] = {
     "auto": "Optional continue request or routing hint; leave blank to let repository state choose the next workflow",
     "plan": "Optional guidance for the planning phase",
     "test-design": "Optional project or feature scope, risk focus, or consumer projection target",
+    "e2e": "Name a product or operation; derive abnormal, boundary and timing scenarios, then use available visual or runner tools",
     "tasks": "Optional task generation constraints",
     "prd-scan": "Describe the existing project or reverse-PRD scan target to reconstruct into a scan package",
     "prd-build": "Provide the validated PRD run ID or final synthesis target to compile into the PRD suite",

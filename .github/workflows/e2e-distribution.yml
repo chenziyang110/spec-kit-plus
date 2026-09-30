@@ -1,0 +1,166 @@
+name: E2E distribution
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-distribution-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wheel:
+    name: E2E wheel (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, python: '3.11'}
+          - {os: ubuntu-latest, python: '3.12'}
+          - {os: ubuntu-latest, python: '3.13'}
+          - {os: windows-latest, python: '3.13'}
+          - {os: macos-latest, python: '3.13'}
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTEST_ADDOPTS: ''
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/specify-runtime/go.mod
+          cache-dependency-path: tools/specify-runtime/go.sum
+      - name: Allocate isolated evidence and installation paths
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']) / 'e2e-distribution'
+          root.mkdir(exist_ok=False)
+          runtime = root / ('specify-runtime.exe' if os.name == 'nt' else 'specify-runtime')
+          interpreter = root / 'venv' / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
+              handle.write(f'E2E_WORK={root.as_posix()}\n')
+              handle.write(f'E2E_RUNTIME={runtime.as_posix()}\n')
+              handle.write(f'E2E_WHEEL_PYTHON={interpreter.as_posix()}\n')
+          PY
+      - name: Bind evidence to the exact checkout
+        run: git rev-parse HEAD > "$E2E_WORK/source.txt"
+      - name: Prepare and record the dependency lock
+        run: |
+          if [ -e uv.lock ] || [ -L uv.lock ]; then
+            uv lock --check
+            export E2E_LOCK_ORIGIN=validated-existing
+          else
+            uv lock
+            export E2E_LOCK_ORIGIN=resolved-for-run
+          fi
+          python - <<'PYCODE'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          work = Path(os.environ['E2E_WORK'])
+          lock = Path('uv.lock').read_bytes()
+          with (work / 'uv.lock').open('xb') as handle:
+              handle.write(lock)
+          record = {
+              'schema_version': 1,
+              'origin': os.environ['E2E_LOCK_ORIGIN'],
+              'source_revision': (work / 'source.txt').read_text(encoding='utf-8').strip(),
+              'lock_sha256': hashlib.sha256(lock).hexdigest(),
+              'pyproject_sha256': hashlib.sha256(Path('pyproject.toml').read_bytes()).hexdigest(),
+          }
+          with (work / 'dependency-lock.json').open('x', encoding='utf-8') as handle:
+              json.dump(record, handle, indent=2)
+              handle.write('\n')
+          PYCODE
+      - name: Sync the repository test environment without changing the lock
+        run: uv sync --frozen --extra test
+      - name: Run real integration and registration checks plus verifier regressions
+        run: >-
+          uv run --frozen --extra test pytest tests/integrations/test_e2e_installation.py
+          tests/test_e2e_registration.py tests/test_e2e_wheel_verifier.py
+          tests/test_e2e_wheel_snapshot.py tests/test_e2e_distribution_lock.py
+          --junitxml="$E2E_WORK/installation-results.xml" -q
+      - name: Reject missing, skipped or failing installation results
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          cases = list(ET.parse(Path(os.environ['E2E_WORK']) / 'installation-results.xml').getroot().iter('testcase'))
+          if not cases or any(c.find(t) is not None for c in cases for t in ('skipped', 'failure', 'error')):
+              raise SystemExit('Installation evidence is empty, skipped or failing')
+          print(f'{len(cases)} checks executed without skips or failures')
+          PY
+      - name: Build the matching native runtime
+        working-directory: tools/specify-runtime
+        run: go build -o "$E2E_RUNTIME" .
+      - name: Build the wheel and verify E2E archive bytes and RECORD
+        run: |
+          uv build --wheel --out-dir "$E2E_WORK/dist"
+          wheels=("$E2E_WORK"/dist/*.whl)
+          test "${#wheels[@]}" -eq 1 && test -f "${wheels[0]}"
+          uv run --frozen --extra test python tools/workflow-quality/verify_e2e_wheel.py \
+            --wheel "${wheels[0]}" --source-root . > "$E2E_WORK/wheel-assets.json"
+      - name: Install only the wheel and locked dependencies in a fresh environment
+        run: |
+          uv export --frozen --no-dev --no-emit-project --output-file "$E2E_WORK/dependencies.txt"
+          uv venv "$E2E_WORK/venv" --python python
+          uv pip install --python "$E2E_WHEEL_PYTHON" -r "$E2E_WORK/dependencies.txt"
+          wheels=("$E2E_WORK"/dist/*.whl)
+          uv pip install --python "$E2E_WHEEL_PYTHON" --no-deps "${wheels[0]}"
+      - name: Exercise wheel-only init, both upgrade orders, user edits and repair
+        run: |
+          wheels=("$E2E_WORK"/dist/*.whl)
+          wheel_sha="$(python -c 'import json, os; from pathlib import Path; print(json.loads((Path(os.environ["E2E_WORK"]) / "wheel-assets.json").read_text(encoding="utf-8"))["wheel_sha256"])')"
+          "$E2E_WHEEL_PYTHON" -I tests/e2e_samples/wheel_install_probe.py \
+            --wheel "${wheels[0]}" --runtime "$E2E_RUNTIME" \
+            --output "$E2E_WORK/probe" --expected-revision "$(git rev-parse HEAD)" \
+            --expected-wheel-sha256 "$wheel_sha"
+      - name: Verify the dependency lock stayed unchanged
+        run: |
+          python - <<'PYCODE'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          work = Path(os.environ['E2E_WORK'])
+          record = json.loads((work / 'dependency-lock.json').read_text(encoding='utf-8'))
+          original = (work / 'uv.lock').read_bytes()
+          if (Path('uv.lock').read_bytes() != original
+                  or hashlib.sha256(original).hexdigest() != record['lock_sha256']
+                  or hashlib.sha256(Path('pyproject.toml').read_bytes()).hexdigest() != record['pyproject_sha256']
+                  or (work / 'source.txt').read_text(encoding='utf-8').strip() != record['source_revision']):
+              raise SystemExit('Dependency lock or source binding changed during verification')
+          print('Dependency lock and source binding unchanged')
+          PYCODE
+      - name: Preserve results, including partial execution diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-distribution-${{ matrix.os }}-py${{ matrix.python }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.E2E_WORK }}/source.txt
+            ${{ env.E2E_WORK }}/uv.lock
+            ${{ env.E2E_WORK }}/dependency-lock.json
+            ${{ env.E2E_WORK }}/installation-results.xml
+            ${{ env.E2E_WORK }}/wheel-assets.json
+            ${{ env.E2E_WORK }}/probe/*.json
+            ${{ env.E2E_WORK }}/probe/*.txt
+          retention-days: 14
+          if-no-files-found: error
