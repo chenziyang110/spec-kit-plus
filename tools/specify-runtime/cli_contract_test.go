@@ -350,6 +350,7 @@ func TestAPIShowValidateSpecMentionsPendingDesignGateRoute(t *testing.T) {
 }
 
 func TestEnvelopeBindsTopLevelAndNestedRuntimeArgvToCurrentExecutable(t *testing.T) {
+	withCwd(t, t.TempDir())
 	env := NewEnvelope("blocked", "binding contract")
 	env.ShowArgv = []string{"specify-runtime", "workflow", "show"}
 	env.NextArgv = []string{"specify-runtime", "workflow", "next"}

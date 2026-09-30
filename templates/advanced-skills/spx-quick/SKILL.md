@@ -104,8 +104,9 @@ only when dependencies, product scopes and shared resources permit it. File coun
 alone is not a risk assessment. Keep independently required review, Test Design,
 UI/source-continuity, RED and final integration gates in either route.
 
-1. Record the chosen executor and evidence-backed reason in the existing
-   agent-owned `STATUS.md` execution plan via its artifact owner. For a direct
+1. Use the registered quick/status artifact CLI to record the chosen executor
+   and evidence-backed reason in the existing agent-owned `STATUS.md` execution
+   plan. For a direct
    item, descriptive dispatch fields may use `execution_model: adaptive`,
    `dispatch_shape: leader-inline`, `execution_surface: leader-inline`;
    runtime-owned per-item `execution_mode: leader-direct` is authoritative.

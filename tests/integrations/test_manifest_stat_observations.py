@@ -98,6 +98,17 @@ def test_stable_file_accepts_different_stat_sources(
     assert result == (hashlib.sha256(CONTENT).hexdigest() if reader == "hash" else True)
 
 
+@pytest.mark.parametrize("filename", [".gitignore", "tool.exe", "tool.cmd"])
+@pytest.mark.parametrize("content", [b"", b"\x00\xff\r\n", CONTENT])
+def test_native_stat_hashes_regular_files(tmp_path, filename, content):
+    path = tmp_path / filename
+    path.write_bytes(content)
+    expected = hashlib.sha256(content).hexdigest()
+
+    assert manifest_module._sha256(path) == expected
+    assert manifest_module._matches_recorded_hash(path, expected)
+
+
 def test_codex_manifest_lifecycle_with_different_stat_sources(
     tmp_path, differing_stat_sources,
 ):
@@ -126,6 +137,20 @@ def test_codex_manifest_lifecycle_with_different_stat_sources(
     assert skipped == []
     assert not path.exists()
     assert not loaded.manifest_path.exists()
+
+
+@pytest.mark.parametrize("differing_stat_sources", ["both"], indirect=True)
+def test_user_modified_asset_is_preserved_with_different_stat_sources(
+    tmp_path, differing_stat_sources,
+):
+    manifest = IntegrationManifest("codex", tmp_path)
+    path = manifest.record_file("user.md", CONTENT)
+    manifest.save()
+    path.write_bytes(b"user changes\n")
+
+    assert manifest.check_modified() == ["user.md"]
+    assert not manifest.remove_file_if_unmodified("user.md")
+    assert path.read_bytes() == b"user changes\n"
 
 
 @pytest.mark.parametrize("reader", ["hash", "raw", "eol"])
@@ -210,22 +235,34 @@ def test_rejects_real_in_place_write(tmp_path, monkeypatch, reader):
     assert path.read_bytes() == changed
 
 
-def test_eol_pass_rechecks_descriptor_ctime(tmp_path, monkeypatch):
+@pytest.mark.parametrize("source", ["descriptor", "path"])
+def test_eol_pass_rechecks_original_ctime(tmp_path, monkeypatch, source):
     path = tmp_path / "asset.md"
     path.write_bytes(CONTENT)
-    real_fstat = os.fstat
     rewound = False
 
     def after_rewind():
         nonlocal rewound
         rewound = True
 
-    def observe(fd):
-        metadata = real_fstat(fd)
-        return _stat_with(metadata, st_ctime_ns=metadata.st_ctime_ns + 1) if rewound else metadata
+    def changed_metadata(metadata):
+        if rewound:
+            return _stat_with(metadata, st_ctime_ns=metadata.st_ctime_ns + 1)
+        return metadata
+
+    if source == "descriptor":
+        real_fstat = os.fstat
+        monkeypatch.setattr(os, "fstat", lambda fd: changed_metadata(real_fstat(fd)))
+    else:
+        real_lstat = Path.lstat
+
+        def observe(target, *args, **kwargs):
+            metadata = real_lstat(target, *args, **kwargs)
+            return changed_metadata(metadata) if target == path else metadata
+
+        monkeypatch.setattr(Path, "lstat", observe)
 
     _hook_read(monkeypatch, after_rewind, on_rewind=True)
-    monkeypatch.setattr(os, "fstat", observe)
     with pytest.raises(ValueError, match="Manifest file changed while hashing"):
         _read_digest(path, "eol")
     assert rewound

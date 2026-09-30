@@ -64,7 +64,12 @@ def wheel_for(tmp_path, assets, record=None, extra=None):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", UserWarning)
                 for name, data in extra:
-                    archive.writestr(name, data)
+                    # ZipInfo normalizes backslashes on Windows and truncates
+                    # NULs. Preserve the deliberately malformed archive name
+                    # so the reader, not the fixture writer, must reject it.
+                    info = zipfile.ZipInfo(name)
+                    info.filename = name
+                    archive.writestr(info, data)
     return wheel
 
 
@@ -114,7 +119,7 @@ def test_record_cannot_lie_about_assets(source, tmp_path, mutation):
         verifier.verify_wheel(wheel_for(tmp_path, assets, rows), source)
 
 
-@pytest.mark.parametrize("name", ["../escape", "/absolute", "C:/drive", "a\\b", "a//b", "./same"])
+@pytest.mark.parametrize("name", ["../escape", "/absolute", "C:/drive", "a\\b", "a//b", "./same", "a\x00b"])
 def test_unsafe_archive_members_rejected_without_extraction(source, tmp_path, name):
     assets = verifier.source_assets(source)
     wheel = wheel_for(tmp_path, assets, extra=[(name, b"not extracted")])

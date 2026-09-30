@@ -85,12 +85,24 @@ def _file_signature(value: os.stat_result) -> tuple[int, ...]:
             value.st_mtime_ns, value.st_ctime_ns)
 
 
-def _check_wheel_snapshot(wheel: Path, stream: BinaryIO, expected: os.stat_result) -> None:
-    """Check both the opened descriptor and the current named file."""
-    for current in (os.fstat(stream.fileno()), wheel.stat()):
+def _check_wheel_snapshot(
+    wheel: Path, stream: BinaryIO, expected: tuple[os.stat_result, os.stat_result],
+) -> None:
+    """Recheck each observation through its own API and bind file identities.
+
+    Windows path and descriptor metadata can differ for an unchanged file.
+    Compare timestamps/mode only with the matching path or descriptor baseline;
+    device/inode identity still connects the pre-open path to the open stream.
+    """
+    path_before, descriptor_before = expected
+    descriptor_now, path_now = os.fstat(stream.fileno()), wheel.stat()
+    for current, baseline in ((descriptor_now, descriptor_before), (path_now, path_before)):
         require(stat.S_ISREG(current.st_mode), "wheel must be a regular file")
-        require(_file_signature(current) == _file_signature(expected),
+        require(_file_signature(current) == _file_signature(baseline),
                 "wheel changed during verification; rebuild or retry on a stable file")
+    require(os.path.samestat(path_before, descriptor_before)
+            and os.path.samestat(path_now, descriptor_now),
+            "wheel changed during verification; named file and descriptor differ")
 
 
 def _stream_sha256(stream: BinaryIO) -> str:
@@ -112,15 +124,20 @@ def verify_wheel(wheel: Path, root: Path) -> dict:
     # from hanging on POSIX. O_BINARY keeps archive bytes unchanged on Windows.
     flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
     with os.fdopen(os.open(wheel, flags), "rb") as stream:
-        _check_wheel_snapshot(wheel, stream, before)
+        snapshot = (before, os.fstat(stream.fileno()))
+        _check_wheel_snapshot(wheel, stream, snapshot)
         wheel_digest = _stream_sha256(stream)
         with zipfile.ZipFile(stream) as archive:
             names = archive.namelist()
             require(len(names) == len(set(names)), "duplicate ZIP member")
-            for name in names:
+            for info in archive.infolist():
+                # ZipInfo.filename can hide backslashes on Windows or truncate
+                # a NUL. Validate the original decoded member name as well.
+                name = info.orig_filename
                 clean = name.rstrip("/")
                 path = PurePosixPath(clean)
-                require(bool(clean) and not path.is_absolute() and ".." not in path.parts
+                require(name == info.filename and bool(clean)
+                        and not path.is_absolute() and ".." not in path.parts
                         and "\\" not in name and ":" not in name and path.as_posix() == clean,
                         f"noncanonical ZIP member: {name}")
             record = read_record(archive)
@@ -134,14 +151,14 @@ def verify_wheel(wheel: Path, root: Path) -> dict:
                 require(record.get(name) == ("sha256=" + encoded, str(len(actual))),
                         f"RECORD hash/size mismatch: {name}")
                 checked.append({"path": name, "sha256": sha256(actual), "size": len(actual)})
-        _check_wheel_snapshot(wheel, stream, before)
+        _check_wheel_snapshot(wheel, stream, snapshot)
         require(_stream_sha256(stream) == wheel_digest,
                 "wheel bytes changed during verification")
         # Re-enumeration also catches newly added/removed required references;
         # rechecking only the old file list could silently shrink the boundary.
         require(source_assets(root) == expected,
                 "source assets changed during verification; rebuild the wheel")
-        _check_wheel_snapshot(wheel, stream, before)
+        _check_wheel_snapshot(wheel, stream, snapshot)
     return {
         "claim": "wheel_e2e_assets_verified", "wheel_sha256": wheel_digest,
         "asset_count": len(checked), "assets": checked,

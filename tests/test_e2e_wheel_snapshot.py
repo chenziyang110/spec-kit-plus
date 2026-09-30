@@ -8,14 +8,97 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 import zipfile
 
 import pytest
 
-from tests.test_e2e_wheel_verifier import PROBE, probe, source, verifier, wheel_for
+from tests.test_e2e_wheel_verifier import PROBE, probe, source as source, verifier, wheel_for
+
+
+def observed_stat(value, **changes):
+    fields = ("st_dev", "st_ino", "st_mode", "st_size", "st_mtime_ns", "st_ctime_ns")
+    return SimpleNamespace(**({field: getattr(value, field) for field in fields} | changes))
+
+
+def test_stable_path_and_descriptor_metadata_need_not_match(source, tmp_path, monkeypatch):
+    wheel = wheel_for(tmp_path, verifier.source_assets(source))
+    original = os.fstat
+
+    def descriptor_observation(fd):
+        value = original(fd)
+        # Windows can expose different timestamp semantics/precision through
+        # the path and descriptor APIs for the same unchanged file.
+        return observed_stat(value, st_ctime_ns=value.st_ctime_ns + 100,
+                             st_mtime_ns=value.st_mtime_ns + 200,
+                             st_mode=value.st_mode ^ 0o200)
+
+    monkeypatch.setattr(verifier.os, "fstat", descriptor_observation)
+    report = verifier.verify_wheel(wheel, source)
+    assert report["claim"] == "wheel_e2e_assets_verified"
+    assert report["wheel_sha256"] == hashlib.sha256(wheel.read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize("api", ["path", "descriptor"])
+@pytest.mark.parametrize("field", ["st_size", "st_mtime_ns", "st_ctime_ns", "st_mode", "st_ino", "st_dev"])
+def test_each_snapshot_rejects_its_own_metadata_drift(source, tmp_path, monkeypatch, api, field):
+    wheel = wheel_for(tmp_path, verifier.source_assets(source))
+    original_record = verifier.read_record
+    original_path_stat = Path.stat
+    original_fstat = os.fstat
+    after_inventory = []
+    observed = []
+
+    def read_record(archive):
+        result = original_record(archive)
+        after_inventory.append(True)
+        return result
+
+    def change(value):
+        observed.append(field)
+        return observed_stat(value, **{field: getattr(value, field) + 1})
+
+    def path_observation(path, *args, **kwargs):
+        value = original_path_stat(path, *args, **kwargs)
+        return change(value) if api == "path" and path == wheel and after_inventory else value
+
+    def descriptor_observation(fd):
+        value = original_fstat(fd)
+        return change(value) if api == "descriptor" and after_inventory else value
+
+    monkeypatch.setattr(verifier, "read_record", read_record)
+    monkeypatch.setattr(Path, "stat", path_observation)
+    monkeypatch.setattr(verifier.os, "fstat", descriptor_observation)
+    with pytest.raises(verifier.WheelError, match="wheel changed"):
+        verifier.verify_wheel(wheel, source)
+    assert after_inventory == [True]
+    assert observed, f"{api} drift was not exercised"
+
+
+def test_same_byte_wheel_replacement_between_path_snapshot_and_open_is_rejected(source, tmp_path, monkeypatch):
+    wheel = wheel_for(tmp_path, verifier.source_assets(source))
+    replacement = tmp_path / "replacement.whl"
+    replacement.write_bytes(wheel.read_bytes())
+    metadata = wheel.stat()
+    os.utime(replacement, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))
+    assert not os.path.samestat(metadata, replacement.stat())
+    original_open = os.open
+    injected = []
+
+    def replace_at_open(path, flags, *args, **kwargs):
+        if Path(path) == wheel and not injected:
+            injected.append(True)
+            replacement.replace(wheel)
+        return original_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(verifier.os, "open", replace_at_open)
+    with pytest.raises(verifier.WheelError, match="wheel changed"):
+        verifier.verify_wheel(wheel, source)
+    assert injected == [True]
 
 
 @pytest.mark.parametrize("mutation", ["replace", "rewrite-same-size", "append", "delete"])

@@ -174,8 +174,16 @@ claim. Formal delivery remains tasks -> implement -> review -> accept.
 
 When retained test assets, harness configuration or behavior-bearing test docs
 change, use `references/project-cognition.md` with canonical workflow `sp-e2e`
-and the exact owned changed paths. Consume the supported planner/apply/recovery
-contract; do not hand-write a receipt or invent an E2E stage/Activity. Disposable
+and the exact owned changed paths:
+
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-e2e --scope-dir <test-scope> --scope-mode explicit --changed-path <owned-test-path> --format json}}`
+
+Repeat `--changed-path` for every owned endpoint. Fill only the returned
+semantic/disposition and passing verification fields, then execute structured
+`apply_argv`. Shared apply owns update, validation, eligible finalization and
+the bound mutation receipt. Require its receipt-bound finalizer to succeed
+before claiming clean completion. Consume the supported recovery contract;
+do not hand-write a receipt or invent an E2E stage/Activity. Disposable
 run data and read-only planning do not justify a mutation receipt. Runtime
 rejection is a compatibility blocker, not permission to impersonate a different
 workflow. Use `references/project-learning.md` for relevant, evidence-backed

@@ -41,8 +41,13 @@ def script(name):
 
 def invoke(argv, fixture):
     project, _, env = fixture
-    return subprocess.run(argv, cwd=project, env=env, capture_output=True,
-                          text=True, encoding="utf-8", timeout=30, check=False)
+    # Windows can resolve a bare "bash" to System32's WSL launcher before PATH.
+    # Bind the executable to the fixture PATH, including its native Git Bash.
+    executable = shutil.which(argv[0], path=env["PATH"])
+    assert executable is not None, f"Required executable is missing: {argv[0]}"
+    return subprocess.run([executable, *argv[1:]], cwd=project, env=env, capture_output=True,
+                          text=True, encoding="utf-8", errors="backslashreplace",
+                          timeout=30, check=False)
 
 
 def run_step(name, fixture):

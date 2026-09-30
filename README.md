@@ -629,7 +629,8 @@ After an advanced-profile init, use independent, discoverable SPX skills:
 $spx-accept               $spx-analyze              $spx-ask
 $spx-auto                 $spx-checklist
 $spx-constitution         $spx-debug                $spx-deep-research
-$spx-design               $spx-discussion           $spx-explain
+$spx-design               $spx-discussion           $spx-e2e
+$spx-explain
 $spx-fast                 $spx-implement            $spx-implement-teams
 $spx-map-build            $spx-map-rebuild          $spx-map-scan
 $spx-map-update           $spx-plan                 $spx-prd-build

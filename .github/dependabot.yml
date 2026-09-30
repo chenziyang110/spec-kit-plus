@@ -4,6 +4,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # GraphBuilder migration is required before adopting pydantic-graph 2.
+      - dependency-name: "pydantic-graph"
+        versions: [">=2.0.0"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
