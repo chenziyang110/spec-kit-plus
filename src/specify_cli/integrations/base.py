@@ -3107,13 +3107,10 @@ class SkillsIntegration(IntegrationBase):
         manifest: IntegrationManifest,
         **opts: Any,
     ) -> list[Path]:
-        created = super().repair_runtime_assets(project_root, manifest, **opts)
-        created.extend(
-            self.repair_missing_command_reference_sidecars(
-                project_root,
-                manifest,
-                script_type=opts.get("script_type", "sh"),
-            )
+        created = self.repair_missing_command_reference_sidecars(
+            project_root,
+            manifest,
+            script_type=opts.get("script_type", "sh"),
         )
         created.extend(
             self.repair_missing_advanced_skill_files(
@@ -3122,6 +3119,8 @@ class SkillsIntegration(IntegrationBase):
                 script_type=opts.get("script_type", "sh"),
             )
         )
+        # Restored files must participate in the same project-binding pass.
+        created.extend(super().repair_runtime_assets(project_root, manifest, **opts))
         return created
 
     def repair_missing_advanced_skill_files(

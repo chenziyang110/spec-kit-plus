@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 from specify_cli import app, load_init_options
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
+from specify_cli.launcher import diagnose_project_runtime_compatibility
 
 
 def test_missing_advanced_skill_repair_rejects_redirected_directory(tmp_path):
@@ -34,7 +35,7 @@ def test_missing_advanced_skill_repair_rejects_redirected_directory(tmp_path):
     before = dict(manifest.files)
 
     with pytest.raises(ValueError, match="symlink"):
-        integration.repair_missing_advanced_skill_files(
+        integration.repair_runtime_assets(
             tmp_path, manifest, script_type="sh"
         )
 
@@ -216,7 +217,21 @@ def test_real_repair_restores_missing_advanced_skill_after_additive_init(
         )
         assert result.exit_code == 0, result.output
 
+    def repair(expected_exit):
+        result = runner.invoke(
+            app,
+            ["integration", "repair", "--script", script_type],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == expected_exit, result.output
+        assert "Remaining diagnostics" not in result.output, result.output
+        assert diagnose_project_runtime_compatibility(project) == []
+        return result
+
     init(first)
+    # Start user edits from valid project-bound guidance, including contracts
+    # that the conservative repair pass adds to a newly installed profile.
+    repair(0)
     edited_skill_name = "sp-e2e" if first == "classic" else "spx-ask"
     edited_skill = project / ".codex/skills" / edited_skill_name / "SKILL.md"
     helper = project / ".specify/scripts/shared/e2e_scenarios.py"
@@ -228,6 +243,9 @@ def test_real_repair_restores_missing_advanced_skill_after_additive_init(
     assert edited_skill.read_bytes() == edited_skill_bytes
     assert helper.read_bytes() == edited_helper_bytes
 
+    # Capture an independently repaired installed file as the binding oracle.
+    # Restoration must recover these usable bytes, not just raw rendered text.
+    repair(10)
     missing = project / ".codex/skills/spx-e2e/SKILL.md"
     installed_bytes = missing.read_bytes()
     manifests_before = {
@@ -236,13 +254,7 @@ def test_real_repair_restores_missing_advanced_skill_after_additive_init(
     }
     missing.unlink()
 
-    result = runner.invoke(
-        app,
-        ["integration", "repair", "--script", script_type],
-        catch_exceptions=False,
-    )
-
-    assert result.exit_code == 10, result.output
+    result = repair(10)
     assert "PARTIAL" in result.output
     assert helper.relative_to(project).as_posix() in result.output
     assert missing.is_file(), result.output
