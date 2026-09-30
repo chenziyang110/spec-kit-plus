@@ -227,6 +227,26 @@ def test_probe_console_logs_are_utf8_without_inheriting_python_paths(tmp_path, m
     assert result.stdout.strip() == "\u4e2d\u6587 \u2192 E2E"
 
 
+@pytest.mark.parametrize("mutation", ["none", "diagnostic", "extra-preserved", "missing-preserved", "no-partial"])
+def test_probe_partial_repair_accepts_only_the_intentional_edit(mutation):
+    helper = ".specify/scripts/shared/e2e_scenarios.py"
+    text = "PARTIAL Runtime-owned files repaired where safe\nFiles preserved without overwrite\n- " + helper + "\n\n"
+    if mutation == "diagnostic":
+        text += "Remaining diagnostics\n- unbound-runtime: launcher remains broken\n"
+    elif mutation == "extra-preserved":
+        text += "- .specify/project-launcher.cmd\n"
+    elif mutation == "missing-preserved":
+        text = text.replace("- " + helper, "")
+    elif mutation == "no-partial":
+        text = text.replace("PARTIAL", "OK")
+    text += "Human repair tutorial\nKeep the intentional user edit.\n"
+    if mutation == "none":
+        probe.verify_expected_partial_repair(text, {helper})
+    else:
+        with pytest.raises(RuntimeError):
+            probe.verify_expected_partial_repair(text, {helper})
+
+
 @pytest.mark.parametrize("mutation", ["none", "wheel", "installed", "missing-installed"])
 def test_probe_rechecks_original_installed_assets_at_closeout(tmp_path, mutation):
     package = tmp_path / "site-packages/specify_cli"

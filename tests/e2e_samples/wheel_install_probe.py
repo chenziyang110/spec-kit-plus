@@ -101,6 +101,17 @@ def clean_environment(output: Path, runtime: Path) -> dict[str, str]:
     return env
 
 
+def verify_expected_partial_repair(text: str, preserved: set[str]) -> None:
+    """Accept only the intentional user-edit boundary, with no repair issues."""
+    require("PARTIAL" in text, "repair did not report its preservation boundary")
+    require("Remaining diagnostics" not in text, "repair left unresolved diagnostics")
+    marker = "Files preserved without overwrite\n"
+    require(marker in text, "repair did not identify preserved files")
+    section = text.split(marker, 1)[1].split("Human repair tutorial", 1)[0]
+    actual = {line[2:].strip() for line in section.splitlines() if line.startswith("- ")}
+    require(actual == preserved, "repair preserved unexpected files")
+
+
 def run_probe(wheel: Path, runtime: Path, output: Path, expected_revision: str,
               expected_wheel_sha256: str | None = None) -> dict:
     require(runtime.is_file(), "missing locally built runtime")
@@ -116,7 +127,7 @@ def run_probe(wheel: Path, runtime: Path, output: Path, expected_revision: str,
     require(executable.is_file(), "wheel console entrypoint is missing")
     cli = [str(executable)]
 
-    def run(argv: list[str], project: Path, label: str) -> str:
+    def run(argv: list[str], project: Path, label: str, expected_exit: int = 0) -> str:
         index = len(commands) + 1
         stdout = output / f"{index:02d}-{label}.stdout.txt"
         stderr = output / f"{index:02d}-{label}.stderr.txt"
@@ -127,7 +138,8 @@ def run_probe(wheel: Path, runtime: Path, output: Path, expected_revision: str,
                 process = subprocess.run(argv, cwd=project, env=env, stdin=subprocess.DEVNULL,
                                          stdout=out, stderr=err, timeout=180, check=False)
             record["exit_code"] = process.returncode
-            require(process.returncode == 0, f"{label}: process failed; inspect {stderr.name} and {stdout.name}")
+            require(process.returncode == expected_exit,
+                    f"{label}: unexpected exit code; inspect {stderr.name} and {stdout.name}")
             return stdout.read_text(encoding="utf-8")
         except subprocess.TimeoutExpired:
             record["timeout"] = True
@@ -209,7 +221,10 @@ def run_probe(wheel: Path, runtime: Path, output: Path, expected_revision: str,
             # Remove only an unmodified file in this probe-owned disposable project.
             missing = project / f".codex/skills/{second_prefix}-e2e/SKILL.md"
             missing.unlink()
-            run(cli + ["integration", "repair"], project, "repair")
+            # The helper was deliberately edited above. Repair must preserve it
+            # and return the documented partial status, without other issues.
+            repair_text = run(cli + ["integration", "repair"], project, "repair", expected_exit=10)
+            verify_expected_partial_repair(repair_text, {".specify/scripts/shared/e2e_scenarios.py"})
             verify(project, {first, second}, edits)
             completed.append({"script_type": script_type, "order": [first, second], "repair": "verified"})
     verify_asset_snapshot(wheel, wheel_hash, package, assets)
