@@ -7,6 +7,7 @@ from typing import Any
 
 from ..base import IntegrationOption, SkillsIntegration
 from ..manifest import IntegrationManifest
+from ...atomic_io import safe_local_state_path
 
 
 class VibeIntegration(SkillsIntegration):
@@ -87,9 +88,22 @@ class VibeIntegration(SkillsIntegration):
         )
 
         skills_dir = self.skills_dest(project_root).resolve()
+        self.finalize_native_skill_files(created, project_root, manifest, skills_dir)
+        return created
+
+    def finalize_native_skill_files(
+        self,
+        created: list[Path],
+        project_root: Path,
+        manifest: IntegrationManifest,
+        skills_dir: Path,
+    ) -> None:
+        """Keep native invocation metadata on only newly generated skills."""
+        skills_dir = skills_dir.absolute()
         for path in created:
+            path = path.absolute()
             try:
-                path.resolve().relative_to(skills_dir)
+                path.relative_to(skills_dir)
             except ValueError:
                 continue
             if path.name != "SKILL.md" or not (
@@ -98,10 +112,9 @@ class VibeIntegration(SkillsIntegration):
             ):
                 continue
 
+            safe_local_state_path(path, root=project_root.resolve())
             content = path.read_text(encoding="utf-8")
             updated = self._inject_frontmatter_flag(content, "user-invocable")
             if updated != content:
                 path.write_text(updated, encoding="utf-8")
                 self.record_file_in_manifest(path, project_root, manifest)
-
-        return created

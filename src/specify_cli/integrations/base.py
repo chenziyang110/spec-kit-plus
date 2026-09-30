@@ -2870,10 +2870,12 @@ class SkillsIntegration(IntegrationBase):
             replacement = r"/spx-\1"
         return re.sub(r"\$spx-([a-z0-9][a-z0-9-]*)", replacement, content)
 
-    @staticmethod
-    def _can_augment_generated_file(skill_path: Path, project_root: Path) -> bool:
+    def _can_augment_generated_file(self, skill_path: Path, project_root: Path) -> bool:
         """Return True when an integration post-processing target is safe to edit."""
 
+        repair_scope = getattr(self, "_repair_augmentation_paths", None)
+        if repair_scope is not None and skill_path not in repair_scope:
+            return False
         if not skill_path.is_file():
             return False
         try:
@@ -3205,6 +3207,9 @@ class SkillsIntegration(IntegrationBase):
                 self.augment_generated_skills(
                     restored, project_root, manifest, skills_dir
                 )
+                self.finalize_native_skill_files(
+                    restored, project_root, manifest, skills_dir
+                )
             finally:
                 self._repair_augmentation_paths = previous_scope
         return restored
@@ -3432,6 +3437,10 @@ class SkillsIntegration(IntegrationBase):
                         else None
                     ),
                 )
+        if restored:
+            self.finalize_native_skill_files(
+                restored, project_root, manifest, skills_dir
+            )
         return restored
 
     def _copy_supporting_passive_files(
@@ -3849,9 +3858,18 @@ class SkillsIntegration(IntegrationBase):
             manifest,
             skills_dir,
         )
-
         created.extend(self.install_scripts(project_root, manifest))
         return created
+
+    def finalize_native_skill_files(
+        self,
+        created: list[Path],
+        project_root: Path,
+        manifest: IntegrationManifest,
+        skills_dir: Path,
+    ) -> None:
+        """Finalize native metadata/contracts only for the supplied generated files."""
+        return None
 
     def augment_generated_skills(
         self,
