@@ -147,11 +147,23 @@ preservation and junction rejection rather than weakening those gates.
 | Native desktop child | Separate nonactivated Windows desktop; all 34 cases passed; negative control produced 33 passes and one expected failure |
 | Installation | 44 native rendering, real init and additive-profile checks passed, including both profiles and sh/ps |
 | Affected owners | 473 closeout, Learning, packaging, registry, hook, adapter, handbook and guidance checks passed |
-| Existing SPX/rendering | The original SPX cases passed after the missing Advanced init hint was repaired; all 19 unified runtime-rendering checks passed |
+| Existing SPX/rendering | Final full rerun: 67 existing SPX checks and 19 unified runtime-rendering checks passed, zero skips |
+| Missing-file repair | 21 shared Classic/Advanced repair checks and 20 Claude/Grok/Vibe native-finalization checks passed, including real Windows junction rejection and preservation of edited/untracked files |
 | Runtime and manifest | New and existing Windows metadata, copy and repair regressions passed; expected platform skips remain visible |
 | Go | All packages exercised successfully across the module run and repaired-package reruns; the final main-package run and `go vet ./...` succeeded |
 | Packaging guards | 74 archive/probe guard regressions passed; source/archive byte and RECORD checks succeeded |
+| Actual installed wheel | Fresh wheel-only environment: all four Codex sh/ps × Classic/Advanced installation-order cases passed, including user edits, missing-file repair, runtime revision, Learning identity and helper entrypoints |
 | Audit/lint | Locked production dependency audit found no known vulnerabilities; source, workflow-artifact and affected Markdown lint passed |
+
+The completed wheel probe is bound to source revision
+`fca0eec980956e394d49a1073f203e10f2b3a6b5` and wheel SHA-256
+`461c46d8b8bf7ace7e0e2a32868339beff475f08a1bd1bf0dc05c68a1687645c`.
+All 83 selected E2E source/archive assets were verified before installation;
+the isolated probe returned `installed_e2e_wheel_verified`, exit zero, and kept
+all 72 actual command records. Later closeout edits affect documentation and
+the Claude inventory test oracle only, not the installed source tested here.
+The deliberate helper edit retains the documented `PARTIAL` repair status with
+exactly that preserved file and no remaining diagnostics.
 
 Native tests used `--capture=sys` to avoid pytest descriptor capture interfering
 with Tcl initialization; the real widget operations and all 34 case assertions

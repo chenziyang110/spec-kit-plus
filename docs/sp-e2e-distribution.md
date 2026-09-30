@@ -183,6 +183,25 @@ Do not relabel a newly written CI workflow or a failed CI job as verification.
 Current GitHub annotations confirm jobs were not started because of account
 payment/spending-limit restrictions; no cloud CI pass is claimed.
 
+The actual Windows wheel probe subsequently completed on source revision
+`fca0eec980956e394d49a1073f203e10f2b3a6b5`, Python 3.13.11, in a fresh environment
+containing the wheel and locked production dependencies, with isolated imports.
+Archive/source/RECORD verification covered 83 selected E2E assets and supplied
+the wheel digest to the probe. All four Codex installation orders passed:
+Classic then Advanced and Advanced then Classic, each with sh and ps generation.
+The probe verified native hints, manifests, profile coexistence, preserved user
+edits, missing-entrypoint repair, the matching pinned runtime revision, E2E
+Learning identity and copied helper execution. It returned
+`installed_e2e_wheel_verified` and retained all 72 command logs.
+
+Wheel SHA-256 is
+`461c46d8b8bf7ace7e0e2a32868339beff475f08a1bd1bf0dc05c68a1687645c`.
+An intentionally edited helper correctly produces `PARTIAL` with that exact
+preservation boundary and no remaining diagnostics. This verifies installation
+and repair on that Windows environment; generated sh/ps files are not native
+shell execution, GUI perception, a complete cross-platform matrix, a public
+runtime release or downstream product acceptance.
+
 The isolated Python invocation follows the official
 [Python command-line contract](https://docs.python.org/3/using/cmdline.html#cmdoption-I).
 Build/install commands follow the official
