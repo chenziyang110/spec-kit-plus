@@ -545,12 +545,15 @@ def _atomic_link_or_copy(
             after = os.fstat(reader.fileno())
             current = source.lstat()
 
-            def version(info: os.stat_result) -> tuple[int, int, int]:
-                return info.st_size, info.st_mtime_ns, info.st_ctime_ns
+            def version(info: os.stat_result) -> tuple[int, int, int, int]:
+                return info.st_mode, info.st_size, info.st_mtime_ns, info.st_ctime_ns
 
-            if (not stat.S_ISREG(current.st_mode) or
-                    not os.path.samestat(opened, current) or
-                    version(opened) != version(after) or version(opened) != version(current)):
+            # Windows fstat/lstat can expose different ctime and mode values.
+            # Keep each API's original snapshot; both must retain file identity.
+            if not stat.S_ISREG(current.st_mode) or any(
+                not os.path.samestat(initial, observed) or version(initial) != version(observed)
+                for initial, observed in ((opened, after), (before, current))
+            ):
                 raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} source changed while copying")
         if _sha256_file(temporary) != expected:
             raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} candidate failed integrity check")

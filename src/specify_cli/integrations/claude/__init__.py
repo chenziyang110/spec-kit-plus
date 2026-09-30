@@ -12,6 +12,7 @@ import yaml
 
 from ..base import SkillsIntegration
 from ..manifest import IntegrationManifest
+from ...atomic_io import safe_local_state_path
 from ...launcher import (
     install_shared_hook_launcher_assets,
     render_claude_hook_launcher,
@@ -36,6 +37,7 @@ ARGUMENT_HINTS: dict[str, str] = {
     "auto": "Optional continue request or routing hint; leave blank to let repository state choose the next workflow",
     "plan": "Optional guidance for the planning phase",
     "test-design": "Optional project or feature scope, risk focus, or consumer projection target",
+    "e2e": "Name a product or operation; derive abnormal, boundary and timing scenarios, then use available visual or runner tools",
     "tasks": "Optional task generation constraints",
     "prd-scan": "Describe the existing project or reverse-PRD scan target to reconstruct into a scan package",
     "prd-build": "Provide the validated PRD run ID or final synthesis target to compile into the PRD suite",
@@ -773,14 +775,12 @@ class ClaudeIntegration(SkillsIntegration):
         # Post-process generated skill files for Claude-specific flags
         skills_dir = self.skills_dest(project_root).resolve()
         if workflow_profile == "advanced":
-            for spx_skill in sorted(skills_dir.glob("spx-*/SKILL.md")):
-                if spx_skill not in created or not spx_skill.is_file():
-                    continue
-                content = spx_skill.read_text(encoding="utf-8")
-                updated = self._inject_frontmatter_flag(content, "user-invocable")
-                if updated != content:
-                    spx_skill.write_bytes(updated.encode("utf-8"))
-                    self.record_file_in_manifest(spx_skill, project_root, manifest)
+            self.finalize_native_skill_files(
+                [path for path in created if path.parent.name.startswith("spx-")],
+                project_root,
+                manifest,
+                skills_dir,
+            )
             return created
 
         script_type = opts.get("script_type", "sh")
@@ -818,17 +818,33 @@ class ClaudeIntegration(SkillsIntegration):
             )
         )
 
+        self.finalize_native_skill_files(created, project_root, manifest, skills_dir)
+        return created
+
+    def finalize_native_skill_files(
+        self,
+        created: list[Path],
+        project_root: Path,
+        manifest: IntegrationManifest,
+        skills_dir: Path,
+    ) -> None:
+        """Apply Claude metadata and native contracts only to supplied skills."""
+        skills_dir = skills_dir.absolute()
+        finalized: set[Path] = set()
         for path in created:
+            path = path.absolute()
             # Only touch SKILL.md files under the skills directory
             try:
-                path.resolve().relative_to(skills_dir)
+                path.relative_to(skills_dir)
             except ValueError:
                 continue
             if path.name != "SKILL.md":
                 continue
-            if not path.parent.name.startswith("sp-"):
+            if not path.parent.name.startswith(("sp-", "spx-")):
                 continue
 
+            safe_local_state_path(path, root=project_root.resolve())
+            finalized.add(path)
             content_bytes = path.read_bytes()
             content = content_bytes.decode("utf-8")
 
@@ -840,7 +856,7 @@ class ClaudeIntegration(SkillsIntegration):
             stem = skill_dir_name
             if stem.startswith("sp-"):
                 stem = stem[len("sp-"):]
-            hint = ARGUMENT_HINTS.get(stem, "")
+            hint = ARGUMENT_HINTS.get(stem, "") if skill_dir_name.startswith("sp-") else ""
             if hint:
                 updated = self.inject_argument_hint(updated, hint)
 
@@ -855,7 +871,7 @@ class ClaudeIntegration(SkillsIntegration):
         }
         snapshot = self._claude_capability_snapshot()
         for command_name, path in runtime_skills.items():
-            if not path.exists():
+            if path not in finalized:
                 continue
             content = path.read_text(encoding="utf-8")
             if command_name == "implement":
@@ -887,7 +903,7 @@ class ClaudeIntegration(SkillsIntegration):
             )
 
         implement_teams_skill = skills_dir / "sp-implement-teams" / "SKILL.md"
-        if implement_teams_skill.exists():
+        if implement_teams_skill in finalized:
             self._augment_implement_teams_shared_contract(
                 created,
                 project_root,
@@ -905,8 +921,6 @@ class ClaudeIntegration(SkillsIntegration):
                 project_root,
                 manifest,
             )
-
-        return created
 
     def repair_runtime_assets(
         self,

@@ -23,6 +23,7 @@ REGISTRY_SCHEMA_PATH = (
 
 MUTATION_WORKFLOWS = {
     "debug": "sp-debug",
+    "e2e": "sp-e2e",
     "fast": "sp-fast",
     "implement": "sp-implement",
     "implement-teams": "sp-implement",

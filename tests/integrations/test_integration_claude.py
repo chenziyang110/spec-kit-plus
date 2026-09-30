@@ -579,6 +579,9 @@ class TestClaudeIntegration:
                 ".specify/bin/specify-hook.py",
                 ".specify/bin/.gitignore",
                 ".specify/runtime/.gitignore",
+                ".specify/runtime/launcher-config.lock",
+                ".specify/runtime/manifest-claude.lock",
+                ".specify/runtime/manifest-speckit.lock",
                 (
                     ".specify/bin/specify-runtime.exe"
                     if os.name == "nt"
@@ -631,7 +634,15 @@ class TestClaudeIntegration:
                 ]
             )
         expected.extend(
-            [SHARED_DISCUSSION_HELPER, SHARED_PRD_HELPER, PROJECT_SPECIFY_LAUNCHER]
+            [
+                SHARED_DISCUSSION_HELPER,
+                SHARED_PRD_HELPER,
+                PROJECT_SPECIFY_LAUNCHER,
+                ".specify/scripts/shared/e2e_coverage.py",
+                ".specify/scripts/shared/e2e_pytest_reporter.py",
+                ".specify/scripts/shared/e2e_runner.py",
+                ".specify/scripts/shared/e2e_scenarios.py",
+            ]
         )
 
         expected.extend(f".specify/templates/{name}" for name in cls._template_files())

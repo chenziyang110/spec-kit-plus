@@ -925,9 +925,12 @@ func degradedStatusPathLane(status rt.Status, facets []string) (EvidenceLane, bo
 	firstPass := make([]FirstPassPath, 0, maxCompassPathsPerLane)
 	for _, candidate := range paths {
 		candidate = filepath.ToSlash(filepath.Clean(strings.ReplaceAll(candidate, `\`, "/")))
-		// Status can originate on another OS; filepath only recognizes host volumes.
+		// Status can originate on another OS; filepath only recognizes host volumes
+		// and Windows does not consider a volume-less rooted path absolute.
 		hasDrivePrefix := len(candidate) >= 2 && candidate[1] == ':'
-		if candidate == "." || candidate == ".." || strings.HasPrefix(candidate, "../") || filepath.IsAbs(candidate) || filepath.VolumeName(candidate) != "" || hasDrivePrefix {
+		if candidate == "." || candidate == ".." || strings.HasPrefix(candidate, "../") ||
+			strings.HasPrefix(candidate, "/") || filepath.IsAbs(candidate) ||
+			filepath.VolumeName(candidate) != "" || hasDrivePrefix {
 			continue
 		}
 		firstPass = append(firstPass, FirstPassPath{
