@@ -54,7 +54,7 @@ jobs:
           xvfb-run -a uv run pytest tests/test_e2e_desktop_sample.py
           tests/test_e2e_desktop_runner.py tests/test_e2e_desktop_scenarios.py
           tests/test_e2e_desktop_length_units.py --basetemp="$E2E_DESKTOP_TMP"
-          --junitxml=desktop-results.xml
+          --capture=sys --junitxml=desktop-results.xml
       - name: Reject empty or skipped sample execution
         run: |
           python - <<'PY'

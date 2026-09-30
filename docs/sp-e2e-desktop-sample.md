@@ -41,13 +41,20 @@ network filesystem behavior, or crash durability.
 On Linux with Xvfb and the project test environment:
 
 ```sh
-SPECIFY_E2E_REQUIRE_DESKTOP=1 xvfb-run -a uv run pytest tests/test_e2e_desktop_sample.py --junitxml=desktop-results.xml
+SPECIFY_E2E_REQUIRE_DESKTOP=1 xvfb-run -a uv run pytest tests/test_e2e_desktop_sample.py --capture=sys --junitxml=desktop-results.xml
 ```
 
 `SPECIFY_E2E_REQUIRE_DESKTOP=1` makes absent Tk/display support fail rather than
 silently skip the desktop tests. The dedicated desktop workflow also rejects
 empty JUnit output, failures, errors and skips. Its run result is separate from
 source-level parsing of the workflow YAML.
+
+For native Windows pytest runs, retain `--capture=sys`. Default OS-descriptor
+capture can interfere with Tcl file-channel reads, producing intermittent
+`No error` failures while loading existing Tk files. Python-level capture keeps
+those descriptors intact; subprocess runner output is still recorded separately.
+The [ttkbootstrap test configuration](https://github.com/israel-dryer/ttkbootstrap/blob/master/pyproject.toml)
+documents the same Windows/Tcl interaction. A required display remains required.
 
 The test module includes empty/invalid input classes; `L-1`, `L` and `L+1`;
 Unicode; same-name behavior; destination creation by another actor; deletion
@@ -148,7 +155,7 @@ or a reason to weaken the assertion. Every client sandbox must still be cleaned.
 ```sh
 SPECIFY_E2E_REQUIRE_DESKTOP=1 xvfb-run -a uv run pytest \
   tests/test_e2e_desktop_sample.py tests/test_e2e_desktop_runner.py \
-  --junitxml=desktop-results.xml
+  --capture=sys --junitxml=desktop-results.xml
 ```
 
 The dedicated CI keeps the original no-empty/no-skip gate and original sample

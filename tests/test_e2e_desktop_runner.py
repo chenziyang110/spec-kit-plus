@@ -18,6 +18,9 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 HELPERS = ("e2e_coverage.py", "e2e_runner.py", "e2e_pytest_reporter.py")
+# All 34 real-widget journeys can exceed a minute on an isolated native desktop.
+# Keep the child budget finite and reserve another 30 seconds for its parent.
+DESKTOP_RUN_TIMEOUT = 180
 
 # These conditions come from the sample's explicit contract, not OS-wide rules.
 INPUTS = [
@@ -205,7 +208,7 @@ def file_record(project, name):
 
 def run(command, project, env):
     return subprocess.run(command, cwd=project, env=env, text=True, encoding="utf-8",
-                          capture_output=True, timeout=90, check=False)
+                          capture_output=True, timeout=DESKTOP_RUN_TIMEOUT + 30, check=False)
 
 
 @pytest.fixture
@@ -294,7 +297,7 @@ def prepared_desktop(tmp_path):
     command = [sys.executable, str(helpers / "e2e_runner.py"), "manifest.json",
                "--bindings", "bindings.json", "--root", str(project), "--runner", "pytest",
                "--target", "disposable-tk-client", "--output-dir", "test-results/run",
-               "--timeout", "60", "--", "test_client.py", "-q", "-s",
+               "--timeout", str(DESKTOP_RUN_TIMEOUT), "--", "test_client.py", "-q", "-s",
                "--basetemp", "test-results/fixture-store"]
     return project, env, command, cases
 

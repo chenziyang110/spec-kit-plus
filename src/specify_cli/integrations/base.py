@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
+from specify_cli.atomic_io import safe_local_state_path
 from specify_cli.orchestration import (
     NATIVE_SUBAGENT_TERMINAL_GUIDANCE,
     CapabilitySnapshot,
@@ -3130,13 +3131,13 @@ class SkillsIntegration(IntegrationBase):
         *,
         script_type: str,
     ) -> list[Path]:
-        """Restore/rebind manifest-owned SPX support files without overwriting edits."""
+        """Restore manifest-owned SPX entrypoints and support files without overwriting edits."""
         advanced_dir = self.shared_advanced_skills_dir()
         if not advanced_dir:
             return []
 
-        skills_dir = self.skills_dest(project_root).resolve()
         project_root_resolved = project_root.resolve()
+        skills_dir = self.skills_dest(project_root_resolved)
         arg_placeholder = (
             self.registrar_config.get("args", "$ARGUMENTS")
             if self.registrar_config
@@ -3195,9 +3196,32 @@ class SkillsIntegration(IntegrationBase):
             restore_file(source, skills_dir / "references" / source.name, render=True)
         for template_dir in self.list_advanced_skill_templates():
             skill_dir = skills_dir / template_dir.name
-            if not (skill_dir / "SKILL.md").is_file():
-                continue
-            raw = (template_dir / "SKILL.md").read_text(encoding="utf-8")
+            skill_path = skill_dir / "SKILL.md"
+            source_path = template_dir / "SKILL.md"
+            if not skill_path.is_file():
+                relative = skill_path.relative_to(project_root_resolved).as_posix()
+                if (
+                    relative not in manifest.files
+                    or skill_path.exists()
+                    or skill_path.is_symlink()
+                ):
+                    continue
+                safe_local_state_path(skill_path, root=project_root_resolved)
+                raw = source_path.read_text(encoding="utf-8")
+                content = self._render_advanced_skill_content(
+                    source_path=source_path,
+                    raw=raw,
+                    project_root=project_root,
+                    script_type=script_type,
+                    arg_placeholder=arg_placeholder,
+                )
+                restored.append(
+                    self.write_file_and_record(
+                        content, skill_path, project_root, manifest
+                    )
+                )
+            else:
+                raw = source_path.read_text(encoding="utf-8")
             for source in sorted(template_dir.rglob("*")):
                 if source.is_file() and source.name != "SKILL.md":
                     relative = source.relative_to(template_dir)
@@ -3282,6 +3306,74 @@ class SkillsIntegration(IntegrationBase):
             f"- Join: {descriptor.native_join_hint}\n"
         )
 
+    def _render_advanced_skill_content(
+        self,
+        *,
+        source_path: Path,
+        raw: str,
+        project_root: Path,
+        script_type: str,
+        arg_placeholder: str,
+    ) -> str:
+        """Render the same Advanced entrypoint for installation and missing-file repair."""
+        skill_name = source_path.parent.name
+        frontmatter = self._parse_skill_frontmatter(raw)
+        description = frontmatter.get("description", "")
+        if not description:
+            description = f"Spec Kit advanced workflow: {skill_name}"
+
+        skill_content = self._render_skill_content(
+            raw=raw,
+            skill_name=skill_name,
+            description=description,
+            source=f"templates/advanced-skills/{skill_name}/SKILL.md",
+            project_root=project_root,
+            script_type=script_type,
+            arg_placeholder=arg_placeholder,
+            apply_invocation_conventions=False,
+            template_path=source_path,
+        )
+        skill_content = self.render_advanced_invocations(skill_content)
+        if "## Fixed Workflow Artifact Boundary" not in skill_content:
+            frontmatter_text, body = self._split_frontmatter(skill_content)
+            boundary = (
+                "## Fixed Workflow Artifact Boundary\n\n"
+                "Before any canonical workflow artifact access, use "
+                "`specify-runtime artifact show`; authorized writes use "
+                "`specify-runtime artifact prepare` followed by "
+                "`specify-runtime artifact submit`. Read "
+                "`references/runtime-artifact-boundary.md` for the exact contract.\n\n"
+            )
+            if frontmatter_text:
+                rendered_body = body.lstrip("\r\n")
+                skill_content = (
+                    f"---\n{frontmatter_text}---\n\n{boundary}{rendered_body}"
+                )
+            else:
+                skill_content = boundary + skill_content.lstrip()
+        if "## Blocked Exit Contract" not in skill_content:
+            frontmatter_text, body = self._split_frontmatter(skill_content)
+            blocked_exit = (
+                "## Blocked Exit Contract\n\n"
+                "Read `references/blocker-resolution.md` before any blocked "
+                "exit. Keep agent-owned and agent-capable diagnosis, repair, "
+                "retry, redispatch, and exact resume actions inside the current "
+                "workflow; never transfer lifecycle repair or command "
+                "reconstruction to the user. Pause for a Human Action Guide "
+                "only at a genuine authority, credential, protected-system, "
+                "physical-access, destructive-confirmation, or subjective "
+                "review boundary.\n\n"
+            )
+            if frontmatter_text:
+                rendered_body = body.lstrip("\r\n")
+                skill_content = (
+                    f"---\n{frontmatter_text}---\n\n"
+                    f"{blocked_exit}{rendered_body}"
+                )
+            else:
+                skill_content = blocked_exit + skill_content.lstrip()
+        return skill_content
+
     def _install_advanced_skills(
         self,
         *,
@@ -3329,61 +3421,13 @@ class SkillsIntegration(IntegrationBase):
             source_path = template_dir / "SKILL.md"
             raw = source_path.read_text(encoding="utf-8")
             skill_name = template_dir.name
-            frontmatter = self._parse_skill_frontmatter(raw)
-            description = frontmatter.get("description", "")
-            if not description:
-                description = f"Spec Kit advanced workflow: {skill_name}"
-
-            skill_content = self._render_skill_content(
+            skill_content = self._render_advanced_skill_content(
+                source_path=source_path,
                 raw=raw,
-                skill_name=skill_name,
-                description=description,
-                source=f"templates/advanced-skills/{skill_name}/SKILL.md",
                 project_root=project_root,
                 script_type=script_type,
                 arg_placeholder=arg_placeholder,
-                apply_invocation_conventions=False,
-                template_path=source_path,
             )
-            skill_content = self.render_advanced_invocations(skill_content)
-            if "## Fixed Workflow Artifact Boundary" not in skill_content:
-                frontmatter_text, body = self._split_frontmatter(skill_content)
-                boundary = (
-                    "## Fixed Workflow Artifact Boundary\n\n"
-                    "Before any canonical workflow artifact access, use "
-                    "`specify-runtime artifact show`; authorized writes use "
-                    "`specify-runtime artifact prepare` followed by "
-                    "`specify-runtime artifact submit`. Read "
-                    "`references/runtime-artifact-boundary.md` for the exact contract.\n\n"
-                )
-                if frontmatter_text:
-                    rendered_body = body.lstrip("\r\n")
-                    skill_content = (
-                        f"---\n{frontmatter_text}---\n\n{boundary}{rendered_body}"
-                    )
-                else:
-                    skill_content = boundary + skill_content.lstrip()
-            if "## Blocked Exit Contract" not in skill_content:
-                frontmatter_text, body = self._split_frontmatter(skill_content)
-                blocked_exit = (
-                    "## Blocked Exit Contract\n\n"
-                    "Read `references/blocker-resolution.md` before any blocked "
-                    "exit. Keep agent-owned and agent-capable diagnosis, repair, "
-                    "retry, redispatch, and exact resume actions inside the current "
-                    "workflow; never transfer lifecycle repair or command "
-                    "reconstruction to the user. Pause for a Human Action Guide "
-                    "only at a genuine authority, credential, protected-system, "
-                    "physical-access, destructive-confirmation, or subjective "
-                    "review boundary.\n\n"
-                )
-                if frontmatter_text:
-                    rendered_body = body.lstrip("\r\n")
-                    skill_content = (
-                        f"---\n{frontmatter_text}---\n\n"
-                        f"{blocked_exit}{rendered_body}"
-                    )
-                else:
-                    skill_content = blocked_exit + skill_content.lstrip()
             skill_dir = skills_dir / skill_name
             created.append(
                 self.write_file_and_record(
