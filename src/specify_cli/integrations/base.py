@@ -2955,6 +2955,131 @@ class SkillsIntegration(IntegrationBase):
             f"{processed_body}"
         )
 
+    def _render_classic_skill_content(
+        self,
+        *,
+        src_file: Path,
+        raw: str,
+        project_root: Path,
+        script_type: str,
+        arg_placeholder: str,
+        runtime_snapshot: CapabilitySnapshot,
+    ) -> tuple[str, str, str]:
+        """Return the Classic name, description and fully rendered entrypoint."""
+        # Derive the skill name from the template stem
+        command_name = src_file.stem  # e.g. "plan"
+        skill_name = (
+            "sp-teams"
+            if command_name == "team"
+            else f"sp-{command_name.replace('.', '-')}"
+        )
+
+        # Parse frontmatter for description
+        frontmatter = self._parse_skill_frontmatter(raw)
+
+        # Keep the original template description for ZIP parity.
+        description = frontmatter.get("description", "")
+        if not description:
+            description = f"Spec Kit: {command_name} workflow"
+
+        skill_content = self._render_skill_content(
+            raw=raw,
+            skill_name=skill_name,
+            description=description,
+            source=f"templates/commands/{src_file.name}",
+            project_root=project_root,
+            script_type=script_type,
+            arg_placeholder=arg_placeholder,
+            apply_invocation_conventions=True,
+            template_path=src_file,
+        )
+        agent_name = (
+            self.config.get("name", self.key.capitalize())
+            if self.config
+            else self.key.capitalize()
+        )
+        skill_content = self._append_runtime_project_cognition_gate(
+            content=skill_content,
+            agent_name=agent_name.replace(" CLI", ""),
+            command_name=command_name,
+        )
+        if command_name == "implement":
+            skill_content = self._append_implement_leader_gate(
+                content=skill_content,
+                agent_name=agent_name.replace(" CLI", ""),
+            )
+        if command_name == "debug":
+            skill_content = self._append_debug_leader_gate(
+                content=skill_content,
+                agent_name=agent_name.replace(" CLI", ""),
+            )
+            skill_content = self._append_debug_routing_contract(
+                content=skill_content,
+                agent_name=agent_name.replace(" CLI", ""),
+                snapshot=runtime_snapshot,
+            )
+        if command_name == "quick":
+            skill_content = self._append_quick_leader_gate(
+                content=skill_content,
+                agent_name=agent_name.replace(" CLI", ""),
+            )
+            skill_content = self._append_quick_routing_contract(
+                content=skill_content,
+                agent_name=agent_name.replace(" CLI", ""),
+                snapshot=runtime_snapshot,
+            )
+        if command_name in self.RUNTIME_SUBAGENT_CONTRACT_COMMANDS:
+            skill_content = self._append_delegation_surface_contract(
+                content=skill_content,
+                agent_name=agent_name.replace(" CLI", ""),
+                command_name=command_name,
+                snapshot=runtime_snapshot,
+                heading="Subagent Dispatch Contract",
+            )
+            skill_content = self._append_runtime_worker_result_contract(
+                content=skill_content,
+                agent_name=agent_name.replace(" CLI", ""),
+                command_name=command_name,
+                snapshot=runtime_snapshot,
+            )
+        skill_content = self._append_map_subagent_capability_discovery(
+            content=skill_content,
+            agent_name=agent_name.replace(" CLI", ""),
+            command_name=command_name,
+            snapshot=runtime_snapshot,
+        )
+        skill_content = self._append_question_tool_preference(
+            content=skill_content,
+            agent_name=agent_name.replace(" CLI", ""),
+            command_name=command_name,
+        )
+        if command_name == "specify":
+            skill_content = self._append_specify_pre_analysis_protocol(
+                content=skill_content,
+            )
+            skill_content = self._append_specify_semantic_traceability_guidance(
+                content=skill_content,
+            )
+        if command_name == "checklist":
+            skill_content = self._append_checklist_project_cognition_guidance(
+                content=skill_content,
+            )
+        skill_content = self._append_planning_skill_cognition_refresh_guidance(
+            content=skill_content,
+            command_name=command_name,
+        )
+        from specify_cli.launcher import render_project_launcher_placeholders
+
+        skill_content = self._transform_markdown_body(
+            skill_content,
+            lambda body: render_project_launcher_placeholders(
+                project_root,
+                body,
+            ),
+        )
+
+        return skill_name, description, skill_content
+
     def _render_classic_openai_metadata(
         self,
         *,
@@ -3028,6 +3153,61 @@ class SkillsIntegration(IntegrationBase):
             )
 
         return created
+
+    def repair_missing_classic_skill_files(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        *,
+        script_type: str,
+    ) -> list[Path]:
+        """Restore missing manifest-owned Classic entrypoints without rewriting edits."""
+        project_root_resolved = project_root.resolve()
+        skills_dir = self.skills_dest(project_root_resolved)
+        arg_placeholder = (
+            self.registrar_config.get("args", "$ARGUMENTS")
+            if self.registrar_config
+            else "$ARGUMENTS"
+        )
+        restored: list[Path] = []
+        runtime_snapshot: CapabilitySnapshot | None = None
+        for source in self.list_command_templates():
+            skill_name = (
+                "sp-teams" if source.stem == "team"
+                else f"sp-{source.stem.replace('.', '-')}"
+            )
+            skill_path = skills_dir / skill_name / "SKILL.md"
+            relative = skill_path.relative_to(project_root_resolved).as_posix()
+            if (
+                relative not in manifest.files
+                or skill_path.exists()
+                or skill_path.is_symlink()
+            ):
+                continue
+            safe_local_state_path(skill_path, root=project_root_resolved)
+            if runtime_snapshot is None:
+                runtime_snapshot = self.runtime_capability_snapshot()
+            _, _, content = self._render_classic_skill_content(
+                src_file=source,
+                raw=source.read_text(encoding="utf-8"),
+                project_root=project_root,
+                script_type=script_type,
+                arg_placeholder=arg_placeholder,
+                runtime_snapshot=runtime_snapshot,
+            )
+            restored.append(
+                self.write_file_and_record(content, skill_path, project_root, manifest)
+            )
+        if restored:
+            previous_scope = getattr(self, "_repair_augmentation_paths", None)
+            self._repair_augmentation_paths = frozenset(restored)
+            try:
+                self.augment_generated_skills(
+                    restored, project_root, manifest, skills_dir
+                )
+            finally:
+                self._repair_augmentation_paths = previous_scope
+        return restored
 
     def repair_missing_command_reference_sidecars(
         self,
@@ -3107,10 +3287,17 @@ class SkillsIntegration(IntegrationBase):
         manifest: IntegrationManifest,
         **opts: Any,
     ) -> list[Path]:
-        created = self.repair_missing_command_reference_sidecars(
+        created = self.repair_missing_classic_skill_files(
             project_root,
             manifest,
             script_type=opts.get("script_type", "sh"),
+        )
+        created.extend(
+            self.repair_missing_command_reference_sidecars(
+                project_root,
+                manifest,
+                script_type=opts.get("script_type", "sh"),
+            )
         )
         created.extend(
             self.repair_missing_advanced_skill_files(
@@ -3371,7 +3558,12 @@ class SkillsIntegration(IntegrationBase):
                 )
             else:
                 skill_content = blocked_exit + skill_content.lstrip()
-        return skill_content
+        from specify_cli.launcher import render_project_launcher_placeholders
+
+        return self._transform_markdown_body(
+            skill_content,
+            lambda body: render_project_launcher_placeholders(project_root, body),
+        )
 
     def _install_advanced_skills(
         self,
@@ -3575,116 +3767,14 @@ class SkillsIntegration(IntegrationBase):
         for src_file in templates:
             raw = src_file.read_text(encoding="utf-8")
 
-            # Derive the skill name from the template stem
-            command_name = src_file.stem  # e.g. "plan"
-            skill_name = (
-                "sp-teams"
-                if command_name == "team"
-                else f"sp-{command_name.replace('.', '-')}"
-            )
-
-            # Parse frontmatter for description
-            frontmatter = self._parse_skill_frontmatter(raw)
-
-            # Keep the original template description for ZIP parity.
-            description = frontmatter.get("description", "")
-            if not description:
-                description = f"Spec Kit: {command_name} workflow"
-
-            skill_content = self._render_skill_content(
+            command_name = src_file.stem
+            skill_name, description, skill_content = self._render_classic_skill_content(
+                src_file=src_file,
                 raw=raw,
-                skill_name=skill_name,
-                description=description,
-                source=f"templates/commands/{src_file.name}",
                 project_root=project_root,
                 script_type=script_type,
                 arg_placeholder=arg_placeholder,
-                apply_invocation_conventions=True,
-                template_path=src_file,
-            )
-            agent_name = (
-                self.config.get("name", self.key.capitalize())
-                if self.config
-                else self.key.capitalize()
-            )
-            skill_content = self._append_runtime_project_cognition_gate(
-                content=skill_content,
-                agent_name=agent_name.replace(" CLI", ""),
-                command_name=command_name,
-            )
-            if command_name == "implement":
-                skill_content = self._append_implement_leader_gate(
-                    content=skill_content,
-                    agent_name=agent_name.replace(" CLI", ""),
-                )
-            if command_name == "debug":
-                skill_content = self._append_debug_leader_gate(
-                    content=skill_content,
-                    agent_name=agent_name.replace(" CLI", ""),
-                )
-                skill_content = self._append_debug_routing_contract(
-                    content=skill_content,
-                    agent_name=agent_name.replace(" CLI", ""),
-                    snapshot=runtime_snapshot,
-                )
-            if command_name == "quick":
-                skill_content = self._append_quick_leader_gate(
-                    content=skill_content,
-                    agent_name=agent_name.replace(" CLI", ""),
-                )
-                skill_content = self._append_quick_routing_contract(
-                    content=skill_content,
-                    agent_name=agent_name.replace(" CLI", ""),
-                    snapshot=runtime_snapshot,
-                )
-            if command_name in self.RUNTIME_SUBAGENT_CONTRACT_COMMANDS:
-                skill_content = self._append_delegation_surface_contract(
-                    content=skill_content,
-                    agent_name=agent_name.replace(" CLI", ""),
-                    command_name=command_name,
-                    snapshot=runtime_snapshot,
-                    heading="Subagent Dispatch Contract",
-                )
-                skill_content = self._append_runtime_worker_result_contract(
-                    content=skill_content,
-                    agent_name=agent_name.replace(" CLI", ""),
-                    command_name=command_name,
-                    snapshot=runtime_snapshot,
-                )
-            skill_content = self._append_map_subagent_capability_discovery(
-                content=skill_content,
-                agent_name=agent_name.replace(" CLI", ""),
-                command_name=command_name,
-                snapshot=runtime_snapshot,
-            )
-            skill_content = self._append_question_tool_preference(
-                content=skill_content,
-                agent_name=agent_name.replace(" CLI", ""),
-                command_name=command_name,
-            )
-            if command_name == "specify":
-                skill_content = self._append_specify_pre_analysis_protocol(
-                    content=skill_content,
-                )
-                skill_content = self._append_specify_semantic_traceability_guidance(
-                    content=skill_content,
-                )
-            if command_name == "checklist":
-                skill_content = self._append_checklist_project_cognition_guidance(
-                    content=skill_content,
-                )
-            skill_content = self._append_planning_skill_cognition_refresh_guidance(
-                content=skill_content,
-                command_name=command_name,
-            )
-            from specify_cli.launcher import render_project_launcher_placeholders
-
-            skill_content = self._transform_markdown_body(
-                skill_content,
-                lambda body: render_project_launcher_placeholders(
-                    project_root,
-                    body,
-                ),
+                runtime_snapshot=runtime_snapshot,
             )
 
             # Write sp-<name>/SKILL.md
@@ -3803,6 +3893,11 @@ class SkillsIntegration(IntegrationBase):
 
         from specify_cli.launcher import render_project_launcher_placeholders
 
+        repair_scope = getattr(self, "_repair_augmentation_paths", None)
+        if repair_scope is not None:
+            if skill_path not in repair_scope:
+                return
+            safe_local_state_path(skill_path, root=project_root.resolve())
         rendered = self._transform_markdown_body(
             content,
             lambda body: render_project_launcher_placeholders(

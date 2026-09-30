@@ -10,13 +10,48 @@ from typer.testing import CliRunner
 from specify_cli import app, load_init_options
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
-from specify_cli.launcher import diagnose_project_runtime_compatibility
+from specify_cli.launcher import (
+    diagnose_project_runtime_compatibility,
+    load_runtime_launcher,
+    rebind_unbound_unified_runtime_calls,
+    write_runtime_launcher_config,
+)
 
 
-def test_missing_advanced_skill_repair_rejects_redirected_directory(tmp_path):
+@pytest.mark.parametrize("script_type", ["sh", "ps"])
+def test_advanced_entrypoint_binds_appended_artifact_boundary(tmp_path, script_type):
+    binary = tmp_path / "source" / (
+        "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
+    )
+    binary.parent.mkdir()
+    binary.write_bytes(b"runtime fixture")
+    write_runtime_launcher_config(tmp_path, binary)
+    launcher = load_runtime_launcher(tmp_path)
+    assert launcher is not None
+    integration = get_integration("codex")
+    source = integration.shared_advanced_skills_dir() / "spx-e2e/SKILL.md"
+
+    rendered = integration._render_advanced_skill_content(
+        source_path=source,
+        raw=source.read_text(encoding="utf-8"),
+        project_root=tmp_path,
+        script_type=script_type,
+        arg_placeholder="$ARGUMENTS",
+    )
+
+    _, body = integration._split_frontmatter(rendered)
+    assert integration._parse_skill_frontmatter(rendered)["name"] == "spx-e2e"
+    _, bare_count = rebind_unbound_unified_runtime_calls(body, launcher.command)
+    assert bare_count == 0
+    for operation in ("show", "prepare", "submit"):
+        assert f"`{launcher.command} artifact {operation}`" in body
+
+
+@pytest.mark.parametrize("prefix", ["sp", "spx"])
+def test_missing_skill_repair_rejects_redirected_directory(tmp_path, prefix):
     integration = get_integration("codex")
     manifest = IntegrationManifest("codex", tmp_path)
-    relative = ".codex/skills/spx-e2e/SKILL.md"
+    relative = f".codex/skills/{prefix}-e2e/SKILL.md"
     skill = manifest.record_file(relative, b"original managed skill\n")
     skill.unlink()
     skill.parent.rmdir()
@@ -42,6 +77,44 @@ def test_missing_advanced_skill_repair_rejects_redirected_directory(tmp_path):
     assert not (user_directory / "SKILL.md").exists()
     assert sentinel.read_bytes() == b"user-owned note\n"
     assert manifest.files == before
+
+
+@pytest.mark.parametrize("integration_key", ["codex", "cursor-agent"])
+@pytest.mark.parametrize("script_type", ["sh", "ps"])
+def test_missing_classic_skills_restore_native_rendering_without_touching_user_files(
+    tmp_path, integration_key, script_type
+):
+    integration = get_integration(integration_key)
+    manifest = IntegrationManifest(integration_key, tmp_path)
+    integration.setup(
+        tmp_path, manifest,
+        parsed_options={"workflow_profile": "classic"}, script_type=script_type,
+    )
+    skills_dir = integration.skills_dest(tmp_path)
+    missing = [skills_dir / name / "SKILL.md" for name in ("sp-e2e", "sp-plan")]
+    installed_bytes = {path: path.read_bytes() for path in missing}
+    edited = skills_dir / "sp-quick/SKILL.md"
+    edited_bytes = b"# User-owned quick workflow\n"
+    edited.write_bytes(edited_bytes)
+    untracked = skills_dir / "sp-ask/SKILL.md"
+    assert manifest.remove_file_if_unmodified(untracked.relative_to(tmp_path))
+    tracked_before = dict(manifest.files)
+    for path in missing:
+        path.unlink()
+
+    restored = integration.repair_missing_classic_skill_files(
+        tmp_path, manifest, script_type=script_type
+    )
+
+    assert set(restored) == set(missing)
+    assert {path: path.read_bytes() for path in missing} == installed_bytes
+    assert edited.read_bytes() == edited_bytes
+    assert not untracked.exists()
+    assert manifest.files == tracked_before
+    assert manifest.check_modified() == [edited.relative_to(tmp_path).as_posix()]
+    assert integration.repair_missing_classic_skill_files(
+        tmp_path, manifest, script_type=script_type
+    ) == []
 
 
 @pytest.mark.parametrize("integration_key", ["codex", "cursor-agent"])
@@ -229,10 +302,8 @@ def test_real_repair_restores_missing_advanced_skill_after_additive_init(
         return result
 
     init(first)
-    # Start user edits from valid project-bound guidance, including contracts
-    # that the conservative repair pass adds to a newly installed profile.
-    repair(0)
-    edited_skill_name = "sp-e2e" if first == "classic" else "spx-ask"
+    assert diagnose_project_runtime_compatibility(project) == []
+    edited_skill_name = "sp-e2e" if first == "classic" else "spx-e2e"
     edited_skill = project / ".codex/skills" / edited_skill_name / "SKILL.md"
     helper = project / ".specify/scripts/shared/e2e_scenarios.py"
     edited_skill_bytes = edited_skill.read_bytes() + b"\n<!-- user-owned note -->\n"
@@ -243,10 +314,9 @@ def test_real_repair_restores_missing_advanced_skill_after_additive_init(
     assert edited_skill.read_bytes() == edited_skill_bytes
     assert helper.read_bytes() == edited_helper_bytes
 
-    # Capture an independently repaired installed file as the binding oracle.
-    # Restoration must recover these usable bytes, not just raw rendered text.
-    repair(10)
-    missing = project / ".codex/skills/spx-e2e/SKILL.md"
+    assert diagnose_project_runtime_compatibility(project) == []
+    missing_skill_name = "sp-e2e" if second == "classic" else "spx-e2e"
+    missing = project / ".codex/skills" / missing_skill_name / "SKILL.md"
     installed_bytes = missing.read_bytes()
     manifests_before = {
         key: dict(IntegrationManifest.load(key, project).files)

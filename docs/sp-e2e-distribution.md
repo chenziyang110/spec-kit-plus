@@ -175,10 +175,13 @@ At authoring, 29 verifier/probe-guard regression tests passed locally on Linux,
 Python 3.13.5 / pytest 9.0.2, zero skipped. Their wheels and source trees are
 explicitly synthetic fixtures. This is validation of the packaging checker and
 failure/isolation boundaries, **not** a completed real wheel installation.
-The full 44 installation plus five registration checks and actual wheel probe
-still require a complete source/dependency environment and successful CI.
+Those installation and wheel gaps describe the initial authoring environment.
+The 2026-09-30 complete Windows checkout subsequently passed all 44 installation
+checks and the registration/affected-owner suites. See the scoped evidence and
+remaining matrix boundaries in [E2E readiness](../plans/sp-e2e-readiness.md).
 Do not relabel a newly written CI workflow or a failed CI job as verification.
-Keep the remaining gates in [E2E readiness](../plans/sp-e2e-readiness.md).
+Current GitHub annotations confirm jobs were not started because of account
+payment/spending-limit restrictions; no cloud CI pass is claimed.
 
 The isolated Python invocation follows the official
 [Python command-line contract](https://docs.python.org/3/using/cmdline.html#cmdoption-I).

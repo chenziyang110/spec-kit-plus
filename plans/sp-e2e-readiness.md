@@ -40,7 +40,7 @@ test-asset mutations use canonical `sp-e2e`; disposable run data does not justif
 a fabricated mutation receipt. An old runtime rejecting that identity remains
 an explicit compatibility blocker. This branch is not a published runtime.
 
-## Verification by revision and boundary
+## Initial verification through 2026-09-29
 
 | Evidence | What actually ran | What it does not establish |
 | --- | --- | --- |
@@ -51,7 +51,7 @@ an explicit compatibility blocker. This branch is not a published runtime.
 | Registry `21795c7` and integration continuation | Five top-level tests including original JSON/Go consistency tests, rerun in the isolated package | Full runtime module, Learning CLI or runtime release compatibility |
 | New installation/registration suites | Both files parsed successfully and uploaded blobs matched local bytes | The 44 installation/rendering and five registration tests have not run in a complete repository environment |
 
-Current local reruns used Linux, Python 3.13.5 / pytest 9.0.2 and Go 1.23.2.
+Those local reruns used Linux, Python 3.13.5 / pytest 9.0.2 and Go 1.23.2.
 The standalone registry check used `GO111MODULE=off`; it is deliberately not a
 claim that the full module supports that toolchain. The desktop check used
 `SPECIFY_E2E_REQUIRE_DESKTOP=1` and `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1` under Xvfb.
@@ -63,7 +63,11 @@ source. Original full trees and minimal diffs were preserved; temporary assembly
 ancestry is not included in the delivered feature commits. Whole-repository
 imports, dependency sync, rendering/init runs and wheel build remain unverified.
 
-## Required before merge
+## Initial remaining validation, 2026-09-29
+
+This checklist records the first authoring environment. The complete Windows
+checkout and scoped results below supersede its source/installation gaps;
+unexecuted matrix, release and acceptance boundaries remain explicit.
 
 1. In a complete source checkout, run `uv sync --extra test`, then execute the
    existing SPX, integration, hook, cognition-closeout-generation and packaging
@@ -84,8 +88,9 @@ imports, dependency sync, rendering/init runs and wheel build remain unverified.
    returned 404. Its cause was not established. Recheck current jobs rather than
    assuming billing, dependency or assertion failures from that historical run.
 
-Keep PR #125 draft until these gates close. Do not merge, publish, change source
-visibility or claim downstream E2E success on the strength of isolated tests.
+PR #125 remained draft at that point. The maintainer subsequently requested
+source consolidation and merge explicitly. That maintenance instruction does
+not authorize publication, a visibility change or downstream acceptance claims.
 
 ## Condition-level continuation after 98c6c0f
 
@@ -124,4 +129,38 @@ smoke test is not real init, manifest coexistence, repair or wheel installation.
 All new observations are explicitly synthetic checker fixtures, not fresh
 client/model/browser execution. No full-repository, Go, other-Python-version,
 Windows/macOS or successful cloud CI result is claimed by these 131 focused
-checks. The installation, release-compatibility and CI gates above still apply.
+checks. The source consolidation results below update the installation boundary;
+release compatibility and unexecuted cloud CI remain separate.
+
+## Windows source consolidation, 2026-09-30
+
+Verification used a complete source checkout, `uv sync --extra test`, Python
+3.13 on Windows, and the toolchain declared by `tools/specify-runtime/go.mod`.
+Actual installation exposed Windows metadata comparison, initial Advanced
+launcher binding and missing-entrypoint repair defects. The fixes retain
+descriptor/path identity checks, manifest ownership, user-modification
+preservation and junction rejection rather than weakening those gates.
+
+| Completed local evidence | Scope and result |
+| --- | --- |
+| E2E suite | All 14 top-level E2E test files: 414 passed, three existing Windows symlink-permission skips, zero failures |
+| Native desktop child | Separate nonactivated Windows desktop; all 34 cases passed; negative control produced 33 passes and one expected failure |
+| Installation | 44 native rendering, real init and additive-profile checks passed, including both profiles and sh/ps |
+| Affected owners | 473 closeout, Learning, packaging, registry, hook, adapter, handbook and guidance checks passed |
+| Existing SPX/rendering | The original SPX cases passed after the missing Advanced init hint was repaired; all 19 unified runtime-rendering checks passed |
+| Runtime and manifest | New and existing Windows metadata, copy and repair regressions passed; expected platform skips remain visible |
+| Go | All packages exercised successfully across the module run and repaired-package reruns; the final main-package run and `go vet ./...` succeeded |
+| Packaging guards | 74 archive/probe guard regressions passed; source/archive byte and RECORD checks succeeded |
+| Audit/lint | Locked production dependency audit found no known vulnerabilities; source, workflow-artifact and affected Markdown lint passed |
+
+Native tests used `--capture=sys` to avoid pytest descriptor capture interfering
+with Tcl initialization; the real widget operations and all 34 case assertions
+remain unchanged. Native event execution does not establish visual-model
+perception or optional live Playwright browser execution. Counts above overlap
+and must not be summed into a full-repository Python result.
+
+GitHub check annotations independently confirm that jobs did not start because
+account payments failed or the spending limit needs increasing. Cloud CI is
+unverified, including the complete Python suite, Python 3.11/3.12 and Linux/macOS
+matrix. This record qualifies source maintenance integration only; no runtime
+release, anonymous consumer verification or downstream acceptance is claimed.
