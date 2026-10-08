@@ -14,6 +14,8 @@ import os
 import re
 import shutil
 import shlex
+from contextvars import ContextVar
+from functools import wraps
 import subprocess
 import sys
 import time
@@ -178,6 +180,136 @@ def _argv_from_project_config(project_root: Path) -> tuple[str, ...] | None:
 
 def _runtime_argv_from_project_config(project_root: Path) -> tuple[str, ...] | None:
     return _launcher_argv_from_project_config(project_root, "runtime_launcher")
+
+
+_EXPLICIT_WORKFLOW: ContextVar[str | None] = ContextVar("explicit_workflow", default=None)
+
+
+def _explicit_workflow_command(payload: dict[str, Any]) -> str | None:
+    """Use only an explicit invocation in the current native user payload."""
+    prompt = ""
+    for key in ("prompt", "prompt_text", "user_prompt", "userPrompt", "text"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            prompt = value.strip()
+            break
+    if not prompt:
+        request = payload.get("llm_request") or payload.get("llmRequest") or {}
+        messages = request.get("messages", []) if isinstance(request, dict) else []
+        for message in reversed(messages if isinstance(messages, list) else []):
+            if not isinstance(message, dict) or message.get("role") != "user":
+                continue
+            parts = message.get("parts", [])
+            content = message.get("content")
+            if isinstance(content, str):
+                prompt = content.strip()
+            elif isinstance(parts, list):
+                prompt = " ".join(
+                    part["text"]
+                    for part in parts
+                    if isinstance(part, dict) and isinstance(part.get("text"), str)
+                ).strip()
+            break
+    match = re.match(
+        r"^(?:use\s+)?(?:/skill:|[$/])spx?[-.]([a-z][a-z0-9-]*)(?=$|\s)",
+        prompt,
+        re.IGNORECASE,
+    )
+    return match.group(1).lower() if match else None
+
+
+def _with_explicit_workflow_context(handler):
+    @wraps(handler)
+    def wrapped(project_root: Path, payload: dict[str, Any]):
+        token = _EXPLICIT_WORKFLOW.set(_explicit_workflow_command(payload))
+        try:
+            return handler(project_root, payload)
+        finally:
+            _EXPLICIT_WORKFLOW.reset(token)
+    return wrapped
+
+
+def _do_runtime_payload(project_root: Path, *args: str) -> dict[str, Any] | None:
+    """Read standalone DO state through the pinned Go runtime, never Python."""
+    launcher = _runtime_argv_from_project_config(project_root)
+    if not launcher:
+        return None
+    try:
+        result = subprocess.run(
+            [*launcher, "do", *args, "--format", "json"],
+            cwd=project_root,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+            timeout=SHARED_HOOK_TIMEOUT_SECONDS,
+        )
+        if result.returncode not in {0, 10}:
+            return None
+        payload = json.loads(result.stdout or "")
+    except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _active_do_context(project_root: Path) -> dict[str, str] | None:
+    if not (project_root / ".specify" / "do").is_dir():
+        return None
+    payload = _do_runtime_payload(project_root, "show", "--active", "--adapter-id", "gemini")
+    data = payload.get("data", {}) if payload else {}
+    if not isinstance(data, dict):
+        return {"command_name": "do", "unavailable": "true"}
+    if data.get("ambiguous") is True:
+        return {"command_name": "do", "ambiguous": "true"}
+    if not payload or payload.get("status") != "ok":
+        return {"command_name": "do", "unavailable": "true"}
+    if data.get("active") is False:
+        return None
+    if data.get("active") is not True:
+        return {"command_name": "do", "unavailable": "true"}
+    session = data.get("session", {})
+    session_id = data.get("session_id") or (
+        session.get("id") if isinstance(session, dict) else None
+    )
+    if not isinstance(session_id, str) or not session_id.strip():
+        return {"command_name": "do", "unavailable": "true"}
+    return {"command_name": "do", "session_id": session_id}
+
+
+def _do_resume_context(context: dict[str, str]) -> str:
+    if context.get("ambiguous") == "true":
+        return "Multiple active DoSessions require an explicit session ID; do not choose the latest session or switch workflows."
+    if context.get("unavailable") == "true":
+        return (
+            "DoSession ownership could not be read from the pinned runtime. "
+            "Restore that runtime and use it for `do show --active --adapter-id gemini`; "
+            "do not treat the failed lookup as no active session or claim completion."
+        )
+    session_id = context["session_id"]
+    return (
+        f"Active DoSession {session_id}. Use the project-pinned runtime for `do show {session_id}` "
+        f"and `do resume {session_id}` for the exact pending action. "
+        "Preserve observed attempts and reconcile uncertain external effects before retrying. "
+        "Completion requires fresh do validation and a terminal execution/knowledge receipt."
+    )
+
+
+def _do_validation_context(project_root: Path, context: dict[str, str]) -> str:
+    if context.get("ambiguous") == "true" or context.get("unavailable") == "true":
+        return _do_resume_context(context)
+    payload = _do_runtime_payload(project_root, "validate", context["session_id"])
+    data = payload.get("data", {}) if payload else {}
+    validation = data.get("validation", {}) if isinstance(data, dict) else {}
+    if not payload or payload.get("status") not in {"ok", "blocked"} or not isinstance(validation, dict) or not validation:
+        return _do_resume_context(context) + " The current DO validation could not be read; do not claim completion."
+    session = data.get("session", {})
+    blocker = session.get("blocker") if isinstance(session, dict) else None
+    if data.get("can_stop") is True and data.get("terminal") is False and isinstance(blocker, dict) and blocker.get("owner") in {"human", "external"}:
+        return _do_resume_context(context) + " A recorded external blocker permits a blocked exit; report its next action and resume point without claiming completion."
+    terminal = payload.get("status") == "ok" and data.get("terminal") is True and validation.get("status") == "passed"
+    state = "terminal and freshly validated" if terminal else "not yet terminal; continue the runtime's pending action"
+    return _do_resume_context(context) + f" Validation: {state}."
 
 
 def _runtime_owned_hook(args: list[str]) -> bool:
@@ -792,6 +924,19 @@ def _feature_root_candidates(project_root: Path) -> list[Path]:
 
 
 def _infer_active_context(project_root: Path) -> dict[str, str] | None:
+    # DO has no feature state: its only owner is the adapter-filtered runtime lookup.
+    explicit = _EXPLICIT_WORKFLOW.get()
+    if explicit is not None:
+        if explicit == "do":
+            return _active_do_context(project_root)
+        return _infer_legacy_active_context(project_root, command_name=explicit)
+    do_context = _active_do_context(project_root)
+    if do_context:
+        return do_context
+    return _infer_legacy_active_context(project_root)
+
+
+def _infer_legacy_active_context(project_root: Path, command_name: str | None = None) -> dict[str, str] | None:
     implement_candidates: list[tuple[float, dict[str, str]]] = []
     for root in _feature_root_candidates(project_root):
         if not root.is_dir():
@@ -813,7 +958,7 @@ def _infer_active_context(project_root: Path) -> dict[str, str] | None:
                     },
                 )
             )
-    if implement_candidates:
+    if implement_candidates and command_name in {None, "implement"}:
         return max(implement_candidates, key=lambda item: item[0])[1]
 
     quick_candidates: list[tuple[float, dict[str, str]]] = []
@@ -834,7 +979,7 @@ def _infer_active_context(project_root: Path) -> dict[str, str] | None:
                 },
             )
         )
-    if quick_candidates:
+    if quick_candidates and command_name in {None, "quick"}:
         return max(quick_candidates, key=lambda item: item[0])[1]
 
     workflow_candidates: list[tuple[float, dict[str, str]]] = []
@@ -848,7 +993,7 @@ def _infer_active_context(project_root: Path) -> dict[str, str] | None:
             active_command = _extract_field(text, "active_command").lower()
             status = _extract_field(text, "status").lower()
             mapped = WORKFLOW_COMMAND_MAP.get(active_command)
-            if not mapped or (status and not _is_active_state_status(status)):
+            if not mapped or command_name not in {None, mapped} or (status and not _is_active_state_status(status)):
                 continue
             workflow_candidates.append(
                 (
@@ -965,6 +1110,8 @@ def _compaction_resume_context(
     context = _infer_active_context(project_root)
     if not context:
         return ""
+    if context.get("command_name") == "do":
+        return _do_resume_context(context)
     shared = _run_shared_hook(
         project_root, ["read-compaction", *_active_context_args(context)]
     )
@@ -1006,7 +1153,7 @@ def _workflow_policy_block(
     if not requested_action:
         return None
     context = _infer_active_context(project_root)
-    if not context:
+    if not context or context.get("command_name") == "do":
         return None
     args = ["workflow-policy", *_active_context_args(context), "--trigger", trigger]
     if requested_action:
@@ -1051,7 +1198,7 @@ def _workflow_policy_shared(
     context: dict[str, str] | None = None,
 ) -> dict[str, Any] | None:
     context = context or _infer_active_context(project_root)
-    if not context:
+    if not context or context.get("command_name") == "do":
         return None
     args = ["workflow-policy", *_active_context_args(context), "--trigger", trigger]
     return _run_shared_hook(project_root, args)
@@ -1117,9 +1264,13 @@ def _learning_signal_context(project_root: Path) -> str:
     return _shared_additional_context(shared)
 
 
+@_with_explicit_workflow_context
 def _handle_session_start(
     project_root: Path, _payload: dict[str, Any]
 ) -> dict[str, Any]:
+    context = _infer_active_context(project_root)
+    if context and context.get("command_name") == "do":
+        return {"systemMessage": _do_resume_context(context)}
     statusline = _statusline_context(project_root)
     resume_context = _compaction_resume_context(
         project_root, build=True, trigger="session_start"
@@ -1128,8 +1279,24 @@ def _handle_session_start(
     return {"systemMessage": message} if message else {}
 
 
+@_with_explicit_workflow_context
 def _handle_before_agent(project_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
     prompt = _extract_prompt_text(payload)
+    context = _infer_active_context(project_root)
+    if context and context.get("command_name") == "do":
+        advisory = _do_validation_context(project_root, context)
+        if prompt:
+            shared = _run_shared_hook(
+                project_root, ["validate-prompt", "--prompt-stdin"], stdin_text=prompt
+            )
+            blocked = _shared_block_to_gemini(shared, system_message=advisory)
+            if blocked:
+                return blocked
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "BeforeAgent", "additionalContext": advisory
+            }
+        }
     statusline = _statusline_context(project_root)
     resume_context = _compaction_resume_context(
         project_root, build=False, trigger="prompt"
@@ -1180,6 +1347,7 @@ def _handle_before_agent(project_root: Path, payload: dict[str, Any]) -> dict[st
     return {}
 
 
+@_with_explicit_workflow_context
 def _handle_before_tool(project_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
     tool_name = _extract_tool_name(payload).lower()
     tool_input = _extract_tool_input(payload)

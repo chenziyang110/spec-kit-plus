@@ -110,6 +110,14 @@ projection.
    `open_logical_gate`, or `validation_complete`. `remaining_epochs` and
    `remaining_gate_slots` count only unopened logical gates; zero never blocks
    a progress-bound attempt inside an existing gate.
+   Before a build, package, or test attempt, the Leader may optionally retrieve
+   method cards with `{{specify-subcmd:specify-runtime playbook find --query <operation-goal> --format json}}`.
+   Expand only matching pinned `show_argv` and needed `expand_argv`, and verify
+   live scripts, prerequisites, scope, and outputs. Reuse is read-only advice
+   inside the current Implement Work; preserve the complete verification
+   denominator, validation ledger, and acceptance gates. Do not implicitly
+   invoke DO, create another Work/DoSession, or replace fresh evidence with
+   historical method success.
 7. For UI work, read `references/ui-design-intelligence.md` before generating
    UI and again before integrated UI validation. That reference owns the exact
    artifact queries, anti-slop policy, interaction and evidence matrix

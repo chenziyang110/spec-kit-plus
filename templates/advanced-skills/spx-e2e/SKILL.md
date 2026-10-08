@@ -105,6 +105,14 @@ Neither equality checks nor accounting prove semantic or perceptual truth.
 
 ## Execute with visual tools or an appropriate runner
 
+For a build/package/native-test operation, optionally use
+`{{specify-subcmd:specify-runtime playbook find --query <operation-goal> --format json}}`.
+Expand only matching pinned `show_argv` and needed `expand_argv`; verify live
+scripts, prerequisites, scope, and outputs. Reuse is read-only advice inside the
+current E2E Work, retaining every scenario/condition ID, the complete verification
+denominator, execution ledger, and visual/acceptance gates. Do not implicitly
+invoke DO, create another Work/DoSession, or replace fresh evidence with method history.
+
 Select visual, runner, hybrid or human execution per card. For clients prefer
 available model inspection and UI tools; fixture tools may set up external
 changes and independent oracles. No automation harness is required. Observe the

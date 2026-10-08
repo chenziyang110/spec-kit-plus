@@ -1,0 +1,451 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "base_digest": {
+      "pattern": "^([a-f0-9]{64})?$",
+      "type": "string"
+    },
+    "change_summary": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "type": "string"
+    },
+    "definition": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Agent-owned method semantics only. Runtime derives identity, revision, digest, source fingerprints, and verification metadata. Steps stay ordered; matching a prior method never proves a new execution result.",
+      "properties": {
+        "aliases": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "applicability": {
+          "additionalProperties": false,
+          "maxProperties": 24,
+          "patternProperties": {
+            "^(os|arch|shell|toolchain\\.[a-z][a-z0-9_-]{0,31})$": {
+              "items": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 16,
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "type": "object"
+        },
+        "checks": {
+          "contains": {
+            "properties": {
+              "required": {
+                "const": true
+              }
+            },
+            "required": [
+              "required"
+            ],
+            "type": "object"
+          },
+          "items": {
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "exit_code"
+                    }
+                  }
+                },
+                "then": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "result_path"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "json_pointer"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "expected_json"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "min_cases"
+                        ]
+                      }
+                    ]
+                  },
+                  "properties": {
+                    "argv": {
+                      "minItems": 1
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "file",
+                        "json",
+                        "junit"
+                      ]
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "result_path"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "json"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "expected_json"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "junit"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "min_cases"
+                  ]
+                }
+              }
+            ],
+            "properties": {
+              "argv": {
+                "items": {
+                  "maxLength": 8192,
+                  "type": "string"
+                },
+                "maxItems": 128,
+                "type": "array"
+              },
+              "cwd": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "depends_on": {
+                "items": {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "minItems": 0,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "expected_json": {},
+              "expected_result": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
+                "type": "string"
+              },
+              "json_pointer": {
+                "maxLength": 2048,
+                "pattern": "^(/.*)?$",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "exit_code",
+                  "file",
+                  "json",
+                  "junit"
+                ]
+              },
+              "min_cases": {
+                "maximum": 10000000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "purpose": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "result_path": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "script_ref": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "purpose",
+              "cwd",
+              "argv",
+              "depends_on",
+              "required",
+              "expected_result",
+              "kind"
+            ],
+            "type": "object"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "type": "array"
+        },
+        "goal": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        },
+        "learning_refs": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "operation": {
+          "enum": [
+            "build",
+            "package",
+            "test",
+            "check",
+            "generate",
+            "maintenance",
+            "custom"
+          ]
+        },
+        "owner": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_files": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "steps": {
+          "contains": {
+            "properties": {
+              "required": {
+                "const": true
+              }
+            },
+            "required": [
+              "required"
+            ],
+            "type": "object"
+          },
+          "items": {
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "source_writes": {
+                      "minItems": 1
+                    }
+                  },
+                  "required": [
+                    "source_writes"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "side_effect": {
+                      "const": "local_write"
+                    }
+                  }
+                }
+              }
+            ],
+            "properties": {
+              "argv": {
+                "items": {
+                  "maxLength": 8192,
+                  "type": "string"
+                },
+                "maxItems": 128,
+                "minItems": 1,
+                "type": "array"
+              },
+              "cwd": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "depends_on": {
+                "items": {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "minItems": 0,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "expected_result": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
+                "type": "string"
+              },
+              "purpose": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "script_ref": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "side_effect": {
+                "enum": [
+                  "read",
+                  "local_write",
+                  "external_mutation"
+                ]
+              },
+              "source_writes": {
+                "description": "Exact project-relative source paths or directories this local_write step may change. Do start requires them inside its Work-authorized write_scope; outputs alone do not need this field. The runtime records before/after source bases and requires fresh downstream checks.",
+                "items": {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "minItems": 0,
+                "type": "array",
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "id",
+              "purpose",
+              "cwd",
+              "argv",
+              "depends_on",
+              "required",
+              "expected_result",
+              "side_effect"
+            ],
+            "type": "object"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "type": "array"
+        },
+        "target": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        },
+        "variant": {
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "target",
+        "owner",
+        "variant",
+        "title",
+        "goal",
+        "aliases",
+        "applicability",
+        "source_files",
+        "steps",
+        "checks",
+        "learning_refs"
+      ],
+      "title": "Playbook definition input",
+      "type": "object"
+    },
+    "id": {
+      "pattern": "^pb-[a-z0-9][a-z0-9-]{0,47}-[a-f0-9]{16}$",
+      "type": "string"
+    },
+    "proposal_only": {
+      "type": "boolean"
+    },
+    "session_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "definition",
+    "change_summary"
+  ],
+  "title": "Playbook update input",
+  "type": "object"
+}

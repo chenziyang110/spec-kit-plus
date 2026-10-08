@@ -62,6 +62,9 @@ class TestGenericIntegration:
             *cls._command_reference_files(),
             ".specify/bin/.gitignore",
             ".specify/runtime/.gitignore",
+            ".specify/runtime/launcher-config.lock",
+            ".specify/runtime/manifest-generic.lock",
+            ".specify/runtime/manifest-speckit.lock",
             PROJECT_SPECIFY_RUNTIME,
             ".specify/config.json",
             ".specify/init-options.json",
@@ -109,7 +112,15 @@ class TestGenericIntegration:
                 ]
             )
         expected.extend(
-            [SHARED_DISCUSSION_HELPER, SHARED_PRD_HELPER, PROJECT_SPECIFY_LAUNCHER]
+            [
+                SHARED_DISCUSSION_HELPER,
+                SHARED_PRD_HELPER,
+                PROJECT_SPECIFY_LAUNCHER,
+                ".specify/scripts/shared/e2e_coverage.py",
+                ".specify/scripts/shared/e2e_pytest_reporter.py",
+                ".specify/scripts/shared/e2e_runner.py",
+                ".specify/scripts/shared/e2e_scenarios.py",
+            ]
         )
 
         expected.extend(f".specify/templates/{name}" for name in cls._template_files())

@@ -58,6 +58,16 @@ DEFAULT_DOWNLOAD_URL_TEMPLATES: tuple[str, ...] = (
 # Keep in sync with tools/specify-runtime/main.go defaultCapabilities().
 # Install-time handshake requires every id here to be present on the binary.
 REQUIRED_CAPABILITIES = (
+    "do.start",
+    "do.record",
+    "do.validate",
+    "do.finish",
+    "do.resume",
+    "do.show",
+    "playbook.find",
+    "playbook.show",
+    "playbook.update",
+    "playbook.validate",
     "api.handshake",
     "api.ensure",
     "api.list",

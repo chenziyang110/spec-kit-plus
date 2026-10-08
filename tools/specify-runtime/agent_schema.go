@@ -14,6 +14,33 @@ func runAPISchema(args []string, stdout io.Writer) int {
 	var schema map[string]any
 	var capabilityID string
 	switch schemaID {
+	case "do-start-input":
+		schema = doStartInputSchema()
+		capabilityID = "do.start"
+	case "do-record-input":
+		schema = doRecordInputSchema()
+		capabilityID = "do.record"
+	case "do-finish-input":
+		schema = doFinishInputSchema()
+		capabilityID = "do.finish"
+	case "do-resume-input":
+		schema = doResumeInputSchema()
+		capabilityID = "do.resume"
+	case "playbook-definition-input":
+		schema = playbookDefinitionInputSchema()
+		capabilityID = "playbook.update"
+	case "playbook-update-input":
+		schema = playbookUpdateInputSchema()
+		capabilityID = "playbook.update"
+	case "playbook-find-input":
+		schema = playbookFindInputSchema()
+		capabilityID = "playbook.find"
+	case "playbook-show-input":
+		schema = playbookShowInputSchema()
+		capabilityID = "playbook.show"
+	case "playbook-validate-input":
+		schema = playbookValidateInputSchema()
+		capabilityID = "playbook.validate"
 	case "workflow-block-input":
 		schema = workflowBlockInputSchema()
 		capabilityID = "workflow.block"
@@ -104,7 +131,12 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		"input_contract": "inspect the command-specific help before invoking; pass only documented arguments and request the JSON envelope when supported",
 	}
 	env = NewEnvelope("ok", fmt.Sprintf("Capability %s expanded.", capabilityID))
+	applyOperationAPIContract(capabilityID, capability, &env)
 	switch capabilityID {
+	case "learning.capture-auto":
+		capability["side_effect"] = "writes-project-learning-for-new-signals"
+		capability["usage"] = "specify-runtime learning capture-auto --command <workflow> [--feature-dir <path>|--workspace <path>|--session-file <path>|--session-id <do-id>] [--dry-run] [--project-root <path>] --format json"
+		capability["input_contract"] = "sp-do requires an exact --session-id. Only currently verified recovery can generate an automatic Do lesson; ordinary success is no-op. Before writing Do-linked lessons, finish execution with knowledge pending; Learning claims its exact metadata files on that Work. Snapshot replay is idempotent and promotion remains explicit."
 	case "api.ensure":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime api ensure (--capabilities <csv> | --requires-json <object|@path|->) [--project-root <path>] --format json"

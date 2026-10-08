@@ -1,0 +1,140 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "events": {
+      "items": {
+        "additionalProperties": false,
+        "description": "Record started before native execution. A later completed record must include actual provenance, argv/cwd, timestamps, exit code where a command ran, and typed evidence. Timeouts/cancellation are interrupted.",
+        "properties": {
+          "argv": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "attempt_id": {
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$",
+            "type": "string"
+          },
+          "cancelled": {
+            "type": "boolean"
+          },
+          "cwd": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "event": {
+            "enum": [
+              "started",
+              "completed"
+            ],
+            "type": "string"
+          },
+          "evidence_origin": {
+            "enum": [
+              "agent_tool_observation"
+            ],
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          },
+          "finished_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "step",
+              "check"
+            ],
+            "type": "string"
+          },
+          "result_refs": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "file",
+                    "json",
+                    "junit",
+                    "log"
+                  ],
+                  "type": "string"
+                },
+                "path": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "pattern": "^[a-f0-9]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "maxItems": 16,
+            "type": "array"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed",
+              "interrupted"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "target_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "timed_out": {
+            "type": "boolean"
+          },
+          "tool_call_id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "attempt_id",
+          "target_id",
+          "kind",
+          "event"
+        ],
+        "type": "object"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "type": "array"
+    },
+    "expected_revision": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "request_id": {
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "expected_revision",
+    "request_id",
+    "events"
+  ],
+  "type": "object"
+}

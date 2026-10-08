@@ -132,6 +132,11 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		input.CommitRange = strings.TrimSpace(optionValue(args, "--commit-range", ""))
 	}
 	changedPaths := prepared.ChangedPaths
+	doBinding, releaseDo, err := doBeginCognitionCloseout(paths, workflow, relScope, reason, payloadJSON, deltaSession, input.CommitRange, changedPaths, prepared.DeltaDigest)
+	if err != nil {
+		return closeoutApplyInputRejected(stdout, workflow, relScope, err)
+	}
+	defer releaseDo()
 	if closeoutApplyAfterPreflightHook != nil {
 		if err := closeoutApplyAfterPreflightHook(); err != nil {
 			return closeoutApplyInputRejected(stdout, workflow, relScope, err)
@@ -154,7 +159,7 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		if err := reconcileCloseoutRepairsLocked(paths); err != nil {
 			return err
 		}
-		intent, intentRef, resumed, err = ensureCloseoutIntent(paths, workflow, relScope, reason, payloadJSON, deltaSession, input.CommitRange, changedPaths, prepared.DeltaDigest)
+		intent, intentRef, resumed, err = ensureCloseoutIntentWithDoBinding(paths, workflow, relScope, reason, payloadJSON, deltaSession, input.CommitRange, changedPaths, doBinding, prepared.DeltaDigest)
 		if err != nil {
 			return err
 		}
@@ -218,12 +223,17 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 			if err := updateCloseoutIntent(paths, intent); err != nil {
 				return err
 			}
+			if workflow == "sp-do" {
+				if err := doCheckCognitionBinding(paths.Root, relScope, intent.DoBinding); err != nil {
+					return &closeoutStageError{category: "do_source_changed_before_finalize", detail: err.Error()}
+				}
+			}
 			finalized, err = runtime.CompleteRefresh("workflow-closeout")
 			if err != nil {
 				return &closeoutStageError{category: "complete_refresh_failed", detail: err.Error()}
 			}
 			closeoutState = normalizeMutationCognitionState(updatePayload.ResultState)
-			receipt, err = recordMutationCognitionReceiptBound(absScope, workflow, relScope, closeoutState, closeoutApplyReceiptReason(closeoutState, updatePayload), updatePayload.UpdateID, closeoutApplyEvidence(updatePayload), updatePayload.ChangedPaths, intent.ID, intentRef, intent.InputDigest)
+			receipt, err = recordMutationCognitionReceiptBound(absScope, workflow, relScope, closeoutState, closeoutApplyReceiptReason(closeoutState, updatePayload), updatePayload.UpdateID, closeoutApplyEvidence(updatePayload), updatePayload.ChangedPaths, intent.ID, intentRef, intent.InputDigest, intent.DoBinding)
 			if err != nil {
 				return err
 			}
@@ -235,7 +245,7 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 			if updatePayload.ScopeResultState == update.ResultReady || updatePayload.ScopeResultState == update.ResultNoOp {
 				closeoutState = closeoutStateScopeReady
 			}
-			receipt, err = recordMutationCognitionReceiptBound(absScope, workflow, relScope, closeoutState, closeoutApplyReceiptReason(closeoutState, updatePayload), updatePayload.UpdateID, closeoutApplyEvidence(updatePayload), updatePayload.ChangedPaths, intent.ID, intentRef, intent.InputDigest)
+			receipt, err = recordMutationCognitionReceiptBound(absScope, workflow, relScope, closeoutState, closeoutApplyReceiptReason(closeoutState, updatePayload), updatePayload.UpdateID, closeoutApplyEvidence(updatePayload), updatePayload.ChangedPaths, intent.ID, intentRef, intent.InputDigest, intent.DoBinding)
 			if err != nil {
 				return err
 			}
@@ -333,6 +343,11 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 }
 
 func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Paths, intent closeoutIntent) (string, error) {
+	if intent.Workflow == "sp-do" {
+		if err := doCheckCognitionBinding(paths.Root, intent.Scope, intent.DoBinding); err != nil {
+			return "", err
+		}
+	}
 	if intent.RepairsIntentID != "" {
 		record, err := loadCloseoutRepair(paths, intent.RepairsIntentID)
 		if err != nil {
@@ -405,6 +420,11 @@ func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Pa
 		if err := updateCloseoutIntent(paths, intent); err != nil {
 			return "", err
 		}
+		if intent.Workflow == "sp-do" {
+			if err := doCheckCognitionBinding(paths.Root, relScope, intent.DoBinding); err != nil {
+				return "", err
+			}
+		}
 		if _, err := runtime.CompleteRefresh("workflow-closeout-replay"); err != nil {
 			return "", err
 		}
@@ -417,7 +437,7 @@ func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Pa
 		return "", fmt.Errorf("non-closeable replay result %s", payload.ResultState)
 	}
 	intentRef := closeoutIntentRef(paths, closeoutIntentPath(paths, intent.ID))
-	receipt, err := recordMutationCognitionReceiptBound(absScope, intent.Workflow, relScope, state, closeoutApplyReceiptReason(state, payload), payload.UpdateID, closeoutApplyEvidence(payload), payload.ChangedPaths, intent.ID, intentRef, intent.InputDigest)
+	receipt, err := recordMutationCognitionReceiptBound(absScope, intent.Workflow, relScope, state, closeoutApplyReceiptReason(state, payload), payload.UpdateID, closeoutApplyEvidence(payload), payload.ChangedPaths, intent.ID, intentRef, intent.InputDigest, intent.DoBinding)
 	if err != nil {
 		return "", err
 	}
@@ -535,7 +555,7 @@ func closeoutApplyPredecessorRecoveryBlocked(stdout io.Writer, absScope string, 
 		"predecessor_update_outcome=" + recovery.UpdateOutcome,
 		"recovery_action=" + recovery.RecommendedNextAction,
 	}
-	receipt, receiptErr := recordMutationCognitionReceiptBound(absScope, workflow, relScope, "blocked", reason, "", evidence, changedPaths, intent.ID, intentRef, intent.InputDigest)
+	receipt, receiptErr := recordMutationCognitionReceiptBound(absScope, workflow, relScope, "blocked", reason, "", evidence, changedPaths, intent.ID, intentRef, intent.InputDigest, intent.DoBinding)
 	data := map[string]any{
 		"closeout_status":             "predecessor_recovery_blocked",
 		"workflow":                    workflow,
@@ -617,7 +637,7 @@ func closeoutApplyPreflight(paths rt.Paths, workflow string, payloadJSON string,
 
 func closeoutApplyBlockedAfterUpdate(stdout io.Writer, absScope string, workflow string, relScope string, payload update.UpdatePayload, result map[string]any, category string, detail string, intent closeoutIntent, intentRef string) int {
 	reason := strings.TrimSpace(category + ": " + detail)
-	receipt, receiptErr := recordMutationCognitionReceiptBound(absScope, workflow, relScope, "blocked", reason, payload.UpdateID, closeoutApplyEvidence(payload), intent.ChangedPaths, intent.ID, intentRef, intent.InputDigest)
+	receipt, receiptErr := recordMutationCognitionReceiptBound(absScope, workflow, relScope, "blocked", reason, payload.UpdateID, closeoutApplyEvidence(payload), intent.ChangedPaths, intent.ID, intentRef, intent.InputDigest, intent.DoBinding)
 	if receiptErr == nil {
 		result["receipt"] = receipt
 	}

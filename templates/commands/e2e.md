@@ -1,5 +1,5 @@
 ---
-description: Systematically derive E2E tests for desktop, mobile, web, CLI, and service operations; cover abnormal inputs, boundaries, external changes and event order, then execute through available visual-model or runner tools without hiding gaps.
+description: Use when the user requests E2E test design or execution for desktop, mobile, web, CLI, or service operations; systematically cover abnormal inputs, boundaries, external changes and event order through available visual-model or runner tools without hiding gaps.
 workflow_contract:
   when_to_use: Explicitly requested project-wide, feature-scoped, or regression E2E work; scenario design can precede execution and does not require a web project or an automation harness.
   primary_objective: Identify the complete declared operation inventory, challenge its assumptions, design concrete observable scenarios, execute feasible scenarios through the actual product, and account for every unverified obligation.
@@ -11,6 +11,8 @@ workflow_contract:
 
 # Scenario-First End-to-End Testing
 
+## Objective
+
 The primary capability is **test analysis and design**, not a web-runner wrapper.
 Desktop/mobile clients, web products, command-line tools, and services are equal
 subjects. Use the model's reasoning to discover what should be tested and, when
@@ -20,7 +22,7 @@ A plan is not a test execution, and a green smoke suite is not full coverage.
 
 {{spec-kit-include: ../command-partials/common/execution-bootstrap.md}}
 
-## Ownership, Scope, and Capabilities
+## Guardrails
 
 1. Resolve the explicit project/feature and inspect the working tree. Unqualified
    full E2E means the current product, not just the latest diff. A narrower
@@ -53,7 +55,9 @@ A plan is not a test execution, and a green smoke suite is not full coverage.
    existing authorization. An unavailable external dependency is a blocked test,
    never a reason to substitute a mock and call it full-stack coverage.
 
-## 1. Discover Operations Before Selecting Test Cases
+## Process
+
+### 1. Discover Operations Before Selecting Test Cases
 
 Reconcile intended requirements/acceptance/design contracts with implemented
 menus, routes, commands, permissions, objects, jobs, integrations and persisted
@@ -84,7 +88,7 @@ needed. A not-applicable decision needs a concrete reason and bound source;
 missing tools, fixtures, time, or oracle knowledge are gaps, not inapplicability.
 Do not label one happy-path case with every dimension to satisfy a checker.
 
-## 2. Derive Concrete Scenarios, Including Event Order
+### 2. Derive Concrete Scenarios, Including Event Order
 
 Apply error guessing to assumptions and failure history; equivalence partitioning
 to valid/invalid input classes; boundary value analysis to exact discovered limits
@@ -160,7 +164,16 @@ rebind the whole book and run fresh evidence. Report `condition_coverage` and
 failed/skipped/blocked/not_run/flaky variants remain visible. These checks bind
 declared semantics, not proof of correct discovery, perception or t-way coverage.
 
-## 3. Execute Through the Available Product Surface
+### 3. Execute Through the Available Product Surface
+
+For a build, package, or native test operation within the selected E2E route,
+optionally retrieve method cards with
+`{{specify-subcmd:specify-runtime playbook find --query <operation-goal> --format json}}`.
+Expand only matching pinned `show_argv` and needed `expand_argv`, then verify live
+scripts, prerequisites, scope, and outputs. Reuse is read-only advice inside the
+current E2E Work: preserve every scenario/condition ID, the complete verification
+denominator, execution ledger, and visual/acceptance gates. Do not implicitly
+invoke DO, create another Work/DoSession, or replace fresh evidence with method history.
 
 Choose `visual`, `runner`, `hybrid`, or `human` per scenario, based on actual
 capabilities and required observations. Default client interaction work to visual
@@ -198,7 +211,7 @@ case, matching evidence channels, verified cleanup and current source binding.
 No test_ref, pytest result or Playwright project is required for visual cases.
 Do not fabricate native-runner reports from visual observations.
 
-## 4. Optional Combination and Native Automation Lanes
+### 4. Optional Combination and Native Automation Lanes
 
 After discovering the dimensions and ordered scenarios, use the existing
 `e2e_coverage.py plan` for applicable constrained factor combinations. Ordinary
@@ -234,7 +247,7 @@ python .specify/scripts/shared/e2e_coverage.py audit tests/e2e/coverage-manifest
 A scenario trace cannot override a failed native audit or certify t-way coverage.
 These optional adapters are implementation choices, not entry gates for clients.
 
-## 5. Independent Review and Truthful Closeout
+### 5. Independent Review and Truthful Closeout
 
 Independently reconcile the original operation/requirement inventory, assumptions,
 applicability decisions, boundaries, negative cases, event order, compound risks,
@@ -243,6 +256,8 @@ exists, perform a documented second pass and retain the unverified-independence
 qualification. Machine checks cannot prove that a feature or oracle was not
 omitted. Test design completeness, execution coverage, observed outcomes,
 combination coverage and visual/interaction acceptance are separate claims.
+
+## Output Contract
 
 An explicit planning-only request returns the book and design gaps without
 pretending execution occurred. Otherwise continue through feasible execution;

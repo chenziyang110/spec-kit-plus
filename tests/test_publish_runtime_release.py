@@ -50,22 +50,24 @@ def test_validate_local_assets_generates_sha256sums_and_rejects_extras(tmp_path:
 
 def test_prepare_local_assets_rejects_symlinks(tmp_path: Path):
     module = _load_module()
+    assets_dir = tmp_path / "assets"
+    assets_dir.mkdir()
     revision = "b" * 40
     marker = module.release_identity_marker("v1.2.3", revision)
     for name in module.ALLOWED_BINARY_ASSETS[:-1]:
-        _write_runtime(tmp_path / name, marker)
+        _write_runtime(assets_dir / name, marker)
     outside = tmp_path / "outside"
     outside.mkdir()
     target = outside / "actual.exe"
     _write_runtime(target, marker)
-    link = tmp_path / module.ALLOWED_BINARY_ASSETS[-1]
+    link = assets_dir / module.ALLOWED_BINARY_ASSETS[-1]
     try:
         link.symlink_to(target)
     except OSError as exc:
         pytest.skip(f"symlinks unavailable: {exc}")
 
     with pytest.raises(module.PublishRuntimeReleaseError, match="symlink"):
-        module.prepare_local_release_assets(tmp_path, "v1.2.3", revision)
+        module.prepare_local_release_assets(assets_dir, "v1.2.3", revision)
 
 
 def test_public_release_notes_are_fixed_and_do_not_embed_changelog():

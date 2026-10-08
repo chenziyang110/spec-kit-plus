@@ -1,0 +1,1074 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path"
+	"path/filepath"
+	"reflect"
+	"regexp"
+	"runtime"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/filelock"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runcontrol"
+)
+
+var doIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$`)
+
+func runDo(args []string, stdout io.Writer) int {
+	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
+		_, _ = fmt.Fprintln(stdout, "usage: specify-runtime do start|record|validate|finish|resume|show [session-id] [--input-json <json|->] [--project-root <root>] [--format json]\nshow --active [--adapter-id <id>] resolves live Do work without choosing latest. show <id> --section definition|definitions|definition:<epoch>|attempts|attempt:<id> expands selected detail. resume accepts evidence-backed typed replan after an observed failure. Commands record native-tool observations; they never execute shell commands.")
+		return 0
+	}
+	for _, arg := range args[1:] {
+		if arg == "--help" {
+			return runDo(nil, stdout)
+		}
+	}
+	command := args[0]
+	parseArgs := append([]string(nil), args[1:]...)
+	for i, arg := range parseArgs {
+		if arg == "--active" && (i+1 == len(parseArgs) || strings.HasPrefix(parseArgs[i+1], "--")) {
+			parseArgs = append(parseArgs[:i+1], append([]string{"true"}, parseArgs[i+1:]...)...)
+			break
+		}
+	}
+	parsed, err := parseCoordinationCommandArgs(parseArgs, -1, "--project-root", "--format", "--input-json", "--active", "--section", "--adapter-id")
+	if err != nil {
+		return doError(stdout, err, "")
+	}
+	if err = parsed.validateJSONFormat(); err != nil {
+		return doError(stdout, err, "")
+	}
+	active := parsed.option("--active", "")
+	if active != "" && (command != "show" || active != "true" || len(parsed.positionals) != 0 || parsed.option("--section", "") != "") {
+		return doError(stdout, fmt.Errorf("--active is a standalone show selector and cannot choose a detail section"), "")
+	}
+	if parsed.option("--adapter-id", "") != "" && active != "true" {
+		return doError(stdout, fmt.Errorf("--adapter-id filters only do show --active"), "")
+	}
+	if parsed.option("--section", "") != "" && command != "show" {
+		return doError(stdout, fmt.Errorf("--section is only supported by do show"), "")
+	}
+	if (command == "start" && len(parsed.positionals) != 0) || (command != "start" && active != "true" && len(parsed.positionals) != 1) {
+		return doError(stdout, fmt.Errorf("start uses session_id in input; other operations require exactly one session id or show --active"), "")
+	}
+	if (command == "show" || command == "validate") && parsed.option("--input-json", "") != "" {
+		return doError(stdout, fmt.Errorf("read-only show and validate do not accept mutation input"), "")
+	}
+	root, err := filepath.Abs(parsed.option("--project-root", "."))
+	if err != nil {
+		return doError(stdout, err, "")
+	}
+	if command == "show" && active == "true" {
+		return doShowActive(root, stdout, parsed.option("--adapter-id", ""))
+	}
+	id := ""
+	if len(parsed.positionals) == 1 {
+		id = parsed.positionals[0]
+	}
+	if command != "start" && !doIDPattern.MatchString(id) {
+		return doError(stdout, fmt.Errorf("an exact valid session id is required"), "")
+	}
+	if command == "start" {
+		if id != "" {
+			return doError(stdout, fmt.Errorf("start takes its optional session_id in --input-json"), "")
+		}
+		var input doStartInput
+		if err := doReadInput(parsed.option("--input-json", ""), &input); err != nil {
+			return doError(stdout, err, "")
+		}
+		session, err := doStart(root, input)
+		if err != nil {
+			return doError(stdout, err, input.SessionID)
+		}
+		return doSessionEnvelope(stdout, session, "operation plan frozen; execute only through authorized native tools", nil)
+	}
+	if command == "show" || command == "validate" || (command == "resume" && parsed.option("--input-json", "") == "") {
+		session, _, err := loadDoSession(root, id)
+		if err != nil {
+			return doError(stdout, err, id)
+		}
+		if command == "validate" {
+			validation := doValidate(root, session, true)
+			return doSessionEnvelope(stdout, session, "operation evidence checked; tool observations remain agent-observed", &validation)
+		}
+		section := parsed.option("--section", "")
+		if section != "" {
+			if command != "show" {
+				return doError(stdout, fmt.Errorf("--section is only supported by do show"), id)
+			}
+			extra := map[string]any{}
+			switch section {
+			case "definition":
+				extra["definition"] = session.Definition
+			case "definitions":
+				doEnsureDefinitionHistory(&session)
+				cards := []map[string]any{}
+				for _, epoch := range session.DefinitionHistory {
+					cards = append(cards, map[string]any{"epoch": epoch.Epoch, "definition_digest": epoch.DefinitionDigest, "frozen_at": epoch.FrozenAt, "current": epoch.Epoch == doCurrentDefinitionEpoch(session), "show_argv": []string{"specify-runtime", "do", "show", session.ID, "--section", fmt.Sprintf("definition:%d", epoch.Epoch), "--format", "json"}})
+				}
+				extra["definitions"] = cards
+			case "attempts":
+				extra["attempts"] = session.Attempts
+			default:
+				if strings.HasPrefix(section, "definition:") {
+					epochID, err := strconv.Atoi(strings.TrimPrefix(section, "definition:"))
+					doEnsureDefinitionHistory(&session)
+					if err != nil || epochID < 1 || epochID > len(session.DefinitionHistory) {
+						return doError(stdout, fmt.Errorf("definition epoch not found"), id)
+					}
+					extra["definition_snapshot"] = session.DefinitionHistory[epochID-1]
+					break
+				}
+				if !strings.HasPrefix(section, "attempt:") {
+					return doError(stdout, fmt.Errorf("section must be definition, definitions, definition:<epoch>, attempts, or attempt:<id>"), id)
+				}
+				found := false
+				for _, attempt := range session.Attempts {
+					if attempt.ID == strings.TrimPrefix(section, "attempt:") {
+						extra["attempt"] = attempt
+						found = true
+						break
+					}
+				}
+				if !found {
+					return doError(stdout, fmt.Errorf("attempt section not found"), id)
+				}
+			}
+			return doSessionEnvelope(stdout, session, "selected operation detail", nil, extra)
+		}
+		return doSessionEnvelope(stdout, session, "operation state; inspect interrupted side effects before retrying", nil)
+	}
+	if command != "record" && command != "finish" && command != "resume" {
+		return doError(stdout, fmt.Errorf("unknown do subcommand %q", command), id)
+	}
+	release, err := doSessionLock(root, id)
+	if err != nil {
+		return doError(stdout, err, id)
+	}
+	defer release()
+	session, digest, err := loadDoSession(root, id)
+	if err != nil {
+		return doError(stdout, err, id)
+	}
+	switch command {
+	case "record":
+		var input doRecordInput
+		if err = doReadInput(parsed.option("--input-json", ""), &input); err == nil {
+			session, err = doRecord(root, session, digest, input)
+		}
+	case "finish":
+		var input doFinishInput
+		if err = doReadInput(parsed.option("--input-json", ""), &input); err == nil {
+			session, err = doFinish(root, session, digest, input)
+		}
+	case "resume":
+		var input doResumeInput
+		if err = doReadInput(parsed.option("--input-json", ""), &input); err == nil {
+			session, err = doResume(root, session, digest, input)
+		}
+	}
+	if err != nil {
+		return doError(stdout, err, id)
+	}
+	return doSessionEnvelope(stdout, session, "operation checkpoint saved", nil)
+}
+
+func doReadInput(raw string, target any) error {
+	if strings.TrimSpace(raw) == "" {
+		return fmt.Errorf("--input-json is required (inline JSON or - for stdin)")
+	}
+	var reader io.Reader = strings.NewReader(raw)
+	if raw == "-" {
+		reader = os.Stdin
+	} else if strings.HasPrefix(raw, "@") {
+		return fmt.Errorf("use inline JSON or stdin, not an authoring file")
+	}
+	data, err := io.ReadAll(io.LimitReader(reader, 256*1024+1))
+	if err != nil {
+		return err
+	}
+	if len(data) > 256*1024 {
+		return fmt.Errorf("input exceeds 256 KiB")
+	}
+	if err := playbookRejectDuplicateKeys(data); err != nil {
+		return err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return fmt.Errorf("invalid do input: %w", err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		return fmt.Errorf("input must contain exactly one JSON value")
+	}
+	return nil
+}
+
+func doError(stdout io.Writer, err error, id string) int {
+	env := NewEnvelope("blocked", "operation cannot advance")
+	env.Blockers = append(env.Blockers, map[string]any{"code": "do-operation-blocked", "owner": "agent", "cause": err.Error(), "resume_point": "inspect the exact session and preserve prior attempts"})
+	if doIDPattern.MatchString(id) {
+		env.ShowArgv = []string{"specify-runtime", "do", "show", id, "--format", "json"}
+	}
+	return writeEnvelope(stdout, env)
+}
+
+func doSessionEnvelope(stdout io.Writer, session DoSession, summary string, validation *DoValidation, extra ...map[string]any) int {
+	env := NewEnvelope("ok", summary)
+	terminal := session.ExecutionOutcome == "passed" && (session.KnowledgeStatus == "saved" || session.KnowledgeStatus == "not_applicable")
+	env.Data["active"] = !terminal
+	env.Data["terminal"] = terminal
+	env.Data["can_stop"] = terminal || session.Blocker != nil
+	latest := doLatestAttempts(session)
+	attempts := []map[string]any{}
+	for _, step := range session.Definition.Steps {
+		if attempt, ok := latest[step.ID]; ok {
+			attempts = append(attempts, map[string]any{"id": attempt.ID, "target_id": attempt.TargetID, "kind": attempt.Kind, "status": attempt.Status})
+		}
+	}
+	for _, check := range session.Definition.Checks {
+		if attempt, ok := latest[check.ID]; ok {
+			attempts = append(attempts, map[string]any{"id": attempt.ID, "target_id": attempt.TargetID, "kind": attempt.Kind, "status": attempt.Status})
+		}
+	}
+	env.Data["session"] = map[string]any{"id": session.ID, "revision": session.Revision, "goal": session.Goal, "definition_digest": session.DefinitionDigest, "method_binding": session.MethodBinding, "work_id": session.WorkID, "work_fence": session.WorkFence, "write_scope": session.WriteScope, "output_scope": session.OutputScope, "execution_outcome": session.ExecutionOutcome, "knowledge_status": session.KnowledgeStatus, "blocker": session.Blocker, "attempt_count": len(session.Attempts), "latest_attempts": attempts, "validation": session.Validation, "knowledge": session.Knowledge}
+	env.Data["session_id"] = session.ID
+	env.Data["revision"] = session.Revision
+	env.Data["work_id"] = session.WorkID
+	env.Data["work_fence"] = session.WorkFence
+	env.Data["definition_digest"] = session.DefinitionDigest
+	env.Data["definition_epoch"] = doCurrentDefinitionEpoch(session)
+	env.Data["definition_argv"] = []string{"specify-runtime", "do", "show", session.ID, "--section", "definition", "--format", "json"}
+	env.Data["definitions_argv"] = []string{"specify-runtime", "do", "show", session.ID, "--section", "definitions", "--format", "json"}
+	env.Data["attempts_argv"] = []string{"specify-runtime", "do", "show", session.ID, "--section", "attempts", "--format", "json"}
+	env.Data["evidence_origin"] = "agent_tool_observation"
+	env.Data["runtime_execution_verified"] = false
+	env.ShowArgv = []string{"specify-runtime", "do", "show", session.ID, "--format", "json"}
+	if validation != nil {
+		env.Data["validation"] = validation
+		env.Data["ready_to_finish"] = validation.Status == "passed"
+		if validation.Status != "passed" {
+			env.Status = "blocked"
+			for _, blocker := range validation.Blockers {
+				env.Blockers = append(env.Blockers, blocker)
+			}
+		}
+	}
+	if !terminal {
+		env.NextArgv = []string{"specify-runtime", "do", "resume", session.ID, "--format", "json"}
+	}
+	for _, fields := range extra {
+		for key, value := range fields {
+			env.Data[key] = value
+		}
+	}
+	return writeEnvelope(stdout, env)
+}
+
+func doShowActive(root string, stdout io.Writer, adapters ...string) int {
+	env := NewEnvelope("ok", "live Do sessions resolved from Work Board")
+	env.Data["active"] = false
+	view, err := runcontrol.OpenViewForRepository(context.Background(), root)
+	if err != nil {
+		if os.IsNotExist(err) || errors.Is(err, runcontrol.ErrNotFound) {
+			return writeEnvelope(stdout, env)
+		}
+		return doError(stdout, err, "")
+	}
+	defer view.Close()
+	items, err := view.ListWork(context.Background(), runcontrol.ListWorkParams{Statuses: []runcontrol.WorkStatus{runcontrol.WorkActive, runcontrol.WorkBlocked, runcontrol.WorkInterrupted}})
+	if err != nil {
+		return doError(stdout, err, "")
+	}
+	ids := []string{}
+	for _, item := range items {
+		if len(adapters) > 0 && adapters[0] != "" && item.AdapterID != adapters[0] {
+			continue
+		}
+		if strings.HasPrefix(item.TaskRef, "do:") && filepath.Clean(item.WorkspaceRoot) == filepath.Clean(root) {
+			id := strings.TrimPrefix(item.TaskRef, "do:")
+			if doIDPattern.MatchString(id) {
+				ids = append(ids, id)
+			}
+		}
+	}
+	sort.Strings(ids)
+	if len(ids) == 0 {
+		return writeEnvelope(stdout, env)
+	}
+	if len(ids) > 1 {
+		env.Status = "blocked"
+		env.Data["active"] = true
+		env.Data["ambiguous"] = true
+		env.Data["session_ids"] = ids
+		env.Blockers = append(env.Blockers, "multiple active Do sessions; select an exact id, never latest")
+		return writeEnvelope(stdout, env)
+	}
+	session, _, err := loadDoSession(root, ids[0])
+	if err != nil {
+		return doError(stdout, err, ids[0])
+	}
+	return doSessionEnvelope(stdout, session, "current Do session", nil)
+}
+
+func doSessionRef(id string) string { return path.Join(".specify/do/sessions", id, "session.json") }
+func doDigest(value any) string {
+	raw, _ := json.Marshal(value)
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
+}
+func doBytesDigest(raw []byte) string { sum := sha256.Sum256(raw); return hex.EncodeToString(sum[:]) }
+func doNow() string                   { return time.Now().UTC().Format(time.RFC3339Nano) }
+
+func loadDoSession(root, id string) (DoSession, string, error) {
+	var session DoSession
+	if !doIDPattern.MatchString(id) {
+		return session, "", fmt.Errorf("invalid session id")
+	}
+	raw, err := secureProjectReadFile(root, doSessionRef(id))
+	if err != nil {
+		return session, "", err
+	}
+	if len(raw) > doSessionSizeLimit {
+		return session, "", fmt.Errorf("session exceeds size limit")
+	}
+	if err = json.Unmarshal(raw, &session); err != nil {
+		return session, "", err
+	}
+	if session.SchemaVersion != doSessionSchema || session.ID != id || session.Revision < 1 {
+		return session, "", fmt.Errorf("invalid session identity or schema")
+	}
+	digest, err := playbookDefinitionDigest(session.Definition)
+	if err != nil || digest != session.DefinitionDigest {
+		return session, "", fmt.Errorf("frozen operation definition was changed")
+	}
+	if err := doValidateDefinitionHistory(root, session); err != nil {
+		return session, "", err
+	}
+	if session.Requests == nil {
+		session.Requests = map[string]string{}
+	}
+	return session, doBytesDigest(raw), nil
+}
+
+func doSessionLock(root, id string) (func(), error) {
+	if !doIDPattern.MatchString(id) {
+		return nil, fmt.Errorf("invalid session id")
+	}
+	lock, err := secureProjectPath(root, path.Join(".specify/runtime/receipts/do-locks", id+".lock"))
+	if err != nil {
+		return nil, err
+	}
+	if err = os.MkdirAll(filepath.Dir(lock), 0o700); err != nil {
+		return nil, err
+	}
+	return filelock.Acquire(lock)
+}
+
+func doWriteSession(root string, session DoSession, expected string, extra []fileTransactionUpdate) error {
+	target, err := secureProjectPath(root, doSessionRef(session.ID))
+	if err != nil {
+		return err
+	}
+	raw, err := json.MarshalIndent(session, "", "  ")
+	if err != nil {
+		return err
+	}
+	if len(raw)+1 > doSessionSizeLimit {
+		return fmt.Errorf("session checkpoint exceeds 8 MiB; preserve the last readable checkpoint and split the operation")
+	}
+	updates := append(extra, fileTransactionUpdate{Path: target, Content: append(raw, '\n'), Perm: 0o600})
+	conditions := []fileTransactionPrecondition{{Path: target, ExpectedSHA256: expected, MustNotExist: expected == ""}}
+	for _, update := range extra {
+		conditions = append(conditions, fileTransactionPrecondition{Path: update.Path, MustNotExist: true})
+	}
+	_, err = applyFileTransactionWithPreconditions(root, "do-session", updates, conditions)
+	return err
+}
+
+func doPath(root, relative string, allowDot bool) (string, error) {
+	if strings.ContainsRune(relative, '\x00') || strings.Contains(relative, "\\") || path.IsAbs(relative) || filepath.IsAbs(relative) || strings.Contains(relative, ":") {
+		return "", fmt.Errorf("path must be project-relative")
+	}
+	clean := path.Clean(relative)
+	if clean == ".." || strings.HasPrefix(clean, "../") || clean == ".git" || strings.HasPrefix(clean, ".git/") || (!allowDot && clean == ".") {
+		return "", fmt.Errorf("invalid project-relative path %q", relative)
+	}
+	if strings.ContainsAny(clean, "*?[]") {
+		return "", fmt.Errorf("use exact paths or directories, not globs")
+	}
+	_, err := secureProjectPath(root, clean)
+	return clean, err
+}
+
+func doScopeContains(scope []string, p string) bool {
+	for _, s := range scope {
+		if p == s || strings.HasPrefix(p, strings.TrimSuffix(s, "/")+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func doStart(root string, input doStartInput) (DoSession, error) {
+	var empty DoSession
+	if strings.TrimSpace(input.AgentID) == "" || strings.TrimSpace(input.AdapterID) == "" {
+		return empty, fmt.Errorf("agent_id and adapter_id are required")
+	}
+	if input.Context == nil {
+		input.Context = map[string]string{}
+	}
+	input.Context["os"] = runtime.GOOS
+	input.Context["arch"] = runtime.GOARCH
+	if input.MethodBinding != nil {
+		doc, err := loadPlaybookDocument(root, input.MethodBinding.ID)
+		if err != nil {
+			return empty, err
+		}
+		if doc.Revision != input.MethodBinding.Revision || doc.ContentDigest != input.MethodBinding.ContentDigest {
+			return empty, fmt.Errorf("method binding is stale or mismatched")
+		}
+		if input.Definition.Goal == "" {
+			input.Definition = doc.Definition
+		}
+	}
+	if len(input.SourceFiles) > 0 {
+		input.Definition.SourceFiles = append(input.Definition.SourceFiles, input.SourceFiles...)
+	}
+	if err := validatePlaybookDefinition(root, input.Definition); err != nil {
+		return empty, err
+	}
+	input.Definition = playbookNormalizeDefinition(input.Definition)
+	if input.MethodBinding != nil && input.MethodBinding.ID != playbookID(input.Definition) {
+		return empty, fmt.Errorf("method binding belongs to a different operation identity")
+	}
+	if gaps := playbookCompatibility(input.Definition, input.Context); len(gaps) > 0 {
+		return empty, fmt.Errorf("incompatible method: %s", strings.Join(gaps, "; "))
+	}
+	if strings.TrimSpace(input.Goal) == "" {
+		input.Goal = input.Definition.Goal
+	}
+	if input.Goal != input.Definition.Goal {
+		return empty, fmt.Errorf("goal must equal the frozen definition goal")
+	}
+	id := input.SessionID
+	if id == "" {
+		var suffix [8]byte
+		if _, err := rand.Read(suffix[:]); err != nil {
+			return empty, err
+		}
+		id = "do-" + hex.EncodeToString(suffix[:])
+	}
+	if !doIDPattern.MatchString(id) {
+		return empty, fmt.Errorf("invalid session id")
+	}
+	release, err := doSessionLock(root, id)
+	if err != nil {
+		return empty, err
+	}
+	defer release()
+	if _, err := secureProjectReadFile(root, doSessionRef(id)); err == nil {
+		existing, _, readErr := loadDoSession(root, id)
+		if readErr != nil {
+			return empty, readErr
+		}
+		requestedDigest, digestErr := playbookDefinitionDigest(input.Definition)
+		if digestErr != nil || existing.DefinitionDigest != requestedDigest || existing.Goal != input.Goal || !reflect.DeepEqual(existing.MethodBinding, input.MethodBinding) || !reflect.DeepEqual(uniqueSortedTrimmed(existing.WriteScope), uniqueSortedTrimmed(input.WriteScope)) || !reflect.DeepEqual(uniqueSortedTrimmed(existing.OutputScope), uniqueSortedTrimmed(input.OutputScope)) || !reflect.DeepEqual(existing.Context, input.Context) {
+			return empty, fmt.Errorf("session_id already binds a different operation; resume it or choose a new id")
+		}
+		return existing, nil
+	} else if !os.IsNotExist(err) {
+		return empty, err
+	}
+	for _, set := range [][]string{input.WriteScope, input.OutputScope} {
+		for i, value := range set {
+			clean, err := doPath(root, value, false)
+			if err != nil {
+				return empty, err
+			}
+			if strings.HasPrefix(clean, ".specify/") || clean == ".specify" || strings.HasPrefix(clean, ".planning/") || clean == ".planning" {
+				return empty, fmt.Errorf("runtime/workflow state is not product or output scope")
+			}
+			set[i] = clean
+		}
+	}
+	for _, check := range input.Definition.Checks {
+		if check.ResultPath != "" && !doScopeContains(input.OutputScope, check.ResultPath) && !doScopeContains(input.WriteScope, check.ResultPath) {
+			return empty, fmt.Errorf("check result %s must be in an explicit output/write scope", check.ResultPath)
+		}
+	}
+	for _, scope := range input.OutputScope {
+		for _, source := range input.Definition.SourceFiles {
+			if doScopeContains([]string{scope}, source) {
+				return empty, fmt.Errorf("output_scope overlaps a declared source file")
+			}
+		}
+		for _, source := range input.WriteScope {
+			if doScopeContains([]string{scope}, source) || doScopeContains([]string{source}, scope) {
+				return empty, fmt.Errorf("output and source write scopes must not overlap")
+			}
+		}
+	}
+	for _, step := range input.Definition.Steps {
+		for _, p := range step.SourceWrites {
+			if !doScopeContains(input.WriteScope, p) {
+				return empty, fmt.Errorf("step %s source_writes must be wholly inside the explicit source write_scope", step.ID)
+			}
+		}
+	}
+	sources, fingerprint, sourceRevision, dirty, err := doCaptureSource(root, input.Definition, input.WriteScope)
+	if err != nil {
+		return empty, err
+	}
+	baseline, err := runcontrol.CaptureWorkspaceBaseline(context.Background(), root)
+	if err != nil {
+		return empty, err
+	}
+	baselineJSON, err := runcontrol.EncodeWorkspaceBaseline(baseline)
+	if err != nil {
+		return empty, err
+	}
+	digest, err := playbookDefinitionDigest(input.Definition)
+	if err != nil {
+		return empty, err
+	}
+	workScope := append(append([]string{}, input.WriteScope...), input.OutputScope...)
+	workScope = append(workScope, path.Dir(doSessionRef(id)))
+	intents := []runcontrol.WriteIntentSpec{}
+	seen := map[string]bool{}
+	for _, p := range workScope {
+		if !seen[p] {
+			seen[p] = true
+			intents = append(intents, runcontrol.WriteIntentSpec{Path: p, Operation: runcontrol.WriteModify, Confidence: runcontrol.IntentConfirmed, Reason: "frozen Do operation scope"})
+		}
+	}
+	store, err := runcontrol.OpenForRepository(context.Background(), root)
+	if err != nil {
+		return empty, err
+	}
+	defer store.Close()
+	if _, err = store.ReconcileRepositoryWork(context.Background(), time.Now().UTC()); err != nil {
+		return empty, err
+	}
+	work, _, err := store.BeginWork(context.Background(), runcontrol.BeginWorkParams{WorkID: "work-" + id, TaskRef: "do:" + id, Summary: input.Goal, AgentID: input.AgentID, AdapterID: input.AdapterID, WorkspaceRoot: root, BaseCommit: baseline.HeadCommit, NextAction: "record a started attempt before native execution", LeaseUntil: time.Now().UTC().Add(30 * time.Minute), WriteIntents: intents})
+	if err != nil {
+		return empty, err
+	}
+	now := doNow()
+	session := DoSession{SchemaVersion: doSessionSchema, ID: id, Revision: 1, Goal: input.Goal, Definition: input.Definition, DefinitionDigest: digest, MethodBinding: input.MethodBinding, Context: input.Context, InitialSources: sources, BaselineJSON: baselineJSON, WriteScope: input.WriteScope, OutputScope: input.OutputScope, WorkID: work.WorkID, WorkFence: work.Fence, ExecutionOutcome: "pending", KnowledgeStatus: "pending", Attempts: []DoAttempt{}, Requests: map[string]string{}, CreatedAt: now, UpdatedAt: now}
+	doInitializeDefinitionEpoch(&session, sources, fingerprint, sourceRevision, dirty)
+	if err = doWriteSession(root, session, "", nil); err != nil {
+		return empty, fmt.Errorf("session publication failed; Work %s preserves its scope, inspect before recovery: %w", work.WorkID, err)
+	}
+	return session, nil
+}
+
+func doCaptureSource(root string, definition PlaybookDefinition, writeScopes ...[]string) (map[string]string, string, string, []string, error) {
+	sources, err := playbookSourceFingerprint(root, definition)
+	if err != nil {
+		return nil, "", "", nil, err
+	}
+	for _, scopes := range writeScopes {
+		for _, scope := range scopes {
+			target, err := secureProjectPath(root, scope)
+			if err != nil {
+				return nil, "", "", nil, err
+			}
+			if _, err := os.Stat(target); os.IsNotExist(err) {
+				sources[scope] = doBytesDigest([]byte("missing owned source"))
+				continue
+			} else if err != nil {
+				return nil, "", "", nil, err
+			}
+			err = filepath.WalkDir(target, func(file string, entry os.DirEntry, walkErr error) error {
+				if walkErr != nil {
+					return walkErr
+				}
+				if len(sources) > 512 {
+					return fmt.Errorf("owned source scope exceeds 512 files; narrow the operation")
+				}
+				rel, err := filepath.Rel(root, file)
+				if err != nil {
+					return err
+				}
+				rel = filepath.ToSlash(rel)
+				if _, err := secureProjectPath(root, rel); err != nil {
+					return err
+				}
+				if entry.IsDir() {
+					return nil
+				}
+				info, err := entry.Info()
+				if err != nil {
+					return err
+				}
+				if !info.Mode().IsRegular() || info.Size() > 16*1024*1024 {
+					return fmt.Errorf("owned source must be a bounded regular file")
+				}
+				raw, err := os.ReadFile(file)
+				if err != nil {
+					return err
+				}
+				sources[rel] = doDigest(map[string]any{"bytes": doBytesDigest(raw), "mode": info.Mode().Perm()})
+				return nil
+			})
+			if err != nil {
+				return nil, "", "", nil, err
+			}
+		}
+	}
+	head, err := runcontrol.ReadHeadCommit(context.Background(), root)
+	if err != nil {
+		head = "unborn"
+	}
+	dirty, err := runcontrol.InspectWorkspaceChanges(context.Background(), root)
+	if err != nil {
+		return nil, "", "", nil, err
+	}
+	relevant := []string{}
+	for _, p := range dirty {
+		for source := range sources {
+			if p == source || strings.HasPrefix(p, source+"/") {
+				relevant = append(relevant, p)
+				break
+			}
+		}
+	}
+	sort.Strings(relevant)
+	fingerprint := doDigest(map[string]any{"files": sources, "source_revision": head, "dirty_paths": relevant})
+	return sources, fingerprint, head, relevant, nil
+}
+
+func doRequireWork(root string, session DoSession) error {
+	store, err := runcontrol.OpenForRepository(context.Background(), root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	work, _, err := store.GetWork(context.Background(), session.WorkID)
+	if err != nil {
+		return err
+	}
+	if work.Fence != session.WorkFence || work.TaskRef != "do:"+session.ID || work.Status != runcontrol.WorkActive {
+		return fmt.Errorf("Work ownership is not active or its fence changed; use Work recovery before mutating the session")
+	}
+	_, err = store.RenewWorkLease(context.Background(), runcontrol.RenewWorkLeaseParams{WorkID: work.WorkID, Fence: work.Fence, LeaseUntil: time.Now().UTC().Add(30 * time.Minute)})
+	return err
+}
+
+func doRecord(root string, session DoSession, oldDigest string, input doRecordInput) (DoSession, error) {
+	if !doIDPattern.MatchString(input.RequestID) {
+		return session, fmt.Errorf("valid request_id is required")
+	}
+	requestDigest := doDigest(input)
+	if previous, ok := session.Requests[input.RequestID]; ok {
+		if previous == requestDigest {
+			return session, nil
+		}
+		return session, fmt.Errorf("request_id was reused with a different payload")
+	}
+	if input.ExpectedRevision != session.Revision {
+		return session, fmt.Errorf("session revision conflict")
+	}
+	if session.ExecutionOutcome == "passed" {
+		return session, fmt.Errorf("execution already passed; resume knowledge capture without rerunning")
+	}
+	if len(input.Events) == 0 || len(input.Events) > 32 {
+		return session, fmt.Errorf("record needs 1 to 32 events")
+	}
+	if err := doRequireWork(root, session); err != nil {
+		return session, err
+	}
+	existing := map[string]bool{}
+	for _, attempt := range session.Attempts {
+		existing[attempt.ID] = true
+	}
+	extra := []fileTransactionUpdate{}
+	for _, event := range input.Events {
+		var err error
+		var writes []fileTransactionUpdate
+		session, writes, err = doApplyRecordEvent(root, session, event, existing)
+		if err != nil {
+			return session, err
+		}
+		extra = append(extra, writes...)
+	}
+	session.Requests[input.RequestID] = requestDigest
+	session.Revision++
+	session.UpdatedAt = doNow()
+	session.Validation = nil
+	if len(session.Attempts) > 512 || len(session.Requests) > 1024 {
+		return session, fmt.Errorf("session record limit reached; split unrelated work into a new session")
+	}
+	err := doWriteSession(root, session, oldDigest, extra)
+	return session, err
+}
+
+func doResume(root string, session DoSession, oldDigest string, input doResumeInput) (DoSession, error) {
+	if input.Replan != nil {
+		return doReplan(root, session, oldDigest, input)
+	}
+	if input.Recovery.EvidenceSHA256 != "" {
+		return session, fmt.Errorf("recovery evidence_sha256 is runtime-owned")
+	}
+	requestDigest := doDigest(input)
+	if previous, ok := session.ResumeReceipts[requestDigest]; ok {
+		raw, err := secureProjectReadFile(root, input.Recovery.EvidenceRef)
+		if err != nil || doBytesDigest(raw) != previous {
+			return session, fmt.Errorf("replayed recovery evidence is missing or changed")
+		}
+		return session, nil
+	}
+	if session.Blocker != nil && input.AttemptID == "" {
+		return doResolveBlocker(root, session, oldDigest, input)
+	}
+	if input.ExpectedRevision != session.Revision {
+		return session, fmt.Errorf("session revision conflict")
+	}
+	if session.Blocker != nil {
+		return session, fmt.Errorf("resolve the external blocker before resuming individual attempts")
+	}
+	index := -1
+	for i := range session.Attempts {
+		if session.Attempts[i].ID == input.AttemptID {
+			index = i
+			break
+		}
+	}
+	if index < 0 && (input.AttemptID != "" || input.WorkFence == 0) {
+		return session, fmt.Errorf("unknown attempt")
+	}
+	if index >= 0 && session.Attempts[index].Status != "running" && session.Attempts[index].Status != "interrupted" && session.Attempts[index].Status != "failed" {
+		return session, fmt.Errorf("only an interrupted or failed attempt needs recovery")
+	}
+	recovery, err := doReadRecovery(root, session, input.Recovery)
+	if err != nil {
+		return session, err
+	}
+	session, err = doAdoptRecoveredWorkFence(root, session, input.WorkFence, false)
+	if err != nil {
+		return session, err
+	}
+	if index >= 0 {
+		attempt := &session.Attempts[index]
+		attempt.Recovery = &recovery
+		if attempt.Status == "running" {
+			attempt.Status = "interrupted"
+		}
+		session.ExecutionOutcome = attempt.Status
+	}
+	doRememberResume(&session, requestDigest, recovery.EvidenceSHA256)
+	session.Revision++
+	session.UpdatedAt = doNow()
+	return session, doWriteSession(root, session, oldDigest, nil)
+}
+
+func doFinish(root string, session DoSession, oldDigest string, input doFinishInput) (DoSession, error) {
+	if input.Blocker != nil {
+		return doBlockFinish(root, session, oldDigest, input)
+	}
+	if session.Blocker != nil {
+		return session, fmt.Errorf("resolve the recorded external blocker before success closeout")
+	}
+	if input.KnowledgeStatus == "" {
+		input.KnowledgeStatus = "pending"
+	}
+	if input.KnowledgeStatus != "saved" && input.Knowledge != nil {
+		return session, fmt.Errorf("only saved knowledge may carry its verified receipt")
+	}
+	if session.ExecutionOutcome == "passed" && ((input.KnowledgeStatus == "pending") || (session.KnowledgeStatus == input.KnowledgeStatus && reflect.DeepEqual(session.Knowledge, input.Knowledge))) {
+		validation := doValidate(root, session, true)
+		if validation.Status != "passed" {
+			return session, fmt.Errorf("previous completion is stale: %s", strings.Join(validation.Blockers, "; "))
+		}
+		if session.KnowledgeStatus != "pending" {
+			if err := doReleaseFinishedWork(root, session); err != nil {
+				return session, err
+			}
+		}
+		return session, nil
+	}
+	if input.ExpectedRevision != session.Revision {
+		return session, fmt.Errorf("session revision conflict")
+	}
+	validation := doValidate(root, session, true)
+	if validation.Status != "passed" {
+		return session, fmt.Errorf("validation incomplete: %s", strings.Join(validation.Blockers, "; "))
+	}
+	if err := doRequireWork(root, session); err != nil {
+		return session, err
+	}
+	if input.KnowledgeStatus == "" {
+		input.KnowledgeStatus = "pending"
+	}
+	if input.KnowledgeStatus != "pending" && input.KnowledgeStatus != "saved" && input.KnowledgeStatus != "not_applicable" {
+		return session, fmt.Errorf("invalid knowledge_status")
+	}
+	if input.KnowledgeStatus == "saved" {
+		if input.Knowledge == nil {
+			return session, fmt.Errorf("knowledge receipt required")
+		}
+		if err := doVerifyKnowledge(root, session, *input.Knowledge); err != nil {
+			return session, err
+		}
+	}
+	if input.KnowledgeStatus == "not_applicable" && input.Knowledge != nil {
+		return session, fmt.Errorf("not_applicable cannot carry a fabricated knowledge receipt")
+	}
+	session.ExecutionOutcome = "passed"
+	session.KnowledgeStatus = input.KnowledgeStatus
+	session.Knowledge = input.Knowledge
+	session.Validation = &validation
+	session.Revision++
+	session.UpdatedAt = doNow()
+	if err := doWriteSession(root, session, oldDigest, nil); err != nil {
+		return session, err
+	}
+	if input.KnowledgeStatus != "pending" {
+		if err := doReleaseFinishedWork(root, session); err != nil {
+			return session, err
+		}
+	}
+	return session, nil
+}
+
+func doReleaseFinishedWork(root string, session DoSession) error {
+	store, err := runcontrol.OpenForRepository(context.Background(), root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	work, _, err := store.GetWork(context.Background(), session.WorkID)
+	if err != nil {
+		return err
+	}
+	if work.Fence != session.WorkFence || work.TaskRef != "do:"+session.ID {
+		return fmt.Errorf("completion work identity mismatch")
+	}
+	if work.Status == runcontrol.WorkCompleted {
+		return nil
+	}
+	_, err = store.TransitionWork(context.Background(), runcontrol.TransitionWorkParams{WorkID: work.WorkID, ExpectedRevision: work.Revision, Fence: session.WorkFence, Target: runcontrol.WorkCompleted, Reason: "Do required operation checks and knowledge closeout completed"})
+	return err
+}
+
+func doVerifyKnowledge(root string, session DoSession, receipt DoKnowledgeReceipt) error {
+	if receipt.Path != path.Join(".specify/playbooks", receipt.MethodID, "usage", session.ID+".json") {
+		return fmt.Errorf("knowledge receipt must be the canonical runtime-owned usage receipt")
+	}
+	p, err := doPath(root, receipt.Path, false)
+	if err != nil {
+		return err
+	}
+	raw, err := secureProjectReadFile(root, p)
+	if err != nil {
+		return err
+	}
+	if receipt.SHA256 != doBytesDigest(raw) {
+		return fmt.Errorf("knowledge receipt digest mismatch")
+	}
+	var data map[string]json.RawMessage
+	if err = json.Unmarshal(raw, &data); err != nil {
+		return err
+	}
+	var sid, digest, method string
+	var revision int
+	_ = json.Unmarshal(data["session_id"], &sid)
+	_ = json.Unmarshal(data["definition_digest"], &digest)
+	_ = json.Unmarshal(data["method_id"], &method)
+	_ = json.Unmarshal(data["revision"], &revision)
+	if sid != session.ID || digest != session.DefinitionDigest || method != receipt.MethodID || revision != receipt.Revision {
+		return fmt.Errorf("knowledge receipt is not bound to this execution and method revision")
+	}
+	document, err := loadPlaybookRevision(root, receipt.MethodID, receipt.Revision)
+	if err != nil {
+		return err
+	}
+	definitionDigest, err := playbookDefinitionDigest(document.Definition)
+	if err != nil || document.Revision != receipt.Revision || definitionDigest != session.DefinitionDigest {
+		return fmt.Errorf("knowledge receipt no longer binds the published definition")
+	}
+	var verification DoPlaybookValidationReceipt
+	if err := json.Unmarshal(data["verification"], &verification); err != nil || session.Validation == nil || verification.SessionID != session.ID || verification.EvidenceDigest != session.Validation.EvidenceDigest || verification.SourceFingerprint != session.Validation.SourceFingerprint || verification.DefinitionDigest != session.DefinitionDigest || verification.Outcome != "passed" {
+		return fmt.Errorf("knowledge verification does not match the finished operation")
+	}
+	return nil
+}
+
+func validateDoSessionForPlaybook(root, sessionID, methodID string, baseRevision int, baseDigest, definitionDigest string) (DoPlaybookValidationReceipt, error) {
+	var result DoPlaybookValidationReceipt
+	session, _, err := loadDoSession(root, sessionID)
+	if err != nil {
+		return result, err
+	}
+	if session.ExecutionOutcome != "passed" || session.Validation == nil {
+		return result, fmt.Errorf("method publication requires execution-passed Do finish, not a supplied pass flag")
+	}
+	if session.DefinitionDigest != definitionDigest {
+		return result, fmt.Errorf("session did not execute the exact proposed definition")
+	}
+	if session.MethodBinding == nil {
+		if baseRevision != 0 || baseDigest != "" {
+			return result, fmt.Errorf("new method session cannot update an existing revision")
+		}
+	} else if session.MethodBinding.ID != methodID || session.MethodBinding.Revision != baseRevision || session.MethodBinding.ContentDigest != baseDigest {
+		return result, fmt.Errorf("session method base binding mismatch")
+	}
+	validation := doValidate(root, session, true)
+	if validation.Status != "passed" {
+		return result, fmt.Errorf("session evidence is no longer valid: %s", strings.Join(validation.Blockers, "; "))
+	}
+	if validation.EvidenceDigest != session.Validation.EvidenceDigest || validation.SourceFingerprint != session.Validation.SourceFingerprint {
+		return result, fmt.Errorf("session verification receipt changed")
+	}
+	sources, err := playbookSourceFingerprint(root, session.Definition)
+	if err != nil {
+		return result, err
+	}
+	result = DoPlaybookValidationReceipt{SessionID: sessionID, MethodID: methodID, BaseRevision: baseRevision, BaseDigest: baseDigest, DefinitionDigest: definitionDigest, SourceFingerprint: validation.SourceFingerprint, Sources: sources, EvidenceDigest: validation.EvidenceDigest, Outcome: "passed", VerifiedAt: validation.VerifiedAt}
+	return result, nil
+}
+
+// Only typed runtime owners call these before their writes. Scope registration
+// is exact audit metadata, never a generic authority to edit memory or methods.
+func doRegisterPlaybookWrites(root, sessionID string, paths []string) error {
+	return doRegisterOwnerMetadataWrites(root, sessionID, "playbook", paths)
+}
+
+func doRegisterLearningWrites(root, sessionID string, paths []string) error {
+	return doRegisterOwnerMetadataWrites(root, sessionID, "learning", paths)
+}
+
+func doRegisterPlaybookProposalWrites(root, sessionID string, paths []string) error {
+	return doRegisterOwnerMetadataWrites(root, sessionID, "playbook-proposal", paths)
+}
+
+func doRegisterOwnerMetadataWrites(root, sessionID, owner string, paths []string) error {
+	release, err := doSessionLock(root, sessionID)
+	if err != nil {
+		return err
+	}
+	defer release()
+	session, digest, err := loadDoSession(root, sessionID)
+	if err != nil {
+		return err
+	}
+	if session.KnowledgeStatus != "pending" || (owner != "playbook-proposal" && owner != "cognition" && session.ExecutionOutcome != "passed") {
+		return fmt.Errorf("owner metadata writes require a passed session awaiting knowledge capture")
+	}
+	if owner == "cognition" {
+		if validation := doValidate(root, session, false); validation.Status != "passed" || len(validation.ChangedSourcePaths) == 0 {
+			return fmt.Errorf("cognition metadata requires a verified source-writing operation")
+		}
+	}
+	if owner == "playbook-proposal" {
+		if _, err := doAdoptRecoveredWorkFence(root, session, 0, true); err != nil {
+			return err
+		}
+	} else {
+		if err := doRequireWork(root, session); err != nil {
+			return err
+		}
+	}
+	metadata := append([]string{}, session.MetadataWriteScope...)
+	for _, p := range paths {
+		clean, err := doPath(root, p, false)
+		if err != nil {
+			return err
+		}
+		if !doOwnerMetadataPath(owner, clean) {
+			return fmt.Errorf("only exact %s-owner metadata files may be registered", owner)
+		}
+		if owner == "playbook-proposal" && strings.Split(clean, "/")[2] != playbookID(session.Definition) {
+			return fmt.Errorf("proposal metadata must belong to this operation identity")
+		}
+		target, err := secureProjectPath(root, clean)
+		if err != nil {
+			return err
+		}
+		if info, err := os.Stat(target); err == nil && !info.Mode().IsRegular() {
+			return fmt.Errorf("metadata registration requires exact regular files")
+		} else if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		metadata = append(metadata, clean)
+	}
+	metadata = uniqueSortedTrimmed(metadata)
+	if doDigest(metadata) == doDigest(session.MetadataWriteScope) {
+		return nil
+	}
+	store, err := runcontrol.OpenForRepository(context.Background(), root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	work, intents, err := store.GetWork(context.Background(), session.WorkID)
+	if err != nil {
+		return err
+	}
+	specs := []runcontrol.WriteIntentSpec{}
+	seen := map[string]bool{}
+	for _, intent := range intents {
+		if intent.Status == runcontrol.WriteIntentActive {
+			specs = append(specs, runcontrol.WriteIntentSpec{Path: intent.Path, Operation: intent.Operation, Reason: intent.Reason, Confidence: runcontrol.IntentConfirmed})
+			seen[intent.Path] = true
+		}
+	}
+	for _, p := range metadata {
+		if !seen[p] {
+			specs = append(specs, runcontrol.WriteIntentSpec{Path: p, Operation: runcontrol.WriteModify, Reason: "runtime-owned " + owner + " publication", Confidence: runcontrol.IntentConfirmed})
+		}
+	}
+	if _, _, err = store.ClaimWorkIntents(context.Background(), runcontrol.ClaimWorkIntentsParams{WorkID: work.WorkID, ExpectedRevision: work.Revision, Fence: session.WorkFence, Specs: specs}); err != nil {
+		return err
+	}
+	session.MetadataWriteScope = metadata
+	session.Revision++
+	session.UpdatedAt = doNow()
+	return doWriteSession(root, session, digest, nil)
+}
+
+func doOwnerMetadataPath(owner, p string) bool {
+	if owner == "cognition" {
+		switch p {
+		case ".specify/project-cognition/status.json", ".specify/project-cognition/project-cognition.db", ".specify/project-cognition/project-cognition.db-wal", ".specify/project-cognition/project-cognition.db-shm", ".specify/project-cognition/project-cognition.db-journal", ".specify/project-cognition/.update.lock", ".specify/project-cognition/validate-build-receipt.json":
+			return true
+		}
+		if path.Base(p) == mutationCognitionReceiptFileName {
+			return true // exact replay scope computed from a validated existing intent
+		}
+		return path.Dir(p) == ".specify/project-cognition/closeout-intents" && strings.HasSuffix(p, ".json") && validCloseoutIntentID(strings.TrimSuffix(path.Base(p), ".json"))
+	}
+	if owner == "playbook-proposal" {
+		parts := strings.Split(p, "/")
+		return len(parts) == 5 && parts[0] == ".specify" && parts[1] == "playbooks" && playbookIDPattern.MatchString(parts[2]) && parts[3] == "proposals" && strings.HasSuffix(parts[4], ".json") && playbookDigestPattern.MatchString(strings.TrimSuffix(parts[4], ".json"))
+	}
+	if owner == "playbook" {
+		return strings.HasPrefix(p, ".specify/playbooks/") && (path.Ext(p) == ".json" || path.Ext(p) == ".md")
+	}
+	if owner != "learning" {
+		return false
+	}
+	switch p {
+	case ".specify/memory/project-rules.md", ".specify/memory/learnings/INDEX.md", ".specify/memory/learnings/confirmed.md",
+		".planning/learnings/.learning.lock", ".planning/learnings/candidates.md", ".planning/learnings/review.md",
+		".planning/learnings/review-state.json", ".planning/learnings/metrics.json", ".planning/learnings/auto-capture.json":
+		return true
+	}
+	return path.Dir(p) == ".specify/memory/learnings" && strings.HasPrefix(path.Base(p), "learn-") && path.Ext(p) == ".md"
+}

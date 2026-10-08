@@ -1,0 +1,106 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "blocker": {
+      "additionalProperties": false,
+      "properties": {
+        "attempted_recovery": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "category": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "cause": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "evidence_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "next_action": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "owner": {
+          "enum": [
+            "human",
+            "external"
+          ],
+          "type": "string"
+        },
+        "resume_point": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "unblock_criteria": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "owner",
+        "cause",
+        "next_action",
+        "unblock_criteria",
+        "resume_point",
+        "attempted_recovery",
+        "evidence_refs"
+      ],
+      "type": "object"
+    },
+    "expected_revision": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "knowledge": {
+      "additionalProperties": false,
+      "properties": {
+        "method_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "method_id",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "knowledge_status": {
+      "enum": [
+        "pending",
+        "saved",
+        "not_applicable"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "expected_revision"
+  ],
+  "type": "object"
+}

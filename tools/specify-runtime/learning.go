@@ -42,7 +42,7 @@ var learningFacetKeys = []string{"components", "operation_owners", "consumer_own
 var mapWorkflowCommands = []string{"sp-map-scan", "sp-map-build", "sp-map-update", "sp-map-rebuild"}
 var knownLearningCommands = []string{
 	"sp-accept", "sp-analyze", "sp-ask", "sp-auto", "sp-checklist", "sp-constitution",
-	"sp-debug", "sp-deep-research", "sp-design", "sp-discussion", "sp-e2e", "sp-explain", "sp-fast", "sp-implement",
+	"sp-debug", "sp-deep-research", "sp-design", "sp-discussion", "sp-do", "sp-e2e", "sp-explain", "sp-fast", "sp-implement",
 	"sp-implement-teams", "sp-map-scan", "sp-map-build", "sp-map-update", "sp-map-rebuild",
 	"sp-plan", "sp-prd-build", "sp-prd-scan", "sp-quick", "sp-specify", "sp-tasks", "sp-taskstoissues", "sp-team", "sp-test-design",
 }
@@ -56,6 +56,7 @@ var workflowStateAutoCaptureCommands = map[string]bool{
 
 type learningService struct {
 	projectRoot string
+	doSessionID string
 }
 
 type learningPaths struct {
@@ -83,6 +84,7 @@ type learningSuggestion struct {
 	successCriteria   []string
 	avoid             []string
 	exceptions        []string
+	facets            map[string][]string
 }
 
 func runLearning(args []string, stdout io.Writer) int {
@@ -90,6 +92,9 @@ func runLearning(args []string, stdout io.Writer) int {
 		return writeEnvelope(stdout, NewEnvelope("usage-error", "missing learning subcommand"))
 	}
 	service := learningService{projectRoot: optionValue(args, "--project-root", ".")}
+	if command, err := normalizeLearningCommand(optionValue(args, "--command", "")); err == nil && command == "sp-do" {
+		service.doSessionID = optionValue(args, "--session-id", "")
+	}
 	env, err := service.run(args)
 	if err != nil {
 		blocked := NewEnvelope("blocked", "learning command failed")
@@ -153,7 +158,7 @@ func (service learningService) run(args []string) (Envelope, error) {
 		})
 		return learningDataEnvelope("learning capture completed", data), err
 	case "capture-auto":
-		data, err := service.captureAuto(optionValue(args, "--command", ""), optionValue(args, "--feature-dir", ""), optionValue(args, "--workspace", ""), optionValue(args, "--session-file", ""), hasFlag(args, "--dry-run"))
+		data, err := service.captureAuto(optionValue(args, "--command", ""), optionValue(args, "--feature-dir", ""), optionValue(args, "--workspace", ""), optionValue(args, "--session-file", ""), hasFlag(args, "--dry-run"), optionValue(args, "--session-id", ""))
 		return learningDataEnvelope("learning capture-auto completed", data), err
 	case "promote":
 		data, err := service.promote(optionValue(args, "--recurrence-key", ""), optionValue(args, "--target", ""))
@@ -235,6 +240,9 @@ func (service learningService) withLock(fn func(learningPaths) (map[string]any, 
 		return nil, err
 	}
 	lockPath := filepath.Join(filepath.Dir(paths.review), ".learning.lock")
+	if err := service.registerDoLearningFiles([]string{paths.projectRules, paths.confirmedLearnings, paths.learningIndex, paths.candidates, paths.review, paths.reviewState, paths.metrics, lockPath, filepath.Join(filepath.Dir(paths.review), "auto-capture.json")}); err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(filepath.Dir(lockPath), 0o755); err != nil {
 		return nil, err
 	}
@@ -367,7 +375,7 @@ func (service learningService) list(request learningListRequest) (map[string]any
 	for _, item := range catalog {
 		indexEntry := item.indexEntry
 		entry := item.entry
-		commandMatch := normalizedCommand != "" && learningContainsString(anyStringSlice(indexEntry["applies_to"]), normalizedCommand)
+		commandMatch := normalizedCommand != "" && learningEntryRelevantToCommand(indexEntry, normalizedCommand)
 		contextMatch := learningContextMatch(indexEntry, request.context)
 		crossCommand := false
 		if normalizedCommand != "" && !commandMatch {
@@ -627,7 +635,7 @@ func (service learningService) capture(request learningCaptureRequest) (map[stri
 	})
 }
 
-func (service learningService) captureAuto(commandName, featureDir, workspace, sessionFile string, dryRun bool) (map[string]any, error) {
+func (service learningService) captureAuto(commandName, featureDir, workspace, sessionFile string, dryRun bool, sessionIDs ...string) (map[string]any, error) {
 	policy, _, err := service.loadLearningPolicy(true)
 	if err != nil {
 		return nil, err
@@ -639,6 +647,12 @@ func (service learningService) captureAuto(commandName, featureDir, workspace, s
 	var sourcePath string
 	var suggestions []learningSuggestion
 	switch {
+	case normalized == "sp-do":
+		if len(sessionIDs) != 1 || strings.TrimSpace(sessionIDs[0]) == "" {
+			return nil, fmt.Errorf("session_id is required for do auto-capture")
+		}
+		service.doSessionID = sessionIDs[0]
+		sourcePath, suggestions, err = service.suggestDoAutoCapture(sessionIDs[0])
 	case normalized == "sp-implement":
 		if strings.TrimSpace(featureDir) == "" {
 			return nil, fmt.Errorf("feature_dir is required for implement auto-capture")
@@ -688,6 +702,7 @@ func (service learningService) captureAuto(commandName, featureDir, workspace, s
 				recurrenceKey: suggestion.recurrenceKey, signalStrength: firstString(suggestion.signalStrength, "medium"),
 				appliesTo: suggestion.appliesTo, problem: suggestion.problem, recommendedAction: suggestion.recommendedAction,
 				triggerSignals: suggestion.triggerSignals, successCriteria: suggestion.successCriteria, avoid: suggestion.avoid, exceptions: suggestion.exceptions,
+				facets: suggestion.facets,
 			}, policy)
 			if buildErr != nil {
 				return nil, buildErr
@@ -1140,6 +1155,13 @@ func (service learningService) syncLearningIndexDetail(paths learningPaths, entr
 	detailPath := filepath.Join(learningDir, strings.TrimPrefix(stringFromAny(storedIndex["detail"]), "./"))
 	if !insideDir(learningDir, detailPath) {
 		return nil, "", fmt.Errorf("learning detail path escapes learning memory directory")
+	}
+	detailWrites := []string{detailPath}
+	if validLearningDetailRef(oldDetail) {
+		detailWrites = append(detailWrites, filepath.Join(learningDir, strings.TrimPrefix(oldDetail, "./")))
+	}
+	if err := service.registerDoLearningFiles(detailWrites); err != nil {
+		return nil, "", err
 	}
 	if err := writeLearningDetail(detailPath, entry, storedIndex); err != nil {
 		return nil, "", err
@@ -1708,7 +1730,7 @@ func (service learningService) normalizeAutoCaptureRegistry(payload map[string]a
 }
 
 func learningAutoCaptureCommandSupported(command string) bool {
-	return command == "sp-implement" || command == "sp-quick" || command == "sp-debug" || workflowStateAutoCaptureCommands[command]
+	return command == "sp-implement" || command == "sp-quick" || command == "sp-debug" || command == "sp-do" || workflowStateAutoCaptureCommands[command]
 }
 
 func normalizeAutoCaptureRegistryKey(key string) string {
@@ -1937,21 +1959,21 @@ func defaultAppliesToForLearningType(typ, source string) []string {
 	case "routing_mistake":
 		return []string{"sp-fast", "sp-quick", "sp-specify", "sp-plan", "sp-tasks", "sp-implement", "sp-debug"}
 	case "verification_gap":
-		return []string{"sp-implement", "sp-accept", "sp-debug", "sp-quick", "sp-fast"}
+		return []string{"sp-implement", "sp-accept", "sp-debug", "sp-do", "sp-quick", "sp-fast"}
 	case "state_surface_gap":
 		return append([]string{"sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", "sp-implement", "sp-accept", "sp-debug", "sp-quick"}, mapWorkflowCommands...)
 	case "map_coverage_gap":
 		return append(append([]string{}, mapWorkflowCommands...), "sp-specify", "sp-deep-research", "sp-plan", "sp-tasks", "sp-implement", "sp-debug")
 	case "tooling_trap":
-		return append([]string{"sp-implement", "sp-debug", "sp-quick"}, mapWorkflowCommands...)
+		return append([]string{"sp-implement", "sp-debug", "sp-do", "sp-quick"}, mapWorkflowCommands...)
 	case "false_lead_pattern":
 		return []string{"sp-debug", "sp-implement", "sp-quick"}
 	case "near_miss", "pitfall":
-		return uniqueSortedTrimmed([]string{source, "sp-implement", "sp-debug", "sp-quick"})
+		return uniqueSortedTrimmed([]string{source, "sp-implement", "sp-debug", "sp-do", "sp-quick"})
 	case "decision_debt":
 		return append([]string{"sp-specify", "sp-deep-research", "sp-plan", "sp-tasks"}, mapWorkflowCommands...)
 	case "recovery_path":
-		return []string{"sp-implement", "sp-debug", "sp-quick"}
+		return []string{"sp-implement", "sp-debug", "sp-do", "sp-quick"}
 	default:
 		return []string{source}
 	}
@@ -2121,7 +2143,22 @@ func removeLearningByRecurrence(entries []map[string]any, key string) []map[stri
 }
 
 func learningEntryRelevantToCommand(entry map[string]any, command string) bool {
-	return learningContainsString(anyStringSlice(entry["applies_to"]), command)
+	applies := anyStringSlice(entry["applies_to"])
+	if learningContainsString(applies, command) {
+		return true
+	}
+	// Older global defaults expanded the then-known command list on write. Read
+	// those constraints for Do without rewriting the store or broadening an
+	// explicitly narrow preference. Facet-based cross-workflow recall is separate.
+	if command != "sp-do" || (entry["learning_type"] != "user_preference" && entry["learning_type"] != "project_constraint") {
+		return false
+	}
+	for _, known := range knownLearningCommands {
+		if known != "sp-do" && !learningContainsString(applies, known) {
+			return false
+		}
+	}
+	return true
 }
 
 func learningHighestSignal(entry map[string]any) bool {

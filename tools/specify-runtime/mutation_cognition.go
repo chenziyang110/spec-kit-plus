@@ -33,18 +33,19 @@ var mutationCognitionFeatureStages = map[string]string{
 }
 
 type mutationCognitionReceipt struct {
-	Version      int      `json:"version"`
-	Workflow     string   `json:"workflow"`
-	Scope        string   `json:"scope,omitempty"` // feature rel, quick workspace, or project
-	ResultState  string   `json:"result_state"`
-	Reason       string   `json:"reason,omitempty"`
-	Evidence     []string `json:"evidence,omitempty"`
-	ChangedPaths []string `json:"changed_paths,omitempty"`
-	IntentID     string   `json:"intent_id,omitempty"`
-	IntentRef    string   `json:"intent_ref,omitempty"`
-	IntentDigest string   `json:"intent_digest,omitempty"`
-	UpdateID     string   `json:"update_id,omitempty"`
-	RecordedAt   string   `json:"recorded_at"`
+	Version      int                 `json:"version"`
+	Workflow     string              `json:"workflow"`
+	Scope        string              `json:"scope,omitempty"` // feature rel, quick workspace, or project
+	ResultState  string              `json:"result_state"`
+	Reason       string              `json:"reason,omitempty"`
+	Evidence     []string            `json:"evidence,omitempty"`
+	ChangedPaths []string            `json:"changed_paths,omitempty"`
+	IntentID     string              `json:"intent_id,omitempty"`
+	IntentRef    string              `json:"intent_ref,omitempty"`
+	IntentDigest string              `json:"intent_digest,omitempty"`
+	UpdateID     string              `json:"update_id,omitempty"`
+	RecordedAt   string              `json:"recorded_at"`
+	DoBinding    *DoCognitionBinding `json:"do_binding,omitempty"`
 }
 
 func normalizeMutationCognitionState(raw string) string {
@@ -129,7 +130,7 @@ func recordMutationCognitionReceiptWithPaths(scopeDir, workflow, scopeLabel, res
 	return recordMutationCognitionReceiptBound(scopeDir, workflow, scopeLabel, resultState, reason, updateID, evidence, changedPaths, "", "", "")
 }
 
-func recordMutationCognitionReceiptBound(scopeDir, workflow, scopeLabel, resultState, reason, updateID string, evidence []string, changedPaths []string, intentID string, intentRef string, intentDigest string) (map[string]any, error) {
+func recordMutationCognitionReceiptBound(scopeDir, workflow, scopeLabel, resultState, reason, updateID string, evidence []string, changedPaths []string, intentID string, intentRef string, intentDigest string, doBindings ...*DoCognitionBinding) (map[string]any, error) {
 	canonical, err := normalizeMutationWorkflowID(workflow)
 	if err != nil {
 		return nil, err
@@ -154,6 +155,9 @@ func recordMutationCognitionReceiptBound(scopeDir, workflow, scopeLabel, resultS
 		IntentDigest: strings.TrimSpace(intentDigest),
 		UpdateID:     strings.TrimSpace(updateID),
 		RecordedAt:   nowUTCString(),
+	}
+	if err := doPrepareCognitionReceipt(scopeDir, &receipt, doBindings); err != nil {
+		return nil, err
 	}
 	path, err := writeMutationCognitionReceipt(scopeDir, receipt)
 	if err != nil {
@@ -349,7 +353,7 @@ func runMutationCognitionReceiptCLI(args []string, stdout io.Writer) int {
 	workflow := firstNonEmpty(optionValue(args, "--workflow", ""), optionValue(args, "--command", ""))
 	scopeDir := firstNonEmpty(optionValue(args, "--scope-dir", ""), optionValue(args, "--feature-dir", ""), optionValue(args, "--workspace", ""))
 	if strings.TrimSpace(workflow) == "" {
-		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("mutation-receipt requires --workflow sp-implement|sp-quick|sp-fast|sp-debug|sp-review|sp-map-update")))
+		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("mutation-receipt requires --workflow sp-implement|sp-quick|sp-fast|sp-debug|sp-do|sp-review|sp-e2e|sp-map-update")))
 	}
 	if strings.TrimSpace(scopeDir) == "" {
 		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("mutation-receipt requires --scope-dir or --feature-dir (feature workspace, quick workspace, or project-relative mutation scope)")))

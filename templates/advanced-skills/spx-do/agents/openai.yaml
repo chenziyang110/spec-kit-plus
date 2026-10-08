@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Do"
+  short_description: "Execute project operations and improve verified reusable methods"
+  default_prompt: "Use $spx-do to execute the requested project operation and preserve verified reusable methods."
+
+policy:
+  allow_implicit_invocation: false

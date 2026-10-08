@@ -106,6 +106,12 @@
       "assets": [],
       "optimization": "semantic checkpoints and an exact confirmed handoff replace transcript ceremony"
     },
+    "spx-do": {
+      "absorbs": ["do"],
+      "references": ["spx-do/references/operation-contract.md"],
+      "assets": [],
+      "optimization": "progressive method retrieval, current prerequisite checks, native operation execution, and verified revision updates in a resumable DoSession"
+    },
     "spx-e2e": {
       "absorbs": ["e2e"],
       "references": ["spx-e2e/references/scenario-design.md"],

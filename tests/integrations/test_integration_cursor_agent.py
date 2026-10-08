@@ -1,6 +1,7 @@
 """Tests for CursorAgentIntegration."""
 
 import errno
+import os
 from pathlib import Path
 
 from tests.template_utils import assert_quick_checkpoint_card_shape
@@ -71,18 +72,19 @@ def test_cursor_init_here_retries_transient_implement_rewrite(
     target.mkdir()
     (target / "existing.txt").write_text("keep\n", encoding="utf-8")
     implement_skill = target / ".cursor" / "skills" / "sp-implement" / "SKILL.md"
-    real_write_bytes = Path.write_bytes
+    real_replace = os.replace
     attempts = 0
 
-    def interrupt_first_rewrite(path, data):
+    def interrupt_first_rewrite(source, path):
         nonlocal attempts
-        if path == implement_skill:
+        if Path(path) == implement_skill:
             attempts += 1
             if attempts == 2:
                 raise OSError(errno.EINVAL, "Invalid argument", str(path))
-        return real_write_bytes(path, data)
+        return real_replace(source, path)
 
-    monkeypatch.setattr(Path, "write_bytes", interrupt_first_rewrite)
+    # The manifest publishes atomically; inject contention at publication.
+    monkeypatch.setattr(os, "replace", interrupt_first_rewrite)
     monkeypatch.chdir(target)
 
     result = CliRunner().invoke(

@@ -107,6 +107,7 @@ KNOWN_COMMANDS = (
     "sp-deep-research",
     "sp-design",
     "sp-discussion",
+    "sp-do",
     "sp-e2e",
     "sp-explain",
     "sp-fast",
@@ -1209,7 +1210,7 @@ def default_applies_to_for_type(learning_type: str, source_command: str) -> list
             "sp-debug",
         ]
     if normalized_type == "verification_gap":
-        return ["sp-implement", "sp-accept", "sp-debug", "sp-quick", "sp-fast"]
+        return ["sp-implement", "sp-accept", "sp-debug", "sp-do", "sp-quick", "sp-fast"]
     if normalized_type == "state_surface_gap":
         return [
             "sp-specify",
@@ -1233,11 +1234,11 @@ def default_applies_to_for_type(learning_type: str, source_command: str) -> list
             "sp-debug",
         ]
     if normalized_type == "tooling_trap":
-        return ["sp-implement", "sp-debug", "sp-quick", *MAP_WORKFLOW_COMMANDS]
+        return ["sp-implement", "sp-debug", "sp-do", "sp-quick", *MAP_WORKFLOW_COMMANDS]
     if normalized_type == "false_lead_pattern":
         return ["sp-debug", "sp-implement", "sp-quick"]
     if normalized_type == "near_miss":
-        return sorted({normalized_source, "sp-implement", "sp-debug", "sp-quick"})
+        return sorted({normalized_source, "sp-implement", "sp-debug", "sp-do", "sp-quick"})
     if normalized_type == "decision_debt":
         return [
             "sp-specify",
@@ -1247,9 +1248,9 @@ def default_applies_to_for_type(learning_type: str, source_command: str) -> list
             *MAP_WORKFLOW_COMMANDS,
         ]
     if normalized_type == "recovery_path":
-        return ["sp-implement", "sp-debug", "sp-quick"]
+        return ["sp-implement", "sp-debug", "sp-do", "sp-quick"]
     if normalized_type == "pitfall":
-        return sorted({normalized_source, "sp-implement", "sp-debug", "sp-quick"})
+        return sorted({normalized_source, "sp-implement", "sp-debug", "sp-do", "sp-quick"})
     return [normalized_source]
 
 

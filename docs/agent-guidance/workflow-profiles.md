@@ -28,8 +28,8 @@ present in a test project.
   independent `spx-*` catalog from `templates/advanced-skills/**`. It is
   command-equivalent and prompt-optimized for advanced models: every Classic
   command has an independent SPX counterpart, while `spx-map-rebuild` is an
-  additional convenience orchestrator. The current topology is 29 SPX skills:
-  28 one-to-one Classic command counterparts plus `spx-map-rebuild`. Advanced
+  additional convenience orchestrator. The current topology is 30 SPX skills:
+  29 one-to-one Classic command counterparts plus `spx-map-rebuild`. Advanced
   keeps command ownership, read/write boundaries, resumable stops, and
   external-side-effect gates; it removes repeated tutorials, fixed role chains,
   unnecessary mandatory delegation, long examples, and model-authored stable
@@ -38,6 +38,14 @@ present in a test project.
   and execution lane. Client visual interaction is first-class; native runners
   are optional. Test Design stays read-only input and Review/Accept retain
   ownership. Only retained test-asset mutations use canonical `sp-e2e` closeout.
+- `sp-do` / `spx-do` executes an explicitly requested build, package, test, or
+  repeatable project operation in an independent DoSession. Both profiles use
+  shared `do` and `playbook` runtime contracts, retrieve only matching method
+  cards and revisions, and verify current prerequisites before native execution.
+  It does not add a formal workflow stage or Activity. Retained source, script,
+  or configuration changes use canonical `sp-do` cognition closeout; generated
+  outputs and method metadata alone do not constitute source mutation. Method
+  instances stay project-local and are not copied into installed skill bundles.
 - Advanced prompt optimization has no hard word or token ceiling. Optimize
   expression, not workflow semantics: every Classic stage input, triggered
   output, state owner, resume transition, blocker/recovery rule, side-effect

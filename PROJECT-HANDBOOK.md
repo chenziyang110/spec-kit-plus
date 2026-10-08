@@ -388,6 +388,16 @@ partial supersession, resolution, semantic diff, and explicit adoption.
 
 ## High-Value Capabilities
 
+- **Repeatable project operations**: Explicit `sp-do` / `spx-do` executes build,
+  package, test, check, generation, and bounded maintenance goals through native
+  agent tools. Shared Go `do` owns resumable DoSessions under
+  `.specify/do/sessions/<id>` and observed execution/verification receipts;
+  `playbook` owns progressive method lookup and evidence-backed immutable
+  revisions. It adds no formal stage or Activity. Retained source/script/config
+  changes require canonical `sp-do` cognition closeout; outputs and method
+  metadata alone do not. Methods are project-local unless an explicit sharing
+  strategy is chosen. Read [Do and Playbooks](docs/sp-do.md), the owning command
+  templates, and the runtime command catalog.
 - **Workflow SKILL invocation boundary**: All `sp-*` and `spx-*` workflow skills
   are user-invoked only (Classic and Advanced respectively). No passive workflow
   router is installed, and natural-language similarity must not select or enter

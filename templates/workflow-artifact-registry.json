@@ -2,6 +2,27 @@
   "version": 2,
   "artifacts": [
     {
+      "id": "do_session_and_evidence",
+      "path_patterns": [".specify/do/sessions/*/session.json", ".specify/do/sessions/*/definitions/*.json", ".specify/do/sessions/*/evidence/**"],
+      "owner_cli": ["specify-runtime do"],
+      "path_hints": [".specify/do/sessions/", "DoSession", "do session state"],
+      "safe_instruction_patterns": ["specify-runtime do", "do start", "do record", "do finish", "do resume", "do show", "do validate", "runtime-owned", "never edit", "cli-owned"]
+    },
+    {
+      "id": "do_cognition_closeout",
+      "path_patterns": [".specify/do/sessions/*/cognition-closeout.json"],
+      "owner_cli": ["specify-runtime cognition mutation-receipt"],
+      "path_hints": ["cognition-closeout.json"],
+      "safe_instruction_patterns": ["mutation-receipt", "cognition closeout", "runtime-owned", "cli-owned"]
+    },
+    {
+      "id": "project_playbooks",
+      "path_patterns": [".specify/playbooks/**"],
+      "owner_cli": ["specify-runtime playbook"],
+      "path_hints": [".specify/playbooks/", "playbook.json", "PLAYBOOK.md"],
+      "safe_instruction_patterns": ["specify-runtime playbook", "playbook find", "playbook show", "playbook update", "playbook validate", "runtime-owned", "derived", "never edit", "cli-owned"]
+    },
+    {
       "id": "extension_hook_config",
       "path_patterns": [".specify/extensions.yml"],
       "owner_cli": ["specify-runtime hook extension-plan"],

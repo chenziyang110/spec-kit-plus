@@ -532,10 +532,15 @@ func replaySelectedCloseoutIntent(paths rt.Paths, args []string, stdout io.Write
 	if id != "" && (!validCloseoutIntentID(id) || len(expected) != 64) {
 		return closeoutRecoveryFailure(stdout, paths, id, "invalid_replay_binding", fmt.Errorf("exact --intent-id and --expected-digest are required"))
 	}
+	releaseDo, err := doBeginCognitionReplay(paths, id, expected, scopeDir)
+	if err != nil {
+		return closeoutRecoveryFailure(stdout, paths, id, "replay_blocked", err)
+	}
+	defer releaseDo()
 	var intent closeoutIntent
 	var receipt *mutationCognitionReceipt
 	var updateID string
-	err := update.WithLockedRuntime(paths, func(runtime *update.LockedRuntime) error {
+	err = update.WithLockedRuntime(paths, func(runtime *update.LockedRuntime) error {
 		var err error
 		if id == "" {
 			absScope, relScope, err := resolveCloseoutApplyScope(paths.Root, scopeDir)

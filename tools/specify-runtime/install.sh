@@ -89,6 +89,13 @@ fi
 chmod 0755 "$candidate"
 
 handshake="$("$candidate" api handshake --format json)"
+for capability in "do.start" "do.record" "do.validate" "do.finish" "do.resume" "do.show" \
+  "playbook.find" "playbook.show" "playbook.update" "playbook.validate"; do
+  if [[ "$handshake" != *"\"${capability}\""* ]]; then
+    echo "Downloaded binary lacks required project operation capability: ${capability}" >&2
+    exit 1
+  fi
+done
 if [[ "$handshake" != *'"discussion.import-material"'* || "$handshake" != *'"discussion.read-material"'* ]]; then
   echo "Downloaded binary lacks complete discussion source-material reading support" >&2
   exit 1
