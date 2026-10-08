@@ -9,6 +9,7 @@ the human/bootstrap ``specify`` launcher during the migration window.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import re
@@ -1486,7 +1487,7 @@ def _handle_pre_tool_read(
 
 
 def _handle_pre_tool_write(
-    project_root: Path, payload: dict[str, Any]
+    project_root: Path, payload: dict[str, Any], *, owner_paths: set[str] | None = None
 ) -> dict[str, Any] | None:
     if _extract_tool_name(payload) not in {"Write", "Edit", "MultiEdit"}:
         return None
@@ -1497,6 +1498,8 @@ def _handle_pre_tool_write(
         return None
     if _is_repairable_block(policy_shared):
         if _is_state_repair_path(project_root, context, target_path):
+            if owner_paths is not None:
+                owner_paths.add(target_path)
             return None
         return {
             "hookSpecificOutput": {
@@ -1827,10 +1830,73 @@ def main() -> int:
     if not handler:
         return 0
 
-    output = handler(project_root, payload)
+    owner_paths: set[str] = set()
+    output = (
+        handler(project_root, payload, owner_paths=owner_paths)
+        if route == "pre-tool-write"
+        else handler(project_root, payload)
+    )
+    if route in {"pre-tool-write", "pre-tool-bash", "stop-monitor"}:
+        phase = "finish" if route == "stop-monitor" else "before"
+        hook_specific = (output or {}).get("hookSpecificOutput", {})
+        denied = phase == "before" and (
+            (isinstance(hook_specific, dict) and hook_specific.get("permissionDecision") == "deny")
+            or (output or {}).get("continue") is False
+            or (output or {}).get("decision") == "block"
+        )
+        if not denied:
+            asset = _run_asset_guard(project_root, payload, phase, owner_paths=owner_paths)
+            output = _merge_asset_guard_output(output, asset, phase)
     if output:
         sys.stdout.write(json.dumps(output))
     return 0
+
+
+def _run_asset_guard(project_root: Path, payload: dict[str, Any], phase: str, *, owner_paths: set[str] | None = None) -> dict[str, Any]:
+    candidates = [project_root / ".specify/bin/specify-asset-guard.py"]
+    candidates.extend(parent / "shared_hooks/specify-asset-guard.py" for parent in Path(__file__).resolve().parents)
+    helper_path = next((path for path in candidates if path.is_file()), None)
+    if helper_path is None:
+        if phase == "finish":
+            return {}
+        return {"status": "unavailable", "message": "Asset verification is unavailable: the project hook helper is missing. Repair the integration; do not claim this check passed."}
+    try:
+        spec = importlib.util.spec_from_file_location("spec_kit_asset_guard", helper_path)
+        if spec is None or spec.loader is None:
+            raise ValueError("asset helper cannot be loaded")
+        module = importlib.util.module_from_spec(spec)
+        previous_bytecode = sys.dont_write_bytecode
+        sys.dont_write_bytecode = True
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            sys.dont_write_bytecode = previous_bytecode
+        if phase == "finish":
+            return module.finish_turn(project_root, payload, "claude")
+        return module.before_tool(project_root, payload, "claude", owner_paths=owner_paths)
+    except (OSError, ValueError, AttributeError, TypeError, ImportError, SyntaxError) as exc:
+        return {"status": "unavailable", "message": f"Asset verification is unavailable: {' '.join(str(exc).split())[:200]}. Do not claim this check passed."}
+
+
+def _merge_asset_guard_output(output: dict[str, Any] | None, asset: dict[str, Any], phase: str) -> dict[str, Any] | None:
+    if asset.get("status") not in {"blocked", "unavailable"}:
+        return output
+    merged = dict(output or {})
+    message = str(asset.get("message") or "Asset verification is unavailable; do not claim it passed.")
+    if phase == "before":
+        specific = dict(merged.get("hookSpecificOutput") or {})
+        specific["hookEventName"] = "PreToolUse"
+        if asset["status"] == "blocked":
+            specific.update({"permissionDecision": "deny", "permissionDecisionReason": message})
+        else:
+            specific["additionalContext"] = " ".join(part for part in [specific.get("additionalContext", ""), message] if part)
+        merged["hookSpecificOutput"] = specific
+    elif asset["status"] == "blocked":
+        merged["decision"] = "block"
+        merged["reason"] = " ".join(part for part in [merged.get("reason", ""), message] if part)
+    else:
+        merged["systemMessage"] = " ".join(part for part in [merged.get("systemMessage", ""), message] if part)
+    return merged
 
 
 if __name__ == "__main__":

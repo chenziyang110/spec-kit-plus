@@ -183,7 +183,7 @@ find_feature_dir_by_prefix() {
                 echo "$specs_dir/$branch_name"
                 return
             fi
-        done < <(feature_specs_roots "$repo_root")
+        done <<< "$(feature_specs_roots "$repo_root")"
 
         echo "$repo_root/.specify/features/$branch_name"
         return
@@ -216,7 +216,7 @@ find_feature_dir_by_prefix() {
             echo "Please ensure only one spec directory exists per prefix in the active feature root." >&2
             return 1
         fi
-    done < <(feature_specs_roots "$repo_root")
+    done <<< "$(feature_specs_roots "$repo_root")"
 
     # No match found - return the preferred root path (will fail later with clear error)
     echo "$repo_root/.specify/features/$branch_name"

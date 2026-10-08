@@ -577,6 +577,7 @@ class TestClaudeIntegration:
                 ".specify/bin/specify-hook.cmd",
                 ".specify/bin/specify-hook.mjs",
                 ".specify/bin/specify-hook.py",
+                ".specify/bin/specify-asset-guard.py",
                 ".specify/bin/.gitignore",
                 ".specify/runtime/.gitignore",
                 ".specify/runtime/launcher-config.lock",
@@ -1425,7 +1426,11 @@ class TestClaudeIntegration:
 
         assert result.returncode == 0, result.stderr
         stdout = result.stdout.strip()
-        assert stdout in {"", "{}"}
+        output = json.loads(stdout) if stdout else {}
+        assert output.get("hookSpecificOutput", {}).get("permissionDecision") != "deny"
+        if output:
+            assert "session identity" in output["hookSpecificOutput"]["additionalContext"]
+            assert "do not claim this check passed" in output["hookSpecificOutput"]["additionalContext"]
 
     def test_claude_hook_dispatch_blocks_repairable_non_state_write(self, tmp_path):
         integration = get_integration("claude")

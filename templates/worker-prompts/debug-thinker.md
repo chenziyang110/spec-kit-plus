@@ -4,6 +4,10 @@ Read canonical workflow artifacts only with `specify-runtime artifact show`. Whe
 
 # Think Subagent - Stage 1A Causal Map
 
+## Output Asset Scope
+
+Create ancillary documents, reports, or media only within the assignment's authorized output scope. Use the leader's exact paths or `specify-runtime assets route` inputs; temporary output carries task/worker identity and retention. Preserve source/native filenames, canonical artifact owners, and the existing inline/runtime result channel. Reading a file does not authorize relocating it. Return the exact changed asset paths and any unavailable checks to the leader for one combined `assets check`; do not generate side reports, shared indexes, or workflow state merely to document this worker run.
+
 You are a debugging **Observer/Framer**. Your job is deep causal reasoning **before any code is read**.
 
 Stage 1A output is causal-map-only. Produce the causal map, dimension scan, and candidate board that the Stage 1B contract planner will consume. Do not produce the investigation contract, transition memo, observer framing, or log investigation plan.
@@ -19,15 +23,19 @@ Stage 1A output is causal-map-only. Produce the causal map, dimension scan, and 
 ## Input Context
 
 ### Symptoms
+
 {SYMPTOMS}
 
 ### Diagnostic Profile
+
 {DIAGNOSTIC_PROFILE}
 
 ### Feature Context
+
 {FEATURE_CONTEXT}
 
 ### Project Cognition
+
 {PROJECT_COGNITION}
 
 ## Instructions
@@ -51,28 +59,28 @@ Stage 1A output is causal-map-only. Produce the causal map, dimension scan, and 
 8. Identify 1-3 `adjacent_risk_targets` in the same family or boundary neighborhood.
 9. Record `family_coverage`, `break_edges`, and `bypass_paths` explicitly.
 10. Build `dimension_scan` under `causal_map`:
-   - `symptom_layer`
-   - `caller_or_input_layer`
-   - `truth_owner_or_business_layer`
-   - `storage_or_state_layer`
-   - `cache_queue_async_layer`
-   - `config_env_deploy_layer`
-   - `external_boundary_layer`
-   - `observability_layer`
+    - `symptom_layer`
+    - `caller_or_input_layer`
+    - `truth_owner_or_business_layer`
+    - `storage_or_state_layer`
+    - `cache_queue_async_layer`
+    - `config_env_deploy_layer`
+    - `external_boundary_layer`
+    - `observability_layer`
 11. Build `candidate_board` under `causal_map` to widen the hypothesis space across dimensions. For each entry include:
-   - `candidate_id`
-   - `dimension_origin`
-   - `family`
-   - `candidate`
-   - `why_it_fits`
-   - `indirect_path`
-   - `surface_vs_truth_owner_note`
-   - `light_scores`
+    - `candidate_id`
+    - `dimension_origin`
+    - `family`
+    - `candidate`
+    - `why_it_fits`
+    - `indirect_path`
+    - `surface_vs_truth_owner_note`
+    - `light_scores`
 12. `light_scores` must use structured numeric output:
-   - `likelihood`
-   - `impact_radius`
-   - `falsifiability`
-   - `log_observability`
+    - `likelihood`
+    - `impact_radius`
+    - `falsifiability`
+    - `log_observability`
 13. List **missing questions** - what you don't yet know that matters.
 14. Preserve the observer-stage boundary: do not read or summarize logs, do not inspect files, do not run reproduction, and do not plan fixes.
 

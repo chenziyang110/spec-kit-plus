@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import shutil
 from pathlib import Path
 from typing import Any
@@ -79,6 +80,23 @@ class GeminiIntegration(TomlIntegration):
                     ],
                 }
             ],
+            "AfterAgent": [
+                {
+                    "matcher": "*",
+                    "hooks": [
+                        {
+                            "name": "spec-kit-after-agent-assets",
+                            "type": "command",
+                            "command": render_hook_launcher_command(
+                                "gemini",
+                                "after-agent",
+                                project_dir_env_var="GEMINI_PROJECT_DIR",
+                                script_type=script_type,
+                            ),
+                        }
+                    ],
+                }
+            ],
         }
 
     config = {
@@ -122,7 +140,35 @@ class GeminiIntegration(TomlIntegration):
             f"{GEMINI_HOOK_DISPATCH} session-start",
             f"{GEMINI_HOOK_DISPATCH} before-agent",
             f"{GEMINI_HOOK_DISPATCH} before-tool",
+            f"{GEMINI_HOOK_DISPATCH} after-agent",
         )
+
+    @staticmethod
+    def _is_managed_hook_command(command: Any, managed_suffixes: tuple[str, ...]) -> bool:
+        normalized = str(command or "").strip().replace("\\", "/")
+        if "$(" in normalized or "`" in normalized:
+            return False
+        try:
+            lexer = shlex.shlex(normalized, posix=True, punctuation_chars=";&|<>()")
+            lexer.whitespace_split = True
+            lexer.commenters = ""
+            argv = list(lexer)
+        except ValueError:
+            return False
+        if argv and argv[0] == "&":  # PowerShell's explicit invocation operator.
+            argv = argv[1:]
+        if not argv:
+            return False
+        if re.fullmatch(r"(?:.*/)?python(?:[0-9.]+)?(?:\.exe)?", argv[0], re.IGNORECASE):
+            argv = argv[1:]
+        routes = {suffix.rsplit(" ", 1)[1] for suffix in managed_suffixes}
+        # Match the entire executable/argument shape. An echo, wrapper, or
+        # compound user command mentioning our launcher is not managed state.
+        if len(argv) == 3 and argv[1] == "gemini" and argv[2] in routes:
+            return bool(re.fullmatch(r"(?:.+/)?\.specify/bin/specify-hook(?:\.cmd|\.py)?", argv[0]))
+        if len(argv) == 2 and argv[1] in routes:
+            return bool(re.fullmatch(r"(?:(?:.+/)?\.gemini/hooks/)?gemini-hook-dispatch\.py", argv[0]))
+        return False
 
     @staticmethod
     def _append_runtime_handbook_compatibility(
@@ -256,10 +302,7 @@ class GeminiIntegration(TomlIntegration):
                 continue
             kept: list[Any] = []
             for hook in hooks:
-                if isinstance(hook, dict) and any(
-                    suffix in str(hook.get("command", ""))
-                    for suffix in managed_suffixes
-                ):
+                if isinstance(hook, dict) and GeminiIntegration._is_managed_hook_command(hook.get("command"), managed_suffixes):
                     changed = True
                 else:
                     kept.append(hook)
@@ -490,10 +533,7 @@ class GeminiIntegration(TomlIntegration):
                                 for hook in hook_list
                                 if not (
                                     isinstance(hook, dict)
-                                    and any(
-                                        suffix in self._normalize_hook_command(hook.get("command"))
-                                        for suffix in self._managed_hook_command_suffixes()
-                                    )
+                                    and self._is_managed_hook_command(hook.get("command"), self._managed_hook_command_suffixes())
                                 )
                             ]
                             if len(filtered_hooks) != len(hook_list):

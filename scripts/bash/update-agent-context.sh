@@ -158,6 +158,12 @@ render_speckit_managed_block() {
 - When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.
 - Run `{{specify-runtime-cli}} learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.
 
+## Document and Asset Placement
+
+- Before retaining a document, report, media asset, or temporary file, use `{{specify-runtime-cli}} assets route --purpose <purpose> --path <candidate-project-relative-path> --format json`. Follow the existing owner and optional `.asset-policy.json`; `.specify/templates/asset-policy.json` is the customization template. Source/native filenames and registered workflow artifacts retain their original owners and paths.
+- This applies to ordinary authorized tasks without an `sp-*` or `spx-*` invocation. Reading an existing file does not authorize moving, deleting, or archiving it. Do not create governance reports, inventories, receipts, or counters for ordinary conversation or read-only work.
+- Give workers exact output scope and task/worker identity; temporary output has explicit retention. Before claiming asset verification, use `{{specify-runtime-cli}} assets check --path <changed-path> --format json` for the exact task outputs, repeating `--path` as needed. `--path-only` validates placement only. Missing `assets.route` or `assets.check` capability is an explicit verification limitation; continue authorized work using project conventions without claiming the unavailable checks passed.
+
 ## Workflow Invocation Boundary
 
 - All `sp-*` and `spx-*` workflow skills are user-invoked only.

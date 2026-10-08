@@ -61,6 +61,7 @@ owning workflow's workspace context.
 | Design or UI-bearing workflow, UI brief, Spec/Plan/Tasks, worker packet, source continuity, visual evidence, or UI Review/Accept | [UI Workflows](docs/agent-guidance/ui-workflows.md) |
 | Agent integration, native command/skill format, context updates, or integration packaging | [Agent Integrations](docs/agent-guidance/integrations.md) |
 | Workflow behavior, state/artifact ownership, runtime/cognition, hooks, launcher/install, or release distribution | [Workflow and Runtime Maintenance](docs/agent-guidance/workflow-maintenance.md) |
+| Ordinary document/media placement, naming, temporary output, asset guards, catalog adapter, or file migration | [Asset Governance Maintenance](docs/agent-guidance/asset-governance.md) |
 
 ## Source of Truth and Change Propagation
 
@@ -162,6 +163,29 @@ Load the UI reference before editing any part of their artifact/evidence chain.
   triggers. Classic uses `templates/command-references/<workflow>/`; Advanced
   uses `templates/advanced-skills/<workflow>/references/`. Preserve the complete
   effective contract, update rendering/packaging coverage, and regenerate outputs.
+
+## Ordinary Documents and Assets
+
+- Apply document and asset placement to the current authorized task, including
+  tasks without an `sp-*` or `spx-*` invocation. Keep workflow entry user-invoked.
+- Before creating a document or media file, reuse the appropriate existing file
+  or resolve its destination through the shared `assets route` contract. Follow
+  `.asset-policy.json`, native source/fixture contracts and fixed control names.
+  Use lower-case kebab-case ordinary names; keep dated reports in their report
+  scope and disposable output in task/worker temporary directories.
+- Resolve artifact registry and protected owners first. An ordinary asset rule
+  never authorizes moving canonical files, changing immutable evidence, editing
+  runtime/cognition storage, or widening another worker's write scope.
+- Check the exact changed paths before closing the task. Use index content for
+  staged checks and an explicit base/target pair for commit checks. Preserve
+  unrelated preexisting changes, but recheck a dirty path changed by this task.
+- Routing/checking write no reports or catalog state. Keep durable document
+  dependencies outside temporary roots. Historical moves require a reviewed,
+  digest-bound migration plan; AssetKit registration is explicitly optional.
+- See [the implementation and usage guide](docs/asset-governance.md) and the
+  [maintenance contract](docs/agent-guidance/asset-governance.md). In this source
+  repository, build/test the runtime normally; do not create generated workflow
+  state just to maintain this capability.
 
 ## Project Learning and Cognition
 
