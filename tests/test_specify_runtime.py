@@ -183,6 +183,23 @@ def test_runtime_handshake_allows_unrelated_additive_capabilities(monkeypatch: p
     assert runtime.launcher_supports_required_commands(["specify-runtime"])
 
 
+@pytest.mark.parametrize("missing", [
+    "e2e.init", "e2e.status", "e2e.scope-add", "e2e.task-start",
+    "e2e.task-submit", "e2e.review-start", "e2e.review-submit",
+    "e2e.task-accept", "e2e.reopen", "e2e.close",
+])
+def test_runtime_handshake_rejects_partial_e2e_owner(monkeypatch: pytest.MonkeyPatch, missing: str) -> None:
+    runtime = _load_runtime()
+    monkeypatch.setattr(
+        runtime, "_runtime_handshake",
+        lambda *_a, **_k: {
+            "protocol_version": runtime.EXPECTED_RUNTIME_PROTOCOL,
+            "capability_ids": [cap for cap in runtime.REQUIRED_CAPABILITIES if cap != missing],
+        },
+    )
+    assert not runtime.launcher_supports_required_commands(["specify-runtime"])
+
+
 @pytest.mark.parametrize(
     "capability",
     ("cognition.closeout.inspect", "cognition.closeout.repair"),

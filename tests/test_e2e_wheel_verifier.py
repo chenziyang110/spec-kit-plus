@@ -92,6 +92,36 @@ def test_each_missing_helper_is_a_packaging_failure(source, tmp_path, helper):
         verifier.verify_wheel(wheel_for(tmp_path, assets), source)
 
 
+@pytest.mark.parametrize("source_path", [
+    "src/specify_cli/specify_runtime.py",
+    "src/specify_cli/execution/packet_validator.py",
+    "tools/specify-runtime/e2e_workflow.go",
+    "tools/specify-runtime/e2e_contract.go",
+])
+@pytest.mark.parametrize("mutation", ["missing", "stale"])
+def test_runtime_owner_and_compatibility_bridge_are_required(source, tmp_path, source_path, mutation):
+    assets = verifier.source_assets(source)
+    target = verifier.ASSET_FILES[source_path]
+    if mutation == "missing":
+        del assets[target]
+    else:
+        assets[target] = b"X" * len(assets[target])
+    # A self-consistent RECORD cannot hide a stale or missing runtime owner.
+    with pytest.raises(verifier.WheelError, match="missing wheel asset|bytes mismatch"):
+        verifier.verify_wheel(wheel_for(tmp_path, assets), source)
+
+
+@pytest.mark.parametrize("source_path", [
+    "tools/specify-runtime/e2e_workflow.go",
+    "tools/specify-runtime/e2e_contract.go",
+])
+def test_deleted_runtime_owner_cannot_shrink_packaging_scope(source, tmp_path, source_path):
+    wheel = wheel_for(tmp_path, verifier.source_assets(source))
+    (source / source_path).unlink()
+    with pytest.raises(verifier.WheelError, match="missing/escaping source"):
+        verifier.verify_wheel(wheel, source)
+
+
 @pytest.mark.parametrize("kind", ["size", "same-size"])
 def test_changed_wheel_bytes_fail_even_with_consistent_record(source, tmp_path, kind):
     assets = verifier.source_assets(source)

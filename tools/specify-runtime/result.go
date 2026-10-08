@@ -138,6 +138,9 @@ func runResultSubmit(args []string, stdout io.Writer) int {
 	if strings.EqualFold(commandName, "deep-research") {
 		return writeResultError(stdout, "usage-error", "Deep Research track results are runtime-owned; use `specify-runtime deep-research track-submit`.")
 	}
+	if strings.EqualFold(commandName, "e2e") {
+		return writeResultError(stdout, "usage-error", "E2E task results are runtime-owned; use `specify-runtime e2e task-submit`.")
+	}
 	if integration == "codex" && !usesStageOwnedResultChannel(commandName) {
 		return writeResultError(stdout, "usage-error", "Codex `result submit` is reserved for stage-owned native-lane results. Native implement workers return their result inline for `implement result-merge`; durable team requests use `sp-teams submit-result`.")
 	}
@@ -208,10 +211,34 @@ func usesStageOwnedResultChannel(commandName string) bool {
 }
 
 func buildResultHandoffPath(projectRoot string, request resultPathRequest) (string, error) {
+	target, err := resolveResultHandoffPath(projectRoot, request)
+	if err != nil {
+		return "", err
+	}
+	root, err := filepath.Abs(projectRoot)
+	if err != nil {
+		return "", err
+	}
+	relative, err := filepath.Rel(root, target)
+	if err != nil {
+		return "", err
+	}
+	// Check the resolved destination, not only the caller's command label.
+	// Other result channels accept caller-selected feature/workspace paths.
+	if e2eRuntimeOwnedPath(filepath.ToSlash(relative)) {
+		return "", fmt.Errorf("E2E state, history and evidence are runtime-owned; use `specify-runtime e2e task-submit`")
+	}
+	return target, nil
+}
+
+func resolveResultHandoffPath(projectRoot string, request resultPathRequest) (string, error) {
 	commandName := strings.ToLower(strings.TrimSpace(request.CommandName))
 	integrationKey := strings.ToLower(strings.TrimSpace(request.IntegrationKey))
 	if commandName == "deep-research" {
 		return "", fmt.Errorf("Deep Research track results are runtime-owned; use `specify-runtime deep-research track-submit`")
+	}
+	if commandName == "e2e" {
+		return "", fmt.Errorf("E2E task results are runtime-owned; use `specify-runtime e2e task-submit`")
 	}
 
 	switch {

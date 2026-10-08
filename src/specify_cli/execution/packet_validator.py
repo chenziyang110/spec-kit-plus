@@ -1334,8 +1334,15 @@ def validate_ui_context_nav(
         )
 
 
-def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
-    """Return the packet when its hard-fail execution contract is complete."""
+def validate_worker_task_packet(
+    packet: WorkerTaskPacket, *, read_only_review: bool = False,
+) -> WorkerTaskPacket:
+    """Validate delegated execution, or an explicitly selected read-only review.
+
+    Review uses the same intent, context and acceptance gates without inventing
+    write permissions. Callers must opt into this path; default execution still
+    requires a write scope. This checks a declared contract, not agent identity.
+    """
 
     if (
         not packet.intent.outcome
@@ -1345,7 +1352,22 @@ def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
         raise PacketValidationError(
             "DP1", "execution intent contract must be present in the packet"
         )
-    if not packet.scope.write_scope:
+    if read_only_review:
+        if packet.agent_role != "independent-validator":
+            raise PacketValidationError(
+                "DP1", "read-only review requires the independent-validator role"
+            )
+        if packet.scope.write_scope or packet.interfaces.produces:
+            raise PacketValidationError(
+                "DP1", "read-only review cannot declare writes or produced artifacts"
+            )
+        if not packet.scope.read_scope or any(
+            not _valid_write_scope_entry(item) for item in packet.scope.read_scope
+        ):
+            raise PacketValidationError(
+                "DP2", "read-only review requires bounded original input and evidence references"
+            )
+    elif not packet.scope.write_scope:
         raise PacketValidationError(
             "DP1", "write_scope is required for delegated execution"
         )

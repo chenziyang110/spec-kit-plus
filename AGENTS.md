@@ -102,6 +102,16 @@ The Python `specify` CLI owns bootstrap/operator compatibility; the Go
   runtime gates or require entering generated workflows for repository
   maintenance. Product changes still need their owning templates, shared
   runtime contracts, both profiles, and affected validation updated together.
+- E2E now has a concrete Go owner: `tools/specify-runtime/e2e_workflow.go`
+  and `e2e_contract.go`. Its task packets, submissions, independent reviews,
+  leader acceptance, additive scope, transitive invalidation and closeout live
+  under `.planning/e2e/<run-id>/`; generic artifact/result writers must not
+  mutate that state. Test books, traces and native reports keep their existing
+  test-asset owners. Preserve the distinction between an accepted failure
+  report and a passing execution prerequisite. Recorded IDs and hashes enforce
+  consistency; they do not authenticate agent processes or prove semantic
+  truth. Verify real refusal/recovery behavior and both rendered profiles when
+  changing these gates, including old-runtime capability rejection.
 
 ## Required Context by Change Type
 

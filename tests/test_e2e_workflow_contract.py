@@ -1,4 +1,4 @@
-"""Source-level E2E contracts; behavioral accounting lives in test_e2e_coverage."""
+"""Prompt stage contracts; runtime behavior is exercised by Go E2E tests."""
 from pathlib import Path
 import re
 
@@ -12,7 +12,7 @@ ADVANCED = ROOT / "templates/advanced-skills/spx-e2e/SKILL.md"
 
 @pytest.mark.parametrize("path", [CLASSIC, ADVANCED])
 def test_each_of_seven_stages_declares_its_consumption_contract(path):
-    """Protect prompt handoffs, not a claim of runtime-enforced execution."""
+    """Protect the semantic stage handoffs alongside the shared Go runtime."""
     source = path.read_text(encoding="utf-8")
     headings = list(re.finditer(r"^## ([1-7])\. .+$", source, re.MULTILINE))
     assert [int(match.group(1)) for match in headings] == list(range(1, 8))

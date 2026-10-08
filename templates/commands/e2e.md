@@ -3,7 +3,7 @@ description: Systematically derive E2E tests for desktop, mobile, web, CLI, and 
 workflow_contract:
   when_to_use: Explicitly requested project-wide, feature-scoped, or regression E2E work; scenario design can precede execution and does not require a web project or an automation harness.
   primary_objective: Identify the complete declared operation inventory, challenge its assumptions, design concrete observable scenarios, execute feasible scenarios through the actual product, and account for every unverified obligation.
-  primary_outputs: A complete dependency/acceptance ledger, source-bound scenario book in the existing test tree, immutable per-run visual/action/readback evidence and audit, plus executable assets and native runner reports only for selected automation lanes.
+  primary_outputs: Runtime-owned task, submission and independent acceptance records, a complete test ledger, source-bound scenario book, immutable per-run visual/action/readback evidence and audit, plus executable assets and native runner reports for selected automation lanes.
   default_handoff: Return scenario-design and execution coverage separately with precise gaps; formal delivery still requires /sp.review followed by /sp.accept.
 ---
 
@@ -28,10 +28,16 @@ dependencies, dispatch, integration and acceptance; workers deliver artifacts.
 A worker's DONE message, successful tool call, file existence or green check is
 a submission, never permission to start a dependent task.
 
-Keep `tests/e2e/workflow-ledger.md` (or the existing equivalent test ledger).
+Keep the complete task contract through `specify-runtime e2e`; its owner holds
+`.planning/e2e/<run-id>/state.json` and immutable content-addressed snapshots.
+Bound inputs, outputs and raw evidence also retain their original bytes through
+`archive_ref` entries in `blobs/<raw-sha256>.bin`; preserve these historical
+records when a repair writes a new attempt to an existing source path.
+An ordinary `tests/e2e/workflow-ledger.md` (or existing equivalent) may index
+the records and explain progress; it cannot override runtime acceptance.
 Record every requested operation/platform obligation before dispatch, including
-unknown, blocked and not-yet-attempted work. Expand the ledger when discovery
-finds more; do not shrink the denominator to the work already done.
+unknown, blocked and not-yet-attempted work. Expand scope through `e2e scope-add`
+when discovery finds more; do not shrink the denominator to the work already done.
 
 Each task row records `task_id`, stage, `scope_ids`, `depends_on`, worker,
 validator, exact input/output paths and revisions or SHA-256 digests,
@@ -39,11 +45,80 @@ acceptance rows, reproduction command/manual sequence, preconditions and target,
 expected versus actual outcomes, evidence refs, status, and gaps/next action.
 Dependency bindings name the accepted producer record and output digest, not a
 mutable path or chat summary. Record each acceptance row's verdict and evidence.
-Keep immutable submission/review snapshots; the mutable ledger is their index,
-not an immutable dependency artifact that later status updates may overwrite.
-These are ordinary test assets, not runtime-owned state or additions to the
-scenario/trace JSON schemas. Existing helpers do not enforce this stage ledger;
-do not invent a runtime E2E API or claim a prose gate is machine-enforced.
+Runtime-produced immutable submission/review snapshots hold these bindings;
+the mutable ledger is their index, never a frozen input to every later task.
+Scenario books, fixture definitions, traces and reports remain ordinary test
+assets with their existing schemas. The Go E2E owner enforces task transitions,
+complete declared row sets, dependency acceptance, fresh byte bindings and
+scoped closeout; the Python helpers remain stateless test-asset validators.
+
+### Negotiate and use the real runtime
+
+Before dispatch, negotiate all ten E2E operations through the installed launcher:
+
+`{{specify-subcmd:specify-runtime api ensure --capabilities e2e.init,e2e.status,e2e.scope-add,e2e.task-start,e2e.task-submit,e2e.review-start,e2e.review-submit,e2e.task-accept,e2e.reopen,e2e.close --format json}}`
+
+Read the bounded input contracts instead of inventing state JSON:
+
+`{{specify-subcmd:specify-runtime api pack --capabilities e2e.init,e2e.scope-add,e2e.task-submit,e2e.review-submit --include-schema --format json}}`
+
+1. Preserve the original request in a scoped test document and reference it as
+   an input. Prepare the semantic `e2e-plan-input`: requested target/operation
+   scope IDs; all seven stages' task placeholders; complete acceptance criteria;
+   input paths; owned output paths; exact dependencies and exclusive resource
+   IDs. Future outputs need not exist. Include cross-feature journeys and a
+   required row for every selected visual/native/combination audit. Make the
+   stage 6/7 rows explicitly reconcile the complete original request. Initial
+   discovery uncertainty remains a required obligation, not an omitted scope.
+   Initialize once with `e2e init --run-id <run> --leader-id <native-session-id>
+   --input-json <object|@path|-> --format json`; never reset an existing run to
+   erase unfinished work. Explicit planning-only mode is `planning`.
+2. Read `e2e status --run-id <run> --format json` on resume and before selecting
+   a next task. `e2e task-start` with the actual worker ID and current
+   `--expected-revision` returns the pinned packet, attempt and submission
+   template. Dispatch that packet through native subagent tools. Consume the
+   standard `worker_task_packet` view and its `worker_task_packet_binding`
+   together with the enclosing E2E target, attempt, digests and dependencies;
+   the existing shared packet parser accepts that view. A result's `packet_id`
+   binds the outer packet digest, not an invented lifecycle field. Consume the
+   returned exact upstream snapshots; a `require: passed` dependency is stricter
+   than `require: accepted`. Serialize overlapping outputs and declared
+   devices/accounts/fixture namespaces; use Work Board ownership across runs.
+   Every output-to-input relationship needs a dependency path, including
+   cross-target tasks; runtime also refuses overlapping active reads/writes.
+3. The worker fills every assigned scope/acceptance pair's actual observation,
+   expected result, preconditions, reproduction and raw evidence refs, embeds
+   the existing `WorkerTaskResult`, and calls `e2e task-submit --result-json`.
+   Use runtime-returned packet bindings and current revision. A successful
+   command only submits the result; it cannot accept it.
+   A passing result must not contain failed validation rows or nonzero runner
+   exit codes; retain the original report instead of normalizing failures away.
+4. A separate native subagent uses `e2e review-start` under its actual validator
+   ID. Give it the returned original task, full row set, immutable submission
+   and raw files. It submits every review row with `e2e review-submit`, stating
+   whether it inspected or replayed the check.
+   The shared packet validator's review path is explicitly
+   `read_only_review=True`; keep its write scope empty and retain the complete
+   intent/context/acceptance contract. The leader then calls
+   `e2e task-accept` for that verified version. A reviewer that edits an output
+   has become an author: obtain a new submission and another validator.
+5. On rejection, repair the named rows and produce a new attempt and review.
+   On drift or downstream counterevidence, the leader calls `e2e reopen` for
+   the earliest affected producer with a reason and evidence. Dependent
+   attempts/acceptances are invalidated transitively. Read the returned current
+   revision and resume instructions after a conflict; never retry stale argv
+   blindly or edit runtime-owned files through another artifact/result channel.
+
+Use inline JSON, project-contained `@path`, or stdin only as documented by
+`api pack`; the input is semantic intent, not a hand-written state replacement.
+Unavailable E2E capabilities block required acceptance until the runtime is
+updated and the same run is rechecked. Never import an old ledger's DONE marks
+as accepted receipts or bypass the gate on an older installation.
+
+Recorded distinct IDs are a consistency check, not authentication of separate
+agent processes. Native dispatch and independent semantic review remain the
+leader's responsibility. Hashes detect changed bytes; they do not prove a
+screenshot's provenance, a correct oracle or complete product discovery.
 
 For **each** stage and bounded work item, run this loop:
 
@@ -112,8 +187,8 @@ must be covered; selecting a browser or writing test scripts comes later.
    deployment and production data are outside scope. Never weaken assertions to
    get green. Product defects return to their owner with a reproduction; do not
    silently invoke another workflow. Runtime help/discovery is authoritative:
-   never invent `specify e2e`, `specify-runtime e2e`, or an `execution announce`
-   E2E enum. Use the bootstrap's **other modifying workflows** Work Board route;
+   use the supported `specify-runtime e2e` owner; never invent `specify e2e` or
+   an `execution announce` E2E enum. Use the bootstrap's **other modifying workflows** Work Board route;
    unsupported runtime/cognition tokens are capability gaps, not permission to
    impersonate another workflow or hand-write runtime state.
 5. Use isolated test accounts/data, deterministic setup, per-worker namespaces,
@@ -462,6 +537,15 @@ not a completed E2E run. Preserve missing visual comparison as
 pending-human-review. Never claim absolute completeness, product acceptance or
 release safety. Formal delivery remains `tasks -> implement -> review -> accept`;
 E2E supplies additional evidence and cannot bypass those owners.
+
+After independent acceptance of the stage 7 report, call the runtime's
+`e2e close` with the current revision, leader ID and observed
+`--outcome pass|failed|blocked`. It rechecks the whole required task/evidence
+chain; 3/10 accepted items cannot close a 10-item run as passed. Planning mode
+never yields product execution success. An accepted failure report may be
+reported, while unaccepted obligations remain blocked. Stages 6/7 may use the
+explicit `task-start --diagnostic` route to document blocked/rejected work;
+that route cannot create a passing observation or unlock successful consumers.
 
 ### Test-only asset mutation closeout
 

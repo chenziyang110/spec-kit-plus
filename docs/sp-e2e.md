@@ -16,11 +16,11 @@ claim; otherwise proceed through feasible real execution and retain blockers.
 
 ## Invocation
 
-After the branch's installation/catalog integration is completed, use the
-integration-native surface: `$sp-e2e` for Codex, `/sp-e2e` for Claude,
+Use the integration-native surface: `$sp-e2e` for Codex, `/sp-e2e` for Claude,
 `/skill:sp-e2e` for Kimi, or `/sp.e2e` for command-based integrations. The
-Advanced counterpart is `spx-e2e`. These are agent workflows, not new
-`specify` or `specify-runtime` subcommands.
+Advanced counterpart is `spx-e2e`. These agent workflows use the Go
+`specify-runtime e2e` task/acceptance owner; there is no Python `specify e2e`
+state writer and no E2E execution Activity enum.
 
 ```text
 $sp-e2e Test the desktop client's file rename operation. First derive normal,
@@ -57,8 +57,9 @@ validator must not be the author of that artifact revision. A later stage's
 packet carries the accepted upstream record and exact output version/digest;
 it does not consume the sentence “A is done.”
 
-Keep a complete `tests/e2e/workflow-ledger.md` or an equivalent existing test
-ledger. Each task records stable ID, stage, scope IDs, dependencies, worker,
+Freeze the complete contract through the Go E2E owner. A
+`tests/e2e/workflow-ledger.md` or equivalent test ledger can index its records;
+it does not authorize task transitions. Each task records stable ID, stage, scope IDs, dependencies, worker,
 validator, input/output refs and digests, acceptance rows, reproduction
 commands/manual steps, environment/preconditions, expected and actual outcomes,
 evidence, status, gaps and next action. Keep immutable submission/review
@@ -83,11 +84,89 @@ design audit/reporting and makes no execution claim. Without independent
 validation capability, safe drafting and self-checking may continue, but
 independent acceptance stays blocked.
 
-The ledger is an **agent execution contract**, not a new machine-enforced
-runtime state machine or JSON schema. Current helpers do not validate the
-producer/verifier identities or aggregate all seven stage acceptances.
-Their successful local accounting is necessary evidence for a selected lane,
-not proof that every upstream task was complete.
+## Runtime-enforced handoffs
+
+The Go owner stores versioned state and immutable, content-addressed snapshots
+under `.planning/e2e/<run-id>/`. Each bound input, output and evidence file also
+has an `archive_ref` in `blobs/<raw-sha256>.bin`, preserving its actual bytes
+when a later attempt reuses the original path. History is not just a list of
+hashes. `artifact show/list` can inspect those records; raw binary full views
+use bounded base64 rather than lossy text. Generic artifact mutation and every
+generic result destination are excluded from this owned tree. Scenario books,
+traces, helper audits and native reports remain ordinary
+test assets. Do not add workflow lifecycle fields to their existing schemas.
+
+Both profiles begin with a bounded capability negotiation through the installed
+project launcher. The executable name below denotes that resolved launcher:
+
+```sh
+specify-runtime api ensure --capabilities e2e.init,e2e.status,e2e.scope-add,e2e.task-start,e2e.task-submit,e2e.review-start,e2e.review-submit,e2e.task-accept,e2e.reopen,e2e.close --format json
+specify-runtime api pack --capabilities e2e.init,e2e.scope-add,e2e.task-submit,e2e.review-submit --include-schema --format json
+```
+
+Missing capabilities are an explicit upgrade blocker. Installation handshake
+checks reject a binary that lacks the new operations. Initialization still
+preserves its existing best-effort installation/recovery behavior; an old
+binary or old markdown DONE mark cannot grant E2E acceptance.
+
+| Operation | Input and result |
+| --- | --- |
+| `e2e init` | Freeze `e2e-plan-input`, leader identity, execution/planning mode, requested scope, seven-stage task placeholders, acceptance criteria, input/output paths, dependencies and exclusive resources. Future output files need not exist. |
+| `e2e status` | Re-read the full denominator, current revision, unresolved work, snapshot and byte freshness, and exact continuation. This query does not rewrite state. |
+| `e2e scope-add` | Add discovered scope/tasks with a reason and evidence. Retain old requirements and reopen affected work; never delete a platform to turn the result green. |
+| `e2e task-start` | Check exact accepted prerequisites and required successful outcomes, freeze current inputs, refuse conflicting active outputs/resources, and return a WorkerTaskPacket, attempt and submission template. Native agent tools dispatch the worker. |
+| `e2e task-submit` | Bind the worker to its packet; require every scope/acceptance pair, actual/expected result, preconditions, reproduction and raw evidence; retain an immutable submission containing the normalized WorkerTaskResult. |
+| `e2e review-start` | Bind another recorded identity to the exact submission, original task and complete row set; return the independent review packet/template. |
+| `e2e review-submit` | Require every review row and fresh evidence; retain inspected/replayed methods and rejection evidence. Editing the output requires a new author submission and another reviewer. |
+| `e2e task-accept` | Let the fixed leader accept only the current completely verified revision. Complete failed-run reports remain failed observations. |
+| `e2e reopen` | Record drift or counterevidence, retain old attempts/reviews, and invalidate the affected producer and all descendants. |
+| `e2e close` | Recheck all required scopes/stages and the entire evidence chain before a scoped result. Planning completion, a complete failure report and product execution success are distinct. |
+
+All mutations after initialization use the current `--expected-revision` from
+runtime output. After a conflict, read status and decide the correct next
+action; do not blindly retry the old argv. Semantic JSON inputs use documented
+inline JSON, project-contained `@path`, or stdin. Fill the returned worker and
+review templates instead of reconstructing runtime state or receipt hashes.
+Both start operations return `worker_task_packet`, consumable by the existing
+shared `WorkerTaskPacket` parser, plus `worker_task_packet_binding` identifying
+the immutable envelope digest and `/worker_task_packet` JSON pointer. Preserve
+the outer E2E contract, target, attempt and dependency bindings alongside that
+view. A worker result's `packet_id` is the enclosing packet digest; the shared
+packet schema is not extended with a competing lifecycle or a made-up feature.
+Execution views include the complete intent/context contract required by
+`validate_worker_task_packet`. Review consumers explicitly select
+`validate_worker_task_packet(packet, read_only_review=True)`: the same intent,
+context and acceptance gates apply, but the reviewer must have no write scope
+or produced artifacts. Default execution validation still requires owned
+outputs. The packet also references an immutable original task contract, so
+tasks with no additional file inputs remain independently interpretable.
+
+Preserve the original request as a test-document input. The plan must name
+every declared target/operation and include required criteria for cross-feature
+journeys, each selected visual/native/combination lane, cleanup and final
+reconciliation. `require: accepted` allows a complete factual report as input;
+`require: passed` additionally requires the producer's tested outcome to pass.
+Any declared producer output consumed as another task's input must have a
+dependency path, even across different target scopes. Conflicting active reads
+and writes are blocked. A passing submission cannot include failed validation
+rows or a nonzero native runner exit code, even if its outer status says pass.
+Resource exclusions apply to declared resources in a run; coordinate separate
+runs through the existing Work Board and their actual shared resources.
+
+For an incomplete upstream, stages 6/7 may explicitly start in `--diagnostic`
+mode to report gaps without treating those inputs as accepted prerequisites.
+Diagnostic observations cannot become passing execution evidence. A report with
+unaccepted mandatory tasks leaves the run blocked. After report acceptance,
+`close --outcome pass|failed|blocked` still checks the whole requested contract;
+the caller cannot manufacture success by choosing `pass`.
+
+The checks enforce structural consistency and version bindings. Distinct
+`worker-id`, `validator-id` and `leader-id` strings are **not authentication** of
+native agent processes. Actually dispatch separate agents and retain their
+records. Hashes cannot prove a screenshot is authentic, that an agent replayed
+a command, that an oracle is correct, or that initial product discovery was
+complete. Those remain independent semantic-review obligations. The Python
+helpers add lane-specific accounting, not an attestation of product truth.
 
 ## Platform-specific readiness under a shared process
 

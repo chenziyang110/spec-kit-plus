@@ -8,8 +8,8 @@ description: Advanced user-invoked scenario-first E2E testing for desktop, mobil
 Run only when explicitly invoked. Read `references/project-cognition.md` and
 `references/project-learning.md`; use live evidence, not cognition, as truth.
 Apply `references/execution-bootstrap.md` through the other-modifying-workflows
-Work Board route. No new execution enum or runtime E2E API is implied. Use
-supported help/discovery; do not impersonate a different workflow when a token
+Work Board route. `specify-runtime e2e` owns verified task handoffs; do not add
+an execution Activity enum. Use supported help/discovery; do not impersonate a different workflow when a token
 is unsupported. Read `references/blocker-resolution.md` at blocked boundaries.
 
 Own scoped test assets, fixtures, adapters, harness configuration and ordinary
@@ -21,9 +21,11 @@ not weaken assertions or invoke another workflow implicitly.
 
 ## Execution and dependency contract
 
-The leader keeps the complete requested denominator in ordinary
-`tests/e2e/workflow-ledger.md`, or an existing equivalent test ledger. This is a
-test asset, not new runtime state, a CLI, or a schema. Every stable todo row has
+The leader freezes the complete requested denominator through the Go
+`specify-runtime e2e` owner. Its state and immutable snapshots live under
+`.planning/e2e/<run-id>/`; never write them directly. An ordinary
+`tests/e2e/workflow-ledger.md`, or an existing equivalent, may index these
+records but cannot grant acceptance. Every stable todo row has
 `task_id`, `stage`, `scope_ids`, `depends_on`, worker and validator identities,
 input/output refs with exact versions and SHA-256 hashes, `acceptance_rows`,
 expected versus actual results, evidence refs, status, blocker and `next_action`.
@@ -69,8 +71,64 @@ bindings remain valid. A changed `book_sha256` requires a fresh trace for the
 whole book, including every previously passed scenario; never transplant old
 passes. Only books partitioned and independently frozen before execution may
 have independently retained evidence, with shared/cross-feature obligations
-still accounted for. This ledger and independent review are agent-enforced
-contracts; the existing helpers do not implement this stage state machine.
+still accounted for. The Go owner enforces complete declared rows, transitions,
+accepted dependencies, byte freshness and scoped closeout. Scenario/trace
+schemas and Python helpers remain ordinary test-asset accounting contracts.
+
+### Runtime protocol
+
+Negotiate the actual installed capabilities before dispatch:
+
+`{{specify-subcmd:specify-runtime api ensure --capabilities e2e.init,e2e.status,e2e.scope-add,e2e.task-start,e2e.task-submit,e2e.review-start,e2e.review-submit,e2e.task-accept,e2e.reopen,e2e.close --format json}}`
+
+`{{specify-subcmd:specify-runtime api pack --capabilities e2e.init,e2e.scope-add,e2e.task-submit,e2e.review-submit --include-schema --format json}}`
+
+- Preserve a reference to the original request. `e2e init --run-id <run>
+  --leader-id <native-session-id> --input-json <object|@path|-> --format json`
+  freezes the semantic plan: every target/operation, seven-stage task
+  placeholders, full acceptance criteria, inputs, owned outputs, dependencies
+  and exclusive resources. Future outputs need not exist. Include mandatory
+  selected visual/native/combination audit and integrated-journey rows. Stage
+  6/7 must reconcile the original request, including discovery uncertainty.
+  Use mode `planning` only for an explicit planning-only request. Never reset
+  a run or import old ledger checkmarks to evade outstanding obligations.
+- Resume with `e2e status`. Use current `--expected-revision` and actual native
+  identities for mutations. `task-start` returns the pinned WorkerTaskPacket,
+  attempt and submission template; dispatch it through native subagent tools.
+  Pass the existing shared parser its `worker_task_packet` view, keeping
+  `worker_task_packet_binding` and the enclosing E2E scope/attempt/dependency
+  contract. The result's `packet_id` is the outer packet digest. Both worker
+  and review start use this shared packet shape.
+  Keep complete intent/context fields. Shared validation uses default
+  execution checks for workers and explicit `read_only_review=True` for
+  reviewers, with no writes or produced artifacts granted to the reviewer.
+  Dependencies distinguish `require: accepted` reports from `require: passed`
+  prerequisites. Each submitted scope/acceptance pair needs expected/actual,
+  reproduction, preconditions and raw evidence through `task-submit` with
+  the existing normalized WorkerTaskResult embedded in `--result-json`.
+  Failed validation rows and nonzero runner exit codes cannot accompany pass.
+- `review-start` binds a separate validator to the exact submission and full
+  original task. `review-submit` accounts for every row and records inspected
+  versus replayed checks; only the leader's `task-accept` unlocks consumers.
+  If a reviewer repairs outputs, obtain a new author submission and another
+  validator. Use returned templates/argv; do not fabricate lifecycle fields.
+- `scope-add` expands the denominator without removing old requirements.
+  `reopen` records a reason/evidence and invalidates descendants after changed
+  inputs or counterevidence. On rejection, repair, resubmit and independently
+  revalidate. Inspect current revision after conflicts rather than replaying
+  stale commands. Do not write via generic artifact/result mutation channels.
+- Serialize declared shared resources and outputs; use Work Board across runs.
+  Declare a dependency path for every producer output consumed as an input,
+  including across targets. Active reads/writes may not conflict. Keep raw
+  bytes via the runtime's `archive_ref` in `blobs/<raw-sha256>.bin`; reusing a
+  source path for a repair must preserve the old failed evidence and review.
+  Missing capabilities remain a compatibility blocker until an updated runtime
+  can verify the run. Safe drafting can continue without accepted receipts.
+
+Distinct recorded identities do not authenticate native agent processes;
+actually launch separate workers and validators. Hashes prove byte bindings,
+not truthful observations, adequate oracles or complete discovery. The leader
+and independent reviewer still own those semantic judgments.
 
 Run all seven stages for an execution request. Do not stop at discovery or a
 scenario book because the work is long. Continue agent-capable recovery and all
@@ -253,7 +311,8 @@ when the screen appears correct. Verify cleanup and preserve its observations.
 
 Separate expected from actual observations. Record every attempt, actual
 executor/target/build, times, original captures/logs and step/oracle evidence in
-a new immutable run. Failed then passed is flaky; failed/skipped/blocked/
+a new immutable run. Failure followed by retry-pass on the unchanged version is
+flaky; failed/skipped/blocked/
 disabled/quarantined/not_run cases never become clean passes. Do not turn visual
 observations into invented runner output. Native execution retains original
 reports, actual attempts/exit codes, collection and binding evidence, including
@@ -308,14 +367,19 @@ Source/test/config/fixture-definition changes require fresh bound evidence;
 a changed book requires an entirely fresh trace for that book. Preserve failed
 attempts and retries rather than overwriting them. Continue repairs and safe
 independent scenarios; genuine external boundaries keep affected rows blocked.
+An actual correction can establish a fresh pass on its new source/build with
+matching evidence; retain the earlier failure and its version in history.
 
 **Outputs:** Reviewed test-only fixes and fresh run/audit refs, or a complete
 product-defect/blocker handoff with owner, recovery attempts, next action and
 observable unblock criteria; each failed or missing row has a disposition.
+When no repair is needed, emit a checked no-repair disposition bound to the
+accepted current run and audit references.
 
 **Acceptance:** Independent validator reproduces the repaired failure and checks
 regressions/fresh bindings, or verifies the concrete handoff and remaining
-blocker. The leader reaccepts changed prerequisites before dependents resume.
+blocker, or confirms the no-repair disposition against the full accepted run.
+The leader reaccepts changed prerequisites before dependents resume.
 A handoff is an accepted report, never a passed product test or repaired defect.
 
 ## 6. Independently reconcile inventory, coverage and evidence
@@ -363,6 +427,14 @@ refs. Give each requested item its accepted deliverable or concrete external
 blocker. Missing visual comparison remains `pending-human-review`; no absolute
 completeness, release safety or human acceptance claim. Formal delivery remains
 `tasks -> implement -> review -> accept`.
+
+After independently accepting the report, use `e2e close` with the current
+revision, leader and observed `--outcome pass|failed|blocked`. Its full task and
+evidence recheck prevents partial work from becoming a passing closeout.
+Planning completion has no product-pass claim; accepted failure reports remain
+reports and unresolved mandatory work stays blocked. For diagnostic stage 6/7
+reporting, `task-start --diagnostic` may inspect blocked/rejected upstream
+records but cannot produce a passing observation or unlock success dependencies.
 
 When retained test assets, harness configuration or behavior-bearing test docs
 change, use `references/project-cognition.md` with canonical workflow `sp-e2e`
