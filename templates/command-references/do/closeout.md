@@ -8,6 +8,13 @@ successful native command does not by itself finish DO, and a useful proposal
 does not turn a failed operation into a success.
 
 Use fresh `do validate <id>` and the runtime-returned `do finish` contract.
+
+Unrecovered interrupted attempts anywhere in the session block validation,
+finish and playbook updates, including optional steps/checks, superseded attempts
+and older definition epochs. Explicit recovery is required even if a later
+attempt passed; a recovered optional attempt need not rerun unless a frozen
+required dependency needs its result.
+
 `ready_to_finish` means the execution may be finalized; it is not already a
 terminal receipt. Re-read `do show <id>` and require `data.terminal=true` before
 claiming this invocation complete. If execution passed but method persistence
@@ -68,8 +75,14 @@ and resume point. Keep knowledge pending. A runtime-accepted blocker holds Work
 ownership and returns `can_stop=true` with `terminal=false`; this permits an
 honest blocked exit, never a completion claim. Agent-owned failures remain in
 active recovery. Resume after resolution through `do resume` with fresh recovery
-evidence, inspected effects, and prior processes stopped. Resolving an external
-blocker does not silently retry a separately interrupted attempt.
+evidence, inspected effects, and prior processes stopped. Follow
+[Recovery Evidence](operation-contract.md#recovery-evidence): supply exactly one
+scoped `evidence_ref` or bounded sanitized `evidence_text`, with a concrete reason
+and both inspection confirmations true; do not provide a digest or prewrite the
+protected session evidence directory. The inline alternative belongs to
+`do resume` recovery, not `do finish`'s `blocker.evidence_refs`.
+Resolving an external blocker does not silently recover or retry a separately
+interrupted attempt.
 
 The final response must state the actual operation outcome, what was verified,
 requested output locations, whether a method was reused/updated/proposed, and

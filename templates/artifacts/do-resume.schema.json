@@ -11,8 +11,27 @@
     },
     "recovery": {
       "additionalProperties": false,
+      "description": "Provide exactly one evidence source. File evidence_ref must remain inside the original write/output scope; evidence_text is saved by the runtime together with recovery. Evidence digests are runtime-owned.",
+      "oneOf": [
+        {
+          "required": [
+            "evidence_ref"
+          ]
+        },
+        {
+          "required": [
+            "evidence_text"
+          ]
+        }
+      ],
       "properties": {
         "evidence_ref": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "evidence_text": {
+          "description": "Sanitized native process and side-effect inspection, at most 64 KiB of UTF-8. Runtime atomically snapshots this text inside its already owned session evidence directory; no product/output write scope is needed or expanded.",
+          "maxLength": 65536,
           "minLength": 1,
           "type": "string"
         },
@@ -29,7 +48,6 @@
       },
       "required": [
         "reason",
-        "evidence_ref",
         "processes_stopped",
         "side_effects_inspected"
       ],

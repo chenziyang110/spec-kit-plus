@@ -119,6 +119,11 @@ Bound waits, report meaningful progress, and use native cancellation when the
 user stops the operation. A timeout or dropped tool connection is `interrupted`
 until the actual process/output state is reconciled. Do not assume it failed
 without effects, mark it passed, or replay a non-idempotent external operation.
+Recover every interrupted attempt explicitly, including optional steps/checks,
+superseded attempts and older definition epochs. Until then, `do validate`,
+`do finish` and `playbook update` remain blocked. A later passing attempt cannot
+clear an earlier unknown effect. Recovery does not force an optional attempt to
+rerun unless a frozen required dependency needs its result.
 
 Required checks are frozen before execution. Verify the promised artifact or
 state: e.g. the intended package exists with the expected metadata, test reports
@@ -134,13 +139,44 @@ verification; do not apply the old definition's success to unexecuted steps.
 Preserve an untested improvement as
 a proposal when its verification is outside this task.
 
+### Recovery Evidence
+
+Read `do-resume-input` when recovering an attempt, resolving a blocker, or
+replanning after failure. `recovery` always requires a nonempty concrete
+`reason`, `processes_stopped=true` and `side_effects_inspected=true`. Choose
+exactly one evidence form:
+
+- `evidence_ref` names an existing sanitized file inside the already declared
+  `write_scope` or `output_scope`. New scope requested by a replan cannot
+  retroactively authorize creating that evidence file.
+- `evidence_text` contains a nonempty sanitized UTF-8 record of the native
+  process termination and actual side-effect inspection, at most 64 KiB in
+  bytes. Runtime stores it atomically with the recovery and session revision
+  check inside the session's existing Work-owned `evidence/` directory. Do not
+  prewrite or hand-edit that protected directory. This route neither expands
+  source/output permissions nor substitutes for native inspection.
+
+Do not supply `evidence_sha256`; only runtime derives the stored digest. Both
+forms apply to ordinary recovery, `replan`, and `do resume` after an external
+blocker. Resolving a blocker does not recover another interrupted attempt.
+
+A read-only check can fail in a session with empty `write_scope` and
+`output_scope`. After inspecting the native process and effects, send inline
+evidence through `do resume <id> --input-json -`; no log file or scope expansion
+is needed. This illustrative payload uses values that must come from the real
+session and observation:
+
+```json
+{"expected_revision":7,"attempt_id":"inspect-env-1","recovery":{"reason":"Read-only check failed; process and effects reconciled.","evidence_text":"Native process check-17 exited 1, with no remaining child. Fresh read-only Git status matches the pre-check state; no files or external systems changed.","processes_stopped":true,"side_effects_inspected":true}}
+```
+
 ### Failed-Method Recovery
 
 When a known failure requires a different command or helper, use the typed
 `replan` branch of `do resume <id>` under the `do-resume-input` schema. Supply
 the current `expected_revision`, the latest unresolved genuinely failed
 `attempt_id` in the current definition epoch, and `recovery` with a concrete
-reason, existing evidence ref inside the original claimed scope,
+reason and one of the [Recovery Evidence](#recovery-evidence) forms,
 `processes_stopped=true`, and `side_effects_inspected=true`. Reconcile unknown,
 running, or interrupted effects first; replanning cannot bypass that recovery
 or change an already passed execution waiting only for knowledge persistence.

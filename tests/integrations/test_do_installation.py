@@ -8,6 +8,7 @@ import tomllib
 
 import pytest
 import yaml
+from jsonschema import Draft202012Validator
 from typer.testing import CliRunner
 
 from specify_cli import app
@@ -71,7 +72,7 @@ def test_do_renders_for_every_skill_profile(key, profile, prefix, script_type, t
     reference = skill_dir / "references/operation-contract.md"
     contract = reference.read_text(encoding="utf-8")
     assert reference.relative_to(project).as_posix() in manifest.files
-    for required in ("DoSession", "do-record-input", "expected_revision", "source", "playbook"):
+    for required in ("DoSession", "do-record-input", "expected_revision", "source", "playbook", "evidence_ref", "evidence_text"):
         assert required in contract
     assert f"integration key `{key}`" in contract
     assert "__AGENT__" not in content + contract
@@ -170,10 +171,18 @@ def test_real_init_installs_do_and_shared_playbook_schemas(profile, prefix, scri
     result = run_init(profile, script_type)
     assert f"${prefix}-do" in result.output
     core = IntegrationManifest.load("speckit", project)
-    for name in ("playbook-definition.schema.json", "playbook-update.schema.json"):
+    for name in ("playbook-definition.schema.json", "playbook-update.schema.json", "do-resume.schema.json"):
         relative = f".specify/templates/artifacts/{name}"
         assert (project / relative).read_bytes() == (ROOT / "templates/artifacts" / name).read_bytes()
         assert relative in core.files
+    schema = json.loads((project / ".specify/templates/artifacts/do-resume.schema.json").read_text(encoding="utf-8"))
+    Draft202012Validator.check_schema(schema)
+    validator = Draft202012Validator(schema)
+    recovery = {"reason": "native process exited and workspace was inspected", "processes_stopped": True, "side_effects_inspected": True}
+    for evidence in ({"evidence_ref": "out/recovery.txt"}, {"evidence_text": "exit=1; process reaped; source status unchanged"}):
+        validator.validate({"expected_revision": 1, "recovery": recovery | evidence})
+    for evidence in ({}, {"evidence_ref": "out/recovery.txt", "evidence_text": "inspection"}, {"evidence_text": ""}, {"evidence_text": "inspection", "evidence_sha256": "a" * 64}):
+        assert not validator.is_valid({"expected_revision": 1, "recovery": recovery | evidence})
     manifest = IntegrationManifest.load("codex", project)
     relative = f".codex/skills/{prefix}-do/SKILL.md"
     assert relative in manifest.files

@@ -33,7 +33,7 @@ var operationAPIContracts = map[string]operationAPIContract{
 	"do.resume": {
 		usage:      "specify-runtime do resume <session-id> [--input-json <object|->] [--project-root <path>] --format json",
 		sideEffect: "read-only-without-input-otherwise-writes-do-recovery", schema: "do-resume-input",
-		input: "Read-only without input. Recovery requires expected_revision and an exact attempt/recovery receipt. Typed replan also requires request_id, an observed failed attempt and inspected effects; it preserves immutable definition epochs, extends exact scopes and requires fresh observations for all required steps and checks. Exact replay is idempotent. Never infer that an interrupted process completed or is safe to retry.",
+		input: "Read-only without input. Recovery requires expected_revision and an exact attempt/recovery receipt with either an in-scope evidence_ref or bounded evidence_text atomically saved by the runtime. Typed replan also requires request_id, an observed failed attempt and inspected effects; it preserves immutable definition epochs, extends exact scopes and requires fresh observations for all required steps and checks. Exact replay is idempotent. Never infer that an interrupted process completed or is safe to retry.",
 	},
 	"do.show": {
 		usage:      "specify-runtime do show (<session-id> [--section <definition|definitions|definition:epoch|attempts|attempt:id>]|--active [--adapter-id <adapter-id>]) [--project-root <path>] --format json",

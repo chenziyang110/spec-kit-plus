@@ -43,11 +43,18 @@ func doFinishInputSchema() map[string]any {
 }
 
 func doResumeInputSchema() map[string]any {
+	recovery := doSchemaObject(map[string]any{
+		"reason": doSchemaString(), "evidence_ref": doSchemaString(),
+		"evidence_text":     map[string]any{"type": "string", "minLength": 1, "maxLength": doRecoveryTextLimit, "description": "Sanitized native process and side-effect inspection, at most 64 KiB of UTF-8. Runtime atomically snapshots this text inside its already owned session evidence directory; no product/output write scope is needed or expanded."},
+		"processes_stopped": map[string]any{"const": true}, "side_effects_inspected": map[string]any{"const": true},
+	}, "reason", "processes_stopped", "side_effects_inspected")
+	recovery["oneOf"] = []any{map[string]any{"required": []string{"evidence_ref"}}, map[string]any{"required": []string{"evidence_text"}}}
+	recovery["description"] = "Provide exactly one evidence source. File evidence_ref must remain inside the original write/output scope; evidence_text is saved by the runtime together with recovery. Evidence digests are runtime-owned."
 	replanScope := map[string]any{"type": "array", "items": doSchemaString(), "maxItems": 128, "description": "Optional complete scope. Omission inherits the previous scope; a supplied array must retain every previous exact path and can only add paths before their first mutation."}
 	replan := doSchemaObject(map[string]any{
 		"request_id": map[string]any{"type": "string", "pattern": doIDPattern.String()},
 		"definition": playbookDefinitionInputSchema(), "write_scope": replanScope, "output_scope": replanScope,
 	}, "request_id", "definition")
 	replan["description"] = "After a genuine failed current-epoch attempt and inspected effects, freeze a changed definition with the same operation identity and goal. Retain all history and rerun every required step/check in the new runtime-owned epoch. Exact request replay is idempotent. Unchanged definitions use ordinary retry."
-	return doSchemaObject(map[string]any{"expected_revision": doSchemaRevision(), "attempt_id": doSchemaString(), "work_fence": map[string]any{"type": "integer", "minimum": 1, "description": "Explicit current fence returned by completed Work recovery; Do never claims or resumes Work ownership automatically."}, "recovery": doSchemaObject(map[string]any{"reason": doSchemaString(), "evidence_ref": doSchemaString(), "processes_stopped": map[string]any{"const": true}, "side_effects_inspected": map[string]any{"const": true}}, "reason", "evidence_ref", "processes_stopped", "side_effects_inspected"), "replan": replan}, "expected_revision", "recovery")
+	return doSchemaObject(map[string]any{"expected_revision": doSchemaRevision(), "attempt_id": doSchemaString(), "work_fence": map[string]any{"type": "integer", "minimum": 1, "description": "Explicit current fence returned by completed Work recovery; Do never claims or resumes Work ownership automatically."}, "recovery": recovery, "replan": replan}, "expected_revision", "recovery")
 }

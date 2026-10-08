@@ -6,7 +6,8 @@ and canonical `do` namespace; do not create profile-specific session formats.
 
 Read the applicable section: [Applicability and Authority](#applicability-and-authority),
 [Runtime-Owned Session, Native Execution](#runtime-owned-session-native-execution),
-or [Execution and Knowledge Closeout](#execution-and-knowledge-closeout).
+[Recovery and Replanning](#recovery-and-replanning), or
+[Execution and Knowledge Closeout](#execution-and-knowledge-closeout).
 
 ## Applicability and Authority
 
@@ -109,13 +110,43 @@ Do not weaken a frozen check or reduce expected coverage to get a passing result
 A changed procedure must receive an independently validated frozen definition;
 prior success cannot validate new steps that were never executed.
 
+### Recovery and Replanning
+
+Every interrupted attempt needs explicit recovery before `do validate`,
+`do finish` or `playbook update`, including optional steps/checks, superseded
+attempts and older definition epochs. A later success does not reconcile earlier
+unknown effects. After recovery an optional attempt need not rerun unless a
+frozen required dependency needs its result.
+
+For ordinary recovery, failed-method replan and blocker resolution through
+`do resume`, read `do-resume-input`. Supply a concrete nonempty `recovery.reason`,
+`processes_stopped=true`, `side_effects_inspected=true` and exactly one of:
+
+- `evidence_ref`: an existing sanitized file within the already declared
+  `write_scope` or `output_scope`; a replan's new claims do not authorize
+  prewriting it.
+- `evidence_text`: a nonempty sanitized UTF-8 record, at most 64 KiB in bytes,
+  of native process termination and actual side-effect inspection. Runtime
+  persists it atomically with recovery and the session revision check in the
+  session's existing Work-owned `evidence/` directory. Do not prewrite or
+  hand-edit that directory; this grants no source/output permissions and does
+  not replace native inspection.
+
+Runtime derives `evidence_sha256`; never provide it. A failed read-only check
+with empty write/output scopes can use inline evidence without creating a log
+or broadening permissions. For `do resume <id> --input-json -`, substitute real
+session values and native observations in this illustrative payload:
+
+```json
+{"expected_revision":7,"attempt_id":"inspect-env-1","recovery":{"reason":"Read-only check failed; process and effects reconciled.","evidence_text":"Native process check-17 exited 1, with no remaining child. Fresh read-only Git status matches the pre-check state; no files or external systems changed.","processes_stopped":true,"side_effects_inspected":true}}
+```
+
 For a known failed method that needs changed argv or a helper, use typed
 `do resume` replanning rather than editing session storage. Read `do-resume-input`;
 supply `expected_revision`, the latest unresolved genuinely failed current-epoch
-`attempt_id`, and `recovery` with reason, actual `evidence_ref` inside the original
-claimed scope, stopped processes, and inspected
-side effects. Its `replan` object carries `request_id` and the full changed
-`definition`; optional complete `write_scope`/`output_scope` lists may extend but
+`attempt_id`, and `recovery` in either form above, with reason, stopped processes
+and inspected side effects. Its `replan` object carries `request_id` and the full
+changed `definition`; optional complete `write_scope`/`output_scope` lists may extend but
 cannot shrink or exchange source/output ownership. Goal, stable method ID and
 observed context stay bound. Unknown/running/interrupted effects require their
 own recovery first; passed execution with knowledge pending cannot be replanned.
@@ -195,8 +226,10 @@ the typed `blocker` contract: category, owner, cause, attempted recovery, scoped
 actual evidence refs, next action, unblock criteria, and resume point. Keep
 knowledge pending. `can_stop=true` with `terminal=false` means a runtime-accepted
 blocked exit retaining Work ownership, not successful completion. Later
-`do resume` requires fresh resolution evidence plus inspected effects and stopped
-prior processes; a separate interrupted attempt still needs explicit recovery.
+`do resume` requires fresh resolution evidence in either supported recovery form,
+plus inspected effects and stopped prior processes. This does not change the
+scoped file-reference contract of `blocker.evidence_refs`; a separate interrupted
+attempt still needs explicit recovery.
 Report the actual operation outcome and verified outputs separately from method
 reuse/update/proposal. Only claim measured efficiency gains from comparable
 evidence, and never invoke another workflow silently.

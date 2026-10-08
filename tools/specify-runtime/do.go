@@ -728,7 +728,7 @@ func doResume(root string, session DoSession, oldDigest string, input doResumeIn
 	}
 	requestDigest := doDigest(input)
 	if previous, ok := session.ResumeReceipts[requestDigest]; ok {
-		raw, err := secureProjectReadFile(root, input.Recovery.EvidenceRef)
+		raw, err := secureProjectReadFile(root, doRecoveryEvidenceRef(session, input))
 		if err != nil || doBytesDigest(raw) != previous {
 			return session, fmt.Errorf("replayed recovery evidence is missing or changed")
 		}
@@ -756,7 +756,7 @@ func doResume(root string, session DoSession, oldDigest string, input doResumeIn
 	if index >= 0 && session.Attempts[index].Status != "running" && session.Attempts[index].Status != "interrupted" && session.Attempts[index].Status != "failed" {
 		return session, fmt.Errorf("only an interrupted or failed attempt needs recovery")
 	}
-	recovery, err := doReadRecovery(root, session, input.Recovery)
+	recovery, extra, err := doPrepareRecovery(root, session, input)
 	if err != nil {
 		return session, err
 	}
@@ -775,7 +775,7 @@ func doResume(root string, session DoSession, oldDigest string, input doResumeIn
 	doRememberResume(&session, requestDigest, recovery.EvidenceSHA256)
 	session.Revision++
 	session.UpdatedAt = doNow()
-	return session, doWriteSession(root, session, oldDigest, nil)
+	return session, doWriteSession(root, session, oldDigest, extra)
 }
 
 func doFinish(root string, session DoSession, oldDigest string, input doFinishInput) (DoSession, error) {

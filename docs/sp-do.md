@@ -186,7 +186,7 @@ must not be embedded in reusable commands or evidence.
 | `.specify/playbooks/<id>/usage/<session-id>.json` | Execution-bound usage and knowledge receipt |
 | `.specify/do/sessions/<id>/session.json` | Invocation state |
 | `.specify/do/sessions/<id>/definitions/<epoch>.json` | Immutable plan snapshots materialized on replan |
-| `.specify/do/sessions/<id>/evidence/` | Immutable report snapshots or compact file-hash receipts |
+| `.specify/do/sessions/<id>/evidence/` | Runtime-owned report snapshots, file-hash receipts and inline recovery records |
 
 The readable guide and index are projections, not edit surfaces. Generic
 artifact prepare/patch/delete cannot bypass the specialized owner. Changing an
@@ -215,12 +215,59 @@ retrying, and record recovery evidence. Interrupted/disconnected commands also
 require confirmation that their prior process has stopped and their effects
 have been inspected. Runtime recovery does not rerun the command itself.
 
+Every interrupted attempt in the session must be explicitly recovered before
+`do validate`, `do finish` or `playbook update` can pass. This includes optional
+steps/checks, superseded attempts and earlier definition epochs; a later success
+does not clear their unknown effects. Once recovered, an optional attempt need
+not be rerun unless a frozen required dependency needs its result.
+
+### Recovery evidence
+
+For ordinary recovery, failed-method replanning and blocker resolution through
+`do resume`, supply a nonempty `recovery.reason`, `processes_stopped=true` and
+`side_effects_inspected=true`, plus exactly one evidence form:
+
+- `evidence_ref`: an existing sanitized evidence file inside the session's
+  already declared `write_scope` or `output_scope`. A new scope in the same
+  replan does not authorize prewriting that file.
+- `evidence_text`: a nonempty sanitized UTF-8 record, at most **64 KiB in bytes**,
+  of native process termination and the observed side-effect inspection. The
+  runtime atomically stores it with the recovery/session revision check under
+  the session's existing Work-owned `evidence/` directory. Do not prewrite or
+  hand-edit that protected directory. Inline evidence adds no source/output
+  permissions and does not perform the native inspection on the agent's behalf.
+
+Never supply `evidence_sha256`; the runtime derives the digest. Record actual
+process and inspection observations, not a presumed absence of side effects.
+
+For example, a failed read-only check can recover without adding scopes or
+creating a log file. For a session started with `write_scope=[]` and
+`output_scope=[]`, the agent submits the following shape to
+`do resume <session-id> --input-json -` after the native inspections. Replace
+the illustrative revision, attempt ID and observation with the current values:
+
+```json
+{
+  "expected_revision": 7,
+  "attempt_id": "inspect-env-1",
+  "recovery": {
+    "reason": "The read-only check failed; its process and effects are reconciled.",
+    "evidence_text": "Native process check-17 exited with code 1 and has no remaining child process. Fresh read-only Git status matches the pre-check state; no files or external systems changed.",
+    "processes_stopped": true,
+    "side_effects_inspected": true
+  }
+}
+```
+
+### Failed-method replanning
+
 If the command or plan itself must change after an observed failure, use typed
 `do resume` with `replan.request_id` and the replacement `replan.definition`,
 along with the exact failed `attempt_id`, `expected_revision` and `recovery`
-receipt. Optional `replan.write_scope` and `replan.output_scope` inherit when
-omitted; supplied scopes preserve existing claims and may add authorized paths
-before their first mutation. Scope changes cannot retroactively absorb writes.
+evidence in either form above. Optional `replan.write_scope` and
+`replan.output_scope` inherit when omitted; supplied scopes preserve existing
+claims and may add authorized paths before their first mutation. Scope changes
+cannot retroactively absorb writes.
 
 Replanning preserves the original goal, method identity, failed observations and
 immutable plan history. Each plan has a runtime-owned `definition_epoch`.
@@ -228,6 +275,8 @@ Every required step/check needs new observations in that epoch, even when a
 later plan returns to an earlier definition. Active or unknown effects must be
 recovered first. A passed operation with pending knowledge repairs persistence
 through its existing receipt rather than opening another execution plan.
+
+### Resumable persistence and blockers
 
 Creation is idempotent for an explicit session ID with identical frozen input.
 Event batches use request IDs: replay returns the same checkpoint; the same ID
@@ -246,6 +295,11 @@ cause, attempted recovery, exact evidence, next action, unblock criteria and
 resume point. An accepted blocker permits an honest exit with `can_stop=true`
 while `terminal=false`. It creates neither success nor a knowledge receipt.
 Agent-repairable problems remain in the active loop.
+
+Resolve an accepted blocker through `do resume` with fresh recovery evidence in
+either form above. This does not change the scoped file-reference contract of
+`do finish`'s `blocker.evidence_refs`, or silently recover a separate interrupted
+attempt.
 
 Work lease recovery is explicit. Preserve the operation identity and use the
 current fence from an actual Work recovery. A method or old receipt never grants

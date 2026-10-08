@@ -471,9 +471,14 @@ func doValidate(root string, session DoSession, requireCognition bool) DoValidat
 			doValidateRequiredClosure(root, session, latest, check.ID, "check", fingerprint, &validation, &accepted, visited)
 		}
 	}
+	// Unreconciled effects belong to the whole session, including optional
+	// actions and older definitions, rather than only its required closure.
 	for _, attempt := range session.Attempts {
 		if attempt.Status == "running" {
 			validation.Blockers = append(validation.Blockers, "attempt "+attempt.ID+" is still running or its effect is unknown")
+		}
+		if attempt.Status == "interrupted" && attempt.Recovery == nil {
+			validation.Blockers = append(validation.Blockers, "attempt "+attempt.ID+" is interrupted and needs evidence-backed recovery before closeout")
 		}
 	}
 	changed, err := runcontrol.InspectWorkspaceDelta(context.Background(), root, session.BaselineJSON)

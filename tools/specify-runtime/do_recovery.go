@@ -2,13 +2,47 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runcontrol"
 )
+
+const doRecoveryTextLimit = 64 * 1024
+
+// Presence matters for the input oneOf: an explicit empty/null field is not
+// omission. Keep this on the request boundary, not persisted DoRecovery, whose
+// normalized file reference and runtime-owned digest remain backward compatible.
+func (input *doResumeInput) UnmarshalJSON(raw []byte) error {
+	type plain doResumeInput
+	var value plain
+	if err := decodePlaybookJSON(raw, &value); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return err
+	}
+	var recovery map[string]json.RawMessage
+	if err := json.Unmarshal(fields["recovery"], &recovery); err != nil {
+		return err
+	}
+	_, hasRef := recovery["evidence_ref"]
+	_, hasText := recovery["evidence_text"]
+	if hasRef == hasText {
+		return fmt.Errorf("recovery requires exactly one of evidence_ref or evidence_text")
+	}
+	if (hasRef && value.Recovery.EvidenceRef == "") || (hasText && value.Recovery.EvidenceText == "") {
+		return fmt.Errorf("recovery evidence must be a nonempty string, not null")
+	}
+	*input = doResumeInput(value)
+	return nil
+}
 
 func doBlockFinish(root string, session DoSession, digest string, input doFinishInput) (DoSession, error) {
 	blocker := *input.Blocker
@@ -97,7 +131,7 @@ func doResolveBlocker(root string, session DoSession, digest string, input doRes
 	if input.ExpectedRevision != session.Revision {
 		return session, fmt.Errorf("session revision conflict")
 	}
-	recovery, err := doReadRecovery(root, session, input.Recovery)
+	recovery, extra, err := doPrepareRecovery(root, session, input)
 	if err != nil {
 		return session, err
 	}
@@ -134,33 +168,65 @@ func doResolveBlocker(root string, session DoSession, digest string, input doRes
 	doRememberResume(&session, doDigest(input), recovery.EvidenceSHA256)
 	session.Revision++
 	session.UpdatedAt = doNow()
-	return session, doWriteSession(root, session, digest, nil)
+	return session, doWriteSession(root, session, digest, extra)
 }
 
-func doReadRecovery(root string, session DoSession, recovery DoRecovery) (DoRecovery, error) {
+// Inline evidence is owned by the Work's already claimed session directory.
+// Bind its immutable filename to the complete request so exact replay reads
+// the same bytes without accepting a caller-selected metadata write path.
+func doRecoveryEvidenceRef(session DoSession, input doResumeInput) string {
+	if input.Recovery.EvidenceText != "" {
+		return path.Join(path.Dir(doSessionRef(session.ID)), "evidence", "recovery-"+doDigest(input)+".txt")
+	}
+	return input.Recovery.EvidenceRef
+}
+
+// Prepare immutable evidence without writing. The owner/fence checks and the
+// session CAS must succeed before doWriteSession commits these bytes together
+// with the recovery receipt (and definition epochs when replanning).
+func doPrepareRecovery(root string, session DoSession, input doResumeInput) (DoRecovery, []fileTransactionUpdate, error) {
+	recovery := input.Recovery
 	if strings.TrimSpace(recovery.Reason) == "" || len(recovery.Reason) > 4096 || !recovery.ProcessesStopped || !recovery.SideEffectsInspected {
-		return recovery, fmt.Errorf("recovery requires inspected side effects, stopped prior processes, and a bounded concrete reason")
+		return recovery, nil, fmt.Errorf("recovery requires inspected side effects, stopped prior processes, and a bounded concrete reason")
 	}
 	if recovery.EvidenceSHA256 != "" {
-		return recovery, fmt.Errorf("recovery evidence_sha256 is runtime-owned")
+		return recovery, nil, fmt.Errorf("recovery evidence_sha256 is runtime-owned")
+	}
+	if (recovery.EvidenceRef == "") == (recovery.EvidenceText == "") {
+		return recovery, nil, fmt.Errorf("recovery requires exactly one of evidence_ref or evidence_text")
+	}
+	if recovery.EvidenceText != "" {
+		if strings.TrimSpace(recovery.EvidenceText) == "" || len(recovery.EvidenceText) > doRecoveryTextLimit || !utf8.ValidString(recovery.EvidenceText) {
+			return recovery, nil, fmt.Errorf("recovery evidence_text must be nonempty UTF-8 and at most 64 KiB")
+		}
+		ref := doRecoveryEvidenceRef(session, input)
+		target, err := secureProjectPath(root, ref)
+		if err != nil {
+			return recovery, nil, err
+		}
+		raw := []byte(recovery.EvidenceText)
+		recovery.EvidenceText = "" // Persist one immutable snapshot, not duplicate text in session history.
+		recovery.EvidenceRef = ref
+		recovery.EvidenceSHA256 = doBytesDigest(raw)
+		return recovery, []fileTransactionUpdate{{Path: target, Content: raw, Perm: 0o600}}, nil
 	}
 	p, err := doPath(root, recovery.EvidenceRef, false)
 	if err != nil {
-		return recovery, err
+		return recovery, nil, err
 	}
 	if !doScopeContains(session.OutputScope, p) && !doScopeContains(session.WriteScope, p) {
-		return recovery, fmt.Errorf("recovery evidence is outside the declared scope")
+		return recovery, nil, fmt.Errorf("recovery evidence is outside the declared scope")
 	}
 	raw, err := secureProjectReadFile(root, p)
 	if err != nil {
-		return recovery, err
+		return recovery, nil, err
 	}
 	if len(raw) == 0 || len(raw) > 2*1024*1024 {
-		return recovery, fmt.Errorf("recovery evidence must be nonempty and bounded")
+		return recovery, nil, fmt.Errorf("recovery evidence must be nonempty and bounded")
 	}
 	recovery.EvidenceRef = p
 	recovery.EvidenceSHA256 = doBytesDigest(raw)
-	return recovery, nil
+	return recovery, nil, nil
 }
 
 func doRememberResume(session *DoSession, requestDigest, evidenceDigest string) {

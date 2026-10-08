@@ -86,7 +86,8 @@ type DoResultRef struct {
 
 type DoRecovery struct {
 	Reason               string `json:"reason"`
-	EvidenceRef          string `json:"evidence_ref"`
+	EvidenceRef          string `json:"evidence_ref,omitempty"`
+	EvidenceText         string `json:"evidence_text,omitempty"`
 	EvidenceSHA256       string `json:"evidence_sha256,omitempty"`
 	ProcessesStopped     bool   `json:"processes_stopped"`
 	SideEffectsInspected bool   `json:"side_effects_inspected"`

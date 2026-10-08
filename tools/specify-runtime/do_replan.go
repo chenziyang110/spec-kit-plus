@@ -192,7 +192,7 @@ func doReplan(root string, session DoSession, oldDigest string, input doResumeIn
 	if err := doReplanVerifyFailure(root, session, failed); err != nil {
 		return session, err
 	}
-	recovery, err := doReadRecovery(root, session, input.Recovery)
+	recovery, extra, err := doPrepareRecovery(root, session, input)
 	if err != nil {
 		return session, err
 	}
@@ -276,7 +276,6 @@ func doReplan(root string, session DoSession, oldDigest string, input doResumeIn
 	}
 	receipts[input.Replan.RequestID] = DoReplanReceipt{RequestDigest: requestDigest, DefinitionEpoch: epoch.Epoch, DefinitionDigest: definitionDigest, EvidenceRef: recovery.EvidenceRef, EvidenceSHA256: recovery.EvidenceSHA256}
 	session.ReplanReceipts = receipts
-	extra := []fileTransactionUpdate{}
 	for _, item := range session.DefinitionHistory {
 		raw, err := doDefinitionEpochBytes(item)
 		if err != nil {
