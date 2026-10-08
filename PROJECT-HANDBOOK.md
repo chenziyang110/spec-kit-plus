@@ -30,6 +30,15 @@ is first-class and does not require a browser runner. External-event/checkpoint
 pairs, boundary values and independent durable-effect oracles remain explicit;
 missing tools cannot remove a scenario from the denominator.
 
+Both profiles require seven stages: scope/inventory/capabilities, scenario
+design, execution readiness, real execution, repair/regression, independent
+reconciliation, and truthful closeout. Each substantive handoff uses a worker,
+a separate validator and leader acceptance of exact upstream artifacts before
+dependent execution. The complete test ledger preserves every requested item,
+failure and affected dependency across repair/resume. This is an agent protocol;
+the helpers below do not implement a seven-stage runtime state machine.
+See the [stage inputs, outputs and acceptance contract](docs/sp-e2e.md).
+
 `e2e_scenarios.py`, `e2e_coverage.py` and the optional native runner are ordinary
 test-asset helpers, not Python workflow-state writers. Retained test-asset changes
 use canonical `sp-e2e` cognition closeout and Learning through shared runtime

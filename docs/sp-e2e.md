@@ -33,6 +33,90 @@ Keep untestable scenarios visible; do not require a browser automation harness.
 An unqualified full-product request must not silently become a changed-files
 run. Feature-only and regression scopes remain explicitly narrower claims.
 
+## Seven stages with verified producer/consumer handoffs
+
+Both profiles use the same seven-stage protocol. The first action is to establish
+the actual product, declared targets and source-backed operation inventory.
+Selecting Playwright, launching a browser or copying existing tests cannot
+establish what the whole project needs.
+
+| Stage | Consumes | Required output | Independent acceptance before consumption |
+| --- | --- | --- | --- |
+| 1. Scope, inventory and capabilities | Original request, requirements and actual entrypoints | Stable requirement/operation IDs, assumptions, cross-feature dependencies, target/build/OS/device matrix, capability probes and discovery gaps | Reconcile the original request and live product surfaces, including unknown/unread areas; check every declared target. |
+| 2. Scenario design | Accepted stage 1 inventory and source contracts | Frozen schema-v2 scenario book; explicit conditions, boundary units, event/checkpoint obligations, oracles and exclusions; derive/check reports | Challenge semantic completeness and expected outcomes; rerun `derive/check --require-v2`; preserve the full parent denominator for scoped books. |
+| 3. Execution readiness | Accepted inventory and scenario book | Exact route, build and launch identity; authorized accounts/fixtures; setup, readback and reset probes; runner bindings/collection where selected | Reproduce decisive readiness probes and verify every required observation channel. Missing tools or fixtures block the affected cases. |
+| 4. Product execution | Accepted book and current readiness for the exact scope/target | Immutable runs with original actions, captures, independent effects, attempts, cleanup, trace and selected native reports/audits | Reconcile every scenario ID and assertion to inspectable evidence; verify actual target, current hashes and decisive observations. |
+| 5. Repair and regression | Run evidence, failed/rejected rows and blocker causes | Causal defect/repair record, owner, affected IDs, changed versions and fresh regression evidence | Reproduce the original failure against the correction and check affected journeys. E2E repairs owned test assets; product fixes return to their owner. |
+| 6. Independent reconciliation | Original request, complete ledger, all accepted artifacts and all attempts/lane audits | Per-row audit, set differences from requested scope to clean passes, missing coverage, exclusions and required rework | Check discovery, oracle adequacy, each target and every selected lane. New omissions reopen the earliest affected stage. |
+| 7. Truthful report and closeout | Independent audit, exact artifact versions and final ledger | Reproducible report separating design, execution, outcomes, combination coverage and visual acceptance; all unresolved IDs and resume points | Compare the report with every requested item and integrated journey. An unresolved mandatory row prevents a full-scope success claim. |
+
+Each stage uses bounded execution workers and a separate read-only validator
+subagent. The leader accepts only after the validator checks the original
+request, full acceptance set, actual artifacts and original evidence. The
+validator must not be the author of that artifact revision. A later stage's
+packet carries the accepted upstream record and exact output version/digest;
+it does not consume the sentence “A is done.”
+
+Keep a complete `tests/e2e/workflow-ledger.md` or an equivalent existing test
+ledger. Each task records stable ID, stage, scope IDs, dependencies, worker,
+validator, input/output refs and digests, acceptance rows, reproduction
+commands/manual steps, environment/preconditions, expected and actual outcomes,
+evidence, status, gaps and next action. Keep immutable submission/review
+snapshots; the ledger is a mutable index. Track
+`pending -> running -> submitted -> verified -> accepted`; retain rejected
+and blocked work instead of checking it off. Existing packet/artifact/runtime
+owners remain authoritative where they apply.
+
+For example, if A has ten required outputs and delivers six, the validator
+returns the four unmet rows, A remains unaccepted, and B stays blocked on A.
+The worker repairs A, a different validator checks the new artifact, and the
+leader accepts that exact revision before dispatching B. Independent ready
+work can continue in isolated namespaces. If B later disproves A's basis,
+reopen A and invalidate affected descendant acceptance, then revalidate from
+that point.
+
+Accepting a complete failed-run report means its evidence is usable for repair
+and diagnosis; it does not mean the product passed. Audit/reporting may read
+blocked or rejected records to explain partial results without unlocking their
+dependents. An explicit planning-only request goes from accepted design to
+design audit/reporting and makes no execution claim. Without independent
+validation capability, safe drafting and self-checking may continue, but
+independent acceptance stays blocked.
+
+The ledger is an **agent execution contract**, not a new machine-enforced
+runtime state machine or JSON schema. Current helpers do not validate the
+producer/verifier identities or aggregate all seven stage acceptances.
+Their successful local accounting is necessary evidence for a selected lane,
+not proof that every upstream task was complete.
+
+## Platform-specific readiness under a shared process
+
+Use the seven stages for web, Windows/Linux/macOS desktop, iOS/iPadOS, Android,
+CLI/service and other software, while establishing the real execution route
+for each declared target. Record browser/OS/device versions, actual build and
+installation identity, entrypoint, accounts, services, capture/inspection,
+interaction, independent effect readback and fixture reset capabilities.
+
+A webview in a browser does not prove its native desktop shell. An iOS
+simulator result does not prove a physical iPhone result. An Android emulator
+does not establish another device/OS target. A CLI, service, library, extension
+or device uses its actual consumer program, host or protocol instead of a
+forced UI. Missing capabilities remain target-specific blockers in the full
+scope; do not silently relabel the target not-applicable.
+
+The supplied native wrapper supports serial pytest and local Playwright Test.
+Other platforms can use working visual/control tools, an existing validated
+adapter or an explicit human route. Method coverage across platforms is
+separate from having executed and verified every platform in this environment.
+
+Keep hashes of fixture definitions, seed inputs and setup scripts separate from
+run evidence for temporary objects that tests intentionally rename/delete.
+When the scenario book changes, its entire `book_sha256` binding changes:
+obtain fresh evidence for that book, retaining old runs as history. Do not
+transplant old passing observations into the new trace. Independently scoped
+books prepared before execution may retain their own unchanged evidence; this
+is not native shard merging.
+
 ## What prevents omissions
 
 Discover intended requirements and actual entrypoints independently of existing

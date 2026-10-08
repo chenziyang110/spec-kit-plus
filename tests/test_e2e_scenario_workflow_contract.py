@@ -1,10 +1,26 @@
 """Scenario-first source contracts for both independently authored profiles."""
 from pathlib import Path
+import shlex
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILES = [ROOT / "templates/commands/e2e.md", ROOT / "templates/advanced-skills/spx-e2e/SKILL.md"]
+
+
+def test_scenario_documentation_commands_cannot_silently_use_legacy_v1():
+    documentation = (ROOT / "docs/sp-e2e-scenarios.md").read_text(encoding="utf-8")
+    commands = [
+        shlex.split(line)
+        for line in documentation.splitlines()
+        if line.startswith("python scripts/shared/e2e_scenarios.py ")
+    ]
+    assert {command[2] for command in commands} == {"catalog", "schema", "derive", "check", "audit"}
+    for command in commands:
+        if command[2] == "schema":
+            assert command[command.index("--schema-version") + 1] == "2"
+        elif command[2] != "catalog":
+            assert "--require-v2" in command, command
 
 
 @pytest.mark.parametrize("path", PROFILES)
