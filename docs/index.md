@@ -13,6 +13,7 @@ You do not need to learn the whole workflow catalog before starting.
 | Understand the repository | `ask` | Read-only, evidence-backed answers |
 | Shape an idea | `discussion` | Clarify intent before choosing delivery |
 | Deliver an already-clear outcome | `quick` | Resumable direct delivery; not limited to small tasks |
+| Repeat a build, package, test or maintenance operation | `do` | Native execution, resumable evidence and verified project playbooks |
 | Build a formal specification | `specify` | Start the formal artifact and acceptance chain |
 | Continue unfinished work | `auto` | Resume an existing, unambiguously bound state; never guess a new task |
 
@@ -48,6 +49,7 @@ for private Git installs; public runtime binaries do not make the source public.
 - [Project Handbook](../PROJECT-HANDBOOK.md): architecture and product contracts.
 - [Repository Guidance](../AGENTS.md): source ownership and change propagation.
 - [Workflow Profiles](agent-guidance/workflow-profiles.md): separate Classic and Advanced prompt products over shared runtime contracts.
+- [Do and Playbooks](sp-do.md): repeatable operations, native execution evidence and verified method evolution.
 - [Constitution Profiles](constitution-profiles.md): governance defaults.
 - [Asset Governance](asset-governance.md): passive document/media placement, exact-change checks, optional catalogs and guarded migration.
 - [Cognition Compatibility](project-cognition-compatibility-inventory.md): navigation compatibility; live source remains authoritative.

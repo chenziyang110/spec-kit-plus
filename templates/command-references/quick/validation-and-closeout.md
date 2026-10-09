@@ -6,6 +6,16 @@ Preserved Contract: quick completion requires changed surfaces, verification evi
 
 ## Completion Standard
 
+Before a build, package, or test attempt, optionally retrieve method cards. First
+negotiate `{{specify-subcmd:specify-runtime api ensure --capabilities playbook.find,playbook.show --format json}}`;
+if unavailable, continue Quick's own verification without method reuse. Otherwise use
+`{{specify-subcmd:specify-runtime playbook find --query <operation-goal> --format json}}`.
+Read only a matching pinned `show_argv` and needed `expand_argv`, then check live
+scripts, prerequisites, scope, and outputs. This is read-only advice inside the
+current Quick Work: preserve its complete verification denominator, item ledger,
+and acceptance gates. Do not implicitly invoke DO, create another Work/DoSession,
+or substitute historical method success for fresh evidence.
+
 - Quick completion means a transparent closed loop over the complete confirmed outcome: sweep every affected surface, make the required changes across all planned batches, run meaningful verification at the required depth, and record the resulting coverage truthfully.
 - Completion requires all three:
   - the change itself is implemented in code, docs, config, or templates as needed

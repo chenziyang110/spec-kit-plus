@@ -110,6 +110,7 @@ flowchart LR
 ```
 
 - Use `discussion` before formal specification or direct quick delivery when an idea still needs product or technical shaping.
+- Use `sp-do` / `spx-do` for an explicitly requested build, package, test, or repeatable project operation. It retrieves applicable project methods, checks live prerequisites, executes through native tools, and preserves verified improvements for the next invocation.
 - Use `quick` / `spx-quick` for resumable direct delivery when the requested outcome is already clear enough to implement without first creating a formal specification. Quick is not limited to small tasks: it may handle larger, multi-capability, architecture, migration, compatibility, rollout, or acceptance-heavy work through task-local planning, lanes or batches, consequence tracking, and validation.
 - Use `specify` again when an existing specification needs a focused analysis or repair pass before planning.
 - Use `deep-research` when requirements are clear but feasibility, external evidence, or an implementation chain still needs proof before planning. It binds the exact spec and capability set, leases bounded research tracks, validates source provenance and disposable-spike evidence, records leader accept/reject decisions with one retry, requires an independent audit, and publishes a digest-bound handoff that `plan` must verify. It does not rewrite requirements, choose the final architecture, or implement production code.
@@ -123,10 +124,33 @@ flowchart LR
 | Layer | Canonical workflows |
 | --- | --- |
 | Core workflow skills | `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept` |
-| Support skills | `auto`, `ask`, `discussion`, `deep-research`, `test-design`, `e2e`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `implement-teams`, `prd-scan`, `prd-build`, `map-scan`, `map-build`, `map-update`, `taskstoissues` |
+| Support skills | `auto`, `ask`, `discussion`, `deep-research`, `do`, `test-design`, `e2e`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `implement-teams`, `prd-scan`, `prd-build`, `map-scan`, `map-build`, `map-update`, `taskstoissues` |
 | Codex-only runtime | `sp-teams` for durable managed-team state and `team` for runtime operations inside the generated agent catalog |
 
 The generated `ask` workflow is read-only, evidence-backed project Q&A. `prd-scan -> prd-build` reconstructs current product documentation from an existing repository and is a peer workflow, not an automatic handoff to `plan`.
+
+## Reusable Project Operations
+
+`sp-do` (Classic) and `spx-do` (Advanced) turn repeated project operations into
+verified local methods. Start with a concrete request such as “build the current
+CLI package” or “run the parser regression suite.” DO searches compact method
+cards, expands only relevant steps and checks, and verifies current scripts,
+toolchain, scope, and side effects before native execution. A first use can
+discover and validate a method from the live project.
+
+The Go runtime records an independent **DoSession** and observed evidence. After
+successful verification, a matching session can create or improve an immutable
+playbook revision; unchanged reuse records usage without duplicating the method.
+Untested ideas remain proposals. Execution and knowledge persistence have
+separate states, so a method-save interruption can resume without repeating an
+already successful operation. Retained source or script changes require the
+canonical `sp-do` cognition closeout. DO adds no formal feature stage or Activity.
+
+Methods and sessions are project-local data under `.specify/`; installation and
+profile repair preserve them. They are not automatically committed or shared
+across machines. Both profiles use the same runtime and require explicit
+invocation. See [DO workflow and runtime contract](docs/sp-do.md) for the full
+lifecycle, evidence rules, recovery, and sharing boundary.
 
 ## Scenario-first E2E
 
@@ -661,8 +685,8 @@ After an advanced-profile init, use independent, discoverable SPX skills:
 $spx-accept               $spx-analyze              $spx-ask
 $spx-auto                 $spx-checklist
 $spx-constitution         $spx-debug                $spx-deep-research
-$spx-design               $spx-discussion           $spx-e2e
-$spx-explain
+$spx-design               $spx-discussion           $spx-do
+$spx-e2e                  $spx-explain
 $spx-fast                 $spx-implement            $spx-implement-teams
 $spx-map-build            $spx-map-rebuild          $spx-map-scan
 $spx-map-update           $spx-plan                 $spx-prd-build
@@ -1191,7 +1215,7 @@ Kimi.
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept`
-- Support skills: `auto`, `ask`, `discussion`, `deep-research`, `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `implement-teams`, `prd-scan`, `prd-build`, `map-scan`, `map-build`, `map-update`, `taskstoissues`
+- Support skills: `auto`, `ask`, `discussion`, `deep-research`, `do`, `test-design`, `e2e`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `implement-teams`, `prd-scan`, `prd-build`, `map-scan`, `map-build`, `map-update`, `taskstoissues`
 - Codex-only runtime: terminal `specify sp-teams` operations plus the generated `sp-teams` and `team` catalog entries
 
 Conditional gates and follow-up commands:

@@ -37,6 +37,7 @@ SPX_SKILLS = {
     "spx-deep-research",
     "spx-design",
     "spx-discussion",
+    "spx-do",
     "spx-e2e",
     "spx-explain",
     "spx-fast",

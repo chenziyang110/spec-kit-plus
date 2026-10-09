@@ -35,6 +35,64 @@ type artifactTypePattern struct {
 
 var artifactTypePatterns = []artifactTypePattern{
 	{
+		metadata: ArtifactTypeMetadata{TypeID: "do-definition", Owner: "specify-runtime do resume", Role: "canonical", Schema: "json/do-definition-epoch", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/do/sessions/") && strings.Contains(path, "/definitions/") && strings.HasSuffix(path, ".json")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "do-session", Owner: "specify-runtime do", Role: "canonical", Schema: "json/do-session", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/do/sessions/") && strings.HasSuffix(path, "/session.json")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "do-cognition-closeout", Owner: "specify-runtime cognition mutation-receipt", Role: "canonical", Schema: "json/mutation-cognition-receipt", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/do/sessions/") && strings.HasSuffix(path, "/cognition-closeout.json")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "do-evidence", Owner: "specify-runtime do record", Role: "runtime-internal", Schema: "text/do-evidence", Operations: []string{"show", "list"}, SummaryAdapter: "text-lines"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/do/sessions/") && strings.Contains(path, "/evidence/")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "playbook-current", Owner: "specify-runtime playbook update", Role: "canonical", Schema: "json/playbook", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/playbooks/") && strings.HasSuffix(path, "/playbook.json")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "playbook-guide", Owner: "specify-runtime playbook update", Role: "derived", Schema: "markdown/playbook", Operations: []string{"show", "list"}, SummaryAdapter: "markdown-headings"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/playbooks/") && strings.HasSuffix(path, "/PLAYBOOK.md")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "playbook-index", Owner: "specify-runtime playbook update", Role: "derived", Schema: "json/playbook-index", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match:    func(path string) bool { return path == ".specify/playbooks/index.json" },
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "playbook-revision", Owner: "specify-runtime playbook update", Role: "canonical", Schema: "json/playbook-revision", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/playbooks/") && strings.Contains(path, "/revisions/") && strings.HasSuffix(path, ".json")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "playbook-proposal", Owner: "specify-runtime playbook update", Role: "canonical", Schema: "json/playbook-proposal", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/playbooks/") && strings.Contains(path, "/proposals/") && strings.HasSuffix(path, ".json")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "playbook-usage", Owner: "specify-runtime playbook update", Role: "runtime-internal", Schema: "json/playbook-usage", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/playbooks/") && strings.Contains(path, "/usage/") && strings.HasSuffix(path, ".json")
+		},
+	},
+	{
 		metadata: ArtifactTypeMetadata{TypeID: "e2e-raw-evidence", Owner: "specify-runtime e2e", Role: "runtime-internal", Schema: "binary/e2e-raw-evidence", Operations: []string{"show", "list"}, SummaryAdapter: "binary-digest"},
 		match: func(path string) bool {
 			parts := strings.Split(path, "/")
@@ -715,6 +773,7 @@ func isWorkflowLocalNamedArtifact(path, basename string) bool {
 		".planning/quick/",
 		".specify/design/",
 		".specify/discussions/",
+		".specify/do/sessions/",
 		".specify/features/",
 		".specify/prd-runs/",
 		"specs/",

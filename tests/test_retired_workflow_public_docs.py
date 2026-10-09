@@ -49,8 +49,8 @@ def test_active_public_guidance_no_longer_advertises_retired_workflow_aliases() 
 def test_profile_documentation_uses_post_retirement_catalog_sizes() -> None:
     agents = " ".join((ROOT / "AGENTS.md").read_text(encoding="utf-8").split())
 
-    assert "28 one-to-one Classic command counterparts plus `spx-map-rebuild`" in agents
-    assert "current topology is 29 SPX skills" in agents
+    assert "29 one-to-one Classic command counterparts plus `spx-map-rebuild`" in agents
+    assert "current topology is 30 SPX skills" in agents
 
 
 def test_public_guidance_keeps_canonical_replacements() -> None:

@@ -39,9 +39,14 @@ type closeoutIntent struct {
 	RecordedAt           string                        `json:"recorded_at"`
 	VerificationOverride []update.VerificationEvidence `json:"verification_override,omitempty"`
 	RepairsIntentID      string                        `json:"repairs_intent_id,omitempty"`
+	DoBinding            *DoCognitionBinding           `json:"do_binding,omitempty"`
 }
 
 func ensureCloseoutIntent(paths rt.Paths, workflow string, scope string, reason string, payloadJSON string, deltaSession string, commitRange string, changedPaths []string, expectedDeltaDigest ...string) (closeoutIntent, string, bool, error) {
+	return ensureCloseoutIntentWithDoBinding(paths, workflow, scope, reason, payloadJSON, deltaSession, commitRange, changedPaths, nil, expectedDeltaDigest...)
+}
+
+func ensureCloseoutIntentWithDoBinding(paths rt.Paths, workflow string, scope string, reason string, payloadJSON string, deltaSession string, commitRange string, changedPaths []string, binding *DoCognitionBinding, expectedDeltaDigest ...string) (closeoutIntent, string, bool, error) {
 	deltaDigest, err := closeoutDeltaDigest(paths, deltaSession)
 	if err != nil {
 		return closeoutIntent{}, "", false, err
@@ -49,10 +54,8 @@ func ensureCloseoutIntent(paths rt.Paths, workflow string, scope string, reason 
 	if len(expectedDeltaDigest) > 0 && deltaDigest != expectedDeltaDigest[0] {
 		return closeoutIntent{}, "", false, fmt.Errorf("delta session digest changed after closeout preflight; rerun preflight before creating an intent")
 	}
-	digest := closeoutIntentDigest(workflow, scope, reason, payloadJSON, deltaSession, commitRange, deltaDigest)
 	intent := closeoutIntent{
 		Version:        closeoutIntentVersion,
-		ID:             "intent-" + digest[:24],
 		State:          "pending_update",
 		Workflow:       workflow,
 		Scope:          scope,
@@ -61,10 +64,12 @@ func ensureCloseoutIntent(paths rt.Paths, workflow string, scope string, reason 
 		DeltaSessionID: deltaSession,
 		DeltaDigest:    deltaDigest,
 		CommitRange:    commitRange,
-		InputDigest:    digest,
 		ChangedPaths:   normalizedCloseoutPaths(changedPaths),
 		RecordedAt:     time.Now().UTC().Format(time.RFC3339Nano),
+		DoBinding:      binding,
 	}
+	digest := storedCloseoutIntentDigest(intent)
+	intent.ID, intent.InputDigest = "intent-"+digest[:24], digest
 	path := closeoutIntentPath(paths, intent.ID)
 	if raw, err := os.ReadFile(path); err == nil {
 		var existing closeoutIntent
@@ -203,6 +208,10 @@ func validateCloseoutIntentIdentity(intent closeoutIntent) error {
 
 func storedCloseoutIntentDigest(intent closeoutIntent) string {
 	values := []string{intent.Workflow, intent.Scope, intent.Reason, intent.PayloadJSON, intent.DeltaSessionID, intent.CommitRange, intent.DeltaDigest}
+	if intent.DoBinding != nil {
+		raw, _ := json.Marshal(intent.DoBinding)
+		values = append(values, "do-source-basis", string(raw))
+	}
 	if intent.VerificationOverride != nil || intent.RepairsIntentID != "" {
 		raw, _ := json.Marshal(intent.VerificationOverride)
 		values = append(values, "verification-repair", intent.RepairsIntentID, string(raw))

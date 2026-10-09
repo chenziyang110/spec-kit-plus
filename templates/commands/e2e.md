@@ -362,6 +362,17 @@ explicitly unrequested.
 
 ## 3. Prepare and Verify Execution Readiness
 
+For a build, package, or native test operation within the selected E2E route,
+optionally retrieve method cards. First negotiate
+`{{specify-subcmd:specify-runtime api ensure --capabilities playbook.find,playbook.show --format json}}`;
+if unavailable, continue E2E's own verification without method reuse. Otherwise use
+`{{specify-subcmd:specify-runtime playbook find --query <operation-goal> --format json}}`.
+Expand only matching pinned `show_argv` and needed `expand_argv`, then verify live
+scripts, prerequisites, scope, and outputs. Reuse is read-only advice inside the
+current E2E Work: preserve every scenario/condition ID, the complete verification
+denominator, execution ledger, and visual/acceptance gates. Do not implicitly
+invoke DO, create another Work/DoSession, or replace fresh evidence with method history.
+
 **Inputs:** The accepted stage 1 target matrix and stage 2 book. Select
 `visual`, `runner`, `hybrid` or `human` per scenario from actual capabilities.
 Prepare authorized isolated accounts, services, fixture setup/reset/cleanup,

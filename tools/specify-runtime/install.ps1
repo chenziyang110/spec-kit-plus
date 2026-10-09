@@ -116,6 +116,11 @@ try {
         throw "Downloaded binary failed the specify-runtime API handshake"
     }
 
+    foreach ($capability in @("do.start", "do.record", "do.validate", "do.finish", "do.resume", "do.show", "playbook.find", "playbook.show", "playbook.update", "playbook.validate")) {
+        if ($handshake -notmatch ('"' + [regex]::Escape($capability) + '"')) {
+            throw "Downloaded binary lacks required project operation capability: ${capability}"
+        }
+    }
     try {
         $handshakePayload = $handshake | ConvertFrom-Json
     } catch {

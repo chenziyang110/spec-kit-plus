@@ -52,6 +52,11 @@
       "canonical_workflow": null,
       "reason": "Discussion writes planning state only."
     },
+    "do": {
+      "mode": "mutation_closeout",
+      "canonical_workflow": "sp-do",
+      "reason": "Do may create or improve reusable project scripts and configuration within the authorized operation scope; generated outputs and playbook metadata alone do not constitute source mutation."
+    },
     "e2e": {
       "mode": "mutation_closeout",
       "canonical_workflow": "sp-e2e",

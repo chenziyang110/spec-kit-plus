@@ -3168,7 +3168,7 @@ func deepResearchBindingEnvelope(summary string, binding deepResearchPublishedBi
 		"source_spec_sha256": binding.SourceSpecSHA,
 		"state_revision":     binding.StateRevision,
 		"claim_status":       binding.ClaimStatus,
-		"handoff_ids":        append([]string(nil), binding.HandoffIDs...),
+		"handoff_ids":        append([]string{}, binding.HandoffIDs...),
 		"capability_refs":    append([]string(nil), binding.CapabilityRefs...),
 		"artifact_digests":   binding.ArtifactDigests,
 	}

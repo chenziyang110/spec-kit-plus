@@ -26,7 +26,10 @@ def test_go_regressions_run_for_pull_requests_and_main() -> None:
     assert not job.get("if"), "Native regressions must not depend on release events"
     assert job.get("continue-on-error", "false") == "false"
 
-    for command in ("go test -count=1 ./...", "go vet ./..."):
+    for command in (
+        "go test -count=1 -json ./... | tee go-test-results.jsonl",
+        "go vet ./...",
+    ):
         matching_steps = [
             step
             for step in job["steps"]
@@ -39,8 +42,13 @@ def test_go_regressions_run_for_pull_requests_and_main() -> None:
                 job.get("defaults", {}).get("run", {}).get("working-directory"),
             )
             assert working_directory == "tools/specify-runtime"
-            assert not step.get("if")
+            assert step.get("if") in (None, "", "${{ !cancelled() }}")
             assert step.get("continue-on-error", "false") == "false"
+            if "| tee " in command:
+                shell = step.get(
+                    "shell", job.get("defaults", {}).get("run", {}).get("shell")
+                )
+                assert shell == "bash", "The evidence pipeline must retain pipefail"
 
 
 @pytest.mark.parametrize("job_name", ["go", "pytest"])

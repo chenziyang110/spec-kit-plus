@@ -15,6 +15,8 @@ import os
 import re
 import shutil
 import shlex
+from contextvars import ContextVar
+from functools import wraps
 import subprocess
 import sys
 import time
@@ -190,6 +192,243 @@ def _argv_from_project_config(project_root: Path) -> tuple[str, ...] | None:
 
 def _runtime_argv_from_project_config(project_root: Path) -> tuple[str, ...] | None:
     return _launcher_argv_from_project_config(project_root, "runtime_launcher")
+
+
+_EXPLICIT_WORKFLOW: ContextVar[str | None] = ContextVar("explicit_workflow", default=None)
+_EXPLICIT_DO_SESSION: ContextVar[str | None] = ContextVar("explicit_do_session", default=None)
+_CURRENT_PROMPT_KEYS = ("prompt", "prompt_text", "user_prompt", "userPrompt", "text")
+
+
+def _current_user_prompt(payload: dict[str, Any]) -> str:
+    prompt = ""
+    for key in _CURRENT_PROMPT_KEYS:
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            prompt = value.strip()
+            break
+    if not prompt:
+        request = payload.get("llm_request") or payload.get("llmRequest") or {}
+        messages = request.get("messages", []) if isinstance(request, dict) else []
+        for message in reversed(messages if isinstance(messages, list) else []):
+            if not isinstance(message, dict) or message.get("role") != "user":
+                continue
+            parts = message.get("parts", [])
+            content = message.get("content")
+            if isinstance(content, str):
+                prompt = content.strip()
+            elif isinstance(parts, list):
+                prompt = " ".join(
+                    part["text"]
+                    for part in parts
+                    if isinstance(part, dict) and isinstance(part.get("text"), str)
+                ).strip()
+            break
+    return prompt
+
+
+def _explicit_workflow_command(payload: dict[str, Any]) -> str | None:
+    """Use only an explicit invocation in the current native user payload."""
+    match = re.match(
+        r"^(?:use\s+)?(?:/skill:|[$/])spx?[-.]([a-z][a-z0-9-]*)(?=$|\s)",
+        _current_user_prompt(payload),
+        re.IGNORECASE,
+    )
+    return match.group(1).lower() if match else None
+
+
+def _explicit_do_session(payload: dict[str, Any]) -> str | None:
+    match = re.match(
+        r"^(?:use\s+)?(?:/skill:|[$/])spx?[-.]do\s+resume(?=$|\s)(.*)$",
+        _current_user_prompt(payload), re.IGNORECASE | re.DOTALL,
+    )
+    if not match:
+        return None
+    arguments = match.group(1).split()
+    # An explicitly malformed resume must never adopt another active owner.
+    session_id = arguments[0] if arguments else ""
+    return session_id if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,95}", session_id) else ""
+
+
+def _with_explicit_workflow_context(handler):
+    @wraps(handler)
+    def wrapped(project_root: Path, payload: dict[str, Any]):
+        invocation = payload
+        command = _explicit_workflow_command(invocation)
+        has_current_prompt = any(
+            isinstance(payload.get(key), str) and payload[key].strip()
+            for key in _CURRENT_PROMPT_KEYS
+        )
+        if command is None and not has_current_prompt and not (
+            payload.get("llm_request") or payload.get("llmRequest")
+        ):
+            user_texts = _transcript_user_texts_from_payload(project_root, payload)
+            if user_texts:
+                invocation = {"prompt": user_texts[-1]}
+                command = _explicit_workflow_command(invocation)
+        token = _EXPLICIT_WORKFLOW.set(command)
+        session_token = _EXPLICIT_DO_SESSION.set(_explicit_do_session(invocation))
+        try:
+            return handler(project_root, payload)
+        finally:
+            _EXPLICIT_DO_SESSION.reset(session_token)
+            _EXPLICIT_WORKFLOW.reset(token)
+    return wrapped
+
+
+def _do_runtime_payload(project_root: Path, *args: str) -> dict[str, Any] | None:
+    """Read DO state only through the pinned Go runtime, without shell fallback."""
+    launcher = _runtime_argv_from_project_config(project_root)
+    if not launcher or not args or args[0] not in {"show", "validate"}:
+        return None
+    capability = f"do.{args[0]}"
+    deadline = time.monotonic() + SHARED_HOOK_TIMEOUT_SECONDS
+    try:
+        ensured = subprocess.run(
+            [*launcher, "api", "ensure", "--capabilities", capability, "--format", "json"],
+            cwd=project_root, text=True, encoding="utf-8", errors="replace",
+            capture_output=True, check=False, timeout=SHARED_HOOK_TIMEOUT_SECONDS,
+        )
+        discovery = json.loads(ensured.stdout or "")
+        data = discovery.get("data") if isinstance(discovery, dict) else None
+        if not (
+            ensured.returncode == 0 and isinstance(discovery, dict)
+            and discovery.get("status") == "ok" and isinstance(data, dict)
+            and data.get("requested") == [capability]
+            and data.get("present") == [capability] and data.get("missing") == []
+        ):
+            return None
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None
+        result = subprocess.run(
+            [*launcher, "do", *args, "--format", "json"],
+            cwd=project_root,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+            timeout=min(SHARED_HOOK_TIMEOUT_SECONDS, remaining),
+        )
+        if result.returncode not in {0, 10}:
+            return None
+        payload = json.loads(result.stdout or "")
+    except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _active_do_context(project_root: Path) -> dict[str, str] | None:
+    selected_id = _EXPLICIT_DO_SESSION.get()
+    if selected_id is not None:
+        unavailable = {"command_name": "do", "unavailable": "true"}
+        if not selected_id:
+            return {**unavailable, "invalid_resume": "true"}
+        unavailable["session_id"] = selected_id
+        payload = _do_runtime_payload(project_root, "show", selected_id)
+        data = payload.get("data") if payload else None
+        if not payload or payload.get("status") != "ok" or not _do_selected_session_matches(data):
+            return unavailable
+        # Keep an explicitly selected terminal session bound through its stop gate.
+        return {"command_name": "do", "session_id": selected_id}
+    if not (project_root / ".specify" / "do").is_dir():
+        return None
+    payload = _do_runtime_payload(project_root, "show", "--active", "--adapter-id", "claude")
+    data = payload.get("data", {}) if payload else {}
+    if not isinstance(data, dict):
+        return {"command_name": "do", "unavailable": "true"}
+    if data.get("ambiguous") is True:
+        return {"command_name": "do", "ambiguous": "true"}
+    if not payload or payload.get("status") != "ok":
+        return {"command_name": "do", "unavailable": "true"}
+    if data.get("active") is False:
+        return None
+    if data.get("active") is not True:
+        return {"command_name": "do", "unavailable": "true"}
+    session = data.get("session", {})
+    session_id = data.get("session_id") or (
+        session.get("id") if isinstance(session, dict) else None
+    )
+    if not isinstance(session_id, str) or not session_id.strip():
+        return {"command_name": "do", "unavailable": "true"}
+    return {"command_name": "do", "session_id": session_id}
+
+
+def _do_selected_session_matches(data: Any) -> bool:
+    selected_id = _EXPLICIT_DO_SESSION.get()
+    if selected_id is None:
+        return True
+    session = data.get("session") if isinstance(data, dict) else None
+    return (
+        bool(selected_id) and isinstance(session, dict) and session.get("id") == selected_id
+        and ("session_id" not in data or data["session_id"] == selected_id)
+    )
+
+
+def _do_resume_context(context: dict[str, str]) -> str:
+    if context.get("invalid_resume") == "true":
+        return "An explicit Do resume requires a valid exact session ID; use `/sp-do resume <id>` and do not select another active session."
+    if context.get("ambiguous") == "true":
+        return "Multiple active DoSessions require an explicit session ID; do not select the latest session or enter a different workflow."
+    if context.get("unavailable") == "true":
+        lookup = f"do show {context['session_id']}" if context.get("session_id") else "do show --active --adapter-id claude"
+        return (
+            "DoSession ownership could not be read from the pinned runtime. "
+            f"Restore that runtime and use it for `{lookup}`; "
+            "do not treat the failed lookup as no active session or claim completion."
+        )
+    session_id = context["session_id"]
+    return (
+        f"Selected DoSession {session_id}. Use the project-pinned runtime for `do show {session_id}` "
+        f"and resume its returned action through `do resume {session_id}`. "
+        "Preserve observed attempts; do not replay an uncertain external effect. "
+        "Completion requires fresh `do validate` and a terminal execution/knowledge receipt."
+    )
+
+
+def _do_stop_validation(project_root: Path, context: dict[str, str]) -> dict[str, Any]:
+    if context.get("ambiguous") == "true" or context.get("unavailable") == "true":
+        return {"status": "blocked", "errors": [_do_resume_context(context)]}
+    session_id = context["session_id"]
+    shown = _do_runtime_payload(project_root, "show", session_id)
+    shown_data = shown.get("data", {}) if shown else {}
+    if not shown or shown.get("status") != "ok" or not isinstance(shown_data, dict) or not _do_selected_session_matches(shown_data):
+        return {
+            "status": "blocked",
+            "errors": [f"DoSession {session_id} could not be read; restore the pinned runtime before stopping."],
+            "actions": [_do_resume_context(context)],
+        }
+    session = shown_data.get("session", {})
+    blocker = session.get("blocker") if isinstance(session, dict) else None
+    if (
+        shown_data.get("can_stop") is True
+        and shown_data.get("terminal") is False
+        and isinstance(blocker, dict)
+        and blocker.get("owner") in {"human", "external"}
+    ):
+        # A runtime-accepted external blocker permits an honest blocked exit.
+        # It is not a passed validation or a terminal operation receipt.
+        return {"status": "ok", "data": shown_data}
+    payload = _do_runtime_payload(project_root, "validate", session_id)
+    data = payload.get("data", {}) if payload else {}
+    validation = data.get("validation", {}) if isinstance(data, dict) else {}
+    if (
+        payload
+        and payload.get("status") == "ok"
+        and isinstance(validation, dict)
+        and _do_selected_session_matches(data)
+        and validation.get("status") == "passed"
+        and data.get("terminal") is True
+    ):
+        return {"status": "ok", "data": data}
+    return {
+        "status": "blocked",
+        "errors": [
+            f"DoSession {session_id} has no fresh terminal execution and knowledge receipt. "
+            "Inspect do show/validate and complete only its pending recovery or closeout action."
+        ],
+        "actions": [_do_resume_context(context)],
+    }
 
 
 def _runtime_owned_hook(args: list[str]) -> bool:
@@ -827,6 +1066,19 @@ def _feature_root_candidates(project_root: Path) -> list[Path]:
 
 
 def _infer_active_context(project_root: Path) -> dict[str, str] | None:
+    # DO has no feature state: its only owner is the adapter-filtered runtime lookup.
+    explicit = _EXPLICIT_WORKFLOW.get()
+    if explicit is not None:
+        if explicit == "do":
+            return _active_do_context(project_root)
+        return _infer_legacy_active_context(project_root, command_name=explicit)
+    do_context = _active_do_context(project_root)
+    if do_context:
+        return do_context
+    return _infer_legacy_active_context(project_root)
+
+
+def _infer_legacy_active_context(project_root: Path, command_name: str | None = None) -> dict[str, str] | None:
     cognition_map_state = (
         project_root / ".specify" / "project-cognition" / "workbench" / "map-state.md"
     )
@@ -841,7 +1093,7 @@ def _infer_active_context(project_root: Path) -> dict[str, str] | None:
             or _extract_field(cognition_text, "status")
         ).lower()
         mapped = WORKFLOW_COMMAND_MAP.get(active_command)
-        if mapped and _is_active_state_status(status):
+        if mapped and _is_active_state_status(status) and command_name in {None, mapped}:
             return {
                 "command_name": mapped,
                 "feature_dir": str(project_root / ".specify" / "project-cognition"),
@@ -869,7 +1121,7 @@ def _infer_active_context(project_root: Path) -> dict[str, str] | None:
                     },
                 )
             )
-    if implement_candidates:
+    if implement_candidates and command_name in {None, "implement"}:
         return max(implement_candidates, key=lambda item: item[0])[1]
 
     quick_candidates: list[tuple[float, dict[str, str]]] = []
@@ -890,7 +1142,7 @@ def _infer_active_context(project_root: Path) -> dict[str, str] | None:
                 },
             )
         )
-    if quick_candidates:
+    if quick_candidates and command_name in {None, "quick"}:
         return max(quick_candidates, key=lambda item: item[0])[1]
 
     workflow_candidates: list[tuple[float, dict[str, str]]] = []
@@ -904,7 +1156,7 @@ def _infer_active_context(project_root: Path) -> dict[str, str] | None:
             active_command = _extract_field(text, "active_command").lower()
             status = _extract_field(text, "status").lower()
             mapped = WORKFLOW_COMMAND_MAP.get(active_command)
-            if not mapped or (status and not _is_active_state_status(status)):
+            if not mapped or command_name not in {None, mapped} or (status and not _is_active_state_status(status)):
                 continue
             workflow_candidates.append(
                 (
@@ -1194,19 +1446,19 @@ def _map_command_from_text(text: str) -> str:
     return max(matches, key=lambda item: item[0])[1]
 
 
-def _map_context_from_transcript(
+def _transcript_user_texts_from_payload(
     project_root: Path, payload: dict[str, Any]
-) -> dict[str, str] | None:
+) -> list[str]:
     transcript_raw = _extract_transcript_path(payload)
     if not transcript_raw:
-        return None
+        return []
     transcript_path = Path(transcript_raw)
     if not transcript_path.is_absolute():
         transcript_path = project_root / transcript_path
     try:
         transcript_path = transcript_path.resolve()
     except OSError:
-        return None
+        return []
 
     allowed_roots = [project_root.resolve()]
     claude_config = str(os.environ.get("CLAUDE_CONFIG_DIR") or "").strip()
@@ -1218,9 +1470,15 @@ def _map_context_from_transcript(
         _path_is_relative_to(transcript_path, allowed_root)
         for allowed_root in allowed_roots
     ):
-        return None
+        return []
 
-    user_texts = _iter_transcript_user_texts(transcript_path)
+    return _iter_transcript_user_texts(transcript_path)
+
+
+def _map_context_from_transcript(
+    project_root: Path, payload: dict[str, Any]
+) -> dict[str, str] | None:
+    user_texts = _transcript_user_texts_from_payload(project_root, payload)
     if not user_texts:
         return None
     mapped = _map_command_from_text(user_texts[-1])
@@ -1343,7 +1601,7 @@ def _workflow_policy_output(
     trigger: str,
     requested_action: str = "",
 ) -> dict[str, Any] | None:
-    if not context:
+    if not context or context.get("command_name") == "do":
         return None
     args = ["workflow-policy", *_active_context_args(context), "--trigger", trigger]
     if requested_action:
@@ -1361,7 +1619,7 @@ def _workflow_policy_shared(
     trigger: str,
     requested_action: str = "",
 ) -> dict[str, Any] | None:
-    if not context:
+    if not context or context.get("command_name") == "do":
         return None
     args = ["workflow-policy", *_active_context_args(context), "--trigger", trigger]
     if requested_action:
@@ -1380,6 +1638,8 @@ def _compaction_resume_context(
 ) -> str:
     if not context:
         return ""
+    if context.get("command_name") == "do":
+        return _do_resume_context(context)
     shared = None
     artifact: dict[str, Any] | Any = {}
 
@@ -1419,6 +1679,7 @@ def _stop_system_message(message: str) -> dict[str, Any] | None:
     return {"systemMessage": message}
 
 
+@_with_explicit_workflow_context
 def _handle_user_prompt_submit(
     project_root: Path, payload: dict[str, Any]
 ) -> dict[str, Any] | None:
@@ -1447,6 +1708,7 @@ def _handle_user_prompt_submit(
     return None
 
 
+@_with_explicit_workflow_context
 def _handle_pre_tool_read(
     project_root: Path, payload: dict[str, Any]
 ) -> dict[str, Any] | None:
@@ -1486,6 +1748,7 @@ def _handle_pre_tool_read(
     return output or policy_output
 
 
+@_with_explicit_workflow_context
 def _handle_pre_tool_write(
     project_root: Path, payload: dict[str, Any], *, owner_paths: set[str] | None = None
 ) -> dict[str, Any] | None:
@@ -1520,6 +1783,7 @@ def _handle_pre_tool_write(
     return None
 
 
+@_with_explicit_workflow_context
 def _handle_pre_tool_bash(
     project_root: Path, payload: dict[str, Any]
 ) -> dict[str, Any] | None:
@@ -1591,11 +1855,21 @@ def _handle_pre_tool_bash(
     return output or policy_output
 
 
+@_with_explicit_workflow_context
 def _handle_session_start(
     project_root: Path, _payload: dict[str, Any]
 ) -> dict[str, Any] | None:
     shadow_advisory = _claude_personal_skill_shadow_advisory(project_root)
     context = _infer_active_context(project_root)
+    if context and context.get("command_name") == "do":
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": " ".join(
+                    part for part in [shadow_advisory, _do_resume_context(context)] if part
+                ),
+            }
+        }
     if not context:
         if not shadow_advisory:
             return None
@@ -1646,11 +1920,12 @@ def _handle_session_start(
     }
 
 
+@_with_explicit_workflow_context
 def _handle_post_tool_session_state(
     project_root: Path, _payload: dict[str, Any]
 ) -> dict[str, Any] | None:
     context = _infer_active_context(project_root)
-    if not context:
+    if not context or context.get("command_name") == "do":
         return None
     advisory_parts: list[str] = []
     if context["command_name"] not in {"implement", "quick", "debug"}:
@@ -1710,12 +1985,23 @@ def _handle_post_tool_session_state(
     return None
 
 
+@_with_explicit_workflow_context
 def _handle_stop_monitor(
     project_root: Path, payload: dict[str, Any]
 ) -> dict[str, Any] | None:
-    context = _map_context_from_transcript(
-        project_root, payload
-    ) or _infer_active_context(project_root)
+    context = None
+    # Retain the existing explicit map transcript route even without map state.
+    if (
+        _extract_transcript_path(payload)
+        and _EXPLICIT_WORKFLOW.get() in {None, "map-build", "map-scan"}
+        and not any(payload.get(key) for key in _CURRENT_PROMPT_KEYS)
+    ):
+        context = _map_context_from_transcript(project_root, payload)
+    context = context or _infer_active_context(project_root)
+    if context and context.get("command_name") == "do":
+        return _shared_to_claude_output(
+            hook_event_name="Stop", shared_payload=_do_stop_validation(project_root, context)
+        )
     if not context:
         return None
 

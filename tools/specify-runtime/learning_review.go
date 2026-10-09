@@ -36,7 +36,7 @@ func (service learningService) review(commandName, decision, rationale, recurren
 	if strings.TrimSpace(recurrenceKey) != "" {
 		key = sanitizeLearningRecurrenceKeyWithPolicy(recurrenceKey, policy).text
 	}
-	return service.withLock(func(paths learningPaths) (map[string]any, error) {
+	return service.withLock(func(service learningService, paths learningPaths) (map[string]any, error) {
 		items, _, err := service.readLearningReviewItems(paths, policy)
 		if err != nil {
 			return nil, err

@@ -180,6 +180,16 @@ unopened logical gates, not retry permission. Never stop or blindly retry from
 the raw count alone; zero still permits an attempt when
 `attempt_decision.can_start_attempt` is true.
 
+Before a build/package/test attempt, the Leader may optionally retrieve methods.
+First negotiate `{{specify-subcmd:specify-runtime api ensure --capabilities playbook.find,playbook.show --format json}}`;
+if unavailable, continue Implement's own verification without method reuse. Otherwise run
+`{{specify-subcmd:specify-runtime playbook find --query <operation-goal> --format json}}`.
+Expand only matching pinned `show_argv` and needed `expand_argv`, then verify live
+scripts, prerequisites, scope, and outputs. Method reuse is read-only advice
+within the current Implement Work, complete verification denominator, validation
+ledger, and acceptance gates. Do not implicitly invoke DO, create another
+Work/DoSession, or substitute method history for fresh evidence.
+
 Run the relevant verification as attempts inside one convergence gate for the
 integrated change-set, not once per task. On interruption, repair the runner and
 retry the same fingerprint; on a real failure, repair the implementation and

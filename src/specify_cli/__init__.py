@@ -6643,6 +6643,7 @@ def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
 DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
+    "do": "Use when an explicitly requested build, package, test, or repeatable project operation should reuse verified project methods and preserve a resumable execution receipt.",
     "design": "Use when product or UI visual direction needs a prompt-routed create, refine, or audit of one bounded UI design change; local UI inherits existing style, design-first adoption flows through Specify, post-Specify adoption returns directly to Plan when requirements stay unchanged, and direct delivery flows through Quick.",
     "discussion": "Use when a rough idea or requirement needs a resumable senior product-engineering discussion before direct Quick delivery or formal specification.",
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
@@ -7677,6 +7678,7 @@ def init(
                 "create, refine, or audit one prompt-routed design system; design-first formal adoption through spx-specify, post-Specify return to spx-plan without a second Specify, direct delivery through spx-quick",
             ),
             ("discussion", "resumable product and technical discussion"),
+            ("do", "execute project operations and improve verified reusable methods"),
             ("e2e", "scenario-first E2E with explicit coverage and gap accounting"),
             ("explain", "plain-language workflow artifact explanation"),
             ("fast", "trivial leader-direct changes with lightweight review"),
@@ -7748,6 +7750,9 @@ def init(
     )
     steps_lines.append("   ")
     steps_lines.append("   Support skills")
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('do')}[/] - Execute a build, package, test, or repeatable project operation using verified project methods and a resumable DoSession"
+    )
     steps_lines.append(
         f"   - [cyan]{_display_cmd('map-scan')}[/] - Inventory the project tree, classify file value, and produce the high-value graph-native evidence baseline for brownfield cognition"
     )

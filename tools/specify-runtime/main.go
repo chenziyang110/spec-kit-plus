@@ -71,6 +71,10 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, cl
 		return runCognition(args[1:], stdout, stderr, cliVersion)
 	case "discussion":
 		return runDiscussion(args[1:], stdout)
+	case "do":
+		return runDo(args[1:], stdout)
+	case "playbook":
+		return runPlaybook(args[1:], stdout)
 	case "design":
 		return runDesign(args[1:], stdout)
 	case "test-design":
@@ -121,6 +125,7 @@ func writeHelp(stdout io.Writer) int {
 		"board",
 		"cognition",
 		"discussion",
+		"do",
 		"design",
 		"deep-research",
 		"e2e",
@@ -135,6 +140,7 @@ func writeHelp(stdout io.Writer) int {
 		"accept",
 		"sp-teams",
 		"learning",
+		"playbook",
 		"prd-build",
 		"prd-scan",
 		"quick",
@@ -1336,6 +1342,16 @@ func defaultCapabilities() []string {
 		"discussion.validate-handoff",
 		"discussion.write-handoff",
 		"doctor.check",
+		"do.start",
+		"do.record",
+		"do.validate",
+		"do.finish",
+		"do.resume",
+		"do.show",
+		"playbook.find",
+		"playbook.show",
+		"playbook.update",
+		"playbook.validate",
 		"evidence.allocate",
 		"evidence.import",
 		"evidence.register",
@@ -1485,6 +1501,26 @@ func capabilitySummary(id string) string {
 		return descriptor["summary"].(string)
 	}
 	switch id {
+	case "do.start":
+		return "Freeze a project operation, required checks, method revision, source fingerprints, and Work ownership."
+	case "do.record":
+		return "Checkpoint native-tool starts and observed outcomes without executing the operation inside the runtime."
+	case "do.validate":
+		return "Verify required operation evidence, source bindings, current outputs, and mutation closeout."
+	case "do.finish":
+		return "Close execution and knowledge persistence separately with revision checks."
+	case "do.resume":
+		return "Recover or explicitly replan a failed operation while preserving definition epochs, attempts, and scoped ownership."
+	case "do.show":
+		return "Read one operation session or resolve an unambiguous active Work binding."
+	case "playbook.find":
+		return "Find bounded project method cards using applicability filters and aliases."
+	case "playbook.show":
+		return "Expand selected method sections with current source drift information."
+	case "playbook.update":
+		return "Publish an execution-verified method revision or retain an unverified proposal."
+	case "playbook.validate":
+		return "Validate method structure, current applicability, and source fingerprints."
 	case quickShadowCapability:
 		return quickShadowSummary
 	case "api.handshake":
