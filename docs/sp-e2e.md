@@ -76,6 +76,14 @@ work can continue in isolated namespaces. If B later disproves A's basis,
 reopen A and invalidate affected descendant acceptance, then revalidate from
 that point.
 
+Stage 5 records the diagnosis and intended repair before changing pinned test
+assets. The leader calls `e2e reopen` for the earliest owning producer before
+any bound bytes change, then dispatches the correction through that producer's
+new `task-start` packet and write scope. Stage 5 cannot take competing ownership
+of an upstream output or edit it through its current packet. Independently
+reaccept the corrected producer and affected readiness, obtain fresh stage 4
+execution, then regenerate the stage 5 repair disposition.
+
 Accepting a complete failed-run report means its evidence is usable for repair
 and diagnosis; it does not mean the product passed. Audit/reporting may read
 blocked or rejected records to explain partial results without unlocking their

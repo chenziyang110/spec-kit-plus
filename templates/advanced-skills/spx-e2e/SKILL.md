@@ -371,8 +371,13 @@ failure requires stronger causal evidence and revised, bounded recovery with an
 explicit next check and stopping condition, not another blind retry. Escalate
 only at the genuine external boundaries described above.
 
-Repair triggers the shared invalidation rule: return to the earliest affected
-stage, review new outputs and rebuild readiness before a fresh Stage 4 run.
+Before changing pinned test assets, record the diagnosis and intended repair.
+The leader calls `e2e reopen` for the earliest owning producer before any bound
+bytes change. Dispatch the correction through that producer's new `task-start`
+packet and returned write scope; Stage 5 cannot gain competing ownership of an
+upstream output or edit it through its current packet. Independently reaccept
+the corrected producer and affected readiness, obtain fresh Stage 4 execution,
+then regenerate the Stage 5 repair disposition.
 Source/test/config/fixture-definition changes require fresh bound evidence;
 a changed book requires an entirely fresh trace for that book. Preserve failed
 attempts and retries rather than overwriting them. Continue repairs and safe

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -290,6 +291,121 @@ func TestE2EIndependentTasksAndExclusiveResourceGates(t *testing.T) {
 	}
 }
 
+func TestE2EPathCaseMatchesPlatformOwnership(t *testing.T) {
+	alias := ".Planning/E2E/run-1/state.json"
+	caseInsensitive := runtime.GOOS == "windows" || runtime.GOOS == "darwin"
+	if e2eRuntimeOwnedPath(alias) != caseInsensitive {
+		t.Fatalf("case alias ownership does not match platform semantics: %s", alias)
+	}
+	for _, ref := range []string{alias, ".GIT/config"} {
+		if (e2eAssetRef(ref) != nil) != caseInsensitive {
+			t.Fatalf("case alias asset exclusion does not match platform semantics: %s", ref)
+		}
+	}
+	if e2ePathsOverlap([]string{"tests/e2e/Stage.md"}, []string{"tests/e2e/stage.md"}) != caseInsensitive {
+		t.Fatal("case-only file overlap does not match platform semantics")
+	}
+	if e2ePathsOverlap([]string{"tests/E2E"}, []string{"tests/e2e/stage.md"}) != caseInsensitive {
+		t.Fatal("case-only directory overlap does not match platform semantics")
+	}
+}
+
+func TestE2ECaseAliasActiveOutputsConflict(t *testing.T) {
+	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+		t.Skip("case-insensitive ownership guard applies to Windows and Darwin")
+	}
+	root := t.TempDir()
+	e2eTestFile(t, root, "request.md", "Save request")
+	plan := e2eTestPlan("execution")
+	tasks := plan["tasks"].([]any)
+	first := tasks[0].(map[string]any)
+	plan["tasks"] = append(tasks, map[string]any{"id": "S1-alias", "stage": 1, "scope_ids": first["scope_ids"], "inputs": first["inputs"], "outputs": []any{"tests/E2E/S1.md"}, "acceptance": first["acceptance"]})
+	e2eTestData(t, root, "init", "--run-id", "run-1", "--leader-id", "leader", "--input-json", e2eTestJSON(t, plan))
+	e2eTestMutation(t, root, "task-start", "--task-id", "S1", "--worker-id", "worker-S1")
+	statePath := filepath.Join(root, ".planning", "e2e", "run-1", "state.json")
+	before, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, result := e2eTestCall(t, root, "task-start", "--run-id", "run-1", "--task-id", "S1-alias", "--worker-id", "other-worker", "--expected-revision", e2eTestRevision(t, root))
+	if code == 0 || !strings.Contains(e2eTestJSON(t, result), "overlapping") {
+		t.Fatalf("case-only active output alias was admitted: %v", result)
+	}
+	after, err := os.ReadFile(statePath)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("blocked case-only alias changed workflow state: %v", err)
+	}
+}
+
+func TestE2ECaseAliasCannotOwnProtectedOrFrozenInputs(t *testing.T) {
+	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+		t.Skip("case-insensitive ownership guard applies to Windows and Darwin")
+	}
+	for _, output := range []string{".Planning/E2E/run-1/state.json", ".GIT/config", "Request.md"} {
+		t.Run(output, func(t *testing.T) {
+			root := t.TempDir()
+			plan := e2eTestPlan("execution")
+			plan["tasks"].([]any)[0].(map[string]any)["outputs"] = []any{output}
+			code, result := e2eTestCall(t, root, "init", "--run-id", "run-1", "--leader-id", "leader", "--input-json", e2eTestJSON(t, plan))
+			if code == 0 {
+				t.Fatalf("case alias admitted protected output or frozen input: %v", result)
+			}
+			if _, err := os.Stat(filepath.Join(root, ".planning", "e2e", "run-1", "state.json")); !os.IsNotExist(err) {
+				t.Fatalf("invalid case alias plan wrote state: %v", err)
+			}
+		})
+	}
+}
+
+func TestE2ECaseAliasRequiresProducerDependency(t *testing.T) {
+	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+		t.Skip("case-insensitive ownership guard applies to Windows and Darwin")
+	}
+	root := t.TempDir()
+	e2eTestFile(t, root, "request.md", "Save request")
+	e2eTestFile(t, root, "tests/e2e/s1.md", "Stale producer output")
+	plan := e2eTestPlan("execution")
+	tasks := plan["tasks"].([]any)
+	first := tasks[0].(map[string]any)
+	consumer := map[string]any{"id": "S1-consumer", "stage": 1, "scope_ids": first["scope_ids"], "inputs": []any{"tests/E2E/S1.md"}, "outputs": []any{"tests/e2e/consumer.md"}, "acceptance": first["acceptance"]}
+	plan["tasks"] = append(tasks, consumer)
+	code, result := e2eTestCall(t, root, "init", "--run-id", "run-1", "--leader-id", "leader", "--input-json", e2eTestJSON(t, plan))
+	if code == 0 || !strings.Contains(e2eTestJSON(t, result), "producer dependency") {
+		t.Fatalf("case-only producer alias bypassed dependency declaration: %v", result)
+	}
+	consumer["depends_on"] = []any{map[string]any{"task_id": "S1", "require": "passed"}}
+	e2eTestData(t, root, "init", "--run-id", "run-1", "--leader-id", "leader", "--input-json", e2eTestJSON(t, plan))
+	code, result = e2eTestCall(t, root, "task-start", "--run-id", "run-1", "--task-id", "S1-consumer", "--worker-id", "consumer", "--expected-revision", e2eTestRevision(t, root))
+	if code == 0 {
+		t.Fatalf("unaccepted producer case alias consumed stale bytes: %v", result)
+	}
+}
+
+func TestE2EWindowsNoncanonicalFileAliasesAreRejected(t *testing.T) {
+	refs := []string{"request.md::$DATA", "request.md:log", "request.md.", "tests /e2e/report.md", ".planning./e2e/run-1/state.json", ".git./config"}
+	for _, ref := range refs {
+		t.Run(ref, func(t *testing.T) {
+			if runtime.GOOS != "windows" {
+				if err := e2eAssetRef(ref); err != nil {
+					t.Fatalf("POSIX filename was rejected as a Windows alias: %v", err)
+				}
+				return
+			}
+			root := t.TempDir()
+			e2eTestFile(t, root, "request.md", "Frozen original input")
+			plan := e2eTestPlan("execution")
+			plan["tasks"].([]any)[0].(map[string]any)["outputs"] = []any{ref}
+			code, result := e2eTestCall(t, root, "init", "--run-id", "run-1", "--leader-id", "leader", "--input-json", e2eTestJSON(t, plan))
+			if code == 0 {
+				t.Fatalf("noncanonical Windows file alias was admitted: %s: %v", ref, result["status"])
+			}
+			if _, err := os.Stat(filepath.Join(root, ".planning", "e2e", "run-1", "state.json")); !os.IsNotExist(err) {
+				t.Fatalf("invalid Windows alias plan wrote state: %v", err)
+			}
+		})
+	}
+}
+
 func TestE2EFailureReportCannotUnlockExecutionOrFullPass(t *testing.T) {
 	root := e2eTestInit(t, "execution")
 	for _, id := range []string{"S1", "S2"} {
@@ -359,7 +475,19 @@ func e2eTestNextArgv(t *testing.T, envelope map[string]any) []string {
 	for i, value := range raw {
 		argv[i] = value.(string)
 	}
-	if argv[0] != "specify-runtime" || argv[1] != "e2e" {
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	executable, err = filepath.Abs(executable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if argv[0] != projectLocalRuntimeInvocation(cwd, executable) || argv[1] != "e2e" {
 		t.Fatalf("continuation escaped the E2E owner: %v", argv)
 	}
 	return argv

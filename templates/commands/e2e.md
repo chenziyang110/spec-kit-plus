@@ -479,6 +479,14 @@ harness/fixture error, unavailable capability and unknown oracle separately.
 Use a falsifiable explanation and original reproduction; do not retry
 speculative patches or change expectations until the suite turns green.
 
+Before changing pinned test assets, record the diagnosis and intended repair.
+The leader calls `e2e reopen` for the earliest owning producer **before** any
+bound bytes change. Dispatch the correction through that producer's new
+`task-start` packet and its returned write scope; never give stage 5 competing
+ownership of an upstream output or edit it through the current stage 5 packet.
+Independently reaccept the corrected producer and affected readiness, obtain
+fresh stage 4 execution, then regenerate the stage 5 repair disposition.
+
 Repair only owned tests, fixtures, adapters and harness configuration within
 authorization. Product-source or business-rule defects retain their reproduction
 and return to the owning workflow/person; do not implicitly invoke Quick/Debug

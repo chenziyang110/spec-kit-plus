@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -109,9 +110,15 @@ func TestE2EOwnerCannotBeBypassedWithAnotherResultCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	withCwd(t, root)
-	code, result := e2ePublicCall(t, "result", "submit", "--command", "quick", "--workspace", ".planning/e2e", "--lane-id", "state", "--result-json", `{"task_id":"fixture","status":"success","summary":"A result must not replace another workflow's state."}`, "--format", "json")
-	if code == 0 || !strings.Contains(e2eTestJSON(t, result), "E2E state") {
-		t.Fatalf("another result channel bypassed E2E ownership: %v", result)
+	workspaces := []string{".planning/e2e"}
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		workspaces = append(workspaces, ".Planning/E2E")
+	}
+	for _, workspace := range workspaces {
+		code, result := e2ePublicCall(t, "result", "submit", "--command", "quick", "--workspace", workspace, "--lane-id", "state", "--result-json", `{"task_id":"fixture","status":"success","summary":"A result must not replace another workflow's state."}`, "--format", "json")
+		if code == 0 || !strings.Contains(e2eTestJSON(t, result), "E2E state") {
+			t.Fatalf("another result channel bypassed E2E ownership through %s: %v", workspace, result)
+		}
 	}
 	after, err := os.ReadFile(statePath)
 	if err != nil || !bytes.Equal(before, after) {

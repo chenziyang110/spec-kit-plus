@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -2093,7 +2094,9 @@ func e2eRefIn(values []e2eRef, value e2eRef) bool {
 }
 func e2ePathsOverlap(a, b []string) bool {
 	for _, left := range a {
+		left = e2eFilePathKey(left)
 		for _, right := range b {
+			right = e2eFilePathKey(right)
 			if left == right || strings.HasPrefix(left, right+"/") || strings.HasPrefix(right, left+"/") {
 				return true
 			}
@@ -2102,7 +2105,17 @@ func e2ePathsOverlap(a, b []string) bool {
 	return false
 }
 func e2eAssetRef(ref string) error {
-	if ref == "" || filepath.IsAbs(ref) || strings.Contains(ref, "\\") || filepath.ToSlash(filepath.Clean(filepath.FromSlash(ref))) != ref || ref == "." || ref == ".." || strings.HasPrefix(ref, "../") || ref == ".git" || strings.HasPrefix(ref, ".git/") || e2eRuntimeOwnedPath(ref) {
+	if runtime.GOOS == "windows" {
+		// Ordinary project-file references cannot name NTFS streams or Win32
+		// aliases that trim trailing dots/spaces from a path component.
+		for _, component := range strings.Split(ref, "/") {
+			if strings.Contains(component, ":") || strings.HasSuffix(component, ".") || strings.HasSuffix(component, " ") {
+				return fmt.Errorf("asset reference must be a canonical Windows project file: %s", ref)
+			}
+		}
+	}
+	key := e2eFilePathKey(ref)
+	if ref == "" || filepath.IsAbs(ref) || strings.Contains(ref, "\\") || filepath.ToSlash(filepath.Clean(filepath.FromSlash(ref))) != ref || ref == "." || ref == ".." || strings.HasPrefix(ref, "../") || key == ".git" || strings.HasPrefix(key, ".git/") || e2eRuntimeOwnedPath(ref) {
 		return fmt.Errorf("asset reference must be a canonical project-contained file outside runtime state: %s", ref)
 	}
 	return nil

@@ -27,6 +27,20 @@ def test_each_of_seven_stages_declares_its_consumption_contract(path):
 
 
 @pytest.mark.parametrize("path", [CLASSIC, ADVANCED])
+def test_upstream_test_repairs_reopen_the_owner_before_mutation(path):
+    source = path.read_text(encoding="utf-8")
+    stage = re.search(r"^## 5\..*?(?=^## 6\.)", source, re.MULTILINE | re.DOTALL).group()
+    normalized = " ".join(stage.lower().replace("**", "").split())
+    reopen = normalized.index("e2e reopen")
+    assert reopen < normalized.index("before any bound bytes change")
+    assert reopen < normalized.index("producer's new `task-start` packet")
+    assert normalized.index("independently reaccept") < normalized.index("obtain fresh stage 4 execution")
+    assert normalized.index("obtain fresh stage 4 execution") < normalized.index("then regenerate")
+    assert "competing ownership of an upstream output" in normalized
+    assert "current" in normalized and "packet" in normalized
+
+
+@pytest.mark.parametrize("path", [CLASSIC, ADVANCED])
 def test_workflows_preserve_coverage_and_execution_boundaries(path):
     source = path.read_text(encoding="utf-8").lower()
     for required in (

@@ -2,6 +2,7 @@ package main
 
 import (
 	"path"
+	"runtime"
 	"strings"
 )
 
@@ -29,7 +30,18 @@ func e2eCapabilityIDs() []string {
 // immutable handoff snapshots have one mutation owner, including future files.
 func e2eRuntimeOwnedPath(value string) bool {
 	value = path.Clean(strings.ReplaceAll(strings.TrimSpace(value), "\\", "/"))
+	value = e2eFilePathKey(value)
 	return value == ".planning/e2e" || strings.HasPrefix(value, ".planning/e2e/")
+}
+
+// Windows and default macOS volumes identify case-only spellings as the same
+// file. Compare conservatively on Darwin, including its optional case-sensitive
+// volumes; retain case-distinct paths elsewhere and original binding spellings.
+func e2eFilePathKey(value string) string {
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		return strings.ToLower(value)
+	}
+	return value
 }
 
 func e2eCapabilityDescriptor(id string) (map[string]any, bool) {
