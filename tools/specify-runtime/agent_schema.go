@@ -102,7 +102,10 @@ func runAPISchema(args []string, stdout io.Writer) int {
 		schema = deepResearchNotNeededInputSchema()
 		capabilityID = "deep-research.not-needed"
 	default:
-		return writeEnvelope(stdout, NewEnvelope("usage-error", fmt.Sprintf("unknown schema %q", schemaID)))
+		schema, capabilityID, ok = e2ePayloadSchema(schemaID)
+		if !ok {
+			return writeEnvelope(stdout, NewEnvelope("usage-error", fmt.Sprintf("unknown schema %q", schemaID)))
+		}
 	}
 	env = NewEnvelope("ok", fmt.Sprintf("Schema %s expanded.", schemaID))
 	env.Data["schema_id"] = schemaID
@@ -130,6 +133,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		"side_effect":    "may-write",
 		"input_contract": "inspect the command-specific help before invoking; pass only documented arguments and request the JSON envelope when supported",
 	}
+	bindAssetCapability(capabilityID, capability)
 	env = NewEnvelope("ok", fmt.Sprintf("Capability %s expanded.", capabilityID))
 	applyOperationAPIContract(capabilityID, capability, &env)
 	switch capabilityID {
@@ -573,6 +577,14 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "resumes-interrupted-work-under-new-fence"
 		capability["usage"] = "specify-runtime work resume <work-id> --expected-revision <revision> --agent-id <id> --adapter-id <id> [--workspace-root <path>] [--lease-seconds <seconds>] [--next-action <text>] [--project-root <path>] --format json"
 		capability["input_contract"] = "explicitly reclaims interrupted intents after atomic conflict checks, clears recovery holds, and advances the fence; defaults to the interrupted worktree, while an unavailable worktree blocks until an inspected same-repository replacement is passed with --workspace-root or the work is abandoned"
+	}
+	if descriptor, ok := e2eCapabilityDescriptor(capabilityID); ok {
+		for key, value := range descriptor {
+			capability[key] = value
+		}
+		if schemaID, ok := descriptor["input_schema"].(string); ok {
+			env.ShowArgv = []string{"specify-runtime", "api", "schema", schemaID, "--format", "json"}
+		}
 	}
 	addQuickPackOutputContract(capabilityID, capability, capability)
 	env.Data["capability"] = capability

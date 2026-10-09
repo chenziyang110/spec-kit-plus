@@ -16,11 +16,11 @@ claim; otherwise proceed through feasible real execution and retain blockers.
 
 ## Invocation
 
-After the branch's installation/catalog integration is completed, use the
-integration-native surface: `$sp-e2e` for Codex, `/sp-e2e` for Claude,
+Use the integration-native surface: `$sp-e2e` for Codex, `/sp-e2e` for Claude,
 `/skill:sp-e2e` for Kimi, or `/sp.e2e` for command-based integrations. The
-Advanced counterpart is `spx-e2e`. These are agent workflows, not new
-`specify` or `specify-runtime` subcommands.
+Advanced counterpart is `spx-e2e`. These agent workflows use the Go
+`specify-runtime e2e` task/acceptance owner; there is no Python `specify e2e`
+state writer and no E2E execution Activity enum.
 
 ```text
 $sp-e2e Test the desktop client's file rename operation. First derive normal,
@@ -32,6 +32,188 @@ Keep untestable scenarios visible; do not require a browser automation harness.
 
 An unqualified full-product request must not silently become a changed-files
 run. Feature-only and regression scopes remain explicitly narrower claims.
+
+## Seven stages with verified producer/consumer handoffs
+
+Both profiles use the same seven-stage protocol. The first action is to establish
+the actual product, declared targets and source-backed operation inventory.
+Selecting Playwright, launching a browser or copying existing tests cannot
+establish what the whole project needs.
+
+| Stage | Consumes | Required output | Independent acceptance before consumption |
+| --- | --- | --- | --- |
+| 1. Scope, inventory and capabilities | Original request, requirements and actual entrypoints | Stable requirement/operation IDs, assumptions, cross-feature dependencies, target/build/OS/device matrix, capability probes and discovery gaps | Reconcile the original request and live product surfaces, including unknown/unread areas; check every declared target. |
+| 2. Scenario design | Accepted stage 1 inventory and source contracts | Frozen schema-v2 scenario book; explicit conditions, boundary units, event/checkpoint obligations, oracles and exclusions; derive/check reports | Challenge semantic completeness and expected outcomes; rerun `derive/check --require-v2`; preserve the full parent denominator for scoped books. |
+| 3. Execution readiness | Accepted inventory and scenario book | Exact route, build and launch identity; authorized accounts/fixtures; setup, readback and reset probes; runner bindings/collection where selected | Reproduce decisive readiness probes and verify every required observation channel. Missing tools or fixtures block the affected cases. |
+| 4. Product execution | Accepted book and current readiness for the exact scope/target | Immutable runs with original actions, captures, independent effects, attempts, cleanup, trace and selected native reports/audits | Reconcile every scenario ID and assertion to inspectable evidence; verify actual target, current hashes and decisive observations. |
+| 5. Repair and regression | Run evidence, failed/rejected rows and blocker causes | Causal defect/repair record, owner, affected IDs, changed versions and fresh regression evidence | Reproduce the original failure against the correction and check affected journeys. E2E repairs owned test assets; product fixes return to their owner. |
+| 6. Independent reconciliation | Original request, complete ledger, all accepted artifacts and all attempts/lane audits | Per-row audit, set differences from requested scope to clean passes, missing coverage, exclusions and required rework | Check discovery, oracle adequacy, each target and every selected lane. New omissions reopen the earliest affected stage. |
+| 7. Truthful report and closeout | Independent audit, exact artifact versions and final ledger | Reproducible report separating design, execution, outcomes, combination coverage and visual acceptance; all unresolved IDs and resume points | Compare the report with every requested item and integrated journey. An unresolved mandatory row prevents a full-scope success claim. |
+
+Each stage uses bounded execution workers and a separate read-only validator
+subagent. The leader accepts only after the validator checks the original
+request, full acceptance set, actual artifacts and original evidence. The
+validator must not be the author of that artifact revision. A later stage's
+packet carries the accepted upstream record and exact output version/digest;
+it does not consume the sentence “A is done.”
+
+Freeze the complete contract through the Go E2E owner. A
+`tests/e2e/workflow-ledger.md` or equivalent test ledger can index its records;
+it does not authorize task transitions. Each task records stable ID, stage, scope IDs, dependencies, worker,
+validator, input/output refs and digests, acceptance rows, reproduction
+commands/manual steps, environment/preconditions, expected and actual outcomes,
+evidence, status, gaps and next action. Keep immutable submission/review
+snapshots; the ledger is a mutable index. Track
+`pending -> running -> submitted -> verified -> accepted`; retain rejected
+and blocked work instead of checking it off. Existing packet/artifact/runtime
+owners remain authoritative where they apply.
+
+For example, if A has ten required outputs and delivers six, the validator
+returns the four unmet rows, A remains unaccepted, and B stays blocked on A.
+The worker repairs A, a different validator checks the new artifact, and the
+leader accepts that exact revision before dispatching B. Independent ready
+work can continue in isolated namespaces. If B later disproves A's basis,
+reopen A and invalidate affected descendant acceptance, then revalidate from
+that point.
+
+Stage 5 records the diagnosis and intended repair before changing pinned test
+assets. The leader calls `e2e reopen` for the earliest owning producer before
+any bound bytes change, then dispatches the correction through that producer's
+new `task-start` packet and write scope. Stage 5 cannot take competing ownership
+of an upstream output or edit it through its current packet. Independently
+reaccept the corrected producer and affected readiness, obtain fresh stage 4
+execution, then regenerate the stage 5 repair disposition.
+
+Accepting a complete failed-run report means its evidence is usable for repair
+and diagnosis; it does not mean the product passed. Audit/reporting may read
+blocked or rejected records to explain partial results without unlocking their
+dependents. An explicit planning-only request goes from accepted design to
+design audit/reporting and makes no execution claim. Without independent
+validation capability, safe drafting and self-checking may continue, but
+independent acceptance stays blocked.
+
+## Runtime-enforced handoffs
+
+The Go owner stores versioned state and immutable, content-addressed snapshots
+under `.planning/e2e/<run-id>/`. Each bound input, output and evidence file also
+has an `archive_ref` in `blobs/<raw-sha256>.bin`, preserving its actual bytes
+when a later attempt reuses the original path. History is not just a list of
+hashes. `artifact show/list` can inspect those records; raw binary full views
+use bounded base64 rather than lossy text. Generic artifact mutation and every
+generic result destination are excluded from this owned tree. Scenario books,
+traces, helper audits and native reports remain ordinary
+test assets. Do not add workflow lifecycle fields to their existing schemas.
+
+Both profiles begin with a bounded capability negotiation through the installed
+project launcher. The executable name below denotes that resolved launcher:
+
+```sh
+specify-runtime api ensure --capabilities e2e.init,e2e.status,e2e.scope-add,e2e.task-start,e2e.task-submit,e2e.review-start,e2e.review-submit,e2e.task-accept,e2e.reopen,e2e.close --format json
+specify-runtime api pack --capabilities e2e.init,e2e.scope-add,e2e.task-submit,e2e.review-submit --include-schema --format json
+```
+
+Missing capabilities are an explicit upgrade blocker. Installation handshake
+checks reject a binary that lacks the new operations. Initialization still
+preserves its existing best-effort installation/recovery behavior; an old
+binary or old markdown DONE mark cannot grant E2E acceptance.
+
+| Operation | Input and result |
+| --- | --- |
+| `e2e init` | Freeze `e2e-plan-input`, leader identity, execution/planning mode, requested scope, seven-stage task placeholders, acceptance criteria, input/output paths, dependencies and exclusive resources. Future output files need not exist. |
+| `e2e status` | Re-read the full denominator, current revision, unresolved work, snapshot and byte freshness, and exact continuation. This query does not rewrite state. |
+| `e2e scope-add` | Add discovered scope/tasks with a reason and evidence. Retain old requirements and reopen affected work; never delete a platform to turn the result green. |
+| `e2e task-start` | Check exact accepted prerequisites and required successful outcomes, freeze current inputs, refuse conflicting active outputs/resources, and return a WorkerTaskPacket, attempt and submission template. Native agent tools dispatch the worker. |
+| `e2e task-submit` | Bind the worker to its packet; require every scope/acceptance pair, actual/expected result, preconditions, reproduction and raw evidence; retain an immutable submission containing the normalized WorkerTaskResult. |
+| `e2e review-start` | Bind another recorded identity to the exact submission, original task and complete row set; return the independent review packet/template. |
+| `e2e review-submit` | Require every review row and fresh evidence; retain inspected/replayed methods and rejection evidence. Editing the output requires a new author submission and another reviewer. |
+| `e2e task-accept` | Let the fixed leader accept only the current completely verified revision. Complete failed-run reports remain failed observations. |
+| `e2e reopen` | Record drift or counterevidence, retain old attempts/reviews, and invalidate the affected producer and all descendants. |
+| `e2e close` | Recheck all required scopes/stages and the entire evidence chain before a scoped result. Planning completion, a complete failure report and product execution success are distinct. |
+
+A terminal closeout (`blocked`, `reported`, `complete` or `planning-complete`)
+closes ordinary task/review/accept transitions. Read current `e2e status` and have
+the leader explicitly call `e2e reopen` for the earliest affected task with the
+current revision, recovery reason and evidence. For blocked/reported runs,
+`next_argv` supplies the earliest unresolved or nonpassing task and placeholders
+for the actual recovery reason/evidence; passing terminal runs supply no
+ordinary next action. The runtime preserves prior closeout and attempt/review
+history, returns a fresh revision, and invalidates the reopened task and affected
+descendants for revalidation. Existing source-drift invalidation and `scope-add`
+expansion can still reopen the run.
+
+All mutations after initialization use the current `--expected-revision` from
+runtime output. After a conflict, read status and decide the correct next
+action; do not blindly retry the old argv. Semantic JSON inputs use documented
+inline JSON, project-contained `@path`, or stdin. Fill the returned worker and
+review templates instead of reconstructing runtime state or receipt hashes.
+Both start operations return `worker_task_packet`, consumable by the existing
+shared `WorkerTaskPacket` parser, plus `worker_task_packet_binding` identifying
+the immutable envelope digest and `/worker_task_packet` JSON pointer. Preserve
+the outer E2E contract, target, attempt and dependency bindings alongside that
+view. A worker result's `packet_id` is the enclosing packet digest; the shared
+packet schema is not extended with a competing lifecycle or a made-up feature.
+Execution views include the complete intent/context contract required by
+`validate_worker_task_packet`. Review consumers explicitly select
+`validate_worker_task_packet(packet, read_only_review=True)`: the same intent,
+context and acceptance gates apply, but the reviewer must have no write scope
+or produced artifacts. Default execution validation still requires owned
+outputs. The packet also references an immutable original task contract, so
+tasks with no additional file inputs remain independently interpretable.
+
+Preserve the original request as a test-document input. The plan must name
+every declared target/operation and include required criteria for cross-feature
+journeys, each selected visual/native/combination lane, cleanup and final
+reconciliation. `require: accepted` allows a complete factual report as input;
+`require: passed` additionally requires the producer's tested outcome to pass.
+Any declared producer output consumed as another task's input must have a
+dependency path, even across different target scopes. Conflicting active reads
+and writes are blocked. A passing submission cannot include failed validation
+rows or a nonzero native runner exit code, even if its outer status says pass.
+Resource exclusions apply to declared resources in a run; coordinate separate
+runs through the existing Work Board and their actual shared resources.
+
+For an incomplete upstream, stages 6/7 may explicitly start in `--diagnostic`
+mode to report gaps without treating those inputs as accepted prerequisites.
+Diagnostic observations cannot become passing execution evidence. A report with
+unaccepted mandatory tasks leaves the run blocked. After report acceptance,
+`close --outcome pass|failed|blocked` still checks the whole requested contract;
+the caller cannot manufacture success by choosing `pass`.
+
+The checks enforce structural consistency and version bindings. Distinct
+`worker-id`, `validator-id` and `leader-id` strings are **not authentication** of
+native agent processes. Actually dispatch separate agents and retain their
+records. Hashes cannot prove a screenshot is authentic, that an agent replayed
+a command, that an oracle is correct, or that initial product discovery was
+complete. Those remain independent semantic-review obligations. The Python
+helpers add lane-specific accounting, not an attestation of product truth.
+
+## Platform-specific readiness under a shared process
+
+Use the seven stages for web, Windows/Linux/macOS desktop, iOS/iPadOS, Android,
+CLI/service and other software, while establishing the real execution route
+for each declared target. Record browser/OS/device versions, actual build and
+installation identity, entrypoint, accounts, services, capture/inspection,
+interaction, independent effect readback and fixture reset capabilities.
+
+A webview in a browser does not prove its native desktop shell. An iOS
+simulator result does not prove a physical iPhone result. An Android emulator
+does not establish another device/OS target. A CLI, service, library, extension
+or device uses its actual consumer program, host or protocol instead of a
+forced UI. Missing capabilities remain target-specific blockers in the full
+scope; do not silently relabel the target not-applicable.
+
+The supplied native wrapper supports serial pytest and local Playwright Test.
+Other platforms can use working visual/control tools, an existing validated
+adapter or an explicit human route. Method coverage across platforms is
+separate from having executed and verified every platform in this environment.
+
+Keep hashes of fixture definitions, seed inputs and setup scripts separate from
+run evidence for temporary objects that tests intentionally rename/delete.
+When the scenario book changes, its entire `book_sha256` binding changes:
+obtain fresh evidence for that book, retaining old runs as history. Do not
+transplant old passing observations into the new trace. Independently scoped
+books prepared before execution may retain their own unchanged evidence; this
+is not native shard merging.
 
 ## What prevents omissions
 

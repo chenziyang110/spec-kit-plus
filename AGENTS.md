@@ -47,6 +47,72 @@ The Python `specify` CLI owns bootstrap/operator compatibility; the Go
   concrete blockers with evidence, attempted recovery, the next action, and
   the exact resume point. Honor existing authorization and real side-effect gates.
 
+## Dependency-Complete Execution and Workflow Review
+
+- Keep a complete todo/work-item ledger for multi-step work: stable IDs,
+  `depends_on`, owner, scope, required inputs and outputs, acceptance rows,
+  evidence, and current status. Map every requested item and affected surface;
+  use this complete confirmed scope as the coverage denominator, including
+  unresolved gaps. Do not redefine completion around only the work attempted.
+- Use available subagents for substantive bounded execution and independent
+  validation. Workers own their assigned outputs; the leader owns scope,
+  dependency readiness, join points, acceptance, and truthful ledger updates.
+  Parallelize only independent ready lanes with non-conflicting writes and
+  mutable side effects; serialize dependent or overlapping lanes.
+- Treat worker completion and `WorkerTaskResult` as claims awaiting acceptance.
+  A separate validator subagent that did not author the output must check the
+  original task, full acceptance set, exact outputs, and inspectable evidence
+  before the leader accepts it. The validator does not edit the item's product
+  files. Check completeness, correctness, and downstream usability; worker
+  self-checks, a rewritten worker summary, and one green test are insufficient.
+- If delegation is unavailable, record actual attempts and use only an
+  authorized fallback. Label self-verification honestly; keep required
+  independent acceptance pending or blocked. Never invent a validator result
+  or report self-verification as independent acceptance.
+- Make evidence reproducible: bind it to the item, relevant input/output
+  revision or digest, environment and preconditions, command or manual
+  sequence, expected and observed outcomes, and evidence references. Keep
+  skipped, failed, stale, unavailable, and unsupported rows explicit and open;
+  neither file existence nor an aggregate PASS proves their acceptance.
+- Start a dependent item only after all prerequisites are accepted. Its packet
+  must identify the accepted outputs and evidence it consumes; the consumer
+  verifies those bindings before work. A producer's status label or verbal
+  DONE is not a consumable result. Independent item acceptance does not replace
+  final integration verification across the full requested outcome.
+- On rejection, preserve failed evidence and unmet rows, return bounded repair
+  to the execution worker, then independently revalidate the repaired output
+  against the same complete contract. For defects, reuse Debug's falsifiable
+  hypothesis, reproduction, owning control-loop repair, and fresh verification
+  discipline. Repeated failure without a stronger causal explanation requires
+  better evidence or focused investigation, not speculative patches.
+- If an accepted output changes or downstream evidence disproves its basis,
+  reopen the owning item and invalidate affected consumer acceptance. Resume
+  from the earliest failed gate and revalidate affected descendants against
+  the new accepted outputs; preserve unaffected evidence and failure history.
+- Continue through every dependency-ready item; one completed lane or batch is
+  progress, not task completion. At joins, repairs, blocks, and closeout, keep
+  the ledger, evidence, recovery attempts, remaining gaps, and exact next action
+  sufficient for another session to resume without chat memory. Close only
+  when every required row and integration check passes, or report the concrete
+  blocker and withheld claims after safe authorized recovery is exhausted.
+- Apply these standards at every producer/consumer handoff when reviewing
+  generated workflows. Reuse existing `WorkerTaskPacket` / `WorkerTaskResult`,
+  acceptance gates, and artifact/result/state owners; do not invent a parallel
+  runtime or bypass its mutation contracts. This guidance does not implement
+  runtime gates or require entering generated workflows for repository
+  maintenance. Product changes still need their owning templates, shared
+  runtime contracts, both profiles, and affected validation updated together.
+- E2E now has a concrete Go owner: `tools/specify-runtime/e2e_workflow.go`
+  and `e2e_contract.go`. Its task packets, submissions, independent reviews,
+  leader acceptance, additive scope, transitive invalidation and closeout live
+  under `.planning/e2e/<run-id>/`; generic artifact/result writers must not
+  mutate that state. Test books, traces and native reports keep their existing
+  test-asset owners. Preserve the distinction between an accepted failure
+  report and a passing execution prerequisite. Recorded IDs and hashes enforce
+  consistency; they do not authenticate agent processes or prove semantic
+  truth. Verify real refusal/recovery behavior and both rendered profiles when
+  changing these gates, including old-runtime capability rejection.
+
 ## Required Context by Change Type
 
 Before editing, read each reference whose trigger matches the change. These
@@ -61,6 +127,7 @@ owning workflow's workspace context.
 | Design or UI-bearing workflow, UI brief, Spec/Plan/Tasks, worker packet, source continuity, visual evidence, or UI Review/Accept | [UI Workflows](docs/agent-guidance/ui-workflows.md) |
 | Agent integration, native command/skill format, context updates, or integration packaging | [Agent Integrations](docs/agent-guidance/integrations.md) |
 | Workflow behavior, state/artifact ownership, runtime/cognition, hooks, launcher/install, or release distribution | [Workflow and Runtime Maintenance](docs/agent-guidance/workflow-maintenance.md) |
+| Ordinary document/media placement, naming, temporary output, asset guards, catalog adapter, or file migration | [Asset Governance Maintenance](docs/agent-guidance/asset-governance.md) |
 
 ## Source of Truth and Change Propagation
 
@@ -162,6 +229,29 @@ Load the UI reference before editing any part of their artifact/evidence chain.
   triggers. Classic uses `templates/command-references/<workflow>/`; Advanced
   uses `templates/advanced-skills/<workflow>/references/`. Preserve the complete
   effective contract, update rendering/packaging coverage, and regenerate outputs.
+
+## Ordinary Documents and Assets
+
+- Apply document and asset placement to the current authorized task, including
+  tasks without an `sp-*` or `spx-*` invocation. Keep workflow entry user-invoked.
+- Before creating a document or media file, reuse the appropriate existing file
+  or resolve its destination through the shared `assets route` contract. Follow
+  `.asset-policy.json`, native source/fixture contracts and fixed control names.
+  Use lower-case kebab-case ordinary names; keep dated reports in their report
+  scope and disposable output in task/worker temporary directories.
+- Resolve artifact registry and protected owners first. An ordinary asset rule
+  never authorizes moving canonical files, changing immutable evidence, editing
+  runtime/cognition storage, or widening another worker's write scope.
+- Check the exact changed paths before closing the task. Use index content for
+  staged checks and an explicit base/target pair for commit checks. Preserve
+  unrelated preexisting changes, but recheck a dirty path changed by this task.
+- Routing/checking write no reports or catalog state. Keep durable document
+  dependencies outside temporary roots. Historical moves require a reviewed,
+  digest-bound migration plan; AssetKit registration is explicitly optional.
+- See [the implementation and usage guide](docs/asset-governance.md) and the
+  [maintenance contract](docs/agent-guidance/asset-governance.md). In this source
+  repository, build/test the runtime normally; do not create generated workflow
+  state just to maintain this capability.
 
 ## Project Learning and Cognition
 

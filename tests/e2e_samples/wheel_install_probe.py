@@ -65,7 +65,10 @@ def installed_assets(wheel: Path) -> tuple[Path, dict[str, bytes]]:
     package = Path(specify_cli.__file__).resolve().parent
     allowed = {Path(sysconfig.get_path(key)).resolve() / "specify_cli" for key in ("purelib", "platlib")}
     require(package in allowed, "specify_cli was imported outside this virtualenv's site-packages")
-    required = ["specify_cli/__init__.py"]
+    required = ["specify_cli/__init__.py", "specify_cli/specify_runtime.py",
+                "specify_cli/execution/packet_schema.py", "specify_cli/execution/packet_validator.py",
+                "specify_cli/core_pack/tools/specify-runtime/e2e_workflow.go",
+                "specify_cli/core_pack/tools/specify-runtime/e2e_contract.go"]
     required += [f"specify_cli/core_pack/scripts/shared/{name}" for name in HELPERS]
     required += ["specify_cli/core_pack/commands/e2e.md",
                  "specify_cli/core_pack/advanced-skills/spx-e2e/SKILL.md",
@@ -190,6 +193,14 @@ def run_probe(wheel: Path, runtime: Path, output: Path, expected_revision: str,
         version = json.loads(run([str(pinned), "version", "--format", "json"], project, "runtime-version"))
         require(version["status"] == "ok" and version["data"]["source_revision"] == expected_revision,
                 "pinned runtime source revision differs from this build")
+        capabilities = ["e2e." + action for action in (
+            "init", "status", "scope-add", "task-start", "task-submit", "review-start",
+            "review-submit", "task-accept", "reopen", "close",
+        )]
+        ensured = json.loads(run([str(pinned), "api", "ensure", "--capabilities", ",".join(capabilities),
+                                  "--format", "json"], project, "e2e-runtime-capabilities"))
+        require(ensured["status"] == "ok" and set(ensured["data"]["present"]) == set(capabilities)
+                and ensured["data"]["missing"] == [], "installed runtime lacks the E2E handoff owner")
         learning = json.loads(run([str(pinned), "learning", "start", "--command", "sp-e2e", "--format", "json"],
                                   project, "learning-e2e"))
         require(learning["status"] == "ok", "current runtime rejects E2E learning identity")

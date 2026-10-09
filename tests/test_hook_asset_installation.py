@@ -335,6 +335,7 @@ def test_actual_installed_hook_chain_preserves_io_and_exit(tmp_path, monkeypatch
     created = launcher.install_shared_hook_launcher_assets(root, manifest=manifest)
     assert {p.name for p in created} == {
         "specify-hook", "specify-hook.cmd", "specify-hook.mjs", "specify-hook.py",
+        "specify-asset-guard.py",
     }
     for path in created:
         assert path.read_bytes() == (assets / path.name).read_bytes()

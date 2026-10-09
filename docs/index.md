@@ -49,6 +49,7 @@ for private Git installs; public runtime binaries do not make the source public.
 - [Repository Guidance](../AGENTS.md): source ownership and change propagation.
 - [Workflow Profiles](agent-guidance/workflow-profiles.md): separate Classic and Advanced prompt products over shared runtime contracts.
 - [Constitution Profiles](constitution-profiles.md): governance defaults.
+- [Asset Governance](asset-governance.md): passive document/media placement, exact-change checks, optional catalogs and guarded migration.
 - [Cognition Compatibility](project-cognition-compatibility-inventory.md): navigation compatibility; live source remains authoritative.
 - [Workflow Quality](workflow-quality/README.md): measure full-chain cost and retained behavior; a target is not an achieved metric.
 

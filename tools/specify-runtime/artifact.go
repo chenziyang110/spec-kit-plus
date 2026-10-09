@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -324,6 +325,25 @@ func (service *ArtifactService) Show(request ArtifactShowRequest) Envelope {
 	} else {
 		env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--feature", request.FeatureID, "--kind", request.Kind, "--view", "full"}
 	}
+	if metadata.SummaryAdapter == "binary-digest" {
+		delete(env.Data, "lines")
+		if hasArtifactQuery(request) {
+			env.Status, env.Summary = "invalid", "raw evidence does not support text or JSON queries"
+			env.Blockers = append(env.Blockers, "inspect the immutable artifact with its native reader; summary provides its exact byte count and SHA256")
+			return env
+		}
+		if view == "full" {
+			if base64.StdEncoding.EncodedLen(len(raw)) > maxArtifactExpandedViewBytes {
+				env.Status, env.Summary = "blocked", "raw evidence exceeds the bounded agent read limit"
+				env.Blockers = append(env.Blockers, "inspect the immutable artifact with its native reader and compare the summary SHA256")
+				env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--path", canonicalPath, "--view", "summary"}
+				return env
+			}
+			env.Data["content_encoding"] = "base64"
+			env.Data["content_base64"] = base64.StdEncoding.EncodeToString(raw)
+		}
+		return env
+	}
 	if hasArtifactQuery(request) {
 		queryResult, err := artifactQueryResult(canonicalPath, raw, request)
 		if err != nil {
@@ -419,6 +439,7 @@ func canonicalArtifactPath(featureID, kind string) (string, error) {
 
 var registeredArtifactRoots = []string{
 	".planning/debug/",
+	".planning/e2e/",
 	".planning/quick/",
 	".specify/design/",
 	".specify/discussions/",
@@ -489,7 +510,10 @@ func registeredArtifactPath(requestedPath string) (string, error) {
 	}
 	extension := strings.ToLower(filepath.Ext(normalized))
 	if !registeredArtifactExtensions[extension] {
-		return "", fmt.Errorf("artifact path %q has an unregistered content type", normalized)
+		metadata, registered := LookupArtifactType(normalized)
+		if !registered || metadata.SummaryAdapter != "binary-digest" {
+			return "", fmt.Errorf("artifact path %q has an unregistered content type", normalized)
+		}
 	}
 	return normalized, nil
 }

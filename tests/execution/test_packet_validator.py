@@ -279,6 +279,35 @@ def test_validate_worker_task_packet_accepts_complete_packet(
     assert validated.task_id == "T017"
 
 
+def test_read_only_review_is_explicit_and_preserves_execution_requirements(sample_packet):
+    sample_packet.agent_role = "independent-validator"
+    sample_packet.scope.write_scope = []
+    with pytest.raises(PacketValidationError, match="write_scope is required"):
+        validate_worker_task_packet(sample_packet)
+    assert validate_worker_task_packet(sample_packet, read_only_review=True) is sample_packet
+    sample_packet.intent.success_signals = []
+    with pytest.raises(PacketValidationError, match="execution intent"):
+        validate_worker_task_packet(sample_packet, read_only_review=True)
+
+
+@pytest.mark.parametrize("defect", ["role", "writes", "produces", "no-inputs", "escaping-input"])
+def test_read_only_review_rejects_mutating_or_unbounded_contracts(sample_packet, defect):
+    sample_packet.agent_role = "independent-validator"
+    sample_packet.scope.write_scope = []
+    if defect == "role":
+        sample_packet.agent_role = "execution-worker"
+    elif defect == "writes":
+        sample_packet.scope.write_scope = ["src/services/auth_service.py"]
+    elif defect == "produces":
+        sample_packet.interfaces.produces = ["src/services/auth_service.py"]
+    elif defect == "no-inputs":
+        sample_packet.scope.read_scope = []
+    else:
+        sample_packet.scope.read_scope = ["../outside-project.txt"]
+    with pytest.raises(PacketValidationError):
+        validate_worker_task_packet(sample_packet, read_only_review=True)
+
+
 def test_validate_worker_task_packet_rejects_missing_required_references(
     sample_packet: WorkerTaskPacket,
 ) -> None:

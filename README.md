@@ -162,6 +162,16 @@ scenario from deletion immediately before confirmation. Existing tests and a
 green process exit do not define complete coverage. Planning-only output, actual
 execution, independent effect checks and visual/human acceptance stay separate.
 
+The shared `specify-runtime e2e` owner freezes each requested target and all
+seven stages, pins worker submissions and independent reviews, and requires
+leader acceptance before a dependent task starts. It rejects missing acceptance
+rows, stale evidence and premature full-scope closeout. A complete failed-run
+report can feed repair without being counted as a passing prerequisite; changed
+inputs or counterevidence reopen affected downstream work. Both prompt profiles
+negotiate the same runtime capabilities. Independent agents still inspect the
+original request and raw evidence: hashes and distinct IDs do not prove truthful
+observations or complete discovery.
+
 See [E2E usage](docs/sp-e2e.md), [scenario design](docs/sp-e2e-scenarios.md),
 [desktop validation sample](docs/sp-e2e-desktop-sample.md) and
 [readiness limits](plans/sp-e2e-readiness.md). No browser harness is required for
@@ -243,6 +253,27 @@ mean the runtime binary is missing. Archive that directory first (or remove it
 only after confirming it is disposable), then rerun initialization for an empty
 project or run `sp-map-scan -> sp-map-build` for an existing codebase.
 
+## Passive document and asset governance
+
+Document and media placement applies both inside explicitly invoked workflows
+and during ordinary tasks. The shared runtime recommends an existing document
+or a correctly named destination, keeps temporary output within task/worker
+directories, and checks changed files and Markdown dependencies. Fixed project
+filenames, source templates, native media layouts, canonical workflow artifacts
+and immutable evidence retain their existing owners.
+
+Classic installs a small `spec-kit-asset-governance` passive skill alongside the
+shared context; Advanced uses its own shared reference. Claude and Gemini native
+guards check relevant writes and task completion, while other integrations use
+their managed context and explicit runtime checks. CI checks exact commit deltas.
+No implicit workflow entry, cleanup daemon or second asset ledger is introduced.
+
+See [Asset Governance](docs/asset-governance.md) for naming policy, commands,
+host coverage, guarded historical migration and the optional existing-project
+[AssetKit](https://github.com/chenziyang110/AssetKit) adapter. New runtime commands
+require a matching built runtime; source changes alone do not update a released
+binary already pinned in a generated project.
+
 ## Documentation
 
 | Goal | Read |
@@ -255,6 +286,7 @@ project or run `sp-map-scan -> sp-map-build` for an existing codebase.
 | Audit project cognition compatibility | [Project Cognition Compatibility Inventory](docs/project-cognition-compatibility-inventory.md) |
 | Maintain workflow/profile product contracts | [Repository agent guidance](AGENTS.md) |
 | Choose project governance defaults | [Constitution Profiles](docs/constitution-profiles.md) |
+| Keep documents and media organized across workflows and ordinary tasks | [Asset Governance](docs/asset-governance.md) |
 | Develop an extension | [Extension Development Guide](extensions/EXTENSION-DEVELOPMENT-GUIDE.md) and [API Reference](extensions/EXTENSION-API-REFERENCE.md) |
 | Build or publish presets | [Preset Guide](presets/README.md) and [Publishing Guide](presets/PUBLISHING.md) |
 | Develop this repository | [Local Development Guide](docs/local-development.md) |

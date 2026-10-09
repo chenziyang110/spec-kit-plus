@@ -93,6 +93,17 @@ var artifactTypePatterns = []artifactTypePattern{
 		},
 	},
 	{
+		metadata: ArtifactTypeMetadata{TypeID: "e2e-raw-evidence", Owner: "specify-runtime e2e", Role: "runtime-internal", Schema: "binary/e2e-raw-evidence", Operations: []string{"show", "list"}, SummaryAdapter: "binary-digest"},
+		match: func(path string) bool {
+			parts := strings.Split(path, "/")
+			return len(parts) == 5 && parts[0] == ".planning" && parts[1] == "e2e" && parts[3] == "blobs" && strings.HasSuffix(parts[4], ".bin")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "e2e-workflow", Owner: "specify-runtime e2e", Role: "runtime-internal", Schema: "json/e2e-workflow", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match:    e2eRuntimeOwnedPath,
+	},
+	{
 		metadata: ArtifactTypeMetadata{TypeID: "ui-design-change-index", Owner: "specify-runtime design change/iterate/register/adopt", Role: "canonical", Schema: "json/ui-design-change-index", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
 		match:    func(path string) bool { return path == ".specify/design/index.json" },
 	},

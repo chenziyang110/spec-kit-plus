@@ -74,9 +74,37 @@ def test_required_runtime_contract_matches_the_shipped_agent_surface() -> None:
         )
     )
 
-    # Recovery is negotiated when needed; existing installations need not
-    # support it to keep running unrelated workflows.
-    assert set(runtime.REQUIRED_CAPABILITIES) | {"tasks.rebind"} == shipped
+    # Recovery and passive asset governance are negotiated when needed;
+    # existing installations can keep running unrelated workflows.
+    optional = {
+        "tasks.rebind", "assets.route", "assets.explain", "assets.check",
+        "assets.migrate.plan", "assets.migrate.apply", "assets.catalog.find",
+        "assets.catalog.get", "assets.catalog.put", "assets.catalog.check",
+    }
+    assert set(runtime.REQUIRED_CAPABILITIES).isdisjoint(optional)
+    assert set(runtime.REQUIRED_CAPABILITIES) | optional == shipped
+
+
+def test_asset_governance_is_discoverable_without_raising_installation_minimum(
+    built_unified_runtime: Path,
+) -> None:
+    runtime = _load_runtime()
+    requested = {
+        "assets.route", "assets.explain", "assets.check", "assets.migrate.plan",
+        "assets.migrate.apply", "assets.catalog.find", "assets.catalog.get",
+        "assets.catalog.put", "assets.catalog.check",
+    }
+    assert set(runtime.REQUIRED_CAPABILITIES).isdisjoint(requested)
+    result = subprocess.run(
+        [str(built_unified_runtime), "api", "ensure", "--capabilities",
+         ",".join(sorted(requested)), "--format", "json"],
+        capture_output=True, text=True, timeout=10, check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "ok"
+    assert set(payload["data"]["present"]) == requested
+    assert payload["data"]["missing"] == []
 
 
 def test_tasks_rebind_is_discoverable_without_raising_installation_minimum(
@@ -181,6 +209,23 @@ def test_runtime_handshake_allows_unrelated_additive_capabilities(monkeypatch: p
         },
     )
     assert runtime.launcher_supports_required_commands(["specify-runtime"])
+
+
+@pytest.mark.parametrize("missing", [
+    "e2e.init", "e2e.status", "e2e.scope-add", "e2e.task-start",
+    "e2e.task-submit", "e2e.review-start", "e2e.review-submit",
+    "e2e.task-accept", "e2e.reopen", "e2e.close",
+])
+def test_runtime_handshake_rejects_partial_e2e_owner(monkeypatch: pytest.MonkeyPatch, missing: str) -> None:
+    runtime = _load_runtime()
+    monkeypatch.setattr(
+        runtime, "_runtime_handshake",
+        lambda *_a, **_k: {
+            "protocol_version": runtime.EXPECTED_RUNTIME_PROTOCOL,
+            "capability_ids": [cap for cap in runtime.REQUIRED_CAPABILITIES if cap != missing],
+        },
+    )
+    assert not runtime.launcher_supports_required_commands(["specify-runtime"])
 
 
 @pytest.mark.parametrize(

@@ -4,6 +4,10 @@ Read canonical workflow artifacts only with targeted `specify-runtime artifact s
 
 # Implementer Worker Prompt
 
+## Output Asset Scope
+
+Create ancillary documents, reports, or media only within the assignment's authorized output scope. Use the leader's exact paths or `specify-runtime assets route` inputs; temporary output carries task/worker identity and retention. Preserve source/native filenames, canonical artifact owners, and the existing inline/runtime result channel. Reading a file does not authorize relocating it. Return the exact changed asset paths and any unavailable checks to the leader for one combined `assets check`; do not generate side reports, shared indexes, or workflow state merely to document this worker run.
+
 Use this template when the leader dispatches a concrete implementation lane for `sp-implement`.
 
 ## Controller Requirements

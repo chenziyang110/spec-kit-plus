@@ -14,6 +14,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  assets:
+    name: Document and asset policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact source with comparison history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/specify-runtime/go.mod
+          cache-dependency-path: tools/specify-runtime/go.sum
+      - name: Build the shared policy runtime
+        working-directory: tools/specify-runtime
+        run: go build -o "$RUNNER_TEMP/specify-runtime" .
+      - name: Check the exact changed snapshot
+        shell: bash
+        env:
+          ASSET_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          ASSET_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [[ -z "$ASSET_BASE" || "$ASSET_BASE" =~ ^0+$ ]]; then
+            ASSET_BASE=$(git rev-parse "$ASSET_HEAD^")
+          fi
+          "$RUNNER_TEMP/specify-runtime" assets check \
+            --project-root "$GITHUB_WORKSPACE" \
+            --from-ref "$ASSET_BASE" --to-ref "$ASSET_HEAD" --format json
+
   ruff:
     runs-on: ubuntu-latest
     steps:
@@ -148,6 +178,12 @@ jobs:
           uv run pytest
           tests/integrations/test_quick_optimization_installation.py
           tests/integrations/test_manifest_stat_observations.py
+          tests/test_agent_context_managed_block.py
+          tests/test_asset_guard_adapter.py
+          tests/integrations/test_asset_guard_native_transport.py
+          tests/integrations/test_asset_governance_installation.py
+          tests/test_hook_asset_installation.py
+          tests/integrations/test_integration_gemini.py
           --junitxml=native-installer-results.xml
       - name: Inventory runtime test packages
         if: ${{ !cancelled() }}

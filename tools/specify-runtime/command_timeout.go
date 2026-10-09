@@ -51,6 +51,18 @@ func isShortRuntimeQuery(args []string) bool {
 	if len(args) < 2 {
 		return false
 	}
+	if topLevel == "assets" {
+		switch args[1] {
+		case "route", "explain", "check":
+			return true
+		case "migrate":
+			return len(args) > 2 && args[2] == "plan"
+		default:
+			// AssetKit permits an explicit bounded 60-second backend call;
+			// do not let the generic "catalog" query budget shorten it.
+			return false
+		}
+	}
 	if topLevel == "quick" && args[1] == "context-shadow" {
 		return true
 	}

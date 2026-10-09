@@ -92,6 +92,10 @@ def test_e2e_renders_for_every_skill_profile(key, profile, prefix, script_type, 
     assert "e2e_scenarios.py" in text
     assert "{{spec-kit-include:" not in text
     assert "{{project-cognition-workflow}}" not in text
+    assert "{{specify-subcmd:" not in text
+    assert "e2e.task-accept" in text and "e2e.review-submit" in text
+    assert "e2e.scope-add" in text and "e2e.close" in text
+    assert "--include-schema" in text
     metadata = yaml.safe_load((skill_dir / "agents/openai.yaml").read_text(encoding="utf-8"))
     assert metadata["policy"]["allow_implicit_invocation"] is False
     if profile == "advanced":
@@ -117,6 +121,9 @@ def test_e2e_command_based_rendering(key, extension, tmp_path):
     assert "e2e_scenarios.py" in text
     assert "{{spec-kit-include:" not in text
     assert "{{project-cognition-workflow}}" not in text
+    assert "{{specify-subcmd:" not in text
+    assert "e2e.task-accept" in text and "e2e.review-submit" in text
+    assert "--include-schema" in text
 
 
 @pytest.mark.parametrize("profile,prefix", [("classic", "sp"), ("advanced", "spx")])

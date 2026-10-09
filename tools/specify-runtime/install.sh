@@ -96,6 +96,12 @@ for capability in "do.start" "do.record" "do.validate" "do.finish" "do.resume" "
     exit 1
   fi
 done
+for e2e_action in init status scope-add task-start task-submit review-start review-submit task-accept reopen close; do
+  if [[ "$handshake" != *"\"e2e.${e2e_action}\""* ]]; then
+    echo "Downloaded binary lacks E2E verified handoffs: e2e.${e2e_action}" >&2
+    exit 1
+  fi
+done
 if [[ "$handshake" != *'"discussion.import-material"'* || "$handshake" != *'"discussion.read-material"'* ]]; then
   echo "Downloaded binary lacks complete discussion source-material reading support" >&2
   exit 1

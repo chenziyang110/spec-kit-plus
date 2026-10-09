@@ -53,6 +53,8 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, cl
 		return runAPI(args[1:], stdout, stderr, cliVersion)
 	case "artifact":
 		return runArtifact(args[1:], stdout)
+	case "assets":
+		return runAssets(args[1:], stdout)
 	case "result":
 		return runResult(args[1:], stdout)
 	case "execution":
@@ -79,6 +81,8 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, cl
 		return runTestDesign(args[1:], stdout)
 	case "deep-research":
 		return runDeepResearch(args[1:], stdout)
+	case "e2e":
+		return runE2E(args[1:], stdout)
 	case "evidence":
 		return runEvidence(args[1:], stdout)
 	case "doctor":
@@ -117,12 +121,14 @@ func writeHelp(stdout io.Writer) int {
 	for _, name := range []string{
 		"api",
 		"artifact",
+		"assets",
 		"board",
 		"cognition",
 		"discussion",
 		"do",
 		"design",
 		"deep-research",
+		"e2e",
 		"test-design",
 		"doctor",
 		"evidence",
@@ -1191,6 +1197,15 @@ func defaultCapabilities() []string {
 		"artifact.scaffold",
 		"artifact.show",
 		"artifact.show-many",
+		"assets.route",
+		"assets.explain",
+		"assets.check",
+		"assets.migrate.plan",
+		"assets.migrate.apply",
+		"assets.catalog.find",
+		"assets.catalog.get",
+		"assets.catalog.put",
+		"assets.catalog.check",
 		"board.owner",
 		"board.branch-policy",
 		"board.feature-bootstrap",
@@ -1283,6 +1298,16 @@ func defaultCapabilities() []string {
 		"deep-research.track-yield",
 		"deep-research.validate",
 		"deep-research.verify-handoff",
+		"e2e.init",
+		"e2e.status",
+		"e2e.scope-add",
+		"e2e.task-start",
+		"e2e.task-submit",
+		"e2e.review-start",
+		"e2e.review-submit",
+		"e2e.task-accept",
+		"e2e.reopen",
+		"e2e.close",
 		"test-design.audit-prepare",
 		"test-design.handoff",
 		"test-design.gap-reconcile",
@@ -1469,6 +1494,12 @@ func defaultCapabilityCards() []map[string]string {
 }
 
 func capabilitySummary(id string) string {
+	if summary, ok := assetCapabilitySummary(id); ok {
+		return summary
+	}
+	if descriptor, ok := e2eCapabilityDescriptor(id); ok {
+		return descriptor["summary"].(string)
+	}
 	switch id {
 	case "do.start":
 		return "Freeze a project operation, required checks, method revision, source fingerprints, and Work ownership."

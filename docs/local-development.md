@@ -102,6 +102,8 @@ Install the test extra as shown above, then run the tests for the files you
 changed. The Python integration tests also build the Go runtime, so install Go
 using the version declared in `tools/specify-runtime/go.mod` before running them.
 CI reads that file to select its Go toolchain.
+The source-build minimum is Go 1.22, including the CommonMark parser used for
+asset dependency checks. Prebuilt runtime installation does not require Go.
 
 ```bash
 # Focused regression example

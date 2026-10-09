@@ -91,6 +91,16 @@ try {
         ($handshake -notmatch '"cognition\.scan-packet"') -or
         ($handshake -notmatch '"implement\.task-reopen"') -or
         ($handshake -notmatch '"test-design\.recover"') -or
+        ($handshake -notmatch '"e2e\.init"') -or
+        ($handshake -notmatch '"e2e\.status"') -or
+        ($handshake -notmatch '"e2e\.scope-add"') -or
+        ($handshake -notmatch '"e2e\.task-start"') -or
+        ($handshake -notmatch '"e2e\.task-submit"') -or
+        ($handshake -notmatch '"e2e\.review-start"') -or
+        ($handshake -notmatch '"e2e\.review-submit"') -or
+        ($handshake -notmatch '"e2e\.task-accept"') -or
+        ($handshake -notmatch '"e2e\.reopen"') -or
+        ($handshake -notmatch '"e2e\.close"') -or
         ($handshake -notmatch '"validate\.spec"') -or
         ($handshake -notmatch '"workflow\.show"') -or
         ($handshake -notmatch '"workflow\.ensure"') -or

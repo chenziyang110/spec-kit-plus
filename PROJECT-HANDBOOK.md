@@ -30,6 +30,26 @@ is first-class and does not require a browser runner. External-event/checkpoint
 pairs, boundary values and independent durable-effect oracles remain explicit;
 missing tools cannot remove a scenario from the denominator.
 
+Both profiles require seven stages: scope/inventory/capabilities, scenario
+design, execution readiness, real execution, repair/regression, independent
+reconciliation, and truthful closeout. Each substantive handoff uses a worker,
+a separate validator and leader acceptance of exact upstream artifacts before
+dependent execution. The complete test ledger preserves every requested item,
+failure and affected dependency across repair/resume. `specify-runtime e2e`
+enforces the frozen scope/stage denominator, complete per-row submissions and
+reviews, distinct recorded worker/validator/leader identities, exact accepted
+dependencies, source/output/evidence byte freshness and truthful closeout.
+`tools/specify-runtime/e2e_workflow.go` and `e2e_contract.go` own the state and
+immutable handoff snapshots under `.planning/e2e/<run-id>/`; generic artifact
+and result mutation cannot replace them. Use `api ensure`/`api pack`, runtime
+task/review templates and current revision-bound actions. Missing capabilities
+block acceptance, and a legacy ledger is never automatically accepted.
+Native subagent dispatch and independent semantic inspection remain required:
+identity strings are not process authentication, hashes do not prove authentic
+observations, and an accepted failed-run report cannot satisfy a passed
+dependency. Planning completion is separate from product execution success.
+See the [stage inputs, outputs and acceptance contract](docs/sp-e2e.md).
+
 `e2e_scenarios.py`, `e2e_coverage.py` and the optional native runner are ordinary
 test-asset helpers, not Python workflow-state writers. Retained test-asset changes
 use canonical `sp-e2e` cognition closeout and Learning through shared runtime
@@ -398,6 +418,19 @@ partial supersession, resolution, semantic diff, and explicit adoption.
   metadata alone do not. Methods are project-local unless an explicit sharing
   strategy is chosen. Read [Do and Playbooks](docs/sp-do.md), the owning command
   templates, and the runtime command catalog.
+- **Passive document and asset governance**: Shared Go `assets route/explain/check`
+  resolves canonical/protected ownership before ordinary naming and native
+  source/media conventions. `.asset-policy.json` is optional, versioned project
+  policy; missing policy uses built-ins without writes. Both context renderers,
+  the Classic partial/passive skill, Advanced shared reference and worker prompts
+  carry the same output contract. Claude/Gemini native adapters call the pinned
+  runtime for write preflight and completion deltas; CI reads exact commit
+  snapshots. Checks never create workflow state or a parallel asset ledger.
+  Explicit `assets migrate plan/apply` binds ordinary moves and supported
+  reference edits to a digest and recovery journal. `assets catalog` optionally
+  calls an already installed AssetKit project with bounded argv/time/output.
+  Read [Asset Governance](docs/asset-governance.md) and its
+  [maintenance contract](docs/agent-guidance/asset-governance.md).
 - **Workflow SKILL invocation boundary**: All `sp-*` and `spx-*` workflow skills
   are user-invoked only (Classic and Advanced respectively). No passive workflow
   router is installed, and natural-language similarity must not select or enter

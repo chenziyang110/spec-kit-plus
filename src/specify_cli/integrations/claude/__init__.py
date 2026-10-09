@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+import shlex
 import shutil
 from pathlib import Path
 from typing import Any
@@ -170,13 +172,38 @@ class ClaudeIntegration(SkillsIntegration):
 
     @staticmethod
     def _is_stale_managed_hook_command(command: str, managed_suffixes: tuple[str, ...]) -> bool:
-        normalized = str(command or "")
-        if any(suffix in normalized for suffix in managed_suffixes):
-            return True
-        if ".specify/bin/specify-hook" in normalized:
-            return True
-        if '"$env:CLAUDE_PROJECT_DIR"' in normalized or "$env:CLAUDE_PROJECT_DIR" in normalized:
-            return True
+        normalized = str(command or "").strip().replace("\\", "/")
+        if "$(" in normalized or "`" in normalized:
+            return False
+        try:
+            lexer = shlex.shlex(normalized, posix=True, punctuation_chars=";&|<>()")
+            lexer.whitespace_split = True
+            lexer.commenters = ""
+            argv = list(lexer)
+        except ValueError:
+            return False
+        if argv and argv[0] == "&":
+            argv = argv[1:]
+        if not argv:
+            return False
+        routes = {suffix.rsplit(" ", 1)[1] for suffix in managed_suffixes}
+        interpreter = re.fullmatch(r"(?:.*/)?(?:python(?:[0-9.]+)?|node)(?:\.exe)?", argv[0], re.IGNORECASE)
+        if (
+            re.fullmatch(r"(?:.*/)?node(?:\.exe)?", argv[0], re.IGNORECASE)
+            and len(argv) == 6 and argv[1] == "-e"
+            and argv[3:5] == ["specify-hook", "claude"] and argv[5] in routes
+        ):
+            # Known argv alone does not make arbitrary user eval code ours.
+            expected = shlex.split(render_claude_hook_launcher(argv[5])["command"])
+            return argv[2] == expected[2]
+        if interpreter:
+            argv = argv[1:]
+        # A user echo, wrapper or compound command mentioning a launcher does
+        # not transfer ownership of that hook to the integration.
+        if len(argv) == 3 and argv[1] == "claude" and argv[2] in routes:
+            return bool(re.fullmatch(r"(?:.+/)?\.specify/bin/specify-hook(?:\.cmd|\.py|\.mjs)?", argv[0]))
+        if len(argv) == 2 and argv[1] in routes:
+            return bool(re.fullmatch(r"(?:(?:.+/)?\.claude/hooks/)?claude-hook-dispatch\.py", argv[0]))
         return False
 
     @staticmethod
@@ -187,21 +214,15 @@ class ClaudeIntegration(SkillsIntegration):
         if ClaudeIntegration._is_stale_managed_hook_command(command, managed_suffixes):
             return True
         args = hook.get("args")
-        if command == "node" and isinstance(args, list) and args:
-            normalized_args = [str(arg) for arg in args]
-            first_arg = normalized_args[0]
-            if (
-                first_arg.startswith("${CLAUDE_PROJECT_DIR}/.specify/bin/specify-hook")
-                or first_arg.startswith('"$CLAUDE_PROJECT_DIR"/.specify/bin/specify-hook')
-                or "specify-hook.mjs" in first_arg
-                or (
-                    len(normalized_args) >= 4
-                    and normalized_args[0] == "-e"
-                    and "specify-hook.mjs" in normalized_args[1]
-                    and normalized_args[2] == "claude"
-                )
-            ):
-                return True
+        if command == "node" and isinstance(args, list) and args and all(isinstance(arg, str) and arg for arg in args):
+            normalized_args = list(args)
+            # This exact quoted environment filename was shipped by the old
+            # structured-args renderer. Extra/unknown args remain user-owned.
+            if len(normalized_args) == 3 and normalized_args[0].startswith('"$CLAUDE_PROJECT_DIR"/'):
+                normalized_args[0] = normalized_args[0].replace('"$CLAUDE_PROJECT_DIR"', "$CLAUDE_PROJECT_DIR", 1)
+            return ClaudeIntegration._is_stale_managed_hook_command(
+                shlex.join([command, *normalized_args]), managed_suffixes
+            )
         return False
 
     def _install_hook_assets(

@@ -9,6 +9,7 @@ the human/bootstrap ``specify`` launcher during the migration window.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import re
@@ -1348,7 +1349,7 @@ def _handle_before_agent(project_root: Path, payload: dict[str, Any]) -> dict[st
 
 
 @_with_explicit_workflow_context
-def _handle_before_tool(project_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
+def _handle_before_tool(project_root: Path, payload: dict[str, Any], *, owner_paths: set[str] | None = None) -> dict[str, Any]:
     tool_name = _extract_tool_name(payload).lower()
     tool_input = _extract_tool_input(payload)
     context = _infer_active_context(project_root)
@@ -1419,6 +1420,8 @@ def _handle_before_tool(project_root: Path, payload: dict[str, Any]) -> dict[str
         if _is_repairable_block(policy_shared) and _is_state_repair_path(
             project_root, context, target_path
         ):
+            if owner_paths is not None:
+                owner_paths.add(target_path)
             return {}
         if _is_repairable_block(policy_shared):
             return {
@@ -1438,14 +1441,56 @@ def main() -> int:
         "session-start": _handle_session_start,
         "before-agent": _handle_before_agent,
         "before-tool": _handle_before_tool,
+        "after-agent": lambda _root, _payload: {},
     }
     handler = handlers.get(route)
     if not handler:
         return 0
 
-    output = handler(project_root, payload)
+    owner_paths: set[str] = set()
+    output = (
+        handler(project_root, payload, owner_paths=owner_paths)
+        if route == "before-tool"
+        else handler(project_root, payload)
+    )
+    if route in {"before-tool", "after-agent"} and output.get("decision") not in {"deny", "block"} and output.get("continue") is not False:
+        phase = "finish" if route == "after-agent" else "before"
+        asset = _run_asset_guard(project_root, payload, phase, owner_paths=owner_paths)
+        if asset.get("status") == "blocked":
+            output.update({"decision": "deny", "reason": str(asset.get("message") or "Asset check failed.")})
+        elif asset.get("status") == "unavailable":
+            output["systemMessage"] = " ".join(part for part in [output.get("systemMessage", ""), str(asset.get("message") or "Asset verification is unavailable; do not claim it passed.")] if part)
     sys.stdout.write(json.dumps(output))
     return 0
+
+
+def _run_asset_guard(project_root: Path, payload: dict[str, Any], phase: str, *, owner_paths: set[str] | None = None) -> dict[str, Any]:
+    tool_name = _extract_tool_name(payload).lower()
+    if phase == "before" and tool_name not in {"write", "edit", "multiedit", "write_file", "edit_file", "multi_edit", "replace", "bash", "powershell", "run_shell_command", "run-shell-command"}:
+        return {}
+    candidates = [project_root / ".specify/bin/specify-asset-guard.py"]
+    candidates.extend(parent / "shared_hooks/specify-asset-guard.py" for parent in Path(__file__).resolve().parents)
+    helper_path = next((path for path in candidates if path.is_file()), None)
+    if helper_path is None:
+        if phase == "finish":
+            return {}
+        return {"status": "unavailable", "message": "Asset verification is unavailable: the project hook helper is missing. Repair the integration; do not claim this check passed."}
+    try:
+        spec = importlib.util.spec_from_file_location("spec_kit_asset_guard", helper_path)
+        if spec is None or spec.loader is None:
+            raise ValueError("asset helper cannot be loaded")
+        module = importlib.util.module_from_spec(spec)
+        previous_bytecode = sys.dont_write_bytecode
+        sys.dont_write_bytecode = True
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            sys.dont_write_bytecode = previous_bytecode
+        if phase == "finish":
+            return module.finish_turn(project_root, payload, "gemini")
+        return module.before_tool(project_root, payload, "gemini", owner_paths=owner_paths)
+    except (OSError, ValueError, AttributeError, TypeError, ImportError, SyntaxError) as exc:
+        return {"status": "unavailable", "message": f"Asset verification is unavailable: {' '.join(str(exc).split())[:200]}. Do not claim this check passed."}
 
 
 if __name__ == "__main__":
