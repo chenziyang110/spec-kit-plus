@@ -138,6 +138,16 @@ scenario from deletion immediately before confirmation. Existing tests and a
 green process exit do not define complete coverage. Planning-only output, actual
 execution, independent effect checks and visual/human acceptance stay separate.
 
+The shared `specify-runtime e2e` owner freezes each requested target and all
+seven stages, pins worker submissions and independent reviews, and requires
+leader acceptance before a dependent task starts. It rejects missing acceptance
+rows, stale evidence and premature full-scope closeout. A complete failed-run
+report can feed repair without being counted as a passing prerequisite; changed
+inputs or counterevidence reopen affected downstream work. Both prompt profiles
+negotiate the same runtime capabilities. Independent agents still inspect the
+original request and raw evidence: hashes and distinct IDs do not prove truthful
+observations or complete discovery.
+
 See [E2E usage](docs/sp-e2e.md), [scenario design](docs/sp-e2e-scenarios.md),
 [desktop validation sample](docs/sp-e2e-desktop-sample.md) and
 [readiness limits](plans/sp-e2e-readiness.md). No browser harness is required for

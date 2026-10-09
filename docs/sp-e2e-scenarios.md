@@ -95,16 +95,24 @@ From the source checkout, use Python 3.11+ with the standard-library-only helper
 
 ```sh
 python scripts/shared/e2e_scenarios.py catalog
-python scripts/shared/e2e_scenarios.py schema
-python scripts/shared/e2e_scenarios.py derive tests/e2e/scenarios.json --root .
-python scripts/shared/e2e_scenarios.py check tests/e2e/scenarios.json --root .
-python scripts/shared/e2e_scenarios.py audit tests/e2e/scenarios.json --root . --trace test-results/e2e/run-001/trace.json
+python scripts/shared/e2e_scenarios.py schema --schema-version 2
+python scripts/shared/e2e_scenarios.py derive tests/e2e/scenarios.json --root . --require-v2
+python scripts/shared/e2e_scenarios.py check tests/e2e/scenarios.json --root . --require-v2
+python scripts/shared/e2e_scenarios.py audit tests/e2e/scenarios.json --root . --trace test-results/e2e/run-001/trace.json --require-v2
 ```
+
+New books use `schema_version: 2`; retain `--require-v2` at every derive, check
+and audit gate. The helper's default schema remains v1 for explicit legacy
+inspection only. Never use that default to author a new book, relabel a v1 book,
+or transplant old passing observations: author the missing conditions and
+bindings, freeze the new book, and execute fresh evidence. See
+[condition-level coverage](sp-e2e-conditions.md) for the complete v2 contract.
 
 Generated profiles reference `.specify/scripts/shared/e2e_scenarios.py`; actual
 installed-profile verification is a separate [readiness gate](../plans/sp-e2e-readiness.md).
-`schema` emits separate Draft 2020-12 `book` and `trace` schemas. This is field
-shape documentation, not a replacement for `check`/`audit` cross-link and hash
+`schema --schema-version 2` emits separate Draft 2020-12 `book` and `trace`
+schemas. This is field shape documentation, not a replacement for
+`check`/`audit` cross-link and hash
 checks. All commands emit JSON to stdout; none edits a source, drives a GUI,
 executes an input command, or writes workflow state. The caller can preserve
 output in a new run directory. Relative book/trace paths resolve under `--root`.
@@ -116,18 +124,38 @@ output in a new run directory. Relative book/trace paths resolve under `--root`.
 | `check` | `scenario_design_ready` | `design_incomplete` exits 1; invalid/stale input exits 2. |
 | `audit` | `evidence_complete_against_declared_scenarios` | `incomplete` exits 1; invalid/stale evidence exits 2. |
 
-A book contains `schema_version`, `scope`, `source_revision`, hashed `sources`,
-`requirements`, `operations`, `scenarios`, `discovery_gaps` and `exclusions`.
+A v2 book contains `schema_version`, `scope`, `source_revision`, hashed `sources`,
+`requirements`, `operations`, `conditions`, `scenarios`, `discovery_gaps` and
+`exclusions`.
 Every standard dimension from `catalog` appears in every operation's
 `dimensions`; custom dimensions are additive. Decisions contain `disposition`,
 `reason` and bound `source_refs`. Side-effecting operations cannot omit a
 persistence decision or use only visual/accessibility/human oracles.
 
+The `conditions` ledger records source- and requirement-bound operation/dimension
+families before scenarios are selected. Enumerated families retain every
+`variant` with its actual input and expected outcome; discrete boundaries declare
+the verified limit, unit, and below/at/above expectations. Each scenario uses
+`condition_bindings` to name those variants, their ordered stimulus `step_ids`,
+and specific `oracle_ids`. At least one bound oracle assertion must exactly
+match the variant's expected outcome. Sibling variants need distinct stimuli
+and oracles; one broad dimension label cannot replace a missing condition.
+Event/checkpoint pairs remain separate timing obligations. Report
+`condition_coverage` and `timing_coverage` separately; failed, skipped, blocked,
+not-run and flaky scenarios cannot credit clean coverage.
+
 ### Example card: deletion before confirmation
 
-This is one card fragment, not a complete ready book. Its IDs reference an
-operation, requirement and event/checkpoint in the surrounding source-bound book.
-The actual target error/recovery UX must be grounded in the product contract.
+This is one v2 card fragment, not a complete ready book or execution evidence.
+Its IDs reference an operation, requirement, event/checkpoint and conditions in
+the surrounding source-bound book. Define `rename-feedback` for
+`visual_interaction` and `rename-identity` for `persistence_consistency`; each
+must bind operation `file-rename`, requirement `RENAME-IDENTITY-001`, actual source
+refs, and variant `original-deleted-before-confirm`. The variant's expected
+outcome must exactly match the corresponding `feedback` or `identity` oracle
+assertion below. The perturbation separately binds the timing obligation.
+The actual target error/recovery UX must be grounded in the product contract;
+these illustrative condition names and assertions are not universal product rules.
 
 ```json
 {
@@ -149,6 +177,10 @@ The actual target error/recovery UX must be grounded in the product contract.
   "oracles": [
     {"id": "feedback", "channel": "visual", "assertion": "No false success and contract-consistent recovery UI", "check": "Inspect fresh feedback and interactive state against the contract"},
     {"id": "identity", "channel": "filesystem", "assertion": "No unintended replacement or unrelated file is renamed", "check": "Independently enumerate paths and compare sentinel contents"}
+  ],
+  "condition_bindings": [
+    {"condition": "rename-feedback", "variant": "original-deleted-before-confirm", "step_ids": ["open", "edit", "delete", "confirm"], "oracle_ids": ["feedback"]},
+    {"condition": "rename-identity", "variant": "original-deleted-before-confirm", "step_ids": ["open", "edit", "delete", "confirm"], "oracle_ids": ["identity"]}
   ],
   "execution": "visual",
   "cleanup": ["Remove only the isolated fixture directory and verify cleanup"],

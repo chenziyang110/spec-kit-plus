@@ -868,7 +868,7 @@ func workItemDTO(work runcontrol.WorkItem, intents []runcontrol.WriteIntent) map
 		"lease_until_ms":  work.LeaseUntilMS,
 		"heartbeat_at_ms": work.HeartbeatAtMS,
 		"recovery_hold":   work.RecoveryHold,
-		"observed_paths":  append([]string(nil), work.ObservedPaths...),
+		"observed_paths":  append([]string{}, work.ObservedPaths...),
 		"stale":           (work.Status == runcontrol.WorkActive || work.Status == runcontrol.WorkBlocked) && work.LeaseUntilMS <= time.Now().UTC().UnixMilli(),
 		"created_at_ms":   work.CreatedAtMS,
 		"updated_at_ms":   work.UpdatedAtMS,

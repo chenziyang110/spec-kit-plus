@@ -75,6 +75,8 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, cl
 		return runTestDesign(args[1:], stdout)
 	case "deep-research":
 		return runDeepResearch(args[1:], stdout)
+	case "e2e":
+		return runE2E(args[1:], stdout)
 	case "evidence":
 		return runEvidence(args[1:], stdout)
 	case "doctor":
@@ -118,6 +120,7 @@ func writeHelp(stdout io.Writer) int {
 		"discussion",
 		"design",
 		"deep-research",
+		"e2e",
 		"test-design",
 		"doctor",
 		"evidence",
@@ -1277,6 +1280,16 @@ func defaultCapabilities() []string {
 		"deep-research.track-yield",
 		"deep-research.validate",
 		"deep-research.verify-handoff",
+		"e2e.init",
+		"e2e.status",
+		"e2e.scope-add",
+		"e2e.task-start",
+		"e2e.task-submit",
+		"e2e.review-start",
+		"e2e.review-submit",
+		"e2e.task-accept",
+		"e2e.reopen",
+		"e2e.close",
 		"test-design.audit-prepare",
 		"test-design.handoff",
 		"test-design.gap-reconcile",
@@ -1453,6 +1466,9 @@ func defaultCapabilityCards() []map[string]string {
 }
 
 func capabilitySummary(id string) string {
+	if descriptor, ok := e2eCapabilityDescriptor(id); ok {
+		return descriptor["summary"].(string)
+	}
 	switch id {
 	case quickShadowCapability:
 		return quickShadowSummary
