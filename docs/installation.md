@@ -179,7 +179,7 @@ SHA256`; Linux provides `sha256sum`; macOS provides `shasum -a 256`.
 Users with a source checkout may also run `tools/specify-runtime/install.sh` or
 `tools/specify-runtime/install.ps1`; both default to the public artifact repo.
 
-Go users can also install from source:
+Go users with Go 1.22 or newer can also install from source:
 
 ```bash
 go install github.com/chenziyang110/spec-kit-plus/tools/specify-runtime@latest

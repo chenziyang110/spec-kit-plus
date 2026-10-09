@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "roots": {
+    "architecture": "docs/architecture",
+    "decision": "docs/adr",
+    "guide": "docs",
+    "reference": "docs/reference",
+    "report": "docs/reports",
+    "asset": "docs/assets"
+  },
+  "temporary_root": ".specify/tmp/assets",
+  "temporary_retention": "7d",
+  "source_roots": ["schemas", "modules", "presets"],
+  "assetkit": {
+    "enabled": false
+  }
+}

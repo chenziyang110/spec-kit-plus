@@ -1,5 +1,6 @@
 import codecs
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -166,6 +167,20 @@ def _normalize_newlines(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
+def test_bash_and_powershell_asset_contracts_have_identical_literal_content() -> None:
+    """The fallback static check also runs where PowerShell is unavailable."""
+    bash = BASH_SCRIPT.read_text(encoding="utf-8")
+    powershell = POWERSHELL_SCRIPT.read_text(encoding="utf-8")
+    section = "## Document and Asset Placement"
+    next_section = "## Workflow Invocation Boundary"
+    bash_contract = bash.split(section, 1)[1].split(next_section, 1)[0].strip()
+    literals = re.findall(r"^\s*'((?:[^']|'')*)'\s*$", powershell, re.MULTILINE)
+    powershell_text = "\n".join(line.replace("''", "'") for line in literals)
+    powershell_contract = powershell_text.split(section, 1)[1].split(next_section, 1)[0].strip()
+    assert powershell_contract == bash_contract
+    assert len(bash_contract.splitlines()) == 3
+
+
 def _assert_managed_block_is_compact_always_on_context(content: str) -> None:
     lower = content.lower()
 
@@ -179,6 +194,14 @@ def _assert_managed_block_is_compact_always_on_context(content: str) -> None:
         "specify-runtime learning start --command <workflow> --format json" in content
     )
     assert "show_argv" in content
+    assert "## document and asset placement" in lower
+    assert "assets route --purpose" in lower
+    assert ".asset-policy.json" in lower
+    assert "reading an existing file does not authorize moving, deleting, or archiving it" in lower
+    assert "ordinary conversation or read-only work" in lower
+    assert "assets check --path" in lower
+    assert "--path-only" in lower
+    assert "without claiming the unavailable checks passed" in lower
     assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## workflow invocation boundary" in lower
     assert "all `sp-*` and `spx-*` workflow skills are user-invoked only" in lower

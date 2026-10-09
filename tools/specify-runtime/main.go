@@ -53,6 +53,8 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer, cl
 		return runAPI(args[1:], stdout, stderr, cliVersion)
 	case "artifact":
 		return runArtifact(args[1:], stdout)
+	case "assets":
+		return runAssets(args[1:], stdout)
 	case "result":
 		return runResult(args[1:], stdout)
 	case "execution":
@@ -115,6 +117,7 @@ func writeHelp(stdout io.Writer) int {
 	for _, name := range []string{
 		"api",
 		"artifact",
+		"assets",
 		"board",
 		"cognition",
 		"discussion",
@@ -1188,6 +1191,15 @@ func defaultCapabilities() []string {
 		"artifact.scaffold",
 		"artifact.show",
 		"artifact.show-many",
+		"assets.route",
+		"assets.explain",
+		"assets.check",
+		"assets.migrate.plan",
+		"assets.migrate.apply",
+		"assets.catalog.find",
+		"assets.catalog.get",
+		"assets.catalog.put",
+		"assets.catalog.check",
 		"board.owner",
 		"board.branch-policy",
 		"board.feature-bootstrap",
@@ -1466,6 +1478,9 @@ func defaultCapabilityCards() []map[string]string {
 }
 
 func capabilitySummary(id string) string {
+	if summary, ok := assetCapabilitySummary(id); ok {
+		return summary
+	}
 	if descriptor, ok := e2eCapabilityDescriptor(id); ok {
 		return descriptor["summary"].(string)
 	}

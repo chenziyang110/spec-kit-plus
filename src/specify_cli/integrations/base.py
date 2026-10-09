@@ -587,11 +587,12 @@ class IntegrationBase(ABC):
 
         Returns the list of files created.
         """
+        created = self.install_asset_policy_template(
+            project_root, manifest, skipped_modified=skipped_modified
+        )
         scripts_src = self.integration_scripts_dir()
         if not scripts_src:
-            return []
-
-        created: list[Path] = []
+            return created
         modified = set(manifest.check_modified()) if preserve_modified else set()
         scripts_dest = project_root / ".specify" / "integrations" / self.key / "scripts"
         scripts_dest.mkdir(parents=True, exist_ok=True)
@@ -613,6 +614,41 @@ class IntegrationBase(ABC):
             created.append(dst_script)
 
         return created
+
+    def install_asset_policy_template(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        *,
+        skipped_modified: list[str] | None = None,
+    ) -> list[Path]:
+        """Publish an opt-in policy example without creating project policy.
+
+        A user-owned template survives repeat/profile-additive init and repair.
+        The Go runtime supplies defaults when ``.asset-policy.json`` is absent.
+        """
+        templates_dir = self.shared_templates_dir()
+        if templates_dir is None:
+            return []
+        source = templates_dir / "asset-policy.json"
+        if not source.is_file():
+            return []
+        destination = project_root / ".specify/templates/asset-policy.json"
+        relative = destination.relative_to(project_root).as_posix()
+        safe_local_state_path(destination.parent, root=project_root)
+        if destination.exists() or destination.is_symlink():
+            if (
+                destination.is_symlink()
+                or relative not in manifest.files
+                or relative in manifest.check_modified()
+            ):
+                if skipped_modified is not None:
+                    skipped_modified.append(relative)
+                return []
+        safe_local_state_path(destination, root=project_root)
+        return [self.write_file_and_record(
+            source.read_text(encoding="utf-8"), destination, project_root, manifest
+        )]
 
     def _question_tool_use_cases(self, command_name: str) -> list[str]:
         use_cases = {
@@ -1562,6 +1598,20 @@ class IntegrationBase(ABC):
         )
 
         if template_path is not None and template_path.parent.name == "commands":
+            asset_contract_path = (
+                template_path.parent.parent
+                / "command-partials"
+                / "common"
+                / "asset-governance.md"
+            )
+            if asset_contract_path.is_file() and "## Document and Asset Placement" not in content:
+                asset_contract = asset_contract_path.read_text(encoding="utf-8").strip()
+                frontmatter_text, body = IntegrationBase._split_frontmatter(content)
+                content = (
+                    f"---\n{frontmatter_text}---\n\n{asset_contract}\n\n{body.lstrip()}"
+                    if frontmatter_text
+                    else f"{asset_contract}\n\n{content.lstrip()}"
+                )
             blocker_contract_path = (
                 template_path.parent.parent
                 / "command-partials"
@@ -2922,6 +2972,22 @@ class SkillsIntegration(IntegrationBase):
             if len(parts) >= 3:
                 processed_body = parts[2]
 
+        # Integration-specific Classic skills (for example Claude Teams) can
+        # bypass templates/commands but still share the same output contract.
+        commands_dir = self.shared_commands_dir()
+        if skill_name.startswith("sp-") and "## Document and Asset Placement" not in processed_body and commands_dir is not None:
+            asset_contract_path = commands_dir.parent / "command-partials/common/asset-governance.md"
+            if asset_contract_path.is_file():
+                contract = self.process_template(
+                    asset_contract_path.read_text(encoding="utf-8"),
+                    self.key,
+                    script_type,
+                    arg_placeholder,
+                    template_path=asset_contract_path,
+                    project_root=project_root,
+                )
+                processed_body = f"\n{contract.strip()}\n\n{processed_body.lstrip()}"
+
         from specify_cli.agents import CommandRegistrar
 
         if apply_invocation_conventions:
@@ -3286,6 +3352,46 @@ class SkillsIntegration(IntegrationBase):
 
         return restored
 
+    def repair_missing_passive_skill_entrypoints(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+        *,
+        script_type: str,
+    ) -> list[Path]:
+        """Restore owned passive entrypoints without adding a bundle to Advanced."""
+        project_root_resolved = project_root.resolve()
+        skills_dir = self.skills_dest(project_root_resolved)
+        arg_placeholder = (
+            self.registrar_config.get("args", "$ARGUMENTS")
+            if self.registrar_config
+            else "$ARGUMENTS"
+        )
+        restored: list[Path] = []
+        for template_dir in self.list_passive_skill_templates():
+            destination = skills_dir / template_dir.name / "SKILL.md"
+            relative = destination.relative_to(project_root_resolved).as_posix()
+            if relative not in manifest.files or destination.exists() or destination.is_symlink():
+                continue
+            safe_local_state_path(destination, root=project_root_resolved)
+            source = template_dir / "SKILL.md"
+            raw = source.read_text(encoding="utf-8")
+            frontmatter = self._parse_skill_frontmatter(raw)
+            content = self._render_skill_content(
+                raw=raw,
+                skill_name=template_dir.name,
+                description=frontmatter.get("description") or f"Spec Kit passive skill: {template_dir.name}",
+                source=f"templates/passive-skills/{template_dir.name}/SKILL.md",
+                project_root=project_root,
+                script_type=script_type,
+                arg_placeholder=arg_placeholder,
+                template_path=source,
+            )
+            restored.append(self.write_file_and_record(content, destination, project_root, manifest))
+        if restored:
+            self.finalize_native_skill_files(restored, project_root, manifest, skills_dir)
+        return restored
+
     def repair_runtime_assets(
         self,
         project_root: Path,
@@ -3299,6 +3405,13 @@ class SkillsIntegration(IntegrationBase):
         )
         created.extend(
             self.repair_missing_command_reference_sidecars(
+                project_root,
+                manifest,
+                script_type=opts.get("script_type", "sh"),
+            )
+        )
+        created.extend(
+            self.repair_missing_passive_skill_entrypoints(
                 project_root,
                 manifest,
                 script_type=opts.get("script_type", "sh"),
@@ -3529,6 +3642,22 @@ class SkillsIntegration(IntegrationBase):
             template_path=source_path,
         )
         skill_content = self.render_advanced_invocations(skill_content)
+        if "## Document and Asset Placement" not in skill_content:
+            frontmatter_text, body = self._split_frontmatter(skill_content)
+            asset_contract = (
+                "## Document and Asset Placement\n\n"
+                "Before creating, relocating, or retaining documents, reports, media, "
+                "or temporary files, read `references/asset-governance.md`. "
+                "Preserve canonical owners and native source filenames; ordinary "
+                "authorized tasks require no workflow activation. Verify the exact "
+                "changed assets through the project-local runtime and keep unavailable "
+                "checks explicit.\n\n"
+            )
+            skill_content = (
+                f"---\n{frontmatter_text}---\n\n{asset_contract}{body.lstrip()}"
+                if frontmatter_text
+                else asset_contract + skill_content.lstrip()
+            )
         if "## Fixed Workflow Artifact Boundary" not in skill_content:
             frontmatter_text, body = self._split_frontmatter(skill_content)
             boundary = (

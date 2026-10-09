@@ -106,6 +106,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		"side_effect":    "may-write",
 		"input_contract": "inspect the command-specific help before invoking; pass only documented arguments and request the JSON envelope when supported",
 	}
+	bindAssetCapability(capabilityID, capability)
 	env = NewEnvelope("ok", fmt.Sprintf("Capability %s expanded.", capabilityID))
 	switch capabilityID {
 	case "api.ensure":

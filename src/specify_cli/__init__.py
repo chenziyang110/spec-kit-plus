@@ -6167,6 +6167,11 @@ def _install_shared_infra(
                 continue
 
             rel_path = src_path.relative_to(templates_src)
+            # The integration installer owns this opt-in example and its
+            # preservation rules. A second shared owner would misclassify a
+            # canonical copy as untracked during repair in either init order.
+            if rel_path == Path("asset-policy.json"):
+                continue
             if rel_path.parts and rel_path.parts[0] == "project-map":
                 continue
             dst = dest_templates / rel_path

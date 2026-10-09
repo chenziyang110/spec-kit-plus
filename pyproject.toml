@@ -33,6 +33,7 @@ packages = ["src/specify_cli"]
 # Bundle core assets so `specify init` works without network access (air-gapped / enterprise)
 # Page templates (exclude commands/ — bundled separately below to avoid duplication)
 "templates/agent-file-template.md" = "specify_cli/core_pack/templates/agent-file-template.md"
+"templates/asset-policy.json" = "specify_cli/core_pack/templates/asset-policy.json"
 "templates/agent-phase-transition-schema.json" = "specify_cli/core_pack/templates/agent-phase-transition-schema.json"
 "templates/agent-phase-transition-template.json" = "specify_cli/core_pack/templates/agent-phase-transition-template.json"
 "templates/alignment-template.md" = "specify_cli/core_pack/templates/alignment-template.md"

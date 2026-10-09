@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "source_roots": [],
+  "protected_roots": [],
+  "fixed_names": [],
+  "allowed_root_files": [],
+  "assetkit": {
+    "enabled": false
+  }
+}

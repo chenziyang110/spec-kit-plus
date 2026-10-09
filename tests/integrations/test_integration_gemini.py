@@ -382,6 +382,7 @@ class TestGeminiIntegration:
         assert "SessionStart" in payload["hooks"]
         assert "BeforeAgent" in payload["hooks"]
         assert "BeforeTool" in payload["hooks"]
+        assert "AfterAgent" in payload["hooks"]
 
         commands = [
             hook["command"]
@@ -401,6 +402,10 @@ class TestGeminiIntegration:
         )
         assert any(
             command == self._expected_launcher_command("before-tool", script_type="sh")
+            for command in commands
+        )
+        assert any(
+            command == self._expected_launcher_command("after-agent", script_type="sh")
             for command in commands
         )
 

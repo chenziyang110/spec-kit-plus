@@ -1,0 +1,10 @@
+# Document and Asset Placement
+
+Apply this contract when creating, relocating, or retaining documents, reports, media, or temporary files. It also applies to authorized ordinary work without an active workflow and never selects or enters an `sp-*` or `spx-*` skill.
+
+- Inspect applicable instructions and the existing owner. Source/native tool filenames, canonical workflow artifacts, approved design/evidence packages, and existing authoritative documents retain their owning contract. Do not create an alternative copy of an existing source of truth.
+- Use project-local `specify-runtime assets route --purpose <purpose> --path <candidate-project-relative-path> --format json`; expand a surprising decision with `assets explain`. The runtime owns path construction, naming, collision checks, and the optional `.asset-policy.json`; `.specify/templates/asset-policy.json` is the customization template. Follow `reuse-existing`, `create-new`, `owner-required`, or `conflict` without overriding the user's explicit destination or any canonical owner.
+- For scratch output, use `--purpose temporary --task-id <id> --worker-id <id> --retention <duration>`. Do not produce governance reports, counters, receipts, or indexes for ordinary messages or read-only work.
+- Pass each worker exact allowed output paths or resolver inputs, task/worker identity, retention, and forbidden scope. Preserve the existing inline/runtime result channel. Check the leader's final combined changed assets with `specify-runtime assets check --path <path> --format json` (repeat `--path`); a prior `--path-only` check proves placement only.
+- A read-only encounter never authorizes relocation, deletion, deduplication, or archive. Explicit cleanup uses a bounded runtime migration plan and its digest-bound apply contract, with reference and concurrent-change validation.
+- Missing `assets.route`/`assets.check` capability is an explicit verification limitation: continue authorized work using project conventions, preserve originals, and do not claim the deterministic checks passed. Never replace the project-local Go runtime with Python `specify` or activate a workflow as recovery.

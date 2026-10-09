@@ -229,6 +229,27 @@ mean the runtime binary is missing. Archive that directory first (or remove it
 only after confirming it is disposable), then rerun initialization for an empty
 project or run `sp-map-scan -> sp-map-build` for an existing codebase.
 
+## Passive document and asset governance
+
+Document and media placement applies both inside explicitly invoked workflows
+and during ordinary tasks. The shared runtime recommends an existing document
+or a correctly named destination, keeps temporary output within task/worker
+directories, and checks changed files and Markdown dependencies. Fixed project
+filenames, source templates, native media layouts, canonical workflow artifacts
+and immutable evidence retain their existing owners.
+
+Classic installs a small `spec-kit-asset-governance` passive skill alongside the
+shared context; Advanced uses its own shared reference. Claude and Gemini native
+guards check relevant writes and task completion, while other integrations use
+their managed context and explicit runtime checks. CI checks exact commit deltas.
+No implicit workflow entry, cleanup daemon or second asset ledger is introduced.
+
+See [Asset Governance](docs/asset-governance.md) for naming policy, commands,
+host coverage, guarded historical migration and the optional existing-project
+[AssetKit](https://github.com/chenziyang110/AssetKit) adapter. New runtime commands
+require a matching built runtime; source changes alone do not update a released
+binary already pinned in a generated project.
+
 ## Documentation
 
 | Goal | Read |
@@ -241,6 +262,7 @@ project or run `sp-map-scan -> sp-map-build` for an existing codebase.
 | Audit project cognition compatibility | [Project Cognition Compatibility Inventory](docs/project-cognition-compatibility-inventory.md) |
 | Maintain workflow/profile product contracts | [Repository agent guidance](AGENTS.md) |
 | Choose project governance defaults | [Constitution Profiles](docs/constitution-profiles.md) |
+| Keep documents and media organized across workflows and ordinary tasks | [Asset Governance](docs/asset-governance.md) |
 | Develop an extension | [Extension Development Guide](extensions/EXTENSION-DEVELOPMENT-GUIDE.md) and [API Reference](extensions/EXTENSION-API-REFERENCE.md) |
 | Build or publish presets | [Preset Guide](presets/README.md) and [Publishing Guide](presets/PUBLISHING.md) |
 | Develop this repository | [Local Development Guide](docs/local-development.md) |
