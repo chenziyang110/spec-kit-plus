@@ -94,7 +94,7 @@ def probe(runtime: Path, project: Path, *, prepare_project: Callable[[Path], Non
              "required": True, "expected_result": "Archive metadata and payload match", "kind": "json",
              "result_path": "out/report.json", "json_pointer": "/ok", "expected_json": True},
             {"id": "archive", "purpose": "Retain an actual archive hash obligation", "cwd": ".", "argv": [],
-             "depends_on": ["inspect"], "required": True, "expected_result": "The verified archive remains present",
+             "depends_on": ["build", "inspect"], "required": True, "expected_result": "The verified archive remains present",
              "kind": "file", "result_path": "out/demo.zip"},
         ],
     }
