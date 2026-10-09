@@ -122,6 +122,17 @@ binary or old markdown DONE mark cannot grant E2E acceptance.
 | `e2e reopen` | Record drift or counterevidence, retain old attempts/reviews, and invalidate the affected producer and all descendants. |
 | `e2e close` | Recheck all required scopes/stages and the entire evidence chain before a scoped result. Planning completion, a complete failure report and product execution success are distinct. |
 
+A terminal closeout (`blocked`, `reported`, `complete` or `planning-complete`)
+closes ordinary task/review/accept transitions. Read current `e2e status` and have
+the leader explicitly call `e2e reopen` for the earliest affected task with the
+current revision, recovery reason and evidence. For blocked/reported runs,
+`next_argv` supplies the earliest unresolved or nonpassing task and placeholders
+for the actual recovery reason/evidence; passing terminal runs supply no
+ordinary next action. The runtime preserves prior closeout and attempt/review
+history, returns a fresh revision, and invalidates the reopened task and affected
+descendants for revalidation. Existing source-drift invalidation and `scope-add`
+expansion can still reopen the run.
+
 All mutations after initialization use the current `--expected-revision` from
 runtime output. After a conflict, read status and decide the correct next
 action; do not blindly retry the old argv. Semantic JSON inputs use documented

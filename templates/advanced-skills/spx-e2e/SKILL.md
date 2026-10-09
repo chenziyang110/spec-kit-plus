@@ -125,6 +125,16 @@ Negotiate the actual installed capabilities before dispatch:
   Missing capabilities remain a compatibility blocker until an updated runtime
   can verify the run. Safe drafting can continue without accepted receipts.
 
+Terminal `blocked`/`reported`/`complete`/`planning-complete` runs refuse ordinary
+task, review and acceptance mutations. Resume from current `e2e status` through
+the leader's explicit `e2e reopen`, binding the current revision, recovery reason
+and evidence. Blocked/reported `next_argv` selects the earliest unresolved or
+nonpassing task and leaves placeholders for the actual recovery reason/evidence;
+passing terminal runs have no ordinary next action. Retain prior closeout,
+attempt and review history; use the new revision to revalidate the affected task
+and descendants. Source-drift invalidation and `scope-add` expansion keep their
+existing reopening behavior.
+
 Distinct recorded identities do not authenticate native agent processes;
 actually launch separate workers and validators. Hashes prove byte bindings,
 not truthful observations, adequate oracles or complete discovery. The leader

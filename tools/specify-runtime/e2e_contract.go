@@ -9,6 +9,14 @@ const e2eWorkflowSchema = "spec-kit-e2e-workflow-v1"
 
 var e2eActions = []string{"init", "status", "scope-add", "task-start", "task-submit", "review-start", "review-submit", "task-accept", "reopen", "close"}
 
+func e2eRequiresActiveRun(action string) bool {
+	switch action {
+	case "task-start", "task-submit", "review-start", "review-submit", "task-accept":
+		return true
+	}
+	return false
+}
+
 func e2eCapabilityIDs() []string {
 	ids := make([]string, 0, len(e2eActions))
 	for _, action := range e2eActions {
@@ -36,6 +44,9 @@ func e2eCapabilityDescriptor(id string) (map[string]any, bool) {
 	inputSchema := ""
 	sideEffect := "writes-e2e-workflow"
 	contract := "Runtime-owned, revision-checked E2E handoffs; native agent tools create workers. Recorded distinct identities are checked, not authenticated as separate agent processes."
+	if e2eRequiresActiveRun(action) {
+		contract += " Require an active run; after closeout, the leader must reopen the affected task with a recovery reason and evidence before ordinary task progression."
+	}
 	switch action {
 	case "init":
 		usage += " --leader-id <id> --input-json <object|@path|->"
@@ -43,7 +54,7 @@ func e2eCapabilityDescriptor(id string) (map[string]any, bool) {
 		contract += " Freeze every requested target/operation and all seven stage task placeholders; future output files need not exist. Scope, task IDs and acceptance criteria cannot be silently removed."
 	case "status":
 		sideEffect = "read-only"
-		contract += " Revalidate snapshot, source, output and evidence byte bindings; return the full denominator, unresolved tasks and stale descendants. Status does not mutate stale state."
+		contract += " Revalidate snapshot, source, output and evidence byte bindings; return the full denominator, unresolved tasks and stale descendants. Status does not mutate stale state. Fresh blocked/reported closeouts return an evidence-backed reopen action for the earliest unresolved or nonpassing stage; passing closeouts have no ordinary next action."
 	case "scope-add":
 		usage += " --leader-id <id> --reason <text> --evidence-ref <path> --input-json <object|@path|->"
 		inputSchema = "e2e-scope-add-input"
@@ -67,10 +78,10 @@ func e2eCapabilityDescriptor(id string) (map[string]any, bool) {
 		contract += " Accept only a current, completely verified submission. An accepted failure report remains a failed observation and cannot unlock a passed prerequisite."
 	case "reopen":
 		usage += " --task-id <id> --leader-id <id> --reason <text> --evidence-ref <path>"
-		contract += " Preserve immutable history, reopen the earliest affected producer and transitively invalidate its consumers; no old review may be reused."
+		contract += " Preserve immutable history, reopen the earliest affected producer and transitively invalidate its consumers; no old review may be reused. Archive any terminal closeout receipt and restore an active run at a fresh revision before resuming task progression."
 	case "close":
 		usage += " --leader-id <id> --outcome <pass|failed|blocked>"
-		contract += " Recheck the complete reachable evidence chain, original raw artifact archives including failure history, and every requested scope/stage. Planning completion never claims product execution. Failure reports are reported, not a passing completed run; unresolved mandatory work remains blocked."
+		contract += " Recheck the complete reachable evidence chain, original raw artifact archives including failure history, and every requested scope/stage. Planning completion never claims product execution. Failure reports are reported, not a passing completed run; unresolved mandatory work remains blocked. Closed runs reject ordinary task/review/accept actions until evidence-backed leader reopen; existing source-drift invalidation and additive scope recovery remain available."
 	}
 	out := map[string]any{"id": id, "summary": "Verified E2E dependency handoff: " + action, "usage": usage, "side_effect": sideEffect, "input_contract": contract}
 	if inputSchema != "" {

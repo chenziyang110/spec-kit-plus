@@ -331,6 +331,9 @@ func (service *e2eService) run(action string, args []string) Envelope {
 		env.Data["invalidated_task_ids"] = ids
 		return env
 	}
+	if state.Status != "active" && e2eRequiresActiveRun(action) {
+		return service.failureWithState("blocked", "E2E run is closed; reopen the affected task with recovery evidence before continuing", &state, nil)
+	}
 	switch action {
 	case "scope-add":
 		return service.scopeAdd(&state, args)
@@ -1747,6 +1750,23 @@ func (service *e2eService) envelope(status, summary string, state *e2eState) Env
 	}
 	env.Data = map[string]any{"schema_version": state.SchemaVersion, "run_id": state.RunID, "revision": state.Revision, "mode": state.Mode, "status": state.Status, "product_pass": state.Status == "complete", "scope": state.Scope, "tasks": tasks, "state_ref": service.rootRef + "/state.json"}
 	env.ShowArgv = []string{"specify-runtime", "e2e", "status", "--run-id", state.RunID, "--project-root", service.projectRoot, "--format", "json"}
+	if state.Status != "active" {
+		if state.Status == "blocked" || state.Status == "reported" {
+			earliest := -1
+			for index, task := range state.Tasks {
+				if task.Status == "not_requested" || (task.Status == "accepted" && task.Outcome == "pass") {
+					continue
+				}
+				if earliest < 0 || task.Contract.Stage < state.Tasks[earliest].Contract.Stage {
+					earliest = index
+				}
+			}
+			if earliest >= 0 {
+				env.NextArgv = service.argv(state, "reopen", "--task-id", state.Tasks[earliest].Contract.ID, "--leader-id", state.LeaderID, "--reason", "<recovery-reason>", "--evidence-ref", "<recovery-evidence-path>")
+			}
+		}
+		return env
+	}
 	for _, task := range state.Tasks {
 		switch task.Status {
 		case "running":
@@ -1779,15 +1799,13 @@ func (service *e2eService) envelope(status, summary string, state *e2eState) Env
 			}
 		}
 	}
-	if state.Status == "active" {
-		for _, task := range state.Tasks {
-			if task.Status == "pending" && task.Contract.Stage >= 6 {
-				env.NextArgv = service.argv(state, "task-start", "--task-id", task.Contract.ID, "--worker-id", "<independent-audit-worker-id>", "--diagnostic")
-				return env
-			}
+	for _, task := range state.Tasks {
+		if task.Status == "pending" && task.Contract.Stage >= 6 {
+			env.NextArgv = service.argv(state, "task-start", "--task-id", task.Contract.ID, "--worker-id", "<independent-audit-worker-id>", "--diagnostic")
+			return env
 		}
-		env.NextArgv = service.argv(state, "close", "--leader-id", state.LeaderID, "--outcome", "<pass|failed|blocked>")
 	}
+	env.NextArgv = service.argv(state, "close", "--leader-id", state.LeaderID, "--outcome", "<pass|failed|blocked>")
 	return env
 }
 

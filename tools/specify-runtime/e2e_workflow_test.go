@@ -342,6 +342,200 @@ func TestE2EAllAcceptedFailureReportClosesAsReported(t *testing.T) {
 	if closed["status"] != "reported" || closed["product_pass"] != false {
 		t.Fatalf("accepted failure report misclassified: %v", closed)
 	}
+	_, status := e2eTestCall(t, root, "status", "--run-id", "run-1")
+	argv := e2eTestNextArgv(t, status)
+	if argv[2] != "reopen" || optionValue(argv, "--task-id", "") != "S4" {
+		t.Fatalf("reported failure did not identify the failed producer for recovery: %v", status)
+	}
+}
+
+func e2eTestNextArgv(t *testing.T, envelope map[string]any) []string {
+	t.Helper()
+	raw, ok := envelope["next_argv"].([]any)
+	if !ok || len(raw) < 3 {
+		t.Fatalf("missing actionable E2E continuation: %v", envelope)
+	}
+	argv := make([]string, len(raw))
+	for i, value := range raw {
+		argv[i] = value.(string)
+	}
+	if argv[0] != "specify-runtime" || argv[1] != "e2e" {
+		t.Fatalf("continuation escaped the E2E owner: %v", argv)
+	}
+	return argv
+}
+
+func e2eTestRunFiles(t *testing.T, root string) map[string][]byte {
+	t.Helper()
+	files := map[string][]byte{}
+	directory := filepath.Join(root, ".planning", "e2e", "run-1")
+	if err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(directory, path)
+		if err != nil {
+			return err
+		}
+		files[filepath.ToSlash(relative)] = raw
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return files
+}
+
+func e2eTestBlockedCloseout(t *testing.T, root string) map[string]any {
+	t.Helper()
+	report := e2eTestPrepareSubmission(t, root, "S7", "blocked", "--diagnostic")
+	e2eTestMutation(t, root, "task-submit", "--task-id", "S7", "--worker-id", "worker-S7", "--result-json", e2eTestJSON(t, report))
+	e2eTestReviewAndAccept(t, root, "S7")
+	closed := e2eTestMutation(t, root, "close", "--leader-id", "leader", "--outcome", "blocked")
+	if closed["status"] != "blocked" || closed["product_pass"] != false {
+		t.Fatalf("diagnostic closeout concealed pending work: %v", closed)
+	}
+	return closed
+}
+
+func TestE2EClosedRunRejectsOrdinaryMutationsWithoutWrites(t *testing.T) {
+	cases := []struct {
+		action  string
+		prepare func(*testing.T, string) []string
+	}{
+		{"task-start", func(t *testing.T, root string) []string {
+			return []string{"--worker-id", "worker-S1"}
+		}},
+		{"task-submit", func(t *testing.T, root string) []string {
+			input := e2eTestPrepareSubmission(t, root, "S1", "pass")
+			return []string{"--worker-id", "worker-S1", "--result-json", e2eTestJSON(t, input)}
+		}},
+		{"review-start", func(t *testing.T, root string) []string {
+			e2eTestStartAndSubmit(t, root, "S1", "pass")
+			return []string{"--validator-id", "validator-S1"}
+		}},
+		{"review-submit", func(t *testing.T, root string) []string {
+			e2eTestStartAndSubmit(t, root, "S1", "pass")
+			input := e2eTestPrepareReview(t, root, "S1")
+			return []string{"--validator-id", "validator-S1", "--result-json", e2eTestJSON(t, input)}
+		}},
+		{"task-accept", func(t *testing.T, root string) []string {
+			e2eTestStartAndSubmit(t, root, "S1", "pass")
+			input := e2eTestPrepareReview(t, root, "S1")
+			e2eTestMutation(t, root, "review-submit", "--task-id", "S1", "--validator-id", "validator-S1", "--result-json", e2eTestJSON(t, input))
+			return []string{"--leader-id", "leader"}
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.action, func(t *testing.T) {
+			root := e2eTestInit(t, "execution")
+			extra := tc.prepare(t, root)
+			closed := e2eTestBlockedCloseout(t, root)
+			before := e2eTestRunFiles(t, root)
+			revision := strconv.Itoa(int(closed["revision"].(float64)))
+			args := []string{tc.action, "--run-id", "run-1", "--task-id", "S1", "--expected-revision", revision}
+			code, result := e2eTestCall(t, root, append(args, extra...)...)
+			if code == 0 || !strings.Contains(e2eTestJSON(t, result), "reopen") {
+				t.Errorf("closed run admitted %s instead of requiring reopen: %v", tc.action, result)
+			}
+			if e2eTestJSON(t, before) != e2eTestJSON(t, e2eTestRunFiles(t, root)) {
+				t.Errorf("refused %s changed closed state or immutable evidence", tc.action)
+			}
+			code, status := e2eTestCall(t, root, "status", "--run-id", "run-1")
+			if code != 0 {
+				t.Fatalf("post-close %s left the run unreadable: %v", tc.action, status)
+			}
+			data := status["data"].(map[string]any)
+			if data["status"] != "blocked" || data["revision"] != closed["revision"] {
+				t.Fatalf("post-close rejection changed the closed revision: %v", status)
+			}
+			argv := e2eTestNextArgv(t, status)
+			if argv[2] != "reopen" || optionValue(argv, "--task-id", "") != "S1" {
+				t.Fatalf("terminal continuation bypassed explicit recovery: %v", argv)
+			}
+		})
+	}
+}
+
+func TestE2EBlockedCloseoutResumesThroughEvidenceBackedReopen(t *testing.T) {
+	root := t.TempDir()
+	e2eTestFile(t, root, "request.md", "Exercise the complete requested web save operation.\n")
+	plan := e2eTestPlan("execution")
+	tasks := plan["tasks"].([]any)
+	tasks[0], tasks[3] = tasks[3], tasks[0]
+	e2eTestData(t, root, "init", "--run-id", "run-1", "--leader-id", "leader", "--input-json", e2eTestJSON(t, plan))
+	closed := e2eTestBlockedCloseout(t, root)
+	before := e2eTestRunFiles(t, root)
+	_, status := e2eTestCall(t, root, "status", "--run-id", "run-1")
+	argv := e2eTestNextArgv(t, status)
+	if argv[2] != "reopen" || optionValue(argv, "--task-id", "") != "S1" {
+		t.Fatalf("closed run did not select its earliest unresolved stage: %v", argv)
+	}
+	evidence := "tests/e2e/recovery.txt"
+	e2eTestFile(t, root, evidence, "The required test fixture is now available; inventory can resume.\n")
+	for i, value := range argv {
+		switch value {
+		case "<recovery-reason>":
+			argv[i] = "The missing fixture is available; resume from the inventory gate"
+		case "<recovery-evidence-path>":
+			argv[i] = evidence
+		}
+	}
+	var out bytes.Buffer
+	if code := runE2E(argv[2:], &out); code != 0 {
+		t.Fatalf("runtime-provided terminal recovery failed: %s", out.String())
+	}
+	resumed := e2eTestData(t, root, "status", "--run-id", "run-1")
+	if resumed["status"] != "active" || resumed["product_pass"] != false || resumed["revision"].(float64) != closed["revision"].(float64)+1 {
+		t.Fatalf("reopen did not restore a fresh active revision: %v", resumed)
+	}
+	after := e2eTestRunFiles(t, root)
+	for path, raw := range before {
+		if path != "state.json" && !bytes.Equal(raw, after[path]) {
+			t.Fatalf("reopen lost original receipt or evidence bytes: %s", path)
+		}
+	}
+	var state e2eState
+	if err := json.Unmarshal(after["state.json"], &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Closeout.Ref != "" {
+		t.Fatal("reopen retained a terminal closeout on active state")
+	}
+	preserved := false
+	for _, event := range state.Events {
+		if event.Ref == closed["closeout_ref"] && event.SHA256 == closed["closeout_sha256"] {
+			preserved = true
+		}
+	}
+	if !preserved {
+		t.Fatal("reopen removed the original closeout from history")
+	}
+	for _, task := range state.Tasks {
+		if task.Status != "pending" {
+			t.Fatalf("affected descendant retained terminal acceptance: %v", task)
+		}
+		if task.Contract.ID == "S7" && len(task.History) < 5 {
+			t.Fatal("diagnostic worker/reviewer/acceptance history was lost")
+		}
+	}
+	for stage := 1; stage <= 7; stage++ {
+		e2eTestCompleteTask(t, root, "S"+strconv.Itoa(stage))
+	}
+	completed := e2eTestMutation(t, root, "close", "--leader-id", "leader", "--outcome", "pass")
+	if completed["status"] != "complete" || completed["product_pass"] != true {
+		t.Fatalf("recovered execution could not close with fresh accepted evidence: %v", completed)
+	}
+	_, status = e2eTestCall(t, root, "status", "--run-id", "run-1")
+	if next, ok := status["next_argv"].([]any); ok && len(next) != 0 {
+		t.Fatalf("passing closeout still advertised a task mutation: %v", next)
+	}
 }
 
 func TestE2ERejectionAndRepairRequireFreshIndependentReview(t *testing.T) {

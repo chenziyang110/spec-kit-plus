@@ -109,6 +109,17 @@ Read the bounded input contracts instead of inventing state JSON:
    revision and resume instructions after a conflict; never retry stale argv
    blindly or edit runtime-owned files through another artifact/result channel.
 
+After terminal closeout (`blocked`, `reported`, `complete` or `planning-complete`),
+read current `e2e status` before resuming: ordinary task/review/accept mutations
+are refused while the run is closed. The leader must explicitly call `e2e reopen`
+for the earliest affected task with the current revision, a recovery reason and
+evidence. For blocked/reported runs, `next_argv` proposes the earliest unresolved
+or nonpassing task; fill its recovery placeholders with the actual reason and
+evidence. Passing terminal runs offer no ordinary next action. Preserve the old
+closeout and attempt/review history; use the new revision to revalidate the reopened task and
+affected descendants. Existing source-drift invalidation and `scope-add` expansion
+remain supported reopening routes.
+
 Use inline JSON, project-contained `@path`, or stdin only as documented by
 `api pack`; the input is semantic intent, not a hand-written state replacement.
 Unavailable E2E capabilities block required acceptance until the runtime is
