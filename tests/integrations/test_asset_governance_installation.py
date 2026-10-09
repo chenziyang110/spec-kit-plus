@@ -75,6 +75,103 @@ def test_repair_restores_missing_policy_template_without_creating_project_policy
     assert not (tmp_path / ".asset-policy.json").exists()
 
 
+@pytest.mark.parametrize("script_type", ["sh", "ps"])
+@pytest.mark.parametrize("shared_first", [False, True])
+def test_shared_infra_and_integration_repair_keep_one_policy_template_owner(
+    tmp_path, monkeypatch, script_type, shared_first,
+):
+    from specify_cli import _install_shared_infra
+
+    core = tmp_path / "core-pack"
+    templates = core / "templates"
+    templates.mkdir(parents=True)
+    expected = (REPO_ROOT / "templates/asset-policy.json").read_bytes()
+    (templates / "asset-policy.json").write_bytes(expected)
+    nested = templates / "team-examples/asset-policy.json"
+    nested.parent.mkdir()
+    nested.write_bytes(b'{"team_example":true}\n')
+    scripts = core / "scripts/shared"
+    scripts.mkdir(parents=True)
+    (scripts / "e2e_scenarios.py").write_bytes(b"# runtime-owned helper\n")
+    monkeypatch.setattr("specify_cli._locate_core_pack", lambda: core)
+    monkeypatch.setattr(
+        "specify_cli.launcher.write_project_specify_launcher_config",
+        lambda *args, **kwargs: None,
+    )
+    integration = get_integration("codex")
+    monkeypatch.setattr(integration, "shared_templates_dir", lambda: templates)
+    project = tmp_path / "project"
+    project.mkdir()
+    manifest = IntegrationManifest("codex", project)
+    if shared_first:
+        assert _install_shared_infra(project, script_type)
+    integration.install_scripts(project, manifest)
+    if not shared_first:
+        assert _install_shared_infra(project, script_type)
+    manifest.save()
+
+    template = project / ".specify/templates/asset-policy.json"
+    helper = project / ".specify/scripts/shared/e2e_scenarios.py"
+    helper.write_bytes(b"# deliberately customized helper\n")
+    skipped: list[str] = []
+    assert _install_shared_infra(
+        project, script_type, overwrite_existing=True,
+        preserve_modified_tracked=True, skipped_modified=skipped,
+    )
+    manifest = IntegrationManifest.load("codex", project)
+    integration.repair_runtime_assets(project, manifest, script_type=script_type)
+
+    assert skipped == [".specify/scripts/shared/e2e_scenarios.py"]
+    assert integration._last_repair_skipped_modified == ()
+    assert template.read_bytes() == expected
+    assert ".specify/templates/asset-policy.json" in manifest.files
+    shared_manifest = IntegrationManifest.load("speckit", project)
+    assert ".specify/templates/asset-policy.json" not in shared_manifest.files
+    assert (project / ".specify/templates/team-examples/asset-policy.json").read_bytes() == nested.read_bytes()
+    assert helper.read_bytes() == b"# deliberately customized helper\n"
+    assert not (project / ".asset-policy.json").exists()
+
+
+@pytest.mark.parametrize("owned", [False, True])
+def test_shared_infra_preserves_custom_policy_template_for_integration_owner(
+    tmp_path, monkeypatch, owned,
+):
+    from specify_cli import _install_shared_infra
+
+    core = tmp_path / "core-pack"
+    templates = core / "templates"
+    templates.mkdir(parents=True)
+    (templates / "asset-policy.json").write_bytes(
+        (REPO_ROOT / "templates/asset-policy.json").read_bytes()
+    )
+    (core / "scripts").mkdir()
+    monkeypatch.setattr("specify_cli._locate_core_pack", lambda: core)
+    monkeypatch.setattr(
+        "specify_cli.launcher.write_project_specify_launcher_config",
+        lambda *args, **kwargs: None,
+    )
+    integration = get_integration("codex")
+    monkeypatch.setattr(integration, "shared_templates_dir", lambda: templates)
+    project = tmp_path / "project"
+    project.mkdir()
+    manifest = IntegrationManifest("codex", project)
+    if owned:
+        integration.install_scripts(project, manifest)
+    template = project / ".specify/templates/asset-policy.json"
+    template.parent.mkdir(parents=True, exist_ok=True)
+    custom = b'{"schema_version":1,"source_roots":["custom-source"]}\n'
+    template.write_bytes(custom)
+    assert _install_shared_infra(project, "sh", overwrite_existing=True)
+    integration.repair_runtime_assets(project, manifest, script_type="sh")
+
+    assert template.read_bytes() == custom
+    assert integration._last_repair_skipped_modified == (
+        ".specify/templates/asset-policy.json",
+    )
+    shared_manifest = IntegrationManifest.load("speckit", project)
+    assert ".specify/templates/asset-policy.json" not in shared_manifest.files
+
+
 @pytest.mark.parametrize("integration_key", ["codex", "claude"])
 def test_repair_restores_owned_passive_entrypoint_and_preserves_user_edit(tmp_path, integration_key):
     integration = get_integration(integration_key)
