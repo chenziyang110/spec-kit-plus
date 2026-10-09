@@ -21,12 +21,20 @@ from typing import BinaryIO
 
 HELPERS = ("e2e_scenarios.py", "e2e_coverage.py", "e2e_runner.py", "e2e_pytest_reporter.py")
 ASSET_TREES = {
+    "tools/specify-runtime": "specify_cli/core_pack/tools/specify-runtime",
     "templates/command-partials": "specify_cli/core_pack/command-partials",
     "templates/advanced-skills/spx-e2e": "specify_cli/core_pack/advanced-skills/spx-e2e",
     "templates/advanced-skills/_shared": "specify_cli/core_pack/advanced-skills/_shared",
 }
 ASSET_FILES = {
     "src/specify_cli/__init__.py": "specify_cli/__init__.py",
+    "src/specify_cli/specify_runtime.py": "specify_cli/specify_runtime.py",
+    "src/specify_cli/execution/packet_schema.py": "specify_cli/execution/packet_schema.py",
+    "src/specify_cli/execution/packet_validator.py": "specify_cli/execution/packet_validator.py",
+    "tools/specify-runtime/e2e_workflow.go":
+        "specify_cli/core_pack/tools/specify-runtime/e2e_workflow.go",
+    "tools/specify-runtime/e2e_contract.go":
+        "specify_cli/core_pack/tools/specify-runtime/e2e_contract.go",
     "templates/commands/e2e.md": "specify_cli/core_pack/commands/e2e.md",
     "templates/artifacts/project-cognition-workflow-registry.json":
         "specify_cli/core_pack/templates/artifacts/project-cognition-workflow-registry.json",

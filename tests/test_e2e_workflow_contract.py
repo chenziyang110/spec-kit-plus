@@ -1,5 +1,6 @@
-"""Source-level E2E contracts; behavioral accounting lives in test_e2e_coverage."""
+"""Prompt stage contracts; runtime behavior is exercised by Go E2E tests."""
 from pathlib import Path
+import re
 
 import pytest
 import yaml
@@ -7,6 +8,36 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 CLASSIC = ROOT / "templates/commands/e2e.md"
 ADVANCED = ROOT / "templates/advanced-skills/spx-e2e/SKILL.md"
+
+
+@pytest.mark.parametrize("path", [CLASSIC, ADVANCED])
+def test_each_of_seven_stages_declares_its_consumption_contract(path):
+    """Protect the semantic stage handoffs alongside the shared Go runtime."""
+    source = path.read_text(encoding="utf-8")
+    headings = list(re.finditer(r"^## ([1-7])\. .+$", source, re.MULTILINE))
+    assert [int(match.group(1)) for match in headings] == list(range(1, 8))
+    for index, heading in enumerate(headings):
+        end = headings[index + 1].start() if index + 1 < len(headings) else len(source)
+        stage = source[heading.end():end]
+        for required in ("**Inputs:**", "**Outputs:**", "**Acceptance:**"):
+            assert required in stage, (path.name, heading.group(0), required)
+    assert source.index("e2e_scenarios.py check") < headings[2].start()
+    assert headings[2].start() < source.index("e2e_coverage.py plan") < headings[3].start()
+    assert headings[3].start() < source.index("e2e_scenarios.py audit") < headings[4].start()
+
+
+@pytest.mark.parametrize("path", [CLASSIC, ADVANCED])
+def test_upstream_test_repairs_reopen_the_owner_before_mutation(path):
+    source = path.read_text(encoding="utf-8")
+    stage = re.search(r"^## 5\..*?(?=^## 6\.)", source, re.MULTILINE | re.DOTALL).group()
+    normalized = " ".join(stage.lower().replace("**", "").split())
+    reopen = normalized.index("e2e reopen")
+    assert reopen < normalized.index("before any bound bytes change")
+    assert reopen < normalized.index("producer's new `task-start` packet")
+    assert normalized.index("independently reaccept") < normalized.index("obtain fresh stage 4 execution")
+    assert normalized.index("obtain fresh stage 4 execution") < normalized.index("then regenerate")
+    assert "competing ownership of an upstream output" in normalized
+    assert "current" in normalized and "packet" in normalized
 
 
 @pytest.mark.parametrize("path", [CLASSIC, ADVANCED])

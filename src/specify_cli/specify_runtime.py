@@ -58,6 +58,16 @@ DEFAULT_DOWNLOAD_URL_TEMPLATES: tuple[str, ...] = (
 # Keep in sync with tools/specify-runtime/main.go defaultCapabilities().
 # Install-time handshake requires every id here to be present on the binary.
 REQUIRED_CAPABILITIES = (
+    "e2e.init",
+    "e2e.status",
+    "e2e.scope-add",
+    "e2e.task-start",
+    "e2e.task-submit",
+    "e2e.review-start",
+    "e2e.review-submit",
+    "e2e.task-accept",
+    "e2e.reopen",
+    "e2e.close",
     "api.handshake",
     "api.ensure",
     "api.list",

@@ -30,6 +30,26 @@ is first-class and does not require a browser runner. External-event/checkpoint
 pairs, boundary values and independent durable-effect oracles remain explicit;
 missing tools cannot remove a scenario from the denominator.
 
+Both profiles require seven stages: scope/inventory/capabilities, scenario
+design, execution readiness, real execution, repair/regression, independent
+reconciliation, and truthful closeout. Each substantive handoff uses a worker,
+a separate validator and leader acceptance of exact upstream artifacts before
+dependent execution. The complete test ledger preserves every requested item,
+failure and affected dependency across repair/resume. `specify-runtime e2e`
+enforces the frozen scope/stage denominator, complete per-row submissions and
+reviews, distinct recorded worker/validator/leader identities, exact accepted
+dependencies, source/output/evidence byte freshness and truthful closeout.
+`tools/specify-runtime/e2e_workflow.go` and `e2e_contract.go` own the state and
+immutable handoff snapshots under `.planning/e2e/<run-id>/`; generic artifact
+and result mutation cannot replace them. Use `api ensure`/`api pack`, runtime
+task/review templates and current revision-bound actions. Missing capabilities
+block acceptance, and a legacy ledger is never automatically accepted.
+Native subagent dispatch and independent semantic inspection remain required:
+identity strings are not process authentication, hashes do not prove authentic
+observations, and an accepted failed-run report cannot satisfy a passed
+dependency. Planning completion is separate from product execution success.
+See the [stage inputs, outputs and acceptance contract](docs/sp-e2e.md).
+
 `e2e_scenarios.py`, `e2e_coverage.py` and the optional native runner are ordinary
 test-asset helpers, not Python workflow-state writers. Retained test-asset changes
 use canonical `sp-e2e` cognition closeout and Learning through shared runtime

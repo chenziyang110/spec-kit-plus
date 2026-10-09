@@ -93,6 +93,7 @@ jobs:
       - name: Run real integration and registration checks plus verifier regressions
         run: >-
           uv run --frozen --extra test pytest tests/integrations/test_e2e_installation.py
+          tests/integrations/test_e2e_runtime_packet.py
           tests/test_e2e_registration.py tests/test_e2e_wheel_verifier.py
           tests/test_e2e_wheel_snapshot.py tests/test_e2e_distribution_lock.py
           --junitxml="$E2E_WORK/installation-results.xml" -q
