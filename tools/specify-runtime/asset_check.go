@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"net/url"
 	"os"
 	"os/exec"
@@ -16,6 +17,12 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 )
 
 type AssetCheckRequest struct {
@@ -262,6 +269,9 @@ func (service *AssetService) assetCheckView(request AssetCheckRequest) (*assetRe
 		case "index":
 			args = append(args, "--cached", "--")
 		default:
+			if err := service.assetCheckWorktreeIndexBoundary(); err != nil {
+				return nil, nil, err
+			}
 			if err := service.assetCheckWorktreeFilterBoundary(); err != nil {
 				return nil, nil, err
 			}
@@ -324,6 +334,29 @@ func (service *AssetService) assetCheckView(request AssetCheckRequest) (*assetRe
 		}
 	}
 	return view, assetSortedKeys(paths), nil
+}
+
+// Git intentionally omits worktree changes for these index flags. Refusing the
+// automatic scope preserves their configuration while keeping exact path and
+// immutable snapshot checks available instead of claiming an empty delta.
+func (service *AssetService) assetCheckWorktreeIndexBoundary() error {
+	raw, err := service.assetGit("ls-files", "-v", "-z")
+	if err != nil {
+		return err
+	}
+	if len(raw) > 0 && raw[len(raw)-1] != 0 {
+		return fmt.Errorf("cannot establish a complete worktree scope: incomplete index flag inventory")
+	}
+	for _, record := range assetNullFields(raw) {
+		if len(record) < 3 || record[1] != ' ' {
+			return fmt.Errorf("cannot establish a complete worktree scope: invalid index flag inventory")
+		}
+		flag := record[0]
+		if flag == 'S' || (flag >= 'a' && flag <= 'z') {
+			return fmt.Errorf("automatic worktree inspection is unavailable because %s has an assume-unchanged or skip-worktree index flag; use explicit --path/--deleted-path inputs, --staged, or paired --from-ref/--to-ref checks; no index flag was changed", record[2:])
+		}
+	}
+	return nil
 }
 
 // Even a name-only diff can run attribute-selected clean/process filters while
@@ -603,8 +636,8 @@ func (view *assetReadView) exists(relative string) (bool, error) {
 		components := strings.Split(relative, "/")
 		for i := 1; i <= len(components); i++ {
 			prefix := strings.Join(components[:i], "/")
-			if entry, found := view.entries[prefix]; found && (entry.mode == "120000" || entry.unmerged) {
-				return false, fmt.Errorf("dependency crosses a symlink or unresolved index path")
+			if entry, found := view.entries[prefix]; found && (entry.mode == "120000" || entry.mode == "160000" || entry.unmerged) {
+				return false, fmt.Errorf("dependency crosses a symlink, submodule, or unresolved index path")
 			}
 			for _, candidate := range view.casePaths[strings.ToLower(prefix)] {
 				if candidate != prefix {
@@ -706,7 +739,7 @@ func (view *assetReadView) markdownIssues(relative string, raw []byte, policy As
 		}
 		seen[target] = true
 		classification := classifyAssetPath(target, policy)
-		if classification.Temporary || classification.Cache || assetUnder(target, ".specify/tmp") || assetUnder(target, ".specify/runtime") || assetUnder(target, ".agent_tmp") || assetUnder(target, ".agent-tmp") || assetUnder(target, ".tmp") || assetUnder(target, "tmp") {
+		if classification.Temporary || classification.Cache || assetDependencyIsEphemeral(target) {
 			issues = append(issues, AssetIssue{Path: relative, Code: "ephemeral-dependency", Message: "persistent Markdown must not depend on temporary files or runtime/cache state", Dependency: target})
 			continue
 		}
@@ -720,103 +753,105 @@ func (view *assetReadView) markdownIssues(relative string, raw []byte, policy As
 	return issues
 }
 
+// Native source/fixture naming exemptions do not make a cache a durable
+// dependency. Check every component independently of source classification.
+func assetDependencyIsEphemeral(relative string) bool {
+	relative = strings.ToLower(relative)
+	for _, root := range []string{".specify/tmp", ".specify/runtime", ".agent_tmp", ".agent-tmp", ".tmp", "tmp"} {
+		if assetUnder(relative, root) {
+			return true
+		}
+	}
+	for _, component := range strings.Split(relative, "/") {
+		if assetCacheSegments[component] {
+			return true
+		}
+	}
+	return false
+}
+
 func assetIsMarkdown(relative string) bool {
 	extension := strings.ToLower(path.Ext(relative))
 	return extension == ".md" || extension == ".markdown" || extension == ".mdx"
 }
 
-var assetReferenceDefinition = regexp.MustCompile(`^\s{0,3}\[[^\]]+\]:\s*(?:<([^>]+)>|(\S+))`)
-var assetHTMLDependency = regexp.MustCompile(`(?i)\b(?:src|href)\s*=\s*["']([^"']+)["']`)
-var assetInlineCode = regexp.MustCompile("`+[^`]*`+")
-
+// Inspect CommonMark's actual link/image nodes rather than projecting visible
+// lines: list indentation, escaped syntax, references and code block boundaries
+// are grammar decisions and cannot safely share a handwritten code-span mask.
 func assetMarkdownDestinations(markdown string) []string {
+	source := []byte(markdown)
+	document := goldmark.New(goldmark.WithExtensions(extension.GFM)).Parser().Parse(text.NewReader(source))
 	destinations := []string{}
-	fence := byte(0)
-	fenceLength := 0
-	visible := []string{}
-	for _, line := range strings.Split(markdown, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(line, "    ") || strings.HasPrefix(line, "\t") {
-			continue
+	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
 		}
-		markerLength := 0
-		if len(trimmed) > 0 && (trimmed[0] == '`' || trimmed[0] == '~') {
-			for markerLength < len(trimmed) && trimmed[markerLength] == trimmed[0] {
-				markerLength++
+		switch node := node.(type) {
+		case *ast.Link:
+			destinations = append(destinations, string(util.URLEscape(node.Destination, true)))
+		case *ast.Image:
+			destinations = append(destinations, string(util.URLEscape(node.Destination, true)))
+			return ast.WalkSkipChildren, nil // image alt text does not render nested links
+		case *ast.RawHTML:
+			destinations = append(destinations, assetHTMLDestinations(node.Segments.Value(source))...)
+		case *ast.HTMLBlock:
+			raw := node.Lines().Value(source)
+			if node.HasClosure() {
+				raw = append(raw, node.ClosureLine.Value(source)...)
 			}
+			destinations = append(destinations, assetHTMLDestinations(raw)...)
 		}
-		if markerLength >= 3 {
-			if fence == 0 {
-				fence, fenceLength = trimmed[0], markerLength
-			} else if fence == trimmed[0] && markerLength >= fenceLength && strings.TrimSpace(trimmed[markerLength:]) == "" {
-				fence, fenceLength = 0, 0
-			}
-			continue
-		}
-		if fence != 0 {
-			continue
-		}
-		line = assetInlineCode.ReplaceAllString(line, "")
-		visible = append(visible, line)
-		if match := assetReferenceDefinition.FindStringSubmatch(line); len(match) > 0 {
-			destination := match[1]
-			if destination == "" {
-				destination = match[2]
-			}
-			destinations = append(destinations, destination)
-		}
-		for _, match := range assetHTMLDependency.FindAllStringSubmatch(line, -1) {
-			destinations = append(destinations, match[1])
-		}
-	}
-	text := strings.Join(visible, "\n")
-	for cursor := 0; cursor < len(text); {
-		found := strings.Index(text[cursor:], "](")
-		if found < 0 {
+		return ast.WalkContinue, nil
+	})
+	return destinations
+}
+
+// Attribute matching consumes every quoted value, so src/href-looking text
+// inside another attribute cannot become a false dependency. Only actual
+// opening tags are inspected. Raw text bodies are skipped after checking the
+// opening tag's real resource attributes; comments never contribute links.
+var assetHTMLToken = regexp.MustCompile("(?is)<!--.*?(?:-->|$)|<[a-z][a-z0-9:-]*(?:\\s+[a-z_:][a-z0-9:_.-]*(?:\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s\"'=<>`]+))?)*\\s*/?>")
+var assetHTMLAttribute = regexp.MustCompile("(?is)([a-z_:][a-z0-9:_.-]*)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s\"'=<>`]+))")
+var assetHTMLRawClosers = map[string]*regexp.Regexp{
+	"script":   regexp.MustCompile(`(?is)</script\s*>`),
+	"style":    regexp.MustCompile(`(?is)</style\s*>`),
+	"textarea": regexp.MustCompile(`(?is)</textarea\s*>`),
+}
+
+func assetHTMLDestinations(raw []byte) []string {
+	destinations := []string{}
+	for cursor := 0; cursor < len(raw); {
+		match := assetHTMLToken.FindIndex(raw[cursor:])
+		if match == nil {
 			break
 		}
-		cursor += found + 2
-		for cursor < len(text) && (text[cursor] == ' ' || text[cursor] == '\t' || text[cursor] == '\n' || text[cursor] == '\r') {
-			cursor++
-		}
-		if cursor >= len(text) {
-			break
-		}
-		if text[cursor] == '<' {
-			end := strings.IndexByte(text[cursor+1:], '>')
-			if end < 0 {
-				break
-			}
-			destinations = append(destinations, text[cursor+1:cursor+1+end])
-			cursor += end + 2
+		tag := raw[cursor+match[0] : cursor+match[1]]
+		cursor += match[1]
+		if bytes.HasPrefix(tag, []byte("<!--")) {
 			continue
 		}
-		start, depth := cursor, 0
-		for cursor < len(text) {
-			char := text[cursor]
-			if char == '\\' && cursor+1 < len(text) {
-				cursor += 2
+		for _, attribute := range assetHTMLAttribute.FindAllSubmatch(tag, -1) {
+			if !strings.EqualFold(string(attribute[1]), "src") && !strings.EqualFold(string(attribute[1]), "href") {
 				continue
 			}
-			if char == '(' {
-				depth++
+			value := attribute[2]
+			if value == nil {
+				value = attribute[3]
 			}
-			if char == ')' {
-				if depth == 0 {
+			if value == nil {
+				value = attribute[4]
+			}
+			destinations = append(destinations, html.UnescapeString(string(value)))
+		}
+		nameEnd := bytes.IndexAny(tag, " \t\r\n/>")
+		if nameEnd > 1 {
+			if closer := assetHTMLRawClosers[strings.ToLower(string(tag[1:nameEnd]))]; closer != nil {
+				closing := closer.FindIndex(raw[cursor:])
+				if closing == nil {
 					break
 				}
-				depth--
+				cursor += closing[1]
 			}
-			if (char == ' ' || char == '\t' || char == '\n' || char == '\r') && depth == 0 {
-				break
-			}
-			cursor++
-		}
-		if cursor > start {
-			destinations = append(destinations, text[start:cursor])
-		}
-		if cursor < len(text) {
-			cursor++
 		}
 	}
 	return destinations
@@ -885,7 +920,7 @@ func (service *AssetService) assetGitWithInput(input []byte, args ...string) ([]
 		command.Stdin = bytes.NewReader(input)
 	}
 	for _, setting := range os.Environ() {
-		if !strings.HasPrefix(setting, "GIT_") {
+		if !strings.HasPrefix(strings.ToUpper(setting), "GIT_") {
 			command.Env = append(command.Env, setting)
 		}
 	}

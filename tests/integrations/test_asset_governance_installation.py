@@ -177,3 +177,34 @@ def test_gemini_asset_closeout_installs_once_and_uninstalls_without_removing_use
 def test_gemini_managed_hook_requires_complete_launcher_argv(command, managed):
     integration = get_integration("gemini")
     assert integration._is_managed_hook_command(command, integration._managed_hook_command_suffixes()) is managed
+
+
+@pytest.mark.parametrize("script_type", ["sh", "ps"])
+def test_claude_asset_hook_upgrade_and_uninstall_preserve_user_launcher_mentions(tmp_path, script_type):
+    integration = get_integration("claude")
+    manifest = IntegrationManifest("claude", tmp_path)
+    settings = tmp_path / ".claude/settings.json"
+    settings.parent.mkdir()
+    commands = [
+        "echo /some/project/.specify/bin/specify-hook claude stop-monitor",
+        "echo claude-hook-dispatch.py stop-monitor",
+        "/some/project/.specify/bin/specify-hook claude stop-monitor && team-closeout",
+        "node -e \"console.log('specify-hook.mjs')\" specify-hook claude stop-monitor",
+    ]
+    user_entries = [{"matcher": "", "hooks": [{"type": "command", "command": command}]} for command in commands]
+    user_entries.extend({"matcher": "", "hooks": [hook]} for hook in [
+        {"type": "command", "command": "node", "args": ["/team/tools/audit-specify-hook.mjs"]},
+        {"type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/.specify/bin/specify-hook.mjs", "claude", "stop-monitor", "--team-flag"]},
+        {"type": "command", "command": "node", "args": ["-e", "console.log('specify-hook.mjs')", "claude", "team-event"]},
+        {"type": "command", "command": "node", "args": ["-e", "console.log('specify-hook.mjs')", "specify-hook", "claude", "stop-monitor"]},
+    ])
+    settings.write_text(json.dumps({"hooks": {"Stop": user_entries}, "theme": "custom"}), encoding="utf-8")
+    for _ in range(2):
+        integration.setup(tmp_path, manifest, script_type=script_type)
+    entries = json.loads(settings.read_text(encoding="utf-8"))["hooks"]["Stop"]
+    for entry in user_entries:
+        assert entry in entries
+    integration.uninstall(tmp_path, manifest)
+    retained = json.loads(settings.read_text(encoding="utf-8"))
+    assert retained["hooks"]["Stop"] == user_entries
+    assert retained["theme"] == "custom"

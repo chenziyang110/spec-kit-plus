@@ -160,6 +160,13 @@ applicability cannot be established within the inspection bounds, use exact
 These checks do not run the filters, disable their configuration, or recurse into
 submodule working trees.
 
+Automatic discovery also refuses an index containing `assume-unchanged` or
+`skip-worktree` entries, which can hide actual edits from Git's change list.
+Preserve those flags and use exact paths, staged contents, or a commit pair
+instead. Persistent documentation cannot depend on cache files even when the
+cache is nested inside a source or fixture directory; snapshot checks reject
+dependencies crossing a submodule boundary.
+
 Checks validate names and placement, and inspect supported Markdown dependencies
 for temporary or missing local targets. A deletion also checks a bounded set of
 incoming document references, including unchanged documents. Staged and commit
@@ -168,6 +175,11 @@ working copy cannot hide invalid staged content. The result identifies its scope
 check counts, deletion paths and violations. Unsupported formats and bounded discovery
 remain explicit limits, not proof that an arbitrary engine dependency graph was
 verified.
+
+Markdown dependency discovery uses a CommonMark parser so rendered links and
+images inside containers remain visible, while literal code remains excluded.
+This source runtime requires Go 1.22 or newer; prebuilt binaries do not require
+a local Go installation.
 
 An initial dirty or untracked path is not a blanket exemption. If the current
 task changes it again, it must be checked. Preserve unrelated preexisting changes
@@ -342,6 +354,10 @@ including query/fragment preservation and moved documents' relative outbound
 links. Source code imports, HTML, framework public URLs, engine packages,
 sidecars and density-image groups require their owning tool. The planner blocks
 unsupported reference edits instead of guessing.
+
+Code spans, indented code, escaped link syntax and ambiguous fenced blocks are
+not rewrite targets. When such text mentions an affected asset, the planner
+requires an explicit owner decision rather than altering a literal example.
 
 `reference_scope_complete` is the caller's declaration, not proof of global
 completeness. Coverage always remains `explicit-references-only`, with

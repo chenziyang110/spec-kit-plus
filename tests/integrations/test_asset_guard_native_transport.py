@@ -38,6 +38,8 @@ def native(tmp_path, request):
     runtime.write_text(
         "import json,sys\n"
         "args=sys.argv[1:]\n"
+        "if args[:2]==['api','ensure']:\n"
+        " print(json.dumps({'status':'ok','data':{'requested':['assets.check'],'present':['assets.check'],'missing':[]}}));sys.exit(0)\n"
         "paths=[args[i+1] for i,x in enumerate(args[:-1]) if x=='--path']\n"
         "deleted=[args[i+1] for i,x in enumerate(args[:-1]) if x=='--deleted-path']\n"
         "bad=[p for p in paths if 'Wrong Name' in p or p.startswith('.specify/features/')]\n"
@@ -55,7 +57,9 @@ def invoke(native, route, payload):
     integration, project, dispatcher = native
     env = dict(os.environ)
     env[f"{integration.upper()}_PROJECT_DIR"] = str(project)
-    result = subprocess.run([sys.executable, str(dispatcher), route], cwd=project, input=json.dumps(payload), capture_output=True, text=True, timeout=10, env=env)
+    # Two bounded runtime processes plus Git baseline/delta queries can take
+    # 12 seconds; the host harness must exceed that full operation budget.
+    result = subprocess.run([sys.executable, str(dispatcher), route], cwd=project, input=json.dumps(payload), capture_output=True, text=True, timeout=15, env=env)
     assert result.returncode == 0, result.stderr
     assert result.stderr == ""
     return json.loads(result.stdout) if result.stdout.strip() else {}
@@ -126,7 +130,7 @@ def test_native_end_of_turn_checks_shell_created_files_and_cleanup_after_repair(
 
 def test_native_chat_and_read_shell_create_no_observation(native):
     project = native[1]
-    payload = {"session_id": "same-session", "tool_name": "Bash" if native[0] == "claude" else "run_shell_command", "tool_input": {"command": "git status --short"}}
+    payload = {"session_id": "same-session", "tool_name": "Bash" if native[0] == "claude" else "run_shell_command", "tool_input": {"command": "git rev-parse --show-toplevel"}}
     assert invoke(native, before_route(native, shell=True), payload) == {}
     assert invoke(native, finish_route(native), {"session_id": "same-session"}) == {}
     assert not (project / ".specify/runtime").exists()
@@ -204,3 +208,33 @@ def test_native_hooks_use_real_go_rules_and_recheck_shell_outputs(native, real_a
     assert existing.read_text(encoding="utf-8") == "Existing report outside this task.\n"
     assert not (project / ".specify/runtime/asset-observations").exists()
     assert not (project / ".specify/features").exists()
+
+
+def test_native_shell_deletion_rechecks_inbound_links_to_initial_untracked_asset(native, real_asset_runtime):
+    project = native[1]
+    (project / ".specify/config.json").write_text(
+        json.dumps({"runtime_launcher": {"argv": [str(real_asset_runtime)]}}),
+        encoding="utf-8",
+    )
+    target = project / "docs/guides/untracked-guide.md"
+    target.parent.mkdir(parents=True)
+    target.write_text("# Existing guide\n", encoding="utf-8")
+    overview = target.parent / "overview.md"
+    overview.write_text("[Guide](untracked-guide.md)\n", encoding="utf-8")
+    _git(project, "add", "docs/guides/overview.md")
+    _git(project, "commit", "-qm", "existing inbound reference")
+    payload = {
+        "session_id": "same-session",
+        "tool_name": "Bash" if native[0] == "claude" else "run_shell_command",
+        "tool_input": {"command": "python cleanup.py"},
+    }
+    assert invoke(native, before_route(native, shell=True), payload) == {}
+    target.unlink()
+    output = invoke(native, finish_route(native), {"session_id": "same-session"})
+    assert_denied(native, output, finish=True)
+    assert "overview.md" in json.dumps(output)
+    assert not target.exists()
+    assert overview.read_text(encoding="utf-8") == "[Guide](untracked-guide.md)\n"
+    target.write_text("# Existing guide\n", encoding="utf-8")
+    assert invoke(native, finish_route(native), {"session_id": "same-session"}) == {}
+    assert not (project / ".specify/runtime/asset-observations").exists()

@@ -400,3 +400,181 @@ func TestAssetCheckMultilineLinksAndNestedFenceExamples(t *testing.T) {
 		t.Fatalf("wrong Markdown dependency: %#v", env)
 	}
 }
+
+func TestAssetCheckPersistentDependenciesCannotUseNativeCaches(t *testing.T) {
+	root := t.TempDir()
+	assetTestWrite(t, root, "src/.cache/evidence.svg", "<svg/>")
+	assetTestWrite(t, root, "templates/node_modules/package/evidence.svg", "<svg/>")
+	for _, target := range []string{"src/.cache/evidence.svg", "templates/node_modules/package/evidence.svg"} {
+		assetTestWrite(t, root, "docs/guides/guide.md", "# Guide\n![evidence](/"+target+")\n")
+		env := NewAssetService(root).Check(AssetCheckRequest{Paths: []string{"docs/guides/guide.md"}})
+		if env.Status != "blocked" || !assetEnvelopeHasIssue(env, "ephemeral-dependency") {
+			t.Fatalf("persistent document consumed a native cache: %s %#v", target, env)
+		}
+	}
+}
+
+func TestAssetCheckSnapshotDependenciesRejectSubmoduleBoundaries(t *testing.T) {
+	root := assetTestRepository(t)
+	base := assetTestGit(t, root, "rev-parse", "HEAD")
+	assetTestGit(t, root, "update-index", "--add", "--cacheinfo", "160000,"+base+",assets/external")
+	assetTestWrite(t, root, "docs/guides/guide.md", "# Guide\n[external](/assets/external)\n")
+	assetTestGit(t, root, "add", "docs/guides/guide.md")
+	service := NewAssetService(root)
+	requests := []AssetCheckRequest{{Staged: true, Paths: []string{"docs/guides/guide.md"}}}
+	assetTestGit(t, root, "commit", "-qm", "external asset fixture")
+	requests = append(requests, AssetCheckRequest{Base: base, Head: "HEAD", Paths: []string{"docs/guides/guide.md"}})
+	for _, request := range requests {
+		env := service.Check(request)
+		if env.Status != "blocked" || !assetEnvelopeHasIssue(env, "unsafe-dependency") {
+			t.Fatalf("snapshot dependency crossed a submodule boundary: %#v %#v", request, env)
+		}
+	}
+}
+
+func TestAssetCheckRenderedIndentedDependencies(t *testing.T) {
+	root := t.TempDir()
+	cases := map[string]string{
+		"list":        "1. Evidence\n\n    ![capture](missing.svg)\n",
+		"nested-list": "- Evidence\n  - Capture\n\n      ![capture](missing.svg)\n",
+		"paragraph":   "Evidence: ![capture](\n    missing.svg\n)\n",
+	}
+	for name, markdown := range cases {
+		t.Run(name, func(t *testing.T) {
+			assetTestWrite(t, root, "docs/guides/guide.md", markdown)
+			env := NewAssetService(root).Check(AssetCheckRequest{Paths: []string{"docs/guides/guide.md"}})
+			if env.Status != "blocked" || !assetEnvelopeHasIssue(env, "missing-dependency") {
+				t.Fatalf("rendered indented dependency silently passed: %#v", env)
+			}
+		})
+	}
+}
+
+func TestAssetCheckIgnoresActualCodeAndEscapedLinkSyntax(t *testing.T) {
+	root := t.TempDir()
+	cases := map[string]string{
+		"tab-code":                  "# Guide\n\n\t[code](missing.md)\n",
+		"list-code":                 "1. Example\n\n       [code](missing.md)\n",
+		"multiline-code":            "# Guide\n\n``before\n[code](missing.md)\nafter``\n",
+		"unequal-code-delimiters":   "# Guide\n\n``before ` [code](missing.md) after``\n",
+		"escaped-link":              "# Guide\n\\[literal](missing.md)\n",
+		"blockquote-code":           "> ```md\n> [code](missing.md)\n> ```\n",
+		"blockquote-multiline-code": "> ``before\n> [code](missing.md)\n> after``\n",
+	}
+	for name, markdown := range cases {
+		t.Run(name, func(t *testing.T) {
+			assetTestWrite(t, root, "docs/guides/guide.md", markdown)
+			env := NewAssetService(root).Check(AssetCheckRequest{Paths: []string{"docs/guides/guide.md"}})
+			if env.Status != "ok" {
+				t.Fatalf("literal example was interpreted as a dependency: %#v", env)
+			}
+		})
+	}
+}
+
+func TestAssetCheckUnmatchedCodeDelimiterCannotHideNextParagraph(t *testing.T) {
+	root := t.TempDir()
+	assetTestWrite(t, root, "docs/guides/guide.md", "# Guide\n\n`literal\n\n![real](missing.svg) followed by `literal\n")
+	env := NewAssetService(root).Check(AssetCheckRequest{Paths: []string{"docs/guides/guide.md"}})
+	if env.Status != "blocked" || !assetEnvelopeHasIssue(env, "missing-dependency") {
+		t.Fatalf("unmatched delimiter hid a later rendered paragraph: %#v", env)
+	}
+}
+
+func TestAssetCheckCodeDelimitersCannotCrossRenderedBlockBoundaries(t *testing.T) {
+	root := t.TempDir()
+	cases := map[string]string{
+		"atx-heading": "# `Heading\n![real](missing.svg) followed by `literal\n",
+		"list-items":  "- `First item\n- ![real](missing.svg) followed by `literal\n",
+		"non-heading": "#not-a-heading\n    ![real](missing.svg)\n",
+	}
+	for name, markdown := range cases {
+		t.Run(name, func(t *testing.T) {
+			assetTestWrite(t, root, "docs/guides/guide.md", markdown)
+			env := NewAssetService(root).Check(AssetCheckRequest{Paths: []string{"docs/guides/guide.md"}})
+			if env.Status != "blocked" || !assetEnvelopeHasIssue(env, "missing-dependency") {
+				t.Fatalf("code masking hid a rendered block dependency: %#v", env)
+			}
+		})
+	}
+}
+
+func TestAssetCheckASTPreservesHTMLAndDecodedDependencies(t *testing.T) {
+	root := t.TempDir()
+	for name, markdown := range map[string]string{
+		"html-quoted":                         "# Guide\n\n<img src='missing.svg'>\n",
+		"html-multiline-unquoted":             "# Guide\n\n<img\n src=missing.svg>\n",
+		"html-ephemeral-entity":               "# Guide\n\n<img src='/.specify&#47;tmp&#47;assets/task/worker/preview.svg'>\n",
+		"markdown-ephemeral-entity":           "# Guide\n\n![preview](/.specify&#47;tmp&#47;assets/task/worker/preview.svg)\n",
+		"script-ephemeral-source":             "# Guide\n\n<script src='/.specify/tmp/assets/task/worker/preview.js'></script>\n",
+		"script-ephemeral-quoted-closing-tag": "# Guide\n\n<script title='</script>' src='/.specify/tmp/assets/task/worker/preview.js'></script>\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			assetTestWrite(t, root, "docs/guides/guide.md", markdown)
+			env := NewAssetService(root).Check(AssetCheckRequest{Paths: []string{"docs/guides/guide.md"}})
+			code := "missing-dependency"
+			if strings.Contains(name, "ephemeral") {
+				code = "ephemeral-dependency"
+			}
+			if env.Status != "blocked" || !assetEnvelopeHasIssue(env, code) {
+				t.Fatalf("rendered HTML/entity dependency was lost: %#v", env)
+			}
+		})
+	}
+	assetTestWrite(t, root, "assets/present.svg", "<svg/>")
+	for name, markdown := range map[string]string{
+		"html-attribute-text":    "# Guide\n\n<span title=\"src='missing.svg' [literal](missing.md)\">Text</span>\n",
+		"html-comment":           "# Guide\n\n<!-- <img src='missing.svg'> -->\n",
+		"unused-reference":       "# Guide\n\n[unused]: missing.svg\n",
+		"image-alt-link":         "# Guide\n\n![[literal](missing.md)](/assets/present.svg)\n",
+		"script-body-text":       "# Guide\n\n<script>var example = \"<img src='missing.svg'>\";</script>\n",
+		"style-body-text":        "# Guide\n\n<style>/* <img src='missing.svg'> */</style>\n",
+		"comment-like-attribute": "# Guide\n\n<img title='<!-- an attribute -->' src='/assets/present.svg'>\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			assetTestWrite(t, root, "docs/guides/guide.md", markdown)
+			env := NewAssetService(root).Check(AssetCheckRequest{Paths: []string{"docs/guides/guide.md"}})
+			if env.Status != "ok" {
+				t.Fatalf("unrendered example became a dependency: %#v", env)
+			}
+		})
+	}
+}
+
+func TestAssetCheckWorktreeCannotSilentlySkipHiddenTrackedChanges(t *testing.T) {
+	for _, flag := range []string{"--assume-unchanged", "--skip-worktree"} {
+		t.Run(flag, func(t *testing.T) {
+			root := assetTestRepository(t)
+			assetTestWrite(t, root, "docs/guides/guide.md", "# Valid guide\n")
+			assetTestGit(t, root, "add", "docs/guides/guide.md")
+			assetTestGit(t, root, "commit", "-qm", "tracked guide fixture")
+			assetTestGit(t, root, "update-index", flag, "docs/guides/guide.md")
+			assetTestWrite(t, root, "docs/guides/guide.md", "# Changed guide\n![missing](missing.svg)\n")
+			service := NewAssetService(root)
+			if env := service.Check(AssetCheckRequest{}); env.Status == "ok" {
+				t.Fatalf("automatic worktree check silently skipped a hidden changed path: %#v", env)
+			}
+			if env := service.Check(AssetCheckRequest{Paths: []string{"docs/guides/guide.md"}}); env.Status != "blocked" || !assetEnvelopeHasIssue(env, "missing-dependency") {
+				t.Fatalf("explicit read did not recover hidden tracked verification: %#v", env)
+			}
+			if env := service.Check(AssetCheckRequest{Staged: true}); env.Status != "ok" {
+				t.Fatalf("hidden worktree state contaminated an immutable index check: %#v", env)
+			}
+		})
+	}
+}
+
+func TestAssetGitEnvironmentOverridesCannotRedirectWindowsSnapshots(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows environment names are case-insensitive")
+	}
+	root := assetTestRepository(t)
+	other := assetTestRepository(t)
+	assetTestWrite(t, root, "docs/guides/guide.md", "# Broken staged guide\n[missing](missing.md)\n")
+	assetTestGit(t, root, "add", "docs/guides/guide.md")
+	t.Setenv("git_dir", filepath.Join(other, ".git"))
+	env := NewAssetService(root).Check(AssetCheckRequest{Staged: true})
+	if env.Status != "blocked" || !assetEnvelopeHasIssue(env, "missing-dependency") {
+		t.Fatalf("case-aliased Git environment redirected the selected snapshot: %#v", env)
+	}
+}

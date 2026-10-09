@@ -201,7 +201,7 @@ func validateAssetPolicy(policy AssetPolicy) error {
 			}
 		}
 		for _, source := range append(append([]string{}, assetBuiltInSourceRoots...), policy.SourceRoots...) {
-			if assetUnder(root, source) || assetUnder(source, root) {
+			if assetPathsOverlap(root, source) {
 				return fmt.Errorf("asset root %q overlaps source root %q", root, source)
 			}
 		}
@@ -224,19 +224,19 @@ func validateAssetPolicy(policy AssetPolicy) error {
 		}
 	}
 	for _, source := range append(append([]string{}, assetBuiltInSourceRoots...), policy.SourceRoots...) {
-		if assetUnder(temporary, source) || assetUnder(source, temporary) {
+		if assetPathsOverlap(temporary, source) {
 			return fmt.Errorf("temporary_root overlaps source root %q", source)
 		}
 	}
 	for _, roots := range assetPurposeRoots {
 		for _, root := range roots {
-			if assetUnder(root, temporary) || assetUnder(temporary, root) {
+			if assetPathsOverlap(root, temporary) {
 				return fmt.Errorf("temporary_root overlaps persistent asset root %q", root)
 			}
 		}
 	}
 	for _, root := range policy.Roots {
-		if assetUnder(root, temporary) || assetUnder(temporary, root) {
+		if assetPathsOverlap(root, temporary) {
 			return fmt.Errorf("temporary_root overlaps persistent asset root %q", root)
 		}
 	}
@@ -244,7 +244,7 @@ func validateAssetPolicy(policy AssetPolicy) error {
 		if normalized, err := assetNormalizePath(root); err != nil || normalized != root {
 			return fmt.Errorf("policy root %q must be normalized and project-relative", root)
 		}
-		if assetUnder(temporary, root) || assetUnder(root, temporary) {
+		if assetPathsOverlap(temporary, root) {
 			return fmt.Errorf("policy root %q overlaps temporary_root", root)
 		}
 	}
@@ -366,6 +366,13 @@ func assetReadLimitedFile(absolute string, limit int64) ([]byte, error) {
 
 func assetUnder(relative, root string) bool {
 	return relative == root || strings.HasPrefix(relative, root+"/")
+}
+
+// Policy directories must not rely on case differences to separate owners or
+// persistent and temporary output on case-insensitive filesystems.
+func assetPathsOverlap(left, right string) bool {
+	left, right = strings.ToLower(left), strings.ToLower(right)
+	return assetUnder(left, right) || assetUnder(right, left)
 }
 
 func (service *AssetService) ClassifyPath(relative string, policy AssetPolicy) (AssetClassification, error) {

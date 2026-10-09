@@ -15,6 +15,10 @@ import (
 	"unicode/utf8"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/filelock"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/text"
 )
 
 const (
@@ -685,16 +689,37 @@ type assetMigrationLinkSpan struct {
 	start, end, wholeStart, wholeEnd int
 }
 
+type assetMigrationParsedLink struct {
+	destination string
+	labelEnd    int
+}
+
 func assetMigrationRewriteMarkdown(oldPath, newPath string, raw []byte, mapping map[string]string) ([]byte, []AssetMigrationReferenceChange, error) {
 	edits := []AssetMigrationReferenceChange{}
 	if !utf8.Valid(raw) || bytes.IndexByte(raw, 0) >= 0 {
 		return nil, edits, fmt.Errorf("reference is not plain UTF-8 Markdown")
 	}
 	spans := []assetMigrationLinkSpan{}
-	mask := assetMigrationCodeMask(raw)
+	mask, parsedLinks, parsedDefinitions := assetMigrationMarkdownSyntax(raw)
 	for _, pattern := range []*regexp.Regexp{assetMigrationInlineLink, assetMigrationDefinition} {
 		for _, match := range pattern.FindAllSubmatchIndex(raw, -1) {
-			if match[2] < 0 || mask[match[0]] {
+			if match[2] < 0 || mask[match[0]] || assetMigrationEscaped(raw, match[0]) {
+				continue
+			}
+			value := strings.TrimSuffix(strings.TrimPrefix(string(raw[match[2]:match[3]]), "<"), ">")
+			if pattern == assetMigrationInlineLink {
+				parsed, exists := parsedLinks[match[0]]
+				if !exists || match[2] < parsed.labelEnd || value != parsed.destination {
+					continue // The regex candidate must be the actual parsed link.
+				}
+			} else if destination, exists := parsedDefinitions[match[0]]; !exists || value != destination {
+				continue // A definition-looking paragraph continuation is literal text.
+			}
+			literalDestination := false
+			for index := match[2]; index < match[3]; index++ {
+				literalDestination = literalDestination || mask[index]
+			}
+			if literalDestination {
 				continue
 			}
 			spans = append(spans, assetMigrationLinkSpan{start: match[2], end: match[3], wholeStart: match[0], wholeEnd: match[1]})
@@ -823,57 +848,102 @@ func assetMigrationEscapePath(value string) string {
 	return strings.Join(parts, "/")
 }
 
-func assetMigrationCodeMask(raw []byte) []bool {
+func assetMigrationMarkdownSyntax(raw []byte) ([]bool, map[int]assetMigrationParsedLink, map[int]string) {
 	mask := make([]bool, len(raw)+1)
-	fence := byte(0)
-	fenceLength := 0
-	offset := 0
-	for _, line := range bytes.SplitAfter(raw, []byte{'\n'}) {
-		trimmed := bytes.TrimLeft(line, " ")
-		indent := len(line) - len(trimmed)
-		run := 0
-		if len(trimmed) > 0 && (trimmed[0] == '`' || trimmed[0] == '~') {
-			for run < len(trimmed) && trimmed[run] == trimmed[0] {
-				run++
+	links := map[int]assetMigrationParsedLink{}
+	definitions := map[int]string{}
+	document := goldmark.New(goldmark.WithExtensions(extension.GFM)).Parser().Parse(text.NewReader(raw))
+	mark := func(start, stop int) {
+		for index := start; index < stop && index < len(raw); index++ {
+			if index >= 0 {
+				mask[index] = true
 			}
 		}
-		code := fence != 0 || indent >= 4
-		if indent < 4 && run >= 3 && (fence == 0 || trimmed[0] == fence && run >= fenceLength) {
-			code = true
-			if fence == 0 {
-				fence, fenceLength = trimmed[0], run
-			} else {
-				fence, fenceLength = 0, 0
-			}
-		}
-		if code {
-			for index := range line {
-				mask[offset+index] = true
-			}
-		} else {
-			for index := 0; index < len(line); index++ {
-				if line[index] != '`' {
-					continue
-				}
-				endRun := index + 1
-				for endRun < len(line) && line[endRun] == '`' {
-					endRun++
-				}
-				end := bytes.Index(line[endRun:], line[index:endRun])
-				if end >= 0 {
-					end += endRun + (endRun - index)
-					for cursor := index; cursor < end; cursor++ {
-						mask[offset+cursor] = true
-					}
-					index = end - 1
-				} else {
-					index = endRun - 1
-				}
-			}
-		}
-		offset += len(line)
 	}
-	return mask
+	markSegments := func(segments *text.Segments) {
+		for index := 0; index < segments.Len(); index++ {
+			segment := segments.At(index)
+			mark(segment.Start, segment.Stop)
+		}
+	}
+	recordLink := func(node ast.Node, destination []byte) {
+		labelEnd, nested := node.Pos(), false
+		_ = ast.Walk(node, func(child ast.Node, entering bool) (ast.WalkStatus, error) {
+			if !entering || child == node {
+				return ast.WalkContinue, nil
+			}
+			switch child := child.(type) {
+			case *ast.Link, *ast.Image:
+				nested = true // Compound labels exceed the rewrite subset.
+				return ast.WalkSkipChildren, nil
+			case *ast.Text:
+				if child.Segment.Stop > labelEnd {
+					labelEnd = child.Segment.Stop
+				}
+			case *ast.RawHTML:
+				if child.Segments.Len() > 0 {
+					segment := child.Segments.At(child.Segments.Len() - 1)
+					if segment.Stop > labelEnd {
+						labelEnd = segment.Stop
+					}
+				}
+			}
+			return ast.WalkContinue, nil
+		})
+		if !nested {
+			links[node.Pos()] = assetMigrationParsedLink{destination: string(destination), labelEnd: labelEnd}
+		}
+	}
+	// The shared CommonMark/GFM grammar identifies opaque literal regions,
+	// including code inside containers and Markdown-looking HTML attributes.
+	// It does not expand the writer's intentionally bounded rewrite subset.
+	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch node := node.(type) {
+		case *ast.LinkReferenceDefinition:
+			if node.Lines().Len() > 0 {
+				start := node.Lines().At(0).Start
+				lineStart := bytes.LastIndexByte(raw[:start], '\n') + 1
+				definitions[lineStart] = string(node.Destination)
+			}
+		case *ast.Link:
+			recordLink(node, node.Destination)
+		case *ast.Image:
+			recordLink(node, node.Destination)
+			return ast.WalkSkipChildren, nil // alt text does not render nested links
+		case *ast.CodeBlock, *ast.FencedCodeBlock:
+			markSegments(node.Lines())
+			return ast.WalkSkipChildren, nil
+		case *ast.CodeSpan:
+			for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+				if literal, ok := child.(*ast.Text); ok {
+					mark(literal.Segment.Start, literal.Segment.Stop)
+				}
+			}
+			return ast.WalkSkipChildren, nil
+		case *ast.RawHTML:
+			markSegments(node.Segments)
+		case *ast.HTMLBlock:
+			markSegments(node.Lines())
+			if node.HasClosure() {
+				mark(node.ClosureLine.Start, node.ClosureLine.Stop)
+			}
+			return ast.WalkSkipChildren, nil
+		}
+		return ast.WalkContinue, nil
+	})
+	return mask, links, definitions
+}
+
+func assetMigrationEscaped(raw []byte, index int) bool {
+	backslashes := 0
+	for index > 0 && raw[index-1] == '\\' {
+		backslashes++
+		index--
+	}
+	return backslashes%2 != 0
 }
 
 func assetMigrationFailure(code string, err error) Envelope {
@@ -1273,7 +1343,10 @@ func publishAssetMigrationEntry(root, journalRoot string, index int, entry asset
 		}
 	}
 	if entry.Existed {
-		before, err := os.Lstat(target)
+		// Keep a handle-derived identity before rename. On Windows Lstat's
+		// identity can be resolved lazily from the old pathname by SameFile;
+		// that pathname no longer exists after capture.
+		_, before, err := assetMigrationRead(root, entry.Path, assetMigrationMaxFileBytes)
 		if err != nil {
 			return err
 		}

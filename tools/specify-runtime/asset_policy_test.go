@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -49,10 +50,14 @@ func TestAssetPolicyRejectsInvalidContracts(t *testing.T) {
 		`{"schema_version":1,"roots":{"guide":"../outside"}}`,
 		`{"schema_version":1,"roots":{"guide":".specify/features"}}`,
 		`{"schema_version":1,"roots":{"guide":"src/docs"}}`,
+		`{"schema_version":1,"roots":{"guide":"SRC/docs"}}`,
 		`{"schema_version":1,"roots":{"guide":"docs/manual","report":"docs/manual"}}`,
 		`{"schema_version":1,"temporary_root":".assets/tmp"}`,
 		`{"schema_version":1,"temporary_root":"assets"}`,
 		`{"schema_version":1,"temporary_root":"src/temporary"}`,
+		`{"schema_version":1,"temporary_root":"SRC/temporary"}`,
+		`{"schema_version":1,"roots":{"guide":"docs"},"temporary_root":"DOCS/temporary"}`,
+		`{"schema_version":1,"protected_roots":[".SPECIFY/tmp"]}`,
 		`{"schema_version":1,"temporary_retention":"forever"}`,
 		`{"schema_version":1,"fixed_names":["../plan.md"]}`,
 	}
@@ -163,6 +168,45 @@ func TestAssetPathBoundariesAndCaseConflicts(t *testing.T) {
 		if _, err := service.LoadPolicy(""); err == nil {
 			t.Fatal("symlink policy accepted")
 		}
+	}
+}
+
+func TestAssetWindowsJunctionCannotAliasOwnedState(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows directory junction fixture")
+	}
+	root := t.TempDir()
+	assetTestWrite(t, root, ".planning/e2e/run/state.json", "{\"owned\":true}")
+	assetTestWrite(t, root, ".planning/e2e/run/policy.json", `{"schema_version":1}`)
+	if err := os.MkdirAll(filepath.Join(root, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "docs", "owned-alias")
+	target := filepath.Join(root, ".planning", "e2e", "run")
+	output, err := exec.Command("cmd.exe", "/c", "mklink", "/J", link, target).CombinedOutput()
+	if err != nil {
+		t.Fatalf("create Windows junction fixture: %s: %v", output, err)
+	}
+	service := NewAssetService(root)
+	policy, err := service.LoadPolicy("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ClassifyPath("docs/owned-alias/state.json", policy); err == nil {
+		t.Fatal("junction alias classified owned state as an ordinary asset")
+	}
+	if env := service.Route(AssetRouteRequest{Path: "docs/owned-alias/state.json"}); env.Status != "blocked" {
+		t.Fatalf("junction alias route was allowed: %#v", env)
+	}
+	if env := service.Check(AssetCheckRequest{Paths: []string{"docs/owned-alias/state.json"}}); env.Status != "blocked" || !assetEnvelopeHasIssue(env, "unsafe-path") {
+		t.Fatalf("junction alias check was allowed: %#v", env)
+	}
+	if _, err := service.LoadPolicy("docs/owned-alias/policy.json"); err == nil {
+		t.Fatal("junction alias policy was read")
+	}
+	raw, err := os.ReadFile(filepath.Join(target, "state.json"))
+	if err != nil || string(raw) != "{\"owned\":true}" {
+		t.Fatalf("read-only rejection changed owned state: %s %v", raw, err)
 	}
 }
 

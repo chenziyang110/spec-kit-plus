@@ -88,8 +88,29 @@ def check_paths(root: Path, paths: list[str], *, path_only: bool, deleted_paths:
         command.extend(["--path", path])
     for path in sorted(set(deleted_paths)):
         command.extend(["--deleted-path", path])
+    # Discovery and validation are separate processes; preserve the existing
+    # per-command cap while bounding the complete pair, including startup.
+    deadline = time.monotonic() + 2 * COMMAND_TIMEOUT
     try:
-        result = subprocess.run(command, cwd=root, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=COMMAND_TIMEOUT, check=False)
+        ensured = subprocess.run(
+            [*argv, "api", "ensure", "--capabilities", "assets.check", "--format", "json"],
+            cwd=root, capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=COMMAND_TIMEOUT, check=False,
+        )
+        discovery = json.loads(ensured.stdout)
+        data = discovery.get("data") if isinstance(discovery, dict) else None
+        if not (
+            ensured.returncode == 0 and isinstance(discovery, dict) and discovery.get("status") == "ok"
+            and isinstance(data, dict)
+            and data.get("requested") == ["assets.check"]
+            and data.get("present") == ["assets.check"]
+            and data.get("missing") == []
+        ):
+            return _unavailable("the pinned runtime does not advertise the required assets.check capability")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return _unavailable("the runtime check exceeded its bounded hook deadline")
+        result = subprocess.run(command, cwd=root, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=min(COMMAND_TIMEOUT, remaining), check=False)
         payload = json.loads(result.stdout)
     except subprocess.TimeoutExpired:
         return _unavailable("the runtime check exceeded its bounded hook deadline")
@@ -144,7 +165,7 @@ def _write_paths(root: Path, tool_input: dict[str, Any]) -> list[str]:
 
 def _obviously_read_only(command: str) -> bool:
     """Recognize a small read-only shell subset; never parse shell output."""
-    if not command.strip() or re.search(r"[<>`]|\$\(|\$\{|\n", command):
+    if not command.strip() or re.search(r"[<>(){}`]|\n", command):
         return not command.strip()
     for segment in re.split(r"\s*(?:&&|\|\||[;&|])\s*", command):
         try:
@@ -162,7 +183,10 @@ def _obviously_read_only(command: str) -> bool:
             continue
         if name == "sed" and len(args) >= 3 and args[1] == "-n" and re.fullmatch(r"[0-9]+(?:,[0-9]+)?p", args[2]) and not any(arg.startswith("-") for arg in args[3:]):
             continue
-        if name in {"git", "git.exe"} and len(args) > 1 and args[1] in {"status", "diff", "show", "log", "ls-files", "rev-parse", "ls-tree", "diff-tree", "check-ignore"}:
+        # Status/diff/show/log can execute configured fsmonitor, clean/process
+        # filters, textconv or external diff programs in the user's shell.
+        # Our own safe Git queries cannot constrain those program effects.
+        if name in {"git", "git.exe"} and len(args) > 1 and args[1] in {"ls-files", "rev-parse", "ls-tree", "check-ignore"}:
             if not any(arg.startswith(("--output", "--ext-diff", "--textconv")) for arg in args[2:]):
                 continue
         return False
@@ -199,6 +223,10 @@ def _git(root: Path, args: list[str]) -> bytes | None:
         if actual_root != root.resolve():
             return None
         if args and args[0] in {"status", "diff"}:
+            # Index flags can hide a changed worktree file from both queries.
+            # Keep explicit target checking available without changing flags.
+            if not _worktree_index_observation_is_safe(run):
+                return None
             # Even name-only worktree queries can execute external clean or
             # process filters. Fall back to exact task paths without invoking
             # those programs or weakening a required filter's configuration.
@@ -210,6 +238,25 @@ def _git(root: Path, args: list[str]) -> bytes | None:
     if result.returncode != 0 or len(result.stdout) > MAX_STATE_BYTES:
         return None
     return result.stdout
+
+
+def _worktree_index_observation_is_safe(run) -> bool:
+    inventory = run(["ls-files", "-v", "-z"])
+    raw = inventory.stdout
+    if inventory.returncode != 0 or len(raw) > MAX_GIT_ATTRIBUTE_BYTES:
+        return False
+    if not raw:
+        return True
+    if not raw.endswith(b"\0"):
+        return False
+    records = raw[:-1].split(b"\0")
+    if len(records) > MAX_GIT_VISIBLE_PATHS:
+        return False
+    return all(
+        len(record) >= 3 and record[1:2] == b" "
+        and record[0:1] != b"S" and not b"a" <= record[0:1] <= b"z"
+        for record in records
+    )
 
 
 def _worktree_filter_observation_is_safe(run) -> bool:
@@ -512,7 +559,10 @@ def finish_turn(root: Path, payload: dict[str, Any], integration: str) -> dict[s
         if state["shell"] and (not state["git_available"] or not state["head"]):
             result = _unavailable("the shell task has no complete starting Git baseline; check its exact output paths")
         if current is not None:
-            candidates = set(current)
+            # Starting dirty/untracked paths can disappear from both status
+            # and the HEAD diff when deleted or restored by this task. Compare
+            # them too so deletion/reverse-reference checks retain that scope.
+            candidates = set(current) | set(baseline)
             head = state.get("head")
             if isinstance(head, str) and re.fullmatch(r"[0-9a-f]{40,64}", head):
                 diff = _git(root, ["diff", "--name-only", "-z", head, "--"])

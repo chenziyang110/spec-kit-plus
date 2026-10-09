@@ -50,7 +50,7 @@ func TestAssetMigrationPlansWithoutWritingAndAppliesReviewedMarkdownReferences(t
 	root := t.TempDir()
 	assetMigrationTestWrite(t, root, "Draft.md", "# Draft\n\n![Visual](old-logo.png \"title\")\n[Guide](docs/other.md#section)\n")
 	assetMigrationTestWrite(t, root, "old-logo.png", "unchanged-binary-bytes")
-	assetMigrationTestWrite(t, root, "README.md", "# Project\n[Draft](Draft.md)\n[visual]: old-logo.png\n")
+	assetMigrationTestWrite(t, root, "README.md", "# Project\n[Draft](Draft.md)\n\n[visual]: old-logo.png\n")
 	assetMigrationTestWrite(t, root, "docs/other.md", "# Other\n")
 	service := NewAssetService(root)
 	request := AssetMigrationPlanRequest{Moves: []AssetMigrationMove{{From: "Draft.md", To: "docs/guides/draft.md"}, {From: "old-logo.png", To: "assets/brand/logo.png"}}, ReferencePaths: []string{"README.md"}, ReferenceScopeComplete: true}
@@ -75,7 +75,7 @@ func TestAssetMigrationPlansWithoutWritingAndAppliesReviewedMarkdownReferences(t
 	if got := assetMigrationTestRead(t, root, "docs/guides/draft.md"); got != wantDraft {
 		t.Fatalf("outgoing links were not preserved: %q", got)
 	}
-	if got := assetMigrationTestRead(t, root, "README.md"); got != "# Project\n[Draft](docs/guides/draft.md)\n[visual]: assets/brand/logo.png\n" {
+	if got := assetMigrationTestRead(t, root, "README.md"); got != "# Project\n[Draft](docs/guides/draft.md)\n\n[visual]: assets/brand/logo.png\n" {
 		t.Fatalf("incoming links were not updated: %q", got)
 	}
 	for _, source := range []string{"Draft.md", "old-logo.png"} {
@@ -478,7 +478,7 @@ func TestAssetMigrationRejectsPathEscapeSymlinkCaseOnlyAndOversizedInput(t *test
 }
 
 func TestAssetMigrationMarkdownSubsetPreservesQueriesFragmentsAndCode(t *testing.T) {
-	input := []byte("![x](<../old image.png?download=1#preview> \"title\")\n[ref]: ../old%20image.png#part\n[remote](https://example.com/old-image.png)\n")
+	input := []byte("![x](<../old image.png?download=1#preview> \"title\")\n\n[ref]: ../old%20image.png#part\n[remote](https://example.com/old-image.png)\n")
 	output, changes, err := assetMigrationRewriteMarkdown("docs/page.md", "docs/guides/page.md", input, map[string]string{"old image.png": "assets/new-image.png"})
 	if err != nil {
 		t.Fatal(err)
@@ -491,6 +491,98 @@ func TestAssetMigrationMarkdownSubsetPreservesQueriesFragmentsAndCode(t *testing
 		if err == nil {
 			t.Fatalf("unsupported reference was silently changed or ignored: %q", unsupported)
 		}
+	}
+}
+
+func TestAssetMigrationRejectsLiteralMarkdownLinksWithoutWrites(t *testing.T) {
+	for _, scenario := range []struct{ name, content string }{
+		{"tab-indented-code", "\t[x](old.png)\n"},
+		{"multiline-code-span", "`sample\n[x](old.png)\n`\n"},
+		{"unequal-backtick-run", "`sample `` [x](old.png) `` end`\n"},
+		{"escaped-link", "\\[x](old.png)\n"},
+		{"invalid-fence-close", "```\n```not-a-close\n[x](old.png)\n```\n"},
+		{"html-comment", "<!-- [x](old.png) -->\n"},
+		{"html-attribute", "<img src='other.png' alt='[x](old.png)'>\n"},
+		{"quoted-html-delimiter", "<img src='other.png' alt='> [x](old.png)'>\n"},
+		{"raw-html-block", "<div>\n[x](old.png)\n</div>\n"},
+		{"blockquote-code", "> ```md\n> [x](old.png)\n> ```\n"},
+		{"image-alt-text", "![See [x](old.png)](other.png)\n"},
+		{"image-alt-and-target", "![See [x](old.png)](old.png)\n"},
+		{"escaped-compound-label", "[See \\[x\\](old.png)](old.png)\n"},
+		{"literal-definition-continuation", "intro\n[x]: old.png\n"},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			root := t.TempDir()
+			assetMigrationTestWrite(t, root, "old.png", "original-image")
+			assetMigrationTestWrite(t, root, "README.md", scenario.content)
+			service := NewAssetService(root)
+			result := service.MigrationPlan(AssetMigrationPlanRequest{Moves: []AssetMigrationMove{{From: "old.png", To: "assets/hero.png"}}, ReferencePaths: []string{"README.md"}, ReferenceScopeComplete: true})
+			plan, ok := result.Data["plan"].(AssetMigrationPlan)
+			if result.Status != "blocked" || !ok || len(plan.Coverage.Unsupported) == 0 {
+				t.Fatalf("literal Markdown was treated as a rewritable reference: %+v", result)
+			}
+			if apply := service.MigrationApply(AssetMigrationApplyRequest{Plan: plan, ExpectedDigest: plan.Digest}); apply.Status != "blocked" {
+				t.Fatalf("unsupported literal reference was applied: %+v", apply)
+			}
+			if assetMigrationTestRead(t, root, "README.md") != scenario.content || assetMigrationTestRead(t, root, "old.png") != "original-image" {
+				t.Fatal("unsupported reference refusal changed project files")
+			}
+			if _, err := os.Stat(filepath.Join(root, ".specify")); !os.IsNotExist(err) {
+				t.Fatal("unsupported reference refusal created transaction state")
+			}
+		})
+	}
+}
+
+func TestAssetMigrationRewritesRealLinksBesideLiteralMarkdown(t *testing.T) {
+	for _, content := range []string{
+		"\t[x](unrelated.png)\n[x](old.png)\n",
+		"`sample\n[x](unrelated.png)\n`\n[x](old.png)\n",
+		"```\n[x](unrelated.png)\n```  \n[x](old.png)\n",
+		"\\\\[x](old.png)\n",
+		"[`sample`](old.png)\n",
+		"`sample\n\n[x](old.png)\n\nend`\n",
+		"[x](<old.png>)\n",
+		"```html\n<div>sample</div>\n```\n[x](old.png)\n",
+		"\\<div>\n[x](old.png)\n",
+		"intro\n\n[x]: old.png\n",
+		"   [x]: <old.png> \"title\"\n",
+		"[other]: unrelated.png\n[x]: old.png\n",
+	} {
+		updated, edits, err := assetMigrationRewriteMarkdown("README.md", "README.md", []byte(content), map[string]string{"old.png": "assets/hero.png"})
+		if err != nil || len(edits) != 1 || string(updated) != strings.Replace(content, "old.png", "assets/hero.png", 1) {
+			t.Fatalf("real link beside literal text was mishandled: %q -> %q (%+v, %v)", content, updated, edits, err)
+		}
+	}
+}
+
+func TestAssetMigrationCaptureRejectsReplacedInodeWithIdenticalBytes(t *testing.T) {
+	root := t.TempDir()
+	assetMigrationTestWrite(t, root, "old.png", "original-image")
+	service := NewAssetService(root)
+	plan := assetMigrationTestPlan(t, service, AssetMigrationPlanRequest{Moves: []AssetMigrationMove{{From: "old.png", To: "assets/hero.png"}}, ReferenceScopeComplete: true})
+	originalCapture := assetMigrationCapture
+	t.Cleanup(func() { assetMigrationCapture = originalCapture })
+	injected := false
+	assetMigrationCapture = func(root, journalRoot string, index int, entry assetMigrationEntry) error {
+		if entry.Path == "old.png" && !injected {
+			injected = true
+			if err := os.Rename(filepath.Join(root, "old.png"), filepath.Join(root, "external-original.png")); err != nil {
+				return err
+			}
+			assetMigrationTestWrite(t, root, "old.png", "original-image")
+		}
+		return originalCapture(root, journalRoot, index, entry)
+	}
+	result := service.MigrationApply(AssetMigrationApplyRequest{Plan: plan, ExpectedDigest: plan.Digest})
+	if !injected || result.Status != "blocked" || !strings.Contains(result.Summary, "drifted at publication") {
+		t.Fatalf("identical-byte inode replacement was accepted: %+v", result)
+	}
+	if assetMigrationTestRead(t, root, "old.png") != "original-image" || assetMigrationTestRead(t, root, "external-original.png") != "original-image" {
+		t.Fatal("refusal lost the replacement or independently preserved original")
+	}
+	if _, err := os.Stat(filepath.Join(root, "assets", "hero.png")); !os.IsNotExist(err) {
+		t.Fatal("refusal did not roll back destination publication")
 	}
 }
 

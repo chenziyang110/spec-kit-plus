@@ -265,12 +265,18 @@ func TestAssetCatalogBoundsTimeoutOutputAndReportsUnknownMutation(t *testing.T) 
 			root := t.TempDir()
 			assetCatalogTestInstall(t, root, scenario.script)
 			assetCatalogTestWrite(t, root, "public/hero.png", "image")
+			// Output/JSON cases exercise their own boundary, independently of
+			// interpreter startup under load. Keep the timeout case at one second.
+			seconds := 5
+			if scenario.name == "timeout" {
+				seconds = 1
+			}
 			started := time.Now()
-			result := NewAssetService(root).Catalog(AssetCatalogRequest{Enabled: true, Python: python, Operation: "put", Path: "public/hero.png", Use: "visual", TimeoutSeconds: 1, MaxOutputBytes: 1024})
+			result := NewAssetService(root).Catalog(AssetCatalogRequest{Enabled: true, Python: python, Operation: "put", Path: "public/hero.png", Use: "visual", TimeoutSeconds: seconds, MaxOutputBytes: 1024})
 			if result.Status != "blocked" || result.Data["adapter_status"] != scenario.expected || result.Data["mutation_may_have_occurred"] != true {
 				t.Fatalf("adapter boundary was misreported: %+v", result)
 			}
-			if time.Since(started) > 4*time.Second {
+			if time.Since(started) > time.Duration(seconds+3)*time.Second {
 				t.Fatal("adapter process was not bounded")
 			}
 		})

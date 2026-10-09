@@ -50,10 +50,21 @@ def checker(monkeypatch, guard, *, blocked=False):
     return calls
 
 
+def runtime_program(check_payload: dict, exit_code: int = 0) -> str:
+    discovery = {"status": "ok", "data": {"requested": ["assets.check"], "present": ["assets.check"], "missing": []}}
+    return (
+        "import json,sys\n"
+        "if sys.argv[1:3] == ['api','ensure']:\n"
+        " print(" + repr(json.dumps(discovery)) + ");sys.exit(0)\n"
+        "print(" + repr(json.dumps(check_payload)) + ")\n"
+        f"sys.exit({exit_code})\n"
+    )
+
+
 @pytest.mark.parametrize("payload", [
     {},
     {"session_id": "one", "tool_name": "Read", "tool_input": {"file_path": "README.md"}},
-    {"session_id": "one", "tool_name": "Bash", "tool_input": {"command": "git status --short"}},
+    {"session_id": "one", "tool_name": "Bash", "tool_input": {"command": "git rev-parse --show-toplevel"}},
     {"session_id": "one", "tool_name": "Bash", "tool_input": {"command": "rg --files docs && cat README.md"}},
     {"session_id": "one", "tool_name": "Bash", "tool_input": {"command": "sed -n 1,60p README.md"}},
 ])
@@ -95,6 +106,29 @@ def test_initial_dirty_paths_are_not_blanket_exempted(guard, project, monkeypatc
     assert guard.finish_turn(project, payload, "claude") == {}
     assert calls == [(["app.py", "new-report.md"], False)]
     assert (project / "old-report.md").read_text() == "old report"
+
+
+def test_shell_deletion_of_initial_untracked_asset_is_checked(guard, project, monkeypatch):
+    calls = []
+    monkeypatch.setattr(guard, "check_paths", lambda _root, paths, *, path_only, deleted_paths=None: calls.append((paths, deleted_paths or [], path_only)) or {"status": "ok"})
+    target = project / "docs/guides/untracked-guide.md"
+    target.parent.mkdir(parents=True)
+    target.write_text("Existing guide.\n", encoding="utf-8")
+    payload = {"session_id": "one", "tool_name": "Bash", "tool_input": {"command": "python cleanup.py"}}
+    assert guard.before_tool(project, payload, "claude") == {}
+    target.unlink()
+    assert guard.finish_turn(project, payload, "claude") == {}
+    assert calls == [([], ["docs/guides/untracked-guide.md"], False)]
+
+
+def test_shell_restoration_of_initial_dirty_asset_is_checked(guard, project, monkeypatch):
+    calls = checker(monkeypatch, guard)
+    (project / "app.py").write_text("initial_dirty = True\n", encoding="utf-8")
+    payload = {"session_id": "one", "tool_name": "Bash", "tool_input": {"command": "git restore app.py"}}
+    assert guard.before_tool(project, payload, "claude") == {}
+    git(project, "restore", "app.py")
+    assert guard.finish_turn(project, payload, "claude") == {}
+    assert calls == [(["app.py"], False)]
 
 
 def test_explicit_tool_target_is_checked_even_if_already_dirty(guard, project, monkeypatch):
@@ -189,7 +223,14 @@ def test_cache_symlink_is_not_followed(guard, project, monkeypatch, tmp_path_fac
     assert list(outside.iterdir()) == []
 
 
-@pytest.mark.parametrize("command", ["ls & python generate.py", "file -C -m custom-magic", "sed -n 1p -i old-report.md", "sed -n 1p -e 'w extra-report.md' old-report.md"])
+@pytest.mark.parametrize("command", [
+    "ls & python generate.py",
+    "file -C -m custom-magic",
+    "sed -n 1p -i old-report.md",
+    "sed -n 1p -e 'w extra-report.md' old-report.md",
+    "Get-Content (New-Item -ItemType File 'Wrong Name.md')",
+    "Get-ChildItem | Measure-Object -Property { New-Item 'Wrong Name.md' }",
+])
 def test_possibly_mutating_shell_is_observed(guard, project, monkeypatch, command):
     checker(monkeypatch, guard)
     payload = {"session_id": "one", "tool_name": "Bash", "tool_input": {"command": command}}
@@ -257,7 +298,7 @@ def test_real_pinned_runtime_contract_and_compatibility(guard, tmp_path, status,
     runtime = tmp_path / "fake_runtime.py"
     data = {"scope": "paths", "deleted_paths": [], "violation_count": 0, **data}
     payload = {"status": status, "data": data, "items": [] if status == "ok" else [{"path": "Wrong Name.md", "message": "use the policy path"}]}
-    runtime.write_text("import json,sys\n" + "print(" + repr(json.dumps(payload)) + ")\n" + f"sys.exit({exit_code})\n", encoding="utf-8")
+    runtime.write_text(runtime_program(payload, exit_code), encoding="utf-8")
     config = tmp_path / ".specify/config.json"
     config.parent.mkdir()
     config.write_text(json.dumps({"runtime_launcher": {"argv": [sys.executable, str(runtime)]}}), encoding="utf-8")
@@ -272,6 +313,32 @@ def test_unpinned_path_command_is_not_executed(guard, tmp_path):
     config.parent.mkdir()
     config.write_text(json.dumps({"runtime_launcher": {"argv": ["specify-runtime"]}}), encoding="utf-8")
     assert guard.check_paths(tmp_path, ["docs/guide.md"], path_only=True)["status"] == "unavailable"
+
+
+@pytest.mark.parametrize("discovery,exit_code", [
+    ({"status": "blocked", "data": {"requested": ["assets.check"], "present": [], "missing": ["assets.check"]}}, 10),
+    ({"status": "ok", "data": {"requested": ["assets.check"], "present": ["assets.route"], "missing": []}}, 0),
+    ({"status": "ok", "data": {"requested": ["assets.check"], "present": ["assets.check"], "missing": ["assets.check"]}}, 0),
+    ({"status": "ok", "data": {"present": ["assets.check"], "missing": []}}, 0),
+    ([], 0),
+])
+def test_capability_discovery_refuses_before_running_asset_check(guard, tmp_path, discovery, exit_code):
+    marker = tmp_path / "check-ran"
+    runtime = tmp_path / "runtime.py"
+    runtime.write_text(
+        "import sys\nfrom pathlib import Path\n"
+        "if sys.argv[1:3] == ['api','ensure']:\n"
+        " print(" + repr(json.dumps(discovery)) + f");sys.exit({exit_code})\n"
+        "Path(" + repr(str(marker)) + ").write_text('unexpected check')\n",
+        encoding="utf-8",
+    )
+    config = tmp_path / ".specify/config.json"
+    config.parent.mkdir()
+    config.write_text(json.dumps({"runtime_launcher": {"argv": [sys.executable, str(runtime)]}}), encoding="utf-8")
+    result = guard.check_paths(tmp_path, ["docs/guide.md"], path_only=True)
+    assert result["status"] == "unavailable"
+    assert "required assets.check capability" in result["message"]
+    assert not marker.exists()
 
 
 def test_git_environment_cannot_redirect_observation(guard, project, monkeypatch, tmp_path_factory):
@@ -297,6 +364,37 @@ def test_unused_filter_registration_does_not_disable_delta(guard, project, monke
     assert calls == [(["new-report.md"], False)]
 
 
+@pytest.mark.parametrize("flag", ["--assume-unchanged", "--skip-worktree"])
+@pytest.mark.parametrize("when", ["before", "after"])
+def test_shell_hidden_index_flags_cannot_claim_a_complete_delta(guard, project, monkeypatch, flag, when):
+    checker(monkeypatch, guard)
+    payload = {"session_id": "one", "tool_name": "Bash", "tool_input": {"command": "python generate.py"}}
+    if when == "before":
+        git(project, "update-index", flag, "app.py")
+    assert guard.before_tool(project, payload, "claude") == {}
+    if when == "after":
+        git(project, "update-index", flag, "app.py")
+    (project / "app.py").write_text("hidden = True\n", encoding="utf-8")
+    inventory = git(project, "ls-files", "-v", "app.py")
+    result = guard.finish_turn(project, payload, "claude")
+    assert result["status"] == "unavailable"
+    assert "exact output paths" in result["message"]
+    assert git(project, "ls-files", "-v", "app.py") == inventory
+    assert (project / "app.py").read_text() == "hidden = True\n"
+    assert not (project / guard.CACHE_ROOT).exists()
+
+
+@pytest.mark.parametrize("flag", ["--assume-unchanged", "--skip-worktree"])
+def test_explicit_targets_remain_checkable_with_hidden_index_flags(guard, project, monkeypatch, flag):
+    calls = checker(monkeypatch, guard)
+    git(project, "update-index", flag, "app.py")
+    payload = event(path="app.py")
+    assert guard.before_tool(project, payload, "claude") == {}
+    (project / "app.py").write_text("explicit = True\n", encoding="utf-8")
+    assert guard.finish_turn(project, payload, "claude") == {}
+    assert calls == [(["app.py"], True), (["app.py"], False)]
+
+
 @pytest.mark.parametrize("setting", ["core.fsmonitor", "filter.observer.clean", "filter.observer.process"])
 def test_observation_never_executes_configured_git_programs(guard, project, monkeypatch, tmp_path, setting):
     checker(monkeypatch, guard)
@@ -317,6 +415,29 @@ def test_observation_never_executes_configured_git_programs(guard, project, monk
         assert result == {}
     assert not marker.exists()
     assert not (project / guard.CACHE_ROOT).exists()
+
+
+def test_user_git_status_with_fsmonitor_is_observed(guard, project, monkeypatch):
+    marker = project / "Wrong Name.md"
+    program = project / "git-program.py"
+    program.write_text(
+        "from pathlib import Path\nimport sys\n"
+        "Path(" + repr(str(marker)) + ").write_text('user shell output')\n"
+        "sys.stdout.write('token\\0')\n",
+        encoding="utf-8",
+    )
+    command = shlex.join([sys.executable.replace("\\", "/"), str(program).replace("\\", "/")])
+    git(project, "config", "core.fsmonitor", command)
+    payload = {"session_id": "one", "tool_name": "Bash", "tool_input": {"command": "git status --short"}}
+    calls = checker(monkeypatch, guard, blocked=True)
+    assert guard.before_tool(project, payload, "claude") == {}
+    assert not marker.exists()
+    git(project, "status", "--short")
+    assert marker.exists()
+    result = guard.finish_turn(project, payload, "claude")
+    assert result["status"] == "blocked"
+    assert calls == [(["Wrong Name.md"], False)]
+    assert marker.read_text() == "user shell output"
 
 
 def test_exact_raw_path_is_never_trimmed_before_validation(guard, project, monkeypatch):
@@ -368,7 +489,7 @@ def test_owner_repair_exception_is_exact_and_not_payload_controlled(guard, proje
 def test_runtime_must_acknowledge_the_exact_deleted_set(guard, tmp_path, reported, expected):
     runtime = tmp_path / "runtime.py"
     payload = {"status": "ok", "data": {"checked": 0, "path_only": False, "scope": "worktree", "violation_count": 0, "deleted_paths": reported}}
-    runtime.write_text("print(" + repr(json.dumps(payload)) + ")\n", encoding="utf-8")
+    runtime.write_text(runtime_program(payload), encoding="utf-8")
     config = tmp_path / ".specify/config.json"
     config.parent.mkdir()
     config.write_text(json.dumps({"runtime_launcher": {"argv": [sys.executable, str(runtime)]}}), encoding="utf-8")

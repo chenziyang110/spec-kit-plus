@@ -74,9 +74,37 @@ def test_required_runtime_contract_matches_the_shipped_agent_surface() -> None:
         )
     )
 
-    # Recovery is negotiated when needed; existing installations need not
-    # support it to keep running unrelated workflows.
-    assert set(runtime.REQUIRED_CAPABILITIES) | {"tasks.rebind"} == shipped
+    # Recovery and passive asset governance are negotiated when needed;
+    # existing installations can keep running unrelated workflows.
+    optional = {
+        "tasks.rebind", "assets.route", "assets.explain", "assets.check",
+        "assets.migrate.plan", "assets.migrate.apply", "assets.catalog.find",
+        "assets.catalog.get", "assets.catalog.put", "assets.catalog.check",
+    }
+    assert set(runtime.REQUIRED_CAPABILITIES).isdisjoint(optional)
+    assert set(runtime.REQUIRED_CAPABILITIES) | optional == shipped
+
+
+def test_asset_governance_is_discoverable_without_raising_installation_minimum(
+    built_unified_runtime: Path,
+) -> None:
+    runtime = _load_runtime()
+    requested = {
+        "assets.route", "assets.explain", "assets.check", "assets.migrate.plan",
+        "assets.migrate.apply", "assets.catalog.find", "assets.catalog.get",
+        "assets.catalog.put", "assets.catalog.check",
+    }
+    assert set(runtime.REQUIRED_CAPABILITIES).isdisjoint(requested)
+    result = subprocess.run(
+        [str(built_unified_runtime), "api", "ensure", "--capabilities",
+         ",".join(sorted(requested)), "--format", "json"],
+        capture_output=True, text=True, timeout=10, check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "ok"
+    assert set(payload["data"]["present"]) == requested
+    assert payload["data"]["missing"] == []
 
 
 def test_tasks_rebind_is_discoverable_without_raising_installation_minimum(
