@@ -6,7 +6,9 @@ Preserved Contract: quick completion requires changed surfaces, verification evi
 
 ## Completion Standard
 
-Before a build, package, or test attempt, optionally retrieve method cards with
+Before a build, package, or test attempt, optionally retrieve method cards. First
+negotiate `{{specify-subcmd:specify-runtime api ensure --capabilities playbook.find,playbook.show --format json}}`;
+if unavailable, continue Quick's own verification without method reuse. Otherwise use
 `{{specify-subcmd:specify-runtime playbook find --query <operation-goal> --format json}}`.
 Read only a matching pinned `show_argv` and needed `expand_argv`, then check live
 scripts, prerequisites, scope, and outputs. This is read-only advice inside the

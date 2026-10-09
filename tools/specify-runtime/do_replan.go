@@ -233,7 +233,7 @@ func doReplan(root string, session DoSession, oldDigest string, input doResumeIn
 	if err != nil {
 		return session, err
 	}
-	if err := doReplanValidateScopes(definition, writeScope, outputScope); err != nil {
+	if err := doValidateOperationScopes(definition, writeScope, outputScope); err != nil {
 		return session, err
 	}
 	if err := doReplanRejectRetroactiveScope(root, session, writeScope, outputScope); err != nil {
@@ -346,7 +346,7 @@ func doReplanScope(root string, previous, requested []string) ([]string, error) 
 		if err != nil {
 			return nil, err
 		}
-		if clean == ".specify" || strings.HasPrefix(clean, ".specify/") || clean == ".planning" || strings.HasPrefix(clean, ".planning/") {
+		if doWorkflowStatePath(clean) {
 			return nil, fmt.Errorf("runtime/workflow state is not product or output scope")
 		}
 		if !seen[clean] {
@@ -362,7 +362,7 @@ func doReplanScope(root string, previous, requested []string) ([]string, error) 
 	return uniqueSortedTrimmed(result), nil
 }
 
-func doReplanValidateScopes(definition PlaybookDefinition, writeScope, outputScope []string) error {
+func doValidateOperationScopes(definition PlaybookDefinition, writeScope, outputScope []string) error {
 	sources := append([]string{}, definition.SourceFiles...)
 	for _, step := range definition.Steps {
 		if step.ScriptRef != "" {

@@ -254,7 +254,9 @@ or complete discovery. Never finish an execution request here.
 
 ## 3. Prove execution readiness and prepare optional automation
 
-For a build/package/native-test operation, optionally use
+For a build/package/native-test operation, optionally retrieve methods. First
+negotiate `{{specify-subcmd:specify-runtime api ensure --capabilities playbook.find,playbook.show --format json}}`;
+if unavailable, continue E2E's own verification without method reuse. Otherwise use
 `{{specify-subcmd:specify-runtime playbook find --query <operation-goal> --format json}}`.
 Expand only matching pinned `show_argv` and needed `expand_argv`; verify live
 scripts, prerequisites, scope, and outputs. Reuse is read-only advice inside the

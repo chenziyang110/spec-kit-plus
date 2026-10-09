@@ -369,7 +369,8 @@ func validatePlaybookDefinition(projectRoot string, definition PlaybookDefinitio
 			if _, err := playbookSafePath(projectRoot, source, false); err != nil {
 				return err
 			}
-			if source == ".specify" || strings.HasPrefix(source, ".specify/") || source == ".planning" || strings.HasPrefix(source, ".planning/") {
+			ownerPath := strings.ToLower(source)
+			if ownerPath == ".specify" || strings.HasPrefix(ownerPath, ".specify/") || ownerPath == ".planning" || strings.HasPrefix(ownerPath, ".planning/") {
 				return fmt.Errorf("playbook_source_write_cannot_target_workflow_state")
 			}
 		}
@@ -484,12 +485,13 @@ func playbookSafePath(root, relative string, allowRoot bool) (string, error) {
 		return "", fmt.Errorf("playbook_path_must_be_canonical_project_relative")
 	}
 	for _, part := range strings.Split(relative, "/") {
-		if part == ".." || part == ".git" || part == "" {
+		if part == ".." || strings.EqualFold(part, ".git") || part == "" {
 			return "", fmt.Errorf("playbook_path_outside_source_scope")
 		}
 	}
+	ownerPath := strings.ToLower(relative)
 	for _, prefix := range []string{".specify/playbooks", ".specify/do", ".specify/runtime"} {
-		if relative == prefix || strings.HasPrefix(relative, prefix+"/") {
+		if ownerPath == prefix || strings.HasPrefix(ownerPath, prefix+"/") {
 			return "", fmt.Errorf("playbook_source_cannot_reference_its_runtime_state")
 		}
 	}

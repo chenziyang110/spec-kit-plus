@@ -44,6 +44,7 @@ def assert_do_runtime_binding(project: Path, content: str) -> None:
     assert launcher is not None
     assert f"{launcher.command} playbook find" in content
     assert f"{launcher.command} api show do.start" in content
+    assert f"{launcher.command} api ensure --capabilities do.start,do.record,do.validate,do.finish,do.resume,do.show,playbook.find,playbook.show,playbook.update,playbook.validate --format json" in content
     assert "{{specify-subcmd:" not in content
     assert "{{spec-kit-include:" not in content
     assert "{{project-cognition-workflow}}" not in content

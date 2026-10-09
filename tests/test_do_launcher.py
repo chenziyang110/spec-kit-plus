@@ -71,3 +71,19 @@ def test_do_cannot_fall_back_to_python_in_agent_prompts(tmp_path, command):
     assert ("legacy_python_runtime", "invoke") in {
         (item.artifact_id, item.operation) for item in report.violations
     }
+
+
+@pytest.mark.parametrize("relative", [
+    "templates/commands/implement.md", "templates/commands/e2e.md",
+    "templates/command-references/quick/validation-and-closeout.md",
+    "templates/advanced-skills/spx-implement/SKILL.md",
+    "templates/advanced-skills/spx-quick/SKILL.md",
+    "templates/advanced-skills/spx-e2e/SKILL.md",
+])
+def test_optional_method_recall_keeps_consumer_owner_on_missing_capability(relative):
+    content = (ROOT / relative).read_text(encoding="utf-8")
+    ensure = "api ensure --capabilities playbook.find,playbook.show --format json"
+    assert ensure in content
+    assert content.index(ensure) < content.index("playbook find --query <operation-goal>")
+    assert "own verification without method reuse" in content
+    assert "DoSession" in content and "fresh evidence" in content

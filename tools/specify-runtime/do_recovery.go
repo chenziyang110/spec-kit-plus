@@ -236,6 +236,17 @@ func doRememberResume(session *DoSession, requestDigest, evidenceDigest string) 
 	session.ResumeReceipts[requestDigest] = evidenceDigest
 }
 
+func doVerifyRecoveryEvidence(root string, recovery DoRecovery) error {
+	if strings.TrimSpace(recovery.Reason) == "" || !recovery.ProcessesStopped || !recovery.SideEffectsInspected || recovery.EvidenceText != "" || recovery.EvidenceRef == "" || !playbookDigestPattern.MatchString(recovery.EvidenceSHA256) {
+		return fmt.Errorf("recovery lacks its completed process/effect inspection and bound evidence")
+	}
+	raw, err := secureProjectReadFile(root, recovery.EvidenceRef)
+	if err != nil || len(raw) == 0 || len(raw) > 2*1024*1024 || doBytesDigest(raw) != recovery.EvidenceSHA256 {
+		return fmt.Errorf("inspection record is missing or changed")
+	}
+	return nil
+}
+
 // A resumed Work already carries the owner's new fence. Rebinding requires that
 // explicit token; simply reading a newer fence never renews a stale Do owner.
 func doAdoptRecoveredWorkFence(root string, session DoSession, requestedFence int64, allowBlocked bool) (DoSession, error) {

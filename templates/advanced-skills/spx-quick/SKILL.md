@@ -416,7 +416,9 @@ do not shrink the UI outcome.
 
 Record meaningful transition updates in `STATUS.md` only through its artifact owner. For multiple same-checkpoint targets in one artifact, aggregate the delta in memory and prefer one prepared lease plus `specify-runtime artifact patch-batch`; older runtimes fall back to leased `specify-runtime artifact patch` calls. Create an absent `SUMMARY.md` with `artifact scaffold --kind quick-summary`, query it on resume, and batch only its named terminal sections; never submit or reconstruct the whole summary.
 
-Before a build/package/test attempt, optionally use
+Before a build/package/test attempt, optionally retrieve methods. First negotiate
+`{{specify-subcmd:specify-runtime api ensure --capabilities playbook.find,playbook.show --format json}}`;
+if unavailable, continue Quick's own verification without method reuse. Otherwise use
 `{{specify-subcmd:specify-runtime playbook find --query <operation-goal> --format json}}`.
 Expand only matching pinned `show_argv` and needed `expand_argv`; verify live
 scripts, prerequisites, scope, and outputs. Reuse is read-only advice within

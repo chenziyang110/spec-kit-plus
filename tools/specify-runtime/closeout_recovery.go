@@ -582,7 +582,7 @@ func replaySelectedCloseoutIntent(paths rt.Paths, args []string, stdout io.Write
 		if _, err := os.Stat(closeoutRepairPath(paths, id)); err == nil {
 			return fmt.Errorf("original intent has a durable repair; inspect it and resume the replacement")
 		}
-		updateID, err = replayStoredCloseoutIntentLocked(runtime, paths, intent)
+		updateID, err = replayStoredCloseoutIntentLocked(runtime, paths, intent, intent.DoBinding)
 		if err != nil {
 			return err
 		}

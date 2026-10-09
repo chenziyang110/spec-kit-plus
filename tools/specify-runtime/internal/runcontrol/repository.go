@@ -275,6 +275,36 @@ func CaptureWorkspaceBaseline(ctx context.Context, workspaceRoot string) (Worksp
 	return WorkspaceBaseline{HeadCommit: headCommit, DirtyPaths: dirtyPaths, PathDigests: digests}, nil
 }
 
+func isDoSessionRuntimeLockPath(pathKey string) bool {
+	const prefix = ".specify/runtime/receipts/do-locks/"
+	if !strings.HasPrefix(pathKey, prefix) || !strings.HasSuffix(pathKey, ".lock") {
+		return false
+	}
+	id := strings.TrimSuffix(strings.TrimPrefix(pathKey, prefix), ".lock")
+	if len(id) < 1 || len(id) > 96 {
+		return false
+	}
+	for i, char := range id {
+		alphanumeric := char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9'
+		if !alphanumeric && (i == 0 || char != '-' && char != '_') {
+			return false
+		}
+	}
+	return true
+}
+
+func isPrivateRuntimeLockPath(pathKey string) bool {
+	if isDoSessionRuntimeLockPath(pathKey) {
+		return true
+	}
+	switch pathKey {
+	case ".specify/project-cognition/.update.lock", ".planning/learnings/.learning.lock", ".specify/runtime/locks/playbooks.lock":
+		return true
+	default:
+		return false
+	}
+}
+
 func EncodeWorkspaceBaseline(baseline WorkspaceBaseline) (string, error) {
 	if strings.TrimSpace(baseline.HeadCommit) == "" {
 		return "", fmt.Errorf("%w: workspace baseline head commit is required", ErrInvalidArgument)
@@ -485,7 +515,7 @@ func inspectCommittedWorkspacePaths(ctx context.Context, workspaceRoot, baseComm
 }
 
 func workspacePathDigest(workspaceRoot, relativePath string) (string, error) {
-	pathValue, _, err := normalizeWorkPath(relativePath, runtime.GOOS == "windows")
+	pathValue, pathKey, err := normalizeWorkPath(relativePath, runtime.GOOS == "windows")
 	if err != nil {
 		return "", err
 	}
@@ -518,6 +548,12 @@ func workspacePathDigest(workspaceRoot, relativePath string) (string, error) {
 		payload = []byte("symlink\x00" + target)
 	case info.IsDir():
 		payload = []byte("directory")
+	case info.Mode().IsRegular() && isPrivateRuntimeLockPath(pathKey):
+		// Exact private lock bytes are operational state, not deliverables.
+		// A Windows owner cannot read its own exclusively locked byte. Retain
+		// path/existence/type accounting without filtering recovery inspection
+		// or neighboring canonical cognition, Learning, or workflow artifacts.
+		payload = []byte("private-runtime-lock")
 	default:
 		payload, err = os.ReadFile(absolutePath)
 		if err != nil {

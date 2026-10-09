@@ -16,6 +16,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+from typing import Callable
 
 
 DEMO_SOURCE = '''import argparse
@@ -50,7 +51,7 @@ def stamp() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def probe(runtime: Path, project: Path) -> dict:
+def probe(runtime: Path, project: Path, *, prepare_project: Callable[[Path], None] | None = None) -> dict:
     project.mkdir(parents=True, exist_ok=False)
     environment = os.environ.copy()
     environment["PATH"] = str(Path(sys.executable).parent) + os.pathsep + environment.get("PATH", "")
@@ -62,6 +63,9 @@ def probe(runtime: Path, project: Path) -> dict:
         ["git", "-c", "user.name=Do probe", "-c", "user.email=probe@example.test", "commit", "-qm", "fixture"],
     ):
         subprocess.run(argv, cwd=project, env=environment, check=True, capture_output=True, text=True)
+
+    if prepare_project is not None:
+        prepare_project(project)
 
     def invoke(*args: str, payload: dict | None = None, blocked: bool = False) -> dict:
         command = [str(runtime), *args, "--project-root", str(project), "--format", "json"]

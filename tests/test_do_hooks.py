@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import importlib.util
+from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -44,16 +48,110 @@ def test_do_hook_uses_pinned_runtime_argv_and_no_python_fallback(do_hook, tmp_pa
 
     def run(argv, **kwargs):
         calls.append((argv, kwargs))
+        if argv[1:3] == ["api", "ensure"]:
+            return subprocess.CompletedProcess(argv, 0, json.dumps({
+                "status": "ok", "data": {"requested": ["do.show"], "present": ["do.show"], "missing": []}
+            }), "")
         return subprocess.CompletedProcess(argv, 0, json.dumps({
             "status": "ok", "data": {"active": True, "session": {"id": "do-exact"}}
         }), "")
 
     monkeypatch.setattr(hook.subprocess, "run", run)
     assert hook._active_do_context(root) == {"command_name": "do", "session_id": "do-exact"}
-    assert calls[0][0] == [executable, "do", "show", "--active", "--adapter-id", kind, "--format", "json"]
+    assert calls[0][0] == [executable, "api", "ensure", "--capabilities", "do.show", "--format", "json"]
+    assert calls[1][0] == [executable, "do", "show", "--active", "--adapter-id", kind, "--format", "json"]
     assert calls[0][1]["cwd"] == root
     assert calls[0][1]["timeout"] == hook.SHARED_HOOK_TIMEOUT_SECONDS
-    assert not calls[0][1].get("shell")
+    assert 0 < calls[1][1]["timeout"] <= hook.SHARED_HOOK_TIMEOUT_SECONDS
+    assert all(not kwargs.get("shell") for _, kwargs in calls)
+
+
+@pytest.mark.parametrize("discovery,returncode", [
+    ({"status": "blocked", "data": {"requested": ["do.show"], "present": [], "missing": ["do.show"]}}, 10),
+    ({"status": "ok", "data": {"requested": ["do.show"], "present": [], "missing": []}}, 0),
+    ({"status": "ok", "data": {"requested": ["do.validate"], "present": ["do.validate"], "missing": []}}, 0),
+    ({"status": "ok", "data": {"requested": ["do.show"], "present": ["do.show"], "missing": ["do.show"]}}, 0),
+])
+def test_do_hook_rejects_missing_or_mismatched_capability_before_state_read(do_hook, tmp_path, monkeypatch, discovery, returncode):
+    _, hook = do_hook
+    calls = []
+    monkeypatch.setattr(hook, "_runtime_argv_from_project_config", lambda _: ("pinned-runtime",))
+
+    def run(argv, **_kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, returncode, json.dumps(discovery), "")
+
+    monkeypatch.setattr(hook.subprocess, "run", run)
+    assert hook._do_runtime_payload(tmp_path, "show", "--active") is None
+    assert calls == [["pinned-runtime", "api", "ensure", "--capabilities", "do.show", "--format", "json"]]
+
+
+def test_do_capability_and_state_read_share_the_existing_hook_deadline(do_hook, tmp_path, monkeypatch):
+    _, hook = do_hook
+    calls = []
+    ticks = iter([0.0, hook.SHARED_HOOK_TIMEOUT_SECONDS + 0.1])
+    monkeypatch.setattr(hook, "_runtime_argv_from_project_config", lambda _: ("pinned-runtime",))
+    monkeypatch.setattr(hook, "time", SimpleNamespace(monotonic=lambda: next(ticks)))
+
+    def run(argv, **_kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, json.dumps({
+            "status": "ok", "data": {"requested": ["do.show"], "present": ["do.show"], "missing": []}
+        }), "")
+
+    monkeypatch.setattr(hook.subprocess, "run", run)
+    assert hook._do_runtime_payload(tmp_path, "show", "--active") is None
+    assert len(calls) == 1 and calls[0][1:3] == ["api", "ensure"]
+
+
+@pytest.mark.parametrize("do_hook", ["gemini"], indirect=True)
+def test_gemini_session_start_injects_do_resume_into_agent_context(do_hook, tmp_path, monkeypatch):
+    _, hook = do_hook
+    monkeypatch.setattr(hook, "_infer_active_context", lambda _: {"command_name": "do", "session_id": "do-owner"})
+    output = hook._handle_session_start(tmp_path, {})
+    assert "DoSession do-owner" in output["hookSpecificOutput"]["additionalContext"]
+    assert output["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+
+
+@pytest.mark.parametrize("do_hook", ["gemini"], indirect=True)
+@pytest.mark.parametrize("state,blocked", [("pending", True), ("terminal", False), ("external", False), ("unavailable", True), ("ambiguous", True)])
+def test_gemini_after_agent_enforces_do_terminal_or_recorded_external_exit(do_hook, tmp_path, monkeypatch, capsys, state, blocked):
+    _, hook = do_hook
+    context = {"command_name": "do", "session_id": "do-owner"}
+    if state in {"unavailable", "ambiguous"}:
+        context = {"command_name": "do", state: "true"}
+    monkeypatch.setattr(hook, "_infer_active_context", lambda _: context)
+    monkeypatch.setattr(hook, "_project_root", lambda _: tmp_path)
+    monkeypatch.setattr(hook, "_read_stdin_payload", lambda: {"prompt": "/sp.do build", "hook_event_name": "AfterAgent"})
+    calls = []
+
+    def runtime(_root, *args):
+        calls.append(args)
+        assert state not in {"unavailable", "ambiguous"}
+        data = {"terminal": state == "terminal", "can_stop": state in {"terminal", "external"},
+                "validation": {"status": "passed" if state == "terminal" else "blocked"}, "session": {"id": "do-owner"}}
+        if state == "external":
+            data["session"]["blocker"] = {"owner": "external", "cause": "access unavailable"}
+        return {"status": "ok" if args[0] == "show" or state == "terminal" else "blocked", "data": data}
+
+    monkeypatch.setattr(hook, "_do_runtime_payload", runtime)
+    monkeypatch.setattr(hook, "_run_shared_hook", lambda *_args, **_kw: pytest.fail("DO used a formal workflow gate"))
+    asset_calls = []
+    monkeypatch.setattr(hook, "_run_asset_guard", lambda *args, **_kw: asset_calls.append(args) or {})
+    monkeypatch.setattr(hook.sys, "argv", ["gemini-hook-dispatch.py", "after-agent"])
+    assert hook.main() == 0
+    output = json.loads(capsys.readouterr().out)
+    if blocked:
+        assert output["decision"] == "deny"
+        assert "DoSession" in output["reason"]
+        assert not asset_calls
+    else:
+        assert output.get("decision") != "deny"
+        assert len(asset_calls) == 1 and asset_calls[0][2] == "finish"
+    if state == "pending":
+        assert calls == [("show", "do-owner"), ("validate", "do-owner")]
+    elif state == "external":
+        assert calls == [("show", "do-owner")]
 
 
 def test_do_context_never_picks_latest_or_a_formal_feature(do_hook, tmp_path, monkeypatch):
@@ -95,6 +193,98 @@ def test_gemini_history_does_not_reactivate_an_old_do_invocation(do_hook):
         {"role": "user", "parts": [{"text": "/sp.plan the next feature"}]},
     ]}}
     assert hook._explicit_workflow_command(payload) == "plan"
+
+
+@pytest.mark.parametrize("prompt,selected", [
+    ("/sp-do resume Exact-123", "Exact-123"),
+    ("Use $spx-do resume exact_123 inspect", "exact_123"),
+    ("/skill:spx-do resume exact", "exact"),
+    ("/sp.do resume exact", "exact"),
+    ("/sp-do resume", ""),
+    ("/sp-do resume ../other", ""),
+    ("/sp-do resume " + "x" * 97, ""),
+    ("Explain /sp-do resume old", None),
+    ("/sp-quick resume old", None),
+    ("/sp-do inspect", None),
+])
+def test_exact_do_selector_requires_current_explicit_resume(do_hook, prompt, selected):
+    _, hook = do_hook
+    assert hook._explicit_do_session({"prompt": prompt, "session_id": "native-chat"}) == selected
+    assert hook._explicit_do_session({"session_id": "native-chat"}) is None
+    assert hook._explicit_do_session({"llm_request": {"messages": [
+        {"role": "user", "content": "/sp-do resume stale"},
+        {"role": "user", "content": prompt},
+    ]}}) == selected
+
+
+@pytest.mark.parametrize("response", [
+    None,
+    {"status": "blocked", "data": {"session": {"id": "exact"}}},
+    {"status": "ok", "data": {"active": False}},
+    {"status": "ok", "data": {"session": {"id": "unrelated"}}},
+    {"status": "ok", "data": {"session_id": "unrelated", "session": {"id": "exact"}}},
+])
+def test_exact_do_lookup_refuses_missing_or_wrong_identity_without_fallback(do_hook, tmp_path, monkeypatch, response):
+    _, hook = do_hook
+    root = _project(tmp_path)
+    calls = []
+
+    def runtime(_root, *args):
+        calls.append(args)
+        return response
+
+    monkeypatch.setattr(hook, "_do_runtime_payload", runtime)
+
+    @hook._with_explicit_workflow_context
+    def selected(_root, _payload):
+        return hook._infer_active_context(root)
+
+    context = selected(root, {"prompt": "/sp-do resume exact"})
+    assert context == {"command_name": "do", "unavailable": "true", "session_id": "exact"}
+    assert calls == [("show", "exact")]
+    assert "do show exact" in hook._do_resume_context(context)
+    assert hook._EXPLICIT_DO_SESSION.get() is None
+
+
+def test_exact_do_resume_selects_terminal_owner_and_invalid_resume_never_queries_active(do_hook, tmp_path, monkeypatch):
+    _, hook = do_hook
+    calls = []
+
+    def runtime(_root, *args):
+        calls.append(args)
+        return {"status": "ok", "data": {"terminal": True, "session": {"id": "exact"}}}
+
+    monkeypatch.setattr(hook, "_do_runtime_payload", runtime)
+
+    @hook._with_explicit_workflow_context
+    def selected(_root, _payload):
+        return hook._infer_active_context(tmp_path)
+
+    assert selected(tmp_path, {"prompt": "/sp-do resume exact"}) == {"command_name": "do", "session_id": "exact"}
+    assert calls == [("show", "exact")]
+    calls.clear()
+    context = selected(tmp_path, {"prompt": "/sp-do resume"})
+    assert context == {"command_name": "do", "unavailable": "true", "invalid_resume": "true"}
+    assert "valid exact session ID" in hook._do_resume_context(context)
+    assert calls == []
+
+
+@pytest.mark.parametrize("mismatch", ["show", "validate"])
+def test_exact_do_stop_rechecks_show_and_validation_identity(do_hook, tmp_path, monkeypatch, mismatch):
+    kind, hook = do_hook
+    calls = []
+
+    def runtime(_root, *args):
+        calls.append(args)
+        identity = "other" if args[0] == mismatch and len(calls) > 1 else "exact"
+        return {"status": "ok", "data": {
+            "session": {"id": identity}, "terminal": True, "validation": {"status": "passed"},
+        }}
+
+    monkeypatch.setattr(hook, "_do_runtime_payload", runtime)
+    handler = hook._handle_stop_monitor if kind == "claude" else hook._handle_after_agent
+    assert handler(tmp_path, {"prompt": "/sp-do resume exact"})["decision"] in {"block", "deny"}
+    assert all(args[1] == "exact" for args in calls)
 
 
 def test_explicit_non_do_invocation_keeps_its_context_and_never_queries_do(do_hook, tmp_path, monkeypatch):
@@ -146,6 +336,16 @@ def test_explicit_context_is_cleared_after_a_hook_error(do_hook, tmp_path):
     with pytest.raises(ValueError, match="native hook fixture"):
         fail(tmp_path, {"prompt": "/sp-quick fixture"})
     assert hook._EXPLICIT_WORKFLOW.get() is None
+    assert hook._EXPLICIT_DO_SESSION.get() is None
+
+    @hook._with_explicit_workflow_context
+    def fail_resume(_root, _payload):
+        assert hook._EXPLICIT_DO_SESSION.get() == "exact"
+        raise ValueError("native resume fixture error")
+
+    with pytest.raises(ValueError, match="native resume fixture"):
+        fail_resume(tmp_path, {"prompt": "/sp-do resume exact"})
+    assert hook._EXPLICIT_DO_SESSION.get() is None
 
 
 def _claude_transcript(root: Path, prompts: list[str]) -> Path:
@@ -197,6 +397,24 @@ def test_claude_transcript_uses_latest_user_and_direct_prompt_wins(do_hook, tmp_
     assert selected(tmp_path, {**payload, "prompt": "A new ordinary request"}) is None
     _claude_transcript(tmp_path, ["/sp-do earlier", "A new ordinary request"])
     assert selected(tmp_path, payload) is None
+
+
+@pytest.mark.parametrize("do_hook", ["claude"], indirect=True)
+def test_claude_exact_resume_uses_only_latest_allowed_transcript_or_current_prompt(do_hook, tmp_path):
+    _, hook = do_hook
+    transcript = _claude_transcript(tmp_path, ["/sp-do resume stale", "/sp-do resume exact"])
+
+    @hook._with_explicit_workflow_context
+    def selected(_root, _payload):
+        return hook._EXPLICIT_DO_SESSION.get()
+
+    payload = {"transcript_path": str(transcript)}
+    assert selected(tmp_path, payload) == "exact"
+    assert selected(tmp_path, {**payload, "prompt": "/sp-do resume current"}) == "current"
+    assert selected(tmp_path, {**payload, "prompt": "A new ordinary request"}) is None
+    _claude_transcript(tmp_path, ["/sp-do resume stale", "A new ordinary request"])
+    assert selected(tmp_path, payload) is None
+    assert hook._EXPLICIT_DO_SESSION.get() is None
 
 
 @pytest.mark.parametrize("do_hook", ["claude"], indirect=True)
@@ -275,7 +493,14 @@ def test_failed_lookup_does_not_fall_back_to_a_formal_feature(do_hook, tmp_path,
 def test_invalid_do_context_is_not_execution_evidence(do_hook, tmp_path, monkeypatch, stdout, returncode):
     _, hook = do_hook
     monkeypatch.setattr(hook, "_runtime_argv_from_project_config", lambda _: ("pinned-runtime",))
-    monkeypatch.setattr(hook.subprocess, "run", lambda argv, **_: subprocess.CompletedProcess(argv, returncode, stdout, ""))
+    def run(argv, **_kwargs):
+        if argv[1:3] == ["api", "ensure"]:
+            return subprocess.CompletedProcess(argv, 0, json.dumps({
+                "status": "ok", "data": {"requested": ["do.show"], "present": ["do.show"], "missing": []}
+            }), "")
+        return subprocess.CompletedProcess(argv, returncode, stdout, "")
+
+    monkeypatch.setattr(hook.subprocess, "run", run)
     assert hook._do_runtime_payload(tmp_path, "show", "--active") is None
 
 
@@ -365,3 +590,97 @@ def test_gemini_pending_do_can_continue_without_formal_phase_block(do_hook, tmp_
     assert "not yet terminal" in output["hookSpecificOutput"]["additionalContext"]
     assert calls == [("validate", "do-owner")]
     assert hook._workflow_policy_shared(tmp_path, trigger="pre_tool", context=context) is None
+
+
+@pytest.mark.parametrize("kind", ["claude", "gemini"])
+def test_native_do_finish_hook_rejects_unfinished_then_allows_completed_operation(kind, built_unified_runtime, tmp_path):
+    project = tmp_path / "project with spaces"
+    project.mkdir()
+    source = project / "native_check.py"
+    source.write_text("print('native operation verified')\n", encoding="utf-8")
+    for argv in (
+        ["git", "init", "-q"], ["git", "add", source.name],
+        ["git", "-c", "user.name=Do Hook Test", "-c", "user.email=hook@example.invalid", "commit", "-qm", "fixture"],
+    ):
+        subprocess.run(argv, cwd=project, check=True, capture_output=True, text=True)
+    original = source.read_bytes()
+    bin_dir = project / ".specify/bin"
+    bin_dir.mkdir(parents=True)
+    (project / ".specify/config.json").write_text(json.dumps({
+        "runtime_launcher": {"argv": [str(built_unified_runtime)]}
+    }), encoding="utf-8")
+    shutil.copyfile(ROOT / "src/specify_cli/shared_hooks/specify-asset-guard.py", bin_dir / "specify-asset-guard.py")
+    dispatcher = project / f".{kind}/hooks/{kind}-hook-dispatch.py"
+    dispatcher.parent.mkdir(parents=True)
+    shutil.copyfile(ROOT / f"src/specify_cli/integrations/{kind}/hooks/{kind}-hook-dispatch.py", dispatcher)
+    env = dict(os.environ)
+    env[f"{kind.upper()}_PROJECT_DIR"] = str(project)
+    session_id = "native-do-" + kind
+    native_payload = {"cwd": str(project), "session_id": "native-chat"}
+    if kind == "claude":
+        transcript = _claude_transcript(project, ["/sp-do resume stale", f"/sp-do resume {session_id}"])
+        native_payload["transcript_path"] = str(transcript)
+    else:
+        native_payload["prompt"] = f"/sp-do resume {session_id}"
+    argv = [sys.executable, source.name]
+    definition = {
+        "operation": "check", "target": "native-hook", "owner": source.name, "variant": kind,
+        "title": "Inspect the actual native operation", "goal": "Inspect the actual native operation",
+        "aliases": [], "applicability": {}, "source_files": [source.name], "learning_refs": [],
+        "steps": [{"id": "inspect", "purpose": "Run the real native check", "cwd": ".", "argv": argv,
+                   "depends_on": [], "required": True, "expected_result": "Native check passes", "side_effect": "read"}],
+        "checks": [{"id": "verify", "purpose": "Verify the real native check", "cwd": ".", "argv": argv,
+                    "depends_on": ["inspect"], "required": True, "expected_result": "Native check passes", "kind": "exit_code"}],
+    }
+
+    def runtime(*args, payload=None):
+        command = [str(built_unified_runtime), *args, "--format", "json"]
+        if payload is not None:
+            command += ["--input-json", "-"]
+        result = subprocess.run(command, cwd=project, input=json.dumps(payload) if payload is not None else None,
+                                text=True, capture_output=True, timeout=30, env=env)
+        envelope = json.loads(result.stdout)
+        assert result.returncode == 0 and envelope["status"] == "ok", (result.stderr, envelope)
+        return envelope["data"]
+
+    def finish_hook():
+        route = "stop-monitor" if kind == "claude" else "after-agent"
+        result = subprocess.run([sys.executable, str(dispatcher), route], cwd=project, env=env,
+                                input=json.dumps(native_payload),
+                                capture_output=True, text=True, timeout=20)
+        assert result.returncode == 0 and result.stderr == "", (result.returncode, result.stderr)
+        return json.loads(result.stdout) if result.stdout.strip() else {}
+
+    session = runtime("do", "start", payload={"session_id": session_id, "definition": definition,
+                      "adapter_id": kind, "agent_id": "native-hook-validator"})
+    other_id = "unrelated-" + kind
+    runtime("do", "start", payload={"session_id": other_id, "definition": definition,
+            "adapter_id": kind, "agent_id": "other-validator"})
+    other_file = project / ".specify/do/sessions" / other_id / "session.json"
+    other_before = other_file.read_bytes()
+    assert finish_hook()["decision"] in {"deny", "block"}
+    for attempt_kind, target in [("step", "inspect"), ("check", "verify")]:
+        event = {"attempt_id": target + "-attempt", "target_id": target, "kind": attempt_kind, "event": "started"}
+        session = runtime("do", "record", session_id, payload={"expected_revision": session["revision"],
+                          "request_id": target + "-start", "events": [event]})
+        started = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        result = subprocess.run(argv, cwd=project, check=True, capture_output=True, text=True)
+        finished = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        event |= {"event": "completed", "status": "passed", "evidence_origin": "agent_tool_observation",
+                  "tool_call_id": kind + "-native-" + target, "argv": argv, "cwd": ".", "started_at": started,
+                  "finished_at": finished, "exit_code": result.returncode, "summary": result.stdout.strip()}
+        session = runtime("do", "record", session_id, payload={"expected_revision": session["revision"],
+                          "request_id": target + "-complete", "events": [event]})
+    checked = runtime("do", "validate", session_id)
+    assert checked["validation"]["status"] == "passed" and checked["terminal"] is False
+    assert finish_hook()["decision"] in {"deny", "block"}
+    session = runtime("do", "finish", session_id, payload={"expected_revision": session["revision"], "knowledge_status": "pending"})
+    assert session["terminal"] is False
+    assert finish_hook()["decision"] in {"deny", "block"}
+    session = runtime("do", "finish", session_id, payload={"expected_revision": session["revision"], "knowledge_status": "not_applicable"})
+    assert session["terminal"] is True and finish_hook() == {}
+    assert runtime("do", "show", "--active", "--adapter-id", kind)["session_id"] == other_id
+    assert other_file.read_bytes() == other_before
+    assert source.read_bytes() == original
+    assert not (project / ".specify/features").exists()
+    assert not (project / ".planning/quick").exists()

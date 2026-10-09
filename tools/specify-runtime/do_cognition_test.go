@@ -309,7 +309,10 @@ func TestDoCognitionSameSecondChangedSourceRejectsPriorRefresh(t *testing.T) {
 	session = doRecordFixture(t, root, session, "new-source-complete", doRecordEvent{AttemptID: "run-2", TargetID: "run", Kind: "step", Event: "completed", Status: "passed", EvidenceOrigin: "agent_tool_observation", ToolCallID: "real-git-after-source-change", Argv: []string{"git", "--version"}, Cwd: ".", StartedAt: started, FinishedAt: doNow(), ExitCode: &zero})
 	session = doRecordFixture(t, root, session, "new-source-check-start", doRecordEvent{AttemptID: "report-2", TargetID: "report", Kind: "check", Event: "started"})
 	now := doNow()
-	session = doRecordFixture(t, root, session, "new-source-check-complete", doRecordEvent{AttemptID: "report-2", TargetID: "report", Kind: "check", Event: "completed", Status: "passed", EvidenceOrigin: "agent_tool_observation", ToolCallID: "real-current-report-read", Cwd: ".", StartedAt: now, FinishedAt: now, ResultRefs: []DoResultRef{{Path: "out/report.json", Kind: "json"}}})
+	if err := os.WriteFile(filepath.Join(root, "out/report.json"), []byte(`{"ok":true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	session = doRecordFixture(t, root, session, "new-source-check-complete", doRecordEvent{AttemptID: "report-2", TargetID: "report", Kind: "check", Event: "completed", Status: "passed", EvidenceOrigin: "agent_tool_observation", ToolCallID: "real-current-report-read", Cwd: ".", StartedAt: now, FinishedAt: doNow(), ResultRefs: []DoResultRef{{Path: "out/report.json", Kind: "json"}}})
 	if validation := doValidate(root, session, false); validation.Status != "passed" {
 		t.Fatalf("fresh operation/check evidence must be valid for the new source: %+v", validation)
 	}
@@ -328,6 +331,10 @@ func TestDoCognitionSameSecondChangedSourceRejectsPriorRefresh(t *testing.T) {
 
 func TestDoCognitionRefusesChangedSourceBeforeFinalization(t *testing.T) {
 	root, _, session := doSourceMutationFixtureWithSetup(t, func(root string) { doSeedCognitionBaseline(t, root) })
+	validatedSource, err := os.ReadFile(filepath.Join(root, "source.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	payload := doCognitionPlannerPayload(t, root, session)
 	closeoutApplyAfterUpdateHook = func(string) error {
 		return os.WriteFile(filepath.Join(root, "source.txt"), []byte("changed while cognition was refreshing\n"), 0o644)
@@ -343,7 +350,7 @@ func TestDoCognitionRefusesChangedSourceBeforeFinalization(t *testing.T) {
 		t.Fatalf("changed source was published as a finalized refresh: %+v %v", status, err)
 	}
 	closeoutApplyAfterUpdateHook = nil
-	if err := os.WriteFile(filepath.Join(root, "source.txt"), []byte("source v2\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "source.txt"), validatedSource, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	code, envelope = doApplyCognitionPayload(t, root, session, payload)
@@ -472,7 +479,10 @@ func TestDoCognitionPendingIntentBlocksAfterSourceReturnsToBaseline(t *testing.T
 	session = doRecordFixture(t, root, session, "restored-source-complete", doRecordEvent{AttemptID: "run-restored", TargetID: "run", Kind: "step", Event: "completed", Status: "passed", EvidenceOrigin: "agent_tool_observation", ToolCallID: "real-git-restored-baseline", Argv: []string{"git", "--version"}, Cwd: ".", StartedAt: started, FinishedAt: doNow(), ExitCode: &zero})
 	session = doRecordFixture(t, root, session, "restored-source-check-start", doRecordEvent{AttemptID: "report-restored", TargetID: "report", Kind: "check", Event: "started"})
 	now := doNow()
-	session = doRecordFixture(t, root, session, "restored-source-check-complete", doRecordEvent{AttemptID: "report-restored", TargetID: "report", Kind: "check", Event: "completed", Status: "passed", EvidenceOrigin: "agent_tool_observation", ToolCallID: "real-report-restored-baseline", Cwd: ".", StartedAt: now, FinishedAt: now, ResultRefs: []DoResultRef{{Path: "out/report.json", Kind: "json"}}})
+	if err := os.WriteFile(filepath.Join(root, "out/report.json"), []byte(`{"ok":true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	session = doRecordFixture(t, root, session, "restored-source-check-complete", doRecordEvent{AttemptID: "report-restored", TargetID: "report", Kind: "check", Event: "completed", Status: "passed", EvidenceOrigin: "agent_tool_observation", ToolCallID: "real-report-restored-baseline", Cwd: ".", StartedAt: now, FinishedAt: doNow(), ResultRefs: []DoResultRef{{Path: "out/report.json", Kind: "json"}}})
 	if validation := doValidate(root, session, false); validation.Status != "passed" || len(validation.ChangedSourcePaths) != 0 {
 		t.Fatalf("fixture must have fresh passed execution with zero net source changes: %+v", validation)
 	}

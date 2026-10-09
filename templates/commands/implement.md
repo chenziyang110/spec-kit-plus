@@ -111,7 +111,10 @@ projection.
    `remaining_gate_slots` count only unopened logical gates; zero never blocks
    a progress-bound attempt inside an existing gate.
    Before a build, package, or test attempt, the Leader may optionally retrieve
-   method cards with `{{specify-subcmd:specify-runtime playbook find --query <operation-goal> --format json}}`.
+   method cards. First negotiate
+   `{{specify-subcmd:specify-runtime api ensure --capabilities playbook.find,playbook.show --format json}}`;
+   if unavailable, continue this workflow's own verification without method reuse.
+   Otherwise use `{{specify-subcmd:specify-runtime playbook find --query <operation-goal> --format json}}`.
    Expand only matching pinned `show_argv` and needed `expand_argv`, and verify
    live scripts, prerequisites, scope, and outputs. Reuse is read-only advice
    inside the current Implement Work; preserve the complete verification

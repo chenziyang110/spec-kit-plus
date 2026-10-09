@@ -176,7 +176,7 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 			if pending.ID == intent.ID {
 				continue
 			}
-			updateID, err := replayStoredCloseoutIntentLocked(runtime, paths, pending)
+			updateID, err := replayStoredCloseoutIntentLocked(runtime, paths, pending, doBinding)
 			if err != nil {
 				return &closeoutReplayError{IntentID: pending.ID, Err: err}
 			}
@@ -342,8 +342,21 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 	return writeEnvelope(stdout, env)
 }
 
-func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Paths, intent closeoutIntent) (string, error) {
+func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Paths, intent closeoutIntent, lockedDoBinding *DoCognitionBinding) (string, error) {
+	_, ownerScope, err := resolveCloseoutApplyScope(paths.Root, intent.Scope)
+	if err != nil {
+		return "", err
+	}
+	if err := doCheckCognitionScopeOwner(ownerScope, intent.Workflow); err != nil {
+		return "", err
+	}
 	if intent.Workflow == "sp-do" {
+		// The cognition lock cannot acquire Do in the opposite order. Only the
+		// exact Do owner already serialized by apply or selected replay may drain
+		// this intent; other workflows retain its recovery record unchanged.
+		if lockedDoBinding == nil || intent.DoBinding == nil || lockedDoBinding.SessionID != intent.DoBinding.SessionID {
+			return "", fmt.Errorf("pending Do cognition requires exact Do owner replay; use closeout inspect and its digest-bound replay")
+		}
 		if err := doCheckCognitionBinding(paths.Root, intent.Scope, intent.DoBinding); err != nil {
 			return "", err
 		}

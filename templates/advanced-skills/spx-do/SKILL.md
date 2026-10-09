@@ -11,6 +11,13 @@ tools. Go `do` owns session/receipt state and `playbook` owns reusable methods.
 Read `references/operation-contract.md` before starting, resuming, or finalizing
 an operation; it is the full ownership and evidence contract.
 
+Before method retrieval or session mutation, require the complete installed contract:
+
+`{{specify-subcmd:specify-runtime api ensure --capabilities do.start,do.record,do.validate,do.finish,do.resume,do.show,playbook.find,playbook.show,playbook.update,playbook.validate --format json}}`
+
+Missing capabilities block DO until the pinned runtime is repaired/upgraded.
+Preserve existing sessions and methods; never fall back to Python or authored state.
+
 1. Establish the real entrypoint, requested result, acceptance checks, current
    environment, output scope, and authorized source write scope. Preserve other
    work and existing external-side-effect approvals. Do not create a formal

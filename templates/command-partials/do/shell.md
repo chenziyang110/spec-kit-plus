@@ -19,3 +19,12 @@ mutate workflow state, or invent unsupported subcommands.
 For a new session use `adapter_id="__AGENT__"` and the actual native leader's
 `agent_id`. Adapter identity lets hooks distinguish independent CLI work;
 multiple active sessions in the same adapter still require an explicit ID.
+
+Before reading methods or creating/resuming state, require the installed runtime's
+complete Do contract:
+
+`{{specify-subcmd:specify-runtime api ensure --capabilities do.start,do.record,do.validate,do.finish,do.resume,do.show,playbook.find,playbook.show,playbook.update,playbook.validate --format json}}`
+
+Missing capabilities block this invocation until the project-pinned runtime is
+repaired or upgraded. Keep existing sessions and methods intact; do not substitute
+Python mutation, hand-written state, or another workflow.

@@ -117,6 +117,9 @@ func doApplyRecordEvent(root string, session DoSession, event doRecordEvent, pre
 		return session, nil, fmt.Errorf("a started checkpoint from an earlier record is required before recording completion")
 	}
 	attempt := session.Attempts[index]
+	if attempt.Kind != event.Kind || attempt.TargetID != event.TargetID || !doAttemptInCurrentDefinition(session, attempt) {
+		return session, nil, fmt.Errorf("completion must match the exact started action and definition epoch")
+	}
 	if attempt.Status != "running" {
 		return session, nil, fmt.Errorf("attempt is already terminal; retain it and start a new attempt")
 	}
@@ -128,6 +131,9 @@ func doApplyRecordEvent(root string, session DoSession, event doRecordEvent, pre
 	}
 	if !reflect.DeepEqual(event.Argv, attempt.Argv) && !(len(event.Argv) == 0 && len(attempt.Argv) == 0) {
 		return session, nil, fmt.Errorf("observed argv differs from the frozen action")
+	}
+	if strings.TrimSpace(event.Cwd) == "" {
+		return session, nil, fmt.Errorf("observed cwd is required")
 	}
 	cwd, err := doPath(root, event.Cwd, true)
 	if err != nil || cwd != path.Clean(attempt.Cwd) {
@@ -381,8 +387,16 @@ func doJSONPointer(value any, pointer string) (any, error) {
 func doAuditJUnit(raw []byte, minCases int) error {
 	decoder := xml.NewDecoder(bytes.NewReader(raw))
 	cases := 0
+	explicitlyExecuted := 0
+	hasDisabled := false
 	depth := 0
 	rootSeen := false
+	type suiteCounter struct {
+		casesBefore int
+		tests       int
+		declared    bool
+	}
+	counters := []suiteCounter{}
 	for {
 		token, err := decoder.Token()
 		if err == io.EOF {
@@ -404,12 +418,47 @@ func doAuditJUnit(raw []byte, minCases int) error {
 			depth++
 			if element.Name.Local == "testcase" {
 				cases++
+				executed := false
+				for _, attribute := range element.Attr {
+					if attribute.Name.Local != "status" && attribute.Name.Local != "result" {
+						continue
+					}
+					value := strings.ToLower(strings.TrimSpace(attribute.Value))
+					passing := value == "passed" || value == "pass" || value == "success" || value == "successful"
+					if attribute.Name.Local == "status" {
+						passing = passing || value == "run"
+					} else {
+						passing = passing || value == "completed"
+					}
+					if !passing {
+						return fmt.Errorf("JUnit testcase reports nonpassing or unsupported %s=%q", attribute.Name.Local, attribute.Value)
+					}
+					executed = true
+				}
+				if executed {
+					explicitlyExecuted++
+				}
 			}
 			if element.Name.Local == "failure" || element.Name.Local == "error" || element.Name.Local == "skipped" {
 				return fmt.Errorf("JUnit has failed, errored, or skipped cases")
 			}
 			if element.Name.Local == "testsuite" || element.Name.Local == "testsuites" {
+				counter := suiteCounter{casesBefore: cases}
 				for _, attribute := range element.Attr {
+					if attribute.Name.Local == "tests" {
+						n, err := strconv.Atoi(attribute.Value)
+						if err != nil || n < 0 || counter.declared {
+							return fmt.Errorf("JUnit reports invalid tests count")
+						}
+						counter.tests, counter.declared = n, true
+					}
+					if attribute.Name.Local == "disabled" {
+						n, err := strconv.Atoi(attribute.Value)
+						if err != nil || n < 0 {
+							return fmt.Errorf("JUnit reports invalid disabled count")
+						}
+						hasDisabled = hasDisabled || n > 0
+					}
 					if attribute.Name.Local == "failures" || attribute.Name.Local == "errors" || attribute.Name.Local == "skipped" {
 						n, err := strconv.Atoi(attribute.Value)
 						if err != nil || n != 0 {
@@ -417,13 +466,27 @@ func doAuditJUnit(raw []byte, minCases int) error {
 						}
 					}
 				}
+				counters = append(counters, counter)
 			}
 		case xml.EndElement:
+			if element.Name.Local == "testsuite" || element.Name.Local == "testsuites" {
+				if len(counters) == 0 {
+					return fmt.Errorf("invalid JUnit suite nesting")
+				}
+				counter := counters[len(counters)-1]
+				counters = counters[:len(counters)-1]
+				if counter.declared && counter.tests != cases-counter.casesBefore {
+					return fmt.Errorf("JUnit declared %d tests but recorded %d cases in its suite", counter.tests, cases-counter.casesBefore)
+				}
+			}
 			depth--
 		}
 	}
 	if !rootSeen || cases < minCases || cases == 0 {
 		return fmt.Errorf("JUnit executed %d cases; at least %d required", cases, minCases)
+	}
+	if hasDisabled && explicitlyExecuted != cases {
+		return fmt.Errorf("JUnit reports disabled cases without explicit passing execution")
 	}
 	return nil
 }
@@ -479,6 +542,11 @@ func doValidate(root string, session DoSession, requireCognition bool) DoValidat
 		}
 		if attempt.Status == "interrupted" && attempt.Recovery == nil {
 			validation.Blockers = append(validation.Blockers, "attempt "+attempt.ID+" is interrupted and needs evidence-backed recovery before closeout")
+		}
+		if attempt.Recovery != nil {
+			if err := doVerifyRecoveryEvidence(root, *attempt.Recovery); err != nil {
+				validation.Blockers = append(validation.Blockers, "attempt "+attempt.ID+" recovery evidence: "+err.Error())
+			}
 		}
 	}
 	changed, err := runcontrol.InspectWorkspaceDelta(context.Background(), root, session.BaselineJSON)

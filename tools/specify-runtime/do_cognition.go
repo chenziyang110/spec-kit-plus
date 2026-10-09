@@ -80,6 +80,9 @@ func doCognitionWriterPaths(paths rt.Paths, intent closeoutIntent) ([]string, er
 
 func doBeginCognitionCloseout(paths rt.Paths, workflow, scope, reason, payload, deltaSession, commitRange string, changedPaths []string, deltaDigest string) (*DoCognitionBinding, func(), error) {
 	noop := func() {}
+	if err := doCheckCognitionScopeOwner(scope, workflow); err != nil {
+		return nil, noop, err
+	}
 	if workflow != "sp-do" {
 		return nil, noop, nil
 	}
@@ -171,9 +174,28 @@ func doRequireCognitionIntentsClosed(root string, session DoSession) error {
 	return nil
 }
 
+func doCheckCognitionScopeOwner(scope, workflow string) error {
+	ownerScope := strings.ToLower(path.Clean(filepath.ToSlash(scope)))
+	if workflow != "sp-do" && (ownerScope == ".specify/do" || strings.HasPrefix(ownerScope, ".specify/do/")) {
+		return fmt.Errorf("Do cognition receipt scope requires its sp-do owner")
+	}
+	return nil
+}
+
 func doPrepareCognitionReceipt(scopeDir string, receipt *mutationCognitionReceipt, bindings []*DoCognitionBinding) error {
+	if err := doCheckCognitionScopeOwner(receipt.Scope, receipt.Workflow); err != nil {
+		return err
+	}
 	if receipt.Workflow != "sp-do" {
-		return nil
+		paths, err := rt.ResolvePaths(scopeDir)
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(paths.Root, scopeDir)
+		if err != nil {
+			return err
+		}
+		return doCheckCognitionScopeOwner(relative, receipt.Workflow)
 	}
 	paths, err := rt.ResolvePaths(scopeDir)
 	if err != nil {

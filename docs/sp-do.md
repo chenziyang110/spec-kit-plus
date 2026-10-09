@@ -24,6 +24,14 @@ Other integrations use their native command spelling; follow the installed
 catalog. Both profiles accept natural-language goals. Users do not need to
 author session JSON themselves.
 
+When several Do sessions belong to the same integration, select the requested
+session explicitly with the native invocation suffix `resume <session-id>`, for
+example `/sp-do resume first-use` in Claude or `$spx-do resume first-use` in
+Codex. Hooks verify that exact runtime session rather than choosing the latest
+or another unfinished session. The runtime rejects a repeated `do start` from
+a different caller or adapter; use the guarded resume/recovery route for an
+existing Work owner.
+
 This is an explicitly invoked workflow. It adds no passive router and does not
 advance `specify -> plan -> tasks -> implement -> review -> accept`. Quick,
 Implement and E2E may retrieve a relevant method through `playbook find/show`.
@@ -191,6 +199,7 @@ must not be embedded in reusable commands or evidence.
 The readable guide and index are projections, not edit surfaces. Generic
 artifact prepare/patch/delete cannot bypass the specialized owner. Changing an
 index cannot turn an unverified method into authority.
+Other workflow cognition routes cannot write or replay Do-owned session receipts.
 
 Updates compare `base_digest`, preserve immutable revisions and validate the
 exact definition against its DoSession. Publication is an atomic file
@@ -315,8 +324,10 @@ After execution finishes with knowledge pending, use
 `learning capture-auto --command sp-do --session-id <id>` for verified recovery
 signals. Normal passing output is a no-op. A specific manually distilled lesson
 uses `learning capture --command sp-do --session-id <id>` and normal Learning
-fields. Learning registers exact planned files on the same Work before writing;
-its metadata is not classified as product source. Promotion remains explicit.
+fields. Learning holds the Do session lock before the Learning lock, registers
+exact planned files on the same Work, and retains that ownership through the
+write. Its metadata is not classified as product source. Promotion remains
+explicit.
 
 Authorized source/script/configuration changes require canonical `sp-do`
 cognition closeout with actual changed paths and exact session scope. Follow the
@@ -327,6 +338,10 @@ claims its exact database, status, receipt and intent paths on the same Work.
 Current source must still match when the refresh is finalized and Do completes.
 A pending cognition intent for this session must finish its guarded recovery
 before Do can publish knowledge and release Work, even if a ready receipt exists.
+Retry the exact Do-bound replay route returned by the runtime. Another workflow
+cannot automatically drain a pending Do intent: replay acquires the matching Do
+session lock before the cognition lock and rechecks the session, epoch and source
+binding. Other workflows retain their own existing recovery routes.
 
 Pure outputs and registered method/Learning metadata record cognition as not
 applicable. An operation must neither absorb another owner's changes nor hide undeclared

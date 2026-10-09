@@ -30,6 +30,9 @@ func (service learningService) registerDoLearningFiles(paths []string) error {
 		}
 		refs = append(refs, filepath.ToSlash(rel))
 	}
+	if service.doWriteLockHeld {
+		return doRegisterOwnerMetadataWritesLocked(service.projectRoot, service.doSessionID, "learning", refs)
+	}
 	return doRegisterLearningWrites(service.projectRoot, service.doSessionID, refs)
 }
 

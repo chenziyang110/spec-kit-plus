@@ -178,6 +178,13 @@ Use live runtime capabilities and current source evidence to confirm ownership.
   - Retirement: Run is removed from active workflow routing; its records are inert preserved history only. Existing worktrees, branches, and edits remain preserved. Live/recovery-held Work stays active until reconciliation or explicit resolution. Safe additive metadata schema evolution is allowed; never delete or rewrite historical records or automatically clean up worktrees.
   - Tests/docs: `tools/specify-runtime/internal/runcontrol/**/*_test.go`, `tests/test_run_control_workflow_routing.py`, `tests/test_feature_lane_retirement.py`, `tests/test_execution_overview_guidance.py`, `tests/test_execution_control_plane_guidance.py`, `README.md`, and `PROJECT-HANDBOOK.md`
 
+- `sp-do` and `spx-do` repeatable project operations
+  - Templates: `templates/commands/do.md`, `templates/command-partials/do/**`, `templates/command-references/do/**`, `templates/advanced-skills/spx-do/**`, and `templates/artifacts/{do-*,playbook-*}.json`
+  - Runtime/code: `tools/specify-runtime/do*.go`, `tools/specify-runtime/playbook*.go`, `tools/specify-runtime/learning_do.go`, shared Work/cognition closeout owners, `src/specify_cli/launcher.py`, and Claude/Gemini native hook dispatchers
+  - Contract: native tools execute commands; the runtime freezes definitions, binds observations and current evidence, and publishes immutable verified method revisions. Recover every interruption, including optional or superseded attempts. Knowledge retry does not rerun passed execution. Retained source changes require exact session/epoch-bound canonical `sp-do` cognition closeout; preserve Do-before-Learning/cognition lock ordering and Work ownership through writes.
+  - State: `.specify/do/sessions/<id>/**` and `.specify/playbooks/**` are specialized runtime-owned artifacts preserved by additive installation and repair. Do adds no formal stage or Activity.
+  - Tests/docs: `tools/specify-runtime/do*_test.go`, `tools/specify-runtime/playbook*_test.go`, `tools/specify-runtime/learning_do*_test.go`, `tests/integrations/test_do_installation.py`, `tests/test_do_{hooks,launcher,operation_probe}.py`, and `docs/sp-do.md`
+
 - `sp-teams` and `sp-implement-teams` (Codex-only durable execution surfaces)
   - Templates: `templates/commands/{team,implement-teams}.md`, `templates/command-partials/{team,implement-teams}/shell.md`, and `src/specify_cli/integrations/claude/templates/implement-teams.md`
   - Runtime/code: `src/specify_cli/codex_team/**`, `src/specify_cli/mcp/**`, `src/specify_cli/__init__.py` `teams_app`, and `extensions/agent-teams/engine/**`

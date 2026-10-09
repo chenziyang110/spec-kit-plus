@@ -55,8 +55,9 @@ var workflowStateAutoCaptureCommands = map[string]bool{
 }
 
 type learningService struct {
-	projectRoot string
-	doSessionID string
+	projectRoot     string
+	doSessionID     string
+	doWriteLockHeld bool
 }
 
 type learningPaths struct {
@@ -234,10 +235,20 @@ func (paths learningPaths) toMap() map[string]any {
 	}
 }
 
-func (service learningService) withLock(fn func(learningPaths) (map[string]any, error)) (map[string]any, error) {
+func (service learningService) withLock(fn func(learningService, learningPaths) (map[string]any, error)) (map[string]any, error) {
 	paths, err := service.paths()
 	if err != nil {
 		return nil, err
+	}
+	if service.doSessionID != "" {
+		// Keep the Do owner until every Learning write is complete. Registration
+		// alone must not let a queued writer publish after Do releases its Work.
+		releaseDo, err := doSessionLock(service.projectRoot, service.doSessionID)
+		if err != nil {
+			return nil, err
+		}
+		defer releaseDo()
+		service.doWriteLockHeld = true
 	}
 	lockPath := filepath.Join(filepath.Dir(paths.review), ".learning.lock")
 	if err := service.registerDoLearningFiles([]string{paths.projectRules, paths.confirmedLearnings, paths.learningIndex, paths.candidates, paths.review, paths.reviewState, paths.metrics, lockPath, filepath.Join(filepath.Dir(paths.review), "auto-capture.json")}); err != nil {
@@ -254,7 +265,7 @@ func (service learningService) withLock(fn func(learningPaths) (map[string]any, 
 	if err := service.ensureFiles(paths, true); err != nil {
 		return nil, err
 	}
-	return fn(paths)
+	return fn(service, paths)
 }
 
 func (service learningService) ensureFiles(paths learningPaths, includeRuntime bool) error {
@@ -602,7 +613,7 @@ func (service learningService) capture(request learningCaptureRequest) (map[stri
 	if err != nil {
 		return nil, err
 	}
-	return service.withLock(func(paths learningPaths) (map[string]any, error) {
+	return service.withLock(func(service learningService, paths learningPaths) (map[string]any, error) {
 		decision := stringFromAny(entry["assessment_decision"])
 		if decision == "ignore" {
 			if err := service.recordLearningAssessment(paths, entry, false, false); err != nil {
@@ -727,7 +738,7 @@ func (service learningService) captureAuto(commandName, featureDir, workspace, s
 		}
 		return sanitizeLearningProjection(map[string]any{"status": "dry-run", "dry_run": true, "command": normalized, "source_path": sourceRef, "assessed": assessed, "captured": []any{}}), nil
 	}
-	return service.withLock(func(paths learningPaths) (map[string]any, error) {
+	return service.withLock(func(service learningService, paths learningPaths) (map[string]any, error) {
 		registry, err := service.loadAutoCaptureRegistry(paths)
 		if err != nil {
 			return nil, err
@@ -818,7 +829,7 @@ func (service learningService) promote(recurrenceKey, target string) (map[string
 		return nil, fmt.Errorf("learning recurrence_key is required")
 	}
 	key := sanitizeLearningRecurrenceKeyWithPolicy(rawKey, policy).text
-	return service.withLock(func(paths learningPaths) (map[string]any, error) {
+	return service.withLock(func(service learningService, paths learningPaths) (map[string]any, error) {
 		candidatePreamble, candidateEntries, err := readLearningEntries(paths.candidates)
 		if err != nil {
 			return nil, err

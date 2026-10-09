@@ -406,8 +406,13 @@ func doPath(root, relative string, allowDot bool) (string, error) {
 		return "", fmt.Errorf("path must be project-relative")
 	}
 	clean := path.Clean(relative)
-	if clean == ".." || strings.HasPrefix(clean, "../") || clean == ".git" || strings.HasPrefix(clean, ".git/") || (!allowDot && clean == ".") {
+	if clean == ".." || strings.HasPrefix(clean, "../") || (!allowDot && clean == ".") {
 		return "", fmt.Errorf("invalid project-relative path %q", relative)
+	}
+	for _, part := range strings.Split(clean, "/") {
+		if strings.EqualFold(part, ".git") {
+			return "", fmt.Errorf("Git metadata is not operation scope")
+		}
 	}
 	if strings.ContainsAny(clean, "*?[]") {
 		return "", fmt.Errorf("use exact paths or directories, not globs")
@@ -416,8 +421,19 @@ func doPath(root, relative string, allowDot bool) (string, error) {
 	return clean, err
 }
 
+func doWorkflowStatePath(relative string) bool {
+	folded := strings.ToLower(relative)
+	return folded == ".specify" || strings.HasPrefix(folded, ".specify/") || folded == ".planning" || strings.HasPrefix(folded, ".planning/")
+}
+
 func doScopeContains(scope []string, p string) bool {
+	if runtime.GOOS == "windows" {
+		p = strings.ToLower(p)
+	}
 	for _, s := range scope {
+		if runtime.GOOS == "windows" {
+			s = strings.ToLower(s)
+		}
 		if p == s || strings.HasPrefix(p, strings.TrimSuffix(s, "/")+"/") {
 			return true
 		}
@@ -430,6 +446,8 @@ func doStart(root string, input doStartInput) (DoSession, error) {
 	if strings.TrimSpace(input.AgentID) == "" || strings.TrimSpace(input.AdapterID) == "" {
 		return empty, fmt.Errorf("agent_id and adapter_id are required")
 	}
+	input.AgentID = strings.TrimSpace(input.AgentID)
+	input.AdapterID = strings.TrimSpace(input.AdapterID)
 	if input.Context == nil {
 		input.Context = map[string]string{}
 	}
@@ -491,6 +509,18 @@ func doStart(root string, input doStartInput) (DoSession, error) {
 		if digestErr != nil || existing.DefinitionDigest != requestedDigest || existing.Goal != input.Goal || !reflect.DeepEqual(existing.MethodBinding, input.MethodBinding) || !reflect.DeepEqual(uniqueSortedTrimmed(existing.WriteScope), uniqueSortedTrimmed(input.WriteScope)) || !reflect.DeepEqual(uniqueSortedTrimmed(existing.OutputScope), uniqueSortedTrimmed(input.OutputScope)) || !reflect.DeepEqual(existing.Context, input.Context) {
 			return empty, fmt.Errorf("session_id already binds a different operation; resume it or choose a new id")
 		}
+		view, viewErr := runcontrol.OpenViewForRepository(context.Background(), root)
+		if viewErr != nil {
+			return empty, viewErr
+		}
+		defer view.Close()
+		work, _, workErr := view.GetWork(context.Background(), existing.WorkID)
+		if workErr != nil {
+			return empty, workErr
+		}
+		if work.TaskRef != "do:"+id || work.Fence != existing.WorkFence || work.AgentID != input.AgentID || work.AdapterID != input.AdapterID {
+			return empty, fmt.Errorf("session_id belongs to another Work owner or fence; resume it explicitly or choose a new id")
+		}
 		return existing, nil
 	} else if !os.IsNotExist(err) {
 		return empty, err
@@ -501,35 +531,14 @@ func doStart(root string, input doStartInput) (DoSession, error) {
 			if err != nil {
 				return empty, err
 			}
-			if strings.HasPrefix(clean, ".specify/") || clean == ".specify" || strings.HasPrefix(clean, ".planning/") || clean == ".planning" {
+			if doWorkflowStatePath(clean) {
 				return empty, fmt.Errorf("runtime/workflow state is not product or output scope")
 			}
 			set[i] = clean
 		}
 	}
-	for _, check := range input.Definition.Checks {
-		if check.ResultPath != "" && !doScopeContains(input.OutputScope, check.ResultPath) && !doScopeContains(input.WriteScope, check.ResultPath) {
-			return empty, fmt.Errorf("check result %s must be in an explicit output/write scope", check.ResultPath)
-		}
-	}
-	for _, scope := range input.OutputScope {
-		for _, source := range input.Definition.SourceFiles {
-			if doScopeContains([]string{scope}, source) {
-				return empty, fmt.Errorf("output_scope overlaps a declared source file")
-			}
-		}
-		for _, source := range input.WriteScope {
-			if doScopeContains([]string{scope}, source) || doScopeContains([]string{source}, scope) {
-				return empty, fmt.Errorf("output and source write scopes must not overlap")
-			}
-		}
-	}
-	for _, step := range input.Definition.Steps {
-		for _, p := range step.SourceWrites {
-			if !doScopeContains(input.WriteScope, p) {
-				return empty, fmt.Errorf("step %s source_writes must be wholly inside the explicit source write_scope", step.ID)
-			}
-		}
+	if err := doValidateOperationScopes(input.Definition, input.WriteScope, input.OutputScope); err != nil {
+		return empty, err
 	}
 	sources, fingerprint, sourceRevision, dirty, err := doCaptureSource(root, input.Definition, input.WriteScope)
 	if err != nil {
@@ -739,6 +748,9 @@ func doResume(root string, session DoSession, oldDigest string, input doResumeIn
 	}
 	if input.ExpectedRevision != session.Revision {
 		return session, fmt.Errorf("session revision conflict")
+	}
+	if session.ExecutionOutcome == "passed" && input.AttemptID != "" {
+		return session, fmt.Errorf("execution already passed; repair knowledge persistence without reopening prior attempts")
 	}
 	if session.Blocker != nil {
 		return session, fmt.Errorf("resolve the external blocker before resuming individual attempts")
@@ -964,6 +976,13 @@ func doRegisterOwnerMetadataWrites(root, sessionID, owner string, paths []string
 		return err
 	}
 	defer release()
+	return doRegisterOwnerMetadataWritesLocked(root, sessionID, owner, paths)
+}
+
+// The specialized owner must already hold the Do session lock for its whole
+// publication. This entrypoint keeps registration in that same critical section
+// without recursively acquiring the lock or releasing Work before owner writes.
+func doRegisterOwnerMetadataWritesLocked(root, sessionID, owner string, paths []string) error {
 	session, digest, err := loadDoSession(root, sessionID)
 	if err != nil {
 		return err
