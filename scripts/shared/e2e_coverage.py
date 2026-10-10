@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 import hashlib
+import heapq
 import itertools
 import json
 import math
@@ -188,33 +189,80 @@ def prepare(model: dict, root: Path | None = None) -> dict:
     return prepared
 
 
-def plan(model: dict, root: Path | None = None, max_cases: int = 1000) -> dict:
-    """Deterministic greedy covering array; not guaranteed to minimize test count."""
-    require(type(max_cases) is int and max_cases > 0, "max_cases must be positive")
-    prepared = prepare(model, root)
+def _greedy_indices(data: dict, identity: str, budget: int, max_cases: int) -> list[int]:
+    """Keep the historical score/tie order using monotone, indexed scores.
+
+    Heap entries are upper bounds until refreshed. Scores only decrease, so a
+    current top entry is exactly the next row the full-rescan algorithm chose.
+    Candidate index breaks ties; neither set nor hash iteration order can do so.
+    """
+    candidates = data["candidates"]
+    budget_error = f"case budget {max_cases} exceeded; raise the budget or explicitly revise scope/strength"
+    if data["strength"] == len(candidates[0]):
+        require(len(candidates) <= budget, budget_error)
+        return list(range(len(candidates)))
+
+    interaction_owners: dict[tuple, list[int]] = {}
+    for index, tuples in enumerate(data["tuples"]):
+        for item in tuples:
+            interaction_owners.setdefault(item, []).append(index)
+    # Factor postings avoid storing a potentially dense candidate x mandatory
+    # matrix. Recompute a pattern's intersection only when its score is removed.
+    factor_owners: dict[tuple[str, str], set[int]] = {}
+    if data["mandatory"]:
+        for index, row in enumerate(candidates):
+            for item in row.items():
+                factor_owners.setdefault(item, set()).add(index)
+
+    def matching_indices(partial: dict) -> set[int]:
+        groups = sorted((factor_owners[item] for item in partial.items()), key=len)
+        indices = groups[0].copy()
+        for group in groups[1:]:
+            indices.intersection_update(group)
+        return indices
+
+    mandatory = list(data["mandatory"])
+    mandatory_scores = [0] * len(candidates)
+    for partial in mandatory:
+        for index in matching_indices(partial):
+            mandatory_scores[index] += 1
+    interaction_scores = [len(items) for items in data["tuples"]]
+    queue = [(-mandatory_scores[i], -interaction_scores[i], i) for i in range(len(candidates))]
+    heapq.heapify(queue)
+    uncovered = set(data["universe"])
+    chosen: list[int] = []
+    while uncovered or mandatory:
+        require(bool(queue), f"{identity}: cannot cover remaining obligations")
+        previous = heapq.heappop(queue)
+        best = previous[2]
+        current = (-mandatory_scores[best], -interaction_scores[best], best)
+        if current != previous:
+            heapq.heappush(queue, current)
+            continue
+        require(current[:2] != (0, 0), f"{identity}: cannot cover remaining obligations")
+        chosen.append(best)
+        require(len(chosen) <= budget, budget_error)
+        for item in data["tuples"][best] & uncovered:
+            for index in interaction_owners[item]:
+                interaction_scores[index] -= 1
+        uncovered.difference_update(data["tuples"][best])
+        remaining = []
+        for partial in mandatory:
+            if matches(candidates[best], partial):
+                for index in matching_indices(partial):
+                    mandatory_scores[index] -= 1
+            else:
+                remaining.append(partial)
+        mandatory = remaining
+    return chosen
+
+
+def _plan_prepared(model: dict, prepared: dict, max_cases: int) -> dict:
+    """Use only this invocation's validated model, never a cross-run cache."""
     cases = []
     summary = []
     for identity, data in prepared.items():
-        uncovered = set(data["universe"])
-        mandatory = list(data["mandatory"])
-        chosen: list[int] = []
-        if data["strength"] == len(data["candidates"][0]):
-            chosen = list(range(len(data["candidates"])))
-            require(len(cases) + len(chosen) <= max_cases,
-                    f"case budget {max_cases} exceeded; raise the budget or explicitly revise scope/strength")
-            uncovered.clear()
-            mandatory.clear()
-        while uncovered or mandatory:
-            scores = [(sum(matches(row, item) for item in mandatory), len(data["tuples"][i] & uncovered))
-                      for i, row in enumerate(data["candidates"])]
-            best = max(range(len(scores)), key=lambda i: scores[i])
-            require(scores[best] != (0, 0), f"{identity}: cannot cover remaining obligations")
-            row = data["candidates"][best]
-            chosen.append(best)
-            uncovered.difference_update(data["tuples"][best])
-            mandatory = [item for item in mandatory if not matches(row, item)]
-            require(len(cases) + len(chosen) <= max_cases,
-                    f"case budget {max_cases} exceeded; raise the budget or explicitly revise scope/strength")
+        chosen = _greedy_indices(data, identity, max_cases - len(cases), max_cases)
         for index in chosen:
             row = data["candidates"][index]
             case_id = "E2E-" + digest({"journey": identity, "parameters": row})[:24]
@@ -227,10 +275,17 @@ def plan(model: dict, root: Path | None = None, max_cases: int = 1000) -> dict:
                 exclusions=model.get("exclusions", []))
 
 
+def plan(model: dict, root: Path | None = None, max_cases: int = 1000) -> dict:
+    """Deterministic greedy covering array; not guaranteed to minimize test count."""
+    require(type(max_cases) is int and max_cases > 0, "max_cases must be positive")
+    return _plan_prepared(model, prepare(model, root), max_cases)
+
+
 def audit(model: dict, results: dict, root: Path, max_cases: int = 1000) -> dict:
     """Require every generated case, fresh source/test bytes, and hashed run evidence."""
-    planned = plan(model, root, max_cases)
-    prepared = prepare(model)
+    require(type(max_cases) is int and max_cases > 0, "max_cases must be positive")
+    prepared = prepare(model, root)
+    planned = _plan_prepared(model, prepared, max_cases)
     require(isinstance(results, dict), "results: object required")
     known_fields(results, "schema_version manifest_sha256 source_revision run_id target started_at finished_at command exit_code test_sources evidence cases", "results")
     require(type(results.get("schema_version")) is int and results["schema_version"] == SCHEMA_VERSION,
