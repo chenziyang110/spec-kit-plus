@@ -134,6 +134,7 @@ def structure(book: dict, root: Path) -> tuple[dict, dict, dict, list]:
         text(requirement.get("assertion"), "requirement.assertion")
     operations = indexed(book.get("operations"), "operations")
     obligations = []
+    timing_by_operation = {}
     for identity, operation in operations.items():
         obj(operation, "id title entrypoint source_refs assumptions side_effects dimensions checkpoints events", identity)
         for key in ("title", "entrypoint"):
@@ -157,6 +158,7 @@ def structure(book: dict, root: Path) -> tuple[dict, dict, dict, list]:
             obj(checkpoint, "id observation", "checkpoint")
             text(checkpoint.get("observation"), "checkpoint.observation")
         events = indexed(operation.get("events"), "events", False)
+        allowed_timing = timing_by_operation[identity] = set()
         if dimensions["external_mutation"]["disposition"] == "applicable":
             need(bool(events), f"{identity}: external_mutation requires events")
         for event_id, event in events.items():
@@ -166,6 +168,7 @@ def structure(book: dict, root: Path) -> tuple[dict, dict, dict, list]:
                  "events require applicable external_mutation and event_order")
             for checkpoint in refs(event.get("checkpoints"), checkpoints, "event.checkpoints"):
                 key = [identity, event_id, checkpoint]
+                allowed_timing.add((event_id, checkpoint))
                 obligations.append({"id": "TIME-" + sha(key)[:24], "operation": identity,
                                     "event": event_id, "checkpoint": checkpoint})
                 need(len(obligations) <= MAX_RECORDS, "timing obligation budget exceeded; split scope explicitly")
@@ -193,7 +196,7 @@ def structure(book: dict, root: Path) -> tuple[dict, dict, dict, list]:
             text(step.get("observe"), "step.observe")
         timing_keys = set()
         perturbation_steps = set()
-        allowed = {(o["event"], o["checkpoint"]) for o in obligations if o["operation"] == operation_id}
+        allowed = timing_by_operation[operation_id]
         for perturbation in rows(scenario.get("perturbations"), "perturbations", False):
             obj(perturbation, "event checkpoint step_id", "perturbation")
             key = (text(perturbation.get("event"), "event"), text(perturbation.get("checkpoint"), "checkpoint"))
@@ -338,18 +341,28 @@ def execution_coverage(obligations: list, outcomes: dict) -> dict:
 def check(book: dict, root: Path) -> dict:
     operations, requirements, scenarios, obligations = structure(book, root)
     gaps = []
+    # Build joins once per call. Local event/checkpoint IDs are not globally
+    # unique: the operation remains part of every key. Keep reporting order
+    # below identical to the frozen inventory/obligations, not index order.
+    dimensions_by_operation = {identity: set() for identity in operations}
+    timing_scenarios = {}
+    mapped = set()
+    for scenario in scenarios.values():
+        operation_id = scenario["operation"]
+        dimensions_by_operation[operation_id].update(scenario["dimensions"])
+        mapped.update(scenario["requirements"])
+        for perturbation in scenario["perturbations"]:
+            key = (operation_id, perturbation["event"], perturbation["checkpoint"])
+            timing_scenarios.setdefault(key, []).append(scenario["id"])
     for identity, operation in operations.items():
-        related = [s for s in scenarios.values() if s["operation"] == identity]
-        covered = {d for s in related for d in s["dimensions"]}
+        covered = dimensions_by_operation[identity]
         for dimension, decision in operation["dimensions"].items():
             if decision["disposition"] == "applicable" and dimension not in covered:
                 gaps.append({"kind": "dimension", "operation": identity, "dimension": dimension})
-    mapped = {r for s in scenarios.values() for r in s["requirements"]}
     gaps.extend({"kind": "requirement", "id": r} for r in sorted(set(requirements) - mapped))
     for obligation in obligations:
-        matches = [s["id"] for s in scenarios.values() if s["operation"] == obligation["operation"]
-                   and any(p["event"] == obligation["event"] and p["checkpoint"] == obligation["checkpoint"]
-                           for p in s["perturbations"])]
+        key = (obligation["operation"], obligation["event"], obligation["checkpoint"])
+        matches = timing_scenarios.get(key, [])
         obligation["scenario_ids"] = sorted(matches)
         if not matches:
             gaps.append({"kind": "timing", **obligation})
