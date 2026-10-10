@@ -43,7 +43,8 @@ def workloads(root: Path):
     record = file_record(root, "source.txt", "synthetic source fixture")
     shapes = [("small", 3, 2, 2, 0), ("binary-10", 10, 2, 2, 0),
               ("ternary-7", 7, 3, 2, 0), ("mandatory-ternary-7", 7, 3, 2, 24),
-              ("three-way", 6, 3, 3, 8), ("exhaustive", 4, 3, "exhaustive", 0)]
+              ("three-way", 6, 3, 3, 8), ("exhaustive", 4, 3, "exhaustive", 0),
+              ("shared-evidence", 1, 128, "exhaustive", 0)]
     for name, width, cardinality, strength, mandatory_count in shapes:
         factors = {f"f{i}": [str(j) for j in range(cardinality)] for i in range(width)}
         mandatory = [{f"f{i}": str((number // cardinality ** i) % cardinality) for i in range(width)}
@@ -58,7 +59,12 @@ def workloads(root: Path):
 
 def results_for(root: Path, model: dict, plan: dict) -> dict:
     tests = file_record(root, "test.txt", "synthetic test fixture, not a product test")
-    evidence = file_record(root, "evidence.json", '{"fixture":true}')
+    # Shared native evidence is typically repeated in every passed-case record.
+    # Exercise that I/O shape as well as tiny planner-focused fixtures.
+    content = '{"fixture":true}'
+    if model["journeys"][0]["id"] == "shared-evidence":
+        content = '{"fixture":"' + "x" * (4 * 1024 * 1024 - len('{"fixture":""}')) + '"}'
+    evidence = file_record(root, "evidence.json", content)
     return {"schema_version": 1, "manifest_sha256": plan["manifest_sha256"],
             "source_revision": model["source_revision"], "run_id": "benchmark-fixture",
             "target": "fixture", "started_at": "2026-01-01T00:00:00Z",
@@ -110,6 +116,7 @@ def main(argv: list[str] | None = None) -> int:
                 plan = baseline.plan(model, root)
                 results = results_for(root, model, plan)
                 reports.append({"workload": name, "planned_cases": len(plan["cases"]),
+                                "shared_evidence_bytes": (root / "evidence.json").stat().st_size,
                                 "plan": compare_calls(lambda: baseline.plan(model, root),
                                                       lambda: candidate.plan(model, root), args.repeats),
                                 "audit": compare_calls(lambda: baseline.audit(model, results, root),

@@ -164,3 +164,67 @@ The native Playwright contract follows its official
 [JSON reporter documentation](https://playwright.dev/docs/test-reporters#json-reporter)
 and [JSON reporter implementation](https://github.com/microsoft/playwright/blob/main/packages/playwright/src/reporters/json.ts).
 The Python adapter consumes [pytest runtest reporting hooks](https://docs.pytest.org/en/stable/reference/reference.html#pytest.hookspec.pytest_runtest_logreport).
+
+## Shared-evidence I/O and final freshness checks
+
+Native results bind the same log, report and execution receipt to many cases.
+The audit validates every declaration but hashes each distinct evidence path
+on first use and once again before returning. It streams file hashing instead
+of loading an entire log into memory. The memo exists only inside that audit
+call; the public `verify_files` helper and every subsequent run read fresh bytes.
+A repeated record still has its schema, normalized digest and safe path checked:
+conflicting hashes, duplicate entries within a case, empty evidence and unsafe
+paths cannot acquire coverage credit from a previously seen file.
+
+The native wrapper separately freezes the original manifest and bindings before
+parsing them, checks those original paths/bytes before launching the process,
+after it exits, and again before publishing the final audit. Checking only the
+normalized JSON copies is insufficient: whitespace-only original-file edits and
+same-byte symlink retargets still invalidate the run. Absolute input paths remain
+supported. A rejected post-run check retains native evidence and `error.json`
+but never publishes a passing `coverage.json`.
+
+Final reconciliation also rechecks the source and test bytes. Changes, deletion,
+replacement and escaping symlink retargets observed during the closing reads
+invalidate the audit, including an otherwise incomplete run. This adds detection
+for late drift after initial validation. It is not an atomic multi-file snapshot,
+a filesystem lock, or proof against a writer that changes and restores bytes
+between observations. Keep the frozen sources and evidence immutable and
+coordinate writers through the existing owner/resource gates.
+
+The JSON schemas, case IDs, requirement denominator, retry dispositions and
+exit meanings are unchanged. All failed, skipped, flaky and unexecuted rows
+remain visible. There is no cross-run cache, distributed-shard merge, sampled
+hash, mtime-only shortcut, or relaxation of independent acceptance. The indexed
+planner remains deterministic and audits build the combination model only once.
+
+Run the helper regression suite and then the real native/client consumers:
+
+```sh
+uv run pytest tests/test_e2e_coverage.py tests/test_e2e_coverage_planner.py \
+  tests/test_e2e_evidence_io.py -q
+uv run pytest tests/test_e2e_runner.py -q
+SPECIFY_E2E_REQUIRE_DESKTOP=1 xvfb-run -a uv run pytest \
+  tests/test_e2e_desktop_sample.py tests/test_e2e_desktop_runner.py -q
+```
+
+`test_e2e_evidence_io.py` checks fixed I/O work for 1, 8, 64 and 1,000 cases,
+late source/test/evidence drift, per-case declaration validation, safe paths,
+fresh subsequent calls and the complete status denominator. These are fixture
+regressions, not a replacement for full-repository or installed-wheel tests.
+The desktop/native suite separately proves that filtering, collection-only and
+a deliberately injected failure cannot turn a 34-condition book green.
+
+For performance comparisons, retain a trusted pre-change helper and run:
+
+```sh
+python tools/workflow-quality/benchmark_e2e_coverage.py \
+  --baseline /path/to/trusted/e2e_coverage.py --repeats 5
+```
+
+The benchmark compares complete outputs on every iteration, alternates execution
+order, and reports raw timings and source hashes. Alongside the original six
+planner workloads, `shared-evidence` binds one 4 MiB JSON fixture to 128 cases.
+Small runs may be slower because closing integrity checks add work; there is no
+universal speedup or CI wall-clock threshold. Helper timings are not browser,
+desktop, discovery, independent-review or full-workflow execution timings.

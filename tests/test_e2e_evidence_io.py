@@ -186,3 +186,22 @@ def test_repeated_symlink_evidence_cannot_escape_at_closeout(tmp_path, monkeypat
     with pytest.raises(e2e.CoverageError, match="escapes root"):
         e2e.audit(model, results, tmp_path)
     assert fired
+
+
+def test_benchmark_exercises_valid_shared_json_evidence(tmp_path):
+    import json
+    spec = importlib.util.spec_from_file_location(
+        "e2e_io_benchmark", ROOT / "tools/workflow-quality/benchmark_e2e_coverage.py")
+    benchmark = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(benchmark)
+    workloads = list(benchmark.workloads(tmp_path))
+    assert len(workloads) == 7
+    model = next(model for name, model in workloads if name == "shared-evidence")
+    planned = e2e.plan(model, tmp_path)
+    results = benchmark.results_for(tmp_path, model, planned)
+    assert len(planned["cases"]) == 128
+    data = (tmp_path / "evidence.json").read_bytes()
+    assert len(data) == 4 * 1024 * 1024
+    assert isinstance(json.loads(data)["fixture"], str)
+    assert all(case["evidence"] == results["evidence"] for case in results["cases"])
+    assert e2e.audit(model, results, tmp_path)["claim"] == "complete_against_frozen_scope"
