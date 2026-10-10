@@ -88,11 +88,11 @@ func writeExpansionBundle(paths rt.Paths, bundle ExpansionBundle) (ExpansionRef,
 	if err := os.MkdirAll(filepath.Dir(bundlePath), 0o755); err != nil {
 		return ExpansionRef{}, fmt.Errorf("create expansion bundle dir: %w", err)
 	}
-	data, err := json.MarshalIndent(bundle, "", "  ")
+	data, err := json.Marshal(bundle)
 	if err != nil {
 		return ExpansionRef{}, fmt.Errorf("encode expansion bundle: %w", err)
 	}
-	if err := os.WriteFile(bundlePath, append(data, '\n'), 0o644); err != nil {
+	if err := rt.WriteCacheFile(bundlePath, append(data, '\n')); err != nil {
 		return ExpansionRef{}, fmt.Errorf("write expansion bundle: %w", err)
 	}
 	return ExpansionRef{
@@ -314,6 +314,8 @@ func estimatedExpansionItems(value any) int {
 	case []string:
 		return len(typed)
 	case []CoverageDiagnostic:
+		return len(typed)
+	case []ClaimSignal:
 		return len(typed)
 	case []map[string]any:
 		return len(typed)
