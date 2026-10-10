@@ -16,7 +16,7 @@ import json
 import math
 from pathlib import Path
 import sys
-from typing import Any
+from typing import Any, Iterator
 
 SCHEMA_VERSION = 1
 MAX_CANDIDATES = 10000
@@ -83,7 +83,8 @@ def safe_file(root: Path, value: Any) -> Path:
     return resolved
 
 
-def verify_files(root: Path, value: Any, label: str) -> set[str]:
+def _file_entries(value: Any, label: str) -> Iterator[tuple[str, str]]:
+    """Validate every declaration, even when its bytes were checked earlier."""
     paths: set[str] = set()
     for entry in array(value, label):
         require(isinstance(entry, dict), f"{label}: object required")
@@ -93,10 +94,49 @@ def verify_files(root: Path, value: Any, label: str) -> set[str]:
         expected = text(entry.get("sha256"), f"{label}.sha256")
         require(len(expected) == 64 and all(c in "0123456789abcdef" for c in expected),
                 f"{label}: invalid sha256 for {name}")
-        actual = hashlib.sha256(safe_file(root, name).read_bytes()).hexdigest()
+        paths.add(name)
+        yield name, expected
+
+
+def _file_sha256(path: Path) -> str:
+    # Python 3.11+; bounded-memory hashing even for large native logs/reports.
+    with path.open("rb") as handle:
+        return hashlib.file_digest(handle, "sha256").hexdigest()
+
+
+def verify_files(root: Path, value: Any, label: str) -> set[str]:
+    paths: set[str] = set()
+    for name, expected in _file_entries(value, label):
+        actual = _file_sha256(safe_file(root, name))
         require(actual == expected, f"stale or changed {label}: {name}")
         paths.add(name)
     return paths
+
+
+class _AuditEvidence:
+    """Deduplicate evidence I/O only inside one audit, then recheck all bytes.
+
+    Repeated declarations still undergo schema, digest and path validation.
+    This is not a persistent cache, a filesystem lock, or runner attestation.
+    Evidence must stay immutable; closeout never trusts the earlier digest alone.
+    """
+
+    def __init__(self, root: Path):
+        self.root = root
+        self.checked: dict[str, str] = {}
+
+    def verify(self, value: Any, label: str) -> None:
+        for name, expected in _file_entries(value, label):
+            path = safe_file(self.root, name)
+            actual = self.checked.get(name)
+            if actual is None:
+                actual = _file_sha256(path)
+                self.checked[name] = actual
+            require(actual == expected, f"stale or changed {label}: {name}")
+
+    def recheck(self) -> None:
+        verify_files(self.root, [{"path": name, "sha256": sha}
+                                 for name, sha in self.checked.items()], "post-audit evidence")
 
 
 def pattern(value: Any, factors: dict[str, list[str]], label: str) -> dict[str, str]:
@@ -305,7 +345,8 @@ def audit(model: dict, results: dict, root: Path, max_cases: int = 1000) -> dict
         text(arg, "results.command argument")
     require(type(results.get("exit_code")) is int, "results.exit_code: integer required")
     test_sources = verify_files(root, results.get("test_sources"), "test_sources")
-    verify_files(root, results.get("evidence"), "run evidence")
+    evidence = _AuditEvidence(root)
+    evidence.verify(results.get("evidence"), "run evidence")
     actual: dict[str, dict] = {}
     expected = {case["id"]: case for case in planned["cases"]}
     for result in array(results.get("cases"), "results.cases", nonempty=False):
@@ -322,7 +363,7 @@ def audit(model: dict, results: dict, root: Path, max_cases: int = 1000) -> dict
             require(set(assertions) == set(expected[identity]["requirements"]),
                     f"{identity}: missing or unrelated requirement assertions")
             require(result.get("test_ref") in test_sources, f"{identity}: test_ref not bound to test_sources")
-            verify_files(root, result.get("evidence"), f"{identity} evidence")
+            evidence.verify(result.get("evidence"), f"{identity} evidence")
     counts = {status: 0 for status in sorted(STATUSES)}
     passed = []
     gaps = []
@@ -346,6 +387,11 @@ def audit(model: dict, results: dict, root: Path, max_cases: int = 1000) -> dict
                                     passed_interactions=len(covered),
                                     missing_interactions=[dict(item) for item in missing],
                                     missing_mandatory=missing_mandatory))
+    # A late change must invalidate even an incomplete report, not become its
+    # accepted input basis. Re-read bytes; size/mtime or a cached digest is not proof.
+    verify_files(root, model["sources"], "post-audit sources")
+    verify_files(root, results["test_sources"], "post-audit tests")
+    evidence.recheck()
     complete = not gaps and results["exit_code"] == 0
     return dict(schema_version=SCHEMA_VERSION,
                 claim="complete_against_frozen_scope" if complete else "incomplete",

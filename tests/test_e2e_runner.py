@@ -167,6 +167,17 @@ def test_source_or_test_drift_during_execution_is_rejected(project, path):
     assert coverage.load(project[0] / "test-results/run/error.json")["claim"] == "invalid"
 
 
+@pytest.mark.parametrize("path", ["manifest.json", "bindings.json"])
+def test_frozen_manifest_and_bindings_bytes_cannot_change_during_run(project, path):
+    # Whitespace-only mutations remain valid JSON and keep the parsed manifest
+    # digest identical. An E2E run must still reject modified input bytes.
+    modify_test(project, f'    Path({path!r}).open("a").write("\\n")')
+    with pytest.raises(coverage.CoverageError, match="post-run frozen input"):
+        launch(project)
+    assert not (project[0] / "test-results/run/coverage.json").exists()
+    assert coverage.load(project[0] / "test-results/run/error.json")["claim"] == "invalid"
+
+
 def test_disabled_reporter_cannot_reuse_stale_evidence(project):
     with pytest.raises(coverage.CoverageError, match="fresh native report"):
         launch(project, extra=["-p", "no:e2e_pytest_reporter"])

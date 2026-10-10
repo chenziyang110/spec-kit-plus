@@ -44,6 +44,12 @@ def file_record(root: Path, name: str) -> dict:
     return {"path": name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
 
 
+def sha256_file(path: Path) -> str:
+    """Hash the on-disk bytes without loading large run inputs into memory."""
+    with path.open("rb") as handle:
+        return hashlib.file_digest(handle, "sha256").hexdigest()
+
+
 def write_json(path: Path, value: dict) -> None:
     with path.open("x", encoding="utf-8") as handle:
         json.dump(value, handle, ensure_ascii=False, indent=2, allow_nan=False)
@@ -226,6 +232,12 @@ def execute(manifest: Path, binding_path: Path, root: Path, output: str,
     bindings = validate_bindings(binding_value, planned, root, runner)
     for entry in model["sources"]:
         relative_name(entry["path"])
+    # The copies in test-results freeze *parsed* input values, but cannot prove
+    # that the original manifest or bindings stayed unchanged during execution.
+    # Keep exact byte digests plus resolved paths, including when inputs are
+    # passed as absolute paths outside root (supported by the existing CLI).
+    frozen_inputs = [(path, path.resolve(strict=True), sha256_file(path))
+                     for path in (manifest, binding_path)]
     # Freeze all files before invoking the runner; do not rehash changed tests
     # and quietly certify them as the inputs that were originally executed.
     source_basis = model["sources"]
@@ -268,6 +280,10 @@ def execute(manifest: Path, binding_path: Path, root: Path, output: str,
                 raise coverage.CoverageError("runner interrupted or timed out; no completion claim") from None
         receipt.update(finished_at=datetime.now(timezone.utc).isoformat(), exit_code=exit_code)
         coverage.verify_files(root, snapshots, "frozen run inputs")
+        for path, original_path, original_digest in frozen_inputs:
+            coverage.require(path.resolve(strict=True) == original_path and
+                             sha256_file(path) == original_digest,
+                             f"post-run frozen input changed: {path}")
         coverage.verify_files(root, source_basis, "post-run sources")
         coverage.verify_files(root, test_basis, "post-run tests")
         coverage.require(native.is_file() and not native.is_symlink(), "runner did not create a fresh native report")
