@@ -168,13 +168,23 @@ The Python adapter consumes [pytest runtest reporting hooks](https://docs.pytest
 ## Shared-evidence I/O and final freshness checks
 
 Native results bind the same log, report and execution receipt to many cases.
-The audit validates every declaration but hashes each distinct evidence path
-on first use and once again before returning. It streams file hashing instead
+The audit validates every run-level evidence declaration and every evidence
+declaration for a **passed** case. It hashes each distinct path in that validated
+set on first use and once again before returning. It streams file hashing instead
 of loading an entire log into memory. The memo exists only inside that audit
 call; the public `verify_files` helper and every subsequent run read fresh bytes.
-A repeated record still has its schema, normalized digest and safe path checked:
-conflicting hashes, duplicate entries within a case, empty evidence and unsafe
-paths cannot acquire coverage credit from a previously seen file.
+Repeated declarations in that validated set still have their schema, normalized
+digest and safe path checked: conflicting hashes, duplicate entries within a
+passed case, empty required evidence and unsafe paths cannot acquire coverage
+credit from a previously seen file.
+
+Per-case evidence on `failed`, `skipped`, `blocked`, `not_run` and `flaky` records
+is not read or validated by this audit. Treat it as unverified diagnostic metadata,
+not accepted evidence. Such cases remain coverage gaps regardless of their
+attached fields. Run-level evidence must still validate, even when no case passes.
+A downstream consumer must perform its own required validation before relying
+on non-passed-case diagnostic evidence; an incomplete coverage report does not
+certify those declarations. This preserves the existing schema-v1 audit boundary.
 
 The native wrapper separately freezes the original manifest and bindings before
 parsing them, checks those original paths/bytes before launching the process,

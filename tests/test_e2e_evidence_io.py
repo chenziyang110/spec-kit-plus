@@ -205,3 +205,38 @@ def test_benchmark_exercises_valid_shared_json_evidence(tmp_path):
     assert isinstance(json.loads(data)["fixture"], str)
     assert all(case["evidence"] == results["evidence"] for case in results["cases"])
     assert e2e.audit(model, results, tmp_path)["claim"] == "complete_against_frozen_scope"
+
+
+@pytest.mark.parametrize("status", ["failed", "skipped", "blocked", "not_run", "flaky"])
+@pytest.mark.parametrize("declaration", ["omitted", "malformed", "unsafe"])
+def test_nonpass_evidence_is_unverified_diagnostics_not_coverage(tmp_path, status, declaration):
+    """Preserve v1's boundary: run-level and passed-case evidence is validated."""
+    model, results = frozen_run(tmp_path)
+    row = results["cases"][0]
+    row["status"] = status
+    if declaration == "omitted":
+        row.pop("evidence")
+    elif declaration == "malformed":
+        row["evidence"] = ["not an evidence record"]
+    else:
+        row["evidence"] = [{"path": "../not-an-authorized-evidence-file", "sha256": "0" * 64}]
+    before = deepcopy((model, results))
+    report = e2e.audit(model, results, tmp_path)
+    assert (model, results) == before
+    assert report["claim"] == "incomplete"
+    assert report["planned_cases"] == 4
+    assert report["statuses"]["passed"] == 3
+    assert report["statuses"][status] == 1
+    assert report["gaps"] == [{"id": row["id"], "journey": "j", "status": status}]
+    assert report["journeys"][0]["missing_interactions"]
+
+    # The same declaration can never certify a passing case.
+    row["status"] = "passed"
+    with pytest.raises(e2e.CoverageError):
+        e2e.audit(model, results, tmp_path)
+
+    # Nor may a diagnostic case weaken the mandatory run-level evidence gate.
+    row["status"] = status
+    results["evidence"] = [{"path": "../not-an-authorized-evidence-file", "sha256": "0" * 64}]
+    with pytest.raises(e2e.CoverageError, match="unsafe path"):
+        e2e.audit(model, results, tmp_path)
