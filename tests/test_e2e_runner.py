@@ -447,3 +447,82 @@ def test_empty_collection_error_exits_remain_invalid(project, exit_code):
               "exit_code": exit_code, "errors": [], "collected": [], "events": []}
     with pytest.raises(coverage.CoverageError):
         runner.pytest_outcomes(native, bindings, "fixture", exit_code)
+
+
+@pytest.mark.parametrize("name", ["manifest.json", "bindings.json"])
+@pytest.mark.parametrize("action", ["delete", "replace", "retarget"])
+def test_frozen_inputs_reject_removal_replacement_and_same_byte_retarget(project, name, action):
+    if action == "delete":
+        mutation = f"    Path({name!r}).unlink(missing_ok=True)"
+    elif action == "replace":
+        mutation = (f"    Path('replacement.json').write_text('{{}}')\n"
+                    f"    Path('replacement.json').replace({name!r})")
+    else:
+        # The new target intentionally has identical bytes. A changed resolved
+        # path is still a different frozen input, not a matching evidence owner.
+        mutation = (f"    original = Path({name!r})\n"
+                    "    if not original.is_symlink():\n"
+                    "        target = original.with_suffix('.moved.json')\n"
+                    "        original.rename(target)\n"
+                    "        original.symlink_to(target.name)")
+        probe = project[0] / "link-probe"
+        try:
+            probe.symlink_to(project[0] / name)
+            probe.unlink()
+        except (OSError, NotImplementedError):
+            pytest.skip("platform does not permit symlinks")
+    modify_test(project, mutation)
+    with pytest.raises((coverage.CoverageError, OSError)):
+        launch(project, extra=["-k", project[2]["cases"][0]["id"]])
+    output = project[0] / "test-results/run"
+    assert not (output / "coverage.json").exists()
+    assert coverage.load(output / "error.json")["claim"] == "invalid"
+
+
+@pytest.mark.parametrize("name", ["manifest.json", "bindings.json"])
+def test_inputs_are_frozen_before_parsing_and_checked_before_launch(project, monkeypatch, name):
+    root = project[0]
+    original = coverage.load
+    def drift_after_read(path):
+        value = original(path)
+        if path == root / name:
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write("\n")
+        return value
+    def must_not_launch(*args, **kwargs):
+        raise AssertionError("runner launched with modified pre-run inputs")
+    monkeypatch.setattr(coverage, "load", drift_after_read)
+    monkeypatch.setattr(subprocess, "Popen", must_not_launch)
+    with pytest.raises(coverage.CoverageError, match="pre-run frozen input"):
+        launch(project)
+    assert not (root / "test-results/run").exists()
+
+
+@pytest.mark.parametrize("name", ["manifest.json", "bindings.json"])
+def test_input_drift_in_final_audit_prevents_publishing_coverage(project, monkeypatch, name):
+    root = project[0]
+    original = coverage.audit
+    def drift_after_audit(*args, **kwargs):
+        report = original(*args, **kwargs)
+        with (root / name).open("a", encoding="utf-8") as handle:
+            handle.write("\n")
+        return report
+    monkeypatch.setattr(coverage, "audit", drift_after_audit)
+    with pytest.raises(coverage.CoverageError, match="post-audit frozen input"):
+        launch(project, extra=["-k", project[2]["cases"][0]["id"]])
+    output = root / "test-results/run"
+    assert not (output / "coverage.json").exists()
+    assert coverage.load(output / "error.json")["claim"] == "invalid"
+    assert (output / "native-report.json").is_file()  # Keep diagnostic evidence.
+
+
+def test_unchanged_absolute_inputs_outside_project_remain_supported(project, tmp_path_factory):
+    root, model, _, bindings = project
+    inputs = tmp_path_factory.mktemp("external inputs")
+    save(inputs / "manifest.json", model)
+    save(inputs / "bindings.json", bindings)
+    report = runner.execute(inputs / "manifest.json", inputs / "bindings.json", root,
+                            "test-results/external-inputs", "pytest", "isolated-fixture",
+                            ["test_app.py", "-q"], 30)
+    assert report["claim"] == "complete_against_frozen_scope"
+    assert report["statuses"]["passed"] == 4

@@ -41,13 +41,20 @@ def relative_name(value: str) -> str:
 
 def file_record(root: Path, name: str) -> dict:
     path = coverage.safe_file(root, relative_name(name))
-    return {"path": name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+    return {"path": name, "sha256": sha256_file(path)}
 
 
 def sha256_file(path: Path) -> str:
     """Hash the on-disk bytes without loading large run inputs into memory."""
     with path.open("rb") as handle:
         return hashlib.file_digest(handle, "sha256").hexdigest()
+
+
+def verify_frozen_inputs(inputs: list[tuple[Path, Path, str]], label: str) -> None:
+    for path, original_path, original_digest in inputs:
+        coverage.require(path.resolve(strict=True) == original_path and
+                         sha256_file(path) == original_digest,
+                         f"{label} frozen input changed: {path}")
 
 
 def write_json(path: Path, value: dict) -> None:
@@ -226,22 +233,23 @@ def execute(manifest: Path, binding_path: Path, root: Path, output: str,
     coverage.require(runner != "playwright" or bool(arguments), "Playwright requires an explicit local runner argv")
     manifest = manifest if manifest.is_absolute() else root / manifest
     binding_path = binding_path if binding_path.is_absolute() else root / binding_path
-    model = coverage.load(manifest)
-    planned = coverage.plan(model, root, max_cases)
-    binding_value = coverage.load(binding_path)
-    bindings = validate_bindings(binding_value, planned, root, runner)
-    for entry in model["sources"]:
-        relative_name(entry["path"])
     # The copies in test-results freeze *parsed* input values, but cannot prove
     # that the original manifest or bindings stayed unchanged during execution.
     # Keep exact byte digests plus resolved paths, including when inputs are
     # passed as absolute paths outside root (supported by the existing CLI).
     frozen_inputs = [(path, path.resolve(strict=True), sha256_file(path))
                      for path in (manifest, binding_path)]
+    model = coverage.load(manifest)
+    planned = coverage.plan(model, root, max_cases)
+    binding_value = coverage.load(binding_path)
+    bindings = validate_bindings(binding_value, planned, root, runner)
+    for entry in model["sources"]:
+        relative_name(entry["path"])
     # Freeze all files before invoking the runner; do not rehash changed tests
     # and quietly certify them as the inputs that were originally executed.
     source_basis = model["sources"]
     test_basis = binding_value["test_sources"]
+    verify_frozen_inputs(frozen_inputs, "pre-run")
     output_path.mkdir(parents=True, exist_ok=False)
     run_id = str(uuid.uuid4())
     native = output_path / "native-report.json"
@@ -280,10 +288,7 @@ def execute(manifest: Path, binding_path: Path, root: Path, output: str,
                 raise coverage.CoverageError("runner interrupted or timed out; no completion claim") from None
         receipt.update(finished_at=datetime.now(timezone.utc).isoformat(), exit_code=exit_code)
         coverage.verify_files(root, snapshots, "frozen run inputs")
-        for path, original_path, original_digest in frozen_inputs:
-            coverage.require(path.resolve(strict=True) == original_path and
-                             sha256_file(path) == original_digest,
-                             f"post-run frozen input changed: {path}")
+        verify_frozen_inputs(frozen_inputs, "post-run")
         coverage.verify_files(root, source_basis, "post-run sources")
         coverage.verify_files(root, test_basis, "post-run tests")
         coverage.require(native.is_file() and not native.is_symlink(), "runner did not create a fresh native report")
@@ -316,6 +321,7 @@ def execute(manifest: Path, binding_path: Path, root: Path, output: str,
                            for identity, status in sorted(outcomes.items())])
         write_json(output_path / "results.json", results)
         audit = coverage.audit(model, results, root, max_cases)
+        verify_frozen_inputs(frozen_inputs, "post-audit")
         write_json(output_path / "coverage.json", audit)
         return audit
     except (OSError, ValueError, TypeError, RecursionError, subprocess.SubprocessError) as exc:
