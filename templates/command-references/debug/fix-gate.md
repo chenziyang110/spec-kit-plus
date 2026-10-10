@@ -6,6 +6,22 @@ Preserved Contract: fixes must target confirmed root cause and be verified throu
 
 Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the bounded same-checkpoint delta in memory. When one semantic boundary updates multiple debug-session frontmatter fields or sections and `api list` exposes `artifact.patch-batch`, prefer one `specify-runtime artifact prepare --path .planning/debug/[slug].md` plus one `specify-runtime artifact patch-batch --lease <lease-id>` that aggregates those updates. For a single target update, or on older runtimes, fall back to one leased `specify-runtime artifact patch` using `--frontmatter-json` or `--section`. Every debug-state update below means `SESSION PATCH`; never edit the Markdown file directly.
 
+## Write Authorization and Guard Scope
+
+Before any source, test, harness, configuration, or instrumentation write,
+check the confirmed authority, current anchors, and declared scope through
+`specify-runtime execution guard`. Diagnosis-only authority does not permit
+these writes; use Diagnosis-Only Delivery in `references/debug-state.md`.
+Register necessary supporting scope through the current owner. After scope
+expansion or source drift affecting the binding, renew the guard before the
+affected write; an earlier guard is not an unlimited editing permit.
+
+A permitted supporting repair or diagnostic probe may precede original target
+RED only within its own guarded scope. Preserve its before-state, causal
+evidence, observed result, and cleanup separately. This does not bypass target
+RED before changing the original target's production behavior, authorize an
+unrelated refactor, or count supporting recovery as resolution of that defect.
+
 ## Fix and Verify Protocol
 
 - Enter `fixing` only after the root cause is confirmed.

@@ -30,6 +30,11 @@ Use `human-verify` after the agent has verified the fix and needs the user to co
 
 ## Final-Revision Verification and Closeout
 
+For confirmed `diagnose only` authority, first apply Diagnosis-Only Delivery
+in `references/debug-state.md`. Do not require verification of an unrequested
+fix or mark the defect resolved to close a requested diagnosis. The remaining
+repair-completion gates apply only when a fix was authorized and performed.
+
 Before `awaiting_human_verify`, bind each required verification row to the
 current source revision or relevant file digests, environment, command/manual
 sequence, expected and observed outcome, and inspectable evidence reference.

@@ -9,15 +9,30 @@ Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the 
 ## Investigation Protocol
 
 ### Intake Inputs
+
+Navigation hints are not read authorization. Queue `minimal_live_reads` and
+other source/log/test routes during intake; execute them only after confirmation
+and accepted framing. Runtime/session metadata needed for the checkpoint stays
+within the existing pre-confirmation allowance. A ready map does not waive
+either gate.
+
+Optional feature artifacts require a valid feature binding and an existing,
+relevant artifact. Query only their needed sections through the artifact owner
+after the evidence-read gates pass. Standalone Debug does not require a formal
+feature package: do not create missing spec, plan, tasks, or context artifacts
+or launch a specification workflow merely to satisfy a context checklist.
+Missing optional inputs are recorded as not applicable, not fabricated.
+A required artifact of an actually bound feature remains a real input gate.
+
 - Query `.planning/debug/[slug].md` through `specify-runtime artifact show` before each resumed action; treat the returned state as the investigation source of truth.
-- Query project cognition with `{{specify-subcmd:specify-runtime cognition compass --intent debug --query="$ARGUMENTS" --format json}}`. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`. Do not treat first-pass reads as the final edit scope. Use `specify-runtime cognition expand` only when the packet's coverage state or live evidence requires it. Use the advanced `lexicon -> semantic_intake -> query` flow only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions. In that escalation, run `specify-runtime cognition query --query-plan "<query_plan_json>"` with `query_plan`, `semantic_intake`, `concept_decisions`, and facet coverage
+- Query project cognition with `{{specify-subcmd:specify-runtime cognition compass --intent debug --query="$ARGUMENTS" --format json}}`. Queue top-level `minimal_live_reads` first for the post-framing evidence pass, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`. Do not treat first-pass reads as the final edit scope. Use `specify-runtime cognition expand` only when the packet's coverage state or live evidence requires it. Use the advanced `lexicon -> semantic_intake -> query` flow only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions. In that escalation, run `specify-runtime cognition query --query-plan "<query_plan_json>"` with `query_plan`, `semantic_intake`, `concept_decisions`, and facet coverage
 - If the session records `understanding_confirmed: false`, repair or confirm the Debug Understanding Checkpoint before reproduction, log review, source/test reads, evidence collection, subagent dispatch, instrumentation, code edits, or validation.
-- If truth ownership, competing truths, stale assumptions, or contradiction signals remain ambiguous, perform only the returned `minimal_live_reads` before continuing.
+- If truth ownership, competing truths, stale assumptions, or contradiction signals remain ambiguous, plan a bounded discriminating evidence pass using the returned `minimal_live_reads`; execute it only after confirmation and accepted framing.
 - [AGENT] If cognition freshness is `missing`, continue with live repository evidence when workflow policy allows degraded advisory navigation; recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only as follow-up brownfield first-baseline maintenance unless the user explicitly requested cognition repair or root-cause analysis truly cannot proceed without a usable baseline.
 - [AGENT] If cognition freshness is `stale`, treat map output as advisory, continue with live repository evidence when workflow policy allows, and recommend `{{invoke:map-update}}` as follow-up maintenance only when the user requested cognition repair or stale coverage blocks the investigation.
 - [AGENT] If cognition freshness is `support_drift`, continue with live repository evidence when workflow policy allows and `SESSION PATCH` the support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
 - [AGENT] If cognition freshness is `partial_refresh`, `SESSION PATCH` that refresh data exists but readiness did not pass; follow `recommended_next_action` as advisory unless the workflow truly cannot proceed.
-- [AGENT] If cognition freshness is `possibly_stale`, inspect the changed paths, reasons, and affected graph coverage. Use `{{invoke:map-update}}` with the changed paths. Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid.
+- [AGENT] If cognition freshness is `possibly_stale`, inspect permitted change metadata and plan bounded live verification of affected coverage after framing. Record a follow-up `{{invoke:map-update}}` recommendation only where warranted; do not invoke map maintenance automatically. Ordinary existing-baseline gaps do not require a rebuild. A separate authorized rebuild must follow the runtime-returned action and its actual reasons, not a freshness label alone.
 - Treat task-relevant cognition coverage as insufficient when the failing area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
 - [AGENT] If task-relevant cognition coverage is insufficient for the failing area, continue with live repository evidence when workflow policy allows and `SESSION PATCH` whether follow-up `{{invoke:map-update}}` with changed paths or affected surfaces is needed. Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid; block only when the user requested cognition repair or the investigation truly cannot proceed without refreshed coverage.
 - Use the debug cognition slice to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.
@@ -88,9 +103,20 @@ Repeated failure does not reopen observer-shape choices. It upgrades downstream 
 - Persist the minimum package in the existing `Causal Map`, `Observer Framing`, `Investigation Contract`, `Log Investigation Plan`, and `Transition Memo` sections. Validate their substantive contents against the selected-mode Observer Gate before setting completion flags.
 - `SESSION PATCH` `causal_map_completed: true`, `investigation_contract_completed: true`, `log_investigation_plan_completed: true`, and `observer_framing_completed: true` from this package only when the map clearly names an owner, boundary, or minimal read path.
 - `SESSION PATCH` `skip_observer_reason: map-backed-minimum-intake` when the deep Stage 1A/1B subagents are not needed.
-- Do not use broad repository reads to compensate for a vague map. If the query bundle lacks ownership, placement, constraints, regression-sensitive tests, or minimal reads, route to `{{invoke:map-update}}` or use the deep fallback below.
+- Do not use broad repository reads to compensate for a vague map. If the query bundle lacks ownership, placement, constraints, regression-sensitive tests, or minimal reads, use the deep fallback below; a map-maintenance recommendation is not an automatic workflow switch.
 
 ### Deep Fallback Intake
+
+When advisory cognition is absent or unusable, use report-grounded deep intake
+under the existing Stage 1A -> Stage 1B restrictions. Mark unknown owners,
+paths and state explicitly; candidate loops are hypotheses, not live facts.
+Use the confirmed report and available permitted system context to supply
+discriminating probes and falsifiers, then verify the complete deep framing
+before opening evidence reads. Do not invent a map, claim graph freshness, or
+mark an empty framing package accepted. If a user-owned fact is essential,
+ask only for that missing fact. Do not invoke map maintenance automatically.
+An absent map is different from an unavailable canonical artifact runtime:
+recover that runtime through its owning bootstrap, never by direct state writes.
 
 ### Stage 1A: Causal Map (Think Subagent)
 
@@ -179,7 +205,7 @@ Repeated failure does not reopen observer-shape choices. It upgrades downstream 
   - which inputs or branches matter,
   - what external dependencies returned,
   - and what state changed immediately before failure.
-- Query the active feature's `spec.md`, `plan.md`, and `tasks.md` with targeted `specify-runtime artifact show` calls to recover only the behavior and boundaries relevant to the bug.
+- With a valid feature binding, query existing relevant `spec.md`, `plan.md`, and `tasks.md` through targeted `specify-runtime artifact show` calls. Apply the optional feature artifacts rule; do not invent feature context for standalone Debug.
 - If `context.md` exists, query it through `specify-runtime artifact show --section` so locked decisions are not bypassed.
 - For runtime bugs, use the investigation contract's `log_investigation_plan` log investigation plan to decide:
   - which existing log targets to inspect first,
@@ -215,7 +241,7 @@ Repeated failure does not reopen observer-shape choices. It upgrades downstream 
   - **cache/snapshot drift**: authoritative state versus cached state, invalidation timing, refresh paths
   - **UI projection**: source-of-truth state, publish boundary, transformed view-model state, render/polling output
 - For runtime bug investigations where the leader cannot access the needed logs directly, produce a concrete user log request packet before fixing. Include the time window, target system, identifiers or correlation keys, exact log sources, and the expected candidate-separating signals.
-- If two hypothesis/experiment cycles fail to converge, escalate observability explicitly. Add instrumentation that can directly falsify the remaining competing explanations instead of applying another surface-level fix.
+- If two hypothesis/experiment cycles fail to converge, escalate observability explicitly. Prefer an available read-only discriminating signal; add instrumentation only when the confirmed authority and fresh execution guard allow it. Never treat repeated failure as new write permission.
 
 ### Stage 2D: Hypothesis Formation
 - Form one specific, falsifiable hypothesis from the evidence.
@@ -227,7 +253,7 @@ Repeated failure does not reopen observer-shape choices. It upgrades downstream 
 - Run one experiment for the active hypothesis.
 - Add the observed result to `Evidence` in memory and persist the complete section with `SESSION PATCH`.
 - If the result disproves the hypothesis, add it to `Eliminated` in memory, persist the complete section with `SESSION PATCH`, and return to Observability Assessment.
-- If the result confirms the failure mechanism, `SESSION PATCH` the root cause and continue to fixing.
+- If the result confirms the failure mechanism, `SESSION PATCH` the root cause. With confirmed `diagnose only` authority, use Diagnosis-Only Delivery in `references/debug-state.md`; otherwise enter fixing only through the causal, RED and write-authorization gates.
 - Before leaving this stage, `SESSION PATCH` which plausible causes were considered and which were ruled out so the session shows real causal spread instead of a single-path guess.
 - `SESSION PATCH` any **rejected surface fixes** that improved symptoms without restoring the control loop, so future resumes do not mistake symptom relief for root-cause resolution.
 

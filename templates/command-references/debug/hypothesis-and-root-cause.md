@@ -48,7 +48,7 @@ and continue the same session; attempt count alone is not a user-owned blocker.
 - Candidate queue entries must be consumed explicitly: confirm them, rule them out, or deprioritize them with evidence. Do not let high-priority candidates silently disappear from the session.
 
 - During `investigating`, determine whether the current investigation has one or more safe evidence-collection lanes before running multiple independent evidence-gathering actions sequentially.
-- [AGENT] Use the integration-rendered capability snapshot and shared dispatch policy for safe delegated lanes. `choose_subagent_dispatch(command_name="debug", snapshot, workload_shape)` names that policy; it is not an agent-executable Python workflow command.
+- [AGENT] Treat an integration-rendered capability snapshot as installation metadata, not proof of current availability. Check the live tool surface and actual dispatch response before choosing a lane; do not invent tool names or execute a Python policy helper. `choose_subagent_dispatch(command_name="debug", snapshot, workload_shape)` names the shared policy, not an agent-executable workflow command.
 - `SESSION PATCH` the decision fields exactly: `execution_model: leader-inline | subagent-assisted | blocked`, `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`, `execution_surface: leader-inline | native-subagents | none`, `dispatch_reason`, and `blocked_reason` when blocked.
 - Treat runtime safety as a dispatch decision. If native fan-out is unsafe,
   unavailable, or unpacketizable, record `subagent-blocked`, then repair the
@@ -56,6 +56,11 @@ and continue the same session; attempt count alone is not a user-owned blocker.
   or open a tracked internal Debug recovery lane. Do not invoke another
   user-invoked workflow automatically, do not widen brittle fan-out, and do not
   end the workflow solely because delegation failed.
+- After an authorized inline fallback succeeds, record `execution_model: leader-inline`,
+  `execution_surface: leader-inline` and the matching dispatch shape; preserve the
+  historical dispatch failure in `Evidence` instead of leaving stale `blocked_reason`
+  or `execution_surface: none` as the current execution state. Required independent
+  acceptance stays pending even when leader execution can continue.
 - Debug routing decision order:
   - Small focused investigation with one short evidence chain -> `leader-inline`.
   - One safe validated evidence lane where isolation improves quality -> `one-subagent` on `native-subagents` when available.
@@ -90,7 +95,7 @@ and continue the same session; attempt count alone is not a user-owned blocker.
 - Submit a structured result through `{{specify-subcmd:specify-runtime result submit --command debug --request-id <request-id> --result-json <inline-json|@path|->}}` when a runtime request exists, or use the session/lane identifiers for an unmanaged lane. Keep small payloads inline, use stdin for large model-authored JSON, and use `@path` only for an existing runtime-owned or registered project artifact. The runtime derives and writes the canonical destination. Never compute a result path, create a result file, or use `--result-file`; without a runtime channel, return the structured payload to the leader.
 - Preserve `reported_status` when normalizing subagent language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` into canonical orchestration state.
 - Idle subagent is not an accepted result.
-- [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution.
+- [AGENT] Consume the structured handoff before accepting a join or declaring that lane complete. A crashed, timed-out, or unsafe worker may be cancelled through its native owner without waiting for a missing handoff. Cancellation is not task acceptance: preserve partial evidence, the missing result, and owned resource identities; confirm quiescence before replacement. No broad process kill or cleanup of resources not owned by this lane.
 
 ## Revision-Bound Parallel Evidence and Join
 
@@ -111,11 +116,15 @@ final integrated revision. These are dependencies, not parallel opportunities.
 
 At every join, compare packet identity, input revision/digests, exact commands,
 exit codes, expected/observed outcomes, evidence refs, missing rows, and actual
-side effects. Check the evidence, not just `DONE` or a result envelope. Reject
-stale, incomplete, wrong-session, or contradictory returns for bounded repair;
-keep unaffected accepted evidence. A changed causal basis invalidates affected
-consumer acceptance before downstream work continues. Resolve contradictory
-observations with a discriminating probe, never a majority vote.
+side effects. Check the evidence, not just `DONE` or a result envelope. Withhold
+acceptance of stale, incomplete, wrong-session, or unverifiable submissions;
+preserve the raw evidence and request only the missing or invalid contract rows.
+Contradictory observations are valid evidence when their provenance and input
+basis check out. Do not ask a worker to change an observation to fit the leader's
+hypothesis. Keep both signals, distinguish observations from interpretations,
+and use a discriminating probe, not a majority vote. A changed causal basis
+invalidates affected consumer acceptance before downstream work continues;
+preserve unaffected accepted evidence.
 
 A blocked or silent worker returns to leader-owned recovery: inspect its state,
 repair the packet or tool path, or use an authorized fallback. Do not redispatch

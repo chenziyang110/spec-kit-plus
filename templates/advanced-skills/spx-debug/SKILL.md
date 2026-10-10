@@ -90,18 +90,23 @@ hypotheses in the agent investigation plan. Reuse a persisted confirmation when
 its exact symptom, boundary, authority, and UI baseline remain unchanged; do not
 ask again merely because the invocation resumed. An unchanged confirmed session
 skips that user wait and resumes its earliest unsatisfied technical gate. After
-confirmation, reproduce the symptom or establish
+confirmation and accepted framing, reproduce the symptom or establish
 the strongest available failure signal before changing behavior. Use cognition
 to locate likely owners, boundaries, and verification surfaces, then confirm
 claims against logs, configuration, tests, runtime output, and live source.
 
-Maintain a small set of ranked hypotheses and choose evidence that separates
-them. Distinguish the visible symptom from the failure mechanism. Once evidence
-supports a root cause, apply the minimum coherent fix only after the automated
-RED gate in the investigation contract. When logs are insufficient, add bounded
-instrumentation or request a precise user-log packet instead of guessing.
+Maintain ranked hypotheses and choose evidence that separates them. Distinguish
+the symptom from the mechanism. For a confirmed `diagnose only` request, follow
+Diagnosis-Only Delivery in `references/investigation-contract.md` and return the
+requested diagnosis, not a `resolved` defect or verification of a nonexistent
+fix. For authorized repair, apply the minimum coherent fix only after causal
+proof and target RED. Check Write Authorization and Guard Scope before any
+test, harness, configuration, or instrumentation write, and renew the execution
+guard after relevant scope expansion or source drift. When logs are insufficient,
+exhaust accessible evidence and permitted probes before requesting a precise
+user-log packet; diagnosis-only authority does not permit instrumentation writes.
 
-Preserve the debug session if repair requires a harness, launcher, dependency,
+Preserve the debug session if authorized repair requires a harness, launcher, dependency,
 runner, generated tool, or other supporting control-plane change beyond the
 first fix scope. Expand the smallest registered causal scope and repair it
 inside the active Debug recovery lane; do not invoke another user-invoked
@@ -119,7 +124,7 @@ confidence. Join revision-bound results before causal decisions, recover failed
 lanes, and continue independent dependency-ready work. Never reconstruct a
 debug-session template or create the state file directly.
 
-After agent verification and related-risk review, move to
+After agent verification of an authorized fix and related-risk review, move to
 `awaiting_human_verify`; do not resolve or archive until explicit human
 confirmation. Only after the lifecycle rules in the investigation contract are
 satisfied, run

@@ -57,7 +57,9 @@ The reason-first explanation remains mandatory; do not replay either complete in
 4. Claim root cause only when evidence explains both the failure and why the
    proposed change prevents it. Correlation, a suspicious line, or a passing
    test alone is insufficient.
-5. Before production edits, write and run a failing automated reproduction. If
+5. For authorized repair only, check Write Authorization and Guard Scope below
+   before creating a test or harness; then write and run a failing automated
+   reproduction before production edits. If
    no reliable test surface exists, build the smallest viable test harness. If
    that expands beyond the first debug fix lane, preserve the session, expand
    the registered causal scope, and run a tracked internal Debug recovery lane
@@ -65,7 +67,8 @@ The reason-first explanation remains mandatory; do not replay either complete in
    automatically; after the harness is verified, return to this reproduction
    rather than weakening RED or ending at the route. Use `$spx-specify` only
    when the user explicitly chooses a formal spec-first path.
-6. Apply the minimum coherent fix. Re-run the original reproduction and verify
+6. For authorized repair, apply the minimum coherent fix. Re-run the original
+   reproduction and verify
    the regression plus adjacent and related-risk surfaces.
 
 If the reproduction is unavailable, state the substitute evidence and reduce
@@ -85,7 +88,43 @@ Archive only after explicit human confirmation. A blocked or interrupted run
 keeps its evidence, current hypothesis, blocker, and exact recovery action.
 
 
+## Diagnosis-Only Delivery
+
+When the confirmed checkpoint says `fix_authority: diagnose only`, complete
+the requested diagnosis, not defect resolution. Keep confirmation and framing
+gates, gather permitted evidence, and report the supported causal conclusion,
+alternatives, confidence, remaining uncertainty, and the exact evidence basis.
+Do not add or modify source, tests, harnesses, dependencies, configuration, or
+instrumentation merely to make a diagnosis-only request follow the repair path.
+Choose read-only or already-authorized isolated diagnostic probes instead.
+
+Persist the findings in existing `Current Focus`, `Evidence`, and `Resolution`
+sections. Retain the actual investigation state: no new status such as
+`diagnosed`, no `resolved` claim, no fabricated GREEN or closeout receipt, and no
+human-verification request for a nonexistent fix. Completion of the requested
+diagnosis does not mean the defect was repaired. Keep unanswered diagnosis
+obligations explicit; unavailable required evidence is not completed analysis.
+
+An unrequested repair is not a user-owned blocker. Deliver the agreed findings
+without requiring the user to authorize extra work. A later request for repair
+uses the checkpoint amendment and fresh technical/write gates; it does
+not inherit source-write permission from diagnosis alone.
+
 ## Continuous execution and resume
+
+Navigation hints are not read authorization. Queue `minimal_live_reads` and
+other source/log/test routes during intake; execute them only after confirmation
+and accepted framing. Runtime/session metadata needed for the checkpoint stays
+within the existing pre-confirmation allowance. A ready map does not waive
+either gate.
+
+Optional feature artifacts require a valid feature binding and an existing,
+relevant artifact. Query only their needed sections through the artifact owner
+after the evidence-read gates pass. Standalone Debug does not require a formal
+feature package: do not create missing spec, plan, tasks, or context artifacts
+or launch a specification workflow merely to satisfy a context checklist.
+Missing optional inputs are recorded as not applicable, not fabricated.
+A required artifact of an actually bound feature remains a real input gate.
 
 Resolve the session from an explicit slug, validated active binding, or one
 unambiguous matching active record via `artifact list`; never choose by recency
@@ -105,6 +144,17 @@ Python workflow. Before evidence work, verify actual artifacts and
 `understanding_confirmed`, `causal_map_completed`,
 `investigation_contract_completed`, `log_investigation_plan_completed`, and
 `observer_framing_completed`; booleans alone are insufficient.
+
+When advisory cognition is absent or unusable, use report-grounded deep intake
+under the existing Stage 1A -> Stage 1B restrictions. Mark unknown owners,
+paths and state explicitly; candidate loops are hypotheses, not live facts.
+Use the confirmed report and available permitted system context to supply
+discriminating probes and falsifiers, then verify the complete deep framing
+before opening evidence reads. Do not invent a map, claim graph freshness, or
+mark an empty framing package accepted. If a user-owned fact is essential,
+ask only for that missing fact. Do not invoke map maintenance automatically.
+An absent map is different from an unavailable canonical artifact runtime:
+recover that runtime through its owning bootstrap, never by direct state writes.
 
 Bind experiments to input revision or relevant digests, worktree, environment,
 inputs/seed, exact command/manual sequence, expected failure signature,
@@ -133,19 +183,46 @@ ports, databases, browser profiles, fixtures, caches and external environments
 must be isolated or serialized. Never parallelize a producer with its dependent
 consumer. An evidence worker is not a production-fix worker.
 
-At joins, inspect packet identity, current input basis, commands/exit codes,
-expected/observed outcomes, evidence refs and missing rows. Reject stale,
-incomplete, wrong-session or contradictory returns for bounded repair; resolve
-contradictions with a discriminating probe rather than a vote. Invalidate
-affected consumer acceptance when its basis changes, preserving unaffected
-accepted evidence. A silent/blocked worker stays leader-owned: inspect state,
-repair or fall back; quiesce its owned mutable resources before redispatch so
-two attempts do not race. A required independent validator must not author or
-edit the fix; keep required independent acceptance pending when unavailable,
-and never label self-verification an independent review.
+Treat capability snapshots as installation metadata, not proof of availability.
+Check the live tool surface and actual response before dispatch; never invoke an
+invented tool or Python policy helper. After authorized inline fallback, record
+`execution_model: leader-inline`, `execution_surface: leader-inline` and the
+matching dispatch shape. Preserve historical dispatch failure in `Evidence`,
+not stale current `blocked_reason` or `execution_surface: none`. A required
+independent review remains pending even when leader execution continues.
 
-Before source writes, recheck fix authority, current patch anchors, causal/RED
-evidence and the execution guard. Diagnosis-only authority does not permit
+At joins, inspect packet identity, input basis, commands/exit codes,
+expected/observed outcomes, evidence refs and missing rows. Withhold acceptance
+of stale, incomplete, wrong-session or unverifiable submissions; preserve the raw
+evidence and request only missing or invalid rows. Contradictory observations
+are valid evidence when provenance and inputs match. Do not ask a worker to
+change an observation to fit the current hypothesis. Keep observations separate
+from interpretations and use a discriminating probe, not a majority vote.
+Invalidate affected consumer acceptance when its basis changes, preserving
+unaffected evidence.
+
+A crashed, timed-out, or unsafe worker may be cancelled through its native owner
+without waiting for a missing handoff. Cancellation is not task acceptance:
+preserve partial evidence, the missing result, and owned resource identities.
+No broad process kill or cleanup of other lanes' resources. Confirm quiescence
+before redispatch, then resume the failed gate. A required independent validator
+must not author or edit the fix; keep acceptance pending when unavailable and
+never label self-verification an independent review.
+
+## Write Authorization and Guard Scope
+
+Before any source, test, harness, configuration, or instrumentation write,
+recheck confirmed authority, current anchors, and declared scope through
+`specify-runtime execution guard`. Register supporting scope through its owner;
+after scope expansion or source drift affecting the binding, renew the guard
+before affected writes. A permitted supporting repair or diagnostic probe may
+precede original target RED only in its own guarded scope, with separate causal
+evidence, before-state, result, and cleanup. This does not bypass target RED for
+changes to the original target's production behavior. Supporting recovery does
+not prove that defect resolved.
+
+Before production writes, also recheck accepted causal/RED evidence.
+Diagnosis-only authority does not permit
 instrumentation writes. Keep instrumentation behavior-neutral, record observer
 or timing effects, redact secrets and track cleanup. Before final validation,
 remove only session-owned temporary probes/resources or explain retained
@@ -162,6 +239,10 @@ without erasing newer evidence. Inspect a possibly completed action's result
 before replaying a mutation or redispatching.
 
 ## Final evidence and human verification
+
+These repair-completion gates apply to an authorized fix. For confirmed
+`diagnose only` authority, follow Diagnosis-Only Delivery instead; findings are
+not a claim that the defect was fixed or that a nonexistent patch passed.
 
 Keep the complete required verification rows: original reproduction, target
 regression, control-loop restoration, related risks, affected consumers, and

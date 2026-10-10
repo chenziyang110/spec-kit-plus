@@ -55,7 +55,8 @@ The session file must always make it clear:
    - Query `Evidence` through `artifact show --section`, add each confirmed finding in memory, and replace the section through `artifact patch --section`.
    - Query `Eliminated` through `artifact show --section`, add each disproven theory in memory, and replace the section through `artifact patch --section`.
 
-4. **Fix and Verify**
+4. **Diagnosis-Only Delivery or Authorized Fix**
+   - For a confirmed `diagnose only` request, use Diagnosis-Only Delivery below and return its findings without entering an unrequested fix. The following repair and human-verification steps apply only when repair is authorized.
    - Apply the minimum code change needed to address the confirmed root cause when `execution_model: leader-inline`.
    - When `execution_model: subagent-assisted`, delegate it through a validated subagent lane and integrate the returned handoff on the leader path.
    - Record `subagent-blocked` as dispatch evidence when a lane is unsafe or unavailable; repair its packet/tool path, serialize it, or use an authorized leader fallback. Do not close Debug merely because delegation failed. Preserve the exact interrupted gate and resume it after recovery.
@@ -68,6 +69,28 @@ The session file must always make it clear:
 6. **Archive and Commit**
    - After human confirmation, mark the session resolved through a leased `specify-runtime artifact patch`. If archival is requested, prepare a fresh lease and run recoverable `specify-runtime artifact delete`; never move or rename the file directly.
    - Commit only the scoped fix and debug documentation when authorized; preserve unrelated changes. This does not authorize push, merge, release, or deployment.
+
+## Diagnosis-Only Delivery
+
+When the confirmed checkpoint says `fix_authority: diagnose only`, complete
+the requested diagnosis, not defect resolution. Keep confirmation and framing
+gates, gather permitted evidence, and report the supported causal conclusion,
+alternatives, confidence, remaining uncertainty, and the exact evidence basis.
+Do not add or modify source, tests, harnesses, dependencies, configuration, or
+instrumentation merely to make a diagnosis-only request follow the repair path.
+Choose read-only or already-authorized isolated diagnostic probes instead.
+
+Persist the findings in existing `Current Focus`, `Evidence`, and `Resolution`
+sections. Retain the actual investigation state: no new status such as
+`diagnosed`, no `resolved` claim, no fabricated GREEN or closeout receipt, and no
+human-verification request for a nonexistent fix. Completion of the requested
+diagnosis does not mean the defect was repaired. Keep unanswered diagnosis
+obligations explicit; unavailable required evidence is not completed analysis.
+
+An unrequested repair is not a user-owned blocker. Deliver the agreed findings
+without requiring the user to authorize extra work. A later request for repair
+uses the existing checkpoint amendment and fresh technical/write gates; it does
+not inherit source-write permission from diagnosis alone.
 
 ## Earliest-Unsatisfied-Gate Resume
 

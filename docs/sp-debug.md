@@ -22,6 +22,18 @@ actual output, and only then schedules Stage 1B against that accepted output.
 Go artifact operations persist the session; native agent tools execute work.
 A source inspection or graph status alone never proves current behavior.
 
+Navigation hints only queue evidence reads; they cannot bypass confirmation
+or accepted framing. An absent advisory map uses report-grounded deep intake,
+with unknowns and candidate hypotheses explicitly distinguished from facts;
+it does not automatically invoke map maintenance. An unavailable artifact
+runtime still requires its own recovery. Optional feature artifacts are read
+only with a valid binding and do not block standalone Debug.
+
+A confirmed diagnosis-only request ends with the requested findings, evidence
+and uncertainty, not an unrequested fix or a fabricated resolved state. Do not
+ask the user to verify a nonexistent patch. Missing required diagnosis
+evidence remains open; a later repair needs its own authority and fresh gates.
+
 The evidence loop binds the original reproduction, ranked candidate queue,
 falsifying observations and owning control loop to current inputs. Test one
 causal decision at a time. Independent falsifiers can run concurrently, but
@@ -32,8 +44,11 @@ its matching failure signature is valid evidence. Intermittent failures require
 controlled attempts and preserved
 outcomes; one successful retry is not proof of resolution.
 
-After causal proof and target RED, check fix authority, patch anchors and the
-execution guard. Repair the minimum coherent cause. Necessary harness, launcher
+Check authority, current anchors and the execution guard before any source,
+test, harness, configuration or instrumentation write. Renew the guard after
+relevant scope expansion or source drift. Guarded supporting recovery has its
+own causal and before/after evidence and cannot substitute for the original
+target RED. After target causal proof and RED, repair the minimum coherent cause. Necessary harness, launcher
 or local-tool repairs stay in Debug's authorized recovery scope and return to
 the original reproduction. Do not offload ordinary recovery to another workflow
 or the user. Diagnosis-only authority still forbids source and instrumentation
@@ -64,12 +79,20 @@ fixtures, caches or external environments are not independent merely because
 they read different files. Isolate or serialize them.
 
 At joins, inspect commands, exit codes, evidence bytes/refs, expected/observed
-outcomes, input freshness, missing rows and actual side effects. Stale,
-wrong-session, incomplete or contradictory returns need bounded repair, not a
-majority vote or acceptance of `DONE`. A silent worker remains leader-owned;
-quiesce its resources before retry/redispatch. Required independent review must
-come from a validator who neither authored nor edits the fix. Without that
-capability the independent gate remains pending; self-review is not equivalent.
+outcomes, input freshness, missing rows and actual side effects. Withhold
+acceptance of stale, wrong-session, incomplete or unverifiable submissions.
+Valid disconfirming observations remain evidence; never ask a worker to
+replace them with the expected answer. Resolve contradictions with a probe,
+not a majority vote. A crashed, timed-out or unsafe worker can be cancelled
+through its native owner without waiting for a missing result. Preserve
+partial evidence and resource ownership, confirm quiescence before redispatch,
+and never treat cancellation as acceptance or broadly kill other processes.
+
+Check the live tool surface rather than trusting installation metadata.
+After an authorized inline fallback, update the current dispatch fields to
+the actual execution path; keep the historical failure as evidence. Required
+independent review remains pending without a distinct capable validator who
+neither authored nor edits the fix; self-review is not equivalent.
 
 ## Resume and state ownership
 
@@ -96,9 +119,18 @@ integration tests check actual native-format rendering, reference delivery and
 missing-file repair without overwriting user edits. Neither proves a model ran
 multiple workers, repaired a product, or worked for a requested duration.
 
+The reference-graph unit tests follow explicit read/link edges, not every
+installed Markdown file. They detect lost triggers, missing or escaping
+paths, nested references and cycles, and ignore examples/comments as read
+edges. They check possible reference delivery, not conditional model behavior.
+TOML checks use only its embedded prompt, never unrelated sidecar contents.
+The real installation tests still require the actual package and must not
+be reported passing from the graph tests alone.
+
 ```bash
 python -m pytest tests/test_debug_execution_loop_contract.py \
-  tests/test_autonomous_blocker_recovery_contract.py
+  tests/test_autonomous_blocker_recovery_contract.py \
+  tests/test_debug_recovery_edges.py
 python -m pytest tests/integrations/test_debug_execution_loop_rendering.py \
   tests/test_spx_skill.py tests/integrations/test_base.py \
   tests/integrations/test_unified_specify_runtime_rendering.py \
