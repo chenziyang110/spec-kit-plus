@@ -19,6 +19,172 @@ input through supported verification; preserve its IDs/gaps without inventing a
 projection consumer. Product defects retain reproductions for their owner; do
 not weaken assertions or invoke another workflow implicitly.
 
+## Operating plan
+
+Coordinate the seven stages with the following rules. This is orchestration over
+existing runtime contracts, not a new schema, mode, scheduler or acceptance owner.
+
+### Intent and execution boundary
+
+Resolve product/feature, targets, outcome, authorization and resource/time limits
+from the current request and live inputs; retain the original request and later
+changes separately. Do not re-ask resolved questions. Keep unknown product
+semantics and external authorization explicit while advancing independent work.
+
+Default E2E is `execution`. Explicit design-only, case preparation or user-owned
+later testing selects `planning` for a new run: author the package and handoff,
+without application launches, smoke actions, test runs, CI polling or scheduled
+test work. Separate read-only source/tool discovery and permitted design checks
+from execution. Proposed instructions are not successful probes; deferred design
+checks cannot establish validated readiness. Stages 3-5 remain unexecuted, with
+all requested targets/scenarios retained. The runtime assigns planning Stage
+3-5 tasks `not_requested`; that is distinct from scenario-level `not_run`.
+
+If execution is deferred mid-run, stop new dispatch and checkpoint active native
+workers safely, retaining attempts and cleanup. Do not change frozen mode or
+remove tasks; use diagnostic reporting and supported truthful closeout. Later
+execution of a planning package requires explicit authorization and an execution
+run linked to the prior package/request, with current Stage 1-3 bindings. Do not
+import planning acceptance as execution receipts or reset unfinished runs.
+
+### Scope graph and artifact ownership
+
+Keep a complete parent inventory and a compact scheduling index in the existing
+ledger: target/operation IDs, stage tasks, books/manifests, route, input/output
+owners, exclusive resources and unfinished obligations. Those columns are not
+extra JSON keys. `api pack` owns `mode/scope/tasks` and task
+`id/stage/scope_ids/depends_on/acceptance/inputs/outputs/resources`.
+
+- Freeze independent target/operation scopes and outputs before execution, with
+  all seven stage placeholders, unavailable targets, cross-feature journeys and
+  discovery gaps. Expand only through `scope-add` without dropping old scope.
+- Declare actual producer dependencies for inventory -> design -> readiness ->
+  execution -> repair disposition -> reconciliation -> report, plus every other
+  consumed output. Stage 6 consumes relevant Stage 1-5 artifacts; Stage 7 binds
+  its audit and claim inputs. Include implicit runtime edges: every overlapping
+  producer at the previous requested stage, and all earlier requested stages
+  for Stage 6/7. Planning Stage 6 follows Stage 2, omitting unrequested 3-5.
+  Explicit edges cannot weaken these requirements; inspect the effective graph.
+  Do not serialize unrelated same-stage scopes. Use `passed` for design/
+  readiness for execution, and `accepted` for usable factual failure reports.
+  Never relax the former to unblock work.
+- A task must cover every assigned scope/acceptance pair. Group only scopes with
+  genuinely common criteria; otherwise split before freezing. Independently
+  accepted scopes may pipeline without an all-platform barrier. Shared inputs,
+  services and resources still block their consumers. Preserve a global join
+  over the parent inventory and cross-feature obligations.
+- One owner writes each canonical revision. Parallel discovery/design workers
+  write owned fragments; an integration task consumes accepted fragments,
+  reconciles IDs/conflicts and owns the canonical inventory/book. No concurrent
+  appends to one book or leader ledger. Keep independently bound scope artifacts
+  separate from the mutable parent index; real input drift still invalidates.
+
+### Native workers, revisions and joins
+
+Divide useful work by independent evidence/write scope: intent versus live
+entrypoints, distinct operation families, isolated targets/fixtures, and review
+of exact submissions. Keep actual native task/session references; roles, shell
+processes and identity strings are not agents. Select concurrency from available
+slots and ready non-conflicting work, reserving capacity for independent review.
+One slot allows sequential author and different validator, not self-approval.
+Reuse workers only without violating authorship independence. Validators must
+not have authored/repaired the task or any dependency ancestor under review;
+check recorded author history, not only the current worker ID. Stage 6 authors
+and final reviewers must also be independent of audited work. Missing delegation
+permits honest drafting, not invented acceptance.
+
+Dispatch the runtime packet/binding with original task, all assigned IDs/criteria,
+accepted input digests, owned outputs/resources, necessary context, observation
+and safety requirements and return channel. Reuse unchanged scoped context;
+expand unresolved refs instead of broadcasting the full repository/history.
+This never skips mandatory freshness checks. Return pinned artifact/evidence
+refs and concise decisions, not repeated raw files in chat.
+
+Coordinate revision-changing calls on the leader path. Parallel work does not
+permit shared stale `--expected-revision`: obtain the current revision per call
+and inspect conflicts rather than retry blindly. Review completed handoffs as
+they arrive; unrelated slow lanes need not delay an independent acceptance.
+
+On idle/timeout/disconnection, inspect actual native and runtime status, retain
+diagnostics, and establish worker/process resource ownership before reassigning.
+Use supported stop/join controls; uncertain ownership blocks the namespace.
+Never duplicate a writer, hand-edit state or invent cancellation/lease commands.
+At joins reconcile assigned/returned IDs, exact accepted inputs, targets, selected
+audits and cleanup; route discrepancies to the original producer.
+
+### Coverage-preserving efficiency
+
+Before readiness connect target/operation -> requirement -> condition/boundary
+unit/event-checkpoint -> scenario -> oracle -> cleanup. Challenge roles/tenants,
+locale/encoding, data scale, transitions, external failure, durability and
+cross-feature effects where source makes them applicable. Unknown rules stay
+gaps. Deduplicate only same-target cases with equivalent preconditions, stimuli,
+event order, effects and cleanup while retaining all distinct bindings. Titles
+or shared helpers are insufficient; never collapse distinct boundaries, timing,
+roles, projects or platforms. Multiple routes cannot double-credit one scenario.
+
+During authorized execution, prefer proven readiness first, then critical
+permissions/data-loss/persistence and regressions, remaining partitions/boundaries
+and mandatory combinations, and resource-sensitive interruption/concurrency and
+cross-feature joins as dependencies allow. This schedules rather than truncates
+the required set; do not postpone high-risk timing solely by category. One shared
+readiness failure blocks its affected cases instead of triggering a failure storm.
+
+Reuse immutable current builds/definitions/instructions, not mutable case state.
+Name accounts, databases, queues, directories, devices and UI sessions as actual
+resources. Different directories do not isolate a shared desktop or account.
+Observe/reset independent cases; retain continuity inside ordered journeys.
+Prefer an available route that satisfies the oracle over building a new harness.
+Avoid redundant visual/native work unless distinct evidence is required; once
+selected, both audits remain required. Supported native workers do not imply
+xdist or shard merging. Partition books before execution, retain parent/cross-
+scope accounting, and never transplant passes or concatenate partial reports.
+
+Budgets govern scheduling, not acceptance. Distinguish measured setup/execution/
+review/repair/blocked costs from estimates. At a limit checkpoint safely and
+retain every unfinished ID plus continuation. Do not poll unchanged failures,
+rerun passes or idle to fill a duration; scheduled follow-ups are not continuous
+multi-agent execution.
+
+### Causal recovery and user handoff
+
+Return missing operations/targets/rules to Stage 1; wrong conditions, units,
+oracles or changed combinations/books to Stage 2; launch/account/fixture/channel/
+reset gaps to Stage 3; missing or inconsistent raw observations to their Stage 4
+producer or earlier changed-input owner. Preserve invalid evidence and capture a
+fresh run; never rehash changed bytes to certify previously parsed observations.
+Stage 5 routes justified product defects to the product owner and test-only
+repairs through the original Stage 2/3 owner. Reopen before changing pinned bytes,
+reaccept prerequisites, rerun Stage 4, then regenerate the repair disposition.
+Cleanup/ownership uncertainty stops namespace reuse; never wipe unowned resources.
+Stage 6/7 repairs reporting discrepancies or reopens a disproven upstream owner.
+
+Deduplicate causal investigation only with evidence, retaining all affected IDs
+and attempts. A bounded retry needs a hypothesis, changed recovery condition and
+expected new observation. Stable policy/capability failure requires new recovery
+evidence, not repeated launches, widened permissions or disabled controls.
+Nonpassing per-case combination attachments are unvalidated diagnostic metadata:
+validate files needed by diagnosis before consuming them as evidence. No-repair
+requires an observed current run; no execution cannot justify that disposition.
+
+For user-owned testing or an authorized pause, reuse the ordinary test-asset
+area/ledger to deliver exact request and authorization, source/target identity,
+inventory/book/manifest/bindings digests, every condition/timing/scenario mapping,
+and all gaps. Include per-target prerequisites, role and secret variable names
+(no values), setup/launch/reset/cleanup, ordered steps and justified expected
+UI/durable effects, selected route/selectors, evidence recording locations and
+fields, original-report retention, failure routing and later audit instructions.
+Mark proposed commands/unresolved parameters and unperformed capability probes;
+never supply fabricated sample passes.
+
+Include runtime run/task/revision refs when present, accepted versus unaccepted
+artifacts, active-resource disposition, next owner/stage and observable resume
+prerequisites. Resume from fresh status, not stale mutation argv. Outstanding
+execution remains `not_run` with the user-deferral reason, not exclusion/pass.
+Report authored, independently reviewed, executed and user-owned work separately.
+Package delivery does not imply runtime acceptance, human/visual approval, full
+E2E success or permission to bypass Review/Accept.
+
 ## Execution and dependency contract
 
 The leader freezes the complete requested denominator through the Go
