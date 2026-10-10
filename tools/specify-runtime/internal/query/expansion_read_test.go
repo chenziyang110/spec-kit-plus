@@ -256,3 +256,34 @@ func FuzzExpansionReadEnvelope(f *testing.F) {
 		}
 	})
 }
+
+// Bulk inspection deliberately preserves the original eager read path.
+func BenchmarkExpansionBulkSectionRead(b *testing.B) {
+	paths, bundle := expansionCacheFixture(b)
+	rows := make([]any, 3000)
+	for i := range rows {
+		rows[i] = map[string]any{"id": fmt.Sprintf("node-%d", i), "paths": []string{"src/owner.go", "test/owner_test.go"}, "hints": strings.Repeat("navigation ", 10), "score": i}
+	}
+	bundle.SectionPayloads["raw_candidates"] = rows
+	if _, err := writeExpansionBundle(paths, bundle); err != nil {
+		b.Fatal(err)
+	}
+	input := ExpandInput{ID: bundle.ID, Section: "raw_candidates"}
+	assertExpansionPacketEquivalent(b, paths, input)
+	for _, mode := range []string{"eager", "bulk_path"} {
+		b.Run(mode, func(b *testing.B) {
+			read := Expand
+			if mode == "eager" {
+				read = expansionEagerReadReference
+			}
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				var err error
+				expansionReadSink, err = read(paths, input)
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}

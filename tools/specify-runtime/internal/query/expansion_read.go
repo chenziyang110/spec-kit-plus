@@ -7,6 +7,34 @@ import (
 	"strings"
 )
 
+// raw_candidates is the explicit bulk-inspection section emitted by Compass.
+// Decoding it through a raw projection would retain a second copy and traverse
+// the largest section again. Preserve the eager path for that opt-in bulk read;
+// normal related_paths/claim_evidence reads avoid materializing its objects.
+func decodeExpansionSection(data []byte, section string) (ExpansionBundle, map[string]ExpansionSectionMeta, any, bool, error) {
+	if section == "raw_candidates" {
+		var bundle ExpansionBundle
+		if err := json.Unmarshal(data, &bundle); err != nil {
+			return ExpansionBundle{}, nil, nil, false, err
+		}
+		payload, found := bundle.SectionPayloads[section]
+		return bundle, expansionSectionMeta(bundle.SectionPayloads), payload, found, nil
+	}
+	bundle, sections, meta, err := decodeExpansionReadBundle(data)
+	if err != nil {
+		return ExpansionBundle{}, nil, nil, false, err
+	}
+	raw, found := sections[section]
+	if !found {
+		return bundle, meta, nil, false, nil
+	}
+	var payload any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return ExpansionBundle{}, nil, nil, false, err
+	}
+	return bundle, meta, payload, true, nil
+}
+
 // expansionReadBundle retains unrequested sections as raw JSON. Unmarshal still
 // validates the complete document and the typed envelope, but does not allocate
 // every nested candidate/evidence object just to return one small section.

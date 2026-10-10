@@ -127,7 +127,7 @@ func Expand(paths rt.Paths, input ExpandInput) (ExpandPayload, error) {
 	if err != nil {
 		return ExpandPayload{}, fmt.Errorf("read expansion bundle: %w", err)
 	}
-	bundle, sections, available, err := decodeExpansionReadBundle(data)
+	bundle, available, payload, found, err := decodeExpansionSection(data, section)
 	if err != nil {
 		return ExpandPayload{}, fmt.Errorf("decode expansion bundle: %w", err)
 	}
@@ -140,8 +140,7 @@ func Expand(paths rt.Paths, input ExpandInput) (ExpandPayload, error) {
 	if bundle.ActiveGenerationID != status.ActiveGenerationID {
 		return staleExpansionPayload(bundle, available), nil
 	}
-	raw, ok := sections[section]
-	if !ok {
+	if !found {
 		return ExpandPayload{
 			EpistemicContract:             NewEpistemicContract(),
 			ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
@@ -157,10 +156,6 @@ func Expand(paths rt.Paths, input ExpandInput) (ExpandPayload, error) {
 			RecommendedNextAction:         expansionRecommendedActionRerun,
 			Errors:                        []string{"missing_section:" + section},
 		}, nil
-	}
-	var payload any
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return ExpandPayload{}, fmt.Errorf("decode expansion section %q: %w", section, err)
 	}
 	return ExpandPayload{
 		EpistemicContract:             NewEpistemicContract(),
