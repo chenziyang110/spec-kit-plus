@@ -129,7 +129,8 @@ def test_recovery_preserves_explicit_cross_workflow_handoff_boundaries() -> None
             "stop and route to the owning upstream phase",
         ),
         "templates/command-references/debug/fix-gate.md": (
-            "if that expands beyond the debug fix lane, route it through `/sp-quick`",
+            "use `/sp-specify` only when the user explicitly chooses a formal spec-first path",
+            "resume the original reproduction in the same invocation",
         ),
         "templates/advanced-skills/spx-fast/SKILL.md": (
             "this invocation authorizes only this workflow stage",
@@ -144,3 +145,10 @@ def test_recovery_preserves_explicit_cross_workflow_handoff_boundaries() -> None
         contract = _compact(relative)
         for phrase in phrases:
             assert phrase in contract, (relative, phrase)
+
+
+def test_debug_harness_recovery_is_not_an_optional_cross_workflow_handoff() -> None:
+    contract = _compact("templates/command-references/debug/fix-gate.md")
+    assert "route it through `/sp-quick`" not in contract
+    assert "repair the harness inside the active debug recovery lane" in contract
+    assert "do not route an agent-capable harness repair to another workflow" in contract

@@ -44,7 +44,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 - **Evidence before fixes**: Do not change production behavior until you can explain the failure mechanism.
 - **Find truth ownership before chasing symptoms**: Identify which layer owns the critical truth and which layers only reflect, cache, or project it.
-- **One active hypothesis at a time**: Parallel evidence gathering is allowed; parallel root-cause theories are not.
+- **One active hypothesis at a time**: The leader owns one active causal decision. Parallel evidence may test independent falsifiers against the same ranked candidate queue; workers cannot independently promote theories or make competing production edits.
 - **Observability before speculation**: Read existing logs and outputs first. If they are too weak to explain the failure, improve logging or tracing before attempting a fix.
 - **Logs are a first-class evidence source**: When existing logs, stderr/stdout, test output, or trace files materially narrow the issue, query `Evidence` through `specify-runtime artifact show --section`, add the finding in memory with `source_type: log` (or the closest concrete source type) and a concrete `source_ref`, then replace the section through a fresh `artifact patch --section` lease.
 - **Existing logs first**: Before asking for new output or adding new probes, check whether the repository, runtime, deploy target, browser console, worker output, or prior test artifacts already contain decisive signals for the active candidate queue.
@@ -83,12 +83,22 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - the active feature's `spec.md`, `plan.md`, and `tasks.md`
 - if `context.md` exists, query its relevant section through `specify-runtime artifact show` before proposing a fix
 
+## Resume Without Repeating Intake
+
+Read `references/debug-state.md` on every resumed full Debug invocation. Reuse
+accepted intake artifacts and the exact persisted confirmation when the symptom,
+boundary, risk, authority, and UI baseline remain unchanged. A new session starts
+unconfirmed; resuming is not a reason to reset confirmation or ask the whole
+checkpoint again. Source or evidence drift reopens affected technical gates,
+not automatically a user-owned decision. A material authority/boundary delta
+still uses the reason-first amendment below.
+
 ## Session Lifecycle
 
 1. **Check for Active Session**
    - List existing sessions through `specify-runtime artifact list --path-prefix .planning/debug` (excluding archived records).
-   - If a session exists and no new issue is described, resume it.
-   - If a new issue is described, start a new session.
+   - Prefer an explicit session slug or a validated active binding; otherwise resume only one unambiguous matching active session. If multiple sessions match, ask only for session selection; never choose by recency alone.
+   - Classify feedback against the active symptom before creating a new session. A continuing report is not automatically a new issue; preserve the parent until its own verification completes.
    - If the active session is `awaiting_human_verify` and the user reports another problem, classify it as `same_issue`, `derived_issue`, or `unrelated_issue`.
    - Default to `same_issue` unless repository evidence proves the other two classes.
    - `same_issue` reopens the parent session.
@@ -118,11 +128,11 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 5. **Human Verification**
    - Once the fix is verified by the agent, move into a formal human verification stage instead of resolving immediately.
-   - The session closes only after explicit human confirmation or an evidence-backed classification into `same_issue`, `derived_issue`, or `unrelated_issue`.
+   - The session closes only after explicit human confirmation of the verified fix. Classification as `same_issue`, `derived_issue`, or `unrelated_issue` routes feedback; classification is not confirmation and never closes the parent.
 
 6. **Archive and Commit**
    - After human confirmation, mark the session resolved through a fresh `specify-runtime artifact patch` lease. If archival is requested, prepare a fresh delete lease and use recoverable `specify-runtime artifact delete`; never move or rename the session file directly.
-   - Commit the fix and the debug documentation.
+   - Commit only the scoped fix and debug documentation when authorized; preserve unrelated changes. This does not authorize push, merge, release, or deployment.
 
 ## Required Context Inputs
 
@@ -136,7 +146,8 @@ moves into reproduction, logs, tests, or source-code reads.
 **Project cognition gate:** query the active project's runtime before broad
 repository reads.
 
-Run or emulate:
+Run the project-local runtime command; never emulate its output or invent a
+readiness result:
 
 ```text
 {{specify-subcmd:specify-runtime cognition compass --intent debug --query="$ARGUMENTS" --format json}}

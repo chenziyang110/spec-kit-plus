@@ -83,3 +83,107 @@ User feedback during human verification is classified as `same_issue`,
 closes; `unrelated_issue` creates a separate session without closing the parent.
 Archive only after explicit human confirmation. A blocked or interrupted run
 keeps its evidence, current hypothesis, blocker, and exact recovery action.
+
+
+## Continuous execution and resume
+
+Resolve the session from an explicit slug, validated active binding, or one
+unambiguous matching active record via `artifact list`; never choose by recency
+alone. Classify continuing feedback before creating a new session. Resume the
+earliest unsatisfied gate, retaining valid confirmation and accepted framing.
+Do not reset a confirmed session to unconfirmed merely because it resumed.
+
+After confirmation, use accepted map-backed minimum intake when sufficient:
+primary and contrarian candidates, first probe, log plan, transition memo and
+related-risk target. Otherwise the leader schedules Stage 1A causal map before
+Stage 1B investigation/log contract; Stage 1B consumes the accepted Stage 1A
+output. Preserve deep intake's three families/candidates and falsifiers; do not
+impose deep-only fields on valid map-backed minimum intake. Use
+native subagents or a recorded authorized fallback with the same intake-only
+restrictions. Do not wait for an assumed graph-engine callback or invoke a
+Python workflow. Before evidence work, verify actual artifacts and
+`understanding_confirmed`, `causal_map_completed`,
+`investigation_contract_completed`, `log_investigation_plan_completed`, and
+`observer_framing_completed`; booleans alone are insufficient.
+
+Bind experiments to input revision or relevant digests, worktree, environment,
+inputs/seed, exact command/manual sequence, expected failure signature,
+observed output/exit code, and evidence refs. RED must match the target defect;
+a harness/import/permission/timeout failure is not target RED for a different
+defect. If that mechanism is itself the confirmed target, require its exact
+failing signature. Otherwise recover the supporting cause, then rerun the
+original target check. For intermittent bugs,
+preserve attempts and outcomes under controlled inputs before and after repair;
+one non-reproduction does not establish resolution. Use bounded discriminating
+experiments, not blind retries or indefinite polling.
+
+Use one active causal decision and a complete ranked candidate queue. Parallel
+falsifiers are evidence lanes, not competing production fixes. Persist both
+supporting and contradicting signals, eliminated/deprioritized candidates,
+truth owner, control/observation boundary and loop-break proof in existing
+session sections. Two failed verification cycles require renewed investigation,
+not an automatic user handoff. Local recovery must resume the interrupted gate
+in the same invocation and continue independent dependency-ready work.
+
+For each delegated packet, bind session/lane identity, accepted prerequisites,
+input revision/digests, evidence question, allowed commands/paths, forbidden
+writes, expected/falsifying observations, resource/timeout budget, result
+channel and join criterion. Different files do not establish independence:
+ports, databases, browser profiles, fixtures, caches and external environments
+must be isolated or serialized. Never parallelize a producer with its dependent
+consumer. An evidence worker is not a production-fix worker.
+
+At joins, inspect packet identity, current input basis, commands/exit codes,
+expected/observed outcomes, evidence refs and missing rows. Reject stale,
+incomplete, wrong-session or contradictory returns for bounded repair; resolve
+contradictions with a discriminating probe rather than a vote. Invalidate
+affected consumer acceptance when its basis changes, preserving unaffected
+accepted evidence. A silent/blocked worker stays leader-owned: inspect state,
+repair or fall back; quiesce its owned mutable resources before redispatch so
+two attempts do not race. A required independent validator must not author or
+edit the fix; keep required independent acceptance pending when unavailable,
+and never label self-verification an independent review.
+
+Before source writes, recheck fix authority, current patch anchors, causal/RED
+evidence and the execution guard. Diagnosis-only authority does not permit
+instrumentation writes. Keep instrumentation behavior-neutral, record observer
+or timing effects, redact secrets and track cleanup. Before final validation,
+remove only session-owned temporary probes/resources or explain retained
+instrumentation, then rerun affected checks on the final integrated revision.
+Never reset a worktree or restore a whole file to undo only the agent's patch.
+
+Use existing `Current Focus`, `Suggested Evidence Lanes`, `Evidence`,
+`Candidate Resolutions`, `Execution Intent` and `Resolution` for progress and
+resume, not new top-level fields or a parallel state file. At joins, pauses and
+human waits preserve accepted/pending lanes, active probe, failed gate, owned
+paths/resources, attempts/results and exact next action. Batch same-checkpoint
+patches where supported. On lease conflict reread and merge the intended delta
+without erasing newer evidence. Inspect a possibly completed action's result
+before replaying a mutation or redispatching.
+
+## Final evidence and human verification
+
+Keep the complete required verification rows: original reproduction, target
+regression, control-loop restoration, related risks, affected consumers, and
+UI real-entrypoint recapture when applicable. Bind each row to the final source
+revision or relevant digests, environment, command/sequence, expected/observed
+outcomes and evidence. Failed, skipped, unavailable and stale rows stay open;
+aggregate PASS or an accepted failure report is not a passing prerequisite.
+Source changes, cleanup, or changed accepted inputs invalidate affected rows.
+
+Agent GREEN and related-risk review lead to `awaiting_human_verify`, not
+`resolved`. Give exact user verification steps, expected behavior and validated
+revision. Default feedback to `same_issue` unless evidence establishes a
+linked derived or unrelated issue. Classification is not confirmation; neither
+it nor a resolved child closes the parent. Explicit human confirmation must
+match the current verified fix, not a superseded patch.
+
+Preserve the existing cognition/Learning and guarded execution closeout gates.
+Recover their failures without repeating human verification when the fix and
+evidence are unchanged. A clean completion claim needs current verification,
+explicit human confirmation and the required successful closeout receipt;
+`status=ok` alone does not suffice. Archive only when requested after these
+gates pass, through the artifact owner. Commit only authorized scoped changes;
+this grants no push, merge, release or deployment authority. A true remaining
+boundary uses the shared blocked-exit contract with attempted recovery, open
+rows, withheld claims and exact resume action, never a claim of resolution.

@@ -3,8 +3,8 @@ description: Use when a bug, regression, failed verification, or unexpected runt
 workflow_contract:
   when_to_use: A defect or failed verification needs structured root-cause investigation instead of ad hoc fixes.
   primary_objective: Build a resumable debug session that gathers evidence, identifies root cause, applies a fix, and verifies the result.
-  primary_outputs: Debug-session state, evidence, verified fix artifacts when justified, and an honest blocked/resolved status.
-  default_handoff: Stay inside the debug session until resolved or blocked; route back to execution only after the defect contract is satisfied.
+  primary_outputs: Debug-session state, revision-bound evidence, verified fix artifacts when justified, and an honest investigating/awaiting-human/resolved/blocked outcome.
+  default_handoff: Continue agent-owned investigation and recovery; pause only for a required human checkpoint or an exhausted authorized recovery path. Return to execution only after the defect contract is satisfied.
 ---
 
 {{spec-kit-include: ../command-partials/debug/shell.md}}
@@ -37,11 +37,13 @@ verification, and exact-path mutation closeout without entering this flow.
 Clean closeout keys on `result_state`; not `status=ok`, `update_id`, `last_update_id`, or freshness alone. Do not present `status=ok` alone as proof
 of cognition freshness or mutation closeout.
 
-1. Choose `leader-inline`, `subagent-assisted`, or `blocked` based on investigation size, safety, and packetizability; keep the leader responsible for session state and root-cause decisions.
-2. Create or resume the debug session through its CLI owner, query required workflow context through `specify-runtime artifact show`, run the Debug Cognition Gate, and confirm the Debug Understanding Checkpoint before reproduction, logs, source reads, code edits, or validation.
-3. Build the causal map, investigation contract, log plan, observer framing, and first evidence path; do not form a final root cause before reproduction and evidence.
-4. Investigate one active hypothesis at a time, record eliminated alternatives, confirm root cause, and reject surface-only fixes.
-5. Apply the minimum safe fix through the selected execution model, verify with reproduction and tests, review related risks, patch the debug session only through leased `specify-runtime artifact patch` calls, and close only as resolved or blocked.
+1. Resolve the exact session through its CLI owner. On resume, read `references/debug-state.md`, retain valid confirmations and artifacts, and identify the earliest unsatisfied gate; do not restart a completed intake or select a session by recency alone.
+2. Run the Debug Cognition Gate and confirm the Debug Understanding Checkpoint before reproduction, logs, source reads, evidence collection, delegation, edits, or validation. A branch choice is not that confirmation.
+3. Build or reuse the complete map-backed intake; use Stage 1A then Stage 1B only when needed. The leader schedules these dependent stages from accepted artifacts, not from an assumed graph-engine callback. Preserve every framing gate before evidence work.
+4. Choose `leader-inline` or `subagent-assisted` from current capabilities and safe evidence lanes. Read `references/hypothesis-and-root-cause.md` before dispatch, join, or a causal decision. Keep one active causal decision; independent falsifiers may run in parallel without competing production edits.
+5. Establish the original failure and a target-specific automated RED. Confirm the owning mechanism, apply the minimum guarded fix, and recover harness/tooling failures inside Debug. A failed dispatch is evidence for recovery, not automatically a blocked workflow.
+6. Re-run the original reproduction, regression and related-risk checks on the final changed revision, including instrumentation cleanup and UI recapture when applicable. Reject stale, missing, skipped, or wrong-failure evidence. Repair and resume the interrupted gate in the same invocation while any safe authorized action remains.
+7. Persist the complete evidence and exact next action through leased artifact patches. Agent verification leads to `awaiting_human_verify`, not `resolved`. Read `references/regression-validation-and-closeout.md`; explicit human confirmation, current evidence, and the existing cognition/execution closeout gates are all required for a clean completion claim.
 
 If no reliable automated test surface exists, build the smallest viable test
 harness. If that expands beyond the first debug fix lane, preserve the debug

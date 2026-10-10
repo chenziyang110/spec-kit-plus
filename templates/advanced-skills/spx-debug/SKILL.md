@@ -47,11 +47,11 @@ Read `references/autonomous-blocker-recovery.md` before treating any
 investigation, harness, or verification failure as terminal.
 Read `references/human-confirmation.md`, then
 `references/investigation-contract.md`. Read
-`references/investigator-worker.md` only for delegated evidence. Create an
-absent `.planning/debug/<slug>.md` only with `specify-runtime artifact scaffold
---kind debug-session`, or resume it through targeted `artifact show`; mutate it
-only through fresh leased `artifact patch` calls. The shared runtime scaffold is
-the durable source of truth for every debug invocation.
+`references/investigator-worker.md` only for delegated evidence. Apply the
+session selection, earliest-unsatisfied-gate resume, evidence join, and final
+revision checks in the investigation contract. The leader schedules the loop;
+do not wait for an assumed graph-engine callback or invoke a Python workflow.
+The shared runtime scaffold remains the durable source of truth.
 Read `references/consequence-gate.md` when the suspected cause or fix touches
 lifecycle, shared state, destructive behavior, compatibility, migration,
 security, concurrency, retry, recovery, or generated consumers.
@@ -77,14 +77,20 @@ Debug state does not skip write coordination. Checkpoint validation and call
 `specify-runtime execution complete` only after fresh passing validation and
 terminal workflow state.
 
-Create or resume the session in its unconfirmed intake state. Render the Debug
+Create a new session in its unconfirmed intake state; resume an existing session
+without clearing still-valid confirmations or completed framing. Only for a new,
+unconfirmed or materially changed checkpoint, render the Debug
 checkpoint from `references/human-confirmation.md` as readable headings and
 bullets; for an applicable UI symptom, fold its independent target-baseline
 state into the same checkpoint as `界面方向` without proposing a repair, then ask
 once for both decisions. Wait for user confirmation before reproduction, log review,
 source or test reads, evidence collection, delegation, instrumentation, code
 edits, or validation. Persist the main and UI confirmations separately and keep
-hypotheses in the agent investigation plan. After confirmation, reproduce the symptom or establish
+hypotheses in the agent investigation plan. Reuse a persisted confirmation when
+its exact symptom, boundary, authority, and UI baseline remain unchanged; do not
+ask again merely because the invocation resumed. An unchanged confirmed session
+skips that user wait and resumes its earliest unsatisfied technical gate. After
+confirmation, reproduce the symptom or establish
 the strongest available failure signal before changing behavior. Use cognition
 to locate likely owners, boundaries, and verification surfaces, then confirm
 claims against logs, configuration, tests, runtime output, and live source.
@@ -109,8 +115,9 @@ input event, data condition, viewport/continuous resize path, and state after
 the fix; source inspection or component tests cannot
 prove a visual symptom resolved.
 Delegate only independent evidence lanes or an independent review that improves
-confidence. Never reconstruct a debug-session template or create the state file
-directly.
+confidence. Join revision-bound results before causal decisions, recover failed
+lanes, and continue independent dependency-ready work. Never reconstruct a
+debug-session template or create the state file directly.
 
 After agent verification and related-risk review, move to
 `awaiting_human_verify`; do not resolve or archive until explicit human
