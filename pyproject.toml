@@ -28,6 +28,25 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/specify_cli"]
+# Force-inclusion bypasses exclusions. Select the native module normally so
+# its known local build/test roots can be omitted without listing every source.
+only-include = ["src/specify_cli", "tools/specify-runtime"]
+sources = {"src" = "", "tools/specify-runtime" = "specify_cli/core_pack/tools/specify-runtime"}
+# The declared source boundary must not depend on local/global Git ignore rules
+# (which can match legitimate hidden testdata). Keep explicit exclusions below
+# in sync with verify_e2e_wheel.py and its real-Hatch probe.
+ignore-vcs = true
+exclude = [
+    "/tools/specify-runtime/.tmp/**",
+    "/tools/specify-runtime/.tmp-*/**",
+    "/tools/specify-runtime/.gocache/**",
+    "/tools/specify-runtime/bin/**",
+    "/tools/specify-runtime/*-cover.out",
+    "**/.git", "**/.git/**",
+    "**/.hg", "**/.hg/**",
+    "**/.svn", "**/.svn/**",
+    "**/.bzr", "**/.bzr/**",
+]
 
 [tool.hatch.build.targets.wheel.force-include]
 # Bundle core assets so `specify init` works without network access (air-gapped / enterprise)
@@ -128,7 +147,6 @@ packages = ["src/specify_cli"]
 "scripts/bash" = "specify_cli/core_pack/scripts/bash"
 "scripts/powershell" = "specify_cli/core_pack/scripts/powershell"
 "scripts/shared" = "specify_cli/core_pack/scripts/shared"
-"tools/specify-runtime" = "specify_cli/core_pack/tools/specify-runtime"
 "schemas/context-packet.schema.json" = "specify_cli/core_pack/schemas/context-packet.schema.json"
 "extensions/agent-teams/engine/Cargo.toml" = "specify_cli/core_pack/extensions/agent-teams/engine/Cargo.toml"
 "extensions/agent-teams/engine/Cargo.lock" = "specify_cli/core_pack/extensions/agent-teams/engine/Cargo.lock"

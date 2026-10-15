@@ -10,6 +10,14 @@ Create ancillary documents, reports, or media only within the assignment's autho
 
 Use this template when the quick-task leader dispatches a bounded execution lane for `sp-quick`.
 
+Before confirmation, a read-only evidence worker is an intake lane with named
+read paths, safe-check permissions, no product write scope and stop conditions.
+Return inspectable current findings and source/check refs; do not call
+`quick item-start`, consume an implementation packet, edit product/test/harness
+files, add persistent instrumentation or claim Q acceptance. The execution
+contract below starts only with the exact runtime-confirmed or validated
+inherited proposal and its Q/Work gates.
+
 ## Controller Requirements
 
 - Provide the smallest safe lane description and its acceptance check.
@@ -18,6 +26,7 @@ Use this template when the quick-task leader dispatches a bounded execution lane
   fields: `work_item_id`, `depends_on`, prerequisite acceptance evidence, and
   the exact work-item acceptance this lane advances.
 - Name the touched files or surfaces.
+- Carry the confirmed current-state evidence, concrete recommended change and risk boundaries alongside the deliverable and acceptance; do not lose the basis of the approved proposal.
 - State whether the lane is part of a larger join point or is the only active lane.
 - When the lane is shaped by a PNG, screenshot, mockup, design export, or other reference image, provide the original visual input as a runtime image item/local_image when supported and as a stable project-relative path when available. Do not provide only a prose summary of the image.
 - State the expected fidelity mode (`approximate`, `high`, or `inspiration`) and the image-derived constraints the worker must preserve.
@@ -116,4 +125,38 @@ Use this template when the quick-task leader dispatches a bounded execution lane
 
 ## Inline Project Cognition Handoff
 
-When you changed project-related files, include `changed_paths`, `behavior_surfaces`, `generated_surfaces`, `state_contracts`, `verification`, `known_unknowns`, and `confidence_notes` in the worker result so the parent workflow can build the inline project cognition update payload. Use `known_unknowns` only for blockers that make the update unsafe to trust; put non-blocking scope notes such as excluded unrelated dirty workspace paths in `confidence_notes`.
+Before source-changing work, require `specify-runtime api ensure --capabilities cognition.worker-delta.v1 --format json` through the project-pinned runtime. A missing capability returns a blocked handoff for runtime repair or upgrade before edits/submission.
+
+Return `cognition_delta` in the existing WorkerTaskResult: `schema: "spec-kit-cognition-delta-v1"`, `version: 1`, and the packet's identity. Report all retained `changed_paths`, including edits from failed or blocked attempts; describe added/modified/deleted/renamed paths in `path_changes` (a rename includes both `old_path` and `new_path` in the path denominator). Preserve relevant `behavior_surfaces`, `owner_surfaces`, `consumer_surfaces`, `interfaces`, `generated_surfaces`, `generated_surface_notes`, `state_contracts`, `evidence_refs`, `verification_evidence`, `invalidated_claim_refs`, `known_unknowns`, `confidence_notes`, and `recovery` as JSON arrays/objects, including nested evidence. These are worker candidates; the runtime owns submission history, source binding, acceptance, and global cognition. Return through the existing result channel; do not write those owners or invent an accepted binding. Legacy path/semantic aliases remain readable, but conflicting values are refused. Use `known_unknowns` only for blockers that make the update unsafe to trust; put non-blocking scope notes such as excluded unrelated dirty workspace paths in `confidence_notes`.
+
+## Exact Task Scope Availability
+
+After the owning runtime compiles the canonical current task packet, and before
+dependent graph consumption, require `specify-runtime api ensure --capabilities
+cognition.scope-availability.v2 --format json`, then run `specify-runtime cognition
+check --task-packet <exact-project-relative-packet-path> --format json`. Use the
+compiler's returned packet path; do not assemble a substitute packet or infer
+complete read dependencies from prose. Quick confirmation items declare optional
+`read_scope` as an explicit array of exact paths, including required UI contract
+and original reference inputs when applicable. Missing legacy `read_scope` is
+unknown; explicit `[]` is a complete empty declaration. Null, non-arrays and
+non-string paths refuse. Read metadata follows execution `write_scope` digest
+exclusion; it never changes registered UI approval or grants worker write scope.
+
+Carry native `availability`, `scope_ready`, `global_status`, `debt_assessments`,
+`reasons`, `minimal_live_reads` and `binding` separately. Only an actual version 2
+ready result permits scoped advisory graph navigation; proven unrelated debt
+remains visible globally. Blocked/degraded/unavailable or unknown proof suspends
+dependent graph consumption and uses bounded current live reads, with gaps
+explicit. Do not erase blocked results or treat advisory warnings as uniform
+protection. Commands without a canonical packet keep the global check and cannot
+assert unrelated debt. This route applies with hooks and without hooks on every
+CLI and both profiles.
+
+At handoff/resume and before reusing graph context, rerun the same native check
+with `--availability-json <previous-native-binding-json>` against the current
+canonical packet. Changed source/packet/status/dependency/claim bytes or an old
+contract invalidate reuse; repair the owning proof and obtain a new result. Scope
+readiness never declares the project globally fresh, grants source write
+authority, sets workflow `claim_ready`, or replaces independent Review and human
+Accept. Preserve normal packet/Work/UI prerequisite and approval gates.

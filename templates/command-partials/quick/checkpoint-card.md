@@ -10,14 +10,17 @@ envelope, `confirmation.json`, and confirmation command.
 
 ## What the user confirms
 
-Only user-owned product decisions:
+Explain the current situation and selected evidence basis, then confirm only
+user-owned product decisions:
 
 - final goal and user-visible result
 - include / exclude / defer scope
 - stable `Q1`, `Q2`, ... deliverables
 - product-level dependencies between deliverables
 - independent acceptance criteria per deliverable
+- concrete recommended change, its reason and expected effect
 - risk decisions (compatibility, migration, security, authority)
+- assumptions, affected behavior and overall completion evidence
 - UI goals and boundaries when UI applies
 - reconfirmation trigger
 
@@ -58,7 +61,8 @@ must not reopen user approval.
 
 ## Confirmation modes
 
-1. **New prompt Quick**: stage the full decision, show `--view decision`, wait
+1. **New prompt Quick**: understand the request and inspect bounded evidence,
+   then stage the full decision, show `--view decision`, wait
    for one confirmation, then `checkpoint-confirm`.
 2. **Discussion handoff with no semantic delta**: stage with
    `source.kind=discussion`, `semantic_delta=false`, and the handoff
@@ -87,6 +91,11 @@ must not become blind confirmation.
 
 [one-sentence goal]
 
+### 当前情况与依据
+
+- [current situation or discovered gap, with the decisive source/check basis]
+- [explicit greenfield absence or remaining uncertainty when applicable]
+
 ### 你会看到
 
 - [user-visible result]
@@ -111,6 +120,12 @@ must not become blind confirmation.
   - 验收：[independent acceptance]
   - 前置：Q1
 
+### 方案与完成标准
+
+- **推荐路径**：[concrete proposed change, why it addresses the request, and expected effect]
+- **假设或风险**：[affected behavior, compatibility/authority boundary, and uncertainty or explicit bounded absence]
+- **完成证据**：[observable verification of the overall result and relevant regression checks]
+
 ### 需要重新确认的情况
 
 - [reconfirmation trigger]
@@ -122,6 +137,33 @@ For inherited or already confirmed decisions, replace the reply with a compact
 confirmation-state sentence. For delta mode, name the delta immediately after
 the state and avoid replaying unchanged prose unless it is needed to understand
 the change.
+
+For a new raw request, populate `decision.current_state_evidence`,
+`recommended_approach`, `assumptions_and_risks` and `completion_evidence`
+meaningfully before staging. Evidence summaries name the selected current
+source/check basis; a new implementation can state its checked absence and
+requirements basis. Do not invent findings or force a bug diagnosis. Explain
+the change and its impact in product terms; agent choreography stays in the
+Delivery Map. A generic request to implement is not approval of an unseen plan.
+Use `checkpoint-confirm --digest` only after the real human reply approves
+that exact staged decision, or reuse validated unchanged inherited approval.
+Never substitute an Auto recommendation or a hand-patched
+`understanding_confirmed: true` for that binding. Existing exact approved
+decisions do not need a second confirmation or new-field backfill.
+
+For a newly gathered raw request, inspect the staged response's
+`confirmation.decision.current_state_evidence` and `views.decision`: the typed
+field must retain the complete selected evidence basis and the default human
+view must show it readably. For material amendments, retain supplied
+`current_state_evidence` in the returned typed decision and its digest; show
+that basis in the human delta view only when `current_state_evidence` is named
+in `source.changed_decision_fields`. Otherwise omit the unchanged basis from
+the delta view. An omitted supplied field or basis missing where it should be
+visible means an incompatible old runtime may have silently dropped it.
+Restore or update the pinned compatible runtime and re-stage; do not ask for
+approval, confirm or execute a decision that lost its basis. This check does
+not require backfilling or re-confirming an unchanged exact approved or
+inherited legacy decision.
 
 ## Delivery Map and Pulse
 

@@ -498,7 +498,7 @@ func TestPlaybookDerivedIndexCannotHideCanonicalMethods(t *testing.T) {
 }
 
 func TestPlaybookPublishedSchemasMatchRuntime(t *testing.T) {
-	for filename, schema := range map[string]map[string]any{"playbook-definition.schema.json": playbookDefinitionInputSchema(), "playbook-update.schema.json": playbookUpdateInputSchema()} {
+	for filename, schema := range map[string]map[string]any{"playbook-definition.schema.json": playbookDefinitionInputSchema(), "playbook-update.schema.json": playbookUpdateInputSchema(), "playbook-metrics.schema.json": playbookMetricsInputSchema()} {
 		raw, err := os.ReadFile(filepath.Join("..", "..", "templates", "artifacts", filename))
 		if err != nil {
 			t.Fatal(err)

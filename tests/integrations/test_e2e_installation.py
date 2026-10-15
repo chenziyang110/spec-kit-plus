@@ -22,6 +22,7 @@ from specify_cli.integrations.manifest import IntegrationManifest
 ROOT = Path(__file__).resolve().parents[2]
 HELPERS = (
     "e2e_scenarios.py", "e2e_coverage.py", "e2e_runner.py", "e2e_pytest_reporter.py",
+    "e2e_assets.py",
 )
 SKILLS = (
     "agy", "claude", "codex", "cursor-agent", "grok", "kimi", "trae", "vibe", "zcode",
@@ -70,12 +71,20 @@ def assert_helpers(project: Path) -> None:
     )
     assert process.returncode == 0, process.stderr
     assert len(json.loads(process.stdout)["dimensions"]) >= 14
-    for name in ("e2e_coverage.py", "e2e_runner.py"):
+    for name in ("e2e_coverage.py", "e2e_runner.py", "e2e_assets.py"):
         process = subprocess.run(
             [sys.executable, str(project / ".specify/scripts/shared" / name), "--help"],
             cwd=project, text=True, capture_output=True, timeout=30, check=False,
         )
         assert process.returncode == 0, process.stderr
+
+    for asset in ("strength", "bundle", "crosswalk"):
+        process = subprocess.run(
+            [sys.executable, str(project / ".specify/scripts/shared/e2e_assets.py"), "schema", asset],
+            cwd=project, text=True, capture_output=True, timeout=30, check=False,
+        )
+        assert process.returncode == 0, process.stderr
+        assert json.loads(process.stdout)["claim"] == "schemas_only"
 
 
 @pytest.mark.parametrize("key", SKILLS)
@@ -95,6 +104,9 @@ def test_e2e_renders_for_every_skill_profile(key, profile, prefix, script_type, 
     assert "{{specify-subcmd:" not in text
     assert "e2e.task-accept" in text and "e2e.review-submit" in text
     assert "e2e.scope-add" in text and "e2e.close" in text
+    assert "e2e.compact" in text and "e2e.task-show" in text
+    assert "--view compact" in text
+    assert "readiness_counts" in text and "candidate_conflict_pair_count" in text
     assert "--include-schema" in text
     metadata = yaml.safe_load((skill_dir / "agents/openai.yaml").read_text(encoding="utf-8"))
     assert metadata["policy"]["allow_implicit_invocation"] is False
@@ -102,9 +114,14 @@ def test_e2e_renders_for_every_skill_profile(key, profile, prefix, script_type, 
         reference = skill_dir / "references/scenario-design.md"
         assert reference.is_file()
         assert reference.relative_to(project).as_posix() in manifest.files
+        reference_text = reference.read_text(encoding="utf-8")
+        assert "bundle-prepare" in reference_text and "bundle-execution-binding" in reference_text
+        assert "crosswalk-audit" in reference_text and "crosswalk-execution-binding" in reference_text
         assert {p.parent.name for p in integration.skills_dest(project).glob("sp-*/SKILL.md")} == MAP_COMPANIONS
         assert not (integration.skills_dest(project) / "spec-kit-project-cognition-gate").exists()
     else:
+        assert "bundle-prepare" in text and "bundle-execution-binding" in text
+        assert "crosswalk-audit" in text and "crosswalk-execution-binding" in text
         assert not any(integration.skills_dest(project).glob("spx-*/SKILL.md"))
 
 

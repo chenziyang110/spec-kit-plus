@@ -1,9 +1,7 @@
 package query
 
 import (
-	"crypto/sha256"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,14 +24,8 @@ func TestCompassWritesExpansionBundleAndExpandReturnsSection(t *testing.T) {
 	if compass.ExpansionRef == nil {
 		t.Fatalf("ExpansionRef is nil")
 	}
-	wantExpansionID := immutableExpansionIDForTest(
-		compass.QueryFingerprint,
-		compass.ActiveGenerationID,
-		ClaimRetrievalContractVersion,
-		CandidateUniverseVersion,
-	)
-	if compass.ExpansionRef.ID != wantExpansionID {
-		t.Fatalf("ExpansionRef.ID = %q, want generation-and-contract-bound %q", compass.ExpansionRef.ID, wantExpansionID)
+	if compass.ExpansionRef.ExpansionContractVersion != ExpansionContractVersion || !validNavigationDigest(compass.ExpansionRef.NavigationDigest) {
+		t.Fatalf("ExpansionRef lacks current snapshot binding: %#v", compass.ExpansionRef)
 	}
 	if compass.ExpansionRef.StaleBehavior != expansionRefStaleBehavior {
 		t.Fatalf("StaleBehavior = %q, want %q", compass.ExpansionRef.StaleBehavior, expansionRefStaleBehavior)
@@ -446,10 +438,4 @@ func writeExpansionBundleFileForTest(t *testing.T, path string, bundle Expansion
 	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func immutableExpansionIDForTest(queryFingerprint, activeGenerationID string, claimVersion, candidateVersion int) string {
-	material := fmt.Sprintf("%s\x00%s\x00%d\x00%d", queryFingerprint, activeGenerationID, claimVersion, candidateVersion)
-	sum := sha256.Sum256([]byte(material))
-	return fmt.Sprintf("exp-%x", sum[:12])
 }

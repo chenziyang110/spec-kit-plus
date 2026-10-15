@@ -15,6 +15,7 @@ import (
 
 	changemodel "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/changes/model"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/closeout"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runcontrol"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/store"
@@ -24,6 +25,11 @@ import (
 // Do starts. Its real operation then changes source and creates another path.
 func doSeedCognitionBaseline(t *testing.T, root string) rt.Paths {
 	t.Helper()
+	// Make this fixture the project root before resolving cognition storage;
+	// a user's ancestor .specify must never become test-owned state.
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	paths, err := rt.ResolvePaths(root)
 	if err != nil {
 		t.Fatal(err)
@@ -201,6 +207,30 @@ func TestDoSourceMutationFullCognitionRefreshThenPlaybookSaved(t *testing.T) {
 		t.Fatal("unregistered cognition metadata was silently hidden", validation)
 	}
 	if err := os.Remove(unexpected); err != nil {
+		t.Fatal(err)
+	}
+	intentDir := filepath.Join(paths.RuntimeDir, "closeout-intents")
+	if err := os.MkdirAll(intentDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	foreignIntent := filepath.Join(intentDir, "intent-aaaaaaaaaaaaaaaaaaaaaaaa.json")
+	if err := os.WriteFile(foreignIntent, []byte(`{"version":1,"id":"intent-aaaaaaaaaaaaaaaaaaaaaaaa","state":"pending_update","workflow":"sp-do","scope":".specify/do/sessions/other","reason":"test","input_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","changed_paths":["source.txt"],"recorded_at":"2026-01-01T00:00:00Z"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if validation := doValidate(root, session, true); validation.Status == "passed" || !strings.Contains(strings.Join(validation.Blockers, " "), "intent-aaaaaaaaaaaaaaaaaaaaaaaa") {
+		t.Fatal("foreign cognition closeout intent was silently hidden", validation)
+	}
+	if err := os.Remove(foreignIntent); err != nil {
+		t.Fatal(err)
+	}
+	foreignDelta, err := delta.Begin(delta.BeginInput{Root: root, RuntimeDir: paths.RuntimeDir, OriginCommand: "sp-do", OriginFeatureDir: ".specify/do/sessions/other"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if validation := doValidate(root, session, true); validation.Status == "passed" || !strings.Contains(strings.Join(validation.Blockers, " "), foreignDelta.SessionID) {
+		t.Fatal("foreign cognition delta session was silently hidden", validation)
+	}
+	if err := os.RemoveAll(filepath.Join(paths.RuntimeDir, "delta-sessions", foreignDelta.SessionID)); err != nil {
 		t.Fatal(err)
 	}
 	session, err = doFinish(root, session, digest, doFinishInput{ExpectedRevision: session.Revision, KnowledgeStatus: "pending"})
@@ -418,8 +448,21 @@ func TestDoCognitionReceiptCrashMustReplayBeforeWorkRelease(t *testing.T) {
 	}
 	intent := intents[0]
 	validation := doValidate(root, session, false)
-	if _, err := recordMutationCognitionReceiptWithPaths(scope, "sp-do", ".specify/do/sessions/"+session.ID, "mark-dirty", "explicit debt must not hide pending owner recovery", "", validation.ChangedSourcePaths, validation.ChangedSourcePaths); err != nil {
+	beforeReceipt, err := os.ReadFile(mutationCognitionReceiptPath(scope))
+	if err != nil {
 		t.Fatal(err)
+	}
+	beforeIntent, err := os.ReadFile(closeoutIntentPath(paths, intent.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := recordMutationCognitionReceiptWithPaths(scope, "sp-do", ".specify/do/sessions/"+session.ID, "mark-dirty", "explicit debt must not hide pending owner recovery", "", validation.ChangedSourcePaths, validation.ChangedSourcePaths); err == nil || !strings.Contains(err.Error(), intent.ID) {
+		t.Fatalf("standalone fallback must refuse the pending Do intent: %v", err)
+	}
+	afterReceipt, _ := os.ReadFile(mutationCognitionReceiptPath(scope))
+	afterIntent, _ := os.ReadFile(closeoutIntentPath(paths, intent.ID))
+	if !bytes.Equal(beforeReceipt, afterReceipt) || !bytes.Equal(beforeIntent, afterIntent) {
+		t.Fatal("standalone refusal changed Do receipt or exact recovery intent")
 	}
 	if validation := doValidate(root, session, true); validation.Status == "passed" || !strings.Contains(strings.Join(validation.Blockers, " "), "remains pending") {
 		t.Fatalf("replacing the receipt hid the pending cognition intent: %+v", validation)
@@ -442,9 +485,10 @@ func TestDoCognitionReceiptCrashMustReplayBeforeWorkRelease(t *testing.T) {
 	playbookFinishFixture(t, root, session.ID, published)
 }
 
-func TestDoCognitionPendingIntentBlocksAfterSourceReturnsToBaseline(t *testing.T) {
+func doPendingIntentReturnedToBaselineFixture(t *testing.T) (string, DoSession, rt.Paths, closeoutIntent) {
+	t.Helper()
 	root, input := doFixture(t)
-	doSeedCognitionBaseline(t, root)
+	paths := doSeedCognitionBaseline(t, root)
 	input.WriteScope = []string{"source.txt"}
 	session, err := doStart(root, input)
 	if err != nil {
@@ -483,8 +527,20 @@ func TestDoCognitionPendingIntentBlocksAfterSourceReturnsToBaseline(t *testing.T
 		t.Fatal(err)
 	}
 	session = doRecordFixture(t, root, session, "restored-source-check-complete", doRecordEvent{AttemptID: "report-restored", TargetID: "report", Kind: "check", Event: "completed", Status: "passed", EvidenceOrigin: "agent_tool_observation", ToolCallID: "real-report-restored-baseline", Cwd: ".", StartedAt: now, FinishedAt: doNow(), ResultRefs: []DoResultRef{{Path: "out/report.json", Kind: "json"}}})
+	intents, err := listCloseoutIntents(paths)
+	if err != nil || len(intents) != 1 {
+		t.Fatalf("expected one pending Do cognition intent: %+v %v", intents, err)
+	}
+	return root, session, paths, intents[0]
+}
+
+func TestDoCognitionPendingIntentBlocksAfterSourceReturnsToBaseline(t *testing.T) {
+	root, session, _, _ := doPendingIntentReturnedToBaselineFixture(t)
 	if validation := doValidate(root, session, false); validation.Status != "passed" || len(validation.ChangedSourcePaths) != 0 {
 		t.Fatalf("fixture must have fresh passed execution with zero net source changes: %+v", validation)
+	}
+	if validation := doValidate(root, session, true); validation.Status == "passed" || !strings.Contains(strings.Join(validation.Blockers, " "), "remains pending") {
+		t.Fatalf("source return must keep the exact pending cognition recovery blocking terminal close: %+v", validation)
 	}
 	_, digest, err := loadDoSession(root, session.ID)
 	if err != nil {
@@ -492,6 +548,125 @@ func TestDoCognitionPendingIntentBlocksAfterSourceReturnsToBaseline(t *testing.T
 	}
 	if _, err := doFinish(root, session, digest, doFinishInput{ExpectedRevision: session.Revision, KnowledgeStatus: "not_applicable"}); err == nil || !strings.Contains(err.Error(), "remains pending") {
 		t.Fatalf("returning source to baseline released Work with a pending cognition intent: %v", err)
+	}
+}
+
+func doReplacePendingIntentForTest(t *testing.T, paths rt.Paths, previous closeoutIntent, replacement closeoutIntent) closeoutIntent {
+	t.Helper()
+	if err := os.Remove(closeoutIntentPath(paths, previous.ID)); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	digest := storedCloseoutIntentDigest(replacement)
+	replacement.ID = "intent-" + digest[:24]
+	replacement.InputDigest = digest
+	if err := writeCloseoutIntent(closeoutIntentPath(paths, replacement.ID), replacement); err != nil {
+		t.Fatal(err)
+	}
+	return replacement
+}
+
+func TestDoCognitionHistoricalPendingIntentStillRequiresCompleteChangedPathBinding(t *testing.T) {
+	root, session, paths, intent := doPendingIntentReturnedToBaselineFixture(t)
+
+	missingSourceFingerprint := intent
+	missingSourceFingerprint.DoBinding = &DoCognitionBinding{
+		SessionID:        intent.DoBinding.SessionID,
+		DefinitionEpoch:  intent.DoBinding.DefinitionEpoch,
+		DefinitionDigest: intent.DoBinding.DefinitionDigest,
+		ChangedPaths:     append([]string(nil), intent.DoBinding.ChangedPaths...),
+	}
+	current := doReplacePendingIntentForTest(t, paths, intent, missingSourceFingerprint)
+	if validation := doValidate(root, session, false); validation.Status == "passed" || !strings.Contains(strings.Join(validation.Blockers, " "), "source fingerprint binding is missing or malformed") {
+		t.Fatalf("historical source tolerance hid missing source fingerprint: %+v", validation)
+	}
+
+	malformedSourceFingerprint := intent
+	malformedSourceFingerprint.DoBinding = &DoCognitionBinding{
+		SessionID:         intent.DoBinding.SessionID,
+		DefinitionEpoch:   intent.DoBinding.DefinitionEpoch,
+		DefinitionDigest:  intent.DoBinding.DefinitionDigest,
+		SourceFingerprint: "not-a-sha256",
+		ChangedPaths:      append([]string(nil), intent.DoBinding.ChangedPaths...),
+	}
+	current = doReplacePendingIntentForTest(t, paths, current, malformedSourceFingerprint)
+	if validation := doValidate(root, session, false); validation.Status == "passed" || !strings.Contains(strings.Join(validation.Blockers, " "), "source fingerprint binding is missing or malformed") {
+		t.Fatalf("historical source tolerance hid malformed source fingerprint: %+v", validation)
+	}
+
+	unprovenSourceFingerprint := intent
+	unprovenSourceFingerprint.DoBinding = &DoCognitionBinding{
+		SessionID:         intent.DoBinding.SessionID,
+		DefinitionEpoch:   intent.DoBinding.DefinitionEpoch,
+		DefinitionDigest:  intent.DoBinding.DefinitionDigest,
+		SourceFingerprint: strings.Repeat("b", 64),
+		ChangedPaths:      append([]string(nil), intent.DoBinding.ChangedPaths...),
+	}
+	current = doReplacePendingIntentForTest(t, paths, current, unprovenSourceFingerprint)
+	if validation := doValidate(root, session, false); validation.Status == "passed" || !strings.Contains(strings.Join(validation.Blockers, " "), "source fingerprint is not proven by this Do operation") {
+		t.Fatalf("historical source tolerance hid unproven source fingerprint: %+v", validation)
+	}
+
+	emptyBinding := intent
+	emptyBinding.DoBinding = &DoCognitionBinding{
+		SessionID:         intent.DoBinding.SessionID,
+		DefinitionEpoch:   intent.DoBinding.DefinitionEpoch,
+		DefinitionDigest:  intent.DoBinding.DefinitionDigest,
+		SourceFingerprint: intent.DoBinding.SourceFingerprint,
+	}
+	current = doReplacePendingIntentForTest(t, paths, current, emptyBinding)
+	if validation := doValidate(root, session, false); validation.Status == "passed" || !strings.Contains(strings.Join(validation.Blockers, " "), "changed path binding is incomplete") {
+		t.Fatalf("historical source mismatch hid empty changed-path binding: %+v", validation)
+	}
+
+	mismatchedBinding := intent
+	mismatchedBinding.DoBinding = &DoCognitionBinding{
+		SessionID:         intent.DoBinding.SessionID,
+		DefinitionEpoch:   intent.DoBinding.DefinitionEpoch,
+		DefinitionDigest:  intent.DoBinding.DefinitionDigest,
+		SourceFingerprint: intent.DoBinding.SourceFingerprint,
+		ChangedPaths:      []string{"other-source.txt"},
+	}
+	current = doReplacePendingIntentForTest(t, paths, current, mismatchedBinding)
+	if validation := doValidate(root, session, false); validation.Status == "passed" || !strings.Contains(strings.Join(validation.Blockers, " "), "changed path binding is incomplete") {
+		t.Fatalf("historical source mismatch hid mismatched changed-path binding: %+v", validation)
+	}
+
+	foreignScope := intent
+	foreignScope.Scope = ".specify/do/sessions/do-ffffffffffffffffffffffff"
+	current = doReplacePendingIntentForTest(t, paths, current, foreignScope)
+	if validation := doValidate(root, session, false); validation.Status == "passed" || !strings.Contains(strings.Join(validation.Blockers, " "), "is not owned by this Do scope") {
+		t.Fatalf("historical source mismatch hid foreign scope: %+v", validation)
+	}
+
+	foreignEpoch := intent
+	foreignEpoch.DoBinding = &DoCognitionBinding{
+		SessionID:         intent.DoBinding.SessionID,
+		DefinitionEpoch:   intent.DoBinding.DefinitionEpoch + 1,
+		DefinitionDigest:  intent.DoBinding.DefinitionDigest,
+		SourceFingerprint: intent.DoBinding.SourceFingerprint,
+		ChangedPaths:      append([]string(nil), intent.DoBinding.ChangedPaths...),
+	}
+	current = doReplacePendingIntentForTest(t, paths, current, foreignEpoch)
+	if validation := doValidate(root, session, false); validation.Status == "passed" || !strings.Contains(strings.Join(validation.Blockers, " "), "binding is stale or belongs to another operation") {
+		t.Fatalf("historical source mismatch hid foreign epoch: %+v", validation)
+	}
+
+	foreignDigest := intent
+	foreignDigest.DoBinding = &DoCognitionBinding{
+		SessionID:         intent.DoBinding.SessionID,
+		DefinitionEpoch:   intent.DoBinding.DefinitionEpoch,
+		DefinitionDigest:  strings.Repeat("a", 64),
+		SourceFingerprint: intent.DoBinding.SourceFingerprint,
+		ChangedPaths:      append([]string(nil), intent.DoBinding.ChangedPaths...),
+	}
+	current = doReplacePendingIntentForTest(t, paths, current, foreignDigest)
+	if validation := doValidate(root, session, false); validation.Status == "passed" || !strings.Contains(strings.Join(validation.Blockers, " "), "binding is stale or belongs to another operation") {
+		t.Fatalf("historical source mismatch hid foreign definition digest: %+v", validation)
+	}
+
+	doReplacePendingIntentForTest(t, paths, current, intent)
+	if validation := doValidate(root, session, true); validation.Status == "passed" || !strings.Contains(strings.Join(validation.Blockers, " "), "remains pending") {
+		t.Fatalf("restored valid historical pending intent stopped blocking terminal close: %+v", validation)
 	}
 }
 

@@ -217,6 +217,7 @@ class WorkerTaskPacket:
     escalation_role: str = "debugger"
     retry_max: int = 2
     packet_version: int = 2
+    cognition_delta_contract: dict[str, object] = field(default_factory=dict)
 
 
 def _filter_dataclass_payload(

@@ -167,7 +167,7 @@ def test_workflow_keeps_frozen_consumers_and_all_existing_installation_gates():
     assert ordered.index(VERIFY) > ordered.index("Exercise wheel-only init, both upgrade orders, user edits and repair")
     all_runs = "\n".join(step.get("run", "") for step in job["steps"])
     assert "uv sync --frozen --extra test" in all_runs
-    assert "uv run --frozen --extra test pytest" in all_runs
+    assert "uv run --frozen --extra test --with hatchling pytest" in all_runs
     assert "uv run --frozen --extra test python" in all_runs
     assert "uv export --frozen" in all_runs
     for path in ("tests/integrations/test_e2e_installation.py", "tests/test_e2e_registration.py",

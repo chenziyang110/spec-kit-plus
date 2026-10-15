@@ -10,20 +10,23 @@ This command skips the formal feature-spec workflow while scaling task-local pla
 
 Use this whenever the requested outcome is clear enough for direct implementation but needs resumable state: focused fixes and tweaks, larger features, cross-cutting changes, multi-capability delivery, architecture or migration work, compatibility or rollout changes, and acceptance-heavy implementation are all valid quick tasks.
 
-Before the full Quick branch starts substantive execution, stage one runtime-owned
-Decision Checkpoint so the user can confirm product decisions once. Show the
+First understand the request and inspect bounded current-state evidence. Before
+the full Quick branch starts implementation, stage one runtime-owned Decision
+Checkpoint that explains the findings, proposed change, impact and verification
+so the user can confirm concrete product decisions once. Show the
 Delivery Map for awareness only. Later material product changes use the
 delta-only amendment contract; execution-only rearranges never re-confirm.
 
 ## Context
 
 - Primary inputs: the user's request, quick-task workspace state, CLI-selected Learning, the task-local project cognition query bundle with readiness and returned `minimal_live_reads`, and the smallest workflow-local state files needed for the touched area.
+- Before confirmation, use targeted existing source/log/test reads, safe bounded checks and read-only evidence workers to establish the current situation. For greenfield work, state the checked absence of an implementation and the available requirements; keep unknowns explicit. Product/test/harness writes, persistent instrumentation and implementation dispatch require runtime-confirmed or validated inherited decisions plus the normal Q-item and execution guards.
 - The leader owns `STATUS.md`, lane selection, join points, validation, and final summary state.
 - Quick mode is the resumable direct-delivery lane after `sp-fast`; it is an alternative to a formal specification workflow, not a size band below it.
 - Keep every `CA-###` consequence obligation traceable in `STATUS.md` or a referenced task-local planning artifact with affected objects, lifecycle states, dependency impact, recovery/validation proof, coverage gaps, and stop-and-reopen conditions. Broad consequence scope increases planning and validation depth inside quick; it does not require `sp-specify`.
 - Before substantive execution in the full Quick branch, stage `quick-confirmation-v1` through
   `specify-runtime quick checkpoint-stage` and present the runtime Decision
-  Checkpoint plus Delivery Map. Keep the approval surface to user-owned outcome,
+  Checkpoint; show the Delivery Map after confirmation. Keep the approval surface to current findings and their basis, user-owned outcome,
   visible result, scope, ordered work items and dependencies, work-item
   acceptance, recommended approach, assumptions and risks, overall completion
   evidence, and reconfirmation triggers. Delivery Map, waves, subagents, file

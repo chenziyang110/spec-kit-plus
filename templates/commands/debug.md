@@ -38,13 +38,18 @@ Clean closeout keys on `result_state`; not `status=ok`, `update_id`, `last_updat
 of cognition freshness or mutation closeout.
 
 1. Choose `leader-inline`, `subagent-assisted`, or `blocked` based on investigation size, safety, and packetizability; keep the leader responsible for session state and root-cause decisions.
-2. Create or resume the debug session through its CLI owner, query required workflow context through `specify-runtime artifact show`, run the Debug Cognition Gate, and confirm the Debug Understanding Checkpoint before reproduction, logs, source reads, code edits, or validation.
+2. Create or resume the debug session through its CLI owner, query required workflow context through `specify-runtime artifact show`, run the Debug Cognition Gate, and understand the report; ask for missing reporter facts only when they block diagnosis.
 3. Build the causal map, investigation contract, log plan, observer framing, and first evidence path; do not form a final root cause before reproduction and evidence.
 4. Investigate one active hypothesis at a time, record eliminated alternatives, confirm root cause, and reject surface-only fixes.
-5. Apply the minimum safe fix through the selected execution model, verify with reproduction and tests, review related risks, patch the debug session only through leased `specify-runtime artifact patch` calls, and close only as resolved or blocked.
+5. Present the evidence-backed Debug Understanding Checkpoint: explain the discovered problem and decisive evidence, concrete repair and affected scope, expected outcome, risks, and verification. Wait for the user's confirmation before any repair write or fix-worker dispatch. Then apply the minimum safe fix through the selected execution model, verify with reproduction and tests, review related risks, patch the debug session only through leased `specify-runtime artifact patch` calls, and close only as resolved or blocked after the existing final human-verification gate.
 
-If no reliable automated test surface exists, build the smallest viable test
-harness. If that expands beyond the first debug fix lane, preserve the debug
+If no reliable automated test surface exists, include the smallest viable
+harness in the concrete repair approval. Reuse that approval when its exact
+scope already covers the harness; do not ask again. If the gap prevents
+diagnosis itself, obtain bounded diagnostic-write authority through the same
+checkpoint before building the harness. Diagnostic-only authority does not approve a
+production fix: return to evidence investigation and obtain concrete repair
+confirmation first. If that expands beyond the first debug fix lane, preserve the debug
 session, expand the registered causal scope, and
 repair the harness inside the active Debug recovery lane.
 Do not invoke another user-invoked workflow automatically. Verify it, then return to the reproduction and resume the original reproduction and verification path in the same invocation.

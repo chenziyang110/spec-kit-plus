@@ -20,47 +20,51 @@ const playbookMaxJSONBytes = 256 * 1024
 // PlaybookDefinition is the ordered, reusable method. Runtime identity,
 // revisions, verification observations and usage counters are not agent input.
 type PlaybookDefinition struct {
-	Operation     string              `json:"operation"`
-	Target        string              `json:"target"`
-	Owner         string              `json:"owner"`
-	Variant       string              `json:"variant"`
-	Title         string              `json:"title"`
-	Goal          string              `json:"goal"`
-	Aliases       []string            `json:"aliases"`
-	Applicability map[string][]string `json:"applicability"`
-	SourceFiles   []string            `json:"source_files"`
-	Steps         []PlaybookStep      `json:"steps"`
-	Checks        []PlaybookCheck     `json:"checks"`
-	LearningRefs  []string            `json:"learning_refs"`
+	TaskFamily    string                       `json:"task_family,omitempty"`
+	Parameters    map[string]PlaybookParameter `json:"parameters,omitempty"`
+	Operation     string                       `json:"operation"`
+	Target        string                       `json:"target"`
+	Owner         string                       `json:"owner"`
+	Variant       string                       `json:"variant"`
+	Title         string                       `json:"title"`
+	Goal          string                       `json:"goal"`
+	Aliases       []string                     `json:"aliases"`
+	Applicability map[string][]string          `json:"applicability"`
+	SourceFiles   []string                     `json:"source_files"`
+	Steps         []PlaybookStep               `json:"steps"`
+	Checks        []PlaybookCheck              `json:"checks"`
+	LearningRefs  []string                     `json:"learning_refs"`
 }
 
 type PlaybookStep struct {
-	ID             string   `json:"id"`
-	Purpose        string   `json:"purpose"`
-	Cwd            string   `json:"cwd"`
-	Argv           []string `json:"argv"`
-	ScriptRef      string   `json:"script_ref,omitempty"`
-	SourceWrites   []string `json:"source_writes,omitempty"`
-	DependsOn      []string `json:"depends_on"`
-	Required       bool     `json:"required"`
-	ExpectedResult string   `json:"expected_result"`
-	SideEffect     string   `json:"side_effect"`
+	NativeAction   *PlaybookNativeAction `json:"native_action,omitempty"`
+	ID             string                `json:"id"`
+	Purpose        string                `json:"purpose"`
+	Cwd            string                `json:"cwd"`
+	Argv           []string              `json:"argv"`
+	ScriptRef      string                `json:"script_ref,omitempty"`
+	SourceWrites   []string              `json:"source_writes,omitempty"`
+	DependsOn      []string              `json:"depends_on"`
+	Required       bool                  `json:"required"`
+	ExpectedResult string                `json:"expected_result"`
+	SideEffect     string                `json:"side_effect"`
 }
 
 type PlaybookCheck struct {
-	ID             string          `json:"id"`
-	Purpose        string          `json:"purpose"`
-	Cwd            string          `json:"cwd"`
-	Argv           []string        `json:"argv"`
-	ScriptRef      string          `json:"script_ref,omitempty"`
-	DependsOn      []string        `json:"depends_on"`
-	Required       bool            `json:"required"`
-	ExpectedResult string          `json:"expected_result"`
-	Kind           string          `json:"kind"`
-	ResultPath     string          `json:"result_path,omitempty"`
-	JSONPointer    string          `json:"json_pointer,omitempty"`
-	ExpectedJSON   json.RawMessage `json:"expected_json,omitempty"`
-	MinCases       int             `json:"min_cases,omitempty"`
+	NativeAction   *PlaybookNativeAction `json:"native_action,omitempty"`
+	ID             string                `json:"id"`
+	Purpose        string                `json:"purpose"`
+	Cwd            string                `json:"cwd"`
+	Argv           []string              `json:"argv"`
+	ScriptRef      string                `json:"script_ref,omitempty"`
+	DependsOn      []string              `json:"depends_on"`
+	Required       bool                  `json:"required"`
+	ExpectedResult string                `json:"expected_result"`
+	Kind           string                `json:"kind"`
+	ResultPath     string                `json:"result_path,omitempty"`
+	JSONPointer    string                `json:"json_pointer,omitempty"`
+	ExpectedJSON   json.RawMessage       `json:"expected_json,omitempty"`
+	MinCases       int                   `json:"min_cases,omitempty"`
 }
 
 func playbookRequireJSONFields(raw []byte, names ...string) error {
@@ -91,12 +95,16 @@ func (definition *PlaybookDefinition) UnmarshalJSON(raw []byte) error {
 }
 
 func (step *PlaybookStep) UnmarshalJSON(raw []byte) error {
-	if err := playbookRequireJSONFields(raw, "id", "purpose", "cwd", "argv", "depends_on", "required", "expected_result", "side_effect"); err != nil {
-		return err
-	}
 	type plain PlaybookStep
 	var value plain
 	if err := decodePlaybookJSON(raw, &value); err != nil {
+		return err
+	}
+	fields := []string{"id", "purpose", "depends_on", "required", "expected_result", "side_effect"}
+	if value.NativeAction == nil {
+		fields = append(fields, "cwd", "argv")
+	}
+	if err := playbookRequireJSONFields(raw, fields...); err != nil {
 		return err
 	}
 	*step = PlaybookStep(value)
@@ -104,12 +112,16 @@ func (step *PlaybookStep) UnmarshalJSON(raw []byte) error {
 }
 
 func (check *PlaybookCheck) UnmarshalJSON(raw []byte) error {
-	if err := playbookRequireJSONFields(raw, "id", "purpose", "cwd", "argv", "depends_on", "required", "expected_result", "kind"); err != nil {
-		return err
-	}
 	type plain PlaybookCheck
 	var value plain
 	if err := decodePlaybookJSON(raw, &value); err != nil {
+		return err
+	}
+	fields := []string{"id", "purpose", "depends_on", "required", "expected_result", "kind"}
+	if value.NativeAction == nil {
+		fields = append(fields, "cwd", "argv")
+	}
+	if err := playbookRequireJSONFields(raw, fields...); err != nil {
 		return err
 	}
 	*check = PlaybookCheck(value)
@@ -256,6 +268,7 @@ func playbookNormalizeDefinition(definition PlaybookDefinition) PlaybookDefiniti
 	// Copy ordered collections before normalizing set-valued fields. Unlike
 	// Learning merge, this never sorts steps, argv, or verification order.
 	result := definition
+	result.Parameters = normalizePlaybookParameters(definition.Parameters)
 	result.Steps = append([]PlaybookStep{}, definition.Steps...)
 	result.Checks = append([]PlaybookCheck{}, definition.Checks...)
 	result.Applicability = map[string][]string{}
@@ -281,6 +294,7 @@ func playbookNormalizeDefinition(definition PlaybookDefinition) PlaybookDefiniti
 		result.Applicability[key] = uniqueSortedTrimmed(values)
 	}
 	for i := range result.Steps {
+		result.Steps[i].NativeAction = normalizePlaybookNativeAction(result.Steps[i].NativeAction)
 		result.Steps[i].Argv = append([]string{}, result.Steps[i].Argv...)
 		result.Steps[i].SourceWrites = uniqueSortedTrimmed(result.Steps[i].SourceWrites)
 		result.Steps[i].DependsOn = uniqueSortedTrimmed(result.Steps[i].DependsOn)
@@ -289,6 +303,7 @@ func playbookNormalizeDefinition(definition PlaybookDefinition) PlaybookDefiniti
 		}
 	}
 	for i := range result.Checks {
+		result.Checks[i].NativeAction = normalizePlaybookNativeAction(result.Checks[i].NativeAction)
 		result.Checks[i].Argv = append([]string{}, result.Checks[i].Argv...)
 		result.Checks[i].DependsOn = uniqueSortedTrimmed(result.Checks[i].DependsOn)
 		if result.Checks[i].DependsOn == nil {
@@ -309,7 +324,7 @@ func playbookNormalizeDefinition(definition PlaybookDefinition) PlaybookDefiniti
 	return result
 }
 
-func validatePlaybookDefinition(projectRoot string, definition PlaybookDefinition) error {
+func validateResolvedPlaybookDefinition(projectRoot string, definition PlaybookDefinition) error {
 	operations := map[string]bool{"build": true, "package": true, "test": true, "check": true, "generate": true, "maintenance": true, "custom": true}
 	if !operations[definition.Operation] {
 		return fmt.Errorf("playbook_operation_invalid")
@@ -353,7 +368,14 @@ func validatePlaybookDefinition(projectRoot string, definition PlaybookDefinitio
 	seen := map[string]bool{}
 	requiredSteps, requiredChecks := 0, 0
 	for _, step := range definition.Steps {
-		if err := validatePlaybookAction(projectRoot, step.ID, step.Purpose, step.Cwd, step.Argv, step.ScriptRef, step.DependsOn, step.ExpectedResult, seen, true); err != nil {
+		cwd := step.Cwd
+		if step.NativeAction != nil {
+			cwd = "."
+		}
+		if err := validatePlaybookAction(projectRoot, step.ID, step.Purpose, cwd, step.Argv, step.ScriptRef, step.DependsOn, step.ExpectedResult, seen, step.NativeAction == nil); err != nil {
+			return err
+		}
+		if err := validatePlaybookNativeAction(projectRoot, step.NativeAction, step.Argv, step.Cwd, step.ScriptRef); err != nil {
 			return err
 		}
 		if step.SideEffect != "read" && step.SideEffect != "local_write" && step.SideEffect != "external_mutation" {
@@ -380,13 +402,27 @@ func validatePlaybookDefinition(projectRoot string, definition PlaybookDefinitio
 		seen[step.ID] = true
 	}
 	for _, check := range definition.Checks {
-		if err := validatePlaybookAction(projectRoot, check.ID, check.Purpose, check.Cwd, check.Argv, check.ScriptRef, check.DependsOn, check.ExpectedResult, seen, check.Kind == "exit_code"); err != nil {
+		cwd := check.Cwd
+		if check.NativeAction != nil {
+			cwd = "."
+		}
+		if err := validatePlaybookAction(projectRoot, check.ID, check.Purpose, cwd, check.Argv, check.ScriptRef, check.DependsOn, check.ExpectedResult, seen, check.Kind == "exit_code"); err != nil {
+			return err
+		}
+		if err := validatePlaybookNativeAction(projectRoot, check.NativeAction, check.Argv, check.Cwd, check.ScriptRef); err != nil {
 			return err
 		}
 		switch check.Kind {
 		case "exit_code":
-			if check.ResultPath != "" || check.JSONPointer != "" || len(check.ExpectedJSON) > 0 || check.MinCases != 0 {
+			if check.NativeAction != nil || check.ResultPath != "" || check.JSONPointer != "" || len(check.ExpectedJSON) > 0 || check.MinCases != 0 {
 				return fmt.Errorf("playbook_check_fields_conflict")
+			}
+		case "observation":
+			if check.NativeAction == nil || len(check.DependsOn) == 0 || check.ResultPath != "" || check.MinCases != 0 || (check.JSONPointer != "" && !strings.HasPrefix(check.JSONPointer, "/")) || len(check.ExpectedJSON) == 0 || len(check.ExpectedJSON) > 8192 || !json.Valid(check.ExpectedJSON) {
+				return fmt.Errorf("playbook_observation_check_invalid")
+			}
+			if err := playbookRejectDuplicateKeys(check.ExpectedJSON); err != nil {
+				return err
 			}
 		case "file", "json", "junit":
 			if _, err := playbookSafePath(projectRoot, check.ResultPath, false); err != nil {
@@ -418,6 +454,9 @@ func validatePlaybookDefinition(projectRoot string, definition PlaybookDefinitio
 	}
 	if requiredSteps == 0 || requiredChecks == 0 {
 		return fmt.Errorf("playbook_required_execution_and_check_missing")
+	}
+	if err := doValidateNativeCoverage(definition); err != nil {
+		return err
 	}
 	policy, _, err := (learningService{projectRoot: projectRoot}).loadLearningPolicy(true)
 	if err != nil {

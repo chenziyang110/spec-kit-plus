@@ -1,13 +1,14 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/workerdelta"
 )
 
 // Uses the real result-submit route and Work/Quick fixtures in the full package.
@@ -45,8 +46,10 @@ func TestQuickDirectResultSubmitPreservesValidationFailure(t *testing.T) {
 	if got := submit(bad); got.Status != "invalid" || !strings.Contains(fmt.Sprint(got.Blockers), "validation_results[1]") {
 		t.Fatalf("submit: %#v", got)
 	}
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Fatalf("invalid submit wrote result: %v", err)
+	rejected := readWorkerStored(t, path)
+	firstHistory := rejected["submission_history"].([]any)
+	if rejected["status"] != "pending" || rejected["cognition_result_binding"] != nil || len(firstHistory) != 1 || firstHistory[0].(map[string]any)["status"] != "rejected" || firstHistory[0].(map[string]any)["result_json"] != bad {
+		t.Fatal("registered owner lost rejected input or minted a current proof", rejected)
 	}
 	if got := accept(); got.Status == "ok" {
 		t.Fatal("accepted rejected submission")
@@ -77,8 +80,28 @@ func TestQuickDirectResultSubmitPreservesValidationFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(before, after) {
-		t.Fatal("invalid retry replaced existing result")
+	beforeStored, err := workerdelta.Decode(before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterStored, err := workerdelta.Decode(after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeCurrent, err := workerdelta.CandidateFromStored(beforeStored)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterCurrent, err := workerdelta.CandidateFromStored(afterStored)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !workerdelta.Same(beforeCurrent, afterCurrent) || !workerdelta.Same(beforeStored["cognition_result_binding"], afterStored["cognition_result_binding"]) {
+		t.Fatal("invalid retry replaced current result or proof")
+	}
+	history := afterStored["submission_history"].([]any)
+	if len(history) != 3 || history[2].(map[string]any)["status"] != "rejected" || history[2].(map[string]any)["result_json"] != bad {
+		t.Fatal("invalid retry discarded history")
 	}
 	green := strings.Replace(red, `"command":"integration","status":"failed"`, `"command":"integration","status":"passed"`, 1)
 	if got := submit(green); got.Status != "ok" {

@@ -17,7 +17,9 @@ import (
 	"strings"
 	"time"
 
+	cognitionquery "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/query"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runcontrol"
+	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
 type doAction struct {
@@ -26,13 +28,14 @@ type doAction struct {
 	sourceWrites       []string
 	required           bool
 	check              *PlaybookCheck
+	nativeAction       *PlaybookNativeAction
 }
 
 func doFindAction(session DoSession, kind, id string) (doAction, error) {
 	if kind == "step" {
 		for _, step := range session.Definition.Steps {
 			if step.ID == id {
-				return doAction{id: id, kind: kind, cwd: step.Cwd, argv: step.Argv, dependencies: step.DependsOn, sourceWrites: step.SourceWrites, required: step.Required}, nil
+				return doAction{id: id, kind: kind, cwd: step.Cwd, argv: step.Argv, dependencies: step.DependsOn, sourceWrites: step.SourceWrites, required: step.Required, nativeAction: step.NativeAction}, nil
 			}
 		}
 	}
@@ -40,7 +43,7 @@ func doFindAction(session DoSession, kind, id string) (doAction, error) {
 		for _, check := range session.Definition.Checks {
 			if check.ID == id {
 				c := check
-				return doAction{id: id, kind: kind, cwd: c.Cwd, argv: c.Argv, dependencies: c.DependsOn, required: c.Required, check: &c}, nil
+				return doAction{id: id, kind: kind, cwd: c.Cwd, argv: c.Argv, dependencies: c.DependsOn, required: c.Required, check: &c, nativeAction: c.NativeAction}, nil
 			}
 		}
 	}
@@ -50,7 +53,7 @@ func doFindAction(session DoSession, kind, id string) (doAction, error) {
 func doLatestAttempts(session DoSession) map[string]DoAttempt {
 	result := map[string]DoAttempt{}
 	for _, a := range session.Attempts {
-		if !doAttemptInCurrentDefinition(session, a) {
+		if !doAttemptInCurrentDefinition(session, a) && !doRetainedAttempt(session, a) {
 			continue
 		}
 		result[a.TargetID] = a
@@ -77,11 +80,14 @@ func doApplyRecordEvent(root string, session DoSession, event doRecordEvent, pre
 		if index >= 0 {
 			return session, nil, fmt.Errorf("attempt already exists")
 		}
-		if event.Status != "" || event.ToolCallID != "" || event.ExitCode != nil || len(event.ResultRefs) > 0 {
+		if event.Status != "" || event.ToolCallID != "" || event.ExitCode != nil || len(event.ResultRefs) > 0 || event.NativeObservation != nil || event.NativeAction != nil {
 			return session, nil, fmt.Errorf("started registers intent only; record observations after actual execution")
 		}
 		latest := doLatestAttempts(session)
 		if previous, ok := latest[action.id]; ok {
+			if err := doRetryRecoveryReady(root, previous); err != nil {
+				return session, nil, err
+			}
 			if previous.Status == "running" || (previous.Status == "interrupted" && previous.Recovery == nil) {
 				return session, nil, fmt.Errorf("inspect prior process and side effects through do resume before retry")
 			}
@@ -104,9 +110,12 @@ func doApplyRecordEvent(root string, session DoSession, event doRecordEvent, pre
 			if doAttemptResultFingerprint(latest[dependency]) != fingerprint {
 				return session, nil, fmt.Errorf("dependency %s evidence is stale for the current source", dependency)
 			}
+			if err := doDependencyReady(root, session, latest, dependency, fingerprint); err != nil {
+				return session, nil, err
+			}
 			dependencyAttempts[dependency] = latest[dependency].ID
 		}
-		session.Attempts = append(session.Attempts, DoAttempt{ID: event.AttemptID, TargetID: event.TargetID, Kind: event.Kind, Status: "running", DefinitionDigest: session.DefinitionDigest, DefinitionEpoch: doCurrentDefinitionEpoch(session), SourceFingerprint: fingerprint, Sources: sources, SourceRevision: revision, DirtyPaths: dirty, RegisteredAt: doNow(), DependencyAttempts: dependencyAttempts, Argv: append([]string{}, action.argv...), Cwd: action.cwd})
+		session.Attempts = append(session.Attempts, DoAttempt{ID: event.AttemptID, TargetID: event.TargetID, Kind: event.Kind, Status: "running", DefinitionDigest: session.DefinitionDigest, DefinitionEpoch: doCurrentDefinitionEpoch(session), SourceFingerprint: fingerprint, Sources: sources, SourceRevision: revision, DirtyPaths: dirty, RegisteredAt: doNow(), DependencyAttempts: dependencyAttempts, Argv: append([]string{}, action.argv...), Cwd: action.cwd, NativeAction: normalizePlaybookNativeAction(action.nativeAction)})
 		session.ExecutionOutcome = "pending"
 		return session, nil, nil
 	}
@@ -132,12 +141,14 @@ func doApplyRecordEvent(root string, session DoSession, event doRecordEvent, pre
 	if !reflect.DeepEqual(event.Argv, attempt.Argv) && !(len(event.Argv) == 0 && len(attempt.Argv) == 0) {
 		return session, nil, fmt.Errorf("observed argv differs from the frozen action")
 	}
-	if strings.TrimSpace(event.Cwd) == "" {
-		return session, nil, fmt.Errorf("observed cwd is required")
-	}
-	cwd, err := doPath(root, event.Cwd, true)
-	if err != nil || cwd != path.Clean(attempt.Cwd) {
-		return session, nil, fmt.Errorf("observed cwd differs from the frozen action")
+	if action.nativeAction == nil {
+		if strings.TrimSpace(event.Cwd) == "" {
+			return session, nil, fmt.Errorf("observed cwd is required")
+		}
+		cwd, err := doPath(root, event.Cwd, true)
+		if err != nil || cwd != path.Clean(attempt.Cwd) {
+			return session, nil, fmt.Errorf("observed cwd differs from the frozen action")
+		}
 	}
 	started, err := time.Parse(time.RFC3339Nano, event.StartedAt)
 	if err != nil {
@@ -175,6 +186,10 @@ func doApplyRecordEvent(root string, session DoSession, event doRecordEvent, pre
 	if event.Status == "passed" && event.ExitCode != nil && *event.ExitCode != 0 {
 		return session, nil, fmt.Errorf("nonzero command exit cannot be passed")
 	}
+	nativeRef, nativeDigest, nativeUpdates, err := doPrepareNativeObservation(root, session, action, attempt, event)
+	if err != nil {
+		return session, nil, err
+	}
 	afterSources, fingerprint, afterRevision, afterDirty, err := doCaptureSource(root, session.Definition, session.WriteScope)
 	if err != nil {
 		return session, nil, err
@@ -203,7 +218,7 @@ func doApplyRecordEvent(root string, session DoSession, event doRecordEvent, pre
 		return session, nil, fmt.Errorf("too many evidence files")
 	}
 	results := []DoResultRef{}
-	updates := []fileTransactionUpdate{}
+	updates := append([]fileTransactionUpdate{}, nativeUpdates...)
 	for n, ref := range event.ResultRefs {
 		if ref.SnapshotRef != "" || ref.SnapshotSHA256 != "" || ref.Size != 0 {
 			return session, nil, fmt.Errorf("snapshot_ref, snapshot_sha256, and size are runtime-owned")
@@ -261,7 +276,7 @@ func doApplyRecordEvent(root string, session DoSession, event doRecordEvent, pre
 		results = append(results, DoResultRef{Path: p, Kind: ref.Kind, SHA256: digest, SnapshotRef: snapshotRef, SnapshotSHA256: doBytesDigest(raw), Size: info.Size()})
 		updates = append(updates, fileTransactionUpdate{Path: snapshotPath, Content: raw, Perm: 0o600})
 	}
-	if action.check != nil && event.Status == "passed" {
+	if action.check != nil && action.check.Kind != "observation" && event.Status == "passed" {
 		if err := doCheckEvidence(root, *action.check, results, false); err != nil {
 			return session, nil, err
 		}
@@ -277,6 +292,8 @@ func doApplyRecordEvent(root string, session DoSession, event doRecordEvent, pre
 	attempt.Cancelled = event.Cancelled
 	attempt.Summary = event.Summary
 	attempt.Results = results
+	attempt.NativeObservationRef = nativeRef
+	attempt.NativeObservationSHA256 = nativeDigest
 	attempt.AfterSourceFingerprint = fingerprint
 	attempt.AfterSources = afterSources
 	attempt.AfterDirtyPaths = afterDirty
@@ -493,6 +510,10 @@ func doAuditJUnit(raw []byte, minCases int) error {
 
 func doValidate(root string, session DoSession, requireCognition bool) DoValidation {
 	validation := DoValidation{Status: "blocked", EvidenceOrigin: "agent_tool_observation", DefinitionDigest: session.DefinitionDigest, VerifiedAt: doNow(), Blockers: []string{}, ChangedSourcePaths: []string{}, CognitionCloseout: "not_applicable"}
+	if err := doVerifyInstanceBinding(root, session); err != nil {
+		validation.Blockers = append(validation.Blockers, err.Error())
+		return validation
+	}
 	if session.Context["os"] != runtime.GOOS || session.Context["arch"] != runtime.GOARCH {
 		validation.Blockers = append(validation.Blockers, "the current runtime platform differs from the frozen operation context")
 	}
@@ -544,6 +565,9 @@ func doValidate(root string, session DoSession, requireCognition bool) DoValidat
 			validation.Blockers = append(validation.Blockers, "attempt "+attempt.ID+" is interrupted and needs evidence-backed recovery before closeout")
 		}
 		if attempt.Recovery != nil {
+			if err := doRecoveryMatchesAttempt(attempt, *attempt.Recovery); err != nil {
+				validation.Blockers = append(validation.Blockers, "attempt "+attempt.ID+" recovery evidence: "+err.Error())
+			}
 			if err := doVerifyRecoveryEvidence(root, *attempt.Recovery); err != nil {
 				validation.Blockers = append(validation.Blockers, "attempt "+attempt.ID+" recovery evidence: "+err.Error())
 			}
@@ -555,6 +579,21 @@ func doValidate(root string, session DoSession, requireCognition bool) DoValidat
 	} else {
 		for _, p := range changed {
 			if doScopeContains([]string{path.Dir(doSessionRef(session.ID))}, p) {
+				continue
+			}
+			if doCognitionRuntimeExpansionSnapshot(root, p) {
+				continue
+			}
+			if owned, ownerErr := doCognitionCloseoutIntentOwnedBySession(root, session, fingerprint, p); owned {
+				if ownerErr != nil {
+					validation.Blockers = append(validation.Blockers, ownerErr.Error())
+				}
+				continue
+			}
+			if owned, ownerErr := doCognitionDeltaSessionOwnedBySession(root, session, fingerprint, p); owned {
+				if ownerErr != nil {
+					validation.Blockers = append(validation.Blockers, ownerErr.Error())
+				}
 				continue
 			}
 			metadataOwned := false
@@ -664,7 +703,7 @@ func doValidateAttempt(root string, session DoSession, latest map[string]DoAttem
 		validation.Blockers = append(validation.Blockers, kind+" "+id+" has no current passed attempt")
 		return
 	}
-	if attempt.Kind != kind || attempt.DefinitionDigest != session.DefinitionDigest {
+	if attempt.Kind != kind || (!doAttemptInCurrentDefinition(session, attempt) && !doRetainedAttempt(session, attempt)) {
 		validation.Blockers = append(validation.Blockers, kind+" "+id+" evidence binding is stale")
 		return
 	}
@@ -692,6 +731,10 @@ func doValidateAttempt(root string, session DoSession, latest map[string]DoAttem
 	}
 	if !reflect.DeepEqual(action.argv, attempt.Argv) && !(len(action.argv) == 0 && len(attempt.Argv) == 0) {
 		validation.Blockers = append(validation.Blockers, "attempt argv was altered")
+		return
+	}
+	if err := doValidateNativeAttempt(root, session, action, attempt); err != nil {
+		validation.Blockers = append(validation.Blockers, err.Error())
 		return
 	}
 	for _, dependency := range action.dependencies {
@@ -727,11 +770,19 @@ func doValidateAttempt(root string, session DoSession, latest map[string]DoAttem
 			}
 		}
 	}
-	if action.check != nil {
+	if action.check != nil && action.check.Kind != "observation" {
 		if err := doCheckEvidence(root, *action.check, attempt.Results, true); err != nil {
 			validation.Blockers = append(validation.Blockers, err.Error())
 			return
 		}
 	}
 	*accepted = append(*accepted, attempt)
+}
+
+func doCognitionRuntimeExpansionSnapshot(root, p string) bool {
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		return false
+	}
+	return cognitionquery.IsRuntimeExpansionSnapshot(paths, p)
 }

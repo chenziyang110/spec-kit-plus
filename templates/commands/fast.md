@@ -180,6 +180,7 @@ Do not bypass `/sp-quick` and require `/sp-specify` because work is large or con
    - Do not add planning artifacts to satisfy this gate on the fast path. If required consequence outputs are needed, upgrade instead of manufacturing durable artifacts in `sp-fast`.
 
 5. **Verify**
+   - Before the final check of changed source, first call the planner in the shared inline closeout contract for the owned changed paths, then use its inputs to begin the native work/source binding. Seal that exact binding with the fresh check observations and require its current check at closeout. Runtime-owned cognition control state does not create a Fast planning artifact, worker packet, or review lane.
    - If playbook command tiers exist, focused is the fast-lane acceptance check.
    - Otherwise run the smallest meaningful local verification for the change.
    - Prefer targeted existing tests or a direct sanity check over broad workflows.

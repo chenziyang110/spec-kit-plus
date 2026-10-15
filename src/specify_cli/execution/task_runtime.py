@@ -24,6 +24,9 @@ from .packet_compiler import compile_worker_task_packet
 from .packet_schema import worker_task_packet_payload
 from .result_normalizer import normalize_worker_task_result_payload
 from .result_schema import worker_task_result_payload
+from .submission_history import (
+    append_submission, bind_result_acceptance, read_result_owner, retained_submission_paths,
+)
 
 
 class TaskRuntimeError(RuntimeError):
@@ -43,6 +46,24 @@ def _json_bytes(payload: Mapping[str, Any]) -> bytes:
 
 def _sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
+
+
+def _submission_preconditions(root: Path, feature: Path, task_id: str,
+                              *, accepting: bool = False) -> dict[Path, bytes | None]:
+    paths = [
+        feature / "task-index.json", _lifecycle_path(feature, task_id),
+        _execution_state_path(feature), feature / "implement-tracker.md",
+        _result_path(feature, task_id),
+    ]
+    if accepting:
+        paths.append(feature / "tasks.md")
+    before: dict[Path, bytes | None] = {}
+    for path in paths:
+        try:
+            before[path] = read_local_state_bytes(path, root=root)
+        except FileNotFoundError:
+            before[path] = None
+    return before
 
 
 def _project_feature(project_root: Path, feature_dir: Path | str) -> tuple[Path, Path]:
@@ -743,6 +764,7 @@ def record_task_result(
 ) -> dict[str, Any]:
     root, feature = _project_feature(project_root, feature_dir)
     normalized_id = _normalize_task_id(task_id)
+    before = _submission_preconditions(root, feature, normalized_id)
     task_index = _task_index(root, feature)
     _position, task = _task_entry(task_index, normalized_id)
     lifecycle = _read_lifecycle(root, feature, normalized_id)
@@ -750,48 +772,67 @@ def record_task_result(
         raise TaskRuntimeError(
             f"task {normalized_id} cannot record a result from status {lifecycle.get('status')}"
         )
+    result_path = _result_path(feature, normalized_id)
+    result_ref = result_path.relative_to(feature).as_posix()
+    binding_result_ref = result_path.relative_to(root).as_posix()
+    previous = read_result_owner(before[result_path])
+    attempt_id = f"{normalized_id}:revision-{int(lifecycle.get('revision') or 0)}:submission-{len((previous or {}).get('submission_history', [])) + (2 if previous and not previous.get('submission_history') else 1)}"
     try:
-        result = normalize_worker_task_result_payload(raw_result)
-    except Exception as exc:
-        raise TaskRuntimeError(f"worker result is invalid: {exc}") from exc
-    if result.task_id.strip().upper() != normalized_id:
-        raise TaskRuntimeError(
-            f"worker result task_id {result.task_id} does not match {normalized_id}"
-        )
-    if result.status == "pending":
-        raise TaskRuntimeError("pending worker results cannot be merged")
-    if result.status == "blocked" and (
-        not result.blockers or not result.suggested_recovery_actions
-    ):
-        raise TaskRuntimeError(
-            "blocked worker results require blockers and suggested_recovery_actions"
-        )
-    if result.status == "success" and result.blockers:
-        raise TaskRuntimeError("successful worker results cannot contain blockers")
-    result_payload = worker_task_result_payload(result)
-    if result.status == "success":
         try:
+            result = normalize_worker_task_result_payload(raw_result)
+        except (TypeError, ValueError) as exc:
+            raise TaskRuntimeError(f"worker result is invalid: {exc}") from exc
+        if result.task_id.strip().upper() != normalized_id:
+            raise TaskRuntimeError(
+                f"worker result task_id {result.task_id} does not match {normalized_id}"
+            )
+        if result.status == "pending":
+            raise TaskRuntimeError("pending worker results cannot be merged")
+        if result.status == "blocked" and (
+            not result.blockers or not result.suggested_recovery_actions
+        ):
+            raise TaskRuntimeError(
+                "blocked worker results require blockers and suggested_recovery_actions"
+            )
+        if result.status == "success" and result.blockers:
+            raise TaskRuntimeError("successful worker results cannot contain blockers")
+        result_payload = worker_task_result_payload(result)
+        if result.status == "success":
             _validate_task_acceptance_evidence(
                 task,
                 result_payload.get("validation_results"),
                 result_payload.get("blockers"),
             )
-        except TaskRuntimeError as exc:
-            raise TaskRuntimeError(
-                "successful worker result is not acceptance-ready: "
-                f"{exc}; task {normalized_id} remains {lifecycle.get('status')}"
-            ) from exc
-    result_path = _result_path(feature, normalized_id)
-    result_ref = result_path.relative_to(feature).as_posix()
+    except TaskRuntimeError as exc:
+        rejected = append_submission(
+            previous, {"task_id": normalized_id, "status": "pending"},
+            result_ref=binding_result_ref, attempt_id=attempt_id,
+            lifecycle_revision=int(lifecycle.get("revision") or 0),
+            rejection_reason=str(exc), raw_input=(asdict(raw_result) if hasattr(raw_result, "__dataclass_fields__") else raw_result),
+        )
+        try:
+            apply_workflow_transaction(
+                root, kind="implement.result.reject", updates={result_path: _json_bytes(rejected)},
+                expected_before=before,
+            )
+        except WorkflowTransactionError as transaction_exc:
+            raise TaskRuntimeError(str(transaction_exc)) from transaction_exc
+        raise
     status_map = {"success": "implemented", "blocked": "blocked", "failed": "failed"}
     lifecycle_status = status_map[result.status]
     revision = int(lifecycle.get("revision") or 0) + 1
+    result_payload = append_submission(
+        previous, result_payload, result_ref=binding_result_ref, attempt_id=attempt_id,
+        lifecycle_revision=revision,
+    )
+    retained_paths, unaccounted_sequences = retained_submission_paths(result_payload)
     lifecycle.update(
         {
             "revision": revision,
             "status": lifecycle_status,
             "result_ref": result_ref,
-            "changed_paths": list(result.changed_files),
+            "changed_paths": retained_paths,
+            "cognition_pending_submission_sequences": unaccounted_sequences,
             "validation": [asdict(item) for item in result.validation_results],
             "blockers": list(result.blockers),
             "recovery": (
@@ -829,6 +870,7 @@ def record_task_result(
                 _execution_state_path(feature): _json_bytes(state),
                 feature / "implement-tracker.md": _render_tracker(feature, state),
             },
+            expected_before=before,
         )
     except WorkflowTransactionError as exc:
         raise TaskRuntimeError(str(exc)) from exc
@@ -849,6 +891,7 @@ def accept_task(
 ) -> dict[str, Any]:
     root, feature = _project_feature(project_root, feature_dir)
     normalized_id = _normalize_task_id(task_id)
+    before = _submission_preconditions(root, feature, normalized_id, accepting=True)
     task_index = _task_index(root, feature)
     _position, task = _task_entry(task_index, normalized_id)
     lifecycle = _read_lifecycle(root, feature, normalized_id)
@@ -861,6 +904,28 @@ def accept_task(
     )
 
     revision = int(lifecycle.get("revision") or 0) + 1
+    result_path = _result_path(feature, normalized_id)
+    current_result = read_result_owner(before[result_path])
+    if current_result is None:
+        raise TaskRuntimeError("task acceptance requires the stored worker result")
+    binding = current_result.get("cognition_result_binding")
+    if binding is not None and (
+        not isinstance(binding, dict)
+        or binding.get("result_ref") != result_path.relative_to(root).as_posix()
+        or binding.get("lifecycle_revision") != lifecycle.get("revision")
+        or current_result.get("task_id") != normalized_id
+        or current_result.get("validation_results") != lifecycle.get("validation")
+        or current_result.get("blockers") != lifecycle.get("blockers")
+    ):
+        raise TaskRuntimeError("task acceptance does not match the lifecycle submission")
+    try:
+        accepted_result = bind_result_acceptance(
+            current_result,
+            acceptance_ref=_lifecycle_path(feature, normalized_id).relative_to(root).as_posix(),
+            acceptance_revision=revision,
+        )
+    except ValueError as exc:
+        raise TaskRuntimeError(str(exc)) from exc
     lifecycle["revision"] = revision
     lifecycle["status"] = "accepted"
     task["status"] = "accepted"
@@ -886,12 +951,14 @@ def accept_task(
             root,
             kind="implement.task.accept",
             updates={
+                result_path: _json_bytes(accepted_result),
                 _lifecycle_path(feature, normalized_id): _json_bytes(lifecycle),
                 feature / "task-index.json": _json_bytes(task_index),
                 feature / "tasks.md": projected_tasks.encode("utf-8"),
                 _execution_state_path(feature): _json_bytes(state),
                 feature / "implement-tracker.md": _render_tracker(feature, state),
             },
+            expected_before=before,
         )
     except WorkflowTransactionError as exc:
         raise TaskRuntimeError(str(exc)) from exc

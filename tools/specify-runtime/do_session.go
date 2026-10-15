@@ -1,6 +1,7 @@
 package main
 
-const doSessionSchema = "spec-kit-do-session-v1"
+const doSessionSchema = "spec-kit-do-session-v2"
+const doLegacySessionSchema = "spec-kit-do-session-v1"
 const doSessionSizeLimit = 8 * 1024 * 1024
 
 type DoMethodBinding struct {
@@ -18,13 +19,18 @@ type DoSession struct {
 	Goal               string                     `json:"goal"`
 	Definition         PlaybookDefinition         `json:"definition"`
 	DefinitionDigest   string                     `json:"definition_digest"`
+	TemplateDefinition *PlaybookDefinition        `json:"template_definition,omitempty"`
+	TemplateDigest     string                     `json:"template_digest,omitempty"`
+	Parameters         map[string]string          `json:"parameters,omitempty"`
 	DefinitionEpoch    int                        `json:"definition_epoch,omitempty"`
 	DefinitionHistory  []DoDefinitionEpoch        `json:"definition_history,omitempty"`
 	ReplanReceipts     map[string]DoReplanReceipt `json:"replan_receipts,omitempty"`
 	MethodBinding      *DoMethodBinding           `json:"method_binding,omitempty"`
 	Context            map[string]string          `json:"context"`
 	InitialSources     map[string]string          `json:"initial_sources"`
-	BaselineJSON       string                     `json:"baseline_json"`
+	BaselineJSON       string                     `json:"baseline_json,omitempty"`
+	BaselineRef        string                     `json:"baseline_ref,omitempty"`
+	BaselineSHA256     string                     `json:"baseline_sha256,omitempty"`
 	WriteScope         []string                   `json:"write_scope"`
 	OutputScope        []string                   `json:"output_scope"`
 	MetadataWriteScope []string                   `json:"metadata_write_scope,omitempty"`
@@ -44,35 +50,38 @@ type DoSession struct {
 }
 
 type DoAttempt struct {
-	ID                     string            `json:"id"`
-	TargetID               string            `json:"target_id"`
-	Kind                   string            `json:"kind"`
-	Status                 string            `json:"status"`
-	DefinitionDigest       string            `json:"definition_digest"`
-	DefinitionEpoch        int               `json:"definition_epoch,omitempty"`
-	SourceFingerprint      string            `json:"source_fingerprint"`
-	Sources                map[string]string `json:"sources"`
-	AfterSourceFingerprint string            `json:"after_source_fingerprint,omitempty"`
-	AfterSources           map[string]string `json:"after_sources"`
-	AfterDirtyPaths        []string          `json:"after_dirty_paths"`
-	SourceChangedPaths     []string          `json:"source_changed_paths,omitempty"`
-	SourceRevision         string            `json:"source_revision"`
-	DirtyPaths             []string          `json:"dirty_paths"`
-	RegisteredAt           string            `json:"registered_at"`
-	DependencyAttempts     map[string]string `json:"dependency_attempts"`
-	EvidenceOrigin         string            `json:"evidence_origin,omitempty"`
-	ToolCallID             string            `json:"tool_call_id,omitempty"`
-	Argv                   []string          `json:"argv"`
-	Cwd                    string            `json:"cwd"`
-	StartedAt              string            `json:"started_at,omitempty"`
-	FinishedAt             string            `json:"finished_at,omitempty"`
-	ElapsedMS              int64             `json:"elapsed_ms,omitempty"`
-	ExitCode               *int              `json:"exit_code,omitempty"`
-	TimedOut               bool              `json:"timed_out,omitempty"`
-	Cancelled              bool              `json:"cancelled,omitempty"`
-	Summary                string            `json:"summary,omitempty"`
-	Results                []DoResultRef     `json:"result_refs,omitempty"`
-	Recovery               *DoRecovery       `json:"recovery,omitempty"`
+	NativeAction            *PlaybookNativeAction `json:"native_action,omitempty"`
+	NativeObservationRef    string                `json:"native_observation_ref,omitempty"`
+	NativeObservationSHA256 string                `json:"native_observation_sha256,omitempty"`
+	ID                      string                `json:"id"`
+	TargetID                string                `json:"target_id"`
+	Kind                    string                `json:"kind"`
+	Status                  string                `json:"status"`
+	DefinitionDigest        string                `json:"definition_digest"`
+	DefinitionEpoch         int                   `json:"definition_epoch,omitempty"`
+	SourceFingerprint       string                `json:"source_fingerprint"`
+	Sources                 map[string]string     `json:"sources"`
+	AfterSourceFingerprint  string                `json:"after_source_fingerprint,omitempty"`
+	AfterSources            map[string]string     `json:"after_sources"`
+	AfterDirtyPaths         []string              `json:"after_dirty_paths"`
+	SourceChangedPaths      []string              `json:"source_changed_paths,omitempty"`
+	SourceRevision          string                `json:"source_revision"`
+	DirtyPaths              []string              `json:"dirty_paths"`
+	RegisteredAt            string                `json:"registered_at"`
+	DependencyAttempts      map[string]string     `json:"dependency_attempts"`
+	EvidenceOrigin          string                `json:"evidence_origin,omitempty"`
+	ToolCallID              string                `json:"tool_call_id,omitempty"`
+	Argv                    []string              `json:"argv"`
+	Cwd                     string                `json:"cwd"`
+	StartedAt               string                `json:"started_at,omitempty"`
+	FinishedAt              string                `json:"finished_at,omitempty"`
+	ElapsedMS               int64                 `json:"elapsed_ms,omitempty"`
+	ExitCode                *int                  `json:"exit_code,omitempty"`
+	TimedOut                bool                  `json:"timed_out,omitempty"`
+	Cancelled               bool                  `json:"cancelled,omitempty"`
+	Summary                 string                `json:"summary,omitempty"`
+	Results                 []DoResultRef         `json:"result_refs,omitempty"`
+	Recovery                *DoRecovery           `json:"recovery,omitempty"`
 }
 
 type DoResultRef struct {
@@ -85,11 +94,12 @@ type DoResultRef struct {
 }
 
 type DoRecovery struct {
+	NativeActionSettled  bool   `json:"native_action_settled,omitempty"`
 	Reason               string `json:"reason"`
 	EvidenceRef          string `json:"evidence_ref,omitempty"`
 	EvidenceText         string `json:"evidence_text,omitempty"`
 	EvidenceSHA256       string `json:"evidence_sha256,omitempty"`
-	ProcessesStopped     bool   `json:"processes_stopped"`
+	ProcessesStopped     bool   `json:"processes_stopped,omitempty"`
 	SideEffectsInspected bool   `json:"side_effects_inspected"`
 }
 
@@ -127,6 +137,8 @@ type DoBlocker struct {
 }
 
 type DoPlaybookValidationReceipt struct {
+	InstanceDigest    string            `json:"instance_digest,omitempty"`
+	Parameters        map[string]string `json:"parameters,omitempty"`
 	SessionID         string            `json:"session_id"`
 	MethodID          string            `json:"method_id"`
 	BaseRevision      int               `json:"base_revision"`
@@ -140,6 +152,7 @@ type DoPlaybookValidationReceipt struct {
 }
 
 type doStartInput struct {
+	Parameters    map[string]string  `json:"parameters,omitempty"`
 	SessionID     string             `json:"session_id,omitempty"`
 	Goal          string             `json:"goal"`
 	Definition    PlaybookDefinition `json:"definition"`
@@ -159,22 +172,24 @@ type doRecordInput struct {
 }
 
 type doRecordEvent struct {
-	AttemptID      string        `json:"attempt_id"`
-	TargetID       string        `json:"target_id"`
-	Kind           string        `json:"kind"`
-	Event          string        `json:"event"`
-	Status         string        `json:"status,omitempty"`
-	EvidenceOrigin string        `json:"evidence_origin,omitempty"`
-	ToolCallID     string        `json:"tool_call_id,omitempty"`
-	Argv           []string      `json:"argv,omitempty"`
-	Cwd            string        `json:"cwd,omitempty"`
-	StartedAt      string        `json:"started_at,omitempty"`
-	FinishedAt     string        `json:"finished_at,omitempty"`
-	ExitCode       *int          `json:"exit_code,omitempty"`
-	TimedOut       bool          `json:"timed_out,omitempty"`
-	Cancelled      bool          `json:"cancelled,omitempty"`
-	Summary        string        `json:"summary,omitempty"`
-	ResultRefs     []DoResultRef `json:"result_refs,omitempty"`
+	NativeAction      *PlaybookNativeAction `json:"native_action,omitempty"`
+	NativeObservation *DoNativeObservation  `json:"native_observation,omitempty"`
+	AttemptID         string                `json:"attempt_id"`
+	TargetID          string                `json:"target_id"`
+	Kind              string                `json:"kind"`
+	Event             string                `json:"event"`
+	Status            string                `json:"status,omitempty"`
+	EvidenceOrigin    string                `json:"evidence_origin,omitempty"`
+	ToolCallID        string                `json:"tool_call_id,omitempty"`
+	Argv              []string              `json:"argv,omitempty"`
+	Cwd               string                `json:"cwd,omitempty"`
+	StartedAt         string                `json:"started_at,omitempty"`
+	FinishedAt        string                `json:"finished_at,omitempty"`
+	ExitCode          *int                  `json:"exit_code,omitempty"`
+	TimedOut          bool                  `json:"timed_out,omitempty"`
+	Cancelled         bool                  `json:"cancelled,omitempty"`
+	Summary           string                `json:"summary,omitempty"`
+	ResultRefs        []DoResultRef         `json:"result_refs,omitempty"`
 }
 
 type doFinishInput struct {
@@ -195,20 +210,24 @@ type doResumeInput struct {
 // Replanning appends an immutable definition epoch. Attempts remain in the
 // session, but only observations from the active epoch can satisfy its checks.
 type DoDefinitionEpoch struct {
-	Epoch             int                `json:"epoch"`
-	Definition        PlaybookDefinition `json:"definition"`
-	DefinitionDigest  string             `json:"definition_digest"`
-	Sources           map[string]string  `json:"sources"`
-	SourceFingerprint string             `json:"source_fingerprint,omitempty"`
-	SourceRevision    string             `json:"source_revision,omitempty"`
-	DirtyPaths        []string           `json:"dirty_paths"`
-	WriteScope        []string           `json:"write_scope"`
-	OutputScope       []string           `json:"output_scope"`
-	FrozenAt          string             `json:"frozen_at"`
-	BasisOrigin       string             `json:"basis_origin"`
-	ReplanRequestID   string             `json:"replan_request_id,omitempty"`
-	FailedAttemptID   string             `json:"failed_attempt_id,omitempty"`
-	Recovery          *DoRecovery        `json:"recovery,omitempty"`
+	TemplateDefinition *PlaybookDefinition `json:"template_definition,omitempty"`
+	TemplateDigest     string              `json:"template_digest,omitempty"`
+	Parameters         map[string]string   `json:"parameters,omitempty"`
+	Epoch              int                 `json:"epoch"`
+	Definition         PlaybookDefinition  `json:"definition"`
+	DefinitionDigest   string              `json:"definition_digest"`
+	Sources            map[string]string   `json:"sources"`
+	SourceFingerprint  string              `json:"source_fingerprint,omitempty"`
+	SourceRevision     string              `json:"source_revision,omitempty"`
+	DirtyPaths         []string            `json:"dirty_paths"`
+	WriteScope         []string            `json:"write_scope"`
+	OutputScope        []string            `json:"output_scope"`
+	FrozenAt           string              `json:"frozen_at"`
+	BasisOrigin        string              `json:"basis_origin"`
+	ReplanRequestID    string              `json:"replan_request_id,omitempty"`
+	FailedAttemptID    string              `json:"failed_attempt_id,omitempty"`
+	Recovery           *DoRecovery         `json:"recovery,omitempty"`
+	RetainedAttempts   []DoRetainedAttempt `json:"retained_attempts,omitempty"`
 }
 
 type DoReplanReceipt struct {
@@ -220,8 +239,10 @@ type DoReplanReceipt struct {
 }
 
 type doReplanInput struct {
-	RequestID   string             `json:"request_id"`
-	Definition  PlaybookDefinition `json:"definition"`
-	WriteScope  []string           `json:"write_scope,omitempty"`
-	OutputScope []string           `json:"output_scope,omitempty"`
+	Mode           string             `json:"mode,omitempty"`
+	RetainVerified bool               `json:"retain_verified,omitempty"`
+	RequestID      string             `json:"request_id"`
+	Definition     PlaybookDefinition `json:"definition"`
+	WriteScope     []string           `json:"write_scope,omitempty"`
+	OutputScope    []string           `json:"output_scope,omitempty"`
 }

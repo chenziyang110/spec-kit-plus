@@ -88,6 +88,7 @@ confirmation_path: confirmation.json
 
 checkpoint:
   request_and_outcome: ""
+  current_state_evidence: []
   user_visible_result: ""
   scope:
     include: []

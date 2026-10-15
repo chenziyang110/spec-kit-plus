@@ -191,10 +191,10 @@ def test_real_wrapper_cli_uses_real_exit_codes(project):
             "--bindings", str(root / "bindings.json"), "--root", str(root),
             "--runner", "pytest", "--target", "local-fixture", "--output-dir", "test-results/cli",
             "--", "test_app.py", "-q", "-k", project[2]["cases"][0]["id"]]
-    result = subprocess.run(argv, text=True, capture_output=True, timeout=30)
+    result = subprocess.run(argv, text=True, encoding="utf-8", capture_output=True, timeout=30)
     assert result.returncode == 1, result.stderr
     assert json.loads(result.stdout)["statuses"]["not_run"] == 3
-    result = subprocess.run(argv, text=True, capture_output=True, timeout=30)
+    result = subprocess.run(argv, text=True, encoding="utf-8", capture_output=True, timeout=30)
     assert result.returncode == 2
     assert json.loads(result.stderr)["claim"] == "invalid"
 

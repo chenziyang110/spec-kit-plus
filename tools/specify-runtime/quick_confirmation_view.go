@@ -50,6 +50,9 @@ func renderQuickDecisionView(doc *quickConfirmationDoc) string {
 		b.WriteString(doc.Decision.Goal)
 		b.WriteString("\n\n")
 	}
+	if quickDecisionFieldSelected(doc, "current_state_evidence") && (len(doc.Decision.CurrentStateEvidence) > 0 || quickUsesDeltaFieldFilter(doc)) {
+		writeQuickBulletSection(&b, "### 当前情况与依据", doc.Decision.CurrentStateEvidence)
+	}
 	if quickDecisionFieldSelected(doc, "user_visible_result") {
 		writeQuickBulletSection(&b, "### 你会看到", []string{doc.Decision.UserVisibleResult})
 	}

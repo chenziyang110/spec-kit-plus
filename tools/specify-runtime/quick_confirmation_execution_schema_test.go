@@ -59,6 +59,7 @@ func TestQuickConfirmationExecutionSchemaMatchesRuntime(t *testing.T) {
 				}
 				want := map[reflect.Kind]string{
 					reflect.String: "string", reflect.Bool: "boolean",
+					reflect.Int:   "integer",
 					reflect.Slice: "array", reflect.Struct: "object",
 				}[kind]
 				if want == "" {

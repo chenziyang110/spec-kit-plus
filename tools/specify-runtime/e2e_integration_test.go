@@ -25,7 +25,7 @@ func e2ePublicCall(t *testing.T, args ...string) (int, map[string]any) {
 }
 
 func TestE2EPublicDiscoveryAndPublishedSchemasAreExecutable(t *testing.T) {
-	expected := []string{"e2e.init", "e2e.status", "e2e.scope-add", "e2e.task-start", "e2e.task-submit", "e2e.review-start", "e2e.review-submit", "e2e.task-accept", "e2e.reopen", "e2e.close"}
+	expected := []string{"e2e.init", "e2e.status", "e2e.task-show", "e2e.compact", "e2e.scope-add", "e2e.task-start", "e2e.task-submit", "e2e.review-start", "e2e.review-submit", "e2e.task-accept", "e2e.reopen", "e2e.close"}
 	code, response := e2ePublicCall(t, "api", "ensure", "--capabilities", strings.Join(expected, ","), "--format", "json")
 	if code != 0 {
 		t.Fatalf("E2E cannot be negotiated: %v", response)

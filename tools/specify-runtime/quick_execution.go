@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/workerdelta"
 	"os"
 	"path/filepath"
 	"sort"
@@ -362,15 +364,24 @@ func (service quickService) allowInlineWorkItem(workspacePath, workspace, itemID
 }
 
 type quickWorkerAcceptProof struct {
-	Mode         string   `json:"mode"` // worker | leader-inline | leader-direct
-	LaneID       string   `json:"lane_id,omitempty"`
-	ResultPath   string   `json:"result_path,omitempty"`
-	ResultStatus string   `json:"result_status,omitempty"`
-	ChangedFiles []string `json:"changed_files,omitempty"`
-	InlineReason string   `json:"inline_reason,omitempty"`
+	Mode            string   `json:"mode"` // worker | leader-inline | leader-direct
+	LaneID          string   `json:"lane_id,omitempty"`
+	ResultPath      string   `json:"result_path,omitempty"`
+	ResultStatus    string   `json:"result_status,omitempty"`
+	ChangedFiles    []string `json:"changed_files,omitempty"`
+	InlineReason    string   `json:"inline_reason,omitempty"`
+	ResultSHA256    string   `json:"result_sha256,omitempty"`
+	AttemptID       string   `json:"attempt_id,omitempty"`
+	Sequence        int      `json:"sequence,omitempty"`
+	resultCondition fileTransactionPrecondition
 }
 
 func (service quickService) acceptWorkItem(workspacePath, workspace, itemID string, evidence []string, args []string) (*quickConfirmationDoc, *quickWorkerAcceptProof, error) {
+	confirmationPath := filepath.Join(workspacePath, quickConfirmationFileName)
+	confirmationBefore, err := os.ReadFile(confirmationPath)
+	if err != nil {
+		return nil, nil, err
+	}
 	doc, err := service.loadConfirmation(workspacePath)
 	if err != nil {
 		return nil, nil, err
@@ -432,6 +443,10 @@ func (service quickService) acceptWorkItem(workspacePath, workspace, itemID stri
 			return nil, nil, err
 		}
 		statusByID = quickStatusMap(doc)
+		confirmationBefore, err = os.ReadFile(confirmationPath)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	if strings.ToLower(strings.TrimSpace(statusByID[itemID].Status)) != "in_progress" {
@@ -465,7 +480,39 @@ func (service quickService) acceptWorkItem(workspacePath, workspace, itemID stri
 	}
 	doc.Execution.JoinPoint = deriveQuickJoinPoint(doc)
 	doc.UpdatedAt = nowUTCString()
-	if err := service.persistConfirmation(workspacePath, doc); err != nil {
+	if proof.ResultPath != "" && proof.ResultSHA256 != "" {
+		root, rootErr := filepath.Abs(service.projectRoot)
+		if rootErr != nil {
+			return nil, nil, rootErr
+		}
+		resultPath, pathErr := resolveProjectContainedPath(root, proof.ResultPath)
+		if pathErr != nil {
+			return nil, nil, pathErr
+		}
+		stored, _, readErr := loadCanonicalWorkerResult(root, resultPath)
+		if readErr != nil {
+			return nil, nil, readErr
+		}
+		binding, _ := stored["cognition_result_binding"].(map[string]any)
+		if binding["result_sha256"] != proof.ResultSHA256 || binding["attempt_id"] != proof.AttemptID {
+			return nil, nil, fmt.Errorf("worker result changed before Quick acceptance")
+		}
+		if err := workerdelta.Accept(stored, projectRelativeSlash(root, confirmationPath), proof.Sequence); err != nil {
+			return nil, nil, err
+		}
+		resultBytes, encodeErr := json.MarshalIndent(stored, "", "  ")
+		if encodeErr != nil {
+			return nil, nil, encodeErr
+		}
+		docBytes, encodeErr := json.MarshalIndent(doc, "", "  ")
+		if encodeErr != nil {
+			return nil, nil, encodeErr
+		}
+		_, commitErr := applyFileTransactionWithPreconditions(root, "quick.item.accept", []fileTransactionUpdate{{Path: resultPath, Content: append(resultBytes, '\n'), Perm: 0o644}, {Path: confirmationPath, Content: append(docBytes, '\n'), Perm: 0o644}}, []fileTransactionPrecondition{proof.resultCondition, {Path: confirmationPath, ExpectedSHA256: workerdelta.Digest(confirmationBefore)}})
+		if commitErr != nil {
+			return nil, nil, commitErr
+		}
+	} else if err := service.persistConfirmation(workspacePath, doc); err != nil {
 		return nil, nil, err
 	}
 	if err := service.projectConfirmationIntoStatus(workspacePath, doc); err != nil {
@@ -507,6 +554,9 @@ func setQuickItemWorkerProof(doc *quickConfirmationDoc, itemID string, proof *qu
 		doc.Execution.WorkItemStatus[i].WorkerResultRef = proof.ResultPath
 		doc.Execution.WorkItemStatus[i].WorkerLaneID = proof.LaneID
 		doc.Execution.WorkItemStatus[i].WorkerResultID = firstNonEmpty(proof.LaneID, proof.ResultPath)
+		doc.Execution.WorkItemStatus[i].WorkerResultSHA256 = proof.ResultSHA256
+		doc.Execution.WorkItemStatus[i].WorkerAttemptID = proof.AttemptID
+		doc.Execution.WorkItemStatus[i].WorkerSubmissionSequence = proof.Sequence
 		doc.Execution.WorkItemStatus[i].InlineReason = proof.InlineReason
 		if proof.Mode == "leader-inline" {
 			doc.Execution.WorkItemStatus[i].InlineApproved = true
@@ -572,13 +622,35 @@ func requireQuickWorkerAcceptProof(workspacePath, workspace, itemID string, item
 	if direct {
 		proofMode = quickLeaderDirectMode
 	}
-	return &quickWorkerAcceptProof{
+	proof := &quickWorkerAcceptProof{
 		Mode:         proofMode,
 		LaneID:       laneID,
 		ResultPath:   rel,
 		ResultStatus: status,
 		ChangedFiles: changed,
-	}, nil
+	}
+	if binding, ok := result["cognition_result_binding"].(map[string]any); ok {
+		proof.ResultSHA256 = asString(binding["result_sha256"])
+		proof.AttemptID = asString(binding["attempt_id"])
+		proof.Sequence, _ = workerdelta.Sequence(binding["sequence"])
+		raw, err := os.ReadFile(absPath)
+		if err != nil {
+			return nil, err
+		}
+		stored, err := workerdelta.Decode(raw)
+		if err != nil {
+			return nil, err
+		}
+		if err := workerdelta.ValidateStored(stored); err != nil {
+			return nil, err
+		}
+		actual, _ := stored["cognition_result_binding"].(map[string]any)
+		if !workerdelta.Same(actual, binding) {
+			return nil, fmt.Errorf("Quick worker result changed while reading acceptance proof")
+		}
+		proof.resultCondition = fileTransactionPrecondition{Path: absPath, ExpectedSHA256: workerdelta.Digest(raw)}
+	}
+	return proof, nil
 }
 
 func validateQuickSourceContinuityAcceptance(workspacePath, itemID string, doc *quickConfirmationDoc, result map[string]any) error {
@@ -641,6 +713,16 @@ func validateQuickSourceContinuityAcceptance(workspacePath, itemID string, doc *
 }
 
 func revalidateAcceptedQuickSourceContinuity(workspacePath, itemID string, doc *quickConfirmationDoc, row quickWorkItemStatus) error {
+	if row.WorkerResultSHA256 != "" {
+		stored, _, _, err := findQuickWorkerResult(workspacePath, itemID)
+		if err != nil {
+			return err
+		}
+		binding, _ := stored["cognition_result_binding"].(map[string]any)
+		if binding["acceptance_state"] != "accepted" || binding["result_sha256"] != row.WorkerResultSHA256 || binding["attempt_id"] != row.WorkerAttemptID {
+			return fmt.Errorf("accepted Quick result binding changed")
+		}
+	}
 	mode := strings.ToLower(strings.TrimSpace(row.ExecutionMode))
 	if mode == "leader-inline" {
 		return validateQuickSourceContinuityAcceptance(workspacePath, itemID, doc, nil)
@@ -761,7 +843,7 @@ func findQuickWorkerResult(workspacePath, itemID string) (map[string]any, string
 			lastErr = err
 			continue
 		}
-		normalized, err := normalizeSubmittedTaskResult("quick", raw)
+		normalized, err := normalizeSavedSubmittedTaskResult("quick", raw)
 		if err != nil {
 			// Do not bypass validation or fall back to an older successful lane.
 			return nil, "", "", fmt.Errorf("invalid worker result for %s: %w", itemID, err)
@@ -851,14 +933,15 @@ func compileQuickWorkerPacket(doc *quickConfirmationDoc, itemID string) (map[str
 	}
 
 	packet := map[string]any{
-		"schema":              quickWorkerPacketSchema,
-		"work_item_id":        item.ID,
-		"deliverable":         item.Deliverable,
-		"depends_on":          append([]string{}, item.DependsOn...),
-		"acceptance":          item.Acceptance,
-		"write_scope":         append([]string{}, item.WriteScope...),
-		"goal":                doc.Decision.Goal,
-		"user_visible_result": doc.Decision.UserVisibleResult,
+		"cognition_delta_contract": workerdelta.Contract(itemID),
+		"schema":                   quickWorkerPacketSchema,
+		"work_item_id":             item.ID,
+		"deliverable":              item.Deliverable,
+		"depends_on":               append([]string{}, item.DependsOn...),
+		"acceptance":               item.Acceptance,
+		"write_scope":              append([]string{}, item.WriteScope...),
+		"goal":                     doc.Decision.Goal,
+		"user_visible_result":      doc.Decision.UserVisibleResult,
 		"scope": map[string]any{
 			"include": append([]string{}, doc.Decision.Scope.Include...),
 			"exclude": append([]string{}, doc.Decision.Scope.Exclude...),
@@ -868,6 +951,9 @@ func compileQuickWorkerPacket(doc *quickConfirmationDoc, itemID string) (map[str
 		"confirmation_state":     doc.ConfirmationState,
 		"prerequisite_status":    prereq,
 		"required_acceptance":    item.Acceptance,
+		"current_state_evidence": append([]string{}, doc.Decision.CurrentStateEvidence...),
+		"recommended_approach":   doc.Decision.RecommendedApproach,
+		"assumptions_and_risks":  append([]string{}, doc.Decision.AssumptionsAndRisks...),
 		"completion_evidence":    append([]string{}, doc.Decision.CompletionEvidence...),
 		"reconfirmation_trigger": doc.Decision.ReconfirmationTrigger,
 		"ui_confirmation":        doc.Decision.UIConfirmation,
@@ -886,6 +972,9 @@ func compileQuickWorkerPacket(doc *quickConfirmationDoc, itemID string) (map[str
 		packet["requires_worker"] = false
 		packet["execution_mode"] = quickLeaderDirectMode
 		packet["requires_result_submit"] = true
+	}
+	if item.ReadScope != nil {
+		packet["read_scope"] = append([]string{}, (*item.ReadScope)...)
 	}
 	return packet, len(blockers) == 0, blockers, nil
 }

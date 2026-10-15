@@ -11,7 +11,7 @@ Template for `.planning/debug/[slug].md` — active debug session tracking.
 slug: [session slug]
 status: gathering | investigating | fixing | verifying | awaiting_human_verify | resolved
 trigger: "[verbatim user input]"
-understanding_confirmed: [true only after the user confirms the Debug Understanding Checkpoint]
+understanding_confirmed: [true only after explicit approval of the current concrete Debug Understanding Checkpoint; not required for safe diagnosis]
 diagnostic_profile: scheduler-admission | cache-snapshot | ui-projection | general
 causal_map_completed: [true after map-backed minimum intake or the Stage 1A causal map is written]
 investigation_contract_completed: [true after map-backed minimum intake or the Stage 1B contract planner finishes]
@@ -52,24 +52,38 @@ started: [when it broke / always broken]
 reproduction_verified: [true once repro confirmed]
 
 ## Debug Understanding Checkpoint
-<!-- OVERWRITE/REFINE before substantive investigation starts -->
+<!-- Investigate first; approve this concrete decision before repair. Preserve the fixed heading for compatibility. -->
 
 checkpoint:
+  confirmation_purpose: evidence-backed-repair | diagnostic-enablement
   issue: [the symptom, regression, or failing signal the reporter confirmed]
   issue_detail: [where it appears, why it matters, and the nearby issue this session is not debugging]
   expected_or_target: [what should happen instead, or the confirmed unknown]
   reproduction_or_failing_signal: [known repro command, manual sequence, failing test, log/error text, or confirmed unknown]
   known_evidence:
     - [project cognition route, existing log, prior verification output, report, or artifact already available]
+  discovered_problem: [the observed defect and its user-visible consequence]
+  root_cause: [evidence-proven failure mechanism; unresolved for diagnostic-enablement only]
+  evidence_refs:
+    - [decisive reproduction, log, source, or test evidence supporting this decision]
+  proposed_fix:
+    - [concrete repair at the owning boundary; diagnostic-only action for diagnostic-enablement]
+  change_scope:
+    - [exact affected files, behavior, and side-effect boundaries]
+  expected_outcome: [what the user should observe after the approved change]
+  risks:
+    - [compatibility, data, UI, external-effect, or adjacent behavior risk; none when evidenced]
+  validation_plan:
+    - [original failing route, RED test, and relevant adjacent-risk checks]
   in_scope:
     - [area, workflow, command, state loop, or behavior this session will investigate]
   out_of_scope:
     - [nearby issue, enhancement, or unrelated behavior excluded from this session]
-  fix_authority: [diagnose only | diagnose and fix after causal evidence]
+  fix_authority: [diagnose only | diagnose and fix the approved evidence-backed repair | diagnostic enablement only]
   assumptions_to_correct:
     - [reporter assumption, uncertain fact, or none]
   reconfirmation_trigger: [material problem, boundary, authority, compatibility, migration, side-effect, or risk change]
-  confirmation_digest: [digest of the confirmed user-owned decisions]
+  confirmation_digest: [SHA-256 of canonical exact approved checkpoint and applicable UI decision, excluding self digests and mutable agent investigation state]
   user_corrections:
     - [user correction, ambiguity, or confirmation timestamp]
 
@@ -96,7 +110,7 @@ agent_investigation_plan:
     - [primary suspected truth owner, competing explanation, or candidate family to test first without claiming root cause]
   investigation_plan:
     - [session-specific ordered evidence step]
-  next_action: [first reproduction, log, source, test, or instrumentation route after confirmation]
+  next_action: [next safe evidence action, or approved repair after confirmation and execution guard]
   fix_gate: [what must be proven before code changes are allowed]
   done_or_progress_signal:
     - [evidence that proves the session can move to fix, verification, human verification, or blocked state]

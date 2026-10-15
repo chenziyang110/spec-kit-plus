@@ -89,14 +89,41 @@ fi
 chmod 0755 "$candidate"
 
 handshake="$("$candidate" api handshake --format json)"
+if [[ "$handshake" != *'"cognition.closeout.recovery.v1"'* ]]; then
+  echo "Downloaded binary lacks required cognition closeout recovery capability" >&2
+  exit 1
+fi
+if [[ "$handshake" != *'"cognition.worker-delta.v1"'* ]]; then
+  echo "Downloaded binary lacks required worker cognition delta capability" >&2
+  exit 1
+fi
+if [[ "$handshake" != *'"cognition.closeout.binding.v1"'* ]]; then
+  echo "Downloaded binary lacks required cognition closeout binding capability" >&2
+  exit 1
+fi
+if ! "$candidate" api ensure --capabilities cognition.scope-availability.v2,learning.applicability.v1,cognition.closeout.binding.begin,cognition.closeout.binding.seal,cognition.closeout.binding.check --format json >/dev/null; then
+  echo "Downloaded binary lacks required scoped cognition or Learning applicability capability" >&2
+  exit 1
+fi
+if ! "$candidate" api ensure --capabilities cognition.scoped-register,cognition.scoped-registration.v1 --format json >/dev/null; then
+  echo "Downloaded binary lacks required scoped cognition registration capability" >&2
+  exit 1
+fi
 for capability in "do.start" "do.record" "do.validate" "do.finish" "do.resume" "do.show" \
-  "playbook.find" "playbook.show" "playbook.update" "playbook.validate"; do
+  "playbook.find" "playbook.show" "playbook.update" "playbook.validate" \
+  "do.prepare" "do.next" "do.complete" "playbook.metrics"; do
   if [[ "$handshake" != *"\"${capability}\""* ]]; then
     echo "Downloaded binary lacks required project operation capability: ${capability}" >&2
     exit 1
   fi
 done
-for e2e_action in init status scope-add task-start task-submit review-start review-submit task-accept reopen close; do
+for capability in "cognition.expansion.snapshot.v2" "cognition.claim-evidence.page.v1" "cognition.catalog.snapshot.v1"; do
+  if [[ "$handshake" != *"\"${capability}\""* ]]; then
+    echo "Downloaded binary lacks required cognition snapshot capability: ${capability}" >&2
+    exit 1
+  fi
+done
+for e2e_action in init status compact task-show scope-add task-start task-submit review-start review-submit task-accept reopen close; do
   if [[ "$handshake" != *"\"e2e.${e2e_action}\""* ]]; then
     echo "Downloaded binary lacks E2E verified handoffs: e2e.${e2e_action}" >&2
     exit 1

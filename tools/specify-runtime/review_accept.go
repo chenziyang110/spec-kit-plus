@@ -2092,6 +2092,16 @@ func (service reviewAcceptService) closeoutReview(featureDir string, expectedRev
 		env.NextArgv = []string{"specify-runtime", "review", "resume-audit", "--feature-dir", feature.rel, "--format", "json"}
 		return env
 	}
+	// Review repair has a real terminal owner; read-only Review may reuse the
+	// current Implement proof, while repairs require their own current receipt.
+	if state, err := readJSONObject(filepath.Join(feature.abs, reviewStateFilename)); err == nil {
+		assignments, _ := state["fix_assignments"].([]any)
+		if len(assignments) > 0 {
+			if err := requireMutationCognitionReceipt(feature.abs, "sp-review"); err != nil {
+				return blockedEnvelope("Review repair source binding is not current", err.Error())
+			}
+		}
+	}
 	env = NewEnvelope("ok", "system review is approved and ready for workflow stage completion")
 	env.Data["status"] = "approved"
 	env.Data["fresh"] = true

@@ -32,12 +32,18 @@ func archiveIncompatibleStoreCommand(args []string, stdout io.Writer, stderr io.
 			return writeCompactErrorJSON(stdout, fmt.Errorf("archive-incompatible-store requires a 64-character --expected-sha256"))
 		}
 	}
+	if err := validateIncompatibleArchiveBoundary(paths); err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
 
 	release, err := rt.AcquireUpdateLock(paths)
 	if err != nil {
 		return writeCompactErrorJSON(stdout, err)
 	}
 	defer release()
+	if err := validateIncompatibleArchiveBoundary(paths); err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
 
 	info, err := os.Lstat(paths.DatabasePath)
 	if err != nil {
@@ -67,6 +73,9 @@ func archiveIncompatibleStoreCommand(args []string, stdout io.Writer, stderr io.
 	historyDir := filepath.Join(paths.RuntimeDir, "history")
 	if err := os.MkdirAll(historyDir, 0o755); err != nil {
 		return writeCompactErrorJSON(stdout, fmt.Errorf("create cognition history directory: %w", err))
+	}
+	if err := validateIncompatibleArchiveBoundary(paths); err != nil {
+		return writeCompactErrorJSON(stdout, err)
 	}
 	archivePath := filepath.Join(historyDir, "project-cognition-incompatible-"+actual[:12]+".db")
 	if _, err := os.Lstat(archivePath); err == nil {
@@ -122,6 +131,42 @@ func archiveIncompatibleStoreCommand(args []string, stdout io.Writer, stderr io.
 		payload["status_archive_path"] = filepath.ToSlash(relativeStatus)
 	}
 	return writeCompactJSON(stdout, payload)
+}
+
+// Archival is the only supported incompatible-store recovery. Refuse redirected
+// control directories before acquiring a lock or moving either original file.
+func validateIncompatibleArchiveBoundary(paths rt.Paths) error {
+	root, err := filepath.Abs(paths.Root)
+	if err != nil {
+		return err
+	}
+	runtimeDir := filepath.Join(root, rt.SpecifyDir, rt.CognitionDir)
+	if filepath.Clean(paths.RuntimeDir) != runtimeDir ||
+		filepath.Clean(paths.DatabasePath) != filepath.Join(runtimeDir, rt.DBFileName) ||
+		filepath.Clean(paths.StatusPath) != filepath.Join(runtimeDir, rt.StatusFileName) {
+		return fmt.Errorf("incompatible-store archive paths must remain inside the project cognition directory")
+	}
+	for _, path := range []string{filepath.Join(root, rt.SpecifyDir), runtimeDir, filepath.Join(runtimeDir, "history")} {
+		info, err := os.Lstat(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("inspect archive directory %s: %w", path, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			return fmt.Errorf("archive directory %s must be a real non-symlink directory", path)
+		}
+	}
+	lockPath := filepath.Join(runtimeDir, ".update.lock")
+	if info, err := os.Lstat(lockPath); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return fmt.Errorf("archive update lock must be a regular non-symlink file")
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("inspect archive update lock: %w", err)
+	}
+	return nil
 }
 
 func fileSHA256(path string) (string, error) {

@@ -481,6 +481,7 @@ func executionComplete(args []string, stdout io.Writer) int {
 	parsed, err := parseCoordinationCommandArgs(args, 1,
 		"--project-root", "--expected-revision", "--fence",
 		"--validation-json", "--reason", "--format",
+		"--binding-id",
 	)
 	if err != nil {
 		return writeEnvelope(stdout, executionControlUsageEnvelope(err.Error()))
@@ -543,6 +544,46 @@ func executionComplete(args []string, stdout io.Writer) int {
 		_ = store.Close()
 		return writeEnvelope(stdout, env)
 	}
+	if err := runcontrol.AuditExecutionScope(registration, changedPaths); err != nil {
+		_ = store.Close()
+		env := executionControlErrorEnvelope("complete execution", err)
+		bindExecutionScopeAuditRecovery(&env, err, registration, projectRoot)
+		return writeEnvelope(stdout, env)
+	}
+	var finalProofCheck func() error
+	if registration.Activity.Workflow == runcontrol.ExecutionWorkflowFast || registration.Activity.Workflow == runcontrol.ExecutionWorkflowDebug {
+		productChanged := false
+		for _, path := range changedPaths {
+			if closeoutBindingProductPath(path, ".") {
+				productChanged = true
+				break
+			}
+		}
+		if productChanged {
+			id := parsed.option("--binding-id", "")
+			proof, err := loadCloseoutBinding(executionRoot, id)
+			if err == nil {
+				_, err = requireStrongCloseoutBinding(executionRoot, "sp-"+string(registration.Activity.Workflow), proof.Scope, id, registration.Work.WorkID)
+			}
+			if err != nil {
+				_ = store.Close()
+				return writeEnvelope(stdout, executionControlErrorEnvelope("source-changing completion requires current cognition.closeout.binding.v1", err))
+			}
+			if err := requireMutationCognitionReceipt(filepath.Join(executionRoot, filepath.FromSlash(proof.Scope)), proof.Workflow); err != nil {
+				_ = store.Close()
+				return writeEnvelope(stdout, executionControlErrorEnvelope("source-changing completion requires the exact bound closeout receipt", err))
+			}
+			receipt, err := loadMutationCognitionReceipt(filepath.Join(executionRoot, filepath.FromSlash(proof.Scope)))
+			if err != nil || receipt == nil || receipt.StrongBinding == nil || receipt.StrongBinding.ID != id {
+				_ = store.Close()
+				return writeEnvelope(stdout, executionControlErrorEnvelope("completion receipt belongs to another binding", fmt.Errorf("exact current binding_id required")))
+			}
+			finalProofCheck = func() error {
+				_, err := requireStrongCloseoutBinding(executionRoot, proof.Workflow, proof.Scope, id, registration.Work.WorkID)
+				return err
+			}
+		}
+	}
 	controlPlaneFiles, err := captureExecutionWorkflowControlPlaneExpectations(executionRoot, registration)
 	if err != nil {
 		_ = store.Close()
@@ -554,6 +595,7 @@ func executionComplete(args []string, stdout io.Writer) int {
 		Fence:                fence,
 		ChangedPaths:         changedPaths,
 		ControlPlaneFiles:    controlPlaneFiles,
+		FinalProofCheck:      finalProofCheck,
 		ValidationJSON:       parsed.option("--validation-json", ""),
 		Reason:               parsed.option("--reason", ""),
 	})

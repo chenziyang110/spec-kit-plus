@@ -1,8 +1,8 @@
-Trigger: before quick-task execution, broad reads, delegation, or validation commands, and whenever a material discovery may invalidate the confirmed quick boundary.
+Trigger: before bounded current-state discovery or quick-task execution, and whenever a material discovery may invalidate the confirmed quick boundary.
 
 Purpose: preserve required context, understanding checkpoint, direct-delivery eligibility, in-workflow scale-up rules, and consequence coverage.
 
-Preserved Contract: quick work starts only after scope and outcome confirmation, then scales its own planning, batches, and verification instead of requiring a formal-spec upgrade when the task grows.
+Preserved Contract: understand the request and explore bounded evidence first; explain the concrete proposal and obtain scope and outcome confirmation before implementation. Quick then scales its own planning, batches, and verification instead of requiring a formal-spec upgrade when the task grows.
 
 ## Required Context Inputs
 
@@ -70,8 +70,10 @@ applicable touchpoint to its user promise, `business_outcome`, side effects and
 final state; inventory icon/image/font/media provenance and target strategy;
 declare complete coverage surface/interaction/component ID sets with exact
 binding-target equality; and record preserve/adapt/replace/merge/split/retire dispositions. This is
-decision intake, not implementation design: do not edit code, choose detailed
-construction, or run validation for an unconfirmed outcome.
+decision intake: inspect current UI and propose the user-visible direction, but
+do not edit code or choose detailed construction for an unconfirmed outcome.
+Safe bounded checks may establish the existing behavior and source basis; they
+do not prove acceptance of a change that has not been implemented.
 
 A screenshot or HTML source proves only visible structure. Inspect the minimum
 available runtime, implementation, requirements, and business sources needed
@@ -92,6 +94,26 @@ runtime-owned `.planning/quick/<id>/confirmation.json` produced by
 This is not a full spec, not a `sp-plan` substitute, and not approval of the
 agent's construction plan. It confirms user-owned product decisions only.
 
+Before presenting it, understand the requested result and inspect the bounded
+current situation under the existing constitution, workspace and cognition
+intake gates. Read relevant existing source, logs, tests, requirements and UI;
+run safe bounded checks or reproduction that cannot alter product data or
+external state. Use read-only evidence workers with explicit read scope, no
+product write scope, stop conditions and inspectable findings when that helps.
+These are intake evidence lanes, not Q-item execution: do not call
+`quick item-start`, dispatch an implementation packet, accept a Q item or grant
+mutation authority to gather this evidence. Creating or repairing tests,
+harnesses, persistent instrumentation or product files is implementation and
+must wait for approval and the normal Q/Work gates. Stop a diagnostic action
+that would cross a side-effect or authority boundary and ask only for the
+missing decision that blocks safe discovery.
+
+Distinguish observed facts, evidence-based inferences and unknowns. Greenfield
+delivery needs a checked absence/current context and requirements basis, not
+a fabricated defect or proven bug root cause. Ask for a missing user-owned
+fact only when it prevents a safe, concrete proposal. Do not ask for blanket
+permission to inspect existing evidence.
+
 After the constitution gate, quick workspace initialization, project cognition
 query, and any bounded `minimal_live_reads`, stage a structured
 `quick-confirmation-v1` contract through runtime:
@@ -105,10 +127,35 @@ returned `views.decision`. It uses short headings and
 bullets rather than a dense table, but still shows all user-owned decisions:
 goal, user-visible result, scope, ordered
 `Q1`/`Q2`/... deliverables and product-level dependencies, independent acceptance
-for every work item, recommended approach, assumptions and risks, overall
+for every work item, current findings and their selected evidence basis,
+concrete recommended change and expected effect, assumptions and risks, overall
 completion evidence, and the reconfirmation trigger. Keep the raw
 `confirmation_digest` in runtime state instead of printing it in the default
 human view.
+
+For a new raw request, populate `decision.current_state_evidence`,
+`recommended_approach`, `assumptions_and_risks` and `completion_evidence` before
+staging. Name the current source/check basis and remaining uncertainty;
+explain what will change, why, affected behavior, compatibility/authority and
+how the overall result will be verified. These fields describe the proposal
+the user can review; raw log history and agent sequencing remain backstage.
+Do not backfill new fields merely to reopen an unchanged exact approved or
+inherited decision. A generic request to implement or an Auto recommendation
+cannot supply approval of a proposal the user has not reviewed.
+
+Before presenting a newly gathered raw request, inspect the staged response's
+`confirmation.decision.current_state_evidence` and `views.decision`. Require
+the complete selected evidence basis to remain in the typed field and readable
+default human view. For material amendments, retain supplied
+`current_state_evidence` in the returned typed decision and its digest; show
+that basis in the human delta view only when `current_state_evidence` is named
+in `source.changed_decision_fields`. Otherwise omit the unchanged basis from
+the delta view. If a supplied field is omitted or its basis is missing where
+it should be visible, treat the runtime as incompatible: restore or update the
+pinned compatible runtime and re-stage. Do not ask for approval, confirm the
+digest or dispatch execution after an old runtime silently ignores the new
+field. Exact unchanged approved or inherited legacy decisions remain reusable
+without cosmetic backfill or another confirmation.
 
 Never ask the user to approve subagent count, file split, batch choreography,
 test command order, or worker packet details. Those remain agent-owned and may
@@ -151,7 +198,19 @@ and project the Understanding Checkpoint and Execution sections. Prefer those
 commands over freeform section rewriting for checkpoint fields.
 `understanding_confirmed: false` blocks substantive execution on entry and
 resume until the runtime-managed checkpoint is confirmed or inherited.
-Before any map-maintenance handoff, use the artifact CLI to scaffold or patch `STATUS.md` with `understanding_confirmed: false`. Until the checkpoint is confirmed, you must not proceed to code edits, broad repository analysis, delegation, validation commands, or map maintenance; read only enough targeted context to revise the decision contract. Do not start execution routing while `understanding_confirmed: false`. Do not dispatch until the artifact CLI has patched `understanding_confirmed: true` or runtime inheritance has set it. Start execution only after a leased `specify-runtime artifact patch` sets `understanding_confirmed: true` in `STATUS.md`, or after `quick checkpoint-confirm` / inherited stage has done so. The first concrete execution action after understanding confirmation should follow the Delivery Map pulse, not vague waiting text.
+Before any map-maintenance handoff, use the artifact CLI to scaffold or patch
+`STATUS.md` with `understanding_confirmed: false`. Until the checkpoint is
+confirmed, you must not proceed to code edits, product/test/harness writes,
+persistent instrumentation, implementation delegation, acceptance validation
+or map maintenance. Keep broad repository analysis bounded by intake evidence
+needs; targeted reads, safe checks and read-only evidence delegation remain
+available to prepare or revise the decision. Do not start execution routing
+while `understanding_confirmed: false`. Dispatch implementation only after
+`quick checkpoint-confirm --digest` or validated runtime inheritance binds the
+current exact decision. A leased `artifact patch` setting
+`understanding_confirmed: true` is not confirmation and cannot substitute for
+that binding. The first concrete execution action after understanding
+confirmation should follow the Delivery Map pulse, not vague waiting text.
 
 ## Quick Checkpoint Amendments
 
@@ -165,7 +224,10 @@ Reopen confirmation only when new evidence materially changes the confirmed
 problem or outcome, an included or excluded boundary, a confirmed work item,
 deliverable-level order or dependency, work-item acceptance, user-visible
 behavior, risk, authority, migration or compatibility obligations, an
-independent capability, or an explicit stop condition. Set
+independent capability, a material change to the recommended proposal or its
+selected evidence basis, or an explicit stop condition. Raw additional logs or
+an unchanged supporting check do not automatically amend the selected decision.
+Set
 `understanding_confirmed: false` and pause substantive work before requesting
 the new decision.
 

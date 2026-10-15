@@ -212,14 +212,14 @@ func requireCurrentDatabase(paths rt.Paths) (bool, error) {
 		return false, fmt.Errorf("stat project-cognition.db: %w", err)
 	}
 	if info.Size() == 0 {
-		return true, fmt.Errorf("project-cognition.db is empty; current runtime requires schema_version %d; remove the database and run sp-map-scan followed by sp-map-build", SchemaVersion)
+		return true, fmt.Errorf("project-cognition.db is empty; current runtime requires schema_version %d; %s", SchemaVersion, rt.IncompatibleStoreRecovery)
 	}
 	version, _, err := ExistingDatabaseSchemaVersion(paths)
 	if err != nil {
 		return true, err
 	}
 	if version != SchemaVersion {
-		return true, fmt.Errorf("project-cognition.db schema_version %d is unsupported; current runtime requires %d; remove the database and run sp-map-scan followed by sp-map-build", version, SchemaVersion)
+		return true, fmt.Errorf("project-cognition.db schema_version %d is unsupported; current runtime requires %d; %s", version, SchemaVersion, rt.IncompatibleStoreRecovery)
 	}
 	db, err := sql.Open("sqlite", paths.DatabasePath)
 	if err != nil {
@@ -234,7 +234,7 @@ func requireCurrentDatabase(paths rt.Paths) (bool, error) {
 		return true, fmt.Errorf("check current sqlite schema: %w", err)
 	}
 	if !compatible {
-		return true, fmt.Errorf("project-cognition.db schema_version %d is structurally incompatible; current runtime requires the complete schema; remove the database and run sp-map-scan followed by sp-map-build", SchemaVersion)
+		return true, fmt.Errorf("project-cognition.db schema_version %d is structurally incompatible; current runtime requires the complete schema; %s", SchemaVersion, rt.IncompatibleStoreRecovery)
 	}
 	return true, nil
 }
@@ -1556,108 +1556,6 @@ func (s *Store) ActiveConceptCandidateRows(ctx context.Context, limit int) ([]Co
 
 func (s *Store) AllActiveConceptCandidateRows(ctx context.Context) ([]ConceptCandidateRow, error) {
 	return s.activeConceptCandidateRows(ctx, 0, false)
-}
-
-func (s *Store) activeConceptCandidateRows(ctx context.Context, limit int, limited bool) ([]ConceptCandidateRow, error) {
-	generationID, err := s.ActiveGenerationID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if generationID == "" {
-		return []ConceptCandidateRow{}, nil
-	}
-
-	query := `SELECT id, type, title, confidence, attrs_json FROM nodes WHERE generation_id = ? ORDER BY id`
-	args := []any{generationID}
-	if limited {
-		if limit <= 0 {
-			limit = 200
-		}
-		query += ` LIMIT ?`
-		args = append(args, limit)
-	}
-
-	rows, err := s.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("query active concept candidate nodes: %w", err)
-	}
-	defer rows.Close()
-
-	out := make([]ConceptCandidateRow, 0)
-	for rows.Next() {
-		row := ConceptCandidateRow{GenerationID: generationID}
-		if err := rows.Scan(&row.NodeID, &row.NodeType, &row.Title, &row.Confidence, &row.AttrsJSON); err != nil {
-			return nil, fmt.Errorf("scan active concept candidate node: %w", err)
-		}
-		row.Paths, err = s.nodeStringValues(ctx, `SELECT path FROM path_index WHERE generation_id = ? AND node_id = ? ORDER BY path`, generationID, row.NodeID)
-		if err != nil {
-			return nil, fmt.Errorf("query active concept candidate paths for %s: %w", row.NodeID, err)
-		}
-		row.Aliases, err = s.nodeAliasRows(ctx, generationID, row.NodeID)
-		if err != nil {
-			return nil, fmt.Errorf("query active concept candidate aliases for %s: %w", row.NodeID, err)
-		}
-		row.EvidenceIDs, err = s.nodeStringValues(ctx, `
-WITH candidate_evidence AS (
-	SELECT ne.evidence_id
-	FROM node_evidence ne
-	JOIN nodes n ON n.id = ne.node_id AND n.generation_id = ?
-	WHERE ne.node_id = ?
-	UNION
-	SELECT p.evidence_id
-	FROM path_index p
-	WHERE p.generation_id = ? AND p.node_id = ?
-)
-SELECT e.id
-FROM candidate_evidence ce
-JOIN evidence e ON e.id = ce.evidence_id AND e.generation_id = ?
-ORDER BY e.id`, generationID, row.NodeID, generationID, row.NodeID, generationID)
-		if err != nil {
-			return nil, fmt.Errorf("query active concept candidate evidence for %s: %w", row.NodeID, err)
-		}
-		row.EvidencePaths, err = s.nodeStringValues(ctx, `
-WITH candidate_evidence AS (
-	SELECT ne.evidence_id
-	FROM node_evidence ne
-	JOIN nodes n ON n.id = ne.node_id AND n.generation_id = ?
-	WHERE ne.node_id = ?
-	UNION
-	SELECT p.evidence_id
-	FROM path_index p
-	WHERE p.generation_id = ? AND p.node_id = ?
-)
-SELECT e.source_path
-FROM candidate_evidence ce
-JOIN evidence e ON e.id = ce.evidence_id AND e.generation_id = ?
-ORDER BY e.source_path`, generationID, row.NodeID, generationID, row.NodeID, generationID)
-		if err != nil {
-			return nil, fmt.Errorf("query active concept candidate evidence paths for %s: %w", row.NodeID, err)
-		}
-		row.ObservationSummaries, err = s.nodeStringValues(ctx, `
-WITH candidate_evidence AS (
-	SELECT ne.evidence_id
-	FROM node_evidence ne
-	JOIN nodes n ON n.id = ne.node_id AND n.generation_id = ?
-	WHERE ne.node_id = ?
-	UNION
-	SELECT p.evidence_id
-	FROM path_index p
-	WHERE p.generation_id = ? AND p.node_id = ?
-)
-SELECT o.summary
-FROM candidate_evidence ce
-JOIN observation_evidence oe ON oe.evidence_id = ce.evidence_id
-JOIN observations o ON o.id = oe.observation_id AND o.generation_id = ?
-ORDER BY o.summary`, generationID, row.NodeID, generationID, row.NodeID, generationID)
-		if err != nil {
-			return nil, fmt.Errorf("query active concept candidate observations for %s: %w", row.NodeID, err)
-		}
-		out = append(out, row)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (s *Store) NodesForIDs(ctx context.Context, nodeIDs []string) ([]map[string]any, error) {

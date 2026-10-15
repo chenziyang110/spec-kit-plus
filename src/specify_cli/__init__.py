@@ -8813,17 +8813,37 @@ def hook_preflight_command(
     session_file: str | None = typer.Option(
         None, "--session-file", help="Debug session file path"
     ),
+    task_packet: str | None = typer.Option(
+        None, "--task-packet", help="Exact current project-relative canonical task packet"
+    ),
+    availability_json: str | None = typer.Option(
+        None, "--availability-json", help="Previous native scope availability binding JSON"
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Run the shared workflow preflight hook and return JSON."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     _validate_hook_output_format(output_format)
+    if task_packet is not None and (not task_packet or task_packet != task_packet.strip()):
+        raise typer.BadParameter("must name an exact non-blank canonical packet", param_hint="--task-packet")
+    availability_binding = None
+    if availability_json is not None:
+        if task_packet is None:
+            raise typer.BadParameter("requires --task-packet", param_hint="--availability-json")
+        try:
+            availability_binding = json.loads(availability_json)
+        except (ValueError, TypeError) as exc:
+            raise typer.BadParameter("must be a native binding JSON object", param_hint="--availability-json") from exc
+        if not isinstance(availability_binding, dict):
+            raise typer.BadParameter("must be a native binding JSON object", param_hint="--availability-json")
     _run_hook_and_print(
         project_root,
         "workflow.preflight",
         {
             "command_name": command_name,
+            "task_packet": task_packet,
+            "availability_binding": availability_binding,
             "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
             "workspace": _normalize_optional_repo_path(project_root, workspace),
             "session_file": _normalize_optional_repo_path(project_root, session_file),

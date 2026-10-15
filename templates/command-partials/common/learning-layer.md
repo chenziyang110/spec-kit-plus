@@ -9,6 +9,39 @@ the normal policy below applies.
 
 The CLI is the only agent-facing Learning read surface:
 
+Before relying on a source-bound lesson, run
+`{{specify-subcmd:specify-runtime api ensure --capabilities learning.applicability.v1 --format json}}`.
+This capability versions existing Learning owners; there is no `learning applicability`
+subcommand. Missing capability blocks bound reuse; repair the pinned runtime or
+defer the lesson, without treating an older runtime's output as proof.
+
+After minimal live reads identify the source directory, use exact current context:
+`{{specify-subcmd:specify-runtime learning start --command <classic-command-name> --context component=src/owner --context constraint_file=constraints.json --format json}}`.
+Use the same context with `list`, then execute the selected `show_argv`, which retains
+the context. Add `--context counterevidence_file=tests/current-counterexample.txt`
+when current evidence contradicts the lesson. Inspect `applicability.state`,
+`applicable`, `reason_codes`, and selected detail `checks`: only `applicable` permits
+considering reuse after live verification. `rejected` forbids applying the lesson;
+`degraded`, absent/unknown versions or missing legacy bindings require deferral and
+current evidence. Correct component, live source bytes, current constraints and
+counterevidence are checked separately from facet ranking or graph freshness;
+neither positive facets, recurrence nor a graph digest proves semantic truth.
+Rejected candidates cannot become promotion-ready; confirmation notes retain
+their rejected state and reasons. Confirmation itself never resolves source drift.
+
+For a genuine reusable failure, recovery, correction or constraint, explicit
+`capture` or owning-state `capture-auto` can bind
+`--component src/owner --source-file src/owner/entry.go --constraint-file constraints.json --evidence-kind recovery`.
+Repeat source/constraint flags as needed; optional `--counterevidence-file` preserves
+a counterexample. The runtime derives hashes and byte sizes from current files;
+do not supply caller hashes, Gold/scoring answers, fabricated business origins or
+ordinary-success lessons. Paths must be safe project-relative references, source
+files inside the exact component, without redirected paths or private runtime
+storage. Abstract sensitive values; never persist raw sensitive references.
+Source facts remain Cognition, reusable lessons Learning, repeatable methods
+the existing Playbook owner. For Do, preserve the Do-before-Learning write lock;
+reads create no lock, confirmation, promotion or lifecycle side effects.
+
 1. Run `{{specify-subcmd:specify-runtime learning start --command <classic-command-name> --format json}}` before deeper non-trivial work.
 2. Select summaries by applicability and triggers; use `{{specify-subcmd:specify-runtime learning list --command <classic-command-name> --format json}}` only to filter or page.
 3. Execute one matching card's `show_argv`. Do not parse Learning storage.
@@ -22,6 +55,11 @@ changes, or a required resume/recovery gate invalidates the prior intake.
 Contextual recall for a newly evidenced operation remains valid; do not repeat
 the same recall after every command. Verification and mutation-closeout
 freshness gates remain unchanged.
+Learning applicability is checked separately from cognition snapshot validity.
+A graph digest cannot prove the Learning index, lesson source evidence, or project
+rules unchanged. Reuse only while those bindings remain applicable; refresh the
+owning start/list/show intake on relevant lesson/rule drift or uncertain
+applicability. Never parse storage or auto-promote a lesson to justify reuse.
 
 After minimal live inspection identifies a reused operation or changed entry point, rerun targeted recall with current code, tests, and task/contract evidence, for example `{{specify-subcmd:specify-runtime learning list --command <classic-command-name> --context operation_owner=<owner> --context consumer_owner=<consumer> --context outcome=<result-family> --format json}}`. Do not derive these facets from archived specifications. An exact operation-owner match may surface a cross-command candidate even when the new consumer differs; treat it as a candidate, expand one `show_argv`, verify it against live evidence, and do not auto-apply it.
 

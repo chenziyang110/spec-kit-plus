@@ -119,19 +119,22 @@ type CompassIntentFacet struct {
 }
 
 type EvidenceLane struct {
-	ID                string               `json:"id"`
-	Title             string               `json:"title"`
-	Coverage          string               `json:"coverage"`
-	Confidence        string               `json:"confidence"`
-	Freshness         string               `json:"freshness,omitempty"`
-	FirstPassPaths    []FirstPassPath      `json:"first_pass_paths"`
-	VerificationHints []string             `json:"verification_hints"`
-	FollowupSurfaces  []string             `json:"followup_surfaces"`
-	BeforeFixClaim    []string             `json:"before_fix_claim"`
-	ClaimRefs         []ClaimRef           `json:"claim_refs,omitempty"`
-	ClaimRanking      *ClaimRankingSummary `json:"claim_ranking,omitempty"`
-	matchedTerms      []string
-	nodeType          string
+	ID                 string               `json:"id"`
+	NodeID             string               `json:"node_id,omitempty"`
+	Title              string               `json:"title"`
+	Coverage           string               `json:"coverage"`
+	Confidence         string               `json:"confidence"`
+	Freshness          string               `json:"freshness,omitempty"`
+	FirstPassPaths     []FirstPassPath      `json:"first_pass_paths"`
+	VerificationHints  []string             `json:"verification_hints"`
+	FollowupSurfaces   []string             `json:"followup_surfaces"`
+	BeforeFixClaim     []string             `json:"before_fix_claim"`
+	ClaimRefs          []ClaimRef           `json:"claim_refs,omitempty"`
+	ClaimRanking       *ClaimRankingSummary `json:"claim_ranking,omitempty"`
+	ClaimCount         int                  `json:"claim_count,omitempty"`
+	ClaimRefsTruncated bool                 `json:"claim_refs_truncated,omitempty"`
+	matchedTerms       []string
+	nodeType           string
 }
 
 type FirstPassPath struct {
@@ -149,7 +152,10 @@ type CoverageDiagnostic struct {
 }
 
 type ExpansionRef struct {
+	RecoveryBasis                 *ExpansionRecoveryBasis         `json:"recovery_basis,omitempty"`
 	ID                            string                          `json:"id,omitempty"`
+	ExpansionContractVersion      int                             `json:"expansion_contract_version"`
+	NavigationDigest              string                          `json:"navigation_digest"`
 	ClaimRetrievalContractVersion int                             `json:"claim_retrieval_contract_version"`
 	ActiveGenerationID            string                          `json:"active_generation_id,omitempty"`
 	CandidateUniverseVersion      int                             `json:"candidate_universe_version"`
@@ -291,8 +297,15 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 	}
 	candidates := []compassCandidate{}
 	claimRecords := []store.GraphClaimEvidence{}
+	selectedClaimPage := store.ClaimEvidencePage{Records: []store.GraphClaimEvidence{}}
+	var navigationRead *store.NavigationRead
 	if st != nil {
 		defer st.Close()
+		navigationRead, err = st.BeginNavigationRead(context.Background())
+		if err != nil {
+			return CompassPayload{}, err
+		}
+		defer navigationRead.Close()
 		rows, err := st.AllActiveConceptCandidateRows(context.Background())
 		if err != nil {
 			if blockedReadiness {
@@ -316,15 +329,6 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 			return CompassPayload{}, err
 		}
 		candidates = applyClaimRanking(candidates, claimLifecycleSummaries)
-		claimRecords, err = st.ClaimEvidenceForNodeIDs(context.Background(), nodeIDsFromCompassCandidates(candidates))
-		if err != nil {
-			if blockedReadiness {
-				payload.Errors = appendDiagnosticString(payload.Errors, "read degraded Compass claim evidence: "+err.Error())
-				payload.IntentFacets = coverageForFacets(facets, nil, payload.CoverageDiagnostics, true)
-				return payload, nil
-			}
-			return CompassPayload{}, err
-		}
 		selectedPaths := compassSelectedPrecisionPaths(input)
 		for _, candidate := range candidates {
 			if candidate.suppressed {
@@ -337,9 +341,35 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 				})
 			}
 		}
-		payload.EvidenceLanes = evidenceLanesFromCandidates(candidates, facets, selectedPaths, claimRefsByNode(claimRecords))
+		payload.EvidenceLanes = evidenceLanesFromCandidates(candidates, facets, selectedPaths, nil)
+		selectedClaimPage, err = st.ClaimEvidencePageForNodeIDs(context.Background(), nodeIDsFromEvidenceLanes(payload.EvidenceLanes), 0, maxExpansionClaimSignals)
+		if err != nil {
+			if blockedReadiness {
+				payload.Errors = appendDiagnosticString(payload.Errors, "read degraded Compass claim evidence: "+err.Error())
+				payload.IntentFacets = coverageForFacets(facets, nil, payload.CoverageDiagnostics, true)
+				return payload, nil
+			}
+			return CompassPayload{}, err
+		}
+		claimRecords = selectedClaimPage.Records
+		refs := claimRefsByNode(claimRecords)
+		counts := map[string]int{}
+		for _, summary := range claimLifecycleSummaries {
+			counts[summary.NodeID] = summary.ClaimCount
+		}
+		for index := range payload.EvidenceLanes {
+			lane := &payload.EvidenceLanes[index]
+			lane.ClaimRefs = refs[lane.NodeID]
+			lane.ClaimCount = counts[lane.NodeID]
+			lane.ClaimRefsTruncated = len(lane.ClaimRefs) < lane.ClaimCount
+		}
 		payload.CoverageDiagnostics = append(payload.CoverageDiagnostics, claimReconciliationDiagnostics(payload.EvidenceLanes, facets)...)
 		payload.MinimalLiveReads = minimalReadsFromLanes(payload.EvidenceLanes)
+	}
+	if navigationRead != nil {
+		if err := validateNavigationRead(paths, status, navigationRead); err != nil {
+			return CompassPayload{}, err
+		}
 	}
 	if blockedReadiness {
 		if st != nil {
@@ -378,13 +408,17 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 	payload.Summary = compassSummary(payload)
 	if len(candidates) > 0 {
 		sectionPayloads := map[string]any{
-			"related_paths":   payload.MinimalLiveReads,
-			"raw_candidates":  candidatesForExpansion(candidates),
-			"coverage_gaps":   payload.CoverageDiagnostics,
-			"graph_neighbors": []map[string]any{},
-			"claim_evidence":  claimSignals(claimRecords, maxExpansionClaimSignals, maxExpansionEvidenceRefs),
+			"related_paths":        payload.MinimalLiveReads,
+			"raw_candidates":       candidatesForExpansion(candidates),
+			"coverage_gaps":        payload.CoverageDiagnostics,
+			"graph_neighbors":      []map[string]any{},
+			"claim_evidence":       claimSignals(claimRecords, maxExpansionClaimSignals, maxExpansionEvidenceRefs),
+			"claim_evidence_index": map[string]any{"node_ids": nodeIDsFromEvidenceLanes(payload.EvidenceLanes), "total_count": selectedClaimPage.TotalCount},
 		}
 		bundle := ExpansionBundle{
+			ExpansionContractVersion:      ExpansionContractVersion,
+			NavigationSnapshot:            navigationRead.Snapshot,
+			StatusDigest:                  navigationStatusDigest(status),
 			ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
 			ActiveGenerationID:            payload.ActiveGenerationID,
 			CandidateUniverseVersion:      payload.CandidateUniverseVersion,
@@ -857,6 +891,7 @@ func evidenceLanesFromCandidates(candidates []compassCandidate, facets []string,
 		}
 		lanes = append(lanes, EvidenceLane{
 			ID:                candidate.conceptID,
+			NodeID:            candidate.ranked.row.NodeID,
 			Title:             candidate.ranked.row.Title,
 			Coverage:          "covered_for_first_pass",
 			Confidence:        candidate.ranked.row.Confidence,
@@ -874,6 +909,18 @@ func evidenceLanesFromCandidates(candidates []compassCandidate, facets []string,
 		}
 	}
 	return lanes
+}
+
+func nodeIDsFromEvidenceLanes(lanes []EvidenceLane) []string {
+	ids := []string{}
+	seen := map[string]bool{}
+	for _, lane := range lanes {
+		if lane.NodeID != "" && !seen[lane.NodeID] {
+			ids = append(ids, lane.NodeID)
+			seen[lane.NodeID] = true
+		}
+	}
+	return ids
 }
 
 func compactClaimRanking(ranking ClaimRankingSummary) *ClaimRankingSummary {

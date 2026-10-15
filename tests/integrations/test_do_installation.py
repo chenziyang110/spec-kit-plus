@@ -43,8 +43,10 @@ def assert_do_runtime_binding(project: Path, content: str) -> None:
     launcher = load_runtime_launcher(project)
     assert launcher is not None
     assert f"{launcher.command} playbook find" in content
-    assert f"{launcher.command} api show do.start" in content
-    assert f"{launcher.command} api ensure --capabilities do.start,do.record,do.validate,do.finish,do.resume,do.show,playbook.find,playbook.show,playbook.update,playbook.validate --format json" in content
+    assert f"{launcher.command} api show do.prepare" in content
+    for route in ("do start", "do next", "do record", "do complete"):
+        assert route in content
+    assert f"{launcher.command} api ensure --capabilities do.start,do.record,do.validate,do.finish,do.resume,do.show,playbook.find,playbook.show,playbook.update,playbook.validate,do.prepare,do.next,do.complete,playbook.metrics --format json" in content
     assert "{{specify-subcmd:" not in content
     assert "{{spec-kit-include:" not in content
     assert "{{project-cognition-workflow}}" not in content
@@ -131,6 +133,7 @@ def test_do_repair_restores_missing_contract_without_rewriting_user_data(profile
     reference.unlink()
     user_files = {
         ".specify/do/sessions/user-session/session.json": b'{"user":"session"}\n',
+        ".specify/do/sessions/user-session/baseline.json": b'{"user":"baseline"}\n',
         ".specify/playbooks/user-method/revisions/1.json": b'{"user":"method"}\n',
     }
     for relative, data in user_files.items():
@@ -172,7 +175,7 @@ def test_real_init_installs_do_and_shared_playbook_schemas(profile, prefix, scri
     result = run_init(profile, script_type)
     assert f"${prefix}-do" in result.output
     core = IntegrationManifest.load("speckit", project)
-    for name in ("playbook-definition.schema.json", "playbook-update.schema.json", "do-resume.schema.json"):
+    for name in ("playbook-definition.schema.json", "playbook-update.schema.json", "playbook-metrics.schema.json", "do-start.schema.json", "do-prepare.schema.json", "do-complete.schema.json", "do-resume.schema.json"):
         relative = f".specify/templates/artifacts/{name}"
         assert (project / relative).read_bytes() == (ROOT / "templates/artifacts" / name).read_bytes()
         assert relative in core.files
@@ -184,6 +187,34 @@ def test_real_init_installs_do_and_shared_playbook_schemas(profile, prefix, scri
         validator.validate({"expected_revision": 1, "recovery": recovery | evidence})
     for evidence in ({}, {"evidence_ref": "out/recovery.txt", "evidence_text": "inspection"}, {"evidence_text": ""}, {"evidence_text": "inspection", "evidence_sha256": "a" * 64}):
         assert not validator.is_valid({"expected_revision": 1, "recovery": recovery | evidence})
+    native_recovery = {"reason": "actual connector operation ended and target was inspected", "native_action_settled": True, "side_effects_inspected": True, "evidence_text": "operation ended; actual target independently read"}
+    validator.validate({"expected_revision": 1, "attempt_id": "native-attempt", "recovery": native_recovery})
+    definition = {
+        "operation": "custom", "target": "fixture", "owner": "fixture", "variant": "default", "title": "Write and inspect native output", "goal": "Write and inspect native output",
+        "aliases": [], "applicability": {}, "source_files": ["source.txt"], "learning_refs": [],
+        "parameters": {"output": {"kind": "path", "required": True, "example": "out/native.json"}},
+        "steps": [{"id": "write", "purpose": "Write output", "depends_on": [], "required": True, "expected_result": "Output written", "side_effect": "local_write",
+                   "native_action": {"kind": "file", "tool": "fixture.write", "target": "{{param:output}}", "arguments": {"value": True}}}],
+        "checks": [{"id": "inspect", "purpose": "Independently read output", "depends_on": ["write"], "required": True, "expected_result": "Value is true", "kind": "observation",
+                    "json_pointer": "/value", "expected_json": True, "native_action": {"kind": "file", "tool": "fixture.read", "target": "{{param:output}}", "arguments": {}}}],
+    }
+    adjustment = {"expected_revision": 1, "replan": {"mode": "unstarted", "retain_verified": True, "request_id": "append-check", "definition": definition}}
+    validator.validate(adjustment)
+    assert not validator.is_valid(adjustment | {"recovery": native_recovery})
+    assert not validator.is_valid(adjustment | {"attempt_id": "invented-failure"})
+    start_schema = json.loads((project / ".specify/templates/artifacts/do-prepare.schema.json").read_text(encoding="utf-8"))
+    start_validator = Draft202012Validator(start_schema)
+    start_validator.validate({"definition": definition, "parameters": {"output": "out/中文.json"}, "agent_id": "agent", "adapter_id": "adapter", "output_scope": ["out"]})
+    definition["checks"][0]["kind"] = "exit_code"
+    definition["checks"][0].pop("expected_json")
+    definition["checks"][0].pop("json_pointer")
+    assert not start_validator.is_valid({"definition": definition, "parameters": {"output": "out/native.json"}, "agent_id": "agent", "adapter_id": "adapter"})
+    definition["checks"][0].pop("native_action")
+    definition["checks"][0]["cwd"] = "."
+    definition["checks"][0]["argv"] = ["git", "--version"]
+    start_validator.validate({"definition": definition, "parameters": {"output": "out/native.json"}, "agent_id": "agent", "adapter_id": "adapter"})
+    definition["steps"][0]["argv"] = ["invented-process"]
+    assert not start_validator.is_valid({"definition": definition, "agent_id": "agent", "adapter_id": "adapter"})
     manifest = IntegrationManifest.load("codex", project)
     relative = f".codex/skills/{prefix}-do/SKILL.md"
     assert relative in manifest.files
@@ -206,6 +237,7 @@ def test_real_init_additive_profiles_preserve_do_edits_and_local_methods(first, 
         entry: entry.read_bytes() + b"\n<!-- user-owned operation note -->\n",
         reference: reference.read_bytes() + b"\nUser-owned recovery note.\n",
         project / ".specify/do/sessions/existing/session.json": b'{"keep":"session"}\n',
+        project / ".specify/do/sessions/existing/baseline.json": b'{"keep":"baseline"}\n',
         project / ".specify/playbooks/existing/revisions/1.json": b'{"keep":"method"}\n',
     }
     for path, data in preserved.items():

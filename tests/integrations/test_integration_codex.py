@@ -1838,7 +1838,16 @@ def test_codex_debug_skill_prefers_request_user_input_with_fallback(tmp_path):
     assert "debug understanding checkpoint" in content
     assert "understanding_confirmed: true" in content
     assert "debug checkpoint" in content
-    assert "first evidence action" in content
+    assert "evidence-backed-repair" in content
+    for section in ("已发现的问题", "准备怎么修复", "影响与验证"):
+        assert section in content
+    confirmed_sequence = " ".join(content.split())
+    assert (
+        "present this card after bounded evidence investigation, before any repair write "
+        "or fix-worker dispatch"
+    ) in confirmed_sequence
+    assert "the concrete change at the owning layer" in confirmed_sequence
+    assert "reply with `confirm`/`确认` to approve the exact repair" in confirmed_sequence
 
 
 def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):

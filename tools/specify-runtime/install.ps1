@@ -93,6 +93,8 @@ try {
         ($handshake -notmatch '"test-design\.recover"') -or
         ($handshake -notmatch '"e2e\.init"') -or
         ($handshake -notmatch '"e2e\.status"') -or
+        ($handshake -notmatch '"e2e\.compact"') -or
+        ($handshake -notmatch '"e2e\.task-show"') -or
         ($handshake -notmatch '"e2e\.scope-add"') -or
         ($handshake -notmatch '"e2e\.task-start"') -or
         ($handshake -notmatch '"e2e\.task-submit"') -or
@@ -116,7 +118,7 @@ try {
         throw "Downloaded binary failed the specify-runtime API handshake"
     }
 
-    foreach ($capability in @("do.start", "do.record", "do.validate", "do.finish", "do.resume", "do.show", "playbook.find", "playbook.show", "playbook.update", "playbook.validate")) {
+    foreach ($capability in @("do.start", "do.record", "do.validate", "do.finish", "do.resume", "do.show", "playbook.find", "playbook.show", "playbook.update", "playbook.validate", "do.prepare", "do.next", "do.complete", "playbook.metrics")) {
         if ($handshake -notmatch ('"' + [regex]::Escape($capability) + '"')) {
             throw "Downloaded binary lacks required project operation capability: ${capability}"
         }
@@ -125,6 +127,30 @@ try {
         $handshakePayload = $handshake | ConvertFrom-Json
     } catch {
         throw "Downloaded binary returned an invalid specify-runtime API handshake"
+    }
+    foreach ($capability in @("cognition.expansion.snapshot.v2", "cognition.claim-evidence.page.v1", "cognition.catalog.snapshot.v1")) {
+        if ($handshakePayload.data.capability_ids -notcontains $capability) {
+            throw "Downloaded binary lacks required cognition snapshot capability: ${capability}"
+        }
+    }
+    if ($handshakePayload.data.capability_ids -notcontains "cognition.closeout.recovery.v1") {
+        throw "Downloaded binary lacks required cognition closeout recovery capability"
+    }
+    if ($handshakePayload.data.capability_ids -notcontains "cognition.worker-delta.v1") {
+        throw "Downloaded binary lacks required worker cognition delta capability"
+    }
+    if ($handshakePayload.data.capability_ids -notcontains "cognition.closeout.binding.v1") {
+        throw "Downloaded binary lacks required cognition closeout binding capability"
+    }
+    foreach ($capability in @("cognition.scope-availability.v2", "learning.applicability.v1", "cognition.closeout.binding.begin", "cognition.closeout.binding.seal", "cognition.closeout.binding.check")) {
+        if ($handshakePayload.data.capability_ids -notcontains $capability) {
+            throw "Downloaded binary lacks required scoped cognition or Learning applicability capability: ${capability}"
+        }
+    }
+    foreach ($capability in @("cognition.scoped-register", "cognition.scoped-registration.v1")) {
+        if ($handshakePayload.data.capability_ids -notcontains $capability) {
+            throw "Downloaded binary lacks required scoped cognition registration capability: ${capability}"
+        }
     }
     $versionText = (& $candidate version --format json 2>&1 | Out-String)
     if ($LASTEXITCODE -ne 0) {

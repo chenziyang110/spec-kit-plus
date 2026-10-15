@@ -639,6 +639,7 @@ class TestClaudeIntegration:
                 SHARED_DISCUSSION_HELPER,
                 SHARED_PRD_HELPER,
                 PROJECT_SPECIFY_LAUNCHER,
+                ".specify/scripts/shared/e2e_assets.py",
                 ".specify/scripts/shared/e2e_coverage.py",
                 ".specify/scripts/shared/e2e_pytest_reporter.py",
                 ".specify/scripts/shared/e2e_runner.py",

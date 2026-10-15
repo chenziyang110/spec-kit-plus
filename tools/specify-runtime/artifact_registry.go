@@ -35,6 +35,18 @@ type artifactTypePattern struct {
 
 var artifactTypePatterns = []artifactTypePattern{
 	{
+		metadata: ArtifactTypeMetadata{TypeID: "cognition-closeout-binding", Owner: "specify-runtime cognition closeout binding", Role: "runtime-internal", Schema: "json/cognition-closeout-binding-v1", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/runtime/receipts/cognition-bindings/") && strings.HasSuffix(path, ".json")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "do-baseline", Owner: "specify-runtime do start", Role: "runtime-internal", Schema: "json/workspace-baseline", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/do/sessions/") && strings.HasSuffix(path, "/baseline.json")
+		},
+	},
+	{
 		metadata: ArtifactTypeMetadata{TypeID: "do-definition", Owner: "specify-runtime do resume", Role: "canonical", Schema: "json/do-definition-epoch", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
 		match: func(path string) bool {
 			return strings.HasPrefix(path, ".specify/do/sessions/") && strings.Contains(path, "/definitions/") && strings.HasSuffix(path, ".json")

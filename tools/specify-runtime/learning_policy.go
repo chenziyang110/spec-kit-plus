@@ -148,6 +148,7 @@ func sanitizeLearningEntryWithPolicy(entry map[string]any, policy learningPolicy
 	// configured organization phrase (for example, its embedded email), which
 	// prevents the configured literal from ever matching as a whole.
 	prepared := cloneLearningMap(entry)
+	sanitizeLearningApplicabilityWithPolicy(prepared, policy)
 	labels := map[string]bool{}
 	for _, label := range anyStringSlice(prepared["redaction_labels"]) {
 		if validLearningRedactionLabel(label) {

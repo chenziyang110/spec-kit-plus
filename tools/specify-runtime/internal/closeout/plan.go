@@ -9,6 +9,7 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/changes"
 	changemodel "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/changes/model"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/workerdelta"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/workflowregistry"
 )
 
@@ -48,6 +49,7 @@ type Payload struct {
 	UpdateArgv              []string                 `json:"update_argv"`
 	ApplyCommand            string                   `json:"apply_command,omitempty"`
 	ApplyArgv               []string                 `json:"apply_argv"`
+	RegistrationApplyArgv   []string                 `json:"registration_apply_argv,omitempty"`
 	DeltaAppendCommand      string                   `json:"delta_append_command,omitempty"`
 	DeltaAppendDraft        *DeltaAppendDraft        `json:"delta_append_draft,omitempty"`
 	RecommendedNextCommand  string                   `json:"recommended_next_command,omitempty"`
@@ -60,6 +62,7 @@ type Payload struct {
 	PayloadDraft            *PayloadDraft            `json:"payload_draft,omitempty"`
 	Warnings                []string                 `json:"warnings"`
 	Errors                  []string                 `json:"errors"`
+	WorkerCognition         *workerdelta.Merge       `json:"worker_cognition,omitempty"`
 }
 
 type UnknownPathDisposition struct {
@@ -88,6 +91,12 @@ type PayloadDraft struct {
 	ConfidenceNotes         []string                 `json:"confidence_notes"`
 	UserDecisions           []string                 `json:"user_decisions"`
 	Boundary                BoundaryDraft            `json:"boundary"`
+	WorkerCognition         *workerdelta.Merge       `json:"worker_cognition,omitempty"`
+	OwnerSurfaces           []any                    `json:"owner_surfaces,omitempty"`
+	ConsumerSurfaces        []any                    `json:"consumer_surfaces,omitempty"`
+	Interfaces              []any                    `json:"interfaces,omitempty"`
+	EvidenceRefs            []any                    `json:"evidence_refs,omitempty"`
+	InvalidatedClaimRefs    []any                    `json:"invalidated_claim_refs,omitempty"`
 }
 
 type DeltaAppendDraft struct {
@@ -100,6 +109,7 @@ type DeltaAppendDraft struct {
 	RequiredEvidenceResult string                   `json:"required_evidence_result"`
 	ArgvPrefix             []string                 `json:"argv_prefix"`
 	ArgvPlaceholders       []string                 `json:"argv_placeholders"`
+	WorkerCognition        *workerdelta.Merge       `json:"worker_cognition,omitempty"`
 }
 
 type VerificationRecord struct {
@@ -162,6 +172,10 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 			UnknownPathDispositions: []UnknownPathDisposition{}, Changes: []changes.Change{}, Warnings: []string{}, Errors: []string{"explicit closeout scope requires at least one --changed-path"},
 		}, nil
 	}
+	workerCognition, err := collectWorkerResults(paths.Root, workflow, input.ScopeDir)
+	if err != nil {
+		return Payload{Status: statusBlocked, Workflow: workflow, WorkflowCanonical: workflow, ScopeMode: scopeMode, UpdateArgv: []string{}, ApplyArgv: []string{}, Errors: []string{"cannot consume stored worker results: " + err.Error()}}, nil
+	}
 
 	includeWorkingTree := input.IncludeWorkingTree
 	includeUntracked := input.IncludeUntracked
@@ -198,6 +212,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		ChangeSummary:           changePayload.Summary,
 		Warnings:                append([]string{}, changePayload.Warnings...),
 		Errors:                  append([]string{}, changePayload.Errors...),
+		WorkerCognition:         workerCognition,
 	}
 
 	if payload.Status != statusOK {
@@ -216,11 +231,14 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		payload.CommandSafetyNote = "command strings are display-only; fill delta_append_draft, then execute apply_argv after recording the required agent-owned evidence; update_argv is low-level compatibility/debug only"
 		payload.DeltaAppendCommand = "display only: specify-runtime cognition delta append --session <delta_session_id> --event-type workflow_closeout ...agent evidence flags... --format json"
 		payload.DeltaAppendDraft = deltaAppendDraft(sessionID, workflow, changedPaths, pathChanges(changePayload.Changes), dispositions, payload.RequiredAgentFields)
+		payload.DeltaAppendDraft.WorkerCognition = workerCognition
 		payload.UpdateCommand = "display only: specify-runtime cognition update --delta-session <delta_session_id> --reason <reason> --format json"
 		payload.UpdateArgv = []string{"specify-runtime", "cognition", "update", "--delta-session", sessionID, "--reason", reason, "--format", "json"}
 		payload.ApplyCommand = "display only: specify-runtime cognition closeout apply --workflow <workflow> --scope-dir <feature-or-scope> --delta-session <delta_session_id> --reason <reason> --format json"
 		payload.ApplyArgv = []string{"specify-runtime", "cognition", "closeout", "apply", "--workflow", workflow, "--scope-dir", scopeDir, "--delta-session", sessionID, "--reason", reason, "--format", "json"}
+		payload.RegistrationApplyArgv = append(append([]string{}, payload.ApplyArgv...), "--registration-json", "-")
 		payload.RecommendedNextCommand = "fill_delta_append_draft_then_closeout_apply"
+		checkWorkerOwnedBoundary(&payload, input.ExplicitPaths)
 		return payload, nil
 	}
 
@@ -254,7 +272,84 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 			ScopeMode:          scopeMode,
 		},
 	}
+	fillWorkerDraft(payload.PayloadDraft, workerCognition)
+	checkWorkerOwnedBoundary(&payload, input.ExplicitPaths)
 	return payload, nil
+}
+
+func fillWorkerDraft(draft *PayloadDraft, merged *workerdelta.Merge) {
+	if merged == nil {
+		return
+	}
+	draft.WorkerCognition = merged
+	draft.KnownUnknowns = append(draft.KnownUnknowns, merged.KnownUnknowns...)
+	for _, conflict := range merged.Conflicts {
+		draft.KnownUnknowns = append(draft.KnownUnknowns, "worker cognition requires version reconciliation: "+conflict.Kind+":"+conflict.Key)
+	}
+	stringsInto := func(delta map[string]any, field string, target *[]string) {
+		rows, _ := delta[field].([]any)
+		for _, row := range rows {
+			if text, ok := row.(string); ok {
+				*target = append(*target, text)
+			}
+		}
+	}
+	for _, delta := range merged.AcceptedDeltas {
+		stringsInto(delta, "behavior_surfaces", &draft.BehaviorSurfaces)
+		stringsInto(delta, "generated_surfaces", &draft.GeneratedSurfaces)
+		stringsInto(delta, "generated_surface_notes", &draft.GeneratedSurfaceNote)
+		stringsInto(delta, "state_contracts", &draft.StateContracts)
+		stringsInto(delta, "known_unknowns", &draft.KnownUnknowns)
+		stringsInto(delta, "confidence_notes", &draft.ConfidenceNotes)
+		for _, pair := range []struct {
+			field  string
+			target *[]any
+		}{{"owner_surfaces", &draft.OwnerSurfaces}, {"consumer_surfaces", &draft.ConsumerSurfaces}, {"interfaces", &draft.Interfaces}, {"evidence_refs", &draft.EvidenceRefs}, {"invalidated_claim_refs", &draft.InvalidatedClaimRefs}} {
+			rows, _ := delta[pair.field].([]any)
+			*pair.target = append(*pair.target, rows...)
+		}
+		rows, _ := delta["verification_evidence"].([]any)
+		for _, raw := range rows {
+			row, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			command, _ := row["command"].(string)
+			result, _ := row["result"].(string)
+			artifact, _ := row["artifact"].(string)
+			if command != "" && result != "" {
+				draft.VerificationEvidence = append(draft.VerificationEvidence, VerificationRecord{Command: command, Result: result, Artifact: artifact})
+			}
+		}
+	}
+}
+
+// Reported bytes are a completeness denominator, not authority to widen Work.
+// Missing endpoints require the caller to repair the exact owned boundary.
+func checkWorkerOwnedBoundary(payload *Payload, owned []string) {
+	if payload.WorkerCognition == nil || payload.ScopeMode != "explicit" {
+		return
+	}
+	set := map[string]bool{}
+	for _, p := range owned {
+		if normalized, err := workerdelta.SafePath(p); err == nil {
+			set[normalized] = true
+		}
+	}
+	missing := []string{}
+	for _, p := range payload.WorkerCognition.ChangedPaths {
+		if !set[p] {
+			missing = append(missing, p)
+		}
+	}
+	if len(missing) > 0 {
+		payload.Status = statusBlocked
+		payload.ApplyArgv = []string{}
+		payload.RegistrationApplyArgv = nil
+		payload.UpdateArgv = []string{}
+		payload.Errors = append(payload.Errors, "stored worker retained paths are absent from the explicit workflow-owned boundary: "+strings.Join(missing, ", "))
+		payload.RecommendedNextCommand = "repair_workflow_owned_boundary_from_current_work_authority"
+	}
 }
 
 func CanonicalWorkflow(value string) (string, error) {

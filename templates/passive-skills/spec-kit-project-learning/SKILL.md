@@ -11,6 +11,25 @@ or `.planning/learnings/**` directly during normal workflow execution.
 
 ## Consume With Progressive Disclosure
 
+The Quick/Debug pre-intake context-direct exception takes precedence: when the
+user selects that authorized branch, skip Learning intake, capture and review;
+insufficient context or expanded scope restores normal intake.
+Before relying on source-bound reuse, run
+`{{specify-subcmd:specify-runtime api ensure --capabilities learning.applicability.v1 --format json}}`.
+This versions existing Learning owners; there is no `learning applicability`
+command. Missing capability requires pinned-runtime repair or lesson deferral.
+After live reads identify the exact component directory, use
+`{{specify-subcmd:specify-runtime learning start --command <classic-command-name> --context component=src/owner --context constraint_file=constraints.json --format json}}`.
+Carry context through `list` and selected `show_argv`; add
+`--context counterevidence_file=tests/current-counterexample.txt` for contradictions.
+Use `applicability.state`, `applicable`, `reason_codes` and detail `checks`:
+`rejected` forbids reuse; `degraded`, unknown versions or absent legacy bindings
+require deferral and current evidence. Even `applicable` requires live semantic
+verification. Exact component, source bytes, constraints and counterevidence
+must match; ranking facets, recurrence and graph freshness are not semantic proof.
+Rejected candidates are not promotion-ready, and confirmation notes preserve
+rejection reasons. Confirmation does not repair source drift.
+
 Reuse one Learning intake and cognition context capsule for an unchanged intake;
 do not restart them after each preparatory capability, artifact, script, or board
 call. Refresh for changed scope, relevant evidence, workflow binding, Learning
@@ -68,6 +87,19 @@ Use manual capture only when durable state cannot express the lesson. Supply a
 small agent-oriented record:
 
 Required options: `--command`, `--type`, `--summary`, and `--evidence`.
+
+For genuine reusable `failure|recovery|correction|constraint` evidence, bind
+`capture` or owning-state `capture-auto` with
+`--component src/owner --source-file src/owner/entry.go --constraint-file constraints.json --evidence-kind recovery`.
+Repeat source/constraint flags as needed; `--counterevidence-file` retains a known
+counterexample. Runtime-owned hashes and sizes derive from current source files,
+never caller hashes, Gold/scoring answers or fabricated business origins.
+Ordinary success must not create a lesson. Use safe project-relative references
+and sources within the component; reject redirected paths, private runtime
+storage and raw sensitive references. Cognition owns current facts, Learning
+lessons and constraints, and existing Playbook owns repeatable methods.
+Preserve Do-before-Learning write locking and explicit promote-only lifecycle;
+read-only intake never creates mutation ownership or auto-confirms/promotes.
 
 - `--summary`: one-line identity
 - `--problem`: failure mode or situation

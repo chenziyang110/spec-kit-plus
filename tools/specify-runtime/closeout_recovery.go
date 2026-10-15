@@ -21,6 +21,26 @@ import (
 type closeoutRepairRecord struct {
 	Original    closeoutIntent `json:"original"`
 	Replacement closeoutIntent `json:"replacement"`
+	// Runtime-derived only: a stale, unpublished source proof may be replaced
+	// after its update committed. The old input and update remain immutable.
+	SupersededUpdateID string `json:"superseded_update_id,omitempty"`
+}
+
+func validateCommittedSourceRepair(record closeoutRepairRecord) error {
+	if record.SupersededUpdateID == "" {
+		return nil
+	}
+	old, next := record.Original, record.Replacement
+	if old.State != "pending_update" && old.State != "pending_validation" && old.State != "receipt_recorded" {
+		return fmt.Errorf("published closeout intents cannot be superseded")
+	}
+	if old.StrongBinding == nil || next.StrongBinding == nil || old.StrongBinding.ID == next.StrongBinding.ID || old.StrongBinding.WorkID != next.StrongBinding.WorkID {
+		return fmt.Errorf("committed source repair requires a different proof for the same native Work")
+	}
+	if old.UpdateID != "" && old.UpdateID != record.SupersededUpdateID {
+		return fmt.Errorf("committed source repair changed the original update binding")
+	}
+	return nil
 }
 
 type closeoutReplayError struct {
@@ -52,7 +72,12 @@ func closeoutRepairPath(paths rt.Paths, id string) string {
 }
 
 func closeoutReplacement(original closeoutIntent, verification []update.VerificationEvidence) closeoutIntent {
+	return closeoutReplacementWithBinding(original, verification, original.StrongBinding)
+}
+
+func closeoutReplacementWithBinding(original closeoutIntent, verification []update.VerificationEvidence, binding *closeoutBinding) closeoutIntent {
 	next := original
+	next.StrongBinding = binding
 	next.State = "pending_update"
 	next.UpdateID, next.UpdateOutcome, next.ActiveGenerationID = "", "", ""
 	next.ChangedBasis = nil
@@ -84,10 +109,19 @@ func loadCloseoutRepair(paths rt.Paths, id string) (closeoutRepairRecord, error)
 	if err := validateCloseoutIntentIdentity(record.Replacement); err != nil {
 		return record, err
 	}
-	want, _ := json.Marshal(closeoutReplacement(record.Original, record.Replacement.VerificationOverride))
+	if err := validateCommittedSourceRepair(record); err != nil {
+		return record, err
+	}
+	if record.Replacement.StrongBinding != nil {
+		proof := record.Replacement.StrongBinding
+		if proof.Workflow != record.Original.Workflow || proof.Scope != record.Original.Scope || !equalCloseoutPaths(proof.OwnedDelta, record.Original.ChangedPaths) || record.Original.StrongBinding != nil && proof.WorkID != record.Original.StrongBinding.WorkID {
+			return record, fmt.Errorf("repair cannot change the native owner or original delta")
+		}
+	}
+	want, _ := json.Marshal(closeoutReplacementWithBinding(record.Original, record.Replacement.VerificationOverride, record.Replacement.StrongBinding))
 	actual, _ := json.Marshal(record.Replacement)
 	if !bytes.Equal(want, actual) {
-		return record, fmt.Errorf("repair record changes fields outside verification")
+		return record, fmt.Errorf("repair record changes fields outside verification/current source proof")
 	}
 	return record, nil
 }
@@ -155,8 +189,23 @@ func publishCloseoutRepairLocked(paths rt.Paths, record closeoutRepairRecord) er
 	if err != nil {
 		return err
 	}
-	if committed != "" {
+	if committed != "" && record.SupersededUpdateID == "" {
 		return fmt.Errorf("repair is forbidden: original intent already committed")
+	}
+	if record.SupersededUpdateID != "" {
+		if err := validateCommittedSourceRepair(record); err != nil {
+			return err
+		}
+		if committed != record.SupersededUpdateID {
+			return fmt.Errorf("committed source repair no longer binds the exact original update")
+		}
+		current, err := closeoutCommitInActiveGeneration(paths, committed)
+		if err != nil || !current {
+			return fmt.Errorf("committed source repair requires the original active generation: %v", err)
+		}
+		if requireCloseoutIntentCurrentBinding(paths, record.Original) == nil {
+			return fmt.Errorf("committed source repair requires an actually stale original proof")
+		}
 	}
 	prepared, err := prepareCloseoutInput(paths, record.Replacement.Workflow, record.Replacement.PayloadJSON, record.Replacement.DeltaSessionID, record.Replacement.VerificationOverride, record.Replacement.CommitRange)
 	if err != nil {
@@ -167,6 +216,9 @@ func publishCloseoutRepairLocked(paths rt.Paths, record closeoutRepairRecord) er
 	}
 	if prepared.DeltaDigest != record.Replacement.DeltaDigest {
 		return fmt.Errorf("delta session changed before repair publication")
+	}
+	if err := requireCloseoutIntentCurrentBinding(paths, record.Replacement); err != nil {
+		return err
 	}
 	original, err := loadCloseoutIntent(paths, record.Original.ID)
 	if err == nil {
@@ -345,6 +397,18 @@ func runCognitionCloseoutInspectCLI(args []string, stdout io.Writer) int {
 			return writeEnvelope(stdout, env)
 		}
 	}
+	if proofErr := requireCloseoutIntentCurrentBinding(paths, intent); proofErr != nil && (committed == "" || intent.State != "scope_receipt_recorded") {
+		data["closeout_status"] = "source_binding_stale"
+		if committed != "" {
+			data["closeout_status"], data["committed_update_id"] = "source_binding_stale_after_commit", committed
+		}
+		data["error"] = proofErr.Error()
+		data["recommended_next_action"] = "begin_before_fresh_verification_then_seal_and_repair_exact_intent"
+		data["repair_argv"] = append(closeoutRecoveryArgv(paths, "repair", id, intent.InputDigest), "--binding-id", "<current binding_id returned by seal>", "--verification-json", "-")
+		env := NewEnvelope("ok", "stale source proof remains auditable; replay is withheld")
+		env.Data = data
+		return writeEnvelope(stdout, env)
+	}
 	prepared, inputErr := prepareCloseoutInput(paths, intent.Workflow, intent.PayloadJSON, intent.DeltaSessionID, intent.VerificationOverride, intent.CommitRange)
 	if inputErr == nil && len(prepared.Missing) == 0 {
 		data["recommended_next_action"] = "replay_closeout_intent"
@@ -386,7 +450,7 @@ func runCognitionCloseoutRepairCLI(args []string, stdout io.Writer) int {
 func runCognitionCloseoutRepairCLIWithInput(args []string, stdin io.Reader, stdout io.Writer) int {
 	if containsHelpFlag(args) {
 		env := NewEnvelope("ok", "project cognition closeout repair usage")
-		env.Data["usage"] = "specify-runtime cognition closeout repair --intent-id <id> --expected-digest <sha256> [--verification-json -|<json>|@path] [--project-root <path>] --format json"
+		env.Data["usage"] = "specify-runtime cognition closeout repair --intent-id <id> --expected-digest <sha256> [--binding-id <fresh sealed source binding>] [--verification-json -|<json>|@path] [--project-root <path>] --format json"
 		return writeEnvelope(stdout, env)
 	}
 	paths, err := rt.ResolvePaths(optionValue(args, "--project-root", "."))
@@ -452,9 +516,6 @@ func runCognitionCloseoutRepairCLIWithInput(args []string, stdin io.Reader, stdo
 		if original.InputDigest != expected {
 			return fmt.Errorf("repair expected digest does not match original intent")
 		}
-		if original.State != "pending_update" || original.UpdateID != "" || original.RepairsIntentID != "" {
-			return fmt.Errorf("only an uncommitted original input may be repaired")
-		}
 		if verification == nil {
 			return fmt.Errorf("--verification-json is required for a new repair; inspect then supply actual verification")
 		}
@@ -462,18 +523,45 @@ func runCognitionCloseoutRepairCLIWithInput(args []string, stdin io.Reader, stdo
 		if err != nil {
 			return err
 		}
-		if committed != "" {
-			return fmt.Errorf("repair is forbidden: original intent already committed")
-		}
 		before, beforeErr := prepareCloseoutInput(paths, original.Workflow, original.PayloadJSON, original.DeltaSessionID, nil, original.CommitRange)
 		issues := before.Missing
 		if beforeErr != nil {
 			issues = []string{beforeErr.Error()}
 		}
-		if !closeoutVerificationOnlyIssues(issues) {
+		binding := original.StrongBinding
+		if newID := strings.TrimSpace(optionValue(args, "--binding-id", "")); newID != "" {
+			workID := ""
+			if original.StrongBinding != nil {
+				workID = original.StrongBinding.WorkID
+			}
+			binding, err = requireStrongCloseoutBinding(paths.Root, original.Workflow, original.Scope, newID, workID)
+			if err != nil {
+				return err
+			}
+			if !equalCloseoutPaths(binding.OwnedDelta, original.ChangedPaths) {
+				return fmt.Errorf("source proof repair must preserve every original delta path")
+			}
+			expectedVerification := []update.VerificationEvidence{}
+			for _, row := range binding.Validation {
+				expectedVerification = append(expectedVerification, update.VerificationEvidence{Command: row.Command, Result: row.Result, Artifact: row.Artifact})
+			}
+			if !sameCloseoutBindingJSON(expectedVerification, verification) {
+				return fmt.Errorf("repair verification must match the current sealed observations")
+			}
+		}
+		proofStale := requireCloseoutIntentCurrentBinding(paths, original) != nil
+		freshSourceRepair := proofStale && binding != nil && original.StrongBinding != nil && binding.ID != original.StrongBinding.ID && beforeErr == nil && len(issues) == 0
+		if committed != "" {
+			if !freshSourceRepair {
+				return fmt.Errorf("repair is forbidden: original intent already committed; fresh native source proof is required")
+			}
+		} else if original.State != "pending_update" || original.UpdateID != "" || original.RepairsIntentID != "" {
+			return fmt.Errorf("only an uncommitted original input may be repaired")
+		}
+		if !closeoutVerificationOnlyIssues(issues) && !freshSourceRepair {
 			return fmt.Errorf("intent does not have a verification-only defect; use its inspected recovery route")
 		}
-		replacement := closeoutReplacement(original, verification)
+		replacement := closeoutReplacementWithBinding(original, verification, binding)
 		prepared, err := prepareCloseoutInput(paths, replacement.Workflow, replacement.PayloadJSON, replacement.DeltaSessionID, verification, replacement.CommitRange)
 		if err != nil {
 			return err
@@ -485,6 +573,12 @@ func runCognitionCloseoutRepairCLIWithInput(args []string, stdin io.Reader, stdo
 			return fmt.Errorf("delta session changed during verification repair")
 		}
 		record = closeoutRepairRecord{Original: original, Replacement: replacement}
+		if committed != "" {
+			record.SupersededUpdateID = committed
+			if err := validateCommittedSourceRepair(record); err != nil {
+				return err
+			}
+		}
 		if err := writeScriptJSONFile(closeoutRepairPath(paths, id), record); err != nil {
 			return err
 		}
@@ -505,6 +599,10 @@ func runCognitionCloseoutRepairCLIWithInput(args []string, stdin io.Reader, stdo
 
 func closeoutRepairResult(paths rt.Paths, record closeoutRepairRecord) map[string]any {
 	data := map[string]any{"closeout_status": "intent_repaired", "intent_id": record.Original.ID, "replacement_intent_id": record.Replacement.ID, "replacement_input_digest": record.Replacement.InputDigest, "repair_record_ref": closeoutIntentRef(paths, closeoutRepairPath(paths, record.Original.ID)), "graph_mutation_performed": false, "recommended_next_action": "replay_closeout_intent"}
+	if record.SupersededUpdateID != "" {
+		data["superseded_update_id"] = record.SupersededUpdateID
+		data["original_update_preserved"] = true
+	}
 	if _, err := os.Stat(closeoutIntentPath(paths, record.Replacement.ID)); err == nil {
 		committed, err := closeoutCommittedUpdate(paths, record.Replacement.ID)
 		if err != nil {

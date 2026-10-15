@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DO_CAPABILITIES = (
     "do.start", "do.record", "do.validate", "do.finish", "do.resume", "do.show",
     "playbook.find", "playbook.show", "playbook.update", "playbook.validate",
+    "do.prepare", "do.next", "do.complete", "playbook.metrics",
 )
 
 
@@ -82,7 +83,13 @@ def test_do_cannot_fall_back_to_python_in_agent_prompts(tmp_path, command):
 ])
 def test_optional_method_recall_keeps_consumer_owner_on_missing_capability(relative):
     content = (ROOT / relative).read_text(encoding="utf-8")
-    ensure = "api ensure --capabilities playbook.find,playbook.show --format json"
+    capabilities = "playbook.find,playbook.show"
+    if relative in {
+        "templates/commands/e2e.md",
+        "templates/advanced-skills/spx-e2e/SKILL.md",
+    }:
+        capabilities += ",playbook.validate"
+    ensure = f"api ensure --capabilities {capabilities} --format json"
     assert ensure in content
     assert content.index(ensure) < content.index("playbook find --query <operation-goal>")
     assert "own verification without method reuse" in content

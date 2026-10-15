@@ -595,6 +595,10 @@ func doSourceMutationFixtureWithSetup(t *testing.T, setup func(string)) (string,
 	input.Definition.Steps[0].SourceWrites = []string{"source.txt", "generated"}
 	input.Definition.Checks[0].ResultPath = "generated/report.json"
 	input.WriteScope = []string{"source.txt", "generated"}
+	// Runtime setup must bind to this isolated project, never an ancestor's cognition.
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if setup != nil {
 		setup(root)
 	}
@@ -726,7 +730,7 @@ func TestDoOversizeCheckpointCannotReplaceReadableState(t *testing.T) {
 }
 
 func TestDoPublishedInputSchemasMatchRuntime(t *testing.T) {
-	for filename, schema := range map[string]map[string]any{"do-start.schema.json": doStartInputSchema(), "do-record.schema.json": doRecordInputSchema(), "do-finish.schema.json": doFinishInputSchema(), "do-resume.schema.json": doResumeInputSchema()} {
+	for filename, schema := range map[string]map[string]any{"do-start.schema.json": doStartInputSchema(), "do-prepare.schema.json": doStartInputSchema(), "do-record.schema.json": doRecordInputSchema(), "do-finish.schema.json": doFinishInputSchema(), "do-complete.schema.json": doCompleteInputSchema(), "do-resume.schema.json": doResumeInputSchema()} {
 		raw, err := os.ReadFile(filepath.Join("..", "..", "templates", "artifacts", filename))
 		if err != nil {
 			t.Fatal(err)

@@ -20,26 +20,28 @@ import (
 const closeoutIntentVersion = 1
 
 type closeoutIntent struct {
-	Version              int                           `json:"version"`
-	ID                   string                        `json:"id"`
-	State                string                        `json:"state"`
-	Workflow             string                        `json:"workflow"`
-	Scope                string                        `json:"scope"`
-	Reason               string                        `json:"reason"`
-	PayloadJSON          string                        `json:"payload_json,omitempty"`
-	DeltaSessionID       string                        `json:"delta_session_id,omitempty"`
-	DeltaDigest          string                        `json:"delta_digest,omitempty"`
-	CommitRange          string                        `json:"commit_range,omitempty"`
-	InputDigest          string                        `json:"input_digest"`
-	ChangedPaths         []string                      `json:"changed_paths"`
-	UpdateID             string                        `json:"update_id,omitempty"`
-	UpdateOutcome        string                        `json:"update_outcome,omitempty"`
-	ActiveGenerationID   string                        `json:"active_generation_id,omitempty"`
-	ChangedBasis         []string                      `json:"changed_basis,omitempty"`
-	RecordedAt           string                        `json:"recorded_at"`
-	VerificationOverride []update.VerificationEvidence `json:"verification_override,omitempty"`
-	RepairsIntentID      string                        `json:"repairs_intent_id,omitempty"`
-	DoBinding            *DoCognitionBinding           `json:"do_binding,omitempty"`
+	Version                int                           `json:"version"`
+	ID                     string                        `json:"id"`
+	State                  string                        `json:"state"`
+	Workflow               string                        `json:"workflow"`
+	Scope                  string                        `json:"scope"`
+	Reason                 string                        `json:"reason"`
+	PayloadJSON            string                        `json:"payload_json,omitempty"`
+	DeltaSessionID         string                        `json:"delta_session_id,omitempty"`
+	DeltaDigest            string                        `json:"delta_digest,omitempty"`
+	CommitRange            string                        `json:"commit_range,omitempty"`
+	InputDigest            string                        `json:"input_digest"`
+	ChangedPaths           []string                      `json:"changed_paths"`
+	UpdateID               string                        `json:"update_id,omitempty"`
+	UpdateOutcome          string                        `json:"update_outcome,omitempty"`
+	ActiveGenerationID     string                        `json:"active_generation_id,omitempty"`
+	ChangedBasis           []string                      `json:"changed_basis,omitempty"`
+	RecordedAt             string                        `json:"recorded_at"`
+	VerificationOverride   []update.VerificationEvidence `json:"verification_override,omitempty"`
+	RepairsIntentID        string                        `json:"repairs_intent_id,omitempty"`
+	DoBinding              *DoCognitionBinding           `json:"do_binding,omitempty"`
+	StrongBinding          *closeoutBinding              `json:"strong_binding,omitempty"`
+	ScopedRegistrationJSON string                        `json:"scoped_registration_json,omitempty"`
 }
 
 func ensureCloseoutIntent(paths rt.Paths, workflow string, scope string, reason string, payloadJSON string, deltaSession string, commitRange string, changedPaths []string, expectedDeltaDigest ...string) (closeoutIntent, string, bool, error) {
@@ -47,6 +49,14 @@ func ensureCloseoutIntent(paths rt.Paths, workflow string, scope string, reason 
 }
 
 func ensureCloseoutIntentWithDoBinding(paths rt.Paths, workflow string, scope string, reason string, payloadJSON string, deltaSession string, commitRange string, changedPaths []string, binding *DoCognitionBinding, expectedDeltaDigest ...string) (closeoutIntent, string, bool, error) {
+	return ensureCloseoutIntentWithBindings(paths, workflow, scope, reason, payloadJSON, deltaSession, commitRange, changedPaths, binding, nil, expectedDeltaDigest...)
+}
+
+func ensureCloseoutIntentWithBindings(paths rt.Paths, workflow string, scope string, reason string, payloadJSON string, deltaSession string, commitRange string, changedPaths []string, binding *DoCognitionBinding, strong *closeoutBinding, expectedDeltaDigest ...string) (closeoutIntent, string, bool, error) {
+	return ensureCloseoutIntentWithRegistration(paths, workflow, scope, reason, payloadJSON, deltaSession, commitRange, changedPaths, binding, strong, "", expectedDeltaDigest...)
+}
+
+func ensureCloseoutIntentWithRegistration(paths rt.Paths, workflow string, scope string, reason string, payloadJSON string, deltaSession string, commitRange string, changedPaths []string, binding *DoCognitionBinding, strong *closeoutBinding, registrationJSON string, expectedDeltaDigest ...string) (closeoutIntent, string, bool, error) {
 	deltaDigest, err := closeoutDeltaDigest(paths, deltaSession)
 	if err != nil {
 		return closeoutIntent{}, "", false, err
@@ -55,18 +65,20 @@ func ensureCloseoutIntentWithDoBinding(paths rt.Paths, workflow string, scope st
 		return closeoutIntent{}, "", false, fmt.Errorf("delta session digest changed after closeout preflight; rerun preflight before creating an intent")
 	}
 	intent := closeoutIntent{
-		Version:        closeoutIntentVersion,
-		State:          "pending_update",
-		Workflow:       workflow,
-		Scope:          scope,
-		Reason:         reason,
-		PayloadJSON:    payloadJSON,
-		DeltaSessionID: deltaSession,
-		DeltaDigest:    deltaDigest,
-		CommitRange:    commitRange,
-		ChangedPaths:   normalizedCloseoutPaths(changedPaths),
-		RecordedAt:     time.Now().UTC().Format(time.RFC3339Nano),
-		DoBinding:      binding,
+		Version:                closeoutIntentVersion,
+		State:                  "pending_update",
+		Workflow:               workflow,
+		Scope:                  scope,
+		Reason:                 reason,
+		PayloadJSON:            payloadJSON,
+		DeltaSessionID:         deltaSession,
+		DeltaDigest:            deltaDigest,
+		CommitRange:            commitRange,
+		ChangedPaths:           normalizedCloseoutPaths(changedPaths),
+		RecordedAt:             time.Now().UTC().Format(time.RFC3339Nano),
+		DoBinding:              binding,
+		StrongBinding:          strong,
+		ScopedRegistrationJSON: registrationJSON,
 	}
 	digest := storedCloseoutIntentDigest(intent)
 	intent.ID, intent.InputDigest = "intent-"+digest[:24], digest
@@ -82,6 +94,25 @@ func ensureCloseoutIntentWithDoBinding(paths rt.Paths, workflow string, scope st
 		return existing, closeoutIntentRef(paths, path), true, nil
 	} else if !os.IsNotExist(err) {
 		return closeoutIntent{}, "", false, fmt.Errorf("read closeout intent %s: %w", filepath.ToSlash(path), err)
+	}
+	// A successfully published registration removes its pending intent. Keep
+	// exact repeats bound to that receipt instead of recreating a pending owner.
+	if registrationJSON != "" {
+		absScope, _, err := resolveCloseoutApplyScope(paths.Root, scope)
+		if err != nil {
+			return closeoutIntent{}, "", false, err
+		}
+		receipt, err := loadMutationCognitionReceipt(absScope)
+		if err != nil {
+			return closeoutIntent{}, "", false, err
+		}
+		if receipt != nil && receipt.IntentID == intent.ID {
+			if receipt.IntentDigest != digest || receipt.IntentRef != closeoutIntentRef(paths, path) || receipt.Workflow != workflow || receipt.Scope != scope || !equalCloseoutPaths(receipt.ChangedPaths, intent.ChangedPaths) {
+				return closeoutIntent{}, "", false, fmt.Errorf("completed closeout receipt identity differs from the exact input")
+			}
+			intent.State, intent.UpdateID = "scope_receipt_recorded", receipt.UpdateID
+			return intent, closeoutIntentRef(paths, path), true, nil
+		}
 	}
 	if err := writeCloseoutIntent(path, intent); err != nil {
 		return closeoutIntent{}, "", false, err
@@ -173,7 +204,23 @@ func validateCloseoutIntent(paths rt.Paths, intent closeoutIntent) error {
 	if deltaDigest != intent.DeltaDigest {
 		return fmt.Errorf("delta session digest changed")
 	}
+	if intent.StrongBinding != nil {
+		if current, err := loadCloseoutBinding(paths.Root, intent.StrongBinding.ID); err != nil || current.Digest != intent.StrongBinding.Digest {
+			return fmt.Errorf("closeout intent strong binding changed")
+		}
+		if intent.StrongBinding.Workflow != intent.Workflow || intent.StrongBinding.Scope != intent.Scope {
+			return fmt.Errorf("closeout intent binding owner differs")
+		}
+	}
 	return nil
+}
+
+func requireCloseoutIntentCurrentBinding(paths rt.Paths, intent closeoutIntent) error {
+	if intent.StrongBinding == nil {
+		return nil
+	}
+	_, err := requireStrongCloseoutBinding(paths.Root, intent.Workflow, intent.Scope, intent.StrongBinding.ID, intent.StrongBinding.WorkID)
+	return err
 }
 
 func validateCloseoutIntentIdentity(intent closeoutIntent) error {
@@ -208,9 +255,16 @@ func validateCloseoutIntentIdentity(intent closeoutIntent) error {
 
 func storedCloseoutIntentDigest(intent closeoutIntent) string {
 	values := []string{intent.Workflow, intent.Scope, intent.Reason, intent.PayloadJSON, intent.DeltaSessionID, intent.CommitRange, intent.DeltaDigest}
+	if intent.ScopedRegistrationJSON != "" {
+		values = append(values, "scoped-registration", intent.ScopedRegistrationJSON)
+	}
 	if intent.DoBinding != nil {
 		raw, _ := json.Marshal(intent.DoBinding)
 		values = append(values, "do-source-basis", string(raw))
+	}
+	if intent.StrongBinding != nil {
+		raw := canonicalCloseoutBindingJSON(intent.StrongBinding)
+		values = append(values, "source-validation-binding", string(raw))
 	}
 	if intent.VerificationOverride != nil || intent.RepairsIntentID != "" {
 		raw, _ := json.Marshal(intent.VerificationOverride)

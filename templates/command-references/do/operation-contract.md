@@ -1,6 +1,8 @@
 # Operation Contract
 
 Trigger: read before method selection, session start/resume, or native execution.
+Read the matching section; load recovery/replanning and knowledge details only
+when those branches apply. Schemas already available in context need no reread.
 
 Preserved Contract: both profiles use the same Go `do` and `playbook` state and
 evidence contracts. A method is a candidate route until live evidence establishes
@@ -27,6 +29,33 @@ sections, or `all` when freezing the complete selected definition requires it.
 Preserve its method ID, revision, content digest, stable operation/target/owner/
 variant identity, and applicability context. Do not select by title alone.
 
+Default `--rank relevance` keeps retrieval cheap. Use `--rank observed` only
+when measured history helps choose between applicable methods, with complete
+observed OS, architecture, shell and toolchain context plus `--parameters-json`
+for this invocation. It scans session history and compares reliability before
+tool cost only within equal relevance, task, parameter instance, source basis
+and verification conditions; insufficient history is not an optimum claim.
+Expand `playbook metrics --id <id>` or `do show <id> --section metrics` only
+when timing/outcome detail is useful. Failures, interruptions and blocks remain
+visible; successful usage alone is not a success-rate denominator.
+
+Use a stable `task_family` for related methods and declare variable nonsecret
+inputs in the definition's typed `parameters`; supply actual string values in
+start's `parameters` or lookup's `--parameters-json`. `{{param:name}}` tokens
+expand as data. An argv token must occupy a whole non-executable argument;
+never interpolate it into shell command text. Keep scopes concrete for the
+resolved paths. The runtime binds both the reusable template digest and the
+resolved instance digest; a new parameter value is not a method revision.
+For manual publication retrieve `do show <id> --section method` and use its
+`method_definition`, not the resolved `--section definition` body.
+
+On a matching failure, expand `playbook show --id <id> --section recovery` for bound
+failure discriminators, failed/verified actions and preflight candidates.
+Compare the current signal, parameters and environment. A recovered run does
+not prove a root cause or that a candidate prevents the failure. Freeze and
+execute a selected preflight with required checks before publishing a verified
+method change; stale recovery evidence is excluded, not silently trusted.
+
 A first-use `status=proposed` card is unverified. Follow its pinned proposal
 `show_argv`, inspect the definition against live prerequisites, and start a new
 verification session without `method_binding`: revision zero is not a verified
@@ -34,8 +63,12 @@ canonical method. Existing verified cards remain bound to their exact revision;
 do not silently retarget to a concurrent update or treat a proposal as success.
 If a verified summary exposes `pending_proposal`, its pinned `show_argv` is an
 optional unverified improvement on that exact base. Expand and freeze it only
-when the requested operation can verify it; do not copy its claims into the
-current revision or reuse the current revision's binding for the changed method.
+when the requested operation can verify it. Keep the exact verified base ID,
+revision and content digest in `method_binding`, while supplying the changed
+template and this invocation's parameters. That binding is the publication
+compare-and-swap base, not proof of the candidate's success. Verify the changed
+instance in this session; never inherit old success. Start rejects a stale
+base, which requires explicit reconciliation rather than silent retargeting.
 
 Validate prerequisites against the actual OS/architecture, shell, toolchain,
 working directory, lock/configuration/source files, available services, and
@@ -47,11 +80,15 @@ digests instead of secrets, full environment dumps, personal paths, or raw logs.
 
 ## Session and Scope
 
-Use `api show do.start` and the reported `do-start-input` schema, then
-`do start --input-json <json|->`. Bind the goal, exact definition, selected
+Use `api show do.prepare` and its schema, then `do prepare --input-json <json|->`
+to validate the start contract read-only. Bind the goal, exact template and
+actual parameters, selected
 `method_binding` when applicable, observed context, relevant source files,
 authorized `write_scope`, separate `output_scope`, and actual agent/adapter
-identity. The runtime creates the independent DoSession and Work binding under
+identity. Pass its canonical `start_input` to the returned `start_argv`; the
+separate `method_digest`, `definition_digest` and source fingerprint describe
+the prepared inputs, not permission or a persistent session. `do start`
+rechecks live conditions and creates the independent DoSession and Work binding under
 `.specify/do/sessions/<id>`. Do not write that directory directly.
 
 Set `adapter_id` to the rendered integration key `__AGENT__` and `agent_id` to
@@ -105,14 +142,29 @@ larger feature. Do not silently invoke Quick, Debug, or another workflow.
 
 ## Native Execution and Evidence
 
-The agent executes with the available native process tools; runtime receipts do
-not launch a shell or attest an unobserved tool call. Before a frozen step/check,
-use `api show do.record` and record a `started` event with a stable attempt ID.
-After the actual tool call completes, record a `completed` event with its real
-tool-call ID, argv, cwd, timestamps, exit status when available, observed status,
-sanitized summary, and existing result references. Pass the expected session
-revision and a unique idempotency request ID. Re-read on a revision conflict;
-do not blindly overwrite another writer's observation.
+The agent executes with its available native tools; runtime receipts neither
+execute actions nor attest an unobserved call. Prefer read-only `do next <id>`:
+`ready` contains the full frozen `action`, a consumable `started_input`, and a
+`completion_event` skeleton plus `completion_required`. Record started before
+execution. After real completion, fill the skeleton from the actual call and
+submit it in `do-record-input.events` with the latest `expected_revision` and a
+unique `request_id`. Refresh next after a checkpoint; multiple ready entries
+share the returned revision and are not an already-recorded batch. `running`
+identifies existing attempts to observe/reconcile, not permission to rerun them.
+Direct `do record` remains available through its schema. Never invent tool IDs,
+timestamps, status, exit codes or results to fill a skeleton.
+
+Process actions record exact argv/cwd, real exit status and result references.
+A `native_action` instead freezes `kind=file|browser|desktop|connector`, `tool`,
+`target` and JSON `arguments`; it cannot carry argv/cwd/script_ref. Record the
+actual `native_observation` with its outcome and sanitized JSON result; runtime
+stores the bound snapshot and hash. Do not invent a shell command or exit code
+for a nonprocess tool. Mutations in the required dependency closure need a
+dependent required `observation`, file, JSON or JUnit effect check using a fresh
+independent call after the exact producer. An observation check compares its
+JSON pointer to frozen `expected_json`. Remote/browser observations prove the
+observed state at that time, not perpetual current state or a completed tool call
+that the agent never saw.
 
 Keep process handles for long builds/tests and wait for their real completion.
 Bound waits, report meaningful progress, and use native cancellation when the
@@ -142,15 +194,16 @@ a proposal when its verification is outside this task.
 ### Recovery Evidence
 
 Read `do-resume-input` when recovering an attempt, resolving a blocker, or
-replanning after failure. `recovery` always requires a nonempty concrete
-`reason`, `processes_stopped=true` and `side_effects_inspected=true`. Choose
-exactly one evidence form:
+replanning after failure. `recovery` requires a nonempty concrete
+`reason`, `side_effects_inspected=true`, and `processes_stopped=true` for process
+attempts or `native_action_settled=true` for nonprocess actions. Choose
+exactly one evidence form; mixed-operation recovery requires both confirmations:
 
 - `evidence_ref` names an existing sanitized file inside the already declared
   `write_scope` or `output_scope`. New scope requested by a replan cannot
   retroactively authorize creating that evidence file.
-- `evidence_text` contains a nonempty sanitized UTF-8 record of the native
-  process termination and actual side-effect inspection, at most 64 KiB in
+- `evidence_text` contains a nonempty sanitized UTF-8 record of process
+  termination or native action settlement and actual side-effect inspection, at most 64 KiB in
   bytes. Runtime stores it atomically with the recovery and session revision
   check inside the session's existing Work-owned `evidence/` directory. Do not
   prewrite or hand-edit that protected directory. This route neither expands
@@ -177,7 +230,8 @@ When a known failure requires a different command or helper, use the typed
 the current `expected_revision`, the latest unresolved genuinely failed
 `attempt_id` in the current definition epoch, and `recovery` with a concrete
 reason and one of the [Recovery Evidence](#recovery-evidence) forms,
-`processes_stopped=true`, and `side_effects_inspected=true`. Reconcile unknown,
+the applicable process/action settlement confirmation, and
+`side_effects_inspected=true`. Reconcile unknown,
 running, or interrupted effects first; replanning cannot bypass that recovery
 or change an already passed execution waiting only for knowledge persistence.
 
@@ -187,9 +241,22 @@ definitions, and attempt history. Optional `write_scope` and `output_scope`
 are complete replacement lists that must retain prior scope; omission inherits
 the current lists. Do not move a path between source and output scope, claim
 unrelated work, or weaken the requested result and verification denominator.
-Every required step and check must obtain fresh native evidence in the new
-`definition_epoch`; an older epoch's success cannot satisfy it.
-Even returning to an earlier identical definition digest requires new evidence.
+By default every required step/check obtains fresh evidence in the new epoch.
+For adaptation before an action starts, use `replan.mode="unstarted"` and omit
+both `attempt_id` and `recovery`; change only unattempted actions. This avoids
+inventing a failure to refine an unexecuted plan. Active or unknown effects
+still require recovery first.
+
+Either replan mode may explicitly request `retain_verified=true`. Runtime may
+retain eligible process observations with `side_effect="read"` or
+`side_effect="local_write"` from the direct previous epoch. Do's validators
+require actual output references, fresh hashes, unchanged actions, sources and
+dependency bindings. Required closure, checks and edges cannot be weakened.
+Native/external actions, source writers and older carried evidence are not
+retained; no chained carry is allowed. New required checks execute. Use
+`specify-runtime do show <id> --section definition:<epoch>` for retained receipts
+and `do next` for remaining work; Do rechecks outputs before a new consumer starts. A retained
+receipt references an original attempt, never a new execution or timing sample.
 
 For a new helper outside the current write scope, replan to claim its exact path
 before creating it, and freeze its creation as a local-write step with explicit
@@ -202,7 +269,7 @@ definition/attempt expansion commands before continuing the new epoch.
 ## Knowledge Update
 
 Inspect `api show playbook.update` and its input schema before a new mutation.
-Update with the exact verified definition, matching completed `session_id`,
+Update with the exact verified template (`--section method`), matching completed `session_id`,
 change summary, and current `base_digest` for an existing playbook. Concurrent
 updates require rereading the current revision and reconciling actual semantic
 differences. Different targets, owners, variants, or incompatible environments

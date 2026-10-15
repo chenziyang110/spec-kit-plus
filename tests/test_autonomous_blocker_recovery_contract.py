@@ -129,7 +129,9 @@ def test_recovery_preserves_explicit_cross_workflow_handoff_boundaries() -> None
             "stop and route to the owning upstream phase",
         ),
         "templates/command-references/debug/fix-gate.md": (
-            "if that expands beyond the debug fix lane, route it through `/sp-quick`",
+            "approved registered causal scope",
+            "without invoking another user-invoked workflow",
+            "use `/sp-specify` only when the user explicitly chooses",
         ),
         "templates/advanced-skills/spx-fast/SKILL.md": (
             "this invocation authorizes only this workflow stage",

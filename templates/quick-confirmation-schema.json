@@ -62,6 +62,11 @@
       "properties": {
         "goal": { "type": "string", "minLength": 1 },
         "user_visible_result": { "type": "string", "minLength": 1 },
+        "current_state_evidence": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "description": "Selected current-state observations and decisive source references, or explicit absence/unknown baseline. Digest-protected when nonempty; absent or empty preserves legacy v1 digests."
+        },
         "scope": {
           "type": "object",
           "required": ["include", "exclude"],
@@ -86,6 +91,11 @@
                 "items": { "type": "string", "pattern": "^Q[1-9][0-9]*$" }
               },
               "acceptance": { "type": "string", "minLength": 1 },
+              "read_scope": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 1, "pattern": "^\\S(?:.*\\S)?$"},
+                "description": "Optional explicit execution read dependencies; missing remains unknown, empty is declared complete. Excluded from confirmation_digest like write_scope."
+              },
               "write_scope": {
                 "type": "array",
                 "items": { "type": "string" },
@@ -463,6 +473,9 @@
               "worker_result_id": { "type": "string" },
               "worker_result_ref": { "type": "string" },
               "worker_lane_id": { "type": "string" },
+              "worker_result_sha256": { "type": "string" },
+              "worker_attempt_id": { "type": "string" },
+              "worker_submission_sequence": { "type": "integer" },
               "execution_mode": { "type": "string", "enum": ["worker", "leader-inline", "leader-direct"] },
               "inline_reason": { "type": "string" },
               "inline_approved": { "type": "boolean" }

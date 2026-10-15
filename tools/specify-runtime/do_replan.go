@@ -39,6 +39,12 @@ func (input *doReplanInput) UnmarshalJSON(raw []byte) error {
 
 func (input doReplanInput) MarshalJSON() ([]byte, error) {
 	value := map[string]any{"request_id": input.RequestID, "definition": input.Definition}
+	if input.Mode != "" {
+		value["mode"] = input.Mode
+	}
+	if input.RetainVerified {
+		value["retain_verified"] = true
+	}
 	if input.WriteScope != nil {
 		value["write_scope"] = input.WriteScope
 	}
@@ -66,6 +72,9 @@ func doAttemptInCurrentDefinition(session DoSession, attempt DoAttempt) bool {
 func doInitializeDefinitionEpoch(session *DoSession, sources map[string]string, fingerprint, revision string, dirty []string) {
 	session.DefinitionEpoch = 1
 	session.DefinitionHistory = []DoDefinitionEpoch{{Epoch: 1, Definition: session.Definition, DefinitionDigest: session.DefinitionDigest, Sources: sources, SourceFingerprint: fingerprint, SourceRevision: revision, DirtyPaths: append([]string{}, dirty...), WriteScope: append([]string{}, session.WriteScope...), OutputScope: append([]string{}, session.OutputScope...), FrozenAt: session.CreatedAt, BasisOrigin: "runtime_source_capture"}}
+	session.DefinitionHistory[0].TemplateDefinition = session.TemplateDefinition
+	session.DefinitionHistory[0].TemplateDigest = session.TemplateDigest
+	session.DefinitionHistory[0].Parameters = session.Parameters
 }
 
 func doDefinitionEpochRef(sessionID string, epoch int) string {
@@ -110,6 +119,10 @@ func doValidateDefinitionHistory(root string, session DoSession) error {
 			return fmt.Errorf("definition history identity or digest differs from its frozen epoch")
 		}
 		want, err := doDefinitionEpochBytes(item)
+		binding := DoSession{Definition: item.Definition, DefinitionDigest: item.DefinitionDigest, TemplateDefinition: item.TemplateDefinition, TemplateDigest: item.TemplateDigest, Parameters: item.Parameters}
+		if err := doVerifyInstanceBinding(root, binding); err != nil {
+			return err
+		}
 		if err != nil {
 			return err
 		}
@@ -122,15 +135,25 @@ func doValidateDefinitionHistory(root string, session DoSession) error {
 		}
 	}
 	current := session.DefinitionHistory[len(session.DefinitionHistory)-1]
+	if current.TemplateDigest != session.TemplateDigest || !reflect.DeepEqual(current.Parameters, session.Parameters) || !reflect.DeepEqual(current.TemplateDefinition, session.TemplateDefinition) {
+		return fmt.Errorf("current parameter template differs from its immutable epoch")
+	}
 	if current.DefinitionDigest != session.DefinitionDigest || !reflect.DeepEqual(uniqueSortedTrimmed(current.WriteScope), uniqueSortedTrimmed(session.WriteScope)) || !reflect.DeepEqual(uniqueSortedTrimmed(current.OutputScope), uniqueSortedTrimmed(session.OutputScope)) {
 		return fmt.Errorf("current definition or scope differs from its epoch")
 	}
-	return nil
+	return doValidateRetainedBindings(session)
 }
 
 func doReplan(root string, session DoSession, oldDigest string, input doResumeInput) (DoSession, error) {
 	if input.Replan == nil || !doIDPattern.MatchString(input.Replan.RequestID) {
 		return session, fmt.Errorf("replan requires a valid request_id and replacement definition")
+	}
+	unstarted := input.Replan.Mode == "unstarted"
+	if input.Replan.Mode != "" && input.Replan.Mode != "failed" && !unstarted {
+		return session, fmt.Errorf("unknown replan mode")
+	}
+	if unstarted && (input.AttemptID != "" || !reflect.DeepEqual(input.Recovery, DoRecovery{})) {
+		return session, fmt.Errorf("unstarted adjustment cannot carry fabricated recovery")
 	}
 	if input.Recovery.EvidenceSHA256 != "" {
 		return session, fmt.Errorf("recovery evidence_sha256 is runtime-owned")
@@ -140,9 +163,13 @@ func doReplan(root string, session DoSession, oldDigest string, input doResumeIn
 		if receipt.RequestDigest != requestDigest {
 			return session, fmt.Errorf("replan request_id was reused with a different payload")
 		}
-		raw, err := secureProjectReadFile(root, receipt.EvidenceRef)
-		if err != nil || doBytesDigest(raw) != receipt.EvidenceSHA256 {
-			return session, fmt.Errorf("replayed replan recovery evidence is missing or changed")
+		if receipt.EvidenceRef != "" {
+			raw, err := secureProjectReadFile(root, receipt.EvidenceRef)
+			if err != nil || doBytesDigest(raw) != receipt.EvidenceSHA256 {
+				return session, fmt.Errorf("replayed replan recovery evidence is missing or changed")
+			}
+		} else if !unstarted {
+			return session, fmt.Errorf("replayed failure recovery evidence is missing")
 		}
 		if err := doValidateDefinitionHistory(root, session); err != nil {
 			return session, err
@@ -179,22 +206,28 @@ func doReplan(root string, session DoSession, oldDigest string, input doResumeIn
 			index = i
 		}
 	}
-	if index < 0 {
-		return session, fmt.Errorf("replan requires an exact failed attempt in the current definition epoch")
-	}
-	failed := session.Attempts[index]
-	if latest, ok := doLatestAttempts(session)[failed.TargetID]; !ok || latest.ID != failed.ID {
-		return session, fmt.Errorf("replan requires the latest unresolved failed attempt, not an earlier replaced result")
-	}
-	if failed.Status != "failed" || failed.EvidenceOrigin != "agent_tool_observation" || failed.ToolCallID == "" || failed.TimedOut || failed.Cancelled {
-		return session, fmt.Errorf("replan requires an observed failure; interruption or a new suggestion is not a failed execution")
-	}
-	if err := doReplanVerifyFailure(root, session, failed); err != nil {
-		return session, err
-	}
-	recovery, extra, err := doPrepareRecovery(root, session, input)
-	if err != nil {
-		return session, err
+	var recovery DoRecovery
+	var extra []fileTransactionUpdate
+	var failed DoAttempt
+	if !unstarted {
+		if index < 0 {
+			return session, fmt.Errorf("replan requires an exact failed attempt in the current definition epoch")
+		}
+		failed = session.Attempts[index]
+		if latest, ok := doLatestAttempts(session)[failed.TargetID]; !ok || latest.ID != failed.ID {
+			return session, fmt.Errorf("replan requires the latest unresolved failed attempt, not an earlier replaced result")
+		}
+		if failed.Status != "failed" || failed.EvidenceOrigin != "agent_tool_observation" || failed.ToolCallID == "" || failed.TimedOut || failed.Cancelled {
+			return session, fmt.Errorf("replan requires an observed failure; interruption or a new suggestion is not a failed execution")
+		}
+		if err := doReplanVerifyFailure(root, session, failed); err != nil {
+			return session, err
+		}
+		var err error
+		recovery, extra, err = doPrepareRecovery(root, session, input)
+		if err != nil {
+			return session, err
+		}
 	}
 	for i, attempt := range session.Attempts {
 		if i == index || (attempt.Status != "failed" && attempt.Status != "interrupted") {
@@ -212,6 +245,11 @@ func doReplan(root string, session DoSession, oldDigest string, input doResumeIn
 	if err := validatePlaybookDefinition(root, definition); err != nil {
 		return session, err
 	}
+	template := definition
+	definition, parameters, err := resolvePlaybookDefinition(root, template, session.Parameters)
+	if err != nil {
+		return session, err
+	}
 	if playbookID(definition) != playbookID(session.Definition) || definition.Goal != session.Goal {
 		return session, fmt.Errorf("replan must preserve the operation identity and original goal")
 	}
@@ -224,6 +262,20 @@ func doReplan(root string, session DoSession, oldDigest string, input doResumeIn
 	}
 	if definitionDigest == session.DefinitionDigest {
 		return session, fmt.Errorf("unchanged definition requires ordinary resume and retry, not replan")
+	}
+	if unstarted || input.Replan.RetainVerified {
+		if err := doIncrementalContract(session.Definition, definition); err != nil {
+			return session, err
+		}
+	}
+	if unstarted {
+		for _, attempt := range session.Attempts {
+			if doAttemptInCurrentDefinition(session, attempt) || doRetainedAttempt(session, attempt) {
+				if !reflect.DeepEqual(doActionDefinition(session.Definition, attempt.TargetID), doActionDefinition(definition, attempt.TargetID)) {
+					return session, fmt.Errorf("unstarted adjustment cannot alter attempted action %s (prior %s, proposed %s)", attempt.TargetID, doDigest(doActionDefinition(session.Definition, attempt.TargetID)), doDigest(doActionDefinition(definition, attempt.TargetID)))
+				}
+			}
+		}
 	}
 	writeScope, err := doReplanScope(root, session.WriteScope, input.Replan.WriteScope)
 	if err != nil {
@@ -244,7 +296,7 @@ func doReplan(root string, session DoSession, oldDigest string, input doResumeIn
 		return session, err
 	}
 	current, currentDigest, err := loadDoSession(root, session.ID)
-	if err != nil || currentDigest != oldDigest || current.Revision != session.Revision {
+	if err != nil || currentDigest != oldDigest || current.Revision != session.Revision || doDigest(current) != doDigest(session) {
 		return session, fmt.Errorf("session revision conflict before replan scope registration")
 	}
 	session, err = doAdoptRecoveredWorkFence(root, session, input.WorkFence, false)
@@ -258,17 +310,37 @@ func doReplan(root string, session DoSession, oldDigest string, input doResumeIn
 		return session, fmt.Errorf("source changed while replan claimed its scope; inspect the new source before retrying")
 	}
 	doEnsureDefinitionHistory(&session)
+	var retained []DoRetainedAttempt
+	if input.Replan.RetainVerified {
+		retained = doPlanRetained(root, session, definition, fingerprint)
+	}
 	session.Attempts = append([]DoAttempt{}, session.Attempts...)
-	session.Attempts[index].Recovery = &recovery
+	if !unstarted {
+		session.Attempts[index].Recovery = &recovery
+	}
 	session.DefinitionEpoch = doCurrentDefinitionEpoch(session) + 1
 	session.Definition = definition
 	session.DefinitionDigest = definitionDigest
+	if len(template.Parameters) > 0 {
+		session.TemplateDefinition = &template
+		session.TemplateDigest, _ = playbookDefinitionDigest(template)
+		session.Parameters = parameters
+	} else {
+		session.TemplateDefinition = nil
+		session.TemplateDigest = ""
+		session.Parameters = nil
+	}
 	session.WriteScope, session.OutputScope = writeScope, outputScope
 	session.ExecutionOutcome = "pending"
 	session.Validation = nil
 	session.UpdatedAt = doNow()
 	session.Revision++
 	epoch := DoDefinitionEpoch{Epoch: session.DefinitionEpoch, Definition: definition, DefinitionDigest: definitionDigest, Sources: sources, SourceFingerprint: fingerprint, SourceRevision: sourceRevision, DirtyPaths: dirty, WriteScope: writeScope, OutputScope: outputScope, FrozenAt: session.UpdatedAt, BasisOrigin: "runtime_source_capture", ReplanRequestID: input.Replan.RequestID, FailedAttemptID: failed.ID, Recovery: &recovery}
+	epoch.TemplateDefinition, epoch.TemplateDigest, epoch.Parameters = session.TemplateDefinition, session.TemplateDigest, session.Parameters
+	epoch.RetainedAttempts = retained
+	if unstarted {
+		epoch.Recovery = nil
+	}
 	session.DefinitionHistory = append(append([]DoDefinitionEpoch{}, session.DefinitionHistory...), epoch)
 	receipts := make(map[string]DoReplanReceipt, len(session.ReplanReceipts)+1)
 	for key, value := range session.ReplanReceipts {
@@ -302,6 +374,9 @@ func doReplan(root string, session DoSession, oldDigest string, input doResumeIn
 }
 
 func doReplanVerifyFailure(root string, session DoSession, failed DoAttempt) error {
+	if failed.NativeAction != nil {
+		return doVerifyNativeFailure(root, session, failed)
+	}
 	if len(failed.Argv) > 0 && failed.ExitCode != nil && *failed.ExitCode != 0 {
 		return nil
 	}
@@ -365,6 +440,12 @@ func doReplanScope(root string, previous, requested []string) ([]string, error) 
 func doValidateOperationScopes(definition PlaybookDefinition, writeScope, outputScope []string) error {
 	sources := append([]string{}, definition.SourceFiles...)
 	for _, step := range definition.Steps {
+		if step.NativeAction != nil && step.NativeAction.Kind == "file" && step.SideEffect != "read" {
+			target := step.NativeAction.Target
+			if !doScopeContains(outputScope, target) && !doScopeContains(step.SourceWrites, target) {
+				return fmt.Errorf("native file mutation target must be inside output_scope or this step's source_writes")
+			}
+		}
 		if step.ScriptRef != "" {
 			sources = append(sources, step.ScriptRef)
 		}

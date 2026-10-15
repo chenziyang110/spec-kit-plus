@@ -84,6 +84,9 @@ func decodePlaybookDocument(root string, raw []byte, id string, revision int) (P
 	if err := playbookValidateFingerprint(root, document.SourceFingerprint); err != nil {
 		return document, err
 	}
+	if err := validatePlaybookVerificationInstance(root, document.Definition, document.Verification); err != nil {
+		return document, err
+	}
 	return document, nil
 }
 
@@ -420,6 +423,13 @@ func readPlaybookUsage(root, id, sessionID string) (playbookUsage, bool, error) 
 	}
 	if decodePlaybookJSON(raw, &usage) != nil || usage.SchemaVersion != playbookSchemaVersion || usage.PlaybookID != id || usage.SessionID != sessionID || usage.Verification.SessionID != sessionID || usage.DefinitionDigest != usage.Verification.DefinitionDigest || usage.Verification.MethodID != id || usage.Verification.Outcome != "passed" || usage.Revision < 1 {
 		return usage, false, fmt.Errorf("playbook_usage_integrity_failed")
+	}
+	document, err := loadPlaybookRevision(root, id, usage.Revision)
+	if err != nil || document.ContentDigest != usage.DefinitionDigest {
+		return usage, false, fmt.Errorf("playbook_usage_revision_binding_failed")
+	}
+	if err := validatePlaybookVerificationInstance(root, document.Definition, usage.Verification); err != nil {
+		return usage, false, err
 	}
 	return usage, true, nil
 }

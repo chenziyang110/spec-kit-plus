@@ -5,15 +5,15 @@ description: Advanced workflow for explicitly requested project operations with 
 
 # Do
 
-This invocation authorizes only this requested operation. Execute the user's build,
-package, test, check, generation, or bounded maintenance goal through native
+This invocation authorizes only this requested operation. Execute the user's
+project goal through available process, file, browser, desktop or connector
 tools. Go `do` owns session/receipt state and `playbook` owns reusable methods.
-Read `references/operation-contract.md` before starting, resuming, or finalizing
-an operation; it is the full ownership and evidence contract.
+Read the applicable sections of `references/operation-contract.md` before
+starting, resuming, or finalizing; it owns the detailed evidence contract.
 
 Before method retrieval or session mutation, require the complete installed contract:
 
-`{{specify-subcmd:specify-runtime api ensure --capabilities do.start,do.record,do.validate,do.finish,do.resume,do.show,playbook.find,playbook.show,playbook.update,playbook.validate --format json}}`
+`{{specify-subcmd:specify-runtime api ensure --capabilities do.start,do.record,do.validate,do.finish,do.resume,do.show,playbook.find,playbook.show,playbook.update,playbook.validate,do.prepare,do.next,do.complete,playbook.metrics --format json}}`
 
 Missing capabilities block DO until the pinned runtime is repaired/upgraded.
 Preserve existing sessions and methods; never fall back to Python or authored state.
@@ -28,41 +28,38 @@ Preserve existing sessions and methods; never fall back to Python or authored st
    its routing contract, and let live source prove current applicability.
    A missing map does not force reconstruction before an ordinary operation.
 3. Run `{{specify-subcmd:specify-runtime playbook find --query "$ARGUMENTS" --format json}}`;
-   filter by observed operation/target/context. Follow matching `show_argv` and
+   filter by observed operation/target/context and actual parameters. Follow matching `show_argv` and
    only required `expand_argv`. Inspect current prerequisites and referenced
    scripts before applying a pinned revision. Stored commands do not grant
-   permission. No match is a normal live-discovery path.
-4. Inspect `{{specify-subcmd:specify-runtime api show do.start --format json}}`
-   and its schema, then freeze the exact definition, method binding, context,
-   source files, output/write scopes, and real leader `agent_id` in `do start`.
+   permission. No match is a normal live-discovery path. Use observed ranking
+   only for comparable-history decisions and expand recovery for matching failures.
+4. Inspect `{{specify-subcmd:specify-runtime api show do.prepare --format json}}`
+   and its schema. Prepare the exact template, parameter values, method binding,
+   context, source files, scopes and real leader `agent_id` read-only; send its
+   returned `start_input` unchanged to `do start`, which rechecks live conditions.
    Use `adapter_id="__AGENT__"`; same-adapter ambiguity still needs an explicit ID.
    Resume only an explicit session ID through `do show` / `do resume`.
    `do show --active` never licenses selecting the latest ambiguous candidate.
-5. Before native execution record `started`; afterwards record the actual
-   completed observation with `do record`, expected revision, idempotency ID,
-   tool-call provenance, argv/cwd, outcome, timestamps, and result references.
-   Execute the frozen checks against current outputs. A receipt does not attest
-   an unobserved command; preserve failures and reconcile interrupted effects.
-6. Repair scoped agent-owned failures; when the frozen method must change,
-   follow typed resume replanning in the operation contract and verify every
-   required step/check again in the new definition epoch. Complete the
-   source-mutation gate below, then run `do validate <id>` before finalizing execution
-   through `do finish`; a successful command or
-   `ready_to_finish` alone is not terminal. Finish execution with knowledge
-   `pending`, then use
-   `playbook update` with the exact validated definition, completed session, and
-   current `base_digest`. Untested changes remain proposals; no-change reuse
-   must not create duplicate revisions. After update, reread `do show` for the
-   latest session revision and pass the returned `knowledge_receipt` to
-   `do finish` as `knowledge` with status `saved`. Never auto-promote into project rules.
-7. Retained source/script/configuration changes require canonical `sp-do`
-   planner-first cognition closeout and the runtime-bound receipt. Outputs and
-   method metadata alone use an explicit no-source-mutation disposition; never
-   invent a cognition no-op. Record `saved` only after durable method update;
+5. Ask `do next <id>` for ready full actions and recording skeletons. Record
+   the selected `started_input` before executing; fill `completion_event` and
+   every `completion_required` fact from the actual tool call. Submit through
+   `do record` with the latest revision and unique request ID. Refresh next
+   after each checkpoint; ready entries share a revision. Process observations
+   use argv/cwd; other tools use typed native actions/results. Required output
+   and independent effect checks still execute; receipts do not attest unseen calls.
+6. Repair agent-owned failures within scope. Use the contract's failed or
+   unstarted replan branch; carry evidence only when explicit `retain_verified`
+   receives runtime-approved receipts. Reconcile interrupted effects and
+   complete the source-mutation gate below. Read `do next`'s completion result
+   or `do validate`; readiness alone is not terminal.
+7. Normally supply `change_summary` with next's `complete_input` to `do complete`
+   for validated execution, template/usage publication and final saved knowledge.
+   Use the explicit pending/Learning/manual-publication branch when needed;
    use `not_applicable` when no reusable method or usage should be retained.
-   Require fresh validation and `data.terminal=true`
-   before claiming completion. Pending knowledge resumes without rerunning a
-   successful external operation.
+   Proposals cannot replace verified methods, and unchanged reuse cannot create
+   duplicate revisions. Require fresh validation and `data.terminal=true`.
+   Pending knowledge resumes without rerunning successful execution. Never
+   auto-promote methods or lessons into project rules.
 
 ## Source Mutation Closeout
 

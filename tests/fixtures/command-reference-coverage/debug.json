@@ -18,6 +18,21 @@
       "target": "templates/command-references/debug/intake-and-debug-checkpoint.md"
     },
     {
+      "kind": "approval",
+      "source_excerpt": "confirmation_purpose: evidence-backed-repair",
+      "target": "templates/command-references/debug/intake-and-debug-checkpoint.md"
+    },
+    {
+      "kind": "recovery",
+      "source_excerpt": "confirmation_purpose: diagnostic-enablement",
+      "target": "templates/command-references/debug/intake-and-debug-checkpoint.md"
+    },
+    {
+      "kind": "resume",
+      "source_excerpt": "confirmation_digest",
+      "target": "templates/command-references/debug/debug-state.md"
+    },
+    {
       "kind": "evidence",
       "source_excerpt": "Investigation Protocol",
       "target": "templates/command-references/debug/reproduction-and-evidence.md"

@@ -1,8 +1,8 @@
-Trigger: before reproduction, log review, source reads, evidence collection, code edits, or validation, and whenever evidence may materially change the confirmed debug boundary or authority.
+Trigger: when understanding the report, entering bounded evidence investigation, preparing repair approval, or evidence materially changes the approved repair, boundary, or authority.
 
 Purpose: preserve debug execution mode, role, operating principles, learning intake, quality requirements, lifecycle, cognition gate, and checkpoints.
 
-Preserved Contract: debug starts with a confirmed understanding and session state before investigation or fix work proceeds.
+Preserved Contract: debug understands the report and explores evidence first, then explains and obtains approval for the concrete repair before mutation; the existing bug-fix lifecycle and evidence gates remain intact.
 
 ## Complexity-Based Debug Execution
 
@@ -45,7 +45,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Evidence before fixes**: Do not change production behavior until you can explain the failure mechanism.
 - **Find truth ownership before chasing symptoms**: Identify which layer owns the critical truth and which layers only reflect, cache, or project it.
 - **One active hypothesis at a time**: Parallel evidence gathering is allowed; parallel root-cause theories are not.
-- **Observability before speculation**: Read existing logs and outputs first. If they are too weak to explain the failure, improve logging or tracing before attempting a fix.
+- **Observability before speculation**: Read existing logs and outputs first. If they are too weak to explain the failure, explain the proven gap and obtain bounded diagnostic-write authority before improving logging or tracing. Diagnostic authority does not approve a production fix.
 - **Logs are a first-class evidence source**: When existing logs, stderr/stdout, test output, or trace files materially narrow the issue, query `Evidence` through `specify-runtime artifact show --section`, add the finding in memory with `source_type: log` (or the closest concrete source type) and a concrete `source_ref`, then replace the section through a fresh `artifact patch --section` lease.
 - **Existing logs first**: Before asking for new output or adding new probes, check whether the repository, runtime, deploy target, browser console, worker output, or prior test artifacts already contain decisive signals for the active candidate queue.
 - **Control state is not observation state**: Keep scheduling, admission, allocation, and ownership state separate from UI, logs, event streams, caches, and snapshots.
@@ -60,7 +60,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Family coverage scales with intake strength**: Map-backed intake needs a primary and contrarian candidate; deep fallback still needs broader family coverage and falsifiers.
 - **Observer framing remains the bridge artifact**: Whether map-backed or deep, persist `primary suspected loop`, `recommended first probe`, and a `contrarian candidate` through a fresh `specify-runtime artifact patch` lease before evidence collection begins.
 - **Debug the loop, not just the point**: Validate the path from input event to control decision to resource allocation to state transition to external observation.
-- **Escalate diagnostics when the loop is still ambiguous**: If two investigation rounds do not converge, stop layering plausible small fixes and add decisive instrumentation.
+- **Escalate diagnostics when the loop is still ambiguous**: If two investigation rounds do not converge, stop layering plausible small fixes and obtain bounded diagnostic-write authority for decisive instrumentation.
 - **Root-cause mode is mandatory after repeated failure**: After two automated verification failures, stop adding point fixes and switch the session into `root-cause mode`.
 - **Related-risk review is part of closeout**: Do not close the session until nearest-neighbor related risk targets have been reviewed.
 - **Execution intent stays explicit**: Patch the current verification outcome, active constraints, and required success evidence through fresh `specify-runtime artifact patch` leases before and during verification so resume decisions do not depend on chat memory.
@@ -70,7 +70,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 ## Workflow Quality Requirements
 
 - Confirm project cognition freshness and valid debug session entry before deeper investigation.
-- Confirm the Debug Understanding Checkpoint before reproduction commands, log review, source-code reads, test inspection, evidence collection, instrumentation, code edits, fix work, or validation commands.
+- Complete the intake and observer gates before diagnosis. Safe bounded reproduction, existing log/source/test reads, and read-only evidence subagents do not require `understanding_confirmed: true`. Confirm the evidence-backed Debug Understanding Checkpoint before any fix/source/test/harness/persistent instrumentation write or fix-worker dispatch; keep external and destructive action gates intact.
 - Keep the debug session current only through leased artifact patches as the durable source of truth for evidence, active hypothesis, candidate queue, verification outcome, and terminal status.
 - Preserve evidence gates: do not skip observer framing, bypass decisive evidence, or accept a fix without recorded verification.
 - Patch durable state through a fresh `specify-runtime artifact patch` lease before compaction-risk transitions, investigation join points, long evidence synthesis, or any stop where resume will depend on more than the visible conversation.
@@ -100,17 +100,18 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 2. **Initialize or Resume**
 - [AGENT] Create `.planning/debug/[slug].md` with `specify-runtime artifact scaffold --kind debug-session --path .planning/debug/[slug].md`; resume it only through targeted `specify-runtime artifact show` calls.
    - Announce the current status, current hypothesis, and immediate next action.
-   - The scaffold initializes `understanding_confirmed: false`; present the Debug Understanding Checkpoint, then persist confirmation through a fresh `specify-runtime artifact patch --frontmatter-json` lease before substantive investigation.
-   - For a resumed session with `understanding_confirmed: false`, repair or confirm the checkpoint before reproduction, log review, source/test reads, evidence collection, subagent dispatch, instrumentation, code edits, or validation.
+   - The scaffold initializes `understanding_confirmed: false`; understand the report and complete the existing intake/observer gates, then continue safe bounded diagnosis before presenting a concrete repair checkpoint.
+   - On resume, inspect the exact approved checkpoint payload and `confirmation_digest`. Missing or stale approval blocks repair writes and fix-worker dispatch, while safe bounded diagnosis may continue within the reported scope. An old `understanding_confirmed: true` or generic diagnose-and-fix authority alone does not authorize repair.
 
 3. **Run the Investigation Protocol**
    - Move through the investigation stages below, starting with the map-backed intake contract before evidence collection begins.
-   - **Hard gate**: Do not enter reproduction, log review, test inspection, source-code reads, evidence collection, or fixing until the debug session records `understanding_confirmed: true`, `causal_map_completed: true`, `investigation_contract_completed: true`, `log_investigation_plan_completed: true`, and `observer_framing_completed: true`.
+   - **Intake gate**: Do not enter reproduction, log review, test inspection, source-code reads, or evidence collection until the debug session records `causal_map_completed: true`, `investigation_contract_completed: true`, `log_investigation_plan_completed: true`, and `observer_framing_completed: true`. `understanding_confirmed` is not a diagnosis prerequisite.
    - Patch the debug session through a fresh `specify-runtime artifact patch` lease before each action that changes durable state.
    - Query the `Evidence` section through `specify-runtime artifact show --section`, add every confirmed finding in memory, and replace that section through a fresh `artifact patch --section` lease.
    - Query the `Eliminated` section through `specify-runtime artifact show --section`, add every disproven theory in memory, and replace that section through a fresh `artifact patch --section` lease.
 
 4. **Fix and Verify**
+   - Explain the discovered problem, decisive evidence, concrete repair, affected scope, expected outcome, risks, and validation in the Debug Understanding Checkpoint. Wait for explicit approval, persist its exact payload and digest through fresh leases, and verify that binding before any repair write or fix-worker dispatch.
    - Apply the minimum code change needed to address the confirmed root cause when `execution_model: leader-inline`.
    - When `execution_model: subagent-assisted`, delegate it through a validated subagent lane and integrate the returned handoff on the leader path.
    - When the selected fix cannot proceed safely, cannot be packetized, or cannot be verified, record `subagent-blocked` with `execution_surface: none`, repair or recompile the lane, or continue through a safe leader-owned/internal recovery path instead of layering a speculative fix. Mark Debug itself blocked only at the shared proven human/external boundary.
@@ -156,52 +157,99 @@ Use the returned readiness:
 
 ## Debug Understanding Checkpoint
 
-`sp-debug` has one default understanding checkpoint before substantive investigation. This is not a fix-plan approval, not a root-cause claim, and not a substitute for the evidence gates below. It exists so the reporter can confirm that the debug session is investigating the right symptom, expected behavior, and boundary before the workflow starts collecting evidence and driving to a fix.
+`sp-debug` keeps one default repair checkpoint after evidence investigation and
+before repair. Understand the user's issue first, then use the existing intake,
+observer framing, low-risk reproduction, existing logs/source/tests, and
+read-only evidence subagents to establish the failure mechanism. Do not require
+an early blanket confirmation to start diagnosis. Ask for missing reporter facts
+only when they block the next safe diagnostic action. Session persistence and
+ordinary disposable command output remain allowed; persistent product/test/
+harness/instrumentation writes require the approval described below.
 
-After session initialization, passive memory intake, the project cognition query, and only the bounded session, memory, or specify-runtime cognition context reads needed to frame the reported problem, present one concise user-facing checkpoint card. Use the user's language for the card content and confirmation prompt when practical. Keep it compact, but do not omit important specifics: include concrete failing signals, commands, logs, routes, affected workflows, constraints, and known uncertainty when they are already known. If a row is genuinely unknown, write `Unknown: [why it matters]` instead of leaving it vague.
+Once decisive evidence supports the cause and a concrete fix, present one
+concise card in the user's language. Explain what failed and why, cite the short
+decisive evidence, describe the exact change at the owning layer, affected scope,
+expected outcome, risks, and validation. Keep hypotheses agent-owned; the user
+approves the proposed repair and its consequences rather than validating a
+technical theory. If the cause is unknown, say `Unknown: [why it matters]` and
+continue diagnosis instead of asking for speculative repair approval. Keep the
+checkpoint plain text for terminal output: do not use HTML tags or inline
+line-break markup, and replace placeholders with session-specific facts.
 
-Use the fixed semantic sections below. The human view contains only user-owned
-facts and authority: the reported problem, expected behavior, occurrence conditions,
-investigation boundary, whether authority is diagnose only or diagnose and
-fix, assumptions to correct, and the reconfirmation trigger. Technical
-hypotheses belong to the agent. Present the first evidence action, fix gate,
-and progress signal in a compact investigation summary for awareness, not as a
-request to approve a hypothesis. Keep the checkpoint plain text for terminal
-output: do not use HTML tags or inline line-break markup. Do not reuse the
-placeholder text as content; replace each bracketed item with session-specific
-facts.
-
-When the symptom is UI-related, render the independent UI Confirmation state as
-the readable `界面方向` section inside the same checkpoint. It is the target
-baseline for the affected experience and confirms what should be restored or
-preserved and must not approve a proposed fix before evidence identifies the
-failure mechanism. Ask once after both sections.
+For UI symptoms, use a provisional baseline grounded in existing approved
+direction, the current real entry point, or original references during diagnosis.
+Preserve source behavior and assets; diagnosis does not authorize redesign.
+Before repair, render the independent UI Confirmation target baseline as the
+readable `界面方向` section inside the same checkpoint and obtain one reply
+covering both the concrete repair and UI target. A provisional baseline is not
+confirmed UI authority.
 
 {{spec-kit-include: ../../command-partials/debug/checkpoint-card.md}}
 
-Wait for user confirmation before reproduction commands, log review, source-code reads, test inspection, evidence collection, instrumentation, code edits, fix work, or validation commands. If the user corrects the understanding, revise the checkpoint once with the corrected direction and ask for confirmation again.
+Wait for explicit user confirmation before fix/source/test/harness/persistent
+instrumentation writes or fix-worker dispatch. A request to debug or an earlier
+generic diagnose-and-fix statement does not approve this concrete repair. If the
+user already explicitly approved the exact evidence-backed proposal, persist
+that decision without asking again. Diagnose-only authority permits no fix.
 
-Create `.planning/debug/[slug].md` with `specify-runtime artifact scaffold --kind debug-session --path .planning/debug/[slug].md` before reproduction commands, log review, source-code reads, test inspection, evidence collection, subagent dispatch, instrumentation, code edits, fix work, or validation commands. Patch the confirmed checkpoint and `understanding_confirmed: true` through leased `specify-runtime artifact patch` calls before substantive investigation continues. `understanding_confirmed: false` blocks evidence investigation on resume. While it is false, query only the minimal session through `artifact show`, Learning through its CLI, or cognition through `specify-runtime cognition`; do not proceed to reproduction, log review, source/test reads, evidence collection, subagent dispatch, instrumentation, code edits, fixing, validation, `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}` until the checkpoint is confirmed and the debug session is patched.
+Create the session through `specify-runtime artifact scaffold --kind
+debug-session --path .planning/debug/[slug].md` before diagnosis; never create or
+edit it directly. Keep the fixed `## Debug Understanding Checkpoint` section and
+`understanding_confirmed` field for compatibility. Populate the checkpoint's
+`confirmation_purpose: evidence-backed-repair`, `discovered_problem`,
+`root_cause`, `evidence_refs`, `proposed_fix`, `change_scope`, `expected_outcome`,
+`risks`, and `validation_plan` with the exact approved specifics, retaining the
+reporter facts and investigation bounds. Compute `confirmation_digest` in memory
+as SHA-256 of canonical approved decision JSON: sorted keys, stable arrays, UTF-8;
+exclude checkpoint/UI confirmation digests, the mutable agent investigation plan, and the full
+evidence log, and include the applicable UI decision. Persist the exact approved
+payload, digest, and `understanding_confirmed: true` through fresh artifact
+leases. The leader must compare that binding before mutation and on resume;
+these prompt checks do not imply runtime enforcement. Legacy true without this
+purpose, concrete approved specifics, and matching digest does not authorize
+repair. More evidence alone does not invalidate an unchanged approved repair.
 
-If project cognition readiness requires `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}`, persist that requirement through a fresh `specify-runtime artifact patch` lease while `understanding_confirmed: false`, present the Debug Understanding Checkpoint, and only hand off to map maintenance after confirmation.
+If decisive evidence needs a missing harness or persistent instrumentation,
+explain the known diagnostic gap and exact bounded write using the same card
+with `confirmation_purpose: diagnostic-enablement`; name unresolved cause and
+production repair explicitly. After approval, write only that diagnostic scope
+under the existing Work guard, then return to diagnosis with
+`understanding_confirmed: false`. This digest cannot
+authorize production repair: obtain `evidence-backed-repair` approval once the
+cause and fix are supported. Keep harness recovery inside the current Debug
+session; do not enter another user-invoked workflow automatically.
+
+When an approved evidence-backed repair already includes the exact bounded
+test/harness/instrumentation work in `change_scope` and `validation_plan`, use
+that approval and the existing Work guard without a second diagnostic approval.
+New material scope requires a delta-only amendment.
+
+If cognition needs maintenance, persist the requirement and continue from live
+evidence where degraded advisory navigation is safe. `{{invoke:map-update}}`,
+`{{invoke:map-scan}}`, and `{{invoke:map-build}}` remain follow-up user-invoked
+maintenance unless the user explicitly requested it; checkpoint timing does not
+authorize another workflow.
 
 ## Debug Checkpoint Amendments
 
 Debugging normally changes hypotheses and expands the evidence path. Do not
-reopen confirmation merely because the active hypothesis changes, new
-reproduction, log, source, or test routes become relevant, or the minimum
-coherent fix reaches additional tightly coupled files inside the same causal
-chain and the confirmed symptom, boundary, risk, and authority remain intact.
+reopen confirmation merely because the active hypothesis changes during
+diagnosis, new reproduction, log, source, or test routes become relevant, or
+additional evidence supports the same approved cause and repair. The approved
+repair, mutation scope, expected outcome, risk, UI target, and authority must
+remain intact; tightly coupled files outside that approved scope are a delta.
 Patch the debug session through a fresh `specify-runtime artifact patch` lease and continue.
 
-Reopen confirmation only when evidence materially changes the problem
-definition or expected outcome, introduces a separate or derived defect,
-crosses the confirmed investigation boundary, requires new fix authority such
-as moving from diagnosis-only work to source edits, changes migration,
+Reopen confirmation only when evidence materially changes the proven cause,
+proposed repair, problem definition or expected outcome, introduces a separate
+or derived defect, crosses the approved change scope or investigation boundary,
+requires new fix authority such as moving from diagnosis-only work to source
+edits, changes migration,
 compatibility, public-interface, external-side-effect, or material risk
 semantics, or hits an explicit stop condition. Set
-`understanding_confirmed: false` and pause substantive investigation or fixing
-before requesting the new decision.
+`understanding_confirmed: false` and pause mutation and fix-worker dispatch
+before requesting the new decision. Safe bounded diagnosis within the existing
+scope may continue; respect any explicit stop or external-action gate.
 
 Before presenting the amendment, explain in user-facing prose:
 
@@ -217,7 +265,8 @@ Before presenting the amendment, explain in user-facing prose:
 Only after that explanation, present `## Debug Checkpoint Amendment`. Include
 only the changed rows or decisions plus one concise `Unchanged` statement; do
 not repeat the full initial Debug Checkpoint. Ask the user to confirm or revise
-that delta, then persist the amendment and confirmation before resuming. If the
+that delta, then persist the amended exact payload, fresh `confirmation_digest`,
+and confirmation before resuming mutation. If the
 user already explicitly approved the exact delta, record it instead of asking
 again.
 

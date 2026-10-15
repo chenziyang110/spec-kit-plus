@@ -173,6 +173,7 @@ type UpdatePayload struct {
 	UpdateOutcome           string                   `json:"update_outcome"`
 	ResultState             string                   `json:"result_state"`
 	ScopeResultState        string                   `json:"scope_result_state"`
+	ScopePolicy             ScopePolicy              `json:"scope_policy"`
 	GlobalFreshness         string                   `json:"global_freshness"`
 	GlobalReadiness         string                   `json:"global_readiness"`
 	GlobalDebtReasons       []string                 `json:"global_debt_reasons"`
@@ -268,6 +269,67 @@ func MarkDirty(paths rt.Paths, input DirtyInput) (rt.Status, error) {
 		return rt.Status{}, err
 	}
 	defer releaseUpdateLock()
+	return markDirtyLocked(paths, input)
+}
+
+// MarkDirty records new source debt while the shared update lock is already held.
+func (runtime *LockedRuntime) MarkDirty(input DirtyInput) (rt.Status, error) {
+	return markDirtyLocked(runtime.paths, input)
+}
+
+// ResolveSourceBindingDebt is used only after the closeout owner rechecks a
+// fresh strong proof and commits its update. It removes that owner's race debt
+// for the exact updated paths; unrelated debt and ordinary no-op gates remain.
+func (runtime *LockedRuntime) ResolveSourceBindingDebt(workflow, scope string, changedPaths []string) error {
+	status, err := rt.ReadStatus(runtime.paths)
+	if err != nil {
+		return err
+	}
+	const reason = "closeout-source-binding-changed"
+	remaining := []rt.DebtRecord{}
+	covered := []string{}
+	for _, debt := range status.DirtyDebts {
+		if debt.Kind != "mark_dirty" || debt.Reason != reason || debt.OriginCommand != workflow || debt.OriginFeatureDir != scope {
+			remaining = append(remaining, debt)
+			continue
+		}
+		left := clearCoveredDirtyDebts([]rt.DebtRecord{debt}, changedPaths)
+		for _, path := range debt.Paths {
+			if !containsString(subtractStrings(debt.Paths, changedPaths), path) {
+				covered = append(covered, path)
+			}
+		}
+		remaining = append(remaining, left...)
+	}
+	if len(covered) == 0 && !(status.LastUpdateOutcome == ResultReady && len(status.DirtyDebts) == 0 && len(status.DirtyScopePaths) == 0 && len(status.StalePaths) == 0 && containsString(status.StaleReasons, reason)) {
+		return nil
+	}
+	status.DirtyDebts = remaining
+	for _, debt := range remaining {
+		covered = subtractStrings(covered, debt.Paths)
+	}
+	status.DirtyScopePaths = subtractStrings(status.DirtyScopePaths, covered)
+	status.StalePaths = subtractStrings(status.StalePaths, covered)
+	stillReason := false
+	for _, debt := range remaining {
+		if debt.Reason == reason {
+			stillReason = true
+		}
+	}
+	if !stillReason {
+		status.DirtyReasons = subtractStrings(status.DirtyReasons, []string{reason})
+		status.StaleReasons = subtractStrings(status.StaleReasons, []string{reason})
+	}
+	status.Dirty = len(status.DirtyDebts) > 0 || len(status.DirtyReasons) > 0 || len(status.DirtyScopePaths) > 0 || len(status.StalePaths) > 0 || len(status.StaleReasons) > 0
+	if !status.Dirty {
+		status.DirtyOriginCommand = ""
+		status.DirtyOriginFeatureDir = ""
+		status.DirtyOriginLaneID = ""
+	}
+	return rt.WriteStatus(runtime.paths, status)
+}
+
+func markDirtyLocked(paths rt.Paths, input DirtyInput) (rt.Status, error) {
 
 	recoveryBlocked := false
 	if _, err := recoverPendingPredecessorLocked(paths); err != nil {
@@ -1049,6 +1111,7 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		UpdateOutcome:           boundaryOutcome(boundaryResult),
 		ResultState:             resultState,
 		ScopeResultState:        scopeResultState,
+		ScopePolicy:             ClassifyScopePolicy(baselineStatus.GraphReady && !greenfieldRebuildRequired, graphMutationPaths(graphChanges), pathNodeIDs, closure),
 		GlobalFreshness:         status.Freshness,
 		GlobalReadiness:         status.Readiness,
 		GlobalDebtReasons:       globalDebtReasons,
@@ -1136,6 +1199,7 @@ func resumeUpdateForCloseoutIntent(paths rt.Paths, st *store.Store, intentID str
 	if strings.TrimSpace(scopeResultState) == "" {
 		scopeResultState = record.ResultState
 	}
+	partialReasons, globalDebtReasons, scopePartialReasons := CloseoutReplayReasons(status)
 	return UpdatePayload{
 		Readiness:               status.Readiness,
 		RecommendedNextAction:   status.RecommendedNextAction,
@@ -1144,8 +1208,8 @@ func resumeUpdateForCloseoutIntent(paths rt.Paths, st *store.Store, intentID str
 		ScopeResultState:        scopeResultState,
 		GlobalFreshness:         status.Freshness,
 		GlobalReadiness:         status.Readiness,
-		GlobalDebtReasons:       []string{},
-		ScopePartialReasons:     []string{},
+		GlobalDebtReasons:       globalDebtReasons,
+		ScopePartialReasons:     scopePartialReasons,
 		StatusUpdate:            statusUpdateFromStatus(status),
 		ChangedPaths:            normalizePaths(record.ChangedPaths),
 		PathChanges:             []changemodel.PathChange{},
@@ -1156,7 +1220,7 @@ func resumeUpdateForCloseoutIntent(paths rt.Paths, st *store.Store, intentID str
 		AdoptedPaths:            []string{},
 		ReviewPaths:             []string{},
 		UnadoptablePaths:        []string{},
-		PartialRefreshReasons:   []string{},
+		PartialRefreshReasons:   partialReasons,
 		KnownUnknowns:           []string{},
 		MinimalLiveReads:        []string{},
 		PathAdoption:            map[string]any{},
@@ -1165,6 +1229,17 @@ func resumeUpdateForCloseoutIntent(paths rt.Paths, st *store.Store, intentID str
 		StatusRecovery:          statusRecovery,
 		ResumedFromIntent:       true,
 	}, true, nil
+}
+
+// Recover the persisted reason boundary without assigning project debt to a
+// ready workflow scope or dropping a missing workflow prerequisite on replay.
+func CloseoutReplayReasons(status rt.Status) (partial, global, scope []string) {
+	partial = append([]string{}, status.LastUpdatePartialReasons...)
+	global = []string{}
+	if containsString(partial, "existing_project_cognition_stale_or_dirty") {
+		global = append(global, "existing_project_cognition_stale_or_dirty")
+	}
+	return partial, global, subtractStrings(partial, global)
 }
 
 func requireUpdateBaseline(paths rt.Paths) (rt.Status, error) {

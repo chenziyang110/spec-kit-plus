@@ -9,7 +9,7 @@ import (
 )
 
 func TestOperationAPIDiscoveryExposesUsableContracts(t *testing.T) {
-	ids := []string{"do.start", "do.record", "do.validate", "do.finish", "do.resume", "do.show", "playbook.find", "playbook.show", "playbook.update", "playbook.validate"}
+	ids := []string{"do.start", "do.record", "do.validate", "do.finish", "do.resume", "do.show", "playbook.find", "playbook.show", "playbook.update", "playbook.validate", "do.prepare", "do.next", "do.complete", "playbook.metrics"}
 	var out, stderr bytes.Buffer
 	if code := Run([]string{"api", "pack", "--capabilities", strings.Join(ids, ","), "--include-schema", "--format", "json"}, &out, &stderr, "test"); code != 0 {
 		t.Fatalf("new installation cannot discover its required API: %d %s %s", code, out.String(), stderr.String())
