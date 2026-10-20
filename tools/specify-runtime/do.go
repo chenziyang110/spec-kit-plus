@@ -849,6 +849,9 @@ func doRecord(root string, session DoSession, oldDigest string, input doRecordIn
 }
 
 func doResume(root string, session DoSession, oldDigest string, input doResumeInput) (DoSession, error) {
+	if input.ExternalChanges != nil {
+		return doResumeExternalChanges(root, session, oldDigest, input)
+	}
 	if input.Replan != nil {
 		return doReplan(root, session, oldDigest, input)
 	}

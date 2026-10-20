@@ -200,20 +200,47 @@ before they start, use `replan.mode="unstarted"`, omit `attempt_id` and `recover
 and change only unattempted actions; never invent a failure. Active/unknown
 effects still need their own recovery.
 
-Either mode can explicitly set `retain_verified=true`. Runtime may carry only
-direct previous-epoch process read/local-write observations with unchanged
-actions, source basis, dependency bindings and rehashed local results. Preserve
-the full required dependency closure, outcome checks and edges. It excludes
-native/external actions, source writers and previously carried older evidence.
-New checks run; no chained carry or fabricated new attempt is permitted. Inspect
-retained receipts and use next for remaining work; outputs are rechecked before
-a new consumer starts. Returning to an old digest alone grants no reuse.
+Either mode can explicitly set `retain_verified=true`. Original process
+read/local-write observations can carry through an unbroken immutable epoch
+chain only while complete actions, source basis, exact prerequisite attempt IDs,
+outputs and evidence remain unchanged at every hop. Changed inputs/scripts,
+newer failures or a missing hop invalidate reuse; native/external actions and
+source writers never carry. New checks execute. Preserve the original attempt,
+epoch and timing; artifact revalidation is not a new compile/package execution.
+Do not change a build action into an instance-only artifact check to publish it
+as a verified from-scratch method.
 Claim any new helper path through replan
 before writing it, then execute a frozen creation step with `source_writes`.
 Bind `script_ref` only to an existing file. Any helper already created must have
 been inside the original authorized scope; preserve all accumulated source
 deltas for cognition closeout. Re-read compact `do show` and expand the current
 definition or affected attempts before continuing.
+
+## Bound Inputs and Concurrent Differences
+
+Require `do.scoped-recovery.v1`. Use a maintained static script and `script_ref`;
+recognizable script-file argv inputs are also captured relative to cwd. Declare
+all build/config/resource dependencies through `source_files`; AGENTS-only is
+not a complete input basis. Do not put executable script bodies in environment
+variables. Environment bindings carry secrets, while normal public paths and
+PowerShell preferences remain valid. Sensitive errors expose a pointer/rule,
+not the rejected value. Script drift requires replan or fresh verification.
+Preflight dependency/include/resource/font/SDK/config/tool availability, exact
+PowerShell 5/7 context and peak free space across mirror/build/staging/archive/
+extraction volumes before heavy work. Keep native process handles separate from
+orchestration cell IDs; poll running handles and parse only completed output.
+
+For inspected unrelated unclaimed changes, `do resume` accepts
+`external_changes:{"paths":["exact/path"]}`, current `expected_revision` and
+typed `recovery` evidence, without `attempt_id`/`replan`. Runtime snapshots
+current bytes and binds epoch/definition/source/evidence; changed bytes require
+new inspection. It neither claims another Work nor changes the baseline or
+write scope. Consumed inputs, historical reads, own writes/outputs and metadata
+cannot be excluded, even if another Work owns them. An existing blocker still
+needs ordinary fresh-evidence `do resume` after the inspection. Changed shared
+inputs need revalidation or a genuinely bound captured snapshot, never a prose
+claim that they are unrelated. Old environment payloads and unexecuted methods
+do not acquire verification retroactively.
 
 ## Execution and Knowledge Closeout
 

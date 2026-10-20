@@ -534,7 +534,7 @@ func doValidate(root string, session DoSession, requireCognition bool) DoValidat
 		validation.Blockers = append(validation.Blockers, err.Error())
 		return validation
 	}
-	_, fingerprint, _, _, err := doCaptureSource(root, session.Definition, session.WriteScope)
+	currentSources, fingerprint, _, _, err := doCaptureSource(root, session.Definition, session.WriteScope)
 	if err != nil {
 		validation.Blockers = append(validation.Blockers, err.Error())
 		return validation
@@ -577,6 +577,10 @@ func doValidate(root string, session DoSession, requireCognition bool) DoValidat
 	if err != nil {
 		validation.Blockers = append(validation.Blockers, err.Error())
 	} else {
+		view, viewErr := runcontrol.OpenViewForRepository(context.Background(), root)
+		if viewErr == nil {
+			defer view.Close()
+		}
 		for _, p := range changed {
 			if doScopeContains([]string{path.Dir(doSessionRef(session.ID))}, p) {
 				continue
@@ -613,18 +617,31 @@ func doValidate(root string, session DoSession, requireCognition bool) DoValidat
 			if doScopeContains(session.OutputScope, p) {
 				continue
 			}
+			if doSourceInputPath(session, currentSources, p) {
+				// Current input bytes are part of every required attempt's source
+				// fingerprint above. Other Work ownership must never excuse stale
+				// input evidence, nor block an actually reverified current input.
+				if !doCurrentSourceInputPath(currentSources, p) {
+					validation.Blockers = append(validation.Blockers, "previous operation input changed outside its current definition; explicitly bind and verify the input or captured snapshot: "+p)
+				}
+				continue
+			}
+			if inspected, inspectionErr := doExternalChangeDisposition(root, session, fingerprint, p); inspected {
+				if inspectionErr != nil {
+					validation.Blockers = append(validation.Blockers, inspectionErr.Error())
+				}
+				continue
+			}
 			// Independent concurrent owners are visible, but this session cannot
 			// absorb their changes into its operation or learning evidence.
 			ownedByOther := false
-			view, e := runcontrol.OpenViewForRepository(context.Background(), root)
-			if e == nil {
+			if viewErr == nil {
 				owners, _ := view.FindWorkOwners(context.Background(), p)
 				for _, owner := range owners {
 					if owner.Work.WorkID != session.WorkID {
 						ownedByOther = true
 					}
 				}
-				_ = view.Close()
 			}
 			if !ownedByOther {
 				validation.Blockers = append(validation.Blockers, "unclaimed changed path: "+p)
@@ -668,7 +685,11 @@ func doValidate(root string, session DoSession, requireCognition bool) DoValidat
 			}
 		}
 	}
-	validation.EvidenceDigest = doDigest(map[string]any{"session_id": session.ID, "definition_digest": session.DefinitionDigest, "attempts": accepted, "source_fingerprint": fingerprint})
+	evidence := map[string]any{"session_id": session.ID, "definition_digest": session.DefinitionDigest, "attempts": accepted, "source_fingerprint": fingerprint}
+	if len(session.ExternalChanges) > 0 {
+		evidence["external_changes"] = session.ExternalChanges
+	}
+	validation.EvidenceDigest = doDigest(evidence)
 	if len(validation.Blockers) == 0 {
 		validation.Status = "passed"
 	}

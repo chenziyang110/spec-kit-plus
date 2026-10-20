@@ -9,7 +9,7 @@ or chooses between `leader-inline` / `leader-direct` and native workers.
 |-----------|--------------------------|
 | Two or more independent ready lanes with **non-overlapping** write scopes | `parallel-subagents` |
 | One ready lane, dependent lanes, or lanes that **share/overlap write scope** (same file, package, registry, generated consumer, or mutable shared state) | `one-subagent` (serial; resume the same worker or start a replacement with the next packet) |
-| Native subagents unavailable, or the lane cannot be packetized safely | workflow-specific blocked shape (`subagent-blocked` or recorded fallback only where the owning workflow allows it) |
+| Dispatch or packetization fails | repair the packet, discover capabilities, join capacity-limited work, then resume or redispatch a safe serial lane; only after no safe authorized recovery remains use the workflow-specific blocked shape or explicitly permitted fallback |
 
 ### Hard distinctions
 
@@ -27,6 +27,9 @@ or chooses between `leader-inline` / `leader-direct` and native workers.
   mode (for example adaptive light, debug small evidence chain, or implement
   leader-direct qualification). Size alone never converts a failed parallel
   plan into silent Leader implementation.
+- **Dispatch failure is recovery work.** Preserve accepted results and pending
+  joins while diagnosing or redispatching. Never fabricate independent
+  acceptance or use a capability failure to enter another user-invoked workflow.
 
 ### Recording requirements
 

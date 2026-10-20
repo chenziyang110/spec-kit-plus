@@ -41,6 +41,7 @@ type DoSession struct {
 	Attempts           []DoAttempt                `json:"attempts"`
 	Requests           map[string]string          `json:"requests"`
 	ResumeReceipts     map[string]string          `json:"resume_receipts,omitempty"`
+	ExternalChanges    []DoExternalChangeAudit    `json:"external_changes,omitempty"`
 	Validation         *DoValidation              `json:"validation,omitempty"`
 	Knowledge          *DoKnowledgeReceipt        `json:"knowledge,omitempty"`
 	Blocker            *DoBlocker                 `json:"blocker,omitempty"`
@@ -200,11 +201,12 @@ type doFinishInput struct {
 }
 
 type doResumeInput struct {
-	ExpectedRevision int            `json:"expected_revision"`
-	AttemptID        string         `json:"attempt_id"`
-	WorkFence        int64          `json:"work_fence,omitempty"`
-	Recovery         DoRecovery     `json:"recovery"`
-	Replan           *doReplanInput `json:"replan,omitempty"`
+	ExpectedRevision int                     `json:"expected_revision"`
+	AttemptID        string                  `json:"attempt_id"`
+	WorkFence        int64                   `json:"work_fence,omitempty"`
+	Recovery         DoRecovery              `json:"recovery"`
+	Replan           *doReplanInput          `json:"replan,omitempty"`
+	ExternalChanges  *DoExternalChangesInput `json:"external_changes,omitempty"`
 }
 
 // Replanning appends an immutable definition epoch. Attempts remain in the

@@ -35,8 +35,10 @@ The leader invokes the deterministic runtime build chain. Subagents must not
 create or edit scan artifacts, normalize worker results, construct graph rows,
 write SQLite data, or replace any runtime command with a helper script.
 If a required verification lane cannot be safely packetized or delegated,
-record `subagent-blocked` and stop for escalation or recovery; do not fall back
-to leader-authored verification.
+repair the packet or dispatch, join capacity-limited work, and resume or
+redispatch a safe serial lane in this invocation. Record `subagent-blocked`
+with its exact resume action only after no safe authorized recovery remains;
+do not fall back to leader-authored verification.
 
 ## Objective
 
@@ -93,9 +95,10 @@ smoke query succeeds. A blocked build gate sets `completion_allowed=false`,
 Human workflow prose may say `subagent-blocked`; machine reports use
 `subagent_blocked`.
 
-If a required read-only verification lane cannot dispatch or complete, stop
-before construction and report `subagent_blocked`, the blocked scope, owner,
-and recovery condition. Do not directly write `status.json`, `map-state.md`, or
+If a required read-only verification lane cannot dispatch or complete, suspend
+construction while repairing or redispatching it in this invocation. Only if
+no safe authorized recovery remains report `subagent_blocked`, the blocked
+scope, owner, recovery condition, and exact resume action. Do not directly write `status.json`, `map-state.md`, or
 `coverage-ledger.json` to manufacture that state. Canonical persistence, when a
 runtime surface is available, must remain runtime-owned.
 A runtime-owned `.specify/project-cognition/workbench/coverage-ledger.json.open_gaps[]`

@@ -367,13 +367,16 @@ func validateResolvedPlaybookDefinition(projectRoot string, definition PlaybookD
 	}
 	seen := map[string]bool{}
 	requiredSteps, requiredChecks := 0, 0
-	for _, step := range definition.Steps {
+	for index, step := range definition.Steps {
 		cwd := step.Cwd
 		if step.NativeAction != nil {
 			cwd = "."
 		}
 		if err := validatePlaybookAction(projectRoot, step.ID, step.Purpose, cwd, step.Argv, step.ScriptRef, step.DependsOn, step.ExpectedResult, seen, step.NativeAction == nil); err != nil {
-			return err
+			if strings.Contains(err.Error(), "pointer=/argv/") {
+				return fmt.Errorf("%s", strings.Replace(err.Error(), "pointer=/argv/", fmt.Sprintf("pointer=/steps/%d/argv/", index), 1))
+			}
+			return fmt.Errorf("%w: pointer=/steps/%d", err, index)
 		}
 		if err := validatePlaybookNativeAction(projectRoot, step.NativeAction, step.Argv, step.Cwd, step.ScriptRef); err != nil {
 			return err
@@ -401,13 +404,16 @@ func validateResolvedPlaybookDefinition(projectRoot string, definition PlaybookD
 		}
 		seen[step.ID] = true
 	}
-	for _, check := range definition.Checks {
+	for index, check := range definition.Checks {
 		cwd := check.Cwd
 		if check.NativeAction != nil {
 			cwd = "."
 		}
 		if err := validatePlaybookAction(projectRoot, check.ID, check.Purpose, cwd, check.Argv, check.ScriptRef, check.DependsOn, check.ExpectedResult, seen, check.Kind == "exit_code"); err != nil {
-			return err
+			if strings.Contains(err.Error(), "pointer=/argv/") {
+				return fmt.Errorf("%s", strings.Replace(err.Error(), "pointer=/argv/", fmt.Sprintf("pointer=/checks/%d/argv/", index), 1))
+			}
+			return fmt.Errorf("%w: pointer=/checks/%d", err, index)
 		}
 		if err := validatePlaybookNativeAction(projectRoot, check.NativeAction, check.Argv, check.Cwd, check.ScriptRef); err != nil {
 			return err
@@ -458,21 +464,11 @@ func validateResolvedPlaybookDefinition(projectRoot string, definition PlaybookD
 	if err := doValidateNativeCoverage(definition); err != nil {
 		return err
 	}
-	policy, _, err := (learningService{projectRoot: projectRoot}).loadLearningPolicy(true)
-	if err != nil {
-		return err
-	}
 	raw, err := json.Marshal(definition)
 	if err != nil || len(raw) > playbookMaxJSONBytes {
 		return fmt.Errorf("playbook_definition_size_invalid")
 	}
-	// Bindings are variable names, never persisted secret values. Protect their
-	// syntax while applying the shared sanitizer; do not rewrite executable argv.
-	safetyProjection := regexp.MustCompile(`\$\{[A-Z_][A-Z0-9_]*\}`).ReplaceAllString(string(raw), "[REDACTED_SECRET]")
-	if redacted := redactLearningTextWithPolicy(safetyProjection, policy); redacted.text != safetyProjection {
-		return fmt.Errorf("playbook_sensitive_content_rejected_use_environment_bindings")
-	}
-	return nil
+	return validatePlaybookSensitiveContent(projectRoot, definition)
 }
 
 func validatePlaybookAction(root, id, purpose, cwd string, argv []string, script string, dependencies []string, expected string, seen map[string]bool, requireArgv bool) error {
@@ -496,9 +492,12 @@ func validatePlaybookAction(root, id, purpose, cwd string, argv []string, script
 				value = argv[i+1]
 			}
 			if !regexp.MustCompile(`^\$\{[A-Z_][A-Z0-9_]*\}$`).MatchString(value) {
-				return fmt.Errorf("playbook_sensitive_argument_requires_environment_binding")
+				return fmt.Errorf("playbook_sensitive_argument_requires_environment_binding: pointer=/argv/%d rule=credential_argument", i)
 			}
 		}
+	}
+	if _, err := playbookActionScriptSources(root, cwd, argv); err != nil {
+		return err
 	}
 	if script != "" {
 		if _, err := playbookSafePath(root, script, false); err != nil {
@@ -548,17 +547,31 @@ func playbookSafePath(root, relative string, allowRoot bool) (string, error) {
 func playbookSourceFingerprint(root string, definition PlaybookDefinition) (map[string]string, error) {
 	sources := append([]string{}, definition.SourceFiles...)
 	for _, step := range definition.Steps {
+		actualScripts, err := playbookActionScriptSources(root, step.Cwd, step.Argv)
+		if err != nil {
+			return nil, err
+		}
+		sources = append(sources, actualScripts...)
 		if step.ScriptRef != "" {
 			sources = append(sources, step.ScriptRef)
 		}
 	}
 	for _, check := range definition.Checks {
+		actualScripts, err := playbookActionScriptSources(root, check.Cwd, check.Argv)
+		if err != nil {
+			return nil, err
+		}
+		sources = append(sources, actualScripts...)
 		if check.ScriptRef != "" {
 			sources = append(sources, check.ScriptRef)
 		}
 	}
 	result := map[string]string{}
-	for _, source := range uniqueSortedTrimmed(sources) {
+	sources = uniqueSortedTrimmed(sources)
+	if len(sources) > 192 {
+		return nil, fmt.Errorf("playbook_source_fingerprint_invalid")
+	}
+	for _, source := range sources {
 		target, err := playbookSafePath(root, source, false)
 		if err != nil {
 			return nil, err

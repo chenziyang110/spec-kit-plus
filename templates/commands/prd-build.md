@@ -157,11 +157,14 @@ When refusal happens, report the smallest safe repair and route back to `sp-prd-
 - Decision order is fixed:
   - One safe validated intake or validation lane -> `one-subagent` on `native-subagents` when available.
   - Two or more isolated bundle-processing lanes -> `parallel-subagents` on `native-subagents` when available.
-  - Any need for new repository facts, missing build packet, or unavailable delegation -> `subagent-blocked` with a recorded reason.
+  - New repository facts -> return the evidence gap to `sp-prd-scan`; do not turn Build into a second scan. Missing packets or failed delegation -> repair the packet or dispatch and resume or redispatch a safe serial lane in this invocation. Only unresolved capability failures become `subagent-blocked` with a recorded reason and exact resume action.
 
 ## Build Packet Dispatch
 
-- `subagent-blocked` stops substantive build work. Record the blocker and stop for escalation or recovery. Do not continue by turning `sp-prd-build` into a second repository scan.
+- `subagent-blocked` suspends dependent synthesis while the Agent diagnoses and
+  repairs permitted packet or dispatch faults. Continue the same invocation
+  after a safe redispatch and accepted join. Exit blocked only after no safe
+  authorized recovery remains. Do not turn `sp-prd-build` into a second repository scan.
 - Required join points:
   - before patching semantic sections in `master/master-pack.md` through leased `specify-runtime artifact patch`
   - before patching or finalizing semantic sections in `exports/**` through leased `specify-runtime artifact patch`

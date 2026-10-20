@@ -130,7 +130,7 @@ func TestDoIncrementalRefusesStaleAndWeakenedEvidence(t *testing.T) {
 	}
 }
 
-func TestDoIncrementalCarryReceiptTamperAndNoResurrection(t *testing.T) {
+func TestDoIncrementalCarryReceiptTamperAndVerifiedChain(t *testing.T) {
 	root, session := doIncrementalFixture(t)
 	_, digest, _ := loadDoSession(root, session.ID)
 	session, err := doResume(root, session, digest, doIncrementalInput(session))
@@ -151,14 +151,90 @@ func TestDoIncrementalCarryReceiptTamperAndNoResurrection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(doLatestAttempts(session)) != 0 {
-		t.Fatal("older epoch evidence resurrected")
+	if len(doLatestAttempts(session)) != 2 || len(session.DefinitionHistory[2].RetainedAttempts) != 2 {
+		t.Fatal("verified original evidence was lost at the second replan")
+	}
+	for _, retained := range session.DefinitionHistory[2].RetainedAttempts {
+		if retained.FromEpoch != 1 || retained.AttemptDigest != doDigest(doLatestAttempts(session)[retained.TargetID]) {
+			t.Fatal("retention changed the original observation identity")
+		}
+	}
+	if err := doValidateDefinitionHistory(root, session); err != nil {
+		t.Fatal(err)
+	}
+	if err := doDependencyReady(root, session, doLatestAttempts(session), "report", session.Attempts[0].SourceFingerprint); err != nil {
+		t.Fatalf("third-epoch consumer lost the actual build prerequisite: %v", err)
+	}
+	if len(session.Attempts) != 2 || session.Attempts[0].DefinitionEpoch != 1 || session.Attempts[1].DefinitionEpoch != 1 {
+		t.Fatal("carrying evidence copied or replayed original attempts")
 	}
 	// Inputs refuse forged empty recovery and runtime-owned receipts.
 	raw, _ := json.Marshal(map[string]any{"expected_revision": session.Revision, "recovery": map[string]any{}, "replan": input.Replan})
 	var decoded doResumeInput
 	if err := doReadInput(string(raw), &decoded); err == nil || !strings.Contains(err.Error(), "fabricate") {
 		t.Fatalf("%v", err)
+	}
+}
+
+func TestDoIncrementalChainInvalidatesChangesAndMissingHops(t *testing.T) {
+	for _, change := range []string{"input", "script", "output", "snapshot", "command", "dependency", "external", "missing-hop", "changed-hop", "superseded"} {
+		t.Run(change, func(t *testing.T) {
+			root, session := doIncrementalFixture(t)
+			_, digest, _ := loadDoSession(root, session.ID)
+			var err error
+			session, err = doResume(root, session, digest, doIncrementalInput(session))
+			if err != nil {
+				t.Fatal(err)
+			}
+			definition := playbookNormalizeDefinition(session.Definition)
+			fingerprint := session.Attempts[0].SourceFingerprint
+			switch change {
+			case "input", "script":
+				// Scripts participate in the same declared-input fingerprint.
+				if change == "script" {
+					definition.Steps[0].ScriptRef = "source.txt"
+				}
+				if err := os.WriteFile(filepath.Join(root, "source.txt"), []byte("changed input or script"), 0644); err != nil {
+					t.Fatal(err)
+				}
+				_, fingerprint, _, _, err = doCaptureSource(root, definition)
+				if err != nil {
+					t.Fatal(err)
+				}
+			case "output":
+				if err := os.WriteFile(filepath.Join(root, "out/build.txt"), []byte("changed artifact"), 0644); err != nil {
+					t.Fatal(err)
+				}
+			case "snapshot":
+				if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(session.Attempts[0].Results[0].SnapshotRef)), []byte("changed receipt"), 0644); err != nil {
+					t.Fatal(err)
+				}
+			case "command":
+				definition.Steps[0].Argv = []string{"git", "status"}
+			case "dependency":
+				definition.Checks[0].DependsOn = nil
+			case "external":
+				definition.Steps[0].SideEffect = "external_mutation"
+			case "missing-hop":
+				session.DefinitionHistory[1].RetainedAttempts = nil
+			case "changed-hop":
+				session.DefinitionHistory[1].RetainedAttempts[0].AttemptDigest = "changed"
+			case "superseded":
+				replacement := session.Attempts[0]
+				replacement.ID, replacement.Status = "build-2", "failed"
+				replacement.DefinitionEpoch, replacement.DefinitionDigest = 2, session.DefinitionDigest
+				session.Attempts = append(session.Attempts, replacement)
+			}
+			retained := doPlanRetained(root, session, definition, fingerprint)
+			for _, item := range retained {
+				if change != "dependency" || item.TargetID == "report" {
+					t.Fatalf("%s preserved invalid evidence: %+v", change, retained)
+				}
+			}
+			if change == "changed-hop" && doValidateRetainedBindings(session) == nil {
+				t.Fatal("tampered intermediate receipt was accepted")
+			}
+		})
 	}
 }
 

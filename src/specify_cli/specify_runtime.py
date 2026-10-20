@@ -63,6 +63,7 @@ REQUIRED_CAPABILITIES = (
     "do.validate",
     "do.finish",
     "do.resume",
+    "do.scoped-recovery.v1",
     "do.show",
     "playbook.find",
     "playbook.show",

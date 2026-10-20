@@ -387,13 +387,13 @@ through its existing receipt rather than opening another execution plan.
 To adapt an action before it starts, use `replan.mode="unstarted"` with no
 `attempt_id` or `recovery`. Only unattempted actions may change; a fictitious
 failure is unnecessary. Either mode can request `retain_verified=true` to reuse
-eligible direct previous-epoch process observations with unchanged actions,
+eligible original process observations through a verified immutable epoch chain with unchanged actions,
 source basis and dependency bindings, backed by freshly rehashed local results.
 The full required dependency closure, outcome assertions and edges remain
-fixed. Native/external actions, source writers and older carried evidence are
+fixed. Native/external actions, source writers and broken evidence chains are
 excluded. New required checks run, and local outputs are rechecked before a new
 consumer starts. Retained receipts point to original observations; they neither
-rewrite history nor count as new executions. Reuse cannot chain across epochs.
+rewrite history nor count as new executions. Every retained hop must remain verified; a missing hop invalidates reuse.
 
 ### Resumable persistence and blockers
 
@@ -521,3 +521,29 @@ Source changes and local tests do not publish a runtime release. Follow
 [Public runtime distribution](runtime-release-distribution.md) for matching
 version/source identity, platform binaries, checksums and anonymous consumer
 verification. The source repository remains private.
+
+## Script bindings and concurrent recovery
+
+The `do.scoped-recovery.v1` capability versions public-script diagnostics,
+script-file input capture, audited unrelated changes and verified epoch-chain
+retention. Keep executable helpers in reviewable project files; use `script_ref`
+and complete `source_files`, including project/config/resource dependencies.
+Recognizable script argv files are captured relative to cwd; environment-held
+script bodies are rejected rather than treated as frozen code. Secrets retain
+environment bindings, and diagnostics omit their values.
+
+`do resume` can record `external_changes:{"paths":["exact/path"]}` with current
+revision and typed recovery evidence, separately from attempt recovery/replan.
+This audits current unrelated differences without claiming their ownership,
+widening scope, changing the baseline or excusing consumed-input changes.
+Byte/source/epoch/evidence drift invalidates it. Resolve an already recorded
+blocker with the normal fresh-evidence resume afterwards. Unchanged process
+results can retain original attempts through every verified epoch hop; no new
+execution/timing is invented and changed dependencies invalidate reuse. Do not
+publish instance-only artifact rechecks as verified from-scratch build methods.
+
+Preflight exact shell/tool versions, dependency closure and each volume's peak
+mirror/build/staging/archive/extraction space before heavy work. Native process
+handles and orchestration cells are separate; interrupted effects are inspected
+before any retry. These checks do not require repeating a real installer or
+running a broad test matrix.

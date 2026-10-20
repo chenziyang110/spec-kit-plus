@@ -1,5 +1,33 @@
 {
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "external_changes"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "attempt_id"
+              ]
+            },
+            {
+              "required": [
+                "replan"
+              ]
+            }
+          ]
+        },
+        "required": [
+          "recovery"
+        ]
+      }
+    }
+  ],
   "else": {
     "required": [
       "recovery"
@@ -30,6 +58,26 @@
     "expected_revision": {
       "minimum": 1,
       "type": "integer"
+    },
+    "external_changes": {
+      "additionalProperties": false,
+      "description": "Inspect exact current unrelated workspace changes using recovery evidence. Runtime binds current bytes and source basis without claiming ownership, widening scope, or changing the baseline. Operation inputs and writes cannot be excluded; later drift requires fresh inspection.",
+      "properties": {
+        "paths": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "paths"
+      ],
+      "type": "object"
     },
     "recovery": {
       "additionalProperties": false,
@@ -91,7 +139,7 @@
     },
     "replan": {
       "additionalProperties": false,
-      "description": "Default failed mode requires genuine failed attempt and inspected effects. Unstarted mode changes only unattempted actions and omits attempt_id/recovery. retain_verified explicitly allows direct previous-epoch process observations with unchanged actions/source/dependencies and rehashed local results; excludes native/external/source mutation and older carries. Required dependency closure and exact outcome checks cannot weaken. History remains immutable.",
+      "description": "Default failed mode requires genuine failed attempt and inspected effects. Unstarted mode changes only unattempted actions and omits attempt_id/recovery. retain_verified allows original process observations through an unbroken immutable epoch chain with identical actions/source/dependencies and rehashed local results; excludes native/external/source mutation. Required dependency closure and exact outcome checks cannot weaken. History remains immutable; retained results are not new executions.",
       "properties": {
         "definition": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -139,7 +139,7 @@ func validatePlaybookDefinition(root string, definition PlaybookDefinition) erro
 	}
 	_, _, err := resolvePlaybookDefinition(root, definition, examples)
 	if err == nil {
-		err = doNativeSensitiveCheck(root, definition)
+		err = validatePlaybookSensitiveContent(root, definition)
 	}
 	return err
 }

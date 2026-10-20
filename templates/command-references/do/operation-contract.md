@@ -247,16 +247,16 @@ both `attempt_id` and `recovery`; change only unattempted actions. This avoids
 inventing a failure to refine an unexecuted plan. Active or unknown effects
 still require recovery first.
 
-Either replan mode may explicitly request `retain_verified=true`. Runtime may
-retain eligible process observations with `side_effect="read"` or
-`side_effect="local_write"` from the direct previous epoch. Do's validators
-require actual output references, fresh hashes, unchanged actions, sources and
-dependency bindings. Required closure, checks and edges cannot be weakened.
-Native/external actions, source writers and older carried evidence are not
-retained; no chained carry is allowed. New required checks execute. Use
-`specify-runtime do show <id> --section definition:<epoch>` for retained receipts
-and `do next` for remaining work; Do rechecks outputs before a new consumer starts. A retained
-receipt references an original attempt, never a new execution or timing sample.
+Either replan mode may explicitly request `retain_verified=true`. Runtime can
+retain the original process read/local-write observation through an unbroken
+immutable epoch chain. Each hop must keep the exact action, source fingerprint,
+prerequisite attempt IDs and current output/evidence hashes. Changed scripts,
+inputs, outputs, dependencies, missing hops or newer failed attempts invalidate
+reuse. Native/external effects and source writers cannot carry. New checks run.
+The original attempt ID, execution epoch and timing stay unchanged; a retained
+build is not another fast build. Do not rename compile/package actions into
+existing-artifact checks to make the plan pass or publish an instance-only
+recovery definition as a verified from-scratch method.
 
 For a new helper outside the current write scope, replan to claim its exact path
 before creating it, and freeze its creation as a local-write step with explicit
@@ -265,6 +265,44 @@ was already created, it must have been inside the original authorized scope;
 do not retrospectively adopt an unowned write. Retain all accumulated source
 changes for the final canonical cognition closeout. Re-read `do show` and its
 definition/attempt expansion commands before continuing the new epoch.
+
+## Stable Inputs and Unrelated Concurrent Changes
+
+Require `do.scoped-recovery.v1` before using this contract. Freeze a maintained,
+reviewable script with `script_ref`; the runtime also captures recognizable
+script-file argv inputs relative to their action cwd. Declare the complete
+project/config/resource/tool dependency closure in `source_files`, including
+any captured source manifest. An AGENTS-only declaration is not a build-input
+closure. Never hide executable script bodies in environment variables; secrets
+alone use environment bindings. A changed bound script requires replan or fresh
+verification. Public paths and ordinary shell preferences are not secrets;
+sensitive errors identify only a JSON pointer and rule, never the rejected value.
+
+Before heavy copying/building, check the required include roots, resources,
+fonts, SDK/config, packaging tool, shell version and peak free space for mirror,
+build, staging, archive and independent extraction on each affected volume.
+Keep Windows PowerShell 5 and PowerShell 7 explicit. Reject insufficient space
+before the heavy operation; do not add irrelevant broad tests. Preserve native
+process session handles separately from orchestration cell IDs, poll only a
+running handle, and parse output only after an actual completed observation.
+Unknown side effects still require recovery, never automatic replay.
+
+For exact unrelated workspace changes with no confirmed owner, inspect their
+actual diff and the operation's full read/write closure, then submit `do resume`
+with `expected_revision`, `external_changes:{"paths":["exact/path"]}` and the
+existing typed `recovery` evidence. Omit `attempt_id` and `replan`. This records
+a runtime-bound external disposition, not a claim over another Work or an
+ignore rule. Runtime rechecks bytes, definition/epoch, source basis and evidence;
+a later change requires a fresh inspection. Inputs (including historical read
+inputs), own writes/outputs and metadata cannot be excluded. If a blocker was
+already recorded, resolve it afterwards with the ordinary fresh-evidence
+`do resume` branch; external inspection itself does not clear it.
+
+If concurrent edits affect a consumed input, revalidate/rebuild as required or
+bind an actual captured snapshot as the input and prove the delivered artifact
+against it. Never relabel changed live inputs as external. This maintenance
+capability does not retrospectively authenticate an old environment payload,
+complete an unfinished session, or prove an unexecuted reusable method.
 
 ## Knowledge Update
 

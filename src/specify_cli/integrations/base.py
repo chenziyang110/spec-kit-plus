@@ -1675,6 +1675,27 @@ class IntegrationBase(ABC):
                 else:
                     content = f"{blocker_contract}\n\n{content.lstrip()}"
 
+            recovery_contract_path = (
+                template_path.parent.parent
+                / "command-partials"
+                / "common"
+                / "autonomous-blocker-recovery.md"
+            )
+            if (
+                recovery_contract_path.is_file()
+                and "## Autonomous Blocker Recovery" not in content
+            ):
+                recovery_contract = recovery_contract_path.read_text(
+                    encoding="utf-8"
+                ).strip()
+                frontmatter_text, body = IntegrationBase._split_frontmatter(content)
+                content = (
+                    f"---\n{frontmatter_text}---\n\n"
+                    f"{recovery_contract}\n\n{body.lstrip()}"
+                    if frontmatter_text
+                    else f"{recovery_contract}\n\n{content.lstrip()}"
+                )
+
             runtime_boundary_path = (
                 template_path.parent.parent
                 / "command-partials"
@@ -3747,6 +3768,23 @@ class SkillsIntegration(IntegrationBase):
                 )
             else:
                 skill_content = boundary + skill_content.lstrip()
+        if "## Autonomous Blocker Recovery" not in skill_content:
+            frontmatter_text, body = self._split_frontmatter(skill_content)
+            recovery = (
+                "## Autonomous Blocker Recovery\n\n"
+                "Read `references/autonomous-blocker-recovery.md` whenever "
+                "a prerequisite, tool, delegation, validation, or runtime gate "
+                "fails, before interpreting any local stop/blocked/escalation "
+                "instruction as a terminal exit. Diagnose, repair, and resume "
+                "inside this invocation while preserving owner, authorization, "
+                "read-only boundaries, and independent acceptance. Honor the "
+                "user's verification budget.\n\n"
+            )
+            skill_content = (
+                f"---\n{frontmatter_text}---\n\n{recovery}{body.lstrip()}"
+                if frontmatter_text
+                else recovery + skill_content.lstrip()
+            )
         if "## Blocked Exit Contract" not in skill_content:
             frontmatter_text, body = self._split_frontmatter(skill_content)
             blocked_exit = (

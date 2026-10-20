@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DO_CAPABILITIES = (
     "do.start", "do.record", "do.validate", "do.finish", "do.resume", "do.show",
     "playbook.find", "playbook.show", "playbook.update", "playbook.validate",
-    "do.prepare", "do.next", "do.complete", "playbook.metrics",
+    "do.prepare", "do.next", "do.complete", "playbook.metrics", "do.scoped-recovery.v1",
 )
 
 

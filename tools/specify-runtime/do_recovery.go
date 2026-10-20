@@ -28,6 +28,17 @@ func (input *doResumeInput) UnmarshalJSON(raw []byte) error {
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		return err
 	}
+	if _, present := fields["external_changes"]; present {
+		if value.ExternalChanges == nil || len(value.ExternalChanges.Paths) == 0 {
+			return fmt.Errorf("external_changes requires a nonempty paths inspection")
+		}
+		if _, present := fields["attempt_id"]; present {
+			return fmt.Errorf("external_changes cannot carry attempt_id")
+		}
+		if _, present := fields["replan"]; present {
+			return fmt.Errorf("external_changes cannot carry replan")
+		}
+	}
 	if value.Replan != nil && value.Replan.Mode == "unstarted" {
 		_, hasAttempt := fields["attempt_id"]
 		if _, present := fields["recovery"]; present || hasAttempt {
@@ -53,6 +64,13 @@ func (input *doResumeInput) UnmarshalJSON(raw []byte) error {
 }
 
 func (input doResumeInput) MarshalJSON() ([]byte, error) {
+	if input.ExternalChanges != nil {
+		value := map[string]any{"expected_revision": input.ExpectedRevision, "external_changes": input.ExternalChanges, "recovery": input.Recovery}
+		if input.WorkFence != 0 {
+			value["work_fence"] = input.WorkFence
+		}
+		return json.Marshal(value)
+	}
 	if input.Replan != nil && input.Replan.Mode == "unstarted" && input.AttemptID == "" && input.Recovery == (DoRecovery{}) {
 		value := map[string]any{"expected_revision": input.ExpectedRevision, "replan": input.Replan}
 		if input.WorkFence != 0 {

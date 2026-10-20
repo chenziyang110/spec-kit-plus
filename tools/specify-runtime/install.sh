@@ -111,7 +111,7 @@ if ! "$candidate" api ensure --capabilities cognition.scoped-register,cognition.
 fi
 for capability in "do.start" "do.record" "do.validate" "do.finish" "do.resume" "do.show" \
   "playbook.find" "playbook.show" "playbook.update" "playbook.validate" \
-  "do.prepare" "do.next" "do.complete" "playbook.metrics"; do
+  "do.prepare" "do.next" "do.complete" "playbook.metrics" "do.scoped-recovery.v1"; do
   if [[ "$handshake" != *"\"${capability}\""* ]]; then
     echo "Downloaded binary lacks required project operation capability: ${capability}" >&2
     exit 1

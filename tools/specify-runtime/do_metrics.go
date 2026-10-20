@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const doMetricsRetentionPolicy = "same-source-local-output-direct-previous-epoch"
+const doMetricsRetentionPolicy = "same-source-local-output-verified-epoch-chain"
 
 // Metrics are projections of the Do owner's existing observations. They never
 // mutate a session, advance a workflow, or use successful playbook usage as the

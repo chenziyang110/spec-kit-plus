@@ -92,6 +92,10 @@ func normalizedLearningPolicyLiterals(values []string) []string {
 }
 
 func redactLearningTextWithPolicy(value string, policy learningPolicy) learningRedactionResult {
+	return redactLearningTextWithPolicyAndEntropyFilter(value, policy, nil)
+}
+
+func redactLearningTextWithPolicyAndEntropyFilter(value string, policy learningPolicy, publicToken func(string) bool) learningRedactionResult {
 	text := value
 	labels := map[string]bool{}
 	apply := func(pattern, replacement, label string) {
@@ -114,7 +118,7 @@ func redactLearningTextWithPolicy(value string, policy learningPolicy) learningR
 	for _, prefix := range policy.detectors.BusinessIDPrefixes {
 		apply(`(?i)(^|[^A-Za-z0-9_])`+regexp.QuoteMeta(prefix)+`[A-Za-z0-9_-]{3,}($|[^A-Za-z0-9_])`, `${1}[REDACTED_BUSINESS_ID]${2}`, "business_identifier")
 	}
-	builtin := redactLearningText(text)
+	builtin := redactLearningTextWithEntropyFilter(text, publicToken)
 	text = builtin.text
 	for _, label := range builtin.labels {
 		labels[label] = true

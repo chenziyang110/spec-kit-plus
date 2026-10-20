@@ -46,7 +46,7 @@ def assert_do_runtime_binding(project: Path, content: str) -> None:
     assert f"{launcher.command} api show do.prepare" in content
     for route in ("do start", "do next", "do record", "do complete"):
         assert route in content
-    assert f"{launcher.command} api ensure --capabilities do.start,do.record,do.validate,do.finish,do.resume,do.show,playbook.find,playbook.show,playbook.update,playbook.validate,do.prepare,do.next,do.complete,playbook.metrics --format json" in content
+    assert f"{launcher.command} api ensure --capabilities do.start,do.record,do.validate,do.finish,do.resume,do.show,playbook.find,playbook.show,playbook.update,playbook.validate,do.prepare,do.next,do.complete,playbook.metrics,do.scoped-recovery.v1 --format json" in content
     assert "{{specify-subcmd:" not in content
     assert "{{spec-kit-include:" not in content
     assert "{{project-cognition-workflow}}" not in content

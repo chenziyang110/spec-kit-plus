@@ -13,7 +13,7 @@ starting, resuming, or finalizing; it owns the detailed evidence contract.
 
 Before method retrieval or session mutation, require the complete installed contract:
 
-`{{specify-subcmd:specify-runtime api ensure --capabilities do.start,do.record,do.validate,do.finish,do.resume,do.show,playbook.find,playbook.show,playbook.update,playbook.validate,do.prepare,do.next,do.complete,playbook.metrics --format json}}`
+`{{specify-subcmd:specify-runtime api ensure --capabilities do.start,do.record,do.validate,do.finish,do.resume,do.show,playbook.find,playbook.show,playbook.update,playbook.validate,do.prepare,do.next,do.complete,playbook.metrics,do.scoped-recovery.v1 --format json}}`
 
 Missing capabilities block DO until the pinned runtime is repaired/upgraded.
 Preserve existing sessions and methods; never fall back to Python or authored state.

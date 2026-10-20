@@ -66,8 +66,16 @@ func doResumeInputSchema() map[string]any {
 		"request_id": map[string]any{"type": "string", "pattern": doIDPattern.String()},
 		"definition": playbookDefinitionInputSchema(), "write_scope": replanScope, "output_scope": replanScope,
 	}, "request_id", "definition")
-	replan["description"] = "Default failed mode requires genuine failed attempt and inspected effects. Unstarted mode changes only unattempted actions and omits attempt_id/recovery. retain_verified explicitly allows direct previous-epoch process observations with unchanged actions/source/dependencies and rehashed local results; excludes native/external/source mutation and older carries. Required dependency closure and exact outcome checks cannot weaken. History remains immutable."
-	result := doSchemaObject(map[string]any{"expected_revision": doSchemaRevision(), "attempt_id": doSchemaString(), "work_fence": map[string]any{"type": "integer", "minimum": 1, "description": "Explicit current fence returned by completed Work recovery; Do never claims or resumes Work ownership automatically."}, "recovery": recovery, "replan": replan}, "expected_revision")
+	replan["description"] = "Default failed mode requires genuine failed attempt and inspected effects. Unstarted mode changes only unattempted actions and omits attempt_id/recovery. retain_verified allows original process observations through an unbroken immutable epoch chain with identical actions/source/dependencies and rehashed local results; excludes native/external/source mutation. Required dependency closure and exact outcome checks cannot weaken. History remains immutable; retained results are not new executions."
+	paths := doSchemaStrings()
+	paths["minItems"], paths["maxItems"], paths["uniqueItems"] = 1, 128, true
+	external := doSchemaObject(map[string]any{"paths": paths}, "paths")
+	external["description"] = "Inspect exact current unrelated workspace changes using recovery evidence. Runtime binds current bytes and source basis without claiming ownership, widening scope, or changing the baseline. Operation inputs and writes cannot be excluded; later drift requires fresh inspection."
+	result := doSchemaObject(map[string]any{"expected_revision": doSchemaRevision(), "attempt_id": doSchemaString(), "work_fence": map[string]any{"type": "integer", "minimum": 1, "description": "Explicit current fence returned by completed Work recovery; Do never claims or resumes Work ownership automatically."}, "recovery": recovery, "replan": replan, "external_changes": external}, "expected_revision")
+	result["allOf"] = []any{map[string]any{
+		"if":   map[string]any{"required": []string{"external_changes"}},
+		"then": map[string]any{"required": []string{"recovery"}, "not": map[string]any{"anyOf": []any{map[string]any{"required": []string{"attempt_id"}}, map[string]any{"required": []string{"replan"}}}}},
+	}}
 	unstarted := map[string]any{"required": []string{"replan"}, "properties": map[string]any{"replan": map[string]any{"required": []string{"mode"}, "properties": map[string]any{"mode": map[string]any{"const": "unstarted"}}}}}
 	result["if"] = unstarted
 	result["then"] = map[string]any{"not": map[string]any{"anyOf": []any{map[string]any{"required": []string{"recovery"}}, map[string]any{"required": []string{"attempt_id"}}}}}

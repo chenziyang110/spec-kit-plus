@@ -434,6 +434,8 @@ def test_every_generated_workflow_has_a_discoverable_blocked_exit_contract(
         content = skill.read_text(encoding="utf-8").lower()
         assert "## blocked exit contract" in content, skill
         assert "agent-capable" in content or "agent-owned" in content, skill
+        assert content.count("## autonomous blocker recovery") == 1, skill
+        assert "every `sp-*` workflow" in content, skill
 
     advanced = generated_agent_surfaces["advanced"]
     for skill in sorted(advanced.glob("spx-*/SKILL.md")):
@@ -441,6 +443,15 @@ def test_every_generated_workflow_has_a_discoverable_blocked_exit_contract(
         assert "## blocked exit contract" in content, skill
         assert "references/blocker-resolution.md" in content, skill
         assert "agent-owned" in content, skill
+        assert content.count("## autonomous blocker recovery") == 1, skill
+        assert "read `references/autonomous-blocker-recovery.md`" in content, skill
+        reference = skill.parent / "references/autonomous-blocker-recovery.md"
+        assert "every `spx-*` workflow" in reference.read_text(encoding="utf-8"), skill
+
+    for companion in ("sp-map-scan", "sp-map-build", "sp-map-update"):
+        classic_bytes = (classic / companion / "SKILL.md").read_bytes()
+        advanced_bytes = (advanced / companion / "SKILL.md").read_bytes()
+        assert advanced_bytes == classic_bytes, companion
 
 
 def test_worker_prompts_name_only_implemented_runtime_artifact_namespaces(
