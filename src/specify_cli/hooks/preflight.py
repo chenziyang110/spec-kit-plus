@@ -12,12 +12,20 @@ from .types import HookResult, QualityHookError
 
 def workflow_preflight_hook(project_root: Path, payload: dict[str, object]) -> HookResult:
     command_name = normalize_command_name(str(payload.get("command_name") or ""))
-    freshness = project_cognition_freshness_result(project_root, command_name=command_name)
+    task_packet = payload.get("task_packet", payload.get("packet_file"))
+    freshness = project_cognition_freshness_result(
+        project_root, command_name=command_name, task_packet=task_packet,
+        availability_binding=payload.get("availability_binding"),
+    )
 
     errors: list[str] = []
     warnings = list(freshness.warnings)
     if freshness.errors:
-        warnings.extend(freshness.errors)
+        if task_packet is not None:
+            errors.extend(freshness.errors)
+        else:
+            # Legacy global entry warnings are advisory, not scoped protection.
+            warnings.extend(freshness.errors)
 
     if command_name == "implement":
         raw_feature_dir = str(payload.get("feature_dir") or "").strip()

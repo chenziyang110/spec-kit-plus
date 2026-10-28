@@ -47,12 +47,15 @@ func TestExecutionAnnounceMakesFastVisibleBeforeClaim(t *testing.T) {
 }
 
 func TestExecutionGuardAndCompleteEnforceOneAuditedLifecycle(t *testing.T) {
-	root := initCoordinationCLIRepository(t)
-	announced := announceExecutionCLI(t, root, "activity-audited", "fast", "audited", "", []string{"src/allowed"}, []map[string]any{{
+	root, _, _ := seedCloseoutApplyRuntime(t)
+	gitRun(t, root, "init")
+	r3SeedGraph(t, root, []string{"src/allowed/main.go"})
+	ownedScope := []string{"src/allowed", mutationCognitionReceiptFileName, ".specify/project-cognition"}
+	announced := announceExecutionCLI(t, root, "activity-audited", "fast", "audited", "", ownedScope, []map[string]any{{
 		"type": "feature", "key": "audited", "mode": "exclusive", "confidence": "candidate",
 	}})
 	overview := executionOverviewCLI(t, root, "activity-audited")
-	guarded := guardExecutionCLI(t, root, announced, overview, []string{"src/allowed"}, []map[string]any{{
+	guarded := guardExecutionCLI(t, root, announced, overview, ownedScope, []map[string]any{{
 		"type": "feature", "key": "audited", "mode": "exclusive", "confidence": "confirmed",
 	}})
 	if guarded["schema"] != "execution-guard-v1" || guarded["phase"] != "executing" {
@@ -88,6 +91,8 @@ func TestExecutionGuardAndCompleteEnforceOneAuditedLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	mustWriteScriptDomainTest(t, filepath.Join(root, "src", "allowed", "main.go"), "package allowed\n")
+	proof := r3Seal(t, root, r3Begin(t, root, ".", "fast", stringValue(guarded["work_id"]), nil, nil))
+	r3Apply(t, root, proof)
 	code, completedPayload := invokeCoordinationCLI(t,
 		"execution", "complete", "activity-audited",
 		"--project-root", root,
@@ -95,6 +100,7 @@ func TestExecutionGuardAndCompleteEnforceOneAuditedLifecycle(t *testing.T) {
 		"--fence", executionJSONNumberString(guarded["fence"]),
 		"--validation-json", `[{"command":"go test ./...","result":"passed"}]`,
 		"--reason", "verified execution",
+		"--binding-id", proof.ID,
 		"--format", "json",
 	)
 	if code != 0 || completedPayload["status"] != "ok" {
@@ -104,7 +110,13 @@ func TestExecutionGuardAndCompleteEnforceOneAuditedLifecycle(t *testing.T) {
 	if completed["schema"] != "execution-completion-v1" || completed["phase"] != "completed" || completed["work_status"] != "completed" {
 		t.Fatalf("completion receipt = %#v", completed)
 	}
-	if strings.Join(anyStringSlice(completed["actual_changed_paths"]), ",") != "src/allowed/main.go" || len(stringValue(completed["completion_sha256"])) != 64 {
+	productPaths := []string{}
+	for _, path := range anyStringSlice(completed["actual_changed_paths"]) {
+		if closeoutBindingProductPath(path, ".") {
+			productPaths = append(productPaths, path)
+		}
+	}
+	if strings.Join(productPaths, ",") != "src/allowed/main.go" || len(stringValue(completed["completion_sha256"])) != 64 {
 		t.Fatalf("audited completion = %#v", completed)
 	}
 

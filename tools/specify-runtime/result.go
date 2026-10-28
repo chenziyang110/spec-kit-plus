@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/workerdelta"
 	"io"
 	"os"
 	"path/filepath"
@@ -158,13 +159,6 @@ func runResultSubmit(args []string, stdout io.Writer) int {
 	if len(rawResult) == 0 {
 		return writeResultError(stdout, "usage-error", "result submit requires --result-json")
 	}
-	normalized, err := normalizeSubmittedTaskResult(commandName, rawResult)
-	if err != nil {
-		return writeResultError(stdout, "invalid", err.Error())
-	}
-	if normalized["status"] == "pending" {
-		return writeResultError(stdout, "invalid", "Pending result templates cannot be written to the canonical handoff path. Replace the placeholder with a real success, blocked, or failed result first.")
-	}
 	target, err := buildResultHandoffPath(projectRoot, resultPathRequest{
 		CommandName:      commandName,
 		IntegrationKey:   integration,
@@ -178,8 +172,35 @@ func runResultSubmit(args []string, stdout io.Writer) int {
 	if err != nil {
 		return writeResultError(stdout, "usage-error", err.Error())
 	}
-	if err := writeJSONAtomic(target, normalized); err != nil {
+	normalized, normalizationErr := normalizeSubmittedTaskResult(commandName, rawResult)
+	if normalizationErr == nil && normalized["status"] == "pending" {
+		normalizationErr = fmt.Errorf("Pending result templates cannot be written to the canonical handoff path. Replace the placeholder with a real success, blocked, or failed result first.")
+	}
+	rejection := ""
+	if normalizationErr != nil {
+		rejection = normalizationErr.Error()
+		// An obsolete UI-only payload for an unregistered lane is refused before
+		// creating task state. Registered submissions and retained edits still
+		// belong to the existing result owner's rejected-submission history.
+		if candidate, decodeErr := workerdelta.Decode(rawResult); decodeErr == nil && len(workerdelta.Accounting(candidate)) == 0 {
+			obsolete := false
+			for field := range obsoleteUIResultFields {
+				if _, present := candidate[field]; present {
+					obsolete = true
+				}
+			}
+			_, resultErr := os.Stat(target)
+			_, ownerErr := os.Stat(filepath.Join(filepath.Dir(filepath.Dir(target)), quickConfirmationFileName))
+			if (obsolete || normalized["status"] == "pending") && os.IsNotExist(resultErr) && os.IsNotExist(ownerErr) {
+				return writeResultError(stdout, "invalid", rejection)
+			}
+		}
+	}
+	if _, err := persistWorkerResultSubmission(projectRoot, target, normalized, rawResult, rejection, "", 0, nil); err != nil {
 		return writeResultError(stdout, "error", fmt.Sprintf("write result handoff: %v", err))
+	}
+	if normalizationErr != nil {
+		return writeResultError(stdout, "invalid", rejection)
 	}
 	env := NewEnvelope("ok", "result handoff submitted")
 	env.Data["command"] = commandName
@@ -188,6 +209,83 @@ func runResultSubmit(args []string, stdout io.Writer) int {
 	env.Data["worker_status"] = normalized["status"]
 	env.Data["reported_status"] = normalized["reported_status"]
 	return writeEnvelope(stdout, env)
+}
+
+func loadCanonicalWorkerResult(root, target string) (map[string]any, fileTransactionPrecondition, error) {
+	rel, err := filepath.Rel(root, target)
+	if err != nil {
+		return nil, fileTransactionPrecondition{}, err
+	}
+	raw, err := secureProjectReadFile(root, filepath.ToSlash(rel))
+	if os.IsNotExist(err) {
+		return nil, fileTransactionPrecondition{Path: target, MustNotExist: true}, nil
+	}
+	if err != nil {
+		return nil, fileTransactionPrecondition{}, err
+	}
+	stored, err := workerdelta.Decode(raw)
+	if err != nil {
+		return nil, fileTransactionPrecondition{}, err
+	}
+	if err := workerdelta.ValidateStored(stored); err != nil {
+		return nil, fileTransactionPrecondition{}, err
+	}
+	return stored, fileTransactionPrecondition{Path: target, ExpectedSHA256: workerdelta.Digest(raw)}, nil
+}
+
+func persistWorkerResultSubmission(root, target string, result map[string]any, raw []byte, rejection, attempt string, revision int, additional []fileTransactionPrecondition) (map[string]any, error) {
+	previous, condition, err := loadCanonicalWorkerResult(root, target)
+	if err != nil {
+		return nil, err
+	}
+	rel := projectRelativeSlash(root, target)
+	status := asString(result["status"])
+	stored, err := workerdelta.Append(previous, result, raw, status, rejection, rel, attempt, revision)
+	if err != nil {
+		return nil, err
+	}
+	encoded, err := json.MarshalIndent(stored, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	conditions := append([]fileTransactionPrecondition{condition}, additional...)
+	// A Quick result and its acceptance projection share the same owner. Even
+	// though submit does not advance it, compare its bytes to avoid racing accept.
+	if strings.HasPrefix(rel, ".planning/quick/") {
+		confirmation := filepath.Join(filepath.Dir(filepath.Dir(target)), quickConfirmationFileName)
+		if before, readErr := os.ReadFile(confirmation); readErr == nil {
+			conditions = append(conditions, fileTransactionPrecondition{Path: confirmation, ExpectedSHA256: workerdelta.Digest(before)})
+		} else if !os.IsNotExist(readErr) {
+			return nil, readErr
+		}
+	}
+	_, err = applyFileTransactionWithPreconditions(root, "worker-result.submit", []fileTransactionUpdate{{Path: target, Content: append(encoded, '\n'), Perm: 0o644}}, conditions)
+	return stored, err
+}
+
+func normalizeSavedSubmittedTaskResult(command string, raw []byte) (map[string]any, error) {
+	stored, err := workerdelta.Decode(raw)
+	if err != nil {
+		return nil, err
+	}
+	candidate, err := workerdelta.CandidateFromStored(stored)
+	if err != nil {
+		return nil, err
+	}
+	encoded, err := json.Marshal(candidate)
+	if err != nil {
+		return nil, err
+	}
+	normalized, err := normalizeSubmittedTaskResult(command, encoded)
+	if err != nil {
+		return nil, err
+	}
+	for _, field := range []string{"submission_history", "cognition_result_binding"} {
+		if value, exists := stored[field]; exists {
+			normalized[field] = value
+		}
+	}
+	return normalized, nil
 }
 
 type resultPathRequest struct {
@@ -340,8 +438,8 @@ func resultIntegrationKey(projectRoot string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf(".specify/integration.json is required for result handoff commands")
 	}
-	var payload map[string]any
-	if err := json.Unmarshal(raw, &payload); err != nil {
+	payload, err := workerdelta.Decode(raw)
+	if err != nil {
 		return "", fmt.Errorf(".specify/integration.json is invalid JSON")
 	}
 	integration := strings.ToLower(strings.TrimSpace(asString(payload["integration"])))
@@ -355,12 +453,16 @@ func resultIntegrationKey(projectRoot string) (string, error) {
 }
 
 func normalizeWorkerTaskResult(raw []byte) (map[string]any, error) {
-	var payload map[string]any
-	if err := json.Unmarshal(raw, &payload); err != nil {
+	payload, err := workerdelta.Decode(raw)
+	if err != nil {
 		return nil, fmt.Errorf("worker result payload must be JSON object: %w", err)
 	}
 	if payload == nil {
 		return nil, fmt.Errorf("worker result payload must be JSON object")
+	}
+	delta, changedPaths, err := workerdelta.Normalize(payload)
+	if err != nil {
+		return nil, err
 	}
 	unsupported := []string{}
 	for key := range payload {
@@ -426,7 +528,7 @@ func normalizeWorkerTaskResult(raw []byte) (map[string]any, error) {
 	if reportedStatus == "" {
 		reportedStatus = canonicalStatus
 	}
-	return map[string]any{
+	result := map[string]any{
 		"task_id":                    strings.TrimSpace(asString(pick(payload, "task_id", "taskId"))),
 		"status":                     canonicalStatus,
 		"wave":                       strings.TrimSpace(asString(payload["wave"])),
@@ -434,7 +536,7 @@ func normalizeWorkerTaskResult(raw []byte) (map[string]any, error) {
 		"obligation_ids":             asStringList(pick(payload, "obligation_ids", "obligationIds")),
 		"observations":               normalizeObjectList(payload["observations"]),
 		"findings":                   normalizeObjectList(payload["findings"]),
-		"changed_files":              asStringList(pick(payload, "changed_files", "changedFiles", "files_changed")),
+		"changed_files":              changedPaths,
 		"validation_results":         normalizeValidationResults(payload),
 		"summary":                    summary,
 		"concerns":                   concerns,
@@ -450,7 +552,11 @@ func normalizeWorkerTaskResult(raw []byte) (map[string]any, error) {
 		"consequence_evidence":       normalizeEvidenceItems(pick(payload, "consequence_evidence", "consequenceEvidence")),
 		"ui_evidence":                uiEvidence,
 		"ui_verification":            uiVerification,
-	}, nil
+	}
+	if len(delta) > 0 {
+		result["cognition_delta"] = delta
+	}
+	return result, nil
 }
 
 func normalizeValidationResults(payload map[string]any) []map[string]string {

@@ -281,6 +281,7 @@ type CompleteExecutionParams struct {
 	Fence                int64
 	ChangedPaths         []string
 	ControlPlaneFiles    []ExecutionFileDigestExpectation
+	FinalProofCheck      func() error
 	ValidationJSON       string
 	Reason               string
 }
@@ -815,6 +816,11 @@ func (store *Store) CompleteExecution(ctx context.Context, params CompleteExecut
 	if err := verifyExecutionFileDigestExpectations(work.WorkspaceRoot, controlPlaneFiles); err != nil {
 		return CompletedExecution{}, err
 	}
+	if params.FinalProofCheck != nil {
+		if err := params.FinalProofCheck(); err != nil {
+			return CompletedExecution{}, err
+		}
+	}
 	resources, err := readExecutionResourceIntents(ctx, tx, activity.ActivityID)
 	if err != nil {
 		return CompletedExecution{}, err
@@ -1122,6 +1128,18 @@ func executionUnclaimedChangedPaths(changedPaths []string, intents []WriteIntent
 	}
 	sort.Strings(unclaimed)
 	return unclaimed
+}
+
+// AuditExecutionScope preserves the same refusal ordering before callers check
+// additional closeout evidence. CompleteExecution repeats this audit atomically.
+func AuditExecutionScope(registration ExecutionRegistration, changedPaths []string) error {
+	if err := verifyExecutionPacketScope(registration.Activity, changedPaths); err != nil {
+		return err
+	}
+	if unclaimed := executionUnclaimedChangedPaths(changedPaths, registration.WriteIntents); len(unclaimed) > 0 {
+		return &ExecutionScopeAuditError{UnclaimedPaths: unclaimed}
+	}
+	return nil
 }
 
 func executionCompletionSHA256(

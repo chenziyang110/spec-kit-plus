@@ -18,7 +18,7 @@ import sys
 import sysconfig
 import zipfile
 
-HELPERS = ("e2e_scenarios.py", "e2e_coverage.py", "e2e_runner.py", "e2e_pytest_reporter.py")
+HELPERS = ("e2e_scenarios.py", "e2e_coverage.py", "e2e_runner.py", "e2e_pytest_reporter.py", "e2e_assets.py")
 MAP_COMPANIONS = {"sp-map-scan", "sp-map-build", "sp-map-update"}
 TOKENS = ("{{spec-kit-include:", "{{project-cognition-workflow}}", "{{specify-subcmd:",
           "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE")
@@ -194,7 +194,7 @@ def run_probe(wheel: Path, runtime: Path, output: Path, expected_revision: str,
         require(version["status"] == "ok" and version["data"]["source_revision"] == expected_revision,
                 "pinned runtime source revision differs from this build")
         capabilities = ["e2e." + action for action in (
-            "init", "status", "scope-add", "task-start", "task-submit", "review-start",
+            "init", "status", "compact", "task-show", "scope-add", "task-start", "task-submit", "review-start",
             "review-submit", "task-accept", "reopen", "close",
         )]
         ensured = json.loads(run([str(pinned), "api", "ensure", "--capabilities", ",".join(capabilities),
@@ -207,8 +207,11 @@ def run_probe(wheel: Path, runtime: Path, output: Path, expected_revision: str,
         catalog = json.loads(run([sys.executable, "-I", str(project / ".specify/scripts/shared/e2e_scenarios.py"), "catalog"],
                                  project, "scenario-catalog"))
         require(len(catalog["dimensions"]) >= 14, "installed scenario helper is incomplete")
-        for name in ("e2e_coverage.py", "e2e_runner.py"):
+        for name in ("e2e_coverage.py", "e2e_runner.py", "e2e_assets.py"):
             run([sys.executable, "-E", "-s", str(project / ".specify/scripts/shared" / name), "--help"], project, name)
+        for asset in ("strength", "bundle", "crosswalk"):
+            schema = json.loads(run([sys.executable, "-E", "-s", str(project / ".specify/scripts/shared/e2e_assets.py"), "schema", asset], project, asset + "-schema"))
+            require(schema["claim"] == "schemas_only", f"installed {asset} helper is not executable")
         if edits:
             require(".specify/scripts/shared/e2e_scenarios.py" in core.check_modified(), "user edit lost its manifest boundary")
 

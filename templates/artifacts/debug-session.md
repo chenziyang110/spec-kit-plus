@@ -31,7 +31,7 @@ parent_session: ""
 hypothesis:
 test:
 expecting:
-next_action: confirm the Debug Understanding Checkpoint
+next_action: complete intake and investigate the reported failure
 
 ## Symptoms
 
@@ -46,11 +46,20 @@ reproduction_verified: false
 ## Debug Understanding Checkpoint
 
 checkpoint:
+  confirmation_purpose: evidence-backed-repair
   issue:
   issue_detail:
   expected_or_target:
   reproduction_or_failing_signal:
   known_evidence: []
+  discovered_problem:
+  root_cause:
+  evidence_refs: []
+  proposed_fix: []
+  change_scope: []
+  expected_outcome:
+  risks: []
+  validation_plan: []
   in_scope: []
   out_of_scope: []
   fix_authority: diagnose only

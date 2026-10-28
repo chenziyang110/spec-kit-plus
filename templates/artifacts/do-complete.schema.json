@@ -1,0 +1,19 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "change_summary": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "type": "string"
+    },
+    "expected_revision": {
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "expected_revision",
+    "change_summary"
+  ],
+  "type": "object"
+}

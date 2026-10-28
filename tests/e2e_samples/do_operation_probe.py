@@ -72,7 +72,7 @@ def probe(runtime: Path, project: Path, *, prepare_project: Callable[[Path], Non
         if payload is not None:
             command += ["--input-json", "-"]
         result = subprocess.run(command, input=json.dumps(payload) if payload is not None else None,
-                                cwd=project, env=environment, text=True, capture_output=True, timeout=60)
+                                cwd=project, env=environment, text=True, encoding="utf-8", capture_output=True, timeout=60)
         envelope = json.loads(result.stdout)
         if blocked:
             assert result.returncode != 0 and envelope["status"] != "ok", envelope

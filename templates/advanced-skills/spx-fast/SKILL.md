@@ -66,7 +66,13 @@ edits. If an active failure has no reliable automated test surface, build the
 smallest viable harness as Fast-owned recovery work and register its scope;
 documentation, formatting, and mechanically
 provable non-behavior changes may use a direct before/after check.
-Run the smallest meaningful verification after editing. If the edit propagates
+Before final verification of changed source, first call
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-fast --scope-dir <project-or-workspace> --scope-mode explicit --intent implement --format json}}`
+with explicit workflow-owned paths. Read the binding sequence in
+`references/project-cognition.md`, then use the planner inputs to begin the native work/source binding, run the
+smallest meaningful check, and seal the exact current binding with its fresh tool
+observations. Runtime-owned cognition control state does not create a Fast
+planning artifact, worker packet or review lane. If the edit propagates
 to generated, mirrored, registered, or downstream consumer surfaces as part of
 the causal repair, sweep and verify those surfaces inside recovery mode. New
 unrelated product scope remains an explicit `$spx-quick` handoff.
@@ -87,9 +93,8 @@ Review does not claim the independent system Review contract owned by
 `$spx-review`.
 
 Create no spec, plan, tasks, quick workspace, delegation packet, or lifecycle
-artifact. When repository behavior changed, run
-`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-fast --scope-dir <project-or-workspace> --scope-mode explicit --intent implement --format json}}`
-with explicit workflow-owned paths, fill returned agent-owned fields, and execute
+artifact. When repository behavior changed, use the plan already obtained,
+fill returned agent-owned fields, and execute
 structured `apply_argv` before claiming the fast change complete. Shared apply
 owns update, validation, eligible finalization, and receipt; only an update
 failure uses mark-dirty plus a standalone dirty receipt. Apply the gate in

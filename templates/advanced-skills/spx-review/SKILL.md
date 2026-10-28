@@ -91,6 +91,14 @@ open a fourth logical gate. A status reason of
 after convergence but before delivery: open delivery at that repaired
 fingerprint, never retry convergence or reopen Implement.
 
+For source-changing repair joins, first call
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-review --scope-dir <feature-dir> --scope-mode explicit --intent implement --format json}}`
+with explicit Review-owned paths, then use its inputs to begin the native work/source binding in
+`references/project-cognition.md` before that delivery revalidation attempt. Seal
+it with fresh integrated observations and consume its current check at shared
+apply and Review closeout. The binding does not replace independent revalidation,
+the final scenario denominator, or human Accept.
+
 On an uncertain or terminal-looking resume, run
 `{{specify-subcmd:specify-runtime review resume-audit --feature-dir <feature-dir> --format json}}`
 before reusing evidence or editing. Continue from its exact scenario/finding
@@ -249,9 +257,8 @@ session readiness/actions, and Review never prefills
 human PASS. After an acceptance repair, every human scenario is reset and must
 be rerun; preserve no earlier PASS.
 
-After verified Review-owned changes, run
-`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-review --scope-dir <feature-dir> --scope-mode explicit --intent implement --format json}}`
-with explicit Review-owned paths, fill returned agent-owned fields, and execute
+After verified Review-owned changes, use the plan already obtained,
+fill returned agent-owned fields, and execute
 structured `apply_argv`; it owns update, validation, eligible finalization, and
 receipt. Apply the gate in
 `references/project-cognition.md` before any clean claim; then run

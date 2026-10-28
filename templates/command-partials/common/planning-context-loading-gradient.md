@@ -3,6 +3,43 @@
 This planning-only command should treat the project cognition runtime as an
 advisory navigation index, not a mandatory pre-source gate.
 
+Reuse one cognition context capsule only while its exact task/query, workflow
+intent/binding, target project, scope, required facets, negative constraints,
+permissions, relevant live-source/evidence digests, and runtime identity remain
+unchanged. Keep the original `expansion_ref.id`, `query_fingerprint`,
+`active_generation_id`, `navigation_digest`, and contract versions with it;
+claim revisions are covered by that navigation snapshot, including same-generation
+changes. Before reusing a prior capsule for an unchanged phase pass, perform one
+actual read-only `{{specify-subcmd:specify-runtime cognition expand --id <id> --section <section> --format json}}`
+using that ID and an available section such as `related_paths`. Require the
+inner cognition payload's `status=ok`, usable `readiness=query_ready|review`,
+`expansion_contract_version=2`, matching
+ID, query fingerprint, active generation, and the advisory `epistemic_contract`.
+A native outer exit code 0 alone is not proof. Missing, stale, incompatible,
+invalid, or unsuccessful expansion disables reuse; follow its recovery action
+and refresh supported intake or use live evidence within the workflow boundary.
+
+A verified capsule does not restart Compass or Learning after each preparatory
+capability/API, artifact query, script dry run, or board call. These calls alone
+also do not require another Expand check. Refresh on target, task/query, intent,
+scope/facet, constraint, permission, runtime, relevant source/evidence, generation,
+status, or claim-revision drift, contradictory evidence, and required resume or
+recovery gates. Preserve live verification and mutation-closeout freshness.
+Learning reuse separately requires unchanged applicable lessons, Learning
+index/source evidence, and project rules; a graph digest does not prove Learning
+unchanged. If relevant lessons/rules drift or their applicability cannot be
+confirmed, repeat the owning read-only Learning start/list/show intake.
+
+Before using snapshot reuse, claim-evidence paging, or catalog continuation,
+require their respective capability IDs: `cognition.expansion.snapshot.v2`,
+`cognition.claim-evidence.page.v1`, and `cognition.catalog.snapshot.v1`. Verify
+only the needed set once with
+`{{specify-subcmd:specify-runtime api ensure --capabilities <comma-separated-capability-ids> --format json}}`;
+reuse its proof while runtime identity is unchanged. Older runtimes may fall back
+once to `api list`. Missing capability disables the affected route; use supported
+fresh Compass/live evidence instead of assuming newer contracts. These IDs are
+capabilities, not CLI commands.
+
 ### Advisory Rule
 
 Use project cognition when available to find likely owners, affected paths,
@@ -54,7 +91,31 @@ When `compass_state=needs_semantic_intake`, build `semantic_intake` in memory fr
 
 Advanced routing remains available as `specify-runtime cognition lexicon --mode catalog`, agent-authored `semantic_intake` and `concept_decisions`, then `specify-runtime cognition query --query-plan`. Use it when the first compass packet is too draft-like, a workflow needs explicit concept decisions, or coverage cannot be resolved from the default packet.
 
-`query` is an exact binding consumer, not a natural-language search endpoint. Never submit only `--query`, `raw_query`, `normalized_query`, or rewritten search words. In catalog mode, read `catalog_page`; when no valid binding is present and `has_more=true`, rerun lexicon with `--offset <next_offset>` and inspect the next semantic-card page. Copy exact current `concept_id` values into `selected_concepts`, carry the same `lexicon_generation_id`, or bind exact paths. Do not claim no match until the relevant catalog pages are exhausted. `resolution_state=resolved_exact` confirms an exact binding; `binding_required`, `invalid_binding`, and `stale_binding` require repair rather than empty-result consumption.
+`query` is an exact binding consumer, not a natural-language search endpoint.
+Never submit only `--query`, `raw_query`, `normalized_query`, or rewritten search
+words. Inspect catalog semantic cards and bind exact current `concept_id` values
+in `selected_concepts` with the same `lexicon_generation_id`, or exact paths.
+Stop catalog paging only when every required facet has a valid binding and live
+evidence: owners, necessary consumers/dependencies, verification routes, and
+negative constraints, with ambiguity/conflicts resolved and `missing_facets`
+empty. The first word match or one bound owner is insufficient. Otherwise,
+while `catalog_page.has_more=true`, execute `catalog_page.next_argv` exactly;
+keep its `revision`, `navigation_digest`, and `snapshot_bound` proof and the
+`offset`, `limit`, `returned`, and `total` accounting. The project launcher may
+replace only argv's executable; do not reconstruct `--offset`, `--catalog-revision`,
+query, intent, or other continuation flags. A stale catalog/expansion requires
+fresh intake rather than combining pages from different snapshots. Do not
+claim no match or complete coverage until the relevant pages are exhausted;
+preserve unresolved terminology, missing facets, and index gaps as
+`insufficient_index`. `resolution_state=resolved_exact` proves binding only;
+`binding_required`, `invalid_binding`, and `stale_binding` require repair.
+
+For required claim details, use the selected expansion's `claim_evidence`
+section. Preserve `total_count`, `returned_count`, `offset`, and `has_more`,
+including exact zero counts; follow its `next_argv` exactly while needed.
+The full risk summary remains binding even when details are paged; returned
+claims are not the whole denominator. Never rebuild continuation flags, infer
+absent metadata as zero, or treat paging as live proof or write permission.
 
 The advanced `lexicon -> semantic_intake -> query` path retrieves the schema v5 `alias_index`-backed alias catalog, helps agents normalize user input into project vocabulary, records `alias_interpretations`, selects task-relevant `selected_concepts`, records unsafe or irrelevant `rejected_concepts`, writes per-concept `concept_decisions`, carries `lexicon_generation_id` and `candidate_universe_version`, and then runs `specify-runtime cognition query --query-plan`. The current query contract is `claim_retrieval_contract_version=2` and `candidate_universe_version=2`. Never parse missing or non-current versions as legacy input; rerun lexicon or compass with the current binary and repair the install if needed. Schema v5 is current-only. The runtime does not migrate schema v4 or older databases. Run `specify-runtime cognition archive-incompatible-store --inspect --format json`, then execute its guarded `archive_argv`; only that CLI may archive the incompatible store before `sp-map-scan -> sp-map-build`. When writing the recommendation in plain text, use: run sp-map-scan -> sp-map-build.
 

@@ -7,6 +7,27 @@ Preserved Contract: the debug file remains the durable source of truth for evide
 ## Debug File Protocol
 
 - **Location**: `.planning/debug/[slug].md`
+- **understanding_confirmed**: a repair-approval flag, not a diagnosis
+  prerequisite. Set true only after explicit user approval of the exact current
+  decision payload; retain the fixed `## Debug Understanding Checkpoint`
+  section for compatibility.
+- **checkpoint**: keep reporter facts and bounds plus `confirmation_purpose`,
+  `discovered_problem`, `root_cause`, `evidence_refs`, `proposed_fix`,
+  `change_scope`, `expected_outcome`, `risks`, and `validation_plan`. Use
+  `evidence-backed-repair` for concrete repair approval, or
+  `diagnostic-enablement` for a narrowly approved missing diagnostic harness or
+  persistent instrumentation only. Diagnostic authority permits no production
+  fix and returns to diagnosis before repair approval.
+- **confirmation_digest**: SHA-256 of canonical approved decision JSON
+  (sorted keys, stable arrays, UTF-8), computed by the leader in memory. Include
+  reporter facts/bounds, purpose, discovered problem/root cause, decisive
+  evidence references, proposed fix/scope/outcome/risks/validation, and the
+  applicable UI decision. Exclude checkpoint/UI confirmation digests, mutable agent investigation
+  plan, and full evidence log. Persist the exact approved payload and digest
+  through fresh artifact leases; compare them before mutation and on resume.
+  Legacy true or generic diagnose-and-fix without this purpose and matching
+  concrete approved contents cannot authorize repair. These checks do not imply
+  runtime enforcement.
 - **causal_map_completed**: `false` until the Stage 1A causal map, dimension scan, and candidate board are persisted through leased `specify-runtime artifact patch` calls.
 - **investigation_contract_completed**: `false` until the Stage 1B investigation contract is persisted through a leased `specify-runtime artifact patch` call.
 - **log_investigation_plan_completed**: `false` until the Stage 1B log investigation plan is persisted as its own section through a leased `specify-runtime artifact patch` call.
@@ -17,6 +38,12 @@ Preserved Contract: the debug file remains the durable source of truth for evide
 - **Eliminated**: query the section through `specify-runtime artifact show --section`, add disproven theories in memory, then replace it through a fresh `artifact patch --section` lease.
 - **Update Rule**: mutate the session only through `specify-runtime artifact`; never edit, append, rename, move, or delete the file directly.
 - No source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`.
+- After the intake/observer gates, `understanding_confirmed: false` permits safe
+  bounded reproduction, existing log/source/test reads, and read-only evidence
+  subagents. It blocks fix/source/test/harness/persistent instrumentation writes
+  and fix-worker dispatch. Preserve external/destructive action gates and use
+  provisional source-backed UI observations during diagnosis; confirm the UI
+  target together with repair before mutation.
 
 The session file must always make it clear:
 - what the observer framing concluded,
@@ -45,17 +72,18 @@ The session file must always make it clear:
 2. **Initialize or Resume**
 - [AGENT] Create `.planning/debug/[slug].md` with `specify-runtime artifact scaffold --kind debug-session --path .planning/debug/[slug].md`; resume it only through targeted `specify-runtime artifact show` calls.
    - Announce the current status, current hypothesis, and immediate next action.
-   - The scaffold initializes `understanding_confirmed: false`; present the Debug Understanding Checkpoint, then persist confirmation through a fresh `specify-runtime artifact patch --frontmatter-json` lease before substantive investigation.
-   - For a resumed session with `understanding_confirmed: false`, repair or confirm the checkpoint before reproduction, log review, source/test reads, evidence collection, subagent dispatch, instrumentation, code edits, or validation.
+   - The scaffold initializes `understanding_confirmed: false`; understand the report, complete the existing intake/observer gates, and gather bounded evidence before presenting the concrete repair checkpoint.
+   - On resume, compare the exact approved payload and digest. Missing, legacy, or stale approval blocks mutation and fix-worker dispatch while safe bounded diagnosis may continue in scope. Do not request another confirmation for the same approved repair merely because more evidence was recorded.
 
 3. **Run the Investigation Protocol**
    - Move through the investigation stages below, starting with the map-backed intake contract before evidence collection begins.
-   - **Hard gate**: Do not enter reproduction, log review, test inspection, source-code reads, evidence collection, or fixing until the debug session records `understanding_confirmed: true`, `causal_map_completed: true`, `investigation_contract_completed: true`, `log_investigation_plan_completed: true`, and `observer_framing_completed: true`.
+   - **Intake gate**: Do not enter reproduction, log review, test inspection, source-code reads, or evidence collection until the debug session records `causal_map_completed: true`, `investigation_contract_completed: true`, `log_investigation_plan_completed: true`, and `observer_framing_completed: true`. `understanding_confirmed` is not a diagnosis prerequisite.
    - Patch the debug session through a fresh `specify-runtime artifact patch` lease before each action that changes durable state.
    - Query `Evidence` through `artifact show --section`, add each confirmed finding in memory, and replace the section through `artifact patch --section`.
    - Query `Eliminated` through `artifact show --section`, add each disproven theory in memory, and replace the section through `artifact patch --section`.
 
 4. **Fix and Verify**
+   - Present the discovered problem and decisive evidence, concrete repair and scope, expected outcome, risks, and validation. Wait for explicit user approval and persist the exact payload plus digest before repair writes or fix-worker dispatch. Material changes to cause, repair, scope, risk, UI target, or authority invalidate this approval: pause mutation, explain why, and obtain only the changed decision through the Debug Checkpoint Amendment before resuming; bounded diagnosis within scope may continue.
    - Apply the minimum code change needed to address the confirmed root cause when `execution_model: leader-inline`.
    - When `execution_model: subagent-assisted`, delegate it through a validated subagent lane and integrate the returned handoff on the leader path.
    - When the fix cannot proceed safely, cannot be packetized, or cannot be verified, record `subagent-blocked` with `execution_surface: none` and a concrete blocked reason instead of layering a speculative fix.

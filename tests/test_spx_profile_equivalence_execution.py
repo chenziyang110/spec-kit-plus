@@ -40,7 +40,12 @@ def test_debug_preserves_durable_intake_red_human_verify_and_recovery() -> None:
 
     assert "durable source of truth" in content
     assert "understanding_confirmed: false" in content
-    assert "before reproduction, log review, source or test reads" in content
+    assert "unconfirmed diagnosis may inspect existing logs, source, configuration, tests" in content
+    assert "before user approval, no product or test changes, harness repair, persistent instrumentation, or fix-worker dispatch is allowed" in content
+    assert "evidence-backed-repair" in content
+    assert "diagnostic-enablement" in content
+    assert "legacy/generic understanding_confirmed: true" in content
+    assert "is not repair authority" in content
     assert "failing automated reproduction" in content
     assert "smallest viable test harness" in content
     assert "awaiting_human_verify" in content

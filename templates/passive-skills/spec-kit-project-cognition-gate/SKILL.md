@@ -8,11 +8,42 @@ origin: spec-kit-plus
 
 This passive skill is the brownfield advisory navigation layer, not a hard workflow gate.
 
-Reuse one cognition context capsule and Learning intake for an unchanged intake;
-do not repeat them after every preparatory capability, artifact, script, or board
-call. Refresh for changed scope, relevant live evidence, workflow binding, or
-cognition freshness/generation, and for required resume/recovery invalidation.
-Live verification and mutation-closeout freshness gates remain unchanged.
+Reuse one cognition context capsule only while its exact task/query, workflow
+intent/binding, target project, scope, required facets, negative constraints,
+permissions, relevant live-source/evidence digests, and runtime identity remain
+unchanged. Keep the original `expansion_ref.id`, `query_fingerprint`,
+`active_generation_id`, `navigation_digest`, and contract versions with it;
+claim revisions are covered by that navigation snapshot, including same-generation
+changes. Before reusing a prior capsule for an unchanged phase pass, perform one
+actual read-only `{{specify-subcmd:specify-runtime cognition expand --id <id> --section <section> --format json}}`
+using that ID and an available section such as `related_paths`. Require the
+inner cognition payload's `status=ok`, usable `readiness=query_ready|review`,
+`expansion_contract_version=2`, matching
+ID, query fingerprint, active generation, and the advisory `epistemic_contract`.
+A native outer exit code 0 alone is not proof. Missing, stale, incompatible,
+invalid, or unsuccessful expansion disables reuse; follow its recovery action
+and refresh supported intake or use live evidence within the workflow boundary.
+
+A verified capsule does not restart Compass or Learning after each preparatory
+capability/API, artifact query, script dry run, or board call. These calls alone
+also do not require another Expand check. Refresh on target, task/query, intent,
+scope/facet, constraint, permission, runtime, relevant source/evidence, generation,
+status, or claim-revision drift, contradictory evidence, and required resume or
+recovery gates. Preserve live verification and mutation-closeout freshness.
+Learning reuse separately requires unchanged applicable lessons, Learning
+index/source evidence, and project rules; a graph digest does not prove Learning
+unchanged. If relevant lessons/rules drift or their applicability cannot be
+confirmed, repeat the owning read-only Learning start/list/show intake.
+
+Before using snapshot reuse, claim-evidence paging, or catalog continuation,
+require their respective capability IDs: `cognition.expansion.snapshot.v2`,
+`cognition.claim-evidence.page.v1`, and `cognition.catalog.snapshot.v1`. Verify
+only the needed set once with
+`{{specify-subcmd:specify-runtime api ensure --capabilities <comma-separated-capability-ids> --format json}}`;
+reuse its proof while runtime identity is unchanged. Older runtimes may fall back
+once to `api list`. Missing capability disables the affected route; use supported
+fresh Compass/live evidence instead of assuming newer contracts. These IDs are
+capabilities, not CLI commands.
 
 Passive SKILL invocation must not enter any `sp-*` or `spx-*` workflow. All
 `sp-*` and `spx-*` workflows are user-invoked only: recommend the projected
@@ -48,7 +79,31 @@ judgment in an established Spec Kit Plus repository:
   If a non-workflow action includes `recommended_next_action.argv`, execute that exact argv through the project-pinned cognition launcher. `project_cognition.repair_status` owns the deterministic `repair-status` action; never patch graph-store metadata by hand.
   When `compass_state=needs_semantic_intake`, build `semantic_intake` in memory from project vocabulary and rerun compass with `--semantic-intake-json '<semantic-intake-json>'`, or use the advanced `lexicon -> semantic_intake -> query` path when explicit concept decisions are needed. Never create an intake file.
   Advanced routing remains available as `specify-runtime cognition lexicon --mode catalog`, agent-authored `semantic_intake` and `concept_decisions`, then `specify-runtime cognition query --query-plan`. Use it when the first compass packet is too draft-like, a workflow needs explicit concept decisions, or coverage cannot be resolved from the default packet.
-  `query` is an exact binding consumer, not a natural-language search endpoint. Never submit only `--query`, `raw_query`, `normalized_query`, or rewritten search words. In catalog mode, read `catalog_page`; when no valid binding is present and `has_more=true`, rerun lexicon with `--offset <next_offset>` and inspect the next semantic-card page. Copy exact current `concept_id` values into `selected_concepts`, carry the same `lexicon_generation_id`, or bind exact paths. Do not claim no match until the relevant catalog pages are exhausted. `resolution_state=resolved_exact` confirms an exact binding; `binding_required`, `invalid_binding`, and `stale_binding` require repair rather than empty-result consumption.
+  `query` is an exact binding consumer, not a natural-language search endpoint.
+  Never submit only `--query`, `raw_query`, `normalized_query`, or rewritten search
+  words. Inspect catalog semantic cards and bind exact current `concept_id` values
+  in `selected_concepts` with the same `lexicon_generation_id`, or exact paths.
+  Stop catalog paging only when every required facet has a valid binding and live
+  evidence: owners, necessary consumers/dependencies, verification routes, and
+  negative constraints, with ambiguity/conflicts resolved and `missing_facets`
+  empty. The first word match or one bound owner is insufficient. Otherwise,
+  while `catalog_page.has_more=true`, execute `catalog_page.next_argv` exactly;
+  keep its `revision`, `navigation_digest`, and `snapshot_bound` proof and the
+  `offset`, `limit`, `returned`, and `total` accounting. The project launcher may
+  replace only argv's executable; do not reconstruct `--offset`, `--catalog-revision`,
+  query, intent, or other continuation flags. A stale catalog/expansion requires
+  fresh intake rather than combining pages from different snapshots. Do not
+  claim no match or complete coverage until the relevant pages are exhausted;
+  preserve unresolved terminology, missing facets, and index gaps as
+  `insufficient_index`. `resolution_state=resolved_exact` proves binding only;
+  `binding_required`, `invalid_binding`, and `stale_binding` require repair.
+
+  For required claim details, use the selected expansion's `claim_evidence`
+  section. Preserve `total_count`, `returned_count`, `offset`, and `has_more`,
+  including exact zero counts; follow its `next_argv` exactly while needed.
+  The full risk summary remains binding even when details are paged; returned
+  claims are not the whole denominator. Never rebuild continuation flags, infer
+  absent metadata as zero, or treat paging as live proof or write permission.
   The current query contract is `claim_retrieval_contract_version=2` and `candidate_universe_version=2`; carry the latter from lexicon into every explicit query plan. Never parse missing or non-current versions as legacy input; rerun lexicon or compass with the current binary and repair the install if needed.
   The advanced path still requires `normalized_query`, `intent_facets`, `negative_constraints`, `alias_interpretations`, `selected_concepts`, `rejected_concepts`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `expanded_queries`, `repository_search_terms`, and facet coverage; do not trust top similarity alone.
   If the query command reports query-plan diagnostics, preserve its `warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and `expected_shape` so the workflow can repair the plan instead of ending on a raw parser exception.
@@ -67,10 +122,10 @@ judgment in an established Spec Kit Plus repository:
   is authoritative. The ask route is read-only: do not run tests, run builds,
   execute project CLI commands, write files, create handoffs, or create ask
   state.
-- For same-topic `sp-ask` follow-ups in the same chat, reuse the previous target
-  project root, evidence set, compass or query packet, semantic intake, and
-  proven facts when they still cover the new question; read only delta evidence
-  and rerun compass when the topic, target, boundary, or evidence family changes.
+- For same-topic `sp-ask` follow-ups in the same chat, reuse previous bounded
+  evidence only after the valid-capsule checks above. A changed task/query or
+  required facet refreshes intake; inspect only relevant delta evidence and
+  preserve the read-only boundary. Chat continuity alone is not freshness proof.
 - For localized, mixed-language, CJK, colloquial, or project-slang ask queries,
   normalize terms through the alias catalog and write project-language search
   terms before source search. For cross-boundary questions, include the protocol
@@ -242,40 +297,15 @@ judgment in an established Spec Kit Plus repository:
   Uncertain closure can be recorded by `sp-map-update` as partial/low-confidence
   facts, known unknowns, and `minimal_live_reads`.
 - Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. A workflow may continue from live evidence when entry guidance allows it. That entry routing rule does not waive closeout ownership.
-- Workflow-owned mutation closeout is not an external map-maintenance handoff. If the active mutation workflow changed project-related source, runtime, templates, generated assets, config, tests, state contracts, or behavior-bearing docs, follow its rendered planner-first closeout command with the registry-owned literal `sp-*` workflow ID and explicit workflow-owned paths; never derive the ID from an environment variable.
-- Pass `--scope-dir <feature-or-scope> --scope-mode explicit` plus one explicit `--changed-path` per workflow-owned path to `closeout-plan`; a rename owns both its old and new endpoint, so pass and preserve both in `boundary.workflow_owned_paths`. When `DELTA_SESSION_ID` exists, also pass `--delta-session "$DELTA_SESSION_ID"`. Fill fields listed in `required_agent_fields` from live evidence; optional payload/delta fields such as `known_unknowns` and `boundary` are populated only when evidence supports them. Follow `update_mode=delta_session` by completing `delta_append_draft.argv_prefix` with evidence placeholders, appending the workflow closeout delta event, then running structured `apply_argv`. Follow `update_mode=inline_json` by completing `payload_draft` in memory, executing the returned `apply_argv` with `--payload-json -`, and writing the completed payload JSON to stdin; never place the JSON in process argv or create a payload file. `update_argv` is compatibility/debug only. The display-only `update_command`, display-only `delta_append_command`, and display-only `apply_command` placeholders are not execution strings.
-- Use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If the working tree contains unrelated dirty/untracked paths and the workflow uses explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as a blocking `known_unknowns` item.
-- Before closeout apply, resolve `unknown_path_dispositions` by setting `agent_disposition` to `adoptable`, `review_only`, `ignored`, or `blocking_known_unknown`. Verified `adoptable` paths do not become blocking `known_unknowns`. Only `blocking_known_unknown` dispositions become payload or delta known unknowns. `agent_disposition=adoptable` is an agent accounting decision, not proof that runtime indexing already succeeded; after `apply_argv` runs, inspect `scope_result_state`, project-wide `result_state`, `global_freshness`, `global_debt_reasons`, `adopted_paths`, `review_paths`, `minimal_live_reads`, and `partial_refresh_reasons`.
-- Shared closeout keys on the current scope separately from project-wide state. `apply_argv` owns update, validate-build, eligible complete-refresh, and receipt. `closeout_state=scope_ready` closes successful owned paths without hiding unrelated global debt. Missing passing verification returns `closeout_status=needs_agent_input` before mutation instead of creating `missing_passing_verification_result`. `recorded` remains legacy partial/blocked output. Use `specify-runtime cognition mark-dirty --reason "workflow-closeout-failed" --format json` only when shared apply is unavailable, fails before useful update data, cannot identify workflow-owned scope, is blocked by runtime state, or verification/workflow completion is untrustworthy.
-- Shared apply first persists a mutation intent and owns older-intent drain, status repair, one direct predecessor, current update, validation, finalization, and the scope receipt under the same update lock; an unfinished predecessor remains `pending_finalization`, the compact recovery result remains `predecessor_recovery`, and it must not scan older unrelated history. If recovery blocks, `predecessor_recovery_blocked` is non-closeable and keeps exact paths plus the replay intent so current mutation accounting remains durable. For bounded path-led debt run returned `specify-runtime cognition identity-repair plan` and digest-bound `specify-runtime cognition identity-repair apply`, then `specify-runtime cognition closeout replay --scope-dir <scope> --format json`. Another mutation closeout drains older intents automatically. Never downgrade a replayable intent to `mark-dirty` or ask the user to invoke map-update for agent-repairable recovery.
-- On `repair_update_or_replay_intent` or a blocked queued intent, keep the parent
-  workflow active. Stop retrying the same failing apply while the intent and cause
-  are unchanged. Execute returned `recovery_argv` or
-  `{{specify-subcmd:specify-runtime cognition closeout inspect --intent-id <blocked_intent_id> --format json}}`;
-  omit the ID only to list compact pending cards. This read-only inspection needs
-  no blocked scope receipt. Select the exact `blocked_intent_id` and inspect scope,
-  workflow, state, `input_digest`, verification diagnostics, and
-  `recommended_next_action`; never infer the intent from an older successful receipt
-  or guess `--scope-dir .`. If inspect directly offers `replay_argv`, execute it
-  unchanged without requiring repair or replacement fields. Execute applicable
-  `repair_argv` unchanged. A new repair
-  uses `cognition closeout repair --intent-id <ID> --expected-digest <input_digest>
-  --verification-json - --format json` with the complete truthful structured
-  verification array on stdin (`command`, exact `result`, optional `artifact`).
-  Never invent verification commands or passing results; first run needed checks
-  or recover trustworthy evidence. Empty stdin cannot initiate repair; only an
-  already journaled repair may resume without resupplying evidence when runtime
-  permits it. Repair archives the original and creates a digest-bound successor
-  only for defective verification on an uncommitted intent, preserving other
-  payload semantics, scope, paths, and delta content. `intent_repaired` is not
-  readiness: use returned `replacement_intent_id`, `replacement_input_digest`, and
-  `replay_argv`; exact replay uses `cognition closeout replay --intent-id <ID>
-  --expected-digest <SHA256>`, with any supplied scope matching the intent. Legacy
-  scope replay requires a matching blocked receipt. Reinspect after digest drift;
-  after replay resume the original closeout and verify its own allowed receipt.
-  Do not edit or delete intent JSON, fabricate receipts, bypass the queue, or use
-  `mark-dirty`; do not rebuild merely because verification was malformed. If no safe
-  action is available, name the exact blocker, needed evidence, and resume action.
+- Workflow-owned mutation closeout is not an external map-maintenance handoff.
+  Before an owning mutation workflow changes project-related source, runtime,
+  templates, generated assets, config, tests, state contracts, or behavior-bearing
+  docs, read [mutation closeout and recovery](references/project-cognition-closeout.md)
+  and follow its rendered planner-first closeout command. Read it again when
+  resuming unfinished closeout, a blocked queued intent, or predecessor recovery,
+  before claiming completion or choosing any `mark-dirty` fallback.
+  Entry-time advisory navigation does not waive closeout ownership. Read-only
+  answers and planning-only artifact writes do not trigger this reference.
 - `sp-map-update` is for manual/external maintenance and follow-up repair after user edits, interrupted workflows, or explicit operator map-maintenance requests. It is external map maintenance, not routine cleanup for changes this workflow just made. In shared routing summaries, sp-map-update is for manual/external maintenance.
 - Do not rely on generic framework instinct, chat memory, or prior sessions when the
   project cognition runtime should be the source of truth.
@@ -292,3 +322,35 @@ The gate output must name affected objects, state behavior, dependency impact, r
   Spec Kit workflows.
 - Stand down only when the task is clearly greenfield and does not depend on any
   existing project structure, conventions, or runtime surface.
+
+## Exact Task Scope Availability
+
+After the owning runtime compiles the canonical current task packet, and before
+dependent graph consumption, require `specify-runtime api ensure --capabilities
+cognition.scope-availability.v2 --format json`, then run `specify-runtime cognition
+check --task-packet <exact-project-relative-packet-path> --format json`. Use the
+compiler's returned packet path; do not assemble a substitute packet or infer
+complete read dependencies from prose. Quick confirmation items declare optional
+`read_scope` as an explicit array of exact paths, including required UI contract
+and original reference inputs when applicable. Missing legacy `read_scope` is
+unknown; explicit `[]` is a complete empty declaration. Null, non-arrays and
+non-string paths refuse. Read metadata follows execution `write_scope` digest
+exclusion; it never changes registered UI approval or grants worker write scope.
+
+Carry native `availability`, `scope_ready`, `global_status`, `debt_assessments`,
+`reasons`, `minimal_live_reads` and `binding` separately. Only an actual version 2
+ready result permits scoped advisory graph navigation; proven unrelated debt
+remains visible globally. Blocked/degraded/unavailable or unknown proof suspends
+dependent graph consumption and uses bounded current live reads, with gaps
+explicit. Do not erase blocked results or treat advisory warnings as uniform
+protection. Commands without a canonical packet keep the global check and cannot
+assert unrelated debt. This route applies with hooks and without hooks on every
+CLI and both profiles.
+
+At handoff/resume and before reusing graph context, rerun the same native check
+with `--availability-json <previous-native-binding-json>` against the current
+canonical packet. Changed source/packet/status/dependency/claim bytes or an old
+contract invalidate reuse; repair the owning proof and obtain a new result. Scope
+readiness never declares the project globally fresh, grants source write
+authority, sets workflow `claim_ready`, or replaces independent Review and human
+Accept. Preserve normal packet/Work/UI prerequisite and approval gates.

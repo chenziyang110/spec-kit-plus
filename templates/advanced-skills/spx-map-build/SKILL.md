@@ -34,8 +34,12 @@ idempotent hit is not completion by itself.
 Prove the published baseline with
 `{{specify-subcmd:specify-runtime cognition compass --intent implement --query "<representative project query>" --format json}}`
 and targeted expansion when validation calls for it. Then prove exact semantic
-binding with `lexicon --mode catalog`: follow `catalog_page.next_offset` while
-needed, copy one current semantic-card `concept_id` into a query plan, set
+binding with `lexicon --mode catalog`: follow `catalog_page.next_argv` exactly
+while required facets remain unbound. Preserve its revision-bound paging proof,
+counts, query and intent; the project launcher may replace only the executable.
+Stop only after owner, necessary consumer, verification, and negative-constraint
+facets have valid exact bindings and live evidence, with ambiguity resolved.
+Copy current semantic-card `concept_id` values into a query plan, set
 query-plan candidate universe version `2` (schema v5 current; omitting it yields
 `invalid_query_plan`), carry the same `lexicon_generation_id`, and require the
 query result to report `resolution_state=resolved_exact`. Probe both a

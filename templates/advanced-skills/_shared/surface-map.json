@@ -19,6 +19,8 @@
   ],
   "shared_references": [
     "_shared/project-cognition.md",
+    "_shared/project-cognition-semantic-audit.md",
+    "_shared/project-cognition-closeout.md",
     "_shared/project-learning.md",
     "_shared/consequence-gate.md",
     "_shared/ui-quality-gate.md",

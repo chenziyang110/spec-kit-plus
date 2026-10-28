@@ -1,5 +1,13 @@
 Trigger: before applying a fix, changing source, or declaring the defect resolved.
 
+After the accepted repair edits and before final reproduction/verification, first
+call the planner in the shared inline closeout contract for the owned changed
+paths, then use its inputs to begin the native current-work/source binding.
+Seal that exact binding with fresh observations and consume its current check
+before source-changing closeout. The binding preserves approval and human
+verification gates; it does not resolve the session by itself or rebind old logs
+to newly changed source.
+
 Purpose: preserve fix gate, minimum change, verification route, and no surface-only fix rule.
 
 Preserved Contract: fixes must target confirmed root cause and be verified through reproduction and relevant tests.
@@ -8,14 +16,31 @@ Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the 
 
 ## Fix and Verify Protocol
 
-- Enter `fixing` only after the root cause is confirmed.
+- Enter `fixing` only after the root cause is confirmed and the user has
+  explicitly approved the current concrete Debug Understanding Checkpoint with
+  `confirmation_purpose: evidence-backed-repair`. Verify the exact approved
+  payload and matching `confirmation_digest` before any fix/source/test/harness/
+  persistent instrumentation write or fix-worker dispatch; legacy true or
+  generic diagnose-and-fix authority alone is insufficient. These are
+  leader-owned prompt checks, not a claim of runtime enforcement.
 - Write a failing automated repro test before changing production code.
 - Do not modify production behavior until the RED state is proven.
-- If no reliable automated test surface exists for the failing behavior, add the missing harness first. If that expands beyond the debug fix lane, route it through `/sp-quick`; use `/sp-specify` only when the user explicitly chooses a formal spec-first path.
-  A harness expansion strictly causal to the active blocker may instead preserve
-  the Debug session, expand the registered causal scope, repair the harness
-  inside the active Debug recovery lane, and then return to the reproduction
-  without invoking another user-invoked workflow.
+- If no reliable automated test surface exists for the failing behavior, explain
+  the gap and the smallest viable harness before writing. Include its exact
+  scope in the repair approval when the cause and fix are known. If the missing
+  harness or instrumentation prevents diagnosis itself, obtain only bounded
+  `diagnostic-enablement` approval through the same checkpoint, write that
+  diagnostic scope, and return to evidence investigation; this authority cannot
+  authorize production repair. Obtain `evidence-backed-repair` approval when the
+  cause and proposed fix are supported. Preserve the Debug session, expand only
+  the approved registered causal scope, repair the harness inside the active
+  Debug recovery lane, and return to reproduction without invoking another
+  user-invoked workflow. Use `/sp-specify` only when the user explicitly chooses
+  a formal spec-first path.
+- Reuse an unchanged evidence-backed repair approval for bounded test/harness/
+  instrumentation work already named in `change_scope` and `validation_plan`;
+  do not request redundant diagnostic approval. A new material write scope
+  requires the delta-only checkpoint amendment and refreshed Work guard.
 - Apply the minimum code change needed to address the confirmed root cause when `execution_model: leader-inline`; when `execution_model: subagent-assisted`, delegate it through a validated subagent lane and integrate the returned evidence on the leader path.
 - For a confirmed UI target baseline, recapture the same real entry point,
   viewport/window, and state after the fix; compare it with the baseline and

@@ -187,7 +187,11 @@ def test_accept_rejects_success_without_validation_evidence(tmp_path: Path) -> N
         )
     )
     assert lifecycle["status"] == "in_progress"
-    assert not (feature / "worker-results" / "T001.json").exists()
+    rejected = json.loads((feature / "worker-results" / "T001.json").read_text(encoding="utf-8"))
+    assert rejected["status"] == "pending"
+    assert rejected["submission_history"][-1]["status"] == "rejected"
+    assert json.loads(rejected["submission_history"][-1]["result_json"])["changed_files"] == ["src/task_1.py"]
+    assert "cognition_result_binding" not in rejected
 
 
 def test_accept_requires_every_task_check_to_have_a_passed_result(
@@ -248,7 +252,11 @@ def test_success_result_rejects_failed_known_followup_before_mutation(
         )
     )
     assert lifecycle["status"] == "in_progress"
-    assert not (feature / "worker-results" / "T001.json").exists()
+    rejected = json.loads((feature / "worker-results" / "T001.json").read_text(encoding="utf-8"))
+    assert rejected["status"] == "pending"
+    assert rejected["submission_history"][-1]["status"] == "rejected"
+    assert "passed validation" in rejected["submission_history"][-1]["rejection_reason"]
+    assert "cognition_result_binding" not in rejected
 
 
 def test_blocked_result_gets_deterministic_recovery_instructions(

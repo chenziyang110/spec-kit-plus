@@ -351,7 +351,7 @@ func InspectWorkspaceDelta(ctx context.Context, workspaceRoot, baselineJSON stri
 		if normalizeErr != nil {
 			return nil, fmt.Errorf("normalize workspace baseline path %q: %w", baselinePath, normalizeErr)
 		}
-		if isPrivateRuntimeTransportPath(pathKey) {
+		if isPrivateRuntimeDeltaPath(pathKey) {
 			continue
 		}
 		baselineByKey[pathKey] = baselinePathState{path: pathValue, digest: digest}
@@ -362,7 +362,7 @@ func InspectWorkspaceDelta(ctx context.Context, workspaceRoot, baselineJSON stri
 		if normalizeErr != nil {
 			return nil, normalizeErr
 		}
-		if isPrivateRuntimeTransportPath(key) {
+		if isPrivateRuntimeDeltaPath(key) {
 			continue
 		}
 		seen[key] = path
@@ -373,7 +373,7 @@ func InspectWorkspaceDelta(ctx context.Context, workspaceRoot, baselineJSON stri
 		if normalizeErr != nil {
 			return nil, normalizeErr
 		}
-		if isPrivateRuntimeTransportPath(key) {
+		if isPrivateRuntimeDeltaPath(key) {
 			continue
 		}
 		digest, digestErr := workspacePathDigest(workspaceRoot, path)
@@ -434,6 +434,10 @@ func isPrivateRuntimeTransportPath(pathKey string) bool {
 		}
 	}
 	return privatePath == "discussion/mutation.lock"
+}
+
+func isPrivateRuntimeDeltaPath(pathKey string) bool {
+	return isPrivateRuntimeTransportPath(pathKey) || isPrivateRuntimeLockPath(pathKey)
 }
 
 func isRunControlRuntimePath(pathKey string) bool {

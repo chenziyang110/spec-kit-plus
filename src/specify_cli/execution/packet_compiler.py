@@ -25,6 +25,7 @@ from .packet_schema import (
     WorkerTaskPacket,
 )
 from .packet_validator import PacketValidationError, validate_worker_task_packet
+from .cognition_delta import cognition_delta_contract
 
 
 SECTION_RE = re.compile(
@@ -1081,6 +1082,7 @@ def compile_worker_task_packet(
     packet = WorkerTaskPacket(
         feature_id=feature_dir.name,
         task_id=task_id,
+        cognition_delta_contract=cognition_delta_contract(task_id),
         story_id=_story_id_from_task_body(resolved_task_body),
         objective=objective,
         intent=ExecutionIntent(

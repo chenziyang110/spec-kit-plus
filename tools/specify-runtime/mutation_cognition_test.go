@@ -38,8 +38,8 @@ func TestMutationCognitionReceiptGatesImplementAndWorkflowStages(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(feature, "cognition-closeout.json")); err != nil {
 		t.Fatalf("receipt missing: %v", err)
 	}
-	if err := requireMutationCognitionReceipt(feature, "sp-implement"); err != nil {
-		t.Fatalf("receipt should allow close: %v", err)
+	if err := requireMutationCognitionReceipt(feature, "sp-implement"); err == nil || !strings.Contains(err.Error(), "legacy") {
+		t.Fatalf("auditable legacy receipt became source proof: %v", err)
 	}
 	payload := decodeJSONObject(t, stdout.Bytes())
 	data := requireObject(t, payload, "data")
@@ -156,7 +156,7 @@ func TestMutationCognitionStatusAllowsNonRepairablePartialDebt(t *testing.T) {
 	if payload["allowed_close"] != true {
 		t.Fatalf("non-repairable partial debt should allow close: %#v", payload)
 	}
-	if err := requireMutationCognitionReceipt(feature, "sp-implement"); err != nil {
-		t.Fatalf("requireMutationCognitionReceipt rejected non-repairable partial debt: %v", err)
+	if err := requireMutationCognitionReceipt(feature, "sp-implement"); err == nil || !strings.Contains(err.Error(), "legacy") {
+		t.Fatalf("auditable legacy partial debt must still refuse strong terminal proof: %v", err)
 	}
 }

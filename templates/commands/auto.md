@@ -185,6 +185,31 @@ Once the routed command is chosen:
 
 ## Recommended Default Continuation
 
+Quick concrete-change consent is also an explicit exception to this default
+policy. `auto_default_recommendation` cannot confirm a pending Quick Decision
+Checkpoint, select **Direct change (Recommended)**, approve a UI direction or
+substitute for required human acceptance. It may resume an unchanged exact
+human-approved decision or validated inherited binding. When proposal approval
+is pending, understand the request and gather safe bounded read-only evidence
+under Quick's intake gates, then present the current findings, concrete change,
+impact, risks and verification and wait for the real human reply. Never record
+an Auto recommendation as the user's Quick approval. Material decision deltas
+keep Quick's reason-first amendment contract; execution-only rearranges do not
+require another approval.
+
+Debug human consent is an explicit exception to this default policy.
+`auto_default_recommendation` cannot grant Debug repair or
+`diagnostic-enablement` consent, select **Direct fix (Recommended)**, or
+substitute for final human verification. It may continue an unchanged repair
+already covered by exact human-approved decision content and its current
+binding. If repair or diagnostic consent is pending, present concise discovered
+findings and the concrete proposed plan, then wait for a real human reply under
+the Debug confirmation contract. If final human verification is pending,
+present the verification evidence and wait for the user's result. Never record
+an Auto recommendation as the user's Debug approval or final verification.
+Safe bounded diagnosis remains available under Debug's intake gates before the
+repair checkpoint.
+
 When `auto_default_recommendation: true` is active, the routed command must auto-resolve a question or confirmation gate by accepting the recommended/default continuation when all of these are true:
 
 - The target workflow would otherwise stop only to ask the user to answer a bounded question, choose from a bounded list, or confirm a previously presented safe default.

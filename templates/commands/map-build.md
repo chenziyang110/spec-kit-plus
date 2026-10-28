@@ -35,8 +35,10 @@ The leader invokes the deterministic runtime build chain. Subagents must not
 create or edit scan artifacts, normalize worker results, construct graph rows,
 write SQLite data, or replace any runtime command with a helper script.
 If a required verification lane cannot be safely packetized or delegated,
-record `subagent-blocked` and stop for escalation or recovery; do not fall back
-to leader-authored verification.
+repair the packet or dispatch, join capacity-limited work, and resume or
+redispatch a safe serial lane in this invocation. Record `subagent-blocked`
+with its exact resume action only after no safe authorized recovery remains;
+do not fall back to leader-authored verification.
 
 ## Objective
 
@@ -93,9 +95,10 @@ smoke query succeeds. A blocked build gate sets `completion_allowed=false`,
 Human workflow prose may say `subagent-blocked`; machine reports use
 `subagent_blocked`.
 
-If a required read-only verification lane cannot dispatch or complete, stop
-before construction and report `subagent_blocked`, the blocked scope, owner,
-and recovery condition. Do not directly write `status.json`, `map-state.md`, or
+If a required read-only verification lane cannot dispatch or complete, suspend
+construction while repairing or redispatching it in this invocation. Only if
+no safe authorized recovery remains report `subagent_blocked`, the blocked
+scope, owner, recovery condition, and exact resume action. Do not directly write `status.json`, `map-state.md`, or
 `coverage-ledger.json` to manufacture that state. Canonical persistence, when a
 runtime surface is available, must remain runtime-owned.
 A runtime-owned `.specify/project-cognition/workbench/coverage-ledger.json.open_gaps[]`
@@ -322,7 +325,7 @@ Before reporting completion:
 - run `{{specify-subcmd:specify-runtime cognition validate-build --format json}}` after `build-from-scan`
 - report completion only after `validate-build` returns `status=ok` and `readiness=query_ready`
 - confirm that `.specify/project-cognition/project-cognition.db` was written and can be queried through `{{specify-subcmd:specify-runtime cognition compass --intent implement --query="$ARGUMENTS" --format json}}`. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths`, `claim_refs`, `coverage_diagnostics`, and `before_fix_claim`. Treat `route_confidence` only within `confidence_scope=route_candidate`; use top-level advanced-query `claim_signals` or `specify-runtime cognition expand --section claim_evidence` for bounded `source_path`/`span` evidence. These signals require live verification and cannot prove current repository truth. Do not infer final edit scope from first-pass reads or graph claims.
-- prove exact semantic binding separately: run `specify-runtime cognition lexicon --mode catalog`, follow `catalog_page.next_offset` while needed, select an exact current `concept_id` from its semantic card, and run `specify-runtime cognition query --query-plan`. The result must report `resolution_state=resolved_exact`. Exercise at least one canonical project term and one evidence-backed symptom-first or localized expression when the scan contains such language; a single easy lexical match is not sufficient queryability evidence.
+- prove exact semantic binding separately: require `cognition.catalog.snapshot.v1` from the bounded runtime capability proof, then run `specify-runtime cognition lexicon --mode catalog`, execute `catalog_page.next_argv` exactly while required facets remain unbound; retain `revision`, `navigation_digest`, `snapshot_bound`, and `offset`/`limit`/`returned`/`total` accounting, and let the project launcher replace only the executable. Stop paging only after all required owners, necessary consumers/dependencies, verification routes, and negative constraints have valid bindings and live evidence, with ambiguity resolved and no missing facets; a first word match is insufficient. Select exact current `concept_id` values from the semantic cards, and run `specify-runtime cognition query --query-plan`. The result must report `resolution_state=resolved_exact`. Exercise at least one canonical project term and one evidence-backed symptom-first or localized expression when the scan contains such language; a single easy lexical match is not sufficient queryability evidence.
 - confirm claim-aware routing preserves the bounded rerank contract: `match_score` alone establishes candidate eligibility; `claim_ranking.adjustment` cannot create candidates and cannot replace live verification. Fresh supported or graph-generation-verified claims add at most `+1`; stale and contradicted claims subtract `-1` and `-2`. `stale_claim_signal` and `contradicted_claim_signal` must keep the packet `usable_with_review` and route through `reconcile_claims_with_minimal_live_reads` plus lane-specific live repository reconciliation.
 - preserve the advanced `lexicon -> semantic_intake -> query` flow for explicit concept decisions or unresolved coverage. In that escalation, write `semantic_intake` from the alias catalog, select candidates by facet coverage, write `concept_decisions` with `covered_facets`, `missing_facets`, and `match_sources`, carry `lexicon_generation_id`, add `repository_search_terms`, and run `{{specify-subcmd:specify-runtime cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`. Agent-owned semantic normalization is mandatory: raw lexicon ranking and `agent_normalization` are only bootstrap signals, not route decisions. If `agent_normalization.required=true`, every raw candidate is `score=0`, or the prompt is localized, mixed-language, CJK, colloquial, symptom-first, or mixed-language or CJK text, extract embedded project terms and write `semantic_intake` from the alias catalog before selecting or rejecting concepts. If `agent_normalization` is omitted, treat it as `required=false`; CJK or mixed CJK/ASCII input still requires agent normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language. The agent still owns translation; `agent_normalization` is advisory guidance, not a route decision. (raw lexicon ranking is only a bootstrap; action: write_semantic_intake_from_alias_catalog) Derive project-language search terms from the alias catalog before source search. Do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched_terms, colloquial_matches, returned paths, `normalized_query`, and `expanded_queries`. Use these project-language search terms before broad repository search
 - if `validate-build` returns `status=blocked`, report the specific DB, schema, active generation, status, or smoke-query error and do not mark the baseline fresh

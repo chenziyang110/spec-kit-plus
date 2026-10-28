@@ -20,7 +20,13 @@ A lane is dispatch-ready only when its validated packet or equivalent execution 
 
 If a validated lane exists, leader-inline execution of that lane's substantive work is forbidden.
 
-If no validated lane can be packetized safely, the workflow MUST mark `subagent-blocked` and stop.
+If packetization or dispatch fails, diagnose the failure, complete or narrow the
+packet, discover the actual native capabilities, and resume or redispatch a
+safe serial lane in the same invocation. If capacity is temporarily full, join
+active work before retrying. Record `subagent-blocked` only when no safe
+authorized recovery remains; suspend dependent work and preserve its exact
+resume action. Never replace mandatory delegation or independent acceptance
+with Leader self-verification.
 
 Idle, silent, or prose-only subagent output is not an accepted result.
 

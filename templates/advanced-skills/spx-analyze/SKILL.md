@@ -32,7 +32,10 @@ its stable skeleton. Record
 `active_command: sp-analyze`, `phase_mode: analysis-only`, source revision,
 target boundary, blocker, and next route. Run
 `{{specify-subcmd:specify-runtime hook validate-state --command analyze --feature-dir <feature-dir> --autofix --format json}}`
-and stop if the repaired state remains invalid.
+and withhold dependent writes if it remains invalid. Diagnose and repair
+current-owner state through its supported runtime routes, then rerun this gate
+in the same invocation. A proven stage-owner mismatch remains a handoff; never
+hand-edit state or bypass the validation.
 Compare confirmed requirements, design decisions, task coverage, dependencies,
 write boundaries, consequence obligations, and real-entrypoint verification
 against the live repository paths selected by cognition.

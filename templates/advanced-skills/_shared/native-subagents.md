@@ -5,6 +5,12 @@ Apply this contract only after the owning workflow selects bounded delegation.
 - Discover the active integration's real dispatch and join operations before
   recording a capability blocker. Do not require an operation that the active
   runtime does not expose.
+- On dispatch, packetization, capacity, or result-channel failure, repair the
+  packet or invocation, join active work when capacity is full, and resume or
+  redispatch a safe serial lane in the same invocation. Keep pending joins and
+  accepted evidence. Only report an unresolved capability blocker after no safe
+  authorized recovery remains; preserve its exact resume action and never
+  substitute Leader self-verification for mandatory independent acceptance.
 - Dispatch only validated lanes with explicit read/write scope, authoritative
   inputs, acceptance, and verification obligations.
 - Prefer `parallel-subagents` only for non-overlapping write scopes. Shared or

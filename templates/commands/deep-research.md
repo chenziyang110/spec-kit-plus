@@ -38,7 +38,7 @@ Before dispatch, every subagent lane needs a task contract with objective, autho
 Use `execution_model: subagent-mandatory`.
 Use `dispatch_shape: one-subagent | parallel-subagents`.
 Use `execution_surface: native-subagents`.
-Shared or overlapping write/path scopes among packets force serial `one-subagent`; a parallel conflict is not permission for unrecorded leader research. If no safe validated lane exists, record `subagent-blocked` and stop before substantive research.
+Shared or overlapping write/path scopes among packets force serial `one-subagent`; a parallel conflict is not permission for unrecorded leader research. If no safe validated lane exists, repair its packet or dispatch, join capacity-limited work, and resume or redispatch a safe serial lane in this invocation. Keep substantive research pending; exit `subagent-blocked` with the exact resume action only after no safe authorized recovery remains.
 
 ## Runtime Lifecycle
 
@@ -130,7 +130,7 @@ runtime lifecycle surfaces are present.
   - data shape, migration, permission, performance, or integration constraints
   - alternative approach comparison
   - disposable demo/spike validation
-- [AGENT] Dispatch subagents when independent tracks can run in parallel and that materially improves evidence quality or speed. When the next coordinator decision is blocked on a single tightly coupled fact, either create one safe packetized evidence lane for that fact or stop for escalation/recovery with the blocker recorded.
+- [AGENT] Dispatch subagents when independent tracks can run in parallel and that materially improves evidence quality or speed. When the next coordinator decision is blocked on a single tightly coupled fact, create or repair one safe packetized evidence lane for that fact and resume or redispatch it in this invocation. Record an unresolved capability blocker with the exact resume action only after no safe authorized recovery remains; never replace the mandatory lane with coordinator-only research.
 - [AGENT] Give each subagent one bounded track, one expected output shape, and one CLI-owned artifact scope. Research-only subagents return evidence packets inline. Demo/spike subagents may submit text/code only under `FEATURE_DIR/research-spikes/<track-slug>/` through `specify-runtime artifact`; they never write those paths directly.
 - [AGENT] Do not duplicate work across subagents. If two tracks overlap, assign one owner and ask the other to focus on a distinct risk or alternative.
 - [AGENT] Require every subagent to return an evidence packet with:
@@ -173,7 +173,7 @@ runtime lifecycle surfaces are present.
   - independent audit without re-parsing `deep-research.md`
   - direct citation by `/sp.plan` via evidence ID
   - safe context-compaction recovery
-- [AGENT] If subagent dispatch is unavailable or unsafe, record the decision as `subagent-blocked` with the concrete reason, preserve the decomposed tracks as blocked work, and stop for escalation or recovery instead of continuing as coordinator-only execution.
+- [AGENT] If subagent dispatch is unavailable or unsafe, preserve decomposed tracks and accepted evidence while diagnosing capability, packet, or capacity failures. Repair the packet or invocation, join active work when needed, and resume or redispatch a safe serial lane in this invocation. Exit `subagent-blocked` with the concrete reason and exact resume action only after no safe authorized recovery remains; do not substitute coordinator-only execution.
 
 ## Traceability and Evidence Quality Contract
 
@@ -395,7 +395,7 @@ runtime lifecycle surfaces are present.
    - Dispatch every substantive track to a bounded subagent according to the
      Multi-Agent Research Orchestration contract; use parallel dispatch only
      for two or more independent tracks with disjoint write scopes.
-   - If subagent dispatch is unavailable or low-confidence, record `subagent-blocked`, capture which tracks could not be dispatched, and stop before substantive research until the block is resolved or explicitly escalated.
+   - If subagent dispatch is unavailable or low-confidence, keep the affected research tracks pending and apply the recovery above: diagnose, repair, join capacity-limited work, and resume or redispatch safely in this invocation. Only after no safe authorized recovery remains, exit `subagent-blocked` with the affected track IDs and exact resume action.
    - Search and read only sources that answer a named feasibility question.
    - Prefer primary docs, official examples, standards, changelogs, release notes, library docs, code examples from the dependency itself, and current repository evidence.
    - Patch accepted external sources and implementation-chain impact into `references.md` through the artifact CLI.

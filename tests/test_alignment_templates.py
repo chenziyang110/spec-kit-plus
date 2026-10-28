@@ -3,17 +3,16 @@ import re
 from pathlib import Path
 from typing import get_args
 
+import pytest
+import yaml
+
 from specify_cli.execution.implementation_review import (
     TaskReviewRecord,
     task_review_acceptance_errors,
 )
 from specify_cli.execution.packet_schema import UIFidelityLevel
 
-import yaml
-import pytest
-
-from .template_utils import read_template
-
+from .template_utils import read_cognition_contract, read_template
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PRIMARY_TUI_TEMPLATE_PATHS = (
@@ -65,6 +64,11 @@ def _workflow_reference_surface(workflow: str) -> str:
 
 
 def _read(path: str) -> str:
+    if path in {
+        "templates/advanced-skills/_shared/project-cognition.md",
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+    }:
+        return read_cognition_contract(PROJECT_ROOT / path)
     for workflow in MIGRATED_COMMAND_REFERENCE_WORKFLOWS:
         if path == f"templates/commands/{workflow}.md":
             return _workflow_reference_surface(workflow)

@@ -169,7 +169,11 @@ sets `completion_allowed=false`, `bypass_allowed=false`, and
 - Repeat status, lease, checkpoint/yield/accept until the runtime reports no
   pending, leased, yielded, or blocked high-value work. Wait for every
   dispatched lane's structured handoff before accepting scan coverage.
-- If a safe scan lane cannot be packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
+- If a scan lane cannot be packetized or delegated, repair its packet or dispatch,
+  join capacity-limited work, and resume or redispatch a safe serial lane in this
+  invocation. Record `subagent-blocked` with its exact resume action only after
+  no safe authorized recovery remains; never replace mandatory workers with
+  Leader bulk reads.
 
 ## Format-First, Value-Weighted Repository Inventory
 
@@ -436,7 +440,9 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - Access registered `.specify/**` workflow artifacts only through their `specify-runtime` owners. Direct file reads are limited to installed static templates/scripts when the requested scan explicitly targets generated workflow surfaces or spec-kit-plus itself; never raw-read state, handoff, task, evidence, lease, or ledger artifacts. Classify permitted static workflow/reference inputs as support rather than source/runtime graph truth.
 - Respect project cognition ignore rules from root `.cognitionignore` and `.specify/project-cognition/.cognitionignore`. These files use gitignore-compatible syntax, including comments, directory patterns, globs, `**`, and `!` re-includes.
 - `.cognitionignore` excludes project cognition scan/build/update targets only; it does not replace `.gitignore` or prove that ignored code is irrelevant to other tooling.
-- If the required scan lane cannot be safely packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
+- If the required scan lane cannot be safely packetized or delegated, keep its
+  join pending and repair or redispatch it as above before reporting an unresolved
+  `subagent-blocked` condition. Preserve the queue and accepted evidence.
 
 ## Project Cognition Workbench State Protocol
 
@@ -709,8 +715,10 @@ Before reporting completion:
   boundary and target ledgers, accepted packet artifacts, evidence, coverage, and
   provisional graph inputs; any later canonical mutation makes the receipt
   stale and requires `validate-scan` again
-- if `validate-scan` returns `status=blocked`, report the exact blocking errors
-  and typed recovery action, then stop; do not say format issues are harmless,
+- if `validate-scan` returns `status=blocked`, preserve the exact blocking errors
+  and execute authorized stage-local typed recovery, repair and reaccept affected
+  packets, then rerun validation in this invocation. Withhold build handoff until
+  it passes; do not say format issues are harmless,
   do not say they leave completeness unaffected, do not claim the scan package
   is build-ready, and do not hand off to `sp-map-build`
 - confirm that the scan still has not published final cognition truth

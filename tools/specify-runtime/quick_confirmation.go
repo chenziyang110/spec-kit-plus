@@ -50,6 +50,7 @@ type quickConfirmationSource struct {
 type quickConfirmationDecision struct {
 	Goal                  string                  `json:"goal"`
 	UserVisibleResult     string                  `json:"user_visible_result"`
+	CurrentStateEvidence  []string                `json:"current_state_evidence,omitempty"`
 	Scope                 quickConfirmationScope  `json:"scope"`
 	Items                 []quickConfirmationItem `json:"items"`
 	RecommendedApproach   string                  `json:"recommended_approach,omitempty"`
@@ -67,11 +68,31 @@ type quickConfirmationScope struct {
 }
 
 type quickConfirmationItem struct {
-	ID          string   `json:"id"`
-	Deliverable string   `json:"deliverable"`
-	DependsOn   []string `json:"depends_on"`
-	Acceptance  string   `json:"acceptance"`
-	WriteScope  []string `json:"write_scope,omitempty"`
+	ID          string    `json:"id"`
+	Deliverable string    `json:"deliverable"`
+	DependsOn   []string  `json:"depends_on"`
+	Acceptance  string    `json:"acceptance"`
+	WriteScope  []string  `json:"write_scope,omitempty"`
+	ReadScope   *[]string `json:"read_scope,omitempty"`
+}
+
+func (item *quickConfirmationItem) UnmarshalJSON(data []byte) error {
+	type plain quickConfirmationItem
+	var value plain
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	reads, err := parseQuickReadScope(fields)
+	if err != nil {
+		return err
+	}
+	value.ReadScope = reads
+	*item = quickConfirmationItem(value)
+	return nil
 }
 
 type quickConfirmationDelivery struct {
@@ -117,9 +138,12 @@ type quickWorkItemStatus struct {
 	// RequiresWorker is true after item-start until worker result or allow-inline.
 	RequiresWorker bool `json:"requires_worker,omitempty"`
 	// WorkerResultID / WorkerResultRef bind accept to a result submit record.
-	WorkerResultID  string `json:"worker_result_id,omitempty"`
-	WorkerResultRef string `json:"worker_result_ref,omitempty"`
-	WorkerLaneID    string `json:"worker_lane_id,omitempty"`
+	WorkerResultID           string `json:"worker_result_id,omitempty"`
+	WorkerResultRef          string `json:"worker_result_ref,omitempty"`
+	WorkerLaneID             string `json:"worker_lane_id,omitempty"`
+	WorkerResultSHA256       string `json:"worker_result_sha256,omitempty"`
+	WorkerAttemptID          string `json:"worker_attempt_id,omitempty"`
+	WorkerSubmissionSequence int    `json:"worker_submission_sequence,omitempty"`
 	// ExecutionMode is worker | leader-inline after accept.
 	ExecutionMode string `json:"execution_mode,omitempty"`
 	// InlineReason is set by allow-inline or item-accept --allow-inline.
@@ -356,6 +380,23 @@ func normalizeQuickConfirmationInput(input map[string]any, workspace string, exi
 		}
 		if executionRaw, ok := input["execution"].(map[string]any); ok {
 			doc.Execution = parseQuickExecution(executionRaw)
+			// Delivery edits can update the execution projection, but worker
+			// receipts are runtime-owned and carried from the existing owner.
+			previous := quickStatusMap(existing)
+			for i, row := range doc.Execution.WorkItemStatus {
+				if prior, found := previous[row.WorkItemID]; found {
+					doc.Execution.WorkItemStatus[i].RequiresWorker = prior.RequiresWorker
+					doc.Execution.WorkItemStatus[i].WorkerResultID = prior.WorkerResultID
+					doc.Execution.WorkItemStatus[i].WorkerResultRef = prior.WorkerResultRef
+					doc.Execution.WorkItemStatus[i].WorkerLaneID = prior.WorkerLaneID
+					doc.Execution.WorkItemStatus[i].WorkerResultSHA256 = prior.WorkerResultSHA256
+					doc.Execution.WorkItemStatus[i].WorkerAttemptID = prior.WorkerAttemptID
+					doc.Execution.WorkItemStatus[i].WorkerSubmissionSequence = prior.WorkerSubmissionSequence
+					doc.Execution.WorkItemStatus[i].ExecutionMode = prior.ExecutionMode
+					doc.Execution.WorkItemStatus[i].InlineReason = prior.InlineReason
+					doc.Execution.WorkItemStatus[i].InlineApproved = prior.InlineApproved
+				}
+			}
 		}
 		if len(doc.Delivery.Waves) == 0 {
 			doc.Delivery = deriveQuickDeliveryWaves(doc.Decision.Items)
@@ -402,7 +443,32 @@ func normalizeQuickConfirmationInput(input map[string]any, workspace string, exi
 	return doc, nil
 }
 
+// Missing read_scope remains unknown; an explicit empty array is a complete declaration.
+func parseQuickReadScope(entry map[string]any) (*[]string, error) {
+	raw, present := entry["read_scope"]
+	if !present {
+		return nil, nil
+	}
+	values, ok := raw.([]any)
+	if !ok {
+		return nil, fmt.Errorf("read_scope must be an explicit array of paths")
+	}
+	paths := make([]string, 0, len(values))
+	for _, value := range values {
+		path, ok := value.(string)
+		if !ok || path == "" || path != strings.TrimSpace(path) {
+			return nil, fmt.Errorf("read_scope must contain non-empty exact string paths")
+		}
+		paths = append(paths, path)
+	}
+	return &paths, nil
+}
+
 func parseQuickDecision(raw map[string]any) (quickConfirmationDecision, error) {
+	currentStateEvidence, err := parseQuickCurrentStateEvidence(raw)
+	if err != nil {
+		return quickConfirmationDecision{}, err
+	}
 	scopeRaw := mapValue(raw["scope"])
 	itemsRaw, ok := raw["items"].([]any)
 	if !ok || len(itemsRaw) == 0 {
@@ -427,12 +493,17 @@ func parseQuickDecision(raw map[string]any) (quickConfirmationDecision, error) {
 	for _, row := range itemsRaw {
 		entry := mapValue(row)
 		id := strings.TrimSpace(stringValue(entry["id"]))
+		readScope, err := parseQuickReadScope(entry)
+		if err != nil {
+			return quickConfirmationDecision{}, fmt.Errorf("item %s: %w", id, err)
+		}
 		item := quickConfirmationItem{
 			ID:          id,
 			Deliverable: firstNonEmpty(stringValue(entry["deliverable"]), stringValue(entry["title"])),
 			DependsOn:   quickStringSlice(entry["depends_on"]),
 			Acceptance:  firstNonEmpty(stringValue(entry["acceptance"]), acceptanceByID[id]),
 			WriteScope:  quickStringSlice(entry["write_scope"]),
+			ReadScope:   readScope,
 		}
 		items = append(items, item)
 	}
@@ -441,8 +512,9 @@ func parseQuickDecision(raw map[string]any) (quickConfirmationDecision, error) {
 		ui = nil
 	}
 	return quickConfirmationDecision{
-		Goal:              firstNonEmpty(stringValue(raw["goal"]), stringValue(raw["request_and_outcome"])),
-		UserVisibleResult: stringValue(raw["user_visible_result"]),
+		Goal:                 firstNonEmpty(stringValue(raw["goal"]), stringValue(raw["request_and_outcome"])),
+		UserVisibleResult:    stringValue(raw["user_visible_result"]),
+		CurrentStateEvidence: currentStateEvidence,
 		Scope: quickConfirmationScope{
 			Include: quickStringSlice(scopeRaw["include"]),
 			Exclude: quickStringSlice(scopeRaw["exclude"]),
@@ -456,6 +528,34 @@ func parseQuickDecision(raw map[string]any) (quickConfirmationDecision, error) {
 		UIConfirmation:        ui,
 		UserCorrections:       quickStringSlice(raw["user_corrections"]),
 	}, nil
+}
+
+func parseQuickCurrentStateEvidence(raw map[string]any) ([]string, error) {
+	value, present := raw["current_state_evidence"]
+	if !present {
+		return nil, nil
+	}
+	var rows []any
+	switch typed := value.(type) {
+	case []any:
+		rows = typed
+	case []string:
+		rows = make([]any, len(typed))
+		for i, row := range typed {
+			rows[i] = row
+		}
+	default:
+		return nil, fmt.Errorf("decision.current_state_evidence must be an array of nonempty strings")
+	}
+	evidence := make([]string, 0, len(rows))
+	for i, row := range rows {
+		text, ok := row.(string)
+		if !ok || strings.TrimSpace(text) == "" {
+			return nil, fmt.Errorf("decision.current_state_evidence[%d] must be a nonempty string", i)
+		}
+		evidence = append(evidence, strings.TrimSpace(text))
+	}
+	return evidence, nil
 }
 
 func parseQuickDelivery(raw map[string]any) (quickConfirmationDelivery, error) {
@@ -1069,7 +1169,8 @@ func validateQuickDeltaMetadata(doc *quickConfirmationDoc) error {
 func validateQuickChangedDecisionFields(doc *quickConfirmationDoc) error {
 	staticFields := map[string]bool{
 		"goal": true, "user_visible_result": true, "recommended_approach": true,
-		"assumptions_and_risks": true, "completion_evidence": true,
+		"current_state_evidence": true,
+		"assumptions_and_risks":  true, "completion_evidence": true,
 		"reconfirmation_trigger": true,
 	}
 	scopeFields := map[string]bool{"include": true, "exclude": true, "defer": true}
@@ -1257,6 +1358,11 @@ func computeQuickConfirmationDigest(decision quickConfirmationDecision) (string,
 		"reconfirmation_trigger": decision.ReconfirmationTrigger,
 		"ui_confirmation":        decision.UIConfirmation,
 	}
+	// Preserve existing v1 digests when this additive decision field is absent
+	// or empty. Meaningful evidence becomes part of the exact approved decision.
+	if len(decision.CurrentStateEvidence) > 0 {
+		protected["current_state_evidence"] = append([]string{}, decision.CurrentStateEvidence...)
+	}
 	raw, err := stableMarshalJSON(protected)
 	if err != nil {
 		return "", err
@@ -1277,7 +1383,7 @@ func normalizeQuickItemsForDigest(items []quickConfirmationItem) []any {
 			"deliverable": item.Deliverable,
 			"depends_on":  deps,
 			"acceptance":  item.Acceptance,
-			// write_scope is execution-facing and excluded from digest
+			// write_scope and read_scope are execution-facing and excluded from digest
 		})
 	}
 	return out
@@ -1414,6 +1520,9 @@ func buildQuickStatusCheckpointSection(doc *quickConfirmationDoc) string {
 	b.WriteString("checkpoint:\n")
 	b.WriteString(fmt.Sprintf("  request_and_outcome: %q\n", doc.Decision.Goal))
 	b.WriteString(fmt.Sprintf("  user_visible_result: %q\n", doc.Decision.UserVisibleResult))
+	if len(doc.Decision.CurrentStateEvidence) > 0 {
+		b.WriteString(fmt.Sprintf("  current_state_evidence: %s\n", formatYAMLStringList(doc.Decision.CurrentStateEvidence)))
+	}
 	b.WriteString("  scope:\n")
 	b.WriteString(fmt.Sprintf("    include: %s\n", formatYAMLStringList(doc.Decision.Scope.Include)))
 	b.WriteString(fmt.Sprintf("    exclude: %s\n", formatYAMLStringList(doc.Decision.Scope.Exclude)))

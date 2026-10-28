@@ -115,8 +115,16 @@ def test_advanced_quick_and_debug_read_shared_gate_first() -> None:
         assert "insufficient: never show a branch menu" in flat_skill
         assert "do not paraphrase these labels or add a third option" in flat_skill
         assert "before opening any reference or calling any tool" in flat_skill
-        assert "show the exact scope, evidence, and fallback trigger" in flat_skill
-        assert "do not announce discovery, reproduction, or edits" in flat_skill
+        if skill_name == "spx-quick":
+            assert "bounded current evidence" in flat_skill
+            assert "concrete proposed change" in flat_skill
+            assert "impact, risks, verification and fallback trigger" in flat_skill
+            assert "do not infer consent from the recommendation" in flat_skill
+        else:
+            assert "show the exact scope, evidence, and fallback trigger" in flat_skill
+            assert "diagnosis may begin after intake" in flat_skill
+            assert "repair waits for the evidence-backed repair confirmation" in flat_skill
+            assert "do not infer consent from the recommendation" in flat_skill
         assert "the invoking request is not a branch selection" in flat_skill
         assert "stop and wait for a new user reply" in flat_skill
         assert (

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from typing import Any
+
+from .cognition_delta import decode_result_json, normalize_cognition_delta
 
 from .result_schema import (
     CURRENT_UI_EVIDENCE_KINDS,
@@ -240,9 +243,12 @@ def normalize_worker_task_result_payload(
     """Normalize common worker result payload shapes into ``WorkerTaskResult``."""
 
     if isinstance(payload, WorkerTaskResult):
+        paths, delta = normalize_cognition_delta(asdict(payload))
+        payload.changed_files = paths
+        payload.cognition_delta = delta
         return payload
     if isinstance(payload, str):
-        payload = json.loads(payload)
+        payload = decode_result_json(payload)
     if not isinstance(payload, dict):
         raise TypeError(
             "worker result payload must be a WorkerTaskResult, dict, or JSON text"
@@ -310,9 +316,7 @@ def normalize_worker_task_result_payload(
             ]
 
     task_id = str(_pick(payload, "task_id", "taskId") or "").strip()
-    changed_files = _as_str_list(
-        _pick(payload, "changed_files", "changedFiles", "files_changed")
-    )
+    changed_files, cognition_delta = normalize_cognition_delta(payload)
 
     return WorkerTaskResult(
         task_id=task_id,
@@ -323,6 +327,7 @@ def normalize_worker_task_result_payload(
         observations=_normalize_review_records(payload.get("observations")),
         findings=_normalize_review_records(payload.get("findings")),
         changed_files=changed_files,
+        cognition_delta=cognition_delta,
         validation_results=_normalize_validation_results(payload),
         summary=summary,
         concerns=concerns,

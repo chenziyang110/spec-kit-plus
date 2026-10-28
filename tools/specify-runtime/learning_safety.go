@@ -15,6 +15,10 @@ type learningRedactionResult struct {
 }
 
 func redactLearningText(value string) learningRedactionResult {
+	return redactLearningTextWithEntropyFilter(value, nil)
+}
+
+func redactLearningTextWithEntropyFilter(value string, publicToken func(string) bool) learningRedactionResult {
 	text := value
 	labels := map[string]bool{}
 	for marker, label := range map[string]string{
@@ -52,7 +56,7 @@ func redactLearningText(value string) learningRedactionResult {
 	// Entropy is deliberately the final fallback. Deterministic shapes such as
 	// email addresses and home-directory paths must retain their more precise
 	// safety label instead of being swallowed by a generic credential match.
-	text = redactLearningHighEntropyTokens(text, labels)
+	text = redactLearningHighEntropyTokensWithFilter(text, labels, publicToken)
 	return learningRedactionResult{text: text, labels: sortedLearningLabels(labels)}
 }
 
@@ -83,8 +87,15 @@ func redactLearningPhoneNumbers(text string, labels map[string]bool) string {
 }
 
 func redactLearningHighEntropyTokens(text string, labels map[string]bool) string {
+	return redactLearningHighEntropyTokensWithFilter(text, labels, nil)
+}
+
+func redactLearningHighEntropyTokensWithFilter(text string, labels map[string]bool, publicToken func(string) bool) string {
 	token := regexp.MustCompile(`[A-Za-z0-9!@#$%^&*_=+~.-]{20,}`)
 	return token.ReplaceAllStringFunc(text, func(match string) string {
+		if publicToken != nil && publicToken(match) {
+			return match
+		}
 		if regexp.MustCompile(`^[a-fA-F0-9]+$`).MatchString(match) {
 			return match
 		}

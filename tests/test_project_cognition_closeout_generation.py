@@ -9,6 +9,7 @@ from specify_cli.integrations.base import IntegrationBase
 from specify_cli.integrations.cursor_agent import CursorAgentIntegration
 from specify_cli.launcher import write_runtime_launcher_config
 
+from .template_utils import read_cognition_contract
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = (
@@ -454,7 +455,7 @@ def test_shared_closeout_transport_keeps_completed_payload_off_process_argv() ->
     )
 
     for surface in surfaces:
-        content = surface.read_text(encoding="utf-8")
+        content = read_cognition_contract(surface)
         normalized = " ".join(content.split()).lower()
         assert "--payload-json -" in content, surface
         assert "completed payload" in normalized and "stdin" in normalized, surface
@@ -482,7 +483,7 @@ def test_shared_closeout_recovers_only_the_direct_pending_predecessor() -> None:
     )
 
     for surface in contract_surfaces:
-        content = surface.read_text(encoding="utf-8")
+        content = read_cognition_contract(surface)
         assert "`pending_finalization`" in content, surface
         assert "one direct predecessor" in content, surface
         assert "`predecessor_recovery`" in content, surface
@@ -510,7 +511,7 @@ def test_shared_closeout_contract_owns_atomic_intent_replay_and_identity_repair(
     )
 
     for surface in surfaces:
-        content = surface.read_text(encoding="utf-8")
+        content = read_cognition_contract(surface)
         assert "same update lock" in content, surface
         assert "mutation intent" in content, surface
         assert "`predecessor_recovery_blocked`" in content, surface
@@ -523,7 +524,7 @@ def test_shared_closeout_contract_owns_atomic_intent_replay_and_identity_repair(
         ROOT / "PROJECT-HANDBOOK.md",
         ROOT / "templates" / "project-handbook-template.md",
     ):
-        content = surface.read_text(encoding="utf-8")
+        content = read_cognition_contract(surface)
         assert "mutation intent" in content, surface
         assert "closeout replay" in content, surface
 
@@ -532,7 +533,7 @@ def test_shared_closeout_contract_owns_atomic_intent_replay_and_identity_repair(
         ROOT / "PROJECT-HANDBOOK.md",
         ROOT / "templates" / "project-handbook-template.md",
     ):
-        content = surface.read_text(encoding="utf-8")
+        content = read_cognition_contract(surface)
         assert "one direct predecessor" in content, surface
         assert "pending_finalization" in content, surface
 
@@ -576,7 +577,7 @@ def test_shared_closeout_contract_has_receipt_independent_intent_recovery(
     surface = ROOT / relative_path
     _assert_closeout_intent_recovery_contract(
         IntegrationBase.render_template_content(
-            surface.read_text(encoding="utf-8"), template_path=surface
+            read_cognition_contract(surface), template_path=surface
         )
     )
 
@@ -623,7 +624,7 @@ def test_greenfield_with_project_code_uses_structured_rebuild_recovery() -> None
     )
 
     for surface in surfaces:
-        content = surface.read_text(encoding="utf-8")
+        content = read_cognition_contract(surface)
         assert "greenfield_baseline_has_project_code" in content, surface
         assert "project_cognition.rebuild" in content, surface
         assert "map-update" in content, surface
@@ -650,7 +651,7 @@ def test_blocked_compass_degraded_reads_remain_bounded_advisory_navigation() -> 
     )
 
     for surface in surfaces:
-        content = surface.read_text(encoding="utf-8")
+        content = read_cognition_contract(surface)
         assert "stale_cognition_degraded_navigation" in content, surface
         assert "degraded=true" in content, surface
         assert "minimal_live_reads" in content, surface
@@ -680,9 +681,9 @@ def test_unknown_path_dispositions_reach_the_typed_update_contract() -> None:
     classic_map_update = (
         ROOT / "templates" / "commands" / "map-update.md"
     ).read_text(encoding="utf-8")
-    spx_shared = (
+    spx_shared = read_cognition_contract(
         ROOT / "templates" / "advanced-skills" / "_shared" / "project-cognition.md"
-    ).read_text(encoding="utf-8")
+    )
     spx_map_update = (
         ROOT / "templates" / "advanced-skills" / "spx-map-update" / "SKILL.md"
     ).read_text(encoding="utf-8")
@@ -694,9 +695,9 @@ def test_unknown_path_dispositions_reach_the_typed_update_contract() -> None:
 
 
 def test_spx_shared_and_owning_mutation_skills_require_receipt_finalization() -> None:
-    shared = (
+    shared = read_cognition_contract(
         ROOT / "templates" / "advanced-skills" / "_shared" / "project-cognition.md"
-    ).read_text(encoding="utf-8")
+    )
     _assert_receipt_finalizer_gate(shared)
     _assert_audit_only_inputs(shared)
     assert STRUCTURED_PASSED_VERIFICATION in shared

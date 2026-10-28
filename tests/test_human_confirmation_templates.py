@@ -33,6 +33,13 @@ def test_classic_quick_and_debug_cards_confirm_human_decisions_not_agent_interna
     ):
         assert agent_owned_row not in quick_lower
     assert "checkpoint-stage" in quick_lower
+    assert "### 当前情况与依据" in quick
+    assert "### 方案与完成标准" in quick
+    for protected_field in (
+        "current_state_evidence", "recommended_approach",
+        "assumptions_and_risks", "completion_evidence",
+    ):
+        assert protected_field in quick_lower
     assert "delivery map" in quick_lower
     assert "confirmation_digest" in quick_lower
     assert "do not print the raw digest in the default human view" in quick_lower
@@ -51,8 +58,10 @@ def test_classic_quick_and_debug_cards_confirm_human_decisions_not_agent_interna
         assert agent_owned_row not in debug_lower
     assert "technical hypotheses belong to the agent" in debug_lower
     assert "diagnose only" in debug_lower
-    assert "diagnose and fix" in debug_lower
-    assert "for awareness, not as a request to approve a hypothesis" in debug_lower
+    assert "decisive evidence" in debug_lower
+    assert "concrete change at the owning layer" in debug_lower
+    assert "before any repair write" in debug_lower
+    assert "must not be presented as" in debug_lower
 
 
 def test_classic_ui_card_is_independent_conditional_and_shares_one_confirmation() -> None:
@@ -181,7 +190,10 @@ def test_confirmation_and_ui_decisions_persist_and_reach_workers() -> None:
             "templates/advanced-skills/spx-debug/references/investigator-worker.md",
         )
     )
-    assert "confirmed ui target baseline" in debug_workers
+    assert "confirmed ui repair target" in debug_workers
+    assert "provisional existing/source-backed target before repair confirmation" in debug_workers
+    assert "read-only evidence workers may run during unconfirmed diagnosis" in debug_workers
+    assert "diagnostic-enablement authority" in debug_workers
     assert "must not propose a redesign" in debug_workers
 
 

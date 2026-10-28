@@ -48,7 +48,7 @@ def test_e2e_helpers_remain_part_of_wheel_source_contract():
     included = config['tool']['hatch']['build']['targets']['wheel']['force-include']
     assert included['scripts/shared'] == 'specify_cli/core_pack/scripts/shared'
     assert included['templates/advanced-skills'] == 'specify_cli/core_pack/advanced-skills'
-    for name in ('e2e_scenarios.py', 'e2e_coverage.py', 'e2e_runner.py', 'e2e_pytest_reporter.py'):
+    for name in ('e2e_scenarios.py', 'e2e_coverage.py', 'e2e_runner.py', 'e2e_pytest_reporter.py', 'e2e_assets.py'):
         assert (ROOT / 'scripts/shared' / name).is_file()
 
 

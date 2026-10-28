@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	goruntime "runtime"
 	"sort"
@@ -17,9 +18,14 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo"
 	cognitioncli "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/cli"
 	runtimepaths "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/scopedregistration"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/store"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/update"
 )
 
 var version = "dev"
+
+var scopedRegistrationAfterApplyHook func(scopedregistration.Payload) error
 
 const protocolVersion = "specify-runtime.v1"
 
@@ -861,6 +867,15 @@ func resolveValidateSpecFeatureDir(args []string) (string, error) {
 }
 
 func runCognition(args []string, stdout, stderr io.Writer, cliVersion string) int {
+	if len(args) > 0 && strings.EqualFold(args[0], "closeout") && (len(args) == 1 || args[1] == "--help" || args[1] == "-h") {
+		env := NewEnvelope("ok", "project cognition closeout usage")
+		env.Data["usage"] = "specify-runtime cognition closeout <binding begin|seal|check|apply|inspect|repair|replay> [options]"
+		env.Data["binding_capability"] = "cognition.closeout.binding.v1"
+		return writeEnvelope(stdout, env)
+	}
+	if len(args) >= 2 && strings.EqualFold(args[0], "closeout") && strings.EqualFold(args[1], "binding") {
+		return runCognitionCloseoutBindingCLI(args[2:], stdout)
+	}
 	if len(args) >= 2 && strings.EqualFold(args[0], "closeout") && strings.EqualFold(args[1], "inspect") {
 		return runCognitionCloseoutInspectCLI(args[2:], stdout)
 	}
@@ -872,6 +887,11 @@ func runCognition(args []string, stdout, stderr io.Writer, cliVersion string) in
 	}
 	if len(args) >= 2 && strings.EqualFold(strings.TrimSpace(args[0]), "closeout") && strings.EqualFold(strings.TrimSpace(args[1]), "replay") {
 		return runCognitionCloseoutReplayCLI(args[2:], stdout)
+	}
+	if len(args) > 0 && strings.EqualFold(strings.TrimSpace(args[0]), "scoped-register") {
+		if code, handled := runCognitionScopedRegistrationOwnerCheck(args[1:], stdout); handled {
+			return code
+		}
 	}
 	if len(args) >= 2 && strings.EqualFold(strings.TrimSpace(args[0]), "closeout") && strings.EqualFold(strings.TrimSpace(args[1]), "apply") {
 		return runCognitionCloseoutApplyCLI(args[2:], stdout)
@@ -917,7 +937,9 @@ func runCognition(args []string, stdout, stderr io.Writer, cliVersion string) in
 	}
 
 	var payload map[string]any
-	if err := json.Unmarshal(trimmed, &payload); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(trimmed))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payload); err != nil {
 		_, _ = stdout.Write(rawStdout.Bytes())
 		return code
 	}
@@ -928,6 +950,12 @@ func runCognition(args []string, stdout, stderr io.Writer, cliVersion string) in
 	}
 	env := NewEnvelope(status, summary)
 	env.Data = payload
+	if len(args) > 0 && (args[0] == "query" || args[0] == "compass" || args[0] == "lexicon") {
+		env.Extra = payload
+	}
+	if len(args) > 0 && args[0] == "closeout-plan" {
+		addCloseoutBindingPlan(env.Data, args)
+	}
 	if persistDir != "" && code == 0 && status == "ok" {
 		persistence, err := persistSemanticAuditPair(persistDir, auditInput, payload)
 		if err != nil {
@@ -1045,6 +1073,431 @@ func cognitionEnvelopeStatus(payload map[string]any, code int) string {
 	}
 }
 
+func runCognitionScopedRegistrationOwnerCheck(args []string, stdout io.Writer) (int, bool) {
+	root := optionValue(args, "--project-root", ".")
+	paths, err := runtimepaths.ResolvePaths(root)
+	if err != nil {
+		return writeEnvelope(stdout, blockedEnvelope("scoped registration blocked", err.Error())), true
+	}
+	input := optionValue(args, "--input-json", "")
+	if strings.TrimSpace(input) == "" {
+		return writeEnvelope(stdout, blockedEnvelope("scoped registration blocked", "--input-json is required")), true
+	}
+	raw, err := readScopedRegistrationInput(paths.Root, input)
+	if err != nil {
+		return writeEnvelope(stdout, blockedEnvelope("scoped registration blocked", err.Error())), true
+	}
+	request, canonical, err := scopedregistration.Parse(raw)
+	if err != nil {
+		return writeEnvelope(stdout, blockedEnvelope("scoped registration blocked", err.Error())), true
+	}
+	if err := preflightScopedVerifiedEvidenceCoverage(request); err != nil {
+		return writeEnvelope(stdout, blockedEnvelope("scoped registration blocked", err.Error())), true
+	}
+	var payload scopedregistration.Payload
+	var doBindingForReceipt *DoCognitionBinding
+	runLocked := func() error {
+		return update.WithLockedRuntime(paths, func(_ *update.LockedRuntime) error {
+			basis, err := buildScopedRegistrationProofBasis(paths.Root, request)
+			if err != nil {
+				return err
+			}
+			var applyErr error
+			payload, applyErr = scopedregistration.ApplyWithProofBasis(context.Background(), paths, request, canonical, basis, &scopedregistration.Guards{
+				BeforeCommit: func() error {
+					if strings.TrimSpace(request.Proof.Kind) == "do_native" {
+						return scopedRegistrationProofSourceUnchanged(paths.Root, basis)
+					}
+					current, err := buildScopedRegistrationProofBasis(paths.Root, request)
+					if err != nil {
+						return err
+					}
+					if !sameScopedRegistrationProofBasis(basis, current) {
+						return fmt.Errorf("native proof basis changed before scoped registration commit")
+					}
+					return nil
+				},
+			})
+			if applyErr != nil {
+				return applyErr
+			}
+			if scopedRegistrationAfterApplyHook != nil {
+				if err := scopedRegistrationAfterApplyHook(payload); err != nil {
+					return err
+				}
+			}
+			if strings.TrimSpace(request.Proof.Kind) == "do_native" {
+				if doBindingForReceipt == nil {
+					return fmt.Errorf("Do native scoped registration lost its pre-update owner binding")
+				}
+				if err := scopedRegistrationProofSourceUnchanged(paths.Root, basis); err != nil {
+					if driftErr := markScopedRegistrationPublicationDrift(paths, payload, request, err.Error()); driftErr != nil {
+						return fmt.Errorf("native proof source changed after scoped registration publication: %w; additionally failed to mark scoped drift: %v", err, driftErr)
+					}
+					return fmt.Errorf("native proof source changed after scoped registration publication: %w", err)
+				}
+				state := "partial"
+				scopeDir := filepath.Join(paths.Root, filepath.FromSlash(request.Proof.DoRef))
+				_, err := recordMutationCognitionReceiptBound(scopeDir, "sp-do", request.Proof.DoRef, state, "scoped registration "+payload.Status, payload.RegistrationID, []string{"scoped-registration:" + payload.RegistrationID, "packet_sha256:" + payload.PacketSHA256}, changedPathsForDoReceipt(request), "", "", "", doBindingForReceipt)
+				if err != nil {
+					return err
+				}
+				if err := scopedRegistrationProofSourceUnchanged(paths.Root, basis); err != nil {
+					if driftErr := markScopedRegistrationPublicationDrift(paths, payload, request, err.Error()); driftErr != nil {
+						return fmt.Errorf("native proof source changed after scoped registration receipt publication: %w; additionally failed to mark scoped drift: %v", err, driftErr)
+					}
+					return fmt.Errorf("native proof source changed after scoped registration receipt publication: %w", err)
+				}
+				return nil
+			}
+			current, err := buildScopedRegistrationProofBasis(paths.Root, request)
+			if err != nil || !sameScopedRegistrationProofBasis(basis, current) {
+				reason := "native proof basis changed during scoped registration"
+				if err != nil {
+					reason = err.Error()
+				}
+				if driftErr := markScopedRegistrationPublicationDrift(paths, payload, request, reason); driftErr != nil {
+					if err != nil {
+						return fmt.Errorf("native proof changed during scoped registration: %w; additionally failed to mark scoped drift: %v", err, driftErr)
+					}
+					return fmt.Errorf("native proof basis changed during scoped registration; additionally failed to mark scoped drift: %v", driftErr)
+				}
+				if err != nil {
+					return fmt.Errorf("native proof changed during scoped registration: %w", err)
+				}
+				return fmt.Errorf("native proof basis changed during scoped registration")
+			}
+			return nil
+		})
+	}
+	var lockedErr error
+	if strings.TrimSpace(request.Proof.Kind) == "do_native" {
+		id, err := doCognitionScope(paths.Root, request.Proof.DoRef)
+		if err != nil {
+			lockedErr = err
+		} else {
+			release, err := doSessionLock(paths.Root, id)
+			if err != nil {
+				lockedErr = err
+			} else {
+				defer release()
+				doBindingForReceipt, lockedErr = doCurrentCognitionBinding(paths.Root, id)
+				if lockedErr == nil {
+					lockedErr = doRegisterOwnerMetadataWritesLocked(paths.Root, id, "cognition", scopedRegistrationDoCognitionWriterPaths(paths, request.Proof.DoRef))
+				}
+				if lockedErr == nil {
+					lockedErr = runLocked()
+				}
+			}
+		}
+	} else {
+		lockedErr = runLocked()
+	}
+	if lockedErr != nil {
+		env := blockedEnvelope("scoped registration blocked", lockedErr.Error())
+		env.Data["data"] = payload
+		return writeEnvelope(stdout, env), true
+	}
+	envStatus := "ok"
+	if scopedRegistrationHasDebt(payload.ValidationDebt, "affected_closure_truncated") {
+		envStatus = "warn"
+	}
+	env := NewEnvelope(envStatus, "project cognition scoped registration completed")
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return writeEnvelope(stdout, blockedEnvelope("scoped registration blocked", err.Error())), true
+	}
+	var data map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.UseNumber()
+	if err := decoder.Decode(&data); err != nil {
+		return writeEnvelope(stdout, blockedEnvelope("scoped registration blocked", err.Error())), true
+	}
+	env.Data = data
+	return writeEnvelope(stdout, env), true
+}
+
+func scopedRegistrationProofSourceUnchanged(root string, basis scopedregistration.ProofBasis) error {
+	for ref, digest := range basis.Source {
+		if !strings.HasPrefix(digest, "file:") {
+			continue
+		}
+		parts := strings.Split(digest, ":")
+		if len(parts) < 2 {
+			continue
+		}
+		want := strings.ToLower(strings.TrimSpace(parts[1]))
+		if len(want) != 64 {
+			continue
+		}
+		data, err := secureProjectReadFile(root, ref)
+		if err != nil {
+			return fmt.Errorf("read native proof source %s: %w", ref, err)
+		}
+		if got := fileContentSHA256(data); got != want {
+			return fmt.Errorf("native proof source %s drifted: got %s want %s", ref, got, want)
+		}
+	}
+	return nil
+}
+
+func markScopedRegistrationPublicationDrift(paths runtimepaths.Paths, payload scopedregistration.Payload, request scopedregistration.Request, reason string) error {
+	if strings.TrimSpace(payload.ActiveGenerationID) == "" || strings.TrimSpace(payload.RegistrationID) == "" {
+		return nil
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	if _, err := st.MarkClaimsStale(context.Background(), payload.Registered["claims"], "scoped_registration_postcommit_source_drift:"+payload.RegistrationID, payload.RegistrationID+":postcommit-drift"); err != nil {
+		return err
+	}
+	status, err := runtimepaths.ReadStatus(paths)
+	if err != nil {
+		return err
+	}
+	changed := scopedRegistrationChangedPaths(request)
+	debt := runtimepaths.DebtRecord{ID: "debt-" + payload.RegistrationID, Kind: "scoped_registration_postcommit_source_drift", Paths: changed, Reason: reason, UpdateID: payload.RegistrationID, OriginCommand: "cognition scoped-register"}
+	status.Dirty = true
+	status.Freshness = runtimepaths.StaleFreshness
+	status.Readiness = runtimepaths.BlockedReadiness
+	status.DirtyDebts = append(status.DirtyDebts, debt)
+	status.DirtyScopePaths = uniqueSortedTrimmed(append(status.DirtyScopePaths, changed...))
+	status.StalePaths = uniqueSortedTrimmed(append(status.StalePaths, changed...))
+	status.DirtyReasons = uniqueSortedTrimmed(append(status.DirtyReasons, reason))
+	status.StaleReasons = uniqueSortedTrimmed(append(status.StaleReasons, reason))
+	status.LastUpdatePartialReasons = uniqueSortedTrimmed(append(status.LastUpdatePartialReasons, reason))
+	return runtimepaths.WriteStatus(paths, status)
+}
+
+func scopedRegistrationDoCognitionWriterPaths(paths runtimepaths.Paths, doRef string) []string {
+	ref := normalizeCloseoutPath(doRef)
+	files := []string{
+		".specify/project-cognition/status.json",
+		".specify/project-cognition/project-cognition.db",
+		".specify/project-cognition/project-cognition.db-wal",
+		".specify/project-cognition/project-cognition.db-shm",
+		".specify/project-cognition/project-cognition.db-journal",
+		".specify/project-cognition/.update.lock",
+		".specify/project-cognition/validate-build-receipt.json",
+	}
+	if ref != "" {
+		files = append(files, path.Join(ref, mutationCognitionReceiptFileName))
+	}
+	return uniqueSortedTrimmed(files)
+}
+
+func changedPathsForDoReceipt(request scopedregistration.Request) []string {
+	return scopedRegistrationChangedPaths(request)
+}
+
+func scopedRegistrationHasDebt(debts []string, want string) bool {
+	for _, debt := range debts {
+		if strings.TrimSpace(debt) == want {
+			return true
+		}
+	}
+	return false
+}
+
+func preflightScopedVerifiedEvidenceCoverage(request scopedregistration.Request) error {
+	coveredPaths := map[string]bool{}
+	for _, path := range scopedRegistrationChangedPaths(request) {
+		coveredPaths[path] = true
+	}
+	for _, hash := range request.Source.SourceHashes {
+		if path := normalizeCloseoutPath(hash.Path); path != "" {
+			coveredPaths[path] = true
+		}
+	}
+	evidencePaths := map[string]string{}
+	for _, evidence := range request.Delta.Evidence {
+		if strings.TrimSpace(evidence.SourceKind) == "file" {
+			evidencePaths[evidence.ID] = normalizeCloseoutPath(evidence.SourcePath)
+		}
+	}
+	for _, row := range request.Delta.Claims {
+		if row.RequestedState != "verified" {
+			continue
+		}
+		for _, evidenceID := range row.SupportingEvidenceIDs {
+			path := evidencePaths[evidenceID]
+			if path != "" && !coveredPaths[path] {
+				return fmt.Errorf("verified claim %s evidence %s is not covered by native source proof", row.ID, evidenceID)
+			}
+		}
+	}
+	return nil
+}
+
+func markScopedRegistrationBlocked(paths runtimepaths.Paths, generationID string) error {
+	generationID = strings.TrimSpace(generationID)
+	if generationID == "" {
+		return nil
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	return st.MarkRuntimeMetadataBlocked(context.Background(), generationID)
+}
+
+func verifyScopedRegistrationNativeProof(root string, request scopedregistration.Request) error {
+	_, err := buildScopedRegistrationProofBasis(root, request)
+	return err
+}
+
+func buildScopedRegistrationProofBasis(root string, request scopedregistration.Request) (scopedregistration.ProofBasis, error) {
+	switch strings.TrimSpace(request.Proof.Kind) {
+	case "closeout_binding":
+		binding, err := requireStrongCloseoutBinding(root, request.Proof.Workflow, request.Proof.Scope, request.Proof.BindingID, "")
+		if err != nil {
+			return scopedregistration.ProofBasis{}, err
+		}
+		if err := scopedRegistrationBindingCoversPaths(binding.OwnedDelta, scopedRegistrationChangedPaths(request), "native closeout binding owned_delta"); err != nil {
+			return scopedregistration.ProofBasis{}, err
+		}
+		return scopedregistration.ProofBasis{
+			Kind:                   "closeout_binding",
+			BindingID:              binding.ID,
+			Workflow:               binding.Workflow,
+			Scope:                  binding.Scope,
+			WorkID:                 binding.WorkID,
+			AttemptID:              binding.AttemptID,
+			SourceRevision:         binding.AttemptID,
+			Source:                 binding.Source,
+			OwnedDelta:             binding.OwnedDelta,
+			Digest:                 binding.Digest,
+			AcceptedOutputSHA256:   binding.AcceptedOutputSHA256,
+			DependencyRefs:         binding.DependencyRefs,
+			RequiredDependencyRefs: binding.RequiredDependencyRefs,
+		}, nil
+	case "do_native":
+		id, err := doCognitionScope(root, request.Proof.DoRef)
+		if err != nil {
+			return scopedregistration.ProofBasis{}, err
+		}
+		binding, err := doCurrentCognitionBinding(root, id)
+		if err != nil {
+			return scopedregistration.ProofBasis{}, err
+		}
+		if err := scopedRegistrationBindingCoversPaths(binding.ChangedPaths, scopedRegistrationChangedPaths(request), "native Do proof changed paths"); err != nil {
+			return scopedregistration.ProofBasis{}, err
+		}
+		source, err := scopedRegistrationDoSourceProof(root, request.Proof.DoRef, binding)
+		if err != nil {
+			return scopedregistration.ProofBasis{}, err
+		}
+		return scopedregistration.ProofBasis{
+			Kind:           "do_native",
+			BindingID:      binding.SessionID,
+			Workflow:       "sp-do",
+			Scope:          request.Proof.DoRef,
+			WorkID:         "work-" + binding.SessionID,
+			AttemptID:      fmt.Sprintf("do-definition-%d:%s", binding.DefinitionEpoch, binding.DefinitionDigest),
+			SourceRevision: binding.SourceFingerprint,
+			Source:         source,
+			OwnedDelta:     binding.ChangedPaths,
+			Digest:         binding.SourceFingerprint,
+		}, nil
+	default:
+		return scopedregistration.ProofBasis{}, fmt.Errorf("unsupported proof.kind %q", request.Proof.Kind)
+	}
+}
+
+func scopedRegistrationDoSourceProof(root, proofRef string, binding *DoCognitionBinding) (map[string]string, error) {
+	source := map[string]string{proofRef: "do-source-fingerprint:" + binding.SourceFingerprint}
+	for _, changed := range binding.ChangedPaths {
+		path := normalizeCloseoutPath(changed)
+		if path == "" {
+			continue
+		}
+		data, err := secureProjectReadFile(root, path)
+		if err != nil {
+			return nil, fmt.Errorf("read Do-owned source %s for scoped registration proof: %w", path, err)
+		}
+		source[path] = "file:" + fileContentSHA256(data) + ":do-native"
+	}
+	return source, nil
+}
+
+func scopedRegistrationBindingCoversPaths(ownedPaths, changed []string, label string) error {
+	owned := map[string]bool{}
+	for _, path := range ownedPaths {
+		owned[normalizeCloseoutPath(path)] = true
+	}
+	for _, path := range changed {
+		if path != "" && !owned[path] {
+			return fmt.Errorf("%s does not cover changed path %s", label, path)
+		}
+	}
+	return nil
+}
+
+func sameScopedRegistrationProofBasis(left, right scopedregistration.ProofBasis) bool {
+	return string(canonicalScopedRegistrationProofBasis(left)) == string(canonicalScopedRegistrationProofBasis(right))
+}
+
+func canonicalScopedRegistrationProofBasis(value scopedregistration.ProofBasis) []byte {
+	data, _ := json.Marshal(value)
+	var normalized any
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&normalized); err != nil {
+		return data
+	}
+	canonical, err := json.Marshal(normalized)
+	if err != nil {
+		return data
+	}
+	return canonical
+}
+
+func scopedRegistrationChangedPaths(request scopedregistration.Request) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	add := func(value string) {
+		path := normalizeCloseoutPath(value)
+		if path != "" && !seen[path] {
+			seen[path] = true
+			out = append(out, path)
+		}
+	}
+	for _, change := range request.Delta.ChangedPaths {
+		add(change.Path)
+		add(change.OldPath)
+	}
+	for _, row := range request.Delta.PathIndex {
+		add(row.Path)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func readScopedRegistrationInput(root, input string) ([]byte, error) {
+	input = strings.TrimSpace(input)
+	if input == "-" {
+		return io.ReadAll(os.Stdin)
+	}
+	if strings.HasPrefix(input, "@") {
+		ref := strings.TrimSpace(strings.TrimPrefix(input, "@"))
+		if ref == "" {
+			return nil, fmt.Errorf("@path must not be empty")
+		}
+		return secureProjectReadFile(root, filepath.ToSlash(ref))
+	}
+	return []byte(input), nil
+}
+
+func normalizeCloseoutPath(value string) string {
+	value = filepath.ToSlash(strings.TrimSpace(value))
+	for strings.HasPrefix(value, "./") {
+		value = strings.TrimPrefix(value, "./")
+	}
+	return strings.TrimRight(value, "/")
+}
 func wantsJSON(args []string) bool {
 	for i := 0; i < len(args)-1; i++ {
 		if args[i] == "--format" && args[i+1] == "json" {
@@ -1151,6 +1604,9 @@ func projectLocalRuntimeInvocation(cwd, fallback string) string {
 func bindRuntimeArgvValue(value any, executable string) any {
 	switch typed := value.(type) {
 	case map[string]any:
+		if typed == nil {
+			return typed
+		}
 		result := make(map[string]any, len(typed))
 		for key, item := range typed {
 			result[key] = bindRuntimeArgvValue(item, executable)
@@ -1223,6 +1679,12 @@ func defaultCapabilities() []string {
 		"cognition.closeout.inspect",
 		"cognition.closeout.repair",
 		"cognition.closeout.replay",
+		"cognition.closeout.recovery.v1",
+		"cognition.closeout.binding.v1",
+		"cognition.closeout.binding.begin",
+		"cognition.closeout.binding.seal",
+		"cognition.closeout.binding.check",
+		"cognition.worker-delta.v1",
 		"cognition.closeout-plan",
 		"cognition.compass",
 		"cognition.complete-refresh",
@@ -1233,6 +1695,9 @@ func defaultCapabilities() []string {
 		"cognition.delta.status",
 		"cognition.discover",
 		"cognition.expand",
+		"cognition.expansion.snapshot.v2",
+		"cognition.claim-evidence.page.v1",
+		"cognition.catalog.snapshot.v1",
 		"cognition.generate-ignore",
 		"cognition.init-empty",
 		"cognition.identity-repair",
@@ -1259,7 +1724,10 @@ func defaultCapabilities() []string {
 		"cognition.semantic-audit",
 		"cognition.semantic-audit-resume",
 		"cognition.semantic-intake",
+		"cognition.scoped-register",
+		"cognition.scoped-registration.v1",
 		"cognition.status",
+		"cognition.scope-availability.v2",
 		"cognition.update",
 		"cognition.validate-build",
 		"cognition.validate-scan",
@@ -1300,6 +1768,8 @@ func defaultCapabilities() []string {
 		"deep-research.verify-handoff",
 		"e2e.init",
 		"e2e.status",
+		"e2e.compact",
+		"e2e.task-show",
 		"e2e.scope-add",
 		"e2e.task-start",
 		"e2e.task-submit",
@@ -1343,15 +1813,20 @@ func defaultCapabilities() []string {
 		"discussion.write-handoff",
 		"doctor.check",
 		"do.start",
+		"do.prepare",
+		"do.next",
+		"do.complete",
 		"do.record",
 		"do.validate",
 		"do.finish",
 		"do.resume",
+		"do.scoped-recovery.v1",
 		"do.show",
 		"playbook.find",
 		"playbook.show",
 		"playbook.update",
 		"playbook.validate",
+		"playbook.metrics",
 		"evidence.allocate",
 		"evidence.import",
 		"evidence.register",
@@ -1412,6 +1887,7 @@ func defaultCapabilities() []string {
 		"sp-teams.status",
 		"sp-teams.submit-result",
 		"sp-teams.sync-back",
+		"learning.applicability.v1",
 		"learning.capture",
 		"learning.capture-auto",
 		"learning.list",
@@ -1501,6 +1977,14 @@ func capabilitySummary(id string) string {
 		return descriptor["summary"].(string)
 	}
 	switch id {
+	case "do.prepare":
+		return "Prepare exact parameterized method inputs without creating workflow state."
+	case "do.next":
+		return "Return frozen next-action packets after checking current dependency evidence."
+	case "do.complete":
+		return "Validate, persist the verified method and close knowledge with resumable owner stages."
+	case "playbook.metrics":
+		return "Read observed attempts, failures and timing by exact task/environment/evidence group."
 	case "do.start":
 		return "Freeze a project operation, required checks, method revision, source fingerprints, and Work ownership."
 	case "do.record":
@@ -1511,6 +1995,8 @@ func capabilitySummary(id string) string {
 		return "Close execution and knowledge persistence separately with revision checks."
 	case "do.resume":
 		return "Recover or explicitly replan a failed operation while preserving definition epochs, attempts, and scoped ownership."
+	case "do.scoped-recovery.v1":
+		return "Bind public script inputs, inspect unrelated external changes and retain verified process evidence through immutable definition epochs."
 	case "do.show":
 		return "Read one operation session or resolve an unambiguous active Work binding."
 	case "playbook.find":
@@ -1725,6 +2211,16 @@ func capabilitySummary(id string) string {
 		return "Join open task state, nonterminal Runs, live Work identities, write scope, and coordination anomalies into one repository view."
 	case "cognition.run":
 		return "Run the namespaced project cognition command surface."
+	case "cognition.scoped-register", "cognition.scoped-registration.v1":
+		return "Atomically register bounded current cognition facts into the active generation without whole-graph replacement."
+	case "cognition.expansion.snapshot.v2":
+		return "Read an immutable expansion only while its complete graph and runtime-status snapshot remains current."
+	case "cognition.scope-availability.v2":
+		return "Reassess exact task read/write/dependency scope separately from visible global cognition debt."
+	case "cognition.claim-evidence.page.v1":
+		return "Read bounded claim-evidence pages with exact counts and snapshot-bound continuation."
+	case "cognition.catalog.snapshot.v1":
+		return "Page the alias catalog with graph, status, and request revision checks."
 	case "cognition.archive-incompatible-store":
 		return "Archive an incompatible cognition database using an optimistic SHA-256 guard and reset runtime status."
 	case "artifact.show":
@@ -1765,6 +2261,13 @@ func capabilitySummary(id string) string {
 		return "Operate the shared project-cognition closeout namespace, including digest-bound replay."
 	case "cognition.closeout.replay":
 		return "Replay one exact digest-bound pending intent, or the intent bound to a legacy blocked scope receipt."
+	case "cognition.closeout.recovery.v1":
+		return "Recover an exact current cognition closeout intent without replacing its source basis."
+	case "cognition.closeout.binding.v1", "cognition.closeout.binding.begin", "cognition.closeout.binding.seal", "cognition.closeout.binding.check":
+		return "Bind exact native Work, source bytes, actual owned delta, dependencies, validation observations and accepted-output versions."
+		return "Require exact pending-intent recovery before a standalone receipt or terminal workflow close."
+	case "cognition.worker-delta.v1":
+		return "Preserve versioned worker cognition candidates, submission history and exact result acceptance for leader closeout planning."
 	case "cognition.identity-repair.plan":
 		return "Prepare a digest-bound bounded path identity repair from current validation evidence."
 	case "cognition.identity-repair":

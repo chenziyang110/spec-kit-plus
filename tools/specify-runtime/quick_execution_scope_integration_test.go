@@ -17,8 +17,8 @@ func TestQuickScopeWorkerProofGate(t *testing.T) {
 		wantError    string
 	}{
 		{"no-write changed files", []string{"src/main.go"}, nil, "outside packet write_scope"},
-		{"traversal", []string{"src/../outside.go"}, []string{"src"}, "parent traversal"},
-		{"blank result", []string{" "}, []string{"src"}, "non-empty changed_files"},
+		{"traversal", []string{"src/../outside.go"}, []string{"src"}, "path must stay within the project"},
+		{"blank result", []string{" "}, []string{"src"}, "path must be a project-relative path"},
 		{"no-write evidence", []string{}, nil, ""},
 		{"bounded write", []string{"src/main.go"}, []string{"src"}, ""},
 	}

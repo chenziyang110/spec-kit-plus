@@ -43,6 +43,11 @@ def test_quick_checkpoint_amendment_explains_material_scope_change_first(
     assert "only the changed rows or decisions" in normalized
     assert "do not repeat the full initial quick checkpoint" in normalized
     assert "understanding_confirmed: false" in normalized or "unconfirmed staged decision" in normalized
+    for decision_field in (
+        "current_state_evidence", "recommended_approach",
+        "assumptions_and_risks", "completion_evidence",
+    ):
+        assert decision_field in normalized
 
 
 @pytest.mark.parametrize(
@@ -59,7 +64,11 @@ def test_debug_checkpoint_amendment_explains_boundary_change_without_reapproving
 
     assert "debug checkpoint amendment" in normalized
     assert "do not reopen confirmation" in normalized
-    assert "same causal chain" in normalized
+    assert (
+        "same approved cause and repair" in normalized
+        or "same approved root cause and repair" in normalized
+    )
+    assert "material" in normalized and "approved" in normalized
     assert "hypothesis" in normalized
     assert "before presenting the amendment" in normalized
     assert "why the previous confirmation no longer covers" in normalized

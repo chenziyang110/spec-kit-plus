@@ -139,9 +139,9 @@ Each delegated lane produces a `PrdScanPacket`: a read-only evidence packet with
 11. Decision order is fixed:
     - One safe validated scan lane -> `one-subagent` on `native-subagents` when available.
     - Two or more safe read-only scan lanes -> `parallel-subagents` on `native-subagents` when available.
-    - No safe lane, incomplete packet, or unavailable delegation -> `subagent-blocked` with a recorded reason.
+    - Incomplete packet or failed delegation -> repair or redispatch a safe serial lane in this invocation; use `subagent-blocked` with a reason and exact resume action only after no safe authorized recovery remains.
 12. Compile a validated `PrdScanPacket` before dispatch or `subagent-blocked` status.
-13. For `one-subagent`, dispatch one read-only scan lane once a validated `PrdScanPacket` exists. If the packet is incomplete, compile the missing fields before dispatch; if dispatch is unavailable, record `subagent-blocked` with the blocker and stop for escalation or recovery before broad scan work continues.
+13. For `one-subagent`, dispatch one read-only scan lane once a validated `PrdScanPacket` exists. If the packet is incomplete, compile the missing fields before dispatch. On dispatch failure, discover actual capabilities, join capacity-limited work, and resume or redispatch a safe serial lane in this invocation. Record `subagent-blocked` and its exact resume action only after no safe authorized recovery remains; never replace the lane with Leader bulk reads.
 14. If collaboration is justified, keep `prd-scan` lanes read-only and limited to reconstruction evidence gathering, tier classification, and packet drafting.
 15. Required join points:
     - before freezing ledgers and machine-readable contracts
@@ -201,7 +201,10 @@ These artifacts are the authoritative scan bundle for `sp-prd-build`; they are n
 
 ## PrdScanPacket Dispatch
 
-- If no safe lane exists, the packet is incomplete, or delegation is unavailable, record `subagent-blocked` with the blocker and stop for escalation or recovery before broad scan work continues.
+- If the packet is incomplete or delegation fails, keep its join pending and
+  repair or redispatch a safe serial lane as above. Record `subagent-blocked`
+  only after no safe authorized recovery remains; preserve accepted evidence
+  and the exact resume action without Leader bulk-reading fallback.
 - Raw inventory notes or raw chat summaries are not sufficient subagent inputs or outputs.
 - Each dispatched lane needs a validated `PrdScanPacket` and must return its structured handoff inline through the runtime result-submit channel with inspected paths, key facts, confidence, blockers, and recommended contract updates. It never writes the handoff path itself.
 - Idle subagent output is not an accepted scan result.

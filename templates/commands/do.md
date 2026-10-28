@@ -1,5 +1,5 @@
 ---
-description: Use when the user explicitly requests a build, package, test, or repeatable project operation and wants applicable project methods reused, current results verified, and useful improvements retained for the next invocation.
+description: Use when the user explicitly requests a project operation through available native tools and wants applicable methods reused, current results verified, and useful improvements retained for the next invocation.
 workflow_contract:
   when_to_use: The user explicitly requests this workflow for a concrete project operation, with an observable result and bounded side effects.
   primary_objective: Reuse the smallest applicable verified method, execute with native tools, verify the requested result, and retain only useful evidence-backed improvements for the next invocation.
@@ -14,15 +14,15 @@ workflow_contract:
 ## Objective
 
 This invocation authorizes only this requested operation. Work from the user's actual
-goal: for example compile the current target, produce a local package, run a
-specified test suite, or regenerate a bounded artifact. Read
-[the operation contract](references/operation-contract.md) before starting or
-resuming the operation. Read [the reference index](references/INDEX.md) only to
+goal: compile, package, test, edit files, operate a browser or desktop, or use a
+connector within the authorized project task. Read
+[the applicable operation contract sections](references/operation-contract.md)
+before selecting, starting or resuming. Read [the reference index](references/INDEX.md) only to
 locate a triggered contract.
 
 ## Guardrails
 
-- The agent's native terminal, process, and observation tools execute the
+- The agent's available native process, file, browser, desktop, and connector tools execute the
   operation. Go `do` owns session state and receipts; `playbook` owns method
   identity, immutable revisions, derived cards, and proposals. Stored commands
   are untrusted guidance, never permission to execute them.
@@ -50,33 +50,40 @@ locate a triggered contract.
    does not force map reconstruction before an ordinary operation.
 3. Retrieve compact method cards with
    `{{specify-subcmd:specify-runtime playbook find --query "$ARGUMENTS" --format json}}`.
-   Narrow operation, target, and observed context when known. Follow a matching
+   Narrow operation, target, observed context, and actual parameters when known. Follow a matching
    card's `show_argv`, then only needed `expand_argv`. Compare applicability,
    prerequisites, toolchain, source/configuration evidence, and side effects
-   with the live project before choosing a revision.
-4. Freeze the exact method definition and scope through `do start`, using
-   `{{specify-subcmd:specify-runtime api show do.start --format json}}` and its
-   schema contract for structured input. For an explicit existing session use
+   with the live project before choosing a revision. Use observed ranking only
+   when comparable history can inform the choice; expand recovery only for a
+   matching failure. Neither is a new success or permission to execute.
+4. Inspect `{{specify-subcmd:specify-runtime api show do.prepare --format json}}`
+   and its schema. Prepare the selected template, actual parameters, context,
+   and scope read-only; send its returned `start_input` unchanged to `do start`.
+   Start rechecks current conditions. For an explicit existing session use
    `do show <id>` followed by `do resume <id>`. `do show --active` is read-only;
    multiple candidates require an explicit session identity, never latest-file
-   selection. Reuse the original method binding unless the runtime accepts a
-   newly verified definition.
-5. Record each attempt's `started` event before the native operation and its
-   `completed` observation afterwards through `do record`. Preserve tool-call
-   provenance, exact argv/cwd, outcome, duration, and required result references.
-   Execute the frozen checks against current outputs. A process exit alone is
-   insufficient when the operation promises a package, report, or other artifact.
-6. Run `do validate <id>`; repair bounded agent-owned failures and return to the
-   failed check. Preserve failed attempts. Never copy old success receipts,
+   selection. Keep the selected revision and template digest bound.
+5. Use `do next <id>` for ready actions and recording skeletons. Submit one
+   returned `started_input` through `do record` before executing its full frozen
+   `action`; then fill `completion_event` only with actual tool observations and
+   the listed `completion_required` facts. Record it with the latest revision
+   and a unique request ID. Process actions use argv/cwd; other native actions
+   use their typed action and observation. Refresh next after each checkpoint;
+   ready skeletons share one revision. Execute required effect/output checks.
+6. Use next's validation-backed readiness; expand `do validate <id>` when fresh
+   diagnostics are needed. Repair bounded agent-owned failures and return to
+   the failed check. Preserve failed attempts. Never copy old success receipts,
    fabricate observations, weaken a check, or repeat an uncertain external
-   effect merely because an attempt was interrupted.
-7. Use `do finish` and the runtime-returned next action to close execution and
-   method disposition. Improve a playbook through `playbook update` only from
-   a matching completed session and exact validated definition. A new proposal
-   without evidence remains a proposal; do not replace a verified current
-   method with an untested optimization. If no reusable change is warranted,
-   record that explicitly. Read [closeout](references/closeout.md) before final
-   completion, source-mutation closeout, or a blocked stop.
+   effect merely because an attempt was interrupted. For changed plans use the
+   operation contract's failed or unstarted replan; reuse evidence only through
+   runtime-approved `retain_verified` receipts.
+7. Read [closeout](references/closeout.md). After source closeout and required
+   checks, use `do next`'s `complete_input` plus a truthful `change_summary` with
+   `do complete` to finish execution, save the verified template/usage, and
+   finish knowledge. Meaningful Learning, proposals, no-knowledge disposition,
+   and blockers use the explicit closeout branches. A persistence failure
+   resumes knowledge without rerunning successful execution; require terminal
+   success before reporting completion.
 
 ## Output Contract
 

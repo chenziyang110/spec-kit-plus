@@ -63,6 +63,23 @@ UI when available, otherwise as a numbered prompt:
 - Quick: **Direct change (Recommended)** or **Continue full sp-quick**.
 - Debug: **Direct fix (Recommended)** or **Continue full sp-debug**.
 
+For Quick, first explain the current findings and selected evidence basis,
+concrete proposed change and reason, exact scope, affected behavior, expected
+result, risks and verification. Choosing **Direct change (Recommended)**
+approves that exact bounded proposal once; do not add a redundant implementation
+confirmation. Choosing the full branch starts bounded discovery and its normal
+concrete Decision Checkpoint. A generic change request or an unexplained menu
+is not approval of an unseen proposal.
+
+For Debug, before the choice explain the discovered defect, proven failure
+mechanism and decisive evidence, concrete proposed fix, affected change scope,
+expected result, risks, and original-reproduction/regression verification.
+Choosing **Direct fix (Recommended)** approves that exact bounded repair; do
+not add a redundant repair confirmation. Choosing the full branch starts its
+normal evidence investigation and later evidence-backed repair checkpoint.
+Neither a generic request to fix nor a menu without these findings and repair
+decisions is concrete repair authority.
+
 Do not infer the answer, auto-select the recommendation, or mix both branches.
 Wait for the user's choice. If the user chooses the full branch, run it without
 asking this question again.

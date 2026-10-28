@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/scopedregistration"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/workerdelta"
 	"io"
 	"strings"
 )
@@ -14,6 +16,30 @@ func runAPISchema(args []string, stdout io.Writer) int {
 	var schema map[string]any
 	var capabilityID string
 	switch schemaID {
+	case "learning-applicability-input":
+		schema = learningApplicabilityInputSchema()
+		capabilityID = "learning.applicability.v1"
+	case "cognition-scope-availability-input":
+		schema = scopeAvailabilityInputSchema()
+		capabilityID = "cognition.scope-availability.v2"
+	case "cognition-closeout-binding-begin-input":
+		schema = closeoutBindingBeginInputSchema()
+		capabilityID = "cognition.closeout.binding.begin"
+	case "cognition-closeout-binding-seal-input":
+		schema = closeoutBindingSealInputSchema()
+		capabilityID = "cognition.closeout.binding.seal"
+	case "cognition-scoped-registration-input":
+		schema = cognitionScopedRegistrationInputSchema()
+		capabilityID = "cognition.scoped-registration.v1"
+	case "do-prepare-input":
+		schema = doStartInputSchema()
+		capabilityID = "do.prepare"
+	case "do-complete-input":
+		schema = doCompleteInputSchema()
+		capabilityID = "do.complete"
+	case "playbook-metrics-input":
+		schema = playbookMetricsInputSchema()
+		capabilityID = "playbook.metrics"
 	case "do-start-input":
 		schema = doStartInputSchema()
 		capabilityID = "do.start"
@@ -137,6 +163,45 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	env = NewEnvelope("ok", fmt.Sprintf("Capability %s expanded.", capabilityID))
 	applyOperationAPIContract(capabilityID, capability, &env)
 	switch capabilityID {
+	case "cognition.closeout.binding.v1":
+		capability["command"] = []string{"specify-runtime", "cognition", "closeout", "binding"}
+		capability["usage"] = "specify-runtime cognition closeout binding <begin|seal|check> --workflow <sp-*> --scope-dir <exact> --input-json <object|-> --format json"
+		capability["input_contract"] = "Begin against current native Work and canonical accepted outputs before fresh verification. Seal truthful observations against unchanged source/dependency/attempt versions; apply with its exact binding_id. Missing version support requires runtime installation/repair before mutation; legacy receipts remain audit input. Do retains its native source-bound operation proof and lock order."
+		capability["output_contract"] = "Runtime generates all mechanical fields and terminal owners recheck them. Digests enforce consistency, not process authentication or independent semantic truth; observations do not claim runtime tool execution."
+	case "cognition.closeout.recovery.v1":
+		capability["command"] = []string{"specify-runtime", "cognition", "closeout"}
+		capability["usage"] = "specify-runtime cognition closeout <apply|inspect|repair|replay> --help"
+		capability["input_contract"] = "shared apply owns the current-update-bound receipt; standalone receipt writes and terminal workflow gates reject an unresolved intent for the same workflow owner and scope under the update lock. Consume exact inspect, digest-bound repair, or replay argv returned by the runtime; never replace a pending intent with a dirty fallback or an old ready receipt."
+		capability["output_contract"] = "a capability check proves supported recovery mechanics, not semantic acceptance or project-wide freshness. Preserve non-repairable partial compatibility when no matching intent exists."
+	case "cognition.expansion.snapshot.v2":
+		capability["command"] = []string{"specify-runtime", "cognition", "expand"}
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime cognition expand --id <expansion-id> [--section <section>] --format json"
+		capability["input_contract"] = "consume an exact immutable expansion_ref.id returned by cognition compass; expansion contract version 2 binds the complete navigation snapshot and runtime status, not only the active generation. Missing, invalid, incompatible, or stale expansions return no section data and require rerunning Compass; reads never create or repair bundles. Compass owns immutable bundle publication."
+		capability["output_contract"] = "inspect data.status and readiness before consuming data.data; status ok alone does not establish live repository truth. Graph claims require live verification."
+	case "cognition.claim-evidence.page.v1":
+		capability["command"] = []string{"specify-runtime", "cognition", "expand"}
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime cognition expand --id <expansion-id> --section claim_evidence [--offset <nonnegative-offset>] --format json"
+		capability["input_contract"] = "consume the exact current Compass expansion_ref.id and runtime next_argv. Offset is supported only for claim_evidence, must be nonnegative and cannot exceed total_count. Missing or incompatible claim page descriptors refuse data; graph/status snapshot drift returns stale_expansion and requires rerunning Compass. No read rewrites an immutable bundle or creates graph evidence."
+		capability["output_contract"] = "successful pages disclose total_count, returned_count, offset, has_more including exact zero counts and terminal false; next_argv continues the same immutable snapshot. Claim revision and source_path/span refs remain advisory and require live verification."
+	case "cognition.catalog.snapshot.v1":
+		capability["command"] = []string{"specify-runtime", "cognition", "lexicon", "--mode", "catalog"}
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime cognition lexicon --mode catalog [--intent <intent>] [--query <text>] [--limit <limit>] [--offset <offset>] [--catalog-revision <sha256>] --format json"
+		capability["input_contract"] = "begin catalog discovery at offset 0 and consume catalog_page.next_argv unchanged. Continuations bind graph navigation digest, runtime status, intent, query, and limit through --catalog-revision. Stale or malformed revisions refuse data and require restarting the catalog; legacy unbound offsets remain available but report snapshot_bound=false and cannot prove complete stable traversal."
+		capability["output_contract"] = "catalog_page contract_version=1 reports revision, navigation_digest, snapshot_bound, offset, limit, returned, total, has_more and next_offset/next_argv when present; copy exact concept_id values with the same lexicon_generation_id into the precision query plan. No catalog read writes graph state."
+	case "cognition.scoped-registration.v1", "cognition.scoped-register":
+		capability["command"] = []string{"specify-runtime", "cognition", "scoped-register"}
+		capability["side_effect"] = "writes-active-cognition-generation"
+		capability["usage"] = "specify-runtime cognition scoped-register --input-json <object|@path|-> --format json"
+		capability["input_schema"] = "cognition-scoped-registration-input"
+		capability["input_contract"] = "requires an existing native proof, either a sealed cognition closeout binding for non-Do workflows or the existing Do native source/session proof, plus semantic intent rows and complete owner/consumer/interface/state/generated/verification/alias obligations. Runtime derives Work, attempt, source, dependency and accepted-output basis from the proof, validates current source/generation guards, compiles candidate rows, preserves unrelated active rows/history, records idempotent lineage in updates, marks affected prior claims stale, and keeps unproved obligations in validation_debt."
+		capability["output_contract"] = "returns registration_id, packet_sha256, replay status, native_proof basis, registered and retired row ids, stale claims, affected closure, negative query probes, validation debt, and query next_argv. claim_ready is always false; successful row insertion is not independent consumer acceptance."
+		capability["closeout_payload_field"] = "scoped_registration"
+		capability["closeout_draft_schema"] = closeoutRegistrationDraftSchema
+		capability["closeout_draft_contract"] = "For shared closeout apply, use the draft {schema:cognition-scoped-registration-draft.v1,delta:<semantic rows and complete obligations>,result:{state:registered|partial,reason:<text>}}. Inline mode carries it as scoped_registration in the existing payload JSON to apply_argv stdin. Delta mode records the existing closeout evidence, then sends only this draft to the planner's registration_apply_argv stdin (--registration-json -). Carry the current sealed binding flag when required. Row IDs are stable semantic local keys; references to those keys are mapped together by the runtime. Exact existing graph references remain unchanged. Supply current evidence source paths, relations, claims and truthful verification observations; omit proof, work, source and parent IDs. Runtime derives proof, file hashes and IDs, persists the prepared request in the existing digest-bound intent, registers after the native update and before validation/receipt, and resumes the same parent update journal. Partial/debt registrations block terminal completion."
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "cognition-scoped-registration-input", "--format", "json"}
 	case "learning.capture-auto":
 		capability["side_effect"] = "writes-project-learning-for-new-signals"
 		capability["usage"] = "specify-runtime learning capture-auto --command <workflow> [--feature-dir <path>|--workspace <path>|--session-file <path>|--session-id <do-id>] [--dry-run] [--project-root <path>] --format json"
@@ -616,6 +681,127 @@ func containsCapability(capabilities []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func cognitionScopedRegistrationInputSchema() map[string]any {
+	stringSchema := map[string]any{"type": "string", "minLength": 1}
+	stringArray := map[string]any{"type": "array", "items": stringSchema, "uniqueItems": true}
+	sha := map[string]any{"type": "string", "pattern": "^[a-fA-F0-9]{64}$"}
+	ref := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"path", "sha256"},
+		"properties":           map[string]any{"path": stringSchema, "sha256": sha},
+	}
+	evidence := map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"required":             []string{"id", "source_kind", "source_path", "extractor", "content_hash"},
+		"properties": map[string]any{
+			"id": stringSchema, "source_kind": stringSchema, "source_path": stringSchema,
+			"commit_sha": map[string]any{"type": "string"}, "span": map[string]any{"type": "string"},
+			"extractor": stringSchema, "content_hash": stringSchema, "attrs": map[string]any{"type": "object"},
+		},
+	}
+	node := map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"required":             []string{"id", "type", "title"},
+		"properties": map[string]any{
+			"id": stringSchema, "type": stringSchema, "title": stringSchema,
+			"confidence": map[string]any{"type": "string"}, "evidence_ids": stringArray, "attrs": map[string]any{"type": "object"},
+		},
+	}
+	edge := map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"required":             []string{"id", "type", "source_id", "target_id"},
+		"properties": map[string]any{
+			"id": stringSchema, "type": stringSchema, "source_id": stringSchema, "target_id": stringSchema,
+			"confidence": map[string]any{"type": "string"}, "evidence_ids": stringArray, "attrs": map[string]any{"type": "object"},
+		},
+	}
+	claimRow := map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"required":             []string{"id", "node_id", "graph_claim_type", "summary"},
+		"properties": map[string]any{
+			"id": stringSchema, "node_id": stringSchema, "graph_claim_type": stringSchema, "summary": stringSchema,
+			"requested_state": map[string]any{"type": "string"}, "supporting_evidence_ids": stringArray,
+			"contradicting_evidence_ids": stringArray, "verifications": map[string]any{"type": "array"},
+			"attrs": map[string]any{"type": "object"},
+		},
+	}
+	obligations := map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"properties": map[string]any{
+			"owners": stringArray, "consumers": stringArray, "interfaces": stringArray,
+			"state_contracts": stringArray, "generated_chain": stringArray,
+			"verification_entries": stringArray, "invalidated_aliases": stringArray, "unknowns": stringArray,
+		},
+	}
+	return map[string]any{
+		"$schema":              "https://json-schema.org/draft/2020-12/schema",
+		"$id":                  "specify://schemas/cognition-scoped-registration-input/v1",
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"schema", "proof", "delta", "result"},
+		"properties": map[string]any{
+			"schema": map[string]any{"const": scopedregistration.Schema},
+			"proof": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"required":             []string{"kind"},
+				"properties": map[string]any{
+					"kind":       map[string]any{"type": "string", "enum": []any{"closeout_binding", "do_native"}},
+					"binding_id": stringSchema,
+					"workflow":   stringSchema,
+					"scope":      stringSchema,
+					"do_ref":     stringSchema,
+				},
+			},
+			"work": map[string]any{
+				"type":                 "object",
+				"additionalProperties": true,
+				"properties": map[string]any{
+					"work_id": stringSchema, "attempt_id": stringSchema,
+					"accepted_output_refs": map[string]any{"type": "array", "items": ref},
+				},
+			},
+			"source": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"required":             []string{"active_generation_id"},
+				"properties": map[string]any{
+					"active_generation_id": stringSchema,
+					"source_revision":      map[string]any{"type": "string"},
+					"source_hashes":        map[string]any{"type": "array", "items": ref},
+				},
+			},
+			"delta": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"properties": map[string]any{
+					"changed_paths": map[string]any{"type": "array"},
+					"evidence":      map[string]any{"type": "array", "items": evidence}, "nodes": map[string]any{"type": "array", "items": node},
+					"edges": map[string]any{"type": "array", "items": edge}, "observations": map[string]any{"type": "array"},
+					"claims": map[string]any{"type": "array", "items": claimRow}, "aliases": map[string]any{"type": "array"},
+					"path_index": map[string]any{"type": "array"}, "retirements": map[string]any{"type": "array"},
+					"obligations": obligations,
+				},
+			},
+			"result": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"required":             []string{"state", "reason"},
+				"properties": map[string]any{
+					"state":  map[string]any{"type": "string", "enum": []any{"partial", "registered"}},
+					"reason": stringSchema,
+				},
+			},
+		},
+	}
 }
 
 func deepResearchTrackPrepareInputSchema() map[string]any {
@@ -1143,7 +1329,11 @@ func implementResultMergeInputSchema() map[string]any {
 		"description":          "WorkerTaskResult for specify-runtime implement result-merge --result-json. Leader merges; workers must not write worker-results/ themselves.",
 		"required":             []string{"status"},
 		"properties": map[string]any{
-			"task_id": map[string]any{"type": "string", "pattern": "^T\\d+$", "description": "Optional when --task-id is supplied; must match when present"},
+			"cognition_delta": workerdelta.InputSchema(),
+			"changed_paths":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"changedPaths":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"files_changed":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"task_id":         map[string]any{"type": "string", "pattern": "^T\\d+$", "description": "Optional when --task-id is supplied; must match when present"},
 			"status": map[string]any{
 				"type":        "string",
 				"enum":        []any{"success", "blocked", "failed", "succeeded", "completed", "done", "pass", "error"},

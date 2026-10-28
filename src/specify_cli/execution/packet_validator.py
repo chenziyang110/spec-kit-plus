@@ -9,6 +9,7 @@ from specify_cli.design_intelligence import validate_ui_source_continuity
 from specify_cli.design_intelligence.ui_migration import migration_component_binding_errors
 
 from .packet_schema import UI_CONTRACT_FIELDS, UIContract, WorkerTaskPacket
+from .cognition_delta import cognition_delta_contract
 
 
 MP_ID_RE = re.compile(r"^MP-\d{3}$")
@@ -1344,6 +1345,8 @@ def validate_worker_task_packet(
     requires a write scope. This checks a declared contract, not agent identity.
     """
 
+    if packet.cognition_delta_contract and packet.cognition_delta_contract != cognition_delta_contract(packet.task_id):
+        raise PacketValidationError("DP1", "unsupported packet cognition_delta_contract")
     if (
         not packet.intent.outcome
         or not packet.intent.constraints
