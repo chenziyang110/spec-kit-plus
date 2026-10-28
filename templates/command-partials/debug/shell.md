@@ -33,7 +33,7 @@ Drive a resumable debugging workflow that finds the real failure mechanism befor
 ## Output Contract
 
 - Keep the debug session state, current hypothesis, evidence, and verification outcome explicit.
-- Produce a verified fix only when the evidence supports it.
+- For a confirmed `diagnose only` request, use Diagnosis-Only Delivery in `references/debug-state.md`: deliver supported findings, not a `resolved` defect or verification of a nonexistent fix. Produce a verified fix only when repair is authorized and evidence supports it.
 - Report blocked or unresolved states honestly when the investigation cannot yet close.
 
 ## Guardrails
@@ -41,7 +41,7 @@ Drive a resumable debugging workflow that finds the real failure mechanism befor
 - No speculative fixes before evidence supports the failure mechanism.
 - No final resolution without fresh verification evidence.
 - No subagent may take ownership of the debug session state.
-- No subagent-assisted work may continue without a safe lane; blocked debug execution records `subagent-blocked`, `execution_surface: none`, and a concrete blocked reason.
+- Do not dispatch without a safe lane. Record historical dispatch failure in session evidence, repair or use an authorized fallback, and persist the actual current execution model/surface. A `subagent-blocked` dispatch is not a terminal Debug block while a safe authorized recovery path remains.
 
 ## Professional UI Contract Continuity
 

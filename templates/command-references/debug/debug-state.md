@@ -28,9 +28,9 @@ Preserved Contract: the debug file remains the durable source of truth for evide
   Legacy true or generic diagnose-and-fix without this purpose and matching
   concrete approved contents cannot authorize repair. These checks do not imply
   runtime enforcement.
-- **causal_map_completed**: `false` until the Stage 1A causal map, dimension scan, and candidate board are persisted through leased `specify-runtime artifact patch` calls.
-- **investigation_contract_completed**: `false` until the Stage 1B investigation contract is persisted through a leased `specify-runtime artifact patch` call.
-- **log_investigation_plan_completed**: `false` until the Stage 1B log investigation plan is persisted as its own section through a leased `specify-runtime artifact patch` call.
+- **causal_map_completed**: `false` until the selected map-backed minimum causal map, or deep Stage 1A map with dimension scan and candidate board, is accepted and persisted through leased `specify-runtime artifact patch` calls. Do not impose deep-only fields on valid minimum intake.
+- **investigation_contract_completed**: `false` until the selected minimum-intake or deep Stage 1B investigation contract is accepted and persisted through a leased `specify-runtime artifact patch` call.
+- **log_investigation_plan_completed**: `false` until the selected minimum-intake or deep Stage 1B log plan is accepted and persisted as its own section through a leased `specify-runtime artifact patch` call.
 - **observer_framing_completed**: `false` until the canonical intake package is complete.
 - **legacy_session_needs_reintake**: `true` only when a resumed legacy session cannot safely satisfy the canonical intake gate.
 - **Current Focus**: replace this section on every durable update through a fresh `specify-runtime artifact patch --section` lease. Reflect exactly what the leader is doing now.
@@ -59,8 +59,8 @@ The session file must always make it clear:
 
 1. **Check for Active Session**
    - List active records with `specify-runtime artifact list --path-prefix .planning/debug`; do not enumerate `.planning/debug/*.md` directly.
-   - If a session exists and no new issue is described, resume it.
-   - If a new issue is described, start a new session.
+   - Prefer an explicit session slug or a validated active binding; otherwise resume only one unambiguous matching active session. If multiple sessions match, ask only for session selection; never choose by recency alone.
+   - Classify feedback against the active symptom before creating a new session. A continuing report is not automatically a new issue; preserve the parent until its own verification completes.
    - If the active session is `awaiting_human_verify` and the user reports another problem, classify it as `same_issue`, `derived_issue`, or `unrelated_issue`.
    - Default to `same_issue` unless repository evidence proves the other two classes.
    - `same_issue` reopens the parent session.
@@ -82,17 +82,66 @@ The session file must always make it clear:
    - Query `Evidence` through `artifact show --section`, add each confirmed finding in memory, and replace the section through `artifact patch --section`.
    - Query `Eliminated` through `artifact show --section`, add each disproven theory in memory, and replace the section through `artifact patch --section`.
 
-4. **Fix and Verify**
+4. **Diagnosis-Only Delivery or Authorized Fix**
+   - For a confirmed `diagnose only` request, use Diagnosis-Only Delivery below and return its findings without entering an unrequested fix. The following repair and human-verification steps apply only when repair is authorized.
    - Present the discovered problem and decisive evidence, concrete repair and scope, expected outcome, risks, and validation. Wait for explicit user approval and persist the exact payload plus digest before repair writes or fix-worker dispatch. Material changes to cause, repair, scope, risk, UI target, or authority invalidate this approval: pause mutation, explain why, and obtain only the changed decision through the Debug Checkpoint Amendment before resuming; bounded diagnosis within scope may continue.
    - Apply the minimum code change needed to address the confirmed root cause when `execution_model: leader-inline`.
    - When `execution_model: subagent-assisted`, delegate it through a validated subagent lane and integrate the returned handoff on the leader path.
-   - When the fix cannot proceed safely, cannot be packetized, or cannot be verified, record `subagent-blocked` with `execution_surface: none` and a concrete blocked reason instead of layering a speculative fix.
+   - Record `subagent-blocked` as dispatch evidence when a lane is unsafe or unavailable; repair its packet/tool path, serialize it, or use an authorized leader fallback. Do not close Debug merely because delegation failed. Preserve the exact interrupted gate and resume it after recovery.
    - Verify with the reproduction steps and relevant tests.
 
 5. **Human Verification**
    - Once the fix is verified by the agent, move into a formal human verification stage instead of resolving immediately.
-   - The session closes only after explicit human confirmation or an evidence-backed classification into `same_issue`, `derived_issue`, or `unrelated_issue`.
+   - The session closes only after explicit human confirmation of the verified fix. Classification as `same_issue`, `derived_issue`, or `unrelated_issue` routes feedback; classification is not confirmation and never closes the parent.
 
 6. **Archive and Commit**
    - After human confirmation, mark the session resolved through a leased `specify-runtime artifact patch`. If archival is requested, prepare a fresh lease and run recoverable `specify-runtime artifact delete`; never move or rename the file directly.
-   - Commit the fix and the debug documentation.
+   - Commit only the scoped fix and debug documentation when authorized; preserve unrelated changes. This does not authorize push, merge, release, or deployment.
+
+## Diagnosis-Only Delivery
+
+When the confirmed checkpoint says `fix_authority: diagnose only`, complete
+the requested diagnosis, not defect resolution. Keep confirmation and framing
+gates, gather permitted evidence, and report the supported causal conclusion,
+alternatives, confidence, remaining uncertainty, and the exact evidence basis.
+Do not add or modify source, tests, harnesses, dependencies, configuration, or
+instrumentation merely to make a diagnosis-only request follow the repair path.
+Choose read-only or already-authorized isolated diagnostic probes instead.
+
+Persist the findings in existing `Current Focus`, `Evidence`, and `Resolution`
+sections. Retain the actual investigation state: no new status such as
+`diagnosed`, no `resolved` claim, no fabricated GREEN or closeout receipt, and no
+human-verification request for a nonexistent fix. Completion of the requested
+diagnosis does not mean the defect was repaired. Keep unanswered diagnosis
+obligations explicit; unavailable required evidence is not completed analysis.
+
+An unrequested repair is not a user-owned blocker. Deliver the agreed findings
+without requiring the user to authorize extra work. A later request for repair
+uses the existing checkpoint amendment and fresh technical/write gates; it does
+not inherit source-write permission from diagnosis alone.
+
+## Earliest-Unsatisfied-Gate Resume
+
+On entry/resume, read only the session identity, `Current Focus`, confirmation,
+framing flags, `Execution Intent`, and relevant `Resolution`/evidence sections.
+Use a current runtime lease/revision and the recorded input/output evidence
+basis. Do not reopen a valid confirmation or recreate accepted intake merely
+because a new invocation started. Load a detailed reference only at its trigger;
+reuse unchanged evidence instead of repeatedly rereading the whole repository.
+
+Resume the earliest unsatisfied gate: framing -> reproduction and causal proof
+-> exact repair confirmation -> guarded fix -> final-revision validation -> human verify ->
+closeout. Check substantive outputs, not booleans alone. A changed input or
+source revision/digest reopens only affected technical gates and consumers;
+material boundary/authority changes still require the checkpoint amendment.
+Human feedback must bind to the currently verified fix, not a superseded patch.
+
+Persist the active candidate/probe, accepted and pending lanes, failed gate,
+owned changed paths, evidence basis, attempted recovery, live resource owners,
+and exact next action in the existing sections before a join, interruption or
+human wait. Do not add new top-level fields or a parallel state file. Use one
+same-checkpoint `artifact patch-batch` when supported; otherwise patch through
+fresh leases. On a lease conflict, reread and merge the intended semantic delta
+against current state, preserving history; never replay a stale whole-section
+replacement that erases newer evidence. Inspect a prior action's recorded
+result before retrying a possibly completed mutation or redispatching a lane.

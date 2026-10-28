@@ -51,11 +51,11 @@ Read `references/autonomous-blocker-recovery.md` before treating any
 investigation, harness, or verification failure as terminal.
 Read `references/human-confirmation.md`, then
 `references/investigation-contract.md`. Read
-`references/investigator-worker.md` only for delegated evidence. Create an
-absent `.planning/debug/<slug>.md` only with `specify-runtime artifact scaffold
---kind debug-session`, or resume it through targeted `artifact show`; mutate it
-only through fresh leased `artifact patch` calls. The shared runtime scaffold is
-the durable source of truth for every debug invocation.
+`references/investigator-worker.md` only for delegated evidence. Apply the
+session selection, earliest-unsatisfied-gate resume, evidence join, and final
+revision checks in the investigation contract. The leader schedules the loop;
+do not wait for an assumed graph-engine callback or invoke a Python workflow.
+The shared runtime scaffold remains the durable source of truth.
 Read `references/consequence-gate.md` when the suspected cause or fix touches
 lifecycle, shared state, destructive behavior, compatibility, migration,
 security, concurrency, retry, recovery, or generated consumers.
@@ -80,6 +80,14 @@ uses that same guarded Work/Activity lifecycle before its bounded fix; skipping
 Debug state does not skip write coordination. Checkpoint validation and call
 `specify-runtime execution complete` only after fresh passing validation and
 terminal workflow state.
+
+Create or resume without clearing still-valid confirmations or completed framing.
+After confirmation and accepted framing, repair only within the exact approved
+scope. For a `diagnose only` request, use Diagnosis-Only Delivery in
+`references/investigation-contract.md`; deliver the diagnosis without claiming the
+defect `resolved` or requesting verification of a nonexistent fix. Resume the
+earliest unsatisfied technical gate and check Write Authorization and Guard
+Scope before any source, test, harness, configuration, or instrumentation write.
 
 Start new or materially changed intake with `understanding_confirmed: false`;
 on resume, validate and reuse an unchanged exact repair approval without
@@ -114,7 +122,7 @@ investigation contract; after that diagnostic work, investigate again and
 obtain `evidence-backed-repair` approval before repairing the product. Do not
 guess a cause or treat diagnostic authority as repair authority.
 
-Preserve the debug session if repair requires a harness, launcher, dependency,
+Preserve the debug session if authorized repair requires a harness, launcher, dependency,
 runner, generated tool, or other supporting control-plane change beyond the
 first fix scope. If it materially changes the approved repair, obtain the
 bounded amendment before writes. Expand the smallest registered causal scope
@@ -135,10 +143,11 @@ input event, data condition, viewport/continuous resize path, and state after
 the fix; source inspection or component tests cannot
 prove a visual symptom resolved.
 Delegate only independent evidence lanes or an independent review that improves
-confidence. Never reconstruct a debug-session template or create the state file
-directly.
+confidence. Join revision-bound results before causal decisions, recover failed
+lanes, and continue independent dependency-ready work. Never reconstruct a
+debug-session template or create the state file directly.
 
-After agent verification and related-risk review, move to
+After agent verification of an authorized fix and related-risk review, move to
 `awaiting_human_verify`; do not resolve or archive until explicit human
 confirmation. Only after the lifecycle rules in the investigation contract are
 satisfied, use the plan already obtained, fill returned agent-owned fields, and execute

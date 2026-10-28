@@ -14,6 +14,22 @@ Preserved Contract: fixes must target confirmed root cause and be verified throu
 
 Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the bounded same-checkpoint delta in memory. When one semantic boundary updates multiple debug-session frontmatter fields or sections and `api list` exposes `artifact.patch-batch`, prefer one `specify-runtime artifact prepare --path .planning/debug/[slug].md` plus one `specify-runtime artifact patch-batch --lease <lease-id>` that aggregates those updates. For a single target update, or on older runtimes, fall back to one leased `specify-runtime artifact patch` using `--frontmatter-json` or `--section`. Every debug-state update below means `SESSION PATCH`; never edit the Markdown file directly.
 
+## Write Authorization and Guard Scope
+
+Before any source, test, harness, configuration, or instrumentation write,
+check the confirmed authority, current anchors, and declared scope through
+`specify-runtime execution guard`. Diagnosis-only authority does not permit
+these writes; use Diagnosis-Only Delivery in `references/debug-state.md`.
+Register necessary supporting scope through the current owner. After scope
+expansion or source drift affecting the binding, renew the guard before the
+affected write; an earlier guard is not an unlimited editing permit.
+
+A permitted supporting repair or diagnostic probe may precede original target
+RED only within its own guarded scope. Preserve its before-state, causal
+evidence, observed result, and cleanup separately. This does not bypass target
+RED before changing the original target's production behavior, authorize an
+unrelated refactor, or count supporting recovery as resolution of that defect.
+
 ## Fix and Verify Protocol
 
 - Enter `fixing` only after the root cause is confirmed and the user has
@@ -36,11 +52,13 @@ Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the 
   the approved registered causal scope, repair the harness inside the active
   Debug recovery lane, and return to reproduction without invoking another
   user-invoked workflow. Use `/sp-specify` only when the user explicitly chooses
-  a formal spec-first path.
+  a formal spec-first path. Verify the harness and resume the original reproduction in the same invocation; do not route an agent-capable harness repair to another workflow.
 - Reuse an unchanged evidence-backed repair approval for bounded test/harness/
   instrumentation work already named in `change_scope` and `validation_plan`;
   do not request redundant diagnostic approval. A new material write scope
   requires the delta-only checkpoint amendment and refreshed Work guard.
+- RED must match the target failure signature on the pre-fix behavior. An import error, missing dependency, timeout, or broken fixture does not satisfy RED for a different defect. Preserve the original failure evidence and do not weaken the assertion to obtain GREEN.
+- Before production edits, verify exact fix authority, current source/patch anchors, accepted causal evidence, and `specify-runtime execution guard`. Diagnosis-only authority does not permit a fix or instrumentation write. Keep unrelated user changes untouched.
 - Apply the minimum code change needed to address the confirmed root cause when `execution_model: leader-inline`; when `execution_model: subagent-assisted`, delegate it through a validated subagent lane and integrate the returned evidence on the leader path.
 - For a confirmed UI target baseline, recapture the same real entry point,
   viewport/window, and state after the fix; compare it with the baseline and
@@ -70,7 +88,8 @@ Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the 
   - resulting state transition,
   - and external observation.
 - Patch `loop_restoration_proof` through a fresh `specify-runtime artifact patch` lease before moving to `resolved`. This loop restoration proof should show why the full loop is healthy now, not merely why one surface looks better.
-- If verification fails, return to `investigating` with updated evidence. Do not keep layering fixes without updating the hypothesis.
+- If verification fails, return to `investigating` with updated evidence. Distinguish the target defect, a repair-induced regression, and an infrastructure failure. Recover supporting failures and resume the original gate; a repair-induced regression invalidates affected downstream evidence. Do not keep layering fixes without updating the hypothesis.
+- Before final verification, remove only session-owned temporary probes/resources or document deliberately retained diagnostics. Re-run affected checks after cleanup on the final integrated revision. Never restore an entire file or reset the worktree to discard a failed patch; reverse only owned changes after inspecting the current diff.
 - If automated or human verification fails repeatedly without a stronger causal explanation, stop the local fix loop. If `.planning/debug/[slug].research.md` is absent, create its fixed shape with `specify-runtime artifact scaffold --kind research --path .planning/debug/[slug].research.md`; otherwise query it with `artifact show`. Patch only its named semantic sections through fresh leases, never submit or reconstruct the whole checkpoint, and do not change code again until the research gate is satisfied.
 - Persist missing contract facts, environment assumptions, external references, or repository evidence into that debug-local research checkpoint through fresh `specify-runtime artifact patch` leases.
 - Treat the returned project cognition compass packet and readiness as the default intake source for brownfield debug runtime coverage; use only returned `minimal_live_reads` when needed.

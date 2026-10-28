@@ -1896,6 +1896,9 @@ class IntegrationBase(ABC):
                 arg_placeholder=arg_placeholder,
                 project_root=project_root,
             )
+            # Sidecars share the command's namespace. References within them
+            # must point to that same installed root, as the entrypoint does.
+            rendered = self.rewrite_command_reference_links(rendered, command_name)
             created.append(
                 self.write_file_and_record(
                     rendered,
@@ -4323,30 +4326,23 @@ class SkillsIntegration(IntegrationBase):
             think_addendum = (
                 "\n"
                 f"## {agent_name} Deep Debug Intake Dispatch\n\n"
-                f"When running `sp-debug` in {agent_name}, use the project cognition compass packet as the default "
-                "intake source. If the **Gathering** stage can build `map-backed-minimum-intake`, continue directly "
-                "into evidence investigation with the primary candidate, contrarian candidate, transition memo, "
-                "and log plan already recorded.\n"
-                "\n"
-                "If project cognition is missing, ambiguous, stale, or insufficient for the failing area, Gathering "
-                "may return an `await_input` containing a `think_subagent_prompt`. This prompt is a self-contained "
-                "deep fallback reasoning task for a fresh subagent.\n"
-                "\n"
-                "**When you receive a think_subagent_prompt:**\n"
-                f"- Spawn a subagent with the exact prompt text via `{dispatch_tool}`.\n"
-                "- The think subagent does NOT read source code and does NOT run commands — it is a pure reasoning agent.\n"
-                f"- Use `{join_tool}` to wait for the think subagent's result.\n"
-                "- The result is hybrid: free-text analysis followed by `---` and a YAML block.\n"
-                "- Parse the YAML block after `---` in memory, acquire a fresh debug-session lease with `specify-runtime artifact prepare`, and persist these fields with `specify-runtime artifact patch`:\n"
-                "  - `causal_map` (symptom_anchor, closed_loop_path, break_edges, bypass_paths, family_coverage, candidates, adjacent_risk_targets, dimension_scan, candidate_board)\n"
-                "- Ensure Stage 1A covers at least 3 families and every family includes a falsifier.\n"
-                "- These Stage 1A candidates are still the observer-framing alternative cause candidates; do not collapse them into one family too early.\n"
-                "- Persist `causal_map_completed: true` through that `specify-runtime artifact patch` lease.\n"
-                "- Then continue the debug session — the next GatheringNode run will request the contract planner stage.\n"
-                "- If Gathering returns `contract_subagent_prompt`, use it for the contract-planner subagent and persist its result into `observer_framing`, `transition_memo`, `investigation_contract`, and top-level `log_investigation_plan` through a fresh `specify-runtime artifact patch` lease.\n"
-                "- Treat the causal-map output as Stage 1A and the contract-planner output as Stage 1B. Investigation starts only after both stages are complete, unless map-backed minimum intake already completed those fields.\n"
-                "- Stage 1B must still produce a primary suspected loop, a contrarian candidate, and a recommended first probe before investigation begins.\n"
-                "- Do NOT skip the think subagent once the runtime requested deep fallback. Context isolation is the purpose of that step.\n"
+                f"When running `sp-debug` in {agent_name}, the leader schedules intake from the current "
+                "project cognition compass packet and permitted report context. Use accepted "
+                "`map-backed-minimum-intake` when sufficient, preserving its primary and contrarian "
+                "candidates, transition memo and log plan. Do not impose deep-only fields on it.\n"
+                "- When cognition is missing, ambiguous, stale or insufficient, compile a bounded Stage 1A "
+                "causal-map assignment from the report, allowed context, explicit unknowns and falsifiers.\n"
+                f"- Dispatch via `{dispatch_tool}` and join via `{join_tool}`, or record an authorized "
+                "leader fallback. Intake workers do not read source/log/test evidence or run commands.\n"
+                "- Inspect actual returned fields and family/falsifier coverage before accepting Stage 1A. "
+                "Persist accepted causal_map and causal_map_completed through fresh artifact leases.\n"
+                "- Stage 1B depends on accepted Stage 1A. Compile its investigation/log contract assignment "
+                "with exact accepted inputs, then inspect and persist observer framing, transition memo, "
+                "investigation contract and log plan before evidence investigation.\n"
+                "- Native tools execute work; Go artifact operations own state. Do not wait for an assumed "
+                "graph-engine callback or invoke a Python debug workflow.\n"
+                "- Read-only evidence follows accepted framing. Repair writes require exact approved "
+                "evidence-backed-repair authority and fresh execution guards.\n"
             )
             content = content.replace(
                 "**Hard rule:** During `investigating`",
@@ -4381,7 +4377,7 @@ class SkillsIntegration(IntegrationBase):
             "- Wait for every subagent's structured handoff before accepting the join point or changing the investigation stage.\n"
             "- Wait for every delegated lane's structured handoff before accepting the join point or changing the investigation stage.\n"
             "- Do not treat an idle subagent as done work; idle without a consumed handoff means the evidence lane is still unresolved.\n"
-            "- Do not interrupt or shut down subagent work before the handoff has been returned inline, submitted through its runtime result owner, or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
+            "- For healthy lanes, wait for their handoff. A crashed, timed-out or unsafe worker may be cancelled through its native owner without waiting for a missing handoff. Cancellation is not task acceptance: preserve partial evidence and owned resource identities, confirm quiescence before redispatch, and do not broadly kill other processes.\n"
             f"- Use `{join_tool}` only after the current investigation fan-out reaches its join point.\n"
             f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
             "- Do not resolve the session directly from successful automated verification. Successful automated verification must hand off into formal human verification.\n"

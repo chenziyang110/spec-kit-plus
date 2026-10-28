@@ -54,8 +54,8 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Project cognition first**: When the project cognition compass packet returns usable task-local navigation, use it as the default intake surface instead of rebuilding a broad outsider map from scratch.
 - **Map-backed minimum intake**: A ready/review cognition bundle may supply a minimum causal map, investigation contract, log plan, transition memo, primary candidate, and contrarian candidate; persist that package only through a fresh `specify-runtime artifact patch` lease.
 - **Deep intake is fallback, not the default**: Use Stage 1A and Stage 1B only when project cognition is missing, stale, ambiguous, insufficient for the failing area, or the lightweight investigation exposes competing truth owners.
-- **Stage 1A: Causal Map**: In fallback/deep mode, the first subagent builds a family-spanning causal map before contract generation begins.
-- **Stage 1B: Investigation Contract**: In fallback/deep mode, the second subagent converts the causal map into the minimum contract the investigator must consume.
+- **Stage 1A: Causal Map**: In fallback/deep mode, a native subagent or recorded authorized leader fallback builds a family-spanning causal map before contract generation begins.
+- **Stage 1B: Investigation Contract**: In fallback/deep mode, a native subagent or recorded authorized leader fallback consumes accepted Stage 1A output and compiles the contract the investigator must consume.
 - **The second stage must consume the candidate queue**: When deep intake is used, investigation cannot skip the Stage 1B contract and jump straight to freeform fixes.
 - **Family coverage scales with intake strength**: Map-backed intake needs a primary and contrarian candidate; deep fallback still needs broader family coverage and falsifiers.
 - **Observer framing remains the bridge artifact**: Whether map-backed or deep, persist `primary suspected loop`, `recommended first probe`, and a `contrarian candidate` through a fresh `specify-runtime artifact patch` lease before evidence collection begins.
@@ -77,18 +77,40 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 ### Required Context Inputs
 
+Optional feature artifacts require a valid feature binding and an existing,
+relevant artifact. Query only their needed sections through the artifact owner
+after the evidence-read gates pass. Standalone Debug does not require a formal
+feature package: do not create missing spec, plan, tasks, or context artifacts
+or launch a specification workflow merely to satisfy a context checklist.
+Missing optional inputs are recorded as not applicable, not fabricated.
+A required artifact of an actually bound feature remains a real input gate.
+
 - `.specify/memory/constitution.md`
 - compact `learning start --command debug` results
 - selected `learning show` records whose triggers match the failure
-- the active feature's `spec.md`, `plan.md`, and `tasks.md`
+- the active feature's existing relevant `spec.md`, `plan.md`, and `tasks.md`, only with a valid feature binding
 - if `context.md` exists, query its relevant section through `specify-runtime artifact show` before proposing a fix
+
+For a `diagnose only` request, use Diagnosis-Only Delivery in
+`references/debug-state.md`. Return the requested diagnosis and uncertainty
+without entering an unrequested repair or claiming the defect resolved.
+
+## Resume Without Repeating Intake
+
+Read `references/debug-state.md` on every resumed full Debug invocation. Reuse
+accepted intake artifacts and the exact persisted confirmation when the symptom,
+boundary, risk, authority, and UI baseline remain unchanged. A new session starts
+unconfirmed; resuming is not a reason to reset confirmation or ask the whole
+checkpoint again. Source or evidence drift reopens affected technical gates,
+not automatically a user-owned decision. A material authority/boundary delta
+still uses the reason-first amendment below.
 
 ## Session Lifecycle
 
 1. **Check for Active Session**
    - List existing sessions through `specify-runtime artifact list --path-prefix .planning/debug` (excluding archived records).
-   - If a session exists and no new issue is described, resume it.
-   - If a new issue is described, start a new session.
+   - Prefer an explicit session slug or a validated active binding; otherwise resume only one unambiguous matching active session. If multiple sessions match, ask only for session selection; never choose by recency alone.
+   - Classify feedback against the active symptom before creating a new session. A continuing report is not automatically a new issue; preserve the parent until its own verification completes.
    - If the active session is `awaiting_human_verify` and the user reports another problem, classify it as `same_issue`, `derived_issue`, or `unrelated_issue`.
    - Default to `same_issue` unless repository evidence proves the other two classes.
    - `same_issue` reopens the parent session.
@@ -119,11 +141,11 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 5. **Human Verification**
    - Once the fix is verified by the agent, move into a formal human verification stage instead of resolving immediately.
-   - The session closes only after explicit human confirmation or an evidence-backed classification into `same_issue`, `derived_issue`, or `unrelated_issue`.
+   - The session closes only after explicit human confirmation of the verified fix. Classification as `same_issue`, `derived_issue`, or `unrelated_issue` routes feedback; classification is not confirmation and never closes the parent.
 
 6. **Archive and Commit**
    - After human confirmation, mark the session resolved through a fresh `specify-runtime artifact patch` lease. If archival is requested, prepare a fresh delete lease and use recoverable `specify-runtime artifact delete`; never move or rename the session file directly.
-   - Commit the fix and the debug documentation.
+   - Commit only the scoped fix and debug documentation when authorized; preserve unrelated changes. This does not authorize push, merge, release, or deployment.
 
 ## Required Context Inputs
 
@@ -137,7 +159,8 @@ moves into reproduction, logs, tests, or source-code reads.
 **Project cognition gate:** query the active project's runtime before broad
 repository reads.
 
-Run or emulate:
+Run the project-local runtime command; never emulate its output or invent a
+readiness result:
 
 ```text
 {{specify-subcmd:specify-runtime cognition compass --intent debug --query="$ARGUMENTS" --format json}}
@@ -145,10 +168,16 @@ Run or emulate:
 
 After the default compass packet, run the advanced `lexicon -> semantic_intake -> query` path only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions. In that escalation, use `specify-runtime cognition lexicon --mode catalog` as the alias catalog, write agent-authored `semantic_intake` and `concept_decisions`, then run `specify-runtime cognition query --query-plan "<query_plan_json>"`; include `query_plan`, `semantic_intake`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `repository_search_terms`, project-language search terms, and facet coverage; do not search only the raw user words before source search. Agent-owned semantic normalization remains mandatory: `agent_normalization` and raw lexicon ranking are bootstrap signals only; if `agent_normalization` is omitted, treat it as `required=false`; use `write_semantic_intake_from_alias_catalog` when needed. Raw lexicon ranking is only a bootstrap; CJK or mixed CJK/ASCII input still requires agent-owned normalization even when positive raw lexical matches exist. The agent still owns translation. Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`.
 
+Navigation hints are not read authorization. Queue `minimal_live_reads` and
+other source/log/test routes during intake; execute them only after accepted
+framing. Safe bounded diagnosis does not require repair confirmation.
+Repair writes proceed only after confirmation and accepted framing, with exact
+approved authority and fresh execution guards. A ready map waives neither gate.
+
 Use the returned readiness:
 
-- `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
-- `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
+- `query_ready`: queue top-level `minimal_live_reads` and lane-level `first_pass_paths` reasons; execute the evidence pass only after accepted framing. Repair writes still require exact approval.
+- `review`: inspect permitted `coverage_diagnostics` metadata and queue only the returned `minimal_live_reads` for the post-framing evidence pass.
 - `needs_rebuild`: route by `recommended_next_action.action_id`, not readiness alone. Preserve resumable actions such as `complete_scan_packets`; only `action_id=project_cognition.rebuild` may use `rebuild_reasons[]` and `recommended_next_action.workflow_routes.classic.steps` for the rebuild handoff.
 - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
 - **CARRY FORWARD**: Persist the selected capability or symptom, evidence routes,
