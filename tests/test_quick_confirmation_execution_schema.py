@@ -54,6 +54,17 @@ class QuickConfirmationExecutionSchemaTests(unittest.TestCase):
     def assert_invalid(self, value: dict, keyword: str) -> None:
         self.assertIn(keyword, [error.validator for error in self.validator.iter_errors(value)])
 
+    def test_read_scope_preserves_optional_typed_declaration(self) -> None:
+        self.assert_valid(confirmation())
+        for value in ([], ["src/dependency.go"]):
+            doc = confirmation()
+            doc["decision"]["items"][0]["read_scope"] = value
+            self.assert_valid(doc)
+        for value in (None, "src/a.go", 1, [1], [""], [" src/a.go"]):
+            doc = confirmation()
+            doc["decision"]["items"][0]["read_scope"] = value
+            self.assertTrue(list(self.validator.iter_errors(doc)))
+
     def test_schema_is_well_formed(self) -> None:
         Draft202012Validator.check_schema(self.schema)
 
@@ -63,6 +74,29 @@ class QuickConfirmationExecutionSchemaTests(unittest.TestCase):
                           execution_row(status="accepted", acceptance_evidence=["legacy fixture"])):
             with self.subTest(execution=execution):
                 self.assert_valid(confirmation(execution))
+
+    def test_current_state_evidence_is_optional_for_existing_contracts(self) -> None:
+        for value in (None, [], ["Existing source establishes the current behavior"],
+                      ["No implementation exists at the checked owner; request supplies the goal"]):
+            doc = confirmation()
+            if value is not None:
+                doc["decision"]["current_state_evidence"] = value
+            with self.subTest(value=value):
+                self.assert_valid(doc)
+
+    def test_current_state_evidence_is_a_string_array(self) -> None:
+        for value in (None, "unchecked claim", 1, True, {}, [None], [1], [True], [{}]):
+            doc = confirmation()
+            doc["decision"]["current_state_evidence"] = value
+            with self.subTest(value=value):
+                self.assert_invalid(doc, "type")
+
+    def test_current_state_evidence_rows_reject_blank_strings(self) -> None:
+        for value, keyword in (([""], "minLength"), (["   "], "pattern")):
+            doc = confirmation()
+            doc["decision"]["current_state_evidence"] = value
+            with self.subTest(value=value):
+                self.assert_invalid(doc, keyword)
 
     def test_started_worker_lock_is_representable(self) -> None:
         self.assert_valid(confirmation(execution_row(requires_worker=True)))
@@ -74,6 +108,21 @@ class QuickConfirmationExecutionSchemaTests(unittest.TestCase):
             worker_result_ref=".planning/quick/fixture/worker-results/Q1.json",
             acceptance_evidence=["test:synthetic-proof"],
         )))
+
+    def test_existing_worker_receipt_bindings_are_representable(self) -> None:
+        self.assert_valid(confirmation(execution_row(
+            status="accepted", worker_result_sha256="a" * 64,
+            worker_attempt_id="Q1-attempt-2", worker_submission_sequence=2,
+        )))
+
+    def test_existing_worker_receipt_bindings_keep_their_native_types(self) -> None:
+        for key in ("worker_result_sha256", "worker_attempt_id"):
+            for value in (True, 1, [], {}):
+                with self.subTest(key=key, value=value):
+                    self.assert_invalid(confirmation(execution_row(**{key: value})), "type")
+        for value in (True, "2", None, 1.5, [], {}):
+            with self.subTest(value=value):
+                self.assert_invalid(confirmation(execution_row(worker_submission_sequence=value)), "type")
 
     def test_recorded_inline_fallback_is_representable(self) -> None:
         for status, mode in (("in_progress", None), ("accepted", "leader-inline")):

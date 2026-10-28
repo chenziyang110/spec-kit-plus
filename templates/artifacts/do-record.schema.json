@@ -51,6 +51,63 @@
             ],
             "type": "string"
           },
+          "native_action": {
+            "additionalProperties": false,
+            "properties": {
+              "arguments": {
+                "description": "Actual structured native tool arguments, at most 64 KiB UTF-8, depth 24 and 4096 nodes. Duplicate keys and secret values are rejected. Runtime records this call but never executes it or grants authority over its target.",
+                "maxProperties": 128,
+                "type": "object"
+              },
+              "kind": {
+                "enum": [
+                  "file",
+                  "browser",
+                  "desktop",
+                  "connector"
+                ],
+                "type": "string"
+              },
+              "target": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              "tool": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "tool",
+              "target",
+              "arguments"
+            ],
+            "type": "object"
+          },
+          "native_observation": {
+            "additionalProperties": false,
+            "properties": {
+              "outcome": {
+                "enum": [
+                  "succeeded",
+                  "failed",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              "result": {
+                "description": "Bounded actual native-tool result JSON, at most 64 KiB, depth 24 and 4096 nodes; no secrets or duplicate keys. Stored in a runtime-owned immutable observation snapshot. Unknown outcome is interrupted, never successful."
+              }
+            },
+            "required": [
+              "outcome",
+              "result"
+            ],
+            "type": "object"
+          },
           "result_refs": {
             "items": {
               "additionalProperties": false,

@@ -39,17 +39,28 @@ verification, and exact-path mutation closeout without entering this flow.
 Clean closeout keys on `result_state`; not `status=ok`, `update_id`, `last_update_id`, or freshness alone. Do not present `status=ok` alone as proof
 of cognition freshness or mutation closeout.
 
-1. Resolve the exact session through its CLI owner. On resume, read `references/debug-state.md`, retain valid confirmations and artifacts, and identify the earliest unsatisfied gate; do not restart a completed intake or select a session by recency alone.
-2. Run the Debug Cognition Gate and confirm the Debug Understanding Checkpoint before reproduction, logs, source reads, evidence collection, delegation, edits, or validation. A branch choice is not that confirmation.
-3. Build or reuse the complete map-backed intake; use Stage 1A then Stage 1B only when needed. The leader schedules these dependent stages from accepted artifacts, not from an assumed graph-engine callback. Preserve every framing gate before evidence work.
-4. Choose `leader-inline` or `subagent-assisted` from current capabilities and safe evidence lanes. Read `references/hypothesis-and-root-cause.md` before dispatch, join, or a causal decision. Keep one active causal decision; independent falsifiers may run in parallel without competing production edits.
-5. Establish the original failure and causal evidence. For a confirmed `diagnose only` request, follow Diagnosis-Only Delivery in `references/debug-state.md`, deliver the requested diagnosis, and return without claiming the defect `resolved`. For authorized repair, read `references/fix-gate.md` before any source, test, harness, configuration, or instrumentation write; establish target-specific RED, apply the minimum guarded fix, and recover permitted supporting failures inside Debug.
-6. For an authorized fix, re-run the original reproduction, regression and related-risk checks on the final changed revision, including instrumentation cleanup and UI recapture when applicable. Reject stale, missing, skipped, or wrong-failure evidence. Repair and resume the interrupted gate in the same invocation while any safe authorized action remains.
-7. Persist the complete evidence and exact next action through leased artifact patches. For an authorized fix, agent verification leads to `awaiting_human_verify`, not `resolved`. Read `references/regression-validation-and-closeout.md`; explicit human confirmation, current evidence, and the existing cognition/execution closeout gates are all required for a clean completion claim.
+On resume, read `references/debug-state.md`, retain still-valid confirmation and
+framing, select the exact session without recency guessing, and resume the earliest
+unsatisfied gate. For `diagnose only`, follow Diagnosis-Only Delivery in that
+reference; deliver the requested diagnosis without claiming the defect `resolved`.
 
-If repair is authorized and no reliable automated test surface exists, guard
-the declared supporting write scope and build the smallest viable test harness.
-If that expands beyond the first debug fix lane, preserve the debug
+For an authorized fix, final integrated verification leads to
+`awaiting_human_verify`; require explicit human confirmation of the current fix
+and successful cognition/execution closeout before claiming completion.
+
+1. Choose `leader-inline`, `subagent-assisted`, or `blocked` based on investigation size, safety, and packetizability; keep the leader responsible for session state and root-cause decisions.
+2. Create or resume the debug session through its CLI owner, query required workflow context through `specify-runtime artifact show`, run the Debug Cognition Gate, and understand the report; ask for missing reporter facts only when they block diagnosis.
+3. Build the causal map, investigation contract, log plan, observer framing, and first evidence path; do not form a final root cause before reproduction and evidence.
+4. Investigate one active hypothesis at a time, record eliminated alternatives, confirm root cause, and reject surface-only fixes.
+5. Present the evidence-backed Debug Understanding Checkpoint: explain the discovered problem and decisive evidence, concrete repair and affected scope, expected outcome, risks, and verification. Wait for the user's confirmation before any repair write or fix-worker dispatch. Then apply the minimum safe fix through the selected execution model, verify with reproduction and tests, review related risks, patch the debug session only through leased `specify-runtime artifact patch` calls, and close only as resolved or blocked after the existing final human-verification gate.
+
+If no reliable automated test surface exists, include the smallest viable
+harness in the concrete repair approval. Reuse that approval when its exact
+scope already covers the harness; do not ask again. If the gap prevents
+diagnosis itself, obtain bounded diagnostic-write authority through the same
+checkpoint before building the harness. Diagnostic-only authority does not approve a
+production fix: return to evidence investigation and obtain concrete repair
+confirmation first. If that expands beyond the first debug fix lane, preserve the debug
 session, expand the registered causal scope, and
 repair the harness inside the active Debug recovery lane.
 Do not invoke another user-invoked workflow automatically. Verify it, then return to the reproduction and resume the original reproduction and verification path in the same invocation.

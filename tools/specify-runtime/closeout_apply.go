@@ -29,6 +29,22 @@ var (
 	closeoutApplyAfterPreflightHook            func() error
 )
 
+// Recheck inside the shared cognition lock at each consumption boundary. A
+// source mutation racing verification also leaves native freshness debt; an
+// already computed graph update must never publish an apparently fresh proof.
+func requireCurrentCloseoutBindingLocked(runtime *update.LockedRuntime, paths rt.Paths, intent closeoutIntent) error {
+	if err := requireCloseoutIntentCurrentBinding(paths, intent); err != nil {
+		if intent.StrongBinding != nil {
+			_, debtErr := runtime.MarkDirty(update.DirtyInput{Reason: "closeout-source-binding-changed", OriginCommand: intent.Workflow, OriginFeatureDir: intent.Scope, ScopePaths: intent.ChangedPaths})
+			if debtErr != nil {
+				return fmt.Errorf("%w; source freshness debt could not be recorded: %v", err, debtErr)
+			}
+		}
+		return err
+	}
+	return nil
+}
+
 type closeoutIntentPendingError struct {
 	intent    closeoutIntent
 	intentRef string
@@ -56,7 +72,7 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 	if hasFlag(args, "--help") || hasFlag(args, "-h") {
 		env := NewEnvelope("ok", "project cognition mutation closeout apply usage")
 		env.Data = map[string]any{
-			"usage": "specify-runtime cognition closeout apply --workflow <sp-*> --scope-dir <path> (--payload-json <inline-json> | --payload-json @path | --payload-json - | --delta-session <id>) [--project-root <path>] --format json",
+			"usage": "specify-runtime cognition closeout apply --workflow <sp-*> --scope-dir <path> (--payload-json <inline-json|@path|-> | --delta-session <id> [--registration-json <draft-json|@path|->]) [--project-root <path>] --format json",
 		}
 		return writeEnvelope(stdout, env)
 	}
@@ -86,8 +102,13 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 	deltaSession := optionValue(args, "--delta-session", "")
 	hasPayload := hasFlag(args, "--payload-json")
 	hasDelta := strings.TrimSpace(deltaSession) != ""
+	registrationSource := optionValue(args, "--registration-json", "")
+	hasRegistration := hasFlag(args, "--registration-json")
 	if hasPayload == hasDelta {
 		return writeEnvelope(stdout, scriptDomainError("cognition", fmt.Errorf("closeout apply requires exactly one of --payload-json or --delta-session")))
+	}
+	if hasRegistration && hasPayload {
+		return closeoutApplyInputRejected(stdout, workflow, relScope, fmt.Errorf("--registration-json requires delta mode; inline mode carries scoped_registration in its single payload JSON"))
 	}
 	payloadJSON := ""
 	if hasPayload {
@@ -99,6 +120,21 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 			return closeoutApplyInputRejected(stdout, workflow, relScope, fmt.Errorf("closeout apply --payload-json must not be empty"))
 		}
 		payloadJSON = string(raw)
+	}
+	registrationPayloadJSON := payloadJSON
+	if hasRegistration {
+		raw, err := resolveJSONInputBytesFrom(registrationSource, absRoot, "closeout apply", "--registration-json", stdin)
+		if err != nil {
+			return closeoutApplyInputRejected(stdout, workflow, relScope, err)
+		}
+		if text := strings.TrimSpace(string(raw)); text == "" || text == "null" {
+			return closeoutApplyInputRejected(stdout, workflow, relScope, fmt.Errorf("closeout apply --registration-json must not be empty"))
+		}
+		carrier, err := json.Marshal(map[string]json.RawMessage{"scoped_registration": raw})
+		if err != nil {
+			return closeoutApplyInputRejected(stdout, workflow, relScope, err)
+		}
+		registrationPayloadJSON = string(carrier)
 	}
 
 	prepared, err := prepareCloseoutInput(paths, workflow, payloadJSON, deltaSession, nil, optionValue(args, "--commit-range", ""))
@@ -137,31 +173,94 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		return closeoutApplyInputRejected(stdout, workflow, relScope, err)
 	}
 	defer releaseDo()
+	var strongBinding *closeoutBinding
+	if bindingID := strings.TrimSpace(optionValue(args, "--binding-id", "")); bindingID != "" {
+		strongBinding, err = requireStrongCloseoutBinding(paths.Root, workflow, relScope, bindingID, "")
+		if err != nil {
+			return closeoutApplyInputRejected(stdout, workflow, relScope, err)
+		}
+		if !equalCloseoutPaths(strongBinding.OwnedDelta, changedPaths) {
+			return closeoutApplyInputRejected(stdout, workflow, relScope, fmt.Errorf("payload paths differ from runtime-bound actual owned delta"))
+		}
+	}
 	if closeoutApplyAfterPreflightHook != nil {
 		if err := closeoutApplyAfterPreflightHook(); err != nil {
 			return closeoutApplyInputRejected(stdout, workflow, relScope, err)
 		}
 	}
+	registrationJSON, err := prepareCloseoutRegistration(paths, workflow, relScope, registrationPayloadJSON, strongBinding, doBinding, changedPaths)
+	if err != nil {
+		return closeoutApplyInputRejected(stdout, workflow, relScope, err)
+	}
 	var (
-		updatePayload   update.UpdatePayload
-		gate            validation.GatePayload
-		finalized       rt.Status
-		receipt         map[string]any
-		closeoutState   string
-		intent          closeoutIntent
-		intentRef       string
-		resumed         bool
-		replayedIntents []string
+		updatePayload    update.UpdatePayload
+		gate             validation.GatePayload
+		finalized        rt.Status
+		receipt          map[string]any
+		closeoutState    string
+		intent           closeoutIntent
+		intentRef        string
+		resumed          bool
+		replayedIntents  []string
+		completedReceipt *mutationCognitionReceipt
+		completedStatus  rt.Status
 	)
 	replayedIntents = []string{}
 	lockedErr := update.WithLockedRuntime(paths, func(runtime *update.LockedRuntime) error {
 		var err error
+		if strongBinding != nil {
+			if err := requireCurrentCloseoutBindingLocked(runtime, paths, closeoutIntent{Workflow: workflow, Scope: relScope, ChangedPaths: changedPaths, StrongBinding: strongBinding}); err != nil {
+				return err
+			}
+		}
 		if err := reconcileCloseoutRepairsLocked(paths); err != nil {
 			return err
 		}
-		intent, intentRef, resumed, err = ensureCloseoutIntentWithDoBinding(paths, workflow, relScope, reason, payloadJSON, deltaSession, input.CommitRange, changedPaths, doBinding, prepared.DeltaDigest)
+		intent, intentRef, resumed, err = ensureCloseoutIntentWithRegistration(paths, workflow, relScope, reason, payloadJSON, deltaSession, input.CommitRange, changedPaths, doBinding, strongBinding, registrationJSON, prepared.DeltaDigest)
 		if err != nil {
 			return err
+		}
+		if intent.State == "scope_receipt_recorded" {
+			if intent.ScopedRegistrationJSON != "" {
+				if err := requireCurrentCloseoutBindingLocked(runtime, paths, intent); err != nil {
+					return err
+				}
+				if workflow == "sp-do" {
+					if err := doCheckCognitionBinding(paths.Root, relScope, intent.DoBinding); err != nil {
+						return err
+					}
+				}
+				stored, err := loadMutationCognitionReceipt(absScope)
+				if err != nil || stored == nil {
+					return fmt.Errorf("completed closeout receipt is unavailable: %v", err)
+				}
+				if stored.IntentID != intent.ID || stored.IntentDigest != intent.InputDigest || stored.UpdateID != intent.UpdateID || stored.IntentRef != intentRef || stored.Workflow != workflow || stored.Scope != relScope || !equalCloseoutPaths(stored.ChangedPaths, intent.ChangedPaths) {
+					return fmt.Errorf("completed closeout receipt differs from the exact input")
+				}
+				if allowed, reason := mutationCognitionReceiptGateReason(absScope, stored); !allowed {
+					return fmt.Errorf("completed closeout is no longer closeable: %s", reason)
+				}
+				committed, err := closeoutCommittedUpdate(paths, intent.ID)
+				if err != nil || committed == "" || committed != stored.UpdateID {
+					return fmt.Errorf("completed closeout journal binding is unavailable or differs: %v", err)
+				}
+				if err := requireCompletedCloseoutRegistration(paths, intent); err != nil {
+					return err
+				}
+				completedStatus, err = rt.ReadStatus(paths)
+				if err != nil || completedStatus.LastUpdateID != intent.UpdateID {
+					return fmt.Errorf("completed closeout parent is no longer the current update: %v", err)
+				}
+				pruned, err := pruneCompletedCloseoutIntent(paths, intent)
+				if err != nil || !pruned {
+					return fmt.Errorf("completed closeout cannot be guardedly pruned: %v", err)
+				}
+				completedReceipt = stored
+				return nil
+			}
+			// Publication is already complete. Exact replay must prove that this
+			// owner can be pruned; apply must not rewrite its completed scope proof.
+			return &closeoutReplayError{IntentID: intent.ID, Err: fmt.Errorf("completed closeout intent requires exact replay for guarded pruning; use closeout inspect")}
 		}
 		if closeoutApplyAfterIntentPersistHook != nil {
 			if err := closeoutApplyAfterIntentPersistHook(intent.ID); err != nil {
@@ -189,6 +288,9 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		}
 		input.CloseoutIntentID = intent.ID
 		input.ExpectedDeltaDigest = intent.DeltaDigest
+		if err := requireCurrentCloseoutBindingLocked(runtime, paths, intent); err != nil {
+			return err
+		}
 		updatePayload, err = runtime.RunUpdate(input)
 		if err != nil {
 			return err
@@ -206,6 +308,17 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		}
 		if closeoutApplyAfterUpdateHook != nil {
 			if err := closeoutApplyAfterUpdateHook(updatePayload.UpdateID); err != nil {
+				return err
+			}
+		}
+		if err := requireCurrentCloseoutBindingLocked(runtime, paths, intent); err != nil {
+			return &closeoutStageError{category: "source_binding_changed_after_update", detail: err.Error()}
+		}
+		if _, err := applyCloseoutRegistrationLocked(runtime, paths, intent, updatePayload); err != nil {
+			return &closeoutStageError{category: "scoped_registration_incomplete", detail: err.Error()}
+		}
+		if intent.StrongBinding != nil && (updatePayload.ResultState == update.ResultNoOp || updatePayload.ResultState == update.ResultReady) {
+			if err := runtime.ResolveSourceBindingDebt(workflow, relScope, updatePayload.ChangedPaths); err != nil {
 				return err
 			}
 		}
@@ -228,11 +341,17 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 					return &closeoutStageError{category: "do_source_changed_before_finalize", detail: err.Error()}
 				}
 			}
+			if err := requireCurrentCloseoutBindingLocked(runtime, paths, intent); err != nil {
+				return &closeoutStageError{category: "source_binding_changed_before_finalize", detail: err.Error()}
+			}
 			finalized, err = runtime.CompleteRefresh("workflow-closeout")
 			if err != nil {
 				return &closeoutStageError{category: "complete_refresh_failed", detail: err.Error()}
 			}
 			closeoutState = normalizeMutationCognitionState(updatePayload.ResultState)
+			if err := requireCurrentCloseoutBindingLocked(runtime, paths, intent); err != nil {
+				return err
+			}
 			receipt, err = recordMutationCognitionReceiptBound(absScope, workflow, relScope, closeoutState, closeoutApplyReceiptReason(closeoutState, updatePayload), updatePayload.UpdateID, closeoutApplyEvidence(updatePayload), updatePayload.ChangedPaths, intent.ID, intentRef, intent.InputDigest, intent.DoBinding)
 			if err != nil {
 				return err
@@ -241,6 +360,9 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 				return &closeoutStageError{category: "mutation_receipt_not_closeable", detail: fmt.Sprint(receipt["blocked_reason"])}
 			}
 		case update.ResultPartialRefresh:
+			if err := requireCurrentCloseoutBindingLocked(runtime, paths, intent); err != nil {
+				return err
+			}
 			closeoutState = "partial"
 			if updatePayload.ScopeResultState == update.ResultReady || updatePayload.ScopeResultState == update.ResultNoOp {
 				closeoutState = closeoutStateScopeReady
@@ -263,6 +385,9 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 			if err := closeoutApplyAfterScopeReceiptHook(intent.ID); err != nil {
 				return err
 			}
+		}
+		if err := requireCurrentCloseoutBindingLocked(runtime, paths, intent); err != nil {
+			return err
 		}
 		return removeCloseoutIntent(paths, intent)
 	})
@@ -303,6 +428,11 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 			}
 			return closeoutApplyBlockedAfterUpdate(stdout, absScope, workflow, relScope, updatePayload, result, stageErr.category, stageErr.detail, intent, intentRef)
 		}
+		if intent.State == "scope_receipt_recorded" && intent.ScopedRegistrationJSON != "" {
+			env := NewEnvelope("blocked", "completed project cognition closeout no longer proves the current work")
+			env.Data = map[string]any{"closeout_status": "completed_receipt_revalidation_blocked", "workflow": workflow, "scope": relScope, "update_id": intent.UpdateID, "intent_id": intent.ID, "error": lockedErr.Error(), "allowed_close": false, "recommended_next_action": "verify_current_workflow_source_and_closeout"}
+			return writeEnvelope(stdout, env)
+		}
 		env := NewEnvelope("blocked", "project cognition closeout update failed")
 		if intent.ID == "" {
 			return closeoutApplyInputRejected(stdout, workflow, relScope, lockedErr)
@@ -320,6 +450,12 @@ func runCognitionCloseoutApplyCLIWithInput(args []string, stdin io.Reader, stdou
 		return writeEnvelope(stdout, env)
 	}
 
+	if completedReceipt != nil {
+		partialReasons, globalDebtReasons, scopePartialReasons := update.CloseoutReplayReasons(completedStatus)
+		env := NewEnvelope("ok", "project cognition closeout was already recorded and remains current")
+		env.Data = map[string]any{"closeout_status": "recorded", "replayed_completed": true, "workflow": workflow, "scope": relScope, "update_id": completedReceipt.UpdateID, "result_state": completedStatus.LastUpdateOutcome, "scope_result_state": completedStatus.LastUpdateScopeOutcome, "global_freshness": completedStatus.Freshness, "global_readiness": completedStatus.Readiness, "global_debt_reasons": globalDebtReasons, "scope_partial_reasons": scopePartialReasons, "partial_refresh_reasons": partialReasons, "closeout_state": completedReceipt.ResultState, "intent_id": intent.ID, "intent_ref": intentRef, "receipt": completedReceipt, "allowed_close": true, "resumed_from_intent": true, "changed_path_count": len(completedReceipt.ChangedPaths), "changed_paths": completedReceipt.ChangedPaths, "replayed_intents": replayedIntents}
+		return writeEnvelope(stdout, env)
+	}
 	result := closeoutApplyResult(workflow, relScope, updatePayload, resumed, intentRef, verbose)
 	result["replayed_intents"] = replayedIntents
 	result["receipt"] = receipt
@@ -380,6 +516,15 @@ func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Pa
 	if pruned {
 		return intent.UpdateID, nil
 	}
+	if intent.State == "scope_receipt_recorded" {
+		// A failed completed-proof check is a refusal, not an interrupted update.
+		// RunUpdate can reconstruct status from the journal, so allowing it here
+		// would erase the very generation/identity/order mismatch being checked.
+		return "", fmt.Errorf("completed closeout intent cannot be pruned: current scope receipt, generation, journal binding or completion order does not prove completion")
+	}
+	if err := requireCurrentCloseoutBindingLocked(runtime, paths, intent); err != nil {
+		return "", fmt.Errorf("pending source proof stale; retain intent for audit and begin fresh verification before closeout recovery: %w", err)
+	}
 	prepared, err := prepareCloseoutInput(paths, intent.Workflow, intent.PayloadJSON, intent.DeltaSessionID, intent.VerificationOverride, intent.CommitRange)
 	if err != nil {
 		return "", err
@@ -418,6 +563,17 @@ func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Pa
 	if err := updateCloseoutIntent(paths, intent); err != nil {
 		return "", err
 	}
+	if err := requireCurrentCloseoutBindingLocked(runtime, paths, intent); err != nil {
+		return "", err
+	}
+	if _, err := applyCloseoutRegistrationLocked(runtime, paths, intent, payload); err != nil {
+		return "", fmt.Errorf("scoped registration recovery incomplete: %w", err)
+	}
+	if intent.StrongBinding != nil && (payload.ResultState == update.ResultNoOp || payload.ResultState == update.ResultReady) {
+		if err := runtime.ResolveSourceBindingDebt(intent.Workflow, intent.Scope, payload.ChangedPaths); err != nil {
+			return "", err
+		}
+	}
 
 	state := "partial"
 	switch payload.ResultState {
@@ -438,6 +594,9 @@ func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Pa
 				return "", err
 			}
 		}
+		if err := requireCurrentCloseoutBindingLocked(runtime, paths, intent); err != nil {
+			return "", err
+		}
 		if _, err := runtime.CompleteRefresh("workflow-closeout-replay"); err != nil {
 			return "", err
 		}
@@ -450,12 +609,27 @@ func replayStoredCloseoutIntentLocked(runtime *update.LockedRuntime, paths rt.Pa
 		return "", fmt.Errorf("non-closeable replay result %s", payload.ResultState)
 	}
 	intentRef := closeoutIntentRef(paths, closeoutIntentPath(paths, intent.ID))
+	if err := requireCurrentCloseoutBindingLocked(runtime, paths, intent); err != nil {
+		return "", err
+	}
 	receipt, err := recordMutationCognitionReceiptBound(absScope, intent.Workflow, relScope, state, closeoutApplyReceiptReason(state, payload), payload.UpdateID, closeoutApplyEvidence(payload), payload.ChangedPaths, intent.ID, intentRef, intent.InputDigest, intent.DoBinding)
 	if err != nil {
 		return "", err
 	}
 	if receipt["allowed_close"] != true {
-		return "", fmt.Errorf("replayed mutation receipt is not closeable: %v", receipt["blocked_reason"])
+		// Another same-scope intent may still require recovery. This replay
+		// publishes only its own completed update; the external scope gate and
+		// returned allowed_close remain false until every pending owner is done.
+		if receipt["blocked_reason"] != "pending_closeout_intent_requires_replay" {
+			return "", fmt.Errorf("replayed mutation receipt is not closeable: %v", receipt["blocked_reason"])
+		}
+		recorded, err := loadMutationCognitionReceipt(absScope)
+		if err != nil || recorded == nil || recorded.Workflow != intent.Workflow || !sameFilesystemPath(filepath.FromSlash(recorded.Scope), filepath.FromSlash(relScope)) || recorded.IntentID != intent.ID || recorded.IntentRef != intentRef || recorded.IntentDigest != intent.InputDigest || recorded.UpdateID != payload.UpdateID || normalizeMutationCognitionState(recorded.ResultState) != state {
+			return "", fmt.Errorf("replayed mutation receipt does not bind this completed intent: %v", err)
+		}
+		if allowed, reason := mutationCognitionReceiptResultGateReason(absScope, recorded); !allowed {
+			return "", fmt.Errorf("replayed mutation receipt result is not complete: %s", reason)
+		}
 	}
 	intent.State = "scope_receipt_recorded"
 	if err := updateCloseoutIntent(paths, intent); err != nil {
@@ -482,8 +656,30 @@ func pruneCompletedCloseoutIntent(paths rt.Paths, intent closeoutIntent) (bool, 
 	}
 	receipt, err := loadMutationCognitionReceipt(absScope)
 	intentRef := closeoutIntentRef(paths, closeoutIntentPath(paths, intent.ID))
-	if err != nil || receipt == nil || receipt.UpdateID != intent.UpdateID || receipt.IntentID != intent.ID || receipt.IntentRef != intentRef || receipt.IntentDigest != intent.InputDigest {
+	if err != nil || receipt == nil {
 		return false, err
+	}
+	if receipt.UpdateID != intent.UpdateID || receipt.IntentID != intent.ID || receipt.IntentRef != intentRef || receipt.IntentDigest != intent.InputDigest {
+		// A later, currently valid receipt can supersede this already published
+		// scope receipt. Prove both runtime journal bindings before pruning the
+		// old completed intent; never resubmit its no-longer-current update.
+		if intent.State != "scope_receipt_recorded" || receipt.Workflow != intent.Workflow || !sameFilesystemPath(filepath.FromSlash(receipt.Scope), filepath.FromSlash(intent.Scope)) || !validCloseoutIntentID(receipt.IntentID) || !isLowerHexSHA256(receipt.IntentDigest) || receipt.IntentID != "intent-"+receipt.IntentDigest[:24] || receipt.IntentRef != closeoutIntentRef(paths, closeoutIntentPath(paths, receipt.IntentID)) {
+			return false, nil
+		}
+		oldCommitted, err := closeoutCommittedUpdate(paths, intent.ID)
+		if err != nil {
+			return false, err
+		}
+		newCommitted, err := closeoutCommittedUpdate(paths, receipt.IntentID)
+		if err != nil {
+			return false, err
+		}
+		if oldCommitted != intent.UpdateID || newCommitted == "" || newCommitted != receipt.UpdateID || newCommitted == oldCommitted {
+			return false, nil
+		}
+		if allowed, _ := mutationCognitionReceiptResultGateReason(absScope, receipt); !allowed {
+			return false, nil
+		}
 	}
 	state := normalizeMutationCognitionState(receipt.ResultState)
 	if state != "ready" && state != "no_op" && state != "scope_ready" && state != "partial" {
@@ -677,7 +873,10 @@ func closeoutApplyReceiptReason(state string, payload update.UpdatePayload) stri
 		}
 		return "workflow scope ready; project-wide cognition debt remains: " + strings.Join(reasons, ", ")
 	default:
-		return strings.Join(payload.PartialRefreshReasons, ", ")
+		if reason := strings.Join(payload.PartialRefreshReasons, ", "); strings.TrimSpace(reason) != "" {
+			return reason
+		}
+		return fmt.Sprintf("workflow cognition remains incomplete: result_state=%s, scope_result_state=%s; no detailed reason was recorded", payload.ResultState, payload.ScopeResultState)
 	}
 }
 

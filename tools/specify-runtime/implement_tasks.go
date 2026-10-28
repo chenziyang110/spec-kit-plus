@@ -13,6 +13,7 @@ import (
 
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runcontrol"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/specvalidate"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/workerdelta"
 )
 
 var implementTaskTerminalStatuses = map[string]bool{"accepted": true, "deferred": true}
@@ -135,6 +136,7 @@ func buildImplementTaskPacket(root, feature, taskID string, index map[string]any
 	}
 	packet := cloneJSONMap(template)
 	packet["version"] = 2
+	packet["cognition_delta_contract"] = workerdelta.Contract(taskID)
 	packet["feature_id"] = featureID
 	packet["task_id"] = taskID
 	packet["source_task_ref"] = fmt.Sprintf("task-index.json#/tasks/%d", position)
@@ -330,11 +332,12 @@ func runImplementResultMerge(args []string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	rawResult, err := readImplementTaskResult(args, root)
-	if err != nil {
+	rawResult, inputBytes, err := readImplementTaskResultWithInput(args, root)
+	inputErr := err
+	if err != nil && len(inputBytes) == 0 {
 		return nil, err
 	}
-	result, workerStatus, err := normalizeImplementTaskResult(rawResult, taskID)
+	conditions, err := implementResultOwnerPreconditions(root, feature, taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -346,6 +349,21 @@ func runImplementResultMerge(args []string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	resultPath := filepath.Join(feature, "worker-results", taskID+".json")
+
+	reject := func(cause error) error {
+		if saveErr := persistImplementRejectedSubmission(root, feature, taskID, inputBytes, cause.Error(), conditions); saveErr != nil {
+			return fmt.Errorf("%w; rejected submission accounting could not be saved: %v", cause, saveErr)
+		}
+		return cause
+	}
+	if inputErr != nil {
+		return nil, reject(inputErr)
+	}
+	result, workerStatus, err := normalizeImplementTaskResult(rawResult, taskID)
+	if err != nil {
+		return nil, reject(err)
+	}
 	if scopeErr := validateImplementResultWriteScope(task, result); scopeErr != nil {
 		packetBound, amendmentErr := validateImplementResultAgainstCurrentExecutionScope(root, feature, taskID, args, result)
 		if amendmentErr != nil {
@@ -354,9 +372,9 @@ func runImplementResultMerge(args []string) (map[string]any, error) {
 				typed.WorkID = strings.TrimSpace(optionValue(args, "--current-work-id", os.Getenv("SPECIFY_WORK_ID")))
 				typed.PacketBound = packetBound
 				typed.RuntimeReason = amendmentErr.Error()
-				return nil, typed
+				return nil, reject(typed)
 			}
-			return nil, scopeErr
+			return nil, reject(scopeErr)
 		}
 	}
 	lifecycleRef := filepath.ToSlash(filepath.Join("implementation-review", "tasks", taskID+".json"))
@@ -372,17 +390,28 @@ func runImplementResultMerge(args []string) (map[string]any, error) {
 		validation, _ := result["validation_results"].([]any)
 		blockers, _ := result["blockers"].([]any)
 		if err := validateImplementTaskAcceptanceEvidence(task, validation, blockers); err != nil {
-			return nil, fmt.Errorf("successful worker result is not acceptance-ready: %w; required field validation_results is an array of objects with command and status (passed|failed|skipped); example: {\"task_id\":%q,\"status\":\"success\",\"changed_files\":[],\"validation_results\":[{\"command\":\"go test ./...\",\"status\":\"passed\",\"summary\":\"ok\"}],\"blockers\":[]}; task %s remains %s", err, taskID, taskID, lifecycleStatus)
+			return nil, reject(fmt.Errorf("successful worker result is not acceptance-ready: %w; required field validation_results is an array of objects with command and status (passed|failed|skipped); example: {\"task_id\":%q,\"status\":\"success\",\"changed_files\":[],\"validation_results\":[{\"command\":\"go test ./...\",\"status\":\"passed\",\"summary\":\"ok\"}],\"blockers\":[]}; task %s remains %s", err, taskID, taskID, lifecycleStatus))
 		}
 	}
 	statusMap := map[string]string{"success": "implemented", "blocked": "blocked", "failed": "failed"}
 	taskStatus := statusMap[workerStatus]
 	resultRef := filepath.ToSlash(filepath.Join("worker-results", taskID+".json"))
 	revision := intFromAny(lifecycle["revision"]) + 1
+	previous, resultCondition, err := loadCanonicalWorkerResult(root, resultPath)
+	if err != nil {
+		return nil, err
+	}
+	attempt := fmt.Sprintf("%s:revision-%d", taskID, intFromAny(lifecycle["revision"]))
+	result, err = workerdelta.Append(previous, result, inputBytes, workerStatus, "", projectRelativeSlash(root, resultPath), attempt, revision)
+	if err != nil {
+		return nil, err
+	}
+	conditions = append(conditions, resultCondition)
 	lifecycle["revision"] = revision
 	lifecycle["status"] = taskStatus
 	lifecycle["result_ref"] = resultRef
-	lifecycle["changed_paths"] = cloneJSONValue(result["changed_files"])
+	lifecycle["changed_paths"] = stringsToAny(workerdelta.HistoryPaths(result))
+	lifecycle["cognition_pending_submission_sequences"] = workerdelta.PendingSequences(result)
 	lifecycle["validation"] = cloneJSONValue(result["validation_results"])
 	lifecycle["blockers"] = cloneJSONValue(result["blockers"])
 	recoveryActions := anyStringSlice(result["suggested_recovery_actions"])
@@ -424,7 +453,7 @@ func runImplementResultMerge(args []string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	payload, err := commitImplementTaskState(root, feature, "implement.result.merge", index, state, map[string]map[string]any{lifecycleRef: lifecycle}, map[string][]byte{resultRef: resultBytes}, nil)
+	payload, err := commitImplementTaskStateWithPreconditions(root, feature, "implement.result.merge", index, state, map[string]map[string]any{lifecycleRef: lifecycle}, map[string][]byte{resultRef: resultBytes}, nil, conditions)
 	if err != nil {
 		return nil, err
 	}
@@ -436,12 +465,65 @@ func runImplementResultMerge(args []string) (map[string]any, error) {
 	return payload, nil
 }
 
+func implementResultOwnerPreconditions(root, feature, taskID string) ([]fileTransactionPrecondition, error) {
+	refs := []string{"task-index.json", "implementation-review/execution-state.json", "implementation-review/tasks/" + taskID + ".json"}
+	conditions := []fileTransactionPrecondition{}
+	for _, ref := range refs {
+		target := filepath.Join(feature, filepath.FromSlash(ref))
+		raw, err := secureProjectReadFile(root, projectRelativeSlash(root, target))
+		if os.IsNotExist(err) {
+			conditions = append(conditions, fileTransactionPrecondition{Path: target, MustNotExist: true})
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		conditions = append(conditions, fileTransactionPrecondition{Path: target, ExpectedSHA256: workerdelta.Digest(raw)})
+	}
+	return conditions, nil
+}
+
+func persistImplementRejectedSubmission(root, feature, taskID string, raw []byte, reason string, conditions []fileTransactionPrecondition) error {
+	target := filepath.Join(feature, "worker-results", taskID+".json")
+	previous, condition, err := loadCanonicalWorkerResult(root, target)
+	if err != nil {
+		return err
+	}
+	stored, err := workerdelta.Append(previous, nil, raw, "rejected", reason, projectRelativeSlash(root, target), "", 0)
+	if err != nil {
+		return err
+	}
+	resultBytes, err := json.MarshalIndent(stored, "", "  ")
+	if err != nil {
+		return err
+	}
+	updates := []fileTransactionUpdate{{Path: target, Content: append(resultBytes, '\n'), Perm: 0o644}}
+	lifecyclePath := filepath.Join(feature, "implementation-review", "tasks", taskID+".json")
+	if lifecycle, readErr := readImplementJSONMap(lifecyclePath); readErr == nil {
+		lifecycle["changed_paths"] = stringsToAny(workerdelta.HistoryPaths(stored))
+		lifecycle["cognition_pending_submission_sequences"] = workerdelta.PendingSequences(stored)
+		bytes, err := marshalTaskControlJSON(lifecycle)
+		if err != nil {
+			return err
+		}
+		updates = append(updates, fileTransactionUpdate{Path: lifecyclePath, Content: bytes, Perm: 0o644})
+	} else if !os.IsNotExist(readErr) {
+		return readErr
+	}
+	_, err = applyFileTransactionWithPreconditions(root, "implement.result.rejected", updates, append(conditions, condition))
+	return err
+}
+
 func runImplementTaskAccept(args []string) (map[string]any, error) {
 	root, feature, err := taskControlFeature(args)
 	if err != nil {
 		return nil, err
 	}
 	taskID, err := normalizeTaskControlID(optionValue(args, "--task-id", ""))
+	if err != nil {
+		return nil, err
+	}
+	conditions, err := implementResultOwnerPreconditions(root, feature, taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -473,6 +555,27 @@ func runImplementTaskAccept(args []string) (map[string]any, error) {
 		return nil, err
 	}
 	revision := intFromAny(lifecycle["revision"]) + 1
+	resultRef := filepath.ToSlash(filepath.Join("worker-results", taskID+".json"))
+	stored, resultCondition, err := loadCanonicalWorkerResult(root, filepath.Join(feature, filepath.FromSlash(resultRef)))
+	if err != nil {
+		return nil, err
+	}
+	if stored == nil {
+		return nil, fmt.Errorf("task result is unavailable before acceptance")
+	}
+	if binding, present := stored["cognition_result_binding"].(map[string]any); present {
+		if binding["result_ref"] != projectRelativeSlash(root, filepath.Join(feature, filepath.FromSlash(resultRef))) || intFromAny(binding["lifecycle_revision"]) != intFromAny(lifecycle["revision"]) || stored["task_id"] != taskID || !workerdelta.Same(stored["validation_results"], lifecycle["validation"]) || !workerdelta.Same(stored["blockers"], lifecycle["blockers"]) {
+			return nil, fmt.Errorf("worker result is not the exact current lifecycle submission; merge it through implement result-merge before acceptance")
+		}
+	}
+	if err := workerdelta.Accept(stored, projectRelativeSlash(root, filepath.Join(feature, filepath.FromSlash(lifecycleRef))), revision); err != nil {
+		return nil, err
+	}
+	resultBytes, err := marshalTaskControlJSON(stored)
+	if err != nil {
+		return nil, err
+	}
+	conditions = append(conditions, resultCondition)
 	lifecycle["revision"] = revision
 	lifecycle["status"] = "accepted"
 	task["status"] = "accepted"
@@ -502,7 +605,7 @@ func runImplementTaskAccept(args []string) (map[string]any, error) {
 		state["status"] = "executing"
 		state["next_action"] = fmt.Sprintf("Start %s.", next["task_id"])
 	}
-	payload, err := commitImplementTaskState(root, feature, "implement.task.accept", index, state, map[string]map[string]any{lifecycleRef: lifecycle}, nil, []byte(projected))
+	payload, err := commitImplementTaskStateWithPreconditions(root, feature, "implement.task.accept", index, state, map[string]map[string]any{lifecycleRef: lifecycle}, map[string][]byte{resultRef: resultBytes}, []byte(projected), conditions)
 	if err != nil {
 		return nil, err
 	}
@@ -619,8 +722,12 @@ func runImplementTaskReopen(args []string) (map[string]any, error) {
 	var previousResult any
 	if resultReadErr == nil {
 		var resultPayload map[string]any
-		if unmarshalErr := json.Unmarshal(resultBefore, &resultPayload); unmarshalErr != nil || resultPayload == nil {
+		resultPayload, unmarshalErr := workerdelta.Decode(resultBefore)
+		if unmarshalErr != nil || resultPayload == nil {
 			return nil, fmt.Errorf("current worker result is invalid and cannot be archived safely")
+		}
+		if err := workerdelta.ValidateStored(resultPayload); err != nil {
+			return nil, fmt.Errorf("current worker result cannot be archived safely: %w", err)
 		}
 		previousResult = resultPayload
 	} else if !os.IsNotExist(resultReadErr) {
@@ -656,7 +763,7 @@ func runImplementTaskReopen(args []string) (map[string]any, error) {
 		"changed_paths": cloneJSONValue(lifecycle["changed_paths"]), "validation": cloneJSONValue(lifecycle["validation"]),
 		"review": cloneJSONValue(lifecycle["review"]), "ui_verification": cloneJSONValue(lifecycle["ui_verification"]),
 		"obligation_evidence": cloneJSONValue(lifecycle["obligation_evidence"]), "blockers": cloneJSONValue(lifecycle["blockers"]),
-		"recovery": cloneJSONValue(lifecycle["recovery"]), "worker_result": cloneJSONValue(previousResult),
+		"recovery": cloneJSONValue(lifecycle["recovery"]), "worker_result": previousResult,
 	}
 	if resultReadErr == nil {
 		previous["result_sha256"] = taskControlSHA256(resultBefore)
@@ -1179,55 +1286,68 @@ func renderImplementTaskTracker(feature string, state map[string]any) []byte {
 }
 
 func readImplementTaskResult(args []string, root string) (map[string]any, error) {
+	result, _, err := readImplementTaskResultWithInput(args, root)
+	return result, err
+}
+
+func readImplementTaskResultWithInput(args []string, root string) (map[string]any, []byte, error) {
 	hasInline := hasFlag(args, "--result-json")
 	hasFile := hasFlag(args, "--result-file")
 	if hasInline == hasFile {
-		return nil, fmt.Errorf("provide exactly one of --result-json or --result-file")
+		return nil, nil, fmt.Errorf("provide exactly one of --result-json or --result-file")
 	}
 	var raw []byte
 	if hasInline {
 		var err error
 		raw, err = resolveJSONInputBytesFrom(optionValue(args, "--result-json", ""), root, "implement result-merge", "--result-json", os.Stdin)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if len(raw) == 0 {
-			return nil, fmt.Errorf("--result-json must not be empty")
+			return nil, nil, fmt.Errorf("--result-json must not be empty")
 		}
 	} else {
 		path, err := resolveProjectContainedPath(root, optionValue(args, "--result-file", ""))
 		if err != nil {
-			return nil, fmt.Errorf("result file must stay inside the project: %w", err)
+			return nil, nil, fmt.Errorf("result file must stay inside the project: %w", err)
 		}
 		if !strings.EqualFold(filepath.Ext(path), ".json") {
-			return nil, fmt.Errorf("result file must be JSON")
+			return nil, nil, fmt.Errorf("result file must be JSON")
 		}
 		relative, err := filepath.Rel(root, path)
 		if err != nil {
-			return nil, fmt.Errorf("result file must stay inside the project: %w", err)
+			return nil, nil, fmt.Errorf("result file must stay inside the project: %w", err)
 		}
 		metadata, registered := LookupArtifactType(filepath.ToSlash(relative))
 		if !registered || (metadata.Schema != "json/worker-result" && metadata.TypeID != "teams-runtime-state") {
-			return nil, fmt.Errorf("--result-file may reference only a CLI-owned canonical worker-result artifact; pass new bounded semantic results with --result-json (inline, @path, or - for stdin)")
+			return nil, nil, fmt.Errorf("--result-file may reference only a CLI-owned canonical worker-result artifact; pass new bounded semantic results with --result-json (inline, @path, or - for stdin)")
 		}
 		info, err := os.Stat(path)
 		if err != nil || !info.Mode().IsRegular() || info.Size() > maxAgentJSONInputBytes {
-			return nil, fmt.Errorf("result file is unavailable, non-regular, or too large")
+			return nil, nil, fmt.Errorf("result file is unavailable, non-regular, or too large")
 		}
 		raw, err = os.ReadFile(path)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	var payload map[string]any
-	if err := json.Unmarshal(raw, &payload); err != nil || payload == nil {
-		return nil, fmt.Errorf("worker result must be a JSON object")
+	payload, err := workerdelta.Decode(raw)
+	if err != nil {
+		return nil, raw, fmt.Errorf("worker result must be a JSON object: %w", err)
 	}
-	return payload, nil
+	if hasFile {
+		candidate, candidateErr := workerdelta.CandidateFromStored(payload)
+		return candidate, raw, candidateErr
+	}
+	return payload, raw, nil
 }
 
 func normalizeImplementTaskResult(raw map[string]any, taskID string) (map[string]any, string, error) {
-	payload := cloneJSONMap(raw)
+	delta, deltaPaths, err := workerdelta.Normalize(raw)
+	if err != nil {
+		return nil, "", err
+	}
+	payload := workerdelta.Clone(raw)
 	resultTaskID := strings.ToUpper(strings.TrimSpace(anyString(firstImplementTaskValue(payload["task_id"], payload["taskId"]))))
 	if resultTaskID == "" {
 		resultTaskID = taskID
@@ -1248,7 +1368,7 @@ func normalizeImplementTaskResult(raw map[string]any, taskID string) (map[string
 	default:
 		return nil, "", fmt.Errorf("worker result status is invalid: %s (use success|blocked|failed; DONE is not accepted)", status)
 	}
-	changed := firstImplementTaskValue(payload["changed_files"], payload["changedFiles"], payload["files_changed"])
+	changed := stringsToAny(deltaPaths)
 	changedFiles, err := taskControlStringList(changed, "changed_files")
 	if err != nil {
 		return nil, "", err
@@ -1313,6 +1433,9 @@ func normalizeImplementTaskResult(raw map[string]any, taskID string) (map[string
 	payload["task_id"] = taskID
 	payload["status"] = status
 	payload["changed_files"] = stringsToAny(changedFiles)
+	if len(delta) > 0 {
+		payload["cognition_delta"] = delta
+	}
 	payload["validation_results"] = validation
 	payload["blockers"] = stringsToAny(blockers)
 	payload["suggested_recovery_actions"] = stringsToAny(recovery)

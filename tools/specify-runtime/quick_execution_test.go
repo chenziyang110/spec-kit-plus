@@ -246,8 +246,11 @@ project_cognition_refresh:
 		"--project-root", root,
 		"close", "260805-010", "resolved",
 	})
-	if env.Status != "ok" {
-		t.Fatalf("close after cognition closeout failed: %v", env.Blockers)
+	// Legacy receipts and a manually marked fresh graph do not bind the
+	// accepted Quick output. The actual strong-binding terminal path is covered
+	// by TestR3QuickActualTerminalAndAcceptedVersion.
+	if env.Status == "ok" || !strings.Contains(fmt.Sprint(env.Blockers), "legacy_receipt_missing_strong_binding") {
+		t.Fatalf("legacy receipt became source completion proof: %v", env.Blockers)
 	}
 
 	// pulse should mention accepted work

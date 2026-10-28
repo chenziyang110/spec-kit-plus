@@ -2,16 +2,21 @@ package query
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/store"
 )
+
+const CatalogSnapshotContractVersion = 1
 
 type LexiconPayload struct {
 	Readiness                string                        `json:"readiness"`
@@ -39,12 +44,17 @@ type LexiconPayload struct {
 }
 
 type LexiconCatalogPage struct {
-	Offset     int  `json:"offset"`
-	Limit      int  `json:"limit"`
-	Returned   int  `json:"returned"`
-	Total      int  `json:"total"`
-	HasMore    bool `json:"has_more"`
-	NextOffset *int `json:"next_offset,omitempty"`
+	ContractVersion  int      `json:"contract_version"`
+	NavigationDigest string   `json:"navigation_digest,omitempty"`
+	Revision         string   `json:"revision,omitempty"`
+	SnapshotBound    bool     `json:"snapshot_bound"`
+	NextArgv         []string `json:"next_argv,omitempty"`
+	Offset           int      `json:"offset"`
+	Limit            int      `json:"limit"`
+	Returned         int      `json:"returned"`
+	Total            int      `json:"total"`
+	HasMore          bool     `json:"has_more"`
+	NextOffset       *int     `json:"next_offset,omitempty"`
 }
 
 type AgentNormalizationDiagnostic struct {
@@ -56,11 +66,12 @@ type AgentNormalizationDiagnostic struct {
 }
 
 type LexiconInput struct {
-	Intent string
-	Query  string
-	Limit  int
-	Offset int
-	Mode   string
+	Intent          string
+	Query           string
+	Limit           int
+	Offset          int
+	Mode            string
+	CatalogRevision string
 }
 
 func Lexicon(paths rt.Paths, intent, text string, limit int) (LexiconPayload, error) {
@@ -86,6 +97,10 @@ func LexiconWithOptions(paths rt.Paths, input LexiconInput) (LexiconPayload, err
 		limit = 10
 	}
 	catalogMode := strings.EqualFold(strings.TrimSpace(input.Mode), "catalog")
+	input.CatalogRevision = strings.TrimSpace(input.CatalogRevision)
+	if input.CatalogRevision != "" && (!catalogMode || !validNavigationDigest(input.CatalogRevision)) {
+		return LexiconPayload{}, fmt.Errorf("catalog revision requires catalog mode and a valid sha256 binding; restart cognition lexicon --mode catalog")
+	}
 	terms := termsFrom(text, limit)
 	payload := LexiconPayload{
 		Readiness:                status.Readiness,
@@ -112,6 +127,9 @@ func LexiconWithOptions(paths rt.Paths, input LexiconInput) (LexiconPayload, err
 	}
 
 	if status.BaselineKind == rt.BaselineKindGreenfieldEmpty {
+		if input.CatalogRevision != "" {
+			return LexiconPayload{}, fmt.Errorf("stale_catalog: baseline changed; restart cognition lexicon --mode catalog")
+		}
 		payload.UnmappedIntent = true
 		payload.MissingCoverage = []string{"greenfield_empty_no_project_code"}
 		if len(terms) == 0 {
@@ -138,6 +156,9 @@ func LexiconWithOptions(paths rt.Paths, input LexiconInput) (LexiconPayload, err
 
 	st, err := store.OpenExisting(paths)
 	if errors.Is(err, os.ErrNotExist) {
+		if input.CatalogRevision != "" {
+			return LexiconPayload{}, fmt.Errorf("stale_catalog: database missing; restart cognition lexicon --mode catalog")
+		}
 		payload.UnmappedIntent = true
 		payload.MissingCoverage = []string{"project_cognition_database_missing"}
 		return payload, nil
@@ -147,9 +168,43 @@ func LexiconWithOptions(paths rt.Paths, input LexiconInput) (LexiconPayload, err
 	}
 	defer st.Close()
 
-	rows, err := st.AllActiveConceptCandidateRows(context.Background())
-	if err != nil {
-		return LexiconPayload{}, err
+	ctx := context.Background()
+	var navigationRead *store.NavigationRead
+	var catalogRevision string
+	if catalogMode {
+		generationID, err := st.ActiveGenerationID(ctx)
+		if err != nil {
+			return LexiconPayload{}, err
+		}
+		if generationID != "" {
+			navigationRead, err = st.BeginNavigationRead(ctx)
+			if err != nil {
+				return LexiconPayload{}, err
+			}
+			defer navigationRead.Close()
+			catalogRevision = lexiconCatalogRevision(navigationRead.Snapshot, status, intent, text, limit)
+		}
+		if input.CatalogRevision != "" && input.CatalogRevision != catalogRevision {
+			return LexiconPayload{}, fmt.Errorf("stale_catalog: graph, status, or request binding changed; restart cognition lexicon --mode catalog")
+		}
+	}
+	var rows []store.ConceptCandidateRow
+	total := 0
+	if catalogMode && len(terms) == 0 {
+		catalogRows, catalogTotal, err := currentNavigationLexiconCatalogRows(ctx, st, input.Offset, limit)
+		if err != nil {
+			return LexiconPayload{}, err
+		}
+		rows = catalogRows
+		total = catalogTotal
+	} else {
+		// Query-bearing requests require complete evaluation before ranking.
+		rows, err = st.AllActiveConceptCandidateRows(ctx)
+		if err != nil {
+			return LexiconPayload{}, err
+		}
+		rows = currentNavigationLexiconRows(rows)
+		total = len(rows)
 	}
 	if len(rows) > 0 && payload.LexiconGenerationID == "" {
 		payload.LexiconGenerationID = rows[0].GenerationID
@@ -161,19 +216,48 @@ func LexiconWithOptions(paths rt.Paths, input LexiconInput) (LexiconPayload, err
 	if len(terms) > 0 {
 		candidates, positiveMatches = rankConceptCandidates(rows, terms, limit)
 	}
-	outputTruncated := limit > 0 && len(rows) > limit
+	outputTruncated := limit > 0 && total > limit
 	payload.ConceptCandidates = candidates
 	if catalogMode {
-		aliasCatalog, catalogPage := aliasCatalogForRows(rows, input.Offset, limit)
+		catalogOffset := input.Offset
+		if len(terms) == 0 {
+			catalogOffset = 0
+		}
+		aliasCatalog, catalogPage := aliasCatalogForRows(rows, catalogOffset, limit)
+		if len(terms) == 0 {
+			catalogPage.Offset = input.Offset
+			if catalogPage.Offset < 0 {
+				catalogPage.Offset = 0
+			}
+			if catalogPage.Offset > total {
+				catalogPage.Offset = total
+			}
+			catalogPage.Total = total
+			catalogPage.HasMore = catalogPage.Offset+len(aliasCatalog) < total
+			catalogPage.NextOffset = nil
+			if catalogPage.HasMore {
+				next := catalogPage.Offset + len(aliasCatalog)
+				catalogPage.NextOffset = &next
+			}
+		}
+		catalogPage.ContractVersion = CatalogSnapshotContractVersion
+		catalogPage.Revision = catalogRevision
+		catalogPage.SnapshotBound = navigationRead != nil && (input.Offset <= 0 || input.CatalogRevision != "")
+		if navigationRead != nil {
+			catalogPage.NavigationDigest = navigationRead.Snapshot.Digest
+		}
+		if catalogPage.HasMore && catalogRevision != "" {
+			catalogPage.NextArgv = []string{"specify-runtime", "cognition", "lexicon", "--mode", "catalog", "--intent", intent, "--query", text, "--limit", strconv.Itoa(limit), "--offset", strconv.Itoa(*catalogPage.NextOffset), "--catalog-revision", catalogRevision, "--format", "json"}
+		}
 		payload.AliasCatalog = aliasCatalog
-		payload.AliasCatalogCount = len(rows)
+		payload.AliasCatalogCount = total
 		payload.AliasCatalogLimit = catalogPage.Limit
 		payload.AliasCatalogTruncated = catalogPage.Offset > 0 || catalogPage.HasMore
 		payload.CatalogPage = &catalogPage
 	}
 	payload.CandidateUniverse = map[string]any{
 		"counts": map[string]any{
-			"nodes":      len(rows),
+			"nodes":      total,
 			"candidates": len(candidates),
 		},
 		"truncated":        outputTruncated,
@@ -182,7 +266,7 @@ func LexiconWithOptions(paths rt.Paths, input LexiconInput) (LexiconPayload, err
 	payload.MatchingProfile["positive_matches"] = positiveMatches
 
 	switch {
-	case len(rows) == 0:
+	case total == 0:
 		payload.UnmappedIntent = true
 		payload.MissingCoverage = []string{"empty_graph_candidate_universe"}
 	case len(terms) == 0:
@@ -193,8 +277,19 @@ func LexiconWithOptions(paths rt.Paths, input LexiconInput) (LexiconPayload, err
 		payload.MissingCoverage = []string{"no_graph_candidate_matched_query"}
 	}
 	payload.AgentNormalization = agentNormalizationDiagnostic(status, payload.AliasCatalog, positiveMatches, payload.MissingCoverage, text)
+	if navigationRead != nil {
+		if err := validateNavigationRead(paths, status, navigationRead); err != nil {
+			return LexiconPayload{}, fmt.Errorf("stale_catalog: %w", err)
+		}
+	}
 
 	return payload, nil
+}
+
+func lexiconCatalogRevision(snapshot store.NavigationSnapshot, status rt.Status, intent, query string, limit int) string {
+	data, _ := json.Marshal([]any{CatalogSnapshotContractVersion, CandidateUniverseVersion, snapshot, navigationStatusDigest(status), intent, query, limit})
+	sum := sha256.Sum256(data)
+	return fmt.Sprintf("sha256:%x", sum[:])
 }
 
 func agentNormalizationDiagnostic(status rt.Status, aliasCatalog []map[string]any, positiveMatches int, missingCoverage []string, query string) *AgentNormalizationDiagnostic {
@@ -312,8 +407,11 @@ func queryPlanningContract() map[string]any {
 		"query_mode":       "exact_binding",
 		"required_binding": "selected_concepts_or_paths",
 		"catalog_pagination": map[string]any{
-			"has_more":    "catalog_page.has_more",
-			"next_offset": "catalog_page.next_offset",
+			"has_more":       "catalog_page.has_more",
+			"next_offset":    "catalog_page.next_offset",
+			"next_argv":      "catalog_page.next_argv",
+			"revision":       "catalog_page.revision",
+			"snapshot_bound": "catalog_page.snapshot_bound; first page anchors the returned revision, later unbound offsets do not verify a prior page",
 		},
 		"accepted_fields": []string{
 			"raw_query",
@@ -405,7 +503,7 @@ func rankConceptCandidates(rows []store.ConceptCandidateRow, terms []string, lim
 
 func newRankedConceptCandidate(row store.ConceptCandidateRow) rankedConceptCandidate {
 	attrs := parseAttrs(row.AttrsJSON)
-	paths := uniqueStrings(append(append([]string{}, row.Paths...), row.EvidencePaths...))
+	paths := uniqueStrings(row.Paths)
 	aliases := aliasStrings(row.Aliases)
 	return rankedConceptCandidate{
 		row:               row,
@@ -415,6 +513,83 @@ func newRankedConceptCandidate(row store.ConceptCandidateRow) rankedConceptCandi
 		routeHints:        uniqueStrings(append(attrStrings(attrs, "route_hints"), attrString(attrs, "route"))),
 		verificationHints: uniqueStrings(attrStrings(attrs, "verification_hints")),
 	}
+}
+
+func currentNavigationLexiconCatalogRows(ctx context.Context, st *store.Store, offset, limit int) ([]store.ConceptCandidateRow, int, error) {
+	if offset < 0 {
+		offset = 0
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	batchSize := maxInt(limit*2, 64)
+	rows := []store.ConceptCandidateRow{}
+	eligibleSeen := 0
+	storeOffset := 0
+	for {
+		page, err := st.ActiveConceptCandidatePage(ctx, storeOffset, batchSize)
+		if err != nil {
+			return nil, 0, err
+		}
+		for _, row := range page.Rows {
+			if retiredPathOnlyLexiconRow(row) {
+				continue
+			}
+			if eligibleSeen >= offset && len(rows) < limit {
+				rows = append(rows, row)
+			}
+			eligibleSeen++
+		}
+		storeOffset = page.Offset + len(page.Rows)
+		if len(page.Rows) == 0 || storeOffset >= page.Total {
+			break
+		}
+	}
+	return rows, eligibleSeen, nil
+}
+
+func currentNavigationLexiconRows(rows []store.ConceptCandidateRow) []store.ConceptCandidateRow {
+	out := make([]store.ConceptCandidateRow, 0, len(rows))
+	for _, row := range rows {
+		if retiredPathOnlyLexiconRow(row) {
+			continue
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+func retiredPathOnlyLexiconRow(row store.ConceptCandidateRow) bool {
+	if len(row.Paths) > 0 {
+		return false
+	}
+	titlePath := normalizeLexiconPathLike(row.Title)
+	if titlePath == "" {
+		return false
+	}
+	for _, evidencePath := range row.EvidencePaths {
+		if normalizeLexiconPathLike(evidencePath) == titlePath {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeLexiconPathLike(value string) string {
+	value = strings.TrimSpace(strings.ReplaceAll(value, `\`, "/"))
+	value = strings.TrimPrefix(value, "./")
+	value = strings.Trim(value, "/")
+	if value == "" || strings.Contains(value, "://") {
+		return ""
+	}
+	leaf := value
+	if index := strings.LastIndex(leaf, "/"); index >= 0 {
+		leaf = leaf[index+1:]
+	}
+	if !strings.Contains(leaf, ".") {
+		return ""
+	}
+	return value
 }
 
 func aliasStrings(rows []store.ConceptAliasRow) []string {
@@ -469,6 +644,7 @@ func aliasCatalogForRows(rows []store.ConceptCandidateRow, offset int, limit int
 		conceptID := "concept:" + row.GenerationID + ":" + row.NodeID
 		item := map[string]any{
 			"concept_id":            conceptID,
+			"node_id":               row.NodeID,
 			"title":                 row.Title,
 			"aliases":               candidate.aliases,
 			"owner":                 attrString(candidate.attrs, "owner"),

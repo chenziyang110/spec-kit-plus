@@ -43,6 +43,9 @@ func TestHelpListsClaimReconcileCommands(t *testing.T) {
 	if !strings.Contains(stdout.String(), "repair-status") {
 		t.Fatalf("help=%s, want repair-status command", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "scoped-register") {
+		t.Fatalf("help=%s, want scoped-register command", stdout.String())
+	}
 }
 
 func TestRepairStatusCommandRestoresStatusOwnedGenerationMismatch(t *testing.T) {
@@ -1236,7 +1239,7 @@ func TestCloseoutPlanCommandDeltaSessionMode(t *testing.T) {
 	code := Run([]string{
 		"closeout-plan",
 		"--workflow", "sp-quick",
-		"--scope-dir", ".specify/features/002-cli-closeout",
+		"--scope-dir", ".planning/quick/002-cli-closeout",
 		"--changed-path", "src/app.go",
 		"--delta-session", "D-cli",
 		"--format", "json",
@@ -1286,7 +1289,7 @@ func TestCloseoutPlanCommandDeltaSessionMode(t *testing.T) {
 	wantApplyArgv := []string{
 		"specify-runtime", "cognition", "closeout", "apply",
 		"--workflow", "sp-quick",
-		"--scope-dir", ".specify/features/002-cli-closeout",
+		"--scope-dir", ".planning/quick/002-cli-closeout",
 		"--delta-session", "D-cli",
 		"--reason", "workflow-finalize",
 		"--format", "json",

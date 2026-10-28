@@ -4,10 +4,26 @@ Purpose: preserve mandatory subagent execution, leader role, execution modes, co
 
 Preserved Contract: substantive quick-task work remains packetized and leader-owned with structured worker results.
 
+## Read-Only Intake Lanes
+
+Before confirmation, the leader may delegate bounded current-state discovery
+with named read paths, no product write scope, safe-check permissions and stop
+conditions. Require inspectable findings and their source/check basis. These
+evidence workers do not call `quick item-start`, consume an implementation
+packet, mutate product/test/harness files, install persistent instrumentation
+or produce Q acceptance. The execution contracts below apply after the user
+approves the concrete proposal through the runtime checkpoint, or an unchanged
+approved decision is validly inherited.
+
 ## Quick Design Loop (UI-bearing work)
 
 When the work item changes user-visible UI, require **UI Audit** plus the
 design-before-code loop before dispatching implementation:
+
+Perform the bounded read-only audit and current/source-backed observations
+before the Decision Checkpoint so the user can review the proposed visible
+change. Detailed construction and implementation remain after confirmation;
+do not redesign an approved direction during intake.
 
 1. **UI Audit** — issue list only: hierarchy, spacing consistency, missing
    states (loading/empty/error/focus), generic equal-card layouts, DNA drift.
@@ -74,8 +90,8 @@ The following flags are available and composable:
 - The leader should not blur planning, execution, and validation into a long conversational loop when the task can be dispatched through a bounded subagent.
 - Constitution first: query `.specify/memory/constitution.md` through `specify-runtime artifact show` before workspace setup, clarification, lane selection, subagent dispatch, or local analysis.
 - If project cognition readiness requires `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}`, patch that requirement into the appropriate `STATUS.md` section through the artifact CLI while confirmation is false.
-- Before the first subagent is dispatched, the leader may gather only the minimum context needed to choose scope, lane shape, and execution strategy. Do not perform broad repository analysis or implementation design locally before creating `STATUS.md` and selecting the first subagent path.
-- Before implementation starts, set `understanding_confirmed: true` only with a leased `specify-runtime artifact patch --frontmatter-json` against `STATUS.md`.
+- Before the first implementation subagent is dispatched, gather bounded current-state evidence and explain the concrete proposal through the Decision Checkpoint. Read-only evidence workers are available during intake after the workspace gate; they are not implementation dispatch or a reason to start a Q item early. Do not perform unbounded repository analysis or construction locally.
+- Before implementation starts, require `quick checkpoint-confirm --digest` or validated runtime inheritance of the exact current decision. Never substitute a leased `artifact patch --frontmatter-json` setting `understanding_confirmed: true` for user approval.
 - [AGENT] Use the shared policy function before execution begins and again at each join point: `choose_subagent_dispatch(command_name="quick", snapshot, workload_shape)`.
 - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
 - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for the current subagent path. If confidence is `low`, prefer the native subagent workflow or record `subagent-blocked` over fragile dispatch.
@@ -245,7 +261,7 @@ The following flags are available and composable:
 - Do not start execution routing while `understanding_confirmed: false`; repair or confirm the Understanding Checkpoint first.
 - Dispatch subagents when `snapshot.native_subagents` is true and the workload has one or more safe validated lanes.
 - Substantive quick-task lanes must use subagent execution once a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. If that readiness bar is not met, finish compiling the missing contract first; if the contract cannot be made safe, record `subagent-blocked` and stop for escalation or recovery.
-- After the artifact CLI initializes `STATUS.md` and patches `understanding_confirmed: true`, and the first lane is defined, dispatch that subagent path before any further local repository deep dive.
+- After `STATUS.md` initialization and exact runtime checkpoint confirmation or validated inheritance, dispatch the first ready implementation lane under its Q/Work gates before any further local repository deep dive. Read-only intake findings do not authorize an implementation lane.
 - If multiple safe subagent lanes exist and they can improve throughput without creating write conflicts, dispatch them in parallel instead of artificially serializing the work.
 - Use `subagent-blocked` only after subagent execution is concretely unavailable for the current batch and the native subagent workflow is also unavailable or unsuitable.
 - Re-evaluate after every join point, recovery step, and validation result instead of assuming the first plan still holds.
@@ -328,7 +344,10 @@ The following flags are available and composable:
    - Refresh the derived `.planning/quick/index.json` only through `specify-runtime quick list/status/close` as needed.
    - Do not continue into broad repository analysis or implementation planning until this workspace exists and the initial lane or batch is recorded.
 
-3. **Optional pre-execution phases**
+3. **Evidence intake and concrete confirmation**
+   - Understand the requested result and inspect bounded existing source, logs, tests and current UI, including safe checks and read-only evidence workers where useful.
+   - Explain current findings and selected basis, concrete recommended change, affected behavior, expected result, assumptions/risks and verification in the runtime Decision Checkpoint; for greenfield work, state the checked absence and requirements basis.
+   - For a new staged decision, wait for the real user reply and bind the exact digest with `quick checkpoint-confirm`. Reuse an unchanged exact confirmed or validated inherited decision without another ask.
    - If `--discuss` is present, clarify assumptions and lock the minimum decisions needed.
    - If `--research` is present, gather focused implementation guidance.
 
@@ -337,7 +356,7 @@ The following flags are available and composable:
    - Keep the outcome coherent and self-contained; it may include multiple capabilities, surfaces, lanes, and execution batches.
    - Compile the confirmed ordered work items into a dependency-respecting batch plan. Preserve the user-confirmed deliverable order while keeping internal lane and command sequencing agent-owned.
    - Keep local planning shallow until the Understanding Checkpoint is confirmed and the first subagent batch has been launched.
-   - Identify the smallest safe execution lanes and choose the current execution strategy before implementation starts, but do not dispatch until the artifact CLI has patched `understanding_confirmed: true`.
+   - Identify the smallest safe execution lanes and choose the current execution strategy before implementation starts, but do not dispatch implementation until exact runtime checkpoint confirmation or validated inheritance. A manually patched `understanding_confirmed: true` is not authority.
    - For behavior-changing work, bug fixes, and refactors, the first executable lane must produce a failing automated test or failing repro check before production edits begin.
    - Do not write production code until the RED state is captured and patched into `STATUS.md` through the artifact CLI.
    - If no reliable automated test surface exists for the touched behavior, bootstrap the smallest viable test surface as its own quick lane or batch. If the harness is blocked, record the concrete blocker and recovery path; do not substitute a `{{invoke:specify}}` handoff for executable evidence.
@@ -353,7 +372,7 @@ The following flags are available and composable:
    - If the task includes a propagating change, build the minimal sweep plan in memory and patch it into `PLAN.md` or `STATUS.md` through the artifact CLI before editing; list the affected surfaces that must be checked before completion.
 
 5. **Execution**
-   - Start execution only after a leased `specify-runtime artifact patch` sets `understanding_confirmed: true` in `STATUS.md`.
+   - Start implementation only after `quick checkpoint-confirm --digest` or validated runtime inheritance binds the exact current decision; never substitute a generic artifact patch for that approval.
    - Run `specify-runtime execution overview --format json` before the
      first `quick item-start`, after each join before choosing the next item or
      batch, and before execution guard or a material scope expansion. Keep
@@ -399,3 +418,35 @@ boundaries themselves.
    - Separate `verified` coverage from `not checked` coverage so readers can tell what was actually proven versus what is only expected to be safe.
    - For each declared surface, give the terminal status conclusion: `confirmed correct`, `fixed in this quick task`, or `not checked in this pass (with reason)`.
    - Patch the final `STATUS.md` terminal targets through one same-checkpoint `specify-runtime artifact patch-batch`; older runtimes fall back to a fresh `artifact patch` lease so it points to the summary, records the terminal state, and makes a future resume decision obvious.
+
+## Exact Task Scope Availability
+
+After the owning runtime compiles the canonical current task packet, and before
+dependent graph consumption, require `specify-runtime api ensure --capabilities
+cognition.scope-availability.v2 --format json`, then run `specify-runtime cognition
+check --task-packet <exact-project-relative-packet-path> --format json`. Use the
+compiler's returned packet path; do not assemble a substitute packet or infer
+complete read dependencies from prose. Quick confirmation items declare optional
+`read_scope` as an explicit array of exact paths, including required UI contract
+and original reference inputs when applicable. Missing legacy `read_scope` is
+unknown; explicit `[]` is a complete empty declaration. Null, non-arrays and
+non-string paths refuse. Read metadata follows execution `write_scope` digest
+exclusion; it never changes registered UI approval or grants worker write scope.
+
+Carry native `availability`, `scope_ready`, `global_status`, `debt_assessments`,
+`reasons`, `minimal_live_reads` and `binding` separately. Only an actual version 2
+ready result permits scoped advisory graph navigation; proven unrelated debt
+remains visible globally. Blocked/degraded/unavailable or unknown proof suspends
+dependent graph consumption and uses bounded current live reads, with gaps
+explicit. Do not erase blocked results or treat advisory warnings as uniform
+protection. Commands without a canonical packet keep the global check and cannot
+assert unrelated debt. This route applies with hooks and without hooks on every
+CLI and both profiles.
+
+At handoff/resume and before reusing graph context, rerun the same native check
+with `--availability-json <previous-native-binding-json>` against the current
+canonical packet. Changed source/packet/status/dependency/claim bytes or an old
+contract invalidate reuse; repair the owning proof and obtain a new result. Scope
+readiness never declares the project globally fresh, grants source write
+authority, sets workflow `claim_ready`, or replaces independent Review and human
+Accept. Preserve normal packet/Work/UI prerequisite and approval gates.

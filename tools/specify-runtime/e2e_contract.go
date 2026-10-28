@@ -8,7 +8,11 @@ import (
 
 const e2eWorkflowSchema = "spec-kit-e2e-workflow-v1"
 
-var e2eActions = []string{"init", "status", "scope-add", "task-start", "task-submit", "review-start", "review-submit", "task-accept", "reopen", "close"}
+var e2eActions = []string{"init", "status", "task-show", "scope-add", "task-start", "task-submit", "review-start", "review-submit", "task-accept", "reopen", "close"}
+
+func e2eReadOnlyAction(action string) bool {
+	return action == "status" || action == "task-show"
+}
 
 func e2eRequiresActiveRun(action string) bool {
 	switch action {
@@ -19,11 +23,11 @@ func e2eRequiresActiveRun(action string) bool {
 }
 
 func e2eCapabilityIDs() []string {
-	ids := make([]string, 0, len(e2eActions))
+	ids := make([]string, 0, len(e2eActions)+1)
 	for _, action := range e2eActions {
 		ids = append(ids, "e2e."+action)
 	}
-	return ids
+	return append(ids, "e2e.compact")
 }
 
 // The registry supplies canonical project-relative paths. E2E state and all
@@ -45,17 +49,27 @@ func e2eFilePathKey(value string) string {
 }
 
 func e2eCapabilityDescriptor(id string) (map[string]any, bool) {
+	if id == "e2e.compact" {
+		return map[string]any{
+			"id": id, "summary": "Explicit paginated E2E state views and exact task resume reads",
+			"usage":          "specify-runtime e2e <action> --run-id <id> --view compact [--offset <n>] [--limit <1..200>] --format json",
+			"side_effect":    "view-only-feature",
+			"input_contract": "An output feature, not an executable action. The default full view remains compatible. Compact state responses retain full-scope counts, global status counts, per-stage status counts and a task page (default 25, maximum 200), exact revision, next_page_argv and full_show_argv. The shared task_show_argv template replaces only <task-id> with a current row's id; stable project/runtime paths are not duplicated per row. Read every page at the same revision; restart pagination if it changes. Counts and missing work are never inferred from only the current page. Underlying actions retain their own mutation and acceptance gates; compact does not authorize writes.",
+		}, true
+	}
 	action := strings.TrimPrefix(id, "e2e.")
 	if id == action || !e2eContains(e2eActions, action) {
 		return nil, false
 	}
 	usage := "specify-runtime e2e " + action + " --run-id <id> [--project-root <path>] --format json"
-	if action != "init" && action != "status" {
+	if action != "init" && !e2eReadOnlyAction(action) {
 		usage += " --expected-revision <revision>"
 	}
+	usage += " [--view full|compact] [--offset <n>] [--limit <1..200>]"
 	inputSchema := ""
 	sideEffect := "writes-e2e-workflow"
 	contract := "Runtime-owned, revision-checked E2E handoffs; native agent tools create workers. Recorded distinct identities are checked, not authenticated as separate agent processes."
+	contract += " State responses expose fresh_revision, readiness_counts, ready_actions and waiting. Compact lists only the current task page; task-show expands an exact task's reasons/argv and bounded conflicts with next_conflict_page_argv/next_waiting_page_argv. Full status includes all ready actions, reasons and candidate_conflicts. Individually ready candidates may conflict with each other; candidate_conflict_pair_count is global and never authorizes a batch. Every mutation still requires fresh revision and live owner checks. Typed diagnostics retain root_task_id, kind, path, expected_sha256, observed_sha256, reason and transitive affected_task_ids; compact exposes counts/pages and full expansion. Empty observed_sha256 means unavailable bytes, not a matching digest. Mutable drift is invalidated with a durable causal event; corrupt immutable history blocks without resetting it."
 	if e2eRequiresActiveRun(action) {
 		contract += " Require an active run; after closeout, the leader must reopen the affected task with a recovery reason and evidence before ordinary task progression."
 	}
@@ -67,6 +81,10 @@ func e2eCapabilityDescriptor(id string) (map[string]any, bool) {
 	case "status":
 		sideEffect = "read-only"
 		contract += " Revalidate snapshot, source, output and evidence byte bindings; return the full denominator, unresolved tasks and stale descendants. Status does not mutate stale state. Fresh blocked/reported closeouts return an evidence-backed reopen action for the earliest unresolved or nonpassing stage; passing closeouts have no ordinary next action."
+	case "task-show":
+		sideEffect = "read-only"
+		usage += " --task-id <id>"
+		contract += " Read one current task without acquiring a mutation lock or writing files. Revalidate the run's immutable history and current bindings before returning the exact current worker/review packet and a same-attempt submission/review template. A stale or corrupt run returns no usable template. Closed runs do not expose ordinary submission/review resume actions. Template placeholders are not passing observations."
 	case "scope-add":
 		usage += " --leader-id <id> --reason <text> --evidence-ref <path> --input-json <object|@path|->"
 		inputSchema = "e2e-scope-add-input"

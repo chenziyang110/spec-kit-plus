@@ -1,7 +1,7 @@
+import re
 from pathlib import Path
 
 from specify_cli.integrations.base import IntegrationBase
-
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -9,10 +9,16 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 QUICK_CHECKPOINT_CARD_MARKERS = (
     "quick delivery checkpoint",
     "请确认本次修改",
+    "当前情况与依据",
     "你会看到",
     "本次会做",
     "本次不做",
     "交付与验收",
+    "方案与完成标准",
+    "current_state_evidence",
+    "recommended_approach",
+    "assumptions_and_risks",
+    "completion_evidence",
     "checkpoint-stage",
     "checkpoint-confirm",
     "checkpoint-show",
@@ -29,10 +35,9 @@ QUICK_CHECKPOINT_CARD_MARKERS = (
 
 DEBUG_CHECKPOINT_CARD_SECTIONS = (
     "我理解的问题",
-    "应有表现",
-    "已知条件",
-    "本次调查",
-    "修复授权",
+    "已发现的问题",
+    "准备怎么修复",
+    "影响与验证",
     "需要重新确认的情况",
 )
 
@@ -75,8 +80,13 @@ def assert_debug_checkpoint_card_shape(content: str) -> None:
     lowered = content.lower()
 
     assert "## debug checkpoint" in lowered
+    card = content[lowered.index("## debug checkpoint") :]
+    offsets = []
     for section in DEBUG_CHECKPOINT_CARD_SECTIONS:
-        assert section in content
+        heading = f"### {section}"
+        assert heading in card, heading
+        offsets.append(card.index(heading))
+    assert offsets == sorted(offsets)
     assert "| decision to confirm | current understanding |" not in lowered
     assert "reply with `confirm`/`确认`" in lowered
 
@@ -94,6 +104,24 @@ def read_template(path: str) -> str:
     template_path = PROJECT_ROOT / path
     raw = template_path.read_text(encoding="utf-8")
     return IntegrationBase.render_template_content(raw, template_path=template_path)
+
+
+def read_cognition_contract(path: Path) -> str:
+    """Read the effective cognition contract through its explicit local links.
+
+    This is for full-contract assertions, not a claim that all references are
+    loaded at intake. Tests of default loading must read the entry file alone.
+    """
+    content = path.read_text(encoding="utf-8")
+    parts = [content]
+    for relative in re.findall(
+        r"\]\(((?:references/)?project-cognition-(?:closeout|semantic-audit)\.md)\)",
+        content,
+    ):
+        target = path.parent / relative
+        assert target.is_file(), f"unreachable cognition contract: {target}"
+        parts.append(target.read_text(encoding="utf-8"))
+    return "\n\n".join(parts)
 
 
 def read_command_with_references(command_name: str) -> str:

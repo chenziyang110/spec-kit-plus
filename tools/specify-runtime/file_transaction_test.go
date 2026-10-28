@@ -9,6 +9,40 @@ import (
 	"testing"
 )
 
+func TestFileTransactionAbsenceRejectsExistingNodesWithoutReading(t *testing.T) {
+	for _, kind := range []string{"directory", "oversize-file"} {
+		t.Run(kind, func(t *testing.T) {
+			root := t.TempDir()
+			gate := filepath.Join(root, "absent")
+			if kind == "directory" {
+				if err := os.Mkdir(gate, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				file, err := os.Create(gate)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := file.Truncate(doBaselineSizeLimit + 1); err != nil {
+					_ = file.Close()
+					t.Fatal(err)
+				}
+				if err := file.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			target := filepath.Join(root, "output")
+			_, err := applyFileTransactionWithPreconditions(root, "test.absence", []fileTransactionUpdate{{Path: target, Content: []byte("output")}}, []fileTransactionPrecondition{{Path: gate, MustNotExist: true}})
+			if err == nil || !strings.Contains(err.Error(), "expected the path to be absent") {
+				t.Fatalf("existing %s was read or accepted by absence check: %v", kind, err)
+			}
+			if _, err := os.Stat(target); !os.IsNotExist(err) {
+				t.Fatalf("failed absence gate published output: %v", err)
+			}
+		})
+	}
+}
+
 func TestFileTransactionRecoversInterruptedPromotion(t *testing.T) {
 	for _, existed := range []bool{false, true} {
 		for _, promoted := range []bool{false, true} {

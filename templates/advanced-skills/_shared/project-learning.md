@@ -12,6 +12,22 @@ files directly during normal execution.
 
 ## Intake
 
+Before relying on bound reuse, run
+`{{specify-subcmd:specify-runtime api ensure --capabilities learning.applicability.v1 --format json}}`.
+The versioned capability extends existing owners; no `learning applicability`
+command exists. An old runtime must be repaired or the lesson deferred.
+After minimal live reads identify the exact source directory, use
+`{{specify-subcmd:specify-runtime learning start --command <classic-command-name> --context component=src/owner --context constraint_file=constraints.json --format json}}`.
+Carry the same context through `list` and its selected `show_argv`; add
+`--context counterevidence_file=tests/current-counterexample.txt` for a current
+contradiction. Read `applicability.state`, `applicable`, `reason_codes` and detail
+`checks`. `rejected` forbids reuse; `degraded`, missing legacy bindings or unknown
+versions require deferral and current evidence. Only `applicable` can support
+considering reuse after live verification of component, current source bytes and
+constraints. Facet ranking, recurrence and graph freshness are not semantic proof.
+Rejected candidates are excluded from promotion-ready notes; confirmation notes
+retain rejection reasons. Explicit confirmation cannot repair changed sources.
+
 For every non-trivial workflow, run:
 
 ```text
@@ -71,6 +87,18 @@ Prefer `learning capture-auto` from the owning durable workflow state. Use
 manual `learning capture` only when state cannot express the lesson; provide a
 one-line summary plus problem, imperative action, trigger signals, success
 criteria, avoid items, exceptions, and concrete evidence when known.
+
+Bind a genuine reusable signal with `capture` or owning-state `capture-auto` flags
+`--component src/owner --source-file src/owner/entry.go --constraint-file constraints.json --evidence-kind recovery`.
+Evidence kinds are `failure|recovery|correction|constraint`; repeat source/constraint
+flags, and preserve counterexamples with `--counterevidence-file`. Runtime-owned
+hashes and sizes derive from current files, never caller hashes or Gold/scoring
+answers. Do not fabricate business origins or capture ordinary success.
+Use safe project-relative references, product sources inside the exact component;
+reject redirected paths, private runtime storage and raw sensitive references.
+Current facts stay Cognition, lessons Learning, methods the existing Playbook
+owner. Preserve Do-before-Learning write locking; reads never acquire mutation
+ownership or confirm/promote a lesson.
 
 Summary, trigger_signals, and evidence are sanitized agent-facing projections, not raw incident logs.
 trigger_signals are canonical tags for new records; legacy free-form trigger text may appear only for read compatibility.

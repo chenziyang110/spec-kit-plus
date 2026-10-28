@@ -5,8 +5,8 @@ If blocked after safe recovery, read and follow
 return only an error or “ask a human”; preserve state and keep agent-capable
 repair agent-owned. Set `human_action_required: true` only for authority,
 credentials, protected systems, human decisions/reviews, or physical access.
-For Fast, Quick, Implement, and Debug, apply their Autonomous Blocker Recovery
-contract first: project-controlled launchers, harnesses, dependencies, tooling,
+For every workflow, apply the Autonomous Blocker Recovery contract first:
+project-controlled launchers, harnesses, dependencies, tooling,
 local services, and supporting scope expansion are not terminal merely because
 they sit outside the initial packet.
 Tailor steps, expected results, failure paths, evidence, and resume action to

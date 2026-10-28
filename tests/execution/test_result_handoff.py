@@ -240,8 +240,9 @@ def test_build_result_handoff_path_for_codex_prd_scan_workspace(
 
 
 def test_write_normalized_result_handoff_rejects_pending_template_payload(
-    project_root: Path = Path("F:/tmp/project"),
+    tmp_path: Path,
 ) -> None:
+    project_root = tmp_path
     with pytest.raises(ValueError, match="Pending result templates cannot be written"):
         write_normalized_result_handoff(
             project_root,

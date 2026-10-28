@@ -27,15 +27,19 @@ Query the workflow runtime first. Transition from the validated completed
 `specify` stage into `plan` on the ordinary forward path. If verified fresh
 evidence invalidates Plan while the runtime owns a later stage, use an
 evidence-backed `workflow reopen --to plan`. A blocked later stage returns
-`pending_reopen_action`; preserve its blocker, present the Human Action Guide,
-and execute the returned atomic resolve-and-reopen base argv only after real
+`pending_reopen_action`; preserve its blocker and perform permitted agent-owned
+recovery first. Present the Human Action Guide only for a genuine human-owned
+boundary, and execute the returned atomic resolve-and-reopen base argv only after real
 resolution evidence exists. Do not ask the user to invoke Plan again before
 that transaction succeeds. Only after the transition succeeds, or the atomic
 resolve-and-reopen transaction succeeds, run the installed
 `.specify/scripts/bash/setup-plan.sh --json` or PowerShell equivalent to create
 or preserve the plan skeleton. Run
 `{{specify-subcmd:specify-runtime hook validate-state --command plan --feature-dir <feature-dir> --autofix --format json}}`
-and stop if it remains invalid.
+and withhold dependent writes if it remains invalid. Diagnose and repair
+current-owner state through supported runtime routes, then rerun this gate in
+the same invocation. A proven upstream truth gap still returns to its owner;
+never hand-edit state or bypass validation.
 
 Require `spec-contract.json` with `status: planning-ready`, a ready transition
 to `sp-plan`, a current source revision, locked target boundary, zero hard

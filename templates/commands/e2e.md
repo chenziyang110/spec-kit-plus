@@ -54,9 +54,9 @@ scoped closeout; the Python helpers remain stateless test-asset validators.
 
 ### Negotiate and use the real runtime
 
-Before dispatch, negotiate all ten E2E operations through the installed launcher:
+Before dispatch, negotiate the E2E operations and compact-view feature through the installed launcher:
 
-`{{specify-subcmd:specify-runtime api ensure --capabilities e2e.init,e2e.status,e2e.scope-add,e2e.task-start,e2e.task-submit,e2e.review-start,e2e.review-submit,e2e.task-accept,e2e.reopen,e2e.close --format json}}`
+`{{specify-subcmd:specify-runtime api ensure --capabilities e2e.init,e2e.status,e2e.compact,e2e.task-show,e2e.scope-add,e2e.task-start,e2e.task-submit,e2e.review-start,e2e.review-submit,e2e.task-accept,e2e.reopen,e2e.close,cognition.worker-delta.v1 --format json}}`
 
 Read the bounded input contracts instead of inventing state JSON:
 
@@ -73,8 +73,23 @@ Read the bounded input contracts instead of inventing state JSON:
    Initialize once with `e2e init --run-id <run> --leader-id <native-session-id>
    --input-json <object|@path|-> --format json`; never reset an existing run to
    erase unfinished work. Explicit planning-only mode is `planning`.
-2. Read `e2e status --run-id <run> --format json` on resume and before selecting
-   a next task. `e2e task-start` with the actual worker ID and current
+2. Read `e2e status --run-id <run> --view compact --format json` on resume and before selecting
+   a next task. Use returned page and full-view argv to account for the complete
+   scope, task and acceptance-row denominators; a page is not the whole run.
+   Pages must share the same revision. Refresh after a mutation or drift.
+   Inspect `readiness_counts`, every page's `ready_actions` and `waiting`
+   reasons, then retrieve selected task detail. Individually ready tasks may
+   still conflict with each other: inspect `candidate_conflict_pair_count`
+   and task-local `conflicts` pages before assigning parallel work. Full view
+   exposes the whole set. Each start checks fresh readiness and revision;
+   obtain a new revision after every mutation. Never batch starts with one CAS.
+   The page's `task_show_argv` is a shared template: replace only `<task-id>`
+   with the selected row's exact ID.
+   Read `e2e task-show --run-id <run> --task-id <task> --format json` only for
+   selected task detail or interrupted worker/reviewer recovery. It returns
+   current exact packet bindings and applicable templates without a state write.
+   Missing/stale templates remain unavailable; never fabricate pass fields.
+   `e2e task-start` with the actual worker ID and current
    `--expected-revision` returns the pinned packet, attempt and submission
    template. Dispatch that packet through native subagent tools. Consume the
    standard `worker_task_packet` view and its `worker_task_packet_binding`
@@ -86,11 +101,26 @@ Read the bounded input contracts instead of inventing state JSON:
    devices/accounts/fixture namespaces; use Work Board ownership across runs.
    Every output-to-input relationship needs a dependency path, including
    cross-target tasks; runtime also refuses overlapping active reads/writes.
+   Prefer `--view compact` on state-changing calls to avoid repeating the whole
+   task inventory. Full responses remain available with `--view full` and are
+   the compatibility default. Retrieve one required packet rather than expanding
+   every task on every step; preserve its complete acceptance contract.
 3. The worker fills every assigned scope/acceptance pair's actual observation,
    expected result, preconditions, reproduction and raw evidence refs, embeds
    the existing `WorkerTaskResult`, and calls `e2e task-submit --result-json`.
    Use runtime-returned packet bindings and current revision. A successful
    command only submits the result; it cannot accept it.
+   Honor the packet's versioned `cognition_delta_contract`: the embedded
+   result reports `cognition_delta` with schema
+   `spec-kit-cognition-delta-v1`, version 1, reported identity, every retained
+   changed path and both rename endpoints, plus relevant behavior,
+   owner/consumer/interface, generated chain, state, evidence, invalidation,
+   unknown, confidence and recovery facets as nested JSON candidates.
+   Runtime owns result history and exact acceptance; the worker cannot supply
+   those bindings. The leader closeout planner consumes stored submissions
+   and histories, keeps unaccepted semantics as candidates and retains all
+   edits for invalidation. An accepted failure report remains a nonpassing
+   prerequisite.
    A passing result must not contain failed validation rows or nonzero runner
    exit codes; retain the original report instead of normalizing failures away.
 4. A separate native subagent uses `e2e review-start` under its actual validator
@@ -103,6 +133,10 @@ Read the bounded input contracts instead of inventing state JSON:
    `e2e task-accept` for that verified version. A reviewer that edits an output
    has become an author: obtain a new submission and another validator.
 5. On rejection, repair the named rows and produce a new attempt and review.
+   Read structured drift roots, paths, hashes and affected task IDs before
+   selecting the earliest producer. Live input/output/evidence drift requires
+   fresh work; corrupt immutable history remains blocked and cannot be reset
+   as an ordinary retry. Page diagnostics without dropping their denominator.
    On drift or downstream counterevidence, the leader calls `e2e reopen` for
    the earliest affected producer with a reason and evidence. Dependent
    attempts/acceptances are invalidated transitively. Read the returned current
@@ -350,6 +384,35 @@ rebind the whole book and run fresh evidence. Report `condition_coverage` and
 failed/skipped/blocked/not_run/flaky variants remain visible. These checks bind
 declared semantics, not proof of correct discovery, perception or t-way coverage.
 
+### Review compound risks and test strength
+
+Before accepting Stage 2, declare each discovered high-risk interaction in a
+source-backed risk intent: input repertoire × boundary/state/timing, why those
+dimensions interact, exact condition variants or event/checkpoint, and the
+ordered stimulus plus independent outcome oracle. Unknown expected behavior or
+an unobserved checkpoint stays pending with a bound reason. Challenge length
+units with multibyte and supplementary-plane inputs where applicable; ASCII
+alone cannot distinguish bytes, UTF-16 units and code points. Visible success
+also needs an independent effect readback for side-effecting operations.
+
+Read the helper's schema rather than inventing fields:
+
+```text
+python .specify/scripts/shared/e2e_assets.py schema strength
+python .specify/scripts/shared/e2e_assets.py strength-prepare tests/e2e/risk-intent.json --book tests/e2e/scenarios.json --root .
+python .specify/scripts/shared/e2e_assets.py strength-audit tests/e2e/strength.json --root .
+```
+
+The helper writes only stdout; register the frozen ordinary asset as an owned
+Stage 2 output and later input through the existing E2E owner. The validator
+checks the original intent, requirement-derived expected outcomes, all declared
+risks and semantic oracle adequacy. A ready declaration is not executed strength
+or complete risk discovery. Where a safe disposable negative control is feasible,
+confirm a known-wrong behavior is actually detected; retain its failed trace and
+the whole not-run denominator. Never alter product source to force this check.
+After execution, `strength-audit --trace <trace>` delegates to the existing
+scenario auditor; unexecuted, failed and flaky evidence remains a gap.
+
 **Outputs:** The frozen schema-v2 scenario book, derive/check outputs, complete
 condition/timing denominators, expected oracles and gap/exclusion ledger.
 **Acceptance:** The validator challenges discovery, source-backed limits and
@@ -360,15 +423,93 @@ need separate books; blocked remainder IDs must stay visible. Planning-only
 work proceeds to stage 6 design audit and stage 7 reporting with execution
 explicitly unrequested.
 
+### Freeze independent books before execution
+
+Partition only against the accepted complete parent scope before execution.
+Keep its original request/source bindings, every operation and cross-feature
+obligation, dependencies, gaps and justified exclusions. A bundle intent maps
+that denominator to independently scoped v2 books plus actual shared journey
+books; each book binds strength assets, fixture definitions and real target
+inputs. Read `python .specify/scripts/shared/e2e_assets.py schema bundle`, then
+use `bundle-prepare <intent> --parent <parent> --root .`. Save stdout as an
+ordinary owned Stage 2 output and independently accept the entire frozen bundle.
+Stage 3/4 packets consume that exact file digest and their book/fixture/target
+bindings. A smaller partition cannot erase an original failed or untested row.
+
+Before executing a book, record the ordinary `execution_binding` from the
+schema: `schema_version`, `bundle_file_sha256`, `book_binding_sha256`, `book_id`,
+`run_id` and `target`. Bind its exact bytes in the Stage 3/4 handoff and retain
+one trace log evidence with ID `bundle-execution-binding`, its path and SHA-256.
+The optional runs index names this same file through `execution_binding`.
+This binds declared evidence consistently; the stateless helper cannot attest
+when a file was created or who executed a test. Independent review checks that.
+
+On resume or changed inputs, run `bundle-impact <bundle>
+--expected-bundle-sha256 <accepted-Stage-2-file-digest> --root . [--runs <index>]`.
+Parent/intent changes require refreezing the bundle; a source, book, strength, fixture
+or target change invalidates that book and its real dependent journeys. Keep
+unaffected original run evidence only if every binding and original auditor
+still passes. Rewriting a runs index or receipt cannot rebind an old trace.
+A changed whole-book hash needs new whole-book evidence. Impact checking may
+reuse design/preparation and preserve old history; it never grants a new-run pass.
+
+### Bind scenario and native evidence
+
+For hybrid execution, freeze a many-to-many crosswalk before running tests.
+Read `e2e_assets.py schema crosswalk`; the intent declares native lanes with
+their root, manifest/bindings digests, runner, target and associated book IDs.
+Every source listed by the manifest and every native test source must already belong to those books'
+frozen sources, fixture or target inputs. Each mapping states its rationale,
+exact scenario/step/oracle IDs, scenario/condition/timing obligations, native
+case IDs with journey/parameters, and requirement links supporting every edge.
+Unmapped obligations and native cases remain in the complete denominator.
+
+Use `crosswalk-prepare <intent> --bundle <bundle>
+--expected-bundle-sha256 <accepted-bundle-file-digest> --root .`. Independently
+accept the ordinary Stage 2 output and bind its raw file digest into Stage 3/4
+packets. Before execution, prepare the schema's crosswalk `execution_binding`:
+`schema_version`, `crosswalk_file_sha256`, `book_id`, `run_id`, `target`. Retain
+its exact file as the trace's single log evidence `crosswalk-execution-binding`,
+alongside the original `bundle-execution-binding` and exact native report,
+results and execution evidence. These are separate receipts; neither is an
+attestation of agent identity or creation time.
+
+After execution, use `crosswalk-audit <crosswalk>
+--expected-crosswalk-sha256 <accepted-crosswalk-file-digest>
+--expected-bundle-sha256 <accepted-bundle-file-digest>
+--scenario-runs <bundle-runs-index> --native-runs <native-runs-index> --root .`.
+The helper delegates to the original scenario/coverage auditors and verifies
+native report interpretation through the existing adapter. Keep their original
+reports and attempts. Missing, unknown, conflicting or duplicate credits,
+failed/skip/retry/flaky native outcomes and empty selection remain incomplete;
+visual success cannot erase them. `crosswalk_accounting_complete` describes
+consistent accounting, not product success or a new-run pass. The helper writes
+no workflow state; all task/review/acceptance transitions retain the Go owner.
+
 ## 3. Prepare and Verify Execution Readiness
 
 For a build, package, or native test operation within the selected E2E route,
 optionally retrieve method cards. First negotiate
-`{{specify-subcmd:specify-runtime api ensure --capabilities playbook.find,playbook.show --format json}}`;
+`{{specify-subcmd:specify-runtime api ensure --capabilities playbook.find,playbook.show,playbook.validate --format json}}`;
 if unavailable, continue E2E's own verification without method reuse. Otherwise use
-`{{specify-subcmd:specify-runtime playbook find --query <operation-goal> --format json}}`.
-Expand only matching pinned `show_argv` and needed `expand_argv`, then verify live
-scripts, prerequisites, scope, and outputs. Reuse is read-only advice inside the
+`{{specify-subcmd:specify-runtime playbook find --query <operation-goal> --operation <operation> --target <target> --context-json <actual-context-json> --rank relevance --format json}}`.
+Context contains supported OS, architecture, shell and `toolchain.*` values;
+target/build/fixture bindings remain explicit E2E readiness inputs. Expand only
+matching pinned `show_argv` and its `all` and `evidence` expansion routes. Keep that exact revision's
+definition and content digest while the operation, target and bindings remain
+unchanged; a repeated run need not repeat discovery and expansion.
+
+Before each native execution, call `playbook validate --input-json
+<pinned-definition-json> --context-json <actual-context-json>` (or feed the
+definition through stdin with `--input-json -`). `--id` validates the current
+revision, so it cannot validate a pinned older definition. Check operation and
+target against the current goal, validation's definition digest against the
+pinned content digest, and live `source_fingerprint` against the pinned evidence.
+`applicable=true` checks schema/context/readable sources; it does not prove
+historical source equality, target/fixture suitability or execution success.
+Changed source, version, target, fixture or context requires a new applicability
+assessment and fresh launch/readback/reset checks against the current book.
+Always execute and independently read back the current effects. Reuse is read-only advice inside the
 current E2E Work: preserve every scenario/condition ID, the complete verification
 denominator, execution ledger, and visual/acceptance gates. Do not implicitly
 invoke DO, create another Work/DoSession, or replace fresh evidence with method history.
@@ -579,6 +720,15 @@ that route cannot create a passing observation or unlock successful consumers.
 
 ### Test-only asset mutation closeout
 
+After retained test-asset edits and accepted joins, first call the planner in the
+shared inline closeout contract for the owned changed paths, then use its inputs
+to begin the native current-work/source binding before the final asset verification or
+execution that proves those edits. Seal it with fresh observations, consume its
+current check at mutation closeout and E2E close, and preserve the original E2E
+task/review/leader acceptance chain. An accepted failure report does not become a
+passing execution prerequisite. Read-only runs, traces and disposable reports
+need no fabricated source binding.
+
 When this invocation changes retained test assets, harness configuration or
 behavior-bearing test documentation, apply the shared closeout below using only
 those explicitly owned changed paths. Disposable run data and read-only
@@ -587,6 +737,24 @@ identity is `sp-e2e`; an older runtime rejecting it remains a compatibility
 blocker, never a reason to impersonate Implement or Review.
 
 {{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
+
+### Reuse and capture valuable recovery lessons
+
+Use existing `learning start -> list -> show` with canonical `sp-e2e` and the
+actual operation context. Reuse a selected lesson only while its trigger,
+target/source/build/fixture and evidence still fit; current failed readback or
+counterevidence rejects its applicability without erasing historical knowledge.
+After independent acceptance, capture a valuable causal failure/recovery through
+supported `learning capture --command sp-e2e`, with a stable recurrence key,
+problem/action/trigger/success/avoid/exception and exact failed/repair evidence
+refs and digests. E2E currently has no `capture-auto` workspace adapter; use
+manual capture for this workflow rather than assuming one exists.
+On resume, inspect matching `list/show` first: the same already recorded
+failure/repair pair is read reuse, not another capture (manual capture increments
+occurrence counts). A distinct real recurrence may merge under the same cause.
+Keep methods and scenario books in their existing owners, respect assessment
+defer/ignore outcomes, and use explicit `learning promote` only when authorized.
+Routine success logs do not justify a new lesson or automatic project rule.
 
 {{spec-kit-include: ../command-partials/common/learning-layer.md}}
 

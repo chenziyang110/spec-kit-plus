@@ -34,6 +34,38 @@ runtime-owned `.planning/quick/<id>/confirmation.json` produced by
 `quick checkpoint-stage`, never the mutable `STATUS.md` that later receives the
 `projection_binding`.
 
+Before the checkpoint, understand the request and inspect bounded current-state
+evidence under the existing intake gates: relevant source, logs, tests,
+requirements, current UI and safe checks. Read-only evidence workers have
+explicit read scope, no product write scope and stop conditions; they do not
+start Q items or consume implementation packets. Existing behavior checks
+must not alter product data or external state. Creating or repairing tests,
+harnesses, product files or persistent instrumentation requires approval and
+the original Q/Work execution gates. Ask only for a missing user-owned decision
+that blocks safe discovery or a concrete proposal.
+
+For a new raw request, populate `decision.current_state_evidence` with the selected
+current findings and source/check basis, including checked greenfield absence
+or unknowns when applicable. Populate `recommended_approach` with the concrete
+change, reason and expected effect; `assumptions_and_risks` with affected
+behavior and compatibility/authority boundaries; and `completion_evidence`
+with observable result and regression verification. Quick stays direct delivery
+and does not require a proven bug root cause for new work.
+
+For a newly gathered raw request, inspect the staged response's
+`confirmation.decision.current_state_evidence` and `views.decision`; require
+the complete selected evidence basis in the typed field and readable default
+human view. For material amendments, retain supplied `current_state_evidence`
+in the returned typed decision and its digest; show that basis in the human
+delta view only when `current_state_evidence` is named in
+`source.changed_decision_fields`. Otherwise omit the unchanged basis from the
+delta view. An omitted supplied field or basis missing where it should be
+visible is an incompatible old-runtime boundary. Restore or update the pinned
+compatible runtime and re-stage; do not ask for approval, confirm the digest
+or start execution after silent field loss. This does not force new-field
+backfill or another approval for an unchanged exact approved or inherited
+legacy decision.
+
 The user-facing checkpoint is the runtime-owned Decision Checkpoint in
 `references/human-confirmation.md`, followed conditionally by its UI card.
 Stage it with `specify-runtime quick checkpoint-stage`, render the staged
@@ -54,8 +86,13 @@ binding the user reviewed; the independent top-level `STATUS.md`
 `ui_design_binding` adoption copy is patched only afterward and must exact-match
 that confirmed decision.
 
-An unconfirmed checkpoint blocks broad investigation, delegation,
-implementation, and validation until runtime marks it confirmed or inherited.
+An unconfirmed checkpoint permits the bounded evidence intake above; it blocks
+product/test/harness writes, persistent instrumentation, implementation dispatch
+and acceptance validation until `checkpoint-confirm --digest` or validated
+runtime inheritance binds the exact current decision. Never use a generic
+`artifact patch` of `understanding_confirmed: true` as approval. A raw request
+or an Auto recommendation is not consent to an unseen proposal. Already exact
+confirmed or inherited decisions need no extra approval or new-field backfill.
 A confirmed discussion handoff with no semantic delta stages as `inherited` and
 skips re-confirmation; show the binding summary plus Delivery Map/Pulse instead.
 For a semantic delta, keep the complete resulting decision for digest
@@ -82,8 +119,10 @@ within the confirmed boundary, risk, and authority. Patch the affected
 Reopen only for a material change to outcome, boundaries, a confirmed work item,
 deliverable-level order or dependency, work-item acceptance, confirmed UI
 direction, user-visible behavior, risk, authority, migration or compatibility
-obligations, an independent capability, or an explicit stop condition; first set
+obligations, an independent capability, a material change to the recommended
+proposal or selected evidence basis, or an explicit stop condition; first set
 the checkpoint back to an unconfirmed staged decision and pause substantive work.
+Additional raw logs or unchanged supporting checks do not reopen approval.
 
 Before presenting the amendment, explain in user-facing prose the new evidence,
 why the previous confirmation no longer covers the work, the consequence of

@@ -11,10 +11,10 @@ Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the 
 ### Intake Inputs
 
 Navigation hints are not read authorization. Queue `minimal_live_reads` and
-other source/log/test routes during intake; execute them only after confirmation
-and accepted framing. Runtime/session metadata needed for the checkpoint stays
-within the existing pre-confirmation allowance. A ready map does not waive
-either gate.
+other source/log/test routes during intake; execute them only after accepted
+framing. Safe bounded diagnosis does not require repair confirmation.
+Repair writes proceed only after confirmation and accepted framing, with exact
+approved authority and fresh execution guards. A ready map waives neither gate.
 
 Optional feature artifacts require a valid feature binding and an existing,
 relevant artifact. Query only their needed sections through the artifact owner
@@ -25,9 +25,9 @@ Missing optional inputs are recorded as not applicable, not fabricated.
 A required artifact of an actually bound feature remains a real input gate.
 
 - Query `.planning/debug/[slug].md` through `specify-runtime artifact show` before each resumed action; treat the returned state as the investigation source of truth.
-- Query project cognition with `{{specify-subcmd:specify-runtime cognition compass --intent debug --query="$ARGUMENTS" --format json}}`. Queue top-level `minimal_live_reads` first for the post-framing evidence pass, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`. Do not treat first-pass reads as the final edit scope. Use `specify-runtime cognition expand` only when the packet's coverage state or live evidence requires it. Use the advanced `lexicon -> semantic_intake -> query` flow only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions. In that escalation, run `specify-runtime cognition query --query-plan "<query_plan_json>"` with `query_plan`, `semantic_intake`, `concept_decisions`, and facet coverage
-- If the session records `understanding_confirmed: false`, repair or confirm the Debug Understanding Checkpoint before reproduction, log review, source/test reads, evidence collection, subagent dispatch, instrumentation, code edits, or validation.
-- If truth ownership, competing truths, stale assumptions, or contradiction signals remain ambiguous, plan a bounded discriminating evidence pass using the returned `minimal_live_reads`; execute it only after confirmation and accepted framing.
+- Query project cognition with `{{specify-subcmd:specify-runtime cognition compass --intent debug --query="$ARGUMENTS" --format json}}`. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`. Do not treat first-pass reads as the final edit scope. Use `specify-runtime cognition expand` only when the packet's coverage state or live evidence requires it. Use the advanced `lexicon -> semantic_intake -> query` flow only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions. In that escalation, run `specify-runtime cognition query --query-plan "<query_plan_json>"` with `query_plan`, `semantic_intake`, `concept_decisions`, and facet coverage
+- `understanding_confirmed: false` permits safe bounded diagnosis after the intake and observer gates: low-risk reproduction, existing log/source/test reads, and read-only evidence subagents. It blocks fix/source/test/harness/persistent instrumentation writes and fix-worker dispatch until the exact checkpoint decision is approved. Preserve separate external and destructive action gates.
+- If truth ownership, competing truths, stale assumptions, or contradiction signals remain ambiguous, perform only the returned `minimal_live_reads` before continuing.
 - [AGENT] If cognition freshness is `missing`, continue with live repository evidence when workflow policy allows degraded advisory navigation; recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only as follow-up brownfield first-baseline maintenance unless the user explicitly requested cognition repair or root-cause analysis truly cannot proceed without a usable baseline.
 - [AGENT] If cognition freshness is `stale`, treat map output as advisory, continue with live repository evidence when workflow policy allows, and recommend `{{invoke:map-update}}` as follow-up maintenance only when the user requested cognition repair or stale coverage blocks the investigation.
 - [AGENT] If cognition freshness is `support_drift`, continue with live repository evidence when workflow policy allows and `SESSION PATCH` the support-surface drift; do not reflexively route to `{{invoke:map-update}}`.
@@ -36,11 +36,13 @@ A required artifact of an actually bound feature remains a real input gate.
 - Treat task-relevant cognition coverage as insufficient when the failing area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
 - [AGENT] If task-relevant cognition coverage is insufficient for the failing area, continue with live repository evidence when workflow policy allows and `SESSION PATCH` whether follow-up `{{invoke:map-update}}` with changed paths or affected surfaces is needed. Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid; block only when the user requested cognition repair or the investigation truly cannot proceed without refreshed coverage.
 - Use the debug cognition slice to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.
-- When `ui_confirmation.applicable` is true, use the confirmed UI target
-  baseline only as the observation standard: preserve its original references
-  and intents, reproduce the real entry point at the confirmed viewport/window
-  and state, and capture pre-fix structure, visual, and runtime evidence. Do not
-  turn that baseline into a repair design before causal evidence supports one.
+- When `ui_confirmation.applicable` is true, use an existing confirmed UI target
+  baseline, or provisional source-backed baseline during diagnosis, only as the
+  observation standard: preserve original references and intents, reproduce the
+  real entry point at the relevant viewport/window and state, and capture
+  pre-fix structure, visual, and runtime evidence. Provisional observations are
+  not UI approval. Confirm the UI target together with the evidence-backed
+  repair before mutation; do not redesign during diagnosis.
 - For UI symptoms, record **UI Debug Mode** classification in the session:
   `visual/layout`, `UX/interaction` (including hover/focus/keyboard/loading/
   empty/error), and/or `taste/generic-look`, with issue, reason, and
@@ -64,11 +66,11 @@ A required artifact of an actually bound feature remains a real input gate.
 
 All new `sp-debug` sessions follow this default intake path:
 
-`Project Cognition Compass -> Map-Backed Minimum Intake -> Evidence Investigation -> Fixing -> Verifying -> Human Verify`
+`Project Cognition Compass -> Map-Backed Minimum Intake -> Evidence Investigation -> Repair Confirmation -> Fixing -> Verifying -> Human Verify`
 
 Deep fallback path:
 
-`Stage 1A Causal Map -> Stage 1B Investigation Contract + Log Investigation Plan -> Evidence Investigation -> Fixing -> Verifying -> Human Verify`
+`Stage 1A Causal Map -> Stage 1B Investigation Contract + Log Investigation Plan -> Evidence Investigation -> Repair Confirmation -> Fixing -> Verifying -> Human Verify`
 
 Canonical stage map:
 
@@ -79,13 +81,16 @@ Canonical stage map:
 - `Stage 3: Fix`
 - `Stage 4: Verify`
 
-Do not enter reproduction, log review, test inspection, source-code reads, evidence collection, or fixing until the session records all of the following:
+Do not enter reproduction, log review, test inspection, source-code reads, or evidence collection until the session records all of the following:
 
-- `understanding_confirmed: true`
 - `causal_map_completed: true`
 - `investigation_contract_completed: true`
 - `log_investigation_plan_completed: true`
 - `observer_framing_completed: true`
+
+`understanding_confirmed` is not a diagnosis prerequisite. Before repair writes
+or fix-worker dispatch, additionally require explicit approval of the current
+evidence-backed repair checkpoint and its matching `confirmation_digest`.
 
 Repeated failure does not reopen observer-shape choices. It upgrades downstream investigation strength only, including `root_cause` mode and stronger instrumentation requirements.
 
@@ -227,7 +232,13 @@ recover that runtime through its owning bootstrap, never by direct state writes.
 
 ### Stage 2C: Observability Assessment
 - If the current logs cannot answer those questions, treat observability as insufficient.
-- During `investigating`, add or refine diagnostic logging, tracing, or instrumentation only within confirmed authority and the guarded write scope, then rerun the reproduction or tests to collect stronger evidence. Keep instrumentation behavior-neutral; note timing/observer effects, redact secrets, and track cleanup. Removing a probe is a change requiring affected revalidation.
+- During `investigating`, inspect existing logs, tracing, and outputs first.
+  Adding or refining persistent diagnostic logging, tracing, instrumentation, or
+  a harness requires the bounded `diagnostic-enablement` checkpoint approval
+  when no evidence-backed repair has been approved. Explain the known gap,
+  exact diagnostic scope, risks, and verification before writing; rerun the
+  reproduction to gather stronger evidence, then return to diagnosis and obtain
+  separate `evidence-backed-repair` approval before production changes.
 - If logs are insufficient during a runtime bug investigation, you cannot directly enter fixing until the work either extracts decisive signals from existing logs or records an instrumentation / user log request escalation.
 - Prefer diagnostic logging that clarifies boundaries, inputs, branches, outputs, and state transitions.
 - Prefer **decisive signals** over broad debug noise:
@@ -241,7 +252,7 @@ recover that runtime through its owning bootstrap, never by direct state writes.
   - **cache/snapshot drift**: authoritative state versus cached state, invalidation timing, refresh paths
   - **UI projection**: source-of-truth state, publish boundary, transformed view-model state, render/polling output
 - For runtime bug investigations where the leader cannot access the needed logs directly, produce a concrete user log request packet before fixing. Include the time window, target system, identifiers or correlation keys, exact log sources, and the expected candidate-separating signals.
-- If two hypothesis/experiment cycles fail to converge, escalate observability explicitly. Prefer an available read-only discriminating signal; add instrumentation only when the confirmed authority and fresh execution guard allow it. Never treat repeated failure as new write permission.
+- If two hypothesis/experiment cycles fail to converge, escalate observability explicitly. Prefer an available read-only discriminating signal; add instrumentation only when the exact approved diagnostic or repair authority and fresh execution guard allow it. Never treat repeated failure as new write permission.
 
 ### Stage 2D: Hypothesis Formation
 - Form one specific, falsifiable hypothesis from the evidence.
@@ -253,7 +264,7 @@ recover that runtime through its owning bootstrap, never by direct state writes.
 - Run one experiment for the active hypothesis.
 - Add the observed result to `Evidence` in memory and persist the complete section with `SESSION PATCH`.
 - If the result disproves the hypothesis, add it to `Eliminated` in memory, persist the complete section with `SESSION PATCH`, and return to Observability Assessment.
-- If the result confirms the failure mechanism, `SESSION PATCH` the root cause. With confirmed `diagnose only` authority, use Diagnosis-Only Delivery in `references/debug-state.md`; otherwise enter fixing only through the causal, RED and write-authorization gates.
+- If the result confirms the failure mechanism, `SESSION PATCH` the root cause. With confirmed `diagnose only` authority, use Diagnosis-Only Delivery in `references/debug-state.md`; otherwise prepare the concrete evidence-backed repair checkpoint before fixing through the causal, RED and write-authorization gates.
 - Before leaving this stage, `SESSION PATCH` which plausible causes were considered and which were ruled out so the session shows real causal spread instead of a single-path guess.
 - `SESSION PATCH` any **rejected surface fixes** that improved symptoms without restoring the control loop, so future resumes do not mistake symptom relief for root-cause resolution.
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -55,6 +56,10 @@ func doLearningSuggestions(session DoSession, validation DoValidation) []learnin
 	if validation.Status != "passed" {
 		return suggestions
 	}
+	hints := map[string]map[string]any{}
+	for _, hint := range doVerifiedRecoveryHints(session, validation) {
+		hints[fmt.Sprint(hint["failed_attempt"])+":"+fmt.Sprint(hint["verified_attempt"])] = hint
+	}
 	failed := map[string]DoAttempt{}
 	latest := map[string]DoAttempt{}
 	order := []string{}
@@ -76,6 +81,10 @@ func doLearningSuggestions(session DoSession, validation DoValidation) []learnin
 		}
 		definition := session.Definition
 		identity := strings.Join([]string{definition.Operation, definition.Target, definition.Owner, definition.Variant, key}, "|")
+		hint := hints[before.ID+":"+after.ID]
+		if hint != nil {
+			identity += "|" + fmt.Sprint(hint["failure_signature"])
+		}
 		pairs := [][2]string{
 			{"session", doSessionRef(session.ID)}, {"operation", definition.Operation}, {"target", definition.Target},
 			{"failed_attempt", before.ID}, {"verified_attempt", after.ID},
@@ -89,6 +98,12 @@ func doLearningSuggestions(session DoSession, validation DoValidation) []learnin
 		if before.Recovery != nil {
 			pairs = append(pairs, [2]string{"recovery_evidence", before.Recovery.EvidenceRef})
 		}
+		if hint != nil {
+			for _, field := range []string{"failure_signature", "failure_discriminator", "observed_delta", "preflight_candidates", "prevention_status"} {
+				value, _ := json.Marshal(hint[field])
+				pairs = append(pairs, [2]string{field, string(value)})
+			}
+		}
 		suggestions = append(suggestions, learningSuggestion{
 			learningType: "recovery_path", signalStrength: "medium",
 			summary:           "Verify recovery for " + definition.Operation + " on " + definition.Target + " before reusing the method",
@@ -96,8 +111,8 @@ func doLearningSuggestions(session DoSession, validation DoValidation) []learnin
 			recurrenceKey:     "do.recovered-operation." + safeSemanticLearningDigest(identity),
 			appliesTo:         []string{"sp-do", "sp-quick", "sp-implement", "sp-debug", "sp-e2e"},
 			problem:           "This operation needed recovery after an observed failed or interrupted attempt; its first result was insufficient.",
-			recommendedAction: "Inspect the referenced failed and verified attempts, use the current playbook's recovery guidance, and rerun its required checks after the recovery. Preserve the concrete recovery difference when improving the playbook.",
-			triggerSignals:    []string{"same operation failed before recovery", "native attempt interrupted", definition.Operation, definition.Target},
+			recommendedAction: "Match the observed failure discriminator and current environment before reusing the recovery difference. Inspect the bound failed/verified actions and candidate preflights; their observed success does not prove prevention or a root cause. Freeze and execute any selected preflight in the current Do definition, rerun required checks, and publish it only through verified playbook update.",
+			triggerSignals:    []string{"same observed failure discriminator", "native attempt interrupted", definition.Operation, definition.Target},
 			successCriteria:   []string{"all frozen required steps and checks validate against the current sources", "recovery evidence remains linked to the same operation"},
 			avoid:             []string{"reusing the earlier failed result", "retrying an unknown process without inspecting its effects", "promoting an untested recovery into the current playbook"},
 			facets:            map[string][]string{"operation_owners": {definition.Owner}, "components": {definition.Target}, "entrypoints": {definition.Operation}, "outcomes": {"verified-recovery"}},

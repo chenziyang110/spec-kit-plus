@@ -21,7 +21,7 @@ an external write or approval not authorized, subjective product/visual
 decisions, physical-device action, or an organization-controlled service the
 agent cannot operate.
 
-For Fast, Quick, Implement, and Debug, first follow
+For every workflow, first follow
 `references/autonomous-blocker-recovery.md`. Project-controlled launchers,
 harnesses, dependencies, tooling, local services, and supporting scope growth
 cannot become terminal only because they were outside the first packet.

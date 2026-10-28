@@ -1,4 +1,5 @@
 import json
+import hashlib
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -7,6 +8,12 @@ import pytest
 
 import specify_cli.specify_runtime as runtime
 from specify_cli.launcher import load_runtime_launcher, resolve_runtime_launcher_argv
+
+
+COGNITION_SNAPSHOT_CAPABILITIES = {
+    "cognition.expansion.snapshot.v2", "cognition.claim-evidence.page.v1",
+    "cognition.catalog.snapshot.v1",
+}
 
 
 RUNTIME_NAME = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
@@ -49,6 +56,82 @@ def test_standalone_installers_require_closeout_intent_recovery(
 
     for capability in ("cognition.closeout.inspect", "cognition.closeout.repair"):
         assert f'"{capability}"' in normalized, (relative_path, capability)
+
+
+@pytest.mark.parametrize(
+    "relative_path", ("tools/specify-runtime/install.sh", "tools/specify-runtime/install.ps1"),
+)
+def test_standalone_installers_refuse_missing_snapshot_contract_before_publication(
+    relative_path: str,
+) -> None:
+    content = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
+    guard = content.index("Downloaded binary lacks required cognition snapshot capability")
+    publish = content.index("mv -f" if relative_path.endswith(".sh") else "Move-Item -LiteralPath $candidate")
+    assert guard < publish
+    for capability in (
+        "cognition.expansion.snapshot.v2", "cognition.claim-evidence.page.v1",
+        "cognition.catalog.snapshot.v1",
+    ):
+        assert f'"{capability}"' in content[:guard]
+
+
+def _install_native_profile(project: Path, profile: str, binary: Path) -> None:
+    from specify_cli.integrations import get_integration
+    from specify_cli.integrations.manifest import IntegrationManifest
+
+    project.mkdir()
+    runtime.write_project_launcher_config(project, binary)
+    integration = get_integration("codex")
+    integration.setup(
+        project, IntegrationManifest("codex", project),
+        parsed_options={"workflow_profile": profile}, script_type="ps",
+    )
+    (project / "user-custom.txt").write_text("user owned\n", encoding="utf-8")
+    prefix = "sp" if profile == "classic" else "spx"
+    entry = project / ".codex" / "skills" / f"{prefix}-quick" / "SKILL.md"
+    entry.write_text(entry.read_text(encoding="utf-8") + "\nUser custom instruction\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize("profile", ("classic", "advanced"))
+def test_current_native_snapshot_runtime_is_compatible_with_installed_profile(
+    profile: str, tmp_path: Path, built_unified_runtime: Path,
+) -> None:
+    from specify_cli.launcher import runtime_launcher_is_compatible
+
+    project = tmp_path / profile
+    _install_native_profile(project, profile, built_unified_runtime)
+    before = {str(p.relative_to(project)): p.read_bytes() for p in project.rglob("*") if p.is_file()}
+    info = runtime._runtime_handshake([str(runtime.project_runtime_entrypoint_path(project))], cwd=project)
+    assert info is not None
+    assert COGNITION_SNAPSHOT_CAPABILITIES <= set(info["capability_ids"])
+    assert runtime_launcher_is_compatible(project)
+    assert before == {str(p.relative_to(project)): p.read_bytes() for p in project.rglob("*") if p.is_file()}
+
+
+@pytest.mark.parametrize("profile", ("classic", "advanced"))
+def test_actual_legacy_native_snapshot_runtime_is_refused_without_fixture_mutation(
+    profile: str, tmp_path: Path,
+) -> None:
+    from specify_cli.launcher import runtime_launcher_is_compatible
+
+    legacy_path = os.environ.get("SPECIFY_COGNITION_LEGACY_RUNTIME")
+    legacy_digest = os.environ.get("SPECIFY_COGNITION_LEGACY_RUNTIME_SHA256")
+    if not legacy_path or not legacy_digest:
+        pytest.skip("an exact observed pre-snapshot native runtime is required")
+    binary = Path(legacy_path).resolve()
+    assert hashlib.sha256(binary.read_bytes()).hexdigest() == legacy_digest
+    project = tmp_path / profile
+    _install_native_profile(project, profile, binary)
+    before = {str(p.relative_to(project)): p.read_bytes() for p in project.rglob("*") if p.is_file()}
+    pinned = runtime.project_runtime_entrypoint_path(project)
+    info = runtime._runtime_handshake([str(pinned)], cwd=project)
+    assert info is not None
+    observed = set(info["capability_ids"])
+    assert set(runtime.REQUIRED_CAPABILITIES) - COGNITION_SNAPSHOT_CAPABILITIES <= observed
+    assert COGNITION_SNAPSHOT_CAPABILITIES.isdisjoint(observed)
+    assert not runtime.launcher_supports_required_commands([str(pinned)], cwd=project)
+    assert not runtime_launcher_is_compatible(project)
+    assert before == {str(p.relative_to(project)): p.read_bytes() for p in project.rglob("*") if p.is_file()}
 
 
 def test_binary_filename_uses_unified_runtime_name(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -197,6 +280,10 @@ def test_resolve_prefers_env_over_path_when_no_project_launcher(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    # Keep the bootstrap case independent of .specify state in host ancestors.
+    config = tmp_path / ".specify" / "config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text("{}", encoding="utf-8")
     env_runtime = _write_runtime(tmp_path / "env" / RUNTIME_NAME)
     path_runtime = _write_runtime(tmp_path / "path" / RUNTIME_NAME)
     monkeypatch.setenv("SPECIFY_RUNTIME_BIN", str(env_runtime))

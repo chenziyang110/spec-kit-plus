@@ -95,6 +95,23 @@ the runtime-managed result channel. The leader merges it with
 `{{specify-subcmd:specify-runtime implement result-merge --feature-dir <feature-dir> --task-id <task-id> --result-json <inline-json|@path|-> --format json}}`;
 neither party writes a canonical or temporary result
 file under `worker-results/` directly.
+Include the packet's `cognition_delta_contract` in the handoff obligations.
+Before compilation/dispatch, require
+`{{specify-subcmd:specify-runtime api ensure --capabilities cognition.worker-delta.v1 --format json}}`;
+repair or upgrade a missing capability before source-changing work.
+The result's `cognition_delta` uses `schema: "spec-kit-cognition-delta-v1"`,
+`version: 1`, and reported `identity`. Include every retained `changed_paths`
+from success, blocked, failed, or rejected attempts; `path_changes` records
+add/modify/delete/rename, with both rename endpoints in that denominator.
+Preserve behavior, owner/consumer/interface, generated chain, state contract,
+verification/evidence, invalidated claim, unknown, confidence and recovery
+facets as nested JSON candidates. The runtime retains each submission and
+binds acceptance to its exact result; workers cannot supply
+`submission_history` or `cognition_result_binding`. Conflicting legacy aliases
+are refused. At the join, the leader's native closeout planner reads stored
+results and histories; unaccepted semantics remain candidates while retained
+edits remain in invalidation accounting. Shared-claim or path conflicts must
+be resolved explicitly, never overwritten with the last worker summary.
 Cheap producer-to-consumer wiring evidence remains task-local when a consumer
 surface is named. Defer only runtime real-entrypoint proof to the Leader attempt;
 do not defer the static "created but not wired" check.

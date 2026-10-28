@@ -20,6 +20,9 @@ If it is insufficient, state that the full workflow will perform its normal
 intake and continue into that intake.
 Do not say "I'll change", "I'll fix", or "I'll reproduce" before the selected
 branch's gates allow that action.
+The full branch's intake gates allow safe bounded reproduction and read-only
+evidence discovery before confirmation; mutation still waits for approval and
+the execution gates.
 
 Before opening any reference or calling any tool, assess only evidence already
 present in the active conversation. Context-direct is eligible only when the
@@ -32,11 +35,15 @@ multi-owner, acceptance-heavy, or resumable work is insufficient.
 The pre-intake routing result is strict:
 
 - **Insufficient: never show a branch menu.** Enter the full Quick branch and
-  perform its normal intake. Do not announce discovery, reproduction, or edits
-  before the full branch's own confirmation and execution gates.
-- **Sufficient:** show the exact scope, evidence, and fallback trigger, then ask
+  perform its normal intake. Understand the request and inspect bounded current
+  evidence before proposing the change; implementation waits for confirmation
+  and execution gates.
+- **Sufficient:** explain the current evidence basis, concrete proposed change,
+  exact scope, expected result, impact, risks, verification and fallback trigger, then ask
   exactly **Direct change (Recommended)** or **Continue full sp-quick**.
   Do not paraphrase these labels or add a third option.
+  The explained **Direct change (Recommended)** selection approves that exact
+  bounded proposal once; a raw request or an unexplained menu is not approval.
 
 After the user's choice, read `references/context-sufficiency-choice.md` only
 for a selected context-direct branch. Execute only that branch, defer
@@ -210,7 +217,21 @@ without registering overlapping child scopes. Use `quick:<id>#Qn`
 only for an independently guarded Q owner when the Quick-level owner does
 not already hold those paths.
 
-Initialize or preserve the unconfirmed intake state, then stage a
+Initialize or preserve the unconfirmed intake state, then understand the
+requested result and explore bounded current-state evidence under the existing
+intake gates. Inspect relevant existing source, logs, tests, requirements and
+UI; run only safe checks that cannot alter product data or external state.
+Read-only evidence workers may gather named evidence with no product write
+scope and explicit stop conditions. These are discovery lanes, not Q items:
+do not call `item-start`, dispatch an implementation packet, change product,
+tests or harnesses, or add persistent instrumentation before approval.
+For greenfield work, state the checked absence and requirements basis; keep
+observations, inferences and unknowns distinct without forcing bug diagnosis.
+Ask only for a user-owned fact that blocks a safe concrete proposal.
+Populate meaningful `decision.current_state_evidence`, `recommended_approach`,
+`assumptions_and_risks` and `completion_evidence`: discoveries and selected
+source/check refs, concrete change and reason, affected behavior and risks,
+expected result and verification. Then stage a
 `quick-confirmation-v1` contract with
 `{{specify-subcmd:specify-runtime quick checkpoint-stage <id> --input-json '<decision+delivery>' --format json}}`
 and render the runtime Decision Checkpoint from the returned `views.decision`
@@ -234,8 +255,12 @@ registered `UD-*` change, stage the exact five-field
 four registered binding fields enter `confirmation_digest`. For staged
 non-inherited checkpoints, ask once for both decisions and bind with
 `{{specify-subcmd:specify-runtime quick checkpoint-confirm <id> --digest <confirmation_digest> --format json}}`.
-For staged non-inherited checkpoints, wait for user confirmation before
-substantive execution. During execution, prefer
+For staged non-inherited checkpoints, wait for user confirmation through a real
+reply approving that exact proposal before implementation, and bind it through
+`checkpoint-confirm --digest`. Never replace that binding with a hand-patched
+`understanding_confirmed: true` or an Auto recommendation. Valid unchanged
+confirmed or inherited decisions need no second approval or new-field backfill.
+During execution, prefer
 `{{specify-subcmd:specify-runtime quick checkpoint-show <id> --view pulse --format json}}`
 over vague waiting text. Keep Delivery Map, waves, subagents, and file splits
 agent-owned; they never enter `confirmation_digest`.
@@ -428,10 +453,13 @@ or replace fresh evidence with method history.
 
 **Terminal order is mandatory (do not reverse):**
 
-1. Finish verification (tests/tsc/surface checks) and patch evidence into the quick-status and quick-summary artifacts through leased `specify-runtime artifact patch` calls.
-2. When any confirmed `write_scope` or `changed_code_paths` touches project source/runtime/templates/config/tests (not only `.planning/`), run planner-first cognition closeout **before** close:
+1. After accepted source-changing joins, when any confirmed `write_scope` or `changed_code_paths` touches project source/runtime/templates/config/tests (not only `.planning/`), first call the planner **before** binding or final verification:
+   Require `cognition.closeout.recovery.v1` and `cognition.closeout.binding.v1` through the capability check in
+   `references/project-cognition-closeout.md`; an older runtime follows its
+   upgrade/recovery action.
    `{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-quick --scope-dir .planning/quick/<id>-<slug> --scope-mode explicit --intent implement --format json}}`
-   plus one explicit `--changed-path` per owned path → fill agent-owned fields → execute `apply_argv`. Shared apply owns update, validation, eligible finalization, and the durable receipt; do not stamp a second receipt. For an update failure only, run mark-dirty and then `quick cognition-closeout` with `--result-state mark-dirty` and reason.
+   plus one explicit `--changed-path` per owned path. Use its inputs for the binding sequence in step 2.
+2. Begin the native work/source binding from `references/project-cognition-closeout.md`, run final verification (tests/tsc/surface checks), and seal that exact binding with fresh observations. Patch evidence into the quick-status and quick-summary artifacts through leased `specify-runtime artifact patch` calls. Do not attach old passing logs to a newly changed source basis. Use the plan already obtained → fill agent-owned fields → execute `apply_argv` **before** close. Shared apply owns update, validation, eligible finalization, and the durable receipt; do not stamp a second receipt. An existing durable intent requires returned inspect/repair/replay actions; an input failure requires truthful input repair. Only when no trustworthy intent can be formed may mark-dirty use `quick cognition-closeout` with `--result-state mark-dirty` and reason.
 3. Greenfield / `baseline_kind=greenfield_empty` is **not** a skip: shared apply must still produce `no_op`, or dirty fallback must record an explicit reason.
 4. Confirm `{{specify-subcmd:specify-runtime quick status <id>}}` shows `cognition_closeout.allowed_close=true` when source-changing.
 5. Only then: `{{specify-subcmd:specify-runtime quick close <id> resolved}}` (argv is positional status, not a bare close).

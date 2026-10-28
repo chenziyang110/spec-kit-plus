@@ -220,7 +220,8 @@ func runImplementCloseout(args []string, stdout io.Writer) int {
 			"error":              err.Error(),
 		}
 		env.Blockers = []any{err.Error()}
-		env.NextArgv = []string{"specify-runtime", "cognition", "mutation-receipt", "--workflow", "sp-implement", "--feature-dir", feature, "--result-state", "ready", "--reason", "<after-update-or-mark-dirty>", "--format", "json"}
+		env.NextArgv = mutationCognitionRecoveryArgv(feature, "sp-implement", nil)
+		env.Data["recommended_next_action"] = mutationCognitionRecoveryText(feature, "sp-implement", nil)
 		return writeEnvelope(stdout, env)
 	}
 	workflow, _ := readImplementJSONMap(filepath.Join(feature, "workflow.json"))
@@ -288,6 +289,13 @@ func reserveImplementValidationEpoch(root, feature, stage, purpose, fingerprint 
 	if fingerprint == "" {
 		return nil, errors.New("validation fingerprint is required")
 	}
+	closeoutProof, err := activeImplementationCloseoutBinding(root, feature, stage)
+	if err != nil {
+		return nil, err
+	}
+	if closeoutProof != nil && fingerprint != implementSnapshotSHA256(root, feature) {
+		return nil, errors.New("source-bound verification requires the runtime-generated current fingerprint")
+	}
 	if stage == "implement" && purpose == "convergence" && implementHandoffFrozen(feature) {
 		return nil, errors.New("passed convergence is immutable after implementation-handoff.json is frozen; continue in Review delivery")
 	}
@@ -331,7 +339,7 @@ func reserveImplementValidationEpoch(root, feature, stage, purpose, fingerprint 
 		if active != nil && active["run_id"] != gate["run_id"] {
 			return nil, fmt.Errorf("validation attempt %s is already running", active["attempt_id"])
 		}
-		if gate["status"] == "passed" && sameScope {
+		if gate["status"] == "passed" && sameScope && (closeoutProof == nil || gate["cognition_binding_id"] == closeoutProof.ID) {
 			return implementRunResponse(gate, runs, true, policy, len(runs), usedAttempts), nil
 		}
 		if gate["status"] == "passed" && purpose == "baseline" {
@@ -345,6 +353,9 @@ func reserveImplementValidationEpoch(root, feature, stage, purpose, fingerprint 
 		}
 		attempts := gate["attempts"].([]any)
 		attempt := implementAttemptPayload(fmt.Sprintf("%s-A%d", gate["run_id"], len(attempts)+1), fingerprint, commands, taskIDs, "running", nil, nil, "", utcNow())
+		if closeoutProof != nil {
+			attempt["cognition_binding_id"] = closeoutProof.ID
+		}
 		gate["attempts"] = append(attempts, attempt)
 		syncImplementRunFromAttempt(gate, attempt)
 		if err := writeJSONAtomic(path, ledger); err != nil {
@@ -376,6 +387,9 @@ func reserveImplementValidationEpoch(root, feature, stage, purpose, fingerprint 
 	}
 	runID := fmt.Sprintf("V%d", len(runs)+1)
 	attempt := implementAttemptPayload(runID+"-A1", fingerprint, commands, taskIDs, "running", nil, nil, "", utcNow())
+	if closeoutProof != nil {
+		attempt["cognition_binding_id"] = closeoutProof.ID
+	}
 	run := map[string]any{"run_id": runID, "stage": stage, "purpose": purpose, "attempts": []any{attempt}}
 	syncImplementRunFromAttempt(run, attempt)
 	ledger["runs"] = append(runs, run)
@@ -490,6 +504,18 @@ func completeImplementValidationEpoch(root, feature string, request implementVal
 	}
 	if err := validateImplementActiveStageOwner(feature, fmt.Sprint(run["stage"])); err != nil {
 		return nil, err
+	}
+	if id := anyString(run["cognition_binding_id"]); id != "" && status == "passed" {
+		proof, err := loadCloseoutBinding(root, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := checkCloseoutBinding(root, proof, "sp-"+fmt.Sprint(run["stage"]), proof.Scope, proof.WorkID, false, map[string]bool{}); err != nil {
+			return nil, err
+		}
+		if run["fingerprint"] != implementSnapshotSHA256(root, feature) {
+			return nil, errors.New("verification source fingerprint changed")
+		}
 	}
 	attempts := run["attempts"].([]any)
 	attempt := attempts[len(attempts)-1].(map[string]any)
@@ -861,6 +887,11 @@ func implementAttemptPayload(attemptID, fingerprint string, commands, taskIDs []
 func syncImplementRunFromAttempt(run, attempt map[string]any) {
 	for _, field := range []string{"attempt_id", "fingerprint", "commands", "covered_task_ids", "status", "failure_kind", "evidence_refs", "summary", "started_at", "completed_at"} {
 		run[field] = attempt[field]
+	}
+	if bindingID, present := attempt["cognition_binding_id"]; present {
+		run["cognition_binding_id"] = bindingID
+	} else {
+		delete(run, "cognition_binding_id")
 	}
 }
 

@@ -798,7 +798,12 @@ class ClaudeIntegration(SkillsIntegration):
         skills_dir = self.skills_dest(project_root).resolve()
         if workflow_profile == "advanced":
             self.finalize_native_skill_files(
-                [path for path in created if path.parent.name.startswith("spx-")],
+                [
+                    path for path in created
+                    if path.parent.name.startswith("spx-")
+                    or path.parent.name.removeprefix("sp-")
+                    in self.ADVANCED_CLASSIC_COMPANION_COMMANDS
+                ],
                 project_root,
                 manifest,
                 skills_dir,

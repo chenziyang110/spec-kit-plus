@@ -144,6 +144,11 @@ def test_quick_template_requires_one_time_understanding_checkpoint() -> None:
     assert "checkpoint-stage" in content
     assert "checkpoint-confirm" in content
     assert "confirmation_digest" in content
+    for protected_field in (
+        "current_state_evidence", "recommended_approach",
+        "assumptions_and_risks", "completion_evidence",
+    ):
+        assert protected_field in content
     assert "delivery map" in content
     assert "semantic_delta" in content or "semantic delta" in content
     assert "<br>" not in content
@@ -291,10 +296,10 @@ def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> Non
     assert "constitution first" in content
     assert "patch that requirement into the appropriate `status.md` section through the artifact cli" in content
     assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content
-    assert (
-        "after the artifact cli initializes `status.md` and patches `understanding_confirmed: true`, "
-        "and the first lane is defined, dispatch that subagent path before any further local repository deep dive"
-    ) in content
+    assert "checkpoint-confirm" in content
+    assert "inherited" in content
+    assert "after understanding confirmation" in content
+    assert "hand-patched" in content or "hand-patch" in content
     assert "resolved" in content
     assert "blocked" in content
 
@@ -447,23 +452,26 @@ def test_quick_coordination_preflight_is_documented_across_operator_surfaces() -
         assert "do not poll" in content, path
 
 
-def test_quick_template_blocks_resume_until_understanding_is_confirmed() -> None:
-    content = read_command_with_references("quick").lower()
+def test_quick_template_blocks_mutation_until_runtime_confirmation_but_allows_evidence_intake() -> None:
+    content = " ".join(read_command_with_references("quick").lower().split())
 
     assert "understanding_confirmed: false" in content
     assert "blocks substantive execution" in content
     assert "use the artifact cli to scaffold or patch `status.md` with `understanding_confirmed: false`" in content
     assert "must not proceed to code edits" in content
     assert "broad repository analysis" in content
-    assert "delegation" in content
-    assert "validation commands" in content
+    assert "read-only evidence" in content
+    assert "existing" in content and "safe" in content
+    assert "harness" in content and "instrumentation" in content
+    assert "implementation delegation" in content
     assert "{{invoke:map-update}}" in content
     assert "{{invoke:map-scan}}" in content
     assert "{{invoke:map-build}}" in content
     assert "until the checkpoint is confirmed" in content
     assert "do not start execution routing while `understanding_confirmed: false`" in content
-    assert "do not dispatch until the artifact cli has patched `understanding_confirmed: true`" in content
-    assert "start execution only after a leased `specify-runtime artifact patch` sets `understanding_confirmed: true` in `status.md`" in content
+    assert "checkpoint-confirm" in content
+    assert "inherited" in content
+    assert "start execution only after a leased `specify-runtime artifact patch` sets `understanding_confirmed: true`" not in content
     assert "the first concrete execution action after understanding confirmation" in content
 
 

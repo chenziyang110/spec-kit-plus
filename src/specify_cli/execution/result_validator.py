@@ -14,6 +14,7 @@ from .evidence import (
 from .packet_schema import WorkerTaskPacket
 from .packet_validator import PacketValidationError
 from .result_schema import WorkerTaskResult
+from .cognition_delta import cognition_delta_contract, normalize_cognition_delta
 _PLACEHOLDER_OUTPUTS = {
     "",
     "NOT RUN",
@@ -157,6 +158,16 @@ def validate_worker_task_result(
             "DP3",
             f"worker result task_id {result.task_id!r} does not match dispatched packet {packet.task_id!r}",
         )
+
+    try:
+        normalize_cognition_delta({
+            "task_id": result.task_id, "packet_id": result.packet_id,
+            "changed_files": result.changed_files, "cognition_delta": result.cognition_delta,
+        })
+        if packet.cognition_delta_contract and packet.cognition_delta_contract != cognition_delta_contract(packet.task_id):
+            raise ValueError("unsupported packet cognition_delta_contract")
+    except ValueError as exc:
+        raise PacketValidationError("DP3", str(exc)) from exc
 
     canonical_ui_kinds = {
         "structure_snapshot",

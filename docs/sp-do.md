@@ -1,8 +1,9 @@
 # sp-do: reusable project operations
 
 `sp-do` runs a concrete project operation and preserves the verified method for
-the next request. Use it for compiling, packaging, running an existing test
-suite, checking an environment, or maintaining a bounded project tool. Advanced
+the next request. Use it for compiling, packaging, tests, file operations,
+browser or desktop tasks, and connector operations within the authorized project
+scope and the agent's available tools. Advanced
 provides the independently authored `spx-do` skill over the same Go protocol.
 
 The user supplies an outcome in ordinary language. The agent finds a relevant
@@ -56,7 +57,8 @@ not create another generic lesson or repeat the whole guide.
 ## Progressive disclosure
 
 1. Start with `learning start --command sp-do` and a bounded `playbook find`.
-   Narrow candidates using the observed operation, target and toolchain context.
+   Narrow candidates using the observed operation, target, toolchain context and
+   actual parameter values.
 2. Read the selected summary and source references. Follow its pinned `show_argv`
    and expand only the needed steps, checks or evidence section.
 3. Inspect current scripts/configuration and prerequisites. A previous success
@@ -84,14 +86,13 @@ a later invocation before promoting the improvement.
 | Phase | Operation | Required result |
 | --- | --- | --- |
 | Select | `playbook find/show/validate` | Current method or explicit first-use definition |
-| Freeze | `do start` | Exact definition, source basis, scope, session and Work fence |
-| Execute | Native process/file tools | Actual completion or observed interruption |
-| Checkpoint | `do record` | Start checkpoint followed by observations for the same attempt |
+| Prepare | `do prepare` | Read-only canonical `start_input`, template/instance digests and source basis |
+| Freeze | `do start` | Rechecked exact definition, parameters, scope, session and Work fence |
+| Next action | `do next` | Ready full actions, started input and incomplete observation skeletons |
+| Execute/checkpoint | Native tools and `do record` | Recorded start, actual completion or interruption, required effect checks |
 | Verify | `do validate` | All frozen required steps/checks and applicable source closeout |
-| Close execution | `do finish`, knowledge `pending` | Execution passed; knowledge remains resumable |
-| Preserve lessons | Scoped `learning capture-auto/capture` | Meaningful candidates; no automatic promotion |
-| Preserve method | `playbook update` | Verified revision, no-change usage, or unverified proposal |
-| Close knowledge | `do finish` with the returned receipt | Terminal invocation and completed Work |
+| Ordinary closeout | `do complete` | Validated execution, exact-template revision/usage and saved knowledge |
+| Explicit closeout | `do finish` pending, scoped Learning if meaningful, `playbook update`, `do finish` saved | Same owners with a lesson, manual publication or an explicit alternative disposition |
 
 Go owns generated state, validation, artifact registration and transactions.
 Python owns bootstrap, installation, native integration rendering and
@@ -99,10 +100,19 @@ compatibility. The runtime never launches the build/test command. Observations
 retain `evidence_origin=agent_tool_observation` and explicitly report
 `runtime_execution_verified=false`.
 
-Checkpoint `started` before launching a native command. Retain its process
-handle, wait for actual completion, and record its real argv, cwd, timestamps,
-tool-call identity, exit result and output references. Completion cannot create
-its start retrospectively. Timeout and cancellation remain interrupted.
+Send prepare's `start_input` to `do start`; preparation alone creates no Work or
+session and does not freeze changing conditions. `do next` supplies full frozen
+actions and known recording fields. Record `started_input` before the selected
+action, fill `completion_event` with actual `completion_required` facts, and
+submit it through `do record` with the latest revision and a unique request ID.
+Refresh next after each checkpoint: its ready entries share one revision.
+`running` identifies attempts to observe or recover, never imaginary success.
+
+Process observations retain the real handle, argv/cwd, timestamps, tool-call
+identity, exit result and output references. File/browser/desktop/connector
+actions retain their typed action and actual JSON observation instead; do not
+invent process fields. Completion cannot create its start retrospectively.
+Timeout, cancellation and unknown native outcomes remain interrupted.
 
 Dependencies bind to concrete attempts. After a producer runs again, its
 consumers must check the new result. Required checks establish the promised
@@ -110,25 +120,36 @@ output: package existence/metadata, a structured success field or the expected
 test denominator. Historical snapshots remain evidence of the past; current
 required output paths must still match before a current success claim.
 
+When `do next` returns `complete_ready`, add a truthful `change_summary` to its
+`complete_input` and use `complete_argv`. This composes the existing execution
+finish, template publication and saved-knowledge finish; it does not run tools
+or skip validation/source closeout. A publication error leaves passed execution
+with pending knowledge. Reread the revision and retry without rerunning the
+successful operation. Completion replay does not duplicate usage. Require a
+terminal result; readiness alone is not completion.
+
 ## API discovery
 
 Use the project-pinned runtime returned by the installed launcher. Discover
 capabilities and schemas before composing mutations:
 
 ```sh
-specify-runtime api pack --capabilities do.start,do.record,do.finish,do.resume,playbook.update --include-schema --format json
+specify-runtime api pack --capabilities do.prepare,do.start,do.next,do.record,do.complete,do.resume --include-schema --format json
 specify-runtime api show do.validate --format json
 specify-runtime api schema playbook-definition-input --format json
 ```
 
-The ten capabilities are `do.start`, `do.record`, `do.validate`, `do.finish`,
+The fourteen capabilities are `do.start`, `do.record`, `do.validate`, `do.finish`,
 `do.resume`, `do.show`, `playbook.find`, `playbook.show`, `playbook.update` and
-`playbook.validate`. Installers require the entire set.
+`playbook.validate`, plus `do.prepare`, `do.next`, `do.complete` and
+`playbook.metrics`. Installers require the entire set.
 
 | Mutation | Schema and contract |
 | --- | --- |
-| `do start --input-json` | `do-start-input`: definition, agent/adapter identity, optional session ID, method binding and scopes |
+| `do prepare --input-json` | `do-prepare-input`: read-only canonical start contract; returns the template and resolved parameter bindings |
+| `do start --input-json` | `do-start-input`: template, actual parameters, agent/adapter identity, optional session ID, method binding and scopes |
 | `do record <id> --input-json` | `do-record-input`: expected revision, request ID and bounded event batch |
+| `do complete <id> --input-json` | `do-complete-input`: expected revision and change summary; verified publication and terminal knowledge |
 | `do finish <id> --input-json` | `do-finish-input`: expected revision, knowledge disposition/receipt or evidenced external blocker |
 | `do resume <id> --input-json` | `do-resume-input`: expected revision, exact attempt/recovery evidence, optional typed replan and supported Work recovery binding |
 | `playbook update --input-json` | `playbook-update-input`: definition, change summary, optional base digest, session and proposal-only disposition |
@@ -144,7 +165,12 @@ Useful reads:
 specify-runtime playbook find --query "package demo" --operation package --limit 5 --format json
 specify-runtime playbook show --id <method-id> --revision <revision> --section steps --format json
 specify-runtime playbook show --id <method-id> --section evidence --format json
+specify-runtime playbook show --id <method-id> --section recovery --format json
+specify-runtime playbook metrics --id <method-id> --parameters-json '{"output":"out/package"}' --format json
+specify-runtime do next <session-id> --format json
 specify-runtime do show <session-id> --format json
+specify-runtime do show <session-id> --section method --format json
+specify-runtime do show <session-id> --section metrics --format json
 specify-runtime do show <session-id> --section definition --format json
 specify-runtime do show <session-id> --section definitions --format json
 specify-runtime do show <session-id> --section definition:1 --format json
@@ -160,7 +186,10 @@ host/workflow cannot identify one unambiguous operation.
 
 A method contains identity, goal, title, aliases, applicability, project-relative
 source references, ordered steps, required checks and Learning references.
-Steps explain purpose, cwd, argv, dependencies, expected result and side effect.
+Steps explain purpose, dependencies, expected result and side effect. Process
+steps use cwd/argv; a nonprocess `native_action` uses kind
+`file|browser|desktop|connector`, tool, target and JSON arguments, excluding
+argv/cwd/script_ref.
 Use `script_ref` for maintained scripts so their actual bytes participate in
 freshness. Explicit source-mutating steps additionally declare `source_writes`
 within their authorized source scope.
@@ -171,10 +200,67 @@ within their authorized source scope.
 | `file` | A real nonempty file and its content hash remain valid |
 | `json` | A bounded JSON report matches the expected value at its declared pointer |
 | `junit` | The report meets the minimum test count without hidden nonpassing cases |
+| `observation` | A separate native call returns JSON matching the frozen pointer and expected value |
 
 "Tests looked good" cannot replace these obligations. Checks and required
 denominators are frozen before execution. Changing a check or adding a shortcut
 creates a changed definition needing verified execution before publication.
+
+A native mutation in the required dependency closure needs a dependent required
+observation/file/JSON/JUnit effect check. Its fresh tool call must follow the
+exact producer; a mutation's success response is not its own effect check.
+Record `native_observation` with `outcome=succeeded|failed|unknown` and the actual
+sanitized JSON `result`. Runtime binds and hashes its snapshot. Observed remote
+state is evidence as of that call, not a perpetual current-state guarantee.
+
+### Parameterized methods
+
+Declare nonsecret variable inputs in `parameters`: kind `path`, `enum` or
+pattern-constrained `string`, required flag, example, and optional default or
+bounds. Optional parameters require a default. A token such as
+`{{param:output}}` can fill supported value fields, including native target/JSON
+string values. In argv it must fill an entire non-executable argument; shell
+command interpolation is rejected. Supply actual strings in `do prepare/start`
+`parameters` and concrete resolved write/output scopes. Unknown, invalid or
+sensitive values are rejected; parameters do not grant additional authority.
+
+The reusable template digest and this invocation's resolved instance digest
+remain separate. `do show --section method` returns the template and bindings;
+`--section definition` returns the executable instance. Manual `playbook update`
+must use the former's `method_definition`; `do complete` selects it automatically.
+Different parameter values reuse unchanged canonical bytes and method revision.
+An optional stable `task_family` groups related methods without merging their
+distinct instance costs or weakening required checks.
+
+### Measured selection and recovery guidance
+
+`playbook find` defaults to lexical relevance without a session scan. Opt into
+`--rank observed` when comparisons justify its cost, supplying complete observed
+OS/architecture/shell/toolchain context and the intended `--parameters-json`.
+The runtime compares only equal-relevance candidates with equivalent family,
+workload, actual parameters, environment, source basis and verification. It
+orders observed first-pass reliability before median successful tool time.
+At least three eligible invocations are required; timing comparisons additionally
+need three successful timing samples. Insufficient timing samples retain their
+reliability-sorted slots. Missing, stale or incompatible evidence does not
+establish a preferred method, and no ranking claims universal optimality.
+
+Use `specify-runtime playbook metrics --id <id>` and
+`specify-runtime do show <id> --section metrics` for runtime-derived observations.
+These read-only owner routes create no second statistics database and distinguish resumable current
+status, terminal completion, failures, interruption, blocked episodes, retries,
+retained evidence and observed durations. Successful usage is not a success-rate
+denominator. Mixed epochs and external blocks are excluded from first-pass
+comparison; retained receipts do not fabricate new attempts. Tool durations can
+overlap and exclude unobserved agent exploration or thinking. Scanning costs
+grow with the number of sessions and are reported explicitly.
+
+`playbook show --section recovery` discloses currently validated recovery pairs:
+failure discriminators, failed/verified actions, native evidence hashes and
+candidate preflights. Match the current failure/context before reuse. Recovery
+does not prove a cause or preventive benefit; candidates require current frozen
+execution and required checks before verified publication. Expired evidence is
+reported and excluded. Learning capture preserves the same distinctions.
 
 Preserve what reduces future discovery: maintained entrypoints, necessary
 prerequisites, correct ordering, failure discriminators, validated shortcuts and
@@ -193,6 +279,7 @@ must not be embedded in reusable commands or evidence.
 | `.specify/playbooks/<id>/proposals/<digest>.json` | Unverified proposed definition |
 | `.specify/playbooks/<id>/usage/<session-id>.json` | Execution-bound usage and knowledge receipt |
 | `.specify/do/sessions/<id>/session.json` | Invocation state |
+| `.specify/do/sessions/<id>/baseline.json` | Immutable whole-workspace change baseline bound by SHA-256 |
 | `.specify/do/sessions/<id>/definitions/<epoch>.json` | Immutable plan snapshots materialized on replan |
 | `.specify/do/sessions/<id>/evidence/` | Runtime-owned report snapshots, file-hash receipts and inline recovery records |
 
@@ -200,6 +287,18 @@ The readable guide and index are projections, not edit surfaces. Generic
 artifact prepare/patch/delete cannot bypass the specialized owner. Changing an
 index cannot turn an unverified method into authority.
 Other workflow cognition routes cannot write or replay Do-owned session receipts.
+
+New Do sessions use `spec-kit-do-session-v2`: `session.json` stores the exact
+`baseline_ref` and `baseline_sha256`, while `baseline.json` retains every initial
+Git change path and its content digest. Both files publish atomically. The
+checkpoint keeps its 8 MiB limit; the separate baseline has a 64 MiB safety limit,
+so unrelated changes in a large workspace do not fill the operation checkpoint.
+Missing, redirected or changed baselines block loading and checkpoint writes.
+Complete workspace auditing still detects out-of-scope writes, including changes
+to files that were already dirty before the session. Size checks run before Work
+registration, so deterministic size failures leave no operation claim. Existing
+v1 inline-baseline sessions remain resumable; older runtimes reject v2 sessions
+before changing them. Both `sp-do` and `spx-do` use this shared storage contract.
 
 Updates compare `base_digest`, preserve immutable revisions and validate the
 exact definition against its DoSession. Publication is an atomic file
@@ -233,14 +332,15 @@ not be rerun unless a frozen required dependency needs its result.
 ### Recovery evidence
 
 For ordinary recovery, failed-method replanning and blocker resolution through
-`do resume`, supply a nonempty `recovery.reason`, `processes_stopped=true` and
-`side_effects_inspected=true`, plus exactly one evidence form:
+`do resume`, supply a nonempty `recovery.reason` and `side_effects_inspected=true`,
+plus `processes_stopped=true` for a process or `native_action_settled=true` for
+a nonprocess action (both for mixed-operation recovery), and exactly one evidence form:
 
 - `evidence_ref`: an existing sanitized evidence file inside the session's
   already declared `write_scope` or `output_scope`. A new scope in the same
   replan does not authorize prewriting that file.
 - `evidence_text`: a nonempty sanitized UTF-8 record, at most **64 KiB in bytes**,
-  of native process termination and the observed side-effect inspection. The
+  of process termination or native action settlement and the observed side-effect inspection. The
   runtime atomically stores it with the recovery/session revision check under
   the session's existing Work-owned `evidence/` directory. Do not prewrite or
   hand-edit that protected directory. Inline evidence adds no source/output
@@ -280,10 +380,20 @@ cannot retroactively absorb writes.
 
 Replanning preserves the original goal, method identity, failed observations and
 immutable plan history. Each plan has a runtime-owned `definition_epoch`.
-Every required step/check needs new observations in that epoch, even when a
-later plan returns to an earlier definition. Active or unknown effects must be
+By default required actions need new observations in that epoch. Active or unknown effects must be
 recovered first. A passed operation with pending knowledge repairs persistence
 through its existing receipt rather than opening another execution plan.
+
+To adapt an action before it starts, use `replan.mode="unstarted"` with no
+`attempt_id` or `recovery`. Only unattempted actions may change; a fictitious
+failure is unnecessary. Either mode can request `retain_verified=true` to reuse
+eligible original process observations through a verified immutable epoch chain with unchanged actions,
+source basis and dependency bindings, backed by freshly rehashed local results.
+The full required dependency closure, outcome assertions and edges remain
+fixed. Native/external actions, source writers and broken evidence chains are
+excluded. New required checks run, and local outputs are rechecked before a new
+consumer starts. Retained receipts point to original observations; they neither
+rewrite history nor count as new executions. Every retained hop must remain verified; a missing hop invalidates reuse.
 
 ### Resumable persistence and blockers
 
@@ -295,7 +405,7 @@ checks.
 
 If publication fails after a successful build, keep execution `passed` and
 knowledge `pending`. Repair only persistence, revalidate the retained evidence,
-and replay update/finish. No native command is replayed by that recovery. If
+and retry `do complete` or the explicit update/finish path. No native command is replayed by that recovery. If
 sources or required outputs have since changed, resolve freshness before
 claiming the prior result remains current.
 
@@ -328,6 +438,10 @@ fields. Learning holds the Do session lock before the Learning lock, registers
 exact planned files on the same Work, and retains that ownership through the
 write. Its metadata is not classified as product source. Promotion remains
 explicit.
+
+Use the explicit finish-pending branch when a lesson is warranted, capture it,
+then call complete from a fresh revision or continue manual update/finish.
+Ordinary complete does not create a lesson merely because the operation passed.
 
 Authorized source/script/configuration changes require canonical `sp-do`
 cognition closeout with actual changed paths and exact session scope. Follow the
@@ -368,10 +482,20 @@ replay, stale revision rejection and current-report tampering. Its method
 revisions are `1, 1, 2`. Timing and archive sizes are measured observations from
 that run, not a promise of universal speedup.
 
+[do_optimization_probe.py](../tests/e2e_samples/do_optimization_probe.py) adds
+three real packaging invocations with one unchanged template/revision and
+distinct parameter instances, plus a full-replan/manual-closeout control. It
+checks that retaining three validated local observations runs only the newly
+added check, while the control executes all four new-epoch actions. It measures
+actual public calls for complete versus explicit finish/update/finish, verifies
+unchanged canonical method bytes, and reports each adapter episode's elapsed
+time. These are local fixture observations, excluding model thinking and any
+claim of general speed or accuracy improvement.
+
 The integration test uses the same probe with the built runtime:
 
 ```sh
-uv run pytest tests/test_do_operation_probe.py tests/test_do_hooks.py tests/test_do_launcher.py tests/integrations/test_do_installation.py
+uv run pytest tests/test_do_operation_probe.py tests/test_do_optimization_probe.py tests/test_do_hooks.py tests/test_do_launcher.py tests/integrations/test_do_installation.py
 ```
 
 Go tests cover evidence, recovery, evolution, Learning, API discovery, Work
@@ -388,7 +512,7 @@ Classic commands and 30 SPX skills, including Advanced's map rebuild. Advanced
 still installs only its three intentional Classic map companions and does not
 install the Classic passive bundle.
 
-The Python launcher and both standalone installers require all ten new
+The Python launcher and both standalone installers require all fourteen Do
 capabilities. An older runtime is rejected instead of being accepted because a
 prompt exists. Schemas/references ship through the existing template package;
 repair preserves project data and edited native skills in either install order.
@@ -397,3 +521,29 @@ Source changes and local tests do not publish a runtime release. Follow
 [Public runtime distribution](runtime-release-distribution.md) for matching
 version/source identity, platform binaries, checksums and anonymous consumer
 verification. The source repository remains private.
+
+## Script bindings and concurrent recovery
+
+The `do.scoped-recovery.v1` capability versions public-script diagnostics,
+script-file input capture, audited unrelated changes and verified epoch-chain
+retention. Keep executable helpers in reviewable project files; use `script_ref`
+and complete `source_files`, including project/config/resource dependencies.
+Recognizable script argv files are captured relative to cwd; environment-held
+script bodies are rejected rather than treated as frozen code. Secrets retain
+environment bindings, and diagnostics omit their values.
+
+`do resume` can record `external_changes:{"paths":["exact/path"]}` with current
+revision and typed recovery evidence, separately from attempt recovery/replan.
+This audits current unrelated differences without claiming their ownership,
+widening scope, changing the baseline or excusing consumed-input changes.
+Byte/source/epoch/evidence drift invalidates it. Resolve an already recorded
+blocker with the normal fresh-evidence resume afterwards. Unchanged process
+results can retain original attempts through every verified epoch hop; no new
+execution/timing is invented and changed dependencies invalidate reuse. Do not
+publish instance-only artifact rechecks as verified from-scratch build methods.
+
+Preflight exact shell/tool versions, dependency closure and each volume's peak
+mirror/build/staging/archive/extraction space before heavy work. Native process
+handles and orchestration cells are separate; interrupted effects are inspected
+before any retry. These checks do not require repeating a real installer or
+running a broad test matrix.

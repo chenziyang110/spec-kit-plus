@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path"
@@ -8,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/delta"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
@@ -46,9 +48,144 @@ func doCurrentCognitionBinding(root, sessionID string) (*DoCognitionBinding, err
 	return &DoCognitionBinding{SessionID: session.ID, DefinitionEpoch: max(1, session.DefinitionEpoch), DefinitionDigest: session.DefinitionDigest, SourceFingerprint: validation.SourceFingerprint, ChangedPaths: normalizedCloseoutPaths(validation.ChangedSourcePaths)}, nil
 }
 
+func doCognitionDeltaSessionOwnedBySession(root string, session DoSession, sourceFingerprint, changedPath string) (bool, error) {
+	clean := path.Clean(filepath.ToSlash(strings.TrimSpace(changedPath)))
+	parts := strings.Split(clean, "/")
+	if len(parts) < 5 || parts[0] != ".specify" || parts[1] != "project-cognition" || parts[2] != "delta-sessions" {
+		return false, nil
+	}
+	sessionID := parts[3]
+	if parts[4] != "session.json" && !(len(parts) == 6 && parts[4] == "events" && strings.HasSuffix(parts[5], ".json")) {
+		return true, fmt.Errorf("invalid Do cognition delta session metadata path: %s", clean)
+	}
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		return true, err
+	}
+	bundle, err := delta.Load(paths.RuntimeDir, sessionID)
+	if err != nil {
+		return true, fmt.Errorf("invalid Do cognition delta session %s: %w", sessionID, err)
+	}
+	if bundle.Session.SessionID != sessionID || bundle.Session.OriginCommand != "sp-do" || path.Clean(filepath.ToSlash(bundle.Session.OriginContext.FeatureDir)) != path.Dir(doSessionRef(session.ID)) {
+		return true, fmt.Errorf("Do cognition delta session %s is not owned by this Do scope", sessionID)
+	}
+	for _, event := range bundle.Events {
+		if event.SessionID != sessionID {
+			return true, fmt.Errorf("Do cognition delta session %s contains a foreign event", sessionID)
+		}
+		if strings.TrimSpace(event.OriginCommand) != "" && event.OriginCommand != "sp-do" {
+			return true, fmt.Errorf("Do cognition delta session %s contains a foreign workflow event", sessionID)
+		}
+	}
+	digest, err := delta.Digest(bundle)
+	if err != nil {
+		return true, err
+	}
+	intents, err := listCloseoutIntents(paths)
+	if err != nil {
+		return true, err
+	}
+	for _, intent := range intents {
+		if intent.DeltaSessionID != sessionID {
+			continue
+		}
+		if intent.Workflow != "sp-do" || path.Clean(intent.Scope) != path.Dir(doSessionRef(session.ID)) {
+			continue
+		}
+		binding := intent.DoBinding
+		if binding == nil {
+			return true, fmt.Errorf("Do cognition delta session %s intent lacks native Do binding", sessionID)
+		}
+		if binding.SessionID != session.ID || binding.DefinitionEpoch != max(1, session.DefinitionEpoch) || binding.DefinitionDigest != session.DefinitionDigest || binding.SourceFingerprint != sourceFingerprint {
+			return true, fmt.Errorf("Do cognition delta session %s binding is stale or belongs to another operation", sessionID)
+		}
+		if intent.DeltaDigest != digest {
+			return true, fmt.Errorf("Do cognition delta session %s digest changed", sessionID)
+		}
+		if len(binding.ChangedPaths) == 0 || !equalCloseoutPaths(binding.ChangedPaths, intent.ChangedPaths) {
+			return true, fmt.Errorf("Do cognition delta session %s changed path binding is incomplete", sessionID)
+		}
+		return true, nil
+	}
+	for _, exact := range session.MetadataWriteScope {
+		if exact == clean {
+			return true, nil
+		}
+	}
+	if len(bundle.Events) > 0 {
+		return true, nil
+	}
+	return true, fmt.Errorf("Do cognition delta session %s is not bound to this Do cognition closeout intent", sessionID)
+}
+
+func doCognitionCloseoutIntentOwnedBySession(root string, session DoSession, sourceFingerprint, changedPath string) (bool, error) {
+	clean := path.Clean(filepath.ToSlash(strings.TrimSpace(changedPath)))
+	if path.Dir(clean) != ".specify/project-cognition/closeout-intents" {
+		return false, nil
+	}
+	id := strings.TrimSuffix(path.Base(clean), ".json")
+	if !strings.HasSuffix(path.Base(clean), ".json") || !validCloseoutIntentID(id) {
+		return true, fmt.Errorf("invalid Do cognition closeout intent metadata path: %s", clean)
+	}
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		return true, err
+	}
+	intent, err := loadCloseoutIntent(paths, id)
+	if err != nil {
+		return true, fmt.Errorf("invalid Do cognition closeout intent %s: %w", id, err)
+	}
+	if intent.Workflow != "sp-do" || path.Clean(intent.Scope) != path.Dir(doSessionRef(session.ID)) {
+		return true, fmt.Errorf("Do cognition closeout intent %s is not owned by this Do scope", id)
+	}
+	binding := intent.DoBinding
+	if binding == nil {
+		return true, fmt.Errorf("Do cognition closeout intent %s lacks native Do binding", id)
+	}
+	if binding.SessionID != session.ID || binding.DefinitionEpoch != max(1, session.DefinitionEpoch) || binding.DefinitionDigest != session.DefinitionDigest {
+		return true, fmt.Errorf("Do cognition closeout intent %s binding is stale or belongs to another operation", id)
+	}
+	if len(binding.ChangedPaths) == 0 || !equalCloseoutPaths(binding.ChangedPaths, intent.ChangedPaths) {
+		return true, fmt.Errorf("Do cognition closeout intent %s changed path binding is incomplete", id)
+	}
+	if !doValidSourceFingerprint(binding.SourceFingerprint) {
+		return true, fmt.Errorf("Do cognition closeout intent %s source fingerprint binding is missing or malformed", id)
+	}
+	if binding.SourceFingerprint != sourceFingerprint {
+		if !doCognitionBindingSourceFingerprintHasSessionProvenance(session, binding.SourceFingerprint) {
+			return true, fmt.Errorf("Do cognition closeout intent %s source fingerprint is not proven by this Do operation", id)
+		}
+		return true, nil
+	}
+	return true, nil
+}
+
+func doValidSourceFingerprint(value string) bool {
+	if len(value) != 64 || strings.ToLower(value) != value {
+		return false
+	}
+	_, err := hex.DecodeString(value)
+	return err == nil
+}
+
+func doCognitionBindingSourceFingerprintHasSessionProvenance(session DoSession, fingerprint string) bool {
+	for _, attempt := range session.Attempts {
+		if attempt.DefinitionDigest != session.DefinitionDigest || max(1, attempt.DefinitionEpoch) != max(1, session.DefinitionEpoch) {
+			continue
+		}
+		if attempt.SourceFingerprint == fingerprint || attempt.AfterSourceFingerprint == fingerprint {
+			return true
+		}
+	}
+	return false
+}
+
 func doCognitionWriterPaths(paths rt.Paths, intent closeoutIntent) ([]string, error) {
 	root := ".specify/project-cognition/"
 	files := []string{root + "status.json", root + "project-cognition.db", root + "project-cognition.db-wal", root + "project-cognition.db-shm", root + "project-cognition.db-journal", root + ".update.lock", root + "validate-build-receipt.json", root + "closeout-intents/" + intent.ID + ".json"}
+	if intent.DeltaSessionID != "" {
+		files = append(files, doCognitionDeltaSessionWriterPaths(paths, intent.DeltaSessionID)...)
+	}
 	pending, err := listCloseoutIntents(paths)
 	if err != nil {
 		return nil, err
@@ -76,6 +213,26 @@ func doCognitionWriterPaths(paths rt.Paths, intent closeoutIntent) ([]string, er
 		files = append(files, root+"closeout-intents/"+record.Original.ID+".json", root+"closeout-intents/"+record.Replacement.ID+".json")
 	}
 	return uniqueSortedTrimmed(files), nil
+}
+
+func doCognitionDeltaSessionWriterPaths(paths rt.Paths, sessionID string) []string {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return nil
+	}
+	root := ".specify/project-cognition/delta-sessions/" + sessionID
+	files := []string{root + "/session.json"}
+	entries, err := os.ReadDir(filepath.Join(paths.RuntimeDir, "delta-sessions", sessionID, "events"))
+	if err != nil {
+		return files
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		files = append(files, root+"/events/"+entry.Name())
+	}
+	return files
 }
 
 func doBeginCognitionCloseout(paths rt.Paths, workflow, scope, reason, payload, deltaSession, commitRange string, changedPaths []string, deltaDigest string) (*DoCognitionBinding, func(), error) {

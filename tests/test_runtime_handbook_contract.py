@@ -81,17 +81,27 @@ def test_current_query_contract_versions_propagate_to_agent_routing_surfaces() -
         assert '"candidate_universe_version": 2' in _read(rel_path), rel_path
 
 
-def test_runtime_docs_describe_debug_understanding_checkpoint() -> None:
+def test_runtime_docs_describe_debug_evidence_before_repair_confirmation() -> None:
     for rel_path in ("README.md", "PROJECT-HANDBOOK.md"):
-        content = _read(rel_path).lower()
+        paragraphs = _read(rel_path).lower().splitlines()
+        content = next(
+            paragraph
+            for paragraph in paragraphs
+            if "debug understanding checkpoint" in paragraph
+        )
 
         assert "debug understanding checkpoint" in content
-        assert "before substantive investigation" in content
+        assert "before repair" in content
+        assert "before substantive investigation" not in content
+        assert "decisive evidence" in content
+        assert "concrete proposed fix" in content
         assert "expected behavior" in content
         assert "investigation boundary" in content
         assert "fix authority" in content
         assert "hypotheses and evidence sequencing" in content
         assert "reconfirmation trigger" in content
+        assert "legacy generic confirmation does not" in content
+        assert "prompt" in content and "not a new runtime enforcement api" in content
 
 
 def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:

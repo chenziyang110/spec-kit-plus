@@ -8,6 +8,8 @@ from typing import Literal
 
 from specify_cli.verification import ValidationResult
 
+from .cognition_delta import decode_result_json, normalize_cognition_delta
+
 
 WorkerStatus = Literal["pending", "success", "blocked", "failed"]
 CURRENT_UI_EVIDENCE_KINDS = {
@@ -75,6 +77,7 @@ class WorkerTaskResult:
     observations: list[dict[str, object]] = field(default_factory=list)
     findings: list[dict[str, object]] = field(default_factory=list)
     changed_files: list[str] = field(default_factory=list)
+    cognition_delta: dict[str, object] = field(default_factory=dict)
     validation_results: list[ValidationResult] = field(default_factory=list)
     summary: str = ""
     concerns: list[str] = field(default_factory=list)
@@ -167,7 +170,10 @@ def _validate_current_ui_payload(payload: dict[str, object]) -> None:
 def worker_task_result_from_json(text: str) -> WorkerTaskResult:
     """Parse a worker result from JSON text."""
 
-    payload = json.loads(text)
+    payload = decode_result_json(text)
+    if not isinstance(payload, dict):
+        raise ValueError("worker result must be an object")
+    paths, delta = normalize_cognition_delta(payload, allow_runtime_fields=True)
     obsolete_ui_fields = {
         "ui_fidelity_evidence",
         "uiFidelityEvidence",
@@ -199,6 +205,8 @@ def worker_task_result_from_json(text: str) -> WorkerTaskResult:
     ]
     rule_acknowledgement = RuleAcknowledgement(**raw_ack)
     result_payload = _filter_dataclass_payload(WorkerTaskResult, payload)
+    result_payload["changed_files"] = paths
+    result_payload["cognition_delta"] = delta
     result_payload["wave"] = str(result_payload.get("wave") or "").strip()
     result_payload["packet_id"] = str(result_payload.get("packet_id") or "").strip()
     result_payload["obligation_ids"] = [

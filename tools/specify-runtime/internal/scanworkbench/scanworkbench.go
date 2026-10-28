@@ -281,7 +281,7 @@ func prepareUnlocked(paths rt.Paths, input PrepareInput) (PreparePayload, error)
 		}
 		policyDigest = confirmedPolicy.PolicyDigest
 	}
-	preparationDigest, err := preparationFingerprint(
+	preparationDigest, observedSource, err := preparationFingerprintWithSources(
 		paths.Root,
 		filepath.ToSlash(relScanSet),
 		files,
@@ -301,7 +301,7 @@ func prepareUnlocked(paths rt.Paths, input PrepareInput) (PreparePayload, error)
 	if len(packetPaths) == 0 {
 		return PreparePayload{}, fmt.Errorf("canonical scan set contains no scan-eligible files after confirmed boundary classification")
 	}
-	cacheSelection := selectReusableScanCache(paths, classifications, packetPaths, input.FullRebuild)
+	cacheSelection := selectReusableScanCacheWithSources(paths, classifications, packetPaths, input.FullRebuild, observedSource)
 	plans, err := planPackets(paths.Root, cacheSelection.PendingPaths, packetPlanningBudget{
 		MaxPaths: maxPaths, MaxBytes: maxBytes, MaxTokens: workerBudgetTokens,
 	})

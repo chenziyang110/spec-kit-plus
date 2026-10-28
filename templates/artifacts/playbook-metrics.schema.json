@@ -1,0 +1,34 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "context": {
+      "additionalProperties": false,
+      "maxProperties": 24,
+      "patternProperties": {
+        "^(os|arch|shell|toolchain\\.[a-z][a-z0-9_-]{0,31})$": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "id": {
+      "pattern": "^pb-[a-z0-9][a-z0-9-]{0,47}-[a-f0-9]{16}$",
+      "type": "string"
+    },
+    "parameters": {
+      "additionalProperties": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxProperties": 32,
+      "type": "object"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "type": "object"
+}

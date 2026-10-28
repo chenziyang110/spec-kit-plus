@@ -31,21 +31,25 @@ def go(cwd, *args):
     env = os.environ.copy()
     env.update(GOTOOLCHAIN="local", GOPROXY="off", GOWORK="off", GOFLAGS="-mod=readonly")
     result = subprocess.run([executable, *args], cwd=cwd, env=env,
-                            capture_output=True, text=True, timeout=120)
+                            capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert result.returncode == 0, result.stdout + result.stderr
     return result.stdout
 
 
 def test_context_schema_is_included_with_runtime():
     mapping = includes()
-    assert mapping["tools/specify-runtime"] == "specify_cli/core_pack/tools/specify-runtime"
+    wheel = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["hatch"]["build"]["targets"]["wheel"]
+    assert "tools/specify-runtime" in wheel["only-include"]
+    assert wheel["sources"]["tools/specify-runtime"] == "specify_cli/core_pack/tools/specify-runtime"
+    assert "tools/specify-runtime" not in mapping  # Force inclusion bypasses exclusion rules.
     assert mapping.get(SCHEMA) == "specify_cli/core_pack/" + SCHEMA
     jsonschema.Draft202012Validator.check_schema(json.loads((ROOT / SCHEMA).read_text()))
 
 
 def test_declared_context_bundle_runs_without_source_checkout(tmp_path):
     mapping = includes()
-    target = tmp_path / mapping["tools/specify-runtime"]
+    wheel = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["hatch"]["build"]["targets"]["wheel"]
+    target = tmp_path / wheel["sources"]["tools/specify-runtime"]
     shutil.copytree(RUNTIME / "context", target / "context")
     shutil.copy2(RUNTIME / "go.mod", target / "go.mod")
     schema_target = tmp_path / mapping[SCHEMA]

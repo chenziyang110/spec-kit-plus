@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -576,6 +577,12 @@ func validateScanCacheBundleIntegrity(bundle scanCacheBundle, contract string) e
 }
 
 func selectReusableScanCache(paths rt.Paths, classifications []pathClassification, selectedPaths []string, fullRebuild bool) reusableCacheSelection {
+	return selectReusableScanCacheWithSources(paths, classifications, selectedPaths, fullRebuild, nil)
+}
+
+// observedSource is a single Prepare call's content observation, never a
+// persistent cache or an acceptance basis. Replay rehashes its consumed files.
+func selectReusableScanCacheWithSources(paths rt.Paths, classifications []pathClassification, selectedPaths []string, fullRebuild bool, observedSource map[string]string) reusableCacheSelection {
 	selection := reusableCacheSelection{
 		Bundles: []scanCacheBundle{}, PendingPaths: append([]string{}, selectedPaths...),
 		MissReasons: map[string]int{}, CurrentSource: map[string]string{}, CurrentPolicy: map[string]string{},
@@ -592,10 +599,14 @@ func selectReusableScanCache(paths rt.Paths, classifications []pathClassificatio
 			continue
 		}
 		selection.CurrentPolicy[classification.Path] = digest
-		source, err := repositorySourceDigest(paths.Root, classification.Path)
-		if err != nil {
-			selection.MissReasons["source_digest_unavailable"]++
-			continue
+		source := observedSource[classification.Path]
+		if source == "" {
+			var err error
+			source, err = repositorySourceDigest(paths.Root, classification.Path)
+			if err != nil {
+				selection.MissReasons["source_digest_unavailable"]++
+				continue
+			}
 		}
 		selection.CurrentSource[classification.Path] = source
 	}
@@ -866,6 +877,17 @@ func recoverPendingScanCacheReplays(paths rt.Paths, queue queueFile) error {
 }
 
 func replayScanCachePacket(paths rt.Paths, packet queuePacket, bundle scanCacheBundle) error {
+	// Selection may reuse a request-local observation; acceptance must read the
+	// current source again, including changes that preserve size and mtime.
+	for _, path := range bundle.ScopePaths {
+		if err := validateRepositoryFile(paths.Root, path); err != nil {
+			return fmt.Errorf("cache replay packet %s source boundary changed for %s: %w", packet.PacketID, path, err)
+		}
+		digest, err := repositorySourceDigest(paths.Root, path)
+		if err != nil || digest != bundle.SourceDigests[path] {
+			return fmt.Errorf("cache replay packet %s source changed for %s", packet.PacketID, path)
+		}
+	}
 	result := workerResult{
 		Protocol: "map_scan_result.v2", PacketID: packet.PacketID, AttemptID: packet.AttemptID, Sequence: 1,
 		FamilyID: "runtime-cache-replay", AssignedPaths: append([]string{}, bundle.ScopePaths...),
@@ -958,25 +980,32 @@ func normalizedIdentitySet(values []string) map[string]bool {
 }
 
 func preparationFingerprint(root string, scanSetPath string, files []string, classifications []pathClassification, input PrepareInput, policyDigest string) (string, error) {
+	digest, _, err := preparationFingerprintWithSources(root, scanSetPath, files, classifications, input, policyDigest)
+	return digest, err
+}
+
+func preparationFingerprintWithSources(root string, scanSetPath string, files []string, classifications []pathClassification, input PrepareInput, policyDigest string) (string, map[string]string, error) {
 	type pathState struct {
 		Path         string `json:"path"`
 		SourceDigest string `json:"source_digest"`
 		PolicyDigest string `json:"policy_digest"`
 	}
 	states := make([]pathState, 0, len(classifications))
+	sources := make(map[string]string, len(classifications))
 	for _, classification := range classifications {
 		sourceDigest, err := repositorySourceDigest(root, classification.Path)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		classificationDigest, err := pathClassificationDigest(classification)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		states = append(states, pathState{classification.Path, sourceDigest, classificationDigest})
+		sources[classification.Path] = sourceDigest
 	}
 	sort.Slice(states, func(i, j int) bool { return states[i].Path < states[j].Path })
-	return digestWithPrefix(struct {
+	digest, err := digestWithPrefix(struct {
 		Protocol               string      `json:"protocol"`
 		Contract               string      `json:"contract"`
 		ScanSetPath            string      `json:"scan_set_path"`
@@ -989,6 +1018,7 @@ func preparationFingerprint(root string, scanSetPath string, files []string, cla
 		RequireConfirmedPolicy bool        `json:"require_confirmed_policy"`
 		PolicyDigest           string      `json:"policy_digest"`
 	}{workbenchProtocolV2, currentScanCacheContract(), scanSetPath, files, states, effectiveMaxPaths(input), effectiveMaxBytes(input), effectiveWorkerBudget(input), input.IncludeGitIgnored, input.RequireConfirmedPolicy, policyDigest})
+	return digest, sources, err
 }
 
 func candidatePolicyDigests(candidates []map[string]any) (map[string]string, error) {
@@ -1012,12 +1042,37 @@ func pathClassificationDigest(classification pathClassification) (string, error)
 }
 
 func repositorySourceDigest(root string, path string) (string, error) {
-	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+	abs, _, err := resolveRepositoryFile(root, path)
 	if err != nil {
 		return "", fmt.Errorf("digest repository source %s: %w", path, err)
 	}
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:]), nil
+	file, err := os.Open(abs)
+	if err != nil {
+		return "", fmt.Errorf("digest repository source %s: %w", path, err)
+	}
+	defer file.Close()
+	before, err := file.Stat()
+	if err != nil {
+		return "", err
+	}
+	if !before.Mode().IsRegular() {
+		return "", fmt.Errorf("repository source %s is not a regular file", path)
+	}
+	digest := sha256.New()
+	bufferSize := int64(1 << 20)
+	if before.Size() < bufferSize {
+		bufferSize = before.Size() + 1
+	}
+	// A bounded buffer also avoids one large allocation per source. Wrap the
+	// reader so os.File.WriteTo cannot silently choose its smaller fallback.
+	if _, err := io.CopyBuffer(digest, struct{ io.Reader }{file}, make([]byte, int(bufferSize))); err != nil {
+		return "", fmt.Errorf("digest repository source %s: %w", path, err)
+	}
+	after, err := os.Stat(abs)
+	if err != nil || !os.SameFile(before, after) || before.Size() != after.Size() || !before.ModTime().Equal(after.ModTime()) {
+		return "", fmt.Errorf("repository source %s changed while hashing", path)
+	}
+	return "sha256:" + hex.EncodeToString(digest.Sum(nil)), nil
 }
 
 func digestWithPrefix(value any) (string, error) {

@@ -3,6 +3,9 @@
   "source": "templates/commands/quick.md",
   "entries": [
     {"kind": "checkpoint", "source_excerpt": "Understanding Checkpoint", "target": "templates/command-references/quick/intake-and-checkpoint.md"},
+    {"kind": "evidence", "source_excerpt": "Use read-only evidence workers", "target": "templates/command-references/quick/intake-and-checkpoint.md"},
+    {"kind": "proposal", "source_excerpt": "decision.current_state_evidence", "target": "templates/command-references/quick/intake-and-checkpoint.md"},
+    {"kind": "approval", "source_excerpt": "is not confirmation and cannot substitute", "target": "templates/command-references/quick/intake-and-checkpoint.md"},
     {"kind": "senior", "source_excerpt": "Affected Object Map", "target": "templates/command-references/quick/senior-consequence-analysis.md"},
     {"kind": "handoff", "source_excerpt": "Resolve Discussion Handoff Intake", "target": "templates/command-references/quick/handoff-consumption.md"},
     {"kind": "scope", "source_excerpt": "Scope Gate", "target": "templates/command-references/quick/intake-and-checkpoint.md"},

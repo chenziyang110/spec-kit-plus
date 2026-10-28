@@ -3,60 +3,65 @@ the labels to the reporter's language when practical, but preserve every
 meaning below. Do not use a dense two-column table: wrapping makes it difficult
 to scan in chat, terminals, narrow windows, and assistive technology.
 
-The checkpoint is for user-owned facts and authority.
-Technical hypotheses belong to the agent and must not be presented as decisions
-the user has to validate. Do not reuse the placeholder text as content. Keep
-the checkpoint plain text for terminal output: use Markdown without HTML tags
-or inline line-break markup.
+Present this card after bounded evidence investigation, before any repair write
+or fix-worker dispatch. The checkpoint approves a concrete, evidence-backed
+repair. Technical hypotheses belong to the agent and must not be presented as
+decisions the user has to validate. Do not reuse the placeholder text as content.
+Keep the checkpoint plain text for terminal output: use Markdown without HTML
+tags or inline line-break markup.
 
 ```markdown
 ## Debug Checkpoint
 
 ### 我理解的问题
 
-[2-4 concrete sentences: user-visible symptom, where it appears, why it matters,
-and the nearby issue this session is not debugging]
+[2-4 concrete sentences: user-visible symptom, where it appears, expected
+behavior, occurrence conditions, impact, and the nearby excluded issue]
 
-### 应有表现
+### 已发现的问题
 
-[what should happen instead, or the explicit unknown the investigation must
-resolve]
+[the proven failure mechanism, how it causes the reported symptom, and the
+short decisive evidence with inspectable references; distinguish observations
+from conclusions and name remaining uncertainty]
 
-### 已知条件
+### 准备怎么修复
 
-- 发生条件：[environment, inputs, sequence, frequency, reproduction or failing
-  signal; use `Unknown: reason` when necessary]
-- 待纠正假设：[reporter assumptions or uncertain facts, or None]
+[the concrete change at the owning layer, exact affected scope, what will be
+restored, and what the user should observe afterward; include any necessary
+regression test, harness, or instrumentation writes in this repair scope]
 
-### 本次调查
+### 影响与验证
 
-- 包含：[behavior, workflow, state loop, environment, or affected area]
-- 不包含：[nearby issue, enhancement, or non-goal]
-
-### 修复授权
-
-[Diagnose only, or diagnose and fix after evidence proves the failure
-mechanism; name mutation and side-effect boundaries]
+- 影响与风险：[behavior/compatibility/side effects, excluded work, and material
+  risk or explicit unknowns]
+- 验证方式：[failing reproduction/RED gate, fresh relevant tests, related-risk
+  review, and final reporter verification]
+- 修复授权：[the exact proposed repair, or Diagnose only with no fix authority;
+  preserve separate external or destructive action gates]
 
 ### 需要重新确认的情况
 
-[exact new defect, boundary, authority, compatibility, migration, external side
-effect, or material risk change]
+[exact new defect, repair, boundary, UI target, authority, compatibility,
+migration, external side effect, or material risk change]
 ```
 
 For a visual, interaction, responsive, accessibility, TUI, or CLI presentation
 problem, render the independent UI Confirmation state as the readable interface
-direction section immediately after the Debug checkpoint. It is a target
-baseline, not approval of a speculative repair.
+direction section immediately after the Debug checkpoint. It is the target
+baseline approved together with this evidence-backed repair. During diagnosis,
+provisional source-backed observations do not count as UI approval.
 
 {{spec-kit-include: ../common/ui-confirmation-card.md}}
 
-After the applicable section or sections, add a compact agent investigation
-summary for awareness, not as a request to approve a hypothesis. It may state
-the first evidence action, fix gate, and progress signal; these remain
-agent-owned.
+Use `Unknown: reason` for a fact that is still unknown. If the failure mechanism
+or repair remains speculative, continue diagnosis instead of requesting repair
+approval. If a missing diagnostic harness or persistent instrumentation prevents
+decisive evidence, use this same card to explain the proven gap and request only
+that bounded diagnostic write; mark the cause and production repair unknown.
+That authorization permits no production repair. Return to diagnosis afterward
+and obtain the evidence-backed repair confirmation before production changes.
 
-Reply with `confirm`/`确认` to approve the checkpoint and, when present, the UI
+Reply with `confirm`/`确认` to approve the exact repair and, when present, the UI
 target baseline in one response. Reply with `revise: scope ...`/`修改：范围 ...`,
 `revise: UI ...`/`修改：UI ...`, or another precise correction to revise only
 that decision.

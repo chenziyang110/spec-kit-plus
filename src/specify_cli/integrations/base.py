@@ -46,6 +46,42 @@ EPISTEMIC_CONTRACT_GUIDANCE = (
 )
 
 
+COGNITION_CAPSULE_REUSE_GUIDANCE = (
+    "Reuse a cognition capsule only for the exact unchanged task/query, workflow intent/binding, target project, "
+    "scope and required facets, negative constraints, permissions, relevant live-source/evidence digests, and runtime identity. "
+    "Retain `expansion_ref.id`, `query_fingerprint`, `active_generation_id`, `navigation_digest`, and contract versions. "
+    "For one unchanged phase pass, verify a prior capsule with an actual read-only "
+    "`{{specify-subcmd:specify-runtime cognition expand --id <id> --section <section> --format json}}` "
+    "using its ID and an available section such as `related_paths`; require the inner cognition payload's `status=ok`, usable `readiness=query_ready|review`, "
+    "`expansion_contract_version=2`, matching ID, query fingerprint, generation, and advisory `epistemic_contract`. "
+    "Native outer exit code 0 alone is not proof. Missing, stale, invalid, incompatible, or failed expansion disables reuse. "
+    "Preparatory capability/API, artifact query, script dry run, and board calls alone do not repeat Compass, Learning, "
+    "or this unchanged Expand check. Refresh on target/task/query/intent/scope/facet/constraint/permission/runtime drift, "
+    "relevant source/evidence, generation, status or claim-revision change, contradictory evidence, and required resume/recovery. "
+    "Learning reuse separately requires unchanged applicable lessons, Learning index/source evidence, and project rules; "
+    "a graph digest does not prove Learning unchanged. Refresh owning read-only start/list/show intake on relevant lesson/rule "
+    "drift or uncertain applicability. Preserve live verification and mutation-closeout gates. "
+    "Require the selected capability IDs `cognition.expansion.snapshot.v2`, `cognition.claim-evidence.page.v1`, "
+    "and `cognition.catalog.snapshot.v1` before their respective routes; verify only the needed set once with "
+    "`{{specify-subcmd:specify-runtime api ensure --capabilities <comma-separated-capability-ids> --format json}}` "
+    "or one older-runtime `api list` fallback. Missing capability disables the affected route; use supported fresh "
+    "Compass/live evidence. Capability IDs are not CLI commands."
+)
+
+COGNITION_CATALOG_PAGING_GUIDANCE = (
+    "Inspect catalog semantic cards and bind current `concept_id` values or exact paths with the same `lexicon_generation_id`. "
+    "Stop paging only when every required facet has a valid binding and live evidence: owners, necessary consumers/dependencies, "
+    "verification routes, and negative constraints, with ambiguity/conflicts resolved and `missing_facets` empty; "
+    "the first word match or one bound owner is insufficient. Otherwise, while `catalog_page.has_more=true`, execute "
+    "`catalog_page.next_argv` exactly and preserve `revision`, `navigation_digest`, `snapshot_bound`, `offset`, `limit`, "
+    "`returned`, and `total`. The project launcher may replace only the executable; never reconstruct continuation flags. "
+    "Stale catalog/expansion requires fresh intake; retain unresolved facets and index gaps as `insufficient_index` "
+    "and do not claim no match before relevant pages are exhausted. `resolution_state=resolved_exact` proves binding only. "
+    "Required claim-evidence pages retain `total_count`, `returned_count`, `offset`, and `has_more`, including exact zero counts, "
+    "and consume `next_argv` exactly while needed. Full risk summaries remain binding; a returned page is not the denominator."
+)
+
+
 # ---------------------------------------------------------------------------
 # IntegrationOption
 # ---------------------------------------------------------------------------
@@ -823,10 +859,11 @@ class IntegrationBase(ABC):
         addendum = (
             "\n"
             f"{marker}\n\n"
+            f"- {COGNITION_CAPSULE_REUSE_GUIDANCE}\n"
             "- Before drafting or asking clarification questions, identify the target need, scope boundary, key constraints, acceptance proof, known unknowns, and safest next step.\n"
             "- Keep guided requirement discovery concise and avoid reviving the deprecated fixed heavy discovery lifecycle.\n"
             "- Treat `final-handoff-decision` as a compatibility readiness check name only; do not restore the legacy staged handoff flow.\n"
-            '- In compile mode, reuse the confirmed discussion contract\'s context capsule and decision digest. Run one bounded `{{specify-subcmd:specify-runtime cognition compass --intent plan --query="$ARGUMENTS" --format json}}` intake only when a planning facet is absent or outdated; preserve `{{specify-subcmd:specify-runtime cognition query --intent plan --query-plan "<query_plan_json>" --format json}}` as a precision escalation for an explicit unresolved concept.\n'
+            '- In compile mode, retain the confirmed discussion decision digest and reuse its context only after the valid-capsule checks. Run one bounded `{{specify-subcmd:specify-runtime cognition compass --intent plan --query="$ARGUMENTS" --format json}}` intake only when a planning facet is absent or outdated; preserve `{{specify-subcmd:specify-runtime cognition query --intent plan --query-plan "<query_plan_json>" --format json}}` as a precision escalation for an explicit unresolved concept.\n'
             "- Read top-level `minimal_live_reads` first and open live files only for the named gap. Do not build a second broad repository summary or infer final scope from first-pass paths.\n"
             "- After `FEATURE_DIR` is known, use the idempotent `{{specify-subcmd:specify-runtime workflow ensure --command specify --feature-dir <feature-dir> --format json}}`; older runtimes fall back to `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}` and, only when missing, `{{specify-subcmd:specify-runtime workflow enter --command specify --feature-dir <feature-dir> --format json}}`. The deterministic workflow runtime owns `workflow.json` as required-stage state; do not author or advance it manually. Rich `workflow-state.md` remains specification evidence and resume state inside the fixed workflow artifact boundary: initialize it with `{{specify-subcmd:specify-runtime artifact scaffold --kind workflow-state --path <project-relative-workflow-state-path> --format json}}`, query it through targeted `artifact show` or bounded `artifact show-many`, and mutate multiple same-checkpoint targets through one leased `artifact patch-batch` when available, falling back to leased `artifact patch` calls on older runtimes. Never create a temporary authoring file or use rich state to skip runtime stages. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
             "- Initialize canonical `spec-contract.json` first through `specify-runtime artifact scaffold --kind spec-contract` and fill it through leased `artifact patch` calls. Fill the prerequisite-created `spec.md` skeleton only through leased `specify-runtime artifact patch --section` calls; submit `alignment.md`, `context.md`, `references.md`, or diagnostics through `artifact prepare` plus `artifact submit` only when the triggered content has independent project-review value and cannot be represented by a stable ref. Keep small payloads inline, send large model-authored content through stdin, and use `@path` only for an existing runtime-owned or registered project artifact; never create a temporary authoring file solely to transport bytes.\n"
@@ -883,7 +920,8 @@ class IntegrationBase(ABC):
         addendum = (
             "\n"
             f"{marker}\n\n"
-            '- Run `{{specify-subcmd:specify-runtime cognition compass --intent plan --query="$ARGUMENTS" --format json}}` before shaping the checklist. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`; treat `coverage_diagnostics` as confidence and closeout signals and `expansion_ref` as a continuation path only when coverage state or live evidence requires it.\n'
+            f"- {COGNITION_CAPSULE_REUSE_GUIDANCE}\n"
+            '- When no valid unchanged capsule is available, run `{{specify-subcmd:specify-runtime cognition compass --intent plan --query="$ARGUMENTS" --format json}}` before shaping the checklist. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`; treat `coverage_diagnostics` as confidence and closeout signals and `expansion_ref` as a continuation path only when coverage state or live evidence requires it.\n'
             '- Preserve the advanced `lexicon -> semantic_intake -> query` path with `{{specify-subcmd:specify-runtime cognition query --intent plan --query-plan "<query_plan_json>" --format json}}` when explicit concept decisions are needed; include `query_plan`, `semantic_intake`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, and `repository_search_terms` there.\n'
         )
         return content + addendum
@@ -1024,14 +1062,17 @@ class IntegrationBase(ABC):
         if command_name == "implement":
             return (
                 "**Current-Task Navigation Repair**: Reuse the current task's required refs and live touched-area evidence. "
-                "Only when a required ref is stale, missing, or contradicted by live code, run at most one "
+                f"{COGNITION_CAPSULE_REUSE_GUIDANCE} "
+                "Only when a required ref is stale, missing, or contradicted by live code, or the valid-capsule checks fail, "
+                "run at most one intake for each unchanged phase pass: "
                 '`{{specify-subcmd:specify-runtime cognition compass --intent implement --query="$ARGUMENTS" --format json}}` '
                 f"{command_step}. {EPISTEMIC_CONTRACT_GUIDANCE} Use `compass_state`, `minimal_live_reads`, `first_pass_paths`, `coverage_diagnostics`, "
                 "and `expansion_ref` only to repair current-task context; they do not replace live proof or authorize "
                 "broader implementation scope."
             )
         return (
-            "**Crucial First Step**: You MUST use project cognition compass first: "
+            "**Crucial First Step**: Use the valid unchanged cognition capsule when available. "
+            f"{COGNITION_CAPSULE_REUSE_GUIDANCE} Otherwise use project cognition compass first: "
             f'run `{{{{specify-subcmd:specify-runtime cognition compass --intent {intent} --query="$ARGUMENTS" --format json}}}}` '
             f"{command_step}. {EPISTEMIC_CONTRACT_GUIDANCE} Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, "
             "`verification_hints`, `followup_surfaces`, and `before_fix_claim`; treat `coverage_diagnostics` as confidence "
@@ -1043,9 +1084,8 @@ class IntegrationBase(ABC):
             "with `--semantic-intake-json '<semantic-intake-json>'`; never create an intake file. Alternatively use the advanced `lexicon -> semantic_intake -> query` path when explicit "
             "concept decisions are needed. Preserve advanced routing through "
             f'`{{{{specify-subcmd:specify-runtime cognition query --intent {intent} --query-plan "<query_plan_json>" --format json}}}}` '
-            "for precision cases. Treat `query` as an exact-binding consumer, never a natural-language search endpoint: page "
-            "`lexicon --mode catalog` through `catalog_page.next_offset`, copy current `concept_id` values or exact paths into "
-            "the plan, carry the same `lexicon_generation_id`, and require `resolution_state=resolved_exact`."
+            "for precision cases. Treat `query` as an exact-binding consumer, never a natural-language search endpoint. "
+            f"{COGNITION_CATALOG_PAGING_GUIDANCE}"
         )
 
     def _append_toml_debug_runtime_bridge(
@@ -1635,6 +1675,27 @@ class IntegrationBase(ABC):
                 else:
                     content = f"{blocker_contract}\n\n{content.lstrip()}"
 
+            recovery_contract_path = (
+                template_path.parent.parent
+                / "command-partials"
+                / "common"
+                / "autonomous-blocker-recovery.md"
+            )
+            if (
+                recovery_contract_path.is_file()
+                and "## Autonomous Blocker Recovery" not in content
+            ):
+                recovery_contract = recovery_contract_path.read_text(
+                    encoding="utf-8"
+                ).strip()
+                frontmatter_text, body = IntegrationBase._split_frontmatter(content)
+                content = (
+                    f"---\n{frontmatter_text}---\n\n"
+                    f"{recovery_contract}\n\n{body.lstrip()}"
+                    if frontmatter_text
+                    else f"{recovery_contract}\n\n{content.lstrip()}"
+                )
+
             runtime_boundary_path = (
                 template_path.parent.parent
                 / "command-partials"
@@ -1835,6 +1896,9 @@ class IntegrationBase(ABC):
                 arg_placeholder=arg_placeholder,
                 project_root=project_root,
             )
+            # Sidecars share the command's namespace. References within them
+            # must point to that same installed root, as the entrypoint does.
+            rendered = self.rewrite_command_reference_links(rendered, command_name)
             created.append(
                 self.write_file_and_record(
                     rendered,
@@ -3369,6 +3433,17 @@ class SkillsIntegration(IntegrationBase):
         )
         restored: list[Path] = []
         for template_dir in self.list_passive_skill_templates():
+            restored.extend(
+                self._copy_supporting_passive_files(
+                    template_dir=template_dir,
+                    destination_dir=skills_dir / template_dir.name,
+                    project_root=project_root_resolved,
+                    manifest=manifest,
+                    script_type=script_type,
+                    arg_placeholder=arg_placeholder,
+                    missing_only=True,
+                )
+            )
             destination = skills_dir / template_dir.name / "SKILL.md"
             relative = destination.relative_to(project_root_resolved).as_posix()
             if relative not in manifest.files or destination.exists() or destination.is_symlink():
@@ -3563,8 +3638,11 @@ class SkillsIntegration(IntegrationBase):
         destination_dir: Path,
         project_root: Path,
         manifest: IntegrationManifest,
+        script_type: str,
+        arg_placeholder: str,
+        missing_only: bool = False,
     ) -> list[Path]:
-        """Copy non-``SKILL.md`` support files for a passive skill."""
+        """Install support files, rendering Markdown template contracts when present."""
         created: list[Path] = []
         pending = [template_dir]
         files: list[Path] = []
@@ -3581,7 +3659,25 @@ class SkillsIntegration(IntegrationBase):
                 continue
             relative = src_file.relative_to(template_dir)
             dst_file = destination_dir / relative
+            if missing_only:
+                owned_path = dst_file.relative_to(project_root).as_posix()
+                if owned_path not in manifest.files or dst_file.exists() or dst_file.is_symlink():
+                    continue
+                safe_local_state_path(dst_file, root=project_root)
             dst_file.parent.mkdir(parents=True, exist_ok=True)
+            if src_file.suffix == ".md":
+                raw = src_file.read_text(encoding="utf-8")
+                if any(marker in raw for marker in ("{{specify-subcmd:", "{{invoke:", "{{spec-kit-include:")):
+                    content = self.process_template(
+                        raw,
+                        self.key,
+                        script_type,
+                        arg_placeholder,
+                        template_path=src_file,
+                        project_root=project_root,
+                    )
+                    created.append(self.write_file_and_record(content, dst_file, project_root, manifest))
+                    continue
             shutil.copy2(src_file, dst_file)
             self.record_file_in_manifest(dst_file, project_root, manifest)
             created.append(dst_file)
@@ -3675,6 +3771,23 @@ class SkillsIntegration(IntegrationBase):
                 )
             else:
                 skill_content = boundary + skill_content.lstrip()
+        if "## Autonomous Blocker Recovery" not in skill_content:
+            frontmatter_text, body = self._split_frontmatter(skill_content)
+            recovery = (
+                "## Autonomous Blocker Recovery\n\n"
+                "Read `references/autonomous-blocker-recovery.md` whenever "
+                "a prerequisite, tool, delegation, validation, or runtime gate "
+                "fails, before interpreting any local stop/blocked/escalation "
+                "instruction as a terminal exit. Diagnose, repair, and resume "
+                "inside this invocation while preserving owner, authorization, "
+                "read-only boundaries, and independent acceptance. Honor the "
+                "user's verification budget.\n\n"
+            )
+            skill_content = (
+                f"---\n{frontmatter_text}---\n\n{recovery}{body.lstrip()}"
+                if frontmatter_text
+                else recovery + skill_content.lstrip()
+            )
         if "## Blocked Exit Contract" not in skill_content:
             frontmatter_text, body = self._split_frontmatter(skill_content)
             blocked_exit = (
@@ -3978,6 +4091,8 @@ class SkillsIntegration(IntegrationBase):
                     destination_dir=skill_dir,
                     project_root=project_root,
                     manifest=manifest,
+                    script_type=script_type,
+                    arg_placeholder=arg_placeholder,
                 )
             )
 
@@ -4192,30 +4307,23 @@ class SkillsIntegration(IntegrationBase):
             think_addendum = (
                 "\n"
                 f"## {agent_name} Deep Debug Intake Dispatch\n\n"
-                f"When running `sp-debug` in {agent_name}, use the project cognition compass packet as the default "
-                "intake source. If the **Gathering** stage can build `map-backed-minimum-intake`, continue directly "
-                "into evidence investigation with the primary candidate, contrarian candidate, transition memo, "
-                "and log plan already recorded.\n"
-                "\n"
-                "If project cognition is missing, ambiguous, stale, or insufficient for the failing area, Gathering "
-                "may return an `await_input` containing a `think_subagent_prompt`. This prompt is a self-contained "
-                "deep fallback reasoning task for a fresh subagent.\n"
-                "\n"
-                "**When you receive a think_subagent_prompt:**\n"
-                f"- Spawn a subagent with the exact prompt text via `{dispatch_tool}`.\n"
-                "- The think subagent does NOT read source code and does NOT run commands — it is a pure reasoning agent.\n"
-                f"- Use `{join_tool}` to wait for the think subagent's result.\n"
-                "- The result is hybrid: free-text analysis followed by `---` and a YAML block.\n"
-                "- Parse the YAML block after `---` in memory, acquire a fresh debug-session lease with `specify-runtime artifact prepare`, and persist these fields with `specify-runtime artifact patch`:\n"
-                "  - `causal_map` (symptom_anchor, closed_loop_path, break_edges, bypass_paths, family_coverage, candidates, adjacent_risk_targets, dimension_scan, candidate_board)\n"
-                "- Ensure Stage 1A covers at least 3 families and every family includes a falsifier.\n"
-                "- These Stage 1A candidates are still the observer-framing alternative cause candidates; do not collapse them into one family too early.\n"
-                "- Persist `causal_map_completed: true` through that `specify-runtime artifact patch` lease.\n"
-                "- Then continue the debug session — the next GatheringNode run will request the contract planner stage.\n"
-                "- If Gathering returns `contract_subagent_prompt`, use it for the contract-planner subagent and persist its result into `observer_framing`, `transition_memo`, `investigation_contract`, and top-level `log_investigation_plan` through a fresh `specify-runtime artifact patch` lease.\n"
-                "- Treat the causal-map output as Stage 1A and the contract-planner output as Stage 1B. Investigation starts only after both stages are complete, unless map-backed minimum intake already completed those fields.\n"
-                "- Stage 1B must still produce a primary suspected loop, a contrarian candidate, and a recommended first probe before investigation begins.\n"
-                "- Do NOT skip the think subagent once the runtime requested deep fallback. Context isolation is the purpose of that step.\n"
+                f"When running `sp-debug` in {agent_name}, the leader schedules intake from the current "
+                "project cognition compass packet and permitted report context. Use accepted "
+                "`map-backed-minimum-intake` when sufficient, preserving its primary and contrarian "
+                "candidates, transition memo and log plan. Do not impose deep-only fields on it.\n"
+                "- When cognition is missing, ambiguous, stale or insufficient, compile a bounded Stage 1A "
+                "causal-map assignment from the report, allowed context, explicit unknowns and falsifiers.\n"
+                f"- Dispatch via `{dispatch_tool}` and join via `{join_tool}`, or record an authorized "
+                "leader fallback. Intake workers do not read source/log/test evidence or run commands.\n"
+                "- Inspect actual returned fields and family/falsifier coverage before accepting Stage 1A. "
+                "Persist accepted causal_map and causal_map_completed through fresh artifact leases.\n"
+                "- Stage 1B depends on accepted Stage 1A. Compile its investigation/log contract assignment "
+                "with exact accepted inputs, then inspect and persist observer framing, transition memo, "
+                "investigation contract and log plan before evidence investigation.\n"
+                "- Native tools execute work; Go artifact operations own state. Do not wait for an assumed "
+                "graph-engine callback or invoke a Python debug workflow.\n"
+                "- Read-only evidence follows accepted framing. Repair writes require exact approved "
+                "evidence-backed-repair authority and fresh execution guards.\n"
             )
             content = content.replace(
                 "**Hard rule:** During `investigating`",
@@ -4250,7 +4358,7 @@ class SkillsIntegration(IntegrationBase):
             "- Wait for every subagent's structured handoff before accepting the join point or changing the investigation stage.\n"
             "- Wait for every delegated lane's structured handoff before accepting the join point or changing the investigation stage.\n"
             "- Do not treat an idle subagent as done work; idle without a consumed handoff means the evidence lane is still unresolved.\n"
-            "- Do not interrupt or shut down subagent work before the handoff has been returned inline, submitted through its runtime result owner, or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
+            "- For healthy lanes, wait for their handoff. A crashed, timed-out or unsafe worker may be cancelled through its native owner without waiting for a missing handoff. Cancellation is not task acceptance: preserve partial evidence and owned resource identities, confirm quiescence before redispatch, and do not broadly kill other processes.\n"
             f"- Use `{join_tool}` only after the current investigation fan-out reaches its join point.\n"
             f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
             "- Do not resolve the session directly from successful automated verification. Successful automated verification must hand off into formal human verification.\n"
@@ -4467,7 +4575,7 @@ class SkillsIntegration(IntegrationBase):
             "3. join point expectations and result handoff expectations are explicit\n"
             "4. the team-managed lane cannot be treated as complete from a status flip alone; the leader still needs the promised completion handoff or result evidence\n\n"
             "Before assigning team-managed work, preserve the same project cognition compass contract that `sp-implement` uses:\n\n"
-            '1. run `{{specify-subcmd:specify-runtime cognition compass --intent implement --query="$ARGUMENTS" --format json}}` and include the compass packet in the execution context bundle\n'
+            "1. " + self._project_cognition_query_gate_line(command_name="implement", command_step="before assigning team-managed work") + " Include the verified capsule or fresh packet in the execution context bundle.\n"
             f"2. {EPISTEMIC_CONTRACT_GUIDANCE} Carry `epistemic_contract` in every teammate context packet.\n"
             "3. read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, evidence hints, `verification_hints`, `followup_surfaces`, and `before_fix_claim` checks\n"
             "4. preserve `coverage_diagnostics` as confidence and closeout signals, not route candidates\n"
@@ -4478,7 +4586,9 @@ class SkillsIntegration(IntegrationBase):
             "9. treat `agent_normalization.required=true` as a non-intelligent CLI reminder to write `semantic_intake` from the alias catalog (raw lexicon ranking is only a bootstrap; action: write_semantic_intake_from_alias_catalog); if `agent_normalization` is omitted, treat it as `required=false`, not as proof that raw lexical ranking is authoritative\n"
             "10. keep CJK or mixed CJK/ASCII input in agent-owned normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language; the agent still owns translation and `agent_normalization` is advisory guidance, not a route decision\n"
             '11. keep `alias_interpretations` object-shaped, for example `{"alias": "<user term>", "meaning": "<project term>", "confidence": "medium"}`, never as a string array\n'
-            "12. treat `query` as an exact-binding consumer: page `lexicon --mode catalog` through `catalog_page.next_offset`, copy current IDs into `selected_concepts` or bind exact paths, carry the same `lexicon_generation_id`, and build `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `expanded_queries`, and `repository_search_terms`; never submit only raw or rewritten words\n"
+            "12. treat `query` as an exact-binding consumer. "
+            f"{COGNITION_CATALOG_PAGING_GUIDANCE} "
+            "Build `selected_concepts`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `expanded_queries`, and `repository_search_terms`; never submit only raw or rewritten words\n"
             "13. derive project-language search terms from the alias catalog before source search; do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched terms, returned paths, `normalized_query`, and `expanded_queries`\n"
             '14. run `{{specify-subcmd:specify-runtime cognition query --intent implement --query-plan "<query_plan_json>" --format json}}` only for that precision escalation, require `resolution_state=resolved_exact`, and preserve returned readiness, `minimal_live_reads`, `first_pass_paths`, and the task-local bundle in every teammate context packet\n'
             "15. if the query reports diagnostics, preserve `warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and `expected_shape` so the leader can repair the plan instead of losing the diagnostics in team chat\n\n"

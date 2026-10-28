@@ -15,15 +15,17 @@ not the newest filename. Keep still-valid confirmation and accepted framing;
 only a material symptom, authority, boundary, risk or UI-baseline change needs
 the reason-first checkpoint amendment.
 
-After the checkpoint, reuse sufficient map-backed minimum intake. Deep fallback
+Before repair approval, complete intake and observer framing, then gather safe
+bounded evidence. Reuse sufficient map-backed minimum intake. Deep fallback
 keeps its wider candidate/family/falsifier coverage, but it is not imposed on a
 valid minimum package. The leader schedules Stage 1A causal-map work, checks its
 actual output, and only then schedules Stage 1B against that accepted output.
 Go artifact operations persist the session; native agent tools execute work.
 A source inspection or graph status alone never proves current behavior.
 
-Navigation hints only queue evidence reads; they cannot bypass confirmation
-or accepted framing. An absent advisory map uses report-grounded deep intake,
+Navigation hints only queue evidence reads; they cannot bypass accepted framing
+or authorize writes. Safe bounded diagnosis does not require repair confirmation;
+exact evidence-backed repair approval is required before mutation. An absent advisory map uses report-grounded deep intake,
 with unknowns and candidate hypotheses explicitly distinguished from facts;
 it does not automatically invoke map maintenance. An unavailable artifact
 runtime still requires its own recovery. Optional feature artifacts are read
@@ -48,7 +50,7 @@ Check authority, current anchors and the execution guard before any source,
 test, harness, configuration or instrumentation write. Renew the guard after
 relevant scope expansion or source drift. Guarded supporting recovery has its
 own causal and before/after evidence and cannot substitute for the original
-target RED. After target causal proof and RED, repair the minimum coherent cause. Necessary harness, launcher
+target RED. After target causal proof, concrete repair approval and RED, repair the minimum coherent cause. Necessary harness, launcher
 or local-tool repairs stay in Debug's authorized recovery scope and return to
 the original reproduction. Do not offload ordinary recovery to another workflow
 or the user. Diagnosis-only authority still forbids source and instrumentation

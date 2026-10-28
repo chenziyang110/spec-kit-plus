@@ -15,7 +15,8 @@ Use this template when the debug leader dispatches an evidence-gathering lane fo
 - Provide the current hypothesis and the exact evidence question this worker must answer.
 - Provide the repro command, failing check, or focused code path to inspect.
 - State which files or logs are in scope.
-- For UI-related evidence, provide the confirmed UI target baseline, original references and intents, real entry point, viewport/window, and state to observe. The worker must not propose a redesign.
+- Read-only evidence workers may run during unconfirmed diagnosis after the leader completes the intake flags; no early repair approval is required. Do not dispatch a fix worker before approval of the concrete evidence-backed repair.
+- For UI-related evidence, provide a provisional existing/source-backed target before repair confirmation or the confirmed UI repair target afterward, with its approval status, original references and intents, real entry point, viewport/window, and state to observe. The worker must not propose a redesign.
 
 ## Worker Contract
 
@@ -25,7 +26,8 @@ Use this template when the debug leader dispatches an evidence-gathering lane fo
 - Do not declare the root cause final.
 - Do not update the debug file.
 - Do not mutate the investigation state machine.
-- Use the confirmed UI target baseline only to classify observed drift. Do not infer or approve a repair design before the leader proves the failure mechanism.
+- Do not edit product or test files, repair a harness, or add persistent instrumentation. Report the evidence gap if diagnostic changes are needed; only a separate bounded lane with diagnostic-enablement authority may make those changes.
+- Use the supplied UI target only to classify observed drift, preserving its provisional or confirmed status. Do not infer or approve a repair design before the leader proves the failure mechanism and obtains evidence-backed-repair approval.
 
 ## Minimum Return Payload
 
@@ -49,7 +51,7 @@ Use this template when the debug leader dispatches an evidence-gathering lane fo
 
 ## Inline Project Cognition Handoff
 
-When you changed project-related files, include `changed_paths`, `behavior_surfaces`, `generated_surfaces`, `state_contracts`, `verification`, `known_unknowns`, and `confidence_notes` in the worker result so the parent workflow can build the inline project cognition update payload. Use `known_unknowns` only for blockers that make the update unsafe to trust; put non-blocking scope notes such as excluded unrelated dirty workspace paths in `confidence_notes`.
+Return `cognition_delta` in the existing WorkerTaskResult: `schema: "spec-kit-cognition-delta-v1"`, `version: 1`, and the packet's identity. Report all retained `changed_paths`, including edits from failed or blocked attempts; describe added/modified/deleted/renamed paths in `path_changes` (a rename includes both `old_path` and `new_path` in the path denominator). Preserve relevant `behavior_surfaces`, `owner_surfaces`, `consumer_surfaces`, `interfaces`, `generated_surfaces`, `generated_surface_notes`, `state_contracts`, `evidence_refs`, `verification_evidence`, `invalidated_claim_refs`, `known_unknowns`, `confidence_notes`, and `recovery` as JSON arrays/objects, including nested evidence. These are worker candidates; the runtime owns submission history, source binding, acceptance, and global cognition. Return through the existing result channel; do not write those owners or invent an accepted binding. Legacy path/semantic aliases remain readable, but conflicting values are refused. Use `known_unknowns` only for blockers that make the update unsafe to trust; put non-blocking scope notes such as excluded unrelated dirty workspace paths in `confidence_notes`.
 
 ## Evidence Binding and Resource Safety
 

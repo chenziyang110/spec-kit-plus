@@ -27,6 +27,22 @@ risk/verification evidence, and the fallback trigger, then ask exactly once:
 - Quick: **Direct change (Recommended)** or **Continue full sp-quick**.
 - Debug: **Direct fix (Recommended)** or **Continue full sp-debug**.
 
+For Quick, first explain the current findings and selected evidence basis,
+concrete proposed change and reason, exact scope, affected behavior, expected
+result, risks and verification. Choosing **Direct change (Recommended)**
+approves that exact bounded proposal once; do not add a redundant implementation
+confirmation. Choosing the full branch starts bounded discovery and its normal
+concrete Decision Checkpoint. A generic change request or an unexplained menu
+is not approval of an unseen proposal.
+
+For Debug, the choice must first explain the discovered defect, proven failure
+mechanism and decisive evidence, concrete proposed fix, affected change scope,
+expected result, risks, and original-reproduction/regression verification.
+Choosing **Direct fix (Recommended)** approves that exact bounded repair; do
+not ask a redundant repair confirmation. Choosing the full branch starts its
+normal evidence investigation and later evidence-backed repair checkpoint.
+Do not turn a generic fix request or an unexplained menu into repair authority.
+
 Use the host's native choice UI when available and wait. Never infer or
 auto-select the answer.
 

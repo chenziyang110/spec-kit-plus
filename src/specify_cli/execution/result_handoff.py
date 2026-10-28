@@ -6,9 +6,14 @@ import json
 from pathlib import Path
 
 from specify_cli.input_transport import resolve_agent_text_input
+from specify_cli.atomic_io import read_local_state_bytes, safe_local_state_path
+from specify_cli.workflow_transaction import apply_workflow_transaction
 
 from .result_normalizer import normalize_worker_task_result_payload
 from .result_schema import WorkerTaskResult, worker_task_result_payload
+from .submission_history import append_submission, read_result_owner
+from .submission_history import retained_submission_paths
+from .cognition_delta import decode_result_json
 
 
 FEATURE_LANE_RESULT_DIRECTORIES = {
@@ -197,12 +202,6 @@ def write_normalized_result_handoff(
             project_root=project_root,
             label="result_json",
         )
-    normalized = normalize_worker_task_result_payload(raw_result)
-    if normalized.status == "pending":
-        raise ValueError(
-            "Pending result templates cannot be written to the canonical handoff path. "
-            "Replace the placeholder with a real success, blocked, or failed result first."
-        )
     target_path = build_result_handoff_path(
         project_root,
         command_name=command_name,
@@ -214,13 +213,57 @@ def write_normalized_result_handoff(
         debug_session_slug=debug_session_slug,
         lane_id=lane_id,
     )
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    target_path.write_text(
-        json.dumps(
-            worker_task_result_payload(normalized),
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
+    target_path = safe_local_state_path(target_path, root=project_root)
+    try:
+        before = read_local_state_bytes(target_path, root=project_root)
+    except FileNotFoundError:
+        before = None
+    previous = read_result_owner(before)
+    attempt_id = f"submission-{len((previous or {}).get('submission_history', [])) + (2 if previous and not previous.get('submission_history') else 1)}"
+    try:
+        normalized = normalize_worker_task_result_payload(raw_result)
+        if normalized.status == "pending":
+            raise ValueError(
+                "Pending result templates cannot be written to the canonical handoff path. "
+                "Replace the placeholder with a real success, blocked, or failed result first."
+            )
+    except (TypeError, ValueError) as exc:
+        if previous is None:
+            submitted_json = raw_result if isinstance(raw_result, str) else json.dumps(raw_result, ensure_ascii=False, default=repr)
+            reported_paths, unknown = retained_submission_paths({"submission_history": [{"sequence": 1, "result_json": submitted_json}]})
+            try:
+                candidate = decode_result_json(submitted_json)
+            except ValueError:
+                candidate = None
+            obsolete = isinstance(candidate, dict) and bool({"ui_fidelity_evidence", "uiFidelityEvidence", "uiEvidence", "uiVerification"} & candidate.keys())
+            template = isinstance(candidate, dict) and candidate.get("status") == "pending"
+            confirmation_path = target_path.parent.parent / "confirmation.json"
+            try:
+                confirmation = read_local_state_bytes(confirmation_path, root=project_root)
+            except FileNotFoundError:
+                confirmation = None
+            # Reject an unregistered UI/template input before creating task
+            # state. Real retained edits or an existing owner still need audit.
+            if (obsolete or template) and not reported_paths and not unknown and confirmation is None:
+                raise
+        rejected = append_submission(
+            previous, {"task_id": task_id or lane_id or request_id or "", "status": "pending"},
+            result_ref=target_path.relative_to(project_root).as_posix(), attempt_id=attempt_id,
+            rejection_reason=str(exc), raw_input=raw_result,
+        )
+        apply_workflow_transaction(
+            project_root, kind="result.submit.reject",
+            updates={target_path: (json.dumps(rejected, ensure_ascii=False, indent=2) + "\n").encode("utf-8")},
+            expected_before={target_path: before},
+        )
+        raise
+    stored = append_submission(
+        previous, worker_task_result_payload(normalized),
+        result_ref=target_path.relative_to(project_root).as_posix(), attempt_id=attempt_id,
+    )
+    apply_workflow_transaction(
+        project_root, kind="result.submit",
+        updates={target_path: (json.dumps(stored, ensure_ascii=False, indent=2) + "\n").encode("utf-8")},
+        expected_before={target_path: before},
     )
     return target_path, normalized

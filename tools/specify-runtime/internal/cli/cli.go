@@ -29,6 +29,7 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/scanreceipt"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/scanset"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/scanworkbench"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/scopedregistration"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/store"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/update"
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/validation"
@@ -133,6 +134,8 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return closeoutPlanCommand(args[1:], stdout, stderr, paths)
 	case "update":
 		return updateCommand(args[1:], stdout, stderr, paths)
+	case "scoped-register":
+		return scopedRegisterCommand(args[1:], stdout, stderr, paths)
 	case "claim-reconcile":
 		return claimReconcileCommand(args[1:], stdout, stderr, paths)
 	case "lexicon":
@@ -184,7 +187,7 @@ func versionCommand(args []string, stdout io.Writer, stderr io.Writer, version s
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "specify-runtime cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: specify-runtime cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, repair-status, init-empty, archive-incompatible-store, generate-ignore, confirm-ignore, scan-set, scan-formats, scan-policy-stage, scan-policy-confirm, scan-prepare, scan-lease, scan-packet, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, closeout apply|inspect|repair|replay, identity-repair plan|apply, mutation-receipt, update, claim-reconcile prepare|apply, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, repair-status, init-empty, archive-incompatible-store, generate-ignore, confirm-ignore, scan-set, scan-formats, scan-policy-stage, scan-policy-confirm, scan-prepare, scan-lease, scan-packet, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, closeout binding begin|seal|check, closeout apply|inspect|repair|replay, identity-repair plan|apply, mutation-receipt, update, claim-reconcile prepare|apply, scoped-register, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
 }
 
 func claimReconcileCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -326,8 +329,38 @@ func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.P
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	format := fs.String("format", "json", "Output format: json or text")
+	taskPacket := fs.String("task-packet", "", "Exact project-relative current native or Python worker packet for scoped availability")
+	availabilityJSON := fs.String("availability-json", "", "Previous scope availability binding JSON; rejects stale or old capsule bindings")
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+	if *taskPacket != "" {
+		var previous *query.ScopeBinding
+		if *availabilityJSON != "" {
+			binding, err := query.ParseScopeBinding([]byte(*availabilityJSON))
+			if err != nil {
+				return writeBlockedJSON(stdout, map[string]any{"status": "blocked", "scope_ready": false, "errors": []string{err.Error()}, "recommended_next_action": "rerun_cognition_check_with_current_task_packet"})
+			}
+			previous = &binding
+		}
+		payload, err := query.CheckScopeAvailability(paths, *taskPacket, previous)
+		if err != nil {
+			return writeBlockedJSON(stdout, map[string]any{"status": "blocked", "scope_ready": false, "errors": []string{err.Error()}, "recommended_next_action": "repair_current_task_scope_and_retry"})
+		}
+		if *format != "json" {
+			fmt.Fprintf(stdout, "%s scope_ready=%t global=%s\n", payload.Availability, payload.ScopeReady, payload.GlobalStatus.Freshness)
+			if !payload.ScopeReady {
+				return exitCodeBlocked
+			}
+			return 0
+		}
+		if !payload.ScopeReady {
+			return writeBlockedJSON(stdout, payload)
+		}
+		return writeJSON(stdout, payload)
+	}
+	if *availabilityJSON != "" {
+		return writeBlockedJSON(stdout, map[string]any{"status": "blocked", "scope_ready": false, "errors": []string{"--availability-json requires --task-packet"}})
 	}
 	status, err := rt.ReadStatus(paths)
 	if errors.Is(err, rt.ErrUnsupportedLegacy) {
@@ -1681,6 +1714,65 @@ func updateCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.P
 	return writeCommandResult(stdout, stderr, paths, payload, err)
 }
 
+func scopedRegisterCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("scoped-register", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	inputJSON := fs.String("input-json", "", "Scoped registration JSON (inline, @path, or - for stdin)")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	data, err := readProjectJSONInput(*inputJSON, paths.Root, flagWasSet(fs, "input-json"))
+	if err != nil {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("read scoped registration input: %w", err))
+	}
+	request, canonical, err := scopedregistration.Parse(data)
+	if err != nil {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("decode scoped registration input: %w", err))
+	}
+	payload, err := scopedregistration.Apply(context.Background(), paths, request, canonical)
+	if err != nil {
+		payload.Status = "blocked"
+		return writeBlockedJSON(stdout, map[string]any{
+			"status":   "blocked",
+			"summary":  "scoped registration blocked",
+			"blockers": []string{err.Error()},
+			"data":     payload,
+		})
+	}
+	return writeJSON(stdout, payload)
+}
+
+func readProjectJSONInput(raw, projectRoot string, provided bool) ([]byte, error) {
+	raw = strings.TrimSpace(raw)
+	if !provided || raw == "" || raw == "-" {
+		return readInlineJSONOrStdin(raw, false)
+	}
+	if strings.HasPrefix(raw, "@") {
+		rel := strings.TrimSpace(strings.TrimPrefix(raw, "@"))
+		if rel == "" {
+			return nil, fmt.Errorf("@path must not be empty")
+		}
+		if filepath.IsAbs(rel) || filepath.VolumeName(rel) != "" {
+			return nil, fmt.Errorf("@path must be project-relative")
+		}
+		path := filepath.Join(projectRoot, filepath.FromSlash(rel))
+		resolved, err := filepath.Abs(path)
+		if err != nil {
+			return nil, err
+		}
+		base, err := filepath.Abs(projectRoot)
+		if err != nil {
+			return nil, err
+		}
+		if relative, err := filepath.Rel(base, resolved); err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+			return nil, fmt.Errorf("@path escapes project root")
+		}
+		return os.ReadFile(resolved)
+	}
+	return readInlineJSONOrStdin(raw, true)
+}
+
 func verificationEvidenceFromCLI(values []string) []update.VerificationEvidence {
 	out := make([]update.VerificationEvidence, 0, len(values))
 	for _, value := range values {
@@ -1702,17 +1794,19 @@ func lexiconCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.
 	text := fs.String("query", "", "Query text")
 	limit := fs.Int("limit", 10, "Limit")
 	offset := fs.Int("offset", 0, "Alias catalog offset")
+	catalogRevision := fs.String("catalog-revision", "", "Expected catalog snapshot revision from next_argv")
 	mode := fs.String("mode", "", "Lexicon mode")
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	payload, err := query.LexiconWithOptions(paths, query.LexiconInput{
-		Intent: *intent,
-		Query:  *text,
-		Limit:  *limit,
-		Offset: *offset,
-		Mode:   *mode,
+		Intent:          *intent,
+		Query:           *text,
+		Limit:           *limit,
+		Offset:          *offset,
+		Mode:            *mode,
+		CatalogRevision: *catalogRevision,
 	})
 	return writeCommandResult(stdout, stderr, paths, payload, err)
 }
@@ -2031,12 +2125,13 @@ func expandCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.P
 	fs.SetOutput(stderr)
 	id := fs.String("id", "", "Expansion id")
 	section := fs.String("section", "related_paths", "Expansion section")
+	offset := fs.Int("offset", 0, "Claim evidence page offset")
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
-	payload, err := query.Expand(paths, query.ExpandInput{ID: *id, Section: *section})
+	payload, err := query.Expand(paths, query.ExpandInput{ID: *id, Section: *section, Offset: *offset})
 	return writeCommandResult(stdout, stderr, paths, payload, err)
 }
 

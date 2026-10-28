@@ -134,15 +134,13 @@ def _effective_text(entry: Path, *, prose_only: bool = False) -> str:
 
     This checks possible delivery, not whether an LLM followed conditional read
     triggers. Prose-only checks cannot pass on examples or metadata, while the
-    raw view remains available for unresolved renderer-token checks. TOML commands
-    carry their reference contracts inside the prompt.
+    raw view remains available for unresolved renderer-token checks. TOML commands use the same reachable sidecar walk after decoding their prompt.
     """
     content = entry.read_text(encoding="utf-8")
     if entry.suffix == ".toml":
         prompt = tomllib.loads(content).get("prompt")
         assert isinstance(prompt, str), f"Expected text prompt in {entry}"
-        body = _navigation_prose(prompt) if prose_only else prompt
-        return re.sub(r"\s+", " ", body).lower()
+        content = prompt
 
     root = entry.parent.resolve()
     pending = [entry.resolve()]
@@ -154,7 +152,7 @@ def _effective_text(entry: Path, *, prose_only: bool = False) -> str:
         if source in visited:
             continue
         visited.add(source)
-        body = source.read_text(encoding="utf-8")
+        body = content if source == entry.resolve() else source.read_text(encoding="utf-8")
         parts.append(_navigation_prose(body) if prose_only else body)
         pending.extend(reversed(_reference_paths(body, source, root)))
     return re.sub(r"\s+", " ", "\n".join(parts)).lower()
@@ -199,7 +197,7 @@ def test_missing_debug_reference_repair_preserves_user_edits(installed_debug) ->
 
     project, integration, manifest, profile, script_type, entry = installed_debug
     if not isinstance(integration, SkillsIntegration):
-        pytest.skip("The TOML entrypoint embeds its references rather than owning skill sidecars")
+        pytest.skip("Skill-file repair is separate from TOML command sidecar installation")
     filename = "investigation-contract.md" if profile == "advanced" else "debug-state.md"
     reference = entry.parent / "references" / filename
     assert reference.is_file()
@@ -390,3 +388,15 @@ def test_multiline_comment_hides_only_comment_and_not_later_reference(tmp_path: 
     entry = _graph_fixture(tmp_path, "<!--\nRead `references/missing.md`.\n-->\nRead `references/live.md`.\n")
     (entry.parent / "references/live.md").write_text("actual-live-policy", encoding="utf-8")
     assert "actual-live-policy" in _effective_text(entry, prose_only=True)
+
+
+def test_toml_effective_text_follows_namespaced_sidecar_links(tmp_path: Path) -> None:
+    entry = tmp_path / "debug.toml"
+    entry.write_text('prompt = "Read `references/debug/first.md`."\n', encoding="utf-8")
+    references = tmp_path / "references/debug"
+    references.mkdir(parents=True)
+    (references / "first.md").write_text(
+        "Read `references/debug/second.md`.\n", encoding="utf-8"
+    )
+    (references / "second.md").write_text("Decisive delivered contract.\n", encoding="utf-8")
+    assert "decisive delivered contract" in _effective_text(entry, prose_only=True)

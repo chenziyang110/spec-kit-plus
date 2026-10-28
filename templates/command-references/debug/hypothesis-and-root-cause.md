@@ -11,7 +11,9 @@ Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the 
 Read `references/reproduction-and-evidence.md` for map-backed or dependent
 Stage 1A -> Stage 1B intake and the observer gate. Do not repeat a completed
 intake or call a legacy Python graph to obtain prompts. Enter evidence work
-only after its recorded confirmation and framing gates actually pass.
+only after its recorded intake and framing gates actually pass. Repair writes
+still require exact evidence-backed approval; diagnostic writes require their
+bounded diagnostic-enablement approval.
 
 Maintain the ranked `candidate_queue` with a primary and materially different
 contrarian candidate. Keep the full candidate denominator: each candidate is

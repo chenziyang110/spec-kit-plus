@@ -1,6 +1,9 @@
 ## Autonomous Blocker Recovery
 
-This contract applies to `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug`.
+This contract applies to every `sp-*` workflow, including delegated lanes.
+Before treating a workflow-local `stop`, `blocked`, or escalation instruction
+as a terminal exit, attempt the safe recovery below. A failed gate remains
+closed during recovery; it does not end the invocation by itself.
 Blocker category does not define the repair boundary. Classify ownership from
 the proven control boundary and available authority, not from the subsystem
 name, the original plan, or the initial write scope.
@@ -33,10 +36,40 @@ When such a failure blocks delivery:
    instrumentation, isolation, or the repair fingerprint before retrying.
    Retry count alone never converts agent-owned work into an external blocker.
 
+Choose the smallest recovery that fits the observed failure:
+
+- Missing input: locate and validate existing source artifacts, paths, local
+  tools, and documented prerequisites; restore reproducible inputs through their
+  owner. Never invent requirements, approval, evidence, or accepted dependencies.
+- CLI/schema/revision failure: inspect the installed API/help and current owner
+  state, correct the payload or stale binding, then use its declared guarded
+  recovery/resume operation. Never edit runtime storage or reset a workflow to
+  clear a gate. Recover interrupted processes and side effects before retrying.
+- Delegation failure: discover the actual native surface, repair the packet,
+  redispatch a failed lane, or serialize overlapping writes. Preserve mandatory
+  delegation and independent acceptance; use only a fallback the owner permits.
+- Validation failure: diagnose and repair remaining supported defects rather
+  than stopping because one autofix failed. Read-only/review workflows retain
+  their source-write boundary and route product changes to their declared owner.
+- Advisory cognition unavailable: continue with bounded live evidence where the
+  workflow permits it. Required cognition closeout still uses runtime-owned
+  inspection/repair/replay; unavailable navigation never proves completion.
+
+Honor the user's verification budget. Reuse unchanged valid evidence and run
+the narrowest meaningful repair check plus the interrupted gate; recovery does
+not authorize a full test suite or unrelated cleanup. Continue independent safe
+lanes while a dependent gate is closed. Give concise progress updates during
+recovery instead of requesting routine permission to investigate or repair.
+
 Stop only when no safe authorized agent action remains and evidence proves a
 real human or external boundary: unavailable credentials or permission that
 the Agent cannot request, a protected external system, an unauthorized external
 write, a human decision or review, required physical access, or confirmation
-for a destructive or materially irreversible action. Use the shared Blocked
-Exit Contract then. Complexity, unfamiliar technology, time spent, a changed
+for a destructive or materially irreversible action. An immutable upstream
+contract requiring a new user decision or an unavailable mandatory capability
+may also require its declared handoff; recovery grants no new stage authority,
+source-write permission, or cross-workflow invocation. Use the shared Blocked
+Exit Contract only after applicable recovery is exhausted, preserving attempted
+actions and the exact remaining gate. A blocked state is resumable work, never
+successful completion. Complexity, unfamiliar technology, time spent, a changed
 file count, or being outside the first execution packet is not such a boundary.

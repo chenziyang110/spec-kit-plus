@@ -62,23 +62,13 @@ func TestExpandPublishesEpistemicContractForCandidateDataAndMissingBundles(t *te
 	assertAdvisoryEpistemicContract(t, missing.EpistemicContract)
 	assertSerializedEpistemicContract(t, missing)
 
-	bundle := ExpansionBundle{
-		ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
-		ActiveGenerationID:            "",
-		CandidateUniverseVersion:      CandidateUniverseVersion,
-		QueryFingerprint:              "12345678",
-		SectionPayloads: map[string]any{
-			"raw_candidates": []map[string]any{{"id": "candidate-1"}},
-		},
-	}
-	bundle.ID = expansionBundleID(bundle)
-	bundleID := bundle.ID
-	_, err = writeExpansionBundle(paths, bundle)
+	seedCompassModelSwitchGraph(t, paths)
+	compass, err := Compass(paths, CompassInput{Intent: "debug", Query: "runtimeOverride"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ready, err := Expand(paths, ExpandInput{ID: bundleID, Section: "raw_candidates"})
+	ready, err := Expand(paths, ExpandInput{ID: compass.ExpansionRef.ID, Section: "raw_candidates"})
 	if err != nil {
 		t.Fatal(err)
 	}
